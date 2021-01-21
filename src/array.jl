@@ -306,7 +306,7 @@ end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
   GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n;
-                                       async=true, stream=CUDA.stream())
+                                       async=true)
   if Base.isbitsunion(T)
     # copy selector bytes
     error("Not implemented")
@@ -362,8 +362,7 @@ const MemsetCompatTypes = Union{UInt8, Int8,
 function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
-  Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A);
-           async=true, stream=CuDefaultStream())
+  Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A); async=true)
   A
 end
 
