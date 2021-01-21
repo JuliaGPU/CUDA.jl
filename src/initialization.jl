@@ -74,6 +74,19 @@ function __init__()
     resize!(thread_tasks, Threads.nthreads())
     fill!(thread_tasks, nothing)
 
+    resize!(thread_streams, Threads.nthreads())
+    fill!(thread_streams, nothing)
+
+    atdeviceswitch() do
+        tid = Threads.threadid()
+        thread_streams[tid] = nothing
+    end
+
+    attaskswitch() do
+        tid = Threads.threadid()
+        thread_streams[tid] = nothing
+    end
+
     initializer(prepare_cuda_call)
 
     @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")

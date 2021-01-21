@@ -468,7 +468,8 @@ math_precision() =
 
 ## streams
 
-# XXX: is task local storage fast enough, or do we need a thread-local cache again?
+# thread cache for task-local streams
+const thread_streams = Vector{Union{Nothing,CuStream}}()
 
 """
     stream([per_thread=false])
@@ -481,15 +482,14 @@ not use per-thread APIs (i.e. without `ptsz` or `ptds` suffixes), set `per_threa
 such that the default stream will be `CuStreamPerThread()`.`
 """
 @inline function stream(; per_thread::Bool=false)
-    tls = task_local_storage()
-    # NOTE: we key on the device index, because doing so on the context is expensive.
-    #       that however requires us to wipe the stream TLS entry upon device reset.
-    key = (:CuStream, device())
-    if haskey(tls, :CuStream)
-        tls[:CuStream]::CuStream
-    else
-        tls[:CuStream] = CuStream(; flags=STREAM_NON_BLOCKING)
+    tid = Threads.threadid()
+    if @inbounds thread_streams[tid] === nothing
+        ctx = context()
+        thread_streams[tid] = get!(task_local_storage(), (:CuStream, ctx)) do
+            CuStream(; flags=STREAM_NON_BLOCKING)
+        end
     end
+    something(@inbounds thread_streams[tid])
 end
 
 # reset the stream set in a library. meant to be implemented lazily, i.e. not actively
@@ -512,7 +512,13 @@ function reset_library_streams()
 end
 
 function stream!(s::CuStream)
-    task_local_storage(:CuStream, s)
+    ctx = context()
+    task_local_storage((:CuStream, ctx), s)
+
+    # update the thread cache
+    tid = Threads.threadid()
+    thread_streams[tid] = s
+
     reset_library_streams()
 end
 
