@@ -28,18 +28,18 @@ let
     cudacall(dummy, Tuple{}; threads=1)
     cudacall(dummy, Tuple{}; threads=1, blocks=1)
     cudacall(dummy, Tuple{}; threads=1, blocks=1, shmem=0)
-    cudacall(dummy, Tuple{}; threads=1, blocks=1, shmem=0, stream=CuDefaultStream())
-    cudacall(dummy, Tuple{}; threads=1, blocks=1, shmem=0, stream=CuDefaultStream(), cooperative=false)
+    cudacall(dummy, Tuple{}; threads=1, blocks=1, shmem=0, stream=stream())
+    cudacall(dummy, Tuple{}; threads=1, blocks=1, shmem=0, stream=stream(), cooperative=false)
     cudacall(dummy, ())
-    cudacall(dummy, (); threads=1, blocks=1, shmem=0, stream=CuDefaultStream(), cooperative=false)
+    cudacall(dummy, (); threads=1, blocks=1, shmem=0, stream=stream(), cooperative=false)
 
     # different launch syntaxes
     CUDA.launch(dummy)
     CUDA.launch(dummy; threads=1)
     CUDA.launch(dummy; threads=1, blocks=1)
     CUDA.launch(dummy; threads=1, blocks=1, shmem=0)
-    CUDA.launch(dummy; threads=1, blocks=1, shmem=0, stream=CuDefaultStream())
-    CUDA.launch(dummy; threads=1, blocks=1, shmem=0, stream=CuDefaultStream(), cooperative=false)
+    CUDA.launch(dummy; threads=1, blocks=1, shmem=0, stream=stream())
+    CUDA.launch(dummy; threads=1, blocks=1, shmem=0, stream=stream(), cooperative=false)
 end
 
 let
