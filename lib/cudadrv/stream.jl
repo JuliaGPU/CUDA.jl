@@ -83,11 +83,11 @@ versions of their APIs (i.e. without a `ptsz` or `ptds` suffix).
 @inline CuStreamPerThread() = CuStream(convert(CUstream, 2), CuContext(C_NULL))
 
 """
-    synchronize(s::CuStream)
+    synchronize([s::CuStream])
 
 Wait until a stream's tasks are completed.
 """
-synchronize(s::CuStream) = cuStreamSynchronize(s)
+synchronize(s::CuStream=stream()) = cuStreamSynchronize(s)
 
 """
     query(s::CuStream)

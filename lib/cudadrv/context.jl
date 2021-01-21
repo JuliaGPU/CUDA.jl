@@ -2,7 +2,7 @@
 
 export
     CuContext, CuCurrentContext, activate,
-    synchronize, CuCurrentDevice
+    synchronize_all, CuCurrentDevice
 
 
 ## construction and destruction
@@ -166,11 +166,13 @@ function CuDevice(ctx::CuContext)
 end
 
 """
-    synchronize()
+    synchronize_all()
 
-Block for the current context's tasks to complete.
+Block for the current device's tasks to complete.
 """
-synchronize() = cuCtxSynchronize()
+synchronize_all() = cuCtxSynchronize()
+
+# TODO: rename to device_synchronize when we can differentiate between the on-device call.
 
 
 ## cache config
