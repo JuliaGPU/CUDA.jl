@@ -118,99 +118,6 @@ function insert_check_pass(x, state)
     end
 end
 
-# call variants of API functions that use per-thread default thread semantics
-# (this is the equivalent of defining CUDA_API_PER_THREAD_DEFAULT_STREAM,
-#  but Clang.jl doesn't seem to handle that definition)
-ptds_apicalls = String[
-    "cuMemcpyHtoD",
-    "cuMemcpyDtoH",
-    "cuMemcpyDtoD",
-    "cuMemcpyDtoA",
-    "cuMemcpyAtoD",
-    "cuMemcpyHtoA",
-    "cuMemcpyAtoH",
-    "cuMemcpyAtoA",
-    "cuMemcpy2D",
-    "cuMemcpy2DUnaligned",
-    "cuMemcpy3D",
-    "cuMemsetD8",
-    "cuMemsetD16",
-    "cuMemsetD32",
-    "cuMemsetD2D8",
-    "cuMemsetD2D16",
-    "cuMemsetD2D32",
-    "cuMemcpy",
-    "cuMemcpyPeer",
-    "cuMemcpy3DPeer",
-]
-ptsz_apicalls = String[
-    "cuMemcpyHtoAAsync",
-    "cuMemcpyAtoHAsync",
-    "cuMemcpyHtoDAsync",
-    "cuMemcpyDtoHAsync",
-    "cuMemcpyDtoDAsync",
-    "cuMemcpy2DAsync",
-    "cuMemcpy3DAsync",
-    "cuStreamBeginCapture",
-    "cuMemcpyAsync",
-    "cuMemcpyPeerAsync",
-    "cuMemcpy3DPeerAsync",
-    "cuMemPrefetchAsync",
-    "cuMemsetD8Async",
-    "cuMemsetD16Async",
-    "cuMemsetD32Async",
-    "cuMemsetD2D8Async",
-    "cuMemsetD2D16Async",
-    "cuMemsetD2D32Async",
-    "cuStreamGetPriority",
-    "cuStreamGetFlags",
-    "cuStreamGetCtx",
-    "cuStreamWaitEvent",
-    "cuStreamEndCapture",
-    "cuStreamIsCapturing",
-    "cuStreamGetCaptureInfo",
-    "cuStreamAddCallback",
-    "cuStreamAttachMemAsync",
-    "cuStreamQuery",
-    "cuStreamSynchronize",
-    "cuEventRecord",
-    "cuLaunchKernel",
-    "cuLaunchHostFunc",
-    "cuGraphicsMapResources",
-    "cuGraphicsUnmapResources",
-    "cuStreamWriteValue32",
-    "cuStreamWaitValue32",
-    "cuStreamWriteValue64",
-    "cuStreamWaitValue64",
-    "cuStreamBatchMemOp",
-    "cuLaunchCooperativeKernel",
-    "cuSignalExternalSemaphoresAsync",
-    "cuWaitExternalSemaphoresAsync",
-    "cuGraphLaunch",
-    "cuStreamCopyAttributes",
-    "cuStreamGetAttribute",
-    "cuStreamSetAttribute",
-]
-function rewrite_thread_semantics(x, state)
-    if x isa CSTParser.EXPR && x.head == :call && x[1].val == "ccall"
-        fun = x[3][2][2].val
-        actual_fun = first(split(fun, '_'))    # strip tags
-        offset = state.offset +
-                 x[1].fullspan +
-                 x[2].fullspan +
-                 x[3][1].fullspan +
-                 x[3][2][1].fullspan
-
-        if in(actual_fun, ptds_apicalls)
-            push!(state.edits, Edit(offset+length(fun), "_ptds"))
-        end
-
-        if in(actual_fun, ptsz_apicalls)
-            push!(state.edits, Edit(offset+length(fun), "_ptsz"))
-        end
-    end
-end
-
 # insert `initialize_api()` before each function with a `ccall` calling non-whitelisted fns
 preinit_apicalls = Set{String}([
     # CUDAdrv
@@ -384,9 +291,6 @@ function process(name, headers...; libname=name, kwargs...)
 
         state.offset = 0
         pass(ast, state, insert_check_pass)
-
-        state.offset = 0
-        pass(ast, state, rewrite_thread_semantics)
 
         state.offset = 0
         pass(ast, state, insert_init_pass)
