@@ -362,7 +362,8 @@ const MemsetCompatTypes = Union{UInt8, Int8,
 function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
-  Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A))
+  Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A);
+           async=true, stream=CuDefaultStream())
   A
 end
 
