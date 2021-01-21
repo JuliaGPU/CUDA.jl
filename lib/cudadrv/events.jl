@@ -89,24 +89,18 @@ function elapsed(start::CuEvent, stop::CuEvent)
 end
 
 """
-    @elapsed stream ex
     @elapsed ex
 
 A macro to evaluate an expression, discarding the resulting value, instead returning the
 number of seconds it took to execute on the GPU, as a floating-point number.
 """
-macro elapsed(stream, ex)
-    quote
-        t0, t1 = CuEvent(), CuEvent()
-        record(t0, $(esc(stream)))
-        $(esc(ex))
-        record(t1, $(esc(stream)))
-        synchronize(t1)
-        elapsed(t0, t1)
-    end
-end
 macro elapsed(ex)
     quote
-        @elapsed(stream(), $(esc(ex)))
+        t0, t1 = CuEvent(), CuEvent()
+        record(t0)
+        $(esc(ex))
+        record(t1)
+        synchronize(t1)
+        elapsed(t0, t1)
     end
 end

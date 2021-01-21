@@ -5,7 +5,7 @@
 # multiple threads), using a GPU of your choice (with the ability to reset that device, or
 # use different devices on different threads).
 
-export context, context!, device, device!, device_reset!, deviceid
+export context, context!, device, device!, device_reset!, deviceid, stream, stream_per_thread
 
 
 ## hooks

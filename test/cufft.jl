@@ -303,10 +303,3 @@ end
 end
 
 end
-
-
-@testset "streams" begin
-    X = rand(N1)
-    d_X = CuArray(X)
-    p = plan_fft(d_X)
-end
