@@ -472,16 +472,11 @@ math_precision() =
 const thread_streams = Vector{Union{Nothing,CuStream}}()
 
 """
-    stream([per_thread=false])
+    stream()
 
-Get the active stream for the currently executing task. This returns any stream explicitly
-set by the user, or the default global stream `CuDefaultStream()`.
-
-If you need the default stream to be different per-thread, for use with libraries that do
-not use per-thread APIs (i.e. without `ptsz` or `ptds` suffixes), set `per_thread` to `true`
-such that the default stream will be `CuStreamPerThread()`.`
+Get the CUDA stream that should be used as the default one for the currently executing task.
 """
-@inline function stream(; per_thread::Bool=false)
+@inline function stream()
     tid = Threads.threadid()
     if @inbounds thread_streams[tid] === nothing
         ctx = context()

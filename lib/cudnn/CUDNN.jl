@@ -69,7 +69,7 @@ function handle()
 
             handle
         end
-        cudnnSetStream(thread_handles[tid], stream(per_thread=true))
+        cudnnSetStream(thread_handles[tid], stream())
     end
     something(@inbounds thread_handles[tid])
 end

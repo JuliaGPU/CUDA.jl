@@ -48,6 +48,11 @@ end
     CuDefaultStream()
 
 Return the default stream.
+
+!!! note
+
+    It is generally better to use `stream()` to get a stream object that's local to the
+    current task. That way, operations scheduled in other tasks can overlap.
 """
 @inline CuDefaultStream() = CuStream(convert(CUstream, C_NULL), CuContext(C_NULL))
 
@@ -66,11 +71,14 @@ global stream behavior.
     CuStreamPerThread()
 
 Return a special object to use an implicit stream with per-thread synchronization behavior.
+This stream object is normally meant to be used with APIs that do not have per-thread
+versions of their APIs (i.e. without a `ptsz` or `ptds` suffix).
 
-This should generally only be used with compiled libraries, which cannot be switched to the
-per-thread API calls. For all other uses, it be libraries compiled with `nvcc
---default-stream per-thread` or any CUDA API call using CUDA.jl (which defaults to the
-per-thread variants) you can just use the default `CuDefaultStream` object.
+!!! note
+
+    It is generally not needed to use this type of stream. With CUDA.jl, each task already
+    gets its own non-blocking stream, and multithreading in Julia is typically
+    accomplished using tasks.
 """
 @inline CuStreamPerThread() = CuStream(convert(CUstream, 2), CuContext(C_NULL))
 

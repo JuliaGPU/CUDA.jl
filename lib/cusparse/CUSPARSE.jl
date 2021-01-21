@@ -61,7 +61,7 @@ function handle()
 
             handle
         end
-        cusparseSetStream(thread_handles[tid], stream(per_thread=true))
+        cusparseSetStream(thread_handles[tid], stream())
     end
     something(@inbounds thread_handles[tid])
 end

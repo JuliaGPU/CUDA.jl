@@ -80,7 +80,7 @@ function elementwiseTrinary!(
                                 Ref{scalar_type}(beta),  B, descB, modeB,
                                 Ref{scalar_type}(gamma), C, descC, modeC,
                                 D, descD, modeD,
-                                opAB, opABC, scalar_type, stream(per_thread=true))
+                                opAB, opABC, scalar_type, stream())
     return D
 end
 
@@ -113,7 +113,7 @@ function elementwiseTrinary!(
                                Ref{scalar_type}(beta),  B, descB, modeB,
                                Ref{scalar_type}(gamma), C, descC, modeC,
                                D, descD, modeD,
-                               opAB, opABC, scalar_type, stream(per_thread=true))
+                               opAB, opABC, scalar_type, stream())
     return D
 end
 
@@ -138,7 +138,7 @@ function elementwiseBinary!(
                               Ref{scalar_type}(alpha), A, descA, modeA,
                               Ref{scalar_type}(gamma), C, descC, modeC,
                               D, descD, modeD,
-                              opAC, scalar_type, stream(per_thread=true))
+                              opAC, scalar_type, stream())
     return D
 end
 
@@ -163,7 +163,7 @@ function elementwiseBinary!(
                               Ref{scalar_type}(alpha), A, descA, modeA,
                               Ref{scalar_type}(gamma), C, descC, modeC,
                               D, descD, modeD,
-                              opAC, scalar_type, stream(per_thread=true))
+                              opAC, scalar_type, stream())
     return D
 end
 
@@ -188,7 +188,7 @@ function elementwiseBinary!(
                               Ref{scalar_type}(alpha), A.data, descA, modeA,
                               Ref{scalar_type}(gamma), C.data, descC, modeC,
                               D.data, descD, modeD,
-                              opAC, scalar_type, stream(per_thread=true))
+                              opAC, scalar_type, stream())
     return D
 end
 
@@ -206,7 +206,7 @@ function permutation!(
                         Ref{scalar_type}(alpha),
                         A, descA, modeA,
                         B, descB, modeB,
-                        scalar_type, stream(per_thread=true))
+                        scalar_type, stream())
     return B
 end
 function permutation!(
@@ -223,7 +223,7 @@ function permutation!(
                         Ref{scalar_type}(alpha),
                         A, descA, modeA,
                         B, descB, modeB,
-                        scalar_type, stream(per_thread=true))
+                        scalar_type, stream())
     return B
 end
 
@@ -281,7 +281,7 @@ function contraction!(
             cutensorContraction(handle(), plan_ref,
                                 Ref{scalar_type}(alpha), A, B,
                                 Ref{scalar_type}(beta),  C, C,
-                                workspace, sizeof(workspace), stream(per_thread=true))
+                                workspace, sizeof(workspace), stream())
         end
     return C
 end
@@ -362,7 +362,7 @@ function reduction!(
                 Ref{T}(beta),  C, descC, modeC,
                         C, descC, modeC,
                 opReduce, typeCompute,
-                workspace, sizeof(workspace), stream(per_thread=true))
+                workspace, sizeof(workspace), stream())
         end
 
     return C

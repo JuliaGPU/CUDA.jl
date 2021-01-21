@@ -35,7 +35,7 @@ function default_rng()
             Random.seed!(rng)
             rng
         end
-        curandSetStream(CURAND_THREAD_RNGs[tid], stream(per_thread=true))
+        curandSetStream(CURAND_THREAD_RNGs[tid], stream())
     end
     something(@inbounds CURAND_THREAD_RNGs[tid])
 end

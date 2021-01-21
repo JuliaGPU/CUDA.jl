@@ -12,7 +12,7 @@ mutable struct RNG <: Random.AbstractRNG
 
     function RNG(typ=CURAND_RNG_PSEUDO_DEFAULT)
         handle = curandCreateGenerator(typ)
-        curandSetStream(handle, stream(per_thread=true))   # XXX: duplicate with default_rng
+        curandSetStream(handle, stream())   # XXX: duplicate with default_rng
         obj = new(handle, context(), typ)
         finalizer(unsafe_destroy!, obj)
         return obj
