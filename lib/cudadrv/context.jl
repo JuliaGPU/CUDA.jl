@@ -170,7 +170,10 @@ end
 
 Block for the current device's tasks to complete.
 """
-synchronize_all() = cuCtxSynchronize()
+function synchronize_all()
+    cuCtxSynchronize()
+    check_exceptions()
+end
 
 # TODO: rename to device_synchronize when we can differentiate between the on-device call.
 

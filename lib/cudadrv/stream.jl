@@ -111,8 +111,6 @@ function synchronize(s::CuStream=stream(); blocking::Bool=true)
         blocking && yield()
     end
 
-    # FIXME: this is expensive. Maybe kernels should return a `wait`able object, a la KA.jl,
-    #        which then performs the necessary checks. Or only check when launching kernels.
     check_exceptions()
 end
 
