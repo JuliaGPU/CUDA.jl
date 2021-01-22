@@ -15,6 +15,8 @@ using LinearAlgebra: HermOrSym
 
 using Adapt
 
+using DataStructures
+
 using SparseArrays
 
 const SparseChar = Char
@@ -46,18 +48,24 @@ include("interfaces.jl")
 # thread cache for task-local library handles
 const thread_handles = Vector{Union{Nothing,cusparseHandle_t}}()
 
+# cache for created, but unused handles
+const old_handles = DefaultDict{CuContext,Vector{cusparseHandle_t}}(()->cusparseHandle_t[])
+
 function handle()
     tid = Threads.threadid()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUSPARSE, ctx)) do
-            handle = cusparseCreate()
-            finalizer(current_task()) do task
-                CUDA.isvalid(ctx) || return
-                context!(ctx) do
-                    cusparseDestroy(handle)
-                end
+            handle = if isempty(old_handles[ctx])
+                cusparseCreate()
+            else
+                pop!(old_handles[ctx])
             end
+
+            finalizer(current_task()) do task
+                push!(old_handles[ctx], handle)
+            end
+            # TODO: cusparseDestroy to preserve memory, or at exit?
 
             handle
         end

@@ -10,6 +10,8 @@ using CEnum
 
 using Memoize
 
+using DataStructures
+
 import NNlib
 
 
@@ -54,18 +56,24 @@ end
 # thread cache for task-local library handles
 const thread_handles = Vector{Union{Nothing,cudnnHandle_t}}()
 
+# cache for created, but unused handles
+const old_handles = DefaultDict{CuContext,Vector{cudnnHandle_t}}(()->cudnnHandle_t[])
+
 function handle()
     tid = Threads.threadid()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUDNN, ctx)) do
-            handle = cudnnCreate()
-            finalizer(current_task()) do task
-                CUDA.isvalid(ctx) || return
-                context!(ctx) do
-                    cudnnDestroy(handle)
-                end
+            handle = if isempty(old_handles[ctx])
+                cudnnCreate()
+            else
+                pop!(old_handles[ctx])
             end
+
+            finalizer(current_task()) do task
+                push!(old_handles[ctx], handle)
+            end
+            # TODO: cudnnDestroy to preserve memory, or at exit?
 
             handle
         end

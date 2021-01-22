@@ -16,6 +16,8 @@ using CEnum
 
 using Memoize
 
+using DataStructures
+
 
 # core library
 include("libcublas_common.jl")
@@ -33,6 +35,10 @@ include("linalg.jl")
 # thread cache for task-local library handles
 const thread_handles = Vector{Union{Nothing,cublasHandle_t}}()
 const thread_xt_handles = Vector{Union{Nothing,cublasXtHandle_t}}()
+
+# cache for created, but unused handles
+const old_handles = DefaultDict{CuContext,Vector{cublasHandle_t}}(()->cublasHandle_t[])
+const old_xt_handles = DefaultDict{CuContext,Vector{cublasXtHandle_t}}(()->cublasXtHandle_t[])
 
 function math_mode!(handle, mode)
     flags = 0
@@ -75,19 +81,17 @@ function handle()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUBLAS, ctx)) do
-            handle = cublasCreate()
-            finalizer(current_task()) do task
-                CUDA.isvalid(ctx) || return
-                context!(ctx) do
-                    cublasDestroy_v2(handle)
-                end
+            handle = if isempty(old_handles[ctx])
+                cublasCreate()
+                # FIXME: use cublasSetWorkspace? cublasSetStream reset it.
+            else
+                pop!(old_handles[ctx])
             end
 
-            if version(handle) >= v"11.2"
-                workspace = CuArray{UInt8}(undef, 4*1024*1024)  # TODO: 256-byte aligned
-                cublasSetWorkspace_v2(handle, workspace, sizeof(workspace))
-                task_local_storage((:CUBLAS, :workspace), workspace)
+            finalizer(current_task()) do task
+                push!(old_handles[ctx], handle)
             end
+            # TODO: cublasDestroy to preserve memory, or at exit?
 
             math_mode!(handle, CUDA.math_mode())
 
@@ -104,17 +108,20 @@ function xt_handle()
     if @inbounds thread_xt_handles[tid] === nothing
         ctx = context()
         thread_xt_handles[tid] = get!(task_local_storage(), (:CUBLASxt, ctx)) do
-            handle = cublasXtCreate()
-            finalizer(current_task()) do task
-                CUDA.isvalid(ctx) || return
-                context!(ctx) do
-                    cublasXtDestroy(handle)
-                end
+            handle = if isempty(old_xt_handles[ctx])
+                cublasXtCreate()
+            else
+                pop!(old_xt_handles[ctx])
             end
+
+            finalizer(current_task()) do task
+                push!(old_xt_handles[ctx], handle)
+            end
+            # TODO: cublasXtDestroy to preserve memory, or at exit?
 
             # select the devices
             # TODO: this is weird, since we typically use a single device per thread/context
-            devs = convert.(Cint, CUDA.devices())
+            devs = convert.(Cint, devices())
             cublasXtDeviceSelect(handle, length(devs), devs)
 
             handle
