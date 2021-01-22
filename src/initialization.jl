@@ -87,7 +87,7 @@ function __init__()
         thread_streams[tid] = nothing
     end
 
-    initializer(prepare_cuda_call)
+    initializer(initialize_cuda_context)
 
     @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
 end

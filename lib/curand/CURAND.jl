@@ -33,6 +33,7 @@ const old_curand_rngs = DefaultDict{CuContext,Vector{RNG}}(()->RNG[])
 const old_gpuarray_rngs = DefaultDict{CuContext,Vector{GPUArrays.RNG}}(()->GPUArrays.RNG[])
 
 function default_rng()
+    CUDA.detect_task_switch()
     tid = Threads.threadid()
     if @inbounds CURAND_THREAD_RNGs[tid] === nothing
         ctx = context()
@@ -58,6 +59,7 @@ function default_rng()
 end
 
 function GPUArrays.default_rng(::Type{<:CuArray})
+    CUDA.detect_task_switch()
     tid = Threads.threadid()
     if @inbounds GPUARRAY_THREAD_RNGs[tid] === nothing
         ctx = context()
