@@ -38,7 +38,7 @@ const thread_xt_handles = Vector{Union{Nothing,cublasXtHandle_t}}()
 
 # cache for created, but unused handles
 const old_handles = DefaultDict{CuContext,Vector{cublasHandle_t}}(()->cublasHandle_t[])
-const old_xt_handles = DefaultDict{CuContext,Vector{cublasXtHandle_t}}(()->cublasXtHandle_t[])
+const old_xt_handles = DefaultDict{Vector{CuContext},Vector{cublasHandle_t}}(()->cublasHandle_t[])
 
 function math_mode!(handle, mode)
     flags = 0
@@ -106,21 +106,20 @@ end
 function xt_handle()
     tid = Threads.threadid()
     if @inbounds thread_xt_handles[tid] === nothing
-        ctx = context()
-        thread_xt_handles[tid] = get!(task_local_storage(), (:CUBLASxt, ctx)) do
-            handle = if isempty(old_xt_handles[ctx])
+        ctxs = [context(dev) for dev in devices()]
+        thread_xt_handles[tid] = get!(task_local_storage(), (:CUBLASxt, ctxs)) do
+            handle = if isempty(old_xt_handles[ctxs])
                 cublasXtCreate()
             else
-                pop!(old_xt_handles[ctx])
+                pop!(old_xt_handles[ctxs])
             end
 
             finalizer(current_task()) do task
-                push!(old_xt_handles[ctx], handle)
+                push!(old_xt_handles[ctxs], handle)
             end
             # TODO: cublasXtDestroy to preserve memory, or at exit?
 
-            # select the devices
-            # TODO: this is weird, since we typically use a single device per thread/context
+            # select all devices
             devs = convert.(Cint, devices())
             cublasXtDeviceSelect(handle, length(devs), devs)
 
@@ -144,10 +143,13 @@ function __init__()
     resize!(thread_xt_handles, Threads.nthreads())
     fill!(thread_xt_handles, nothing)
 
+    CUDA.atdevicereset() do dev
+        fill!(thread_xt_handles, nothing)
+    end
+
     CUDA.atdeviceswitch() do
         tid = Threads.threadid()
         thread_handles[tid] = nothing
-        thread_xt_handles[tid] = nothing
     end
 
     CUDA.attaskswitch() do
