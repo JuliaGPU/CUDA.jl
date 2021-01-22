@@ -77,7 +77,7 @@ function math_mode!(handle, mode)
 end
 
 function handle()
-    CUDA.detect_task_switch()
+    CUDA.detect_state_changes()
     tid = Threads.threadid()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
@@ -105,7 +105,7 @@ function handle()
 end
 
 function xt_handle()
-    CUDA.detect_task_switch()
+    CUDA.detect_state_changes()
     tid = Threads.threadid()
     if @inbounds thread_xt_handles[tid] === nothing
         ctxs = [context(dev) for dev in devices()]

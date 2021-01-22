@@ -34,7 +34,7 @@ const thread_handles = Vector{Union{Nothing,Base.RefValue{cutensorHandle_t}}}()
 const old_handles = DefaultDict{CuContext,Vector{Base.RefValue{cutensorHandle_t}}}(()->Base.RefValue{cutensorHandle_t}[])
 
 function handle()
-    CUDA.detect_task_switch()
+    CUDA.detect_state_changes()
     tid = Threads.threadid()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()

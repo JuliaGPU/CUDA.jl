@@ -37,7 +37,7 @@ const old_dense_handles = DefaultDict{CuContext,Vector{cusolverDnHandle_t}}(()->
 const old_sparse_handles = DefaultDict{CuContext,Vector{cusolverSpHandle_t}}(()->cusolverSpHandle_t[])
 
 function dense_handle()
-    CUDA.detect_task_switch()
+    CUDA.detect_state_changes()
     tid = Threads.threadid()
     if @inbounds thread_dense_handles[tid] === nothing
         ctx = context()
@@ -62,7 +62,7 @@ function dense_handle()
 end
 
 function sparse_handle()
-    CUDA.detect_task_switch()
+    CUDA.detect_state_changes()
     tid = Threads.threadid()
     if @inbounds thread_sparse_handles[tid] === nothing
         ctx = context()
