@@ -494,23 +494,15 @@ Get the CUDA stream that should be used as the default one for the currently exe
     something(@inbounds thread_streams[tid])
 end
 
-# reset the stream set in a library. meant to be implemented lazily, i.e. not actively
-# looking up the new stream and reconfiguring the library, but doing so lazily to avoid
-# stream switching overhead.
-#
-# NOTE: we can't use a hook-based mechanism (like atdevicereset or atdeviceswitch)
-#       because that's too expensive (around 300ns, resulting in 1us stream switches).
-#       the performance goal here is to be able to switch streams around single operations
-#       like kernel launches, so the total switching overhead should be below 500ns or so.
-function reset_library_streams()
-    CURAND.reset_stream()
-    CUSPARSE.reset_stream()
-    CUSOLVER.reset_stream()
-    CUBLAS.reset_stream()
-    CUFFT.reset_stream()
+function set_library_streams(s)
+    CUBLAS.set_stream(s)
+    CUSPARSE.set_stream(s)
+    CUSOLVER.set_stream(s)
+    CURAND.set_stream(s)
+    CUFFT.set_stream(s)
 
-    CUDNN.reset_stream()
-    CUTENSOR.reset_stream()
+    CUDNN.set_stream(s)
+    CUTENSOR.set_stream(s)
 end
 
 function stream!(s::CuStream)
@@ -521,16 +513,21 @@ function stream!(s::CuStream)
     tid = Threads.threadid()
     thread_streams[tid] = s
 
-    reset_library_streams()
+    set_library_streams(s)
 end
 
 function stream!(f::Function, s::CuStream)
+    # NOTE: we can't read `thread_streams` directly here, or could end up with `nothing`,
+    #       and we need a valid stream to fall back to and reset the library handles with.
+    old_s = stream()
     try
         return task_local_storage(:CuStream, s) do
-            reset_library_streams()
+            thread_streams[tid] = s
+            reset_library_streams(s)
             f()
         end
     finally
-        reset_library_streams()
+        thread_streams[tid] = old_s
+        set_library_streams(old_s)
     end
 end

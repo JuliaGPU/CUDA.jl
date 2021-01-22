@@ -93,12 +93,12 @@ function handle()
             end
             # TODO: cublasDestroy to preserve memory, or at exit?
 
+            cublasSetStream_v2(handle, stream())
+
             math_mode!(handle, CUDA.math_mode())
 
             handle
         end
-
-        cublasSetStream_v2(thread_handles[tid], stream())
     end
     something(@inbounds thread_handles[tid])
 end
@@ -129,11 +129,14 @@ function xt_handle()
     something(@inbounds thread_xt_handles[tid])
 end
 
-function reset_stream()
-    # NOTE: we 'abuse' the thread cache here, as switching streams doesn't invalidate it,
-    #       but we (re-)apply the current stream when populating that cache.
-    tid = Threads.threadid()
-    thread_handles[tid] = nothing
+@inline function set_stream(stream::CuStream)
+    ctx = context()
+    tls = task_local_storage()
+    handle = get(tls, (:CUBLAS, ctx), nothing)
+    if handle !== nothing
+        cublasSetStream_v2(handle, stream)
+    end
+    return
 end
 
 function __init__()

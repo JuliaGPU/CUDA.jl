@@ -75,18 +75,22 @@ function handle()
             end
             # TODO: cudnnDestroy to preserve memory, or at exit?
 
+            cudnnSetStream(handle, stream())
+
             handle
         end
-        cudnnSetStream(thread_handles[tid], stream())
     end
     something(@inbounds thread_handles[tid])
 end
 
-function reset_stream()
-    # NOTE: we 'abuse' the thread cache here, as switching streams doesn't invalidate it,
-    #       but we (re-)apply the current stream when populating that cache.
-    tid = Threads.threadid()
-    thread_handles[tid] = nothing
+@inline function set_stream(stream::CuStream)
+    ctx = context()
+    tls = task_local_storage()
+    handle = get(tls, (:CUDNN, ctx), nothing)
+    if handle !== nothing
+        cudnnSetStream(handle, stream)
+    end
+    return
 end
 
 function __init__()

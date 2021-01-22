@@ -56,8 +56,9 @@ function handle()
     something(@inbounds thread_handles[tid])
 end
 
-function reset_stream()
+@inline function set_stream(stream::CuStream)
     # CUTENSOR uses stream arguments per operation
+    return
 end
 
 function __init__()

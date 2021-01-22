@@ -52,9 +52,10 @@ function dense_handle()
             end
             # TODO: cusolverDnDestroy to preserve memory, or at exit?
 
+            cusolverDnSetStream(handle, stream())
+
             handle
         end
-        cusolverDnSetStream(thread_dense_handles[tid], stream())
     end
     something(@inbounds thread_dense_handles[tid])
 end
@@ -75,19 +76,26 @@ function sparse_handle()
             end
             # TODO: cusolverSpDestroy to preserve memory, or at exit?
 
+            cusolverSpSetStream(handle, stream())
+
             handle
         end
-        cusolverSpSetStream(thread_sparse_handles[tid], stream())
     end
     something(@inbounds thread_sparse_handles[tid])
 end
 
-function reset_stream()
-    # NOTE: we 'abuse' the thread cache here, as switching streams doesn't invalidate it,
-    #       but we (re-)apply the current stream when populating that cache.
-    tid = Threads.threadid()
-    thread_dense_handles[tid] = nothing
-    thread_sparse_handles[tid] = nothing
+@inline function set_stream(stream::CuStream)
+    ctx = context()
+    tls = task_local_storage()
+    dense_handle = get(tls, (:CUSOLVER, :dense, ctx), nothing)
+    if dense_handle !== nothing
+        cusolverDnSetStream(dense_handle, stream)
+    end
+    sparse_handle = get(tls, (:CUSOLVER, :sparse, ctx), nothing)
+    if sparse_handle !== nothing
+        cusolverSpSetStream(sparse_handle, stream)
+    end
+    return
 end
 
 function __init__()

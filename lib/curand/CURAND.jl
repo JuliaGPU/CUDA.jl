@@ -48,10 +48,11 @@ function default_rng()
             end
             # TODO: curandDestroyGenerator to preserve memory, or at exit?
 
+            curandSetStream(rng, stream())
+
             Random.seed!(rng)
             rng
         end
-        curandSetStream(CURAND_THREAD_RNGs[tid], stream())
     end
     something(@inbounds CURAND_THREAD_RNGs[tid])
 end
@@ -83,11 +84,14 @@ function GPUArrays.default_rng(::Type{<:CuArray})
     something(@inbounds GPUARRAY_THREAD_RNGs[tid])
 end
 
-function reset_stream()
-    # NOTE: we 'abuse' the thread cache here, as switching streams doesn't invalidate it,
-    #       but we (re-)apply the current stream when populating that cache.
-    tid = Threads.threadid()
-    CURAND_THREAD_RNGs[tid] = nothing
+@inline function set_stream(stream::CuStream)
+    ctx = context()
+    tls = task_local_storage()
+    rng = get(tls, (:CURAND, ctx), nothing)
+    if rng !== nothing
+        curandSetStream(rng, stream())
+    end
+    return
 end
 
 function __init__()

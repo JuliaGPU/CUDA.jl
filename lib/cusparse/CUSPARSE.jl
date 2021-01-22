@@ -67,18 +67,22 @@ function handle()
             end
             # TODO: cusparseDestroy to preserve memory, or at exit?
 
+            cusparseSetStream(handle, stream())
+
             handle
         end
-        cusparseSetStream(thread_handles[tid], stream())
     end
     something(@inbounds thread_handles[tid])
 end
 
-function reset_stream()
-    # NOTE: we 'abuse' the thread cache here, as switching streams doesn't invalidate it,
-    #       but we (re-)apply the current stream when populating that cache.
-    tid = Threads.threadid()
-    thread_handles[tid] = nothing
+@inline function set_stream(stream::CuStream)
+    ctx = context()
+    tls = task_local_storage()
+    handle = get(tls, (:CUSPARSE, ctx), nothing)
+    if handle !== nothing
+        cusparseSetStream(handle, stream)
+    end
+    return
 end
 
 function __init__()
