@@ -362,8 +362,11 @@ function cufunction_link(@nospecialize(source::FunctionSpec), compiled; kwargs..
     mod = CuModule(image, jit_options)
     fun = CuFunction(mod, compiled.entry)
 
-    # initialize and register the exception flag
-    create_exceptions!(mod)
+    # initialize and register the exception flag, if any
+    if "exception_flag" in compiled.external_gvars
+        create_exceptions!(mod)
+        filter!(isequal("exception_flag"), compiled.external_gvars)
+    end
 
     return HostKernel{source.f,source.tt}(ctx, mod, fun)
 end

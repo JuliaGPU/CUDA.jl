@@ -1,5 +1,7 @@
 # CUDA-specific runtime libraries
 
+import Base.Sys: WORD_SIZE
+
 
 ## GPU runtime library
 
@@ -22,7 +24,15 @@ function precompile_runtime(caps=llvm_cap_support(LLVM.version()))
     return
 end
 
-@inline exception_flag() = ccall("extern julia_exception_flag", llvmcall, Ptr{Cvoid}, ())
+@eval @inline exception_flag() =
+    Base.llvmcall(
+        $("""@exception_flag = externally_initialized global i$(WORD_SIZE) 0
+             define i64 @entry() #0 {
+                 %ptr = load i$(WORD_SIZE), i$(WORD_SIZE)* @exception_flag, align 8
+                 ret i$(WORD_SIZE) %ptr
+             }
+             attributes #0 = { alwaysinline }
+          """, "entry"), Ptr{Cvoid}, Tuple{})
 
 function signal_exception()
     ptr = exception_flag()
