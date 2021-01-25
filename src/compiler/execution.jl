@@ -300,12 +300,37 @@ function cufunction_compile(@nospecialize(source::FunctionSpec); kwargs...)
     target = CUDACompilerTarget(; cap=supported_capability(dev), kwargs...)
     params = CUDACompilerParams()
     job = CompilerJob(target, source, params)
-    return GPUCompiler.compile(:asm, job)
+    cufunction_compile(job)
+end
+
+function cufunction_compile(@nospecialize(job::CompilerJob))
+    # hook compilation for reflection
+    # TODO: proper API (or have GPUCompiler.cached_compilation handle this?)
+    if GPUCompiler.compile_hook[] !== nothing
+        GPUCompiler.compile_hook[](job)
+    end
+
+    # compile
+    method_instance, world = GPUCompiler.emit_julia(job)
+    ir, kernel = GPUCompiler.emit_llvm(job, method_instance, world)
+    code = GPUCompiler.emit_asm(job, ir, kernel; format=LLVM.API.LLVMAssemblyFile)
+
+    # check if we'll need the device runtime
+    undefined_fns = filter(collect(functions(ir))) do f
+        isdeclaration(f) && !LLVM.isintrinsic(f)
+    end
+    intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
+                    "__nvvm_reflect" #= TODO: should have been optimized away =#]
+    needs_cudadevrt = !isempty(setdiff(undefined_fns, intrinsic_fns))
+
+    # find externally-initialized global variables; we'll access those using CUDA APIs.
+    external_gvars = filter(isextinit, collect(globals(ir))) .|> LLVM.name
+
+    return (code, entry=LLVM.name(kernel), needs_cudadevrt, external_gvars)
 end
 
 # link to device code
-function cufunction_link(@nospecialize(source::FunctionSpec),
-                         (asm, kernel_fn, undefined_fns); kwargs...)
+function cufunction_link(@nospecialize(source::FunctionSpec), compiled; kwargs...)
     ctx = context()
 
     # settings to JIT based on Julia's debug setting
@@ -317,7 +342,6 @@ function cufunction_link(@nospecialize(source::FunctionSpec),
     end
 
     # link the CUDA device library
-    image = asm
     # linking the device runtime library requires use of the CUDA linker,
     # which in turn switches compilation to device relocatable code (-rdc) mode.
     #
@@ -325,21 +349,23 @@ function cufunction_link(@nospecialize(source::FunctionSpec),
     # library), this significantly hurts performance, so don't do it unconditionally
     intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
                     "__nvvm_reflect" #= TODO: should have been optimized away =#]
-    if !isempty(setdiff(undefined_fns, intrinsic_fns))
+    image = if compiled.needs_cudadevrt
         linker = CuLink(jit_options)
         add_file!(linker, libcudadevrt(), JIT_INPUT_LIBRARY)
-        add_data!(linker, kernel_fn, asm)
-        image = complete(linker)
+        add_data!(linker, compiled.entry, compiled.code)
+        complete(linker)
+    else
+        compiled.code
     end
 
     # JIT into an executable kernel object
     mod = CuModule(image, jit_options)
-    fun = CuFunction(mod, kernel_fn)
-    kernel = HostKernel{source.f,source.tt}(ctx, mod, fun)
+    fun = CuFunction(mod, compiled.entry)
 
+    # initialize and register the exception flag
     create_exceptions!(mod)
 
-    return kernel
+    return HostKernel{source.f,source.tt}(ctx, mod, fun)
 end
 
 # https://github.com/JuliaLang/julia/issues/14919
