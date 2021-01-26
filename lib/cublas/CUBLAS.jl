@@ -14,6 +14,9 @@ using BFloat16s
 
 using CEnum
 
+using Memoize
+
+
 # core library
 include("libcublas_common.jl")
 include("error.jl")

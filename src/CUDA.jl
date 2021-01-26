@@ -16,6 +16,8 @@ using LinearAlgebra
 
 using BFloat16s
 
+using Memoize
+
 
 ## source code includes
 

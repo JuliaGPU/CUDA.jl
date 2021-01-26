@@ -8,7 +8,10 @@ using ..CUDA: libcudnn, @retry_reclaim, isdebug
 
 using CEnum
 
+using Memoize
+
 import NNlib
+
 
 # core library
 include("libcudnn_common.jl")

@@ -6,9 +6,12 @@ using ..CUDA
 
 using CEnum
 
+using Memoize
+
 using Libdl
 
-function libnvml()
+
+@memoize function libnvml()
     if Sys.iswindows()
         # the NVSMI dir isn't added to PATH by the installer
         nvsmi = joinpath(ENV["ProgramFiles"], "NVIDIA Corporation", "NVSMI")
@@ -22,7 +25,8 @@ function libnvml()
         "libnvidia-ml.so.1"
     end
 end
-has_nvml() = Libdl.dlopen(libnvml(); throw_error=false) !== nothing
+@memoize has_nvml() = Libdl.dlopen(libnvml(); throw_error=false) !== nothing
+
 
 # core library
 include("libnvml_common.jl")

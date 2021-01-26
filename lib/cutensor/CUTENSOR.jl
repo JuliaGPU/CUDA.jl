@@ -8,6 +8,9 @@ using ..CUDA: libcutensor,  @retry_reclaim
 
 using CEnum
 
+using Memoize
+
+
 const cudaDataType_t = cudaDataType
 
 # core library

@@ -8,6 +8,9 @@ using ..CUDA: libcurand, @retry_reclaim
 
 using CEnum
 
+using Memoize
+
+
 # core library
 include("libcurand_common.jl")
 include("error.jl")
