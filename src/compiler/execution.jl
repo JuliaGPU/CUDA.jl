@@ -288,8 +288,7 @@ function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where
     dev = device()
     cache = cufunction_cache[dev]
     source = FunctionSpec(f, tt, true, name)
-    cap = supported_capability(dev)
-    target = CUDACompilerTarget(; cap=supported_capability(dev), kwargs...)
+    target = CUDACompilerTarget(dev; kwargs...)
     params = CUDACompilerParams()
     job = CompilerJob(target, source, params)
     return GPUCompiler.cached_compilation(cache, cufunction_compile, cufunction_link,
