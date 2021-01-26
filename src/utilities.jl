@@ -57,6 +57,10 @@ function versioninfo(io::IO=stdout)
     println(io, "- Device support: $(join(map(ver->"sm_$(ver.major)$(ver.minor)", __target_support[]), ", "))")
     println(io)
 
+    println(io, "Preferences:")
+    println(io, "- Memory pool: $(active_pool[])")
+    println(io)
+
     env = filter(var->startswith(var, "JULIA_CUDA"), keys(ENV))
     if !isempty(env)
         println(io, "Environment:")

@@ -1,5 +1,5 @@
 # these tests spawn subprocesses, so reset the current context to conserve memory
-CUDA.device_reset!()
+CUDA.version() < v"11.2" && CUDA.device_reset!()
 
 function find_sources(path::String, sources=String[])
     if isdir(path)

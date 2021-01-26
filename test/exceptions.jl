@@ -1,5 +1,5 @@
 # these tests spawn subprocesses, so reset the current context to conserve memory
-CUDA.device_reset!()
+CUDA.version() < v"11.2" && CUDA.device_reset!()
 
 @testset "stack traces at different debug levels" begin
 

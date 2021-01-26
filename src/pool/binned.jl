@@ -1,9 +1,16 @@
+module BinnedPool
+
 # binned memory pool allocator
 #
 # the core design is a pretty simple:
 # - bin allocations into multiple pools according to their size (see `poolidx`)
 # - when requested memory, check the pool for unused memory, or allocate dynamically
 # - conversely, when released memory, put it in the appropriate pool for future use
+
+using ..CUDA
+import ..CUDA: actual_alloc, actual_free, PerDevice, initialize!
+
+using ..PoolUtils
 
 
 ## tunables
@@ -53,7 +60,7 @@ const freed_lock = NonReentrantLock()
 const freed = PerDevice{Vector{Block}}((dev)->Vector{Block}())
 
 # reclaim unused buffers
-function pool_reclaim(dev, target_bytes::Int=typemax(Int))
+function reclaim(dev, target_bytes::Int=typemax(Int))
   pool_repopulate(dev)
 
   @lock pool_lock begin
@@ -108,7 +115,7 @@ function pool_repopulate(dev)
   return
 end
 
-function pool_alloc(dev, bytes)
+function alloc(dev, bytes)
   if bytes <= MAX_POOL
     pid = poolidx(bytes)
     create_pools(dev, pid)
@@ -165,7 +172,7 @@ function pool_alloc(dev, bytes)
 
   if block === nothing
     @pool_timeit "3. reclaim" begin
-      pool_reclaim(dev, bytes)
+      reclaim(dev, bytes)
     end
 
     @pool_timeit "4. try alloc" begin
@@ -191,7 +198,7 @@ function pool_alloc(dev, bytes)
 
   if block === nothing
     @pool_timeit "6. reclaim" begin
-      pool_reclaim(dev, bytes)
+      reclaim(dev, bytes)
     end
 
     @pool_timeit "7. try alloc" begin
@@ -201,7 +208,7 @@ function pool_alloc(dev, bytes)
 
   if block === nothing
     @pool_timeit "8. reclaim everything" begin
-      pool_reclaim(dev, typemax(Int))
+      reclaim(dev, typemax(Int))
     end
 
     @pool_timeit "9. try alloc" begin
@@ -222,7 +229,7 @@ function pool_alloc(dev, bytes)
   return block
 end
 
-function pool_free(dev, block)
+function free(dev, block)
   # was this a pooled buffer?
   bytes = sizeof(block)
   if bytes > MAX_POOL
@@ -237,7 +244,7 @@ function pool_free(dev, block)
   end
 end
 
-function pool_init()
+function init()
   initialize!(freed, ndevices())
 
   initialize!(pools_used, ndevices())
@@ -251,4 +258,6 @@ function cached_memory(dev=device())
     sz += bytes * length(pl)
   end
   return sz
+end
+
 end
