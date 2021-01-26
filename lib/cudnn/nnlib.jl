@@ -201,7 +201,7 @@ function ∇conv_filter!(dw::DenseCuArray{T}, x::DenseCuArray{T}, dy::DenseCuArr
     end
   end
 
-  cudnnConvolutionBackwardFilter(fix1d(dw), fix1d(x), fix1d(dy), fix1d(cdims), algo=algo; alpha, kw...)
+  cudnnConvolutionBackwardFilter(fix1d(dw), fix1d(x), fix1d(dy), fix1d(cdims); algo, alpha, kw...)
   return dw
 end
 
