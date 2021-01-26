@@ -291,8 +291,9 @@ function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where
     target = CUDACompilerTarget(dev; kwargs...)
     params = CUDACompilerParams()
     job = CompilerJob(target, source, params)
-    return GPUCompiler.cached_compilation(cache, cufunction_compile, cufunction_link,
-                                          job)::HostKernel{f,tt}
+    return GPUCompiler.cached_compilation(cache, job,
+                                          cufunction_compile,
+                                          cufunction_link)::HostKernel{f,tt}
 end
 
 const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
@@ -319,7 +320,7 @@ function cufunction_compile(@nospecialize(job::CompilerJob))
 end
 
 # link to device code
-function cufunction_link(@nospecialize(job::CompilerJob), compiled; kwargs...)
+function cufunction_link(@nospecialize(job::CompilerJob), compiled)
     ctx = context()
 
     # settings to JIT based on Julia's debug setting
