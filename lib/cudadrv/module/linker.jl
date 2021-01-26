@@ -53,6 +53,12 @@ Base.unsafe_convert(::Type{CUlinkState}, link::CuLink) = link.handle
 Base.:(==)(a::CuLink, b::CuLink) = a.handle == b.handle
 Base.hash(link::CuLink, h::UInt) = hash(link.handle, h)
 
+function Base.show(io::IO, link::CuLink)
+    print(io, "CuLink(")
+    @printf(io, "%p", link.handle)
+    print(io, ", ", link.ctx, ")")
+end
+
 """
     add_data!(link::CuLink, name::String, code::String)
 

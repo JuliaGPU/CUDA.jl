@@ -44,6 +44,12 @@ function unsafe_destroy!(s::CuStream)
     end
 end
 
+function Base.show(io::IO, stream::CuStream)
+    print(io, "CuStream(")
+    @printf(io, "%p", stream.handle)
+    print(io, ", ", stream.ctx, ")")
+end
+
 """
     CuDefaultStream()
 
