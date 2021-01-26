@@ -54,22 +54,26 @@ Base.show(io::IO, buf::DeviceBuffer) =
 Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
     convert(CuPtr{T}, pointer(buf))
 
-
 """
-    Mem.alloc(DeviceBuffer, bytesize::Integer)
+    Mem.alloc(DeviceBuffer, bytesize::Integer;
+              [async=false], [stream::CuStream], [pool::CuMemoryPool])
 
 Allocate `bytesize` bytes of memory on the device. This memory is only accessible on the
 GPU, and requires explicit calls to `unsafe_copyto!`, which wraps `cuMemcpy`,
 for access on the CPU.
 """
 function alloc(::Type{DeviceBuffer}, bytesize::Integer;
-               async::Bool=false, stream::CuStream=stream())
+               async::Bool=false, stream::CuStream=stream(),
+               pool::Union{Nothing,CuMemoryPool}=pool())
     bytesize == 0 && return DeviceBuffer(CU_NULL, 0)
 
     ptr_ref = Ref{CUDA.CUdeviceptr}()
-    # FIXME: async allocator never frees memory?
-    if false && CUDA.version() >= v"11.2"
-        CUDA.cuMemAllocAsync(ptr_ref, bytesize, stream)
+    if CUDA.version() >= v"11.2"
+        if pool !== nothing
+            CUDA.cuMemAllocFromPoolAsync(ptr_ref, bytesize, pool, stream)
+        else
+            CUDA.cuMemAllocAsync(ptr_ref, bytesize, stream)
+        end
         async || synchronize(stream)
     else
         CUDA.cuMemAlloc_v2(ptr_ref, bytesize)
@@ -82,8 +86,7 @@ end
 function free(buf::DeviceBuffer; async::Bool=false, stream::CuStream=stream())
     pointer(buf) == CU_NULL && return
 
-    # FIXME: async allocator never frees memory?
-    if false && CUDA.version() >= v"11.2"
+    if CUDA.version() >= v"11.2"
         CUDA.cuMemFreeAsync(buf, stream)
         async || synchronize(stream)
     else

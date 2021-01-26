@@ -5,7 +5,7 @@
 # multiple threads), using a GPU of your choice (with the ability to reset that device, or
 # use different devices on different threads).
 
-export context, context!, device, device!, device_reset!, deviceid, stream, stream!
+export context, context!, device, device!, device_reset!, deviceid, stream, stream!, pool
 
 
 ## hooks
@@ -542,5 +542,23 @@ function stream!(f::Function, s::CuStream)
     finally
         thread_streams[tid] = old_s
         set_library_streams(old_s)
+    end
+end
+
+
+## memory pools
+
+# NOTE: due to a bug in CUDA 11.2, NVIDIA bug #3240770, we need to manage our own pool
+#       for compatibility with device resets.
+
+const memory_pools = Dict{CuContext,CuMemoryPool}()
+
+function pool()
+    if CUDA.version() < v"11.2"
+        return nothing
+    end
+
+    return get!(memory_pools, context()) do
+        CuMemoryPool(device())
     end
 end
