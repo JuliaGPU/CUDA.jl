@@ -175,7 +175,7 @@ function ∇conv_data!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, w::DenseCuArray
     end
   end
 
-  cudnnConvolutionBackwardData(fix1d(dx), fix1d(w), fix1d(dy), fix1d(cdims), algo=algo; alpha, kw...)
+  cudnnConvolutionBackwardData(fix1d(dx), fix1d(w), fix1d(dy), fix1d(cdims); algo, alpha, kw...)
   return dx
 end
 
