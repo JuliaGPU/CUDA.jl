@@ -1,6 +1,6 @@
 # wrappers of low-level functionality
 
-function version()
+@memoize function version()
     ver = cutensorGetVersion()
     major, ver = divrem(ver, 10000)
     minor, patch = divrem(ver, 100)
@@ -8,7 +8,7 @@ function version()
     VersionNumber(major, minor, patch)
 end
 
-function cuda_version()
+@memoize function cuda_version()
   ver = cutensorGetCudartVersion()
   major, ver = divrem(ver, 1000)
   minor, patch = divrem(ver, 10)

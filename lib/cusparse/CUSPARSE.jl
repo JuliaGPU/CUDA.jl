@@ -8,6 +8,8 @@ using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim
 
 using CEnum
 
+using Memoize
+
 using LinearAlgebra
 using LinearAlgebra: HermOrSym
 
@@ -16,6 +18,7 @@ using Adapt
 using SparseArrays
 
 const SparseChar = Char
+
 
 # core library
 include("libcusparse_common.jl")

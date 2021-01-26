@@ -6,7 +6,10 @@ using ..CUDA: CUstream, CUdevice, CUcontext, CUevent
 
 using CEnum
 
+using Memoize
+
 using ExprTools
+
 
 # core library
 initialize_api() = return

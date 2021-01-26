@@ -9,6 +9,9 @@ using ..CUDA: CUuuid, CUcontext, CUstream, CUdevice, CUdevice_attribute,
 
 using CEnum
 
+using Memoize
+
+
 # core library
 include("libcupti_common.jl")
 include("error.jl")

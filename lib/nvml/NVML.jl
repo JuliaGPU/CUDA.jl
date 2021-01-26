@@ -10,6 +10,7 @@ using Memoize
 
 using Libdl
 
+
 @memoize function libnvml()
     if Sys.iswindows()
         # the NVSMI dir isn't added to PATH by the installer
@@ -25,6 +26,7 @@ using Libdl
     end
 end
 @memoize has_nvml() = Libdl.dlopen(libnvml(); throw_error=false) !== nothing
+
 
 # core library
 include("libnvml_common.jl")
