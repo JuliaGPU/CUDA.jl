@@ -34,6 +34,27 @@ using CUDA.CUDNN
       (kw_conv=(alpha=2f0, beta=-5.1f0), kw_dims=(stride=2, dilation=2)),
     ]
 
+    for _ in 1:100
+        kw_conv = Dict()
+        kw_dims = Dict()
+        if rand(Bool)
+            kw_conv[:alpha] = randn(Float32)
+        end
+        if rand(Bool)
+            kw_conv[:beta] = randn(Float32)
+        end
+        if rand(Bool)
+            kw_dims[:dilation] = rand(1:3)
+        end
+        if rand(Bool)
+            kw_dims[:flipkernel] = rand(Bool)
+        end
+        if rand(Bool)
+            kw_dims[:stride] = rand(1:4)
+        end
+        push!(setups, (kw_conv=(;kw_conv...), kw_dims=(;kw_dims...)))
+    end
+
     for (kw_conv, kw_dims) in setups
       cdims = DenseConvDims(x, w; kw_dims...)
       y = NNlib.conv(x, w, cdims)
