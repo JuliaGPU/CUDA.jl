@@ -204,7 +204,7 @@ function cuda_compat(driver_release=release(), toolkit_release=toolkit_release()
 end
 
 # select the highest capability that is supported by both the toolchain and device
-function supported_capability(dev::CuDevice)
+@memoize function supported_capability(dev::CuDevice)
     dev_cap = capability(dev)
     compat_caps = filter(cap -> cap <= dev_cap, target_support())
     isempty(compat_caps) &&
