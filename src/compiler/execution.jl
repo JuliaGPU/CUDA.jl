@@ -288,29 +288,18 @@ function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where
     dev = device()
     cache = cufunction_cache[dev]
     source = FunctionSpec(f, tt, true, name)
+    cap = supported_capability(dev)
+    target = CUDACompilerTarget(; cap=supported_capability(dev), kwargs...)
+    params = CUDACompilerParams()
+    job = CompilerJob(target, source, params)
     return GPUCompiler.cached_compilation(cache, cufunction_compile, cufunction_link,
-                                          source; kwargs...)::HostKernel{f,tt}
+                                          job)::HostKernel{f,tt}
 end
 
 const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
 
 # compile to PTX
-function cufunction_compile(@nospecialize(source::FunctionSpec); kwargs...)
-    dev = device()
-    cap = supported_capability(dev)
-    target = CUDACompilerTarget(; cap=supported_capability(dev), kwargs...)
-    params = CUDACompilerParams()
-    job = CompilerJob(target, source, params)
-    cufunction_compile(job)
-end
-
 function cufunction_compile(@nospecialize(job::CompilerJob))
-    # hook compilation for reflection
-    # TODO: proper API (or have GPUCompiler.cached_compilation handle this?)
-    if GPUCompiler.compile_hook[] !== nothing
-        GPUCompiler.compile_hook[](job)
-    end
-
     # compile
     method_instance, world = GPUCompiler.emit_julia(job)
     ir, kernel = GPUCompiler.emit_llvm(job, method_instance, world)
@@ -331,7 +320,7 @@ function cufunction_compile(@nospecialize(job::CompilerJob))
 end
 
 # link to device code
-function cufunction_link(@nospecialize(source::FunctionSpec), compiled; kwargs...)
+function cufunction_link(@nospecialize(job::CompilerJob), compiled; kwargs...)
     ctx = context()
 
     # settings to JIT based on Julia's debug setting
@@ -369,7 +358,7 @@ function cufunction_link(@nospecialize(source::FunctionSpec), compiled; kwargs..
         filter!(isequal("exception_flag"), compiled.external_gvars)
     end
 
-    return HostKernel{source.f,source.tt}(ctx, mod, fun)
+    return HostKernel{job.source.f,job.source.tt}(ctx, mod, fun)
 end
 
 # https://github.com/JuliaLang/julia/issues/14919
