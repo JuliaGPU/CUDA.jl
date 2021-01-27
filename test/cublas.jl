@@ -1598,11 +1598,18 @@ end
         @testset "getrf_strided_batched" begin
             local k
             # generate strided matrix
-            A = rand(elty,m,m,10)
+            A = rand(elty,m,m,10);
             # move to device
-            d_A = CuArray(A)
-            pivot, info, d_B = CUBLAS.getrf_strided_batched(d_A, false)
+            d_A = CuArray(A);
+            d_B = similar(d_A);
+            pivot, info, d_B = CUBLAS.getrf_strided_batched(d_A, false);
+            info = CUBLAS.getri_strided_batched!(d_A, d_B, pivot);
             h_info = Array(info)
+
+            for Cs in 1:length(h_info)
+                @test h_info[Cs] == 0
+            end
+
             for Bs in 1:size(d_B, 3)
                 C   = lu!(copy(A[:,:,Bs]),Val(false)) # lu(A[Bs],pivot=false)
                 h_B = Array(d_B[:,:,Bs])
@@ -1617,6 +1624,21 @@ end
                 #compare
                 @test C.L ≈ dL rtol=1e-2
                 @test C.U ≈ dU rtol=1e-2
+            end
+        end
+
+        @testset "getri_strided_batched" begin
+            # generate strided matrix
+            A = rand(elty,m,m,10)
+            # move to device
+            d_A = CuArray(A)
+            pivot, info = CUBLAS.getrf_strided_batched!(d_A, true)
+            info = CUBLAS.getri_strided_batched!(d_A, d_B, pivot)
+            h_info = Array(info)
+            for Cs in 1:size(d_A,3)
+                B   = inv(A[:,:,Cs])
+                @test h_info[Cs] == 0
+                @test B ≈ Array(d_B[:,:,Cs]) rtol=1e-3
             end
         end
 
