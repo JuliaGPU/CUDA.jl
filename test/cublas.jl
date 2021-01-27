@@ -1632,6 +1632,7 @@ end
             A = rand(elty,m,m,10)
             # move to device
             d_A = CuArray(A)
+            d_B = similar(d_A)
             pivot, info = CUBLAS.getrf_strided_batched!(d_A, true)
             info = CUBLAS.getri_strided_batched!(d_A, d_B, pivot)
             h_info = Array(info)
