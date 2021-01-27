@@ -62,18 +62,31 @@ Allocate `bytesize` bytes of memory on the device. This memory is only accessibl
 GPU, and requires explicit calls to `unsafe_copyto!`, which wraps `cuMemcpy`,
 for access on the CPU.
 """
-function alloc(::Type{DeviceBuffer}, bytesize::Integer)
+function alloc(::Type{DeviceBuffer}, bytesize::Integer;
+               async::Bool=false, stream::CuStream=stream())
     bytesize == 0 && return DeviceBuffer(CU_NULL, 0)
 
     ptr_ref = Ref{CUDA.CUdeviceptr}()
-    CUDA.cuMemAlloc_v2(ptr_ref, bytesize)
+    # FIXME: async allocator never frees memory?
+    if false && CUDA.version() >= v"11.2"
+        CUDA.cuMemAllocAsync(ptr_ref, bytesize, stream)
+        async || synchronize(stream)
+    else
+        CUDA.cuMemAlloc_v2(ptr_ref, bytesize)
+    end
 
     return DeviceBuffer(reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize)
 end
 
 
-function free(buf::DeviceBuffer)
-    if pointer(buf) != CU_NULL
+function free(buf::DeviceBuffer; async::Bool=false, stream::CuStream=stream())
+    pointer(buf) == CU_NULL && return
+
+    # FIXME: async allocator never frees memory?
+    if false && CUDA.version() >= v"11.2"
+        CUDA.cuMemFreeAsync(buf, stream)
+        async || synchronize(stream)
+    else
         CUDA.cuMemFree_v2(buf)
     end
 end
@@ -241,7 +254,7 @@ end
 Prefetches memory to the specified destination device.
 """
 function prefetch(buf::UnifiedBuffer, bytes::Integer=sizeof(buf);
-                  device::CuDevice=CuCurrentDevice(), stream::CuStream=CuDefaultStream())
+                  device::CuDevice=device(), stream::CuStream=stream())
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     CUDA.cuMemPrefetchAsync(buf, bytes, device, stream)
 end
@@ -255,7 +268,7 @@ end
 Advise about the usage of a given memory range.
 """
 function advise(buf::UnifiedBuffer, advice::CUDA.CUmem_advise, bytes::Integer=sizeof(buf);
-                device::CuDevice=CuCurrentDevice())
+                device::CuDevice=device())
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     CUDA.cuMemAdvise(buf, bytes, advice, device)
 end
@@ -353,77 +366,51 @@ const Array   = ArrayBuffer
              async::Bool=false, stream::CuStream)
 
 Initialize device memory by copying `val` for `len` times. Executed asynchronously if
-`async` is true, in which case a valid `stream` is required.
+`async` is true, otherwise `stream` is synchronized.
 """
 set!
 
 for T in [UInt8, UInt16, UInt32]
     bits = 8*sizeof(T)
-    fn_sync = Symbol("cuMemsetD$(bits)_v2")
-    fn_async = Symbol("cuMemsetD$(bits)Async")
+    fn = Symbol("cuMemsetD$(bits)Async")
     @eval function set!(ptr::CuPtr{$T}, value::$T, len::Integer;
-                        async::Bool=false, stream::Union{Nothing,CuStream}=nothing)
-        if async
-          stream===nothing &&
-              throw(ArgumentError("Asynchronous memory operations require a stream."))
-            $(getproperty(CUDA, fn_async))(ptr, value, len, stream)
-        else
-          stream===nothing ||
-              throw(ArgumentError("Synchronous memory operations cannot be issues on a stream."))
-            $(getproperty(CUDA, fn_sync))(ptr, value, len)
-        end
+                        async::Bool=false, stream::CuStream=stream())
+        $(getproperty(CUDA, fn))(ptr, value, len, stream)
+        async || synchronize(stream)
+        return
     end
 end
 
 
 ## copy operations
 
-for (f, fa, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH_v2", "cuMemcpyDtoHAsync_v2", CuPtr, Ptr),
-                                    ("cuMemcpyHtoD_v2", "cuMemcpyHtoDAsync_v2", Ptr,   CuPtr),
-                                    ("cuMemcpyDtoD_v2", "cuMemcpyDtoDAsync_v2", CuPtr, CuPtr),
-                                   )
+for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", CuPtr, Ptr),
+                                 ("cuMemcpyHtoDAsync_v2", Ptr,   CuPtr),
+                                 ("cuMemcpyDtoDAsync_v2", CuPtr, CuPtr),
+                                 )
     @eval function Base.unsafe_copyto!(dst::$dstPtrTy{T}, src::$srcPtrTy{T}, N::Integer;
-                                       stream::Union{Nothing,CuStream}=nothing,
+                                       stream::CuStream=stream(),
                                        async::Bool=false) where T
-        if async
-            stream===nothing &&
-                throw(ArgumentError("Asynchronous memory operations require a stream."))
-            $(getproperty(CUDA, Symbol(fa)))(dst, src, N*sizeof(T), stream)
-        else
-            stream===nothing ||
-                throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
-            $(getproperty(CUDA, Symbol(f)))(dst, src, N*sizeof(T))
-        end
+        $(getproperty(CUDA, Symbol(fn)))(dst, src, N*sizeof(T), stream)
+        async || synchronize(stream)
         return dst
     end
 end
 
 function Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::Ptr{T}, N::Integer;
-                             stream::Union{Nothing,CuStream}=nothing,
+                             stream::CuStream=stream(),
                              async::Bool=false) where T
-    if async
-        stream===nothing &&
-            throw(ArgumentError("Asynchronous memory operations require a stream."))
-        CUDA.cuMemcpyHtoAAsync_v2(dst, doffs, src, N*sizeof(T), stream)
-    else
-        stream===nothing ||
-            throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
-        CUDA.cuMemcpyHtoA_v2(dst, doffs, src, N*sizeof(T))
-    end
+    CUDA.cuMemcpyHtoAAsync_v2(dst, doffs, src, N*sizeof(T), stream)
+    async || synchronize(stream)
+    return dst
 end
 
 function Base.unsafe_copyto!(dst::Ptr{T}, src::CuArrayPtr{T}, soffs::Integer, N::Integer;
-                             stream::Union{Nothing,CuStream}=nothing,
+                             stream::CuStream=stream(),
                              async::Bool=false) where T
-    if async
-        stream===nothing &&
-            throw(ArgumentError("Asynchronous memory operations require a stream."))
-        CUDA.cuMemcpyAtoHAsync_v2(dst, src, soffs, N*sizeof(T), stream)
-    else
-        stream===nothing ||
-            throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
-        CUDA.cuMemcpyAtoH_v2(dst, src, soffs, N*sizeof(T))
-    end
+    CUDA.cuMemcpyAtoHAsync_v2(dst, src, soffs, N*sizeof(T), stream)
+    async || synchronize(stream)
+    return dst
 end
 
 Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::CuPtr{T}, N::Integer) where {T} =
@@ -443,7 +430,7 @@ function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
                         width::Integer, height::Integer=1;
                         dstPos::CuDim=(1,1), srcPos::CuDim=(1,1),
                         dstPitch::Integer=0, srcPitch::Integer=0,
-                        async::Bool=false, stream::Union{Nothing,CuStream}=nothing) where T
+                        async::Bool=false, stream::CuStream=stream()) where T
     srcPos = CUDA.CuDim3(srcPos)
     @assert srcPos.z == 1
     dstPos = CUDA.CuDim3(dstPos)
@@ -505,15 +492,9 @@ function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
         # extent
         width*sizeof(T), height
     ))
-    if async
-        stream===nothing &&
-            throw(ArgumentError("Asynchronous memory operations require a stream."))
-        CUDA.cuMemcpy2DAsync_v2(params_ref, stream)
-    else
-        stream===nothing ||
-            throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
-        CUDA.cuMemcpy2D_v2(params_ref)
-    end
+    CUDA.cuMemcpy2DAsync_v2(params_ref, stream)
+    async || synchronize(stream)
+    return dst
 end
 
 """
@@ -525,7 +506,7 @@ end
 Perform a 3D memory copy between pointers `src` and `dst`, at respectively position `srcPos`
 and `dstPos` (1-indexed). Both pitch and destination can be specified for both the source
 and destination; consult the CUDA documentation for more details. This call is executed
-asynchronously if `async` is set, in which case `stream` needs to be a valid CuStream.
+asynchronously if `async` is set, otherwise `stream` is synchronized.
 """
 function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:AbstractBuffer},
                         src::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, srcTyp::Type{<:AbstractBuffer},
@@ -533,7 +514,7 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
                         dstPos::CuDim=(1,1,1), srcPos::CuDim=(1,1,1),
                         dstPitch::Integer=0, dstHeight::Integer=0,
                         srcPitch::Integer=0, srcHeight::Integer=0,
-                        async::Bool=false, stream::Union{Nothing,CuStream}=nothing) where T
+                        async::Bool=false, stream::CuStream=stream()) where T
     srcPos = CUDA.CuDim3(srcPos)
     dstPos = CUDA.CuDim3(dstPos)
 
@@ -597,15 +578,9 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
         # extent
         width*sizeof(T), height, depth
     ))
-    if async
-        stream===nothing &&
-            throw(ArgumentError("Asynchronous memory operations require a stream."))
-        CUDA.cuMemcpy3DAsync_v2(params_ref, stream)
-    else
-        stream===nothing ||
-            throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
-        CUDA.cuMemcpy3D_v2(params_ref)
-    end
+    CUDA.cuMemcpy3DAsync_v2(params_ref, stream)
+    async || synchronize(stream)
+    return dst
 end
 
 

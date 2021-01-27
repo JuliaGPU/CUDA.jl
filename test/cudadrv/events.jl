@@ -12,8 +12,6 @@ end
 
 @test (CUDA.@elapsed begin end) > 0
 
-@test (CUDA.@elapsed CuDefaultStream() begin end) > 0
-
 CuEvent(CUDA.EVENT_BLOCKING_SYNC)
 CuEvent(CUDA.EVENT_BLOCKING_SYNC | CUDA.EVENT_DISABLE_TIMING)
 
@@ -30,9 +28,4 @@ end
 @testset "event query" begin
     event  = CuEvent()
     @test CUDA.query(event) == true
-end
-
-@testset "elapsed stream" begin
-    stream = CuStream()
-    @test (CUDA.@elapsed stream begin end) > 0
 end

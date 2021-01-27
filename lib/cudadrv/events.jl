@@ -37,11 +37,11 @@ Base.:(==)(a::CuEvent, b::CuEvent) = a.handle == b.handle
 Base.hash(e::CuEvent, h::UInt) = hash(e.handle, h)
 
 """
-    record(e::CuEvent, stream=CuDefaultStream())
+    record(e::CuEvent, [stream::CuStream])
 
 Record an event on a stream.
 """
-record(e::CuEvent, stream::CuStream=CuDefaultStream()) =
+record(e::CuEvent, stream::CuStream=stream()) =
     cuEventRecord(e, stream)
 
 """
@@ -69,12 +69,12 @@ function query(e::CuEvent)
 end
 
 """
-    wait(e::CuEvent, stream=CuDefaultStream())
+    wait(e::CuEvent, [stream::CuStream])
 
 Make a stream wait on a event. This only makes the stream wait, and not the host; use
 [`synchronize(::CuEvent)`](@ref) for that.
 """
-wait(e::CuEvent, stream::CuStream=CuDefaultStream()) =
+wait(e::CuEvent, stream::CuStream=stream()) =
     cuStreamWaitEvent(stream, e, 0)
 
 """
@@ -89,24 +89,18 @@ function elapsed(start::CuEvent, stop::CuEvent)
 end
 
 """
-    @elapsed stream ex
     @elapsed ex
 
 A macro to evaluate an expression, discarding the resulting value, instead returning the
 number of seconds it took to execute on the GPU, as a floating-point number.
 """
-macro elapsed(stream, ex)
-    quote
-        t0, t1 = CuEvent(), CuEvent()
-        record(t0, $(esc(stream)))
-        $(esc(ex))
-        record(t1, $(esc(stream)))
-        synchronize(t1)
-        elapsed(t0, t1)
-    end
-end
 macro elapsed(ex)
     quote
-        @elapsed(CuDefaultStream(), $(esc(ex)))
+        t0, t1 = CuEvent(), CuEvent()
+        record(t0)
+        $(esc(ex))
+        record(t1)
+        synchronize(t1)
+        elapsed(t0, t1)
     end
 end
