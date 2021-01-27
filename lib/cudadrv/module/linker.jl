@@ -27,6 +27,7 @@ mutable struct CuLink
             "JIT compiling code" # FIXME: remove this useless message
         end
         if Base.JLOptions().debug_level == 1
+            # XXX: does not apply to the linker
             options[JIT_GENERATE_LINE_INFO] = true
         elseif Base.JLOptions().debug_level >= 2
             options[JIT_GENERATE_DEBUG_INFO] = true
