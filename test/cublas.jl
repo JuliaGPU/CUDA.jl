@@ -1601,9 +1601,7 @@ end
             A = rand(elty,m,m,10);
             # move to device
             d_A = CuArray(A);
-            d_B = similar(d_A);
             pivot, info, d_B = CUBLAS.getrf_strided_batched(d_A, false);
-            info = CUBLAS.getri_strided_batched!(d_A, d_B, pivot);
             h_info = Array(info)
 
             for Cs in 1:length(h_info)
