@@ -1516,10 +1516,6 @@ for (fname, elty) in
          (:cublasZgetriBatched, :ComplexF64),
          (:cublasCgetriBatched, :ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDgetriBatched(
-        #   cublasHandle_t handle, int n, double **A,
-        #   int lda, int *PivotArray, double **C,
-        #   int ldc, int *info, int batchSize)
         function getri_batched!(A::Vector{<:CuMatrix{$elty}},
                               C::Vector{<:CuMatrix{$elty}},
                               pivotArray::CuMatrix{Cint})
