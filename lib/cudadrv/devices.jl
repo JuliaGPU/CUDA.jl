@@ -106,15 +106,15 @@ function Base.iterate(iter::DeviceSet, i=1)
     i >= length(iter) + 1 ? nothing : (CuDevice(i-1), i+1)
 end
 
-function Base.length(::DeviceSet)
+Base.length(::DeviceSet) = ndevices()
+
+Base.IteratorSize(::DeviceSet) = Base.HasLength()
+
+@memoize function ndevices()
     count_ref = Ref{Cint}()
     cuDeviceGetCount(count_ref)
     return count_ref[]
 end
-
-Base.IteratorSize(::DeviceSet) = Base.HasLength()
-
-ndevices() = length(devices())
 
 
 ## convenience attribute getters
