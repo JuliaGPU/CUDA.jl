@@ -1598,10 +1598,10 @@ end
         @testset "getrf_strided_batched" begin
             local k
             # generate strided matrix
-            A = rand(elty,m,m,10);
+            A = rand(elty,m,m,10)
             # move to device
-            d_A = CuArray(A);
-            pivot, info, d_B = CUBLAS.getrf_strided_batched(d_A, false);
+            d_A = CuArray(A)
+            pivot, info, d_B = CUBLAS.getrf_strided_batched(d_A, false)
             h_info = Array(info)
 
             for Cs in 1:length(h_info)
