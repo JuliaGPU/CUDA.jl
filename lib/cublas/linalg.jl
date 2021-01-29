@@ -37,6 +37,18 @@ end
 LinearAlgebra.norm(x::DenseCuArray{<:CublasFloat}) = nrm2(x)
 LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x)
 
+function LinearAlgebra.norm(x::DenseCuArray{<:CublasFloat}, p::Integer)
+    if p==1
+        return CUBLAS.asum(length(x),x)
+    end
+    if p==2
+        return LinearAlgebra.norm(x)
+    end
+    if p>2
+        return LinearAlgebra.tr(LinearAlgebra.Diagonal(abs.(x))^p)^(1/p)
+    end
+end
+
 function LinearAlgebra.axpy!(alpha::Number, x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:CublasFloat
     length(x)==length(y) || throw(DimensionMismatch("axpy arguments have lengths $(length(x)) and $(length(y))"))
     axpy!(length(x), alpha, x, y)
