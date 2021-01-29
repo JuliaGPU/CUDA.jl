@@ -17,7 +17,7 @@ steps:
       queue: "juliagpu"
       cuda: "*"
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
   - wait  # smoke test: don't kick off a large number of tests if they'd all just fail
 
@@ -39,7 +39,7 @@ steps:
       cuda: "11.1"    # older versions of CUDA have issues
       cap: "recent"   # test as much as possible
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
 
     # CUDA versions (from artifacts)
@@ -68,7 +68,7 @@ steps:
       JULIA_CUDA_VERSION: '11.2'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
   - label: "CUDA 11.1"
     plugins:
@@ -90,7 +90,7 @@ steps:
       JULIA_CUDA_VERSION: '11.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
   - label: "CUDA 11.0"
     plugins:
@@ -112,7 +112,7 @@ steps:
       JULIA_CUDA_VERSION: '11.0'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
   - label: "CUDA 10.2"
     plugins:
@@ -134,7 +134,7 @@ steps:
       JULIA_CUDA_VERSION: '10.2'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
   - label: "CUDA 10.1"
     plugins:
@@ -156,7 +156,7 @@ steps:
       JULIA_CUDA_VERSION: '10.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
 
    # special tests
@@ -178,7 +178,7 @@ steps:
     env:
       JULIA_CUDA_MEMORY_POOL: 'split'
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
 
   # other tasks
@@ -207,7 +207,7 @@ steps:
       cuda: "*"
     if: build.message !~ /\[skip benchmarks\]/ &&
         build.branch !~ /^master$$/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 30
 
   # if we will submit results, use the benchmark queue so that we will
   # be running on the same system each time
@@ -238,7 +238,7 @@ steps:
       cuda: "*"
     if: build.message !~ /\[skip benchmarks\]/ &&
         build.branch =~ /^master$$/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 30
 
   - label: "Documentation"
     plugins:
@@ -259,7 +259,7 @@ steps:
       queue: "juliagpu"
       cuda: "*"
     if: build.message !~ /\[skip docs\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 30
 
 
 

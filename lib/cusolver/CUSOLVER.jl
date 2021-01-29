@@ -11,6 +11,9 @@ using ..CUSPARSE: cusparseMatDescr_t
 
 using CEnum
 
+using Memoize
+
+
 # core library
 include("libcusolver_common.jl")
 include("error.jl")
