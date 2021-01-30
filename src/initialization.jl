@@ -16,9 +16,10 @@ fail to check whether CUDA is functional, actual use of functionality might warn
 """
 function functional(show_reason::Bool=false)
     if configured[] < 0
-        _functional(show_reason)
+        Bool(_functional(show_reason))
+    else
+        Bool(configured[])
     end
-    Bool(configured[])
 end
 
 const configure_lock = ReentrantLock()
@@ -26,17 +27,20 @@ const configure_lock = ReentrantLock()
     Base.@lock configure_lock begin
         if configured[] == -1
             configured[] = -2
-            try
-                __configure__()
-                configured[] = 1
+            configured[] = try
                 __runtime_init__()
+                1
             catch ex
                 show_reason && @error("Error during initialization of CUDA.jl", exception=(ex,catch_backtrace()))
-                configured[] = 0
+                0
             end
         elseif configured[] == -2
-            @error "Recursion during initialization of CUDA.jl"
-            configured[] = 0
+            # claim that we're initialized _during_ initialization (this can only happen
+            # on the same task that's currently initializing, due to the reentrant lock)
+            1
+        else
+            # we got stuck on the lock while another thread was initializing
+            configured[]
         end
     end
 end
@@ -90,8 +94,7 @@ function __init__()
     @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
 end
 
-# run-time configuration: try and initialize CUDA, but don't error
-function __configure__()
+function __runtime_init__()
     if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
         error("Running under rr, which is incompatible with CUDA")
     end
@@ -103,10 +106,7 @@ function __configure__()
     elseif res != SUCCESS
         throw_api_error(res)
     end
-end
 
-# run-time initialization: we have a driver, so try and discover CUDA
-function __runtime_init__()
     if version() < v"10.1"
         @warn "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.1 or higher (yours is for CUDA $(version()))"
     end
@@ -144,7 +144,6 @@ function __runtime_init__()
 
     CUBLAS.__runtime_init__()
     has_cudnn() && CUDNN.__runtime_init__()
-
     return
 end
 
