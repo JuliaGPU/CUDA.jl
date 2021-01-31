@@ -38,13 +38,17 @@ using NNlib: ∇conv_data, ∇conv_filter,
 
             # Test that basic convolution is equivalent across GPU/CPU
             @test testf((x, w) -> NNlib.conv(x, w, cdims), x, w)
-            @test testf((y, w) -> ∇conv_data(y, w, cdims), y, w)
-            @test testf((x, y) -> ∇conv_filter(x, y, cdims), x, y)
+            @test testf((y, w) -> NNlib.∇conv_data(y, w, cdims), y, w)
+            @test testf((x, y) -> NNlib.∇conv_filter(x, y, cdims), x, y)
 
-            # Test that we can use an alternative algorithm without dying
-            @test_nowarn NNlib.conv!(CuArray{Float32}(y), CuArray{Float32}(x), CuArray{Float32}(w), cdims) # ; algo=algo)
-            @test_nowarn NNlib.∇conv_data!(CuArray{Float32}(x), CuArray{Float32}(y), CuArray{Float32}(w), cdims) # ; algo=algo)
-            @test_nowarn NNlib.∇conv_filter!(CuArray{Float32}(w), CuArray{Float32}(x), CuArray{Float32}(y), cdims) # ; algo=algo)
+            # Scaling factors
+            @test testf((x, w) -> NNlib.conv(x, w, cdims; alpha=2.0), x, w)
+            @test testf((y, w) -> NNlib.∇conv_data(y, w, cdims; alpha=2.0), y, w)
+            @test testf((x, y) -> NNlib.∇conv_filter(x, y, cdims; alpha=2.0), x, y)
+            
+            @test testf((y, x, w) -> NNlib.conv!(copy(y), x, w, cdims; beta=2.0), y, x, w)
+            # @test testf((x, y, w) -> NNlib.∇conv_data!(copy(x), y, w, cdims; beta=2.0), x, y, w)
+            @test testf((w, x, y) -> NNlib.∇conv_filter!(copy(w), x, y, cdims; beta=2.0), w, x, y)
 
             # Test the compatibility shims
             cy,cx,cw = CuArray{Float32}.((y,x,w))
@@ -70,11 +74,12 @@ using NNlib: ∇conv_data, ∇conv_filter,
 
         # CPU implementation of ∇conv_bias!
         db = zeros(Float64, 1, 1, 3, 1)
-        function CUDNN.∇conv_bias!(db, y)
-            db .= sum(y, dims=(1:(ndims(y)-2)))
+        dy = randn(Float64, 8, 8, 3, 1)
+        function CUDNN.∇conv_bias!(db, dy)
+            db .= sum(dy, dims=(1:(ndims(dy)-2)))
             return db
         end
-        #@test testf(CUDNN.∇conv_bias!, db, y)
+        @test testf(CUDNN.∇conv_bias!, db, dy)
     end
 
     for dims in [(5,5), (5,)]
