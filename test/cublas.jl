@@ -1,5 +1,6 @@
 using CUDA.CUBLAS
 using CUDA.CUBLAS: band, bandex
+using GPUArrays
 
 using LinearAlgebra
 
@@ -86,12 +87,10 @@ end
         end
 
         @testset "norm" begin
-            CUDA.allowscalar(false) do
-                x, y, z = CUDA.rand(elty, 1), CUDA.rand(elty, 2), CUDA.rand(elty, m)
-                @test typeof(norm(x,1)) <: Real
-                @test typeof(norm(y,2)) <: Real
-                @test typeof(norm(z,m)) <: Real
-            end
+            x, y, z = CUDA.rand(elty, 1), CUDA.rand(elty, 2), CUDA.rand(elty, m)
+            @disallowscalar @test typeof(norm(x,1)) <: Real
+            @disallowscalar @test typeof(norm(y,2)) <: Real
+            @disallowscalar @test typeof(norm(z,m)) <: Real
         end
 
         @testset "banded methods" begin
