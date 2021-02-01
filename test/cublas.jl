@@ -84,6 +84,14 @@ end
             mul!(y, f(A), x, Ts(1), Ts(2))
             @test Array(dy) ≈ y
         end
+
+        @testset "norm" begin
+            x, y, z = CUDA.rand(elty, 1), CUDA.rand(elty, 2), CUDA.rand(elty, m)
+            @test typeof(norm(x,1)) <: Real
+            @test typeof(norm(y,2)) <: Real
+            @test typeof(norm(z,m)) <: Real
+        end
+
         @testset "banded methods" begin
             # bands
             ku = 2
