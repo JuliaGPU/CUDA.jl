@@ -3,11 +3,11 @@ steps:
 
   - label: "Julia 1.6"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3:
+      - JuliaCI/julia-test#v1:
           test_args: "--quickfail"
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -23,12 +23,12 @@ steps:
 
   - label: "Julia 1.6 (debug)"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3:
+      - JuliaCI/julia-test#v1:
           julia_args: "-g2"
           test_args: "--memcheck"
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -52,10 +52,10 @@ steps:
 
   - label: "CUDA 11.2"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3: ~
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -72,11 +72,11 @@ steps:
 
   - label: "CUDA 11.1"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3:
+      - JuliaCI/julia-test#v1:
           test_args: "--thorough"
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -94,11 +94,11 @@ steps:
 
   - label: "CUDA 11.0"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3:
+      - JuliaCI/julia-test#v1:
           test_args: "--thorough"
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -116,11 +116,11 @@ steps:
 
   - label: "CUDA 10.2"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3:
+      - JuliaCI/julia-test#v1:
           test_args: "--thorough"
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -138,11 +138,11 @@ steps:
 
   - label: "CUDA 10.1"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3:
+      - JuliaCI/julia-test#v1:
           test_args: "--thorough"
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -163,10 +163,10 @@ steps:
 
   - label: "Split memory pool"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3: ~
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -189,7 +189,7 @@ steps:
   # so they can run on any system in the juliagpu queue.
   - label: "Benchmarks (dry run)"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
     command: |
       julia --project -e '
@@ -213,7 +213,7 @@ steps:
   # be running on the same system each time
   - label: "Benchmarks"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
     env:
       CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
@@ -242,7 +242,7 @@ steps:
 
   - label: "Documentation"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
     command: |
       julia --project -e '
