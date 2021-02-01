@@ -86,10 +86,12 @@ end
         end
 
         @testset "norm" begin
-            x, y, z = CUDA.rand(elty, 1), CUDA.rand(elty, 2), CUDA.rand(elty, m)
-            @test typeof(norm(x,1)) <: Real
-            @test typeof(norm(y,2)) <: Real
-            @test typeof(norm(z,m)) <: Real
+            CUDA.allowscalar(false) do
+                x, y, z = CUDA.rand(elty, 1), CUDA.rand(elty, 2), CUDA.rand(elty, m)
+                @test typeof(norm(x,1)) <: Real
+                @test typeof(norm(y,2)) <: Real
+                @test typeof(norm(z,m)) <: Real
+            end
         end
 
         @testset "banded methods" begin
