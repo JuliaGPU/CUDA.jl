@@ -24,39 +24,11 @@ using CUDA.CUDNN
     x = rand(Float64, fill(8, num_spatial_dims)..., C_in, batch_size)
     w = rand(Float64, fill(2, num_spatial_dims)..., C_in, C_out)
     b = rand(Float64, fill(1, num_spatial_dims)..., C_in, C_out)
-    setups = [
-      (kw_conv=(algo=1,)  ,kw_dims=NamedTuple()),
-      (kw_conv=(algo=0,)  ,kw_dims=(dilation = 2,)),
-      (kw_conv=(algo=1,)  ,kw_dims=(flipkernel = true,)),
-      (kw_conv=(algo=1,)  ,kw_dims=(stride = 2,)),
+    options = (Dict(), Dict(:dilation => 2), Dict(:flipkernel => true), Dict(:stride => 2),)
+    algos = (1, 0, 1, 1,)
 
-      (kw_conv=(alpha=1,beta=1), kw_dims=NamedTuple()),
-      (kw_conv=(alpha=2f0, beta=-5.1f0), kw_dims=(stride=2, dilation=2)),
-    ]
-
-    for _ in 1:100
-        kw_conv = Dict()
-        kw_dims = Dict()
-        if rand(Bool)
-            kw_conv[:alpha] = randn(Float32)
-        end
-        if rand(Bool)
-            kw_conv[:beta] = randn(Float32)
-        end
-        if rand(Bool)
-            kw_dims[:dilation] = rand(1:3)
-        end
-        if rand(Bool)
-            kw_dims[:flipkernel] = rand(Bool)
-        end
-        if rand(Bool)
-            kw_dims[:stride] = rand(1:4)
-        end
-        push!(setups, (kw_conv=(;kw_conv...), kw_dims=(;kw_dims...)))
-    end
-
-    for (kw_conv, kw_dims) in setups
-      cdims = DenseConvDims(x, w; kw_dims...)
+    for (opts, algo) in zip(options, algos)
+      cdims = DenseConvDims(x, w; opts...)
       y = NNlib.conv(x, w, cdims)
 
       # Test that basic convolution is equivalent across GPU/CPU
@@ -65,9 +37,9 @@ using CUDA.CUDNN
       @test testf((x, y) -> ∇conv_filter(x, y, cdims), x, y)
 
       # Test that we can use an alternative algorithm without dying
-      @test_nowarn NNlib.conv!(CuArray{Float32}(y), CuArray{Float32}(x), CuArray{Float32}(w), cdims; kw_conv...)
-      @test_nowarn NNlib.∇conv_data!(CuArray{Float32}(x), CuArray{Float32}(y), CuArray{Float32}(w), cdims; kw_conv...)
-      @test_nowarn NNlib.∇conv_filter!(CuArray{Float32}(w), CuArray{Float32}(x), CuArray{Float32}(y), cdims; kw_conv...)
+      @test_nowarn NNlib.conv!(CuArray{Float32}(y), CuArray{Float32}(x), CuArray{Float32}(w), cdims; algo=algo)
+      @test_nowarn NNlib.∇conv_data!(CuArray{Float32}(x), CuArray{Float32}(y), CuArray{Float32}(w), cdims; algo=algo)
+      @test_nowarn NNlib.∇conv_filter!(CuArray{Float32}(w), CuArray{Float32}(x), CuArray{Float32}(y), cdims; algo=algo)
     end
 
     # Test that pooling is equivalent across GPU/CPU
