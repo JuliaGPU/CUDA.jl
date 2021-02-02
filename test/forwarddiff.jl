@@ -12,7 +12,7 @@ function test_derivative(f, x::T) where T
   return CUDA.@allowscalar buf[]
 end
 
-testf(cuf, f, x) = test_derivative(cuf, x) ≈ ForwardDiff.derivative(f, x)
+testdiff(cuf, f, x) = test_derivative(cuf, x) ≈ ForwardDiff.derivative(f, x)
 
 
 @testset "UNARY" begin
@@ -35,12 +35,12 @@ testf(cuf, f, x) = test_derivative(cuf, x) ≈ ForwardDiff.derivative(f, x)
       x64 += 1
     end
 
-    @test testf(cuf, f, x32)
-    @test testf(cuf, f, x64)
+    @test testdiff(cuf, f, x32)
+    @test testdiff(cuf, f, x64)
 
     if fn ∉ nonneg
-      @test testf(cuf, f, nx32)
-      @test testf(cuf, f, nx64)
+      @test testdiff(cuf, f, nx32)
+      @test testdiff(cuf, f, nx64)
     end
   end
 end
@@ -52,16 +52,16 @@ end
   y64 = rand(Float64)
   y = Int32(7)
 
-  @test testf(x->CUDA.pow(x, Int32(7)), x->x^y, x32)
-  @test testf(x->CUDA.pow(x, y), x->x^y, x64)
-  @test testf(x->CUDA.pow(x, y32), x->x^y32, x32)
-  @test testf(x->CUDA.pow(x, y64), x->x^y64, x64)
+  @test testdiff(x->CUDA.pow(x, Int32(7)), x->x^y, x32)
+  @test testdiff(x->CUDA.pow(x, y), x->x^y, x64)
+  @test testdiff(x->CUDA.pow(x, y32), x->x^y32, x32)
+  @test testdiff(x->CUDA.pow(x, y64), x->x^y64, x64)
 
-  @test testf(y->CUDA.pow(x32, y), y->x32^y, y32)
-  @test testf(y->CUDA.pow(x64, y), y->x64^y, y64)
+  @test testdiff(y->CUDA.pow(x32, y), y->x32^y, y32)
+  @test testdiff(y->CUDA.pow(x64, y), y->x64^y, y64)
 
-  @test testf(x->CUDA.pow(x, x), x->x^x, x32)
-  @test testf(x->CUDA.pow(x, x), x->x^x, x64)
+  @test testdiff(x->CUDA.pow(x, x), x->x^x, x32)
+  @test testdiff(x->CUDA.pow(x, x), x->x^x, x64)
 end
 
 @testset "LITERAL_POW" begin
