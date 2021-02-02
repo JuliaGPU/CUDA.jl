@@ -1489,6 +1489,63 @@ for (fname, elty) in
         end
     end
 end
+## getriBatched - performs batched matrix inversion, no allocations inside
+for (fname, elty) in
+    ((:cublasDgetriBatched, :Float64),
+     (:cublasSgetriBatched, :Float32),
+     (:cublasZgetriBatched, :ComplexF64),
+     (:cublasCgetriBatched, :ComplexF32))
+    @eval begin
+        function getri_batched!(n, Aptrs::CuVector{CuPtr{$elty}},
+                          lda, Cptrs::CuVector{CuPtr{$elty}},ldc,
+                          pivotArray::CuArray{Cint})
+            batchSize = length(Aptrs)
+            info = CuArray{Cint}(undef, batchSize)
+            $fname(handle(), n, Aptrs, lda, pivotArray, Cptrs, ldc, info, batchSize)
+            unsafe_free!(Cptrs)
+            unsafe_free!(Aptrs)
+            return info
+        end
+    end
+end
+
+
+for (fname, elty) in
+        ((:cublasDgetriBatched, :Float64),
+         (:cublasSgetriBatched, :Float32),
+         (:cublasZgetriBatched, :ComplexF64),
+         (:cublasCgetriBatched, :ComplexF32))
+    @eval begin
+        function getri_batched!(A::Vector{<:CuMatrix{$elty}},
+                              C::Vector{<:CuMatrix{$elty}},
+                              pivotArray::CuMatrix{Cint})
+            n = size(A[1])[1]
+            lda = max(1, stride(A[1], 2))
+            ldc = max(1, stride(C[1], 2))
+            Aptrs = unsafe_batch(A)
+            Cptrs = unsafe_batch(C)
+            info = CuArrays.zeros(Cint, length(A))
+            $fname(handle(), n, Aptrs, lda, pivotArray, Cptrs, ldc, info, length(A))
+            unsafe_free!(Cptrs)
+            unsafe_free!(Aptrs)
+
+            return info
+        end
+    end
+end
+
+# CUDA has no strided batched getri, but we can at least avoid constructing costly views (based on getrf_strided_batch)
+function getri_strided_batched!(A::CuArray{<:Any,3}, C::CuArray{<:Any,3}, pivot::CuArray{Cint})
+    m, n = size(A, 1), size(A, 2)
+    if m != n
+        throw(DimensionMismatch("All matrices must be square!"))
+    end
+    ldc = max(1, stride(C, 2))
+    lda = max(1, stride(A, 2))
+    Cptrs = unsafe_strided_batch(C)
+    Aptrs = unsafe_strided_batch(A)
+    return getri_batched!(n, Aptrs, lda, Cptrs, ldc, pivot)
+end
 
 ## matinvBatched - performs batched matrix inversion
 
