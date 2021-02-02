@@ -1,10 +1,16 @@
 using CUDA
 
-function kernel(a)
+function kernel(a, str)
     offset = (threadIdx().x - 1) * size(a)[1]
     @cuprintf("thread %d\n", offset)
     d = CUDA.call_syscall(2, a, offset, 16)
     @cuprintf("file %d\n", d)
+
+    for i in 1:3
+        c = str[threadIdx().x, i]
+        @cuprintf("String %x\n", c)
+    end
+
     return
 end
 
@@ -30,7 +36,7 @@ end
 
 function main()
     width = 16
-    files = ["Artifacts.toml", "LICENSE.md"]
+    files = ["artifacts.toml", "ARTIFACTS.toml"]
     d = zeros(UInt8, width, size(files)[1])
 
     for (i, file) in enumerate(files)

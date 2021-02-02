@@ -239,6 +239,18 @@ CuArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(xs)
 (::Type{CuArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = CuArray{S,N}(x)
 CuArray(A::AbstractArray{T,N}) where {T,N} = CuArray{T,N}(A)
 
+CuArray(s::String) = CuArray(Vector{UInt8}(s))
+
+function CuArray(ss::AbstractArray{String})
+  max = maximum(length.(ss)) + 1 # terminating zero byte
+  arr = zeros(UInt8, length(ss), max)
+  for (i, s) in enumerate(ss)
+    copyto!(arr, (i-1) * max + 1, Array{UInt8}(s), 1)
+  end
+
+  CuArray(arr)
+end
+
 # idempotency
 CuArray{T,N}(xs::CuArray{T,N}) where {T,N} = xs
 
