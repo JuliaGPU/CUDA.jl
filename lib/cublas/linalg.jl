@@ -40,10 +40,8 @@ LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x)
 function LinearAlgebra.norm(x::DenseCuArray{<:CublasFloat}, p::Integer)
     if p==1
         return CUBLAS.asum(length(x),x)
-    end
     else if p==2
         return LinearAlgebra.norm(x)
-    end
     else
         return LinearAlgebra.tr(LinearAlgebra.Diagonal(abs.(x))^p)^(1/p)
     end
