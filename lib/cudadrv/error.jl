@@ -76,21 +76,9 @@ Base.show(io::IO, ::MIME"text/plain", err::CuError) = print(io, "CuError($(err.c
 
 ## API call wrapper
 
-"""
-    initializer(f::Function)
-
-Register a function to be called before making a CUDA API call that requires an initialized
-context.
-"""
-initializer(f::Function) = (api_initializer[] = f; nothing)
-const api_initializer = Union{Nothing,Function}[nothing]
-
 # outlined functionality to avoid GC frame allocation
 @noinline function initialize_api()
-    hook = @inbounds api_initializer[]
-    if hook !== nothing
-        hook()
-    end
+    initialize_cuda_context()
     return
 end
 @noinline function throw_api_error(res)

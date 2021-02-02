@@ -22,6 +22,8 @@ function encode(options::Dict{CUjit_option,Any})
            opt == JIT_GENERATE_DEBUG_INFO ||
            opt == JIT_LOG_VERBOSE
             push!(vals, convert(Ptr{Cvoid}, convert(Int, val::Bool)))
+        elseif opt == JIT_OPTIMIZATION_LEVEL
+            push!(vals, convert(Ptr{Cvoid}, convert(Int, val)))
         elseif opt == JIT_INFO_LOG_BUFFER
             buf = val::Vector{UInt8}
             push!(vals, pointer(buf))

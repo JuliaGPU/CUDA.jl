@@ -87,7 +87,7 @@ end
 
 const conv_forward_algos = DefaultDict{Tuple, Int32}(Int32(-1))
 function conv!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}, cdims::DenseConvDims;
-               alpha=1, algo=-1) where T<:CUDNNFloat
+               algo=-1, alpha=1, kw...) where T<:CUDNNFloat
   if version() < v"6"
     all(x -> x == 1, dilation(cdims)) || error("Only dilation = 1 is supported in cuDNN version < 6")
   end
@@ -106,7 +106,7 @@ function conv!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}, cdims
     end
   end
 
-  cudnnConvolutionForward(fix1d(y), fix1d(x), fix1d(w), fix1d(cdims), alpha=alpha, algo=algo)
+  cudnnConvolutionForward(fix1d(y), fix1d(x), fix1d(w), fix1d(cdims), algo=algo; alpha, kw...)
   return y
 end
 
@@ -156,7 +156,7 @@ end
 
 const conv_data_algos = DefaultDict{Tuple, Int32}(Int32(-1))
 function ∇conv_data!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, w::DenseCuArray{T},
-                     cdims::DenseConvDims; alpha=1, algo=-1) where T<:CUDNNFloat
+                     cdims::DenseConvDims; algo=-1, alpha=1, kw...) where T<:CUDNNFloat
   if version() < v"6"
     all(x -> x == 1, dilation(cdims)) || error("Only dilation = 1 is supported in cuDNN version < 6")
   end
@@ -175,13 +175,13 @@ function ∇conv_data!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, w::DenseCuArray
     end
   end
 
-  cudnnConvolutionBackwardData(fix1d(dx), fix1d(w), fix1d(dy), fix1d(cdims), alpha=alpha, algo=algo)
+  cudnnConvolutionBackwardData(fix1d(dx), fix1d(w), fix1d(dy), fix1d(cdims); algo, alpha, kw...)
   return dx
 end
 
 const conv_filter_algos = DefaultDict{Tuple, Int32}(Int32(-1))
 function ∇conv_filter!(dw::DenseCuArray{T}, x::DenseCuArray{T}, dy::DenseCuArray{T},
-                       cdims::DenseConvDims; alpha=1, algo=-1) where T<:CUDNNFloat
+                       cdims::DenseConvDims; algo=-1, alpha=1, kw...) where T<:CUDNNFloat
   if version() < v"6"
     all(x -> x == 1, dilation(cdims)) || error("Only dilation = 1 is supported in cuDNN version < 6")
   end
@@ -201,7 +201,7 @@ function ∇conv_filter!(dw::DenseCuArray{T}, x::DenseCuArray{T}, dy::DenseCuArr
     end
   end
 
-  cudnnConvolutionBackwardFilter(fix1d(dw), fix1d(x), fix1d(dy), fix1d(cdims), alpha=alpha, algo=algo)
+  cudnnConvolutionBackwardFilter(fix1d(dw), fix1d(x), fix1d(dy), fix1d(cdims); algo, alpha, kw...)
   return dw
 end
 

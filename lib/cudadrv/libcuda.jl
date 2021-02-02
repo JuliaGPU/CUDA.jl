@@ -475,105 +475,105 @@ end
 
 @checked function cuMemcpy(dst, src, ByteCount)
     initialize_api()
-    ccall((:cuMemcpy_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpy, libcuda()), CUresult,
                    (CUdeviceptr, CUdeviceptr, Csize_t),
                    dst, src, ByteCount)
 end
 
 @checked function cuMemcpyPeer(dstDevice, dstContext, srcDevice, srcContext, ByteCount)
     initialize_api()
-    ccall((:cuMemcpyPeer_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpyPeer, libcuda()), CUresult,
                    (CUdeviceptr, CUcontext, CUdeviceptr, CUcontext, Csize_t),
                    dstDevice, dstContext, srcDevice, srcContext, ByteCount)
 end
 
 @checked function cuMemcpyHtoD_v2(dstDevice, srcHost, ByteCount)
     initialize_api()
-    ccall((:cuMemcpyHtoD_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpyHtoD_v2, libcuda()), CUresult,
                    (CUdeviceptr, Ptr{Cvoid}, Csize_t),
                    dstDevice, srcHost, ByteCount)
 end
 
 @checked function cuMemcpyDtoH_v2(dstHost, srcDevice, ByteCount)
     initialize_api()
-    ccall((:cuMemcpyDtoH_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpyDtoH_v2, libcuda()), CUresult,
                    (Ptr{Cvoid}, CUdeviceptr, Csize_t),
                    dstHost, srcDevice, ByteCount)
 end
 
 @checked function cuMemcpyDtoD_v2(dstDevice, srcDevice, ByteCount)
     initialize_api()
-    ccall((:cuMemcpyDtoD_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpyDtoD_v2, libcuda()), CUresult,
                    (CUdeviceptr, CUdeviceptr, Csize_t),
                    dstDevice, srcDevice, ByteCount)
 end
 
 @checked function cuMemcpyDtoA_v2(dstArray, dstOffset, srcDevice, ByteCount)
     initialize_api()
-    ccall((:cuMemcpyDtoA_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpyDtoA_v2, libcuda()), CUresult,
                    (CUarray, Csize_t, CUdeviceptr, Csize_t),
                    dstArray, dstOffset, srcDevice, ByteCount)
 end
 
 @checked function cuMemcpyAtoD_v2(dstDevice, srcArray, srcOffset, ByteCount)
     initialize_api()
-    ccall((:cuMemcpyAtoD_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpyAtoD_v2, libcuda()), CUresult,
                    (CUdeviceptr, CUarray, Csize_t, Csize_t),
                    dstDevice, srcArray, srcOffset, ByteCount)
 end
 
 @checked function cuMemcpyHtoA_v2(dstArray, dstOffset, srcHost, ByteCount)
     initialize_api()
-    ccall((:cuMemcpyHtoA_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpyHtoA_v2, libcuda()), CUresult,
                    (CUarray, Csize_t, Ptr{Cvoid}, Csize_t),
                    dstArray, dstOffset, srcHost, ByteCount)
 end
 
 @checked function cuMemcpyAtoH_v2(dstHost, srcArray, srcOffset, ByteCount)
     initialize_api()
-    ccall((:cuMemcpyAtoH_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpyAtoH_v2, libcuda()), CUresult,
                    (Ptr{Cvoid}, CUarray, Csize_t, Csize_t),
                    dstHost, srcArray, srcOffset, ByteCount)
 end
 
 @checked function cuMemcpyAtoA_v2(dstArray, dstOffset, srcArray, srcOffset, ByteCount)
     initialize_api()
-    ccall((:cuMemcpyAtoA_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpyAtoA_v2, libcuda()), CUresult,
                    (CUarray, Csize_t, CUarray, Csize_t, Csize_t),
                    dstArray, dstOffset, srcArray, srcOffset, ByteCount)
 end
 
 @checked function cuMemcpy2D_v2(pCopy)
     initialize_api()
-    ccall((:cuMemcpy2D_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpy2D_v2, libcuda()), CUresult,
                    (Ptr{CUDA_MEMCPY2D},),
                    pCopy)
 end
 
 @checked function cuMemcpy2DUnaligned_v2(pCopy)
     initialize_api()
-    ccall((:cuMemcpy2DUnaligned_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpy2DUnaligned_v2, libcuda()), CUresult,
                    (Ptr{CUDA_MEMCPY2D},),
                    pCopy)
 end
 
 @checked function cuMemcpy3D_v2(pCopy)
     initialize_api()
-    ccall((:cuMemcpy3D_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpy3D_v2, libcuda()), CUresult,
                    (Ptr{CUDA_MEMCPY3D},),
                    pCopy)
 end
 
 @checked function cuMemcpy3DPeer(pCopy)
     initialize_api()
-    ccall((:cuMemcpy3DPeer_ptds, libcuda()), CUresult,
+    ccall((:cuMemcpy3DPeer, libcuda()), CUresult,
                    (Ptr{CUDA_MEMCPY3D_PEER},),
                    pCopy)
 end
 
 @checked function cuMemcpyAsync(dst, src, ByteCount, hStream)
     initialize_api()
-    ccall((:cuMemcpyAsync_ptsz, libcuda()), CUresult,
+    ccall((:cuMemcpyAsync, libcuda()), CUresult,
                    (CUdeviceptr, CUdeviceptr, Csize_t, CUstream),
                    dst, src, ByteCount, hStream)
 end
@@ -581,147 +581,147 @@ end
 @checked function cuMemcpyPeerAsync(dstDevice, dstContext, srcDevice, srcContext,
                                     ByteCount, hStream)
     initialize_api()
-    ccall((:cuMemcpyPeerAsync_ptsz, libcuda()), CUresult,
+    ccall((:cuMemcpyPeerAsync, libcuda()), CUresult,
                    (CUdeviceptr, CUcontext, CUdeviceptr, CUcontext, Csize_t, CUstream),
                    dstDevice, dstContext, srcDevice, srcContext, ByteCount, hStream)
 end
 
 @checked function cuMemcpyHtoDAsync_v2(dstDevice, srcHost, ByteCount, hStream)
     initialize_api()
-    ccall((:cuMemcpyHtoDAsync_v2_ptsz, libcuda()), CUresult,
+    ccall((:cuMemcpyHtoDAsync_v2, libcuda()), CUresult,
                    (CUdeviceptr, Ptr{Cvoid}, Csize_t, CUstream),
                    dstDevice, srcHost, ByteCount, hStream)
 end
 
 @checked function cuMemcpyDtoHAsync_v2(dstHost, srcDevice, ByteCount, hStream)
     initialize_api()
-    ccall((:cuMemcpyDtoHAsync_v2_ptsz, libcuda()), CUresult,
+    ccall((:cuMemcpyDtoHAsync_v2, libcuda()), CUresult,
                    (Ptr{Cvoid}, CUdeviceptr, Csize_t, CUstream),
                    dstHost, srcDevice, ByteCount, hStream)
 end
 
 @checked function cuMemcpyDtoDAsync_v2(dstDevice, srcDevice, ByteCount, hStream)
     initialize_api()
-    ccall((:cuMemcpyDtoDAsync_v2_ptsz, libcuda()), CUresult,
+    ccall((:cuMemcpyDtoDAsync_v2, libcuda()), CUresult,
                    (CUdeviceptr, CUdeviceptr, Csize_t, CUstream),
                    dstDevice, srcDevice, ByteCount, hStream)
 end
 
 @checked function cuMemcpyHtoAAsync_v2(dstArray, dstOffset, srcHost, ByteCount, hStream)
     initialize_api()
-    ccall((:cuMemcpyHtoAAsync_v2_ptsz, libcuda()), CUresult,
+    ccall((:cuMemcpyHtoAAsync_v2, libcuda()), CUresult,
                    (CUarray, Csize_t, Ptr{Cvoid}, Csize_t, CUstream),
                    dstArray, dstOffset, srcHost, ByteCount, hStream)
 end
 
 @checked function cuMemcpyAtoHAsync_v2(dstHost, srcArray, srcOffset, ByteCount, hStream)
     initialize_api()
-    ccall((:cuMemcpyAtoHAsync_v2_ptsz, libcuda()), CUresult,
+    ccall((:cuMemcpyAtoHAsync_v2, libcuda()), CUresult,
                    (Ptr{Cvoid}, CUarray, Csize_t, Csize_t, CUstream),
                    dstHost, srcArray, srcOffset, ByteCount, hStream)
 end
 
 @checked function cuMemcpy2DAsync_v2(pCopy, hStream)
     initialize_api()
-    ccall((:cuMemcpy2DAsync_v2_ptsz, libcuda()), CUresult,
+    ccall((:cuMemcpy2DAsync_v2, libcuda()), CUresult,
                    (Ptr{CUDA_MEMCPY2D}, CUstream),
                    pCopy, hStream)
 end
 
 @checked function cuMemcpy3DAsync_v2(pCopy, hStream)
     initialize_api()
-    ccall((:cuMemcpy3DAsync_v2_ptsz, libcuda()), CUresult,
+    ccall((:cuMemcpy3DAsync_v2, libcuda()), CUresult,
                    (Ptr{CUDA_MEMCPY3D}, CUstream),
                    pCopy, hStream)
 end
 
 @checked function cuMemcpy3DPeerAsync(pCopy, hStream)
     initialize_api()
-    ccall((:cuMemcpy3DPeerAsync_ptsz, libcuda()), CUresult,
+    ccall((:cuMemcpy3DPeerAsync, libcuda()), CUresult,
                    (Ptr{CUDA_MEMCPY3D_PEER}, CUstream),
                    pCopy, hStream)
 end
 
 @checked function cuMemsetD8_v2(dstDevice, uc, N)
     initialize_api()
-    ccall((:cuMemsetD8_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemsetD8_v2, libcuda()), CUresult,
                    (CUdeviceptr, Cuchar, Csize_t),
                    dstDevice, uc, N)
 end
 
 @checked function cuMemsetD16_v2(dstDevice, us, N)
     initialize_api()
-    ccall((:cuMemsetD16_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemsetD16_v2, libcuda()), CUresult,
                    (CUdeviceptr, UInt16, Csize_t),
                    dstDevice, us, N)
 end
 
 @checked function cuMemsetD32_v2(dstDevice, ui, N)
     initialize_api()
-    ccall((:cuMemsetD32_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemsetD32_v2, libcuda()), CUresult,
                    (CUdeviceptr, UInt32, Csize_t),
                    dstDevice, ui, N)
 end
 
 @checked function cuMemsetD2D8_v2(dstDevice, dstPitch, uc, Width, Height)
     initialize_api()
-    ccall((:cuMemsetD2D8_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemsetD2D8_v2, libcuda()), CUresult,
                    (CUdeviceptr, Csize_t, Cuchar, Csize_t, Csize_t),
                    dstDevice, dstPitch, uc, Width, Height)
 end
 
 @checked function cuMemsetD2D16_v2(dstDevice, dstPitch, us, Width, Height)
     initialize_api()
-    ccall((:cuMemsetD2D16_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemsetD2D16_v2, libcuda()), CUresult,
                    (CUdeviceptr, Csize_t, UInt16, Csize_t, Csize_t),
                    dstDevice, dstPitch, us, Width, Height)
 end
 
 @checked function cuMemsetD2D32_v2(dstDevice, dstPitch, ui, Width, Height)
     initialize_api()
-    ccall((:cuMemsetD2D32_v2_ptds, libcuda()), CUresult,
+    ccall((:cuMemsetD2D32_v2, libcuda()), CUresult,
                    (CUdeviceptr, Csize_t, UInt32, Csize_t, Csize_t),
                    dstDevice, dstPitch, ui, Width, Height)
 end
 
 @checked function cuMemsetD8Async(dstDevice, uc, N, hStream)
     initialize_api()
-    ccall((:cuMemsetD8Async_ptsz, libcuda()), CUresult,
+    ccall((:cuMemsetD8Async, libcuda()), CUresult,
                    (CUdeviceptr, Cuchar, Csize_t, CUstream),
                    dstDevice, uc, N, hStream)
 end
 
 @checked function cuMemsetD16Async(dstDevice, us, N, hStream)
     initialize_api()
-    ccall((:cuMemsetD16Async_ptsz, libcuda()), CUresult,
+    ccall((:cuMemsetD16Async, libcuda()), CUresult,
                    (CUdeviceptr, UInt16, Csize_t, CUstream),
                    dstDevice, us, N, hStream)
 end
 
 @checked function cuMemsetD32Async(dstDevice, ui, N, hStream)
     initialize_api()
-    ccall((:cuMemsetD32Async_ptsz, libcuda()), CUresult,
+    ccall((:cuMemsetD32Async, libcuda()), CUresult,
                    (CUdeviceptr, UInt32, Csize_t, CUstream),
                    dstDevice, ui, N, hStream)
 end
 
 @checked function cuMemsetD2D8Async(dstDevice, dstPitch, uc, Width, Height, hStream)
     initialize_api()
-    ccall((:cuMemsetD2D8Async_ptsz, libcuda()), CUresult,
+    ccall((:cuMemsetD2D8Async, libcuda()), CUresult,
                    (CUdeviceptr, Csize_t, Cuchar, Csize_t, Csize_t, CUstream),
                    dstDevice, dstPitch, uc, Width, Height, hStream)
 end
 
 @checked function cuMemsetD2D16Async(dstDevice, dstPitch, us, Width, Height, hStream)
     initialize_api()
-    ccall((:cuMemsetD2D16Async_ptsz, libcuda()), CUresult,
+    ccall((:cuMemsetD2D16Async, libcuda()), CUresult,
                    (CUdeviceptr, Csize_t, UInt16, Csize_t, Csize_t, CUstream),
                    dstDevice, dstPitch, us, Width, Height, hStream)
 end
 
 @checked function cuMemsetD2D32Async(dstDevice, dstPitch, ui, Width, Height, hStream)
     initialize_api()
-    ccall((:cuMemsetD2D32Async_ptsz, libcuda()), CUresult,
+    ccall((:cuMemsetD2D32Async, libcuda()), CUresult,
                    (CUdeviceptr, Csize_t, UInt32, Csize_t, Csize_t, CUstream),
                    dstDevice, dstPitch, ui, Width, Height, hStream)
 end
@@ -887,7 +887,7 @@ end
 
 @checked function cuMemPrefetchAsync(devPtr, count, dstDevice, hStream)
     initialize_api()
-    ccall((:cuMemPrefetchAsync_ptsz, libcuda()), CUresult,
+    ccall((:cuMemPrefetchAsync, libcuda()), CUresult,
                    (CUdeviceptr, Csize_t, CUdevice, CUstream),
                    devPtr, count, dstDevice, hStream)
 end
@@ -945,42 +945,42 @@ end
 
 @checked function cuStreamGetPriority(hStream, priority)
     initialize_api()
-    ccall((:cuStreamGetPriority_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamGetPriority, libcuda()), CUresult,
                    (CUstream, Ptr{Cint}),
                    hStream, priority)
 end
 
 @checked function cuStreamGetFlags(hStream, flags)
     initialize_api()
-    ccall((:cuStreamGetFlags_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamGetFlags, libcuda()), CUresult,
                    (CUstream, Ptr{UInt32}),
                    hStream, flags)
 end
 
 @checked function cuStreamGetCtx(hStream, pctx)
     initialize_api()
-    ccall((:cuStreamGetCtx_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamGetCtx, libcuda()), CUresult,
                    (CUstream, Ptr{CUcontext}),
                    hStream, pctx)
 end
 
 @checked function cuStreamWaitEvent(hStream, hEvent, Flags)
     initialize_api()
-    ccall((:cuStreamWaitEvent_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamWaitEvent, libcuda()), CUresult,
                    (CUstream, CUevent, UInt32),
                    hStream, hEvent, Flags)
 end
 
 @checked function cuStreamAddCallback(hStream, callback, userData, flags)
     initialize_api()
-    ccall((:cuStreamAddCallback_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamAddCallback, libcuda()), CUresult,
                    (CUstream, CUstreamCallback, Ptr{Cvoid}, UInt32),
                    hStream, callback, userData, flags)
 end
 
 @checked function cuStreamBeginCapture_v2(hStream, mode)
     initialize_api()
-    ccall((:cuStreamBeginCapture_v2_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamBeginCapture_v2, libcuda()), CUresult,
                    (CUstream, CUstreamCaptureMode),
                    hStream, mode)
 end
@@ -994,42 +994,42 @@ end
 
 @checked function cuStreamEndCapture(hStream, phGraph)
     initialize_api()
-    ccall((:cuStreamEndCapture_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamEndCapture, libcuda()), CUresult,
                    (CUstream, Ptr{CUgraph}),
                    hStream, phGraph)
 end
 
 @checked function cuStreamIsCapturing(hStream, captureStatus)
     initialize_api()
-    ccall((:cuStreamIsCapturing_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamIsCapturing, libcuda()), CUresult,
                    (CUstream, Ptr{CUstreamCaptureStatus}),
                    hStream, captureStatus)
 end
 
 @checked function cuStreamGetCaptureInfo(hStream, captureStatus, id)
     initialize_api()
-    ccall((:cuStreamGetCaptureInfo_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamGetCaptureInfo, libcuda()), CUresult,
                    (CUstream, Ptr{CUstreamCaptureStatus}, Ptr{cuuint64_t}),
                    hStream, captureStatus, id)
 end
 
 @checked function cuStreamAttachMemAsync(hStream, dptr, length, flags)
     initialize_api()
-    ccall((:cuStreamAttachMemAsync_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamAttachMemAsync, libcuda()), CUresult,
                    (CUstream, CUdeviceptr, Csize_t, UInt32),
                    hStream, dptr, length, flags)
 end
 
 @checked function cuStreamQuery(hStream)
     initialize_api()
-    ccall((:cuStreamQuery_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamQuery, libcuda()), CUresult,
                    (CUstream,),
                    hStream)
 end
 
 @checked function cuStreamSynchronize(hStream)
     initialize_api()
-    ccall((:cuStreamSynchronize_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamSynchronize, libcuda()), CUresult,
                    (CUstream,),
                    hStream)
 end
@@ -1043,21 +1043,21 @@ end
 
 @checked function cuStreamCopyAttributes(dst, src)
     initialize_api()
-    ccall((:cuStreamCopyAttributes_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamCopyAttributes, libcuda()), CUresult,
                    (CUstream, CUstream),
                    dst, src)
 end
 
 @checked function cuStreamGetAttribute(hStream, attr, value_out)
     initialize_api()
-    ccall((:cuStreamGetAttribute_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamGetAttribute, libcuda()), CUresult,
                    (CUstream, CUstreamAttrID, Ptr{CUstreamAttrValue}),
                    hStream, attr, value_out)
 end
 
 @checked function cuStreamSetAttribute(hStream, attr, value)
     initialize_api()
-    ccall((:cuStreamSetAttribute_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamSetAttribute, libcuda()), CUresult,
                    (CUstream, CUstreamAttrID, Ptr{CUstreamAttrValue}),
                    hStream, attr, value)
 end
@@ -1071,7 +1071,7 @@ end
 
 @checked function cuEventRecord(hEvent, hStream)
     initialize_api()
-    ccall((:cuEventRecord_ptsz, libcuda()), CUresult,
+    ccall((:cuEventRecord, libcuda()), CUresult,
                    (CUevent, CUstream),
                    hEvent, hStream)
 end
@@ -1144,7 +1144,7 @@ end
 @checked function cuSignalExternalSemaphoresAsync(extSemArray, paramsArray, numExtSems,
                                                   stream)
     initialize_api()
-    ccall((:cuSignalExternalSemaphoresAsync_ptsz, libcuda()), CUresult,
+    ccall((:cuSignalExternalSemaphoresAsync, libcuda()), CUresult,
                    (Ptr{CUexternalSemaphore}, Ptr{CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS},
                     UInt32, CUstream),
                    extSemArray, paramsArray, numExtSems, stream)
@@ -1152,7 +1152,7 @@ end
 
 @checked function cuWaitExternalSemaphoresAsync(extSemArray, paramsArray, numExtSems, stream)
     initialize_api()
-    ccall((:cuWaitExternalSemaphoresAsync_ptsz, libcuda()), CUresult,
+    ccall((:cuWaitExternalSemaphoresAsync, libcuda()), CUresult,
                    (Ptr{CUexternalSemaphore}, Ptr{CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS},
                     UInt32, CUstream),
                    extSemArray, paramsArray, numExtSems, stream)
@@ -1167,28 +1167,28 @@ end
 
 @checked function cuStreamWaitValue32(stream, addr, value, flags)
     initialize_api()
-    ccall((:cuStreamWaitValue32_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamWaitValue32, libcuda()), CUresult,
                    (CUstream, CUdeviceptr, cuuint32_t, UInt32),
                    stream, addr, value, flags)
 end
 
 @checked function cuStreamWaitValue64(stream, addr, value, flags)
     initialize_api()
-    ccall((:cuStreamWaitValue64_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamWaitValue64, libcuda()), CUresult,
                    (CUstream, CUdeviceptr, cuuint64_t, UInt32),
                    stream, addr, value, flags)
 end
 
 @checked function cuStreamWriteValue32(stream, addr, value, flags)
     initialize_api()
-    ccall((:cuStreamWriteValue32_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamWriteValue32, libcuda()), CUresult,
                    (CUstream, CUdeviceptr, cuuint32_t, UInt32),
                    stream, addr, value, flags)
 end
 
 @checked function cuStreamWriteValue64(stream, addr, value, flags)
     initialize_api()
-    ccall((:cuStreamWriteValue64_ptsz, libcuda()), CUresult,
+    ccall((:cuStreamWriteValue64, libcuda()), CUresult,
                    (CUstream, CUdeviceptr, cuuint64_t, UInt32),
                    stream, addr, value, flags)
 end
@@ -1224,7 +1224,7 @@ end
 @checked function cuLaunchKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY,
                                  blockDimZ, sharedMemBytes, hStream, kernelParams, extra)
     initialize_api()
-    ccall((:cuLaunchKernel_ptsz, libcuda()), CUresult,
+    ccall((:cuLaunchKernel, libcuda()), CUresult,
                    (CUfunction, UInt32, UInt32, UInt32, UInt32, UInt32, UInt32, UInt32,
                     CUstream, Ptr{Ptr{Cvoid}}, Ptr{Ptr{Cvoid}}),
                    f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ,
@@ -1235,7 +1235,7 @@ end
                                             blockDimY, blockDimZ, sharedMemBytes, hStream,
                                             kernelParams)
     initialize_api()
-    ccall((:cuLaunchCooperativeKernel_ptsz, libcuda()), CUresult,
+    ccall((:cuLaunchCooperativeKernel, libcuda()), CUresult,
                    (CUfunction, UInt32, UInt32, UInt32, UInt32, UInt32, UInt32, UInt32,
                     CUstream, Ptr{Ptr{Cvoid}}),
                    f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ,
@@ -1251,7 +1251,7 @@ end
 
 @checked function cuLaunchHostFunc(hStream, fn, userData)
     initialize_api()
-    ccall((:cuLaunchHostFunc_ptsz, libcuda()), CUresult,
+    ccall((:cuLaunchHostFunc, libcuda()), CUresult,
                    (CUstream, CUhostFn, Ptr{Cvoid}),
                    hStream, fn, userData)
 end
@@ -1562,7 +1562,7 @@ end
 
 @checked function cuGraphLaunch(hGraphExec, hStream)
     initialize_api()
-    ccall((:cuGraphLaunch_ptsz, libcuda()), CUresult,
+    ccall((:cuGraphLaunch, libcuda()), CUresult,
                    (CUgraphExec, CUstream),
                    hGraphExec, hStream)
 end
@@ -1984,14 +1984,14 @@ end
 
 @checked function cuGraphicsMapResources(count, resources, hStream)
     initialize_api()
-    ccall((:cuGraphicsMapResources_ptsz, libcuda()), CUresult,
+    ccall((:cuGraphicsMapResources, libcuda()), CUresult,
                    (UInt32, Ptr{CUgraphicsResource}, CUstream),
                    count, resources, hStream)
 end
 
 @checked function cuGraphicsUnmapResources(count, resources, hStream)
     initialize_api()
-    ccall((:cuGraphicsUnmapResources_ptsz, libcuda()), CUresult,
+    ccall((:cuGraphicsUnmapResources, libcuda()), CUresult,
                    (UInt32, Ptr{CUgraphicsResource}, CUstream),
                    count, resources, hStream)
 end
