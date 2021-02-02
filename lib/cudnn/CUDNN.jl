@@ -19,20 +19,24 @@ include("libcudnn_deprecated.jl")
 # low-level wrappers
 include("util.jl")
 include("base.jl")
+include("descriptors.jl")
 include("tensor.jl")
-include("conv.jl")
+include("inplace.jl")
+include("optensor.jl")
+include("reduce.jl")
+include("convolution.jl")
 include("pooling.jl")
 include("activation.jl")
-include("filter.jl")
 include("softmax.jl")
-include("batchnorm.jl")
 include("dropout.jl")
 include("rnn.jl")
+include("multiheadattn.jl")
+include("normalization.jl")
 
 # high-level integrations
 include("nnlib.jl")
+include("batchnorm.jl")
 
-include("compat.jl")
 
 function math_mode(mode=CUDA.math_mode())
     if mode == CUDA.PEDANTIC_MATH

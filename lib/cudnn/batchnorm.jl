@@ -36,9 +36,9 @@ function cudnnBNForward!(y::DenseCuArray{T}, g::DenseCuArray{T}, b::DenseCuArray
     # warn("eps ",eps," is too small for CuDNN so eps has been assigned the value ", CUDNN_BN_MIN_EPSILON)
     eps = CUDNN_BN_MIN_EPSILON
   end
-  xd = TensorDesc(x)
-  yd = TensorDesc(y)
-  gd = TensorDesc(T, dims)
+  xd = cudnnTensorDescriptor(x)
+  yd = cudnnTensorDescriptor(y)
+  gd = cudnnTensorDescriptor(CUDNN_TENSOR_NCHW, cudnnDataType(T), Cint(length(dims)), dim4(dims,Val(CUDNN_TENSOR_NCHW)))
 
   if training
 
@@ -91,10 +91,10 @@ function cudnnBNBackward!(dg::DenseCuArray{T}, g::DenseCuArray{T}, db::DenseCuAr
                           alpha = T(1), beta = T(0),
                           dalpha = T(1), dbeta = T(0), training = true) where T<:Union{Float32, Float64}
   if training
-    xd = TensorDesc(x)
-    dyd = TensorDesc(dy)
-    dxd = TensorDesc(dx)
-    gd = TensorDesc(T, _wsize(x))
+    xd = cudnnTensorDescriptor(x)
+    dyd = cudnnTensorDescriptor(dy)
+    dxd = cudnnTensorDescriptor(dx)
+    gd = cudnnTensorDescriptor(CUDNN_TENSOR_NCHW, cudnnDataType(T), Cint(length(_wsize(x))), dim4(_wsize(x),Val(CUDNN_TENSOR_NCHW)))
     if cache !== nothing
       mean, ivar = cache.mean, cache.ivar
       info("mean and ivar are fetched from the cache")
