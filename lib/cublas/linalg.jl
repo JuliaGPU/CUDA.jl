@@ -41,10 +41,10 @@ function LinearAlgebra.norm(x::DenseCuArray{<:CublasFloat}, p::Integer)
     if p==1
         return CUBLAS.asum(length(x),x)
     end
-    if p==2
+    else if p==2
         return LinearAlgebra.norm(x)
     end
-    if p>2
+    else
         return LinearAlgebra.tr(LinearAlgebra.Diagonal(abs.(x))^p)^(1/p)
     end
 end
