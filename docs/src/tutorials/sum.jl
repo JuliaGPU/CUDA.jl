@@ -6,7 +6,7 @@
 
 using CUDA
 
-function sum_baseline(out, arr)
+function sum_baseline_kernel(out, arr)
     index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     stride = blockDim().x * gridDim().x
     for i = index:stride:length(arr)
@@ -20,26 +20,24 @@ end
 # First we should check, whether our kernel is correct
 using Test
 out = CUDA.zeros()
-arr = CUDA.randn(10)
-@cuda sum_baseline(out, arr)
+arr = CUDA.randn(10^6)
+@cuda sum_baseline_kernel(out, arr)
 @test CUDA.sum(arr) ≈ out[]
 
-# Since we want to test and benchmark multiple variants of `sum` kernels,
-# it makes sense to put the kernel launch in a function:
-function run(kernel, arr)
+# Lets wrap the kernel in a function, that takes care of
+# allocating `out` and launching the kernel.
+function sum_baseline(arr)
     out = CUDA.zeros(eltype(arr))
     CUDA.@sync begin
-        @cuda threads=128 blocks=1024 kernel(out, arr)
+        @cuda threads=256 blocks=64 sum_baseline_kernel(out, arr)
     end
     out[]
 end
 
 using BenchmarkTools
-arr = CUDA.rand(10^6)
-@test run(sum_baseline, arr) ≈ CUDA.sum(arr)
-@btime run(sum_baseline, arr) # 1.691 ms (46 allocations: 1.41 KiB)
-@btime CUDA.sum(arr) # 37.511 μs (62 allocations: 1.62 KiB)
-
+@test sum_baseline(arr) ≈ CUDA.sum(arr)
+@btime sum_baseline(arr) # 1.675 ms (9 allocations: 368 bytes)
+@btime CUDA.sum(arr) # 42.621 μs (32 allocations: 1.25 KiB)
 
 # Our kernel is much slower, then the optimized implementation `CUDA.sum`.
 # The problem is, that at the end of the day we are computing the sum sequentially.
@@ -47,7 +45,7 @@ arr = CUDA.rand(10^6)
 # `out[] += arr[i]`
 # at a time.
 # We can improve the situation by accessing `out[]` less often:
-function sum_atomic(out, arr)
+function sum_atomic_kernel(out, arr)
     index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     stride = blockDim().x * gridDim().x
     acc = zero(eltype(out))
@@ -57,11 +55,69 @@ function sum_atomic(out, arr)
     @atomic out[] += acc
     return nothing
 end
+function sum_atomic(arr)
+    out = CUDA.zeros(eltype(arr))
+    CUDA.@sync begin
+        @cuda threads=256 blocks=64 sum_atomic_kernel(out, arr)
+    end
+    out[]
+end
 
-arr = CUDA.rand(10^6)
-@test CUDA.sum(arr) ≈ run(sum_atomic, arr)
-@btime run(sum_atomic, arr) # 266.052 μs (46 allocations: 1.41 KiB)
-@btime sum(arr) # 37.511 μs (62 allocations: 1.62 KiB)
+@test CUDA.sum(arr) ≈ sum_atomic(arr)
+@btime sum_atomic(arr) # 61.939 μs (9 allocations: 368 bytes)
+@btime sum(arr) # 42.652 μs (32 allocations: 1.25 KiB)
 
-# Performance is better now, but there is still a lot of threads, that want to access
-# `out[]` at the same time.
+# Performance is much better now, but there is still a gap.
+# The reason is that there is still a multitude of threads which desire access `out[]` at the same time.
+#
+# We can further improve the situation by using shared memory.
+# The following code is based on a [CUDA tutorial](https://sodocumentation.net/cuda/topic/6566/parallel-reduction--e-g--how-to-sum-an-array-).
+function sum_block_kernel!(out, x)
+    ithread = threadIdx().x
+    iblock = blockIdx().x
+    index = (iblock - 1) * blockDim().x + ithread
+    stride = blockDim().x * gridDim().x
+    acc = zero(eltype(out))
+    for i in index:stride:length(x)
+        @inbounds acc += x[i]
+    end
+    shmem = @cuDynamicSharedMem(eltype(out), blockDim().x)
+    shmem[ithread] = acc
+    imax = blockDim().x ÷ 2
+    sync_threads()
+    while imax >= 1
+        if ithread <= imax
+            shmem[ithread] += shmem[ithread+imax]
+        end
+        imax = imax ÷ 2
+        sync_threads()
+    end
+    if ithread === 1
+        out[iblock] = shmem[1]
+    end
+    nothing
+end
+
+function sum_shmem(x)
+    threads = 256
+    blocks = 64
+    block_sums = CUDA.zeros(eltype(x), blocks)
+    CUDA.@sync begin
+        shmem = sizeof(eltype(x)) * threads
+        @assert ispow2(threads)
+        k = @cuda threads=threads blocks=blocks shmem=shmem sum_block_kernel!(block_sums, x)
+    end
+    out = CUDA.zeros(eltype(x), 1)
+    CUDA.@sync begin
+        shmem = sizeof(eltype(x)) * threads
+        @assert ispow2(threads)
+        k = @cuda threads=threads blocks=1 shmem=shmem sum_block_kernel!(out, block_sums)
+    end
+    return only(collect(out))
+end
+
+@test CUDA.sum(arr) ≈ sum_shmem(arr)
+@btime sum_shmem(arr) # 47.592 μs (16 allocations: 624 bytes)
+@btime sum(arr) # 42.772 μs (32 allocations: 1.25 KiB)
+
+# Now we are pretty close to `sum`.
