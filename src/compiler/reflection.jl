@@ -51,6 +51,9 @@ function code_sass(io::IO, @nospecialize(func), @nospecialize(types), kernel::Bo
     code_sass(io, job; verbose=verbose)
 end
 
+# multiple subscribers aren't supported, so make sure we only call CUPTI once
+const cupti_lock = ReentrantLock()
+
 function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
     if !job.source.kernel
         error("Can only generate SASS code for kernel functions")
@@ -63,20 +66,22 @@ function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
                           (Ptr{Cvoid}, CUpti_CallbackDomain, CUpti_CallbackId, Ptr{Cvoid}))
 
     # JIT compile and capture the generated object file
-    subscriber_ref = Ref{CUpti_SubscriberHandle}()
-    res = CUPTI.unsafe_cuptiSubscribe(subscriber_ref, callback, Base.pointer_from_objref(cubin))
-    if res === CUPTI.CUPTI_ERROR_INSUFFICIENT_PRIVILEGES
-        error("""Insufficient priviliges: You don't have permissions to profile GPU code, which is required for `code_sass`.
-                 Get administrative priviles or allow all users to profile: https://developer.nvidia.com/ERR_NVGPUCTRPERM#SolnAdminTag""")
-    elseif res != CUPTI.CUPTI_SUCCESS
-        throw(CUPTIError(res))
-    end
-    subscriber = subscriber_ref[]
-    try
-        CUPTI.cuptiEnableDomain(1, subscriber, CUPTI.CUPTI_CB_DOMAIN_RESOURCE)
-        cufunction_link(job, compiled)
-    finally
-        CUPTI.cuptiUnsubscribe(subscriber)
+    lock(cupti_lock) do
+        subscriber_ref = Ref{CUpti_SubscriberHandle}()
+        res = CUPTI.unsafe_cuptiSubscribe(subscriber_ref, callback, Base.pointer_from_objref(cubin))
+        if res === CUPTI.CUPTI_ERROR_INSUFFICIENT_PRIVILEGES
+            error("""Insufficient priviliges: You don't have permissions to profile GPU code, which is required for `code_sass`.
+                    Get administrative priviles or allow all users to profile: https://developer.nvidia.com/ERR_NVGPUCTRPERM#SolnAdminTag""")
+        elseif res != CUPTI.CUPTI_SUCCESS
+            throw(CUPTIError(res))
+        end
+        subscriber = subscriber_ref[]
+        try
+            CUPTI.cuptiEnableDomain(1, subscriber, CUPTI.CUPTI_CB_DOMAIN_RESOURCE)
+            cufunction_link(job, compiled)
+        finally
+            CUPTI.cuptiUnsubscribe(subscriber)
+        end
     end
 
     # disassemble to SASS
