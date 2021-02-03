@@ -8,14 +8,19 @@ using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim
 
 using CEnum
 
+using Memoize
+
 using LinearAlgebra
 using LinearAlgebra: HermOrSym
 
 using Adapt
 
+using DataStructures
+
 using SparseArrays
 
 const SparseChar = Char
+
 
 # core library
 include("libcusparse_common.jl")
@@ -43,24 +48,42 @@ include("interfaces.jl")
 # thread cache for task-local library handles
 const thread_handles = Vector{Union{Nothing,cusparseHandle_t}}()
 
+# cache for created, but unused handles
+const old_handles = DefaultDict{CuContext,Vector{cusparseHandle_t}}(()->cusparseHandle_t[])
+
 function handle()
+    CUDA.detect_state_changes()
     tid = Threads.threadid()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUSPARSE, ctx)) do
-            handle = cusparseCreate()
-            cusparseSetStream(handle, CuStreamPerThread())
-            finalizer(current_task()) do task
-                CUDA.isvalid(ctx) || return
-                context!(ctx) do
-                    cusparseDestroy(handle)
-                end
+            handle = if isempty(old_handles[ctx])
+                cusparseCreate()
+            else
+                pop!(old_handles[ctx])
             end
+
+            finalizer(current_task()) do task
+                push!(old_handles[ctx], handle)
+            end
+            # TODO: cusparseDestroy to preserve memory, or at exit?
+
+            cusparseSetStream(handle, stream())
 
             handle
         end
     end
     something(@inbounds thread_handles[tid])
+end
+
+@inline function set_stream(stream::CuStream)
+    ctx = context()
+    tls = task_local_storage()
+    handle = get(tls, (:CUSPARSE, ctx), nothing)
+    if handle !== nothing
+        cusparseSetStream(handle, stream)
+    end
+    return
 end
 
 function __init__()

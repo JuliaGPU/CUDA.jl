@@ -296,7 +296,9 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::Array{T}, soffs,
 end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
-  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
+  # TODO: pin the source memory so that it can actually execute asynchronously?
+  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n;
+                                       async=true)
   if Base.isbitsunion(T)
     # copy selector bytes
     error("Not implemented")
@@ -306,7 +308,7 @@ end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
   GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n;
-                                       async=true, stream=CuDefaultStream())
+                                       async=true)
   if Base.isbitsunion(T)
     # copy selector bytes
     error("Not implemented")
@@ -362,7 +364,7 @@ const MemsetCompatTypes = Union{UInt8, Int8,
 function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
-  Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A))
+  Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A); async=true)
   A
 end
 

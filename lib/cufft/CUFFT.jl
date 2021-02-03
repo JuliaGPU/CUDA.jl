@@ -10,6 +10,9 @@ using CEnum
 
 using Reexport
 
+using Memoize
+
+
 # core library
 include("libcufft_common.jl")
 include("error.jl")
@@ -21,5 +24,9 @@ include("wrappers.jl")
 
 # high-level integrations
 include("fft.jl")
+
+function set_stream(s)
+    # CUFFT associates streams to plan objects
+end
 
 end

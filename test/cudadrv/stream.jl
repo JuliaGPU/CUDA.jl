@@ -20,4 +20,7 @@ let s = CuStream(; priority=last(prio))
     @test priority(s) == last(prio)
 end
 
-synchronize(CuDefaultStream())
+synchronize()
+synchronize(; blocking=false)
+synchronize(stream())
+synchronize(stream(); blocking=false)

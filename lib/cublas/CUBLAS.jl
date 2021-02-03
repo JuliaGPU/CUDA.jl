@@ -14,6 +14,11 @@ using BFloat16s
 
 using CEnum
 
+using Memoize
+
+using DataStructures
+
+
 # core library
 include("libcublas_common.jl")
 include("error.jl")
@@ -31,6 +36,10 @@ include("linalg.jl")
 const thread_handles = Vector{Union{Nothing,cublasHandle_t}}()
 const thread_xt_handles = Vector{Union{Nothing,cublasXtHandle_t}}()
 
+# cache for created, but unused handles
+const old_handles = DefaultDict{CuContext,Vector{cublasHandle_t}}(()->cublasHandle_t[])
+const old_xt_handles = DefaultDict{Vector{CuContext},Vector{cublasHandle_t}}(()->cublasHandle_t[])
+
 function math_mode!(handle, mode)
     flags = 0
 
@@ -41,21 +50,21 @@ function math_mode!(handle, mode)
 
     flags |= if mode == CUDA.PEDANTIC_MATH
         # prevent use of tensor cores
-        if VERSION < v"11"
+        if version(handle) < v"11"
             CUBLAS_DEFAULT_MATH
         else
             CUBLAS_PEDANTIC_MATH
         end
     elseif mode == CUDA.DEFAULT_MATH
         # use tensor cores, but don't reduce precision
-        if VERSION < v"11"
+        if version(handle) < v"11"
             CUBLAS_TENSOR_OP_MATH
         else
             CUBLAS_DEFAULT_MATH
         end
     elseif mode == CUDA.FAST_MATH
         # we'll additionally select a compute-mode with reduced precision whenever possible
-        if VERSION < v"11"
+        if version(handle) < v"11"
             CUBLAS_TENSOR_OP_MATH
         else
             CUBLAS_TF32_TENSOR_OP_MATH
@@ -68,25 +77,24 @@ function math_mode!(handle, mode)
 end
 
 function handle()
+    CUDA.detect_state_changes()
     tid = Threads.threadid()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUBLAS, ctx)) do
-            handle = cublasCreate()
+            handle = if isempty(old_handles[ctx])
+                cublasCreate()
+                # FIXME: use cublasSetWorkspace? cublasSetStream reset it.
+            else
+                pop!(old_handles[ctx])
+            end
+
             finalizer(current_task()) do task
-                CUDA.isvalid(ctx) || return
-                context!(ctx) do
-                    cublasDestroy_v2(handle)
-                end
+                push!(old_handles[ctx], handle)
             end
+            # TODO: cublasDestroy to preserve memory, or at exit?
 
-            cublasSetStream_v2(handle, CuStreamPerThread())
-
-            if version(handle) >= v"11.2"
-                workspace = CuArray{UInt8}(undef, 4*1024*1024)  # TODO: 256-byte aligned
-                cublasSetWorkspace_v2(handle, workspace, sizeof(workspace))
-                task_local_storage((:CUBLAS, :workspace), workspace)
-            end
+            cublasSetStream_v2(handle, stream())
 
             math_mode!(handle, CUDA.math_mode())
 
@@ -97,27 +105,40 @@ function handle()
 end
 
 function xt_handle()
+    CUDA.detect_state_changes()
     tid = Threads.threadid()
     if @inbounds thread_xt_handles[tid] === nothing
-        ctx = context()
-        thread_xt_handles[tid] = get!(task_local_storage(), (:CUBLASxt, ctx)) do
-            handle = cublasXtCreate()
-            finalizer(current_task()) do task
-                CUDA.isvalid(ctx) || return
-                context!(ctx) do
-                    cublasXtDestroy(handle)
-                end
+        ctxs = [context(dev) for dev in devices()]
+        thread_xt_handles[tid] = get!(task_local_storage(), (:CUBLASxt, ctxs)) do
+            handle = if isempty(old_xt_handles[ctxs])
+                cublasXtCreate()
+            else
+                pop!(old_xt_handles[ctxs])
             end
 
-            # select the devices
-            # TODO: this is weird, since we typically use a single device per thread/context
-            devs = convert.(Cint, CUDA.devices())
+            finalizer(current_task()) do task
+                push!(old_xt_handles[ctxs], handle)
+            end
+            # TODO: cublasXtDestroy to preserve memory, or at exit?
+
+            # select all devices
+            devs = convert.(Cint, devices())
             cublasXtDeviceSelect(handle, length(devs), devs)
 
             handle
         end
     end
     something(@inbounds thread_xt_handles[tid])
+end
+
+@inline function set_stream(stream::CuStream)
+    ctx = context()
+    tls = task_local_storage()
+    handle = get(tls, (:CUBLAS, ctx), nothing)
+    if handle !== nothing
+        cublasSetStream_v2(handle, stream)
+    end
+    return
 end
 
 function __init__()
@@ -127,10 +148,13 @@ function __init__()
     resize!(thread_xt_handles, Threads.nthreads())
     fill!(thread_xt_handles, nothing)
 
+    CUDA.atdevicereset() do dev
+        fill!(thread_xt_handles, nothing)
+    end
+
     CUDA.atdeviceswitch() do
         tid = Threads.threadid()
         thread_handles[tid] = nothing
-        thread_xt_handles[tid] = nothing
     end
 
     CUDA.attaskswitch() do

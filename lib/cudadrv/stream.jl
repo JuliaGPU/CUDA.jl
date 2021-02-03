@@ -44,10 +44,21 @@ function unsafe_destroy!(s::CuStream)
     end
 end
 
+function Base.show(io::IO, stream::CuStream)
+    print(io, "CuStream(")
+    @printf(io, "%p", stream.handle)
+    print(io, ", ", stream.ctx, ")")
+end
+
 """
     CuDefaultStream()
 
 Return the default stream.
+
+!!! note
+
+    It is generally better to use `stream()` to get a stream object that's local to the
+    current task. That way, operations scheduled in other tasks can overlap.
 """
 @inline CuDefaultStream() = CuStream(convert(CUstream, C_NULL), CuContext(C_NULL))
 
@@ -57,7 +68,7 @@ Return the default stream.
 Return a special object to use use an implicit stream with legacy synchronization behavior.
 
 You can use this stream to perform operations that should block on all streams (with the
-exception of streams created with `CU_STREAM_NON_BLOCKING`). This matches the old pre-CUDA 7
+exception of streams created with `STREAM_NON_BLOCKING`). This matches the old pre-CUDA 7
 global stream behavior.
 """
 @inline CuStreamLegacy() = CuStream(convert(CUstream, 1), CuContext(C_NULL))
@@ -66,20 +77,16 @@ global stream behavior.
     CuStreamPerThread()
 
 Return a special object to use an implicit stream with per-thread synchronization behavior.
+This stream object is normally meant to be used with APIs that do not have per-thread
+versions of their APIs (i.e. without a `ptsz` or `ptds` suffix).
 
-This should generally only be used with compiled libraries, which cannot be switched to the
-per-thread API calls. For all other uses, it be libraries compiled with `nvcc
---default-stream per-thread` or any CUDA API call using CUDA.jl (which defaults to the
-per-thread variants) you can just use the default `CuDefaultStream` object.
+!!! note
+
+    It is generally not needed to use this type of stream. With CUDA.jl, each task already
+    gets its own non-blocking stream, and multithreading in Julia is typically
+    accomplished using tasks.
 """
 @inline CuStreamPerThread() = CuStream(convert(CUstream, 2), CuContext(C_NULL))
-
-"""
-    synchronize(s::CuStream)
-
-Wait until a stream's tasks are completed.
-"""
-synchronize(s::CuStream) = cuStreamSynchronize(s)
 
 """
     query(s::CuStream)
@@ -96,6 +103,21 @@ function query(s::CuStream)
     else
         throw_api_error(res)
     end
+end
+
+"""
+    synchronize([s::CuStream]; blocking=true)
+
+Wait until a stream's tasks are completed. If `blocking` is true (the default), Julia will
+be asked to yield to any other scheduled task.
+"""
+function synchronize(s::CuStream=stream(); blocking::Bool=true)
+    # TODO: exponential back-off and sleep?
+    while !query(s)
+        blocking && yield()
+    end
+
+    check_exceptions()
 end
 
 """

@@ -146,3 +146,37 @@ end
 if length(devices()) > 1
     @test deviceid(CuDevice(1)) == 1
 end
+
+
+## default streams
+
+default_s = stream()
+s = CuStream()
+@test s != default_s
+
+# test stream switching
+let
+    stream!(s)
+    @test stream() == s
+    stream!(default_s)
+    @test stream() == default_s
+end
+stream!(s) do
+    @test stream() == s
+end
+@test stream() == default_s
+
+# default stream in task
+task = @async begin
+    stream()
+end
+@test fetch(task) != default_s
+@test stream() == default_s
+
+# test stream switching in tasks
+task = @async begin
+    stream!(s)
+    stream()
+end
+@test fetch(task) == s
+@test stream() == default_s

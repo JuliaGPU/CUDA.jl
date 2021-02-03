@@ -534,7 +534,7 @@ macro timed(ex)
         while false; end # compiler heuristic: compile this block (alter this if the heuristic changes)
 
         # @time(d) might surround an application, so be sure to initialize CUDA before that
-        CUDA.prepare_cuda_call()
+        CUDA.initialize_cuda_context()
 
         # coarse synchronization to exclude effects from previously-executed code
         synchronize()

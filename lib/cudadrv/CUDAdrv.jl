@@ -2,7 +2,10 @@ using .APIUtils
 
 using CEnum
 
+using Memoize
+
 using Printf
+
 
 # low-level wrappers
 const CUdeviceptr = CuPtr{Cvoid}

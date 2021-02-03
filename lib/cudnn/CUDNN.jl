@@ -8,7 +8,12 @@ using ..CUDA: libcudnn, @retry_reclaim, isdebug
 
 using CEnum
 
+using Memoize
+
+using DataStructures
+
 import NNlib
+
 
 # core library
 include("libcudnn_common.jl")
@@ -19,20 +24,24 @@ include("libcudnn_deprecated.jl")
 # low-level wrappers
 include("util.jl")
 include("base.jl")
+include("descriptors.jl")
 include("tensor.jl")
-include("conv.jl")
+include("inplace.jl")
+include("optensor.jl")
+include("reduce.jl")
+include("convolution.jl")
 include("pooling.jl")
 include("activation.jl")
-include("filter.jl")
 include("softmax.jl")
-include("batchnorm.jl")
 include("dropout.jl")
 include("rnn.jl")
+include("multiheadattn.jl")
+include("normalization.jl")
 
 # high-level integrations
 include("nnlib.jl")
+include("batchnorm.jl")
 
-include("compat.jl")
 
 function math_mode(mode=CUDA.math_mode())
     if mode == CUDA.PEDANTIC_MATH
@@ -51,24 +60,42 @@ end
 # thread cache for task-local library handles
 const thread_handles = Vector{Union{Nothing,cudnnHandle_t}}()
 
+# cache for created, but unused handles
+const old_handles = DefaultDict{CuContext,Vector{cudnnHandle_t}}(()->cudnnHandle_t[])
+
 function handle()
+    CUDA.detect_state_changes()
     tid = Threads.threadid()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUDNN, ctx)) do
-            handle = cudnnCreate()
-            cudnnSetStream(handle, CuStreamPerThread())
-            finalizer(current_task()) do task
-                CUDA.isvalid(ctx) || return
-                context!(ctx) do
-                    cudnnDestroy(handle)
-                end
+            handle = if isempty(old_handles[ctx])
+                cudnnCreate()
+            else
+                pop!(old_handles[ctx])
             end
+
+            finalizer(current_task()) do task
+                push!(old_handles[ctx], handle)
+            end
+            # TODO: cudnnDestroy to preserve memory, or at exit?
+
+            cudnnSetStream(handle, stream())
 
             handle
         end
     end
     something(@inbounds thread_handles[tid])
+end
+
+@inline function set_stream(stream::CuStream)
+    ctx = context()
+    tls = task_local_storage()
+    handle = get(tls, (:CUDNN, ctx), nothing)
+    if handle !== nothing
+        cudnnSetStream(handle, stream)
+    end
+    return
 end
 
 function __init__()

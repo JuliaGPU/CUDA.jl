@@ -125,6 +125,9 @@ macro grab_output(ex)
             open(fname, "w") do fout
                 redirect_stdout(fout) do
                     ret = $(esc(ex))
+
+                    # NOTE: CUDA requires a 'proper' sync to flush its printf buffer
+                    synchronize_all()
                 end
             end
             ret, read(fname, String)
@@ -184,7 +187,7 @@ macro test_throws_macro(ty, ex)
     end
 end
 
-# Run some code on-device, returning captured standard output
+# Run some code on-device
 macro on_device(ex)
     @gensym kernel
     esc(quote

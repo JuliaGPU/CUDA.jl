@@ -3,11 +3,11 @@ steps:
 
   - label: "Julia 1.6"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3:
+      - JuliaCI/julia-test#v1:
           test_args: "--quickfail"
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -17,18 +17,18 @@ steps:
       queue: "juliagpu"
       cuda: "*"
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
   - wait  # smoke test: don't kick off a large number of tests if they'd all just fail
 
   - label: "Julia 1.6 (debug)"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3:
+      - JuliaCI/julia-test#v1:
           julia_args: "-g2"
           test_args: "--memcheck"
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -39,7 +39,7 @@ steps:
       cuda: "11.1"    # older versions of CUDA have issues
       cap: "recent"   # test as much as possible
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
 
     # CUDA versions (from artifacts)
@@ -52,10 +52,10 @@ steps:
 
   - label: "CUDA 11.2"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3: ~
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -68,15 +68,15 @@ steps:
       JULIA_CUDA_VERSION: '11.2'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
   - label: "CUDA 11.1"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3:
+      - JuliaCI/julia-test#v1:
           test_args: "--thorough"
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -90,15 +90,15 @@ steps:
       JULIA_CUDA_VERSION: '11.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
   - label: "CUDA 11.0"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3:
+      - JuliaCI/julia-test#v1:
           test_args: "--thorough"
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -112,15 +112,15 @@ steps:
       JULIA_CUDA_VERSION: '11.0'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
   - label: "CUDA 10.2"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3:
+      - JuliaCI/julia-test#v1:
           test_args: "--thorough"
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -134,15 +134,15 @@ steps:
       JULIA_CUDA_VERSION: '10.2'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
   - label: "CUDA 10.1"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3:
+      - JuliaCI/julia-test#v1:
           test_args: "--thorough"
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -156,17 +156,17 @@ steps:
       JULIA_CUDA_VERSION: '10.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
 
    # special tests
 
   - label: "Split memory pool"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3: ~
-      - JuliaCI/julia-coverage#v0.3:
+      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
             - src
@@ -178,7 +178,7 @@ steps:
     env:
       JULIA_CUDA_MEMORY_POOL: 'split'
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 120
 
 
   # other tasks
@@ -189,7 +189,7 @@ steps:
   # so they can run on any system in the juliagpu queue.
   - label: "Benchmarks (dry run)"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
     command: |
       julia --project -e '
@@ -207,13 +207,13 @@ steps:
       cuda: "*"
     if: build.message !~ /\[skip benchmarks\]/ &&
         build.branch !~ /^master$$/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 30
 
   # if we will submit results, use the benchmark queue so that we will
   # be running on the same system each time
   - label: "Benchmarks"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
     env:
       CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
@@ -238,11 +238,11 @@ steps:
       cuda: "*"
     if: build.message !~ /\[skip benchmarks\]/ &&
         build.branch =~ /^master$$/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 30
 
   - label: "Documentation"
     plugins:
-      - JuliaCI/julia#v0.6:
+      - JuliaCI/julia#v1:
           version: 1.6-nightly
     command: |
       julia --project -e '
@@ -259,7 +259,7 @@ steps:
       queue: "juliagpu"
       cuda: "*"
     if: build.message !~ /\[skip docs\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 30
 
 
 

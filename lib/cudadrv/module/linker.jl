@@ -27,6 +27,7 @@ mutable struct CuLink
             "JIT compiling code" # FIXME: remove this useless message
         end
         if Base.JLOptions().debug_level == 1
+            # XXX: does not apply to the linker
             options[JIT_GENERATE_LINE_INFO] = true
         elseif Base.JLOptions().debug_level >= 2
             options[JIT_GENERATE_DEBUG_INFO] = true
@@ -52,6 +53,12 @@ Base.unsafe_convert(::Type{CUlinkState}, link::CuLink) = link.handle
 
 Base.:(==)(a::CuLink, b::CuLink) = a.handle == b.handle
 Base.hash(link::CuLink, h::UInt) = hash(link.handle, h)
+
+function Base.show(io::IO, link::CuLink)
+    print(io, "CuLink(")
+    @printf(io, "%p", link.handle)
+    print(io, ", ", link.ctx, ")")
+end
 
 """
     add_data!(link::CuLink, name::String, code::String)
