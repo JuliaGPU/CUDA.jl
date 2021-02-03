@@ -26,7 +26,7 @@ end
 
 @eval @inline exception_flag() =
     Base.llvmcall(
-        $("""@exception_flag = externally_initialized global i$(WORD_SIZE) 0
+        $("""@exception_flag = weak externally_initialized global i$(WORD_SIZE) 0
              define i64 @entry() #0 {
                  %ptr = load i$(WORD_SIZE), i$(WORD_SIZE)* @exception_flag, align 8
                  ret i$(WORD_SIZE) %ptr
