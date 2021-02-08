@@ -5,8 +5,7 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6-nightly
-      - JuliaCI/julia-test#v1:
-          test_args: "--quickfail"
+      - JuliaCI/julia-test#v1: ~
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -20,26 +19,6 @@ steps:
     timeout_in_minutes: 120
 
   - wait  # smoke test: don't kick off a large number of tests if they'd all just fail
-
-  - label: "Julia 1.6 (debug)"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: 1.6-nightly
-      - JuliaCI/julia-test#v1:
-          julia_args: "-g2"
-          test_args: "--memcheck"
-      - JuliaCI/julia-coverage#v1:
-          codecov: true
-          dirs:
-            - src
-            - lib
-            - examples
-    agents:
-      queue: "juliagpu"
-      cuda: "11.1"    # older versions of CUDA have issues
-      cap: "recent"   # test as much as possible
-    if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 120
 
 
     # CUDA versions (from artifacts)
@@ -161,6 +140,26 @@ steps:
 
    # special tests
 
+  - label: "Memory checking"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: 1.6-nightly
+      - JuliaCI/julia-test#v1:
+          julia_args: "-g2"
+          test_args: "--memcheck"
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "11.1"    # older versions of CUDA have issues
+      cap: "recent"   # test as much as possible
+    if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 120
+
   - label: "Split memory pool"
     plugins:
       - JuliaCI/julia#v1:
@@ -177,6 +176,24 @@ steps:
       cuda: "*"
     env:
       JULIA_CUDA_MEMORY_POOL: 'split'
+    if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 120
+
+  - label: "Multithreaded"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: 1.6-nightly
+      - JuliaCI/julia-test#v1:
+          test_args: "--mode=parallel"
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "*"
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 120
 

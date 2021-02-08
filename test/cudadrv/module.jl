@@ -1,3 +1,6 @@
+@testset "module" begin
+
+@testcase "loading" begin
 let
     md = CuModuleFile(joinpath(@__DIR__, "ptx/vadd.ptx"))
 
@@ -25,9 +28,10 @@ let
 end
 
 @not_if_memcheck @test_throws_cuerror CUDA.ERROR_INVALID_IMAGE CuModule("foobar")
+end
 
 
-@testset "globals" begin
+@testcase "globals" begin
     md = CuModuleFile(joinpath(@__DIR__, "ptx/global.ptx"))
 
     var = CuGlobal{Int32}(md, "foobar")
@@ -42,6 +46,8 @@ end
 
 
 @testset "linker" begin
+
+@testcase "error handling" begin
     link = CuLink()
     @test link == link
     @test link != CuLink()
@@ -60,7 +66,7 @@ end
     end
 end
 
-let
+@testcase "compilation" begin
     link = CuLink()
     add_file!(link, joinpath(@__DIR__, "ptx/vadd_child.ptx"), CUDA.JIT_INPUT_PTX)
     open(joinpath(@__DIR__, "ptx/vadd_parent.ptx")) do f
@@ -77,4 +83,8 @@ let
 
     md = CuModule(obj, options)
     vadd = CuFunction(md, "vadd")
+end
+
+end
+
 end

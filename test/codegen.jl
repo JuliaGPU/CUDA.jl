@@ -1,6 +1,10 @@
+@testset "codegen" begin
+
+############################################################################################
+
 @testset "LLVM IR" begin
 
-@testset "JuliaLang/julia#21121" begin
+@testcase "JuliaLang/julia#21121" begin
     function foobar()
         weight_matrix = @cuStaticSharedMem(Float32, (16, 16))
         sync_threads()
@@ -12,7 +16,7 @@
     @test !occursin("inttoptr", ir)
 end
 
-@testset "CUDA.jl#553" begin
+@testcase "CUDA.jl#553" begin
     function kernel(ptr)
        unsafe_store!(ptr, CUDA.fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
        return
@@ -22,7 +26,7 @@ end
     @test !occursin("@__nv_fmaf", ir)
 end
 
-@testset "assume" begin
+@testcase "assume" begin
     foo(i) = cld(42, i)
     ir = sprint(io->CUDA.code_llvm(io, foo, Tuple{Int}))
     @test occursin("@gpu_report_exception", ir)
@@ -33,7 +37,7 @@ end
     @test !occursin("gpu_report_exception", ir)
 end
 
-@testset "stripping invariant.load" begin
+@testcase "stripping invariant.load" begin
     function kernel(ptr, x)
         i = CUDA.threadIdx_x()
         @inbounds ptr[] = x[i]
@@ -46,7 +50,7 @@ end
     @test Array(arr)[] == 1.
 end
 
-@testset "stripping const TBAA" begin
+@testcase "stripping const TBAA" begin
     # this one is particularly nasty because it occurs in a nested function
 
     _a = rand(Int, 2, 1)
@@ -66,7 +70,7 @@ end
     @test Array(out) == (_a .+ 1)
 end
 
-@testset "ptxas-compatible control flow" begin
+@testcase "ptxas-compatible control flow" begin
     @noinline function throw_some()
         throw(42)
         return
@@ -118,7 +122,7 @@ end
 
 @testset "PTX" begin
 
-@testset "local memory stores due to byval" begin
+@testcase "local memory stores due to byval" begin
     # JuliaGPU/GPUCompiler.jl#92
     function kernel(y1, y2)
         y = threadIdx().x == 1 ? y1 : y2
@@ -134,28 +138,34 @@ end
 
 ############################################################################################
 
-@testset "SASS" begin
+@not_if_memcheck @testset "SASS" begin
 
-@testset "basic reflection" begin
+@testcase "basic reflection" begin
     valid_kernel() = return
     invalid_kernel() = 1
 
-    @not_if_memcheck @test CUDA.code_sass(devnull, valid_kernel, Tuple{}) == nothing
-    @not_if_memcheck @test_throws CUDA.KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
+    @test CUDA.code_sass(devnull, valid_kernel, Tuple{}) == nothing
+    @test_throws CUDA.KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
 end
 
-@testset "function name mangling" begin
-    @eval @noinline $(Symbol("dummy_^"))(x) = x
+@testcase "function name mangling" begin
+    @in_module quote
+        @noinline $(Symbol("dummy_^"))(x) = x
 
-    @eval kernel_341(ptr) = (@inbounds unsafe_store!(ptr, $(Symbol("dummy_^"))(unsafe_load(ptr))); nothing)
+        kernel_341(ptr) = (@inbounds unsafe_store!(ptr, $(Symbol("dummy_^"))(unsafe_load(ptr))); nothing)
 
-    @not_if_memcheck CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
+        CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
+    end
 end
 
-@testset "device runtime" begin
+@testcase "device runtime" begin
     kernel() = (CUDA.cudaGetLastError(); return)
 
-    @not_if_memcheck CUDA.code_sass(devnull, kernel, Tuple{})
+    CUDA.code_sass(devnull, kernel, Tuple{})
 end
+
+end
+
+############################################################################################
 
 end

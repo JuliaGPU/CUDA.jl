@@ -1,5 +1,7 @@
 using Interpolations
 
+@testset "texture memory" begin
+
 @inline function calcpoint(blockIdx, blockDim, threadIdx, size)
     i = (blockIdx - 1) * blockDim + threadIdx
     return i, Float32(i)
@@ -38,7 +40,7 @@ function fetch_all(texture)
     d_out
 end
 
-@testset "CuTextureArray(::CuArray)" begin
+@testcase "CuTextureArray(::CuArray)" begin
     testheight, testwidth, testdepth = 16, 16, 4
     a1D = convert(Array{Float32}, 1:testheight)
     a2D = convert(Array{Float32}, repeat(1:testheight, 1, testwidth) + repeat(0.01 * (1:testwidth)', testheight, 1))
@@ -61,7 +63,7 @@ end
     @test fetch_all(tex3D) == d_a3D
 end
 
-@testset "CuTextureArray(::Array)" begin
+@testcase "CuTextureArray(::Array)" begin
     testheight, testwidth, testdepth = 16, 16, 4
     a1D = convert(Array{Float32}, 1:testheight)
     a2D = convert(Array{Float32}, repeat(1:testheight, 1, testwidth) + repeat(0.01 * (1:testwidth)', testheight, 1))
@@ -85,7 +87,7 @@ end
     @test Array(fetch_all(tex3D)) == a3D
 end
 
-@testset "CuTexture(::CuArray)" begin
+@testcase "CuTexture(::CuArray)" begin
     testheight, testwidth, testdepth = 16, 16, 4
     a1D = convert(Array{Float32}, 1:testheight)
     a2D = convert(Array{Float32}, repeat(1:testheight, 1, testwidth) + repeat(0.01 * (1:testwidth)', testheight, 1))
@@ -96,10 +98,10 @@ end
 
     # This works as long as d_a2D is well pitched
     texwrap2D = CuTexture(d_a2D)
-    @test fetch_all(texwrap2D) == d_a2D
+    @test Array(fetch_all(texwrap2D)) == a2D
 end
 
-@testset "type support" begin
+@testcase "type support" begin
     for T in (Int32, UInt32, Int16, UInt16, Int8, UInt8, Float32, Float16)
         testheight, testwidth, testdepth = 32, 32, 4
         a2D = rand(T, testheight, testwidth)
@@ -116,7 +118,7 @@ end
     end
 end
 
-@testset "multiple channels" begin
+@testcase "multiple channels" begin
     testheight, testwidth, testdepth = 16, 16, 4
     a2D = [(Int32(i), Int32(j)) for i = 1:testheight, j = 1:testwidth]
     d_a2D = CuArray(a2D)
@@ -132,7 +134,7 @@ end
     @test fetch_all(tex2D) == d_a2D
 end
 
-@testset "interpolations" begin
+@testcase "interpolations" begin
     @testset "$interpolate $T" for T in (Float16, Float32,)
         @testset "$(N)D" for N in 1:3
             cpu_src = rand(T, fill(10, N)...)
@@ -141,7 +143,7 @@ end
             gpu_src = CuTextureArray(CuArray(cpu_src))
             gpu_idx = CuArray(cpu_idx)
 
-            @testset "nearest neighbour" begin
+            @testcase "nearest neighbour" begin
                 cpu_dst = similar(cpu_src, size(cpu_idx))
                 cpu_int = interpolate(cpu_src, BSpline(Constant()))
                 broadcast!(cpu_dst, cpu_idx, Ref(cpu_int)) do idx, int
@@ -157,7 +159,7 @@ end
                 @test cpu_dst ≈ Array(gpu_dst)
             end
 
-            @testset "linear interpolation" begin
+            @testcase "linear interpolation" begin
                 cpu_dst = similar(cpu_src, size(cpu_idx))
                 cpu_int = interpolate(cpu_src, BSpline(Linear()))
                 broadcast!(cpu_dst, cpu_idx, Ref(cpu_int)) do idx, int
@@ -173,7 +175,7 @@ end
                 @test cpu_dst ≈ Array(gpu_dst) rtol=0.01
             end
 
-            N<3 && @testset "cubic interpolation" begin
+            N<3 && @testcase "cubic interpolation" begin
                 cpu_dst = similar(cpu_src, size(cpu_idx))
                 cpu_int = interpolate(cpu_src, BSpline(Cubic(Line(OnGrid()))))
                 broadcast!(cpu_dst, cpu_idx, Ref(cpu_int)) do idx, int
@@ -192,4 +194,6 @@ end
             end
         end
     end
+end
+
 end

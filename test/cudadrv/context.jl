@@ -1,7 +1,9 @@
 @testset "context" begin
 
-ctx = CuCurrentContext()
-dev = CuCurrentDevice()
+@testcase "object construction" begin
+
+ctx = context()
+dev = device()
 
 let ctx2 = CuContext(dev)
     @test ctx2 == CuCurrentContext()    # ctor implicitly pushes
@@ -86,38 +88,34 @@ end
 # end
 
 
-@testset "cache config" begin
+@testcase "cache config" begin
+    config = cache_config()
 
-config = cache_config()
+    cache_config!(CUDA.FUNC_CACHE_PREFER_L1)
+    @test cache_config() == CUDA.FUNC_CACHE_PREFER_L1
 
-cache_config!(CUDA.FUNC_CACHE_PREFER_L1)
-@test cache_config() == CUDA.FUNC_CACHE_PREFER_L1
-
-cache_config!(config)
-
+    cache_config!(config)
 end
 
 
-@testset "shmem config" begin
+@testcase "shmem config" begin
+    config = shmem_config()
 
-config = shmem_config()
+    shmem_config!(CUDA.SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE)
+    @test shmem_config() == CUDA.SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE
 
-shmem_config!(CUDA.SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE)
-@test shmem_config() == CUDA.SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE
-
-shmem_config!(config)
-
+    shmem_config!(config)
 end
 
 
-@testset "limits" begin
+@testcase "limits" begin
+    lim = limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
 
-lim = limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
+    lim += 1
+    limit!(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH, lim)
+    @test lim == limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
 
-lim += 1
-limit!(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH, lim)
-@test lim == limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
-
-limit!(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH, lim)
+    limit!(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH, lim)
+end
 
 end

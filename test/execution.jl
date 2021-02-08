@@ -1,14 +1,20 @@
 import Adapt
 
+@testcase "execution" begin
+
+############################################################################################
+
 dummy() = return
 
 @testset "@cuda" begin
 
-@test_throws UndefVarError @cuda undefined()
-@test_throws MethodError @cuda dummy(1)
+@testcase "errors" begin
+    @test_throws UndefVarError @cuda undefined()
+    @test_throws MethodError @cuda dummy(1)
+end
 
 
-@testset "launch configuration" begin
+@testcase "launch configuration" begin
     @cuda dummy()
 
     @cuda threads=1 dummy()
@@ -21,7 +27,7 @@ dummy() = return
 end
 
 
-@testset "launch=false" begin
+@testcase "launch=false" begin
     k = @cuda launch=false dummy()
     k()
     k(; threads=1)
@@ -33,7 +39,7 @@ end
 end
 
 
-@testset "compilation params" begin
+@testcase "compilation params" begin
     @cuda dummy()
 
     @not_if_memcheck @test_throws CuError @cuda threads=2 maxthreads=1 dummy()
@@ -41,7 +47,7 @@ end
 end
 
 
-@testset "inference" begin
+@testcase "inference" begin
     foo() = @cuda dummy()
     @inferred foo()
 
@@ -52,7 +58,7 @@ end
 end
 
 
-@testset "reflection" begin
+@testcase "reflection" begin
     CUDA.code_lowered(dummy, Tuple{})
     CUDA.code_typed(dummy, Tuple{})
     CUDA.code_warntype(devnull, dummy, Tuple{})
@@ -107,39 +113,42 @@ end
 end
 
 
-@testset "shared memory" begin
+@testcase "shared memory" begin
     @cuda shmem=1 dummy()
 end
 
 
-@testset "streams" begin
+@testcase "streams" begin
     s = CuStream()
     @cuda stream=s dummy()
 end
 
 
-@testset "external kernels" begin
-    @eval module KernelModule
+@testcase "external kernels" begin
+    outer = @in_module Expr(:module, true, :Inner, quote end)
+    # NOTE: `quote module end` doesn't work
+    @eval outer.Inner begin
         export external_dummy
         external_dummy() = return
     end
-    import ...KernelModule
-    @cuda KernelModule.external_dummy()
-    @eval begin
-        using ...KernelModule
-        @cuda external_dummy()
-    end
+    @cuda outer.Inner.external_dummy()
 
-    @eval module WrapperModule
-        using CUDA
-        @eval dummy() = return
-        wrapper() = @cuda dummy()
+    @eval outer begin
+        using .Inner
+        call_external_dummy() = @cuda external_dummy()
     end
-    WrapperModule.wrapper()
+    Base.invokelatest(outer.call_external_dummy)
+
+    @in_module quote
+        dummy() = return
+        wrapper() = @cuda dummy()
+
+        wrapper()
+    end
 end
 
 
-@testset "calling device function" begin
+@testcase "calling device function" begin
     @noinline child(i) = sink(i)
     function parent()
         child(1)
@@ -150,14 +159,14 @@ end
 end
 
 
-@testset "varargs" begin
+@testcase "varargs" begin
     function kernel(args...)
         @cuprint(args[2])
         return
     end
 
     _, out = @grab_output begin
-        CUDA.@sync @cuda kernel(1, 2, 3)
+        @cuda kernel(1, 2, 3)
     end
     @test out == "2"
 end
@@ -170,9 +179,8 @@ end
 @testset "argument passing" begin
 
 dims = (16, 16)
-len = prod(dims)
 
-@testset "manually allocated" begin
+@testcase "manually allocated" begin
     function kernel(input, output)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
 
@@ -188,12 +196,12 @@ len = prod(dims)
     input_dev = CuArray(input)
     output_dev = CuArray(output)
 
-    @cuda threads=len kernel(input_dev, output_dev)
+    @cuda threads=length(input) kernel(input_dev, output_dev)
     @test input ≈ Array(output_dev)
 end
 
 
-@testset "scalar through single-value array" begin
+@testcase "scalar through single-value array" begin
     function kernel(a, x)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         max = gridDim().x * blockDim().x
@@ -210,12 +218,13 @@ end
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda threads=len kernel(arr_dev, val_dev)
+    @cuda threads=length(arr) kernel(arr_dev, val_dev)
+    synchronize_all()
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
 
-@testset "scalar through single-value array, using device function" begin
+@testcase "scalar through single-value array, using device function" begin
     @noinline child(a, i) = a[i]
     function parent(a, x)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
@@ -233,12 +242,12 @@ end
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda threads=len parent(arr_dev, val_dev)
+    @cuda threads=length(arr) parent(arr_dev, val_dev)
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
 
-@testset "tuples" begin
+@testcase "tuples" begin
     # issue #7: tuples not passed by pointer
 
     function kernel(keeps, out)
@@ -258,43 +267,44 @@ end
 end
 
 
-@testset "ghost function parameters" begin
+@testcase "ghost function parameters" begin
     # bug: ghost type function parameters are elided by the compiler
+    @in_module quote
+        struct ExecGhost end
 
-    len = 60
-    a = rand(Float32, len)
-    b = rand(Float32, len)
-    c = similar(a)
+        len = 60
+        a = rand(Float32, len)
+        b = rand(Float32, len)
+        c = similar(a)
 
-    d_a = CuArray(a)
-    d_b = CuArray(b)
-    d_c = CuArray(c)
+        d_a = CuArray(a)
+        d_b = CuArray(b)
+        d_c = CuArray(c)
 
-    @eval struct ExecGhost end
+        function kernel(ghost, a, b, c)
+            i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+            c[i] = a[i] + b[i]
+            return
+        end
+        @cuda threads=len kernel(ExecGhost(), d_a, d_b, d_c)
+        @test a+b == Array(d_c)
 
-    function kernel(ghost, a, b, c)
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        c[i] = a[i] + b[i]
-        return
+
+        # bug: ghost type function parameters confused aggregate type rewriting
+
+        function kernel(ghost, out, aggregate)
+            i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+            out[i] = aggregate[1]
+            return
+        end
+        @cuda threads=len kernel(ExecGhost(), d_c, (42,))
+
+        @test all(val->val==42, Array(d_c))
     end
-    @cuda threads=len kernel(ExecGhost(), d_a, d_b, d_c)
-    @test a+b == Array(d_c)
-
-
-    # bug: ghost type function parameters confused aggregate type rewriting
-
-    function kernel(ghost, out, aggregate)
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        out[i] = aggregate[1]
-        return
-    end
-    @cuda threads=len kernel(ExecGhost(), d_c, (42,))
-
-    @test all(val->val==42, Array(d_c))
 end
 
 
-@testset "immutables" begin
+@testcase "immutables" begin
     # issue #15: immutables not passed by pointer
 
     function kernel(ptr, b)
@@ -309,49 +319,76 @@ end
     @test Array(arr)[] == imag(x)
 end
 
+@testcase "automatic recompilation" begin
+    @in_module quote
+        arr = CuArray(zeros(Int))
 
-@testset "automatic recompilation" begin
+        function kernel(ptr)
+            ptr[] = 1
+            return
+        end
+
+        @cuda kernel(arr)
+        @test Array(arr)[] == 1
+
+        function kernel(ptr)
+            ptr[] = 2
+            return
+        end
+
+        @cuda kernel(arr)
+        @test Array(arr)[] == 2
+    end
+end
+
+@testcase "automatic recompilation (bis)" begin
+    @in_module quote
+        arr = CuArray(zeros(Int))
+
+        doit(ptr) = ptr[] = 1
+
+        function kernel(ptr)
+            doit(ptr)
+            return
+        end
+
+        @cuda kernel(arr)
+        @test Array(arr)[] == 1
+
+        doit(ptr) = ptr[] = 2
+
+        @cuda kernel(arr)
+        @test Array(arr)[] == 2
+    end
+end
+
+@testcase "automatic recompilation (tris)" begin
     arr = CuArray(zeros(Int))
 
-    function kernel(ptr)
-        ptr[] = 1
-        return
+    mod = @in_module quote
+        function kernel(ptr)
+            ptr[] = 1
+            return
+        end
     end
 
-    @cuda kernel(arr)
+    @cuda mod.kernel(arr)
     @test Array(arr)[] == 1
 
-    function kernel(ptr)
-        ptr[] = 2
-        return
+    @eval mod begin
+        function kernel(ptr)
+            ptr[] = 2
+            return
+        end
     end
 
-    @cuda kernel(arr)
-    @test Array(arr)[] == 2
+    @cuda mod.kernel(arr)
+    @test_broken Array(arr)[] == 2
+    # JuliaGPU/GPUArrays.jl#146: this doesn't work because we don't respect world ages
 end
 
 
-@testset "automatic recompilation (bis)" begin
-    arr = CuArray(zeros(Int))
-
-    @eval doit(ptr) = ptr[] = 1
-
-    function kernel(ptr)
-        doit(ptr)
-        return
-    end
-
-    @cuda kernel(arr)
-    @test Array(arr)[] == 1
-
-    @eval doit(ptr) = ptr[] = 2
-
-    @cuda kernel(arr)
-    @test Array(arr)[] == 2
-end
-
-
-@testset "non-isbits arguments" begin
+@testcase "non-isbits arguments" begin
     function kernel1(T, i)
         sink(i)
         return
@@ -366,7 +403,7 @@ end
 end
 
 
-@testset "splatting" begin
+@testcase "splatting" begin
     function kernel(out, a, b)
         out[] = a+b
         return
@@ -387,32 +424,32 @@ end
     @test Array(out_dev)[1] == 11
 end
 
-@testset "object invoke" begin
+@testcase "object invoke" begin
     # this mimics what is generated by closure conversion
+    @in_module quote
+        struct KernelObject{T} <: Function
+            val::T
+        end
+        function (self::KernelObject)(a)
+            a[] = self.val
+            return
+        end
 
-    @eval struct KernelObject{T} <: Function
-        val::T
+        function outer(a, val)
+        inner = KernelObject(val)
+        @cuda inner(a)
+        end
+
+        a = [1.]
+        a_dev = CuArray(a)
+
+        outer(a_dev, 2.)
+
+        @test Array(a_dev) ≈ [2.]
     end
-
-    function (self::KernelObject)(a)
-        a[] = self.val
-        return
-    end
-
-    function outer(a, val)
-       inner = KernelObject(val)
-       @cuda inner(a)
-    end
-
-    a = [1.]
-    a_dev = CuArray(a)
-
-    outer(a_dev, 2.)
-
-    @test Array(a_dev) ≈ [2.]
 end
 
-@testset "closures" begin
+@testcase "closures" begin
     function outer(a_dev, val)
        function inner(a)
             # captures `val`
@@ -430,7 +467,7 @@ end
     @test Array(a_dev) ≈ [2.]
 end
 
-@testset "closure as arguments" begin
+@testcase "closure as arguments" begin
     function kernel(closure)
         closure()
         return
@@ -448,82 +485,84 @@ end
     @test Array(a_dev) ≈ [2.]
 end
 
-@testset "conversions" begin
-    @eval struct Host   end
-    @eval struct Device end
+@testcase "conversions" begin
+    @in_module quote
+        struct Host   end
+        struct Device end
 
-    Adapt.adapt_storage(::CUDA.Adaptor, a::Host) = Device()
+        CUDA.Adapt.adapt_storage(::CUDA.Adaptor, a::Host) = Device()
 
-    Base.convert(::Type{Int}, ::Host)   = 1
-    Base.convert(::Type{Int}, ::Device) = 2
+        Base.convert(::Type{Int}, ::Host)   = 1
+        Base.convert(::Type{Int}, ::Device) = 2
 
-    out = [0]
+        out = [0]
 
-    # convert arguments
-    out_dev = CuArray(out)
-    let arg = Host()
-        @test Array(out_dev) ≈ [0]
-        function kernel(arg, out)
-            out[] = convert(Int, arg)
-            return
+        # convert arguments
+        out_dev = CuArray(out)
+        let arg = Host()
+            @test Array(out_dev) ≈ [0]
+            function kernel(arg, out)
+                out[] = convert(Int, arg)
+                return
+            end
+            @cuda kernel(arg, out_dev)
+            @test Array(out_dev) ≈ [2]
         end
-        @cuda kernel(arg, out_dev)
-        @test Array(out_dev) ≈ [2]
-    end
 
-    # convert captured variables
-    out_dev = CuArray(out)
-    let arg = Host()
-        @test Array(out_dev) ≈ [0]
-        function kernel(out)
-            out[] = convert(Int, arg)
-            return
+        # convert captured variables
+        out_dev = CuArray(out)
+        let arg = Host()
+            @test Array(out_dev) ≈ [0]
+            function kernel(out)
+                out[] = convert(Int, arg)
+                return
+            end
+            @cuda kernel(out_dev)
+            @test Array(out_dev) ≈ [2]
         end
-        @cuda kernel(out_dev)
-        @test Array(out_dev) ≈ [2]
-    end
 
-    # convert tuples
-    out_dev = CuArray(out)
-    let arg = (Host(),)
-        @test Array(out_dev) ≈ [0]
-        function kernel(arg, out)
-            out[] = convert(Int, arg[1])
-            return
+        # convert tuples
+        out_dev = CuArray(out)
+        let arg = (Host(),)
+            @test Array(out_dev) ≈ [0]
+            function kernel(arg, out)
+                out[] = convert(Int, arg[1])
+                return
+            end
+            @cuda kernel(arg, out_dev)
+            @test Array(out_dev) ≈ [2]
         end
-        @cuda kernel(arg, out_dev)
-        @test Array(out_dev) ≈ [2]
-    end
 
-    # convert named tuples
-    out_dev = CuArray(out)
-    let arg = (a=Host(),)
-        @test Array(out_dev) ≈ [0]
-        function kernel(arg, out)
-            out[] = convert(Int, arg.a)
-            return
+        # convert named tuples
+        out_dev = CuArray(out)
+        let arg = (a=Host(),)
+            @test Array(out_dev) ≈ [0]
+            function kernel(arg, out)
+                out[] = convert(Int, arg.a)
+                return
+            end
+            @cuda kernel(arg, out_dev)
+            @test Array(out_dev) ≈ [2]
         end
-        @cuda kernel(arg, out_dev)
-        @test Array(out_dev) ≈ [2]
-    end
 
-    # don't convert structs
-    out_dev = CuArray(out)
-    @eval struct Nested
-        a::Host
-    end
-    let arg = Nested(Host())
-        @test Array(out_dev) ≈ [0]
-        function kernel(arg, out)
-            out[] = convert(Int, arg.a)
-            return
+        # don't convert structs
+        out_dev = CuArray(out)
+        struct Nested
+            a::Host
         end
-        @cuda kernel(arg, out_dev)
-        @test Array(out_dev) ≈ [1]
+        let arg = Nested(Host())
+            @test Array(out_dev) ≈ [0]
+            function kernel(arg, out)
+                out[] = convert(Int, arg.a)
+                return
+            end
+            @cuda kernel(arg, out_dev)
+            @test Array(out_dev) ≈ [1]
+        end
     end
 end
 
-@testset "argument count" begin
+@testcase "argument count" begin
     val = [0]
     val_dev = CuArray(val)
     for i in (1, 10, 20, 34)
@@ -545,21 +584,23 @@ end
     end
 end
 
-@testset "keyword arguments" begin
-    @eval inner_kwargf(foobar;foo=1, bar=2) = nothing
+@testcase "keyword arguments" begin
+    @in_module quote
+        @eval inner_kwargf(foobar;foo=1, bar=2) = nothing
 
-    @cuda (()->inner_kwargf(42;foo=1,bar=2))()
+        @cuda (()->inner_kwargf(42;foo=1,bar=2))()
 
-    @cuda (()->inner_kwargf(42))()
+        @cuda (()->inner_kwargf(42))()
 
-    @cuda (()->inner_kwargf(42;foo=1))()
+        @cuda (()->inner_kwargf(42;foo=1))()
 
-    @cuda (()->inner_kwargf(42;bar=2))()
+        @cuda (()->inner_kwargf(42;bar=2))()
 
-    @cuda (()->inner_kwargf(42;bar=2,foo=1))()
+        @cuda (()->inner_kwargf(42;bar=2,foo=1))()
+    end
 end
 
-@testset "captured values" begin
+@testcase "captured values" begin
     function f(capture::T) where {T}
         function kernel(ptr)
             ptr[] = capture
@@ -572,7 +613,6 @@ end
         return Array(arr)[1]
     end
 
-    using Test
     @test f(1) == 1
     @test f(2) == 2
 end
@@ -583,7 +623,7 @@ end
 
 @testset "shmem divergence bug" begin
 
-@testset "trap" begin
+@testcase "trap" begin
     function trap()
         ccall("llvm.trap", llvmcall, Cvoid, ())
     end
@@ -622,7 +662,7 @@ end
     end
 end
 
-@testset "unreachable" begin
+@testcase "unreachable" begin
     function unreachable()
         @cuprintln("go home ptxas you're drunk")
         Base.llvmcall("unreachable", Cvoid, Tuple{})
@@ -662,7 +702,7 @@ end
     end
 end
 
-@testset "mapreduce (full)" begin
+@testcase "mapreduce (full)" begin
     function mapreduce_gpu(f::Function, op::Function, A::CuArray{T, N}; dims = :, init...) where {T, N}
         OT = Float32
         v0 =  0.0f0
@@ -714,7 +754,7 @@ end
     @test mapreduce(identity, +, A) ≈ mapreduce_gpu(identity, +, dA)
 end
 
-@testset "mapreduce (full, complex)" begin
+@testcase "mapreduce (full, complex)" begin
     function mapreduce_gpu(f::Function, op::Function, A::CuArray{T, N}; dims = :, init...) where {T, N}
         OT = Complex{Float32}
         v0 =  0.0f0+0im
@@ -766,7 +806,7 @@ end
     @test mapreduce(identity, +, A) ≈ mapreduce_gpu(identity, +, dA)
 end
 
-@testset "mapreduce (reduced)" begin
+@testcase "mapreduce (reduced)" begin
     function mapreduce_gpu(f::Function, op::Function, A::CuArray{T, N}) where {T, N}
         OT = Int
         v0 = 0
@@ -822,25 +862,27 @@ end
 
 @testset "dynamic parallelism" begin
 
-@testset "basic usage" begin
-    function hello()
-        @cuprint("Hello, ")
-        @cuda dynamic=true world()
-        return
-    end
+@testcase "basic usage" begin
+    @in_module quote
+        function hello()
+            @cuprint("Hello, ")
+            @cuda dynamic=true world()
+            return
+        end
 
-    @eval function world()
-        @cuprint("World!")
-        return
-    end
+        function world()
+            @cuprint("World!")
+            return
+        end
 
-    _, out = @grab_output begin
-        CUDA.@sync @cuda hello()
+        _, out = @grab_output begin
+            @cuda hello()
+        end
+        @test out == "Hello, World!"
     end
-    @test out == "Hello, World!"
 end
 
-@testset "anonymous functions" begin
+@testcase "anonymous functions" begin
     function hello()
         @cuprint("Hello, ")
         world = () -> (@cuprint("World!"); nothing)
@@ -849,13 +891,13 @@ end
     end
 
     _, out = @grab_output begin
-        CUDA.@sync @cuda hello()
+        @cuda hello()
     end
     @test out == "Hello, World!"
 end
 
 if VERSION >= v"1.1" # behavior of captured variables (box or not) has improved over time
-@testset "closures" begin
+@testcase "closures" begin
     function hello()
         x = 1
         @cuprint("Hello, ")
@@ -865,13 +907,13 @@ if VERSION >= v"1.1" # behavior of captured variables (box or not) has improved 
     end
 
     _, out = @grab_output begin
-        CUDA.@sync @cuda hello()
+        @cuda hello()
     end
     @test out == "Hello, World 1!"
 end
 end
 
-@testset "argument passing" begin
+@testcase "argument passing" begin
     ## padding
 
     function kernel(a, b, c)
@@ -884,7 +926,7 @@ end
                  (Int64(1), Int32(2), Int16(3)),    # no padding, inequal size
                  (Int16(1), Int64(2), Int32(3)))    # mixed
         _, out = @grab_output begin
-            CUDA.@sync @cuda kernel(args...)
+            @cuda kernel(args...)
         end
         @test out == "1 2 3"
     end
@@ -907,74 +949,80 @@ end
     @test A == [3]
 end
 
-@testset "self-recursion" begin
-    @eval function kernel(x::Bool)
-        if x
-            @cuprint("recurse ")
-            @cuda dynamic=true kernel(false)
-        else
-            @cuprint("stop")
+@testcase "self-recursion" begin
+    @in_module quote
+        function kernel(x::Bool)
+            if x
+                @cuprint("recurse ")
+                @cuda dynamic=true kernel(false)
+            else
+                @cuprint("stop")
+            end
+            return
         end
-       return
-    end
 
-    _, out = @grab_output begin
-        CUDA.@sync @cuda kernel(true)
-    end
-    @test out == "recurse stop"
-end
-
-@testset "deep recursion" begin
-    @eval function kernel_a(x::Bool)
-        @cuprint("a ")
-        @cuda dynamic=true kernel_b(x)
-        return
-    end
-
-    @eval function kernel_b(x::Bool)
-        @cuprint("b ")
-        @cuda dynamic=true kernel_c(x)
-        return
-    end
-
-    @eval function kernel_c(x::Bool)
-        @cuprint("c ")
-        if x
-            @cuprint("recurse ")
-            @cuda dynamic=true kernel_a(false)
-        else
-            @cuprint("stop")
+        _, out = @grab_output begin
+            @cuda kernel(true)
         end
-        return
+        @test out == "recurse stop"
     end
-
-    _, out = @grab_output begin
-        CUDA.@sync @cuda kernel_a(true)
-    end
-    @test out == "a b c recurse a b c stop"
 end
 
-@testset "streams" begin
-    function hello()
-        @cuprint("Hello, ")
-        s = CuDeviceStream()
-        @cuda dynamic=true stream=s world()
-        CUDA.unsafe_destroy!(s)
-        return
-    end
+@testcase "deep recursion" begin
+    @in_module quote
+        function kernel_a(x::Bool)
+            @cuprint("a ")
+            @cuda dynamic=true kernel_b(x)
+            return
+        end
 
-    @eval function world()
-        @cuprint("World!")
-        return
-    end
+        function kernel_b(x::Bool)
+            @cuprint("b ")
+            @cuda dynamic=true kernel_c(x)
+            return
+        end
 
-    _, out = @grab_output begin
-        CUDA.@sync @cuda hello()
+        function kernel_c(x::Bool)
+            @cuprint("c ")
+            if x
+                @cuprint("recurse ")
+                @cuda dynamic=true kernel_a(false)
+            else
+                @cuprint("stop")
+            end
+            return
+        end
+
+        _, out = @grab_output begin
+            @cuda kernel_a(true)
+        end
+        @test out == "a b c recurse a b c stop"
     end
-    @test out == "Hello, World!"
 end
 
-@testset "parameter alignment" begin
+@testcase "streams" begin
+    @in_module quote
+        function hello()
+            @cuprint("Hello, ")
+            s = CuDeviceStream()
+            @cuda dynamic=true stream=s world()
+            CUDA.unsafe_destroy!(s)
+            return
+        end
+
+        function world()
+            @cuprint("World!")
+            return
+        end
+
+        _, out = @grab_output begin
+            @cuda hello()
+        end
+        @test out == "Hello, World!"
+    end
+end
+
+@testcase "parameter alignment" begin
     # foo is unused, but determines placement of bar
     function child(x, foo, bar)
         x[] = sum(bar)
@@ -998,7 +1046,7 @@ end
     end
 end
 
-@testset "many arguments" begin
+@testcase "many arguments" begin
     # JuliaGPU/CUDA.jl#401
     function dp_5arg_kernel(v1, v2, v3, v4, v5)
         return nothing
@@ -1028,9 +1076,9 @@ end
 
 ############################################################################################
 
-if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
+@run_if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1 begin
 
-@testset "cooperative groups" begin
+@testcase "cooperative groups" begin
     function kernel_vadd(a, b, c)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         grid_handle = this_grid()
@@ -1061,3 +1109,5 @@ end
 end
 
 ############################################################################################
+
+end

@@ -1,4 +1,16 @@
-using Distributed, Test, CUDA
+module TestHelpers
+
+import Test
+using XUnit
+
+using CUDA
+
+export TestSuite, testf,
+       @not_if_memcheck, @run_if, @grab_output,
+       @test_throws_cuerror, @test_throws_message, @test_throws_macro,
+       @test_broken_if, @test_maybe_broken,
+       @on_device, @in_module,
+       sink, julia_script
 
 # GPUArrays has a testsuite that isn't part of the main package.
 # Include it directly.
@@ -8,127 +20,56 @@ gpuarrays_root = dirname(dirname(gpuarrays))
 include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
 testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
 
-using Random
-
 # detect cuda-memcheck, to disable testts that are known to fail under cuda-memcheck
 # (e.g. those using CUPTI) or result in verbose output (deliberate API errors)
+const memcheck = isdefined(Main, :do_memcheck) ? Main.do_memcheck : haskey(ENV, "CUDA_MEMCHECK")
 macro not_if_memcheck(ex)
-    haskey(ENV, "CUDA_MEMCHECK") || return esc(ex)
+    memcheck || return esc(ex)
     quote
         @test_skip $ex
     end
 end
 
-# precompile the runtime library
-CUDA.precompile_runtime()
-
-# for when we include tests directly
-CUDA.allowscalar(false)
-
-
-## entry point
-
-function runtests(f, name, time_source=:cuda, snoop=nothing)
-    old_print_setting = Test.TESTSET_PRINT_ENABLE[]
-    Test.TESTSET_PRINT_ENABLE[] = false
-
-    if snoop !== nothing
-        io = open(snoop, "w")
-        ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), io.handle)
-    end
-
-    try
-        # generate a temporary module to execute the tests in
-        mod_name = Symbol("Test", rand(1:100), "Main_", replace(name, '/' => '_'))
-        mod = @eval(Main, module $mod_name end)
-        @eval(mod, using Test, Random, CUDA)
-
-        let id = myid()
-            wait(@spawnat 1 print_testworker_started(name, id))
+# check if a test is supported, and skip it if not. error if we're not allowed to skip.
+const thorough = isdefined(Main, :do_thorough) ? Main.do_thorough : true
+macro run_if(check, test)
+    if thorough
+        quote
+            supported = $(esc(check))
+            if !supported
+                error("Unsupported")
+            end
+            $(esc(test))
         end
-
-        ex = quote
-            Random.seed!(1)
-            CUDA.allowscalar(false)
-
-            if $(QuoteNode(time_source)) == :cuda
-                CUDA.@timed @testset $name begin
-                    $f()
-                end
-            elseif $(QuoteNode(time_source)) == :julia
-                res = @timed @testset $name begin
-                    $f()
-                end
-                res..., 0, 0, 0
-            else
-                error("Unknown time source: " * $(string(time_source)))
+    else
+        quote
+            supported = $(esc(check))
+            if supported
+                $(esc(test))
             end
         end
-        data = Core.eval(mod, ex)
-        #data[1] is the testset
-
-        # process results
-        cpu_rss = Sys.maxrss()
-        gpu_rss = if has_nvml()
-            cuda_dev = device()
-            nvml_dev = NVML.Device(uuid(cuda_dev))
-            try
-                gpu_processes = NVML.compute_processes(nvml_dev)
-                if haskey(gpu_processes, getpid())
-                    gpu_processes[getpid()].used_gpu_memory
-                else
-                    # happens when we didn't do compute, or when using containers:
-                    # https://github.com/NVIDIA/gpu-monitoring-tools/issues/63
-                    missing
-                end
-            catch err
-                (isa(err, NVML.NVMLError) && err.code == NVML.ERROR_NOT_SUPPORTED) || rethrow()
-                missing
-            end
-        else
-            missing
-        end
-        passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
-            Test.get_test_counts(data[1])
-        if data[1].anynonpass == false
-            data = ((passes+c_passes,broken+c_broken),
-                    data[2],
-                    data[3],
-                    data[4],
-                    data[5],
-                    data[6],
-                    data[7],
-                    data[8])
-        end
-        res = vcat(collect(data), cpu_rss, gpu_rss)
-
-        device_reset!()
-        res
-    finally
-        if snoop !== nothing
-            ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), C_NULL)
-            close(io)
-        end
-
-        Test.TESTSET_PRINT_ENABLE[] = old_print_setting
     end
 end
 
-
-## auxiliary stuff
-
 # NOTE: based on test/pkg.jl::capture_stdout, but doesn't discard exceptions
+# NOTE: we grab the iolock here, but that's a reentrant lock, so we should not
+#       switch tasks (e.g. by yielding via synchronize)!
 macro grab_output(ex)
     quote
         mktemp() do fname, fout
             ret = nothing
             open(fname, "w") do fout
+                Base.iolock_begin()
+                # XXX: this doesn't seem sufficient to keep XUnit.jl from generating output?
+                XUnit.TESTSET_PRINT_ENABLE[] = false
                 redirect_stdout(fout) do
                     ret = $(esc(ex))
 
                     # NOTE: CUDA requires a 'proper' sync to flush its printf buffer
                     synchronize_all()
                 end
+                XUnit.TESTSET_PRINT_ENABLE[] = true
+                Base.iolock_end()
             end
             ret, read(fname, String)
         end
@@ -202,6 +143,23 @@ macro on_device(ex)
     end)
 end
 
+# Put some code in a private module, and return a handle to it.
+# This is useful for kernel definitions, which often contain boxes
+# when defined in local scope. The disadvantage is that calls to
+# functions in these modules need to be invokelatest'd
+# (but not for kernel code because of JuliaGPU/GPUCompiler.jl#146).
+macro in_module(ex)
+    quote
+        mod = eval(Expr(:module, true, gensym("PrivateModule"), quote end))
+        Base.eval(mod, quote
+            using ..CUDA, ..XUnit, ..TestHelpers
+            import Test
+        end)
+        Base.eval(mod, $(esc(ex)))
+        mod
+    end
+end
+
 # helper function for sinking a value to prevent the callee from getting optimized away
 @inline sink(i::Int32) =
     Base.llvmcall("""%slot = alloca i32
@@ -249,8 +207,6 @@ end
 # some tests are mysteriously broken with certain hardware/software.
 # use a horrible macro to mark those tests as "potentially broken"
 @eval Test begin
-    export @test_maybe_broken
-
     macro test_maybe_broken(ex, kws...)
         test_expr!("@test_maybe_broken", ex, kws...)
         orig_ex = Expr(:inert, ex)
@@ -265,5 +221,17 @@ end
         end
     end
 end
+using Test: @test_maybe_broken
 
-nothing # File is loaded via a remotecall to "include". Ensure it returns "nothing".
+end
+
+
+## global set-up
+
+# here, and not in test_all.jl, to make it possible to
+# include this file and run a single test suite.
+
+using XUnit, CUDA, .TestHelpers
+import Test
+
+CUDA.allowscalar(false)

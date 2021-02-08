@@ -1,8 +1,13 @@
-@testset "ldg" begin
+@testcase "ldg" begin
+
+############################################################################################
+
+@testcase "pointerref_ldg" begin
     ir = sprint(io->CUDA.code_llvm(io, CUDA.pointerref_ldg, Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}))
     @test occursin("@llvm.nvvm.ldg", ir)
 end
 
+############################################################################################
 
 capability(device()) >= v"3.2" && @testset "unsafe_cached_load" begin
 
@@ -21,7 +26,7 @@ capability(device()) >= v"3.2" && @testset "unsafe_cached_load" begin
     @test Array(d_a) == Array(d_b)
 end
 
-@testset "Const" begin
+@testcase "Const" begin
     function kernel(a, b, i)
         @inbounds b[i] = Base.Experimental.Const(a)[i]
         return
@@ -53,5 +58,9 @@ end
     @cuda threads=length(x) copy_const(x, y)
     @test Array(x) == Array(y)
 end
+
+end
+
+############################################################################################
 
 end

@@ -1,3 +1,9 @@
+@testset "CUSOLVER" begin
+
+############################################################################################
+
+@testset "dense" begin
+
 using CUDA.CUSOLVER
 
 using LinearAlgebra
@@ -8,8 +14,8 @@ n = 10
 l = 13
 k = 1
 
-@testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    @testset "Cholesky (po)" begin
+@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testcase "Cholesky (po)" begin
         A    = rand(elty,n,n)
         A    = A*A' #posdef
         B    = rand(elty,n,n)
@@ -19,12 +25,12 @@ k = 1
         d_F  = cholesky(d_A, Val(false))
         F    = cholesky(A, Val(false))
         @test F.U   ≈ collect(d_F.U)
-        @test F\(A'B) ≈ collect(d_F\(d_A'd_B))
+        @test F\(A'B) ≈ collect(d_F\(d_A'd_B)) rtol=1e-2
 
         d_F  = cholesky(Hermitian(d_A, :L), Val(false))
         F    = cholesky(Hermitian(A, :L), Val(false))
         @test F.L   ≈ collect(d_F.L)
-        @test F\(A'B) ≈ collect(d_F\(d_A'd_B))
+        @test F\(A'B) ≈ collect(d_F\(d_A'd_B)) rtol=1e-2
 
         @test_throws DimensionMismatch LinearAlgebra.LAPACK.potrs!('U',d_A,CUDA.rand(elty,m,m))
 
@@ -38,7 +44,7 @@ k = 1
         @test_throws LinearAlgebra.PosDefException cholesky(d_A)
     end
 
-    CUDA.CUSOLVER.version() >= v"10.1" && @testset "Cholesky inverse (potri)" begin
+    CUDA.CUSOLVER.version() >= v"10.1" && @testcase "Cholesky inverse (potri)" begin
         # test lower
         A    = rand(elty,n,n)
         A    = A*A' #posdef
@@ -49,7 +55,7 @@ k = 1
 
         LinearAlgebra.LAPACK.potri!('L', A)
         LinearAlgebra.LAPACK.potri!('L', d_A)
-        @test A  ≈ collect(d_A)
+        @test A  ≈ collect(d_A) rtol=1e-3
 
         # test upper
         A    = rand(elty,n,n)
@@ -60,10 +66,10 @@ k = 1
         LinearAlgebra.LAPACK.potrf!('U', d_A)
         LinearAlgebra.LAPACK.potri!('U', A)
         LinearAlgebra.LAPACK.potri!('U', d_A)
-        @test A  ≈ collect(d_A)
+        @test A  ≈ collect(d_A) rtol=1e-3
     end
 
-    @testset "getrf!" begin
+    @testcase "getrf!" begin
         A          = rand(elty,m,n)
         d_A        = CuArray(A)
         d_A,d_ipiv = CUSOLVER.getrf!(d_A)
@@ -76,7 +82,7 @@ k = 1
         @test_throws LinearAlgebra.SingularException CUSOLVER.getrf!(d_A)
     end
 
-    @testset "getrs!" begin
+    @testcase "getrs!" begin
         A          = rand(elty,n,n)
         d_A        = CuArray(A)
         d_A,d_ipiv = CUSOLVER.getrf!(d_A)
@@ -95,7 +101,7 @@ k = 1
         @test_throws DimensionMismatch CUSOLVER.getrs!('N',d_A,d_ipiv,d_B)
     end
 
-    @testset "Matrix division" begin
+    @testcase "Matrix division" begin
         A = rand(elty,n,n)
         B = rand(elty,n,n)
         C = A \ B
@@ -104,7 +110,7 @@ k = 1
         @test C ≈ Array(d_A \ d_B)
     end
 
-    @testset "geqrf!" begin
+    @testcase "geqrf!" begin
         A         = rand(elty,m,n)
         d_A       = CuArray(A)
         d_A,d_tau = CUSOLVER.geqrf!(d_A)
@@ -114,7 +120,7 @@ k = 1
         @test A ≈ Array(qra)
     end
 
-    @testset "ormqr!" begin
+    @testcase "ormqr!" begin
         A          = rand(elty, m, n)
         d_A        = CuArray(A)
         d_A, d_tau = CUSOLVER.geqrf!(d_A)
@@ -153,7 +159,7 @@ k = 1
         @test h_B  ≈ B*Array(F.Q)
     end
 
-    @testset "orgqr!" begin
+    @testcase "orgqr!" begin
         A         = rand(elty,n,m)
         d_A       = CuArray(A)
         d_A,d_tau = CUSOLVER.geqrf!(d_A)
@@ -170,7 +176,7 @@ k = 1
         @test h_Q ≈ Array(F.Q)
     end
 
-    @testset "sytrf!" begin
+    @testcase "sytrf!" begin
         A          = rand(elty,n,n)
         A          = A + A' #symmetric
         d_A        = CuArray(A)
@@ -188,7 +194,7 @@ k = 1
         @test_throws LinearAlgebra.SingularException CUSOLVER.sytrf!('U',d_A)
     end
 
-    @testset "gebrd!" begin
+    @testcase "gebrd!" begin
         A                             = rand(elty,m,n)
         d_A                           = CuArray(A)
         d_A, d_D, d_E, d_TAUQ, d_TAUP = CUSOLVER.gebrd!(d_A)
@@ -205,7 +211,7 @@ k = 1
         @test p ≈ h_TAUP
     end
 
-    @testset "syevd!" begin
+    @testcase "syevd!" begin
         A              = rand(elty,m,m)
         A             += A'
         d_A            = CuArray(A)
@@ -230,7 +236,7 @@ k = 1
         @test Eig.values ≈ h_W
     end
 
-    @testset "sygvd!" begin
+    @testcase "sygvd!" begin
         A              = rand(elty,m,m)
         B              = rand(elty,m,m)
         A             *= A'
@@ -247,10 +253,10 @@ k = 1
         h_VA           = collect(d_VA)
         h_VB           = collect(d_VB)
         Eig            = eigen(Hermitian(A), Hermitian(B))
-        @test Eig.values ≈ h_W
-        @test A*h_VA ≈ B*h_VA*Diagonal(h_W) rtol=1e-4
+        @test Eig.values ≈ h_W rtol=1e-2
+        @test A*h_VA ≈ B*h_VA*Diagonal(h_W) rtol=1e-2
         # test normalization condition for eigtype 1
-        @test abs.(h_VA'B*h_VA) ≈ Matrix(one(elty)*I, m, m)
+        @test abs.(h_VA'B*h_VA) ≈ Matrix(one(elty)*I, m, m) rtol=1e-2
         d_A            = CuArray(A)
         d_B            = CuArray(B)
         if( elty <: Complex )
@@ -259,7 +265,7 @@ k = 1
             d_W   = CUSOLVER.sygvd!(1, 'N','U', d_A, d_B)
         end
         h_W            = collect(d_W)
-        @test Eig.values ≈ h_W
+        @test Eig.values ≈ h_W rtol=1e-2
         d_B            = CUDA.rand(elty, m+1, m+1)
         if( elty <: Complex )
             @test_throws DimensionMismatch CUSOLVER.hegvd!(1, 'N','U', d_A, d_B)
@@ -268,7 +274,7 @@ k = 1
         end
     end
 
-    @testset "syevj!" begin
+    @testcase "syevj!" begin
         A              = rand(elty,m,m)
         B              = rand(elty,m,m)
         A             *= A'
@@ -285,10 +291,10 @@ k = 1
         h_VA           = collect(d_VA)
         h_VB           = collect(d_VB)
         Eig            = eigen(Hermitian(A), Hermitian(B))
-        @test Eig.values ≈ h_W
-        @test A*h_VA ≈ B*h_VA*Diagonal(h_W) rtol=1e-4
+        @test Eig.values ≈ h_W rtol=1e-2
+        @test A*h_VA ≈ B*h_VA*Diagonal(h_W) rtol=1e-2
         # test normalization condition for eigtype 1
-        @test abs.(h_VA'B*h_VA) ≈ Matrix(one(elty)*I, m, m)
+        @test abs.(h_VA'B*h_VA) ≈ Matrix(one(elty)*I, m, m) rtol=1e-2
         d_A            = CuArray(A)
         d_B            = CuArray(B)
         if( elty <: Complex )
@@ -297,64 +303,62 @@ k = 1
             d_W   = CUSOLVER.sygvj!(1, 'N','U', d_A, d_B)
         end
         h_W            = collect(d_W)
-        @test Eig.values ≈ h_W
+        @test Eig.values ≈ h_W rtol=1e-2
     end
 
-    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-        @testset "syevjBatched!" begin
-            # Generate a random symmetric/hermitian matrix
-            A = rand(elty, m,m,n)
-            A += permutedims(A, (2,1,3))
-            d_A = CuArray(A)
+    @testcase "syevjBatched!" begin
+        # Generate a random symmetric/hermitian matrix
+        A = rand(elty, m,m,n)
+        A += permutedims(A, (2,1,3))
+        d_A = CuArray(A)
 
-            # Run the solver
-            local d_W, d_V
-            if( elty <: Complex )
-                d_W, d_V   = CUSOLVER.heevjBatched!('V','U', d_A)
-            else
-                d_W, d_V   = CUSOLVER.syevjBatched!('V','U', d_A)
-            end
+        # Run the solver
+        local d_W, d_V
+        if( elty <: Complex )
+            d_W, d_V   = CUSOLVER.heevjBatched!('V','U', d_A)
+        else
+            d_W, d_V   = CUSOLVER.syevjBatched!('V','U', d_A)
+        end
 
-            # Pull it back to hardware
-            h_W   = collect(d_W)
-            h_V   = collect(d_V)
+        # Pull it back to hardware
+        h_W   = collect(d_W)
+        h_V   = collect(d_V)
 
-            # Use non-GPU blas to estimate the eigenvalues as well
-            for i = 1:n
-                # Get our eigenvalues
-                Eig = eigen(LinearAlgebra.Hermitian(A[:,:,i]))
+        # Use non-GPU blas to estimate the eigenvalues as well
+        for i = 1:n
+            # Get our eigenvalues
+            Eig = eigen(LinearAlgebra.Hermitian(A[:,:,i]))
 
-                # Compare to the actual ones
-                @test Eig.values ≈ h_W[:,i]
-                @test abs.(Eig.vectors'*h_V[:,:,i]) ≈ I
-            end
+            # Compare to the actual ones
+            @test Eig.values ≈ h_W[:,i]
+            @test abs.(Eig.vectors'*h_V[:,:,i]) ≈ I
+        end
 
-            # Do it all again, but with the option to not compute eigenvectors
-            d_A = CuArray(A)
+        # Do it all again, but with the option to not compute eigenvectors
+        d_A = CuArray(A)
 
-            # Run the solver
-            local d_W
-            if( elty <: Complex )
-                d_W   = CUSOLVER.heevjBatched!('N','U', d_A)
-            else
-                d_W   = CUSOLVER.syevjBatched!('N','U', d_A)
-            end
+        # Run the solver
+        local d_W
+        if( elty <: Complex )
+            d_W   = CUSOLVER.heevjBatched!('N','U', d_A)
+        else
+            d_W   = CUSOLVER.syevjBatched!('N','U', d_A)
+        end
 
-            # Pull it back to hardware
-            h_W   = collect(d_W)
+        # Pull it back to hardware
+        h_W   = collect(d_W)
 
-            # Use non-GPU blas to estimate the eigenvalues as well
-            for i = 1:n
-                # Get the reference results
-                Eig = eigen(LinearAlgebra.Hermitian(A[:,:,i]))
+        # Use non-GPU blas to estimate the eigenvalues as well
+        for i = 1:n
+            # Get the reference results
+            Eig = eigen(LinearAlgebra.Hermitian(A[:,:,i]))
 
-                # Compare to the actual ones
-                @test Eig.values ≈ h_W[:,i]
-            end
+            # Compare to the actual ones
+            @test Eig.values ≈ h_W[:,i]
         end
     end
 
-    @testset "$svd_f with $alg algorithm" for
+    @testcase "$svd_f with $alg algorithm" for
         svd_f in (svd, svd!),
         alg in (CUSOLVER.QRAlgorithm(), CUSOLVER.JacobiAlgorithm()),
         (_m, _n) in ((m, n), (n, m))
@@ -379,12 +383,14 @@ k = 1
             @test_throws ArgumentError svd(d_A; alg=alg)
         end
     end
-    # Check that constant propagation works
-    _svd(A) = svd(A; alg=CUSOLVER.QRAlgorithm())
-    @inferred _svd(CUDA.rand(Float32, 4, 4))
+
+    @testcase "svd constant propagation" begin
+        _svd(A) = svd(A; alg=CUSOLVER.QRAlgorithm())
+        @inferred _svd(CUDA.rand(Float32, 4, 4))
+    end
 
 
-    @testset "qr" begin
+    @testcase "qr" begin
         tol = min(m, n)*eps(real(elty))*(1 + (elty <: Complex))
 
         A              = rand(elty, m, n)
@@ -425,133 +431,355 @@ k = 1
         @test Array(h_r) ≈ Array(r)
     end
 
-    @testset "potrsBatched!" begin
-        @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-            # Test lower
-            bA = [rand(elty, m, m) for i in 1:n]
-            bA = [bA[i]*bA[i]' for i in 1:n]
-            bB = [rand(elty, m) for i in 1:n]
+    @testcase "potrsBatched!" begin
+        # Test lower
+        bA = [rand(elty, m, m) for i in 1:n]
+        bA = [bA[i]*bA[i]' for i in 1:n]
+        bB = [rand(elty, m) for i in 1:n]
 
-            # move to device
-            bd_A = CuArray{elty, 2}[]
-            bd_B = CuArray{elty, 1}[]
-            for i in 1:length(bA)
-                push!(bd_A, CuArray(bA[i]))
-                push!(bd_B, CuArray(bB[i]))
-            end
-
-            bd_X = CUSOLVER.potrsBatched!('L', bd_A, bd_B)
-            bh_X = [collect(bd_X[i]) for i in 1:n]
-
-            for i = 1:n
-                LinearAlgebra.LAPACK.potrs!('L', bA[i], bB[i])
-                @test bB[i] ≈ bh_X[i]
-            end
-
-            # Test upper
-            bA = [rand(elty, m, m) for i in 1:n]
-            bA = [bA[i]*bA[i]' for i in 1:n]
-            bB = [rand(elty, m) for i in 1:n]
-
-            # move to device
-            bd_A = CuArray{elty, 2}[]
-            bd_B = CuArray{elty, 1}[]
-            for i in 1:length(bA)
-                push!(bd_A, CuArray(bA[i]))
-                push!(bd_B, CuArray(bB[i]))
-            end
-
-            bd_X = CUSOLVER.potrsBatched!('U', bd_A, bd_B)
-            bh_X = [collect(bd_X[i]) for i in 1:n]
-
-            for i = 1:n
-                LinearAlgebra.LAPACK.potrs!('U', bA[i], bB[i])
-                @test bB[i] ≈ bh_X[i]
-            end
-            # error throwing tests
-            bA = [rand(elty, m, m) for i in 1:n]
-            bA = [bA[i]*bA[i]' for i in 1:n]
-            bB = [rand(elty, m) for i in 1:n+1]
-
-            # move to device
-            bd_A = CuArray{elty, 2}[]
-            bd_B = CuArray{elty, 1}[]
-            for i in 1:length(bA)
-                push!(bd_A, CuArray(bA[i]))
-                push!(bd_B, CuArray(bB[i]))
-            end
-            push!(bd_B, CuArray(bB[end]))
-
-            @test_throws DimensionMismatch CUSOLVER.potrsBatched!('L', bd_A, bd_B)
-
-            bA = [rand(elty, m, m) for i in 1:n]
-            bA = [bA[i]*bA[i]' for i in 1:n]
-            bB = [rand(elty, m) for i in 1:n]
-            bB[1] = rand(elty, m+1)
-            # move to device
-            bd_A = CuArray{elty, 2}[]
-            bd_B = CuArray{elty, 1}[]
-            for i in 1:length(bA)
-                push!(bd_A, CuArray(bA[i]))
-                push!(bd_B, CuArray(bB[i]))
-            end
-
-            @test_throws DimensionMismatch CUSOLVER.potrsBatched!('L', bd_A, bd_B)
-
-            bA = [rand(elty, m, m) for i in 1:n]
-            bA = [bA[i]*bA[i]' for i in 1:n]
-            bB = [rand(elty, m, m) for i in 1:n]
-            # move to device
-            bd_A = CuArray{elty, 2}[]
-            bd_B = CuArray{elty, 2}[]
-            for i in 1:length(bA)
-                push!(bd_A, CuArray(bA[i]))
-                push!(bd_B, CuArray(bB[i]))
-            end
-
-            @test_throws ArgumentError CUSOLVER.potrsBatched!('L', bd_A, bd_B)
+        # move to device
+        bd_A = CuArray{elty, 2}[]
+        bd_B = CuArray{elty, 1}[]
+        for i in 1:length(bA)
+            push!(bd_A, CuArray(bA[i]))
+            push!(bd_B, CuArray(bB[i]))
         end
+
+        bd_X = CUSOLVER.potrsBatched!('L', bd_A, bd_B)
+        bh_X = [collect(bd_X[i]) for i in 1:n]
+
+        for i = 1:n
+            LinearAlgebra.LAPACK.potrs!('L', bA[i], bB[i])
+            @test bB[i] ≈ bh_X[i]
+        end
+
+        # Test upper
+        bA = [rand(elty, m, m) for i in 1:n]
+        bA = [bA[i]*bA[i]' for i in 1:n]
+        bB = [rand(elty, m) for i in 1:n]
+
+        # move to device
+        bd_A = CuArray{elty, 2}[]
+        bd_B = CuArray{elty, 1}[]
+        for i in 1:length(bA)
+            push!(bd_A, CuArray(bA[i]))
+            push!(bd_B, CuArray(bB[i]))
+        end
+
+        bd_X = CUSOLVER.potrsBatched!('U', bd_A, bd_B)
+        bh_X = [collect(bd_X[i]) for i in 1:n]
+
+        for i = 1:n
+            LinearAlgebra.LAPACK.potrs!('U', bA[i], bB[i])
+            @test bB[i] ≈ bh_X[i]
+        end
+        # error throwing tests
+        bA = [rand(elty, m, m) for i in 1:n]
+        bA = [bA[i]*bA[i]' for i in 1:n]
+        bB = [rand(elty, m) for i in 1:n+1]
+
+        # move to device
+        bd_A = CuArray{elty, 2}[]
+        bd_B = CuArray{elty, 1}[]
+        for i in 1:length(bA)
+            push!(bd_A, CuArray(bA[i]))
+            push!(bd_B, CuArray(bB[i]))
+        end
+        push!(bd_B, CuArray(bB[end]))
+
+        @test_throws DimensionMismatch CUSOLVER.potrsBatched!('L', bd_A, bd_B)
+
+        bA = [rand(elty, m, m) for i in 1:n]
+        bA = [bA[i]*bA[i]' for i in 1:n]
+        bB = [rand(elty, m) for i in 1:n]
+        bB[1] = rand(elty, m+1)
+        # move to device
+        bd_A = CuArray{elty, 2}[]
+        bd_B = CuArray{elty, 1}[]
+        for i in 1:length(bA)
+            push!(bd_A, CuArray(bA[i]))
+            push!(bd_B, CuArray(bB[i]))
+        end
+
+        @test_throws DimensionMismatch CUSOLVER.potrsBatched!('L', bd_A, bd_B)
+
+        bA = [rand(elty, m, m) for i in 1:n]
+        bA = [bA[i]*bA[i]' for i in 1:n]
+        bB = [rand(elty, m, m) for i in 1:n]
+        # move to device
+        bd_A = CuArray{elty, 2}[]
+        bd_B = CuArray{elty, 2}[]
+        for i in 1:length(bA)
+            push!(bd_A, CuArray(bA[i]))
+            push!(bd_B, CuArray(bB[i]))
+        end
+
+        @test_throws ArgumentError CUSOLVER.potrsBatched!('L', bd_A, bd_B)
     end
 
-    @testset "potrfBatched!" begin
-        @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-            # Test lower
-            bA = [rand(elty, m, m) for i in 1:n]
-            bA = [bA[i]*bA[i]' for i in 1:n]
+    @testcase "potrfBatched!" begin
+        # Test lower
+        bA = [rand(elty, m, m) for i in 1:n]
+        bA = [bA[i]*bA[i]' for i in 1:n]
 
-            # move to device
-            bd_A = CuArray{elty, 2}[]
-            for i in 1:length(bA)
-                push!(bd_A, CuArray(bA[i]))
-            end
+        # move to device
+        bd_A = CuArray{elty, 2}[]
+        for i in 1:length(bA)
+            push!(bd_A, CuArray(bA[i]))
+        end
 
-            bd_A, info = CUSOLVER.potrfBatched!('L', bd_A)
-            bh_A = [collect(bd_A[i]) for i in 1:n]
+        bd_A, info = CUSOLVER.potrfBatched!('L', bd_A)
+        bh_A = [collect(bd_A[i]) for i in 1:n]
 
-            for i = 1:n
-                LinearAlgebra.LAPACK.potrf!('L', bA[i])
-                @test bA[i] ≈ bh_A[i]
-            end
+        for i = 1:n
+            LinearAlgebra.LAPACK.potrf!('L', bA[i])
+            @test bA[i] ≈ bh_A[i]
+        end
 
-            # Test upper
-            bA = [rand(elty, m, m) for i in 1:n]
-            bA = [bA[i]*bA[i]' for i in 1:n]
+        # Test upper
+        bA = [rand(elty, m, m) for i in 1:n]
+        bA = [bA[i]*bA[i]' for i in 1:n]
 
-            # move to device
-            bd_A = CuArray{elty, 2}[]
-            for i in 1:length(bA)
-                push!(bd_A, CuArray(bA[i]))
-            end
+        # move to device
+        bd_A = CuArray{elty, 2}[]
+        for i in 1:length(bA)
+            push!(bd_A, CuArray(bA[i]))
+        end
 
-            bd_A, info = CUSOLVER.potrfBatched!('U', bd_A)
-            bh_A = [collect(bd_A[i]) for i in 1:n]
+        bd_A, info = CUSOLVER.potrfBatched!('U', bd_A)
+        bh_A = [collect(bd_A[i]) for i in 1:n]
 
-            for i = 1:n
-                LinearAlgebra.LAPACK.potrf!('U', bA[i])
-                # cuSOLVER seems to return symmetric/hermitian matrix when using 'U'
-                @test Hermitian(bA[i]) ≈ bh_A[i]
-            end
+        for i = 1:n
+            LinearAlgebra.LAPACK.potrf!('U', bA[i])
+            # cuSOLVER seems to return symmetric/hermitian matrix when using 'U'
+            @test Hermitian(bA[i]) ≈ bh_A[i] rtol=1e-3
         end
     end
+end
+
+end
+
+############################################################################################
+
+@testset "sparse" begin
+
+using CUDA.CUSOLVER
+using CUDA.CUSPARSE
+
+using LinearAlgebra
+using SparseArrays
+
+m = 15
+n = 10
+l = 13
+k = 1
+
+@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testcase "csrlsvlu!" begin
+        A = sparse(rand(elty,n,n))
+        b = rand(elty,n)
+        x = zeros(elty,n)
+        tol = convert(real(elty),1e-6)
+        x = CUSOLVER.csrlsvlu!(A,b,x,tol,one(Cint),'O')
+        @test x ≈ Array(A)\b
+        A = sparse(rand(elty,m,n))
+        @test_throws DimensionMismatch CUSOLVER.csrlsvlu!(A,b,x,tol,one(Cint),'O')
+        A = sparse(rand(elty,n,n))
+        b = rand(elty,m)
+        x = zeros(elty,n)
+        @test_throws DimensionMismatch CUSOLVER.csrlsvlu!(A,b,x,tol,one(Cint),'O')
+        b = rand(elty,n)
+        x = zeros(elty,m)
+        @test_throws DimensionMismatch CUSOLVER.csrlsvlu!(A,b,x,tol,one(Cint),'O')
+    end
+
+    @testcase "csrlsvqr!" begin
+        A     = sparse(rand(elty,n,n))
+        d_A   = CuSparseMatrixCSR(A)
+        b     = rand(elty,n)
+        d_b   = CuArray(b)
+        x     = zeros(elty,n)
+        d_x   = CuArray(x)
+        tol   = convert(real(elty),1e-4)
+        d_x   = CUSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
+        h_x   = collect(d_x)
+        @test h_x ≈ Array(A)\b
+        A     = sparse(rand(elty,m,n))
+        d_A   = CuSparseMatrixCSR(A)
+        @test_throws DimensionMismatch CUSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
+        A = sparse(rand(elty,n,n))
+        b = rand(elty,m)
+        x = zeros(elty,n)
+        d_A   = CuSparseMatrixCSR(A)
+        d_b   = CuArray(b)
+        d_x   = CuArray(x)
+        @test_throws DimensionMismatch CUSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
+        b = rand(elty,n)
+        x = zeros(elty,m)
+        d_A   = CuSparseMatrixCSR(A)
+        d_b   = CuArray(b)
+        d_x   = CuArray(x)
+        @test_throws DimensionMismatch CUSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
+        dA    = diagm(0=>rand(elty, n))
+        dA[1,1] = zero(elty)
+        A     = sparse(dA)
+        d_A   = CuSparseMatrixCSR(A)
+        b     = rand(elty,n)
+        d_b   = CuArray(b)
+        x     = zeros(elty,n)
+        d_x   = CuArray(x)
+        @test_throws SingularException CUSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
+    end
+
+    @testcase "csrlsvchol!" begin
+        A     = rand(elty,n,n)
+        A     = sparse(A*A') #posdef
+        d_A   = CuSparseMatrixCSR(A)
+        b     = rand(elty,n)
+        d_b   = CuArray(b)
+        x     = zeros(elty,n)
+        d_x   = CuArray(x)
+        tol   = 10^2*eps(real(elty))
+        d_x   = CUSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,zero(Cint),'O')
+        h_x   = collect(d_x)
+        @test_maybe_broken h_x ≈ Array(A)\b
+        b     = rand(elty,m)
+        d_b   = CuArray(b)
+        @test_throws DimensionMismatch CUSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,zero(Cint),'O')
+        b     = rand(elty,n)
+        d_b   = CuArray(b)
+        x     = rand(elty,m)
+        d_x   = CuArray(x)
+        @test_throws DimensionMismatch CUSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,zero(Cint),'O')
+        A     = sparse(rand(elty,m,n))
+        d_A   = CuSparseMatrixCSR(A)
+        @test_throws DimensionMismatch CUSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,zero(Cint),'O')
+        dA    = diagm(0=>rand(elty, n))
+        dA[1,1] = zero(elty)
+        A     = sparse(dA)
+        d_A   = CuSparseMatrixCSR(A)
+        b     = rand(elty,n)
+        d_b   = CuArray(b)
+        x     = zeros(elty,n)
+        d_x   = CuArray(x)
+        @test_throws SingularException CUSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,one(Cint),'O')
+    end
+
+    @testcase "csreigvsi" begin
+        A     = sparse(rand(elty,n,n))
+        A     = A + A'
+        d_A   = CuSparseMatrixCSR(A)
+        evs   = eigvals(Array(A))
+        x_0   = CUDA.rand(elty,n)
+        μ,x   = CUSOLVER.csreigvsi(d_A,convert(elty,evs[1]),x_0,convert(real(elty),1e-6),convert(Cint,1000),'O')
+        @test μ ≈ evs[1]
+        A     = sparse(rand(elty,m,n))
+        d_A   = CuSparseMatrixCSR(A)
+        @test_throws DimensionMismatch CUSOLVER.csreigvsi(d_A,convert(elty,evs[1]),x_0,convert(real(elty),1e-6),convert(Cint,1000),'O')
+        A     = sparse(rand(elty,n,n))
+        d_A   = CuSparseMatrixCSR(A)
+        x_0   = CUDA.rand(elty,m)
+        @test_throws DimensionMismatch CUSOLVER.csreigvsi(d_A,convert(elty,evs[1]),x_0,convert(real(elty),1e-6),convert(Cint,1000),'O')
+    end
+
+    # broken internally
+    #=@testcase "csreigs" begin
+        celty = complex(elty)
+        A   = diagm(0=>convert.(elty, 1:n)) + rand(real(elty),n,n)
+        A   = sparse(A)
+        num = CUSOLVER.csreigs(A,convert(celty,complex(zero(elty),zero(elty))),convert(celty,complex(elty(100),elty(100))),'O')
+        @test num <= n
+        A     = sparse(rand(celty,m,n))
+        d_A   = CuSparseMatrixCSR(A)
+        @test_throws DimensionMismatch CUSOLVER.csreigs(A,convert(celty,complex(-100,-100)),convert(celty,complex(100,100)),'O')
+    end=#
+
+    @testcase "csrlsqvqr!" begin
+        A = sparse(rand(elty,n,n))
+        b = rand(elty,n)
+        x = zeros(elty,n)
+        tol = convert(real(elty),1e-4)
+        x = CUSOLVER.csrlsqvqr!(A,b,x,tol,'O')
+        @test x[1] ≈ Array(A)\b
+        A = sparse(rand(elty,n,m))
+        x = zeros(elty,n)
+        @test_throws DimensionMismatch CUSOLVER.csrlsqvqr!(A,b,x,tol,'O')
+        A = sparse(rand(elty,n,n))
+        b = rand(elty,m)
+        x = zeros(elty,n)
+        @test_throws DimensionMismatch CUSOLVER.csrlsqvqr!(A,b,x,tol,'O')
+        b = rand(elty,n)
+        x = zeros(elty,m)
+        @test_throws DimensionMismatch CUSOLVER.csrlsqvqr!(A,b,x,tol,'O')
+    end
+end
+
+@testset "LinearAlgebra" begin
+    @testcase "$f(A)*b $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
+                                  f in (identity, transpose, adjoint)
+        n = 10
+        alpha = rand()
+        beta = rand()
+        A = sprand(elty, n, n, rand())
+        b = rand(elty, n)
+        c = rand(elty, n)
+        alpha = beta = 1.0
+        c = zeros(elty, n)
+
+        dA = CuSparseMatrixCSR(A)
+        db = CuArray(b)
+        dc = CuArray(c)
+
+        mul!(c, f(A), b, alpha, beta)
+        mul!(dc, f(dA), db, alpha, beta)
+        @test c ≈ collect(dc)
+
+        A = A + transpose(A)
+        dA = CuSparseMatrixCSR(A)
+
+        @assert issymmetric(A)
+        mul!(c, f(Symmetric(A)), b, alpha, beta)
+        mul!(dc, f(Symmetric(dA)), db, alpha, beta)
+        @test c ≈ collect(dc)
+    end
+
+    @testcase "$f(A)*$h(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
+                                      f in (identity, transpose, adjoint),
+                                      h in (identity, transpose, adjoint)
+        if CUSPARSE.version() <= v"10.3.1" &&
+            (h ∈ (transpose, adjoint) && f != identity) ||
+            (h == adjoint && elty <: Complex)
+            # These combinations are not implemented in CUDA10
+            return
+        end
+
+        n = 10
+        alpha = rand()
+        beta = rand()
+        A = sprand(elty, n, n, rand())
+        B = rand(elty, n, n)
+        C = rand(elty, n, n)
+
+        dA = CuSparseMatrixCSR(A)
+        dB = CuArray(B)
+        dC = CuArray(C)
+
+        mul!(C, f(A), h(B), alpha, beta)
+        mul!(dC, f(dA), h(dB), alpha, beta)
+        @test C ≈ collect(dC)
+
+        A = A + transpose(A)
+        dA = CuSparseMatrixCSR(A)
+
+        @assert issymmetric(A)
+        mul!(C, f(Symmetric(A)), h(B), alpha, beta)
+        mul!(dC, f(Symmetric(dA)), h(dB), alpha, beta)
+        @test C ≈ collect(dC)
+    end
+end
+
+end
+
+############################################################################################
 
 end

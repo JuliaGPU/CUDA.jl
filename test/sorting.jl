@@ -1,12 +1,16 @@
 using Random
 using DataStructures
 
+@testset "sorting" begin
+
+############################################################################################
+
 @testset "quicksort" begin
 
 import CUDA.Quicksort: Θ, flex_lt, find_partition,
         partition_batches_kernel, consolidate_batch_partition
 
-@testset "integer functions" begin
+@testcase "integer functions" begin
     @test Θ(0) == 0
     @test Θ(1) == 1
     @test Θ(2) == 1
@@ -64,7 +68,7 @@ function test_batch_partition(T, N, lo, hi, seed, lt=isless, by=identity)
     @test sort_match
 end
 
-@testset "batch partition" begin
+@testcase "batch partition" begin
     test_batch_partition(Int8, 10000, 2000, 6000, 0)
     test_batch_partition(Int8, 10000, 2000, 6000, 1)
     test_batch_partition(Int8, 10000000, 0, 10000000, 0)
@@ -134,7 +138,7 @@ function test_consolidate_partition(T, N, lo, hi, seed, block_dim, lt=isless, by
     @test all(post_sort[partition + 1 : hi] |> cc .== filter(x -> x >= pivot, temp) |> cc)
 end
 
-@testset "consolidate partition" begin
+@testcase "consolidate partition" begin
     test_consolidate_partition(Int8, 10000, 0, 10000, 0, 16)
     test_consolidate_partition(Int8, 10000, 0, 10000, 0, 32)
     test_consolidate_partition(Int8, 10000, 0, 10000, 0, 64)
@@ -157,6 +161,10 @@ end
     test_consolidate_partition(Int8, 10000, 3329, 9999, 11, 32)
     test_consolidate_partition(Int8, 10000, 3329, 9999, 12, 64)
 end
+
+end
+
+############################################################################################
 
 function init_case(T, f, N::Integer)
     a = map(x -> T(f(x)), 1:N)
@@ -214,7 +222,7 @@ function test_sort(T, N, f=identity; kwargs...)
 end
 
 
-@testset "interface" begin
+@testcase "interface" begin
     # pre-sorted
     test_sort!(Int, 1000000)
     test_sort!(Int32, 1000000)
@@ -257,5 +265,7 @@ end
     test_sort(Float32, 100000; by=x->abs(x - 0.5))
     test_sort(Float64, (4, 100000); by=x->cos(4 * pi * x), dims=2)
 end
+
+############################################################################################
 
 end

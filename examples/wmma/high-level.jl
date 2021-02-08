@@ -1,13 +1,5 @@
-# Need https://github.com/JuliaLang/julia/pull/33970
-# and  https://github.com/JuliaLang/julia/pull/34043
-if VERSION < v"1.5-"
-    exit()
-end
-
 using CUDA
-if capability(device()) < v"7.0"
-    exit()
-end
+if capability(device()) >= v"7.0"
 
 ### START
 using Test
@@ -44,3 +36,5 @@ d = Array(d_dev)
 
 @test all(isapprox.(a * b + 0.5 * c, d; rtol=0.01))
 ### END
+
+end
