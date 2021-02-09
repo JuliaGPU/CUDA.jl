@@ -89,12 +89,14 @@ function description(err)
         "Profiling results might be incorrect for CUDA applications compiled with nvcc version older than 9.0 for devices with compute capability 6.0 and 6.1"
     elseif err.code == CUPTI_ERROR_INSUFFICIENT_PRIVILEGES
         "user doesn't have sufficient privileges which are required to start the profiling session"
-    elseif err.code == CUPTI_ERROR_OLD_PROFILER_API_INITIALIZE
+    elseif err.code == CUPTI_ERROR_OLD_PROFILER_API_INITIALIZED
         "old profiling api's are not supported with new profiling api's"
     elseif err.code == CUPTI_ERROR_OPENACC_UNDEFINED_ROUTINE
         "missing definition of the OpenACC API routine in the linked OpenACC library"
     elseif err.code == CUPTI_ERROR_LEGACY_PROFILER_NOT_SUPPORTED
         "an unknown internal error has occurred. Legacy CUPTI Profiling is not supported on devices with Compute Capability 7.5 or higher (Turing+)"
+    elseif err.code == CUPTI_ERROR_MULTIPLE_SUBSCRIBERS_NOT_SUPPORTED
+        "CUPTI doesn't allow multiple callback subscribers. Only a single subscriber can be registered at a time."
     elseif err.code == CUPTI_ERROR_UNKNOWN
         "an unknown error has occurred"
     else
