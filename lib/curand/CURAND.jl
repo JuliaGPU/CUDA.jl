@@ -91,7 +91,7 @@ end
     tls = task_local_storage()
     rng = get(tls, (:CURAND, ctx), nothing)
     if rng !== nothing
-        curandSetStream(rng, stream())
+        curandSetStream(rng, stream)
     end
     return
 end
