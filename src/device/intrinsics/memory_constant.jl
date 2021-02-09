@@ -32,10 +32,10 @@ Base.IndexStyle(::Type{<:CuDeviceConstantMemory}) = Base.IndexLinear()
 @inline function constmemref(A::CuDeviceConstantMemory{T,N,Name,Shape}, index::Integer) where {T,N,Name,Shape}
     @boundscheck checkbounds(A, index)
     len = length(A)
-    return read_constant_mem(Val(Name), index, T, Val(Shape))
+    return read_constant_mem(Val(Name), index, T, Val(len))
 end
 
-@generated function read_constant_mem(::Val{global_name}, index::Integer, ::Type{T}, ::Val{shape}) where {global_name,T,shape}
+@generated function read_constant_mem(::Val{global_name}, index::Integer, ::Type{T}, ::Val{len}) where {global_name,T,len}
     JuliaContext() do ctx
         # define LLVM types
         T_int = convert(LLVMType, Int, ctx)
@@ -48,7 +48,6 @@ end
 
         # create a constant memory global variable
         # TODO: global_var alignment?
-        len = prod(shape)
         T_global = LLVM.ArrayType(T_result, len)
         global_var = GlobalVariable(mod, T_global, string(global_name), AS.Constant)
         linkage!(global_var, LLVM.API.LLVMWeakAnyLinkage) # merge, but make sure symbols aren't discarded

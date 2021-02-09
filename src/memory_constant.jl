@@ -54,9 +54,9 @@ mutable struct CuConstantMemory{T,N} <: AbstractArray{T,N}
     end
 end
 
-CuConstantMemory{T}(::UndefInitializer, dims::Integer...; name::String=@generate_name, kwargs...) where {T} =
+CuConstantMemory{T}(::UndefInitializer, dims::Integer...; name::String=@generate_name(), kwargs...) where {T} =
     CuConstantMemory(Array{T}(undef, dims); name=name, kwargs...)
-CuConstantMemory{T}(::UndefInitializer, dims::Dims{N}; name::String=@generate_name, kwargs...) where {T,N} =
+CuConstantMemory{T}(::UndefInitializer, dims::Dims{N}; name::String=@generate_name(), kwargs...) where {T,N} =
     CuConstantMemory(Array{T,N}(undef, dims); name=name, kwargs...)
 
 Base.size(A::CuConstantMemory) = A.size

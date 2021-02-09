@@ -69,6 +69,7 @@ Acquires a global array variable handle from a named global in a module.
 """
 struct CuGlobalArray{T} # TODO: the functionality provided by this struct can most likely be merged into CuGlobal{T}
     buf::Mem.DeviceBuffer
+    len::Integer
 
     function CuGlobalArray{T}(mod::CuModule, name::String, len::Integer) where T
         ptr_ref = Ref{CuPtr{Cvoid}}()
@@ -79,17 +80,25 @@ struct CuGlobalArray{T} # TODO: the functionality provided by this struct can mo
         end
         buf = Mem.DeviceBuffer(ptr_ref[], nbytes_ref[])
 
-        return new{T}(buf)
+        return new{T}(buf, len)
     end
 end
 
 Base.eltype(::Type{CuGlobalArray{T}}) where {T} = T
 
-Base.sizeof(global_array::CuGlobalArray{T}) where T = sizeof(global_array.buf)
+Base.length(global_array::CuGlobalArray) = global_array.len
 
-function Base.copyto!(global_array::CuGlobalArray{T}, src::Array{T}) where T
+Base.sizeof(global_array::CuGlobalArray) = sizeof(global_array.buf)
+
+function Base.copyto!(global_array::CuGlobalArray{T}, src::Array{T}) where {T}
     if sizeof(src) != sizeof(global_array)
         throw(DimensionMismatch("size of `src` ($(sizeof(src))) does not match global array ($(sizeof(global_array)))"))
     end
     cuMemcpyHtoD_v2(global_array.buf, src, sizeof(src))
+end
+
+function Base.collect(global_array::CuGlobalArray{T}) where {T}
+    val = Vector{T}(undef, length(global_array))
+    cuMemcpyDtoH_v2(val, global_array.buf, sizeof(global_array))
+    return val
 end

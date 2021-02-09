@@ -118,7 +118,7 @@ function find_memory_to_init(kernel, kernel_args)
     memory_to_init = []
     
     for field in fields
-        if isa(field, CuConstantMemory)
+        if isa(field, CuConstantMemory) || isa(field, CuGlobalMemory)
             push!(memory_to_init, field)
         end
     end
@@ -232,6 +232,15 @@ end
         cudacall(kernel.fun, tt, args...; kwargs..., config(kernel)...)
     else
         cudacall(kernel.fun, tt, args...; kwargs...)
+    end
+
+    for memory in kernel.tracked_memory
+        if isa(memory, CuConstantMemory)
+            continue # constant memory is read only, skip it
+        end
+        global_array = CuGlobalArray{eltype(memory)}(kernel.mod, memory.name, length(memory))
+        new_value = reshape(collect(global_array), size(memory))
+        memory.value = deepcopy(new_value)
     end
 end
 
