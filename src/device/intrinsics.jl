@@ -12,6 +12,8 @@ include("intrinsics/memory_dynamic.jl")
 include("intrinsics/atomics.jl")
 include("intrinsics/misc.jl")
 include("intrinsics/wmma.jl")
+include("intrinsics/memory_constant.jl")
+include("intrinsics/memory_global.jl")
 
 # functionality from libdevice
 #

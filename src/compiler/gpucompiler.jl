@@ -19,7 +19,12 @@ function CUDACompilerTarget(dev::CuDevice; kwargs...)
     PTXCompilerTarget(; cap, exitable, debuginfo, kwargs...)
 end
 
-struct CUDACompilerParams <: AbstractCompilerParams end
+struct CUDACompilerParams <: AbstractCompilerParams
+    memory_to_init::Vector{Any}
+    function CUDACompilerParams(memory_to_init::Vector{Any}=[])
+        new(memory_to_init)
+    end
+end
 
 CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
 

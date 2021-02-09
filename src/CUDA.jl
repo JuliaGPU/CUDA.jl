@@ -62,6 +62,8 @@ include("array.jl")
 include("gpuarrays.jl")
 include("utilities.jl")
 include("texture.jl")
+include("memory_constant.jl")
+include("memory_global.jl")
 
 # array libraries
 include("../lib/complex.jl")
