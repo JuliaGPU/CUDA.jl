@@ -68,7 +68,7 @@ macro cuda(ex...)
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
     #        we esc() the whole thing now, necessitating gensyms...
-    @gensym f_var kernel_f kernel_args kernel_tt kernel
+    @gensym f_var kernel_f kernel_args kernel_tt kernel memory_to_init
     if dynamic
         # FIXME: we could probably somehow support kwargs with constant values by either
         #        saving them in a global Dict here, or trying to pick them up from the Julia
@@ -98,8 +98,9 @@ macro cuda(ex...)
                 GC.@preserve $(vars...) $f_var begin
                     local $kernel_f = $cudaconvert($f_var)
                     local $kernel_args = map($cudaconvert, ($(var_exprs...),))
+                    local $memory_to_init = $find_memory_to_init($f, ($(var_exprs...), ))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                    local $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
+                    local $kernel = $cufunction($kernel_f, $kernel_tt; memory_to_init=$memory_to_init, $(compiler_kwargs...))
                     if $launch
                         $kernel($(var_exprs...); $(call_kwargs...))
                     end
@@ -110,6 +111,20 @@ macro cuda(ex...)
     return esc(code)
 end
 
+function find_memory_to_init(kernel, kernel_args)
+    fields = Any[getfield(kernel, i) for i in 1:nfields(kernel)]
+    append!(fields, kernel_args)
+
+    memory_to_init = []
+    
+    for field in fields
+        if isa(field, CuConstantMemory)
+            push!(memory_to_init, field)
+        end
+    end
+
+    return memory_to_init
+end
 
 ## host to device value conversion
 
@@ -201,11 +216,17 @@ struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     ctx::CuContext
     mod::CuModule
     fun::CuFunction
+    tracked_memory::Vector{Any}
 end
 
 @doc (@doc AbstractKernel) HostKernel
 
 @inline function cudacall(kernel::HostKernel, tt, args...; config=nothing, kwargs...)
+    for memory in kernel.tracked_memory
+        global_array = CuGlobalArray{eltype(memory)}(kernel.mod, memory.name, length(memory))
+        copyto!(global_array, memory.value)
+    end
+
     if config !== nothing
         Base.depwarn("cudacall with config argument is deprecated, use `@cuda launch=false` and instrospect the returned kernel instead", :cudacall)
         cudacall(kernel.fun, tt, args...; kwargs..., config(kernel)...)
@@ -283,13 +304,13 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where
+function cufunction(f::F, tt::TT=Tuple{}; name=nothing, memory_to_init::Vector{Any}=[], kwargs...) where
                    {F<:Core.Function, TT<:Type}
     dev = device()
     cache = cufunction_cache[dev]
     source = FunctionSpec(f, tt, true, name)
     target = CUDACompilerTarget(dev; kwargs...)
-    params = CUDACompilerParams()
+    params = CUDACompilerParams(memory_to_init)
     job = CompilerJob(target, source, params)
     return GPUCompiler.cached_compilation(cache, job,
                                           cufunction_compile,
@@ -358,7 +379,17 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
         filter!(isequal("exception_flag"), compiled.external_gvars)
     end
 
-    return HostKernel{job.source.f,job.source.tt}(ctx, mod, fun)
+    tracked_memory = []
+
+    for memory in job.params.memory_to_init
+        global_array = CuGlobalArray{eltype(memory)}(mod, memory.name, length(memory))
+        copyto!(global_array, memory.value)
+        if memory.track_value_between_kernels
+            push!(tracked_memory, memory)
+        end
+    end
+
+    return HostKernel{job.source.f,job.source.tt}(ctx, mod, fun, tracked_memory)
 end
 
 # https://github.com/JuliaLang/julia/issues/14919
