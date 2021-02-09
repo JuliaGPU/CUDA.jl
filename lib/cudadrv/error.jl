@@ -56,9 +56,9 @@ function description(err::CuError)
 end
 
 function Base.showerror(io::IO, err::CuError)
-    if functional() && CuCurrentContext() !== nothing
+    try
         print(io, "CUDA error: $(description(err)) (code $(reinterpret(Int32, err.code)), $(name(err)))")
-    else
+    catch
         # we might throw before the library is initialized
         print(io, "CUDA error (code $(reinterpret(Int32, err.code)), $(err.code))")
     end
