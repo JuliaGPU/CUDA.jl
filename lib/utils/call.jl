@@ -1,6 +1,6 @@
 # ccall wrapper for calling functions in libraries that might not be available
 
-export @checked, @workspace, @argout
+export @checked, @workspace, @argout, @debug_ccall
 
 """
     @checked function foo(...)
@@ -147,3 +147,28 @@ macro workspace(ex...)
         end
     end
 end
+
+macro debug_ccall(target, rettyp, argtyps, args...)
+    @assert Meta.isexpr(target, :tuple)
+    f, lib = target.args
+
+    quote
+        print($f, '(')
+        for (i, arg) in enumerate(($(map(esc, args)...),))
+            i > 1 && print(", ")
+            render_arg(stdout, arg)
+        end
+        print(')')
+        rv = ccall($(esc(target)), $(esc(rettyp)), $(esc(argtyps)), $(map(esc, args)...))
+        println(" = ", rv)
+        for (i, arg) in enumerate(($(map(esc, args)...),))
+            if arg isa Base.RefValue
+                println(" $i: ", arg[])
+            end
+        end
+        rv
+    end
+end
+
+render_arg(io, arg) = print(io, arg)
+render_arg(io, arg::Union{<:Base.RefValue, AbstractArray}) = summary(io, arg)
