@@ -1,4 +1,9 @@
-let
+@testset "errors" begin
+
+@testcase "essentials" begin
+    # make sure we're initialized, which influences error reporting
+    context()
+
     ex = CuError(CUDA.SUCCESS)
     @test CUDA.name(ex) == "SUCCESS"
     @test CUDA.description(ex) == "no error"
@@ -12,7 +17,10 @@ let
     @test occursin("no error", str)
 end
 
-let
+@testcase "repr" begin
+    # make sure we're initialized, which influences error reporting
+    context()
+
     ex = CuError(CUDA.SUCCESS, "foobar")
 
     io = IOBuffer()
@@ -20,4 +28,6 @@ let
     str = String(take!(io))
 
     @test occursin("foobar", str)
+end
+
 end

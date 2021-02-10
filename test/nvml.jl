@@ -1,5 +1,3 @@
-using CUDA.NVML
-
 macro maybe_unsupported(ex)
     quote
         try
@@ -10,13 +8,19 @@ macro maybe_unsupported(ex)
     end
 end
 
-@testset "system" begin
+@run_if has_nvml() begin
+
+using CUDA.NVML
+
+@testcase "NVML" begin
+
+@testcase "system" begin
     @test NVML.version() isa VersionNumber
     @test NVML.driver_version() isa VersionNumber
     @test NVML.cuda_driver_version() == CUDA.version()
 end
 
-@testset "devices" begin
+@testcase "devices" begin
     dev = NVML.Device(0)
     @test dev == first(NVML.devices())
 
@@ -41,4 +45,8 @@ end
     # FIXME: https://github.com/NVIDIA/gpu-monitoring-tools/issues/63
     #@test getpid() in keys(NVML.compute_processes(dev))
     NVML.compute_processes(dev)
+end
+
+end
+
 end

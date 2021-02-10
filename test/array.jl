@@ -1,7 +1,9 @@
 using LinearAlgebra
 import Adapt
 
-@testset "constructors" begin
+@testset "array" begin
+
+@testcase "constructors" begin
   xs = CuArray{Int}(undef, 2, 3)
   @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
   @test collect(cu[1, 2, 3]) == [1, 2, 3]
@@ -41,7 +43,7 @@ import Adapt
   @test collect(CUDA.fill(1, 2, 2)) == ones(Float32, 2, 2)
 end
 
-@testset "adapt" begin
+@testcase "adapt" begin
   A = rand(Float32, 3, 3)
   dA = CuArray(A)
   @test Adapt.adapt(Array, dA) == A
@@ -49,7 +51,7 @@ end
   @test Array(Adapt.adapt(CuArray, A)) == A
 end
 
-@testset "view" begin
+@testcase "view" begin
   @test testf(rand(5)) do x
     y = x[2:4]
     y .= 1
@@ -85,21 +87,21 @@ end
     @test parentindices(y) isa Tuple{CuArray}
   end
 
-  @testset "GPU array source" begin
+  @testcase "GPU array source" begin
       a = rand(3)
       i = rand(1:3, 2)
       @test testf(view, a, i)
       @test testf(view, a, view(i, 2:2))
   end
 
-  @testset "CPU array source" begin
+  @testcase "CPU array source" begin
       a = rand(3)
       i = rand(1:3, 2)
       @test testf(view, a, i)
       @test testf(view, a, view(i, 2:2))
   end
 
-  @testset "unmanaged view" begin
+  @testcase "unmanaged view" begin
     a = CuArray([1,2,3])
     ptr = pointer(a, 2)
 
@@ -111,7 +113,7 @@ end
   end
 end
 
-@testset "reshape" begin
+@testcase "reshape" begin
   A = [1 2 3 4
        5 6 7 8]
   gA = reshape(CuArray(A),1,8)
@@ -120,38 +122,38 @@ end
   @test all(_A .== _gA)
   A = [1,2,3,4]
   gA = reshape(CuArray(A),4)
-
-  @testset "unmanaged reshape" begin
-    a = CuArray([1,2,3])
-    ptr = pointer(a, 2)
-
-    b = unsafe_wrap(CuArray, ptr, 2)
-    @test Array(b) == [2,3]
-
-    c = reshape(b, (1,2))
-    @test Array(c) == [2 3]
-  end
 end
 
-@testset "reinterpret" begin
+@testcase "unmanaged reshape" begin
+  a = CuArray([1,2,3])
+  ptr = pointer(a, 2)
+
+  b = unsafe_wrap(CuArray, ptr, 2)
+  @test Array(b) == [2,3]
+
+  c = reshape(b, (1,2))
+  @test Array(c) == [2 3]
+end
+
+@testcase "reinterpret" begin
   A = Int32[-1,-2,-3]
   dA = CuArray(A)
   dB = reinterpret(UInt32, dA)
   @test reinterpret(UInt32, A) == Array(dB)
-
-  @testset "unmanaged reinterpret" begin
-    a = CuArray(Int32[-1,-2,-3])
-    ptr = pointer(a, 2)
-
-    b = unsafe_wrap(CuArray, ptr, 2)
-    @test Array(b) == Int32[-2,-3]
-
-    c = reinterpret(UInt32, b)
-    @test Array(c) == reinterpret(UInt32, Int32[-2,-3])
-  end
 end
 
-@testset "Dense derivatives" begin
+@testcase "unmanaged reinterpret" begin
+  a = CuArray(Int32[-1,-2,-3])
+  ptr = pointer(a, 2)
+
+  b = unsafe_wrap(CuArray, ptr, 2)
+  @test Array(b) == Int32[-2,-3]
+
+  c = reinterpret(UInt32, b)
+  @test Array(c) == reinterpret(UInt32, Int32[-2,-3])
+end
+
+@testcase "Dense derivatives" begin
   a = CUDA.rand(Int64, 5, 4, 3)
   @test a isa CuArray
 
@@ -187,7 +189,7 @@ end
   @test view(b, :, :, 1) isa DenseCuArray
 end
 
-@testset "StridedArray" begin
+@testcase "StridedArray" begin
   a = CUDA.rand(Int64, 2,2,2)
   @test a isa StridedCuArray
 
@@ -206,7 +208,7 @@ end
   @test view(b, :, 1, :) isa StridedCuArray
 end
 
-@testset "accumulate" begin
+@testcase "accumulate" begin
   for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
     @test testf(x->accumulate(+, x), rand(n))
   end
@@ -233,7 +235,7 @@ end
   @test testf(cumprod, rand(2))
 end
 
-@testset "logical indexing" begin
+@testcase "logical indexing" begin
   @test CuArray{Int}(undef, 2)[CuArray{Bool}(undef, 2)] isa CuArray
   @test CuArray{Int}(undef, 2, 2)[CuArray{Bool}(undef, 2, 2)] isa CuArray
   @test CuArray{Int}(undef, 2, 2, 2)[CuArray{Bool}(undef, 2, 2, 2)] isa CuArray
@@ -255,7 +257,7 @@ end
   @test testf(x -> filter(y->y .> 0.5, x), rand(2,2,2))
 end
 
-@testset "reverse" begin
+@testcase "reverse" begin
     # 1-d out-of-place
     @test testf(x->reverse(x), rand(1000))
     @test testf(x->reverse(x, 10), rand(1000))
@@ -281,7 +283,7 @@ end
     @test testf(x->reverse(x), reshape(rand(2,2), 4))
 end
 
-@testset "findall" begin
+@testcase "findall" begin
     # 1D
     @test testf(x->findall(x), rand(Bool, 100))
     @test testf(x->findall(y->y>0.5, x), rand(100))
@@ -295,7 +297,7 @@ end
     end
 end
 
-@testset "findfirst" begin
+@testcase "findfirst" begin
     # 1D
     @test testf(x->findfirst(x), rand(Bool, 100))
     @test testf(x->findfirst(y->y>0.5, x), rand(100))
@@ -312,11 +314,11 @@ end
     end
 end
 
-@testset "findmax & findmin" begin
+@testcase "findmax & findmin" begin
   let x = rand(Float32, 100)
       @test findmax(x) == findmax(CuArray(x))
       @test findmax(x; dims=1) == Array.(findmax(CuArray(x); dims=1))
-      
+
       x[32] = x[33] = x[55] = x[66] = NaN32
       @test isequal(findmax(x), findmax(CuArray(x)))
       @test isequal(findmax(x; dims=1), Array.(findmax(CuArray(x); dims=1)))
@@ -376,7 +378,7 @@ end
   end
 end
 
-@testset "argmax & argmin" begin
+@testcase "argmax & argmin" begin
     @test testf(argmax, rand(Int, 10))
     @test testf(argmax, -rand(Int, 10))
 
@@ -384,7 +386,7 @@ end
     @test testf(argmin, -rand(Int, 10))
 end
 
-@testset "issue #543" begin
+@testcase "issue #543" begin
   x = CUDA.rand(ComplexF32, 1)
   @test x isa CuArray{Complex{Float32}}
 
@@ -392,7 +394,7 @@ end
   @test y isa CuArray{Complex{Float32}}
 end
 
-@testset "resizing" begin
+@testcase "resizing" begin
     a = CuArray([1,2,3])
 
     resize!(a, 3)
@@ -413,7 +415,7 @@ end
     end
 end
 
-@testset "aliasing" begin
+@testcase "aliasing" begin
   x = CuArray([1,2])
   y = view(x, 2:2)
   @test Base.mightalias(x, x)
@@ -431,4 +433,6 @@ end
   @test !Base.mightalias(x, b)
   b .= 3
   @test Array(y) == [2]
+end
+
 end

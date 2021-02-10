@@ -1,41 +1,40 @@
-let
+@testset "memory" begin
+
+@testcase "info" begin
     a,b = Mem.info()
     # NOTE: actually testing this is pretty fragile on CI
     #=@test a == =# CUDA.available_memory()
     #=@test b == =# CUDA.total_memory()
 end
 
-# dummy data
-T = UInt32
-N = 5
-data = rand(T, N)
-nb = sizeof(data)
-
 # buffers are untyped, so we use a convenience function to get a typed pointer
 # we prefer to return a device pointer (for managed buffers) to maximize CUDA coverage
 typed_pointer(buf::Union{Mem.Device, Mem.Unified}, T) = convert(CuPtr{T}, buf)
 typed_pointer(buf::Mem.Host, T)                       = convert(Ptr{T},   buf)
 
-# allocations and copies
-for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
-    dstTy in [Mem.Device, Mem.Host, Mem.Unified]
+@testset "allocations and copies" begin
 
-    local dummy = Mem.alloc(srcTy, 0)
+@testcase for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
+              dstTy in [Mem.Device, Mem.Host, Mem.Unified]
+    T = UInt32
+    data = rand(T, 5)
+
+    dummy = Mem.alloc(srcTy, 0)
     Mem.free(dummy)
 
-    src = Mem.alloc(srcTy, nb)
-    unsafe_copyto!(typed_pointer(src, T), pointer(data), N)
+    src = Mem.alloc(srcTy, sizeof(data))
+    unsafe_copyto!(typed_pointer(src, T), pointer(data), length(data))
 
-    dst = Mem.alloc(dstTy, nb)
-    unsafe_copyto!(typed_pointer(dst, T), typed_pointer(src, T), N)
+    dst = Mem.alloc(dstTy, sizeof(data))
+    unsafe_copyto!(typed_pointer(dst, T), typed_pointer(src, T), length(data))
 
-    ref = Array{T}(undef, N)
-    unsafe_copyto!(pointer(ref), typed_pointer(dst, T), N)
+    ref = similar(data)
+    unsafe_copyto!(pointer(ref), typed_pointer(dst, T), length(data))
 
     @test data == ref
 
     if isa(src, Mem.Device) || isa(src, Mem.Unified)
-        Mem.set!(typed_pointer(src, T), zero(T), N)
+        Mem.set!(typed_pointer(src, T), zero(T), length(data))
     end
 
     # test the memory-type attribute
@@ -67,95 +66,106 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     Mem.free(dst)
 end
 
-# pointer attributes
-let
-    src = Mem.alloc(Mem.Device, nb)
+end
 
-    attribute!(typed_pointer(src, T), CUDA.POINTER_ATTRIBUTE_SYNC_MEMOPS, 0)
+@testcase "pointer attributes" begin
+    src = Mem.alloc(Mem.Device, 1)
+
+    attribute!(pointer(src), CUDA.POINTER_ATTRIBUTE_SYNC_MEMOPS, 0)
 
     Mem.free(src)
 end
 
-# asynchronous operations
-let
-    src = Mem.alloc(Mem.Device, nb)
+@testcase "asynchronous operations" begin
+    T = UInt32
+    data = rand(T, 5)
 
-    unsafe_copyto!(typed_pointer(src, T), pointer(data), N; async=true)
+    src = Mem.alloc(Mem.Device, sizeof(data))
 
-    Mem.set!(typed_pointer(src, T), zero(T), N; async=true, stream=stream())
+    unsafe_copyto!(typed_pointer(src, T), pointer(data), length(data); async=true)
+
+    Mem.set!(typed_pointer(src, T), zero(T), length(data); async=true, stream=stream())
 
     Mem.free(src)
 end
 
-# pinned memory
-let
+@testcase "pinned memory" begin
+    T = UInt32
+    data = rand(T, 5)
+
     # can only get GPU pointer if the pinned buffer is mapped
-    src = Mem.alloc(Mem.Host, nb)
+    src = Mem.alloc(Mem.Host, sizeof(data))
     @test_throws ArgumentError convert(CuPtr{T}, src)
     Mem.free(src)
 
     # create a pinned and mapped buffer
-    src = Mem.alloc(Mem.Host, nb, Mem.HOSTALLOC_DEVICEMAP)
+    src = Mem.alloc(Mem.Host, sizeof(data), Mem.HOSTALLOC_DEVICEMAP)
 
     # get the CPU address and copy some data to the buffer
     cpu_ptr = convert(Ptr{T}, src)
     @test CUDA.memory_type(cpu_ptr) == CUDA.MEMORYTYPE_HOST
-    unsafe_copyto!(cpu_ptr, pointer(data), N)
+    unsafe_copyto!(cpu_ptr, pointer(data), length(data))
 
     # get the GPU address and copy back the data
     gpu_ptr = convert(CuPtr{T}, src)
-    ref = Array{T}(undef, N)
-    unsafe_copyto!(pointer(ref), gpu_ptr, N)
+    ref = similar(data)
+    unsafe_copyto!(pointer(ref), gpu_ptr, length(data))
     @test ref == data
 
     Mem.free(src)
     # NOTE: don't free dst, it's just a mapped pointer
 end
 
-# pinned memory with existing memory
 if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
+@testcase "pinned memory with existing memory" begin
+    T = UInt32
+    data = rand(T, 5)
+
     # can only get GPU pointer if the pinned buffer is mapped
     @test_throws ArgumentError Mem.register(Mem.Host, pointer(data), 0)
-    src = Mem.register(Mem.Host, pointer(data), nb)
+    src = Mem.register(Mem.Host, pointer(data), sizeof(data))
     @test_throws ArgumentError convert(CuPtr{T}, src)
     Mem.unregister(src)
 
     # register a pinned and mapped buffer
-    src = Mem.register(Mem.Host, pointer(data), nb, Mem.HOSTREGISTER_DEVICEMAP)
+    src = Mem.register(Mem.Host, pointer(data), sizeof(data), Mem.HOSTREGISTER_DEVICEMAP)
 
     # get the GPU address and copy back the data
     gpu_ptr = convert(CuPtr{T}, src)
-    ref = Array{T}(undef, N)
-    unsafe_copyto!(pointer(ref), gpu_ptr, N)
+    ref = similar(data)
+    unsafe_copyto!(pointer(ref), gpu_ptr, length(data))
     @test ref == data
 
     Mem.unregister(src)
 end
+end
 
-# unified memory
-let
-    src = Mem.alloc(Mem.Unified, nb)
+@testcase "unified memory" begin
+    T = UInt32
+    data = rand(T, 5)
 
-    @test_throws BoundsError Mem.prefetch(src, 2*nb; device=CUDA.DEVICE_CPU)
+    src = Mem.alloc(Mem.Unified, sizeof(data))
+
+    @test_throws BoundsError Mem.prefetch(src, 2*sizeof(data); device=CUDA.DEVICE_CPU)
     # FIXME: prefetch doesn't work on some CI devices, unsure why.
-    @test_skip Mem.prefetch(src, nb; device=CUDA.DEVICE_CPU)
+    @test_skip Mem.prefetch(src, sizeof(data); device=CUDA.DEVICE_CPU)
     Mem.advise(src, Mem.ADVISE_SET_READ_MOSTLY)
 
     # get the CPU address and copy some data
     cpu_ptr = convert(Ptr{T}, src)
-    unsafe_copyto!(cpu_ptr, pointer(data), N)
+    unsafe_copyto!(cpu_ptr, pointer(data), length(data))
 
     # get the GPU address and copy back data
     gpu_ptr = convert(CuPtr{T}, src)
-    ref = Array{T}(undef, N)
-    unsafe_copyto!(pointer(ref), gpu_ptr, N)
+    ref = similar(data)
+    unsafe_copyto!(pointer(ref), gpu_ptr, length(data))
     @test ref == data
 
     Mem.free(src)
 end
 
-# 3d memcpy
-let
+@testcase "3d memcpy" begin
+@testcase "linear" begin
     # TODO: use cuMemAllocPitch (and put pitch in buffer?) to actually get benefit from this
 
     data = collect(reshape(1:27, 3, 3, 3))
@@ -170,9 +180,7 @@ let
 
     Mem.free(dst)
 end
-let
-    # copying an x-z plane of a 3-D array
-
+@testcase "x-z plane of a 3-D array" begin
     T = Int
     nx, ny, nz = 4, 4, 4
     data = collect(reshape(1:(nx*nz), nx, nz))
@@ -206,9 +214,7 @@ let
     @test all(check2[:,2,:] .== data)
 end
 
-let
-    # copying an y-z plane of a 3-D array
-
+@testcase "y-z plane of a 3-D array" begin
     T = Int
     nx, ny, nz = 4, 4, 4
     data = collect(reshape(1:(ny*nz), ny, nz))
@@ -241,8 +247,11 @@ let
                        dstPitch=nx*sizeof(T), dstHeight=ny)
     @test all(check2[2,:,:] .== data)
 end
-# pinned memory with existing memory
+
+end
+
 if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
+@testcase "more pinned memory with existing memory" begin
     let hA = rand(UInt8, 512), hB = rand(UInt8, 512)
     Mem.pin(hA)
     # no way to test if something is already registered, sadly...
@@ -270,4 +279,7 @@ if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
     unsafe_copyto!(pointer(hB), typed_pointer(dB, TB), 512)
     @test all(hB .== zero(TB))
     end
+end
+end
+
 end

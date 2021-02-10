@@ -1,6 +1,10 @@
 using ForwardDiff
 using ForwardDiff: Dual
 
+using NNlib
+
+@testcase "ForwardDiff" begin
+
 function test_derivative(f, x::T) where T
   buf = CuArray(zeros(T))
 
@@ -15,9 +19,8 @@ end
 testdiff(cuf, f, x) = test_derivative(cuf, x) ≈ ForwardDiff.derivative(f, x)
 
 
-@testset "UNARY" begin
+@testcase "unary" begin
   fs = filter(x->x[1] ==:CUDA && x[3] == 1, keys(ForwardDiff.DiffRules.DEFINED_DIFFRULES))
-
 
   nonneg = [:log, :log1p, :log10, :log2, :sqrt, :acosh]
 
@@ -45,7 +48,7 @@ testdiff(cuf, f, x) = test_derivative(cuf, x) ≈ ForwardDiff.derivative(f, x)
   end
 end
 
-@testset "POW" begin
+@testcase "pow" begin
   x32 = rand(Float32)
   x64 = rand(Float64)
   y32 = rand(Float32)
@@ -64,19 +67,19 @@ end
   @test testdiff(x->CUDA.pow(x, x), x->x^x, x64)
 end
 
-@testset "LITERAL_POW" begin
+@testcase "literal pow" begin
   for x in [rand(Float32, 10), rand(Float64, 10)],
       p in [1, 2, 3, 4, 5]
     @test ForwardDiff.gradient(_x -> sum(_x .^ p), x) ≈ p .* (x .^ (p - 1))
   end
 end
 
-@testset "Broadcast Fix" begin
-  if CUDA.has_cudnn()
-    using NNlib
+@run_if has_cudnn() begin
+@testcase "broadcast" begin
+  f(x) = logσ.(x)
+  ds = Dual.(rand(5),1)
+  @test f(ds) ≈ collect(f(CuArray(ds)))
+end
+end
 
-    f(x) = logσ.(x)
-    ds = Dual.(rand(5),1)
-    @test f(ds) ≈ collect(f(CuArray(ds)))
-  end
 end

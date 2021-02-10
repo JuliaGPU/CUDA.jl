@@ -1,7 +1,9 @@
+@testcase "exceptions" begin
+
+@testcase "stack traces at different debug levels" begin
+
 # these tests spawn subprocesses, so reset the current context to conserve memory
 CUDA.device_reset!()
-
-@testset "stack traces at different debug levels" begin
 
 script = """
     function kernel(arr, val)
@@ -26,7 +28,8 @@ script = """
 #       on older devices, we emit a `trap` which causes a CUDA error...
 #
 
-let (code, out, err) = julia_script(script, `-g0`)
+@testcase "g0" begin
+    (code, out, err) = julia_script(script, `-g0`)
     @test code == 1
     @test  occursin("ERROR: KernelException: exception thrown during kernel execution on device", err) ||
            occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
@@ -35,7 +38,8 @@ let (code, out, err) = julia_script(script, `-g0`)
     # NOTE: stdout sometimes contain a failure to free the CuArray with ILLEGAL_ACCESS
 end
 
-let (code, out, err) = julia_script(script, `-g1`)
+@testcase "g1" begin
+    (code, out, err) = julia_script(script, `-g1`)
     @test code == 1
     @test occursin("ERROR: KernelException: exception thrown during kernel execution on device", err) ||
           occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
@@ -44,7 +48,8 @@ let (code, out, err) = julia_script(script, `-g1`)
     @test occursin("Run Julia on debug level 2 for device stack traces", out)
 end
 
-let (code, out, err) = julia_script(script, `-g2`)
+@testcase "g2" begin
+    (code, out, err) = julia_script(script, `-g2`)
     @test code == 1
     @test occursin("ERROR: KernelException: exception thrown during kernel execution on device", err) ||
           occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
@@ -58,21 +63,18 @@ let (code, out, err) = julia_script(script, `-g2`)
     @test occursin("[4] kernel at none:5", out)
 end
 
-end
+@testcase "#329" begin
+    script = """
+        @noinline foo(a, i) = a[1] = i
+        bar(a) = (foo(a, 42); nothing)
 
-@testset "#329" begin
+        ptr = reinterpret(Core.LLVMPtr{Int,AS.Global}, C_NULL)
+        arr = CuDeviceArray{Int,1,AS.Global}((0,), ptr)
 
-script = """
-    @noinline foo(a, i) = a[1] = i
-    bar(a) = (foo(a, 42); nothing)
+        CUDA.@sync @cuda bar(arr)
+    """
 
-    ptr = reinterpret(Core.LLVMPtr{Int,AS.Global}, C_NULL)
-    arr = CuDeviceArray{Int,1,AS.Global}((0,), ptr)
-
-    CUDA.@sync @cuda bar(arr)
-"""
-
-let (code, out, err) = julia_script(script, `-g2`)
+    (code, out, err) = julia_script(script, `-g2`)
     @test code == 1
     @test occursin("ERROR: KernelException: exception thrown during kernel execution on device", err) ||
           occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
@@ -80,6 +82,9 @@ let (code, out, err) = julia_script(script, `-g2`)
     @test occursin(r"ERROR: a \w+ was thrown during kernel execution", out)
     @test occursin("foo at none:4", out)
     @test occursin("bar at none:5", out)
+
+end
+
 end
 
 end

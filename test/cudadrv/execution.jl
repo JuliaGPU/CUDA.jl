@@ -1,4 +1,6 @@
-let
+@testset "execution" begin
+
+@testcase "CuDim3" begin
     # test outer CuDim3 constructors
     @test CUDA.CuDim3((Cuint(4),Cuint(3),Cuint(2))) == CUDA.CuDim3(Cuint(4),Cuint(3),Cuint(2))
     @test CUDA.CuDim3((Cuint(3),Cuint(2)))          == CUDA.CuDim3(Cuint(3),Cuint(2),Cuint(1))
@@ -17,9 +19,7 @@ let
     @test isa(Cuint(2), CUDA.CuDim)
 end
 
-@testset "device" begin
-
-let
+@testcase "dummy" begin
     md = CuModuleFile(joinpath(@__DIR__, "ptx/dummy.ptx"))
     dummy = CuFunction(md, "dummy")
 
@@ -42,7 +42,7 @@ let
     CUDA.launch(dummy; threads=1, blocks=1, shmem=0, stream=stream(), cooperative=false)
 end
 
-let
+@testcase "vector ops" begin
     md = CuModuleFile(joinpath(@__DIR__, "ptx/vectorops.ptx"))
     vadd = CuFunction(md, "vadd")
     vmul = CuFunction(md, "vmul")
@@ -99,9 +99,7 @@ let
     end
 end
 
-end
-
-@testset "host" begin
+@testcase "condition" begin
     c = Condition()
     CUDA.launch() do
         notify(c)
@@ -109,15 +107,15 @@ end
     wait(c)
 end
 
-@testset "attributes" begin
+@testcase "attributes" begin
+    md = CuModuleFile(joinpath(@__DIR__, "ptx/dummy.ptx"))
+    dummy = CuFunction(md, "dummy")
 
-md = CuModuleFile(joinpath(@__DIR__, "ptx/dummy.ptx"))
-dummy = CuFunction(md, "dummy")
+    val = attributes(dummy)[CUDA.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
 
-val = attributes(dummy)[CUDA.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
-
-if CUDA.version() >= v"9.0"
-    attributes(dummy)[CUDA.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES] = val
+    if CUDA.version() >= v"9.0"
+        attributes(dummy)[CUDA.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES] = val
+    end
 end
 
 end

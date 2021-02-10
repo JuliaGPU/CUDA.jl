@@ -1,4 +1,8 @@
-@testset "indexing" begin
+@testcase "intrinsics" begin
+
+############################################################################################
+
+@testcase "indexing" begin
     @on_device threadIdx().x
     @on_device blockDim().x
     @on_device blockIdx().x
@@ -13,33 +17,33 @@
     @on_device blockDim().z
     @on_device blockIdx().z
     @on_device gridDim().z
-
-    @testset "range metadata" begin
-        foobar() = threadIdx().x
-        ir = sprint(io->CUDA.code_llvm(io, foobar, Tuple{}; raw=true))
-
-        @test occursin(r"call .+ @llvm.nvvm.read.ptx.sreg.tid.x.+ !range", ir)
-    end
 end
 
+@testcase "range metadata" begin
+    foobar() = threadIdx().x
+    ir = sprint(io->CUDA.code_llvm(io, foobar, Tuple{}; raw=true))
 
+    @test occursin(r"call .+ @llvm.nvvm.read.ptx.sreg.tid.x.+ !range", ir)
+end
 
 ############################################################################################
 
 @testset "math" begin
-    buf = CuArray(zeros(Float32))
+    @testcase "log10" begin
+        buf = CuArray(zeros(Float32))
 
-    function kernel(a, i)
-        a[] = CUDA.log10(i)
-        return
+        function kernel(a, i)
+            a[] = CUDA.log10(i)
+            return
+        end
+
+        @cuda kernel(buf, Float32(100))
+        val = Array(buf)
+        @test val[] ≈ 2.0
     end
 
-    @cuda kernel(buf, Float32(100))
-    val = Array(buf)
-    @test val[] ≈ 2.0
 
-
-    @testset "pow" begin
+    @testcase "pow" begin
         buf = CuArray(zeros(Float32))
 
         function pow_kernel(a, x, y)
@@ -96,7 +100,7 @@ end
         @test val[] ≈ x^y
     end
 
-    @testset "isinf" begin
+    @testcase "isinf" begin
       buf = CuArray(zeros(Bool))
 
       function isinf_kernel(a, x)
@@ -119,7 +123,7 @@ end
       @test !occursin("Float32", codeinfo_str)
     end
 
-    @testset "isnan" begin
+    @testcase "isnan" begin
       buf = CuArray(zeros(Bool))
 
       function isnan_kernel(a, x)
@@ -142,7 +146,7 @@ end
       @test !occursin("Float32", codeinfo_str)
     end
 
-    @testset "angle" begin
+    @testcase "angle" begin
         buf  = CuArray(zeros(Float32))
         cbuf = CuArray(zeros(Float32))
 
@@ -188,17 +192,11 @@ end
         @test val[] ≈ angle(-x)
     end
 
-    # dictionary of key=>tuple, where the tuple should
-    # contain the cpu command and the cuda function to test.
-    ops = Dict("exp"=>(exp, CUDA.exp),
-               "angle"=>(angle, CUDA.angle),
-               "exp2"=>(exp2, CUDA.exp2),
-               "exp10"=>(exp10, CUDA.exp10),
-               "expm1"=>(expm1, CUDA.expm1))
-
-    @testset "$key" for key=keys(ops)
-        cpu_op, cuda_op = ops[key]
-
+    @testcase "$key" for (key,(cpu_op,cuda_op)) in Dict("exp"=>(exp, CUDA.exp),
+                                                        "angle"=>(angle, CUDA.angle),
+                                                        "exp2"=>(exp2, CUDA.exp2),
+                                                        "exp10"=>(exp10, CUDA.exp10),
+                                                        "expm1"=>(expm1, CUDA.expm1))
         buf = CuArray(zeros(Float32))
 
         function cuda_kernel(a, x)
@@ -225,17 +223,11 @@ end
         @test val[] ≈ cpu_op(-x)
     end
 
-    # dictionary of key=>tuple, where the tuple should
-    # contain the cpu command and the cuda function to test.
-    ops = Dict("exp"=>(exp, CUDA.exp),
-               "abs"=>(abs, CUDA.abs),
-               "abs2"=>(abs2, CUDA.abs2),
-               "angle"=>(angle, CUDA.angle),
-               "log"=>(log, CUDA.log))
-
-    @testset "Complex - $key" for key=keys(ops)
-        cpu_op, cuda_op = ops[key]
-
+    @testcase "Complex - $key" for (key,(cpu_op,cuda_op)) in Dict("exp"=>(exp, CUDA.exp),
+                                                                  "abs"=>(abs, CUDA.abs),
+                                                                  "abs2"=>(abs2, CUDA.abs2),
+                                                                  "angle"=>(angle, CUDA.angle),
+                                                                  "log"=>(log, CUDA.log))
         buf = CuArray(zeros(Complex{Float32}))
 
         function cuda_kernel(a, x)
@@ -266,9 +258,11 @@ end
 
 ############################################################################################
 
+@testset "output" begin
+
 endline = Sys.iswindows() ? "\r\n" : "\n"
 
-@testset "formatted output" begin
+@testcase "@cuprintf" begin
     _, out = @grab_output @on_device @cuprintf("")
     @test out == ""
 
@@ -305,7 +299,7 @@ endline = Sys.iswindows() ? "\r\n" : "\n"
     @test out == "1.000000 1.000000$endline"
 end
 
-@testset "@cuprint" begin
+@testcase "@cuprint" begin
     # basic @cuprint/@cuprintln
 
     _, out = @grab_output @on_device @cuprint("Hello, World\n")
@@ -388,7 +382,7 @@ end
     @test out == "42$endline"
 end
 
-@testset "@cushow" begin
+@testcase "@cushow" begin
     function use_cushow()
         seven_i32 = Int32(7)
         three_f64 = Float64(3)
@@ -402,10 +396,12 @@ end
     @test out == "seven_i32 = 7$(endline)three_f64 = 3.000000$(endline)1.0f0 + 4.0f0 = 5.000000$(endline)"
 end
 
+end
+
 
 ############################################################################################
 
-@testset "assertion" begin
+@testcase "assertion" begin
     function kernel(i)
         @cuassert i > 0
         @cuassert i > 0 "test"
@@ -419,47 +415,49 @@ end
 
 ############################################################################################
 
-# a composite type to test for more complex element types
-@eval struct RGB{T}
-    r::T
-    g::T
-    b::T
-end
-
 @testset "shared memory" begin
 
 n = 256
 
-@testset "constructors" begin
-    # static
-    @on_device @cuStaticSharedMem(Float32, 1)
-    @on_device @cuStaticSharedMem(Float32, (1,2))
-    @on_device @cuStaticSharedMem(Tuple{Float32, Float32}, 1)
-    @on_device @cuStaticSharedMem(Tuple{Float32, Float32}, (1,2))
-    @on_device @cuStaticSharedMem(Tuple{RGB{Float32}, UInt32}, 1)
-    @on_device @cuStaticSharedMem(Tuple{RGB{Float32}, UInt32}, (1,2))
+@testcase "constructors" begin
+    @in_module quote
+        # a composite type to test for more complex element types
+        struct RGB{T}
+            r::T
+            g::T
+            b::T
+        end
 
-    # dynamic
-    @on_device @cuDynamicSharedMem(Float32, 1)
-    @on_device @cuDynamicSharedMem(Float32, (1, 2))
-    @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, 1)
-    @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, (1,2))
-    @on_device @cuDynamicSharedMem(Tuple{RGB{Float32}, UInt32}, 1)
-    @on_device @cuDynamicSharedMem(Tuple{RGB{Float32}, UInt32}, (1,2))
+        # static
+        @on_device @cuStaticSharedMem(Float32, 1)
+        @on_device @cuStaticSharedMem(Float32, (1,2))
+        @on_device @cuStaticSharedMem(Tuple{Float32, Float32}, 1)
+        @on_device @cuStaticSharedMem(Tuple{Float32, Float32}, (1,2))
+        @on_device @cuStaticSharedMem(Tuple{RGB{Float32}, UInt32}, 1)
+        @on_device @cuStaticSharedMem(Tuple{RGB{Float32}, UInt32}, (1,2))
 
-    # dynamic with offset
-    @on_device @cuDynamicSharedMem(Float32, 1, 8)
-    @on_device @cuDynamicSharedMem(Float32, (1,2), 8)
-    @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, 1, 8)
-    @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, (1,2), 8)
-    @on_device @cuDynamicSharedMem(Tuple{RGB{Float32}, UInt32}, 1, 8)
-    @on_device @cuDynamicSharedMem(Tuple{RGB{Float32}, UInt32}, (1,2), 8)
+        # dynamic
+        @on_device @cuDynamicSharedMem(Float32, 1)
+        @on_device @cuDynamicSharedMem(Float32, (1, 2))
+        @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, 1)
+        @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, (1,2))
+        @on_device @cuDynamicSharedMem(Tuple{RGB{Float32}, UInt32}, 1)
+        @on_device @cuDynamicSharedMem(Tuple{RGB{Float32}, UInt32}, (1,2))
+
+        # dynamic with offset
+        @on_device @cuDynamicSharedMem(Float32, 1, 8)
+        @on_device @cuDynamicSharedMem(Float32, (1,2), 8)
+        @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, 1, 8)
+        @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, (1,2), 8)
+        @on_device @cuDynamicSharedMem(Tuple{RGB{Float32}, UInt32}, 1, 8)
+        @on_device @cuDynamicSharedMem(Tuple{RGB{Float32}, UInt32}, (1,2), 8)
+    end
 end
 
 
 @testset "dynamic shmem" begin
 
-@testset "statically typed" begin
+@testcase "statically typed" begin
     function kernel(d, n)
         t = threadIdx().x
         tr = n-t+1
@@ -480,7 +478,7 @@ end
 end
 
 @testset "parametrically typed" begin
-    @testset for T in [Int32, Int64, Float32, Float64]
+    @testcase for T in [Int32, Int64, Float32, Float64]
         function kernel(d::CuDeviceArray{T}, n) where {T}
             t = threadIdx().x
             tr = n-t+1
@@ -501,7 +499,7 @@ end
     end
 end
 
-@testset "alignment" begin
+@testcase "alignment" begin
     # bug: used to generate align=12, which is invalid (non pow2)
     function kernel(v0::T, n) where {T}
         shared = @cuDynamicSharedMem(T, n)
@@ -519,7 +517,7 @@ end
 
 @testset "static shmem" begin
 
-@testset "statically typed" begin
+@testcase "statically typed" begin
     function kernel(d, n)
         t = threadIdx().x
         tr = n-t+1
@@ -543,7 +541,7 @@ end
 end
 
 @testset "parametrically typed" begin
-    @testset for typ in [Int32, Int64, Float32, Float64]
+    @testcase for typ in [Int32, Int64, Float32, Float64]
         function kernel(d::CuDeviceArray{T}, n) where {T}
             t = threadIdx().x
             tr = n-t+1
@@ -567,7 +565,7 @@ end
     end
 end
 
-@testset "alignment" begin
+@testcase "alignment" begin
     # bug: used to generate align=12, which is invalid (non pow2)
     function kernel(v0::T) where {T}
         shared = CUDA.@cuStaticSharedMem(T, 32)
@@ -585,7 +583,7 @@ end
 
 # common use case 1: dynamic shmem consists of multiple homogeneous arrays
 #                    -> split using `view`
-@testset "homogeneous" begin
+@testcase "homogeneous" begin
     function kernel(a, b, n)
         t = threadIdx().x
         tr = n-t+1
@@ -618,7 +616,7 @@ end
 
 # common use case 2: dynamic shmem consists of multiple heterogeneous arrays
 #                    -> construct using pointer offset
-@testset "heterogeneous" begin
+@testcase "heterogeneous" begin
     function kernel(a, b, n)
         t = threadIdx().x
         tr = n-t+1
@@ -656,8 +654,7 @@ end
 ############################################################################################
 
 @testset "data movement and conversion" begin
-
-if capability(device()) >= v"3.0"
+@run_if capability(device()) >= v"3.0" begin
 
 @testset "shuffle idx" begin
     function kernel(d)
@@ -671,9 +668,9 @@ if capability(device()) >= v"3.0"
 
     warpsize = CUDA.warpsize(device())
 
-    @testset for T in [UInt8, UInt16, UInt32, UInt64, UInt128,
-                       Int8, Int16, Int32, Int64, Int128,
-                       Float32, Float64, ComplexF32, ComplexF64, Bool]
+    @testcase for T in [UInt8, UInt16, UInt32, UInt64, UInt128,
+                        Int8, Int16, Int32, Int64, Int128,
+                        Float32, Float64, ComplexF32, ComplexF64, Bool]
         a = rand(T, warpsize)
         d_a = CuArray(a)
         @cuda threads=warpsize kernel(d_a)
@@ -681,7 +678,7 @@ if capability(device()) >= v"3.0"
     end
 end
 
-@testset "shuffle down" begin
+@testcase "shuffle down" begin
     n = 14
 
     function kernel(d::CuDeviceArray, n)
@@ -692,7 +689,7 @@ end
         return
     end
 
-    @testset for T in [Int32, Float32]
+    @testcase for T in [Int32, Float32]
         a = T[T(i) for i in 1:n]
         d_a = CuArray(a)
 
@@ -712,26 +709,36 @@ end
 
 ############################################################################################
 
-@testset "clock and nanosleep" begin
-@on_device clock(UInt32)
-@on_device clock(UInt64)
+@testcase "clock" begin
+    @on_device clock(UInt32)
+    @on_device clock(UInt64)
+end
 
-if CUDA.release() >= v"10.0" && v"6.2" in CUDA.ptx_support()
+@testcase "nanosleep" begin
+@run_if v"6.3" in CUDA.ptx_support() && capability(device()) >= v"7.0" begin
     @on_device nanosleep(UInt32(16))
 end
 end
 
 @testset "parallel synchronization and communication" begin
 
-@on_device sync_threads()
-@on_device sync_threads_count(Int32(1))
-@on_device sync_threads_count(true)
-@on_device sync_threads_and(Int32(1))
-@on_device sync_threads_and(true)
-@on_device sync_threads_or(Int32(1))
-@on_device sync_threads_or(true)
+@testcase "essentials" begin
+    @on_device sync_threads()
+    @on_device sync_threads_count(Int32(1))
+    @on_device sync_threads_count(true)
+    @on_device sync_threads_and(Int32(1))
+    @on_device sync_threads_and(true)
+    @on_device sync_threads_or(Int32(1))
+    @on_device sync_threads_or(true)
 
-@testset "llvm ir barrier int" begin
+    @on_device sync_warp()
+    @on_device sync_warp(0xffffffff)
+    @on_device threadfence_block()
+    @on_device threadfence()
+    @on_device threadfence_system()
+end
+
+@testcase "llvm ir barrier int" begin
     function kernel_barrier_count(an_array_of_1)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         if sync_threads_count(an_array_of_1[i]) == 3
@@ -778,7 +785,7 @@ end
     @test c_out == c_in .+ 1
 end
 
-@testset "llvm ir barrier bool" begin
+@testcase "llvm ir barrier bool" begin
     function kernel_barrier_count(an_array_of_1)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         if sync_threads_count(an_array_of_1[i] > 0) == 3
@@ -825,15 +832,9 @@ end
     @test c_out == c_in .+ 1
 end
 
-@on_device sync_warp()
-@on_device sync_warp(0xffffffff)
-@on_device threadfence_block()
-@on_device threadfence()
-@on_device threadfence_system()
-
 @testset "voting" begin
 
-@testset "ballot" begin
+@testcase "ballot" begin
     d_a = CuArray(UInt32[0])
 
     function kernel(a, i)
@@ -851,7 +852,7 @@ end
     end
 end
 
-@testset "any" begin
+@testcase "any" begin
     d_a = CuArray(UInt32[0])
 
     function kernel(a, i)
@@ -872,7 +873,7 @@ end
     @test Array(d_a) == [0]
 end
 
-@testset "all" begin
+@testcase "all" begin
     d_a = CuArray(UInt32[0])
 
     function kernel(a, i)
@@ -899,7 +900,7 @@ end
 
 ############################################################################################
 
-@testset "libcudadevrt" begin
+@testcase "libcudadevrt" begin
     kernel() = (CUDA.device_synchronize(); nothing)
     @cuda kernel()
 end
@@ -908,11 +909,11 @@ end
 
 @testset "atomics (low-level)" begin
 
-@testset "atomic_add" begin
+@testcase "atomic_add" begin
     types = [Int32, Int64, UInt32, UInt64, Float32]
     capability(device()) >= v"6.0" && push!(types, Float64)
 
-    @testset for T in types
+    @testcase for T in types
         a = CuArray([zero(T)])
 
         function kernel(a, b)
@@ -925,11 +926,11 @@ end
     end
 end
 
-@testset "atomic_sub" begin
+@testcase "atomic_sub" begin
     types = [Int32, Int64, UInt32, UInt64]
     capability(device()) >= v"6.0" && append!(types, [Float32, Float64])
 
-    @testset for T in types
+    @testcase for T in types
         a = CuArray([T(2048)])
 
         function kernel(a, b)
@@ -943,7 +944,7 @@ end
 end
 
 @testset "atomic_inc" begin
-    @testset for T in [Int32]
+    @testcase for T in [Int32]
         a = CuArray([zero(T)])
 
         function kernel(a, b)
@@ -957,7 +958,7 @@ end
 end
 
 @testset "atomic_dec" begin
-    @testset for T in [Int32]
+    @testcase for T in [Int32]
         a = CuArray([T(1024)])
 
         function kernel(a, b)
@@ -971,7 +972,7 @@ end
 end
 
 @testset "atomic_xchg" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64]
+    @testcase for T in [Int32, Int64, UInt32, UInt64]
         a = CuArray([zero(T)])
 
         function kernel(a, b)
@@ -985,7 +986,7 @@ end
 end
 
 @testset "atomic_and" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64]
+    @testcase for T in [Int32, Int64, UInt32, UInt64]
         a = CuArray([T(1023)])
 
         function kernel(a, T)
@@ -1005,7 +1006,7 @@ end
 end
 
 @testset "atomic_or" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64]
+    @testcase for T in [Int32, Int64, UInt32, UInt64]
         a = CuArray([zero(T)])
 
         function kernel(a, T)
@@ -1025,7 +1026,7 @@ end
 end
 
 @testset "atomic_xor" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64]
+    @testcase for T in [Int32, Int64, UInt32, UInt64]
         a = CuArray([T(1023)])
 
         function kernel(a, T)
@@ -1047,7 +1048,7 @@ end
 if capability(device()) >= v"6.0"
 
 @testset "atomic_cas" begin
-    @testset for T in [Int32, Int64, Float32, Float64]
+    @testcase for T in [Int32, Int64, Float32, Float64]
         a = CuArray([zero(T)])
 
         function kernel(a, b, c)
@@ -1066,7 +1067,7 @@ end
     types = [Int32, Int64, UInt32, UInt64]
     capability(device()) >= v"6.0" && append!(types, [Float32, Float64])
 
-    @testset for T in types
+    @testcase for T in types
         a = CuArray([zero(T)])
 
         function kernel(a, T)
@@ -1084,7 +1085,7 @@ end
     types = [Int32, Int64, UInt32, UInt64]
     capability(device()) >= v"6.0" && append!(types, [Float32, Float64])
 
-    @testset for T in types
+    @testcase for T in types
         a = CuArray([T(1024)])
 
         function kernel(a, T)
@@ -1101,7 +1102,7 @@ end
 if capability(device()) >= v"6.0"
 
 @testset "atomic_mul" begin
-    @testset for T in [Float32, Float64]
+    @testcase for T in [Float32, Float64]
         a = CuArray([one(T)])
 
         function kernel(a, b)
@@ -1115,7 +1116,7 @@ if capability(device()) >= v"6.0"
 end
 
 @testset "atomic_div" begin
-    @testset for T in [Float32, Float64]
+    @testcase for T in [Float32, Float64]
         a = CuArray([T(1024)])
 
         function kernel(a, b)
@@ -1128,7 +1129,7 @@ end
     end
 end
 
-@testset "shared memory" begin
+@testcase "shared memory" begin
     function kernel()
         shared = @cuStaticSharedMem(Float32, 1)
         @atomic shared[threadIdx().x] += 0f0
@@ -1148,7 +1149,7 @@ end
     types = [Int32, Int64, UInt32, UInt64, Float32]
     capability(device()) >= v"6.0" && push!(types, Float64)
 
-    @testset for T in types
+    @testcase for T in types
         a = CuArray([zero(T)])
 
         function kernel(T, a)
@@ -1163,7 +1164,7 @@ end
 end
 
 @testset "sub" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64]
+    @testcase for T in [Int32, Int64, UInt32, UInt64]
         a = CuArray([T(4096)])
 
         function kernel(T, a)
@@ -1178,7 +1179,7 @@ end
 end
 
 @testset "and" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64]
+    @testcase for T in [Int32, Int64, UInt32, UInt64]
         a = CuArray([~zero(T), ~zero(T)])
 
         function kernel(T, a)
@@ -1196,7 +1197,7 @@ end
 end
 
 @testset "or" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64]
+    @testcase for T in [Int32, Int64, UInt32, UInt64]
         a = CuArray([zero(T), zero(T)])
 
         function kernel(T, a)
@@ -1214,7 +1215,7 @@ end
 end
 
 @testset "xor" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64]
+    @testcase for T in [Int32, Int64, UInt32, UInt64]
         a = CuArray([zero(T), zero(T)])
 
         function kernel(T, a)
@@ -1233,7 +1234,7 @@ end
 end
 
 @testset "max" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64]
+    @testcase for T in [Int32, Int64, UInt32, UInt64]
         a = CuArray([zero(T)])
 
         function kernel(T, a)
@@ -1248,7 +1249,7 @@ end
 end
 
 @testset "min" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64]
+    @testcase for T in [Int32, Int64, UInt32, UInt64]
         a = CuArray([typemax(T)])
 
         function kernel(T, a)
@@ -1262,30 +1263,28 @@ end
     end
 end
 
-@testset "macro" begin
-    using CUDA: AtomicError
-
-    @test_throws_macro AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin
+@testcase "macro" begin
+    @test_throws_macro CUDA.AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin
         @atomic a[1] = 1
     end
-    @test_throws_macro AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin
+    @test_throws_macro CUDA.AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin
         @atomic a[1] = b ? 1 : 2
     end
 
-    @test_throws_macro AtomicError("right-hand side of a non-inplace @atomic assignment should reference the left-hand side") @macroexpand begin
+    @test_throws_macro CUDA.AtomicError("right-hand side of a non-inplace @atomic assignment should reference the left-hand side") @macroexpand begin
         @atomic a[1] = a[2] + 1
     end
 
-    @test_throws_macro AtomicError("unknown @atomic expression") @macroexpand begin
+    @test_throws_macro CUDA.AtomicError("unknown @atomic expression") @macroexpand begin
         @atomic wat(a[1])
     end
 
-    @test_throws_macro AtomicError("@atomic should be applied to an array reference expression") @macroexpand begin
+    @test_throws_macro CUDA.AtomicError("@atomic should be applied to an array reference expression") @macroexpand begin
         @atomic a = a + 1
     end
 end
 
-@testset "shared memory" begin
+@testcase "shared memory" begin
     # test that atomic operations on shared memory work
     # https://github.com/JuliaGPU/CUDA.jl/issues/311
 
@@ -1311,7 +1310,7 @@ end
     @test Array(a) == [16]
 end
 
-@testset "shared memory bug" begin
+@testcase "shared memory bug" begin
     # shared memory atomics resulted in illegal memory accesses
     # https://github.com/JuliaGPU/CUDA.jl/issues/558
 
@@ -1328,5 +1327,9 @@ end
     @cuda threads=2 kernel()
     synchronize()
 end
+
+end
+
+############################################################################################
 
 end

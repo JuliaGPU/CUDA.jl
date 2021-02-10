@@ -1,3 +1,7 @@
+@testcase "pointer" begin
+
+@testcase "essentials" begin
+
 # constructors
 voidptr_a = CuPtr{Cvoid}(Int(0xDEADBEEF))
 @test reinterpret(Ptr{Cvoid}, voidptr_a) == Ptr{Cvoid}(Int(0xDEADBEEF))
@@ -9,8 +13,12 @@ voidptr_a = CuPtr{Cvoid}(Int(0xDEADBEEF))
 voidptr_b = CuPtr{Cvoid}(Int(0xCAFEBABE))
 @test voidptr_a != voidptr_b
 
+end
 
-@testset "conversions" begin
+
+@testcase "conversions" begin
+
+voidptr_a = CuPtr{Cvoid}(Int(0xDEADBEEF))
 
 # between regular and CUDA pointers
 @test_throws ArgumentError convert(Ptr{Cvoid}, voidptr_a)
@@ -34,7 +42,7 @@ intptr_d = 2 + intptr_c
 end
 
 
-@testset "GPU or CPU integration" begin
+@testcase "GPU or CPU integration" begin
 
 a = [1]
 ccall(:clock, Nothing, (Ptr{Int},), a)
@@ -49,7 +57,7 @@ ccall(:clock, Nothing, (PtrOrCuPtr{Int},), b)
 end
 
 
-@testset "reference values" begin
+@testcase "reference values" begin
     # Ref
 
     @test typeof(Base.cconvert(Ref{Int}, 1)) == typeof(Ref(1))
@@ -94,4 +102,6 @@ end
 
     @test Base.cconvert(RefOrCuRef{Int}, cuarr) isa CUDA.CuRefArray{Int, typeof(cuarr)}
     @test Base.unsafe_convert(RefOrCuRef{Int}, Base.cconvert(RefOrCuRef{Int}, cuarr)) == Base.bitcast(RefOrCuRef{Int}, pointer(cuarr))
+end
+
 end

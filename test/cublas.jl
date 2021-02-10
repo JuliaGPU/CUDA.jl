@@ -1,3 +1,7 @@
+# FIXME: there is lot of hidden state here that makes it hard to parallelize these tests.
+#        for example, look for test inputs A or C getting changed between testcases.
+#        to work around that, we have parent testsets be a testcase...
+
 using CUDA.CUBLAS
 using CUDA.CUBLAS: band, bandex
 
@@ -5,17 +9,23 @@ using LinearAlgebra
 
 using BFloat16s
 
-@test CUBLAS.version() isa VersionNumber
-@test CUBLAS.version().major == CUBLAS.cublasGetProperty(CUDA.MAJOR_VERSION)
-@test CUBLAS.version().minor == CUBLAS.cublasGetProperty(CUDA.MINOR_VERSION)
-@test CUBLAS.version().patch == CUBLAS.cublasGetProperty(CUDA.PATCH_LEVEL)
+# HACK: remove me when a new version of BFloat16s.jl is released
+Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
+
+@testcase "cublas" begin
 
 m = 20
 n = 35
 k = 13
 
-# HACK: remove me when a new version of BFloat16s.jl is released
-Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
+############################################################################################
+
+@testcase "version" begin
+    @test CUBLAS.version() isa VersionNumber
+    @test CUBLAS.version().major == CUBLAS.cublasGetProperty(CUDA.MAJOR_VERSION)
+    @test CUBLAS.version().minor == CUBLAS.cublasGetProperty(CUDA.MINOR_VERSION)
+    @test CUBLAS.version().patch == CUBLAS.cublasGetProperty(CUDA.PATCH_LEVEL)
+end
 
 ############################################################################################
 
@@ -51,7 +61,7 @@ Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
 
         @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
         @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
-    end # level 1 testset
+    end
 end
 
 ############################################################################################
@@ -61,7 +71,7 @@ end
         alpha = rand(elty)
         beta = rand(elty)
 
-        @testset "gemv" begin
+        @testcase "gemv" begin
             @test testf(*, rand(elty, m, n), rand(elty, n))
             @test testf(*, transpose(rand(elty, m, n)), rand(elty, m))
             @test testf(*, rand(elty, m, n)', rand(elty, m))
@@ -77,7 +87,7 @@ end
             @test_throws DimensionMismatch mul!(dy, dA, dx)
         end
 
-        @testset "mul! y = $f(A) * x * $Ts(a) + y * $Ts(b)" for f in (identity, transpose, adjoint), Ts in (Int, elty)
+        @testcase "mul! y = $f(A) * x * $Ts(a) + y * $Ts(b)" for f in (identity, transpose, adjoint), Ts in (Int, elty)
             y, A, x = rand(elty, 5), rand(elty, 5, 5), rand(elty, 5)
             dy, dA, dx = CuArray(y), CuArray(A), CuArray(x)
             mul!(dy, f(dA), dx, Ts(1), Ts(2))
@@ -96,7 +106,8 @@ end
             d_Ab = CuArray(Ab)
             x = rand(elty,n)
             d_x = CuArray(x)
-            @testset "gbmv!" begin
+
+            @testcase "gbmv!" begin
                 # test y = alpha*A*x + beta*y
                 y = rand(elty,m)
                 d_y = CuArray(y)
@@ -125,7 +136,7 @@ end
             end
             x = rand(elty,n)
             d_x = CuArray(x)
-            @testset "gbmv" begin
+            @testcase "gbmv" begin
                 # test y = alpha*A*x
                 d_y = CUBLAS.gbmv('N',m,kl,ku,alpha,d_Ab,d_x)
                 y = zeros(elty,m)
@@ -145,7 +156,7 @@ end
             d_AB = CuArray(AB)
             d_x = CuArray(x)
             if elty <: Real
-                @testset "sbmv!" begin
+                @testcase "sbmv!" begin
                     y = rand(elty,m)
                     d_y = CuArray(y)
                     # sbmv!
@@ -155,7 +166,7 @@ end
                     h_y = Array(d_y)
                     @test y ≈ h_y
                 end
-                @testset "sbmv" begin
+                @testcase "sbmv" begin
                     d_y = CUBLAS.sbmv('U',nbands,d_AB,d_x)
                     y = A*x
                     # compare
@@ -163,7 +174,7 @@ end
                     @test y ≈ h_y
                 end
             else
-                @testset "hbmv!" begin
+                @testcase "hbmv!" begin
                     y = rand(elty,m)
                     d_y = CuArray(y)
                     # hbmv!
@@ -173,7 +184,7 @@ end
                     h_y = Array(d_y)
                     @test y ≈ h_y
                 end
-                @testset "hbmv" begin
+                @testcase "hbmv" begin
                     d_y = CUBLAS.hbmv('U',nbands,d_AB,d_x)
                     y = A*x
                     # compare
@@ -190,7 +201,7 @@ end
             # convert to 'upper' banded storage format
             AB = band(A,0,nbands)
             d_AB = CuArray(AB)
-            @testset "tbmv!" begin
+            @testcase "tbmv!" begin
                 y = rand(elty, m)
                 # move to host
                 d_y = CuArray(y)
@@ -201,7 +212,7 @@ end
                 h_y = Array(d_y)
                 @test y ≈ h_y
             end
-            @testset "tbmv" begin
+            @testcase "tbmv" begin
                 # tbmv
                 d_y = CUBLAS.tbmv('U','N','N',nbands,d_AB,d_x)
                 y = A*x
@@ -209,7 +220,7 @@ end
                 h_y = Array(d_y)
                 @test y ≈ h_y
             end
-            @testset "tbsv!" begin
+            @testcase "tbsv!" begin
                 d_y = copy(d_x)
                 #tbsv!
                 CUBLAS.tbsv!('U','N','N',nbands,d_AB,d_y)
@@ -218,7 +229,7 @@ end
                 h_y = Array(d_y)
                 @test y ≈ h_y
             end
-            @testset "tbsv" begin
+            @testcase "tbsv" begin
                 d_y = CUBLAS.tbsv('U','N','N',nbands,d_AB,d_x)
                 y = A\x
                 # compare
@@ -236,7 +247,7 @@ end
         dhA = CuArray(hA)
         x = rand(elty,m)
         dx = CuArray(x)
-        @testset "symv!" begin
+        @testcase "symv!" begin
             # generate vectors
             y = rand(elty,m)
             # copy to device
@@ -250,7 +261,7 @@ end
             @test y ≈ hy
         end
 
-        @testset "symv" begin
+        @testcase "symv" begin
             y = BLAS.symv('U',sA,x)
             # execute on device
             dy = CUBLAS.symv('U',dsA,dx)
@@ -259,7 +270,7 @@ end
             @test y ≈ hy
         end
         if elty <: Complex
-            @testset "hemv!" begin
+            @testcase "hemv!" begin
                 y = rand(elty,m)
                 dy = CuArray(y)
                 # execute on host
@@ -281,7 +292,7 @@ end
         end
         A = triu(sA)
         dA = CuArray(A)
-        @testset "trmv!" begin
+        @testcase "trmv!" begin
             d_y = copy(dx)
             # execute trmv!
             CUBLAS.trmv!('U','N','N',dA,d_y)
@@ -291,7 +302,7 @@ end
             @test y ≈ h_y
         end
 
-        @testset "trmv" begin
+        @testcase "trmv" begin
             d_y = CUBLAS.trmv('U','N','N',dA,dx)
             y = A*x
             # compare
@@ -299,44 +310,44 @@ end
             @test y ≈ h_y
         end
 
-        @testset "lmul!(::UpperTriangular)" begin
+        @testcase "lmul!(::UpperTriangular)" begin
             dy = copy(dx)
             lmul!(UpperTriangular(dA), dy)
             y = UpperTriangular(A) * x
             @test y ≈ Array(dy)
         end
-        @testset "lmul!(::UpperTriangular{Adjoint})" begin
+        @testcase "lmul!(::UpperTriangular{Adjoint})" begin
             dy = copy(dx)
             lmul!(adjoint(UpperTriangular(dA)), dy)
             y = adjoint(UpperTriangular(A)) * x
             @test y ≈ Array(dy)
         end
-        @testset "lmul!(::UpperTriangular{Transpose})" begin
+        @testcase "lmul!(::UpperTriangular{Transpose})" begin
             dy = copy(dx)
             lmul!(transpose(UpperTriangular(dA)), dy)
             y = transpose(UpperTriangular(A)) * x
             @test y ≈ Array(dy)
         end
-        @testset "lmul!(::LowerTriangular)" begin
+        @testcase "lmul!(::LowerTriangular)" begin
             dy = copy(dx)
             lmul!(LowerTriangular(dA), dy)
             y = LowerTriangular(A) * x
             @test y ≈ Array(dy)
         end
-        @testset "lmul!(::LowerTriangular{Adjoint})" begin
+        @testcase "lmul!(::LowerTriangular{Adjoint})" begin
             dy = copy(dx)
             lmul!(adjoint(LowerTriangular(dA)), dy)
             y = adjoint(LowerTriangular(A)) * x
             @test y ≈ Array(dy)
         end
-        @testset "lmul!(::LowerTriangular{Transpose})" begin
+        @testcase "lmul!(::LowerTriangular{Transpose})" begin
             dy = copy(dx)
             lmul!(transpose(LowerTriangular(dA)), dy)
             y = transpose(LowerTriangular(A)) * x
             @test y ≈ Array(dy)
         end
 
-        @testset "trsv!" begin
+        @testcase "trsv!" begin
             d_y = copy(dx)
             # execute trsv!
             CUBLAS.trsv!('U','N','N',dA,d_y)
@@ -346,21 +357,21 @@ end
             @test y ≈ h_y
         end
 
-        @testset "trsv" begin
+        @testcase "trsv" begin
             d_y = CUBLAS.trsv('U','N','N',dA,dx)
             y = A\x
             # compare
             h_y = Array(d_y)
             @test y ≈ h_y
         end
-        @testset "trsv (adjoint)" begin
+        @testcase "trsv (adjoint)" begin
             d_y = CUBLAS.trsv('U','C','N',dA,dx)
             y = adjoint(A)\x
             # compare
             h_y = Array(d_y)
             @test y ≈ h_y
         end
-        @testset "trsv (transpose)" begin
+        @testcase "trsv (transpose)" begin
             d_y = CUBLAS.trsv('U','T','N',dA,dx)
             y = transpose(A)\x
             # compare
@@ -368,7 +379,7 @@ end
             @test y ≈ h_y
         end
 
-        @testset "ldiv!(::UpperTriangular)" begin
+        @testcase "ldiv!(::UpperTriangular)" begin
             A = copy(sA)
             dA = CuArray(A)
             dy = copy(dx)
@@ -376,7 +387,7 @@ end
             y = UpperTriangular(A) \ x
             @test y ≈ Array(dy)
         end
-        @testset "ldiv!(::UpperTriangular{Adjoint})" begin
+        @testcase "ldiv!(::UpperTriangular{Adjoint})" begin
             A = copy(sA)
             dA = CuArray(A)
             dy = copy(dx)
@@ -384,7 +395,7 @@ end
             y = adjoint(UpperTriangular(A)) \ x
             @test y ≈ Array(dy)
         end
-        @testset "ldiv!(::UpperTriangular{Transpose})" begin
+        @testcase "ldiv!(::UpperTriangular{Transpose})" begin
             A = copy(sA)
             dA = CuArray(A)
             dy = copy(dx)
@@ -392,7 +403,7 @@ end
             y = transpose(UpperTriangular(A)) \ x
             @test y ≈ Array(dy)
         end
-        @testset "ldiv!(::LowerTriangular)" begin
+        @testcase "ldiv!(::LowerTriangular)" begin
             A = copy(sA)
             dA = CuArray(A)
             dy = copy(dx)
@@ -400,7 +411,7 @@ end
             y = LowerTriangular(A) \ x
             @test y ≈ Array(dy)
         end
-        @testset "ldiv!(::LowerTriangular{Adjoint})" begin
+        @testcase "ldiv!(::LowerTriangular{Adjoint})" begin
             A = copy(sA)
             dA = CuArray(A)
             dy = copy(dx)
@@ -408,7 +419,7 @@ end
             y = adjoint(LowerTriangular(A)) \ x
             @test y ≈ Array(dy)
         end
-        @testset "ldiv!(::LowerTriangular{Transpose})" begin
+        @testcase "ldiv!(::LowerTriangular{Transpose})" begin
             A = copy(sA)
             dA = CuArray(A)
             dy = copy(dx)
@@ -417,7 +428,7 @@ end
             @test y ≈ Array(dy)
         end
 
-        @testset "inv($TR)" for TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
+        @testcase "inv($TR)" for TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
             @test testf(x -> inv(TR(x)), rand(elty, m, m))
         end
 
@@ -427,7 +438,7 @@ end
         dA = CuArray(A)
         dx = CuArray(x)
         dy = CuArray(y)
-        @testset "ger!" begin
+        @testcase "ger!" begin
             # perform rank one update
             dB = copy(dA)
             CUBLAS.ger!(alpha,dx,dy,dB)
@@ -437,7 +448,7 @@ end
             @test B ≈ hB
         end
 
-        @testset "syr!" begin
+        @testcase "syr!" begin
             dB = copy(dsA)
             CUBLAS.syr!('U',alpha,dx,dB)
             B = (alpha*x)*transpose(x) + sA
@@ -448,7 +459,7 @@ end
             @test B ≈ hB
         end
         if elty <: Complex
-            @testset "her!" begin
+            @testcase "her!" begin
                 dB = copy(dhA)
                 # perform rank one update
                 CUBLAS.her!('U',real(alpha),dx,dB)
@@ -460,7 +471,7 @@ end
                 @test B ≈ hB
             end
 
-            @testset "her2!" begin
+            @testcase "her2!" begin
                 dB = copy(dhA)
                 CUBLAS.her2!('U',real(alpha),dx,dy,dB)
                 B = (real(alpha)*x)*y' + y*(real(alpha)*x)' + hA
@@ -473,7 +484,7 @@ end
         end
     end
 
-    @testset "gemv! with strided inputs" begin  # JuliaGPU/CUDA.jl#445
+    @testcase "gemv! with strided inputs" begin  # JuliaGPU/CUDA.jl#445
         testf(rand(16), rand(4)) do p, b
             W = @view p[reshape(1:(16),4,4)]
             W*b
@@ -484,11 +495,11 @@ end
 ############################################################################################
 
 @testset "level 3" begin
-    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testcase for elty in [Float32, Float64, ComplexF32, ComplexF64]
         alpha = rand(elty)
         beta = rand(elty)
 
-        @testset "mul! C = $f(A) *  $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
+        @testcase "mul! C = $f(A) *  $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
             C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
             dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
             mul!(dC, f(dA), g(dB), Ts(1), Ts(2))
@@ -511,7 +522,7 @@ end
         sA = rand(elty,m,m)
         sA = sA + transpose(sA)
         dsA = CuArray(sA)
-        @testset "gemm!" begin
+        @testcase "gemm!" begin
             CUBLAS.gemm!('N','N',alpha,d_A,d_B,beta,d_C1)
             mul!(d_C2, d_A, d_B)
             h_C1 = Array(d_C1)
@@ -525,7 +536,7 @@ end
             @test_throws DimensionMismatch mul!(d_C1, d_A, dsA)
         end
         if capability(device()) > v"5.0"
-            @testset "gemmEx!" begin
+            @testcase "gemmEx!" begin
                 α = rand(elty)
                 β = rand(elty)
                 CUBLAS.gemmEx!('N','N',α,d_A,d_B,β,d_C1)
@@ -535,7 +546,7 @@ end
                 @test C1 ≈ h_C1
             end
         end
-        @testset "gemm" begin
+        @testcase "gemm" begin
             d_C = CUBLAS.gemm('N','N',d_A,d_B)
             C = A*B
             C2 = d_A * d_B
@@ -545,7 +556,7 @@ end
             @test C ≈ h_C
             @test C ≈ h_C2
         end
-        @testset "xt_gemm! gpu" begin
+        @testcase "xt_gemm! gpu" begin
             synchronize()
             CUBLAS.xt_gemm!('N','N',alpha,d_A,d_B,beta,d_C1)
             mul!(d_C2, d_A, d_B)
@@ -558,7 +569,7 @@ end
             @test C2 ≈ h_C2
             @test_throws DimensionMismatch CUBLAS.xt_gemm!('N','N',alpha,d_A,d_Bbad,beta,d_C1)
         end
-        @testset "xt_gemm! cpu" begin
+        @testcase "xt_gemm! cpu" begin
             h_C1 = Array(d_C1)
             CUBLAS.xt_gemm!('N','N',alpha,Array(d_A),Array(d_B),beta,h_C1)
             mul!(d_C2, d_A, d_B)
@@ -570,7 +581,7 @@ end
             @test C2 ≈ h_C2
         end
 
-        @testset "xt_gemm gpu" begin
+        @testcase "xt_gemm gpu" begin
             synchronize()
             d_C = CUBLAS.xt_gemm('N','N',d_A,d_B)
             C = A*B
@@ -582,7 +593,7 @@ end
             @test C ≈ h_C
             @test C ≈ h_C2
         end
-        @testset "xt_gemm cpu" begin
+        @testcase "xt_gemm cpu" begin
             h_C = CUBLAS.xt_gemm('N','N',Array(d_A),Array(d_B))
             C = A*B
             C2 = d_A * d_B
@@ -609,7 +620,7 @@ end
                 push!(bd_bad,CuArray(bC[i]))
             end
         end
-        @testset "gemm_batched!" begin
+        @testcase "gemm_batched!" begin
             # C = (alpha*A)*B + beta*C
             CUBLAS.gemm_batched!('N','N',alpha,bd_A,bd_B,beta,bd_C)
             for i in 1:length(bd_C)
@@ -621,7 +632,7 @@ end
             @test_throws DimensionMismatch CUBLAS.gemm_batched!('N','N',alpha,bd_A,bd_bad,beta,bd_C)
         end
 
-        @testset "gemm_batched" begin
+        @testcase "gemm_batched" begin
             bd_C = CUBLAS.gemm_batched('N','N',bd_A,bd_B)
             for i in 1:length(bA)
                 bC = bA[i]*bB[i]
@@ -641,7 +652,7 @@ end
         bd_B = CuArray{elty, 3}(bB)
         bd_C = CuArray{elty, 3}(bC)
         bd_bad = CuArray{elty, 3}(bbad)
-        @testset "gemm_strided_batched!" begin
+        @testcase "gemm_strided_batched!" begin
             CUBLAS.gemm_strided_batched!('N', 'N', alpha, bd_A, bd_B, beta, bd_C)
             for i in 1:nbatch
                 bC[:, :, i] = (alpha * bA[:, :, i]) * bB[:, :, i] + beta * bC[:, :, i]
@@ -651,7 +662,7 @@ end
             @test_throws DimensionMismatch CUBLAS.gemm_strided_batched!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
         end
 
-        @testset "gemm_strided_batched" begin
+        @testcase "gemm_strided_batched" begin
             bd_C = CUBLAS.gemm_strided_batched('N', 'N', bd_A, bd_B)
 
             for i in 1:nbatch
@@ -682,7 +693,7 @@ end
         d_B = CuArray(B)
         d_C = CuArray(C)
         d_Bbad = CuArray(Bbad)
-        @testset "symm!" begin
+        @testcase "symm!" begin
             CUBLAS.symm!('L','U',alpha,dsA,d_B,beta,d_C)
             C = (alpha*sA)*B + beta*C
             # compare
@@ -691,7 +702,7 @@ end
             @test_throws DimensionMismatch CUBLAS.symm!('L','U',alpha,dsA,d_Bbad,beta,d_C)
         end
 
-        @testset "symm" begin
+        @testcase "symm" begin
             d_C = CUBLAS.symm('L','U',dsA,d_B)
             C = sA*B
             # compare
@@ -699,7 +710,7 @@ end
             @test C ≈ h_C
             @test_throws DimensionMismatch CUBLAS.symm('L','U',dsA,d_Bbad)
         end
-        @testset "xt_symm! gpu" begin
+        @testcase "xt_symm! gpu" begin
             synchronize()
             CUBLAS.xt_symm!('L','U',alpha,dsA,d_B,beta,d_C)
             C = (alpha*sA)*B + beta*C
@@ -707,7 +718,7 @@ end
             h_C = Array(d_C)
             @test C ≈ h_C
         end
-        @testset "xt_symm! cpu" begin
+        @testcase "xt_symm! cpu" begin
             h_C = Array(d_C)
             CUBLAS.xt_symm!('L','U',alpha,Array(dsA),Array(d_B),beta,h_C)
             C = (alpha*sA)*B + beta*C
@@ -715,7 +726,7 @@ end
             @test C ≈ h_C
         end
 
-        @testset "xt_symm gpu" begin
+        @testcase "xt_symm gpu" begin
             synchronize()
             d_C = CUBLAS.xt_symm('L','U',dsA,d_B)
             C = sA*B
@@ -724,7 +735,7 @@ end
             h_C = Array(d_C)
             @test C ≈ h_C
         end
-        @testset "xt_symm cpu" begin
+        @testcase "xt_symm cpu" begin
             h_C = CUBLAS.xt_symm('L','U',Array(dsA),Array(d_B))
             C = sA*B
             # compare
@@ -737,21 +748,21 @@ end
         dA = CuArray(A)
         dB = CuArray(B)
         dC = CuArray(C)
-        @testset "trmm!" begin
+        @testcase "trmm!" begin
             C = alpha*A*B
             CUBLAS.trmm!('L','U','N','N',alpha,dA,dB,dC)
             # move to host and compare
             h_C = Array(dC)
             @test C ≈ h_C
         end
-        @testset "trmm" begin
+        @testcase "trmm" begin
             C = alpha*A*B
             d_C = CUBLAS.trmm('L','U','N','N',alpha,dA,dB)
             # move to host and compare
             h_C = Array(d_C)
             @test C ≈ h_C
         end
-        @testset "xt_trmm! gpu" begin
+        @testcase "xt_trmm! gpu" begin
             C = alpha*A*B
             synchronize()
             CUBLAS.xt_trmm!('L','U','N','N',alpha,dA,dB,dC)
@@ -759,13 +770,13 @@ end
             h_C = Array(dC)
             @test C ≈ h_C
         end
-        @testset "xt_trmm! cpu" begin
+        @testcase "xt_trmm! cpu" begin
             C = alpha*A*B
             h_C = Array(dC)
             CUBLAS.xt_trmm!('L','U','N','N',alpha,Array(dA),Array(dB),h_C)
             @test C ≈ h_C
         end
-        @testset "xt_trmm gpu" begin
+        @testcase "xt_trmm gpu" begin
             C = alpha*A*B
             synchronize()
             d_C = CUBLAS.xt_trmm('L','U','N','N',alpha,dA,dB)
@@ -774,14 +785,14 @@ end
             h_C = Array(d_C)
             @test C ≈ h_C
         end
-        @testset "xt_trmm cpu" begin
+        @testcase "xt_trmm cpu" begin
             C = alpha*A*B
             h_C = CUBLAS.xt_trmm('L','U','N','N',alpha,Array(dA),Array(dB))
             @test h_C isa Array
             @test C ≈ h_C
         end
 
-        @testset "xt_trsm! gpu" begin
+        @testcase "xt_trsm! gpu" begin
             C = alpha*(A\B)
             dC = copy(dB)
             synchronize()
@@ -790,14 +801,14 @@ end
             h_C = Array(dC)
             @test C ≈ h_C
         end
-        @testset "xt_trsm! cpu" begin
+        @testcase "xt_trsm! cpu" begin
             C = alpha*(A\B)
             dC = copy(dB)
             h_C = Array(dC)
             CUBLAS.xt_trsm!('L','U','N','N',alpha,Array(dA),h_C)
             @test C ≈ h_C
         end
-        @testset "xt_trsm gpu" begin
+        @testcase "xt_trsm gpu" begin
             C  = alpha*(A\B)
             synchronize()
             dC = CUBLAS.xt_trsm('L','U','N','N',alpha,dA,dB)
@@ -806,19 +817,19 @@ end
             h_C = Array(dC)
             @test C ≈ h_C
         end
-        @testset "xt_trsm cpu" begin
+        @testcase "xt_trsm cpu" begin
             C  = alpha*(A\B)
             h_C = CUBLAS.xt_trsm('L','U','N','N',alpha,Array(dA),Array(dB))
             @test h_C isa Array
             @test C ≈ h_C
         end
-        @testset "trsm" begin
+        @testcase "trsm" begin
             Br = rand(elty,m,n)
             Bl = rand(elty,n,m)
             d_Br = CuArray(Br)
             d_Bl = CuArray(Bl)
             # compute
-            @testset "adjtype=$adjtype, uplotype=$uplotype" for
+            @testcase "adjtype=$adjtype, uplotype=$uplotype" for
                 adjtype in (identity, adjoint, transpose),
                     uplotype in (UpperTriangular, UnitUpperTriangular, LowerTriangular, UnitLowerTriangular)
 
@@ -829,7 +840,7 @@ end
             @test BLAS.trsm('L','U','N','N',alpha,A,Br) ≈ Array(CUBLAS.trsm('L','U','N','N',alpha,dA,d_Br))
         end
 
-        @testset "trsm_batched!" begin
+        @testcase "trsm_batched!" begin
             bA = [rand(elty,m,m) for i in 1:10]
             map!((x) -> triu(x), bA, bA)
             bB = [rand(elty,m,n) for i in 1:10]
@@ -857,7 +868,7 @@ end
             end
         end
 
-        @testset "trsm_batched" begin
+        @testcase "trsm_batched" begin
             # generate parameter alpha = rand(elty)
             # generate matrices
             bA = [rand(elty,m,m) for i in 1:10]
@@ -884,31 +895,31 @@ end
             dA = CuArray(A)
             dB = CuArray(B)
 
-            @testset "left trsm!" begin
+            @testcase "left trsm!" begin
                 C = alpha*(A\B)
                 dC = copy(dB)
                 CUBLAS.trsm!('L','U','N','N',alpha,dA,dC)
                 @test C ≈ Array(dC)
             end
 
-            @testset "left trsm" begin
+            @testcase "left trsm" begin
                 C = alpha*(A\B)
                 dC = CUBLAS.trsm('L','U','N','N',alpha,dA,dB)
                 @test C ≈ Array(dC)
             end
-            @testset "left trsm (adjoint)" begin
+            @testcase "left trsm (adjoint)" begin
                 C = alpha*(adjoint(A)\B)
                 dC = CUBLAS.trsm('L','U','C','N',alpha,dA,dB)
                 @test C ≈ Array(dC)
             end
-            @testset "left trsm (transpose)" begin
+            @testcase "left trsm (transpose)" begin
                 C = alpha*(transpose(A)\B)
                 dC = CUBLAS.trsm('L','U','T','N',alpha,dA,dB)
                 @test C ≈ Array(dC)
             end
         end
 
-        @testset "triangular ldiv!" begin
+        @testcase "triangular ldiv!" begin
             A = triu(rand(elty, m, m))
             B = rand(elty, m,m)
 
@@ -927,31 +938,31 @@ end
             dA = CuArray(A)
             dB = CuArray(B)
 
-            @testset "right trsm!" begin
+            @testcase "right trsm!" begin
                 C = alpha*(A/B)
                 dC = copy(dA)
                 CUBLAS.trsm!('R','U','N','N',alpha,dB,dC)
                 @test C ≈ Array(dC)
             end
 
-            @testset "right trsm" begin
+            @testcase "right trsm" begin
                 C = alpha*(A/B)
                 dC = CUBLAS.trsm('R','U','N','N',alpha,dB,dA)
                 @test C ≈ Array(dC)
             end
-            @testset "right trsm (adjoint)" begin
+            @testcase "right trsm (adjoint)" begin
                 C = alpha*(A/adjoint(B))
                 dC = CUBLAS.trsm('R','U','C','N',alpha,dB,dA)
                 @test C ≈ Array(dC)
             end
-            @testset "right trsm (transpose)" begin
+            @testcase "right trsm (transpose)" begin
                 C = alpha*(A/transpose(B))
                 dC = CUBLAS.trsm('R','U','T','N',alpha,dB,dA)
                 @test C ≈ Array(dC)
             end
         end
 
-        @testset "triangular rdiv!" begin
+        @testcase "triangular rdiv!" begin
             A = rand(elty, m,m)
             B = triu(rand(elty, m, m))
 
@@ -966,7 +977,7 @@ end
             end
         end
 
-        @testset "triangular mul!" begin
+        @testcase "triangular mul!" begin
             A = triu(rand(elty, m, m))
             B = rand(elty,m,n)
             C = zeros(elty,m,n)
@@ -1004,7 +1015,7 @@ end
         d_B = CuArray(B)
         d_C = CuArray(C)
         if elty <: Complex
-            @testset "hemm!" begin
+            @testcase "hemm!" begin
                 # compute
                 C = alpha*(hA*B) + beta*C
                 CUBLAS.hemm!('L','L',alpha,dhA,d_B,beta,d_C)
@@ -1012,14 +1023,14 @@ end
                 h_C = Array(d_C)
                 @test C ≈ h_C
             end
-            @testset "hemm" begin
+            @testcase "hemm" begin
                 C = hA*B
                 d_C = CUBLAS.hemm('L','U',dhA,d_B)
                 # move to host and compare
                 h_C = Array(d_C)
                 @test C ≈ h_C
             end
-            @testset "xt_hemm! gpu" begin
+            @testcase "xt_hemm! gpu" begin
                 # compute
                 C = alpha*(hA*B) + beta*C
                 synchronize()
@@ -1028,14 +1039,14 @@ end
                 h_C = Array(d_C)
                 @test C ≈ h_C
             end
-            @testset "xt_hemm! cpu" begin
+            @testcase "xt_hemm! cpu" begin
                 # compute
                 C = alpha*(hA*B) + beta*C
                 h_C = Array(d_C)
                 CUBLAS.xt_hemm!('L','L',alpha,Array(dhA),Array(d_B),beta,h_C)
                 @test C ≈ h_C
             end
-            @testset "xt_hemm gpu" begin
+            @testcase "xt_hemm gpu" begin
                 C   = hA*B
                 synchronize()
                 d_C = CUBLAS.xt_hemm('L','U',dhA, d_B)
@@ -1044,7 +1055,7 @@ end
                 h_C = Array(d_C)
                 @test C ≈ h_C
             end
-            @testset "xt_hemm cpu" begin
+            @testcase "xt_hemm cpu" begin
                 C   = hA*B
                 h_C = CUBLAS.xt_hemm('L','U',Array(dhA), Array(d_B))
                 # move to host and compare
@@ -1054,7 +1065,7 @@ end
         end
         A = rand(elty,m,n)
         d_A = CuArray(A)
-        @testset "geam!" begin
+        @testcase "geam!" begin
             # compute
             D = alpha*A + beta*B
             CUBLAS.geam!('N','N',alpha,d_A,beta,d_B,d_C)
@@ -1088,7 +1099,7 @@ end
             @test_throws DimensionMismatch CUBLAS.geam!('T','N',alpha,d_A,beta,d_B,d_C)
         end
 
-        @testset "geam" begin
+        @testcase "geam" begin
             D = alpha*A + beta*B
             d_C = CUBLAS.geam('N','N',alpha,d_A,beta,d_B)
             # move to host and compare
@@ -1097,7 +1108,7 @@ end
         end
         A = rand(elty,m,k)
         d_A = CuArray(A)
-        @testset "syrkx!" begin
+        @testcase "syrkx!" begin
             # generate matrices
             syrkx_A = rand(elty, n, k)
             syrkx_B = rand(elty, n, k)
@@ -1119,7 +1130,7 @@ end
             d_badC = CuArray(badC)
             @test_throws DimensionMismatch CUBLAS.syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_badC)
         end
-        @testset "xt_syrkx! gpu" begin
+        @testcase "xt_syrkx! gpu" begin
             # generate matrices
             syrkx_A = rand(elty, n, k)
             syrkx_B = rand(elty, n, k)
@@ -1142,7 +1153,7 @@ end
             d_badC = CuArray(badC)
             @test_throws DimensionMismatch CUBLAS.xt_syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_badC)
         end
-        @testset "xt_syrkx! cpu" begin
+        @testcase "xt_syrkx! cpu" begin
             # generate matrices
             syrkx_A = rand(elty, n, k)
             syrkx_B = rand(elty, n, k)
@@ -1153,7 +1164,7 @@ end
             # move to host and compare
             @test triu(final_C) ≈ triu(syrkx_C)
         end
-        @testset "xt_syrkx gpu" begin
+        @testcase "xt_syrkx gpu" begin
             # generate matrices
             syrkx_A = rand(elty, n, k)
             syrkx_B = rand(elty, n, k)
@@ -1167,7 +1178,7 @@ end
             h_C = Array(d_syrkx_C)
             @test triu(final_C) ≈ triu(h_C)
         end
-        @testset "xt_syrkx cpu" begin
+        @testcase "xt_syrkx cpu" begin
             # generate matrices
             syrkx_A = rand(elty, n, k)
             syrkx_B = rand(elty, n, k)
@@ -1176,7 +1187,7 @@ end
             @test h_C isa Array
             @test triu(final_C) ≈ triu(h_C)
         end
-        @testset "syrk" begin
+        @testcase "syrk" begin
             # C = A*transpose(A)
             d_C = CUBLAS.syrk('U','N',d_A)
             C = A*transpose(A)
@@ -1186,7 +1197,7 @@ end
             h_C = triu(C)
             @test C ≈ h_C
         end
-        @testset "xt_syrk gpu" begin
+        @testcase "xt_syrk gpu" begin
             # C = A*transpose(A)
             synchronize()
             d_C = CUBLAS.xt_syrk('U','N',d_A)
@@ -1198,7 +1209,7 @@ end
             h_C = triu(C)
             @test C ≈ h_C
         end
-        @testset "xt_syrk cpu" begin
+        @testcase "xt_syrk cpu" begin
             # C = A*transpose(A)
             h_C = CUBLAS.xt_syrk('U','N',Array(d_A))
             C = A*transpose(A)
@@ -1209,7 +1220,7 @@ end
             @test C ≈ h_C
         end
         if elty <: Complex
-            @testset "herk!" begin
+            @testcase "herk!" begin
                 d_C = CuArray(dhA)
                 CUBLAS.herk!('U','N',real(alpha),d_A,real(beta),d_C)
                 C = real(alpha)*(A*A') + real(beta)*hA
@@ -1219,7 +1230,7 @@ end
                 h_C = triu(C)
                 @test C ≈ h_C
             end
-            @testset "herk" begin
+            @testcase "herk" begin
                 d_C = CUBLAS.herk('U','N',d_A)
                 C = A*A'
                 C = triu(C)
@@ -1228,7 +1239,7 @@ end
                 h_C = triu(C)
                 @test C ≈ h_C
             end
-            @testset "xt_herk! gpu" begin
+            @testcase "xt_herk! gpu" begin
                 d_C = CuArray(dhA)
                 C = real(alpha)*(A*A') + real(beta)*Array(d_C)
                 synchronize()
@@ -1239,7 +1250,7 @@ end
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end
-            @testset "xt_herk! cpu" begin
+            @testcase "xt_herk! cpu" begin
                 h_C = Array(dhA)
                 CUBLAS.xt_herk!('U','N',real(alpha),Array(d_A),real(beta),h_C)
                 C = real(alpha)*(A*A') + real(beta)*Array(dhA)
@@ -1248,7 +1259,7 @@ end
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end
-            @testset "xt_herk gpu" begin
+            @testcase "xt_herk gpu" begin
                 synchronize()
                 d_C = CUBLAS.xt_herk('U','N',d_A)
                 C = A*A'
@@ -1259,7 +1270,7 @@ end
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end
-            @testset "xt_herk cpu" begin
+            @testcase "xt_herk cpu" begin
                 h_C = CUBLAS.xt_herk('U','N',Array(d_A))
                 C = A*A'
                 C = triu(C)
@@ -1279,7 +1290,7 @@ end
         d_B = CuArray(B)
         d_Bbad = CuArray(Bbad)
         d_C = CuArray(C)
-        @testset "syr2k!" begin
+        @testcase "syr2k!" begin
             # compute
             C = alpha*(A*transpose(B) + B*transpose(A)) + beta*C
             CUBLAS.syr2k!('U','N',alpha,d_A,d_B,beta,d_C)
@@ -1291,7 +1302,7 @@ end
             @test_throws DimensionMismatch CUBLAS.syr2k!('U','N',alpha,d_A,d_Bbad,beta,d_C)
         end
 
-        @testset "syr2k" begin
+        @testcase "syr2k" begin
             C = alpha*(A*transpose(B) + B*transpose(A))
             d_C = CUBLAS.syr2k('U','N',alpha,d_A,d_B)
             # move back to host and compare
@@ -1301,7 +1312,7 @@ end
             @test C ≈ h_C
         end
         if elty <: Complex
-            @testset "her2k!" begin
+            @testcase "her2k!" begin
                 elty1 = elty
                 elty2 = real(elty)
                 # generate parameters
@@ -1319,7 +1330,7 @@ end
                 @test_throws DimensionMismatch CUBLAS.her2k!('U','N',α,d_A,d_Bbad,β,d_C)
             end
 
-            @testset "her2k" begin
+            @testcase "her2k" begin
                 C = A*B' + B*A'
                 d_C = CUBLAS.her2k('U','N',d_A,d_B)
                 # move back to host and compare
@@ -1328,7 +1339,7 @@ end
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end
-            @testset "xt_her2k! gpu" begin
+            @testcase "xt_her2k! gpu" begin
                 elty1 = elty
                 elty2 = real(elty)
                 # generate parameters
@@ -1345,7 +1356,7 @@ end
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end
-            @testset "xt_her2k! cpu" begin
+            @testcase "xt_her2k! cpu" begin
                 elty1 = elty
                 elty2 = real(elty)
                 # generate parameters
@@ -1360,7 +1371,7 @@ end
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end
-            @testset "xt_her2k gpu" begin
+            @testcase "xt_her2k gpu" begin
                 # generate parameters
                 C = C + C'
                 C = (A*B') + (B*A')
@@ -1373,7 +1384,7 @@ end
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end
-            @testset "xt_her2k cpu" begin
+            @testcase "xt_her2k cpu" begin
                 # generate parameters
                 C = C + C'
                 C = (A*B') + (B*A')
@@ -1384,7 +1395,7 @@ end
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end
-            @testset "her2k" begin
+            @testcase "her2k" begin
                 C = A*B' + B*A'
                 d_C = CUBLAS.her2k('U','N',d_A,d_B)
                 # move back to host and compare
@@ -1396,7 +1407,8 @@ end
         end
     end
 
-    @testset "mixed-precision matmul" begin
+    @testcase "mixed-precision matmul" begin
+        local m,k,n
         m,k,n = 4,4,4
         cudaTypes = (Float16, Complex{Float16}, BFloat16, Complex{BFloat16}, Float32, Complex{Float32},
                     Float64, Complex{Float64}, Int8, Complex{Int8}, UInt8, Complex{UInt8},
@@ -1445,7 +1457,7 @@ end
         end
     end
 
-    @testset "gemm! with strided inputs" begin # JuliaGPU/CUDA.jl#78
+    @testcase "gemm! with strided inputs" begin # JuliaGPU/CUDA.jl#78
         inn = 784; out = 32
         testf(randn(784*100), rand(Float32, 784, 100)) do p, x
             p[reshape(1:(out*inn),out,inn)] * x
@@ -1459,7 +1471,6 @@ end
 @testset "extensions" begin
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         @testset "getrf_batched!" begin
-            Random.seed!(1)
             local k
             # generate matrices
             A = [rand(elty,m,m) for i in 1:10]
@@ -1515,7 +1526,7 @@ end
             end
         end
 
-        @testset "getrf_batched" begin
+        @testcase "getrf_batched" begin
             local k
             # generate matrices
             A = [rand(elty,m,m) for i in 1:10]
@@ -1543,8 +1554,7 @@ end
             end
         end
 
-        @testset "getrf_strided_batched!" begin
-            Random.seed!(1)
+        @testcase "getrf_strided_batched!" begin
             local k
             # generate strided matrix
             A = rand(elty,m,m,10)
@@ -1595,7 +1605,7 @@ end
             end
         end
 
-        @testset "getrf_strided_batched" begin
+        @testcase "getrf_strided_batched" begin
             local k
             # generate strided matrix
             A = rand(elty,m,m,10)
@@ -1625,7 +1635,7 @@ end
             end
         end
 
-        @testset "getri_strided_batched" begin
+        @testcase "getri_strided_batched" begin
             # generate strided matrix
             A = rand(elty,m,m,10)
             # move to device
@@ -1641,7 +1651,7 @@ end
             end
         end
 
-        @testset "getri_batched" begin
+        @testcase "getri_batched" begin
             # generate matrices
             A = [rand(elty,m,m) for i in 1:10]
             # move to device
@@ -1664,7 +1674,7 @@ end
             end
         end
 
-        @testset "matinv_batched" begin
+        @testcase "matinv_batched" begin
             # generate matrices
             A = [rand(elty,m,m) for i in 1:10]
             # move to device
@@ -1682,7 +1692,7 @@ end
             @test_throws DimensionMismatch CUBLAS.matinv_batched(d_A)
         end
 
-        @testset "geqrf_batched!" begin
+        @testcase "geqrf_batched!" begin
             # generate matrices
             A = [rand(elty,m,n) for i in 1:10]
             # move to device
@@ -1707,7 +1717,7 @@ end
             end
         end
 
-        @testset "geqrf_batched" begin
+        @testcase "geqrf_batched" begin
             # generate matrices
             A = [rand(elty,m,n) for i in 1:10]
             # move to device
@@ -1732,7 +1742,7 @@ end
             end
         end
 
-        @testset "gels_batched!" begin
+        @testcase "gels_batched!" begin
             # generate matrices
             A = [rand(elty,n,k) for i in 1:10]
             C = [rand(elty,n,k) for i in 1:10]
@@ -1766,7 +1776,7 @@ end
             @test_throws ArgumentError CUBLAS.gels_batched!('N',d_A, d_C)
         end
 
-        @testset "gels_batched" begin
+        @testcase "gels_batched" begin
             # generate matrices
             A = [rand(elty,n,k) for i in 1:10]
             C = [rand(elty,n,k) for i in 1:10]
@@ -1784,32 +1794,42 @@ end
                 @test X ≈ h_D rtol=1e-2
             end
         end
-        # generate matrices
-        A = rand(elty,m,n)
-        C = rand(elty,m,n)
-        x = rand(elty,m)
-        # move to device
-        d_A = CuArray(A)
-        d_C = CuArray(C)
-        d_x = CuArray(x)
-        C = diagm(0 => x) * A
-        @testset "dgmm!" begin
-            # compute
-            CUBLAS.dgmm!('L', d_A, d_x, d_C)
-            # move to host and compare
-            h_C = Array(d_C)
-            @test C ≈ h_C
-            # bounds checking
-            @test_throws DimensionMismatch CUBLAS.dgmm!('R', d_A, d_x, d_C)
-            E = rand(elty,m,m)
-            d_E = CuArray(E)
-            @test_throws DimensionMismatch CUBLAS.dgmm!('L', d_E, d_x, d_C)
-        end
-        @testset "dgmm" begin
-            d_C = CUBLAS.dgmm('L', d_A, d_x)
-            # move to host and compare
-            h_C = Array(d_C)
-            @test C ≈ h_C
+
+        @testcase "dgmm" begin
+            # generate matrices
+            A = rand(elty,m,n)
+            C = rand(elty,m,n)
+            x = rand(elty,m)
+
+            # move to device
+            d_A = CuArray(A)
+            d_C = CuArray(C)
+            d_x = CuArray(x)
+            C = diagm(0 => x) * A
+
+            @testcase "dgmm!" begin
+                # compute
+                CUBLAS.dgmm!('L', d_A, d_x, d_C)
+                # move to host and compare
+                h_C = Array(d_C)
+                @test C ≈ h_C
+                # bounds checking
+                @test_throws DimensionMismatch CUBLAS.dgmm!('R', d_A, d_x, d_C)
+                E = rand(elty,m,m)
+                d_E = CuArray(E)
+                @test_throws DimensionMismatch CUBLAS.dgmm!('L', d_E, d_x, d_C)
+            end
+
+            @testcase "dgmm" begin
+                d_C = CUBLAS.dgmm('L', d_A, d_x)
+                # move to host and compare
+                h_C = Array(d_C)
+                @test C ≈ h_C
+            end
         end
     end # extensions
 end # elty
+
+############################################################################################
+
+end

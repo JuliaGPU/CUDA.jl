@@ -4,14 +4,22 @@ using LinearAlgebra
 using SparseArrays
 using SparseArrays: nonzeroinds
 
-@test CUSPARSE.version() isa VersionNumber
+@testcase "CUSPARSE" begin
+
+############################################################################################
+
+@testcase "essentials" begin
+    @test CUSPARSE.version() isa VersionNumber
+end
+
+############################################################################################
 
 m = 25
 n = 35
 k = 10
 blockdim = 5
 
-@testset "array" begin
+@testcase "array" begin
     x = sprand(m,0.2)
     d_x = CuSparseVector(x)
     @test length(d_x) == m
@@ -109,25 +117,25 @@ end
 
 @testset "construction" begin
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
-        @testset "CSC" begin
+        @testcase "CSC" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             @test collect(d_x) == collect(x)
         end
 
-        @testset "CSR" begin
+        @testcase "CSR" begin
             x = sprand(elty,m,n, 0.2)
             d_x  = CuSparseMatrixCSR(x)
             @test collect(d_x) == collect(x)
         end
 
-        @testset "BSR" begin
+        @testcase "BSR" begin
             x = sprand(elty,m,n, 0.2)
             d_x  = CuSparseMatrixBSR(x, blockdim)
             @test collect(d_x) == collect(x)
         end
 
-        @testset "BSR" begin
+        @testcase "BSR" begin
             x = sprand(elty,m,n, 0.2)
             d_x  = CuSparseMatrixCOO(x)
             @test collect(d_x) == collect(x)
@@ -137,21 +145,21 @@ end
 
 @testset "conversion" begin
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
-        @testset "CSC(::CSR)" begin
+        @testcase "CSC(::CSR)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
             d_x = CuSparseMatrixCSC(d_x)
             @test collect(d_x) == collect(x)
         end
 
-        @testset "CSR(::CSC)" begin
+        @testcase "CSR(::CSC)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             d_x = CuSparseMatrixCSR(d_x)
             @test collect(d_x) == collect(x)
         end
 
-        @testset "BSR(::CSR)" begin
+        @testcase "BSR(::CSR)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
             d_x = CuSparseMatrixBSR(d_x, blockdim)
@@ -159,14 +167,14 @@ end
         end
         # CSR(::BSR) already covered by the non-direct collect
 
-        @testset "BSR(::Dense)" begin
+        @testcase "BSR(::Dense)" begin
             x = rand(elty,m,n)
             d_x = CuArray(x)
             d_x = CuSparseMatrixBSR(d_x)
             @test collect(d_x) ≈ x
         end
 
-        @testset "COO(::CSR)" begin
+        @testcase "COO(::CSR)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
             d_x = CuSparseMatrixCOO(d_x)
@@ -174,21 +182,21 @@ end
         end
         # CSR(::COO) already covered by the non-direct collect
 
-        @testset "Dense(::CSR)" begin
+        @testcase "Dense(::CSR)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
             h_x = collect(d_x)
             @test h_x ≈ Array(x)
         end
 
-        @testset "Dense(::CSC)" begin
+        @testcase "Dense(::CSC)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             h_x = collect(d_x)
             @test h_x ≈ Array(x)
         end
 
-        @testset "CSC(::Dense)" begin
+        @testcase "CSC(::Dense)" begin
             x = rand(elty,m,n)
             d_x = CuArray(x)
             d_x = CuSparseMatrixCSC(d_x)
@@ -196,7 +204,7 @@ end
             @test h_x ≈ sparse(x)
         end
 
-        @testset "CSR(::Dense)" begin
+        @testcase "CSR(::Dense)" begin
             x = rand(elty,m,n)
             d_x = CuArray(x)
             d_x = CuSparseMatrixCSR(d_x)
@@ -212,7 +220,7 @@ end
         A += adjoint(A)
         A += m * Diagonal{elty}(I, m)
 
-        @testset "bsric02!" begin
+        @testcase "bsric02!" begin
             d_A = CuSparseMatrixCSR(sparse(tril(A)))
             d_A = CuSparseMatrixBSR(d_A, blockdim)
             d_A = CUSPARSE.ic02!(d_A,'O')
@@ -226,7 +234,7 @@ end
             @test_throws DimensionMismatch CUSPARSE.ic02!(d_A,'O')
         end
 
-        @testset "bsric02" begin
+        @testcase "bsric02" begin
             d_A = CuSparseMatrixCSR(sparse(tril(A)))
             d_A = CuSparseMatrixBSR(d_A, blockdim)
             d_B = CUSPARSE.ic02(d_A,'O')
@@ -244,7 +252,7 @@ end
         A = rand(elty,m,m)
         A += transpose(A)
         A += m * Diagonal{elty}(I, m)
-        @testset "bsrilu02!" begin
+        @testcase "bsrilu02!" begin
             d_A = CuSparseMatrixCSR(sparse(A))
             d_A = CuSparseMatrixBSR(d_A, blockdim)
             d_A = CUSPARSE.ilu02!(d_A,'O')
@@ -259,7 +267,7 @@ end
             @test_throws DimensionMismatch CUSPARSE.ilu02!(d_A,'O')
         end
 
-        @testset "bsrilu02" begin
+        @testcase "bsrilu02" begin
             d_A = CuSparseMatrixCSR(sparse(A))
             d_A = CuSparseMatrixBSR(d_A, blockdim)
             d_B = CUSPARSE.ilu02(d_A,'O')
@@ -275,7 +283,7 @@ end
 
 @testset "bsrsv2" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        @testset "bsrsv2!" begin
+        @testcase "bsrsv2!" begin
             for unit_diag ∈ (false, true)
                 diag = unit_diag ? 'U' : 'N'
                 A = rand(elty,m,m)
@@ -298,7 +306,7 @@ end
             end
         end
 
-        @testset "bsrsv2" begin
+        @testcase "bsrsv2" begin
             for unit_diag ∈ (false, true)
                 diag = unit_diag ? 'U' : 'N'
                 A = rand(elty,m,m)
@@ -350,7 +358,7 @@ end
 
 @testset "bsrsm2" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        @testset "bsrsm2!" begin
+        @testcase "bsrsm2!" begin
             for unit_diag ∈ (false, true)
                 diag = unit_diag ? 'U' : 'N'
                 A = rand(elty,m,m)
@@ -373,7 +381,7 @@ end
             end
         end
 
-        @testset "bsrsm2" begin
+        @testcase "bsrsm2" begin
             for unit_diag ∈ (false, true)
                 diag = unit_diag ? 'U' : 'N'
                 A = rand(elty,m,m)
@@ -425,7 +433,7 @@ end
 
 @testset "ilu02" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        @testset "csr" begin
+        @testcase "csr" begin
             A = rand(elty,m,m)
             A += transpose(A)
             A += m * Diagonal{elty}(I, m)
@@ -438,7 +446,7 @@ end
             @test rowvals(h_A) ≈ rowvals(Ac)
             @test reduce(&, isfinite.(nonzeros(h_A)))
         end
-        @testset "csc" begin
+        @testcase "csc" begin
             A = rand(elty,m,m)
             A += transpose(A)
             A += m * Diagonal{elty}(I, m)
@@ -456,7 +464,7 @@ end
 
 @testset "ic2" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        @testset "csr" begin
+        @testcase "csr" begin
             A   = rand(elty, m, m)
             A  += adjoint(A)
             A  += m * Diagonal{elty}(I, m)
@@ -471,7 +479,7 @@ end
             d_A = CuSparseMatrixCSR(sparse(tril(A)))
             @test_throws DimensionMismatch CUSPARSE.ic02(d_A, 'O')
         end
-        @testset "csc" begin
+        @testcase "csc" begin
             A   = rand(elty, m, m)
             A  += adjoint(A)
             A  += m * Diagonal{elty}(I, m)
@@ -491,7 +499,7 @@ end
 
 @testset "cssv" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        @testset "csrsv2" begin
+        @testcase "csrsv2" begin
             for unit_diag ∈ (false, true)
                 diag = unit_diag ? 'U' : 'N'
                 A = rand(elty,m,m)
@@ -549,7 +557,7 @@ end
             end
         end
 
-        @testset "cscsv2" begin
+        @testcase "cscsv2" begin
             for unit_diag ∈ (false, true)
                 diag = unit_diag ? 'U' : 'N'
                 A = rand(elty,m,m)
@@ -609,7 +617,7 @@ end
 
 @testset "cssm" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        @testset "csrsm2" begin
+        @testcase "csrsm2" begin
             for unit_diag ∈ (false, true)
                 diag = unit_diag ? 'U' : 'N'
                 A = rand(elty,m,m)
@@ -668,7 +676,7 @@ end
             end
         end
 
-        @testset "cscsm2" begin
+        @testcase "cscsm2" begin
             for unit_diag ∈ (false, true)
                 diag = unit_diag ? 'U' : 'N'
                 A = rand(elty,m,m)
@@ -728,7 +736,7 @@ end
 
 @testset "axpyi" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        @testset "axpyi!" begin
+        @testcase "axpyi!" begin
             x = sparsevec(rand(1:m,k), rand(elty,k), m)
             y = rand(elty,m)
             d_x = CuSparseVector(x)
@@ -741,7 +749,7 @@ end
             @test h_y ≈ y
         end
 
-        @testset "axpyi" begin
+        @testcase "axpyi" begin
             x = sparsevec(rand(1:m,k), rand(elty,k), m)
             y = rand(elty,m)
             d_x = CuSparseVector(x)
@@ -767,7 +775,7 @@ end
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
         x = sparsevec(rand(1:m,k), rand(elty,k), m)
         y = rand(elty,m)
-        @testset "gthr!" begin
+        @testcase "gthr!" begin
             d_x = CuSparseVector(x)
             d_y = CuArray(y)
             d_y = CUSPARSE.gthr!(d_x,d_y,'O')
@@ -775,7 +783,7 @@ end
             @test h_x ≈ SparseVector(m,nonzeroinds(x),y[nonzeroinds(x)])
         end
 
-        @testset "gthr" begin
+        @testcase "gthr" begin
             d_x = CuSparseVector(x)
             d_y = CuArray(y)
             d_z = CUSPARSE.gthr(d_x,d_y,'O')
@@ -783,7 +791,7 @@ end
             @test h_z ≈ SparseVector(m,nonzeroinds(x),y[nonzeroinds(x)])
         end
 
-        @testset "gthrz!" begin
+        @testcase "gthrz!" begin
             d_x = CuSparseVector(x)
             d_y = CuArray(y)
             d_x,d_y = CUSPARSE.gthrz!(d_x,d_y,'O')
@@ -794,7 +802,7 @@ end
             #@test h_y ≈ y
         end
 
-        @testset "gthrz" begin
+        @testcase "gthrz" begin
             d_x = CuSparseVector(x)
             d_y = CuArray(y)
             d_z,d_w = CUSPARSE.gthrz(d_x,d_y,'O')
@@ -814,9 +822,9 @@ end
         y = rand(elty,m)
         alpha = rand(elty)
         beta = rand(elty)
-        @testset "$(typeof(d_A))" for d_A in [CuSparseMatrixCSR(A),
-                                              CuSparseMatrixCSC(A),
-                                              CuSparseMatrixBSR(A, blockdim)]
+        @testcase "$(typeof(d_A))" for d_A in [CuSparseMatrixCSR(A),
+                                               CuSparseMatrixCSC(A),
+                                               CuSparseMatrixBSR(A, blockdim)]
             d_x = CuArray(x)
             d_y = CuArray(y)
             @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
@@ -839,9 +847,9 @@ end
         C = rand(elty,m,n)
         alpha = rand(elty)
         beta = rand(elty)
-        @testset "$(typeof(d_A))" for d_A in [CuSparseMatrixCSR(A),
-                                              CuSparseMatrixCSC(A),
-                                              CuSparseMatrixBSR(A, blockdim)]
+        @testcase "$(typeof(d_A))" for d_A in [CuSparseMatrixCSR(A),
+                                               CuSparseMatrixCSC(A),
+                                               CuSparseMatrixBSR(A, blockdim)]
             d_B = CuArray(B)
             d_C = CuArray(C)
             mm! = if CUSPARSE.version() < v"10.3.1" && d_A isa CuSparseMatrixCSR
@@ -865,7 +873,7 @@ end
         end
     end
 
-    @testset "issue 493" begin
+    @testcase "issue 493" begin
         x = cu(rand(20))
         cu(sprand(Float32,10,10,0.1)) * @view(x[1:10])
     end
@@ -875,7 +883,7 @@ end
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
         x = sparsevec(rand(1:m,k), rand(elty,k), m)
         y = zeros(elty,m)
-        @testset "sctr!" begin
+        @testcase "sctr!" begin
             d_x = CuSparseVector(x)
             d_y = CuArray(y)
             d_y = CUSPARSE.sctr!(d_x,d_y,'O')
@@ -883,9 +891,9 @@ end
             y[nonzeroinds(x)]  += nonzeros(x)
             @test h_y ≈ y
         end
-        y = zeros(elty,m)
 
-        @testset "sctr" begin
+        @testcase "sctr" begin
+            y = zeros(elty,m)
             d_x = CuSparseVector(x)
             d_y = CUSPARSE.sctr(d_x,'O')
             h_y = collect(d_y)
@@ -900,7 +908,8 @@ end
     @testset for elty in [Float32,Float64]
         x = sparsevec(rand(1:m,k), rand(elty,k), m)
         y = rand(elty,m)
-        @testset "roti!" begin
+
+        @testcase "roti!" begin
             d_x = CuSparseVector(x)
             d_y = CuArray(y)
             angle = rand(elty)
@@ -909,12 +918,12 @@ end
             h_y = collect(d_y)
             z = copy(x)
             w = copy(y)
-            y[nonzeroinds(x)] = cos(angle)*w[nonzeroinds(z)] - sin(angle)*nonzeros(z)
-            @test h_x ≈ SparseVector(m,nonzeroinds(x),cos(angle)*nonzeros(z) + sin(angle)*w[nonzeroinds(z)])
-            @test h_y ≈ y
+            w[nonzeroinds(x)] = cos(angle)*w[nonzeroinds(z)] - sin(angle)*nonzeros(z)
+            @test h_x ≈ SparseVector(m,nonzeroinds(x),cos(angle)*nonzeros(z) + sin(angle)*y[nonzeroinds(z)])
+            @test h_y ≈ w
         end
 
-        @testset "roti" begin
+        @testcase "roti" begin
             d_x = CuSparseVector(x)
             d_y = CuArray(y)
             angle = rand(elty)
@@ -928,4 +937,8 @@ end
             @test h_w ≈ w
         end
     end
+end
+
+############################################################################################
+
 end

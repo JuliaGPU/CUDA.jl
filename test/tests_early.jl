@@ -1,9 +1,15 @@
+using XUnit, CUDA
+
+@testset "CUDA (early tests)" begin
+
+@testcase "initialization" begin
+
 @test has_cuda(true)
 @test has_cuda_gpu(true)
 
 # the API shouldn't have been initialized
 @test CuCurrentContext() == nothing
-@not_if_memcheck @test CuCurrentDevice() == nothing
+@test CuCurrentDevice() == nothing
 
 task_cb = Any[nothing for tid in 1:Threads.nthreads()]
 CUDA.attaskswitch() do
@@ -180,3 +186,7 @@ task = @async begin
 end
 @test fetch(task) == s
 @test stream() == default_s
+
+end
+
+end

@@ -1,4 +1,6 @@
-@test isa(CUDA.version(), VersionNumber)
+@testcase "version" begin
+    @test isa(CUDA.version(), VersionNumber)
 
-@test isa(CUDA.release(), VersionNumber)
-@test CUDA.release().patch == 0
+    @test isa(CUDA.release(), VersionNumber)
+    @test CUDA.release().patch == 0
+end

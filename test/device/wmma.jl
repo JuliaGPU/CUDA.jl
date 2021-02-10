@@ -1,10 +1,14 @@
+@run_if capability(device()) >= v"7.0" begin
+
 using CUDA.WMMA
+
+@testcase "WMMA" begin
 
 ################################################################################
 
 @testset "LLVM intrinsics" begin
     @testset "llvm_wmma_load" begin
-        @testset "$(mat)_$(layout)_$(shape)_$(addr_space)_$(elem_type)" for mat in ["a", "b", "c"],
+        @testcase "$(mat)_$(layout)_$(shape)_$(addr_space)_$(elem_type)" for mat in ["a", "b", "c"],
             layout in ["row", "col"],
             shape in ["m16n16k16"],
             addr_space in ["", "_global", "_shared"],
@@ -13,7 +17,7 @@ using CUDA.WMMA
 
             # Float32 is only supported for C
             if (elem_type == "f32") && (mat != "c")
-                continue
+                return
             end
 
             # Type-dependent variables
@@ -24,24 +28,26 @@ using CUDA.WMMA
             do_shared_test = (addr_space == "_shared")
 
             # Get the function name
-            func = Symbol("llvm_wmma_load_$(mat)_$(layout)_$(shape)$(addr_space)_stride_$(elem_type)")
+            func = getfield(WMMA, Symbol("llvm_wmma_load_$(mat)_$(layout)_$(shape)$(addr_space)_stride_$(elem_type)"))
 
             input      = 42 * ones(array_ty, (16, 16))
             input_dev  = CuArray(input)
             result     = Array{Bool}(undef, 1)
             result_dev = CuArray(result)
 
-            @eval @inbounds function kernel(input_ptr, result_dev)
-                if $do_shared_test
-                    input_shared = @cuStaticSharedMem($array_ty, 256)
+            @inbounds function kernel(input_ptr, result_dev, func, expected,
+                                      ::Type{array_ty}, ::Val{do_shared_test}) where
+                                      {array_ty, do_shared_test}
+                if do_shared_test
+                    input_shared = @cuStaticSharedMem(array_ty, 256)
                     fill!(input_shared, 42)
 
-                    data = $func(pointer(input_shared), 16)
+                    data = func(pointer(input_shared), 16)
                 else
-                    data = $func(input_ptr, 16)
+                    data = func(input_ptr, 16)
                 end
 
-                result_dev[1] = all(val -> val == $expected, data)
+                result_dev[1] = all(val -> val == expected, data)
 
                 return
             end
@@ -56,13 +62,14 @@ using CUDA.WMMA
                 nothing
             end
 
-            @cuda threads=32 kernel(input_ptr, result_dev)
+            @cuda threads=32 kernel(input_ptr, result_dev, func, expected,
+                                    array_ty, Val(do_shared_test))
             @test all(Array(result_dev))
         end
     end
 
     @testset "llvm_wmma_store" begin
-        @testset "$(mat)_$(layout)_$(shape)_$(addr_space)_$(elem_type)" for mat in ["d"],
+        @testcase "$(mat)_$(layout)_$(shape)_$(addr_space)_$(elem_type)" for mat in ["d"],
             layout in ["row", "col"],
             shape in ["m16n16k16"],
             addr_space in ["", "_global", "_shared"],
@@ -74,7 +81,7 @@ using CUDA.WMMA
             data = elem_type == "f16" ? ntuple(i -> ntuple(j -> VecElement{Float16}(42), 2), 4) : ntuple(i -> 42, 8)
 
             # Get the function name
-            func = Symbol("llvm_wmma_store_$(mat)_$(layout)_$(shape)$(addr_space)_stride_$(elem_type)")
+            func = getfield(WMMA, Symbol("llvm_wmma_store_$(mat)_$(layout)_$(shape)$(addr_space)_stride_$(elem_type)"))
 
             # Address-space dependent variables
             do_shared_test = (addr_space == "_shared")
@@ -82,16 +89,18 @@ using CUDA.WMMA
             output     = Array{array_ty}(undef, (16, 16))
             output_dev = CuArray(output)
 
-            @eval function kernel(output_dev, output_ptr)
-                if $do_shared_test
-                    shared_mem = @cuStaticSharedMem($array_ty, 256)
-                    $func(pointer(shared_mem), $data, 16)
+            function kernel(output_dev, output_ptr, func, data,
+                            ::Type{array_ty}, ::Val{do_shared_test}) where
+                            {array_ty, do_shared_test}
+                if do_shared_test
+                    shared_mem = @cuStaticSharedMem(array_ty, 256)
+                    func(pointer(shared_mem), data, 16)
 
                     for i = 1:256
                         @inbounds output_dev[i] = shared_mem[i]
                     end
                 else
-                    $func(output_ptr, $data, 16)
+                    func(output_ptr, data, 16)
                 end
 
                 return
@@ -107,13 +116,14 @@ using CUDA.WMMA
                 nothing
             end
 
-            @cuda threads=32 kernel(output_dev, output_ptr)
+            @cuda threads=32 kernel(output_dev, output_ptr, func, data,
+                                    array_ty, Val(do_shared_test))
             @test all(Array(output_dev) .== 42.0)
         end
     end
 
     @testset "llvm_wmma_mma" begin
-        @testset "$(a_layout)_$(b_layout)_$(shape)_$(d_elem_type)_$(c_elem_type)" for a_layout in ["row", "col"],
+        @testcase "$(a_layout)_$(b_layout)_$(shape)_$(d_elem_type)_$(c_elem_type)" for a_layout in ["row", "col"],
             b_layout in ["row", "col"],
             shape in ["m16n16k16"],
             d_elem_type in ["f16", "f32"],
@@ -124,11 +134,11 @@ using CUDA.WMMA
             c_ty = c_elem_type == "f16" ? Float16 : Float32
 
             # Get the function names
-            lda_func = getfield(Main, Symbol("llvm_wmma_load_a_$(a_layout)_m16n16k16_global_stride_f16"))
-            ldb_func = getfield(Main, Symbol("llvm_wmma_load_b_$(b_layout)_m16n16k16_global_stride_f16"))
-            ldc_func = getfield(Main, Symbol("llvm_wmma_load_c_col_m16n16k16_global_stride_$(c_elem_type)"))
-            mma_func = getfield(Main, Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_m16n16k16_$(d_elem_type)_$(c_elem_type)"))
-            std_func = getfield(Main, Symbol("llvm_wmma_store_d_col_m16n16k16_global_stride_$(d_elem_type)"))
+            lda_func = getfield(WMMA, Symbol("llvm_wmma_load_a_$(a_layout)_m16n16k16_global_stride_f16"))
+            ldb_func = getfield(WMMA, Symbol("llvm_wmma_load_b_$(b_layout)_m16n16k16_global_stride_f16"))
+            ldc_func = getfield(WMMA, Symbol("llvm_wmma_load_c_col_m16n16k16_global_stride_$(c_elem_type)"))
+            mma_func = getfield(WMMA, Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_m16n16k16_$(d_elem_type)_$(c_elem_type)"))
+            std_func = getfield(WMMA, Symbol("llvm_wmma_store_d_col_m16n16k16_global_stride_$(d_elem_type)"))
 
             # Generate input matrices
             a     = rand(Float16, (16, 16))
@@ -167,7 +177,7 @@ end
 ################################################################################
 
 @testset "Flattening/unflattening" begin
-    @testset "Flattening" begin
+    @testcase "Flattening" begin
         @test WMMA.flatten(5)                                                                  == (5,)
         @test WMMA.flatten(5.0)                                                                == (5.0,)
         @test WMMA.flatten(VecElement{Float16}(5))                                             == (Float16(5),)
@@ -177,7 +187,7 @@ end
         @test WMMA.flatten(ntuple(i -> ntuple(j -> VecElement{Float16}((i-1) * 2 + j), 2), 8)) == ntuple(i -> Float16(i), 2 * 8)
     end
 
-    @testset "Unflattening" begin
+    @testcase "Unflattening" begin
         @test WMMA.unflatten(Int64, (5,))                                                               == 5
         @test WMMA.unflatten(Float64, (5.0,))                                                           == 5.0
         @test WMMA.unflatten(VecElement{Float16}, (Float16(5),))                                        == VecElement{Float16}(5)
@@ -190,7 +200,7 @@ end
 
 ################################################################################
 
-@testset "Broadcasting over fragments: size=$sz, type=$ty" for sz = [1, 2, 5],
+@testcase "broadcasting over fragments: size=$sz, type=$ty" for sz = [1, 2, 5],
         ty = [Float16, Float32]
         @test ty(5) .* Fragment{16, 16, 16, sz, ty, RowMajor, MatrixA}(ntuple(i -> ty(i), sz)) == Fragment{16, 16, 16, sz, ty, RowMajor, MatrixA}(ntuple(i -> ty(5 * i), sz))
         @test ty(5) .+ Fragment{16, 16, 16, sz, ty, RowMajor, MatrixA}(ntuple(i -> ty(i), sz)) == Fragment{16, 16, 16, sz, ty, RowMajor, MatrixA}(ntuple(i -> ty(5 + i), sz))
@@ -199,7 +209,7 @@ end
 ################################################################################
 
 @testset "CUDA C-style API" begin
-    @testset "$(do_mac ? "MAC" : "MUL"): A: $a_layout, B: $b_layout, C: $c_layout, D: $d_layout, C type: $c_type, D type: $d_type" for a_layout in [ColMajor, RowMajor],
+    @testcase "$(do_mac ? "MAC" : "MUL"): A: $a_layout, B: $b_layout, C: $c_layout, D: $d_layout, C type: $c_type, D type: $d_type" for a_layout in [ColMajor, RowMajor],
         b_layout in [ColMajor, RowMajor],
         c_layout in [ColMajor, RowMajor],
         d_layout in [ColMajor, RowMajor],
@@ -220,16 +230,19 @@ end
         alpha = rand(Float16)
         beta  = rand(c_type)
 
-        @eval function kernel(a_dev, b_dev, c_dev, d_dev, alpha, beta)
-            conf = Config{16, 16, 16, $d_type}
+        function kernel(a_dev, b_dev, c_dev, d_dev, alpha, beta,
+                        ::Type{a_layout}, ::Type{b_layout}, ::Type{c_type}, ::Type{c_layout},
+                        ::Type{d_type}, ::Type{d_layout}, ::Val{do_mac}) where
+                        {a_layout, b_layout, c_type, c_layout, d_type, d_layout, do_mac}
+            conf = Config{16, 16, 16, d_type}
 
-            a_frag = load_a(pointer(a_dev), 16, $a_layout, conf)
-            b_frag = load_b(pointer(b_dev), 16, $b_layout, conf)
+            a_frag = load_a(pointer(a_dev), 16, a_layout, conf)
+            b_frag = load_b(pointer(b_dev), 16, b_layout, conf)
 
-            if $do_mac
-                c_frag = load_c(pointer(c_dev), 16, $c_layout, conf)
+            if do_mac
+                c_frag = load_c(pointer(c_dev), 16, c_layout, conf)
             else
-                c_frag = fill_c($c_type(0), conf)
+                c_frag = fill_c(c_type(0), conf)
             end
 
             a_frag = alpha .* a_frag
@@ -237,12 +250,14 @@ end
 
             d_frag = mma(a_frag, b_frag, c_frag, conf)
 
-            store_d(pointer(d_dev), d_frag, 16, $d_layout, conf)
+            store_d(pointer(d_dev), d_frag, 16, d_layout, conf)
 
             return
         end
 
-        @cuda threads=32 kernel(a_dev, b_dev, c_dev, d_dev, alpha, beta)
+        @cuda threads=32 kernel(a_dev, b_dev, c_dev, d_dev, alpha, beta,
+                                a_layout, b_layout, c_type, c_layout,
+                                d_type, d_layout, Val(do_mac))
         d = Array(d_dev)
 
         new_a = (a_layout == ColMajor) ? a : transpose(a)
@@ -261,8 +276,8 @@ end
 
 ################################################################################
 
-@testset "Codegen addressing" begin
-    @testset "Global" begin
+@testset "codegen addressing" begin
+    @testcase "global" begin
         function kernel(d)
             conf = WMMA.Config{16, 16, 16, Float32}
 
@@ -278,7 +293,7 @@ end
         @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.global.f32", ptx)
     end
 
-    @testset "Shared" begin
+    @testcase "shared" begin
         function kernel()
             shmem = @cuStaticSharedMem(Float32, (16, 16))
             conf = WMMA.Config{16, 16, 16, Float32}
@@ -294,4 +309,10 @@ end
         @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
         @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.shared.f32", ptx)
     end
+end
+
+################################################################################
+
+end
+
 end

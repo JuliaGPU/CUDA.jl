@@ -1,4 +1,6 @@
-@testset "constructors" begin
+@testcase "array" begin
+
+@testcase "constructors" begin
     # inner constructors
     let
         dp = reinterpret(Core.LLVMPtr{Int,AS.Generic}, C_NULL)
@@ -43,7 +45,7 @@
     end
 end
 
-@testset "basics" begin     # argument passing, get and setindex, length
+@testcase "basics" begin     # argument passing, get and setindex, length
     dims = (16, 16)
     len = prod(dims)
 
@@ -67,7 +69,7 @@ end
     @test input ≈ output
 end
 
-@testset "iteration" begin     # argument passing, get and setindex, length
+@testcase "iteration" begin     # argument passing, get and setindex, length
     dims = (16, 16)
     function kernel(input::CuDeviceArray{T}, output::CuDeviceArray{T}) where {T}
         acc = zero(T)
@@ -88,22 +90,20 @@ end
     @test sum(input) ≈ output[1]
 end
 
-@testset "bounds checking" begin
-    @testset "#313" begin
-        function kernel(dest)
-            dest[1] = 1
-            nothing
-        end
-        tt = Tuple{SubArray{Float64,2,CuDeviceArray{Float64,2,AS.Global},
-                            Tuple{UnitRange{Int64},UnitRange{Int64}},false}}
-
-        ir = sprint(io->CUDA.code_llvm(io, kernel, tt))
-        @test !occursin("jl_invoke", ir)
-        CUDA.code_ptx(devnull, kernel, tt)
+@testcase "bounds checking (#313)" begin
+    function kernel(dest)
+        dest[1] = 1
+        nothing
     end
+    tt = Tuple{SubArray{Float64,2,CuDeviceArray{Float64,2,AS.Global},
+                        Tuple{UnitRange{Int64},UnitRange{Int64}},false}}
+
+    ir = sprint(io->CUDA.code_llvm(io, kernel, tt))
+    @test !occursin("jl_invoke", ir)
+    CUDA.code_ptx(devnull, kernel, tt)
 end
 
-@testset "views" begin
+@testcase "views" begin
     function kernel(array)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
 
@@ -127,7 +127,7 @@ end
     @test array == Array(array_dev)
 end
 
-@testset "non-Int index to unsafe_load" begin
+@testcase "non-Int index to unsafe_load" begin
     function load_index(a)
         return a[UInt64(1)]
     end
@@ -137,4 +137,6 @@ end
     dp = reinterpret(Core.LLVMPtr{eltype(p), AS.Generic}, p)
     da = CUDA.CuDeviceArray(1, dp)
     load_index(da)
+end
+
 end
