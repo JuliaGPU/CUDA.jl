@@ -61,7 +61,8 @@ end
 const thread_handles = Vector{Union{Nothing,cudnnHandle_t}}()
 
 # cache for created, but unused handles
-const old_handles = DefaultDict{CuContext,Vector{cudnnHandle_t}}(()->cudnnHandle_t[])
+const handle_cache_lock = ReentrantLock()
+const idle_handles = DefaultDict{CuContext,Vector{cudnnHandle_t}}(()->cudnnHandle_t[])
 
 function handle()
     CUDA.detect_state_changes()
@@ -69,14 +70,18 @@ function handle()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUDNN, ctx)) do
-            handle = if isempty(old_handles[ctx])
-                cudnnCreate()
-            else
-                pop!(old_handles[ctx])
+            handle = lock(handle_cache_lock) do
+                if isempty(idle_handles[ctx])
+                    cudnnCreate()
+                else
+                    pop!(idle_handles[ctx])
+                end
             end
 
             finalizer(current_task()) do task
-                push!(old_handles[ctx], handle)
+                lock(handle_cache_lock) do
+                    push!(idle_handles[ctx], handle)
+                end
             end
             # TODO: cudnnDestroy to preserve memory, or at exit?
 

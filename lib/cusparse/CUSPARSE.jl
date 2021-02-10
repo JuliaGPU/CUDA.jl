@@ -49,7 +49,8 @@ include("interfaces.jl")
 const thread_handles = Vector{Union{Nothing,cusparseHandle_t}}()
 
 # cache for created, but unused handles
-const old_handles = DefaultDict{CuContext,Vector{cusparseHandle_t}}(()->cusparseHandle_t[])
+const handle_cache_lock = ReentrantLock()
+const idle_handles = DefaultDict{CuContext,Vector{cusparseHandle_t}}(()->cusparseHandle_t[])
 
 function handle()
     CUDA.detect_state_changes()
@@ -57,14 +58,18 @@ function handle()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUSPARSE, ctx)) do
-            handle = if isempty(old_handles[ctx])
-                cusparseCreate()
-            else
-                pop!(old_handles[ctx])
+            handle = lock(handle_cache_lock) do
+                if isempty(idle_handles[ctx])
+                    cusparseCreate()
+                else
+                    pop!(idle_handles[ctx])
+                end
             end
 
             finalizer(current_task()) do task
-                push!(old_handles[ctx], handle)
+                lock(handle_cache_lock) do
+                    push!(idle_handles[ctx], handle)
+                end
             end
             # TODO: cusparseDestroy to preserve memory, or at exit?
 
