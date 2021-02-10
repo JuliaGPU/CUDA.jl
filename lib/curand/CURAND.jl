@@ -38,15 +38,7 @@ function default_rng()
     if @inbounds CURAND_THREAD_RNGs[tid] === nothing
         ctx = context()
         CURAND_THREAD_RNGs[tid] = get!(task_local_storage(), (:CURAND, ctx)) do
-            rng = if isempty(old_curand_rngs[ctx])
-                RNG()
-            else
-                pop!(old_curand_rngs[ctx])
-            end
-
-            finalizer(current_task()) do task
-                push!(old_curand_rngs[ctx], rng)
-            end
+            rng = RNG()
             # TODO: curandDestroyGenerator to preserve memory, or at exit?
 
             curandSetStream(rng, stream())
