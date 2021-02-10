@@ -191,19 +191,13 @@ convdims(d, s::Dims{3}, format::cudnnTensorFormat_t) = convdims(d, format === CU
 const cudnnConvolutionFwdAlgoPerfCache = Dict{Tuple,cudnnConvolutionFwdAlgoPerf_t}()
 function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation)
     get!(cudnnConvolutionFwdAlgoPerfCache, (xDesc, wDesc, convDesc, biasDesc, activation)) do 
-        if biasDesc !== nothing && activation === CUDNN_ACTIVATION_IDENTITY
-            algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM # Only this algo enabled for convbiasact with identity
-            memory = @argout(cudnnGetConvolutionForwardWorkspaceSize(handle(),xDesc,wDesc,convDesc,yDesc,algo,out(Ref{Csize_t}())))[]
-            cudnnConvolutionFwdAlgoPerf_t(algo, CUDNN_STATUS_SUCCESS, Cfloat(0), memory, CUDNN_NON_DETERMINISTIC, math_mode(), Cint.((0,0,0)))
-        else
-            requestedAlgoCount = Int(CUDNN_CONVOLUTION_FWD_ALGO_COUNT)
-            returnedAlgoCount = Cint[0]
-            perfResults = Array{cudnnConvolutionFwdAlgoPerf_t}(undef,requestedAlgoCount)
-            @workspace size=cudnnFindConvolutionAlgorithmWorkspaceSize(x) workspace->begin
-                cudnnFindConvolutionForwardAlgorithmEx(handle(),xDesc,x,wDesc,w,convDesc,yDesc,y,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
-            end
-            cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
+        requestedAlgoCount = Int(CUDNN_CONVOLUTION_FWD_ALGO_COUNT)
+        returnedAlgoCount = Cint[0]
+        perfResults = Array{cudnnConvolutionFwdAlgoPerf_t}(undef,requestedAlgoCount)
+        @workspace size=cudnnFindConvolutionAlgorithmWorkspaceSize(x) workspace->begin
+            cudnnFindConvolutionForwardAlgorithmEx(handle(),xDesc,x,wDesc,w,convDesc,yDesc,y,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
+        cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
     end
 end
 
