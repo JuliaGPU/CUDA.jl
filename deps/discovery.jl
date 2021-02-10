@@ -158,6 +158,21 @@ const cuda_releases = [v"1.0", v"1.1",
                        v"11.0", v"11.1"]
 
 const cuda_library_versions = Dict(
+    v"11.0.1" => Dict(
+        # NOTE: encountered this version in a Docker container; not sure where it came from.
+        "cudart"    => v"11.0.171",
+        "cupti"     => "2020.1.0", # wtf
+        "nvrtc"     => v"11.0.167",
+        "nvtx"      => v"11.0.167",
+        "nvvp"      => v"11.0.167",
+        "cublas"    => v"11.0.0", #.191
+        "cufft"     => v"10.1.3", #.191
+        "curand"    => v"10.2.0", #.191
+        "cusolver"  => v"10.4.0", #.191
+        "cusparse"  => v"11.0.0", #.191
+        "npp"       => v"11.0.0", #.191
+        "nvjpeg"    => v"11.0.0", #.191
+    ),
     v"11.0.2" => Dict(
         "cudart"    => v"11.0.171",
         "cupti"     => "2020.1.0", # wtf
@@ -250,6 +265,10 @@ const cuda_library_names = Dict(
 
 # only for nvdisasm, to discover the CUDA toolkit version
 const cuda_binary_versions = Dict(
+    v"11.0.1" => Dict(
+        # NOTE: encountered this version in a Docker container; not sure where it came from.
+        "nvdisasm"  => v"11.0.167"
+    ),
     v"11.0.2" => Dict(
         "nvdisasm"  => v"11.0.194"
     ),
