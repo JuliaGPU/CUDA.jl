@@ -33,8 +33,9 @@ const thread_dense_handles = Vector{Union{Nothing,cusolverDnHandle_t}}()
 const thread_sparse_handles = Vector{Union{Nothing,cusolverSpHandle_t}}()
 
 # cache for created, but unused handles
-const old_dense_handles = DefaultDict{CuContext,Vector{cusolverDnHandle_t}}(()->cusolverDnHandle_t[])
-const old_sparse_handles = DefaultDict{CuContext,Vector{cusolverSpHandle_t}}(()->cusolverSpHandle_t[])
+const handle_cache_lock = ReentrantLock()
+const idle_dense_handles = DefaultDict{CuContext,Vector{cusolverDnHandle_t}}(()->cusolverDnHandle_t[])
+const idle_sparse_handles = DefaultDict{CuContext,Vector{cusolverSpHandle_t}}(()->cusolverSpHandle_t[])
 
 function dense_handle()
     CUDA.detect_state_changes()
@@ -42,14 +43,18 @@ function dense_handle()
     if @inbounds thread_dense_handles[tid] === nothing
         ctx = context()
         thread_dense_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :dense, ctx)) do
-            handle = if isempty(old_dense_handles[ctx])
-                cusolverDnCreate()
-            else
-                pop!(old_dense_handles[ctx])
+            handle = lock(handle_cache_lock) do
+                if isempty(idle_dense_handles[ctx])
+                    cusolverDnCreate()
+                else
+                    pop!(idle_dense_handles[ctx])
+                end
             end
 
             finalizer(current_task()) do task
-                push!(old_dense_handles[ctx], handle)
+                lock(handle_cache_lock) do
+                    push!(idle_dense_handles[ctx], handle)
+                end
             end
             # TODO: cusolverDnDestroy to preserve memory, or at exit?
 
@@ -67,14 +72,14 @@ function sparse_handle()
     if @inbounds thread_sparse_handles[tid] === nothing
         ctx = context()
         thread_sparse_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :sparse, ctx)) do
-            handle = if isempty(old_sparse_handles[ctx])
+            handle = if isempty(idle_sparse_handles[ctx])
                 cusolverSpCreate()
             else
-                pop!(old_sparse_handles[ctx])
+                pop!(idle_sparse_handles[ctx])
             end
 
             finalizer(current_task()) do task
-                push!(old_sparse_handles[ctx], handle)
+                push!(idle_sparse_handles[ctx], handle)
             end
             # TODO: cusolverSpDestroy to preserve memory, or at exit?
 

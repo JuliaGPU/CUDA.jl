@@ -37,8 +37,9 @@ const thread_handles = Vector{Union{Nothing,cublasHandle_t}}()
 const thread_xt_handles = Vector{Union{Nothing,cublasXtHandle_t}}()
 
 # cache for created, but unused handles
-const old_handles = DefaultDict{CuContext,Vector{cublasHandle_t}}(()->cublasHandle_t[])
-const old_xt_handles = DefaultDict{Vector{CuContext},Vector{cublasHandle_t}}(()->cublasHandle_t[])
+const handle_cache_lock = ReentrantLock()
+const idle_handles = DefaultDict{CuContext,Vector{cublasHandle_t}}(()->cublasHandle_t[])
+const idle_xt_handles = DefaultDict{Vector{CuContext},Vector{cublasHandle_t}}(()->cublasHandle_t[])
 
 function math_mode!(handle, mode)
     flags = 0
@@ -82,15 +83,19 @@ function handle()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUBLAS, ctx)) do
-            handle = if isempty(old_handles[ctx])
-                cublasCreate()
-                # FIXME: use cublasSetWorkspace? cublasSetStream reset it.
-            else
-                pop!(old_handles[ctx])
+            handle = lock(handle_cache_lock) do
+                if isempty(idle_handles[ctx])
+                    cublasCreate()
+                    # FIXME: use cublasSetWorkspace? cublasSetStream reset it.
+                else
+                    pop!(idle_handles[ctx])
+                end
             end
 
             finalizer(current_task()) do task
-                push!(old_handles[ctx], handle)
+                lock(handle_cache_lock) do
+                    push!(idle_handles[ctx], handle)
+                end
             end
             # TODO: cublasDestroy to preserve memory, or at exit?
 
@@ -110,14 +115,18 @@ function xt_handle()
     if @inbounds thread_xt_handles[tid] === nothing
         ctxs = [context(dev) for dev in devices()]
         thread_xt_handles[tid] = get!(task_local_storage(), (:CUBLASxt, ctxs)) do
-            handle = if isempty(old_xt_handles[ctxs])
-                cublasXtCreate()
-            else
-                pop!(old_xt_handles[ctxs])
+            handle = lock(handle_cache_lock) do
+                if isempty(idle_xt_handles[ctxs])
+                    cublasXtCreate()
+                else
+                    pop!(idle_xt_handles[ctxs])
+                end
             end
 
             finalizer(current_task()) do task
-                push!(old_xt_handles[ctxs], handle)
+                lock(handle_cache_lock) do
+                    push!(idle_xt_handles[ctxs], handle)
+                end
             end
             # TODO: cublasXtDestroy to preserve memory, or at exit?
 

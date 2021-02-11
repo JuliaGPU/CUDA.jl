@@ -29,8 +29,11 @@ const CURAND_THREAD_RNGs = Vector{Union{Nothing,RNG}}()
 const GPUARRAY_THREAD_RNGs = Vector{Union{Nothing,GPUArrays.RNG}}()
 
 # cache for created, but unused handles
-const old_curand_rngs = DefaultDict{CuContext,Vector{RNG}}(()->RNG[])
-const old_gpuarray_rngs = DefaultDict{CuContext,Vector{GPUArrays.RNG}}(()->GPUArrays.RNG[])
+const rng_cache_lock = ReentrantLock()
+const active_curand_rngs = Set{RNG}()
+const active_gpuarray_rngs = Set{GPUArrays.RNG}()
+const idle_curand_rngs = DefaultDict{CuContext,Vector{RNG}}(()->RNG[])
+const idle_gpuarray_rngs = DefaultDict{CuContext,Vector{GPUArrays.RNG}}(()->GPUArrays.RNG[])
 
 function default_rng()
     CUDA.detect_state_changes()
@@ -38,14 +41,22 @@ function default_rng()
     if @inbounds CURAND_THREAD_RNGs[tid] === nothing
         ctx = context()
         CURAND_THREAD_RNGs[tid] = get!(task_local_storage(), (:CURAND, ctx)) do
-            rng = if isempty(old_curand_rngs[ctx])
-                RNG()
-            else
-                pop!(old_curand_rngs[ctx])
+            rng = lock(rng_cache_lock) do
+                if isempty(idle_curand_rngs[ctx])
+                    RNG()
+                else
+                    pop!(idle_curand_rngs[ctx])
+                end
             end
 
+            # protect handles from collection by the GC when the owning task is collected
+            push!(active_curand_rngs, rng)
+
             finalizer(current_task()) do task
-                push!(old_curand_rngs[ctx], rng)
+                lock(rng_cache_lock) do
+                    push!(idle_curand_rngs[ctx], rng)
+                    delete!(active_curand_rngs, rng)
+                end
             end
             # TODO: curandDestroyGenerator to preserve memory, or at exit?
 
@@ -64,18 +75,23 @@ function GPUArrays.default_rng(::Type{<:CuArray})
     if @inbounds GPUARRAY_THREAD_RNGs[tid] === nothing
         ctx = context()
         GPUARRAY_THREAD_RNGs[tid] = get!(task_local_storage(), (:GPUArraysRNG, ctx)) do
-            if isempty(old_gpuarray_rngs[ctx])
-                dev = device()
-                N = attribute(dev, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
-                state = CuArray{NTuple{4, UInt32}}(undef, N)
-                rng = GPUArrays.RNG(state)
-                Random.seed!(rng)
-            else
-                rng = pop!(old_gpuarray_rngs[ctx])
+            rng = lock(rng_cache_lock) do
+                if isempty(idle_gpuarray_rngs[ctx])
+                    dev = device()
+                    N = attribute(dev, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
+                    state = CuArray{NTuple{4, UInt32}}(undef, N)
+                    GPUArrays.RNG(state)
+                else
+                    pop!(idle_gpuarray_rngs[ctx])
+                end
             end
 
+            push!(active_gpuarray_rngs, rng)
             finalizer(current_task()) do task
-                push!(old_gpuarray_rngs[ctx], rng)
+                lock(rng_cache_lock) do
+                    push!(idle_gpuarray_rngs[ctx], rng)
+                    delete!(active_gpuarray_rngs, rng)
+                end
             end
             # TODO: destroy to preserve memory, or at exit?
 

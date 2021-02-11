@@ -31,7 +31,8 @@ include("interfaces.jl")
 const thread_handles = Vector{Union{Nothing,Base.RefValue{cutensorHandle_t}}}()
 
 # cache for created, but unused handles
-const old_handles = DefaultDict{CuContext,Vector{Base.RefValue{cutensorHandle_t}}}(()->Base.RefValue{cutensorHandle_t}[])
+const handle_cache_lock = ReentrantLock()
+const idle_handles = DefaultDict{CuContext,Vector{Base.RefValue{cutensorHandle_t}}}(()->Base.RefValue{cutensorHandle_t}[])
 
 function handle()
     CUDA.detect_state_changes()
@@ -39,15 +40,20 @@ function handle()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUTENSOR, ctx)) do
-            if isempty(old_handles[ctx])
-                handle = Ref{cutensorHandle_t}()
-                cutensorInit(handle)
-            else
-                handle = pop!(old_handles[ctx])
+            handle = lock(handle_cache_lock) do
+                if isempty(idle_handles[ctx])
+                    handle = Ref{cutensorHandle_t}()
+                    cutensorInit(handle)
+                    handle
+                else
+                    pop!(idle_handles[ctx])
+                end
             end
 
             finalizer(current_task()) do task
-                push!(old_handles[ctx], handle)
+                lock(handle_cache_lock) do
+                    push!(idle_handles[ctx], handle)
+                end
             end
             # TODO: destroy to preserve memory, or at exit?
 
