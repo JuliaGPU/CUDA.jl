@@ -322,6 +322,7 @@ end
 # CUTENSOR
 
 const cutensor_artifacts = Dict(
+    v"11.2" => ()->lazy_artifact("CUTENSOR_CUDA112"),
     v"11.1" => ()->lazy_artifact("CUTENSOR_CUDA111"),
     v"11.0" => ()->lazy_artifact("CUTENSOR_CUDA110"),
     v"10.2" => ()->lazy_artifact("CUTENSOR_CUDA102"),
