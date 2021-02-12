@@ -156,20 +156,21 @@ end
 
 # @test_throw, with additional testing for the exception message
 macro test_throws_message(f, typ, ex...)
+    @gensym msg
     quote
-        msg = ""
+        $msg = ""
         @test_throws $(esc(typ)) try
             $(esc(ex...))
         catch err
-            msg = sprint(showerror, err)
+            $msg = sprint(showerror, err)
             rethrow()
         end
 
-        if !$(esc(f))(msg)
+        if !$(esc(f))($msg)
             # @test should return its result, but doesn't
-            @error "Failed to validate error message\n$msg"
+            @error "Failed to validate error message\n" * $msg
         end
-        @test $(esc(f))(msg)
+        @test $(esc(f))($msg)
     end
 end
 

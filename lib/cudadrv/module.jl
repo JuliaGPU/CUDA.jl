@@ -42,7 +42,7 @@ mutable struct CuModule
            res == ERROR_INVALID_IMAGE ||
            res == ERROR_INVALID_PTX
             options = decode(optionKeys, optionVals)
-            throw(CuError(res, options[JIT_ERROR_LOG_BUFFER]))
+            throw(CuError(res, unsafe_string(pointer(options[JIT_ERROR_LOG_BUFFER]))))
         elseif res != SUCCESS
             throw_api_error(res)
         end
