@@ -1,4 +1,3 @@
-using Test, CUDA, Random
 import NNlib
 using CUDA.CUDNN:
     cudnnConvolutionForward,
@@ -74,8 +73,7 @@ using CUDA.CUDNN:
         CUDNN_TENSOR_NCHW_VECT_C, # 2, /* each image point is vector of element of C, vector length in data type */
     cudnnDataType,
     convdims,
-    math_mode,
-    handle
+    math_mode
 
 @testset "cudnn/convolution" begin
     T = Float32
@@ -135,43 +133,53 @@ using CUDA.CUDNN:
             cz0, cz1 = cy0, cy1
             ay2 = act.(ay .+ beta * ay0)
         end
-        d = cudnnConvolutionDescriptor(convdims(padding,size(ax)), convdims(stride,size(ax)), convdims(dilation,size(ax)), mode, cudnnDataType(dataType), mathType, reorderType, Cint(group))
-        ((ay1 ≈ cudnnConvolutionForward(cw0, cx; bias, activation, mode, padding, stride, dilation, group, mathType, reorderType, alpha) |> Array) &&
-         (ay1 ≈ cudnnConvolutionForward(cw0, cx, d; bias, activation, alpha) |> Array) &&
-         (ay2 ≈ cudnnConvolutionForward!(cy0, cw0, cx; z=cz0, bias, activation, mode, padding, stride, dilation, group, mathType, reorderType, alpha, beta) |> Array) &&
-         (ay2 ≈ cudnnConvolutionForward!(cy1, cw0, cx, d; z=cz1, bias, activation, alpha, beta) |> Array))
+
+        d = cudnnConvolutionDescriptor(convdims(padding,size(ax)),
+                                       convdims(stride,size(ax)),
+                                       convdims(dilation,size(ax)), mode,
+                                       cudnnDataType(dataType), mathType, reorderType,
+                                       Cint(group))
+        @test ay1 ≈ cudnnConvolutionForward(cw0, cx; bias, activation, mode, padding,
+                                            stride, dilation, group, mathType, reorderType,
+                                            alpha) |> Array
+        @test ay1 ≈ cudnnConvolutionForward(cw0, cx, d; bias, activation, alpha) |> Array
+        @test ay2 ≈ cudnnConvolutionForward!(cy0, cw0, cx; z=cz0, bias, activation, mode,
+                                             padding, stride, dilation, group, mathType,
+                                             reorderType, alpha, beta) |> Array
+        @test ay2 ≈ cudnnConvolutionForward!(cy1, cw0, cx, d; z=cz1, bias, activation,
+                                             alpha, beta) |> Array
     end
 
     # These call cudnnConvolutionForward
-    @test convtest()
-    @test convtest(padding=1)
-    @test convtest(stride=2)
-    @test convtest(dilation=2)
-    @test convtest(group=2) # See https://blog.yani.ai/filter-group-tutorial/
-    @test convtest(mathType=CUDNN_DEFAULT_MATH)
-    @test convtest(mathType=CUDNN_TENSOR_OP_MATH)
-    @test convtest(mathType=CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION)
-    @test convtest(reorderType=CUDNN_NO_REORDER)
-    @test convtest(alpha=2)
-    @test convtest(beta=2)
+    convtest()
+    convtest(padding=1)
+    convtest(stride=2)
+    convtest(dilation=2)
+    convtest(group=2) # See https://blog.yani.ai/filter-group-tutorial/
+    convtest(mathType=CUDNN_DEFAULT_MATH)
+    convtest(mathType=CUDNN_TENSOR_OP_MATH)
+    convtest(mathType=CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION)
+    convtest(reorderType=CUDNN_NO_REORDER)
+    convtest(alpha=2)
+    convtest(beta=2)
 
     # These call cudnnConvolutionBiasActivationForward
-    @test convtest(bias=cb)
-    @test convtest(blendz=true)
-    @test convtest(activation=CUDNN_ACTIVATION_RELU)
-    @test convtest(bias=cb,blendz=true)
-    @test convtest(bias=cb,activation=CUDNN_ACTIVATION_RELU)
-    @test convtest(bias=cb,padding=1)
-    @test convtest(bias=cb,stride=2)
-    @test convtest(bias=cb,dilation=2)
-    @test convtest(bias=cb,group=2)
-    @test convtest(bias=cb,mathType=CUDNN_DEFAULT_MATH)
-    @test convtest(bias=cb,mathType=CUDNN_TENSOR_OP_MATH)
-    @test convtest(bias=cb,mathType=CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION)
-    @test convtest(bias=cb,reorderType=CUDNN_NO_REORDER)
-    @test convtest(bias=cb,alpha=2)
-    @test convtest(bias=cb,beta=2)
-    @test convtest(bias=cb,beta=2,blendz=true)
+    convtest(bias=cb)
+    convtest(blendz=true)
+    convtest(activation=CUDNN_ACTIVATION_RELU)
+    convtest(bias=cb,blendz=true)
+    convtest(bias=cb,activation=CUDNN_ACTIVATION_RELU)
+    convtest(bias=cb,padding=1)
+    convtest(bias=cb,stride=2)
+    convtest(bias=cb,dilation=2)
+    convtest(bias=cb,group=2)
+    convtest(bias=cb,mathType=CUDNN_DEFAULT_MATH)
+    convtest(bias=cb,mathType=CUDNN_TENSOR_OP_MATH)
+    convtest(bias=cb,mathType=CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION)
+    convtest(bias=cb,reorderType=CUDNN_NO_REORDER)
+    convtest(bias=cb,alpha=2)
+    convtest(bias=cb,beta=2)
+    convtest(bias=cb,beta=2,blendz=true)
 
     # Test tensor format
     cx2,cw2,cb2 = (x->permutedims(x,(3,1,2,4))).((cx,cw,cb))

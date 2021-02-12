@@ -1,4 +1,3 @@
-using Test, CUDA
 using CUDA.CUDNN:
     cudnnSoftmaxForward,
     cudnnSoftmaxForward!,
@@ -9,16 +8,14 @@ using CUDA.CUDNN:
         CUDNN_SOFTMAX_LOG,      # 2
     cudnnSoftmaxMode_t,
         CUDNN_SOFTMAX_MODE_INSTANCE, # 0, /* compute the softmax over all C, H, W for each N */
-        CUDNN_SOFTMAX_MODE_CHANNEL,  # 1  /* compute the softmax over all C for each H, W, N */
-    handle
-
+        CUDNN_SOFTMAX_MODE_CHANNEL   # 1  /* compute the softmax over all C for each H, W, N */
 
 @testset "cudnn/softmax" begin
     ax,ay = randn(Float32,10,10),randn(Float32,10,10)
     cx,cy = CuArray.((ax,ay))
 
-    function softmaxtest(
-        ; alpha=1,
+    function softmaxtest(;
+        alpha=1,
         beta=0,
         mode=CUDNN_SOFTMAX_MODE_INSTANCE,
         algo=CUDNN_SOFTMAX_FAST
@@ -35,16 +32,16 @@ using CUDA.CUDNN:
         end
         y0 = alpha * y
         y1 = y0 .+ beta * ay
-        ((y0 ≈ cudnnSoftmaxForward(cx1; algo, mode, alpha) |> Array) &&
-         (y1 ≈ cudnnSoftmaxForward!(copy(cy1), cx1; algo, mode, alpha, beta) |> Array))
+        @test y0 ≈ cudnnSoftmaxForward(cx1; algo, mode, alpha) |> Array
+        @test y1 ≈ cudnnSoftmaxForward!(copy(cy1), cx1; algo, mode, alpha, beta) |> Array
     end
 
-    @test softmaxtest()
-    @test softmaxtest(alpha=2)
-    @test softmaxtest(beta=2)
-    @test softmaxtest(mode=CUDNN_SOFTMAX_MODE_INSTANCE)
-    @test softmaxtest(mode=CUDNN_SOFTMAX_MODE_CHANNEL)
-    @test softmaxtest(algo=CUDNN_SOFTMAX_FAST)
-    @test softmaxtest(algo=CUDNN_SOFTMAX_ACCURATE)
-    @test softmaxtest(algo=CUDNN_SOFTMAX_LOG)
+    softmaxtest()
+    softmaxtest(alpha=2)
+    softmaxtest(beta=2)
+    softmaxtest(mode=CUDNN_SOFTMAX_MODE_INSTANCE)
+    softmaxtest(mode=CUDNN_SOFTMAX_MODE_CHANNEL)
+    softmaxtest(algo=CUDNN_SOFTMAX_FAST)
+    softmaxtest(algo=CUDNN_SOFTMAX_ACCURATE)
+    softmaxtest(algo=CUDNN_SOFTMAX_LOG)
 end

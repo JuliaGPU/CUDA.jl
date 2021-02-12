@@ -1,6 +1,4 @@
-using Test, Random, CUDA
-
-using CUDA.CUDNN: 
+using CUDA.CUDNN:
     cudnnMultiHeadAttnForward,
     cudnnMultiHeadAttnForward!,
     cudnnMultiHeadAttnBackwardData,
@@ -52,15 +50,12 @@ using CUDA.CUDNN:
     cudnnDataType,
     cudnnSeqDataDefaultAxes,
     math_mode,
-    sdim,
-    handle
-
+    sdim
 
 @testset "cudnn/multiheadattn" begin
-
-    function mhatest(
+    function mhatest(;
         # Input tensor descriptors
-        ;axes::Vector{cudnnSeqDataAxis_t} = cudnnSeqDataDefaultAxes,
+        axes::Vector{cudnnSeqDataAxis_t} = cudnnSeqDataDefaultAxes,
         seqLengthsQO::Vector{<:Integer} = fill(Cint(sdim(queries,axes,CUDNN_SEQDATA_TIME_DIM)), sdim(queries,axes,CUDNN_SEQDATA_BATCH_DIM)*sdim(queries,axes,CUDNN_SEQDATA_BEAM_DIM)),
         seqLengthsKV::Vector{<:Integer} = fill(Cint(sdim(keys,axes,CUDNN_SEQDATA_TIME_DIM)), sdim(keys,axes,CUDNN_SEQDATA_BATCH_DIM)*sdim(keys,axes,CUDNN_SEQDATA_BEAM_DIM)),
         #devSeqLengthsQO::CuVector{Cint} = convert(CuVector{Cint}, seqLengthsQO),
@@ -92,7 +87,7 @@ using CUDA.CUDNN:
         currIdx::Integer = -1,
         loWinIdx::Array{Cint} = fill(Cint(0), qoMaxSeqLength),
         hiWinIdx::Array{Cint} = fill(Cint(kvMaxSeqLength), qoMaxSeqLength),
-        #workspace::Union{CuArray,Nothing}    = nothing, 
+        #workspace::Union{CuArray,Nothing}    = nothing,
         #reserveSpace::Union{CuArray,Nothing} = nothing,
     )
         attnDesc::cudnnAttnDescriptor = cudnnAttnDescriptor(
@@ -116,49 +111,62 @@ using CUDA.CUDNN:
             Cint(maxBatchSize),
             Cint(maxBeamSize)
         )
-        y = cudnnMultiHeadAttnForward(weights, queries, keys, values; axes, seqLengthsQO, seqLengthsKV, attnMode, nHeads, smScaler, mathType, qProjSize, kProjSize, vProjSize, oProjSize, qoMaxSeqLength, kvMaxSeqLength, maxBatchSize, maxBeamSize, residuals, currIdx, loWinIdx, hiWinIdx)
-        (y ≈ cudnnMultiHeadAttnForward!(zero(y), weights, queries, keys, values; axes, seqLengthsQO, seqLengthsKV, attnMode, nHeads, smScaler, mathType, qProjSize, kProjSize, vProjSize, oProjSize, qoMaxSeqLength, kvMaxSeqLength, maxBatchSize, maxBeamSize, residuals, currIdx, loWinIdx, hiWinIdx) &&
-         y ≈ cudnnMultiHeadAttnForward(weights, queries, keys, values, attnDesc; axes, seqLengthsQO, seqLengthsKV, residuals, currIdx, loWinIdx, hiWinIdx) &&
-         y ≈ cudnnMultiHeadAttnForward!(zero(y), weights, queries, keys, values, attnDesc; axes, seqLengthsQO, seqLengthsKV, residuals, currIdx, loWinIdx, hiWinIdx))
+        y = cudnnMultiHeadAttnForward(weights, queries, keys, values; axes, seqLengthsQO,
+                                      seqLengthsKV, attnMode, nHeads, smScaler, mathType,
+                                      qProjSize, kProjSize, vProjSize, oProjSize,
+                                      qoMaxSeqLength, kvMaxSeqLength, maxBatchSize,
+                                      maxBeamSize, residuals, currIdx, loWinIdx, hiWinIdx)
+        @test y ≈ cudnnMultiHeadAttnForward!(zero(y), weights, queries, keys, values; axes,
+                                             seqLengthsQO, seqLengthsKV, attnMode, nHeads,
+                                             smScaler, mathType, qProjSize, kProjSize,
+                                             vProjSize, oProjSize, qoMaxSeqLength,
+                                             kvMaxSeqLength, maxBatchSize, maxBeamSize,
+                                             residuals, currIdx, loWinIdx, hiWinIdx)
+        @test y ≈ cudnnMultiHeadAttnForward(weights, queries, keys, values, attnDesc;
+                                            axes, seqLengthsQO, seqLengthsKV, residuals,
+                                            currIdx, loWinIdx, hiWinIdx)
+        @test y ≈ cudnnMultiHeadAttnForward!(zero(y), weights, queries, keys, values, attnDesc;
+                                             axes, seqLengthsQO, seqLengthsKV, residuals,
+                                             currIdx, loWinIdx, hiWinIdx)
     end
 
     Q,K,V,B,T,F = 6,6,5,4,3,Float32
 
     weights, queries, keys, values = (CUDA.randn(x...) for x in ((F,100),(F,Q,B,T),(F,K,B,T),(F,V,B,T)))
-    @test mhatest()
-    @test mhatest(attnMode = CUDNN_ATTN_QUERYMAP_ALL_TO_ONE | CUDNN_ATTN_ENABLE_PROJ_BIASES |> Cuint, vProjSize=7)
-    @test mhatest(seqLengthsQO = Cint[1,2,3,1])
-    @test mhatest(seqLengthsKV = Cint[1,2,3,1])
-    @test mhatest(nHeads = 2)
-    @test mhatest(smScaler = 2)
-    @test mhatest(mathType = CUDNN_DEFAULT_MATH)
-    @test mhatest(mathType = CUDNN_TENSOR_OP_MATH)
-    @test mhatest(mathType = CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION)
-    @test mhatest(mathType = CUDNN_FMA_MATH)
-    @test mhatest(kProjSize = 7, qProjSize = 7) # k and q have to match
-    @test mhatest(vProjSize = 7)
-    @test mhatest(oProjSize = 7)
-    @test mhatest(qoMaxSeqLength = 7)
-    @test mhatest(kvMaxSeqLength = 7)
-    @test mhatest(maxBatchSize = 7)
-    @test mhatest(maxBeamSize = 7)
-    @test mhatest(loWinIdx = fill(Cint(1),T))
-    @test mhatest(hiWinIdx = fill(Cint(1),T))
-    @test mhatest(currIdx = 0)
+    mhatest()
+    mhatest(attnMode = CUDNN_ATTN_QUERYMAP_ALL_TO_ONE | CUDNN_ATTN_ENABLE_PROJ_BIASES |> Cuint, vProjSize=7)
+    mhatest(seqLengthsQO = Cint[1,2,3,1])
+    mhatest(seqLengthsKV = Cint[1,2,3,1])
+    mhatest(nHeads = 2)
+    mhatest(smScaler = 2)
+    mhatest(mathType = CUDNN_DEFAULT_MATH)
+    mhatest(mathType = CUDNN_TENSOR_OP_MATH)
+    mhatest(mathType = CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION)
+    mhatest(mathType = CUDNN_FMA_MATH)
+    mhatest(kProjSize = 7, qProjSize = 7) # k and q have to match
+    mhatest(vProjSize = 7)
+    mhatest(oProjSize = 7)
+    mhatest(qoMaxSeqLength = 7)
+    mhatest(kvMaxSeqLength = 7)
+    mhatest(maxBatchSize = 7)
+    mhatest(maxBeamSize = 7)
+    mhatest(loWinIdx = fill(Cint(1),T))
+    mhatest(hiWinIdx = fill(Cint(1),T))
+    mhatest(currIdx = 0)
 
     # Test residuals: residuals and output (and thus values unless oProjSize>0) must match queries in vector size
     values, residuals = (CUDA.randn(x...) for x in ((F,Q,B,T),(F,Q,B,T)))
-    @test mhatest(residuals = residuals)
+    mhatest(residuals = residuals)
 
     # Test nonstandard axes order
     weights, queries, keys, values = (CUDA.randn(x...) for x in ((F,100),(F,Q,T,B),(F,K,T,B),(F,V,T,B)))
-    @test mhatest(axes = [CUDNN_SEQDATA_VECT_DIM, CUDNN_SEQDATA_TIME_DIM, CUDNN_SEQDATA_BATCH_DIM, CUDNN_SEQDATA_BEAM_DIM])
+    mhatest(axes = [CUDNN_SEQDATA_VECT_DIM, CUDNN_SEQDATA_TIME_DIM, CUDNN_SEQDATA_BATCH_DIM, CUDNN_SEQDATA_BEAM_DIM])
 
     # Test beam handling
     weights, queries, keys, values = (CUDA.randn(x...) for x in ((F,100),(F,Q,B,T,2),(F,K,B,T,1),(F,V,B,T,1)))
-    @test mhatest()
-    # CUDNN_ATTN_QUERYMAP_ONE_TO_ONE does not seem to be supported
-    # weights, queries, keys, values = (CUDA.randn(x...) for x in ((F,100),(F,Q,B,T,M),(F,K,B,T,M),(F,V,B,T,M)))
-    # @test mhatest(attnMode = CUDNN_ATTN_QUERYMAP_ONE_TO_ONE | CUDNN_ATTN_DISABLE_PROJ_BIASES |> Cuint) ## Not supported
+    mhatest()
 
+    # CUDNN_ATTN_QUERYMAP_ONE_TO_ONE does not seem to be supported
+    #weights, queries, keys, values = (CUDA.randn(x...) for x in ((F,100),(F,Q,B,T,M),(F,K,B,T,M),(F,V,B,T,M)))
+    #mhatest(attnMode = CUDNN_ATTN_QUERYMAP_ONE_TO_ONE | CUDNN_ATTN_DISABLE_PROJ_BIASES |> Cuint)
 end

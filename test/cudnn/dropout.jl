@@ -1,5 +1,5 @@
-using Test, CUDA, Statistics
-using CUDA.CUDNN: 
+using Statistics
+using CUDA.CUDNN:
     cudnnDropoutForward,
     cudnnDropoutForward!,
     cudnnDropoutBackward,
@@ -12,11 +12,9 @@ using CUDA.CUDNN:
         cudnnRestoreDropoutDescriptor,
         cudnnDestroyDropoutDescriptor,
     cudnnDropoutGetStatesSize,
-    cudnnDropoutGetReserveSpaceSize,
-    handle
+    cudnnDropoutGetReserveSpaceSize
 
 @testset "cudnn/dropout" begin
-
     @test cudnnDropoutDescriptor(C_NULL) isa cudnnDropoutDescriptor
     @test Base.unsafe_convert(Ptr, cudnnDropoutDescriptor(C_NULL)) isa Ptr
     @test cudnnDropoutDescriptor(0.5) isa cudnnDropoutDescriptor
@@ -31,5 +29,4 @@ using CUDA.CUDNN:
     @test y == cudnnDropoutForward!(similar(x), x; dropout = P)
     @test y == cudnnDropoutForward!(similar(x), x, d)
     cudnnDropoutSeed[] = -1
-
 end

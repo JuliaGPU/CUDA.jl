@@ -1,4 +1,4 @@
-using CUDA, Test, Random, Statistics
+using Statistics
 using CUDA.CUDNN:
     cudnnReduceTensor,
     cudnnReduceTensor!,
@@ -33,12 +33,9 @@ using CUDA.CUDNN:
         CUDNN_64BIT_INDICES, # 1,
         CUDNN_16BIT_INDICES, # 2,
         CUDNN_8BIT_INDICES,  # 3,
-    cudnnDataType,
-    handle
-
+    cudnnDataType
 
 @testset "cudnn/reduce" begin
-
     @test cudnnReduceTensorDescriptor(C_NULL) isa cudnnReduceTensorDescriptor
     @test Base.unsafe_convert(Ptr, cudnnReduceTensorDescriptor(C_NULL)) isa Ptr
     @test cudnnReduceTensorDescriptor(CUDNN_REDUCE_TENSOR_ADD,cudnnDataType(Float32),CUDNN_NOT_PROPAGATE_NAN,CUDNN_REDUCE_TENSOR_NO_INDICES,CUDNN_32BIT_INDICES) isa cudnnReduceTensorDescriptor
@@ -46,8 +43,8 @@ using CUDA.CUDNN:
     (ax,ay) = randn(Float32,10,10), randn(Float32,10,1)
     (cx,cy) = CuArray.((ax,ay))
 
-    function reducetensortest(
-        ; op::cudnnReduceTensorOp_t = CUDNN_REDUCE_TENSOR_ADD,
+    function reducetensortest(;
+        op::cudnnReduceTensorOp_t = CUDNN_REDUCE_TENSOR_ADD,
         compType::DataType = (eltype(ax) <: Float64 ? Float64 : Float32),
         nanOpt::cudnnNanPropagation_t = CUDNN_NOT_PROPAGATE_NAN,
         indices::Union{Vector{<:Unsigned},Nothing} = nothing,
@@ -68,22 +65,22 @@ using CUDA.CUDNN:
         f1 = alpha * f0
         f2 = f1 + beta * ay
         dims = size(ay)
-        ((f1 ≈ cudnnReduceTensor(cx; dims, op, compType, nanOpt, indices, alpha) |> Array) &&
-         (f1 ≈ cudnnReduceTensor(cx, d; dims, indices, alpha) |> Array) &&
-         (f2 ≈ cudnnReduceTensor!(copy(cy), cx; op, compType, nanOpt, indices, alpha, beta) |> Array) &&
-         (f2 ≈ cudnnReduceTensor!(copy(cy), cx, d; indices, alpha, beta) |> Array))
+        @test f1 ≈ cudnnReduceTensor(cx; dims, op, compType, nanOpt, indices, alpha) |> Array
+        @test f1 ≈ cudnnReduceTensor(cx, d; dims, indices, alpha) |> Array
+        @test f2 ≈ cudnnReduceTensor!(copy(cy), cx; op, compType, nanOpt, indices, alpha, beta) |> Array
+        @test f2 ≈ cudnnReduceTensor!(copy(cy), cx, d; indices, alpha, beta) |> Array
     end
-    
-    @test reducetensortest()
-    @test reducetensortest(op = CUDNN_REDUCE_TENSOR_MUL)
-    @test reducetensortest(op = CUDNN_REDUCE_TENSOR_MIN)
-    @test reducetensortest(op = CUDNN_REDUCE_TENSOR_MAX)
-    @test reducetensortest(op = CUDNN_REDUCE_TENSOR_AMAX)
-    @test reducetensortest(op = CUDNN_REDUCE_TENSOR_AVG)
-    @test reducetensortest(op = CUDNN_REDUCE_TENSOR_NORM1)
-    @test reducetensortest(op = CUDNN_REDUCE_TENSOR_NORM2)
-    @test reducetensortest(op = CUDNN_REDUCE_TENSOR_MUL_NO_ZEROS)
-    @test reducetensortest(nanOpt = CUDNN_PROPAGATE_NAN)
-    @test reducetensortest(alpha = 2)
-    @test reducetensortest(beta = 2)
+
+    reducetensortest()
+    reducetensortest(op = CUDNN_REDUCE_TENSOR_MUL)
+    reducetensortest(op = CUDNN_REDUCE_TENSOR_MIN)
+    reducetensortest(op = CUDNN_REDUCE_TENSOR_MAX)
+    reducetensortest(op = CUDNN_REDUCE_TENSOR_AMAX)
+    reducetensortest(op = CUDNN_REDUCE_TENSOR_AVG)
+    reducetensortest(op = CUDNN_REDUCE_TENSOR_NORM1)
+    reducetensortest(op = CUDNN_REDUCE_TENSOR_NORM2)
+    reducetensortest(op = CUDNN_REDUCE_TENSOR_MUL_NO_ZEROS)
+    reducetensortest(nanOpt = CUDNN_PROPAGATE_NAN)
+    reducetensortest(alpha = 2)
+    reducetensortest(beta = 2)
 end

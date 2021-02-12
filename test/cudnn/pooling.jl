@@ -22,12 +22,9 @@ using CUDA.CUDNN:
         CUDNN_TENSOR_NCHW,        # 0, /* row major (wStride = 1, hStride = w) */
         CUDNN_TENSOR_NHWC,        # 1, /* feature maps interleaved ( cStride = 1 )*/
         CUDNN_TENSOR_NCHW_VECT_C, # 2, /* each image point is vector of element of C, vector length in data type */
-    pooldims,
-    handle
-
+    pooldims
 
 @testset "cudnn/pooling" begin
-
     function pooltest(;
                       mode = CUDNN_POOLING_MAX,
                       nanOpt = CUDNN_NOT_PROPAGATE_NAN,
@@ -57,7 +54,7 @@ using CUDA.CUDNN:
         =#
         ay1 = (mode == CUDNN_POOLING_MAX ? NNlib.maxpool(ax, pdims) :
                mode == CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING ? NNlib.meanpool(ax, pdims) :
-               mode == CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING ? NNlib.meanpool(ax, pdims) : 
+               mode == CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING ? NNlib.meanpool(ax, pdims) :
                mode == CUDNN_POOLING_MAX_DETERMINISTIC ? NNlib.maxpool(ax, pdims) :
                error("mode=$mode is not supported."))
         ay1 = alpha * ay1
@@ -71,27 +68,26 @@ using CUDA.CUDNN:
             cx, cy = CuArray.(nhwc.((ax,ay)))
             ay1, ay2 = nhwc.((ay1, ay2))
         end
-        ((ay1 ≈ cudnnPoolingForward(cx; mode, nanOpt, window, padding, stride, format, alpha) |> Array) &&
-         (ay1 ≈ cudnnPoolingForward(cx, d; format, alpha) |> Array) &&
-         (ay2 ≈ cudnnPoolingForward!(copy(cy), cx; mode, nanOpt, window, padding, stride, format, alpha, beta) |> Array) &&
-         (ay2 ≈ cudnnPoolingForward!(copy(cy), cx, d; format, alpha, beta) |> Array))
+        @test ay1 ≈ cudnnPoolingForward(cx; mode, nanOpt, window, padding, stride, format, alpha) |> Array
+        @test ay1 ≈ cudnnPoolingForward(cx, d; format, alpha) |> Array
+        @test ay2 ≈ cudnnPoolingForward!(copy(cy), cx; mode, nanOpt, window, padding, stride, format, alpha, beta) |> Array
+        @test ay2 ≈ cudnnPoolingForward!(copy(cy), cx, d; format, alpha, beta) |> Array
     end
 
     expand(::Val{N}, i::NTuple{N}) where {N} = i
     expand(::Val{N}, i::Integer) where {N} = ntuple(_ -> i, N)
 
 
-    @test pooltest()
-    @test pooltest(mode = CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING)
-    @test pooltest(mode = CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING)
-    @test pooltest(mode = CUDNN_POOLING_MAX_DETERMINISTIC)
-    @test pooltest(nanOpt = CUDNN_PROPAGATE_NAN)
-    @test pooltest(window = 3)
-    @test pooltest(padding = 1)
-    @test pooltest(stride = 1)
-    @test pooltest(format = CUDNN_TENSOR_NHWC)
-    @test pooltest(dataType = Float16)
-    @test pooltest(alpha = 2)
-    @test pooltest(beta = 2)
-    
+    pooltest()
+    pooltest(mode = CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING)
+    pooltest(mode = CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING)
+    pooltest(mode = CUDNN_POOLING_MAX_DETERMINISTIC)
+    pooltest(nanOpt = CUDNN_PROPAGATE_NAN)
+    pooltest(window = 3)
+    pooltest(padding = 1)
+    pooltest(stride = 1)
+    pooltest(format = CUDNN_TENSOR_NHWC)
+    pooltest(dataType = Float16)
+    pooltest(alpha = 2)
+    pooltest(beta = 2)
 end
