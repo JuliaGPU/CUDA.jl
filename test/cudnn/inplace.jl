@@ -1,4 +1,3 @@
-using Test, CUDA, Random
 import CUDA.CUDNN:
     cudnnSetTensor!,
     cudnnScaleTensor!,
@@ -6,7 +5,6 @@ import CUDA.CUDNN:
     cudnnAddTensor!,
     cudnnAddTensor,
     CUDNN_TENSOR_NHWC
-
 
 @testset "cudnn/inplace" begin
     x = CUDA.rand(10)

@@ -1,4 +1,4 @@
-using Test, Random, Statistics, CUDA
+using Statistics
 
 using CUDA.CUDNN:
     cudnnNormalizationForward,
@@ -30,8 +30,7 @@ using CUDA.CUDNN:
     cudnnTensorFormat_t,
         CUDNN_TENSOR_NCHW,        # 0, /* row major (wStride = 1, hStride = w) */
         CUDNN_TENSOR_NHWC,        # 1, /* feature maps interleaved ( cStride = 1 )*/
-        CUDNN_TENSOR_NCHW_VECT_C, # 2, /* each image point is vector of element of C, vector length in data type */
-    handle
+        CUDNN_TENSOR_NCHW_VECT_C  # 2, /* each image point is vector of element of C, vector length in data type */
 
 
 @testset "cudnn/normalization" begin
@@ -40,7 +39,7 @@ using CUDA.CUDNN:
         x;
 
         training = false,
-        
+
         # Inference parameters:
         z = nothing, # for residual addition to the result of the normalization operation, prior to the activation
         mode::cudnnNormMode_t = CUDNN_NORM_PER_CHANNEL, # Per-channel layer is based on the paper Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift, S. Ioffe, C. Szegedy, 2015.
@@ -85,29 +84,36 @@ using CUDA.CUDNN:
         y0 = randn!(similar(x))
         y1 = alpha * y
         y2 = y1 + beta * y0
-        (y1 ≈ cudnnNormalizationForward(x, xmean, xvar, bias, scale; training, z, mode, normOps, algo, alpha, epsilon, groupCnt, format, exponentialAverageFactor, savedMean, savedInvVariance, activationDesc) &&
-         y2 ≈ cudnnNormalizationForward!(copy(y0), x, xmean, xvar, bias, scale; training, z, mode, normOps, algo, alpha, beta, epsilon, groupCnt, format, exponentialAverageFactor, savedMean, savedInvVariance, activationDesc))
+        @test y1 ≈ cudnnNormalizationForward(x, xmean, xvar, bias, scale; training, z, mode,
+                                             normOps, algo, alpha, epsilon, groupCnt,
+                                             format, exponentialAverageFactor, savedMean,
+                                             savedInvVariance, activationDesc)
+        @test y2 ≈ cudnnNormalizationForward!(copy(y0), x, xmean, xvar, bias, scale;
+                                              training, z, mode, normOps, algo, alpha, beta,
+                                              epsilon, groupCnt, format,
+                                              exponentialAverageFactor, savedMean,
+                                              savedInvVariance, activationDesc)
     end
 
     x, z, s = (CUDA.randn(x...) for x in ((5,4,3,2),(5,4,3,2),(1,1,3,1)))
-    @test normtest(x)
-    @test normtest(x; training = true)
-    @test normtest(x; mode = CUDNN_NORM_PER_ACTIVATION)
-    @test normtest(x; algo = CUDNN_NORM_ALGO_PERSIST)
-    @test normtest(x; algo = CUDNN_NORM_ALGO_PERSIST, format = CUDNN_TENSOR_NHWC)
-    @test normtest(x; alpha = 2)
-    @test normtest(x; beta = 2)
-    @test normtest(x; epsilon = 0)
-    @test normtest(x; format = CUDNN_TENSOR_NHWC)
-    @test normtest(x; scale = fill!(s, 2))
-    @test normtest(x; bias  = fill!(s, 2))
-    @test normtest(x; xmean  = fill!(s, 2))
-    @test normtest(x; xvar = fill!(s, 2))
-    @test normtest(x; exponentialAverageFactor = 0.01)
-    @test normtest(x; savedMean = similar(s))
-    @test normtest(x; savedInvVariance = similar(s))
+    normtest(x)
+    normtest(x; training = true)
+    normtest(x; mode = CUDNN_NORM_PER_ACTIVATION)
+    normtest(x; algo = CUDNN_NORM_ALGO_PERSIST)
+    normtest(x; algo = CUDNN_NORM_ALGO_PERSIST, format = CUDNN_TENSOR_NHWC)
+    normtest(x; alpha = 2)
+    normtest(x; beta = 2)
+    normtest(x; epsilon = 0)
+    normtest(x; format = CUDNN_TENSOR_NHWC)
+    normtest(x; scale = fill!(s, 2))
+    normtest(x; bias  = fill!(s, 2))
+    normtest(x; xmean  = fill!(s, 2))
+    normtest(x; xvar = fill!(s, 2))
+    normtest(x; exponentialAverageFactor = 0.01)
+    normtest(x; savedMean = similar(s))
+    normtest(x; savedInvVariance = similar(s))
     # cudnn-8.0.5: Currently, CUDNN_NORM_OPS_NORM_ACTIVATION and CUDNN_NORM_OPS_NORM_ADD_ACTIVATION are not supported in inference.
-    #@test normtest(x; normOps = CUDNN_NORM_OPS_NORM_ACTIVATION, activationMode = CUDNN_ACTIVATION_RELU, format = CUDNN_TENSOR_NHWC)
-    #@test normtest(x; normOps = CUDNN_NORM_OPS_NORM_ADD_ACTIVATION, activationMode = CUDNN_ACTIVATION_RELU, z, format = CUDNN_TENSOR_NHWC)
-    #@test normtest(x; groupCnt = 2) # cudnn-8.0.5: Currently only groupCnt=1 is supported
+    #normtest(x; normOps = CUDNN_NORM_OPS_NORM_ACTIVATION, activationMode = CUDNN_ACTIVATION_RELU, format = CUDNN_TENSOR_NHWC)
+    #normtest(x; normOps = CUDNN_NORM_OPS_NORM_ADD_ACTIVATION, activationMode = CUDNN_ACTIVATION_RELU, z, format = CUDNN_TENSOR_NHWC)
+    #normtest(x; groupCnt = 2) # cudnn-8.0.5: Currently only groupCnt=1 is supported
 end

@@ -1,5 +1,3 @@
-using Test, CUDA, Random
-
 using CUDA.CUDNN:
     cudnnRNNForward,
     cudnnRNNForward!,
@@ -54,20 +52,17 @@ using CUDA.CUDNN:
     cudnnTensorDescriptor,
     cudnnDropoutDescriptor,
     cudnnDataType,
-    math_mode,
-    handle
-
+    math_mode
 
 @testset "cudnn/rnn" begin
-
     X,H,B,T = 8,8,4,2
     w = CUDA.randn(10000)
     x = CUDA.randn(X,B,T)
     hx1 = CUDA.randn(H,B,1)
     cx1 = CUDA.randn(H,B,1)
 
-    function rnntest(
-        ;hx = nothing,
+    function rnntest(;
+        hx = nothing,
         cx = nothing,
         hy = nothing,
         cy = nothing,
@@ -89,49 +84,58 @@ using CUDA.CUDNN:
         dropout::Real = 0,
         auxFlags::Integer = CUDNN_RNN_PADDED_IO_ENABLED,
     )
-        d = cudnnRNNDescriptor(algo, cellMode, biasMode, dirMode, inputMode, cudnnDataType(eltype(x)), cudnnDataType(mathPrec), mathType, Int32(inputSize), Int32(hiddenSize), Int32(projSize), Int32(numLayers), cudnnDropoutDescriptor(Cfloat(dropout)), UInt32(auxFlags))
-        y = cudnnRNNForward(w, x; hx, cx, hy, cy, layout, seqLengthArray, fwdMode, hiddenSize, algo, cellMode, biasMode, dirMode, inputMode, mathPrec, mathType, inputSize, projSize, numLayers, dropout, auxFlags)
+        d = cudnnRNNDescriptor(algo, cellMode, biasMode, dirMode, inputMode,
+                               cudnnDataType(eltype(x)), cudnnDataType(mathPrec), mathType,
+                               Int32(inputSize), Int32(hiddenSize), Int32(projSize),
+                               Int32(numLayers), cudnnDropoutDescriptor(Cfloat(dropout)),
+                               UInt32(auxFlags))
+        y = cudnnRNNForward(w, x; hx, cx, hy, cy, layout, seqLengthArray, fwdMode,
+                            hiddenSize, algo, cellMode, biasMode, dirMode, inputMode,
+                            mathPrec, mathType, inputSize, projSize, numLayers, dropout,
+                            auxFlags)
         _y = copy(y)
         _hy = (hy === nothing ? hy : copy(hy[]))
         _cy = (cy === nothing ? cy : copy(cy[]))
-        (_y ≈ cudnnRNNForward!(y, w, x; hx, cx, hy, cy, layout, seqLengthArray, fwdMode, hiddenSize, algo, cellMode, biasMode, dirMode, inputMode, mathPrec, mathType, inputSize, projSize, numLayers, dropout, auxFlags) &&
-         (_hy === hy === nothing || _hy ≈ hy[]) &&
-         (_cy === cy === nothing || _cy ≈ cy[]) &&
-         _y ≈ cudnnRNNForward(w, x, d; hx, cx, hy, cy, layout, seqLengthArray, fwdMode) &&
-         (_hy === hy === nothing || _hy ≈ hy[]) &&
-         (_cy === cy === nothing || _cy ≈ cy[]) &&
-         _y ≈ cudnnRNNForward!(y, w, x, d; hx, cx, hy, cy, layout, seqLengthArray, fwdMode) &&
-         (_hy === hy === nothing || _hy ≈ hy[]) &&
-         (_cy === cy === nothing || _cy ≈ cy[]))
+        @test _y ≈ cudnnRNNForward!(y, w, x; hx, cx, hy, cy, layout, seqLengthArray, fwdMode,
+                                    hiddenSize, algo, cellMode, biasMode, dirMode, inputMode,
+                                    mathPrec, mathType, inputSize, projSize, numLayers, dropout, auxFlags)
+        (_hy === hy === nothing || _hy ≈ hy[])
+        (_cy === cy === nothing || _cy ≈ cy[])
+        @test _y ≈ cudnnRNNForward(w, x, d; hx, cx, hy, cy, layout, seqLengthArray, fwdMode)
+        (_hy === hy === nothing || _hy ≈ hy[])
+        (_cy === cy === nothing || _cy ≈ cy[])
+        @test _y ≈ cudnnRNNForward!(y, w, x, d; hx, cx, hy, cy, layout, seqLengthArray, fwdMode)
+        (_hy === hy === nothing || _hy ≈ hy[])
+        (_cy === cy === nothing || _cy ≈ cy[])
     end
-        
-    @test rnntest()
-    @test rnntest(hx=hx1)
-    @test rnntest(cx=cx1)
-    @test rnntest(hy=Ref{Any}())
-    @test rnntest(cy=Ref{Any}())
-    @test rnntest(layout=CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_PACKED)
-    @test rnntest(layout=CUDNN_RNN_DATA_LAYOUT_BATCH_MAJOR_UNPACKED)
-    @test rnntest(seqLengthArray=Cint[1,2,1,2])
-    @test rnntest(fwdMode=CUDNN_FWD_MODE_TRAINING)
-    @test rnntest(hiddenSize=16)
-    @test rnntest(algo=CUDNN_RNN_ALGO_PERSIST_STATIC)
-    #@test rnntest(algo=CUDNN_RNN_ALGO_PERSIST_DYNAMIC) # causes segfault
-    @test rnntest(cellMode=CUDNN_RNN_RELU)
-    @test rnntest(cellMode=CUDNN_RNN_TANH)
-    @test rnntest(cellMode=CUDNN_GRU)
-    @test rnntest(biasMode=CUDNN_RNN_NO_BIAS)
-    @test rnntest(biasMode=CUDNN_RNN_SINGLE_INP_BIAS)
-    @test rnntest(biasMode=CUDNN_RNN_SINGLE_REC_BIAS)
-    @test rnntest(dirMode=CUDNN_BIDIRECTIONAL)
-    @test rnntest(inputMode=CUDNN_SKIP_INPUT)
-    @test rnntest(mathPrec=Float32) # only possible option for F32 input
-    @test rnntest(mathType=CUDNN_DEFAULT_MATH)
-    @test rnntest(mathType=CUDNN_TENSOR_OP_MATH)
-    @test rnntest(mathType=CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION)
-    @test rnntest(projSize=4)
-    @test rnntest(numLayers=2)
-    @test rnntest(dropout=0.5)
-    @test rnntest(auxFlags=CUDNN_RNN_PADDED_IO_DISABLED)
-    @test rnntest(auxFlags=CUDNN_RNN_PADDED_IO_ENABLED)
+
+    rnntest()
+    rnntest(hx=hx1)
+    rnntest(cx=cx1)
+    rnntest(hy=Ref{Any}())
+    rnntest(cy=Ref{Any}())
+    rnntest(layout=CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_PACKED)
+    rnntest(layout=CUDNN_RNN_DATA_LAYOUT_BATCH_MAJOR_UNPACKED)
+    rnntest(seqLengthArray=Cint[1,2,1,2])
+    rnntest(fwdMode=CUDNN_FWD_MODE_TRAINING)
+    rnntest(hiddenSize=16)
+    rnntest(algo=CUDNN_RNN_ALGO_PERSIST_STATIC)
+    #rnntest(algo=CUDNN_RNN_ALGO_PERSIST_DYNAMIC) # causes segfault
+    rnntest(cellMode=CUDNN_RNN_RELU)
+    rnntest(cellMode=CUDNN_RNN_TANH)
+    rnntest(cellMode=CUDNN_GRU)
+    rnntest(biasMode=CUDNN_RNN_NO_BIAS)
+    rnntest(biasMode=CUDNN_RNN_SINGLE_INP_BIAS)
+    rnntest(biasMode=CUDNN_RNN_SINGLE_REC_BIAS)
+    rnntest(dirMode=CUDNN_BIDIRECTIONAL)
+    rnntest(inputMode=CUDNN_SKIP_INPUT)
+    rnntest(mathPrec=Float32) # only possible option for F32 input
+    rnntest(mathType=CUDNN_DEFAULT_MATH)
+    rnntest(mathType=CUDNN_TENSOR_OP_MATH)
+    rnntest(mathType=CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION)
+    rnntest(projSize=4)
+    rnntest(numLayers=2)
+    rnntest(dropout=0.5)
+    rnntest(auxFlags=CUDNN_RNN_PADDED_IO_DISABLED)
+    rnntest(auxFlags=CUDNN_RNN_PADDED_IO_ENABLED)
 end

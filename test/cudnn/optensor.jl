@@ -1,4 +1,3 @@
-using CUDA, Test, Random
 using CUDA.CUDNN:
     cudnnOpTensor,
     cudnnOpTensor!,
@@ -18,12 +17,9 @@ using CUDA.CUDNN:
     cudnnNanPropagation_t,
         CUDNN_NOT_PROPAGATE_NAN, # 0
         CUDNN_PROPAGATE_NAN,     # 1
-    cudnnDataType,
-    handle
-
+    cudnnDataType
 
 @testset "cudnn/optensor" begin
-
     @test cudnnOpTensorDescriptor(C_NULL) isa cudnnOpTensorDescriptor
     @test Base.unsafe_convert(Ptr, cudnnOpTensorDescriptor(C_NULL)) isa Ptr
     @test cudnnOpTensorDescriptor(CUDNN_OP_TENSOR_ADD,cudnnDataType(Float32),CUDNN_NOT_PROPAGATE_NAN) isa cudnnOpTensorDescriptor
@@ -31,8 +27,8 @@ using CUDA.CUDNN:
     (ax1,ax2,ay) = rand.((10,10,10))
     (cx1,cx2,cy) = CuArray.((ax1,ax2,ay))
 
-    function optensortest(
-        ;op=CUDNN_OP_TENSOR_ADD,
+    function optensortest(;
+        op=CUDNN_OP_TENSOR_ADD,
         nanOpt=CUDNN_NOT_PROPAGATE_NAN,
         compType=(eltype(ax1) <: Float64 ? Float64 : Float32),
         alpha1=1,
@@ -48,20 +44,20 @@ using CUDA.CUDNN:
               error("Unknown optensor"))
         f2 = f1 .+ beta * ay
         d = cudnnOpTensorDescriptor(op,cudnnDataType(compType),nanOpt)
-        ((f1 ≈ cudnnOpTensor(cx1, cx2; op, compType, nanOpt, alpha1, alpha2) |> Array) &&
-         (f1 ≈ cudnnOpTensor(cx1, cx2, d; alpha1, alpha2) |> Array) &&
-         (f2 ≈ cudnnOpTensor!(copy(cy), cx1, cx2; op, compType, nanOpt, alpha1, alpha2, beta) |> Array) &&
-         (f2 ≈ cudnnOpTensor!(copy(cy), cx1, cx2, d; alpha1, alpha2, beta) |> Array))
+        @test f1 ≈ cudnnOpTensor(cx1, cx2; op, compType, nanOpt, alpha1, alpha2) |> Array
+        @test f1 ≈ cudnnOpTensor(cx1, cx2, d; alpha1, alpha2) |> Array
+        @test f2 ≈ cudnnOpTensor!(copy(cy), cx1, cx2; op, compType, nanOpt, alpha1, alpha2, beta) |> Array
+        @test f2 ≈ cudnnOpTensor!(copy(cy), cx1, cx2, d; alpha1, alpha2, beta) |> Array
     end
-    
-    @test optensortest(op = CUDNN_OP_TENSOR_ADD)
-    @test optensortest(op = CUDNN_OP_TENSOR_MUL)
-    @test optensortest(op = CUDNN_OP_TENSOR_MIN)
-    @test optensortest(op = CUDNN_OP_TENSOR_MAX)
-    @test optensortest(op = CUDNN_OP_TENSOR_SQRT)
-    @test optensortest(op = CUDNN_OP_TENSOR_NOT)
-    @test optensortest(nanOpt = CUDNN_PROPAGATE_NAN)
-    @test optensortest(alpha1 = 2)
-    @test optensortest(alpha2 = 2)
-    @test optensortest(beta = 2)
+
+    optensortest(op = CUDNN_OP_TENSOR_ADD)
+    optensortest(op = CUDNN_OP_TENSOR_MUL)
+    optensortest(op = CUDNN_OP_TENSOR_MIN)
+    optensortest(op = CUDNN_OP_TENSOR_MAX)
+    optensortest(op = CUDNN_OP_TENSOR_SQRT)
+    optensortest(op = CUDNN_OP_TENSOR_NOT)
+    optensortest(nanOpt = CUDNN_PROPAGATE_NAN)
+    optensortest(alpha1 = 2)
+    optensortest(alpha2 = 2)
+    optensortest(beta = 2)
 end
