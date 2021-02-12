@@ -71,7 +71,15 @@ function add_data!(link::CuLink, name::String, code::String)
     # there shouldn't be any embedded NULLs
     checked_data = Base.unsafe_convert(Cstring, data)
 
-    cuLinkAddData_v2(link, JIT_INPUT_PTX, pointer(checked_data), length(data), name, 0, C_NULL, C_NULL)
+    res = unsafe_cuLinkAddData_v2(link, JIT_INPUT_PTX, pointer(checked_data), length(data),
+                                  name, 0, C_NULL, C_NULL)
+    if res == ERROR_NO_BINARY_FOR_GPU ||
+       res == ERROR_INVALID_IMAGE ||
+       res == ERROR_INVALID_PTX
+        throw(CuError(res, unsafe_string(pointer(link.options[JIT_ERROR_LOG_BUFFER]))))
+    elseif res != SUCCESS
+        throw_api_error(res)
+    end
 end
 
 """
@@ -80,9 +88,17 @@ end
 Add object code to a pending link operation.
 """
 function add_data!(link::CuLink, name::String, data::Vector{UInt8})
-    cuLinkAddData_v2(link, JIT_INPUT_OBJECT, pointer(data), length(data), name, 0, C_NULL, C_NULL)
+    res = unsafe_cuLinkAddData_v2(link, JIT_INPUT_OBJECT, pointer(data), length(data),
+                                  name, 0, C_NULL, C_NULL)
+    if res == ERROR_NO_BINARY_FOR_GPU ||
+       res == ERROR_INVALID_IMAGE ||
+       res == ERROR_INVALID_PTX
+        throw(CuError(res, unsafe_string(pointer(link.options[JIT_ERROR_LOG_BUFFER]))))
+    elseif res != SUCCESS
+        throw_api_error(res)
+    end
 
-    return nothing
+    return
 end
 
 """
