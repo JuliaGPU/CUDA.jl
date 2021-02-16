@@ -355,7 +355,7 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
     # initialize and register the exception flag, if any
     if "exception_flag" in compiled.external_gvars
         create_exceptions!(mod)
-        filter!(isequal("exception_flag"), compiled.external_gvars)
+        filter!(!isequal("exception_flag"), compiled.external_gvars)
     end
 
     return HostKernel{job.source.f,job.source.tt}(ctx, mod, fun)
