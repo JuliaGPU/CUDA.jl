@@ -93,9 +93,10 @@ export @cuprint, @cuprintln
 # simple conversions, defining an expression and the resulting argument type. nothing fancy,
 # `@cuprint` pretty directly maps to `@cuprintf`; we should just support `write(::IO)`.
 const cuprint_conversions = Dict(
-    Float32     => (x->:(Float64($x)),             Float64),
-    Ptr{<:Any}  => (x->:(convert(Ptr{Cvoid}, $x)), Ptr{Cvoid}),
-    Bool        => (x->:(Int32($x)),               Int32),
+    Float32         => (x->:(Float64($x)),                  Float64),
+    Ptr{<:Any}      => (x->:(convert(Ptr{Cvoid}, $x)),      Ptr{Cvoid}),
+    LLVMPtr{<:Any}  => (x->:(reinterpret(Ptr{Cvoid}, $x)),  Ptr{Cvoid}),
+    Bool            => (x->:(Int32($x)),                    Int32),
 )
 
 # format specifiers
@@ -226,12 +227,12 @@ GPU analog of `Base.@show`. It comes with the same type restrictions as [`@cupri
 @cushow threadIdx().x
 ```
 """
-macro cushow(ex)
-    val = gensym("val")
-    s = string(ex)
-    quote
-        $val = $(esc(ex))
-        CUDA.@cuprintln($(Expr(:string, s, " = ", val)))
-        $val
+macro cushow(exs...)
+    blk = Expr(:block)
+    for ex in exs
+        push!(blk.args, :(CUDA.@cuprintln($(sprint(Base.show_unquoted,ex)*" = "),
+                                          begin local value = $(esc(ex)) end)))
     end
+    isempty(exs) || push!(blk.args, :value)
+    blk
 end

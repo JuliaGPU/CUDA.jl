@@ -389,17 +389,31 @@ end
 end
 
 @testset "@cushow" begin
-    function use_cushow()
+    function kernel()
         seven_i32 = Int32(7)
         three_f64 = Float64(3)
         @cushow seven_i32
         @cushow three_f64
         @cushow 1f0 + 4f0
-        return nothing
+        return
     end
 
-    _, out = @grab_output @on_device use_cushow()
+    _, out = @grab_output @on_device kernel()
     @test out == "seven_i32 = 7$(endline)three_f64 = 3.000000$(endline)1.0f0 + 4.0f0 = 5.000000$(endline)"
+end
+
+@testset "@cushow array pointers" begin
+    function kernel()
+        a = @cuStaticSharedMem(Float32, 1)
+        b = @cuStaticSharedMem(Float32, 2)
+        @cushow pointer(a) pointer(b)
+        return
+    end
+
+    _, out = @grab_output @on_device kernel()
+    @test occursin("pointer(a) = ", out)
+    @test occursin("pointer(b) = ", out)
+    @test occursin("= 0x", out)
 end
 
 
