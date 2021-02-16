@@ -145,10 +145,54 @@ const usage_limit = PerDevice{Int}() do dev
   end
 end
 
-function actual_alloc(dev::CuDevice, bytes::Integer)
+@memoize function allocatable_memory(dev::CuDevice)
+  # NOTE: this function queries available memory, which obviously changes after we allocate,
+  #       so we memoize it to ensure only the first value is ever returned.
+  device!(dev) do
+    Base.min(available_memory(), usage_limit[dev])
+  end
+end
+
+function reserved_memory(dev::CuDevice)
+  # taken from TensorFlow's `MinSystemMemory`
+  #
+  # if the available memory is < 2GiB, we allocate 225MiB to system memory.
+  # otherwise, depending on the capability version assign
+  #  500MiB (for cuda_compute_capability <= 6.x) or
+  # 1050MiB (for cuda_compute_capability <= 7.x) or
+  # 1536MiB (for cuda_compute_capability >= 8.x)
+  available = allocatable_memory(dev)
+  if available <= 1<<31
+    225 * 1024 * 1024
+  else
+    cap = capability(dev)
+    if cap <= v"6"
+      500 * 1024 * 1024
+    elseif cap <= v"7"
+      1050 * 1024 * 1024
+    else
+      1536 * 1024 * 1024
+    end
+  end
+end
+
+# This limit depends on the actually available memory, which might be an underestimation
+# (e.g. when the GPU was in use initially). The hard limit does not rely on such heuristics.
+@memoize function soft_limit(dev::CuDevice)
+  available = allocatable_memory(dev)
+  reserve = reserved_memory(dev)
+  return available - reserve
+end
+
+function hard_limit(dev::CuDevice)
+  # ignore the available memory heuristic, and even allow to eat in to the reserve
+  usage_limit[dev]
+end
+
+function actual_alloc(dev::CuDevice, bytes::Integer, last_resort::Bool=false)
   buf = @device! dev begin
     # check the memory allocation limit
-    if usage[dev][] + bytes > usage_limit[dev]
+    if usage[dev][] + bytes > (last_resort ? hard_limit(dev) : soft_limit(dev))
       return nothing
     end
 
