@@ -8,6 +8,8 @@ using Base.Cartesian
 
 ## logical indexing
 
+Base.to_index(I::AnyCuArray{Bool}) = findall(I)
+
 Base.getindex(xs::AnyCuArray, bools::AbstractArray{Bool}) = getindex(xs, CuArray(bools))
 
 function Base.getindex(xs::AnyCuArray{T}, bools::AnyCuArray{Bool}) where {T}
