@@ -12,7 +12,7 @@ function pool_alloc(dev, sz)
         end
 
         @pool_timeit "$phase.1 alloc" begin
-            block = actual_alloc(dev, sz)
+            block = actual_alloc(dev, sz, phase==3)
         end
         block === nothing || break
     end

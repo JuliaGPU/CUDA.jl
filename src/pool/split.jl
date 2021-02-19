@@ -273,7 +273,7 @@ function pool_alloc(dev, sz)
             pool_reclaim_single(dev, pool_large[dev])
             pool_reclaim_single(dev, pool_small[dev])
         end
-        @pool_timeit "$phase.5b alloc" block = actual_alloc(dev, sz)
+        @pool_timeit "$phase.5b alloc" block = actual_alloc(dev, sz, phase==3)
     end
 
     if block !== nothing

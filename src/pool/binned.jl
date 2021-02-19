@@ -205,7 +205,7 @@ function pool_alloc(dev, bytes)
     end
 
     @pool_timeit "9. try alloc" begin
-      block = actual_alloc(dev, bytes)
+      block = actual_alloc(dev, bytes, true)
     end
   end
 

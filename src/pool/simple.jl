@@ -94,7 +94,7 @@ function pool_alloc(dev, sz)
 
         @pool_timeit "$phase.4 reclaim + alloc" begin
             pool_reclaim(dev, sz)
-            block = actual_alloc(dev, sz)
+            block = actual_alloc(dev, sz, phase==3)
         end
         block === nothing || break
     end
