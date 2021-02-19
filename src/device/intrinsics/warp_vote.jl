@@ -1,56 +1,126 @@
 # Warp Vote (B.13)
 
-export vote_all, vote_any, vote_ballot
+for mode in (:all, :any, :uni)
+    fname = Symbol("vote_$mode")
+    fname_sync = Symbol("vote_$(mode)_sync")
+    @eval export $fname, $fname_sync
+
+    intrinsic = "llvm.nvvm.vote.$mode"
+    @eval begin
+        # FIXME: ccall($intrinsic, llvmcall, $rettyp, (Bool,), pred)
+        #        doesn't use i1 for Bool
+        @inline $fname(pred) =
+            Base.llvmcall($("""
+                declare i1 @$intrinsic(i1)
+
+                define i8 @entry(i8) #0 {
+                    %predicate = icmp eq i8 %0, 1
+                    %llvmbool = call i1 @$intrinsic(i1 %predicate)
+                    %jlbool = zext i1 %llvmbool to i8
+                    ret i8 %jlbool
+                }
+
+                attributes #0 = { alwaysinline }""", "entry"),
+            Bool, Tuple{Bool}, pred)
+    end
+
+    # warp-synchronous
+    intrinsic = "llvm.nvvm.vote.$mode.sync"
+    @eval begin
+        @inline $fname_sync(mask, pred) =
+            Base.llvmcall($("""
+                declare i1 @$intrinsic(i32, i1)
+
+                define i8 @entry(i32 %mask, i8) #0 {
+                    %predicate = icmp eq i8 %0, 1
+                    %llvmbool = call i1 @$intrinsic(i32 %mask, i1 %predicate)
+                    %jlbool = zext i1 %llvmbool to i8
+                    ret i8 %jlbool
+                }
+
+                attributes #0 = { alwaysinline }""", "entry"),
+            Bool, Tuple{UInt32, Bool}, mask, pred)
+    end
+end
+
+# ballot returns an integer, so we need to repeat the above
+for mode in (:ballot, )
+    fname = Symbol("vote_$mode")
+    fname_sync = Symbol("vote_$(mode)_sync")
+    @eval export $fname, $fname_sync
+
+    intrinsic = "llvm.nvvm.vote.$mode"
+    @eval begin
+        @inline $fname(pred) =
+            Base.llvmcall($("""
+                declare i32 @$intrinsic(i1)
+
+                define i32 @entry(i8) #0 {
+                    %predicate = icmp eq i8 %0, 1
+                    %ret = call i32 @$intrinsic(i1 %predicate)
+                    ret i32 %ret
+                }
+
+                attributes #0 = { alwaysinline }""", "entry"),
+            UInt32, Tuple{Bool}, pred)
+    end
+
+    # warp-synchronous
+    intrinsic = "llvm.nvvm.vote.$mode.sync"
+    @eval begin
+        @inline $fname_sync(mask, pred) =
+            Base.llvmcall($("""
+                declare i32 @$intrinsic(i32, i1)
+
+                define i32 @entry(i32 %mask, i8) #0 {
+                    %predicate = icmp eq i8 %0, 1
+                    %ret = call i32 @$intrinsic(i32 %mask, i1 %predicate)
+                    ret i32 %ret
+                }
+
+                attributes #0 = { alwaysinline }""", "entry"),
+            UInt32, Tuple{UInt32, Bool}, mask, pred)
+    end
+end
+
 
 """
     vote_all(predicate::Bool)
+    vote_all_sync(mask::UInt32, predicate::Bool)
 
-Evaluate `predicate` for all active threads of the warp and return non-zero if and only if
-`predicate` evaluates to non-zero for all of them.
+Evaluate `predicate` for all active threads of the warp and return whether `predicate`
+is true for all of them.
 """
-@inline function vote_all(pred::Bool)
-    return @asmcall(
-        """{
-               .reg .pred %p1;
-               .reg .pred %p2;
-               setp.ne.u32 %p1, \$1, 0;
-               vote.all.pred %p2, %p1;
-               selp.s32 \$0, 1, 0, %p2;
-           }""", "=r,r", true,
-        Int32, Tuple{Int32}, convert(Int32, pred)) != Int32(0)
-end
+vote_all
+@doc (@doc vote_all) vote_all_sync
 
 """
     vote_any(predicate::Bool)
+    vote_any_sync(mask::UInt32, predicate::Bool)
 
-Evaluate `predicate` for all active threads of the warp and return non-zero if and only if
-`predicate` evaluates to non-zero for any of them.
+Evaluate `predicate` for all active threads of the warp and return whether `predicate`
+is true for any of them.
 """
-@inline function vote_any(pred::Bool)
-    return @asmcall(
-        """{
-               .reg .pred %p1;
-               .reg .pred %p2;
-               setp.ne.u32 %p1, \$1, 0;
-               vote.any.pred %p2, %p1;
-               selp.s32 \$0, 1, 0, %p2;
-           }""", "=r,r", true,
-        Int32, Tuple{Int32}, convert(Int32, pred)) != Int32(0)
-end
+vote_any
+@doc (@doc vote_any) vote_any_sync
+
+"""
+    vote_uni(predicate::Bool)
+    vote_uni_sync(mask::UInt32, predicate::Bool)
+
+Evaluate `predicate` for all active threads of the warp and return whether `predicate` is
+the same for any of them.
+"""
+vote_uni
+@doc (@doc vote_uni) vote_uni_sync
 
 """
     vote_ballot(predicate::Bool)
+    vote_ballot_sync(mask::UInt32, predicate::Bool)
 
 Evaluate `predicate` for all active threads of the warp and return an integer whose Nth bit
-is set if and only if `predicate` evaluates to non-zero for the Nth thread of the warp and
-the Nth thread is active.
+is set if and only if `predicate` is true for the Nth thread of the warp and the Nth thread
+is active.
 """
-@inline function vote_ballot(pred::Bool)
-    return @asmcall(
-        """{
-               .reg .pred %p1;
-               setp.ne.u32 %p1, \$1, 0;
-               vote.ballot.b32 \$0, %p1;
-           }""", "=r,r", true,
-        UInt32, Tuple{Int32}, convert(Int32, pred))
-end
+vote_ballot
+@doc (@doc vote_ballot) vote_ballot_sync
