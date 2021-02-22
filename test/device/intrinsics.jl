@@ -847,11 +847,82 @@ end
 
 @testset "voting" begin
 
+@testset "any" begin
+    d_a = CuArray([false])
+
+    function kernel(a, i)
+        vote = vote_any_sync(FULL_MASK, threadIdx().x >= i)
+        if threadIdx().x == 1
+            a[1] = vote
+        end
+        return
+    end
+
+    @cuda threads=2 kernel(d_a, 1)
+    @test Array(d_a)[]
+
+    @cuda threads=2 kernel(d_a, 2)
+    @test Array(d_a)[]
+
+    @cuda threads=2 kernel(d_a, 3)
+    @test !Array(d_a)[]
+end
+
+@testset "all" begin
+    d_a = CuArray([false])
+
+    function kernel(a, i)
+        vote = vote_all_sync(FULL_MASK, threadIdx().x >= i)
+        if threadIdx().x == 1
+            a[1] = vote
+        end
+        return
+    end
+
+    @cuda threads=2 kernel(d_a, 1)
+    @test Array(d_a)[]
+
+    @cuda threads=2 kernel(d_a, 2)
+    @test !Array(d_a)[]
+
+    @cuda threads=2 kernel(d_a, 3)
+    @test !Array(d_a)[]
+end
+
+@testset "uni" begin
+    d_a = CuArray([false])
+
+    function kernel1(a, i)
+        vote = vote_uni_sync(FULL_MASK, threadIdx().x >= i)
+        if threadIdx().x == 1
+            a[1] = vote
+        end
+        return
+    end
+
+    @cuda threads=2 kernel1(d_a, 1)
+    @test Array(d_a)[]
+
+    @cuda threads=2 kernel1(d_a, 2)
+    @test !Array(d_a)[]
+
+    function kernel2(a, i)
+        vote = vote_uni_sync(FULL_MASK, blockDim().x >= i)
+        if threadIdx().x == 1
+            a[1] = vote
+        end
+        return
+    end
+
+    @cuda threads=2 kernel2(d_a, 3)
+    @test Array(d_a)[]
+end
+
 @testset "ballot" begin
     d_a = CuArray(UInt32[0])
 
     function kernel(a, i)
-        vote = vote_ballot(threadIdx().x == i)
+        vote = vote_ballot_sync(FULL_MASK, threadIdx().x == i)
         if threadIdx().x == 1
             a[1] = vote
         end
@@ -863,48 +934,6 @@ end
         @cuda threads=len kernel(d_a, i)
         @test Array(d_a) == [2^(i-1)]
     end
-end
-
-@testset "any" begin
-    d_a = CuArray(UInt32[0])
-
-    function kernel(a, i)
-        vote = vote_any(threadIdx().x >= i)
-        if threadIdx().x == 1
-            a[1] = vote
-        end
-        return
-    end
-
-    @cuda threads=2 kernel(d_a, 1)
-    @test Array(d_a) == [1]
-
-    @cuda threads=2 kernel(d_a, 2)
-    @test Array(d_a) == [1]
-
-    @cuda threads=2 kernel(d_a, 3)
-    @test Array(d_a) == [0]
-end
-
-@testset "all" begin
-    d_a = CuArray(UInt32[0])
-
-    function kernel(a, i)
-        vote = vote_all(threadIdx().x >= i)
-        if threadIdx().x == 1
-            a[1] = vote
-        end
-        return
-    end
-
-    @cuda threads=2 kernel(d_a, 1)
-    @test Array(d_a) == [1]
-
-    @cuda threads=2 kernel(d_a, 2)
-    @test Array(d_a) == [0]
-
-    @cuda threads=2 kernel(d_a, 3)
-    @test Array(d_a) == [0]
 end
 
 end
