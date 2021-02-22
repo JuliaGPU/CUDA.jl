@@ -35,7 +35,7 @@ if do_help
                --quickfail        Fail the entire run as soon as a single test errored.
                --jobs=N           Launch `N` processes to perform tests (default: Threads.nthreads()).
                --gpus=N           Expose `N` GPUs to test processes (default: 1).
-               --memcheck[=tool]  Run the tests under `cuda-memcheck`.
+               --sanitize[=tool]  Run the tests under `compute-sanitizer`.
                --snoop=FILE       Snoop on compiled methods and save to `FILE`.
 
                Remaining arguments filter the tests that will be executed.""")
@@ -43,7 +43,7 @@ if do_help
 end
 _, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
 _, gpus = extract_flag!(ARGS, "--gpus", 1)
-do_memcheck, memcheck_tool = extract_flag!(ARGS, "--memcheck", "memcheck")
+do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
 do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
 do_thorough, _ = extract_flag!(ARGS, "--thorough")
 do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
@@ -95,6 +95,11 @@ if do_list
         println(" - $test")
     end
     exit(0)
+end
+## no options should remain
+optlike_args = filter(startswith("-"), ARGS)
+if !isempty(optlike_args)
+    error("Unknown test options `$(join(optlike_args, " "))` (try `--help` for usage instructions)")
 end
 ## the remaining args filter tests
 if !isempty(ARGS)
@@ -161,13 +166,6 @@ is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
 if VERSION < v"1.5-" || first(picks).cap < v"7.0"
     push!(skip_tests, "device/wmma")
 end
-if do_memcheck
-    # CUFFT causes internal failures in cuda-memcheck
-    push!(skip_tests, "cufft")
-    # CUTENSOR tests result in illegal memory accesses unregistering memory
-    push!(skip_tests, "cutensor")
-    # there's also a bunch of `memcheck || ...` expressions in the tests themselves
-end
 if Sys.ARCH == :aarch64
     # CUFFT segfaults on ARM
     push!(skip_tests, "cufft")
@@ -206,10 +204,11 @@ if Base.JLOptions().project != C_NULL
 end
 const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
-    exename = if do_memcheck
-        memcheck = CUDA.memcheck()
-        @info "Running under $(readchomp(`$memcheck --version`))"
-        `$memcheck --tool $memcheck_tool $test_exename`
+    exename = if do_sanitize
+        sanitizer = CUDA.compute_sanitizer()
+        @info "Running under $(readchomp(`$sanitizer --version`))"
+        # NVIDIA bug 3263616: compute-sanitizer crashes when generating host backtraces
+        `$sanitizer --tool $sanitize_tool --launch-timeout=0 --show-backtrace=no --target-processes=all $test_exename`
     else
         test_exename
     end
@@ -283,7 +282,7 @@ function print_testworker_stats(test, wrkr, resp)
     end
 end
 global print_testworker_started = (name, wrkr)->begin
-    if do_memcheck
+    if do_sanitize
         lock(print_lock)
         try
             printstyled(name, color=:white)

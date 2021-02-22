@@ -10,10 +10,10 @@ testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
 
 using Random
 
-# detect cuda-memcheck, to disable testts that are known to fail under cuda-memcheck
-# (e.g. those using CUPTI) or result in verbose output (deliberate API errors)
-macro not_if_memcheck(ex)
-    haskey(ENV, "CUDA_MEMCHECK") || return esc(ex)
+# detect compute-sanitizer, to disable incompatible tests (e.g. using CUPTI),
+# and to skip tests that are known to generate innocuous API errors
+macro not_if_sanitize(ex)
+    any(contains("NV_SANITIZER"), keys(ENV)) || return esc(ex)
     quote
         @test_skip $ex
     end

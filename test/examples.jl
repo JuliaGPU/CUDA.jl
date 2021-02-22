@@ -1,3 +1,7 @@
+# NVIDIA bug 3263616: compute-sanitizer crashes when generating host backtraces,
+#                     but --show-backtrace=no does not survive execve.
+@not_if_sanitize begin
+
 # these tests spawn subprocesses, so reset the current context to conserve memory
 CUDA.release() == v"11.2" || CUDA.device_reset!()
 
@@ -27,4 +31,6 @@ cd(examples_dir) do
 
         @test success(pipeline(`$cmd $example`, stderr=stderr))
     end
+end
+
 end
