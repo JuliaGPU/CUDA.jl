@@ -186,6 +186,14 @@ function use_artifact_cuda()
     __libdevice[] = artifact_file(artifact.dir, joinpath("share", "libdevice", "libdevice.10.bc"))
     @assert isfile(__libdevice[])
 
+    # HACK: eagerly load cublasLt, required by cublas (but with the same version), to prevent
+    #       s system CUDA installation from messing with our artifacts (JuliaGPU/CUDA.jl#609)
+    if artifact.version >= v"10.1"
+        version = cuda_library_version("cublas", artifact.version)
+        path = artifact_library(artifact.dir, "cublasLt", version)
+        Libdl.dlopen(path)
+    end
+
     for library in ("cublas", "cusparse", "cusolver", "cufft", "curand")
         handle = getfield(CUDA, Symbol("__lib$library"))
 
