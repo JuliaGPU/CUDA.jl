@@ -42,15 +42,18 @@ function default_rng()
         ctx = context()
         CURAND_THREAD_RNGs[tid] = get!(task_local_storage(), (:CURAND, ctx)) do
             rng = lock(rng_cache_lock) do
-                if isempty(idle_curand_rngs[ctx])
+                rng = if isempty(idle_curand_rngs[ctx])
                     RNG()
                 else
                     pop!(idle_curand_rngs[ctx])
                 end
-            end
 
-            # protect handles from collection by the GC when the owning task is collected
-            push!(active_curand_rngs, rng)
+                # protect handles from the GC when the owning task is collected. we only
+                # need to do this for CURAND, as handles typically don't have finalizers.
+                push!(active_curand_rngs, rng)
+
+                rng
+            end
 
             finalizer(current_task()) do task
                 lock(rng_cache_lock) do
@@ -76,7 +79,7 @@ function GPUArrays.default_rng(::Type{<:CuArray})
         ctx = context()
         GPUARRAY_THREAD_RNGs[tid] = get!(task_local_storage(), (:GPUArraysRNG, ctx)) do
             rng = lock(rng_cache_lock) do
-                if isempty(idle_gpuarray_rngs[ctx])
+                rng = if isempty(idle_gpuarray_rngs[ctx])
                     dev = device()
                     N = attribute(dev, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
                     state = CuArray{NTuple{4, UInt32}}(undef, N)
@@ -84,9 +87,12 @@ function GPUArrays.default_rng(::Type{<:CuArray})
                 else
                     pop!(idle_gpuarray_rngs[ctx])
                 end
+
+                push!(active_gpuarray_rngs, rng)
+
+                rng
             end
 
-            push!(active_gpuarray_rngs, rng)
             finalizer(current_task()) do task
                 lock(rng_cache_lock) do
                     push!(idle_gpuarray_rngs[ctx], rng)
