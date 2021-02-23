@@ -117,13 +117,20 @@ function initialize_api()
     CUDA.initialize_cuda_context()
 end
 
-macro check(ex)
+macro check(ex, errs...)
+    check = :(isequal(err, CUPTI_ERROR_OUT_OF_MEMORY))
+    for err in errs
+        check = :($check || isequal(err, $(esc(err))))
+    end
+
     quote
-        res = $(esc(ex))
-        if res != CUPTI_SUCCESS
+        res = @retry_reclaim err->$check $(esc(ex))
+        if res == CUPTI_ERROR_OUT_OF_MEMORY
+            throw(OutOfGPUMemoryError())
+        elseif res != CUPTI_SUCCESS
             throw_api_error(res)
         end
 
-        return
+        nothing
     end
 end

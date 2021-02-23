@@ -1,13 +1,6 @@
 function cudnnCreate()
     handle_ref = Ref{cudnnHandle_t}()
-    res = @retry_reclaim err->isequal(err, CUDNN_STATUS_ALLOC_FAILED) ||
-                              isequal(err, CUDNN_STATUS_NOT_INITIALIZED) ||
-                              isequal(err, CUDNN_STATUS_INTERNAL_ERROR) begin
-        unsafe_cudnnCreate(handle_ref)
-    end
-    if res != CUDNN_STATUS_SUCCESS
-         throw_api_error(res)
-    end
+    @check unsafe_cudnnCreate(handle_ref) CUDNN_STATUS_NOT_INITIALIZED CUDNN_STATUS_INTERNAL_ERROR
     return handle_ref[]
 end
 

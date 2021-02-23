@@ -24,13 +24,7 @@ using ..CUSPARSE: CuSparseMatrixCSR, CuSparseMatrixCSC,
 
 function cusolverSpCreate()
   handle_ref = Ref{cusolverSpHandle_t}()
-  res = @retry_reclaim err->isequal(err, CUSOLVER_STATUS_ALLOC_FAILED) ||
-                            isequal(err, CUSOLVER_STATUS_NOT_INITIALIZED) begin
-    unsafe_cusolverSpCreate(handle_ref)
-  end
-  if res != CUSOLVER_STATUS_SUCCESS
-    throw_api_error(res)
-  end
+  @check unsafe_cusolverSpCreate(handle_ref) CUSOLVER_STATUS_NOT_INITIALIZED
   return handle_ref[]
 end
 
@@ -256,13 +250,7 @@ using ..CUBLAS: unsafe_batch
 
 function cusolverDnCreate()
   handle_ref = Ref{cusolverDnHandle_t}()
-  res = @retry_reclaim err->isequal(err, CUSOLVER_STATUS_ALLOC_FAILED) ||
-                            isequal(err, CUSOLVER_STATUS_NOT_INITIALIZED) begin
-    unsafe_cusolverDnCreate(handle_ref)
-  end
-  if res != CUSOLVER_STATUS_SUCCESS
-    throw_api_error(res)
-  end
+  @check unsafe_cusolverDnCreate(handle_ref) CUSOLVER_STATUS_NOT_INITIALIZED
   return handle_ref[]
 end
 

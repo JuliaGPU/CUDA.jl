@@ -40,6 +40,6 @@ macro check(ex)
             throw_api_error(res)
         end
 
-        return
+        nothing
     end
 end

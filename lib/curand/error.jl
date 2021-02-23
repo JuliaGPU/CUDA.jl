@@ -57,13 +57,20 @@ function initialize_api()
     CUDA.initialize_cuda_context()
 end
 
-macro check(ex)
+macro check(ex, errs...)
+    check = :(isequal(err, CURAND_STATUS_ALLOCATION_FAILED))
+    for err in errs
+        check = :($check || isequal(err, $(esc(err))))
+    end
+
     quote
-        res = @retry_reclaim isequal(CURAND_STATUS_ALLOCATION_FAILED) $(esc(ex))
-        if res != CURAND_STATUS_SUCCESS
+        res = @retry_reclaim err->$check $(esc(ex))
+        if res == CURAND_STATUS_ALLOCATION_FAILED
+            throw(OutOfGPUMemoryError())
+        elseif res != CURAND_STATUS_SUCCESS
             throw_api_error(res)
         end
 
-        return
+        nothing
     end
 end
