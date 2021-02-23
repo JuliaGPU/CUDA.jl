@@ -55,16 +55,22 @@ end
 
 const cpucall_areas = Dict{CuContext, Mem.HostBuffer}()
 
+dump_memory(ty=UInt8) = dump_memory{UInt8}(ty)
+dump_memory(ty::Type{T}, size=cpucall_area_size() ÷ sizeof(ty), ctx::CuContext=context()) where {T} = dump_memory(ty, size_in_bytes, ctx)
+function dump_memory(::Type{T}, size::Int64, ctx::CuContext=context()) where {T}
+    ptr    = convert(CuPtr{T}, cpucall_areas[ctx])
+    cuarray = unsafe_wrap(CuArray{T}, ptr, size)
+    println("Dump $cuarray")
+end
+
 function reset_cpucall_area!(ctx::CuContext)
     println("resetting")
-    ptr    = convert(Ptr{Int64}, cpucall_areas[ctx])
-    unsafe_store!(ptr, 0)
-    unsafe_store!(ptr, 0, 1)
-    unsafe_store!(ptr, 0, 2)
-    unsafe_store!(ptr, 0, 3)
-    unsafe_store!(ptr, 0, 4)
-    unsafe_store!(ptr, 0, 5)
-    unsafe_store!(ptr, 0, 6)
+    dump_memory(Int, 10, ctx)
+    ptr    = convert(CuPtr{UInt8}, cpucall_areas[ctx])
+    cuarray = unsafe_wrap(CuArray{UInt8}, ptr, cpucall_area_size())
+
+    # Reset array to 0
+    fill!(cuarray, 0)
 end
 
 function create_cpucall_area!(mod::CuModule)
@@ -88,12 +94,12 @@ function handle_cpucall(ctx::CuContext)
     llvmptr    = reinterpret(Core.LLVMPtr{Int64,AS.Global}, ptr)
 
     flag = unsafe_load(ptr)
-    if flag != -3
+    if flag != CPU_CALL
         return
     end
 
     # Notify CPU is handling this cpucall
-    unsafe_store!(ptr, -4)
+    unsafe_store!(ptr, CPU_HANDLING)
 
     # Fetch this cpucall
     cpucall = unsafe_load(ptr+8)
@@ -101,18 +107,14 @@ function handle_cpucall(ctx::CuContext)
     println("handling syscall $cpucall")
     try
         ## Handle cpucall
-        handle_cpucall(Val(cpucall), ptr_u8+24)
+        handle_cpucall(Val(cpucall), ptr_u8+16)
     catch e
         println("ERROR ERROR")
         println(e)
     end
 
     # Notify end
-    unsafe_store!(ptr, -1)
-
-    # Store finish by updating counter
-    index = unsafe_load(ptr + 16) + 1
-    unsafe_store!(llvmptr+16, index)
+    unsafe_store!(ptr, CPU_DONE)
 end
 
 struct TypeCache{T, I}

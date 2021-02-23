@@ -49,10 +49,10 @@ function acquire_lock(ptr::Core.LLVMPtr{Int64,AS.Global}, expected::Int64, value
 end
 
 const IDLE = 0
-const CPU_DONE = -1
-const LOADING = -2
-const CPU_CALL = -3
-const CPU_HANDLING = -4
+const CPU_DONE = 1
+const LOADING = 2
+const CPU_CALL = 3
+const CPU_HANDLING = 4
 
 function call_syscall(load_f::Function, syscall::Int64, load_ret_f::Function)
     flag = cpucall_area()
@@ -62,30 +62,25 @@ function call_syscall(load_f::Function, syscall::Int64, load_ret_f::Function)
 
     ## STORE ARGS
     acquire_lock(llvmptr, IDLE, LOADING, 1)
-    load_f(llvmptr_u8 + 24)
+    load_f(llvmptr_u8 + 16)
     old = atomic_xchg!(llvmptr + 8, syscall)
-    # @cuprint "Was, $(old)\n"
-
-    index = unsafe_load(llvmptr + 16) + 1
 
     ## Notify CPU of syscall 'syscall'
     acquire_lock(llvmptr, LOADING, CPU_CALL, 2)
 
     try_count = 0
-    while unsafe_load(llvmptr + 16) != index && try_count < 500000
+    while unsafe_load(llvmptr) != CPU_DONE && try_count < 500000
         try_count += 1
-        threadfence()
+        threadfence_system()
     end
     if try_count == 500000
         @cuprintln("Special try_count maxed out")
     end
 
-    index = unsafe_load(llvmptr + 16)
-
     ## GET RETURN ARGS
     acquire_lock(llvmptr, CPU_DONE, LOADING, 3)
 
-    ret = load_ret_f(llvmptr_u8 + 24)
+    ret = load_ret_f(llvmptr_u8 + 16)
 
     ## Reset for next GPU syscall
     acquire_lock(llvmptr, LOADING, IDLE, 4)
