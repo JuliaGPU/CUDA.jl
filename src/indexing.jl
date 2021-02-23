@@ -8,6 +8,10 @@ using Base.Cartesian
 
 ## logical indexing
 
+# TODO: A more performant solution is to remove this specialization and write a custom
+# kernel in GPUArrays.jl for `setindex!` when the indices are `::LogicalIndex`.
+Base.to_index(I::AnyCuArray{Bool}) = findall(I)
+
 Base.getindex(xs::AnyCuArray, bools::AbstractArray{Bool}) = getindex(xs, CuArray(bools))
 
 function Base.getindex(xs::AnyCuArray{T}, bools::AnyCuArray{Bool}) where {T}

@@ -253,6 +253,13 @@ end
   @test testf(x -> filter(y->y .> 0.5, x), rand(2))
   @test testf(x -> filter(y->y .> 0.5, x), rand(2,2))
   @test testf(x -> filter(y->y .> 0.5, x), rand(2,2,2))
+
+  A = CuArray([1 2; 3 4; 5 6])
+  @test Array(A[CuArray([true, false, true]), :]) == [1 2; 5 6]
+
+  x = CuArray([0.0, 0.25, 0.5, 1.0])
+  x[x .> 0] .= 0
+  @test Array(x) == zeros(4)
 end
 
 @testset "reverse" begin
