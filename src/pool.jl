@@ -191,6 +191,7 @@ module Pool
 @enum MemoryPool None Simple Binned Split
 end
 const active_pool = Ref{Pool.MemoryPool}()
+const async_alloc = Ref{Bool}()
 
 macro pooled(ex)
     @assert Meta.isexpr(ex, :call)
@@ -616,16 +617,19 @@ function __init_pool__()
   initialize!(requested, ndevices())
 
   # memory pool configuration
-  default_pool = version() >= v"11.2" ? "none" : "binned"
+  default_pool = version() >= v"11.2" ? "cuda" : "binned"
   pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", default_pool)
-  active_pool[] = if pool_name == "none"
-      Pool.None
+  active_pool[], async_alloc[] = if pool_name == "none"
+      Pool.None, false
   elseif pool_name == "simple"
-      Pool.Simple
+      Pool.Simple, false
   elseif pool_name == "binned"
-      Pool.Binned
+      Pool.Binned, false
   elseif pool_name == "split"
-      Pool.Split
+      Pool.Split, false
+  elseif pool_name == "cuda"
+      @assert version() >= v"11.2" "The CUDA memory pool is only supported on CUDA 11.2+"
+      Pool.None, true
   else
       error("Invalid memory pool '$pool_name'")
   end

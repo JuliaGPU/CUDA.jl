@@ -68,7 +68,7 @@ function alloc(::Type{DeviceBuffer}, bytesize::Integer;
     bytesize == 0 && return DeviceBuffer(CU_NULL, 0)
 
     ptr_ref = Ref{CUDA.CUdeviceptr}()
-    if CUDA.version() >= v"11.2"
+    if CUDA.async_alloc[]
         if pool !== nothing
             CUDA.cuMemAllocFromPoolAsync(ptr_ref, bytesize, pool, stream)
         else
@@ -86,7 +86,7 @@ end
 function free(buf::DeviceBuffer; async::Bool=false, stream::CuStream=stream())
     pointer(buf) == CU_NULL && return
 
-    if CUDA.version() >= v"11.2"
+    if CUDA.async_alloc[]
         CUDA.cuMemFreeAsync(buf, stream)
         async || synchronize(stream)
     else

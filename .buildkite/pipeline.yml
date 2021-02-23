@@ -36,8 +36,10 @@ steps:
             - examples
     agents:
       queue: "juliagpu"
-      cuda: "11.2"    # older versions of CUDA have issues
-      cap: "recent"   # test as much as possible
+      cuda: "11.2"                    # older versions of CUDA have issues
+      cap: "recent"                   # test as much as possible
+    env:
+      JULIA_CUDA_MEMORY_POOL: 'none'  # CUDA's memory pool requires compute-sanitizer
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 120
 

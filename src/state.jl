@@ -337,13 +337,13 @@ the [`CUDA.atdeviceswitch`](@ref) hook to fire when `initialize_cuda_context` is
 so it is generally not needed to subscribe to the reset hook specifically.
 """
 function device_reset!(dev::CuDevice=device())
-    if version() >= v"11.2" # NVIDIA bug #3240770
-        @error """Due to a bug in CUDA, resetting the device is not possible on CUDA 11.2.
+    if async_alloc[] # NVIDIA bug #3240770
+        @error """Due to a bug in CUDA, resetting the device is not possible on CUDA 11.2 when using the stream-ordered memory allocator.
 
-                  If you are calling this function to conserve memory, try disabling the CUDA.jl memory pool:
-                  \$ JULIA_CUDA_MEMORY_POOL=none julia ...
-                  This will prevent CUDA.jl from caching memory allocations, greatly reducing memory usage.
-                  WARNING: only do so on CUDA 11.2 or higher, or this will seriously regress performance."""
+                  If you are calling this function to free memory, that may not be required anymore
+                  as the stream-ordered memory allocator releases memory much more eagerly.
+                  If you do need this functionality, switch to another memory pool by setting
+                  the `JULIA_CUDA_MEMORY_POOL` environment variable to, e.g., `binned`."""
         return
     end
 
