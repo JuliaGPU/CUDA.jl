@@ -127,7 +127,11 @@ function actual_alloc(dev::CuDevice, bytes::Integer, last_resort::Bool=false)
     try
       time = Base.@elapsed begin
         @timeit_debug alloc_to "alloc" begin
-          buf = Mem.alloc(Mem.Device, bytes; async=true)
+          buf = Mem.alloc(Mem.Device, bytes; async=true,
+                          pool = (async_alloc[] ? pool() : nothing))
+          # we only need a memory pool when we'll be using the async allocator.
+          # this avoids a needless warning when running under cuda-memcheck,
+          # which doesn't support the stream-ordered memory allocator.
         end
       end
 
@@ -393,7 +397,7 @@ CUDA memory pool) and return a specific error code when failing to.
 macro retry_reclaim(isfailed, ex)
   quote
     ret = nothing
-    for phase in 1:3
+    for phase in 1:4
       ret = $(esc(ex))
       $(esc(isfailed))(ret) || break
 
@@ -406,6 +410,10 @@ macro retry_reclaim(isfailed, ex)
       elseif phase == 3
         GC.gc(true)
         reclaim()
+      elseif phase == 4 && async_alloc[]
+        # this phase is unique to retry_reclaim, as regular allocations come from the pool
+        # so are assumed to never need to trim its contents.
+        trim(pool())
       end
     end
     ret

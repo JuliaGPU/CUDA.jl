@@ -1,6 +1,6 @@
 # Stream-orderdered memory allocator
 
-export CuMemoryPool
+export CuMemoryPool, trim
 
 mutable struct CuMemoryPool
     handle::CUmemoryPool
@@ -37,3 +37,5 @@ Base.unsafe_convert(::Type{CUmemoryPool}, pool::CuMemoryPool) = pool.handle
 
 Base.:(==)(a::CuMemoryPool, b::CuMemoryPool) = a.handle == b.handle
 Base.hash(pool::CuMemoryPool, h::UInt) = hash(pool.handle, h)
+
+trim(pool::CuMemoryPool, bytes_to_keep::Integer=0) = cuMemPoolTrimTo(pool, bytes_to_keep)

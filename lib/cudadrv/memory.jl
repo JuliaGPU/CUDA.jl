@@ -64,7 +64,7 @@ for access on the CPU.
 """
 function alloc(::Type{DeviceBuffer}, bytesize::Integer;
                async::Bool=false, stream::CuStream=stream(),
-               pool::Union{Nothing,CuMemoryPool}=pool())
+               pool::Union{Nothing,CuMemoryPool}=nothing)
     bytesize == 0 && return DeviceBuffer(CU_NULL, 0)
 
     ptr_ref = Ref{CUDA.CUdeviceptr}()
