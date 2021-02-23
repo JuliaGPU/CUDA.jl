@@ -39,7 +39,9 @@ function unsafe_free!(xs::CuArray)
   end
 
   if isvalid(xs.ctx)
-    free(xs.baseptr)
+    context!(xs.ctx) do
+      free(xs.baseptr)
+    end
   end
   xs.state = ARRAY_FREED
 
@@ -408,7 +410,9 @@ end
     offset = Base.compute_offset1(a, 1, I) * sizeof(T)
 
     if a.state == ARRAY_MANAGED
-        alias(a.baseptr)
+        context!(a.ctx) do
+            alias(a.baseptr)
+        end
     end
     b = CuArray{T,M}(a.baseptr, dims, a.ctx; offset=a.offset+offset)
     if a.state == ARRAY_MANAGED
@@ -455,7 +459,9 @@ function Base.reshape(a::CuArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
   end
 
   if a.state == ARRAY_MANAGED
-      alias(a.baseptr)
+      context!(a.ctx) do
+          alias(a.baseptr)
+      end
   end
   b = CuArray{T,N}(a.baseptr, dims, a.ctx; offset=a.offset)
   if a.state == ARRAY_MANAGED
@@ -499,7 +505,9 @@ function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
   osize = tuple(size1, Base.tail(isize)...)
 
   if a.state == ARRAY_MANAGED
-      alias(a.baseptr)
+      context!(a.ctx) do
+          alias(a.baseptr)
+      end
   end
   b = CuArray{T,N}(a.baseptr, osize, a.ctx; offset=a.offset)
   if a.state == ARRAY_MANAGED
