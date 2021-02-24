@@ -335,6 +335,13 @@ If your library or code needs to perform an action when the active context chang
 add a hook using [`CUDA.atdevicereset`](@ref). Resetting the device will also cause
 the [`CUDA.atdeviceswitch`](@ref) hook to fire when `initialize_cuda_context` is called,
 so it is generally not needed to subscribe to the reset hook specifically.
+
+!!! warning
+
+    This function is broken on CUDA 11.2 when using the CUDA memory pool (the default).
+    If you need to reset the device, use another memory pool by setting the
+    `JULIA_CUDA_MEMORY_POOL` environment variable to, e.g., `binned` before importing
+    this package.
 """
 function device_reset!(dev::CuDevice=device())
     if async_alloc[] # NVIDIA bug #3240770
