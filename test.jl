@@ -19,36 +19,44 @@ struct Foo
     y::Int
 end
 
-function testing(c, d)
-    println("TESTING $c $d")
+function testing3(c, d)
+    println("$c - $d")
+    CUDA.dump_memory(Int32, 32)
     return c-d
 end
 
 function testing2(c)
     println("TESTING2 $c")
+    return
+end
+
+const cuarrays = []
+
+function genArrays()
+    a = CuArray(zeros(UInt8, 2))
+    println("HERE1 $a")
+    push!(cuarrays, a)
+
+    return a
 end
 
 function kernel2()
-    x = @CUDA.cpu types=(Int64, Int64,Int64,) testing(5, 45)
-    @cuprintln("HEre %d\n", x)
+    # @CUDA.cpu types=(Nothing, Int64,) testing2(5)
+    x = @CUDA.cpu types=(Int64, Int64, Int64,) testing3(5, 45)
+    ca = @CUDA.cpu types=(CuDeviceVector{UInt8, 1},) genArrays()
+    ca[1] = 5
+    @cuprintln("Result %d\n", x)
     return
 end
 
 function main()
-    width = 16
-    files = ["artifacts.toml", "ARTIFACTS.toml"]
-    d = zeros(UInt8, width, size(files)[1])
+    @cuda blocks=1 threads=2 kernel2()
 
-    for (i, file) in enumerate(files)
-        offset = ((i-1)*width) + 1
-        copyto!(d, offset, Vector{UInt8}(file))
-    end
+    synchronize()
+    sleep(0.1)
+    flush(stdout)
 
-    # d = zeros(Int, 32)
-    cu_d = CuArray(d)
+    println(cuarrays)
 
-    @cuda blocks=1 threads=1 kernel2()
-
-    sleep(0.4)
     return
 end

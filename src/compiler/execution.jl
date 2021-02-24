@@ -109,16 +109,19 @@ macro cuda(ex...)
     return esc(code)
 end
 
-
 ## host to device value conversion
 
 struct Adaptor end
+
+## device to host value conversion
+
+struct InvAdaptor end
 
 # convert CUDA host pointers to device pointers
 # TODO: use ordinary ptr?
 Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = reinterpret(LLVMPtr{T,AS.Generic}, p)
 
-Adapt.adapt_storage(to::Adaptor, p::String) = Adapt.adapt_storage(to::Adaptor, CuArray(Vector{UInt8}(p)))
+Adapt.adapt_storage(to::Adaptor, p::String) = adapt(to, CuArray(Vector{UInt8}(p)))
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 struct CuRefValue{T} <: Ref{T}
@@ -134,6 +137,10 @@ Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
 Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
   Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
 
+# convert CUDA device points to host pointers
+Adapt.adapt_storage(to::InvAdaptor, p::LLVMPtr{T,AS.Generic}) where {T} = reinterpret(CuPtr{T}, p)
+
+
 """
     cudaconvert(x)
 
@@ -145,6 +152,7 @@ Do not add methods to this function, but instead extend the underlying Adapt.jl 
 register methods for the the `CUDA.Adaptor` type.
 """
 cudaconvert(arg) = adapt(Adaptor(), arg)
+invcudaconvert(arg) = adapt(InvAdaptor(), arg)
 
 
 ## abstract kernel functionality

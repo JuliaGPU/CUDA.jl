@@ -204,7 +204,7 @@ macro cpu(ex...)
                 vec = CuDeviceArray{type}(1, ptr_tt)
 
                 # Get argument
-                push!(ar, vec[1])
+                push!(ar, invcudaconvert(vec[1]))
 
                 # Adjust offset
                 offset += sizeof(type)
@@ -216,7 +216,7 @@ macro cpu(ex...)
             # Calculate offset of return value
             offset = $types_type_size
             ret_ptr = reinterpret(Core.LLVMPtr{types[1], AS.Global}, ptr + offset)
-            CuDeviceArray{types[1]}(1, ret_ptr)[1] = ret
+            CuDeviceArray{types[1]}(1, ret_ptr)[1] = cudaconvert(ret)
         end
     end
 
@@ -267,5 +267,5 @@ macro cpu(ex...)
         CUDA.call_syscall($load_f, $indx, $ret_f)
     end
 
-    return call_cpu
+    return esc(call_cpu)
 end
