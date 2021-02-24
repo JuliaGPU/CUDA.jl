@@ -41,6 +41,9 @@ macro spinlock(l, ex)
   quote
     temp = $(esc(l))
     while !trylock(temp)
+      ccall(:jl_cpu_pause, Cvoid, ())
+      # Temporary solution before we have gc transition support in codegen.
+      ccall(:jl_gc_safepoint, Cvoid, ())
       # we can't yield here
     end
     try
