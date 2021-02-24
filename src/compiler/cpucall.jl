@@ -56,7 +56,7 @@ end
 const cpucall_areas = Dict{CuContext, Mem.HostBuffer}()
 
 dump_memory(ty=UInt8) = dump_memory{UInt8}(ty)
-dump_memory(ty::Type{T}, size=cpucall_area_size() ÷ sizeof(ty), ctx::CuContext=context()) where {T} = dump_memory(ty, size_in_bytes, ctx)
+dump_memory(ty::Type{T}, size=cpucall_area_size() ÷ sizeof(ty), ctx::CuContext=context()) where {T} = dump_memory(ty, size, ctx)
 function dump_memory(::Type{T}, size::Int64, ctx::CuContext=context()) where {T}
     ptr    = convert(CuPtr{T}, cpucall_areas[ctx])
     cuarray = unsafe_wrap(CuArray{T}, ptr, size)
@@ -79,8 +79,9 @@ function create_cpucall_area!(mod::CuModule)
         Mem.alloc(Mem.Host, cpucall_area_size(), Mem.HOSTALLOC_DEVICEMAP | Mem.HOSTREGISTER_DEVICEMAP))
     flag_ptr[] = reinterpret(Ptr{Cvoid}, convert(CuPtr{Cvoid}, cpucall_area))
 
-    unsafe_store!(convert(Ptr{Int64}, cpucall_area), 0)
-    unsafe_store!(convert(Ptr{Int64}, cpucall_area), 0, 2)
+    ptr    = convert(CuPtr{UInt8}, cpucall_area)
+    cuarray = unsafe_wrap(CuArray{UInt8}, ptr, cpucall_area_size())
+    fill!(cuarray, 0)
 
     return
 end
@@ -171,11 +172,15 @@ macro cpu(ex...)
 
 
     # make sure this exists
+    # To be safe this should just increment
     indx = type_to_int!(cpufunctions, f)
 
     # remember this module
     caller_module = __module__
 
+
+    types_type = NTuple{arg_c, Int32}
+    types_type_size = sizeof(NTuple{16, Int32})
 
     # handle_cpucall function that is called from handle_cpucall(ctx::CuContext)
     new_fn = quote
@@ -183,21 +188,16 @@ macro cpu(ex...)
             local ar = []
             local func = $caller_module.$f
 
-            ptr_64 = reinterpret(Core.LLVMPtr{Int32,AS.Global}, ptr)
-            vec = CuDeviceArray{Int32}(16, ptr_64) # this 16 is quite strange
+            ptr_64 = reinterpret(Core.LLVMPtr{$types_type,AS.Global}, ptr)
+            vec = CuDeviceArray{$types_type}(1, ptr_64)
 
             # Get the number of arguments of the function
-            arg_c = vec[1]
-            types = []
-
-            # Get the types of the function
-            for x in 1:arg_c
-                type_int = vec[x+1]
-                push!(types, int_to_type(type_cache, type_int))
-            end
+            arg_c = $arg_c
+            types_numbers = vec[1]
+            types = ntuple(i -> int_to_type(type_cache, types_numbers[i]), arg_c)
 
             # Calculate offset of first argument
-            offset = 256 + ((arg_c * sizeof(Int32)) ÷ 256) * 256
+            offset = $types_type_size
             for type in types[2:end]
                 # Get CuDeviceArray to argument
                 ptr_tt = reinterpret(Core.LLVMPtr{type,AS.Global}, ptr + offset)
@@ -214,39 +214,33 @@ macro cpu(ex...)
             ret = func(ar...)
 
             # Calculate offset of return value
-            offset = 256 + ((arg_c * sizeof(Int32)) ÷ 256) * 256
+            offset = $types_type_size
             ret_ptr = reinterpret(Core.LLVMPtr{types[1], AS.Global}, ptr + offset)
-            CuDeviceArray{types[1]}(16, ret_ptr)[1] = ret
+            CuDeviceArray{types[1]}(1, ret_ptr)[1] = ret
         end
     end
 
     # Put function in julia space
     eval(new_fn)
 
+    type_numbers = ntuple(i -> type_to_int!(type_cache, types[i]), arg_c)
+
     @gensym ptr_ident
 
     # payload_code start, set number of arguments
     payload_code = quote
-        ptr_64 = reinterpret(Core.LLVMPtr{Int32,AS.Global}, $ptr_ident)
-        vec = CuDeviceArray{Int32}(16, ptr_64)
-        vec[1] = $arg_c
-    end
-
-    # Get all types of arguments
-    for (i, type) in enumerate(types)
-        type_index = type_to_int!(type_cache, type)
-        push!(payload_code.args, quote
-            vec[$(i+1)] = $type_index
-        end)
+        ptr_64 = reinterpret(Core.LLVMPtr{$types_type,AS.Global}, $ptr_ident)
+        vec = CuDeviceArray{$types_type}(1, ptr_64)
+        vec[1] = $type_numbers
     end
 
     # Calculate offset of first argument
-    offset = 256 + ((arg_c * sizeof(Int32)) ÷ 256) * 256
+    offset = types_type_size
 
     for (arg, type) in zip(args, types[2:end])
         # Set the argument at the correct offset in shared memory in cpu call area
         push!(payload_code.args, quote
-            CuDeviceArray{$type}(16, reinterpret(Core.LLVMPtr{$type, AS.Global}, $ptr_ident + $offset))[1] = $arg
+            CuDeviceArray{$type}(1, reinterpret(Core.LLVMPtr{$type, AS.Global}, $ptr_ident + $offset))[1] = $arg
         end)
 
         # Adjust offset with alignment
@@ -254,15 +248,23 @@ macro cpu(ex...)
     end
 
     # calculate return value drop site
-    offset = 256 + ((arg_c * sizeof(Int32)) ÷ 256) * 256
+    offset = types_type_size
     ret_type = types[1]
     ret_size = sizeof(ret_type)
 
-    call_cpu = quote
-        CUDA.call_syscall($indx, ptr -> CuDeviceArray{$ret_type}(16, reinterpret(Core.LLVMPtr{$ret_type, AS.Global}, ptr + $offset))[1]) do $ptr_ident
+    ret_f = quote
+        ptr -> CuDeviceArray{$ret_type}(1, reinterpret(Core.LLVMPtr{$ret_type, AS.Global}, ptr + $offset))[1]
+    end
+
+    load_f = quote
+        $ptr_ident -> begin
             $payload_code
             return
         end
+    end
+
+    call_cpu = quote
+        CUDA.call_syscall($load_f, $indx, $ret_f)
     end
 
     return call_cpu
