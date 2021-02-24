@@ -24,7 +24,7 @@ Base.unsafe_convert(::Type{cufftHandle}, p::CuFFTPlan) = p.handle
 # for some reason, cufftHandle is an integer and not a pointer...
 Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = Base.unsafe_convert(cufftHandle, p)
 
-function unsafe_free!(plan::CuFFTPlan)
+function CUDA.unsafe_free!(plan::CuFFTPlan)
     cufftDestroy(plan)
     unsafe_free!(plan.workarea)
 end

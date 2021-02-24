@@ -65,13 +65,20 @@ function initialize_api()
     CUDA.initialize_cuda_context()
 end
 
-macro check(ex)
+macro check(ex, errs...)
+    check = :(isequal(err, CUFFT_ALLOC_FAILED))
+    for err in errs
+        check = :($check || isequal(err, $(esc(err))))
+    end
+
     quote
-        res = @retry_reclaim isequal(CUFFT_ALLOC_FAILED) $(esc(ex))
-        if res != CUFFT_SUCCESS
+        res = @retry_reclaim err->$check $(esc(ex))
+        if res == CUFFT_ALLOC_FAILED
+            throw(OutOfGPUMemoryError())
+        elseif res != CUFFT_SUCCESS
             throw_api_error(res)
         end
 
-        return
+        nothing
     end
 end

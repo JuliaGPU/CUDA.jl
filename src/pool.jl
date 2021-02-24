@@ -243,10 +243,16 @@ handle properly.
 """
 struct OutOfGPUMemoryError <: Exception
   sz::Int
+
+  OutOfGPUMemoryError(sz::Integer=0) = new(sz)
 end
 
 function Base.showerror(io::IO, err::OutOfGPUMemoryError)
-    println(io, "Out of GPU memory trying to allocate $(Base.format_bytes(err.sz))")
+    print(io, "Out of GPU memory")
+    if err.sz > 0
+      print(io, " trying to allocate $(Base.format_bytes(err.sz))")
+    end
+    println(io)
     memory_status(io)
 end
 

@@ -2,13 +2,7 @@
 
 function cusparseCreate()
     handle = Ref{cusparseHandle_t}()
-    res = @retry_reclaim err->isequal(err, CUSPARSE_STATUS_ALLOC_FAILED) ||
-                              isequal(err, CUSPARSE_STATUS_NOT_INITIALIZED) begin
-        unsafe_cusparseCreate(handle)
-    end
-    if res != CUSPARSE_STATUS_SUCCESS
-         throw_api_error(res)
-    end
+    @check unsafe_cusparseCreate(handle) CUSPARSE_STATUS_NOT_INITIALIZED
     handle[]
 end
 

@@ -41,8 +41,7 @@ function cudnnDropoutForwardWithDefaults(
         dropout, states, seed = cudnnGetDropoutDescriptor(dropoutDesc)
         hstate = cudnnDropoutState[handle()]
         @assert states == pointer(hstate)
-        @retry_reclaim(isequal(CUDNN_STATUS_ALLOC_FAILED),
-                       cudnnSetDropoutDescriptor(dropoutDesc, handle(), dropout, hstate, sizeof(hstate), cudnnDropoutSeed[]))
+        cudnnSetDropoutDescriptor(dropoutDesc, handle(), dropout, hstate, sizeof(hstate), cudnnDropoutSeed[])
     end
     cudnnDropoutForwardAD(x; xDesc, y, yDesc, dropoutDesc, reserveSpace)
 end
@@ -84,8 +83,7 @@ function cudnnSetDropoutDescriptorFromFloat(ptr::cudnnDropoutDescriptor_t, dropo
         cudnnTempSpace(cudnnDropoutGetStatesSize())
     end
     seed = floor(Culonglong,time())
-    @retry_reclaim(isequal(CUDNN_STATUS_ALLOC_FAILED),
-                   cudnnSetDropoutDescriptor(ptr, handle(), Cfloat(dropout), hstate, sizeof(hstate), seed))
+    cudnnSetDropoutDescriptor(ptr, handle(), Cfloat(dropout), hstate, sizeof(hstate), seed)
 end
 
 

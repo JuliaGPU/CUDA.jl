@@ -5,25 +5,13 @@
 
 function cublasCreate()
   handle_ref = Ref{cublasHandle_t}()
-  res = @retry_reclaim err->isequal(err, CUBLAS_STATUS_ALLOC_FAILED) ||
-                            isequal(err, CUBLAS_STATUS_NOT_INITIALIZED) begin
-    unsafe_cublasCreate_v2(handle_ref)
-  end
-  if res != CUBLAS_STATUS_SUCCESS
-    throw_api_error(res)
-  end
+  @check unsafe_cublasCreate_v2(handle_ref) CUBLAS_STATUS_NOT_INITIALIZED
   handle_ref[]
 end
 
 function cublasXtCreate()
   handle_ref = Ref{cublasXtHandle_t}()
-  res = @retry_reclaim err->isequal(err, CUBLAS_STATUS_ALLOC_FAILED) ||
-                            isequal(err, CUBLAS_STATUS_NOT_INITIALIZED) begin
-    unsafe_cublasXtCreate(handle_ref)
-  end
-  if res != CUBLAS_STATUS_SUCCESS
-    throw_api_error(res)
-  end
+  @check unsafe_cublasXtCreate(handle_ref) CUBLAS_STATUS_NOT_INITIALIZED
   handle_ref[]
 end
 
