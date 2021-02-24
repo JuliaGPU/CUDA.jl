@@ -4,42 +4,8 @@ using Printf
 using Logging
 using TimerOutputs
 
-using Base: @lock
-
-# a simple non-reentrant lock that errors when trying to reenter on the same task
-struct NonReentrantLock <: Threads.AbstractLock
-  rl::ReentrantLock
-  NonReentrantLock() = new(ReentrantLock())
-end
-
-function Base.lock(nrl::NonReentrantLock)
-  @assert !islocked(nrl.rl) || nrl.rl.locked_by !== current_task()
-  lock(nrl.rl)
-end
-
-function Base.trylock(nrl::NonReentrantLock)
-  @assert !islocked(nrl.rl) || nrl.rl.locked_by !== current_task()
-  trylock(nrl.rl)
-end
-
-Base.unlock(nrl::NonReentrantLock) = unlock(nrl.rl)
-
-# a safe way to acquire locks from finalizers, where we can't wait (which switches tasks)
-macro spinlock(l, ex)
-  quote
-    temp = $(esc(l))
-    while !trylock(temp)
-      # we can't yield here
-    end
-    try
-      $(esc(ex))
-    finally
-      unlock(temp)
-    end
-  end
-end
-
-const MEMDEBUG = ccall(:jl_is_memdebug, Bool, ())
+include("pool/utils.jl")
+using .PoolUtils
 
 
 ## allocation statistics
@@ -78,45 +44,6 @@ AllocStats(b::AllocStats, a::AllocStats) =
     b.actual_free - a.actual_free,
     b.pool_time - a.pool_time,
     b.actual_time - a.actual_time)
-
-
-## block of memory
-
-@enum BlockState begin
-    INVALID
-    AVAILABLE
-    ALLOCATED
-    FREED
-end
-
-mutable struct Block
-    buf::Mem.DeviceBuffer # base allocation
-    sz::Int               # size into it
-    off::Int              # offset into it
-
-    state::BlockState
-    prev::Union{Nothing,Block}
-    next::Union{Nothing,Block}
-
-    Block(buf, sz; off=0, state=INVALID, prev=nothing, next=nothing) =
-        new(buf, sz, off, state, prev, next)
-end
-
-Base.sizeof(block::Block) = block.sz
-Base.pointer(block::Block) = pointer(block.buf) + block.off
-
-iswhole(block::Block) = block.prev === nothing && block.next === nothing
-
-function Base.show(io::IO, block::Block)
-    fields = [@sprintf("%p", Int(pointer(block)))]
-    push!(fields, Base.format_bytes(sizeof(block)))
-    push!(fields, "$(block.state)")
-    block.off != 0 && push!(fields, "offset=$(block.off)")
-    block.prev !== nothing && push!(fields, "prev=Block(offset=$(block.prev.off))")
-    block.next !== nothing && push!(fields, "next=Block(offset=$(block.next.off))")
-
-    print(io, "Block(", join(fields, ", "), ")")
-end
 
 
 ## CUDA allocator
@@ -200,7 +127,11 @@ function actual_alloc(dev::CuDevice, bytes::Integer, last_resort::Bool=false)
     try
       time = Base.@elapsed begin
         @timeit_debug alloc_to "alloc" begin
-          buf = Mem.alloc(Mem.Device, bytes)
+          buf = Mem.alloc(Mem.Device, bytes; async=true,
+                          pool = (async_alloc[] ? pool() : nothing))
+          # we only need a memory pool when we'll be using the async allocator.
+          # this avoids a needless warning when running under cuda-memcheck,
+          # which doesn't support the stream-ordered memory allocator.
         end
       end
 
@@ -228,7 +159,7 @@ function actual_free(dev::CuDevice, block::Block)
     # free the memory
     @timeit_debug alloc_to "free" begin
       time = Base.@elapsed begin
-        Mem.free(block.buf)
+        Mem.free(block.buf; async=true)
       end
       block.state = INVALID
 
@@ -245,32 +176,49 @@ end
 
 ## memory pools
 
-const pool_to = TimerOutput()
-
-macro pool_timeit(args...)
-    TimerOutputs.timer_expr(CUDA, true, :($CUDA.pool_to), args...)
-end
-
 """
     pool_timings()
 
 Show the timings of the currently active memory pool. Assumes
 [`CUDA.enable_timings()`](@ref) has been called.
 """
-pool_timings() = (show(pool_to; allocations=false, sortby=:name); println())
+pool_timings() = (show(PoolUtils.to; allocations=false, sortby=:name); println())
 
 # pool API:
-# - pool_init()
-# - pool_alloc(::CuDevice, sz)::Block
-# - pool_free(::CuDevice, ::Block)
-# - pool_reclaim(::CuDevice, nb::Int=typemax(Int))::Int
+# - init()
+# - alloc(::CuDevice, sz)::Block
+# - free(::CuDevice, ::Block)
+# - reclaim(::CuDevice, nb::Int=typemax(Int))::Int
 # - cached_memory()
 
-const pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", "binned")
-let pool_path = joinpath(@__DIR__, "pool", "$(pool_name).jl")
-  isfile(pool_path) || error("Unknown memory pool $pool_name")
-  include(pool_path)
+module Pool
+@enum MemoryPool None Simple Binned Split
 end
+const active_pool = Ref{Pool.MemoryPool}()
+const async_alloc = Ref{Bool}()
+
+macro pooled(ex)
+    @assert Meta.isexpr(ex, :call)
+    f, args... = ex.args
+    quote
+      if active_pool[] == Pool.None
+        NoPool.$(f)($(map(esc, args)...))
+      elseif active_pool[] == Pool.Simple
+        SimplePool.$(f)($(map(esc, args)...))
+      elseif active_pool[] == Pool.Binned
+        BinnedPool.$(f)($(map(esc, args)...))
+      elseif active_pool[] == Pool.Split
+        SplitPool.$(f)($(map(esc, args)...))
+      else
+        error("unreachable")
+      end
+    end
+end
+
+include("pool/none.jl")
+include("pool/simple.jl")
+include("pool/binned.jl")
+include("pool/split.jl")
 
 
 ## interface
@@ -315,8 +263,9 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   dev = device()
 
   time = Base.@elapsed begin
-    @pool_timeit "pooled alloc" block = pool_alloc(dev, sz)::Union{Nothing,Block}
+    @pool_timeit "pooled alloc" block = @pooled alloc(dev, sz)
   end
+  block::Union{Nothing,Block}
   block === nothing && throw(OutOfGPUMemoryError(sz))
 
   # record the memory block
@@ -408,7 +357,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     end
 
     time = Base.@elapsed begin
-      @pool_timeit "pooled free" pool_free(dev, block)
+      @pool_timeit "pooled free" @pooled free(dev, block)
     end
 
     alloc_stats.pool_time += time
@@ -431,7 +380,7 @@ actually reclaimed.
 """
 function reclaim(sz::Int=typemax(Int))
   dev = device()
-  pool_reclaim(dev, sz)
+  @pooled reclaim(dev, sz)
 end
 
 """
@@ -448,7 +397,7 @@ CUDA memory pool) and return a specific error code when failing to.
 macro retry_reclaim(isfailed, ex)
   quote
     ret = nothing
-    for phase in 1:3
+    for phase in 1:4
       ret = $(esc(ex))
       $(esc(isfailed))(ret) || break
 
@@ -461,6 +410,10 @@ macro retry_reclaim(isfailed, ex)
       elseif phase == 3
         GC.gc(true)
         reclaim()
+      elseif phase == 4 && async_alloc[]
+        # this phase is unique to retry_reclaim, as regular allocations come from the pool
+        # so are assumed to never need to trim its contents.
+        trim(pool())
       end
     end
     ret
@@ -489,7 +442,7 @@ function pool_cleanup()
 
       if t1-t0 > 300
         # the pool hasn't been used for a while, so reclaim unused buffers
-        pool_reclaim(dev)
+        @pooled reclaim(dev)
       end
     end
 
@@ -605,6 +558,8 @@ macro timed(ex)
     end
 end
 
+cached_memory() = @pooled cached_memory()
+
 """
     memory_status([io=stdout])
 
@@ -670,16 +625,28 @@ function __init_pool__()
   initialize!(requested, ndevices())
 
   # memory pool configuration
-  runtime_pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", "binned")
-  if runtime_pool_name != pool_name
-      error("Cannot use memory pool '$runtime_pool_name' when CUDA.jl was precompiled for memory pool '$pool_name'.")
+  default_pool = version() >= v"11.2" ? "cuda" : "binned"
+  pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", default_pool)
+  active_pool[], async_alloc[] = if pool_name == "none"
+      Pool.None, false
+  elseif pool_name == "simple"
+      Pool.Simple, false
+  elseif pool_name == "binned"
+      Pool.Binned, false
+  elseif pool_name == "split"
+      Pool.Split, false
+  elseif pool_name == "cuda"
+      @assert version() >= v"11.2" "The CUDA memory pool is only supported on CUDA 11.2+"
+      Pool.None, true
+  else
+      error("Invalid memory pool '$pool_name'")
   end
-  pool_init()
+  @pooled init()
 
   TimerOutputs.reset_timer!(alloc_to)
-  TimerOutputs.reset_timer!(pool_to)
+  TimerOutputs.reset_timer!(PoolUtils.to)
 
   if isinteractive()
-    @async pool_cleanup()
+    @async @pooled pool_cleanup()
   end
 end

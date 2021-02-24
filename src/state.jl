@@ -5,7 +5,7 @@
 # multiple threads), using a GPU of your choice (with the ability to reset that device, or
 # use different devices on different threads).
 
-export context, context!, device, device!, device_reset!, deviceid, stream, stream!
+export context, context!, device, device!, device_reset!, deviceid, stream, stream!, pool
 
 
 ## hooks
@@ -337,6 +337,16 @@ the [`CUDA.atdeviceswitch`](@ref) hook to fire when `initialize_cuda_context` is
 so it is generally not needed to subscribe to the reset hook specifically.
 """
 function device_reset!(dev::CuDevice=device())
+    if async_alloc[] # NVIDIA bug #3240770
+        @error """Due to a bug in CUDA, resetting the device is not possible on CUDA 11.2 when using the stream-ordered memory allocator.
+
+                  If you are calling this function to free memory, that may not be required anymore
+                  as the stream-ordered memory allocator releases memory much more eagerly.
+                  If you do need this functionality, switch to another memory pool by setting
+                  the `JULIA_CUDA_MEMORY_POOL` environment variable to, e.g., `binned`."""
+        return
+    end
+
     # unconditionally reset the primary context (don't just release it),
     # as there might be users outside of CUDA.jl
     pctx = CuPrimaryContext(dev)
@@ -542,5 +552,20 @@ function stream!(f::Function, s::CuStream)
     finally
         thread_streams[tid] = old_s
         set_library_streams(old_s)
+    end
+end
+
+
+## memory pools
+
+const memory_pools = Dict{CuContext,CuMemoryPool}()
+
+function pool()
+    if CUDA.version() < v"11.2"
+        return nothing
+    end
+
+    return get!(memory_pools, context()) do
+        CuMemoryPool(device())
     end
 end

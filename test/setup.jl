@@ -102,7 +102,9 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
         end
         res = vcat(collect(data), cpu_rss, gpu_rss)
 
-        device_reset!()
+        if !CUDA.async_alloc[] # NVIDIA bug #3240770
+            device_reset!()
+        end
         res
     finally
         if snoop !== nothing

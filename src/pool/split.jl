@@ -1,4 +1,11 @@
+module SplitPool
+
 # scan into a sorted list of free buffers, splitting buffers along the way
+
+using ..CUDA
+import ..CUDA: actual_alloc, actual_free, PerDevice, initialize!
+
+using ..PoolUtils
 
 using DataStructures
 
@@ -125,7 +132,7 @@ function pool_compact(dev, blocks)
     return compacted
 end
 
-function pool_reclaim_single(dev, pool, sz=typemax(Int))
+function reclaim_single(dev, pool, sz=typemax(Int))
     freed = 0
 
     @lock pool_lock begin
@@ -210,7 +217,7 @@ end
     end
 end
 
-function pool_alloc(dev, sz)
+function alloc(dev, sz)
     szclass = size_class(sz)
 
     # round off the block size
@@ -261,7 +268,7 @@ function pool_alloc(dev, sz)
         # operation, so start with the largest pool that is likely to free up much memory
         # without requiring many calls to free.
         for pool in (pool_huge[dev], pool_large[dev], pool_small[dev])
-            @pool_timeit "$phase.4a reclaim" pool_reclaim_single(dev, pool, sz)
+            @pool_timeit "$phase.4a reclaim" reclaim_single(dev, pool, sz)
             @pool_timeit "$phase.4b alloc" block = actual_alloc(dev, sz)
             block === nothing || break
         end
@@ -269,9 +276,9 @@ function pool_alloc(dev, sz)
 
         # last-ditch effort, reclaim everything
         @pool_timeit "$phase.5a reclaim" begin
-            pool_reclaim_single(dev, pool_huge[dev])
-            pool_reclaim_single(dev, pool_large[dev])
-            pool_reclaim_single(dev, pool_small[dev])
+            reclaim_single(dev, pool_huge[dev])
+            reclaim_single(dev, pool_large[dev])
+            reclaim_single(dev, pool_small[dev])
         end
         @pool_timeit "$phase.5b alloc" block = actual_alloc(dev, sz, phase==3)
     end
@@ -299,7 +306,7 @@ function pool_alloc(dev, sz)
     return block
 end
 
-function pool_free(dev, block)
+function free(dev, block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
@@ -309,7 +316,7 @@ function pool_free(dev, block)
     end
 end
 
-function pool_init()
+function init()
     initialize!(freed, ndevices())
 
     initialize!(pool_small, ndevices())
@@ -317,13 +324,13 @@ function pool_init()
     initialize!(pool_huge, ndevices())
 end
 
-function pool_reclaim(dev, sz::Int=typemax(Int))
+function reclaim(dev, sz::Int=typemax(Int))
     pool_repopulate(dev)
 
     freed_sz = 0
     for pool in (pool_huge[dev], pool_large[dev], pool_small[dev])
         freed_sz >= sz && break
-        freed_sz += pool_reclaim_single(dev, pool, sz-freed_sz)
+        freed_sz += reclaim_single(dev, pool, sz-freed_sz)
     end
     return freed_sz
 end
@@ -334,4 +341,6 @@ function cached_memory(dev=device())
         sz += mapreduce(sizeof, +, pool; init=0)
     end
     return sz
+end
+
 end
