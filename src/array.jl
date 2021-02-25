@@ -279,15 +279,15 @@ function Base.unsafe_convert(::Type{CuArray{T, N}}, a::CuDeviceArray{T,N,AS.Glob
   unsafe_wrap(CuArray{T}, ptr, a.shape)
 end
 
-Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
-  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+# Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
+#   Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
 
-# we materialize ReshapedArray/ReinterpretArray/SubArray/... directly as a device array
-Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
-  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+# # we materialize ReshapedArray/ReinterpretArray/SubArray/... directly as a device array
+# Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
+#   Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
 
 
-Adapt.adapt_storage(::InvAdaptor, xs::CuDeviceArray{T,N,AS.Global}) where {T,N} = Base.unsafe_convert(CuArray{T, N}, xs)
+# Adapt.adapt_storage(::InvAdaptor, xs::CuDeviceArray{T,N,AS.Global}) where {T,N} = Base.unsafe_convert(CuArray{T, N}, xs)
 
 
 ## interop with CPU arrays

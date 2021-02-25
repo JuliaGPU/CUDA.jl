@@ -1,8 +1,11 @@
-const CPUCALL_AREA = "cpucall_area"
-const JULIA_CPUCALL_AREA = "julia_cpucall_area"
+const CPUCALL_AREA = "hostcall_area"
 
 
 function wait_and_kill_watcher(e::CuEvent, ctx::CuContext)
+    if !has_hostcalls(ctx)
+        return
+    end
+
     println("Start the watcher!")
 
     try
@@ -18,40 +21,16 @@ end
 
 cpucall_area_size() = sizeof(UInt8) * 1024 * 1024
 
-function emit_cpucall_area!(mod::LLVM.Module)
-    @assert !haskey(globals(mod), CPUCALL_AREA)
-    ctx = LLVM.context(mod)
+@eval @inline cpucall_area() =
+    Base.llvmcall(
+        $("""@hostcall_area = weak externally_initialized global i$(WORD_SIZE) 0
+             define i64 @entry() #0 {
+                 %ptr = load i$(WORD_SIZE), i$(WORD_SIZE)* @hostcall_area, align 8
+                 ret i$(WORD_SIZE) %ptr
+             }
+             attributes #0 = { alwaysinline }
+          """, "entry"), Ptr{Cvoid}, Tuple{})
 
-    # add the global variable
-    T_ptr = convert(LLVMType, Ptr{Cvoid}, ctx)
-    gv = GlobalVariable(mod, T_ptr, CPUCALL_AREA)
-    initializer!(gv, LLVM.ConstantInt(T_ptr, 0))
-    linkage!(gv, LLVM.API.LLVMWeakAnyLinkage)
-    extinit!(gv, true)
-    set_used!(mod, gv)
-
-    if haskey(functions(mod), JULIA_CPUCALL_AREA)
-        buf_getter = functions(mod)[JULIA_CPUCALL_AREA]
-        @assert return_type(eltype(llvmtype(buf_getter))) == eltype(llvmtype(gv))
-
-        # find uses
-        worklist = Vector{LLVM.CallInst}()
-        for use in uses(buf_getter)
-            call = user(use)::LLVM.CallInst
-            push!(worklist, call)
-        end
-
-        # replace uses by a load from the global variable
-        for call in worklist
-            Builder(ctx) do builder
-                position!(builder, call)
-                ptr = load!(builder, gv)
-                replace_uses!(call, ptr)
-            end
-            unsafe_delete!(LLVM.parent(call), call)
-        end
-    end
-end
 
 const cpucall_areas = Dict{CuContext, Mem.HostBuffer}()
 
@@ -64,19 +43,22 @@ function dump_memory(::Type{T}, size::Int64, ctx::CuContext=context()) where {T}
 end
 
 function reset_cpucall_area!(ctx::CuContext)
-    println("resetting")
-    dump_memory(Int, 10, ctx)
-    ptr    = convert(CuPtr{UInt8}, cpucall_areas[ctx])
-    cuarray = unsafe_wrap(CuArray{UInt8}, ptr, cpucall_area_size())
+    if !has_hostcalls(ctx)
+        return
+    end
 
-    # Reset array to 0
-    fill!(cuarray, 0)
+    println("resetting")
+    ptr    = convert(Ptr{Int64}, cpucall_areas[ctx])
+
+    unsafe_store!(ptr, 0, 1)
+    unsafe_store!(ptr, 0, 2)
 end
 
+"Allocate memory for cpu call area"
 function create_cpucall_area!(mod::CuModule)
     flag_ptr = CuGlobal{Ptr{Cvoid}}(mod, CPUCALL_AREA)
     cpucall_area = get!(cpucall_areas, mod.ctx,
-        Mem.alloc(Mem.Host, cpucall_area_size(), Mem.HOSTALLOC_DEVICEMAP | Mem.HOSTREGISTER_DEVICEMAP))
+        Mem.alloc(Mem.Host, cpucall_area_size(), Mem.HOSTALLOC_DEVICEMAP | Mem.HOSTALLOC_WRITECOMBINED))
     flag_ptr[] = reinterpret(Ptr{Cvoid}, convert(CuPtr{Cvoid}, cpucall_area))
 
     ptr    = convert(CuPtr{UInt8}, cpucall_area)
@@ -87,25 +69,53 @@ function create_cpucall_area!(mod::CuModule)
 end
 
 
-function handle_cpucall(ctx::CuContext)
+has_hostcalls(ctx::CuContext) = haskey(cpucall_areas, ctx)
 
+time_ms() = round(Int64, time() * 1000)
+
+mutable struct Timer
+    name :: String
+    last_handled :: Int64
+end
+
+const timer = Timer("timer 1", time_ms())
+const timer2 = Timer("timer 2", time_ms())
+
+function update!(timer::Timer)
+    time = time_ms()
+    if time > timer.last_handled + 1
+        println("$(timer.name): It's been a while $(time - timer.last_handled)ms")
+    end
+    timer.last_handled = time
+end
+
+function handle_cpucall(ctx::CuContext)
+    # update!(timer)
     ptr    = convert(Ptr{Int64}, cpucall_areas[ctx])
+    llvmptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, ptr)
     ptr_u8 = convert(Ptr{UInt8}, cpucall_areas[ctx])
 
-    llvmptr    = reinterpret(Core.LLVMPtr{Int64,AS.Global}, ptr)
 
-    flag = unsafe_load(ptr)
-    if flag != CPU_CALL
+    v = atomic_cas!(llvmptr, CPU_CALL, CPU_HANDLING)
+
+    if v != CPU_CALL
+        # println("flag $v")
         return
     end
 
-    # Notify CPU is handling this cpucall
-    unsafe_store!(ptr, CPU_HANDLING)
+    # t = 0
+    while atomic_cas!(llvmptr, CPU_CALL, CPU_HANDLING) == CPU_CALL
+        # t += 1
+        unsafe_store!(ptr, CPU_HANDLING)
+    end
+    # println("1: Had to try $t times")
+
 
     # Fetch this cpucall
     cpucall = unsafe_load(ptr+8)
 
-    println("handling syscall $cpucall")
+    # update!(timer2)
+
     try
         ## Handle cpucall
         handle_cpucall(Val(cpucall), ptr_u8+16)
@@ -115,8 +125,16 @@ function handle_cpucall(ctx::CuContext)
     end
 
     # Notify end
-    unsafe_store!(ptr, CPU_DONE)
+    # t = 0
+    while atomic_cas!(llvmptr, CPU_HANDLING, CPU_DONE) == CPU_HANDLING
+        # t += 1
+        unsafe_store!(ptr, CPU_DONE)
+    end
+    # println("2: Had to try $t times")
+
 end
+
+
 
 struct TypeCache{T, I}
     stash::Dict{T, I}
@@ -139,9 +157,143 @@ function handle_cpucall(::Val{N}, kwargs...) where {N}
     println("Syscall $N not yet supported")
 end
 
+function exec_hostmethode(::Type{A}, ::Type{R}, func::Function, ptr::Ptr{UInt8}) where {A, R}
+    arg_tuple_ptr = reinterpret(Ptr{A}, ptr)
+    arg_tuple = unsafe_load(arg_tuple_ptr)
+    args = map(invcudaconvert, arg_tuple)
 
-const cpufunctions = TypeCache{Symbol, Int64}(Dict(), Vector())
-const type_cache = TypeCache{DataType, Int32}(Dict(), Vector())
+    # Actually call function
+    ret = cudaconvert(func(args...))
+    ret_ptr = reinterpret(Ptr{R}, ptr)
+    unsafe_store!(ret_ptr, ret)
+end
+
+const cpufunctions = TypeCache{Tuple{Symbol, Expr}, Int64}(Dict(), Vector())
+
+struct HostRef
+    index::Int32
+end
+
+const host_refs = Vector{WeakRef}()
+
+Base.show(io::IO, t::HostRef) = print(io, "HostRef to $(host_refs[t.index])")
+Base.convert(::Type{HostRef}, t::HostRef) = t
+
+function Base.convert(::Type{HostRef}, t::T) where {T}
+    push!(host_refs, WeakRef(t))
+    return HostRef(length(host_refs))
+end
+
+Base.convert(::Type{Any}, t::HostRef) = host_refs[t.index].value
+Adapt.adapt(::InvAdaptor, t::HostRef) = host_refs[t.index].value
+
+
+@inline function acquire_lock(ptr::Core.LLVMPtr{Int64,AS.Global}, expected::Int64, value::Int64, id)
+    # try_count = 0
+    ## TRY CAPTURE LOCK
+    while atomic_cas!(ptr, expected, value) != expected # && try_count < 5000000
+        # try_count += 1
+    end
+
+    return
+
+    # if try_count == 5000000
+    #     @cuprintln("Trycount $id maxed out")
+    # end
+end
+
+
+const IDLE = convert(Int64, 0)
+const CPU_DONE = convert(Int64, 1)
+const LOADING = convert(Int64, 2)
+const CPU_CALL = convert(Int64, 3)
+const CPU_HANDLING = convert(Int64, 4)
+
+
+function prettier_string(thing)
+    lines = split(string(thing), "\n")
+    lines = filter(x -> strip(x)[1] != '#', lines)
+    return join(lines, "\n")
+end
+
+
+# Stores a value at a particular address.
+@generated function volatile_store!(ptr::Ptr{T}, value::T) where T
+    JuliaContext() do ctx
+        ptr_type = convert(LLVMType, Ptr{T}, ctx)
+        lt = convert(LLVMType, T, ctx)
+
+        ir = """
+            %ptr = inttoptr $ptr_type %0 to $lt*
+            store volatile $lt %1, $lt* %ptr
+            ret void
+            """
+        :(Core.Intrinsics.llvmcall($ir, Cvoid, Tuple{$(Ptr{T}), $T}, ptr, value))
+    end
+end
+
+
+@generated function volatile_load(ptr::Ptr{T}) where T
+    JuliaContext() do ctx
+        ptr_type = convert(LLVMType, Ptr{T}, ctx)
+        lt = convert(LLVMType, T, ctx)
+
+        ir = """
+            %ptr = inttoptr $ptr_type %0 to $lt*
+            %value = load volatile $lt, $lt* %ptr
+            ret $lt %value
+            """
+
+        :(Base.llvmcall($ir, T, Tuple{Ptr{T}}, ptr))
+    end
+end
+
+function warp_serialized(func::Function)
+    # Get the current thread's ID.
+    thread_id = threadIdx().x - 1
+
+    # Get the size of a warp.
+    size = warpsize()
+
+    local result
+    i = 0
+    while i < size
+        if thread_id % size == i
+            result = func()
+        end
+        i += 1
+    end
+    return result
+end
+
+
+@inline function call_hostcall(::Type{R}, n, args::A) where {R, A}
+    llvmptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, cpucall_area())
+    ptr     = reinterpret(Ptr{UInt8}, llvmptr)
+    ptr_64  = reinterpret(Ptr{Int64}, llvmptr)
+
+    # warp_serialized() do
+        ## STORE ARGS
+        acquire_lock(llvmptr, IDLE, LOADING, 1)
+        args_ptr =  reinterpret(Ptr{A}, ptr + 16)
+        unsafe_store!(args_ptr, args)
+
+        ## Notify CPU of syscall 'syscall'
+        unsafe_store!(ptr + 8, n)
+        unsafe_store!(ptr, CPU_CALL)
+
+        local try_count = 0
+        acquire_lock(llvmptr, CPU_DONE, LOADING, 2)
+
+        ## GET RETURN ARGS
+        unsafe_store!(ptr, LOADING)
+        local ret = unsafe_load(reinterpret(Ptr{R}, ptr_64 + 16))
+        unsafe_store!(ptr, IDLE)
+
+        ret
+    # end
+end
+
 
 macro cpu(ex...)
     # destructure the `@cpu` expression
@@ -153,7 +305,6 @@ macro cpu(ex...)
     f = call.args[1]
     args = call.args[2:end]
 
-
     types_kwargs, other_kwargs = split_kwargs(kwargs, [:types])
 
     if length(types_kwargs) != 1
@@ -162,7 +313,7 @@ macro cpu(ex...)
 
     _,val = types_kwargs[1].args
 
-    arg_c = length(args) + 1 # number of arguments
+    arg_c = length(args) + 1 # number of arguments + return type
     types = eval(val)::NTuple{arg_c, DataType} # types of arguments
 
     if !isempty(other_kwargs)
@@ -170,101 +321,30 @@ macro cpu(ex...)
         throw(ArgumentError("Unsupported keyword argument '$key'"))
     end
 
-
     # make sure this exists
     # To be safe this should just increment
-    indx = type_to_int!(cpufunctions, f)
+    indx = type_to_int!(cpufunctions, (f, val))
 
+    println("hostcall $indx")
     # remember this module
     caller_module = __module__
 
-
-    types_type = NTuple{arg_c, Int32}
-    types_type_size = sizeof(NTuple{16, Int32})
+    # Convert (Int, Int,) -> Tuple{Int, Int} which is the type of the arguments
+    types_type_quote = :(Tuple{$(types[2:end]...)})
 
     # handle_cpucall function that is called from handle_cpucall(ctx::CuContext)
     new_fn = quote
-        function handle_cpucall(::Val{$indx}, ptr::Ptr{UInt8})
-            local ar = []
-            local func = $caller_module.$f
-
-            ptr_64 = reinterpret(Core.LLVMPtr{$types_type,AS.Global}, ptr)
-            vec = CuDeviceArray{$types_type}(1, ptr_64)
-
-            # Get the number of arguments of the function
-            arg_c = $arg_c
-            types_numbers = vec[1]
-            types = ntuple(i -> int_to_type(type_cache, types_numbers[i]), arg_c)
-
-            # Calculate offset of first argument
-            offset = $types_type_size
-            for type in types[2:end]
-                # Get CuDeviceArray to argument
-                ptr_tt = reinterpret(Core.LLVMPtr{type,AS.Global}, ptr + offset)
-                vec = CuDeviceArray{type}(1, ptr_tt)
-
-                # Get argument
-                push!(ar, invcudaconvert(vec[1]))
-
-                # Adjust offset
-                offset += sizeof(type)
-            end
-
-            # Actually call function
-            ret = func(ar...)
-
-            # Calculate offset of return value
-            offset = $types_type_size
-            ret_ptr = reinterpret(Core.LLVMPtr{types[1], AS.Global}, ptr + offset)
-            CuDeviceArray{types[1]}(1, ret_ptr)[1] = cudaconvert(ret)
-        end
+        handle_cpucall(::Val{$indx}, ptr::Ptr{UInt8}) = exec_hostmethode($types_type_quote, $(types[1]), $caller_module.$f, ptr)
     end
 
     # Put function in julia space
     eval(new_fn)
 
-    type_numbers = ntuple(i -> type_to_int!(type_cache, types[i]), arg_c)
-
-    @gensym ptr_ident
-
-    # payload_code start, set number of arguments
-    payload_code = quote
-        ptr_64 = reinterpret(Core.LLVMPtr{$types_type,AS.Global}, $ptr_ident)
-        vec = CuDeviceArray{$types_type}(1, ptr_64)
-        vec[1] = $type_numbers
-    end
-
-    # Calculate offset of first argument
-    offset = types_type_size
-
-    for (arg, type) in zip(args, types[2:end])
-        # Set the argument at the correct offset in shared memory in cpu call area
-        push!(payload_code.args, quote
-            CuDeviceArray{$type}(1, reinterpret(Core.LLVMPtr{$type, AS.Global}, $ptr_ident + $offset))[1] = $arg
-        end)
-
-        # Adjust offset with alignment
-        offset += sizeof(type)
-    end
-
-    # calculate return value drop site
-    offset = types_type_size
-    ret_type = types[1]
-    ret_size = sizeof(ret_type)
-
-    ret_f = quote
-        ptr -> CuDeviceArray{$ret_type}(1, reinterpret(Core.LLVMPtr{$ret_type, AS.Global}, ptr + $offset))[1]
-    end
-
-    load_f = quote
-        $ptr_ident -> begin
-            $payload_code
-            return
-        end
-    end
+    # Convert to correct arguments
+    args_tuple = Expr(:tuple, args...)
 
     call_cpu = quote
-        CUDA.call_syscall($load_f, $indx, $ret_f)
+        CUDA.call_hostcall($(types[1]), $indx, $args_tuple)
     end
 
     return esc(call_cpu)

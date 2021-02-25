@@ -34,59 +34,6 @@ end
              attributes #0 = { alwaysinline }
           """, "entry"), Ptr{Cvoid}, Tuple{})
 
-@inline cpucall_area() = ccall("extern julia_cpucall_area", llvmcall, Ptr{Cvoid}, ())
-
-function acquire_lock(ptr::Core.LLVMPtr{Int64,AS.Global}, expected::Int64, value::Int64, id)
-    try_count = 0
-    ## TRY CAPTURE LOCK
-    while atomic_cas!(ptr, expected, value) != expected && try_count < 500000
-        try_count += 1
-    end
-
-    if try_count == 500000
-        @cuprintln("Trycount $id maxed out")
-    end
-end
-
-const IDLE = 0
-const CPU_DONE = 1
-const LOADING = 2
-const CPU_CALL = 3
-const CPU_HANDLING = 4
-
-function call_syscall(load_f::Function, syscall::Int64, load_ret_f::Function)
-    flag = cpucall_area()
-
-    llvmptr    = reinterpret(Core.LLVMPtr{Int64,AS.Global}, flag)
-    llvmptr_u8 = reinterpret(Core.LLVMPtr{UInt8,AS.Global}, flag)
-
-    ## STORE ARGS
-    acquire_lock(llvmptr, IDLE, LOADING, 1)
-    load_f(llvmptr_u8 + 16)
-    old = atomic_xchg!(llvmptr + 8, syscall)
-
-    ## Notify CPU of syscall 'syscall'
-    acquire_lock(llvmptr, LOADING, CPU_CALL, 2)
-
-    try_count = 0
-    while unsafe_load(llvmptr) != CPU_DONE && try_count < 500000
-        try_count += 1
-        threadfence_system()
-    end
-    if try_count == 500000
-        @cuprintln("Special try_count maxed out")
-    end
-
-    ## GET RETURN ARGS
-    acquire_lock(llvmptr, CPU_DONE, LOADING, 3)
-
-    ret = load_ret_f(llvmptr_u8 + 16)
-
-    ## Reset for next GPU syscall
-    acquire_lock(llvmptr, LOADING, IDLE, 4)
-
-    return ret
-end
 
 function signal_exception()
     ptr = exception_flag()

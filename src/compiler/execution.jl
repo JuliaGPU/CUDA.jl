@@ -200,7 +200,6 @@ AbstractKernel
 
     quote
         Base.@_inline_meta
-
         cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
     end
 end
@@ -367,13 +366,31 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
         filter!(!isequal("global_random_seed"), compiled.external_gvars)
     end
 
-    create_cpucall_area!(mod)
+    if "hostcall_area" in compiled.external_gvars
+        create_cpucall_area!(mod)
+        filter!(!isequal("hostcall_area"), compiled.external_gvars)
+    end
 
     return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun)
 end
 
 function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
+    event = CuEvent(CUDA.EVENT_DISABLE_TIMING)
+
+    # TODO cleanup
+    reset_cpucall_area!(kernel.ctx)
+
+    t = @async wait_and_kill_watcher(event, kernel.ctx)
+    while !istaskstarted(t)
+        yield()
+    end
+
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
+    CUDA.record(event, stream())
+
+    while !istaskdone(t)
+        yield()
+    end
 end
 
 

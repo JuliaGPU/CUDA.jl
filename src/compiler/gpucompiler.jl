@@ -35,10 +35,19 @@ GPUCompiler.isintrinsic(job::CUDACompilerJob, fn::String) =
            job, fn) ||
     fn == "__nvvm_reflect" || startswith(fn, "cuda")
 
-function GPUCompiler.finish_module!(job::CUDACompilerJob, mod::LLVM.Module)
-    # TODO: remove. cause exception flag is no longer here either
-    emit_cpucall_area!(mod)
-end
+# function GPUCompiler.process_module!(job::CUDACompilerJob, mod::LLVM.Module)
+#     println(map(LLVM.name, functions(mod)))
+
+#     # TODO: remove. cause exception flag is no longer here either
+#     # emit_cpucall_area!(mod)
+# end
+
+# function GPUCompiler.finish_module!(job::CUDACompilerJob, mod::LLVM.Module)
+#     println(map(LLVM.name, functions(mod)))
+
+#     # TODO: remove. cause exception flag is no longer here either
+#     # emit_cpucall_area!(mod)
+# end
 
 function GPUCompiler.link_libraries!(job::CUDACompilerJob, mod::LLVM.Module,
                                      undefined_fns::Vector{String})

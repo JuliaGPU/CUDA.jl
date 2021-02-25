@@ -146,20 +146,7 @@ async_send(data::Ptr{Cvoid}) = ccall(:uv_async_send, Cint, (Ptr{Cvoid},), data)
 
 function launch(f::Base.Callable; stream::CuStream=stream())
     cond = Base.AsyncCondition() do async_cond
-        event = CuEvent(CUDA.EVENT_DISABLE_TIMING)
-
-        # TODO cleanup
-        reset_cpucall_area!(kernel.ctx)
-        synchronize()
-
-        t = @async wait_and_kill_watcher(event, kernel.ctx)
-        while !istaskstarted(t)
-            yield()
-        end
-
         f()
-        CUDA.record(event, stream)
-
         close(async_cond)
     end
 
