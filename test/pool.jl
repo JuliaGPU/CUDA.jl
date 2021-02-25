@@ -34,3 +34,7 @@ end
     CUDA.enable_timings()
     CUDA.disable_timings()
 end
+
+@testset "memory_status" begin
+    CUDA.memory_status(devnull)
+end

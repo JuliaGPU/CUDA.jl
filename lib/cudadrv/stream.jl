@@ -106,15 +106,25 @@ function query(s::CuStream)
 end
 
 """
-    synchronize([s::CuStream]; blocking=true)
+    synchronize()
+    synchronize([stream::CuStream]; blocking=true)
 
-Wait until a stream's tasks are completed. If `blocking` is true (the default), Julia will
-be asked to yield to any other scheduled task.
+Wait until `stream` has finished executing, with `stream` defaulting to the stream
+associated with the current Julia task. If `blocking` is true (the default), Julia will be
+asked to yield to any other scheduled task, otherwise it will spin indefinitely.
+
+See also: [`synchronize_all`](@ref)
 """
 function synchronize(s::CuStream=stream(); blocking::Bool=true)
     # TODO: exponential back-off and sleep?
     while !query(s)
-        blocking && yield()
+        if blocking
+            yield()
+        else
+            ccall(:jl_cpu_pause, Cvoid, ())
+            # Temporary solution before we have gc transition support in codegen.
+            ccall(:jl_gc_safepoint, Cvoid, ())
+        end
     end
 
     check_exceptions()
