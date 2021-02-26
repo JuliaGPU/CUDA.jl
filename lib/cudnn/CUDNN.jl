@@ -36,6 +36,7 @@ include("normalization.jl")
 # high-level integrations
 include("nnlib.jl")
 include("batchnorm.jl")
+include("rnncompat.jl")
 
 
 function math_mode(mode=CUDA.math_mode())
