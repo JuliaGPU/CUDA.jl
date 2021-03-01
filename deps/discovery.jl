@@ -411,7 +411,10 @@ function parse_toolkit_version(tool, tool_path::String)
         read(`$tool_path --version`, String)
     end
     m = match(r"\bV(?<major>\d+).(?<minor>\d+).(?<patch>\d+)\b", verstr)
-    m !== nothing || error("could not parse version info (\"$verstr\")")
+    if m === nothing
+        @error "Could not parse CUDA version info (\"$verstr\"); please file an issue."
+        return nothing
+    end
 
     version = VersionNumber(parse(Int, m[:major]),
                             parse(Int, m[:minor]),
@@ -427,7 +430,8 @@ function parse_toolkit_version(tool, tool_path::String)
                 return toolkit_version
             end
         end
-        error("CUDA.jl does not yet support CUDA with $tool $version; please file an issue.")
+        @error "CUDA.jl does not yet support CUDA with $tool $version; please file an issue."
+        return nothing
     else
         @debug "CUDA toolkit identified as $version"
         return version

@@ -204,6 +204,9 @@ function use_local_cuda()
     end
 
     cuda_version = parse_toolkit_version("nvdisasm", __nvdisasm[])
+    if cuda_version === nothing
+        return false
+    end
 
     for library in ("cublas", "cusparse", "cusolver", "cufft", "curand")
         handle = getfield(CUDA, Symbol("__lib$library"))
