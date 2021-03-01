@@ -134,6 +134,6 @@ end
     m = CUDA.rand(Float32, 2, 5)
     for training in (false, true)
         CUDNN.batchnorm(v, v, m, v, v, 1.0; training=training)
-        CUDNN.∇batchnorm(v, v, m, v, v, 1.0; training=training)
+        CUDNN.∇batchnorm(v, v, m, m, v, v, 1.0; training=training)
     end
 end
