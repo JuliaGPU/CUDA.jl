@@ -5,9 +5,7 @@ end
 
 BNCache() = BNCache(nothing, nothing)
 
-@inline _wsize(y) = (map(_ -> 1, size(y)[1:end-2])..., size(y)[end-1], 1)
-
-@inline _reddims(y) = (collect(1:ndims(y)-2)..., ndims(y))
+@inline _wsize(y) = (fill(1, ndims(y)-2)..., size(y)[end-1], 1)
 
 # NOTE: CuDNN supports only 4D and 5D Tensors for BatchNorm Operations
 # so reshape a 2D Tensor into 4D
@@ -110,7 +108,8 @@ function cudnnBNBackward!(dg::DenseCuArray{T}, g::DenseCuArray{T}, db::DenseCuAr
   else
     ivar = 1 ./ sqrt.(reshape(running_var, _wsize(x)) .+ eps)
     dx .= dy .* reshape(g, _wsize(x)) .* ivar
-    dg .= squeeze(sum(dy .* (x .- reshape(running_mean, _wsize(x))) .* ivar, _reddims(dy)), dims = (1,2,4))
-    db .= squeeze(sum(dy, _reddims(dy)), dims = (1,2,4))
+    rdims = ((1:ndims(x)-2)..., ndims(x))
+    dg .= vec(sum(dy .* (x .- reshape(running_mean, _wsize(x))) .* ivar, dims=rdims))
+    db .= vec(sum(dy, dims=rdims))
   end
 end
