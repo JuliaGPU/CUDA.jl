@@ -224,6 +224,9 @@ function use_local_cuda()
     __memcheck[] = find_cuda_binary("cuda-memcheck", cuda_dirs)
 
     cuda_version = parse_toolkit_version("nvdisasm", __nvdisasm[])
+    if cuda_version === nothing
+        return false
+    end
 
     for library in ("cublas", "cusparse", "cusolver", "cufft", "curand")
         handle = getfield(CUDA, Symbol("__lib$library"))
