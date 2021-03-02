@@ -103,7 +103,7 @@ export @pool_timeit
 const to = TimerOutput()
 
 macro pool_timeit(args...)
-    TimerOutputs.timer_expr(CUDA, true, :($CUDA.to), args...)
+    TimerOutputs.timer_expr(CUDA, true, :($PoolUtils.to), args...)
 end
 
 end

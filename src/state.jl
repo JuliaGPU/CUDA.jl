@@ -561,18 +561,3 @@ function stream!(f::Function, s::CuStream)
         set_library_streams(old_s)
     end
 end
-
-
-## memory pools
-
-const memory_pools = Dict{CuContext,CuMemoryPool}()
-
-function pool()
-    if CUDA.version() < v"11.2"
-        return nothing
-    end
-
-    return get!(memory_pools, context()) do
-        CuMemoryPool(device())
-    end
-end
