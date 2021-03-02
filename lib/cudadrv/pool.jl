@@ -50,7 +50,7 @@ function memory_pool(dev::CuDevice)
     handle_ref = Ref{CUmemoryPool}()
     cuDeviceGetMemPool(handle_ref, dev)
 
-    ctx = CuCurrentContext()
+    ctx = CuCurrentContext()::CuContext
     CuMemoryPool(handle_ref[], ctx)
 end
 

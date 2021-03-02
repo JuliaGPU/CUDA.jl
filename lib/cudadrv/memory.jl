@@ -64,11 +64,12 @@ for access on the CPU.
 """
 function alloc(::Type{DeviceBuffer}, bytesize::Integer;
                async::Bool=false, stream::CuStream=stream(),
-               pool::Union{Nothing,CuMemoryPool}=nothing)
+               pool::Union{Nothing,CuMemoryPool}=nothing,
+               stream_ordered::Bool=CUDA.version() >= v"11.2")
     bytesize == 0 && return DeviceBuffer(CU_NULL, 0)
 
     ptr_ref = Ref{CUDA.CUdeviceptr}()
-    if CUDA.async_alloc[]
+    if stream_ordered
         if pool !== nothing
             CUDA.cuMemAllocFromPoolAsync(ptr_ref, bytesize, pool, stream)
         else
@@ -83,10 +84,11 @@ function alloc(::Type{DeviceBuffer}, bytesize::Integer;
 end
 
 
-function free(buf::DeviceBuffer; async::Bool=false, stream::CuStream=stream())
+function free(buf::DeviceBuffer; async::Bool=false, stream::CuStream=stream(),
+              stream_ordered::Bool=CUDA.version() >= v"11.2")
     pointer(buf) == CU_NULL && return
 
-    if CUDA.async_alloc[]
+    if stream_ordered
         CUDA.cuMemFreeAsync(buf, stream)
         async || synchronize(stream)
     else
