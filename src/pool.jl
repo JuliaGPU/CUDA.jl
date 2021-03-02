@@ -649,6 +649,16 @@ function __init_pool__()
   TimerOutputs.reset_timer!(alloc_to)
   TimerOutputs.reset_timer!(PoolUtils.to)
 
+  if isdebug(:init, CUDA)
+    TimerOutputs.enable_debug_timings(CUDA)
+    atexit() do
+        println("Memory pool timings:")
+        pool_timings()
+        println("Allocator timings:")
+        alloc_timings()
+    end
+  end
+
   if isinteractive()
     @async @pooled pool_cleanup()
   end
