@@ -216,6 +216,17 @@ os = "windows"
     sha256 = "ac23cbb9ccde477ec2fad4d2efa1b891c8c6079de5df06f6f9d7f4871343d23f"
     url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA101_jll.jl/releases/download/CUDNN_CUDA101-v8.0.4+0/CUDNN_CUDA101.v8.0.4.x86_64-w64-mingw32.tar.gz"
 
+[[CUDNN_CUDA102]]
+arch = "powerpc64le"
+git-tree-sha1 = "bc48bc3f534400aa4a841fa5886f794ee458d380"
+lazy = true
+libc = "glibc"
+os = "linux"
+
+    [[CUDNN_CUDA102.download]]
+    sha256 = "83fdecd9b53c83f4b024beb24cf93a755b6a5a53011d4783e8bf06cadee47ffe"
+    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA102_jll.jl/releases/download/CUDNN_CUDA102-v8.0.4+0/CUDNN_CUDA102.v8.0.4.powerpc64le-linux-gnu.tar.gz"
+
 ## v8.1
 
 [[CUDNN_CUDA102]]
