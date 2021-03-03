@@ -1,15 +1,13 @@
-module NoPool
-
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
-using ..CUDA
-import ..CUDA: actual_alloc, actual_free
+using .PoolUtils
 
-using ..PoolUtils
+Base.@kwdef struct NoPool <: AbstractPool
+    dev::CuDevice
+    stream_ordered::Bool
+end
 
-init() = return
-
-function alloc(dev, sz)
+function alloc(pool::NoPool, sz)
     block = nothing
     for phase in 1:3
         if phase == 2
@@ -19,7 +17,7 @@ function alloc(dev, sz)
         end
 
         @pool_timeit "$phase.1 alloc" begin
-            block = actual_alloc(dev, sz, phase==3)
+            block = actual_alloc(pool.dev, sz, phase==3; pool.stream_ordered)
         end
         block === nothing || break
     end
@@ -27,13 +25,11 @@ function alloc(dev, sz)
     return block
 end
 
-function free(dev, block)
-    actual_free(dev, block)
+function free(pool::NoPool, block)
+    actual_free(pool.dev, block; pool.stream_ordered)
     return
 end
 
-reclaim(dev, target_bytes::Int=typemax(Int)) = return 0
+reclaim(pool::NoPool, target_bytes::Int=typemax(Int)) = return 0
 
-cached_memory(dev=device()) = 0
-
-end
+cached_memory(pool::NoPool) = 0

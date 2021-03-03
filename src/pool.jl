@@ -3,6 +3,7 @@
 using Printf
 using Logging
 using TimerOutputs
+using DataStructures
 
 include("pool/utils.jl")
 using .PoolUtils
@@ -64,9 +65,6 @@ end
 const usage_limit = PerDevice{Int}() do dev
   if haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT")
     parse(Int, ENV["JULIA_CUDA_MEMORY_LIMIT"])
-  elseif haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
-    Base.depwarn("The CUARRAYS_MEMORY_LIMIT environment flag is deprecated, please use JULIA_CUDA_MEMORY_LIMIT instead.", :__init_pool__)
-    parse(Int, ENV["CUARRAYS_MEMORY_LIMIT"])
   else
     typemax(Int)
   end
@@ -116,7 +114,8 @@ function hard_limit(dev::CuDevice)
   usage_limit[dev]
 end
 
-function actual_alloc(dev::CuDevice, bytes::Integer, last_resort::Bool=false)
+function actual_alloc(dev::CuDevice, bytes::Integer, last_resort::Bool=false;
+                      stream_ordered::Bool=false)
   buf = @device! dev begin
     # check the memory allocation limit
     if usage[dev][] + bytes > (last_resort ? hard_limit(dev) : soft_limit(dev))
@@ -127,7 +126,7 @@ function actual_alloc(dev::CuDevice, bytes::Integer, last_resort::Bool=false)
     try
       time = Base.@elapsed begin
         @timeit_debug alloc_to "alloc" begin
-          buf = Mem.alloc(Mem.Device, bytes; async=true)
+          buf = Mem.alloc(Mem.Device, bytes; async=true, stream_ordered)
         end
       end
 
@@ -146,7 +145,7 @@ function actual_alloc(dev::CuDevice, bytes::Integer, last_resort::Bool=false)
   return Block(buf, bytes; state=AVAILABLE)
 end
 
-function actual_free(dev::CuDevice, block::Block)
+function actual_free(dev::CuDevice, block::Block; stream_ordered::Bool=false)
   @assert iswhole(block) "Cannot free $block: block is not whole"
   @assert block.off == 0
   @assert block.state == AVAILABLE "Cannot free $block: block is not available"
@@ -155,7 +154,7 @@ function actual_free(dev::CuDevice, block::Block)
     # free the memory
     @timeit_debug alloc_to "free" begin
       time = Base.@elapsed begin
-        Mem.free(block.buf; async=true)
+        Mem.free(block.buf; async=true, stream_ordered)
       end
       block.state = INVALID
 
@@ -181,40 +180,48 @@ Show the timings of the currently active memory pool. Assumes
 pool_timings() = (show(PoolUtils.to; allocations=false, sortby=:name); println())
 
 # pool API:
-# - init()
-# - alloc(::CuDevice, sz)::Block
-# - free(::CuDevice, ::Block)
-# - reclaim(::CuDevice, nb::Int=typemax(Int))::Int
-# - cached_memory()
+# - constructor taking a CuDevice
+# - alloc(::AbstractPool, sz)::Block
+# - free(::AbstractPool, ::Block)
+# - reclaim(::AbstractPool, nb::Int=typemax(Int))::Int
+# - cached_memory(::AbstractPool)
 
 module Pool
 @enum MemoryPool None Simple Binned Split
 end
-const active_pool = Ref{Pool.MemoryPool}()
-const async_alloc = Ref{Bool}()
 
-macro pooled(ex)
-    @assert Meta.isexpr(ex, :call)
-    f, args... = ex.args
-    quote
-      if active_pool[] == Pool.None
-        NoPool.$(f)($(map(esc, args)...))
-      elseif active_pool[] == Pool.Simple
-        SimplePool.$(f)($(map(esc, args)...))
-      elseif active_pool[] == Pool.Binned
-        BinnedPool.$(f)($(map(esc, args)...))
-      elseif active_pool[] == Pool.Split
-        SplitPool.$(f)($(map(esc, args)...))
-      else
-        error("unreachable")
-      end
-    end
-end
-
+abstract type AbstractPool end
 include("pool/none.jl")
 include("pool/simple.jl")
 include("pool/binned.jl")
 include("pool/split.jl")
+
+const pools = PerDevice{AbstractPool}(dev->begin
+  default_pool = if version() >= v"11.2" &&
+                    attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+      "cuda"
+  else
+      "binned"
+  end
+  pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", default_pool)
+  pool = if pool_name == "none"
+      NoPool(; dev, stream_ordered=false)
+  elseif pool_name == "simple"
+      SimplePool(; dev, stream_ordered=false)
+  elseif pool_name == "binned"
+      BinnedPool(; dev, stream_ordered=false)
+  elseif pool_name == "split"
+      SplitPool(; dev, stream_ordered=false)
+  elseif pool_name == "cuda"
+      @assert version() >= v"11.2" "The CUDA memory pool is only supported on CUDA 11.2+"
+      @assert(attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1,
+              "Your device $(name(dev)) does not support the CUDA memory pool")
+      NoPool(; dev, stream_ordered=true)
+  else
+      error("Invalid memory pool '$pool_name'")
+  end
+  pool
+end)
 
 
 ## interface
@@ -263,11 +270,11 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   sz == 0 && return CU_NULL
 
   dev = device()
+  pool = pools[dev]
 
   time = Base.@elapsed begin
-    @pool_timeit "pooled alloc" block = @pooled alloc(dev, sz)
+    @pool_timeit "pooled alloc" block = alloc(pool, sz)::Union{Nothing,Block}
   end
-  block::Union{Nothing,Block}
   block === nothing && throw(OutOfGPUMemoryError(sz))
 
   # record the memory block
@@ -328,6 +335,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   ptr == CU_NULL && return
 
   dev = device()
+  pool = pools[dev]
   last_use[dev] = time()
 
   if MEMDEBUG && ptr == CuPtr{Cvoid}(0xbbbbbbbbbbbbbbbb)
@@ -359,7 +367,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     end
 
     time = Base.@elapsed begin
-      @pool_timeit "pooled free" @pooled free(dev, block)
+      @pool_timeit "pooled free" free(pool, block)
     end
 
     alloc_stats.pool_time += time
@@ -382,7 +390,8 @@ actually reclaimed.
 """
 function reclaim(sz::Int=typemax(Int))
   dev = device()
-  @pooled reclaim(dev, sz)
+  pool = pools[dev]
+  reclaim(pool, sz)
 end
 
 """
@@ -403,6 +412,9 @@ macro retry_reclaim(isfailed, ex)
       ret = $(esc(ex))
       $(esc(isfailed))(ret) || break
 
+      dev = device()
+      pool = pools[dev]
+
       # incrementally more costly reclaim of cached memory
       if phase == 1
         reclaim()
@@ -412,11 +424,10 @@ macro retry_reclaim(isfailed, ex)
       elseif phase == 3
         GC.gc(true)
         reclaim()
-      elseif phase == 4 && async_alloc[]
+      elseif phase == 4 && pool.stream_ordered
         # this phase is unique to retry_reclaim, as regular allocations come from the pool
         # so are assumed to never need to trim its contents.
-        pool = memory_pool(device())
-        trim(pool)
+        trim(memory_pool(device()))
       end
     end
     ret
@@ -445,7 +456,8 @@ function pool_cleanup()
 
       if t1-t0 > 300
         # the pool hasn't been used for a while, so reclaim unused buffers
-        @pooled reclaim(dev)
+        pool = pools[dev]
+        reclaim(pool)
       end
     end
 
@@ -561,7 +573,10 @@ macro timed(ex)
     end
 end
 
-cached_memory() = @pooled cached_memory()
+function cached_memory(dev::CuDevice=device())
+  pool = pools[dev]
+  cached_memory(pool)
+end
 
 """
     memory_status([io=stdout])
@@ -584,10 +599,11 @@ function memory_status(io::IO=stdout)
   end
   println(io)
 
-  alloc_used_bytes = used_memory()
-  alloc_cached_bytes = cached_memory()
+  pool = pools[dev]
+  alloc_used_bytes = used_memory(dev)
+  alloc_cached_bytes = cached_memory(pool)
   alloc_total_bytes = alloc_used_bytes + alloc_cached_bytes
-  @printf(io, "Memory pool '%s' usage: %s (%s allocated, %s cached)\n", string(active_pool[]),
+  @printf(io, "Memory pool '%s' usage: %s (%s allocated, %s cached)\n", string(pool),
               Base.format_bytes(alloc_total_bytes), Base.format_bytes(alloc_used_bytes),
               Base.format_bytes(alloc_cached_bytes))
 
@@ -627,24 +643,8 @@ function __init_pool__()
   initialize!(allocated, ndevices())
   initialize!(requested, ndevices())
 
-  # memory pool configuration
-  default_pool = version() >= v"11.2" ? "cuda" : "binned"
-  pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", default_pool)
-  active_pool[], async_alloc[] = if pool_name == "none"
-      Pool.None, false
-  elseif pool_name == "simple"
-      Pool.Simple, false
-  elseif pool_name == "binned"
-      Pool.Binned, false
-  elseif pool_name == "split"
-      Pool.Split, false
-  elseif pool_name == "cuda"
-      @assert version() >= v"11.2" "The CUDA memory pool is only supported on CUDA 11.2+"
-      Pool.None, true
-  else
-      error("Invalid memory pool '$pool_name'")
-  end
-  @pooled init()
+  # memory pools
+  initialize!(pools, ndevices())
 
   TimerOutputs.reset_timer!(alloc_to)
   TimerOutputs.reset_timer!(PoolUtils.to)
@@ -660,6 +660,6 @@ function __init_pool__()
   end
 
   if isinteractive()
-    @async @pooled pool_cleanup()
+    @async pool_cleanup()
   end
 end

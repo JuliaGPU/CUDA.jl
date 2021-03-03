@@ -68,7 +68,7 @@ end
 
 reset_cb()
 
-if !CUDA.async_alloc[]
+if CUDA.release() != v"11.2"
     # NVIDIA bug #3240770
     device_reset!()
 

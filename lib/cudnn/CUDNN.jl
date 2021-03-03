@@ -118,17 +118,17 @@ function __init__()
     end
 end
 
-function log_message(sev, udata, dbg_ptr, cstr)
+function log_message(sev, udata, dbg_ptr, ptr)
     # "Each line of this message is terminated by \0, and the end of the message is
     # terminated by \0\0"
     len = 0
     while true
-        if unsafe_load(cstr, len+1) == '\0' && unsafe_load(cstr, len+2)
+        if unsafe_load(ptr, len+1) == '\0' && unsafe_load(ptr, len+2) == '\0'
             break
         end
         len += 1
     end
-    str = unsafe_string(cstr, len)
+    str = unsafe_string(ptr, len)
     lines = split(str, '\0')
     msg = join(str, '\n')
 
@@ -143,7 +143,7 @@ function __runtime_init__()
     # FIXME: this doesn't work, and the mask remains 0 (as observed with cudnnGetCallback)
     if isdebug(:init, CUDNN)
         callback = @cfunction(log_message, Nothing,
-                              (cudnnSeverity_t, Ptr{Cvoid}, Ptr{cudnnDebug_t}, Cstring))
+                              (cudnnSeverity_t, Ptr{Cvoid}, Ptr{cudnnDebug_t}, Ptr{UInt8}))
         cudnnSetCallback(typemax(UInt32), C_NULL, callback)
     end
 end

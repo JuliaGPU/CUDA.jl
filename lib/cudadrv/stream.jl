@@ -32,7 +32,7 @@ function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
         cuStreamCreateWithPriority(handle_ref, flags, priority)
     end
 
-    ctx = CuCurrentContext()
+    ctx = CuCurrentContext()::CuContext
     obj = CuStream(handle_ref[], ctx)
     finalizer(unsafe_destroy!, obj)
     return obj

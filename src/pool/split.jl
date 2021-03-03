@@ -1,13 +1,6 @@
-module SplitPool
-
 # scan into a sorted list of free buffers, splitting buffers along the way
 
-using ..CUDA
-import ..CUDA: actual_alloc, actual_free, PerDevice, initialize!
-
-using ..PoolUtils
-
-using DataStructures
+using .PoolUtils
 
 
 ## tunables
@@ -61,18 +54,39 @@ end
 
 ## pooling
 
-const pool_lock = ReentrantLock()
+const SMALL = 1
+const LARGE = 2
+const HUGE  = 3
 
-function pool_scan(dev, pool, sz, max_overhead=typemax(Int))
+# sorted containers need unique keys, which the size of a block isn't.
+# mix in the block address to keep the key sortable, but unique.
+unique_sizeof(block::Block) = (UInt128(sizeof(block))<<64) | UInt64(pointer(block))
+const UniqueIncreasingSize = Base.By(unique_sizeof)
+
+Base.@kwdef struct SplitPool <: AbstractPool
+    dev::CuDevice
+    stream_ordered::Bool
+
+    lock::ReentrantLock = ReentrantLock()
+
+    small::SortedSet{Block} = SortedSet{Block}(UniqueIncreasingSize)
+    large::SortedSet{Block} = SortedSet{Block}(UniqueIncreasingSize)
+    huge::SortedSet{Block}  = SortedSet{Block}(UniqueIncreasingSize)
+
+    freed::Vector{Block} = Vector{Block}()
+    freed_lock::NonReentrantLock = NonReentrantLock()
+end
+
+function pool_scan(pool::SplitPool, cache, sz, max_overhead=typemax(Int))
     max_sz = Base.max(sz + max_overhead, max_overhead)   # protect against overflow
-    @lock pool_lock begin
+    @lock pool.lock begin
         # get the first entry that is sufficiently large
-        i = searchsortedfirst(pool, Block(Mem.DeviceBuffer(CU_NULL, 0), sz))
-        if i != pastendsemitoken(pool)
-            block = deref((pool,i))
+        i = searchsortedfirst(cache, Block(Mem.DeviceBuffer(CU_NULL, 0), sz))
+        if i != pastendsemitoken(cache)
+            block = deref((cache,i))
             @assert sizeof(block) >= sz
             if sz <= max_sz
-                delete!((pool,i))   # FIXME: this allocates
+                delete!((cache,i))   # FIXME: this allocates
                 return block
             end
         end
@@ -85,31 +99,31 @@ end
 # looks up possible sequences based on each block in the input set.
 # destroys the input set.
 # returns the net difference in amount of blocks.
-function pool_compact(dev, blocks)
+function pool_compact(pool::SplitPool, blocks)
     compacted = 0
-    @lock pool_lock begin
+    @lock pool.lock begin
         while !isempty(blocks)
             block = pop!(blocks)
             @assert block.state == AVAILABLE
-            pool = get_pool(dev, sizeof(block))
-            @assert in(block, pool)
+            cache = get_cache(pool, sizeof(block))
+            @assert in(block, cache)
 
             # find the head of a sequence
             head = block
             while head.prev !== nothing && head.prev.state == AVAILABLE
                 head = head.prev
-                @assert in(head, pool)
+                @assert in(head, cache)
             end
             szclass = size_class(sizeof(head))
 
             if head.next !== nothing && head.next.state == AVAILABLE
-                delete!(pool, head)
+                delete!(cache, head)
 
                 # find the tail (from the head, removing blocks as we go)
                 tail = head.next
                 while true
                     @assert szclass === size_class(sizeof(tail)) "block $tail should not have been split to a different pool than $head"
-                    delete!(pool, tail)    # FIXME: allocates
+                    delete!(cache, tail)    # FIXME: allocates
                     delete!(blocks, tail)
                     tail.state = INVALID
                     compacted += 1
@@ -122,23 +136,23 @@ function pool_compact(dev, blocks)
 
                 # compact
                 head = merge!(head, tail)
-                @assert !in(head, pool) "$head should not be in the pool"
+                @assert !in(head, cache) "$head should not be in the pool"
                 @assert head.state == AVAILABLE
                 @assert szclass === size_class(sizeof(head)) "compacted $head should not end up in a different pool"
-                push!(pool, head)
+                push!(cache, head)
             end
         end
     end
     return compacted
 end
 
-function reclaim_single(dev, pool, sz=typemax(Int))
+function reclaim_single(pool::SplitPool, cache, sz=typemax(Int))
     freed = 0
 
-    @lock pool_lock begin
+    @lock pool.lock begin
         # mark non-split blocks
         candidates = Block[]
-        for block in pool
+        for block in cache
             if iswhole(block)
                 push!(candidates, block)
             end
@@ -146,9 +160,9 @@ function reclaim_single(dev, pool, sz=typemax(Int))
 
         # free them
         for block in candidates
-            delete!(pool, block)
+            delete!(cache, block)
             freed += sizeof(block)
-            actual_free(dev, block)
+            actual_free(pool.dev, block; pool.stream_ordered)
             freed >= sz && break
         end
     end
@@ -156,45 +170,29 @@ function reclaim_single(dev, pool, sz=typemax(Int))
     return freed
 end
 
-# repopulate the pools from the list of freed blocks
-function pool_repopulate(dev)
-    blocks = @lock freed_lock begin
-        isempty(freed[dev]) && return
-        blocks = Set(freed[dev])
-        empty!(freed[dev])
+# repopulate the pools from the list of pool.freed blocks
+function pool_repopulate(pool::SplitPool)
+    blocks = @lock pool.freed_lock begin
+        isempty(pool.freed) && return
+        blocks = Set(pool.freed)
+        empty!(pool.freed)
         blocks
     end
 
-    @lock pool_lock begin
+    @lock pool.lock begin
         for block in blocks
-            pool = get_pool(dev, sizeof(block))
-            @assert !in(block, pool) "$block should not be in the pool"
-            @assert block.state == FREED "$block should have been marked freed"
+            cache = get_cache(pool, sizeof(block))
+            @assert !in(block, cache) "$block should not be in the pool"
+            @assert block.state == FREED "$block should have been marked pool.freed"
             block.state = AVAILABLE
-            push!(pool, block) # FIXME: allocates
+            push!(cache, block) # FIXME: allocates
         end
 
-        pool_compact(dev, blocks)
+        pool_compact(pool, blocks)
     end
 
     return
 end
-
-const SMALL = 1
-const LARGE = 2
-const HUGE  = 3
-
-# sorted containers need unique keys, which the size of a block isn't.
-# mix in the block address to keep the key sortable, but unique.
-unique_sizeof(block::Block) = (UInt128(sizeof(block))<<64) | UInt64(pointer(block))
-const UniqueIncreasingSize = Base.By(unique_sizeof)
-
-const pool_small = PerDevice{SortedSet{Block}}((dev)->SortedSet{Block}(UniqueIncreasingSize))
-const pool_large = PerDevice{SortedSet{Block}}((dev)->SortedSet{Block}(UniqueIncreasingSize))
-const pool_huge  = PerDevice{SortedSet{Block}}((dev)->SortedSet{Block}(UniqueIncreasingSize))
-
-const freed = PerDevice{Vector{Block}}((dev)->Vector{Block}())
-const freed_lock = NonReentrantLock()
 
 function size_class(sz)
     if sz <= SMALL_CUTOFF
@@ -206,18 +204,20 @@ function size_class(sz)
     end
 end
 
-@inline function get_pool(dev, sz)
+@inline function get_cache(pool::SplitPool, sz)
     szclass = size_class(sz)
     if szclass == SMALL
-        return pool_small[dev]
+        return pool.small
     elseif szclass == LARGE
-        return pool_large[dev]
+        return pool.large
     elseif szclass == HUGE
-        return pool_huge[dev]
+        return pool.huge
+    else
+        error("unreachable")
     end
 end
 
-function alloc(dev, sz)
+function alloc(pool::SplitPool, sz)
     szclass = size_class(sz)
 
     # round off the block size
@@ -228,12 +228,14 @@ function alloc(dev, sz)
         LARGE_ROUNDOFF
     elseif szclass == HUGE
         HUGE_ROUNDOFF
+    else
+        error("unreachable")
     end
     sz = cld(sz, roundoff) * roundoff
     szclass = size_class(sz)
 
     # select a pool
-    pool = get_pool(dev, sz)
+    cache = get_cache(pool, sz)
 
     # determine the maximum scan overhead
     max_overhead = if szclass == SMALL
@@ -242,6 +244,8 @@ function alloc(dev, sz)
         LARGE_OVERHEAD
     elseif szclass == HUGE
         HUGE_OVERHEAD
+    else
+        error("unreachable")
     end
 
     block = nothing
@@ -252,35 +256,35 @@ function alloc(dev, sz)
             @pool_timeit "$phase.0 gc (full)" GC.gc(true)
         end
 
-        @pool_timeit "$phase.1 repopulate" pool_repopulate(dev)
+        @pool_timeit "$phase.1 repopulate" pool_repopulate(pool)
 
         @pool_timeit "$phase.2 scan" begin
-            block = pool_scan(dev, pool, sz, max_overhead)
+            block = pool_scan(pool, cache, sz, max_overhead)
         end
         block === nothing || break
 
         @pool_timeit "$phase.3 alloc" begin
-            block = actual_alloc(dev, sz)
+            block = actual_alloc(pool.dev, sz; pool.stream_ordered)
         end
         block === nothing || break
 
         # we're out of memory, try freeing up some memory. this is a fairly expensive
         # operation, so start with the largest pool that is likely to free up much memory
         # without requiring many calls to free.
-        for pool in (pool_huge[dev], pool_large[dev], pool_small[dev])
-            @pool_timeit "$phase.4a reclaim" reclaim_single(dev, pool, sz)
-            @pool_timeit "$phase.4b alloc" block = actual_alloc(dev, sz)
+        for cache in (pool.huge, pool.large, pool.small)
+            @pool_timeit "$phase.4a reclaim" reclaim_single(pool, cache, sz)
+            @pool_timeit "$phase.4b alloc" block = actual_alloc(pool.dev, sz; pool.stream_ordered)
             block === nothing || break
         end
         block === nothing || break
 
         # last-ditch effort, reclaim everything
         @pool_timeit "$phase.5a reclaim" begin
-            reclaim_single(dev, pool_huge[dev])
-            reclaim_single(dev, pool_large[dev])
-            reclaim_single(dev, pool_small[dev])
+            reclaim_single(pool, pool.huge)
+            reclaim_single(pool, pool.large)
+            reclaim_single(pool, pool.small)
         end
-        @pool_timeit "$phase.5b alloc" block = actual_alloc(dev, sz, phase==3)
+        @pool_timeit "$phase.5b alloc" block = actual_alloc(pool.dev, sz, phase==3; pool.stream_ordered)
     end
 
     if block !== nothing
@@ -294,8 +298,8 @@ function alloc(dev, sz)
         if szclass != HUGE && remainder > 0 && size_class(remainder) == szclass
             split = split!(block, sz)
             split.state = AVAILABLE
-            @lock pool_lock begin
-                push!(pool, split)
+            @lock pool.lock begin
+                push!(cache, split)
             end
         end
     end
@@ -306,41 +310,31 @@ function alloc(dev, sz)
     return block
 end
 
-function free(dev, block)
+function free(pool::SplitPool, block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
     block.state = FREED
-    @spinlock freed_lock begin
-        push!(freed[dev], block)
+    @spinlock pool.freed_lock begin
+        push!(pool.freed, block)
     end
 end
 
-function init()
-    initialize!(freed, ndevices())
-
-    initialize!(pool_small, ndevices())
-    initialize!(pool_large, ndevices())
-    initialize!(pool_huge, ndevices())
-end
-
-function reclaim(dev, sz::Int=typemax(Int))
-    pool_repopulate(dev)
+function reclaim(pool::SplitPool, sz::Int=typemax(Int))
+    pool_repopulate(pool)
 
     freed_sz = 0
-    for pool in (pool_huge[dev], pool_large[dev], pool_small[dev])
+    for cache in (pool.huge, pool.large, pool.small)
         freed_sz >= sz && break
-        freed_sz += reclaim_single(dev, pool, sz-freed_sz)
+        freed_sz += reclaim_single(pool, cache, sz-freed_sz)
     end
     return freed_sz
 end
 
-function cached_memory(dev=device())
-    sz = @lock freed_lock mapreduce(sizeof, +, freed[dev]; init=0)
-    @lock pool_lock for pool in (pool_small[dev], pool_large[dev], pool_huge[dev])
-        sz += mapreduce(sizeof, +, pool; init=0)
+function cached_memory(pool::SplitPool)
+    sz = @lock pool.freed_lock mapreduce(sizeof, +, pool.freed; init=0)
+    @lock pool.lock for cache in (pool.small, pool.large, pool.huge)
+        sz += mapreduce(sizeof, +, cache; init=0)
     end
     return sz
-end
-
 end
