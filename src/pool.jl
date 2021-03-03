@@ -197,7 +197,12 @@ include("pool/binned.jl")
 include("pool/split.jl")
 
 const pools = PerDevice{AbstractPool}(dev->begin
-  default_pool = version() >= v"11.2" ? "cuda" : "binned"
+  default_pool = if version() >= v"11.2" &&
+                    attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+      "cuda"
+  else
+      "binned"
+  end
   pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", default_pool)
   pool = if pool_name == "none"
       NoPool(; dev, stream_ordered=false)
@@ -209,6 +214,8 @@ const pools = PerDevice{AbstractPool}(dev->begin
       SplitPool(; dev, stream_ordered=false)
   elseif pool_name == "cuda"
       @assert version() >= v"11.2" "The CUDA memory pool is only supported on CUDA 11.2+"
+      @assert(attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1,
+              "Your device $(name(dev)) does not support the CUDA memory pool")
       NoPool(; dev, stream_ordered=true)
   else
       error("Invalid memory pool '$pool_name'")
