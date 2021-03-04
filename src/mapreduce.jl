@@ -143,9 +143,6 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     Base.check_reducedims(R, A)
     length(A) == 0 && return R # isempty(::Broadcasted) iterates
 
-    f = cufunc(f)
-    op = cufunc(op)
-
     # be conservative about using shuffle instructions
     shuffle = T <: Union{Bool, Int32, Int64, Float32, Float64, ComplexF32, ComplexF64}
 

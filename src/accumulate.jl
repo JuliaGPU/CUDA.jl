@@ -134,8 +134,6 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
     dims > ndims(input) && return copyto!(output, input)
     isempty(inds_t[dims]) && return output
 
-    f = cufunc(f)
-
     # iteration domain across the main dimension
     Rdim = CartesianIndices((size(input, dims),))
 

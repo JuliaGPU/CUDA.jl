@@ -43,7 +43,7 @@ end
         buf = CuArray(zeros(Float32))
 
         function pow_kernel(a, x, y)
-            a[] = CUDA.pow(x, y)
+            a[] = x^y
             return
         end
 

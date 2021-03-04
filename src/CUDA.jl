@@ -18,6 +18,19 @@ using BFloat16s
 
 using Memoize
 
+using ExprTools
+
+
+##
+
+const ci_cache = GPUCompiler.CodeCache()
+
+@static if VERSION >= v"1.7-"
+Base.Experimental.@MethodTable(method_table)
+else
+const method_table = nothing
+end
+
 
 ## source code includes
 

@@ -22,29 +22,6 @@
   end
   @test Array(Whatever{Int}.(CuArray([1]))) == Whatever{Int}.([1])
 end
-
-@testset "cufunc" begin
-  gelu1(x) = oftype(x, 0.5) * x * (1 + tanh(oftype(x, √(2/π))*(x + oftype(x, 0.044715) * x^3)))
-  sig(x) = one(x) / (one(x) + exp(-x))
-  f(x) = gelu1(log(x)) * sig(x) * tanh(x)
-  g(x) = x^7 - 2 * x^f(x^2) + 3
-
-  CUDA.@cufunc gelu1(x) = oftype(x, 0.5) * x * (1 + tanh(oftype(x, √(2/π))*(x + oftype(x, 0.044715) * x^3)))
-  CUDA.@cufunc sig(x) = one(x) / (one(x) + exp(-x))
-  CUDA.@cufunc f(x) = gelu1(log(x)) * sig(x) * tanh(x)
-  CUDA.@cufunc g(x) = x^7 - 2 * x^f(x^2) + 3
-
-  @test :gelu1 ∈ CUDA.cufuncs()
-  @test :sig ∈ CUDA.cufuncs()
-  @test :f ∈ CUDA.cufuncs()
-  @test :g ∈ CUDA.cufuncs()
-
-  @test testf(x -> gelu1.(x), rand(3,3))
-  @test testf(x -> sig.(x),   rand(3,3))
-  @test testf(x -> f.(x),     rand(3,3))
-  @test testf(x -> g.(x),     rand(3,3))
-end
-
 # https://github.com/JuliaGPU/CUDA.jl/issues/223
 @testset "Ref Broadcast" begin
   foobar(idx, A) = A[idx]

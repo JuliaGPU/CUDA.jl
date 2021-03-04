@@ -1,5 +1,34 @@
 # wrappers for functionality provided by the CUDA toolkit
 
+const overrides = quote end
+
+macro device_override(ex)
+    code = quote
+        $GPUCompiler.@override($method_table, $ex)
+    end
+    if VERSION >= v"1.7-"
+        return esc(code)
+    else
+        push!(overrides.args, code)
+        return
+    end
+end
+
+macro device_function(ex)
+    ex = macroexpand(__module__, ex)
+    def = splitdef(ex)
+
+    # generate a function that errors
+    def[:body] = quote
+        error("This function is not intended for use on the CPU")
+    end
+
+    esc(quote
+        $(combinedef(def))
+        @device_override $ex
+    end)
+end
+
 # extensions to the C language
 include("intrinsics/memory_shared.jl")
 include("intrinsics/indexing.jl")
