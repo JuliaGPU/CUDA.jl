@@ -173,14 +173,14 @@ end
 """
 Tests if `c` is a valid sort of `a`
 """
-function test_equivalence(a::Vector, c::Vector; kwargs...)
-    @test counter(a) == counter(c) && issorted(c; kwargs...)
+function check_equivalence(a::Vector, c::Vector; kwargs...)
+    counter(a) == counter(c) && issorted(c; kwargs...)
 end
 
 """
 Tests if `c` is a valid sort of `a`
 """
-function test_equivalence(a::Array, c::Array; dims, kwargs...)
+function check_equivalence(a::Array, c::Array; dims, kwargs...)
     @assert size(a) == size(c)
     nd = ndims(c)
     k = dims
@@ -190,8 +190,8 @@ function test_equivalence(a::Array, c::Array; dims, kwargs...)
 
     remdims = ntuple(i -> i == k ? 1 : size(c, i), nd)
     v(a, idx) = view(a, ntuple(i -> i == k ? Colon() : idx[i], nd)...)
-    @test all(counter(v(a, idx)) == counter(v(c, idx)) && issorted(v(c, idx); kwargs...)
-              for idx in CartesianIndices(remdims))
+    all(counter(v(a, idx)) == counter(v(c, idx)) && issorted(v(c, idx); kwargs...)
+        for idx in CartesianIndices(remdims))
 end
 
 """
@@ -200,63 +200,63 @@ end
 `f` - For a vector, fill with, for each index i, `T(f(i))`. Facilitates testing orderings
       For an array, fill with `f(rand(T))`. Facilitates testing distributions
 """
-function test_sort!(T, N, f=identity; kwargs...)
+function check_sort!(T, N, f=identity; kwargs...)
     original_arr, device_arr = init_case(T, f, N)
     sort!(device_arr; kwargs...)
     host_result = Array(device_arr)
-    test_equivalence(original_arr, host_result; kwargs...)
+    check_equivalence(original_arr, host_result; kwargs...)
 end
 
-function test_sort(T, N, f=identity; kwargs...)
+function check_sort(T, N, f=identity; kwargs...)
     original_arr, device_arr = init_case(T, f, N)
     host_result = Array(sort(device_arr; kwargs...))
-    test_equivalence(original_arr, host_result; kwargs...)
+    check_equivalence(original_arr, host_result; kwargs...)
 end
 
 
 # FIXME: these tests hang when running under compute-sanitizer on CUDA 11.2 with -g2
 @not_if_sanitize @testset "interface" begin
     # pre-sorted
-    test_sort!(Int, 1000000)
-    test_sort!(Int32, 1000000)
-    test_sort!(Float64, 1000000)
-    test_sort!(Float32, 1000000)
-    test_sort!(Int32, 1000000; rev=true)
-    test_sort!(Float32, 1000000; rev=true)
+    @test check_sort!(Int, 1000000)
+    @test check_sort!(Int32, 1000000)
+    @test check_sort!(Float64, 1000000)
+    @test check_sort!(Float32, 1000000)
+    @test check_sort!(Int32, 1000000; rev=true)
+    @test check_sort!(Float32, 1000000; rev=true)
 
     # reverse sorted
-    test_sort!(Int32, 1000000, x -> -x)
-    test_sort!(Float32, 1000000, x -> -x)
-    test_sort!(Int32, 1000000, x -> -x; rev=true)
-    test_sort!(Float32, 1000000, x -> -x; rev=true)
+    @test check_sort!(Int32, 1000000, x -> -x)
+    @test check_sort!(Float32, 1000000, x -> -x)
+    @test check_sort!(Int32, 1000000, x -> -x; rev=true)
+    @test check_sort!(Float32, 1000000, x -> -x; rev=true)
 
-    test_sort!(Int, 10000, x -> rand(Int))
-    test_sort!(Int32, 10000, x -> rand(Int32))
-    test_sort!(Int8, 10000, x -> rand(Int8))
-    test_sort!(Float64, 10000, x -> rand(Float64))
-    test_sort!(Float32, 10000, x -> rand(Float32))
-    test_sort!(Float16, 10000, x -> rand(Float16))
+    @test check_sort!(Int, 10000, x -> rand(Int))
+    @test check_sort!(Int32, 10000, x -> rand(Int32))
+    @test check_sort!(Int8, 10000, x -> rand(Int8))
+    @test check_sort!(Float64, 10000, x -> rand(Float64))
+    @test check_sort!(Float32, 10000, x -> rand(Float32))
+    @test check_sort!(Float16, 10000, x -> rand(Float16))
 
     # non-uniform distributions
-    test_sort!(UInt8, 100000, x -> round(255 * rand() ^ 2))
-    test_sort!(UInt8, 100000, x -> round(255 * rand() ^ 3))
+    @test check_sort!(UInt8, 100000, x -> round(255 * rand() ^ 2))
+    @test check_sort!(UInt8, 100000, x -> round(255 * rand() ^ 3))
 
     # more copies of each value than can fit in one block
-    test_sort!(Int8, 4000000, x -> rand(Int8))
+    @test check_sort!(Int8, 4000000, x -> rand(Int8))
 
     # multiple dimensions
-    test_sort!(Int32, (4, 50000, 4); dims=2)
-    test_sort!(Int32, (4, 4, 50000); dims=3, rev=true)
+    @test check_sort!(Int32, (4, 50000, 4); dims=2)
+    @test check_sort!(Int32, (4, 4, 50000); dims=3, rev=true)
 
     # various sync depths
     for depth in 0:4
         CUDA.limit!(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH, depth)
-        test_sort!(Int, 100000, x -> rand(Int))
+        @test check_sort!(Int, 100000, x -> rand(Int))
     end
 
     # using a `by` argument
-    test_sort(Float32, 100000; by=x->abs(x - 0.5))
-    test_sort(Float64, (4, 100000); by=x->cos(4 * pi * x), dims=2)
+    @test check_sort(Float32, 100000; by=x->abs(x - 0.5))
+    @test check_sort(Float64, (4, 100000); by=x->cos(4 * pi * x), dims=2)
 end
 
 end
