@@ -482,27 +482,58 @@ end
 
 # optimize reshape to return a CuArray
 
-function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
-  if N == 0 && sizeof(T) == sizeof(S)
-    throw(ArgumentError("cannot reinterpret a zero-dimensional `$(S)` array to `$(T)` which is of a different size"))
+struct _CuReinterpretZeroDimError{T,A} <: Exception end
+function Base.showerror(io::IO, ::_CuReinterpretZeroDimError{T, <:AbstractArray{S,N}}) where {T, S, N}
+  print(io, "cannot reinterpret a zero-dimensional `$(S)` array to `$(T)` which is of a different size")
+end
+
+struct _CuReinterpretDivisibilityError{T,A} <: Exception
+  dim::Int
+end
+function Base.showerror(io::IO, err::_CuReinterpretDivisibilityError{T, <:AbstractArray{S,N}}) where {T, S, N}
+  dim = err.dim
+  print(io, """
+      cannot reinterpret an `$(S)` array to `$(T)` whose first dimension has size `$(dim)`.
+      The resulting array would have non-integral first dimension.
+      """)
+end
+
+struct _CuReinterpretFirstIndexError{T,A,Ax1} <: Exception
+  ax1::Ax1
+end
+function Base.showerror(io::IO, err::_CuReinterpretFirstIndexError{T, <:AbstractArray{S,N}}) where {T, S, N}
+  ax1 = err.ax1
+  print(io, "cannot reinterpret a `$(S)` array to `$(T)` when the first axis is $ax1. Try reshaping first.")
+end
+
+function _reinterpret_exception(::Type{T}, a::AbstractArray{S,N}) where {T,S,N}
+  if N == 0 && sizeof(T) != sizeof(S)
+    return _CuReinterpretZeroDimError{T,typeof(a)}()
   end
   if N != 0 && sizeof(S) != sizeof(T)
       ax1 = axes(a)[1]
       dim = length(ax1)
       if Base.rem(dim*sizeof(S),sizeof(T)) != 0
-        throw(ArgumentError("""
-            cannot reinterpret an `$(S)` array to `$(T)` whose first dimension has size `$(dim)`.
-            The resulting array would have non-integral first dimension.
-            """))
+        return _CuReinterpretDivisibilityError{T,typeof(a)}(dim)
       end
       if first(ax1) != 1
-        throw(ArgumentError("cannot reinterpret a `$(S)` array to `$(T)` when the first axis is $ax1. Try reshaping first."))
+        return _CuReinterpretFirstIndexError{T,typeof(a),typeof(ax1)}(ax1)
       end
   end
+  return nothing
+end
 
-  isize = size(a)
-  size1 = div(isize[1]*sizeof(S), sizeof(T))
-  osize = tuple(size1, Base.tail(isize)...)
+function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
+  err = _reinterpret_exception(T, a)
+  err === nothing || throw(err)
+
+  if sizeof(T) == sizeof(S) # for N == 0
+    osize = size(a)
+  else
+    isize = size(a)
+    size1 = div(isize[1]*sizeof(S), sizeof(T))
+    osize = tuple(size1, Base.tail(isize)...)
+  end
 
   if a.state == ARRAY_MANAGED
       context!(a.ctx) do
@@ -515,6 +546,19 @@ function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
   end
   b.state = a.state
   return b
+end
+
+function Base.reinterpret(::Type{T}, a::CuDeviceArray{S,N,A}) where {T,S,N,A}
+  if sizeof(T) == sizeof(S) # fast case
+    return CuDeviceArray(size(a), reinterpret(LLVMPtr{T,A}, pointer(a)))
+  end
+  err = _reinterpret_exception(T, a)
+  err === nothing || throw(err)
+
+  isize = size(a)
+  size1 = div(isize[1]*sizeof(S), sizeof(T))
+  osize = tuple(size1, Base.tail(isize)...)
+  return CuDeviceArray(osize, reinterpret(LLVMPtr{T,A}, pointer(a)))
 end
 
 
