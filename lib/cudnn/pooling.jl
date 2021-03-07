@@ -85,19 +85,8 @@ function cudnnPoolingForwardOutput(x, xDesc, poolingDesc, format)
     similar(x, ydims...)
 end
 
-
 # AD method
 function cudnnPoolingForwardAD(x; poolingDesc, alpha, beta, xDesc, yDesc, y)
     cudnnPoolingForward(handle(), poolingDesc, alpha, xDesc, x, beta, yDesc, y)
     return y
 end
-
-
-# Deprecated methods
-function cudnnPoolingForward(y::DenseCuArray{T,N}, x::DenseCuArray{T,N}, pdims::NNlib.PoolDims;
-                             alpha=1, beta=0, mode=CUDNN_POOLING_MAX) where {T,N}
-    @warn "`cudnnPoolingForward(y,x,d::PoolDims)` is deprecated, please use one of the methods in `@doc cudnnPoolingForward`." maxlog=1
-    cudnnPoolingForward!(y, x; window=NNlib.kernel_size(pdims), padding=nnlibPadding(pdims), stride=NNlib.stride(pdims), mode, alpha, beta)
-end
-
-

@@ -120,24 +120,6 @@ function cudnnConvolutionForwardAD(w, x, bias, z; y, activation, convDesc, wDesc
     return y
 end
 
-
-# Deprecated methods
-using NNlib: DenseConvDims
-
-function cudnnConvolutionForward(y::DenseCuArray{T,N}, x::DenseCuArray{T,N}, w::DenseCuArray{T,N},
-                                 cdims::DenseConvDims; algo=0, alpha=1, beta=0) where {T,N}
-    @warn "`cudnnConvolutionForward(y,x,w,c::DenseConvDims)` is deprecated, please use one of the methods in `@doc cudnnConvolutionForward!`." maxlog=1
-    cudnnConvolutionForward!(y, w, x; alpha, beta, padding=nnlibPadding(cdims), stride=NNlib.stride(cdims), dilation=NNlib.dilation(cdims), mode=(NNlib.flipkernel(cdims) ? CUDNN_CROSS_CORRELATION : CUDNN_CONVOLUTION))
-end
-
-function cudnnConvolutionBiasActivationForward(y::DenseCuArray{T,N}, x::DenseCuArray{T,N}, w::DenseCuArray{T,N}, z::DenseCuArray{T,N}, bias::DenseCuArray{T,N},
-                                               cdims::DenseConvDims; algo=0, alpha1=1, alpha2=1,
-                                               activationMode=CUDNN_ACTIVATION_RELU, activationCoeff=0.0, activationReluNanOpt=CUDNN_NOT_PROPAGATE_NAN) where {T,N}
-    @warn "`cudnnConvolutionBiasActivationForward` is deprecated, please use one of the methods in `@doc cudnnConvolutionForward!`." maxlog=1
-    cudnnConvolutionForward!(y, w, x; bias, activation=activationMode, z, alpha=alpha1, beta=alpha2, padding=nnlibPadding(cdims), stride=NNlib.stride(cdims), dilation=NNlib.dilation(cdims), mode=(NNlib.flipkernel(cdims) ? CUDNN_CROSS_CORRELATION : CUDNN_CONVOLUTION))
-end
-
-
 # Helper for cudnnConvolutionDescriptor
 function cudnnSetConvolutionDescriptor(
     ptr::cudnnConvolutionDescriptor_t,
