@@ -75,7 +75,8 @@ using CUDA.CUDNN:
     convdims,
     math_mode
 
-@testset "cudnn/convolution" begin
+# XXX: disabled due to sporadic CI issue (JuliaGPU/CUDA.jl#/725)
+false && @testset "cudnn/convolution" begin
     T = Float32
     ax,aw,ab = randn(T,8,8,4,4),randn(T,3,3,4,4),randn(T,1,1,4,1)
     cx,cw,cb = CuArray.((ax,aw,ab))

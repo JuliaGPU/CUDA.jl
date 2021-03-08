@@ -11,6 +11,8 @@ using Base: @deprecate_binding
 
 using Printf
 
+using Memoize
+
 
 #
 # buffers
@@ -54,6 +56,8 @@ Base.show(io::IO, buf::DeviceBuffer) =
 Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
     convert(CuPtr{T}, pointer(buf))
 
+@memoize has_stream_ordered() = CUDA.version() >= v"11.2" && !haskey(ENV, "CUDA_MEMCHECK")
+
 """
     Mem.alloc(DeviceBuffer, bytesize::Integer;
               [async=false], [stream::CuStream], [pool::CuMemoryPool])
@@ -65,7 +69,7 @@ for access on the CPU.
 function alloc(::Type{DeviceBuffer}, bytesize::Integer;
                async::Bool=false, stream::CuStream=stream(),
                pool::Union{Nothing,CuMemoryPool}=nothing,
-               stream_ordered::Bool=CUDA.version() >= v"11.2")
+               stream_ordered::Bool=has_stream_ordered())
     bytesize == 0 && return DeviceBuffer(CU_NULL, 0)
 
     ptr_ref = Ref{CUDA.CUdeviceptr}()
