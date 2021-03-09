@@ -68,7 +68,7 @@ end
 
 reset_cb()
 
-if CUDA.release() != v"11.2"
+if !CUDA.any_stream_ordered()
     # NVIDIA bug #3240770
     device_reset!()
 

@@ -223,6 +223,9 @@ const pools = PerDevice{AbstractPool}(dev->begin
   pool
 end)
 
+# NVIDIA bug #3240770
+@memoize any_stream_ordered() = any(dev->pools[dev].stream_ordered, devices())
+
 
 ## interface
 

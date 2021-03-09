@@ -3,7 +3,7 @@
 @not_if_sanitize begin
 
 # these tests spawn subprocesses, so reset the current context to conserve memory
-CUDA.release() == v"11.2" || CUDA.device_reset!()
+CUDA.any_stream_ordered() || CUDA.device_reset!()
 
 @testset "stack traces at different debug levels" begin
 

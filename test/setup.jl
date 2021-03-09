@@ -102,9 +102,7 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
         end
         res = vcat(collect(data), cpu_rss, gpu_rss)
 
-        if CUDA.release() != v"11.2" # NVIDIA bug #3240770
-            device_reset!()
-        end
+        CUDA.any_stream_ordered() || device_reset!()
         res
     finally
         if snoop !== nothing
