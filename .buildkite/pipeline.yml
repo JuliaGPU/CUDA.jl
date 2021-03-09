@@ -27,7 +27,7 @@ steps:
           version: 1.6-nightly
       - JuliaCI/julia-test#v1:
           julia_args: "-g2"
-          test_args: "--sanitize --quickfail"
+          test_args: "--sanitize --quickfail --jobs=1"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
