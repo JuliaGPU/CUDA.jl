@@ -1,9 +1,9 @@
 # Automatically generated using Clang.jl
 
 const CUBLAS_VER_MAJOR = 11
-const CUBLAS_VER_MINOR = 3
+const CUBLAS_VER_MINOR = 4
 const CUBLAS_VER_PATCH = 1
-const CUBLAS_VER_BUILD = 68
+const CUBLAS_VER_BUILD = 1026
 const CUBLAS_VERSION = CUBLAS_VER_MAJOR * 1000 + CUBLAS_VER_MINOR * 100 + CUBLAS_VER_PATCH
 
 @cenum cublasStatus_t::UInt32 begin
