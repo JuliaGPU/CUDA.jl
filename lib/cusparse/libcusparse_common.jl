@@ -1,9 +1,9 @@
 # Automatically generated using Clang.jl
 
 const CUSPARSE_VER_MAJOR = 11
-const CUSPARSE_VER_MINOR = 3
-const CUSPARSE_VER_PATCH = 1
-const CUSPARSE_VER_BUILD = 68
+const CUSPARSE_VER_MINOR = 4
+const CUSPARSE_VER_PATCH = 0
+const CUSPARSE_VER_BUILD = 135
 const CUSPARSE_VERSION = CUSPARSE_VER_MAJOR * 1000 + CUSPARSE_VER_MINOR * 100 + CUSPARSE_VER_PATCH
 
 # Skipping MacroDefinition: CUSPARSE_DEPRECATED ( new_func ) __attribute__ ( ( deprecated ( "please use " # new_func " instead" ) ) )
@@ -125,6 +125,7 @@ end
     CUSPARSE_FORMAT_CSC = 2
     CUSPARSE_FORMAT_COO = 3
     CUSPARSE_FORMAT_COO_AOS = 4
+    CUSPARSE_FORMAT_BLOCKED_ELL = 5
 end
 
 @cenum cusparseOrder_t::UInt32 begin
@@ -160,6 +161,11 @@ end
     CUSPARSE_COOMV_ALG = 1
     CUSPARSE_CSRMV_ALG1 = 2
     CUSPARSE_CSRMV_ALG2 = 3
+    CUSPARSE_SPMV_ALG_DEFAULT = 0
+    CUSPARSE_SPMV_CSR_ALG1 = 2
+    CUSPARSE_SPMV_CSR_ALG2 = 3
+    CUSPARSE_SPMV_COO_ALG1 = 1
+    CUSPARSE_SPMV_COO_ALG2 = 4
 end
 
 @cenum cusparseSpMMAlg_t::UInt32 begin
@@ -175,11 +181,8 @@ end
     CUSPARSE_SPMM_COO_ALG4 = 5
     CUSPARSE_SPMM_CSR_ALG1 = 4
     CUSPARSE_SPMM_CSR_ALG2 = 6
-    CUSPARSE_SPMMA_PREPROCESS = 7
-    CUSPARSE_SPMMA_ALG1 = 8
-    CUSPARSE_SPMMA_ALG2 = 9
-    CUSPARSE_SPMMA_ALG3 = 10
-    CUSPARSE_SPMMA_ALG4 = 11
+    CUSPARSE_SPMM_CSR_ALG3 = 12
+    CUSPARSE_SPMM_BLOCKED_ELL_ALG1 = 13
 end
 
 @cenum cusparseSpGEMMAlg_t::UInt32 begin
@@ -188,3 +191,8 @@ end
 
 const cusparseSpGEMMDescr = Cvoid
 const cusparseSpGEMMDescr_t = Ptr{cusparseSpGEMMDescr}
+
+@cenum cusparseSDDMMAlg_t::UInt32 begin
+    CUSPARSE_SDDMM_ALG_DEFAULT = 0
+end
+

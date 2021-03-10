@@ -1,12 +1,12 @@
 # Automatically generated using Clang.jl
 
 const CUDNN_MAJOR = 8
-const CUDNN_MINOR = 0
-const CUDNN_PATCHLEVEL = 4
+const CUDNN_MINOR = 1
+const CUDNN_PATCHLEVEL = 0
 const CUDNN_VERSION = CUDNN_MAJOR * 1000 + CUDNN_MINOR * 100 + CUDNN_PATCHLEVEL
 const CUDNN_OPS_INFER_MAJOR = 8
-const CUDNN_OPS_INFER_MINOR = 0
-const CUDNN_OPS_INFER_PATCH = 4
+const CUDNN_OPS_INFER_MINOR = 1
+const CUDNN_OPS_INFER_PATCH = 0
 const CUDNN_DIM_MAX = 8
 const CUDNN_LRN_MIN_N = 1
 const CUDNN_LRN_MAX_N = 16
@@ -81,6 +81,8 @@ const cudnnTensorTransformDescriptor_t = Ptr{cudnnTensorTransformStruct}
     CUDNN_DATA_UINT8 = 6
     CUDNN_DATA_UINT8x4 = 7
     CUDNN_DATA_INT8x32 = 8
+    CUDNN_DATA_BFLOAT16 = 9
+    CUDNN_DATA_INT64 = 10
 end
 
 @cenum cudnnMathType_t::UInt32 begin
@@ -255,7 +257,8 @@ end
     CUDNN_RNN_ALGO_STANDARD = 0
     CUDNN_RNN_ALGO_PERSIST_STATIC = 1
     CUDNN_RNN_ALGO_PERSIST_DYNAMIC = 2
-    CUDNN_RNN_ALGO_COUNT = 3
+    CUDNN_RNN_ALGO_PERSIST_STATIC_SMALL_H = 3
+    CUDNN_RNN_ALGO_COUNT = 4
 end
 
 @cenum cudnnCTCLossAlgo_t::UInt32 begin
@@ -286,11 +289,11 @@ end
 
 const cudnnCallback_t = Ptr{Cvoid}
 const CUDNN_OPS_TRAIN_MAJOR = 8
-const CUDNN_OPS_TRAIN_MINOR = 0
-const CUDNN_OPS_TRAIN_PATCH = 4
+const CUDNN_OPS_TRAIN_MINOR = 1
+const CUDNN_OPS_TRAIN_PATCH = 0
 const CUDNN_ADV_INFER_MAJOR = 8
-const CUDNN_ADV_INFER_MINOR = 0
-const CUDNN_ADV_INFER_PATCH = 4
+const CUDNN_ADV_INFER_MINOR = 1
+const CUDNN_ADV_INFER_PATCH = 0
 const CUDNN_RNN_PADDED_IO_DISABLED = 0
 const CUDNN_RNN_PADDED_IO_ENABLED = UInt32(1) << 0
 const CUDNN_SEQDATA_DIM_COUNT = 4
@@ -373,8 +376,8 @@ const cudnnAttnDescriptor_t = Ptr{cudnnAttnStruct}
 end
 
 const CUDNN_ADV_TRAIN_MAJOR = 8
-const CUDNN_ADV_TRAIN_MINOR = 0
-const CUDNN_ADV_TRAIN_PATCH = 4
+const CUDNN_ADV_TRAIN_MINOR = 1
+const CUDNN_ADV_TRAIN_PATCH = 0
 
 @cenum cudnnWgradMode_t::UInt32 begin
     CUDNN_WGRAD_MODE_ADD = 0
@@ -387,8 +390,8 @@ end
 end
 
 const CUDNN_CNN_INFER_MAJOR = 8
-const CUDNN_CNN_INFER_MINOR = 0
-const CUDNN_CNN_INFER_PATCH = 4
+const CUDNN_CNN_INFER_MINOR = 1
+const CUDNN_CNN_INFER_PATCH = 0
 const cudnnConvolutionStruct = Cvoid
 const cudnnConvolutionDescriptor_t = Ptr{cudnnConvolutionStruct}
 
@@ -519,8 +522,8 @@ end
 end
 
 const CUDNN_CNN_TRAIN_MAJOR = 8
-const CUDNN_CNN_TRAIN_MINOR = 0
-const CUDNN_CNN_TRAIN_PATCH = 4
+const CUDNN_CNN_TRAIN_MINOR = 1
+const CUDNN_CNN_TRAIN_PATCH = 0
 
 struct cudnnConvolutionBwdFilterAlgoPerf_t
     algo::cudnnConvolutionBwdFilterAlgo_t
