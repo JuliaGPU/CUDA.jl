@@ -214,7 +214,8 @@ function test_sort(T, N, f=identity; kwargs...)
 end
 
 
-@testset "interface" begin
+# FIXME: these tests hang when running under compute-sanitizer on CUDA 11.2 with -g2
+@not_if_sanitize @testset "interface" begin
     # pre-sorted
     test_sort!(Int, 1000000)
     test_sort!(Int32, 1000000)
