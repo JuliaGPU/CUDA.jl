@@ -198,6 +198,19 @@ const CUstreamWaitValue_flags = CUstreamWaitValue_flags_enum
     CU_STREAM_WRITE_VALUE_DEFAULT = 0
     CU_STREAM_WRITE_VALUE_NO_MEMORY_BARRIER = 1
 end
+
+const CUstreamWriteValue_flags = CUstreamWriteValue_flags_enum
+
+@cenum CUstreamBatchMemOpType_enum::UInt32 begin
+    CU_STREAM_MEM_OP_WAIT_VALUE_32 = 1
+    CU_STREAM_MEM_OP_WRITE_VALUE_32 = 2
+    CU_STREAM_MEM_OP_WAIT_VALUE_64 = 4
+    CU_STREAM_MEM_OP_WRITE_VALUE_64 = 5
+    CU_STREAM_MEM_OP_FLUSH_REMOTE_WRITES = 3
+end
+
+const CUstreamBatchMemOpType = CUstreamBatchMemOpType_enum
+
 @cenum CUoccupancy_flags_enum::UInt32 begin
     CU_OCCUPANCY_DEFAULT = 0
     CU_OCCUPANCY_DISABLE_CACHING_OVERRIDE = 1

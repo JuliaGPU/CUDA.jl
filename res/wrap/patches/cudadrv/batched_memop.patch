@@ -1,27 +1,14 @@
 --- a/libcuda.jl	2019-10-16 09:15:14.213122392 +0200
 +++ b/libcuda.jl	2019-10-16 09:15:29.233281015 +0200
-@@ -937,5 +937,0 @@
+@@ -964,5 +963,0 @@
 -@checked function cuStreamBatchMemOp(stream, count, paramArray, flags)
 -    initialize_api()
--    ccall((:cuStreamBatchMemOp_ptsz, libcuda), CUresult, (CUstream, UInt32, Ptr{CUstreamBatchMemOpParams}, UInt32), stream, count, paramArray, flags)
+-    ccall((:cuStreamBatchMemOp, libcuda), CUresult, (CUstream, UInt32, Ptr{CUstreamBatchMemOpParams}, UInt32), stream, count, paramArray, flags)
 -end
 -
 --- a/libcuda_common.jl	2019-10-16 09:15:14.289789877 +0200
 +++ b/libcuda_common.jl	2019-10-16 09:16:50.574087901 +0200
-@@ -186,19 +186,0 @@
--
--const CUstreamWriteValue_flags = CUstreamWriteValue_flags_enum
--
--@cenum CUstreamBatchMemOpType_enum::UInt32 begin
--    CU_STREAM_MEM_OP_WAIT_VALUE_32 = 1
--    CU_STREAM_MEM_OP_WRITE_VALUE_32 = 2
--    CU_STREAM_MEM_OP_WAIT_VALUE_64 = 4
--    CU_STREAM_MEM_OP_WRITE_VALUE_64 = 5
--    CU_STREAM_MEM_OP_FLUSH_REMOTE_WRITES = 3
--end
--
--const CUstreamBatchMemOpType = CUstreamBatchMemOpType_enum
--
+@@ -214,6 +213,0 @@
 -struct CUstreamBatchMemOpParams_union
 -    waitValue::CUstreamMemOpWaitValueParams_st
 -end
