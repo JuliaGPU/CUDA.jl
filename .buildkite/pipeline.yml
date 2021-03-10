@@ -27,7 +27,7 @@ steps:
           version: 1.6-nightly
       - JuliaCI/julia-test#v1:
           julia_args: "-g2"
-          test_args: "--memcheck"
+          test_args: "--sanitize --quickfail --jobs=1"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -39,7 +39,9 @@ steps:
       cuda: "11.2"                    # older versions of CUDA have issues
       cap: "recent"                   # test as much as possible
     env:
-      JULIA_CUDA_MEMORY_POOL: 'none'  # CUDA's memory pool requires compute-sanitizer
+      JULIA_CUDA_MEMORY_POOL: 'none'  # compute-sanitizer uses a lot of memory, so we need device_reset!
+      JULIA_CUDA_VERSION: '11.2'
+      JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 120
 

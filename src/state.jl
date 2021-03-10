@@ -344,8 +344,7 @@ so it is generally not needed to subscribe to the reset hook specifically.
     this package.
 """
 function device_reset!(dev::CuDevice=device())
-    stream_ordered = any(dev->pools[dev].stream_ordered, devices())
-    if stream_ordered # NVIDIA bug #3240770
+    if any_stream_ordered()
         @error """Due to a bug in CUDA, resetting the device is not possible on CUDA 11.2 when using the stream-ordered memory allocator.
 
                   If you are calling this function to free memory, that may not be required anymore

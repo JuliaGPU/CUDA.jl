@@ -3,7 +3,7 @@
 
 # the API shouldn't have been initialized
 @test CuCurrentContext() == nothing
-@not_if_memcheck @test CuCurrentDevice() == nothing
+@not_if_sanitize @test CuCurrentDevice() == nothing
 
 task_cb = Any[nothing for tid in 1:Threads.nthreads()]
 CUDA.attaskswitch() do
@@ -68,7 +68,7 @@ end
 
 reset_cb()
 
-if CUDA.release() != v"11.2"
+if !CUDA.any_stream_ordered()
     # NVIDIA bug #3240770
     device_reset!()
 

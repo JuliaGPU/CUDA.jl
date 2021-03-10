@@ -1,4 +1,4 @@
-@not_if_memcheck let
+@not_if_sanitize let
     dev = device()
 
     pool = memory_pool(dev)
