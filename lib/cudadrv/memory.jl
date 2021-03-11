@@ -681,6 +681,21 @@ memory_type(x) = CUmemorytype(attribute(Cuint, x, POINTER_ATTRIBUTE_MEMORY_TYPE)
 
 is_managed(x) = convert(Bool, attribute(Cuint, x, POINTER_ATTRIBUTE_IS_MANAGED))
 
+function is_pinned(ptr::Ptr)
+    # unpinned memory makes cuPointerGetAttribute return ERROR_INVALID_VALUE; but instead of
+    # calling `memory_type` with an expensive try/catch we perform low-level API calls.
+    ptr = reinterpret(CuPtr{Nothing}, ptr)
+    data_ref = Ref{Cuint}()
+    res = unsafe_cuPointerGetAttribute(data_ref, POINTER_ATTRIBUTE_MEMORY_TYPE, ptr)
+    if res == ERROR_INVALID_VALUE
+        false
+    elseif res == SUCCESS
+        data_ref[] == CU_MEMORYTYPE_HOST
+    else
+        throw_api_error(res)
+    end
+end
+
 
 ## shared texture/array stuff
 
