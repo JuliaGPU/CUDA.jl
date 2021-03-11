@@ -5,7 +5,9 @@
 # multiple threads), using a GPU of your choice (with the ability to reset that device, or
 # use different devices on different threads).
 
-export context, context!, device, device!, device_reset!, deviceid, stream, stream!, pool
+# XXX: a task switch hook would make much of this complexity go away...
+
+export context, context!, device, device!, device_reset!, deviceid, stream, stream!
 
 
 ## hooks
