@@ -20,7 +20,6 @@ end
 ## pooling
 
 Base.@kwdef struct SimplePool <: AbstractPool
-    dev::CuDevice
     stream_ordered::Bool
 
     lock::ReentrantLock = ReentrantLock()
@@ -66,7 +65,7 @@ function reclaim(pool::SimplePool, sz::Int=typemax(Int))
         while freed_bytes < sz && !isempty(pool.cache)
             block = pop!(pool.cache)
             freed_bytes += sizeof(block)
-            actual_free(pool.dev, block; pool.stream_ordered)
+            actual_free(block; pool.stream_ordered)
         end
         return freed_bytes
     end
@@ -89,13 +88,13 @@ function alloc(pool::SimplePool, sz)
         block === nothing || break
 
         @pool_timeit "$phase.3 alloc" begin
-            block = actual_alloc(pool.dev, sz; pool.stream_ordered)
+            block = actual_alloc(sz; pool.stream_ordered)
         end
         block === nothing || break
 
         @pool_timeit "$phase.4 reclaim + alloc" begin
             reclaim(pool, sz)
-            block = actual_alloc(pool.dev, sz, phase==3; pool.stream_ordered)
+            block = actual_alloc(sz, phase==3; pool.stream_ordered)
         end
         block === nothing || break
     end

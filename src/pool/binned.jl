@@ -23,7 +23,6 @@ const MAX_DELAY = 5.0
 ## infrastructure
 
 Base.@kwdef struct BinnedPool <: AbstractPool
-  dev::CuDevice
   stream_ordered::Bool
 
   # TODO: npools
@@ -74,7 +73,7 @@ function reclaim(pool::BinnedPool, target_bytes::Int=typemax(Int))
         for i in 1:bufcount
           block = pop!(cache)
 
-          actual_free(pool.dev, block; pool.stream_ordered)
+          actual_free(block; pool.stream_ordered)
 
           freed_bytes += bytes
           if freed_bytes >= target_bytes
@@ -145,7 +144,7 @@ function alloc(pool::BinnedPool, bytes)
 
   if block === nothing
     @pool_timeit "1. try alloc" begin
-      block = actual_alloc(pool.dev, bytes; pool.stream_ordered)
+      block = actual_alloc(bytes; pool.stream_ordered)
     end
   end
 
@@ -174,7 +173,7 @@ function alloc(pool::BinnedPool, bytes)
     end
 
     @pool_timeit "4. try alloc" begin
-      block = actual_alloc(pool.dev, bytes; pool.stream_ordered)
+      block = actual_alloc(bytes; pool.stream_ordered)
     end
   end
 
@@ -200,7 +199,7 @@ function alloc(pool::BinnedPool, bytes)
     end
 
     @pool_timeit "7. try alloc" begin
-      block = actual_alloc(pool.dev, bytes; pool.stream_ordered)
+      block = actual_alloc(bytes; pool.stream_ordered)
     end
   end
 
@@ -210,7 +209,7 @@ function alloc(pool::BinnedPool, bytes)
     end
 
     @pool_timeit "9. try alloc" begin
-      block = actual_alloc(pool.dev, bytes, true; pool.stream_ordered)
+      block = actual_alloc(bytes, true; pool.stream_ordered)
     end
   end
 
@@ -231,7 +230,7 @@ function free(pool::BinnedPool, block)
   # was this a pooled buffer?
   bytes = sizeof(block)
   if bytes > MAX_POOL
-    actual_free(pool.dev, block; pool.stream_ordered)
+    actual_free(block; pool.stream_ordered)
     return
   end
 
