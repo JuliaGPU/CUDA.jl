@@ -70,13 +70,3 @@ end
     @test ForwardDiff.gradient(_x -> sum(_x .^ p), x) ≈ p .* (x .^ (p - 1))
   end
 end
-
-@testset "Broadcast Fix" begin
-  if CUDA.has_cudnn()
-    using NNlib
-
-    f(x) = logσ.(x)
-    ds = Dual.(rand(5),1)
-    @test f(ds) ≈ collect(f(CuArray(ds)))
-  end
-end

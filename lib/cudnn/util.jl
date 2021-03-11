@@ -42,12 +42,3 @@ scalingParameter(::Type{Float64}, val) = Ref{Float64}(val)
 function cudnnTempSpace(nbytes)
     nbytes == 0 ? nothing : CuArray{Int128}(undef, (nbytes-1)÷sizeof(Int128)+1)
 end
-
-
-function nnlibPadding(dims)
-    pd = NNlib.padding(dims)
-    if !all(pd[1:2:end] .== pd[2:2:end])
-        @warn "cuDNN does not support asymmetric padding; defaulting to symmetric choice" maxlog=1
-    end
-    return pd[1:2:end]
-end

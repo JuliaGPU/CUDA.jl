@@ -12,8 +12,6 @@ using Memoize
 
 using DataStructures
 
-import NNlib
-
 
 # core library
 include("libcudnn_common.jl")
@@ -37,10 +35,6 @@ include("dropout.jl")
 include("rnn.jl")
 include("multiheadattn.jl")
 include("normalization.jl")
-
-# high-level integrations
-include("nnlib.jl")
-include("batchnorm.jl")
 
 
 function math_mode(mode=CUDA.math_mode())
