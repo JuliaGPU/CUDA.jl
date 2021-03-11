@@ -117,6 +117,24 @@ function Base.pop!(::Type{CuContext})
     CuContext(handle_ref[])
 end
 
+# perform some finalizer actions in a context
+macro finalize_in_ctx(ctx, body)
+    # XXX: should this not integrate with the high-level context management from state.jl?
+    #      it might be good that the driver API wrappers don't need that runtime-esque
+    #      state management, but it might be confusing that `context()` doesn't work here.
+    quote
+        ctx = $(esc(ctx))
+        if isvalid(ctx)
+            push!(CuContext, ctx)
+            try
+                $(esc(body))
+            finally
+                pop!(CuContext)
+            end
+        end
+    end
+end
+
 """
     activate(ctx::CuContext)
 

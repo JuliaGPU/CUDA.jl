@@ -28,9 +28,7 @@ function CuMemoryPool(dev::CuDevice)
 end
 
 function unsafe_destroy!(pool::CuMemoryPool)
-    if isvalid(pool.ctx)
-        cuMemPoolDestroy(pool)
-    end
+    @finalize_in_ctx pool.ctx cuMemPoolDestroy(pool)
 end
 
 Base.unsafe_convert(::Type{CUmemoryPool}, pool::CuMemoryPool) = pool.handle
