@@ -289,7 +289,8 @@ Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
     copyto!(dest, 1, src, 1, length(src))
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::Array{T}, soffs, n) where T
-  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
+  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n;
+                                       async=true)
   if Base.isbitsunion(T)
     # copy selector bytes
     error("Not implemented")
@@ -305,6 +306,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs, src::DenseCuArray{T}, soffs,
     # copy selector bytes
     error("Not implemented")
   end
+  synchronize() # users expect values to be available after this call
   return dest
 end
 
