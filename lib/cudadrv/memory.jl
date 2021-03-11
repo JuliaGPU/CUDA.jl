@@ -6,6 +6,7 @@ module Mem
 
 using ..CUDA
 using ..CUDA: @enum_without_prefix, CUstream, CUdevice, CuDim3, CUarray, CUarray_format
+using ..CUDA.APIUtils
 
 using Base: @deprecate_binding
 

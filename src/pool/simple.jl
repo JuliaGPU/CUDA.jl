@@ -1,7 +1,5 @@
 # simple scan into a list of free buffers
 
-using .PoolUtils
-
 
 ## tunables
 
