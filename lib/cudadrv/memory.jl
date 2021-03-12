@@ -6,12 +6,15 @@ module Mem
 
 using ..CUDA
 using ..CUDA: @enum_without_prefix, CUstream, CUdevice, CuDim3, CUarray, CUarray_format
+using ..CUDA.APIUtils
 
 using Base: @deprecate_binding
 
 using Printf
 
 using Memoize
+
+using DataStructures
 
 
 #
@@ -598,24 +601,69 @@ end
 # auxiliary functionality
 #
 
-## memory pinning
-# TODO: PerDevice
-const __pinned_memory = Dict{Tuple{CuContext,Ptr{Cvoid}}, WeakRef}()
-function pin(a::Base.Array, flags=0)
-    ctx = context()
-    ptr = convert(Ptr{Cvoid}, pointer(a))
-    if haskey(__pinned_memory, (ctx,ptr)) && __pinned_memory[(ctx,ptr)].value !== nothing
-        return
-    end
+# given object, find base allocation
+# pin that, or increase refcount
+# finalizer, drop refcount, free if 0
 
-    buf = Mem.register(Mem.Host, pointer(a), sizeof(a), flags)
+## memory pinning
+
+function pin(a::AbstractArray)
+    __pin(a)
     finalizer(a) do _
-        CUDA.isvalid(ctx) || return
-        context!(ctx) do
-            Mem.unregister(buf)
+        __unpin(a)
+    end
+    a
+end
+
+__pin(a::Base.Array) = __pin(convert(Ptr{Cvoid}, pointer(a)), sizeof(a))
+__unpin(a::Base.Array) = __unpin(convert(Ptr{Cvoid}, pointer(a)))
+
+# derived arrays should always pin the parent memory range, because we may end up copying
+# from or to that parent range (containing the derived range), and partially-pinned ranges
+# are not supported:
+#
+# > Memory regions requested must be either entirely registered with CUDA, or in the case
+# > of host pageable transfers, not registered at all. Memory regions spanning over
+# > allocations that are both registered and not registered with CUDA are not supported and
+# > will return CUDA_ERROR_INVALID_VALUE.
+__pin(a::Union{SubArray, Base.ReinterpretArray, Base.ReshapedArray}) = __pin(parent(a))
+__unpin(a::Union{SubArray, Base.ReinterpretArray, Base.ReshapedArray}) = __unpin(parent(a))
+
+# refcount the pinning per context, since we can only pin a memory range once
+const __pin_lock = ReentrantLock()
+const __pins = Dict{Tuple{CuContext,Ptr{Cvoid}}, HostBuffer}()
+const __pin_count = DefaultDict{Tuple{CuContext,Ptr{Cvoid}}, Int}(0)
+function __pin(ptr::Ptr{Nothing}, sz::Int)
+    ctx = context()
+
+    @lock __pin_lock begin
+        pin_count = __pin_count[(ctx, ptr)] += 1
+        if pin_count == 1
+            buf = Mem.register(Mem.Host, ptr, sz)
+            __pins[(ctx,ptr)] = buf
+        elseif Base.JLOptions().debug_level >= 2
+            # make sure we're pinning the exact same range
+            buf = __pins[(ctx,ptr)]
+            @assert sz == sizeof(buf)
         end
     end
-    __pinned_memory[(ctx,ptr)] = WeakRef(a)
+
+    return
+end
+function __unpin(ptr::Ptr{Nothing})
+    ctx = context()
+    key = (ctx,ptr)
+
+    @spinlock __pin_lock begin
+        pin_count = @inbounds __pin_count[key] -= 1
+        if pin_count == 0 && CUDA.isvalid(ctx)
+            buf = @inbounds __pins[key]
+            Mem.unregister(buf)
+            delete!(__pins, key)
+            delete!(__pin_count, key)
+        end
+    end
+
     return
 end
 
@@ -679,6 +727,21 @@ end
 memory_type(x) = CUmemorytype(attribute(Cuint, x, POINTER_ATTRIBUTE_MEMORY_TYPE))
 
 is_managed(x) = convert(Bool, attribute(Cuint, x, POINTER_ATTRIBUTE_IS_MANAGED))
+
+function is_pinned(ptr::Ptr)
+    # unpinned memory makes cuPointerGetAttribute return ERROR_INVALID_VALUE; but instead of
+    # calling `memory_type` with an expensive try/catch we perform low-level API calls.
+    ptr = reinterpret(CuPtr{Nothing}, ptr)
+    data_ref = Ref{Cuint}()
+    res = unsafe_cuPointerGetAttribute(data_ref, POINTER_ATTRIBUTE_MEMORY_TYPE, ptr)
+    if res == ERROR_INVALID_VALUE
+        false
+    elseif res == SUCCESS
+        data_ref[] == CU_MEMORYTYPE_HOST
+    else
+        throw_api_error(res)
+    end
+end
 
 
 ## shared texture/array stuff

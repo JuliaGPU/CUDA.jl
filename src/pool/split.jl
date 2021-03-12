@@ -1,7 +1,5 @@
 # scan into a sorted list of free buffers, splitting buffers along the way
 
-using .PoolUtils
-
 
 ## tunables
 

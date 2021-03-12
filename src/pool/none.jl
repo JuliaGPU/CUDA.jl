@@ -1,7 +1,5 @@
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
-using .PoolUtils
-
 Base.@kwdef struct NoPool <: AbstractPool
     dev::CuDevice
     stream_ordered::Bool

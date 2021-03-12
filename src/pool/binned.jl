@@ -5,8 +5,6 @@
 # - when requested memory, check the pool for unused memory, or allocate dynamically
 # - conversely, when released memory, put it in the appropriate pool for future use
 
-using .PoolUtils
-
 
 ## tunables
 

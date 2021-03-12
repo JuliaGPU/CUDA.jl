@@ -241,33 +241,19 @@ let
                        dstPitch=nx*sizeof(T), dstHeight=ny)
     @test all(check2[2,:,:] .== data)
 end
+
 # pinned memory with existing memory
 if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
-    let hA = rand(UInt8, 512), hB = rand(UInt8, 512)
+    hA = rand(UInt8, 512)
+    @test !CUDA.is_pinned(pointer(hA))
     Mem.pin(hA)
-    # no way to test if something is already registered, sadly...
-    # make sure this doesn't explode -- nothing should happen if we try
-    # to register twice
+    @test CUDA.is_pinned(pointer(hA))
+
+    # make sure we can double-pin
     Mem.pin(hA)
-    # by default pin doesn't use DEVICEMAP so we'd have to memcpy
-    # just test that some basic ops work without corrupting memory
-    dA = Mem.alloc(Mem.Device, sizeof(hA))
-    TA = eltype(hA)
-    unsafe_copyto!(typed_pointer(dA, TA), pointer(hA), 512)
-    Mem.set!(typed_pointer(dA, TA), zero(TA), 512)
-    unsafe_copyto!(pointer(hA), typed_pointer(dA, TA), 512)
-    @test all(hA .== zero(TA))
-    # test with a flag
-    Mem.pin(hB, Mem.HOSTREGISTER_DEVICEMAP)
-    Mem.pin(hB)
-    # by default pin doesn't use DEVICEMAP so we'd have to memcpy
-    # just test that some basic ops work without corrupting memory
-    dB = Mem.alloc(Mem.Device, sizeof(hB))
-    TB = eltype(hB)
-    # since pin doesn't return the buffer we can't directly set
-    unsafe_copyto!(typed_pointer(dB, TB), pointer(hB), 512)
-    Mem.set!(typed_pointer(dB, TB), zero(TB), 512)
-    unsafe_copyto!(pointer(hB), typed_pointer(dB, TB), 512)
-    @test all(hB .== zero(TB))
-    end
+
+    # memory copies on pinned memory behave differently, so test that code path
+    dA = CUDA.rand(UInt8, 512)
+    copyto!(dA, hA)
+    copyto!(hA, dA)
 end
