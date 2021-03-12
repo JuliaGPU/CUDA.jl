@@ -2,9 +2,6 @@ using CUDA.CUTENSOR
 using CUDA
 using LinearAlgebra
 
-# these tests perform a lot of harmless-but-invalid API calls, poluting sanitizer logs
-@not_if_sanitize begin
-
 eltypes = ( (Float32, Float32, Float32, Float32),
             (Float32, Float32, Float32, Float16),
             (ComplexF32, ComplexF32, ComplexF32, ComplexF32),
@@ -198,6 +195,4 @@ can_pin = !Sys.iswindows()
             end
         end
     end
-end
-
 end

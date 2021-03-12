@@ -2,8 +2,9 @@ using CUDA.CUTENSOR
 using CUDA
 using LinearAlgebra
 
-# using host memory with CUTENSOR doesn't work on Windows
-can_pin = !Sys.iswindows()
+# using host memory with CUTENSOR doesn't work on Windows,
+# and occasionally causes failures under compute-sanitizer.
+can_pin = !Sys.iswindows() && !sanitize
 
 eltypes = ((Float16, Float16),
             #(Float16, Float32),

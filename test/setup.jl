@@ -12,8 +12,9 @@ using Random
 
 # detect compute-sanitizer, to disable incompatible tests (e.g. using CUPTI),
 # and to skip tests that are known to generate innocuous API errors
+const sanitize = any(contains("NV_SANITIZER"), keys(ENV))
 macro not_if_sanitize(ex)
-    any(contains("NV_SANITIZER"), keys(ENV)) || return esc(ex)
+    sanitize || return esc(ex)
     quote
         @test_skip $ex
     end

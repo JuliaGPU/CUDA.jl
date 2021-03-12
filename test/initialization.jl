@@ -3,7 +3,7 @@
 
 # the API shouldn't have been initialized
 @test CuCurrentContext() == nothing
-@not_if_sanitize @test CuCurrentDevice() == nothing
+@test CuCurrentDevice() == nothing
 
 task_cb = Any[nothing for tid in 1:Threads.nthreads()]
 CUDA.attaskswitch() do

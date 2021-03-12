@@ -24,7 +24,7 @@ let
     @test md != md2
 end
 
-@not_if_sanitize @test_throws_cuerror CUDA.ERROR_INVALID_IMAGE CuModule("foobar")
+@test_throws_cuerror CUDA.ERROR_INVALID_IMAGE CuModule("foobar")
 
 @testset "globals" begin
     md = CuModuleFile(joinpath(@__DIR__, "ptx/global.ptx"))
@@ -54,11 +54,11 @@ end
     # TODO: test with valid object code
     # NOTE: apparently, on Windows cuLinkAddData! _does_ accept object data containing \0
     if !Sys.iswindows()
-        @not_if_sanitize @test_throws_cuerror CUDA.ERROR_UNKNOWN add_data!(link, "vadd_parent", UInt8[0])
+        @test_throws_cuerror CUDA.ERROR_UNKNOWN add_data!(link, "vadd_parent", UInt8[0])
     end
 end
 
-@not_if_sanitize @testset "error log" begin
+@testset "error log" begin
     @test_throws_message contains("ptxas fatal") CuError CuModule(".version 3.1")
 
     link = CuLink()
