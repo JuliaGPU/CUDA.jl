@@ -39,10 +39,12 @@ receive buffers to point-to-point and collective operations to avoid going throu
 In a similar vein to the multi-process solution, one can work with multiple devices from
 within a single process by calling `CUDA.device!` to switch to a specific device. As the
 active device is a task-local property, you can easily work with multiple devices by, e.g.,
-launching one task per device. For concurrent execution on multple devices, you can use
-Julia's multithreading capabilities and use a CPU thread per task.
+launching one task per device. For concurrent execution on multiple devices, you can even
+use Julia's multithreading capabilities and use a CPU thread per task.
 
-When working with multiple devices, you need to be careful with allocated memory though:
+### Memory management
+
+When working with multiple devices, you need to be careful with allocated memory:
 Allocations are tied to the device that was active when requesting the memory, and cannot be
 used with another device. That means you cannot allocate a `CuArray`, switch devices, and
 use that object. Similar restrictions apply to library objects, like CUFFT plans.
@@ -64,16 +66,24 @@ b = round.(rand(Float32, dims) * 100)
 # CuArray doesn't support unified memory yet,
 # so allocate our own buffers
 buf_a = Mem.alloc(Mem.Unified, sizeof(a))
-d_a = unsafe_wrap(CuArray{Float32,3}, convert(CuPtr{Float32}, buf_a),
-                  dims; own=true)
+d_a = unsafe_wrap(CuArray{Float32,3}, convert(CuPtr{Float32}, buf_a), dims)
+finalizer(d_a) do _
+    Mem.free(buf_a)
+end
 copyto!(d_a, a)
+
 buf_b = Mem.alloc(Mem.Unified, sizeof(b))
-d_b = unsafe_wrap(CuArray{Float32,3}, convert(CuPtr{Float32}, buf_b),
-                  dims; own=true)
+d_b = unsafe_wrap(CuArray{Float32,3}, convert(CuPtr{Float32}, buf_b), dims)
+finalizer(d_b) do _
+    Mem.free(buf_b)
+end
 copyto!(d_b, b)
+
 buf_c = Mem.alloc(Mem.Unified, sizeof(a))
-d_c = unsafe_wrap(CuArray{Float32,3}, convert(CuPtr{Float32}, buf_c),
-                  dims; own=true)
+d_c = unsafe_wrap(CuArray{Float32,3}, convert(CuPtr{Float32}, buf_c), dims)
+finalizer(d_c) do _
+    Mem.free(buf_c)
+end
 ```
 
 The data allocated here uses the GPU id as a the outermost dimension, which can be used to
@@ -99,11 +109,3 @@ using Test
 c = Array(d_c)
 @test a+b ≈ c
 ```
-
-
-## Scenario 3: One GPU per thread
-
-This approach is not recommended, as multi-threading is a fairly recent addition to the
-language and many packages, including those for Julia GPU programming, have not been made
-thread-safe yet. For now, the toolchain mimics the behavior of the CUDA runtime library and
-uses a single context across all devices.

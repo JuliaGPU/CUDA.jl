@@ -3,7 +3,7 @@
 
 # the API shouldn't have been initialized
 @test CuCurrentContext() == nothing
-@not_if_sanitize @test CuCurrentDevice() == nothing
+@test CuCurrentDevice() == nothing
 
 task_cb = Any[nothing for tid in 1:Threads.nthreads()]
 CUDA.attaskswitch() do
@@ -55,14 +55,12 @@ dev = device()
 @test device_switch_cb[1] == nothing
 
 device!(CuDevice(0))
-device!(CuDevice(0)) do
-    nothing
-end
+@test device!(()->true, CuDevice(0))
+@inferred device!(()->42, CuDevice(0))
 
 context!(ctx)
-context!(ctx) do
-    nothing
-end
+@test context!(()->true, ctx)
+@inferred context!(()->42, ctx)
 
 @test_throws ErrorException device!(0, CUDA.CU_CTX_SCHED_YIELD)
 

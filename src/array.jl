@@ -38,11 +38,7 @@ function unsafe_free!(xs::CuArray)
     throw(ArgumentError("Cannot free an unmanaged buffer."))
   end
 
-  if isvalid(xs.ctx)
-    context!(xs.ctx) do
-      free(xs.baseptr)
-    end
-  end
+  @context! skip_destroyed=true xs.ctx free(xs.baseptr)
   xs.state = ARRAY_FREED
 
   # the object is dead, so we can also wipe the pointer
@@ -121,10 +117,8 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
   xs = CuArray{T, length(dims)}(convert(CuPtr{Cvoid}, ptr), dims, ctx)
   if own
     finalizer(xs) do obj
-      if isvalid(obj.ctx)
-        buf = Mem.DeviceBuffer(obj.baseptr, sizeof(obj))
-        Mem.free(buf)
-      end
+      buf = Mem.DeviceBuffer(obj.baseptr, sizeof(obj))
+      @context! skip_destroyed=true obj.ctx Mem.free(buf)
     end
   end
   return xs

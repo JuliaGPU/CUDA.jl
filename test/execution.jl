@@ -36,7 +36,7 @@ end
 @testset "compilation params" begin
     @cuda dummy()
 
-    @not_if_sanitize @test_throws CuError @cuda threads=2 maxthreads=1 dummy()
+    @test_throws CuError @cuda threads=2 maxthreads=1 dummy()
     @cuda threads=2 dummy()
 end
 

@@ -1,7 +1,6 @@
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
 Base.@kwdef struct NoPool <: AbstractPool
-    dev::CuDevice
     stream_ordered::Bool
 end
 
@@ -15,7 +14,7 @@ function alloc(pool::NoPool, sz)
         end
 
         @pool_timeit "$phase.1 alloc" begin
-            block = actual_alloc(pool.dev, sz, phase==3; pool.stream_ordered)
+            block = actual_alloc(sz, phase==3; pool.stream_ordered)
         end
         block === nothing || break
     end
@@ -24,7 +23,7 @@ function alloc(pool::NoPool, sz)
 end
 
 function free(pool::NoPool, block)
-    actual_free(pool.dev, block; pool.stream_ordered)
+    actual_free(block; pool.stream_ordered)
     return
 end
 

@@ -62,7 +62,6 @@ unique_sizeof(block::Block) = (UInt128(sizeof(block))<<64) | UInt64(pointer(bloc
 const UniqueIncreasingSize = Base.By(unique_sizeof)
 
 Base.@kwdef struct SplitPool <: AbstractPool
-    dev::CuDevice
     stream_ordered::Bool
 
     lock::ReentrantLock = ReentrantLock()
@@ -160,7 +159,7 @@ function reclaim_single(pool::SplitPool, cache, sz=typemax(Int))
         for block in candidates
             delete!(cache, block)
             freed += sizeof(block)
-            actual_free(pool.dev, block; pool.stream_ordered)
+            actual_free(block; pool.stream_ordered)
             freed >= sz && break
         end
     end
@@ -262,7 +261,7 @@ function alloc(pool::SplitPool, sz)
         block === nothing || break
 
         @pool_timeit "$phase.3 alloc" begin
-            block = actual_alloc(pool.dev, sz; pool.stream_ordered)
+            block = actual_alloc(sz; pool.stream_ordered)
         end
         block === nothing || break
 
@@ -271,7 +270,7 @@ function alloc(pool::SplitPool, sz)
         # without requiring many calls to free.
         for cache in (pool.huge, pool.large, pool.small)
             @pool_timeit "$phase.4a reclaim" reclaim_single(pool, cache, sz)
-            @pool_timeit "$phase.4b alloc" block = actual_alloc(pool.dev, sz; pool.stream_ordered)
+            @pool_timeit "$phase.4b alloc" block = actual_alloc(sz; pool.stream_ordered)
             block === nothing || break
         end
         block === nothing || break
@@ -282,7 +281,7 @@ function alloc(pool::SplitPool, sz)
             reclaim_single(pool, pool.large)
             reclaim_single(pool, pool.small)
         end
-        @pool_timeit "$phase.5b alloc" block = actual_alloc(pool.dev, sz, phase==3; pool.stream_ordered)
+        @pool_timeit "$phase.5b alloc" block = actual_alloc(sz, phase==3; pool.stream_ordered)
     end
 
     if block !== nothing

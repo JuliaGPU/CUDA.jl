@@ -5,7 +5,7 @@ export Mem, attribute, attribute!, memory_type, is_managed
 module Mem
 
 using ..CUDA
-using ..CUDA: @enum_without_prefix, CUstream, CUdevice, CuDim3, CUarray, CUarray_format
+using ..CUDA: @enum_without_prefix, CUstream, CUdevice, CuDim3, CUarray, CUarray_format, @finalize_in_ctx
 using ..CUDA.APIUtils
 
 using Base: @deprecate_binding
@@ -656,9 +656,9 @@ function __unpin(ptr::Ptr{Nothing})
 
     @spinlock __pin_lock begin
         pin_count = @inbounds __pin_count[key] -= 1
-        if pin_count == 0 && CUDA.isvalid(ctx)
+        if pin_count == 0
             buf = @inbounds __pins[key]
-            Mem.unregister(buf)
+            @finalize_in_ctx ctx Mem.unregister(buf)
             delete!(__pins, key)
             delete!(__pin_count, key)
         end

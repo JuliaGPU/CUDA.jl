@@ -39,9 +39,7 @@ function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
 end
 
 function unsafe_destroy!(s::CuStream)
-    if isvalid(s.ctx)
-        cuStreamDestroy_v2(s)
-    end
+    @finalize_in_ctx s.ctx cuStreamDestroy_v2(s)
 end
 
 function Base.show(io::IO, stream::CuStream)

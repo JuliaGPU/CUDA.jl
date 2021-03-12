@@ -114,55 +114,55 @@ function hard_limit(dev::CuDevice)
   usage_limit[dev]
 end
 
-function actual_alloc(dev::CuDevice, bytes::Integer, last_resort::Bool=false;
+function actual_alloc(bytes::Integer, last_resort::Bool=false;
                       stream_ordered::Bool=false)
-  buf = @device! dev begin
-    # check the memory allocation limit
-    if usage[dev][] + bytes > (last_resort ? hard_limit(dev) : soft_limit(dev))
-      return nothing
-    end
+  dev = device()
 
-    # try the actual allocation
-    try
-      time = Base.@elapsed begin
-        @timeit_debug alloc_to "alloc" begin
-          buf = Mem.alloc(Mem.Device, bytes; async=true, stream_ordered)
-        end
+  # check the memory allocation limit
+  if usage[dev][] + bytes > (last_resort ? hard_limit(dev) : soft_limit(dev))
+    return nothing
+  end
+
+  # try the actual allocation
+  buf = try
+    time = Base.@elapsed begin
+      @timeit_debug alloc_to "alloc" begin
+        buf = Mem.alloc(Mem.Device, bytes; async=true, stream_ordered)
       end
-
-      Threads.atomic_add!(usage[dev], bytes)
-      alloc_stats.actual_time += time
-      alloc_stats.actual_nalloc += 1
-      alloc_stats.actual_alloc += bytes
-
-      buf
-    catch err
-      (isa(err, CuError) && err.code == ERROR_OUT_OF_MEMORY) || rethrow()
-      return nothing
     end
+
+    Threads.atomic_add!(usage[dev], bytes)
+    alloc_stats.actual_time += time
+    alloc_stats.actual_nalloc += 1
+    alloc_stats.actual_alloc += bytes
+
+    buf
+  catch err
+    (isa(err, CuError) && err.code == ERROR_OUT_OF_MEMORY) || rethrow()
+    return nothing
   end
 
   return Block(buf, bytes; state=AVAILABLE)
 end
 
-function actual_free(dev::CuDevice, block::Block; stream_ordered::Bool=false)
+function actual_free(block::Block; stream_ordered::Bool=false)
+  dev = device()
+
   @assert iswhole(block) "Cannot free $block: block is not whole"
   @assert block.off == 0
   @assert block.state == AVAILABLE "Cannot free $block: block is not available"
 
-  @device! dev begin
-    # free the memory
-    @timeit_debug alloc_to "free" begin
-      time = Base.@elapsed begin
-        Mem.free(block.buf; async=true, stream_ordered)
-      end
-      block.state = INVALID
-
-      Threads.atomic_sub!(usage[dev], sizeof(block.buf))
-      alloc_stats.actual_time += time
-      alloc_stats.actual_nfree += 1
-      alloc_stats.actual_free += sizeof(block.buf)
+  # free the memory
+  @timeit_debug alloc_to "free" begin
+    time = Base.@elapsed begin
+      Mem.free(block.buf; async=true, stream_ordered)
     end
+    block.state = INVALID
+
+    Threads.atomic_sub!(usage[dev], sizeof(block.buf))
+    alloc_stats.actual_time += time
+    alloc_stats.actual_nfree += 1
+    alloc_stats.actual_free += sizeof(block.buf)
   end
 
   return
@@ -205,18 +205,18 @@ const pools = PerDevice{AbstractPool}(dev->begin
   end
   pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", default_pool)
   pool = if pool_name == "none"
-      NoPool(; dev, stream_ordered=false)
+      NoPool(; stream_ordered=false)
   elseif pool_name == "simple"
-      SimplePool(; dev, stream_ordered=false)
+      SimplePool(; stream_ordered=false)
   elseif pool_name == "binned"
-      BinnedPool(; dev, stream_ordered=false)
+      BinnedPool(; stream_ordered=false)
   elseif pool_name == "split"
-      SplitPool(; dev, stream_ordered=false)
+      SplitPool(; stream_ordered=false)
   elseif pool_name == "cuda"
       @assert version() >= v"11.2" "The CUDA memory pool is only supported on CUDA 11.2+"
       @assert(attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1,
               "Your device $(name(dev)) does not support the CUDA memory pool")
-      NoPool(; dev, stream_ordered=true)
+      NoPool(; stream_ordered=true)
   else
       error("Invalid memory pool '$pool_name'")
   end

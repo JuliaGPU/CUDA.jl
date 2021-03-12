@@ -5,7 +5,9 @@
 # multiple threads), using a GPU of your choice (with the ability to reset that device, or
 # use different devices on different threads).
 
-export context, context!, device, device!, device_reset!, deviceid, stream, stream!, pool
+# XXX: a task switch hook would make much of this complexity go away...
+
+export context, context!, device, device!, device_reset!, deviceid, stream, stream!
 
 
 ## hooks
@@ -163,14 +165,14 @@ Note that the contexts used with this call should be previously acquired by call
 [`context`](@ref), and not arbitrary contexts created by calling the `CuContext` constructor.
 """
 function context!(ctx::CuContext)
-    detect_task_switches()  # we got a CuDevice, so CUDA is initialized already
+    detect_task_switches()
     tid = Threads.threadid()
 
     # update the thread-local state
     state = @inbounds thread_state[tid]
     if state === nothing || state.ctx != ctx
         activate(ctx)
-        dev = CuCurrentDevice()
+        dev = CuCurrentDevice()::CuDevice
         thread_state[tid] = (;ctx=ctx, dev=dev)
         _atdeviceswitch()
     end
@@ -181,43 +183,55 @@ function context!(ctx::CuContext)
     return
 end
 
-"""
-    context!(f, ctx)
+macro context!(ex...)
+    body = ex[end]
+    ctx = ex[end-1]
+    kwargs = ex[1:end-2]
 
-Sets the active context for the duration of `f`.
-"""
-function context!(f::Function, ctx::CuContext)
-    @assert isvalid(ctx)
-    old_ctx = CuCurrentContext()
-    if ctx != old_ctx
-        context!(ctx)
+    skip_destroyed = false
+    for kwarg in kwargs
+        Meta.isexpr(kwarg, :(=)) || throw(ArgumentError("non-keyword argument like option '$kwarg'"))
+        key, val = kwarg.args
+        isa(key, Symbol) || throw(ArgumentError("non-symbolic keyword '$key'"))
+
+        if key == :skip_destroyed
+            skip_destroyed = val
+        else
+            throw(ArgumentError("unrecognized keyword argument '$kwarg'"))
+        end
     end
-    try
-        f()
-    finally
-        if ctx !== old_ctx && old_ctx !== nothing
-            context!(old_ctx)
+
+    quote
+        ctx = $(esc(ctx))
+        if isvalid(ctx)
+            detect_task_switches()
+            tid = Threads.threadid()
+
+            # NOTE: we don't use `context()` here, since that initializes
+            old_state = @inbounds thread_state[tid]
+            if old_state === nothing || old_state.ctx != ctx
+                context!(ctx)   # XXX: context! performs a lot of the same checks...
+            end
+            try
+                $(esc(body))
+            finally
+                if old_state !== nothing && ctx != old_state.ctx
+                    context!(old_state.ctx)
+                end
+            end
+        elseif !$(esc(skip_destroyed))
+            error("Cannot switch to an invalidated context.")
         end
     end
 end
 
-# macro version for maximal performance (avoiding closures)
-macro context!(ctx_expr, expr)
-    quote
-        ctx = $(esc(ctx_expr))
-        @assert isvalid(ctx)
-        old_ctx = CuCurrentContext()
-        if ctx != old_ctx
-            context!(ctx)
-        end
-        try
-            $(esc(expr))
-        finally
-            if ctx !== old_ctx && old_ctx !== nothing
-                context!(old_ctx)
-            end
-        end
-    end
+"""
+    context!(f, ctx; [skip_destroyed=false])
+
+Sets the active context for the duration of `f`.
+"""
+@inline function context!(f::Function, ctx::CuContext; skip_destroyed::Bool=false)
+    @context! skip_destroyed=skip_destroyed ctx f()
 end
 
 
@@ -304,6 +318,13 @@ function device!(dev::CuDevice, flags=nothing)
     context!(ctx)
 end
 
+macro device!(dev, body)
+    quote
+        ctx = context($(esc(dev)))
+        @context! ctx $(esc(body))
+    end
+end
+
 """
     device!(f, dev)
 
@@ -312,17 +333,8 @@ Sets the active device for the duration of `f`.
 Note that this call is intended for temporarily switching devices, and does not change the
 default device used to initialize new threads or tasks.
 """
-function device!(f::Function, dev::CuDevice)
-    ctx = context(dev)
-    context!(f, ctx)
-end
-
-macro device!(dev_expr, expr)
-    quote
-        dev = $(esc(dev_expr))
-        ctx = context(dev)
-        @context! ctx $(esc(expr))
-    end
+@inline function device!(f::Function, dev::CuDevice)
+    @device! dev f()
 end
 
 """
