@@ -49,7 +49,7 @@ CuContext
 CUDA.unsafe_destroy!(::CuContext)
 CuCurrentContext
 activate(::CuContext)
-synchronize()
+synchronize_all
 ```
 
 ### Primary Context Management

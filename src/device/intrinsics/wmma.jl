@@ -380,7 +380,7 @@ All WMMA operations take a `Config` as their final argument.
 # Examples
 ```jldoctest
 julia> config = WMMA.Config{16, 16, 16, Float32}
-CUDA.WMMA.Config{16,16,16,Float32}
+CUDA.WMMA.Config{16, 16, 16, Float32}
 ```
 """
 struct Config{M, N, K, d_type} end

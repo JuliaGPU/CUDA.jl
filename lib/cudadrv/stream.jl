@@ -104,7 +104,6 @@ function query(s::CuStream)
 end
 
 """
-    synchronize()
     synchronize([stream::CuStream]; blocking=true)
 
 Wait until `stream` has finished executing, with `stream` defaulting to the stream
