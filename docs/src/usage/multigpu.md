@@ -1,14 +1,13 @@
 # Multiple GPUs
 
-There are different ways of working with multiple GPUs: using one or more threads,
-processes, or systems. Although all of these are compatible with the Julia CUDA toolchain,
-the support is a work in progress and the usability of some combinations can be
-significantly improved.
+There are different ways of working with multiple GPUs: using one or more tasks, processes,
+or systems. Although all of these are compatible with the Julia CUDA toolchain, the support
+is a work in progress and the usability of some combinations can be significantly improved.
 
 
 ## Scenario 1: One GPU per process
 
-The easiest solution that maps best onto Julia's existing facilities for distributed
+The easiest solution that maps well onto Julia's existing facilities for distributed
 programming, is to use one GPU per process
 
 ```julia
@@ -37,10 +36,10 @@ receive buffers to point-to-point and collective operations to avoid going throu
 ## Scenario 2: Multiple GPUs per process
 
 In a similar vein to the multi-process solution, one can work with multiple devices from
-within a single process by calling `CUDA.device!` to switch to a specific device. As the
-active device is a task-local property, you can easily work with multiple devices by, e.g.,
-launching one task per device. For concurrent execution on multiple devices, you can even
-use Julia's multithreading capabilities and use a CPU thread per task.
+within a single process by calling `CUDA.device!` to switch to a specific device.
+Furthermore, as the active device is a task-local property you can easily work with multiple
+devices using one task per device. For more details, refer to the section on [Tasks and
+threads](@ref).
 
 ### Memory management
 
