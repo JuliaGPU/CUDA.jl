@@ -151,35 +151,35 @@ lazy = true
 
 [[CUDA112]]
 arch = "powerpc64le"
-git-tree-sha1 = "ef3928da3f9b68a5213a93f91da0d27e32c01e50"
+git-tree-sha1 = "a0b84558b5a0c78f4d489f7b421ec4722899d6c0"
 libc = "glibc"
-os = "linux"
 lazy = true
+os = "linux"
 
     [[CUDA112.download]]
-    sha256 = "770235b69868b88e6db4efc30a8659e9708f3b432028e2032ba589cf2c3efaf8"
-    url = "https://github.com/JuliaBinaryWrappers/CUDA_jll.jl/releases/download/CUDA-v11.2.1+1/CUDA.v11.2.1.powerpc64le-linux-gnu.tar.gz"
+    sha256 = "23e3e4b0d0b325e223edd55e5b7dcc8d2a11722d0169b1dcd1a4a548e3f4d9c6"
+    url = "https://github.com/JuliaBinaryWrappers/CUDA_jll.jl/releases/download/CUDA-v11.2.2+0/CUDA.v11.2.2.powerpc64le-linux-gnu.tar.gz"
 
 [[CUDA112]]
 arch = "x86_64"
-git-tree-sha1 = "18f4e83091aec02d8229c2b009a45a5c22b47664"
+git-tree-sha1 = "53345f55f74b563606017c90cbafd05b61cd1768"
 libc = "glibc"
-os = "linux"
 lazy = true
+os = "linux"
 
     [[CUDA112.download]]
-    sha256 = "6da495c82fae19e0aae8691addc72829376547543324358f39e16835cb208e6e"
-    url = "https://github.com/JuliaBinaryWrappers/CUDA_jll.jl/releases/download/CUDA-v11.2.1+1/CUDA.v11.2.1.x86_64-linux-gnu.tar.gz"
+    sha256 = "a644bda2c4d7936d220ddbbe5719a2db5047659f23cc35b53bc4c9f7f6211711"
+    url = "https://github.com/JuliaBinaryWrappers/CUDA_jll.jl/releases/download/CUDA-v11.2.2+0/CUDA.v11.2.2.x86_64-linux-gnu.tar.gz"
 
 [[CUDA112]]
 arch = "x86_64"
-git-tree-sha1 = "4765905e93e1e93ca8d2eb52a1e8cec5de4627b1"
+git-tree-sha1 = "81069bd6e35b73f32622f78c73f5f32c3db4e47a"
+lazy = true
 os = "windows"
-lazy = true
 
     [[CUDA112.download]]
-    sha256 = "6dc0ae6aab8b878864bf926fd9446c71f92f689e6115d6dcedc54ac492d30ea3"
-    url = "https://github.com/JuliaBinaryWrappers/CUDA_jll.jl/releases/download/CUDA-v11.2.1+1/CUDA.v11.2.1.x86_64-w64-mingw32.tar.gz"
+    sha256 = "36d22665027bca6eb9a292fd542344e8877b5089b2dacc29d0e334320d49e840"
+    url = "https://github.com/JuliaBinaryWrappers/CUDA_jll.jl/releases/download/CUDA-v11.2.2+0/CUDA.v11.2.2.x86_64-w64-mingw32.tar.gz"
 
 
 

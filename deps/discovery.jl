@@ -257,6 +257,20 @@ const cuda_library_versions = Dict(
         "npp"       => v"11.3.2", #.139
         "nvjpeg"    => v"11.4.0", #.135
     ),
+    v"11.2.2" => Dict(
+        "cudart"    => v"11.2.152",
+        "cupti"     => "2020.3.1", # docs mention 11.2.152
+        "nvrtc"     => v"11.2.152",
+        "nvtx"      => v"11.2.152",
+        "nvvp"      => v"11.2.152",
+        "cublas"    => v"11.4.1", #.1043
+        "cufft"     => v"10.4.1", #.152
+        "curand"    => v"10.2.3", #.152
+        "cusolver"  => v"11.1.0", #.152
+        "cusparse"  => v"11.4.1", #.1152
+        "npp"       => v"11.3.2", #.152
+        "nvjpeg"    => v"11.4.0", #.152
+    ),
 )
 
 function cuda_library_version(library, toolkit_version)
@@ -300,6 +314,9 @@ const cuda_binary_versions = Dict(
     ),
     v"11.2.1" => Dict(
         "nvdisasm"  => v"11.2.135"
+    ),
+    v"11.2.2" => Dict(
+        "nvdisasm"  => v"11.2.152"
     ),
 )
 

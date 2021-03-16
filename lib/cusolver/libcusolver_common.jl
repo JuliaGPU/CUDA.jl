@@ -3,7 +3,7 @@
 const CUSOLVER_VER_MAJOR = 11
 const CUSOLVER_VER_MINOR = 1
 const CUSOLVER_VER_PATCH = 0
-const CUSOLVER_VER_BUILD = 135
+const CUSOLVER_VER_BUILD = 152
 const CUSOLVER_VERSION = CUSOLVER_VER_MAJOR * 1000 + CUSOLVER_VER_MINOR * 100 + CUSOLVER_VER_PATCH
 const cusolverDnContext = Cvoid
 const cusolverDnHandle_t = Ptr{cusolverDnContext}
