@@ -197,7 +197,7 @@ for maximum ease-of-use:
 ```
 $ docker run --rm -it --gpus=all nvcr.io/hpc/julia:v1.2.0
 
-julia> using CuArrays
+julia> using CUDA
 ```
 
 Note that the current version of this image is woefully outdated, but you can find the

@@ -127,7 +127,7 @@ function findminmax(minmax, binop, a::AnyCuArray; init, dims)
         (x, i), (y, j) = t1, t2
 
         binop(x, y) && return t1
-        x == y && return (x, min(i, j))
+        x == y && return (x, Base.min(i, j))
         return t2
     end
 

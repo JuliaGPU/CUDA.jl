@@ -44,6 +44,7 @@ function main()
                 "usage/workflow.md",
                 "usage/array.md",
                 "usage/memory.md",
+                "usage/multitasking.md",
                 "usage/multigpu.md",
             ],
             "Development" => Any[
