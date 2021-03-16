@@ -155,9 +155,24 @@ const cuda_releases = [v"1.0", v"1.1",
                        v"8.0",
                        v"9.0", v"9.1", v"9.2",
                        v"10.0", v"10.1", v"10.2",
-                       v"11.0", v"11.1"]
+                       v"11.0", v"11.1", v"11.2"]
 
 const cuda_library_versions = Dict(
+    v"11.0.1" => Dict(
+        # NOTE: encountered this version in a Docker container; not sure where it came from.
+        "cudart"    => v"11.0.171",
+        "cupti"     => "2020.1.0", # wtf
+        "nvrtc"     => v"11.0.167",
+        "nvtx"      => v"11.0.167",
+        "nvvp"      => v"11.0.167",
+        "cublas"    => v"11.0.0", #.191
+        "cufft"     => v"10.1.3", #.191
+        "curand"    => v"10.2.0", #.191
+        "cusolver"  => v"10.4.0", #.191
+        "cusparse"  => v"11.0.0", #.191
+        "npp"       => v"11.0.0", #.191
+        "nvjpeg"    => v"11.0.0", #.191
+    ),
     v"11.0.2" => Dict(
         "cudart"    => v"11.0.171",
         "cupti"     => "2020.1.0", # wtf
@@ -228,6 +243,34 @@ const cuda_library_versions = Dict(
         "npp"       => v"11.2.1", #.68
         "nvjpeg"    => v"11.3.1", #.68
     ),
+    v"11.2.1" => Dict(
+        "cudart"    => v"11.2.146",
+        "cupti"     => "2020.3.1", # docs mention 11.2.135
+        "nvrtc"     => v"11.2.142",
+        "nvtx"      => v"11.2.67",
+        "nvvp"      => v"11.2.135",
+        "cublas"    => v"11.4.1", #.1026
+        "cufft"     => v"10.4.0", #.135
+        "curand"    => v"10.2.3", #.135
+        "cusolver"  => v"11.1.0", #.135
+        "cusparse"  => v"11.4.0", #.135
+        "npp"       => v"11.3.2", #.139
+        "nvjpeg"    => v"11.4.0", #.135
+    ),
+    v"11.2.2" => Dict(
+        "cudart"    => v"11.2.152",
+        "cupti"     => "2020.3.1", # docs mention 11.2.152
+        "nvrtc"     => v"11.2.152",
+        "nvtx"      => v"11.2.152",
+        "nvvp"      => v"11.2.152",
+        "cublas"    => v"11.4.1", #.1043
+        "cufft"     => v"10.4.1", #.152
+        "curand"    => v"10.2.3", #.152
+        "cusolver"  => v"11.1.0", #.152
+        "cusparse"  => v"11.4.1", #.1152
+        "npp"       => v"11.3.2", #.152
+        "nvjpeg"    => v"11.4.0", #.152
+    ),
 )
 
 function cuda_library_version(library, toolkit_version)
@@ -250,6 +293,10 @@ const cuda_library_names = Dict(
 
 # only for nvdisasm, to discover the CUDA toolkit version
 const cuda_binary_versions = Dict(
+    v"11.0.1" => Dict(
+        # NOTE: encountered this version in a Docker container; not sure where it came from.
+        "nvdisasm"  => v"11.0.167"
+    ),
     v"11.0.2" => Dict(
         "nvdisasm"  => v"11.0.194"
     ),
@@ -264,6 +311,12 @@ const cuda_binary_versions = Dict(
     ),
     v"11.2.0" => Dict(
         "nvdisasm"  => v"11.2.67"
+    ),
+    v"11.2.1" => Dict(
+        "nvdisasm"  => v"11.2.135"
+    ),
+    v"11.2.2" => Dict(
+        "nvdisasm"  => v"11.2.152"
     ),
 )
 
@@ -392,7 +445,10 @@ function parse_toolkit_version(tool, tool_path::String)
         read(`$tool_path --version`, String)
     end
     m = match(r"\bV(?<major>\d+).(?<minor>\d+).(?<patch>\d+)\b", verstr)
-    m !== nothing || error("could not parse version info (\"$verstr\")")
+    if m === nothing
+        @error "Could not parse CUDA version info (\"$verstr\"); please file an issue."
+        return nothing
+    end
 
     version = VersionNumber(parse(Int, m[:major]),
                             parse(Int, m[:minor]),
@@ -408,7 +464,8 @@ function parse_toolkit_version(tool, tool_path::String)
                 return toolkit_version
             end
         end
-        error("CUDA.jl does not yet support CUDA with $tool $version; please file an issue.")
+        @error "CUDA.jl does not yet support CUDA with $tool $version; please file an issue."
+        return nothing
     else
         @debug "CUDA toolkit identified as $version"
         return version
