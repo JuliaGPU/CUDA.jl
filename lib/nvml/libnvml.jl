@@ -1601,4 +1601,11 @@ end
     ccall((:nvmlDeviceSetTemperatureThreshold, libnvml()), nvmlReturn_t, (nvmlDevice_t, nvmlTemperatureThresholds_t, Ptr{Cint}), device, thresholdType, temp)
 end
 
+## Added in CUDA 11.2 Update 2
+
+@checked function nvmlDeviceCreateGpuInstanceWithPlacement(device, profileId, placement, gpuInstance)
+    initialize_api()
+    ccall((:nvmlDeviceCreateGpuInstanceWithPlacement, libnvml), nvmlReturn_t, (nvmlDevice_t, UInt32, Ptr{nvmlGpuInstancePlacement_t}, Ptr{nvmlGpuInstance_t}), device, profileId, placement, gpuInstance)
+end
+
 ##
