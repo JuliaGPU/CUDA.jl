@@ -155,7 +155,7 @@ const cuda_releases = [v"1.0", v"1.1",
                        v"8.0",
                        v"9.0", v"9.1", v"9.2",
                        v"10.0", v"10.1", v"10.2",
-                       v"11.0", v"11.1"]
+                       v"11.0", v"11.1", v"11.2"]
 
 const cuda_library_versions = Dict(
     v"11.0.1" => Dict(
