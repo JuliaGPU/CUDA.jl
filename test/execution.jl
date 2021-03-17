@@ -157,7 +157,7 @@ end
     end
 
     _, out = @grab_output begin
-        CUDA.@sync @cuda kernel(1, 2, 3)
+        @cuda kernel(1, 2, 3)
     end
     @test out == "2"
 end
@@ -835,7 +835,7 @@ end
     end
 
     _, out = @grab_output begin
-        CUDA.@sync @cuda hello()
+        @cuda hello()
     end
     @test out == "Hello, World!"
 end
@@ -849,7 +849,7 @@ end
     end
 
     _, out = @grab_output begin
-        CUDA.@sync @cuda hello()
+        @cuda hello()
     end
     @test out == "Hello, World!"
 end
@@ -864,7 +864,7 @@ end
     end
 
     _, out = @grab_output begin
-        CUDA.@sync @cuda hello()
+        @cuda hello()
     end
     @test out == "Hello, World 1!"
 end
@@ -882,7 +882,7 @@ end
                  (Int64(1), Int32(2), Int16(3)),    # no padding, inequal size
                  (Int16(1), Int64(2), Int32(3)))    # mixed
         _, out = @grab_output begin
-            CUDA.@sync @cuda kernel(args...)
+            @cuda kernel(args...)
         end
         @test out == "1 2 3"
     end
@@ -917,7 +917,7 @@ end
     end
 
     _, out = @grab_output begin
-        CUDA.@sync @cuda kernel(true)
+        @cuda kernel(true)
     end
     @test out == "recurse stop"
 end
@@ -947,7 +947,7 @@ end
     end
 
     _, out = @grab_output begin
-        CUDA.@sync @cuda kernel_a(true)
+        @cuda kernel_a(true)
     end
     @test out == "a b c recurse a b c stop"
 end
@@ -967,7 +967,7 @@ end
     end
 
     _, out = @grab_output begin
-        CUDA.@sync @cuda hello()
+        @cuda hello()
     end
     @test out == "Hello, World!"
 end
