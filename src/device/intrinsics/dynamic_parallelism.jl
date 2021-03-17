@@ -42,6 +42,8 @@ struct CuDeviceStream
         @check_status cudaStreamCreateWithFlags(handle_ref, flags)
         return new(handle_ref[])
     end
+
+    global CuDefaultDeviceStream() = new(convert(cudaStream_t, C_NULL))
 end
 
 Base.unsafe_convert(::Type{cudaStream_t}, s::CuDeviceStream) = s.handle
@@ -54,8 +56,14 @@ end
 
 ## execution
 
-# device-side counterpart of launch
-@inline function device_launch(f, blocks, threads, shmem, stream, args...)
+struct CuDeviceFunction
+    ptr::Ptr{Cvoid}
+end
+
+Base.unsafe_convert(::Type{Ptr{Cvoid}}, fun::CuDeviceFunction) = fun.ptr
+
+function launch(f::CuDeviceFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::CuDim=1,
+                shmem::Integer=0, stream::CuDeviceStream=CuDefaultDeviceStream()) where {N}
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
 
@@ -65,7 +73,7 @@ end
     return
 end
 
-@generated function parameter_buffer(f, blocks, threads, shmem, args...)
+@generated function parameter_buffer(f::CuDeviceFunction, blocks, threads, shmem, args...)
     # allocate a buffer
     ex = quote
         Base.@_inline_meta
