@@ -102,7 +102,7 @@ end
 end
 
 """
-    cudacall(f::CuFunction, types, values...; blocks::CuDim, threads::CuDim,
+    cudacall(f, types, values...; blocks::CuDim, threads::CuDim,
              cooperative=false, shmem=0, stream=stream())
 
 `ccall`-like interface for launching a CUDA function `f` on a GPU.
@@ -130,10 +130,10 @@ being slightly faster.
 cudacall
 
 # FIXME: can we make this infer properly?
-cudacall(f::CuFunction, types::Tuple, args...; kwargs...) where {N} =
+cudacall(f, types::Tuple, args...; kwargs...) where {N} =
     cudacall(f, Base.to_tuple_type(types), args...; kwargs...)
 
-function cudacall(f::CuFunction, types::Type, args...; kwargs...)
+function cudacall(f, types::Type, args...; kwargs...)
     convert_arguments(types, args...) do pointers...
         launch(f, pointers...; kwargs...)
     end

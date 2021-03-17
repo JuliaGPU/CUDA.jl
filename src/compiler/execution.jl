@@ -186,7 +186,7 @@ AbstractKernel
     quote
         Base.@_inline_meta
 
-        cudacall(kernel, $call_tt, $(call_args...); call_kwargs...)
+        cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
     end
 end
 
@@ -200,15 +200,6 @@ struct HostKernel{F,TT} <: AbstractKernel{F,TT}
 end
 
 @doc (@doc AbstractKernel) HostKernel
-
-@inline function cudacall(kernel::HostKernel, tt, args...; config=nothing, kwargs...)
-    if config !== nothing
-        Base.depwarn("cudacall with config argument is deprecated, use `@cuda launch=false` and instrospect the returned kernel instead", :cudacall)
-        cudacall(kernel.fun, tt, args...; kwargs..., config(kernel)...)
-    else
-        cudacall(kernel.fun, tt, args...; kwargs...)
-    end
-end
 
 """
     version(k::HostKernel)
@@ -357,50 +348,16 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
     return HostKernel{job.source.f,job.source.tt}(ctx, mod, fun)
 end
 
-# https://github.com/JuliaLang/julia/issues/14919
 (kernel::HostKernel)(args...; kwargs...) = call(kernel, map(cudaconvert, args)...; kwargs...)
 
 
 ## device-side kernels
 
 struct DeviceKernel{F,TT} <: AbstractKernel{F,TT}
-    fun::Ptr{Cvoid}
+    fun::CuDeviceFunction
 end
 
 @doc (@doc AbstractKernel) DeviceKernel
-
-@inline cudacall(kernel::DeviceKernel, tt, args...; kwargs...) =
-    dynamic_cudacall(kernel.fun, tt, args...; kwargs...)
-
-# FIXME: duplication with cudacall
-@generated function dynamic_cudacall(f::Ptr{Cvoid}, tt::Type{T}, args::Vararg{Any,N};
-                                     blocks=UInt32(1), threads=UInt32(1), shmem=UInt32(0),
-                                     stream=CuDefaultStream()) where {T,N}
-    types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
-
-    ex = quote
-        Base.@_inline_meta
-    end
-
-    # convert the argument values to match the kernel's signature (specified by the user)
-    # (this mimics `lower-ccall` in julia-syntax.scm)
-    converted_args = Vector{Symbol}(undef, length(args))
-    arg_ptrs = Vector{Symbol}(undef, length(args))
-    for i in 1:length(args)
-        converted_args[i] = gensym()
-        arg_ptrs[i] = gensym()
-        push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
-        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $(converted_args[i]))))
-    end
-
-    append!(ex.args, (quote
-        #GC.@preserve $(converted_args...) begin
-            device_launch(f, blocks, threads, shmem, stream, $(arg_ptrs...))
-        #end
-    end).args)
-
-    return ex
-end
 
 
 ## device-side API
@@ -415,10 +372,10 @@ No keyword arguments are supported.
 """
 @inline function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
     fptr = GPUCompiler.deferred_codegen(Val(f), Val(tt))
-    DeviceKernel{f,tt}(fptr)
+    fun = CuDeviceFunction(fptr)
+    DeviceKernel{f,tt}(fun)
 end
 
-# https://github.com/JuliaLang/julia/issues/14919
 (kernel::DeviceKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
 
 
