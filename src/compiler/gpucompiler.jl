@@ -39,3 +39,7 @@ function GPUCompiler.link_libraries!(job::CUDACompilerJob, mod::LLVM.Module,
            job, mod, undefined_fns)
     link_libdevice!(mod, job.target.cap, undefined_fns)
 end
+
+GPUCompiler.ci_cache(::CUDACompilerJob) = ci_cache
+
+GPUCompiler.method_table(::CUDACompilerJob) = method_table

@@ -854,7 +854,6 @@ end
     @test out == "Hello, World!"
 end
 
-if VERSION >= v"1.1" # behavior of captured variables (box or not) has improved over time
 @testset "closures" begin
     function hello()
         x = 1
@@ -868,7 +867,6 @@ if VERSION >= v"1.1" # behavior of captured variables (box or not) has improved 
         CUDA.@sync @cuda hello()
     end
     @test out == "Hello, World 1!"
-end
 end
 
 @testset "argument passing" begin
@@ -1056,6 +1054,27 @@ if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_C
 
     c = Array(d_c)
     @test all(c[1] .== c)
+end
+
+end
+
+############################################################################################
+
+@testset "contextual dispatch" begin
+
+@test_throws ErrorException CUDA.saturate(1f0)  # CUDA.jl#60
+
+@test testf(a->broadcast(x->x^1.5, a), rand(Float32, 1))    # CUDA.jl#71
+@test testf(a->broadcast(x->1.0^x, a), rand(Int, 1))        # CUDA.jl#76
+@test testf(a->broadcast(x->x^4, a), rand(Float32, 1))      # CUDA.jl#171
+
+@test argmax(cu([true false; false true])) == CartesianIndex(1, 1)  # CUDA.jl#659
+
+# CUDA.jl#42
+@test testf([Complex(1f0,2f0)]) do a
+    b = sincos.(a)
+    s,c = first(collect(b))
+    (real(s), imag(s), real(c), imag(c))
 end
 
 end

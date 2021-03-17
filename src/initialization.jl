@@ -91,7 +91,10 @@ function __init__()
         thread_streams[tid] = nothing
     end
 
-    @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    if !precompiling
+        eval(overrides)
+    end
 end
 
 function __runtime_init__()

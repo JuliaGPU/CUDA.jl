@@ -1,9 +1,3 @@
-# Need https://github.com/JuliaLang/julia/pull/33970
-# and  https://github.com/JuliaLang/julia/pull/34043
-if VERSION < v"1.5-"
-    exit()
-end
-
 using CUDA
 if capability(device()) < v"7.0"
     exit()
