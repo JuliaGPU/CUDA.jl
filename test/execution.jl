@@ -1059,3 +1059,24 @@ end
 end
 
 ############################################################################################
+
+@testset "contextual dispatch" begin
+
+@test_throws ErrorException CUDA.saturate(1f0)  # CUDA.jl#60
+
+@test testf(a->broadcast(x->x^1.5, a), rand(Float32, 1))    # CUDA.jl#71
+@test testf(a->broadcast(x->1.0^x, a), rand(Int, 1))        # CUDA.jl#76
+@test testf(a->broadcast(x->x^4, a), rand(Float32, 1))      # CUDA.jl#171
+
+@test argmax(cu([true false; false true])) == CartesianIndex(1, 1)  # CUDA.jl#659
+
+# CUDA.jl#42
+@test testf([Complex(1f0,2f0)]) do a
+    b = sincos.(a)
+    s,c = first(collect(b))
+    (real(s), imag(s), real(c), imag(c))
+end
+
+end
+
+############################################################################################
