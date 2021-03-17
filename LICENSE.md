@@ -1,7 +1,9 @@
 The CUDA.jl package is licensed under the MIT "Expat" License:
 
 > Copyright (c) 2019-present: Julia Computing and other contributors
+> 
 > Copyright (c) 2014-2018: Tim Besard
+> 
 > Copyright (c) 2013: Dahua Lin
 >
 > All Rights Reserved.
