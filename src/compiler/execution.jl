@@ -166,11 +166,7 @@ AbstractKernel
     args = (:F, (:( args[$i] ) for i in 1:length(args))...)
 
     # filter out arguments that shouldn't be passed
-    predicate = if VERSION >= v"1.5.0-DEV.581"
-        dt -> isghosttype(dt) || Core.Compiler.isconstType(dt)
-    else
-        dt -> isghosttype(dt)
-    end
+    predicate = dt -> isghosttype(dt) || Core.Compiler.isconstType(dt)
     to_pass = map(!predicate, sig.parameters)
     call_t =                  Type[x[1] for x in zip(sig.parameters,  to_pass) if x[2]]
     call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass)            if x[2]]

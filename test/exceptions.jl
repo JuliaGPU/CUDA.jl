@@ -54,11 +54,7 @@ let (code, out, err) = julia_script(script, `-g2`)
           occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
           occursin("ERROR: CUDA error: unspecified launch failure", err)
     @test occursin(r"ERROR: a \w+ was thrown during kernel execution", out)
-    if VERSION < v"1.3.0-DEV.270"
-        @test occursin("[1] Type at float.jl", out)
-    else
-        @test occursin("[1] Int64 at float.jl", out)
-    end
+    @test occursin("[1] Int64 at float.jl", out)
     @test occursin("[4] kernel at none:5", out)
 end
 

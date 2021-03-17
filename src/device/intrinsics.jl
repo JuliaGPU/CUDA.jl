@@ -6,7 +6,7 @@ macro device_override(ex)
     code = quote
         $GPUCompiler.@override($method_table, $ex)
     end
-    if VERSION >= v"1.7-"
+    if isdefined(Base.Experimental, Symbol("@overlay"))
         return esc(code)
     else
         push!(overrides.args, code)

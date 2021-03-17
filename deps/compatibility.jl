@@ -175,11 +175,6 @@ end
 ## high-level functions that return target and isa support
 
 function llvm_compat(version=LLVM.version())
-    # https://github.com/JuliaGPU/CUDAnative.jl/issues/428
-    if version >= v"8.0" && VERSION < v"1.3.0-DEV.547"
-        error("LLVM 8.0 requires a newer version of Julia")
-    end
-
     InitializeNVPTXTarget()
 
     cap_support = sort(collect(llvm_cap_support(version)))

@@ -25,7 +25,7 @@ using ExprTools
 
 const ci_cache = GPUCompiler.CodeCache()
 
-@static if VERSION >= v"1.7-"
+@static if isdefined(Base.Experimental, Symbol("@overlay"))
 Base.Experimental.@MethodTable(method_table)
 else
 const method_table = nothing

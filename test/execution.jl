@@ -854,7 +854,6 @@ end
     @test out == "Hello, World!"
 end
 
-if VERSION >= v"1.1" # behavior of captured variables (box or not) has improved over time
 @testset "closures" begin
     function hello()
         x = 1
@@ -868,7 +867,6 @@ if VERSION >= v"1.1" # behavior of captured variables (box or not) has improved 
         CUDA.@sync @cuda hello()
     end
     @test out == "Hello, World 1!"
-end
 end
 
 @testset "argument passing" begin

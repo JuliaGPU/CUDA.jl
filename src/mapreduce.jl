@@ -131,12 +131,6 @@ end
 
 ## COV_EXCL_STOP
 
-if VERSION < v"1.5.0-DEV.748"
-    Base.axes(bc::Base.Broadcast.Broadcasted{<:CuArrayStyle, <:NTuple{N}},
-              d::Integer) where N =
-        d <= N ? axes(bc)[d] : Base.OneTo(1)
-end
-
 function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
                                  A::Union{AbstractArray,Broadcast.Broadcasted};
                                  init=nothing) where {F, OP, T}
