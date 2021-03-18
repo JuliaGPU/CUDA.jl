@@ -110,13 +110,8 @@ end
 
 ## synchronization
 
-"""
-    device_synchronize()
-
-Wait for the device to finish. This is the device side version,
-and should not be called from the host.
-
-`device_synchronize` acts as a synchronization point for
-child grids in the context of dynamic parallelism.
-"""
-device_synchronize() = @check_status cudaDeviceSynchronize()
+@device_override device_synchronize() = @check_status cudaDeviceSynchronize()
+@doc """
+On the device, `device_synchronize` acts as a synchronization point for child grids in the
+context of dynamic parallelism.
+""" device_synchronize
