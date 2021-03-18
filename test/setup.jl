@@ -128,7 +128,7 @@ macro grab_output(ex)
                     ret = $(esc(ex))
 
                     # NOTE: CUDA requires a 'proper' sync to flush its printf buffer
-                    synchronize_all()
+                    device_synchronize()
                 end
             end
             ret, read(fname, String)

@@ -24,7 +24,7 @@ let global_ctx2 = nothing
 
     @test CuDevice(ctx) == dev
     @test CuCurrentDevice() == dev
-    synchronize_all()
+    device_synchronize()
 end
 
 end

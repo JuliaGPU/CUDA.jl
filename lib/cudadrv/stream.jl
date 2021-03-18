@@ -110,7 +110,7 @@ Wait until `stream` has finished executing, with `stream` defaulting to the stre
 associated with the current Julia task. If `blocking` is true (the default), Julia will be
 asked to yield to any other scheduled task, otherwise it will spin indefinitely.
 
-See also: [`synchronize_all`](@ref)
+See also: [`device_synchronize`](@ref)
 """
 function synchronize(s::CuStream=stream(); blocking::Bool=true)
     # TODO: exponential back-off and sleep?

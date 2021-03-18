@@ -35,10 +35,10 @@ export
     end
 end
 
-# TODO: look these up for the current device (using contextual dispatch).
-#       for now, these values are based on the Volta V100 GPU.
-const max_block_size = (x=1024, y=1024, z=1024)
-const max_grid_size  = (x=2147483647, y=65535, z=65535)
+# XXX: these depend on the compute capability
+#      https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities
+const max_block_size = (x=1024, y=1024, z=64)
+const max_grid_size  = (x=2^31-1, y=65535, z=65535)
 
 for dim in (:x, :y, :z)
     # Thread index
