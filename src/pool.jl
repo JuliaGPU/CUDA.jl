@@ -329,11 +329,17 @@ multiple calls to `free` before this buffer is put back into the memory pool.
 end
 
 """
-    free(ptr)
+    free(ptr; [stream_ordered::Bool=true])
 
 Releases a buffer pointed to by `ptr` to the memory pool.
+
+The optional keyword argument `stream_ordered` indicates whether this free may execute
+asynchronously, ordered against the task-local stream. This is not safe when performing the
+operation from a finalizer, which operates in its own task, using its own task-local stream.
+This may result in the free being executed before all uses, or even the allocation itself,
+have been executed on their respective stream.
 """
-@inline function free(ptr::CuPtr{Nothing})
+@inline function free(ptr::CuPtr{Nothing}; stream_ordered::Bool=true)
   # 0-byte allocations shouldn't hit the pool
   ptr == CU_NULL && return
 
@@ -370,7 +376,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     end
 
     time = Base.@elapsed begin
-      @pool_timeit "pooled free" free(pool, block)
+      @pool_timeit "pooled free" free(pool, block; stream_ordered)
     end
 
     alloc_stats.pool_time += time

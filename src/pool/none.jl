@@ -22,8 +22,8 @@ function alloc(pool::NoPool, sz)
     return block
 end
 
-function free(pool::NoPool, block)
-    actual_free(block; pool.stream_ordered)
+function free(pool::NoPool, block; stream_ordered::Bool)
+    actual_free(block; stream_ordered = pool.stream_ordered && stream_ordered)
     return
 end
 
