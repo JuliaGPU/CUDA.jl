@@ -40,9 +40,6 @@ using SpecialFunctions
 @device_override Base.atan(x::Float64, y::Float64) = ccall("extern __nv_atan2", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @device_override Base.atan(x::Float32, y::Float32) = ccall("extern __nv_atan2f", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
-@device_override Base.angle(x::Float64) = signbit(x,) * 3.141592653589793
-@device_override Base.angle(x::Float32) = signbit(x,) * 3.1415927f0
-
 ## hyperbolic
 
 @device_override Base.cosh(x::Float64) = ccall("extern __nv_cosh", llvmcall, Cdouble, (Cdouble,), x)
@@ -72,10 +69,6 @@ using SpecialFunctions
 @device_override Base.log(x::Float64) = ccall("extern __nv_log", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.log(x::Float32) = ccall("extern __nv_logf", llvmcall, Cfloat, (Cfloat,), x)
 @device_override FastMath.log_fast(x::Float32) = ccall("extern __nv_fast_logf", llvmcall, Cfloat, (Cfloat,), x)
-
-@device_override Base.log(x::ComplexF64) = log(abs(x,)) + im * angle(x,)
-@device_override Base.log(x::ComplexF32) = log(abs(x,)) + im * angle(x,)
-@device_override FastMath.log_fast(x::ComplexF32) = FastMath.log_fast(abs(x,)) + im * angle(x,)
 
 @device_override Base.log10(x::Float64) = ccall("extern __nv_log10", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.log10(x::Float32) = ccall("extern __nv_log10f", llvmcall, Cfloat, (Cfloat,), x)
@@ -113,10 +106,6 @@ using SpecialFunctions
 
 @device_override Base.ldexp(x::Float64, y::Int32) = ccall("extern __nv_ldexp", llvmcall, Cdouble, (Cdouble, Int32), x, y)
 @device_override Base.ldexp(x::Float32, y::Int32) = ccall("extern __nv_ldexpf", llvmcall, Cfloat, (Cfloat, Int32), x, y)
-
-@device_override Base.exp(x::Complex{Float64}) = exp(x.re) * (cos(x.im) + 1.0im * sin(x.im))
-@device_override Base.exp(x::Complex{Float32}) = exp(x.re) * (cos(x.im) + 1.0f0im * sin(x.im))
-@device_override FastMath.exp_fast(x::Complex{Float32}) = FastMath.exp_fast(x.re) * (FastMath.cos_fast(x.im) + 1.0f0im * FastMath.sin_fast(x.im))
 
 ## error
 
@@ -183,9 +172,6 @@ using SpecialFunctions
 @device_override Base.abs(f::Float64) = ccall("extern __nv_fabs", llvmcall, Cdouble, (Cdouble,), f)
 @device_override Base.abs(f::Float32) = ccall("extern __nv_fabsf", llvmcall, Cfloat, (Cfloat,), f)
 @device_override Base.abs(x::Int64) =   ccall("extern __nv_llabs", llvmcall, Int64, (Int64,), x)
-
-@device_override Base.abs(x::Complex{Float64}) = hypot(x.re, x.im)
-@device_override Base.abs(x::Complex{Float32}) = hypot(x.re, x.im)
 
 ## roots and powers
 

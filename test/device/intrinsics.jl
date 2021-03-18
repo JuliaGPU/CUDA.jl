@@ -27,239 +27,46 @@ end
 ############################################################################################
 
 @testset "math" begin
-    buf = CuArray(zeros(Float32))
-
-    function kernel(a, i)
-        a[] = CUDA.log10(i)
-        return
-    end
-
-    @cuda kernel(buf, Float32(100))
-    val = Array(buf)
-    @test val[] ≈ 2.0
-
+    @test testf(a->log10.(a), Float32[100])
 
     @testset "pow" begin
-        buf = CuArray(zeros(Float32))
-
-        function pow_kernel(a, x, y)
-            a[] = x^y
-            return
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            range = (T<:Integer) ? (T(5):T(10)) : T
+            @test testf((x,y)->x.^y, rand(Float32, 1), rand(range, 1))
+            @test testf((x,y)->x.^y, rand(Float32, 1), -rand(range, 1))
         end
-
-        #pow(::Float32, ::Float32)
-        x, y = rand(Float32), rand(Float32)
-        @cuda pow_kernel(buf, x, y)
-        val = Array(buf)
-        @test val[] ≈ x^y
-        @cuda pow_kernel(buf, x, -y)
-        val = Array(buf)
-        @test val[] ≈ x^(-y)
-
-        #pow(::Float64, ::Float64)
-        x, y = rand(Float64), rand(Float64)
-        @cuda pow_kernel(buf, x, y)
-        val = Array(buf)
-        @test val[] ≈ x^y
-        @cuda pow_kernel(buf, x, -y)
-        val = Array(buf)
-        @test val[] ≈ x^(-y)
-
-        #pow(::Float32, ::Int32)
-        x, y = rand(Float32), rand(Int32(5):Int32(10))
-        @cuda pow_kernel(buf, x, y)
-        val = Array(buf)
-        @test val[] ≈ x^y
-        @cuda pow_kernel(buf, x, -y)
-        val = Array(buf)
-        @test val[] ≈ x^(-y)
-
-        #pow(::Float64, ::Int32)
-        x, y = rand(Float64), rand(Int32(5):Int32(10))
-        @cuda pow_kernel(buf, x, y)
-        val = Array(buf)
-        @test val[] ≈ x^y
-        @cuda pow_kernel(buf, x, -y)
-        val = Array(buf)
-        @test val[] ≈ x^(-y)
-
-        #pow(::Float32, ::Int64)
-        x, y = rand(Float32), rand(5:10)
-        @cuda pow_kernel(buf, x, y)
-        val = Array(buf)
-        @test val[] ≈ x^y
-
-        #pow(::Float64, ::Int64)
-        x, y = rand(Float32), rand(5:10)
-        @cuda pow_kernel(buf, x, y)
-        val = Array(buf)
-        @test val[] ≈ x^y
     end
 
     @testset "isinf" begin
-      buf = CuArray(zeros(Bool))
-
-      function isinf_kernel(a, x)
-          a[] = CUDA.isinf(x)
-          return
-      end
-
       for x in (Inf32, Inf, NaN32, NaN)
-        @cuda isinf_kernel(buf, x)
-        val = Array(buf)
-        @test val[] == isinf(x)
+        @test testf(x->isinf.(x), [x])
       end
-
-      codeinfo_str = sprint(show, code_typed(CUDA.isinf,
-                                             Tuple{Float32}, optimize=false)[1])
-      @test !occursin("Float64", codeinfo_str)
-
-      codeinfo_str = sprint(show, code_typed(CUDA.isinf,
-                                             Tuple{Float64}, optimize=false)[1])
-      @test !occursin("Float32", codeinfo_str)
     end
 
     @testset "isnan" begin
-      buf = CuArray(zeros(Bool))
-
-      function isnan_kernel(a, x)
-          a[] = CUDA.isnan(x)
-          return
-      end
-
       for x in (Inf32, Inf, NaN32, NaN)
-        @cuda isnan_kernel(buf, x)
-        val = Array(buf)
-        @test val[] == isnan(x)
+        @test testf(x->isnan.(x), [x])
       end
-
-      codeinfo_str = sprint(show, code_typed(CUDA.isnan,
-                                             Tuple{Float32}, optimize=false)[1])
-      @test !occursin("Float64", codeinfo_str)
-
-      codeinfo_str = sprint(show, code_typed(CUDA.isnan,
-                                             Tuple{Float64}, optimize=false)[1])
-      @test !occursin("Float32", codeinfo_str)
     end
 
-    @testset "angle" begin
-        buf  = CuArray(zeros(Float32))
-        cbuf = CuArray(zeros(Float32))
+    for op in (exp, angle, exp2, exp10, expm1)
+        @testset "$op" begin
+            for T in (Float32, Float64)
+                @test testf(x->op.(x), rand(T, 1))
+                @test testf(x->op.(x), -rand(T, 1))
+            end
 
-        function cuda_kernel(a, x)
-            a[] = CUDA.angle(x)
-            return
         end
-
-        #op(::Float32)
-        x   = rand(Float32)
-        @cuda cuda_kernel(buf, x)
-        val = Array(buf)
-        @test val[] ≈ angle(x)
-        @cuda cuda_kernel(buf, -x)
-        val = Array(buf)
-        @test val[] ≈ angle(-x)
-
-        #op(::ComplexF32)
-        x   = rand(ComplexF32)
-        @cuda cuda_kernel(cbuf, x)
-        val = Array(cbuf)
-        @test val[] ≈ angle(x)
-        @cuda cuda_kernel(cbuf, -x)
-        val = Array(cbuf)
-        @test val[] ≈ angle(-x)
-
-        #op(::Float64)
-        x   = rand(Float64)
-        @cuda cuda_kernel(buf, x)
-        val = Array(buf)
-        @test val[] ≈ angle(x)
-        @cuda cuda_kernel(buf, -x)
-        val = Array(buf)
-        @test val[] ≈ angle(-x)
-
-        #op(::ComplexF64)
-        x   = rand(ComplexF64)
-        @cuda cuda_kernel(cbuf, x)
-        val = Array(cbuf)
-        @test val[] ≈ angle(x)
-        @cuda cuda_kernel(cbuf, -x)
-        val = Array(cbuf)
-        @test val[] ≈ angle(-x)
     end
 
-    # dictionary of key=>tuple, where the tuple should
-    # contain the cpu command and the cuda function to test.
-    ops = Dict("exp"=>(exp, CUDA.exp),
-               "angle"=>(angle, CUDA.angle),
-               "exp2"=>(exp2, CUDA.exp2),
-               "exp10"=>(exp10, CUDA.exp10),
-               "expm1"=>(expm1, CUDA.expm1))
+    for op in (exp, abs, abs2, angle, log)
+        @testset "Complex - $op" begin
+            for T in (ComplexF32, ComplexF64)
+                @test testf(x->op.(x), rand(T, 1))
+                @test testf(x->op.(x), -rand(T, 1))
+            end
 
-    @testset "$key" for key=keys(ops)
-        cpu_op, cuda_op = ops[key]
-
-        buf = CuArray(zeros(Float32))
-
-        function cuda_kernel(a, x)
-            a[] = cuda_op(x)
-            return
         end
-
-        #op(::Float32)
-        x   = rand(Float32)
-        @cuda cuda_kernel(buf, x)
-        val = Array(buf)
-        @test val[] ≈ cpu_op(x)
-        @cuda cuda_kernel(buf, -x)
-        val = Array(buf)
-        @test val[] ≈ cpu_op(-x)
-
-        #op(::Float64)
-        x   = rand(Float64)
-        @cuda cuda_kernel(buf, x)
-        val = Array(buf)
-        @test val[] ≈ cpu_op(x)
-        @cuda cuda_kernel(buf, -x)
-        val = Array(buf)
-        @test val[] ≈ cpu_op(-x)
-    end
-
-    # dictionary of key=>tuple, where the tuple should
-    # contain the cpu command and the cuda function to test.
-    ops = Dict("exp"=>(exp, CUDA.exp),
-               "abs"=>(abs, CUDA.abs),
-               "abs2"=>(abs2, CUDA.abs2),
-               "angle"=>(angle, CUDA.angle),
-               "log"=>(log, CUDA.log))
-
-    @testset "Complex - $key" for key=keys(ops)
-        cpu_op, cuda_op = ops[key]
-
-        buf = CuArray(zeros(Complex{Float32}))
-
-        function cuda_kernel(a, x)
-            a[] = cuda_op(x)
-            return
-        end
-
-        #op(::ComplexF32, ::ComplexF32)
-        x   = rand(ComplexF32)
-        @cuda cuda_kernel(buf, x)
-        val = Array(buf)
-        @test val[] ≈ cpu_op(x)
-        @cuda cuda_kernel(buf, -x)
-        val = Array(buf)
-        @test val[] ≈ cpu_op(-x)
-
-        #op(::ComplexF64, ::ComplexF64)
-        x   = rand(ComplexF64)
-        @cuda cuda_kernel(buf, x)
-        val = Array(buf)
-        @test val[] ≈ cpu_op(x)
-        @cuda cuda_kernel(buf, -x)
-        val = Array(buf)
-        @test val[] ≈ cpu_op(-x)
     end
 end
 
