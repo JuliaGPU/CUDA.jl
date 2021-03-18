@@ -102,12 +102,15 @@ function alloc(pool::SimplePool, sz)
     return block
 end
 
-function free(pool::SimplePool, block)
+function free(pool::SimplePool, block; stream_ordered::Bool)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     @spinlock pool.freed_lock begin
         push!(pool.freed, block)
     end
+
+  # NOTE: we can ignore the stream_ordered keyword, as this pool is never stream-ordered
+  @assert !pool.stream_ordered
 end
 
 function cached_memory(pool::SimplePool)

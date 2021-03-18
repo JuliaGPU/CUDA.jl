@@ -31,3 +31,6 @@ include("events.jl")
 include("execution.jl")
 include("profile.jl")
 include("occupancy.jl")
+
+# TODO: figure out if these wrappers may use the runtime-esque state (stream(), context()).
+#       it's inconsitent now: @finalize_in_ctx doesn't, memory.jl does use stream(), etc.

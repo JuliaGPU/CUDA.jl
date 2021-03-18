@@ -307,7 +307,7 @@ function alloc(pool::SplitPool, sz)
     return block
 end
 
-function free(pool::SplitPool, block)
+function free(pool::SplitPool, block; stream_ordered::Bool)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
@@ -315,6 +315,9 @@ function free(pool::SplitPool, block)
     @spinlock pool.freed_lock begin
         push!(pool.freed, block)
     end
+
+  # NOTE: we can ignore the stream_ordered keyword, as this pool is never stream-ordered
+  @assert !pool.stream_ordered
 end
 
 function reclaim(pool::SplitPool, sz::Int=typemax(Int))

@@ -19,8 +19,9 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
     Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
     ptr = alloc(prod(dims) * sizeof(T))
     obj = new{T,N}(ptr, 0, dims, ARRAY_MANAGED, context())
-    finalizer(unsafe_free!, obj)
-    return obj
+    finalizer(obj) do _
+      unsafe_free!(obj, true)
+    end
   end
 
   function CuArray{T,N}(ptr::CuPtr{Nothing}, dims::Dims{N}, ctx=context(); offset::Int=0) where {T,N}
@@ -30,7 +31,18 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
   end
 end
 
-function unsafe_free!(xs::CuArray)
+"""
+    CUDA.unsafe_free(a::CuArray)
+
+Release the memory of an array for reuse by future allocations. This function is
+automatically called by the finalizer when an array goes out of scope, but can be called
+earlier to reduce pressure on the memory allocator.
+"""
+function unsafe_free!(xs::CuArray, finalizer::Bool=false)
+  # the `finalizer` argument is an implementation detail: when freeing from a finalizer,
+  # which executes in its own task (with its own stream), we don't have a stream to order
+  # the operation on.
+
   # this call should only have an effect once, becuase both the user and the GC can call it
   if xs.state == ARRAY_FREED
     return
@@ -38,7 +50,7 @@ function unsafe_free!(xs::CuArray)
     throw(ArgumentError("Cannot free an unmanaged buffer."))
   end
 
-  @context! skip_destroyed=true xs.ctx free(xs.baseptr)
+  @context! skip_destroyed=true xs.ctx free(xs.baseptr; stream_ordered=!finalizer)
   xs.state = ARRAY_FREED
 
   # the object is dead, so we can also wipe the pointer
@@ -118,7 +130,9 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
   if own
     finalizer(xs) do obj
       buf = Mem.DeviceBuffer(obj.baseptr, sizeof(obj))
-      @context! skip_destroyed=true obj.ctx Mem.free(buf)
+      # finalizers run on their own task, with their own task-local stream, so we can't
+      # asynchronously perform this free or it may be badly ordered wrt. uses of the memory.
+      @context! skip_destroyed=true obj.ctx Mem.free(buf; stream_ordered=false)
     end
   end
   return xs
