@@ -23,7 +23,7 @@ mutable struct CuContext
     handle::CUcontext
 
     function CuContext(handle::CUcontext)
-        handle == C_NULL && return new(C_NULL)
+        @assert handle != C_NULL "NULL contexts should be represented as `nothing`"
         return Base.@lock context_lock get!(valid_contexts, handle) do
             new(handle)
         end

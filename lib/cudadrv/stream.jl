@@ -7,7 +7,66 @@ export
 
 mutable struct CuStream
     handle::CUstream
-    ctx::CuContext
+    ctx::Union{CuContext,Nothing}
+
+    """
+        CuStream(; flags=STREAM_DEFAULT, priority=nothing)
+
+    Create a CUDA stream.
+    """
+    function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
+                        priority::Union{Nothing,Integer}=nothing)
+        handle_ref = Ref{CUstream}()
+        if priority === nothing
+            cuStreamCreate(handle_ref, flags)
+        else
+            priority in priority_range() || throw(ArgumentError("Priority is out of range"))
+            cuStreamCreateWithPriority(handle_ref, flags, priority)
+        end
+
+        ctx = CuCurrentContext()::CuContext
+        obj = new(handle_ref[], ctx)
+        finalizer(unsafe_destroy!, obj)
+        return obj
+    end
+
+    """
+        CuDefaultStream()
+
+    Return the default stream.
+
+    !!! note
+
+        It is generally better to use `stream()` to get a stream object that's local to the
+        current task. That way, operations scheduled in other tasks can overlap.
+    """
+    global CuDefaultStream() = new(convert(CUstream, C_NULL), nothing)
+
+    """
+        CuStreamLegacy()
+
+    Return a special object to use use an implicit stream with legacy synchronization behavior.
+
+    You can use this stream to perform operations that should block on all streams (with the
+    exception of streams created with `STREAM_NON_BLOCKING`). This matches the old pre-CUDA 7
+    global stream behavior.
+    """
+    global CuStreamLegacy() = new(convert(CUstream, 1), nothing)
+
+    """
+        CuStreamPerThread()
+
+    Return a special object to use an implicit stream with per-thread synchronization behavior.
+    This stream object is normally meant to be used with APIs that do not have per-thread
+    versions of their APIs (i.e. without a `ptsz` or `ptds` suffix).
+
+    !!! note
+
+        It is generally not needed to use this type of stream. With CUDA.jl, each task already
+        gets its own non-blocking stream, and multithreading in Julia is typically
+        accomplished using tasks.
+    """
+    global CuStreamPerThread() = new(convert(CUstream, 2), nothing)
 end
 
 Base.unsafe_convert(::Type{CUstream}, s::CuStream) = s.handle
@@ -16,27 +75,6 @@ Base.:(==)(a::CuStream, b::CuStream) = a.handle == b.handle
 Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 
 @enum_without_prefix CUstream_flags_enum CU_
-
-"""
-    CuStream(; flags=STREAM_DEFAULT, priority=nothing)
-
-Create a CUDA stream.
-"""
-function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
-                    priority::Union{Nothing,Integer}=nothing)
-    handle_ref = Ref{CUstream}()
-    if priority === nothing
-        cuStreamCreate(handle_ref, flags)
-    else
-        priority in priority_range() || throw(ArgumentError("Priority is out of range"))
-        cuStreamCreateWithPriority(handle_ref, flags, priority)
-    end
-
-    ctx = CuCurrentContext()::CuContext
-    obj = CuStream(handle_ref[], ctx)
-    finalizer(unsafe_destroy!, obj)
-    return obj
-end
 
 function unsafe_destroy!(s::CuStream)
     @finalize_in_ctx s.ctx cuStreamDestroy_v2(s)
@@ -47,44 +85,6 @@ function Base.show(io::IO, stream::CuStream)
     @printf(io, "%p", stream.handle)
     print(io, ", ", stream.ctx, ")")
 end
-
-"""
-    CuDefaultStream()
-
-Return the default stream.
-
-!!! note
-
-    It is generally better to use `stream()` to get a stream object that's local to the
-    current task. That way, operations scheduled in other tasks can overlap.
-"""
-@inline CuDefaultStream() = CuStream(convert(CUstream, C_NULL), CuContext(C_NULL))
-
-"""
-    CuStreamLegacy()
-
-Return a special object to use use an implicit stream with legacy synchronization behavior.
-
-You can use this stream to perform operations that should block on all streams (with the
-exception of streams created with `STREAM_NON_BLOCKING`). This matches the old pre-CUDA 7
-global stream behavior.
-"""
-@inline CuStreamLegacy() = CuStream(convert(CUstream, 1), CuContext(C_NULL))
-
-"""
-    CuStreamPerThread()
-
-Return a special object to use an implicit stream with per-thread synchronization behavior.
-This stream object is normally meant to be used with APIs that do not have per-thread
-versions of their APIs (i.e. without a `ptsz` or `ptds` suffix).
-
-!!! note
-
-    It is generally not needed to use this type of stream. With CUDA.jl, each task already
-    gets its own non-blocking stream, and multithreading in Julia is typically
-    accomplished using tasks.
-"""
-@inline CuStreamPerThread() = CuStream(convert(CUstream, 2), CuContext(C_NULL))
 
 """
     query(s::CuStream)
