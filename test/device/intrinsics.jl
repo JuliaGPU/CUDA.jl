@@ -1180,3 +1180,49 @@ end
 end
 
 end
+
+
+
+############################################################################################
+
+@testset "random numbers" begin
+
+n = 256
+
+@testset "basic" begin
+    function kernel(A::CuDeviceArray{T}, B::CuDeviceArray{T}) where {T}
+        tid = threadIdx().x
+        A[tid] = rand(T)
+        B[tid] = rand(T)
+        return nothing
+    end
+
+    a = CUDA.zeros(Float32, n)
+    b = CUDA.zeros(Float32, n)
+
+    @cuda threads=n kernel(a, b)
+
+    # FIXME(?): all these tests have a (very small) chance to fail, but that's somewhat inherent to rand() without a seed
+    @test allunique(Array(a))
+    @test allunique(Array(b))
+    @test Array(a) != Array(b)
+end
+
+@testset "custom seed" begin
+    function kernel(A::CuDeviceArray{T}) where {T}
+        tid = threadIdx().x
+        Random.seed!(1234)
+        A[tid] = rand(T)
+        return nothing
+    end
+
+    a = CUDA.zeros(Float32, n)
+    b = CUDA.zeros(Float32, n)
+
+    @cuda threads=n kernel(a)
+    @cuda threads=n kernel(b)
+
+    @test Array(a) == Array(b)
+end
+
+end
