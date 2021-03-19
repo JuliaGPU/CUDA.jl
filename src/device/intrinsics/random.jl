@@ -1,6 +1,7 @@
 ## random number generation
 
 using Random
+import RandomNumbers
 
 
 # helpers
@@ -11,7 +12,7 @@ global_index() = (threadIdx().x, threadIdx().y, threadIdx().z,
 
 # global state
 
-struct ThreadLocalRNG <: AbstractRNG
+struct ThreadLocalXorshift32 <: RandomNumbers.AbstractRNG{UInt32}
     vals::CuDeviceArray{UInt32, 6, AS.Generic}
 end
 
@@ -37,13 +38,13 @@ end
     CuDeviceArray(dims, ptr)
 end
 
-@device_override Random.default_rng() = ThreadLocalRNG(global_random_state())
+@device_override Random.default_rng() = ThreadLocalXorshift32(global_random_state())
 
 @device_override Random.make_seed() = clock(UInt32)
 
-function Random.seed!(rng::ThreadLocalRNG, seed::Integer)
+function Random.seed!(rng::ThreadLocalXorshift32, seed::Integer)
     index = global_index()
-    rng.vals[index...] = seed
+    rng.vals[index...] = seed % UInt32
     return
 end
 
@@ -57,29 +58,14 @@ function xorshift(x::UInt32)::UInt32
     return x
 end
 
-function get_thread_word(rng::ThreadLocalRNG)
+function Random.rand(rng::ThreadLocalXorshift32, ::Type{UInt32})
     # NOTE: we add the current linear index to the local state, to make sure threads get
     #       different random numbers when unseeded (initial state = 0 for all threads)
     index = global_index()
     offset = LinearIndices(rng.vals)[index...]
     state = rng.vals[index...] + UInt32(offset)
 
-    new_state = generate_next_state(state)
+    new_state = xorshift(state)
     rng.vals[index...] = new_state
-
-    return new_state    # FIXME: return old state?
-end
-
-function generate_next_state(state::UInt32)
-    new_val = xorshift(state)
-    return UInt32(new_val)
-end
-
-# TODO: support for more types (can we reuse more of the Random standard library?)
-#       see RandomNumbers.jl
-
-function Random.rand(rng::ThreadLocalRNG, ::Type{Float32})
-    word = get_thread_word(rng)
-    res = (word >> 9) | reinterpret(UInt32, 1f0)
-    return reinterpret(Float32, res) - 1.0f0
+    return new_state
 end

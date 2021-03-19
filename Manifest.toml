@@ -190,6 +190,12 @@ uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 deps = ["Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
+[[RandomNumbers]]
+deps = ["Random", "Requires"]
+git-tree-sha1 = "441e6fc35597524ada7f85e13df1f4e10137d16f"
+uuid = "e6cf234a-135c-5ec9-84dd-332b85af5143"
+version = "1.4.0"
+
 [[Reexport]]
 git-tree-sha1 = "57d8440b0c7d98fc4f889e478e80f268d534c9d5"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"

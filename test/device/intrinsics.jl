@@ -1197,15 +1197,20 @@ n = 256
         return nothing
     end
 
-    a = CUDA.zeros(Float32, n)
-    b = CUDA.zeros(Float32, n)
+    @testset for T in (Int32, UInt32, Int64, UInt64, Int128, UInt128,
+                       Float32, Float64)
+        a = CUDA.zeros(T, n)
+        b = CUDA.zeros(T, n)
 
-    @cuda threads=n kernel(a, b)
+        @cuda threads=n kernel(a, b)
 
-    # FIXME(?): all these tests have a (very small) chance to fail, but that's somewhat inherent to rand() without a seed
-    @test allunique(Array(a))
-    @test allunique(Array(b))
-    @test Array(a) != Array(b)
+        @test all(Array(a) .!= Array(b))
+
+        if T == Float64
+            @test allunique(Array(a))
+            @test allunique(Array(b))
+        end
+    end
 end
 
 @testset "custom seed" begin
@@ -1216,13 +1221,16 @@ end
         return nothing
     end
 
-    a = CUDA.zeros(Float32, n)
-    b = CUDA.zeros(Float32, n)
+    @testset for T in (Int32, UInt32, Int64, UInt64, Int128, UInt128,
+                       Float32, Float64)
+        a = CUDA.zeros(T, n)
+        b = CUDA.zeros(T, n)
 
-    @cuda threads=n kernel(a)
-    @cuda threads=n kernel(b)
+        @cuda threads=n kernel(a)
+        @cuda threads=n kernel(b)
 
-    @test Array(a) == Array(b)
+        @test Array(a) == Array(b)
+    end
 end
 
 end
