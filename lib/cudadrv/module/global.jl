@@ -46,9 +46,13 @@ Base.eltype(::Type{CuGlobal{T}}) where {T} = T
 
 Return the current value of a global variable.
 """
-function Base.getindex(var::CuGlobal{T}) where T
+function Base.getindex(var::CuGlobal{T}; async::Bool=false, stream::CuStream=stream()) where T
     val_ref = Ref{T}()
-    cuMemcpyDtoH_v2(val_ref, var, var.buf.bytesize)
+    if async
+        cuMemcpyDtoHAsync_v2(val_ref, var, var.buf.bytesize, stream)
+    else
+        cuMemcpyDtoH_v2(val_ref, var, var.buf.bytesize)
+    end
     return val_ref[]
 end
 # TODO: import Base: get?
@@ -58,7 +62,11 @@ end
 
 Set the value of a global variable to `val`
 """
-function Base.setindex!(var::CuGlobal{T}, val::T) where T
+function Base.setindex!(var::CuGlobal{T}, val::T; async::Bool=false, stream::CuStream=stream()) where T
     val_ref = Ref{T}(val)
-    cuMemcpyHtoD_v2(var, val_ref, var.buf.bytesize)
+    if async
+        cuMemcpyHtoDAsync_v2(var, val_ref, var.buf.bytesize, stream)
+    else
+        cuMemcpyHtoD_v2(var, val_ref, var.buf.bytesize)
+    end
 end
