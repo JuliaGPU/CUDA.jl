@@ -635,16 +635,18 @@ const __pins = Dict{Tuple{CuContext,Ptr{Cvoid}}, HostBuffer}()
 const __pin_count = DefaultDict{Tuple{CuContext,Ptr{Cvoid}}, Int}(0)
 function __pin(ptr::Ptr{Nothing}, sz::Int)
     ctx = context()
+    key = (ctx,ptr)
 
     @lock __pin_lock begin
-        pin_count = __pin_count[(ctx, ptr)] += 1
+        pin_count = __pin_count[key] += 1
         if pin_count == 1
             buf = Mem.register(Mem.Host, ptr, sz)
-            __pins[(ctx,ptr)] = buf
+            __pins[key] = buf
         elseif Base.JLOptions().debug_level >= 2
             # make sure we're pinning the exact same range
-            buf = __pins[(ctx,ptr)]
-            @assert sz == sizeof(buf)
+            @assert haskey(__pins, key) "Cannot find buffer for $ptr with pin count $pin_count."
+            buf = __pins[key]
+            @assert sz == sizeof(buf) "Mismatch between pin request of $ptr: $sz vs. $(sizeof(buf))."
         end
     end
 
