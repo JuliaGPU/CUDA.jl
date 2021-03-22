@@ -8,7 +8,7 @@ element `lo + M ÷ 2 * stride` as a pivot. This is an efficient choice for rando
 pre-sorted lists.
 
 Partition is done in stages:
-1. Merge-sort batches of M values using their comparison to pivot as a key. The comparison
+1. For batches of M values, cumsum how many > pivot are left of each index. The comparison
    alternates between < and <= with recursion depth. This makes no difference when there are
    many unique values, but when there are many duplicates, this effectively partitions into
    <, =, and >.
@@ -28,47 +28,7 @@ export quicksort!
 using ..CUDA
 
 
-# Integer arithmetic
-
-"""
-For a batch of size `n` what is the lowest index of the batch `i` is in
-"""
-function batch_floor(idx, n)
-    return idx - (idx - 1) % n
-end
-
-"""
-For a batch of size `n` what is the highest index of the batch `i` is in
-"""
-function batch_ceil(idx, n)
-    return idx + n - 1 - (idx - 1) % n
-end
-
-"""
-GPU friendly step function (step at `i` = 1)
-"""
-function Θ(i)
-    return 1 & (1 <= i)
-end
-
-"""
-Suppose we are merging two lists of size n, each of which has all falses before
-all trues. Together, they will be indexed 1:2n. This is a fast stepwise function
-for the destination index of a value at index `x` in the concatenated input,
-where `a` is the number of falses in the first half, b = n - a, and false is the
-number of falses in the second half.
-"""
-function step_swap(x, a, b, c)
-    return x + Θ(x - a) * b - Θ(x - (a + c)) * (b + c) + Θ(x - (a + b + c)) * c
-end
-
-"""
-Generalizes `step_swap` for when the floor index is not 1
-"""
-function batch_step_swap(x, n, a, b, c)
-    idx = (x - 1) % n + 1
-    return batch_floor(x, n) - 1 + step_swap(idx, a, b, c)
-end
+# Comparison
 
 @inline function flex_lt(a, b, eq, lt, by)
     a′ = by(a)
@@ -78,54 +38,59 @@ end
 
 
 # Batch partitioning
+"""
+Performs in-place cumsum using shared memory. Intended for use with indexes
+"""
+function cumsum!(sums)
+    shift = 1
 
-"""
-For thread `idx` with current value `value`, merge two batches of size `n` and
-return the new value this thread takes. `sums` and `swap` are shared mem
-"""
-function merge_swap_shmem(value, idx, n, sums, swap)
-    @inbounds begin
+    while shift < length(sums)
+        to_add = 0
+        @inbounds if threadIdx().x - shift > 0
+            to_add = sums[threadIdx().x - shift]
+        end
+
         sync_threads()
-        b = sums[batch_floor(idx, 2 * n)]
-        a = n - b
-        d = sums[batch_ceil(idx, 2 * n)]
-        c = n - d
-        swap[idx] = value
+        @inbounds if threadIdx().x - shift > 0
+            sums[threadIdx().x] += to_add
+        end
+
         sync_threads()
-        sums[idx] = d + b
-        return swap[batch_step_swap(idx, 2 * n, a, b, c)]
+        shift *= 2
     end
 end
 
 """
 Partition the region of `values` after index `lo` up to (inclusive) `hi` with
-respect to `pivot`. This is done by a 'binary' merge sort, where each the values
-are sorted by a boolean key: how they compare to `pivot`. The comparison is
+respect to `pivot`. Computes each value's comparison to pivot, performs a cumsum
+of those comparisons, and performs one movement using shmem. Comparison is
 affected by `parity`. See `flex_lt`. `swap` is an array for exchanging values
 and `sums` is an array of Ints used during the merge sort.
-
 Uses block y index to decide which values to operate on.
 """
 @inline function batch_partition(values, pivot, swap, sums, lo, hi, parity, lt::F1, by::F2) where {F1,F2}
     sync_threads()
     idx0 = lo + (blockIdx().y - 1) * blockDim().x + threadIdx().x
+    val = idx0 <= hi ? values[idx0] : one(eltype(values))
+    comparison = flex_lt(pivot, val, parity, lt, by)
+
     @inbounds if idx0 <= hi
-         swap[threadIdx().x] = values[idx0]
-         sums[threadIdx().x] = 1 & flex_lt(pivot, swap[threadIdx().x], parity, lt, by)
+         sums[threadIdx().x] = 1 & comparison
     else
          sums[threadIdx().x] = 1
     end
     sync_threads()
-    val = merge_swap_shmem(@inbounds(swap[threadIdx().x]), threadIdx().x, 1, sums, swap)
-    temp = 2
-    while temp < blockDim().x
-        val = merge_swap_shmem(val, threadIdx().x, temp, sums, swap)
-        temp *= 2
+
+    cumsum!(sums)
+
+    dest_idx = @inbounds comparison ? blockDim().x - sums[end] + sums[threadIdx().x] : threadIdx().x - sums[threadIdx().x]
+    @inbounds if idx0 <= hi && dest_idx <= length(swap)
+        swap[dest_idx] = val
     end
     sync_threads()
 
     @inbounds if idx0 <= hi
-         values[idx0] = val
+         values[idx0] = swap[threadIdx().x]
     end
     sync_threads()
 end
@@ -342,8 +307,8 @@ function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sy
         view(vals, idxs...)
     end
 
-    # step 1: bubble sort. It'll either finish sorting a subproblem or help select a pivot
-    #         value
+    # step 1: single block bubble sort. It'll either finish sorting a subproblem or
+    # help select a pivot value
     bubble_sort(slice, swap, lo, L, L <= blockDim().x ? 1 : L ÷ blockDim().x, lt, by)
 
     if L <= blockDim().x
