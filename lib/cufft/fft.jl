@@ -24,10 +24,12 @@ Base.unsafe_convert(::Type{cufftHandle}, p::CuFFTPlan) = p.handle
 # for some reason, cufftHandle is an integer and not a pointer...
 Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = Base.unsafe_convert(cufftHandle, p)
 
-function CUDA.unsafe_free!(plan::CuFFTPlan)
-    cufftDestroy(plan)
-    unsafe_free!(plan.workarea)
+function CUDA.unsafe_free!(plan::CuFFTPlan, finalizer::Bool=false)
+    @context! skip_destroyed=true plan.workarea.ctx cufftDestroy(plan)
+    unsafe_free!(plan.workarea, finalizer)
 end
+
+unsafe_finalize!(plan::CuFFTPlan) = unsafe_free!(plan, true)
 
 mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     handle::cufftHandle
@@ -43,7 +45,7 @@ mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
                                        ) where {T<:cufftNumber,K,inplace,N}
         # maybe enforce consistency of sizey
         p = new(handle, workarea, size(X), sizey, xtype, region)
-        finalizer(unsafe_free!, p)
+        finalizer(unsafe_finalize!, p)
         p
     end
 end
@@ -62,7 +64,7 @@ mutable struct rCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
                                        ) where {T<:cufftNumber,K,inplace,N}
         # maybe enforce consistency of sizey
         p = new(handle, workarea, size(X), sizey, xtype, region)
-        finalizer(unsafe_free!, p)
+        finalizer(unsafe_finalize!, p)
         p
     end
 end
