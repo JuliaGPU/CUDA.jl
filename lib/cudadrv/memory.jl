@@ -608,15 +608,19 @@ end
 ## memory pinning
 
 function pin(a::AbstractArray)
-    __pin(a)
+    ctx = context()
+    ptr = __pin(a)
     finalizer(a) do _
-        __unpin(a)
+        __unpin(ptr, ctx)
     end
     a
 end
 
-__pin(a::Base.Array) = __pin(convert(Ptr{Cvoid}, pointer(a)), sizeof(a))
-__unpin(a::Base.Array) = __unpin(convert(Ptr{Cvoid}, pointer(a)))
+function __pin(a::Base.Array)
+    ptr = convert(Ptr{Cvoid}, pointer(a))
+    __pin(ptr, sizeof(a))
+    return ptr
+end
 
 # derived arrays should always pin the parent memory range, because we may end up copying
 # from or to that parent range (containing the derived range), and partially-pinned ranges
@@ -627,18 +631,23 @@ __unpin(a::Base.Array) = __unpin(convert(Ptr{Cvoid}, pointer(a)))
 # > allocations that are both registered and not registered with CUDA are not supported and
 # > will return CUDA_ERROR_INVALID_VALUE.
 __pin(a::Union{SubArray, Base.ReinterpretArray, Base.ReshapedArray}) = __pin(parent(a))
-__unpin(a::Union{SubArray, Base.ReinterpretArray, Base.ReshapedArray}) = __unpin(parent(a))
 
 # refcount the pinning per context, since we can only pin a memory range once
 const __pin_lock = ReentrantLock()
 const __pins = Dict{Tuple{CuContext,Ptr{Cvoid}}, HostBuffer}()
-const __pin_count = DefaultDict{Tuple{CuContext,Ptr{Cvoid}}, Int}(0)
+const __pin_count = Dict{Tuple{CuContext,Ptr{Cvoid}}, Int}()
 function __pin(ptr::Ptr{Nothing}, sz::Int)
     ctx = context()
     key = (ctx,ptr)
 
     @lock __pin_lock begin
-        pin_count = __pin_count[key] += 1
+        pin_count = if haskey(__pin_count, key)
+            __pin_count[key] += 1
+        else
+            __pin_count[key] = 1
+        end
+        @assert pin_count >= 1  # should have been caught by double-unpin check in __unpin
+
         if pin_count == 1
             buf = Mem.register(Mem.Host, ptr, sz)
             __pins[key] = buf
@@ -652,17 +661,18 @@ function __pin(ptr::Ptr{Nothing}, sz::Int)
 
     return
 end
-function __unpin(ptr::Ptr{Nothing})
-    ctx = context()
+function __unpin(ptr::Ptr{Nothing}, ctx::CuContext)
     key = (ctx,ptr)
 
     @spinlock __pin_lock begin
-        pin_count = @inbounds __pin_count[key] -= 1
+        @assert haskey(__pin_count, key) "Cannot unpin unmanaged pointer $ptr."
+        pin_count = __pin_count[key] -= 1
+        @assert pin_count >= 0 "Double unpin for $ptr"
+
         if pin_count == 0
             buf = @inbounds __pins[key]
             @finalize_in_ctx ctx Mem.unregister(buf)
             delete!(__pins, key)
-            delete!(__pin_count, key)
         end
     end
 
