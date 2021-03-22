@@ -640,19 +640,21 @@ function __pin(ptr::Ptr{Nothing}, sz::Int)
     key = (ctx,ptr)
 
     @lock __pin_lock begin
-        if !haskey(__pin_count, key)
-            buf = Mem.register(Mem.Host, ptr, sz)
-            __pin_count[key] = 1
-            __pins[key] = buf
-        else
-            @assert __pin_count[key] >= 0 "Impossible pin count $(__pin_count[key])"
+        pin_count = if haskey(__pin_count, key)
             __pin_count[key] += 1
-            if Base.JLOptions().debug_level >= 2
-                # make sure we're pinning the exact same range
-                @assert haskey(__pins, key) "Cannot find buffer for $ptr with pin count $(__pin_count[key])."
-                buf = __pins[key]
-                @assert sz == sizeof(buf) "Mismatch between pin request of $ptr: $sz vs. $(sizeof(buf))."
-            end
+        else
+            __pin_count[key] = 1
+        end
+        @assert pin_count >= 1  # should have been caught by double-unpin check in __unpin
+
+        if pin_count == 1
+            buf = Mem.register(Mem.Host, ptr, sz)
+            __pins[key] = buf
+        elseif Base.JLOptions().debug_level >= 2
+            # make sure we're pinning the exact same range
+            @assert haskey(__pins, key) "Cannot find buffer for $ptr with pin count $pin_count."
+            buf = __pins[key]
+            @assert sz == sizeof(buf) "Mismatch between pin request of $ptr: $sz vs. $(sizeof(buf))."
         end
     end
 
@@ -665,12 +667,12 @@ function __unpin(ptr::Ptr{Nothing})
     @spinlock __pin_lock begin
         @assert haskey(__pin_count, key) "Cannot unpin unmanaged pointer $ptr."
         pin_count = __pin_count[key] -= 1
-        @assert pin_count >= 0 "Impossible pin count $pin_count"
+        @assert pin_count >= 0 "Double unpin for $ptr"
+
         if pin_count == 0
             buf = @inbounds __pins[key]
             @finalize_in_ctx ctx Mem.unregister(buf)
             delete!(__pins, key)
-            delete!(__pin_count, key)
         end
     end
 
