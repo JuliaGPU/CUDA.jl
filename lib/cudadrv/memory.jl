@@ -640,20 +640,19 @@ function __pin(ptr::Ptr{Nothing}, sz::Int)
     key = (ctx,ptr)
 
     @lock __pin_lock begin
-        pin_count = if haskey(__pin_count, key)
-            __pin_count[key] += 1
-        else
-            __pin_count[key] = 1
-        end
-        @assert pin_count >= 1 "Impossible pin count $pin_count"
-        if pin_count == 1
+        if !haskey(__pin_count, key)
             buf = Mem.register(Mem.Host, ptr, sz)
+            __pin_count[key] = 1
             __pins[key] = buf
-        elseif Base.JLOptions().debug_level >= 2
-            # make sure we're pinning the exact same range
-            @assert haskey(__pins, key) "Cannot find buffer for $ptr with pin count $pin_count."
-            buf = __pins[key]
-            @assert sz == sizeof(buf) "Mismatch between pin request of $ptr: $sz vs. $(sizeof(buf))."
+        else
+            @assert __pin_count[key] >= 0 "Impossible pin count $(__pin_count[key])"
+            __pin_count[key] += 1
+            if Base.JLOptions().debug_level >= 2
+                # make sure we're pinning the exact same range
+                @assert haskey(__pins, key) "Cannot find buffer for $ptr with pin count $(__pin_count[key])."
+                buf = __pins[key]
+                @assert sz == sizeof(buf) "Mismatch between pin request of $ptr: $sz vs. $(sizeof(buf))."
+            end
         end
     end
 
