@@ -25,5 +25,5 @@ jobs:
 
       - name: Push changes
         run: |
-            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
+            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
             git push --force origin gh-pages-new:gh-pages
