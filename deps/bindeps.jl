@@ -43,6 +43,7 @@ const __libcusparse = Ref{String}()
 const __libcusolver = Ref{String}()
 const __libcufft = Ref{String}()
 const __libcurand = Ref{String}()
+const __libcusolverMg = Ref{Union{Nothing,String}}(nothing)
 const __libcudnn = Ref{Union{Nothing,String}}(nothing)
 const __libcutensor = Ref{Union{Nothing,String}}(nothing)
 
@@ -71,13 +72,19 @@ end
 export has_compute_sanitizer, has_cupti, has_nvtx
 has_compute_sanitizer() = @after_init(__compute_sanitizer[]) !== nothing
 has_cupti() = @after_init(__libcupti[]) !== nothing
-has_nvtx() = @after_init(__libnvtx[]) !== nothing
+has_nvtx()  = @after_init(__libnvtx[]) !== nothing
 
-libcublas() = @after_init(__libcublas[])
+libcublas()   = @after_init(__libcublas[])
 libcusparse() = @after_init(__libcusparse[])
 libcusolver() = @after_init(__libcusolver[])
-libcufft() = @after_init(__libcufft[])
-libcurand() = @after_init(__libcurand[])
+libcufft()    = @after_init(__libcufft[])
+libcurand()   = @after_init(__libcurand[])
+function libcusolvermg()
+    @after_init begin
+        @assert has_cusolvermg() "This functionality is unavailabe as CUSOLVERMG is missing."
+        __libcusolverMg[]
+    end
+end
 function libcudnn()
     @after_init begin
         @assert has_cudnn() "This functionality is unavailabe as CUDNN is missing."
@@ -91,7 +98,8 @@ function libcutensor()
     end
 end
 
-export has_cudnn, has_cutensor
+export has_cudnn, has_cutensor, has_cusolvermg
+has_cusolvermg() = @after_init(__libcusolverMg[]) !== nothing
 has_cudnn() = @after_init(__libcudnn[]) !== nothing
 has_cutensor() = @after_init(__libcutensor[]) !== nothing
 
@@ -186,14 +194,19 @@ function use_artifact_cuda()
     @assert isfile(__libdevice[])
 
     # HACK: eagerly load cublasLt, required by cublas (but with the same version), to prevent
-    #       s system CUDA installation from messing with our artifacts (JuliaGPU/CUDA.jl#609)
+    #       a system CUDA installation from messing with our artifacts (JuliaGPU/CUDA.jl#609)
     if artifact.version >= v"10.1"
         version = cuda_library_version("cublas", artifact.version)
         path = artifact_library(artifact.dir, "cublasLt", version)
         Libdl.dlopen(path)
     end
 
-    for library in ("cublas", "cusparse", "cusolver", "cufft", "curand")
+    if CUDA.toolkit_version() >= v"10.1"
+        lib_list =  ("cublas", "cusparse", "cusolver", "cufft", "curand", "cusolverMg")
+    else
+        lib_list =  ("cublas", "cusparse", "cusolver", "cufft", "curand")
+    end
+    for library in lib_list
         handle = getfield(CUDA, Symbol("__lib$library"))
 
         handle[] = artifact_cuda_library(artifact.dir, library, artifact.version)
@@ -211,7 +224,6 @@ function use_local_cuda()
     @debug "Trying to use local installation..."
 
     cuda_dirs = find_toolkit()
-
     let path = find_cuda_binary("nvdisasm", cuda_dirs)
         if path === nothing
             @debug "Could not find nvdisasm"
@@ -269,6 +281,16 @@ function use_local_cuda()
             return false
         end
         __libdevice[] = path
+    end
+
+    for library in ("cublas", "cusparse", "cusolver", "cufft", "curand", "cusolverMg")
+        handle = getfield(CUDA, Symbol("__lib$library"))
+        path = find_cuda_library(library, cuda_dirs, cuda_version)
+        if path === nothing
+            @debug "Could not find $library"
+            return false
+        end
+        handle[] = path
     end
     @debug "Found local CUDA $(cuda_version) at $(join(cuda_dirs, ", "))"
     __toolkit_origin[] = :local

@@ -4254,4 +4254,189 @@ end
     ccall((:cusolverDnXgesvdr_bufferSize, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, Int64, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Csize_t}, Ptr{Csize_t}), handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
 end
 
-##
+## from cusolverMg.h
+
+@checked function cusolverMgCreate(handle)
+    initialize_api()
+    ccall((:cusolverMgCreate, libcusolvermg()), cusolverStatus_t,
+                   (Ptr{cusolverMgHandle_t},),
+                   handle)
+end
+
+@checked function cusolverMgDestroy(handle)
+    initialize_api()
+    ccall((:cusolverMgDestroy, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t,),
+                   handle)
+end
+
+@checked function cusolverMgDeviceSelect(handle, nbDevices, deviceId)
+    initialize_api()
+    ccall((:cusolverMgDeviceSelect, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, Cint, Ptr{Cint}),
+                   handle, nbDevices, deviceId)
+end
+
+@checked function cusolverMgCreateDeviceGrid(grid, numRowDevices, numColDevices, deviceId,
+                                             mapping)
+    initialize_api()
+    ccall((:cusolverMgCreateDeviceGrid, libcusolvermg()), cusolverStatus_t,
+                   (Ptr{cudaLibMgGrid_t}, Int32, Int32, Ptr{Int32},
+                    cusolverMgGridMapping_t),
+                   grid, numRowDevices, numColDevices, deviceId, mapping)
+end
+
+@checked function cusolverMgDestroyGrid(grid)
+    initialize_api()
+    ccall((:cusolverMgDestroyGrid, libcusolvermg()), cusolverStatus_t,
+                   (cudaLibMgGrid_t,),
+                   grid)
+end
+
+@checked function cusolverMgCreateMatrixDesc(desc, numRows, numCols, rowBlockSize,
+                                             colBlockSize, dataType, grid)
+    initialize_api()
+    ccall((:cusolverMgCreateMatrixDesc, libcusolvermg()), cusolverStatus_t,
+                   (Ptr{cudaLibMgMatrixDesc_t}, Int64, Int64, Int64, Int64, cudaDataType,
+                    cudaLibMgGrid_t),
+                   desc, numRows, numCols, rowBlockSize, colBlockSize, dataType, grid)
+end
+
+@checked function cusolverMgDestroyMatrixDesc(desc)
+    initialize_api()
+    ccall((:cusolverMgDestroyMatrixDesc, libcusolvermg()), cusolverStatus_t,
+                   (cudaLibMgMatrixDesc_t,),
+                   desc)
+end
+
+@checked function cusolverMgSyevd_bufferSize(handle, jobz, uplo, N, array_d_A, IA, JA,
+                                             descrA, W, dataTypeW, computeType, lwork)
+    initialize_api()
+    ccall((:cusolverMgSyevd_bufferSize, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
+                    Ptr{CuPtr{Cvoid}}, Cint, Cint, cudaLibMgMatrixDesc_t, Ptr{Cvoid},
+                    cudaDataType, cudaDataType, Ptr{Int64}),
+                   handle, jobz, uplo, N, array_d_A, IA, JA, descrA, W, dataTypeW,
+                   computeType, lwork)
+end
+
+@checked function cusolverMgSyevd(handle, jobz, uplo, N, array_d_A, IA, JA, descrA, W,
+                                  dataTypeW, computeType, array_d_work, lwork, info)
+    initialize_api()
+    ccall((:cusolverMgSyevd, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
+                    Ptr{CuPtr{Cvoid}}, Cint, Cint, cudaLibMgMatrixDesc_t, Ptr{Cvoid},
+                    cudaDataType, cudaDataType, Ptr{CuPtr{Cvoid}}, Int64, Ptr{Cint}),
+                   handle, jobz, uplo, N, array_d_A, IA, JA, descrA, W, dataTypeW,
+                   computeType, array_d_work, lwork, info)
+end
+
+@checked function cusolverMgGetrf_bufferSize(handle, M, N, array_d_A, IA, JA, descrA,
+                                             array_d_IPIV, computeType, lwork)
+    initialize_api()
+    ccall((:cusolverMgGetrf_bufferSize, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, Cint, Cint, Ptr{CuPtr{Cvoid}}, Cint, Cint,
+                    cudaLibMgMatrixDesc_t, Ptr{CuPtr{Cint}}, cudaDataType, Ptr{Int64}),
+                   handle, M, N, array_d_A, IA, JA, descrA, array_d_IPIV, computeType,
+                   lwork)
+end
+
+@checked function cusolverMgGetrf(handle, M, N, array_d_A, IA, JA, descrA, array_d_IPIV,
+                                  computeType, array_d_work, lwork, info)
+    initialize_api()
+    ccall((:cusolverMgGetrf, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, Cint, Cint, Ptr{CuPtr{Cvoid}}, Cint, Cint,
+                    cudaLibMgMatrixDesc_t, Ptr{CuPtr{Cint}}, cudaDataType, Ptr{CuPtr{Cvoid}},
+                    Int64, Ptr{Cint}),
+                   handle, M, N, array_d_A, IA, JA, descrA, array_d_IPIV, computeType,
+                   array_d_work, lwork, info)
+end
+
+@checked function cusolverMgGetrs_bufferSize(handle, TRANS, N, NRHS, array_d_A, IA, JA,
+                                             descrA, array_d_IPIV, array_d_B, IB, JB,
+                                             descrB, computeType, lwork)
+    initialize_api()
+    ccall((:cusolverMgGetrs_bufferSize, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, cublasOperation_t, Cint, Cint, Ptr{CuPtr{Cvoid}},
+                    Cint, Cint, cudaLibMgMatrixDesc_t, Ptr{CuPtr{Cint}}, Ptr{CuPtr{Cvoid}},
+                    Cint, Cint, cudaLibMgMatrixDesc_t, cudaDataType, Ptr{Int64}),
+                   handle, TRANS, N, NRHS, array_d_A, IA, JA, descrA, array_d_IPIV,
+                   array_d_B, IB, JB, descrB, computeType, lwork)
+end
+
+@checked function cusolverMgGetrs(handle, TRANS, N, NRHS, array_d_A, IA, JA, descrA,
+                                  array_d_IPIV, array_d_B, IB, JB, descrB, computeType,
+                                  array_d_work, lwork, info)
+    initialize_api()
+    ccall((:cusolverMgGetrs, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, cublasOperation_t, Cint, Cint, Ptr{CuPtr{Cvoid}},
+                    Cint, Cint, cudaLibMgMatrixDesc_t, Ptr{CuPtr{Cint}}, Ptr{CuPtr{Cvoid}},
+                    Cint, Cint, cudaLibMgMatrixDesc_t, cudaDataType, Ptr{CuPtr{Cvoid}},
+                    Int64, Ptr{Cint}),
+                   handle, TRANS, N, NRHS, array_d_A, IA, JA, descrA, array_d_IPIV,
+                   array_d_B, IB, JB, descrB, computeType, array_d_work, lwork, info)
+end
+
+@checked function cusolverMgPotrf_bufferSize(handle, uplo, N, array_d_A, IA, JA, descrA,
+                                             computeType, lwork)
+    initialize_api()
+    ccall((:cusolverMgPotrf_bufferSize, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, cublasFillMode_t, Cint, Ptr{CuPtr{Cvoid}}, Cint,
+                    Cint, cudaLibMgMatrixDesc_t, cudaDataType, Ptr{Int64}),
+                   handle, uplo, N, array_d_A, IA, JA, descrA, computeType, lwork)
+end
+
+@checked function cusolverMgPotrf(handle, uplo, N, array_d_A, IA, JA, descrA, computeType,
+                                  array_d_work, lwork, h_info)
+    initialize_api()
+    ccall((:cusolverMgPotrf, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, cublasFillMode_t, Cint, Ptr{CuPtr{Cvoid}}, Cint,
+                    Cint, cudaLibMgMatrixDesc_t, cudaDataType, Ptr{CuPtr{Cvoid}}, Int64,
+                    Ptr{Cint}),
+                   handle, uplo, N, array_d_A, IA, JA, descrA, computeType, array_d_work,
+                   lwork, h_info)
+end
+
+@checked function cusolverMgPotrs_bufferSize(handle, uplo, n, nrhs, array_d_A, IA, JA,
+                                             descrA, array_d_B, IB, JB, descrB,
+                                             computeType, lwork)
+    initialize_api()
+    ccall((:cusolverMgPotrs_bufferSize, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, cublasFillMode_t, Cint, Cint, Ptr{CuPtr{Cvoid}},
+                    Cint, Cint, cudaLibMgMatrixDesc_t, Ptr{CuPtr{Cvoid}}, Cint, Cint,
+                    cudaLibMgMatrixDesc_t, cudaDataType, Ptr{Int64}),
+                   handle, uplo, n, nrhs, array_d_A, IA, JA, descrA, array_d_B, IB, JB,
+                   descrB, computeType, lwork)
+end
+
+@checked function cusolverMgPotrs(handle, uplo, n, nrhs, array_d_A, IA, JA, descrA,
+                                  array_d_B, IB, JB, descrB, computeType, array_d_work,
+                                  lwork, h_info)
+    initialize_api()
+    ccall((:cusolverMgPotrs, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, cublasFillMode_t, Cint, Cint, Ptr{CuPtr{Cvoid}},
+                    Cint, Cint, cudaLibMgMatrixDesc_t, Ptr{CuPtr{Cvoid}}, Cint, Cint,
+                    cudaLibMgMatrixDesc_t, cudaDataType, Ptr{CuPtr{Cvoid}}, Int64, Ptr{Cint}),
+                   handle, uplo, n, nrhs, array_d_A, IA, JA, descrA, array_d_B, IB, JB,
+                   descrB, computeType, array_d_work, lwork, h_info)
+end
+
+@checked function cusolverMgPotri_bufferSize(handle, uplo, N, array_d_A, IA, JA, descrA,
+                                             computeType, lwork)
+    initialize_api()
+    ccall((:cusolverMgPotri_bufferSize, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, cublasFillMode_t, Cint, Ptr{CuPtr{Cvoid}}, Cint,
+                    Cint, cudaLibMgMatrixDesc_t, cudaDataType, Ptr{Int64}),
+                   handle, uplo, N, array_d_A, IA, JA, descrA, computeType, lwork)
+end
+
+@checked function cusolverMgPotri(handle, uplo, N, array_d_A, IA, JA, descrA, computeType,
+                                  array_d_work, lwork, h_info)
+    initialize_api()
+    ccall((:cusolverMgPotri, libcusolvermg()), cusolverStatus_t,
+                   (cusolverMgHandle_t, cublasFillMode_t, Cint, Ptr{CuPtr{Cvoid}}, Cint,
+                    Cint, cudaLibMgMatrixDesc_t, cudaDataType, Ptr{CuPtr{Cvoid}}, Int64,
+                    Ptr{Cint}),
+                   handle, uplo, N, array_d_A, IA, JA, descrA, computeType, array_d_work,
+                   lwork, h_info)
+end

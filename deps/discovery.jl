@@ -51,7 +51,8 @@ function library_versioned_names(name::String, version::Union{Nothing,VersionNum
     elseif Sys.isunix()
         # most UNIX distributions ship versioned libraries (also see JuliaLang/julia#22828)
         if version isa VersionNumber
-            append!(names, ["lib$(name).$(Libdl.dlext).$(version.major).$(version.minor)",
+            append!(names, ["lib$(name).$(Libdl.dlext).$(version.major).$(version.minor).$(version.patch)",
+                            "lib$(name).$(Libdl.dlext).$(version.major).$(version.minor)",
                             "lib$(name).$(Libdl.dlext).$(version.major)"])
         elseif version isa String
             push!(names, "lib$(name).$(Libdl.dlext).$(version)")
@@ -280,6 +281,10 @@ function cuda_library_version(library, toolkit_version)
         # starting with CUDA 11, libraries are versioned independently
         if !haskey(cuda_library_versions, toolkit_version)
             error("CUDA.jl does not yet support CUDA $toolkit_version; please file an issue.")
+        end
+        if library == "cusolverMg"
+            # HACK: generalize this?
+            library = "cusolver"
         end
         cuda_library_versions[toolkit_version][library]
     else
