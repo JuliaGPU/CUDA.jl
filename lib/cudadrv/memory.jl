@@ -632,13 +632,18 @@ __unpin(a::Union{SubArray, Base.ReinterpretArray, Base.ReshapedArray}) = __unpin
 # refcount the pinning per context, since we can only pin a memory range once
 const __pin_lock = ReentrantLock()
 const __pins = Dict{Tuple{CuContext,Ptr{Cvoid}}, HostBuffer}()
-const __pin_count = DefaultDict{Tuple{CuContext,Ptr{Cvoid}}, Int}(0)
+const __pin_count = Dict{Tuple{CuContext,Ptr{Cvoid}}, Int}()
 function __pin(ptr::Ptr{Nothing}, sz::Int)
     ctx = context()
     key = (ctx,ptr)
 
     @lock __pin_lock begin
-        pin_count = __pin_count[key] += 1
+        pin_count = if haskey(__pin_count, key)
+            __pin_count[key] += 1
+        else
+            __pin_count[key] = 1
+        end
+        @assert pin_count >= 1 "Impossible pin count $pin_count"
         if pin_count == 1
             buf = Mem.register(Mem.Host, ptr, sz)
             __pins[key] = buf
@@ -657,7 +662,9 @@ function __unpin(ptr::Ptr{Nothing})
     key = (ctx,ptr)
 
     @spinlock __pin_lock begin
-        pin_count = @inbounds __pin_count[key] -= 1
+        @assert haskey(__pin_count, key) "Cannot unpin unmanaged pointer $ptr."
+        pin_count = __pin_count[key] -= 1
+        @assert pin_count >= 0 "Impossible pin count $pin_count"
         if pin_count == 0
             buf = @inbounds __pins[key]
             @finalize_in_ctx ctx Mem.unregister(buf)
