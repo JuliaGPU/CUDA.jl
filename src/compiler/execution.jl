@@ -126,6 +126,13 @@ end
 Base.getindex(r::CuRefValue) = r.x
 Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
 
+Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+
+# we materialize ReshapedArray/ReinterpretArray/SubArray/... directly as a device array
+Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+
 """
     cudaconvert(x)
 
