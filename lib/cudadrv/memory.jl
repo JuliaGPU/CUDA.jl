@@ -608,9 +608,10 @@ end
 ## memory pinning
 
 function pin(a::AbstractArray)
+    ctx = context()
     ptr = __pin(a)
     finalizer(a) do _
-        __unpin(ptr)
+        __unpin(ptr, ctx)
     end
     a
 end
@@ -660,8 +661,7 @@ function __pin(ptr::Ptr{Nothing}, sz::Int)
 
     return
 end
-function __unpin(ptr::Ptr{Nothing})
-    ctx = context()
+function __unpin(ptr::Ptr{Nothing}, ctx::CuContext)
     key = (ctx,ptr)
 
     @spinlock __pin_lock begin
