@@ -139,6 +139,8 @@ end
   dB = reinterpret(UInt32, dA)
   @test reinterpret(UInt32, A) == Array(dB)
 
+  @test collect(reinterpret(Int32, CUDA.fill(1f0)))[] == reinterpret(Int32, 1f0)
+
   @testset "unmanaged reinterpret" begin
     a = CuArray(Int32[-1,-2,-3])
     ptr = pointer(a, 2)
@@ -149,6 +151,137 @@ end
     c = reinterpret(UInt32, b)
     @test Array(c) == reinterpret(UInt32, Int32[-2,-3])
   end
+
+  @testset "exception: 0-dim" begin
+    local err
+    @test try
+      reinterpret(Int128, CUDA.fill(1f0))
+      nothing
+    catch err′
+      err = err′
+    end isa Exception
+    @test occursin(
+      "cannot reinterpret a zero-dimensional `Float32` array to `Int128` which is of a different size",
+      sprint(showerror, err))
+  end
+
+  @testset "exception: divisibility" begin
+    local err
+    @test try
+      reinterpret(Int128, CUDA.ones(3))
+      nothing
+    catch err′
+      err = err′
+    end isa Exception
+    @test occursin(
+      "cannot reinterpret an `Float32` array to `Int128` whose first dimension has size `3`.",
+      sprint(showerror, err))
+  end
+end
+
+
+function kernel_shmem_reinterpet_equal_size!(y)
+  a = @cuDynamicSharedMem(Float32, (blockDim().x,))
+  b = reinterpret(UInt32, a)
+  a[threadIdx().x] = threadIdx().x
+  b[threadIdx().x] += 1
+  y[threadIdx().x] = a[threadIdx().x]
+  return
+end
+
+function shmem_reinterpet_equal_size()
+  threads = 4
+  y = CUDA.zeros(threads)
+  shmem = sizeof(Float32) * threads
+  @cuda(
+    threads = threads,
+    blocks = 1,
+    shmem = shmem,
+    kernel_shmem_reinterpet_equal_size!(y)
+  )
+  return y
+end
+
+@testset "reinterpret shmem: equal size" begin
+  gpu = shmem_reinterpet_equal_size()
+  a = zeros(Float32, length(gpu))
+  b = reinterpret(UInt32, a)
+  a .= 1:length(b)
+  b .+= 1
+  @test collect(gpu) == a
+end
+
+function kernel_shmem_reinterpet_smaller_size!(y)
+  a = @cuDynamicSharedMem(UInt128, (blockDim().x,))
+  i32 = Int32(threadIdx().x)
+  p = i32 + i32 * im
+  q = i32 - i32 * im
+  b = reinterpret(typeof(p), a)
+  b[1 + 2 * (threadIdx().x - 1)] = p
+  b[2 + 2 * (threadIdx().x - 1)] = q
+  y[threadIdx().x] = a[threadIdx().x]
+  return
+end
+
+function shmem_reinterpet_smaller_size()
+  threads = 4
+  y = CUDA.zeros(UInt128, threads)
+  shmem = sizeof(UInt128) * threads
+  @cuda(
+    threads = threads,
+    blocks = 1,
+    shmem = shmem,
+    kernel_shmem_reinterpet_smaller_size!(y)
+  )
+  return y
+end
+
+@testset "reinterpret shmem: smaller size" begin
+  gpu = shmem_reinterpet_smaller_size()
+  n = length(gpu)
+  a = zeros(UInt128, n)
+  p(i) = Int32(i) + Int32(i) * im
+  q(i) = Int32(i) - Int32(i) * im
+  b = reinterpret(typeof(p(0)), a)
+  b[1:2:end] .= p.(1:n)
+  b[2:2:end] .= q.(1:n)
+  @test collect(gpu) == a
+end
+
+function kernel_shmem_reinterpet_larger_size!(y)
+  a = @cuDynamicSharedMem(Float32, (4 * blockDim().x,))
+  b = reinterpret(UInt128, a)
+  a[1 + 4 * (threadIdx().x - 1)] = threadIdx().x
+  a[2 + 4 * (threadIdx().x - 1)] = threadIdx().x * 2
+  a[3 + 4 * (threadIdx().x - 1)] = threadIdx().x * 3
+  a[4 + 4 * (threadIdx().x - 1)] = threadIdx().x * 4
+  y[threadIdx().x] = b[threadIdx().x]
+  return
+end
+
+function shmem_reinterpet_larger_size()
+  threads = 4
+  y = CUDA.zeros(UInt128, threads)
+  shmem = sizeof(UInt128) * threads
+  @cuda(
+    threads = threads,
+    blocks = 1,
+    shmem = shmem,
+    kernel_shmem_reinterpet_larger_size!(y)
+  )
+  return y
+end
+
+@testset "reinterpret shmem: larger size" begin
+  gpu = shmem_reinterpet_larger_size()
+  n = length(gpu)
+  b = zeros(UInt128, n)
+  a = reinterpret(Float32, b)
+  a[1:4:end] .= 1:n
+  a[2:4:end] .= (1:n) .* 2
+  a[3:4:end] .= (1:n) .* 3
+  a[4:4:end] .= (1:n) .* 4
+  @test collect(gpu) == b
 end
 
 @testset "Dense derivatives" begin
