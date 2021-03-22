@@ -608,15 +608,18 @@ end
 ## memory pinning
 
 function pin(a::AbstractArray)
-    __pin(a)
+    ptr = __pin(a)
     finalizer(a) do _
-        __unpin(a)
+        __unpin(ptr)
     end
     a
 end
 
-__pin(a::Base.Array) = __pin(convert(Ptr{Cvoid}, pointer(a)), sizeof(a))
-__unpin(a::Base.Array) = __unpin(convert(Ptr{Cvoid}, pointer(a)))
+function __pin(a::Base.Array)
+    ptr = convert(Ptr{Cvoid}, pointer(a))
+    __pin(ptr, sizeof(a))
+    return ptr
+end
 
 # derived arrays should always pin the parent memory range, because we may end up copying
 # from or to that parent range (containing the derived range), and partially-pinned ranges
@@ -627,7 +630,6 @@ __unpin(a::Base.Array) = __unpin(convert(Ptr{Cvoid}, pointer(a)))
 # > allocations that are both registered and not registered with CUDA are not supported and
 # > will return CUDA_ERROR_INVALID_VALUE.
 __pin(a::Union{SubArray, Base.ReinterpretArray, Base.ReshapedArray}) = __pin(parent(a))
-__unpin(a::Union{SubArray, Base.ReinterpretArray, Base.ReshapedArray}) = __unpin(parent(a))
 
 # refcount the pinning per context, since we can only pin a memory range once
 const __pin_lock = ReentrantLock()
