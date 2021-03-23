@@ -30,17 +30,19 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
 end
 
 """
-    CUDA.unsafe_free(a::CuArray)
+    CUDA.unsafe_free!(a::CuArray, [finalizer::Bool=false])
 
 Release the memory of an array for reuse by future allocations. This function is
 automatically called by the finalizer when an array goes out of scope, but can be called
 earlier to reduce pressure on the memory allocator.
+
+If calling this function from a finalizer, be sure to set `finalizer` to true: Before
+freeing memory from a finalizer, which runs on its own task with its own task-local
+execution stream, the entire device will be synchronized to ensure any queued uses of the
+array have finished executing. To prevent this expensive synchronization, manually call
+`unsafe_free!` earlier, as that operation will be queued on the task-local stream.
 """
 function unsafe_free!(xs::CuArray, finalizer::Bool=false)
-  # the `finalizer` argument is an implementation detail: when freeing from a finalizer,
-  # which executes in its own task (with its own stream), we don't have a stream to order
-  # the operation on.
-
   # this call should only have an effect once, becuase both the user and the GC can call it
   if xs.state == ARRAY_FREED
     return
@@ -48,7 +50,10 @@ function unsafe_free!(xs::CuArray, finalizer::Bool=false)
     throw(ArgumentError("Cannot free an unmanaged buffer."))
   end
 
-  @context! skip_destroyed=true xs.ctx free(xs.baseptr; stream_ordered=!finalizer)
+  @context! skip_destroyed=true xs.ctx begin
+    finalizer && device_synchronize()
+    free(xs.baseptr)
+  end
   xs.state = ARRAY_FREED
 
   # the object is dead, so we can also wipe the pointer
@@ -130,9 +135,8 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
   if own
     finalizer(xs) do obj
       buf = Mem.DeviceBuffer(obj.baseptr, sizeof(obj))
-      # finalizers run on their own task, with their own task-local stream, so we can't
-      # asynchronously perform this free or it may be badly ordered wrt. uses of the memory.
-      @context! skip_destroyed=true obj.ctx Mem.free(buf; stream_ordered=false)
+      device_synchronize() # see note in unsafe_free!
+      @context! skip_destroyed=true obj.ctx Mem.free(buf)
     end
   end
   return xs
