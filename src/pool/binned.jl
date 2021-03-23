@@ -112,7 +112,7 @@ function pool_repopulate(pool::BinnedPool)
   return
 end
 
-function alloc(pool::BinnedPool, bytes)
+function alloc(pool::BinnedPool, bytes; stream::CuStream)
   if bytes <= MAX_POOL
     pid = poolidx(bytes)
     create_pools(pool, pid)
@@ -226,7 +226,7 @@ function alloc(pool::BinnedPool, bytes)
   return block
 end
 
-function free(pool::BinnedPool, block)
+function free(pool::BinnedPool, block; stream::CuStream)
   # was this a pooled buffer?
   bytes = sizeof(block)
   if bytes > MAX_POOL

@@ -4,7 +4,7 @@ Base.@kwdef struct NoPool <: AbstractPool
     stream_ordered::Bool
 end
 
-function alloc(pool::NoPool, sz)
+function alloc(pool::NoPool, sz; stream::CuStream)
     block = nothing
     for phase in 1:3
         if phase == 2
@@ -14,7 +14,7 @@ function alloc(pool::NoPool, sz)
         end
 
         @pool_timeit "$phase.1 alloc" begin
-            block = actual_alloc(sz, phase==3; pool.stream_ordered)
+            block = actual_alloc(sz, phase==3; pool.stream_ordered, stream)
         end
         block === nothing || break
     end
@@ -22,8 +22,8 @@ function alloc(pool::NoPool, sz)
     return block
 end
 
-function free(pool::NoPool, block)
-    actual_free(block; stream_ordered = pool.stream_ordered)
+function free(pool::NoPool, block; stream::CuStream)
+    actual_free(block; pool.stream_ordered, stream)
     return
 end
 

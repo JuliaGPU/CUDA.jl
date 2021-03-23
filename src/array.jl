@@ -52,7 +52,8 @@ function unsafe_free!(xs::CuArray, finalizer::Bool=false)
 
   @context! skip_destroyed=true xs.ctx begin
     finalizer && device_synchronize()
-    free(xs.baseptr)
+    # during task or process finalization, the local stream might be destroyed already
+    free(xs.baseptr; stream=CuDefaultStream())
   end
   xs.state = ARRAY_FREED
 
@@ -136,7 +137,7 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
     finalizer(xs) do obj
       buf = Mem.DeviceBuffer(obj.baseptr, sizeof(obj))
       device_synchronize() # see note in unsafe_free!
-      @context! skip_destroyed=true obj.ctx Mem.free(buf)
+      @context! skip_destroyed=true obj.ctx Mem.free(buf; stream=CuDefaultStream())
     end
   end
   return xs

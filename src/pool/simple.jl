@@ -71,7 +71,7 @@ function reclaim(pool::SimplePool, sz::Int=typemax(Int))
     end
 end
 
-function alloc(pool::SimplePool, sz)
+function alloc(pool::SimplePool, sz; stream::CuStream)
     block = nothing
     for phase in 1:3
         if phase == 2
@@ -102,7 +102,7 @@ function alloc(pool::SimplePool, sz)
     return block
 end
 
-function free(pool::SimplePool, block)
+function free(pool::SimplePool, block; stream::CuStream)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     @spinlock pool.freed_lock begin
