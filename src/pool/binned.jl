@@ -112,7 +112,7 @@ function pool_repopulate(pool::BinnedPool)
   return
 end
 
-function alloc(pool::BinnedPool, bytes)
+function alloc(pool::BinnedPool, bytes; stream::CuStream)
   if bytes <= MAX_POOL
     pid = poolidx(bytes)
     create_pools(pool, pid)
@@ -226,7 +226,7 @@ function alloc(pool::BinnedPool, bytes)
   return block
 end
 
-function free(pool::BinnedPool, block; stream_ordered::Bool)
+function free(pool::BinnedPool, block; stream::CuStream)
   # was this a pooled buffer?
   bytes = sizeof(block)
   if bytes > MAX_POOL
@@ -239,9 +239,6 @@ function free(pool::BinnedPool, block; stream_ordered::Bool)
   @spinlock pool.freed_lock begin
     push!(pool.freed, block)
   end
-
-  # NOTE: we can ignore the stream_ordered keyword, as this pool is never stream-ordered
-  @assert !pool.stream_ordered
 end
 
 function cached_memory(pool::BinnedPool)

@@ -518,7 +518,7 @@ Get the CUDA stream that should be used as the default one for the currently exe
     if @inbounds thread_streams[tid] === nothing
         ctx = context()
         thread_streams[tid] = get!(task_local_storage(), (:CuStream, ctx)) do
-            stream = CuStream(; flags=STREAM_NON_BLOCKING)
+            stream = CuStream()
 
             t = current_task()
             tptr = pointer_from_objref(current_task())

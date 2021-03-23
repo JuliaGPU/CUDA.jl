@@ -8,6 +8,9 @@ using DataStructures
 include("pool/utils.jl")
 using .PoolUtils
 
+# TODO: simple/binned/split allocators ignore stream arguments; is that safe?
+#       should we bother fixing this (on CUDA 11.2 we have a stream-ordered allocator)?
+
 
 ## allocation statistics
 
@@ -115,7 +118,7 @@ function hard_limit(dev::CuDevice)
 end
 
 function actual_alloc(bytes::Integer, last_resort::Bool=false;
-                      stream_ordered::Bool=false)
+                      stream_ordered::Bool=false, stream::CuStream=stream())
   dev = device()
 
   # check the memory allocation limit
@@ -127,7 +130,7 @@ function actual_alloc(bytes::Integer, last_resort::Bool=false;
   buf = try
     time = Base.@elapsed begin
       @timeit_debug alloc_to "alloc" begin
-        buf = Mem.alloc(Mem.Device, bytes; async=true, stream_ordered)
+        buf = Mem.alloc(Mem.Device, bytes; async=true, stream_ordered, stream)
       end
     end
 
@@ -145,7 +148,7 @@ function actual_alloc(bytes::Integer, last_resort::Bool=false;
   return Block(buf, bytes; state=AVAILABLE)
 end
 
-function actual_free(block::Block; stream_ordered::Bool=false)
+function actual_free(block::Block; stream_ordered::Bool=false, stream::CuStream=stream())
   dev = device()
 
   @assert iswhole(block) "Cannot free $block: block is not whole"
@@ -155,7 +158,7 @@ function actual_free(block::Block; stream_ordered::Bool=false)
   # free the memory
   @timeit_debug alloc_to "free" begin
     time = Base.@elapsed begin
-      Mem.free(block.buf; async=true, stream_ordered)
+      Mem.free(block.buf; async=true, stream_ordered, stream)
     end
     block.state = INVALID
 
@@ -268,7 +271,7 @@ end
 Allocate a number of bytes `sz` from the memory pool. Returns a `CuPtr{Nothing}`; may throw
 a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 """
-@inline function alloc(sz)
+@inline function alloc(sz; stream::CuStream=stream())
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return CU_NULL
 
@@ -276,7 +279,7 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   pool = pools[dev]
 
   time = Base.@elapsed begin
-    @pool_timeit "pooled alloc" block = alloc(pool, sz)::Union{Nothing,Block}
+    @pool_timeit "pooled alloc" block = alloc(pool, sz; stream)::Union{Nothing,Block}
   end
   block === nothing && throw(OutOfGPUMemoryError(sz))
 
@@ -329,17 +332,11 @@ multiple calls to `free` before this buffer is put back into the memory pool.
 end
 
 """
-    free(ptr; [stream_ordered::Bool=true])
+    free(ptr)
 
 Releases a buffer pointed to by `ptr` to the memory pool.
-
-The optional keyword argument `stream_ordered` indicates whether this free may execute
-asynchronously, ordered against the task-local stream. This is not safe when performing the
-operation from a finalizer, which operates in its own task, using its own task-local stream.
-This may result in the free being executed before all uses, or even the allocation itself,
-have been executed on their respective stream.
 """
-@inline function free(ptr::CuPtr{Nothing}; stream_ordered::Bool=true)
+@inline function free(ptr::CuPtr{Nothing}; stream::CuStream=stream())
   # 0-byte allocations shouldn't hit the pool
   ptr == CU_NULL && return
 
@@ -376,7 +373,7 @@ have been executed on their respective stream.
     end
 
     time = Base.@elapsed begin
-      @pool_timeit "pooled free" free(pool, block; stream_ordered)
+      @pool_timeit "pooled free" free(pool, block; stream)
     end
 
     alloc_stats.pool_time += time

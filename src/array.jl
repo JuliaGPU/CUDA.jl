@@ -30,17 +30,18 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
 end
 
 """
-    CUDA.unsafe_free(a::CuArray)
+    CUDA.unsafe_free!(a::CuArray, [finalizer::Bool=false])
 
 Release the memory of an array for reuse by future allocations. This function is
 automatically called by the finalizer when an array goes out of scope, but can be called
 earlier to reduce pressure on the memory allocator.
+
+If calling this function from a finalizer, be sure to set `finalizer` to true (or call
+`CUDA.unsafe_finalize!`), which will ensure all streams are synchronized to prevent freeing
+memory still in use (by using the default stream instead of the task-local one). By default,
+this argument is set to `false`, and the operation will be queued on the task-local stream.
 """
 function unsafe_free!(xs::CuArray, finalizer::Bool=false)
-  # the `finalizer` argument is an implementation detail: when freeing from a finalizer,
-  # which executes in its own task (with its own stream), we don't have a stream to order
-  # the operation on.
-
   # this call should only have an effect once, becuase both the user and the GC can call it
   if xs.state == ARRAY_FREED
     return
@@ -48,7 +49,18 @@ function unsafe_free!(xs::CuArray, finalizer::Bool=false)
     throw(ArgumentError("Cannot free an unmanaged buffer."))
   end
 
-  @context! skip_destroyed=true xs.ctx free(xs.baseptr; stream_ordered=!finalizer)
+  @context! skip_destroyed=true xs.ctx begin
+    # during task or process finalization, the local stream might be destroyed already, so
+    # use the default stream. additionally, since we don't use per-thread APIs, this default
+    # stream follows legacy semantics and will synchronize all other streams. this protects
+    # against freeing resources that are still in use.
+    #
+    # TODO: although this is still an asynchronous operation, even when using the default
+    # stream, it synchronizes "too much". we could do better, e.g., by keeping track of all
+    # streams involved, or by refcounting uses and decrementing that refcount after the
+    # operation using `cuLaunchHostFunc`. See CUDA.jl#778 and CUDA.jl#780 for details.
+    free(xs.baseptr; stream = finalizer ? CuDefaultStream() : stream())
+  end
   xs.state = ARRAY_FREED
 
   # the object is dead, so we can also wipe the pointer
@@ -130,9 +142,8 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
   if own
     finalizer(xs) do obj
       buf = Mem.DeviceBuffer(obj.baseptr, sizeof(obj))
-      # finalizers run on their own task, with their own task-local stream, so we can't
-      # asynchronously perform this free or it may be badly ordered wrt. uses of the memory.
-      @context! skip_destroyed=true obj.ctx Mem.free(buf; stream_ordered=false)
+      # see comments in unsafe_free! for notes on the use of CuDefaultStream
+      @context! skip_destroyed=true obj.ctx Mem.free(buf; stream=CuDefaultStream())
     end
   end
   return xs
