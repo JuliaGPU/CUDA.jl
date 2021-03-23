@@ -19,9 +19,7 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
     Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
     ptr = alloc(prod(dims) * sizeof(T))
     obj = new{T,N}(ptr, 0, dims, ARRAY_MANAGED, context())
-    finalizer(obj) do _
-      unsafe_free!(obj, true)
-    end
+    finalizer(unsafe_finalize!, obj)
   end
 
   function CuArray{T,N}(ptr::CuPtr{Nothing}, dims::Dims{N}, ctx=context(); offset::Int=0) where {T,N}
@@ -58,6 +56,8 @@ function unsafe_free!(xs::CuArray, finalizer::Bool=false)
 
   return
 end
+
+unsafe_finalize!(xs::CuArray) = unsafe_free!(xs, true)
 
 
 ## alias detection
@@ -435,7 +435,7 @@ end
     end
     b = CuArray{T,M}(a.baseptr, dims, a.ctx; offset=a.offset+offset)
     if a.state == ARRAY_MANAGED
-        finalizer(unsafe_free!, b)
+        finalizer(unsafe_finalize!, b)
     end
     b.state = a.state
     return b
@@ -484,7 +484,7 @@ function Base.reshape(a::CuArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
   end
   b = CuArray{T,N}(a.baseptr, dims, a.ctx; offset=a.offset)
   if a.state == ARRAY_MANAGED
-      finalizer(unsafe_free!, b)
+      finalizer(unsafe_finalize!, b)
   end
   b.state = a.state
   return b
@@ -555,7 +555,7 @@ function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
   end
   b = CuArray{T,N}(a.baseptr, osize, a.ctx; offset=a.offset)
   if a.state == ARRAY_MANAGED
-      finalizer(unsafe_free!, b)
+      finalizer(unsafe_finalize!, b)
   end
   b.state = a.state
   return b
