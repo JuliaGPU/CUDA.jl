@@ -51,40 +51,32 @@ function math_mode(mode=CUDA.math_mode())
     end
 end
 
-# thread cache for task-local library handles
-const thread_handles = Vector{Union{Nothing,cudnnHandle_t}}()
-
 # cache for created, but unused handles
 const handle_cache_lock = ReentrantLock()
 const idle_handles = DefaultDict{CuContext,Vector{cudnnHandle_t}}(()->cudnnHandle_t[])
 
-function handle()
-    CUDA.detect_state_changes()
-    tid = Threads.threadid()
-    if @inbounds thread_handles[tid] === nothing
-        ctx = context()
-        thread_handles[tid] = get!(task_local_storage(), (:CUDNN, ctx)) do
-            handle = lock(handle_cache_lock) do
-                if isempty(idle_handles[ctx])
-                    cudnnCreate()
-                else
-                    pop!(idle_handles[ctx])
-                end
+function handle()::cudnnHandle_t
+    ctx = context()
+    get!(task_local_storage(), (:CUDNN, ctx)) do
+        handle = lock(handle_cache_lock) do
+            if isempty(idle_handles[ctx])
+                cudnnCreate()
+            else
+                pop!(idle_handles[ctx])
             end
-
-            finalizer(current_task()) do task
-                lock(handle_cache_lock) do
-                    push!(idle_handles[ctx], handle)
-                end
-            end
-            # TODO: cudnnDestroy to preserve memory, or at exit?
-
-            cudnnSetStream(handle, stream())
-
-            handle
         end
+
+        finalizer(current_task()) do task
+            lock(handle_cache_lock) do
+                push!(idle_handles[ctx], handle)
+            end
+        end
+        # TODO: cudnnDestroy to preserve memory, or at exit?
+
+        cudnnSetStream(handle, stream())
+
+        handle
     end
-    something(@inbounds thread_handles[tid])
 end
 
 @inline function set_stream(stream::CuStream)
@@ -95,21 +87,6 @@ end
         cudnnSetStream(handle, stream)
     end
     return
-end
-
-function __init__()
-    resize!(thread_handles, Threads.nthreads())
-    fill!(thread_handles, nothing)
-
-    CUDA.atdeviceswitch() do
-        tid = Threads.threadid()
-        thread_handles[tid] = nothing
-    end
-
-    CUDA.attaskswitch() do
-        tid = Threads.threadid()
-        thread_handles[tid] = nothing
-    end
 end
 
 function log_message(sev, udata, dbg_ptr, ptr)

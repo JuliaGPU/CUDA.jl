@@ -640,18 +640,6 @@ end
 ## init
 
 function __init_pool__()
-  # usage
-  initialize!(usage, ndevices())
-  initialize!(last_use, ndevices())
-  initialize!(usage_limit, ndevices())
-
-  # allocation tracking
-  initialize!(allocated, ndevices())
-  initialize!(requested, ndevices())
-
-  # memory pools
-  initialize!(pools, ndevices())
-
   TimerOutputs.reset_timer!(alloc_to)
   TimerOutputs.reset_timer!(PoolUtils.to)
 

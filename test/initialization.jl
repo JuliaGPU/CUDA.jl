@@ -5,54 +5,21 @@
 @test CuCurrentContext() == nothing
 @test CuCurrentDevice() == nothing
 
-task_cb = Any[nothing for tid in 1:Threads.nthreads()]
-CUDA.attaskswitch() do
-    task_cb[Threads.threadid()] = current_task()
-end
-
-device_switch_cb = Any[nothing for tid in 1:Threads.nthreads()]
-CUDA.atdeviceswitch() do
-    device_switch_cb[Threads.threadid()] = (dev=device(), ctx=context())
-end
-
-device_reset_cb = Any[nothing for tid in 1:Threads.nthreads()]
-CUDA.atdevicereset() do dev
-    device_reset_cb[Threads.threadid()] = dev
-end
-
-function reset_cb()
-    fill!(task_cb, nothing)
-    fill!(device_switch_cb, nothing)
-    fill!(device_reset_cb, nothing)
-end
-
 # now cause initialization
 ctx = context()
 dev = device()
 @test CuCurrentContext() == ctx
 @test CuCurrentDevice() == dev
-@test task_cb[1] == current_task()
-@test device_switch_cb[1].ctx == ctx
-@test device_switch_cb[1].dev == dev
-
-reset_cb()
 
 # ... on a different task
 task = @async begin
     context()
 end
 @test ctx == fetch(task)
-@test task_cb[1] == task
-@test device_switch_cb[1].ctx == ctx
-@test device_switch_cb[1].dev == dev
-
-reset_cb()
 
 # ... back to the main task
 ctx = context()
 dev = device()
-@test task_cb[1] == current_task()
-@test device_switch_cb[1] == nothing
 
 device!(CuDevice(0))
 @test device!(()->true, CuDevice(0))
@@ -64,19 +31,11 @@ context!(ctx)
 
 @test_throws ErrorException device!(0, CUDA.CU_CTX_SCHED_YIELD)
 
-reset_cb()
-
 if !CUDA.any_stream_ordered()
     # NVIDIA bug #3240770
     device_reset!()
 
-    @test device_reset_cb[1] == CuDevice(0)
-
-    reset_cb()
-
     device!(0, CUDA.CU_CTX_SCHED_YIELD)
-    @test task_cb[1] == nothing
-    @test device_switch_cb[1].dev == CuDevice(0)
 
     # reset on a different task
     let ctx = context()
