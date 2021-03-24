@@ -55,7 +55,7 @@ end
 const handle_cache_lock = ReentrantLock()
 const idle_handles = DefaultDict{CuContext,Vector{cudnnHandle_t}}(()->cudnnHandle_t[])
 
-function handle()::cudnnHandle_t
+function handle()
     ctx = context()
     get!(task_local_storage(), (:CUDNN, ctx)) do
         handle = lock(handle_cache_lock) do
@@ -76,7 +76,7 @@ function handle()::cudnnHandle_t
         cudnnSetStream(handle, stream())
 
         handle
-    end
+    end::cudnnHandle_t
 end
 
 @inline function set_stream(stream::CuStream)

@@ -35,7 +35,7 @@ const handle_cache_lock = ReentrantLock()
 const idle_dense_handles = DefaultDict{CuContext,Vector{cusolverDnHandle_t}}(()->cusolverDnHandle_t[])
 const idle_sparse_handles = DefaultDict{CuContext,Vector{cusolverSpHandle_t}}(()->cusolverSpHandle_t[])
 
-function dense_handle()::cusolverDnHandle_t
+function dense_handle()
     ctx = context()
     get!(task_local_storage(), (:CUSOLVER, :dense, ctx)) do
         handle = lock(handle_cache_lock) do
@@ -56,10 +56,10 @@ function dense_handle()::cusolverDnHandle_t
         cusolverDnSetStream(handle, stream())
 
         handle
-    end
+    end::cusolverDnHandle_t
 end
 
-function sparse_handle()::cusolverSpHandle_t
+function sparse_handle()
     ctx = context()
     get!(task_local_storage(), (:CUSOLVER, :sparse, ctx)) do
         handle = if isempty(idle_sparse_handles[ctx])
@@ -76,10 +76,10 @@ function sparse_handle()::cusolverSpHandle_t
         cusolverSpSetStream(handle, stream())
 
         handle
-    end
+    end::cusolverSpHandle_t
 end
 
-function mg_handle()::cusolverMgHandle_t
+function mg_handle()
     ctx = context()
     get!(task_local_storage(), (:CUSOLVER, :mg, ctx)) do
         # we can't reuse cusolverMg handles because they can only be assigned devices once
@@ -99,7 +99,7 @@ function mg_handle()::cusolverMgHandle_t
         cusolverMgDeviceSelect(handle, ndevices(), devices())
 
         handle
-    end
+    end::cusolverMgHandle_t
 end
 
 # module-local version of CUDA's devices/ndevices to support flexible device selection

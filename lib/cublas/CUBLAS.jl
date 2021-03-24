@@ -73,7 +73,7 @@ function math_mode!(handle, mode)
     return
 end
 
-function handle()::cublasHandle_t
+function handle()
     ctx = context()
     get!(task_local_storage(), (:CUBLAS, ctx)) do
         handle = lock(handle_cache_lock) do
@@ -97,10 +97,10 @@ function handle()::cublasHandle_t
         math_mode!(handle, CUDA.math_mode())
 
         handle
-    end
+    end::cublasHandle_t
 end
 
-function xt_handle()::cublasHandle_t
+function xt_handle()
     ctxs = Tuple(context(dev) for dev in devices())
     get!(task_local_storage(), (:CUBLASxt, ctxs)) do
         handle = lock(handle_cache_lock) do
@@ -123,7 +123,7 @@ function xt_handle()::cublasHandle_t
         cublasXtDeviceSelect(handle, length(devs), devs)
 
         handle
-    end
+    end::cublasHandle_t
 end
 
 @inline function set_stream(stream::CuStream)

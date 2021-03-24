@@ -31,7 +31,7 @@ include("interfaces.jl")
 const handle_cache_lock = ReentrantLock()
 const idle_handles = DefaultDict{CuContext,Vector{Base.RefValue{cutensorHandle_t}}}(()->Base.RefValue{cutensorHandle_t}[])
 
-function handle()::Base.RefValue{cutensorHandle_t}
+function handle()
     ctx = context()
     get!(task_local_storage(), (:CUTENSOR, ctx)) do
         handle = lock(handle_cache_lock) do
@@ -52,7 +52,7 @@ function handle()::Base.RefValue{cutensorHandle_t}
         # TODO: destroy to preserve memory, or at exit?
 
         handle
-    end
+    end::Base.RefValue{cutensorHandle_t}
 end
 
 @inline function set_stream(stream::CuStream)

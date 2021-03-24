@@ -31,7 +31,7 @@ const active_gpuarray_rngs = Set{GPUArrays.RNG}()
 const idle_curand_rngs = DefaultDict{CuContext,Vector{RNG}}(()->RNG[])
 const idle_gpuarray_rngs = DefaultDict{CuContext,Vector{GPUArrays.RNG}}(()->GPUArrays.RNG[])
 
-function default_rng()::RNG
+function default_rng()
     ctx = context()
     get!(task_local_storage(), (:CURAND, ctx)) do
         rng = lock(rng_cache_lock) do
@@ -60,10 +60,10 @@ function default_rng()::RNG
 
         Random.seed!(rng)
         rng
-    end
+    end::RNG
 end
 
-function GPUArrays.default_rng(::Type{<:CuArray})::GPUArrays.RNG
+function GPUArrays.default_rng(::Type{<:CuArray})
     ctx = context()
     get!(task_local_storage(), (:GPUArraysRNG, ctx)) do
         rng = lock(rng_cache_lock) do
@@ -91,7 +91,7 @@ function GPUArrays.default_rng(::Type{<:CuArray})::GPUArrays.RNG
 
         Random.seed!(rng)
         rng
-    end
+    end::GPUArrays.RNG
 end
 
 @inline function set_stream(stream::CuStream)

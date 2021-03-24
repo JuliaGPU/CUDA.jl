@@ -49,7 +49,7 @@ include("interfaces.jl")
 const handle_cache_lock = ReentrantLock()
 const idle_handles = DefaultDict{CuContext,Vector{cusparseHandle_t}}(()->cusparseHandle_t[])
 
-function handle()::cusparseHandle_t
+function handle()
     ctx = context()
     get!(task_local_storage(), (:CUSPARSE, ctx)) do
         handle = lock(handle_cache_lock) do
@@ -70,7 +70,7 @@ function handle()::cusparseHandle_t
         cusparseSetStream(handle, stream())
 
         handle
-    end
+    end::cusparseHandle_t
 end
 
 @inline function set_stream(stream::CuStream)
