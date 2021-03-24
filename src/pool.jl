@@ -456,7 +456,7 @@ end
 function pool_cleanup()
   while true
     t1 = time()
-    @pool_timeit "cleanup" for dev in devices()
+    @pool_timeit "cleanup" for dev in keys(pools)
       t0 = last_use[dev]
       t0 === nothing && continue
 

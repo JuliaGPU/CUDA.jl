@@ -258,28 +258,32 @@ deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev))
 
 ## helpers
 
-# helper struct to maintain state per device
-struct PerDevice{T,F} <: AbstractVector{T}
-    inner::Dict{CuContext,T}
+# helper struct to maintain state per device and invalidate it when the device is reset
+struct PerDevice{T,F} <: AbstractDict{T,F}
+    inner::Dict{CuDevice,Tuple{CuContext,T}}
     ctor::F
 
-    PerDevice{T,F}(ctor::F) where {T,F<:Function} = new(Dict{CuContext,T}(), ctor)
+    PerDevice{T,F}(ctor::F) where {T,F<:Function} = new(Dict{CuDevice,Tuple{CuContext,T}}(), ctor)
 end
 
 PerDevice{T}(ctor::F) where {T,F} = PerDevice{T,F}(ctor)
 
 function Base.getindex(x::PerDevice, dev::CuDevice)
-    ctx = context(dev)
-    if haskey(x.inner, ctx)
-        x.inner[ctx]
+    entry = get(x.inner, dev, nothing)
+    if entry === nothing || !isvalid(entry[1])
+        ctx = context(dev)
+        val = x.ctor(dev)
+        x.inner[dev] = (ctx, val)
+        val
     else
-        x.inner[ctx] = x.ctor(dev)
+        entry[2]
     end
 end
-Base.setindex!(x::PerDevice, val, dev::CuDevice) = (x.inner[context(dev)] = val; )
+Base.setindex!(x::PerDevice, val, dev::CuDevice) = (x.inner[dev] = (context(dev), val); )
 
 Base.length(x::PerDevice) = length(x.inner)
 Base.size(x::PerDevice) = size(x.inner)
+Base.keys(x::PerDevice) = keys(x.inner)
 
 function Base.show(io::IO, mime::MIME"text/plain", x::PerDevice{T}) where {T}
     print(io, "PerDevice{$T} with $(length(x)) entries")
