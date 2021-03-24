@@ -322,12 +322,6 @@ function math_mode!(mode::MathMode; precision=nothing)
         default_math_precision[] = precision
     end
 
-    # reapply the CUBLAS math mode if it had been set already
-    cublas_handle = get(tls, (:CUBLAS, ctx), nothing)
-    if cublas_handle !== nothing
-        CUBLAS.math_mode!(cublas_handle, mode)
-    end
-
     return
 end
 
@@ -335,11 +329,11 @@ math_mode() =
     get!(task_local_storage(), (:CUDA, :math_mode)) do
         something(default_math_mode[],
                   Base.JLOptions().fast_math==1 ? FAST_MATH : DEFAULT_MATH)
-    end
+    end::MathMode
 math_precision() =
     get!(task_local_storage(), (:CUDA, :math_precision)) do
         something(default_math_precision[], :TensorFloat32)
-    end
+    end::Symbol
 
 
 ## streams
@@ -364,35 +358,12 @@ Get the CUDA stream that should be used as the default one for the currently exe
     end::CuStream
 end
 
-function set_library_streams(s)
-    CUBLAS.set_stream(s)
-    CUSPARSE.set_stream(s)
-    CUSOLVER.set_stream(s)
-    CURAND.set_stream(s)
-    CUFFT.set_stream(s)
-
-    CUDNN.set_stream(s)
-    CUTENSOR.set_stream(s)
-end
-
 function stream!(s::CuStream)
     ctx = context()
     task_local_storage((:CuStream, ctx), s)
-
-    set_library_streams(s)
 end
 
 function stream!(f::Function, s::CuStream)
     ctx = context()
-    old_s = get(task_local_storage(), (:CuStream, ctx), nothing)::Union{CuStream,Nothing}
-    try
-        return task_local_storage((:CuStream, ctx), s) do
-            set_library_streams(s)
-            f()
-        end
-    finally
-        if old_s !== nothing
-            set_library_streams(old_s)
-        end
-    end
+    task_local_storage(f, (:CuStream, ctx), s)
 end

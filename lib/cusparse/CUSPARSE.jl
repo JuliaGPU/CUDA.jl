@@ -51,8 +51,9 @@ const idle_handles = DefaultDict{CuContext,Vector{cusparseHandle_t}}(()->cuspars
 
 function handle()
     ctx = context()
-    get!(task_local_storage(), (:CUSPARSE, ctx)) do
-        handle = lock(handle_cache_lock) do
+    active_stream = stream()
+    handle, chosen_stream = get!(task_local_storage(), (:CUSPARSE, ctx)) do
+        new_handle = @lock handle_cache_lock begin
             if isempty(idle_handles[ctx])
                 cusparseCreate()
             else
@@ -61,26 +62,23 @@ function handle()
         end
 
         finalizer(current_task()) do task
-            lock(handle_cache_lock) do
-                push!(idle_handles[ctx], handle)
+            @spinlock handle_cache_lock begin
+                push!(idle_handles[ctx], new_handle)
             end
         end
         # TODO: cusparseDestroy to preserve memory, or at exit?
 
-        cusparseSetStream(handle, stream())
+        cusparseSetStream(new_handle, active_stream)
 
-        handle
-    end::cusparseHandle_t
-end
+        new_handle, active_stream
+    end::Tuple{cusparseHandle_t,CuStream}
 
-@inline function set_stream(stream::CuStream)
-    ctx = context()
-    tls = task_local_storage()
-    handle = get(tls, (:CUSPARSE, ctx), nothing)
-    if handle !== nothing
-        cusparseSetStream(handle, stream)
+    if chosen_stream != active_stream
+        cusparseSetStream(handle, active_stream)
+        task_local_storage((:CUSPARSE, ctx), (handle, active_stream))
     end
-    return
+
+    return handle
 end
 
 end

@@ -57,8 +57,9 @@ const idle_handles = DefaultDict{CuContext,Vector{cudnnHandle_t}}(()->cudnnHandl
 
 function handle()
     ctx = context()
-    get!(task_local_storage(), (:CUDNN, ctx)) do
-        handle = lock(handle_cache_lock) do
+    active_stream = stream()
+    handle, chosen_stream = get!(task_local_storage(), (:CUDNN, ctx)) do
+        new_handle = @lock handle_cache_lock begin
             if isempty(idle_handles[ctx])
                 cudnnCreate()
             else
@@ -67,26 +68,23 @@ function handle()
         end
 
         finalizer(current_task()) do task
-            lock(handle_cache_lock) do
-                push!(idle_handles[ctx], handle)
+            @spinlock handle_cache_lock begin
+                push!(idle_handles[ctx], new_handle)
             end
         end
         # TODO: cudnnDestroy to preserve memory, or at exit?
 
-        cudnnSetStream(handle, stream())
+        cudnnSetStream(new_handle, active_stream)
 
-        handle
-    end::cudnnHandle_t
-end
+        new_handle, active_stream
+    end::Tuple{cudnnHandle_t,CuStream}
 
-@inline function set_stream(stream::CuStream)
-    ctx = context()
-    tls = task_local_storage()
-    handle = get(tls, (:CUDNN, ctx), nothing)
-    if handle !== nothing
-        cudnnSetStream(handle, stream)
+    if chosen_stream != active_stream
+        cudnnSetStream(handle, active_stream)
+        task_local_storage((:CUDNN, ctx), (handle, active_stream))
     end
-    return
+
+    return handle
 end
 
 function log_message(sev, udata, dbg_ptr, ptr)

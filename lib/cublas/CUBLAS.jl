@@ -75,8 +75,10 @@ end
 
 function handle()
     ctx = context()
-    get!(task_local_storage(), (:CUBLAS, ctx)) do
-        handle = lock(handle_cache_lock) do
+    active_stream = stream()
+    active_math_mode = CUDA.math_mode()
+    handle, chosen_stream, chosen_math_mode = get!(task_local_storage(), (:CUBLAS, ctx)) do
+        new_handle = @lock handle_cache_lock begin
             if isempty(idle_handles[ctx])
                 cublasCreate()
                 # FIXME: use cublasSetWorkspace? cublasSetStream reset it.
@@ -86,24 +88,38 @@ function handle()
         end
 
         finalizer(current_task()) do task
-            lock(handle_cache_lock) do
-                push!(idle_handles[ctx], handle)
+            @spinlock handle_cache_lock begin
+                push!(idle_handles[ctx], new_handle)
             end
         end
         # TODO: cublasDestroy to preserve memory, or at exit?
 
-        cublasSetStream_v2(handle, stream())
+        cublasSetStream_v2(new_handle, active_stream)
 
-        math_mode!(handle, CUDA.math_mode())
+        math_mode!(new_handle, active_math_mode)
 
-        handle
-    end::cublasHandle_t
+        new_handle, active_stream, active_math_mode
+    end::Tuple{cublasHandle_t,CuStream,CUDA.MathMode}
+
+    if chosen_stream != active_stream
+        cublasSetStream_v2(handle, active_stream)
+        task_local_storage((:CUBLAS, ctx), (handle, active_stream, chosen_math_mode))
+        chosen_stream = active_stream
+    end
+
+    if chosen_math_mode != active_math_mode
+        math_mode!(handle, active_math_mode)
+        task_local_storage((:CUBLAS, ctx), (handle, chosen_stream, active_math_mode))
+        chosen_math_mode = active_math_mode
+    end
+
+    return handle
 end
 
 function xt_handle()
     ctxs = Tuple(context(dev) for dev in devices())
     get!(task_local_storage(), (:CUBLASxt, ctxs)) do
-        handle = lock(handle_cache_lock) do
+        handle = @lock handle_cache_lock begin
             if isempty(idle_xt_handles[ctxs])
                 cublasXtCreate()
             else
@@ -112,7 +128,7 @@ function xt_handle()
         end
 
         finalizer(current_task()) do task
-            lock(handle_cache_lock) do
+            @spinlock handle_cache_lock begin
                 push!(idle_xt_handles[ctxs], handle)
             end
         end
@@ -124,16 +140,6 @@ function xt_handle()
 
         handle
     end::cublasHandle_t
-end
-
-@inline function set_stream(stream::CuStream)
-    ctx = context()
-    tls = task_local_storage()
-    handle = get(tls, (:CUBLAS, ctx), nothing)
-    if handle !== nothing
-        cublasSetStream_v2(handle, stream)
-    end
-    return
 end
 
 function log_message(cstr)
