@@ -126,6 +126,13 @@ end
 Base.getindex(r::CuRefValue) = r.x
 Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
 
+Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+
+# we materialize ReshapedArray/ReinterpretArray/SubArray/... directly as a device array
+Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+
 """
     cudaconvert(x)
 
@@ -193,10 +200,16 @@ end
 
 ## host-side kernels
 
-struct HostKernel{F,TT} <: AbstractKernel{F,TT}
+mutable struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     ctx::CuContext
     mod::CuModule
     fun::CuFunction
+
+    random_state::Union{Nothing,Missing,CuVector{UInt32}}
+
+    function HostKernel{F,TT}(ctx::CuContext, mod::CuModule, fun::CuFunction, random_state) where {F,TT}
+        kernel = new{F,TT}(ctx, mod, fun, random_state)
+    end
 end
 
 @doc (@doc AbstractKernel) HostKernel
@@ -345,10 +358,21 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
         filter!(!isequal("exception_flag"), compiled.external_gvars)
     end
 
-    return HostKernel{job.source.f,job.source.tt}(ctx, mod, fun)
+    random_state = nothing
+    if "global_random_state" in compiled.external_gvars
+        random_state = missing
+        filter!(!isequal("global_random_state"), compiled.external_gvars)
+    end
+
+    return HostKernel{job.source.f,job.source.tt}(ctx, mod, fun, random_state)
 end
 
-(kernel::HostKernel)(args...; kwargs...) = call(kernel, map(cudaconvert, args)...; kwargs...)
+function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
+    if kernel.random_state !== nothing
+        init_random_state!(kernel, prod(threads) * prod(blocks))
+    end
+    call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
+end
 
 
 ## device-side kernels

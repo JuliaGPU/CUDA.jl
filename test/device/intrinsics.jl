@@ -1180,3 +1180,57 @@ end
 end
 
 end
+
+
+
+############################################################################################
+
+@testset "random numbers" begin
+
+n = 256
+
+@testset "basic" begin
+    function kernel(A::CuDeviceArray{T}, B::CuDeviceArray{T}) where {T}
+        tid = threadIdx().x
+        A[tid] = rand(T)
+        B[tid] = rand(T)
+        return nothing
+    end
+
+    @testset for T in (Int32, UInt32, Int64, UInt64, Int128, UInt128,
+                       Float32, Float64)
+        a = CUDA.zeros(T, n)
+        b = CUDA.zeros(T, n)
+
+        @cuda threads=n kernel(a, b)
+
+        @test all(Array(a) .!= Array(b))
+
+        if T == Float64
+            @test allunique(Array(a))
+            @test allunique(Array(b))
+        end
+    end
+end
+
+@testset "custom seed" begin
+    function kernel(A::CuDeviceArray{T}) where {T}
+        tid = threadIdx().x
+        Random.seed!(1234)
+        A[tid] = rand(T)
+        return nothing
+    end
+
+    @testset for T in (Int32, UInt32, Int64, UInt64, Int128, UInt128,
+                       Float32, Float64)
+        a = CUDA.zeros(T, n)
+        b = CUDA.zeros(T, n)
+
+        @cuda threads=n kernel(a)
+        @cuda threads=n kernel(b)
+
+        @test Array(a) == Array(b)
+    end
+end
+
+end

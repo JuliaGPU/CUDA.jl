@@ -58,7 +58,9 @@ include("device/llvm.jl")
 include("device/runtime.jl")
 include("device/texture.jl")
 
+# array essentials
 include("pool.jl")
+include("array.jl")
 
 # compiler libraries
 include("../lib/cupti/CUPTI.jl")
@@ -71,8 +73,7 @@ include("compiler/execution.jl")
 include("compiler/exceptions.jl")
 include("compiler/reflection.jl")
 
-# array abstraction
-include("array.jl")
+# array implementation
 include("gpuarrays.jl")
 include("utilities.jl")
 include("texture.jl")

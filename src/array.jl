@@ -241,13 +241,6 @@ function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArr
   CuDeviceArray{T,N,AS.Global}(size(a), reinterpret(LLVMPtr{T,AS.Global}, pointer(a)))
 end
 
-Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
-  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
-
-# we materialize ReshapedArray/ReinterpretArray/SubArray/... directly as a device array
-Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
-  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
-
 
 ## interop with CPU arrays
 
