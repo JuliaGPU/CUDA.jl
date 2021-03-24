@@ -62,15 +62,18 @@ end
 """
     context!(ctx::CuContext)
 
-Bind the current host thread to the context `ctx`.
+Bind the current host thread to the context `ctx`. Returns the previously-bound context.
 
 Note that the contexts used with this call should be previously acquired by calling
 [`context`](@ref), and not arbitrary contexts created by calling the `CuContext` constructor.
 """
 function context!(ctx::CuContext)
-    task_local_storage(:CuContext, ctx)
-    activate(ctx)
-    return
+    old_ctx = get(task_local_storage(), :CuContext, nothing)::Union{CuContext,Nothing}
+    if old_ctx != ctx
+        task_local_storage(:CuContext, ctx)
+        activate(ctx)
+    end
+    return old_ctx
 end
 
 macro context!(ex...)
@@ -94,10 +97,7 @@ macro context!(ex...)
     quote
         ctx = $(esc(ctx))
         if isvalid(ctx)
-            old_ctx = get(task_local_storage(), :CuContext, nothing)::Union{CuContext,Nothing}
-            if old_ctx != ctx
-                context!(ctx)
-            end
+            old_ctx = context!(ctx)
             try
                 $(esc(body))
             finally
