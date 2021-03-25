@@ -1205,11 +1205,6 @@ n = 256
         @cuda threads=n kernel(a, b)
 
         @test all(Array(a) .!= Array(b))
-
-        if T == Float64
-            @test allunique(Array(a))
-            @test allunique(Array(b))
-        end
     end
 end
 
