@@ -78,7 +78,7 @@ Base.show(io::IO, ::MIME"text/plain", err::CuError) = print(io, "CuError($(err.c
 
 # outlined functionality to avoid GC frame allocation
 @noinline function initialize_api()
-    initialize_cuda_context()
+    prepare_cuda_state()
     return
 end
 @noinline function throw_api_error(res)

@@ -32,14 +32,10 @@ include("wrappers.jl")
 # high-level integrations
 include("linalg.jl")
 
-# thread cache for task-local library handles
-const thread_handles = Vector{Union{Nothing,cublasHandle_t}}()
-const thread_xt_handles = Vector{Union{Nothing,cublasXtHandle_t}}()
-
 # cache for created, but unused handles
 const handle_cache_lock = ReentrantLock()
 const idle_handles = DefaultDict{CuContext,Vector{cublasHandle_t}}(()->cublasHandle_t[])
-const idle_xt_handles = DefaultDict{Vector{CuContext},Vector{cublasHandle_t}}(()->cublasHandle_t[])
+const idle_xt_handles = DefaultDict{Any,Vector{cublasHandle_t}}(()->cublasHandle_t[])
 
 function math_mode!(handle, mode)
     flags = 0
@@ -78,99 +74,70 @@ function math_mode!(handle, mode)
 end
 
 function handle()
-    CUDA.detect_state_changes()
-    tid = Threads.threadid()
-    if @inbounds thread_handles[tid] === nothing
-        ctx = context()
-        thread_handles[tid] = get!(task_local_storage(), (:CUBLAS, ctx)) do
-            handle = lock(handle_cache_lock) do
-                if isempty(idle_handles[ctx])
-                    cublasCreate()
-                    # FIXME: use cublasSetWorkspace? cublasSetStream reset it.
-                else
-                    pop!(idle_handles[ctx])
-                end
+    state = CUDA.active_state()
+    handle, stream, math_mode = get!(task_local_storage(), (:CUBLAS, state.context)) do
+        new_handle = @lock handle_cache_lock begin
+            if isempty(idle_handles[state.context])
+                cublasCreate()
+                # FIXME: use cublasSetWorkspace? cublasSetStream reset it.
+            else
+                pop!(idle_handles[state.context])
             end
-
-            finalizer(current_task()) do task
-                lock(handle_cache_lock) do
-                    push!(idle_handles[ctx], handle)
-                end
-            end
-            # TODO: cublasDestroy to preserve memory, or at exit?
-
-            cublasSetStream_v2(handle, stream())
-
-            math_mode!(handle, CUDA.math_mode())
-
-            handle
         end
+
+        finalizer(current_task()) do task
+            @spinlock handle_cache_lock begin
+                push!(idle_handles[state.context], new_handle)
+            end
+        end
+        # TODO: cublasDestroy to preserve memory, or at exit?
+
+        cublasSetStream_v2(new_handle, state.stream)
+
+        math_mode!(new_handle, state.math_mode)
+
+        new_handle, state.stream, state.math_mode
+    end::Tuple{cublasHandle_t,CuStream,CUDA.MathMode}
+
+    if stream != state.stream
+        cublasSetStream_v2(handle, state.stream)
+        task_local_storage((:CUBLAS, state.context), (handle, state.stream, math_mode))
+        stream = state.stream
     end
-    something(@inbounds thread_handles[tid])
+
+    if math_mode != state.math_mode
+        math_mode!(handle, state.math_mode)
+        task_local_storage((:CUBLAS, state.context), (handle, stream, state.math_mode))
+        math_mode = state.math_mode
+    end
+
+    return handle
 end
 
 function xt_handle()
-    CUDA.detect_state_changes()
-    tid = Threads.threadid()
-    if @inbounds thread_xt_handles[tid] === nothing
-        ctxs = [context(dev) for dev in devices()]
-        thread_xt_handles[tid] = get!(task_local_storage(), (:CUBLASxt, ctxs)) do
-            handle = lock(handle_cache_lock) do
-                if isempty(idle_xt_handles[ctxs])
-                    cublasXtCreate()
-                else
-                    pop!(idle_xt_handles[ctxs])
-                end
+    ctxs = Tuple(context(dev) for dev in devices())
+    get!(task_local_storage(), (:CUBLASxt, ctxs)) do
+        handle = @lock handle_cache_lock begin
+            if isempty(idle_xt_handles[ctxs])
+                cublasXtCreate()
+            else
+                pop!(idle_xt_handles[ctxs])
             end
-
-            finalizer(current_task()) do task
-                lock(handle_cache_lock) do
-                    push!(idle_xt_handles[ctxs], handle)
-                end
-            end
-            # TODO: cublasXtDestroy to preserve memory, or at exit?
-
-            # select all devices
-            devs = convert.(Cint, devices())
-            cublasXtDeviceSelect(handle, length(devs), devs)
-
-            handle
         end
-    end
-    something(@inbounds thread_xt_handles[tid])
-end
 
-@inline function set_stream(stream::CuStream)
-    ctx = context()
-    tls = task_local_storage()
-    handle = get(tls, (:CUBLAS, ctx), nothing)
-    if handle !== nothing
-        cublasSetStream_v2(handle, stream)
-    end
-    return
-end
+        finalizer(current_task()) do task
+            @spinlock handle_cache_lock begin
+                push!(idle_xt_handles[ctxs], handle)
+            end
+        end
+        # TODO: cublasXtDestroy to preserve memory, or at exit?
 
-function __init__()
-    resize!(thread_handles, Threads.nthreads())
-    fill!(thread_handles, nothing)
+        # select all devices
+        devs = convert.(Cint, devices())
+        cublasXtDeviceSelect(handle, length(devs), devs)
 
-    resize!(thread_xt_handles, Threads.nthreads())
-    fill!(thread_xt_handles, nothing)
-
-    CUDA.atdevicereset() do dev
-        fill!(thread_xt_handles, nothing)
-    end
-
-    CUDA.atdeviceswitch() do
-        tid = Threads.threadid()
-        thread_handles[tid] = nothing
-    end
-
-    CUDA.attaskswitch() do
-        tid = Threads.threadid()
-        thread_handles[tid] = nothing
-        thread_xt_handles[tid] = nothing
-    end
+        handle
+    end::cublasHandle_t
 end
 
 function log_message(cstr)

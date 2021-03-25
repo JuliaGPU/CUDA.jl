@@ -1,11 +1,26 @@
 # Context management
 
 export
-    CuContext, CuCurrentContext, activate,
-    device_synchronize, CuCurrentDevice
+    CuPrimaryContext, CuContext, CuCurrentContext, activate,
+    unsafe_reset!, isactive, flags, setflags!,
+    device_synchronize, CuCurrentDevice,
 
 
 ## construction and destruction
+
+@enum_without_prefix CUctx_flags CU_
+
+"""
+    CuPrimaryContext(dev::CuDevice)
+
+Create a primary CUDA context for a given device.
+
+Each primary context is unique per device and is shared with CUDA runtime API. It is meant
+for interoperability with (applications using) the runtime API.
+"""
+struct CuPrimaryContext
+    dev::CuDevice
+end
 
 """
     CuContext(dev::CuDevice, flags=CTX_SCHED_AUTO)
@@ -22,17 +37,49 @@ deletion, or use do-block syntax with this constructor.
 mutable struct CuContext
     handle::CUcontext
 
-    function CuContext(handle::CUcontext)
-        @assert handle != C_NULL "NULL contexts should be represented as `nothing`"
-        return Base.@lock context_lock get!(valid_contexts, handle) do
+    function new_unique(handle)
+        Base.@lock context_lock get!(valid_contexts, handle) do
             new(handle)
         end
     end
-end
 
-# NOTE: we don't implement `isequal` or `hash` in order to fall back to `===` and `objectid`
-#       as contexts are unique, and with primary device contexts identical handles might be
-#       returned after resetting the context (device) and all associated resources.
+    function CuContext(dev::CuDevice, flags=0)
+        handle_ref = Ref{CUcontext}()
+        cuCtxCreate_v2(handle_ref, flags, dev)
+        new_unique(handle_ref[])
+    end
+
+    """
+        CuContext(pctx::CuPrimaryContext)
+
+    Retain the primary context on the GPU, returning a context compatible with the driver API.
+    The primary context will be released when the returned driver context is finalized.
+
+    As these contexts are refcounted by CUDA, you should not call [`CUDA.unsafe_destroy!`](@ref)
+    on them but use [`CUDA.unsafe_release!`](@ref) instead (available with do-block syntax as
+    well).
+    """
+    function CuContext(pctx::CuPrimaryContext)
+        handle_ref = Ref{CUcontext}()
+        cuDevicePrimaryCtxRetain(handle_ref, pctx.dev)
+        return new_unique(handle_ref[])
+    end
+
+    """
+        CuCurrentContext()
+
+    Return the current context, or `nothing` if there is no active context.
+    """
+    global function CuCurrentContext()
+        handle_ref = Ref{CUcontext}()
+        cuCtxGetCurrent(handle_ref)
+        if handle_ref[] == C_NULL
+            return nothing
+        else
+            new_unique(handle_ref[])
+        end
+    end
+end
 
 # the `valid` bit serves two purposes: make sure we don't double-free a context (in case we
 # early-freed it ourselves before the GC kicked in), and to make sure we don't free derived
@@ -46,19 +93,6 @@ isvalid(ctx::CuContext) = any(x->x==ctx, values(valid_contexts))
 function invalidate!(ctx::CuContext)
     delete!(valid_contexts, ctx.handle)
     return
-end
-
-function Base.show(io::IO, ctx::CuContext)
-    if ctx.handle != C_NULL
-        fields = [@sprintf("%p", ctx.handle), @sprintf("instance %x", objectid(ctx))]
-        if !isvalid(ctx)
-            push!(fields, "invalidated")
-        end
-
-        print(io, "CuContext(", join(fields, ", "), ")")
-    else
-        print(io, "CuContext(NULL)")
-    end
 end
 
 """
@@ -76,28 +110,25 @@ end
 
 Base.unsafe_convert(::Type{CUcontext}, ctx::CuContext) = ctx.handle
 
-@enum_without_prefix CUctx_flags CU_
+# NOTE: we don't implement `isequal` or `hash` in order to fall back to `===` and `objectid`
+#       as contexts are unique, and with primary device contexts identical handles might be
+#       returned after resetting the context (device) and all associated resources.
 
-function CuContext(dev::CuDevice, flags=0)
-    handle_ref = Ref{CUcontext}()
-    cuCtxCreate_v2(handle_ref, flags, dev)
-    return CuContext(handle_ref[])
-end
+function Base.show(io::IO, ctx::CuContext)
+    if ctx.handle != C_NULL
+        fields = [@sprintf("%p", ctx.handle), @sprintf("instance %x", objectid(ctx))]
+        if !isvalid(ctx)
+            push!(fields, "invalidated")
+        end
 
-"""
-    CuCurrentContext()
-
-Return the current context, or `nothing` if there is no active context.
-"""
-function CuCurrentContext()
-    handle_ref = Ref{CUcontext}()
-    cuCtxGetCurrent(handle_ref)
-    if handle_ref[] == C_NULL
-        return nothing
+        print(io, "CuContext(", join(fields, ", "), ")")
     else
-        return CuContext(handle_ref[])
+        print(io, "CuContext(NULL)")
     end
 end
+
+
+## core context API
 
 """
     push!(CuContext, ctx::CuContext)
@@ -109,12 +140,13 @@ Base.push!(::Type{CuContext}, ctx::CuContext) = cuCtxPushCurrent_v2(ctx)
 """
     pop!(CuContext)
 
-Pops the current CUDA context from the current CPU thread, and returns that context.
+Pops the current CUDA context from the current CPU thread.
 """
 function Base.pop!(::Type{CuContext})
     handle_ref = Ref{CUcontext}()
     cuCtxPopCurrent_v2(handle_ref)
-    CuContext(handle_ref[])
+    # we don't return the context here, because it may be unused
+    # (and constructing the unique object is expensive)
 end
 
 # perform some finalizer actions in a context
@@ -147,8 +179,92 @@ function CuContext(f::Function, dev::CuDevice, args...)
     try
         f(ctx)
     finally
-        @assert pop!(CuContext) == ctx
+        pop!(CuContext)
         unsafe_destroy!(ctx)
+    end
+end
+
+
+## primary context management
+
+"""
+    CUDA.unsafe_release!(ctx::CuContext)
+
+Lower the refcount of a context, possibly freeing up all resources associated with it. This
+does not respect any users of the context, and might make other objects unusable.
+"""
+function unsafe_release!(ctx::CuContext)
+    if isvalid(ctx)
+        dev = CuDevice(ctx)
+        pctx = CuPrimaryContext(dev)
+        if version() >= v"11"
+            cuDevicePrimaryCtxRelease_v2(dev)
+        else
+            cuDevicePrimaryCtxRelease(dev)
+        end
+        isactive(pctx) || invalidate!(ctx)
+    end
+    return
+end
+
+function CuContext(f::Function, pctx::CuPrimaryContext)
+    ctx = CuContext(pctx)
+    try
+        f(ctx)
+    finally
+        unsafe_release!(ctx)
+    end
+end
+
+"""
+    unsafe_reset!(pctx::CuPrimaryContext)
+
+Explicitly destroys and cleans up all resources associated with a device's primary context
+in the current process. Note that this forcibly invalidates all contexts derived from this
+primary context, and as a result outstanding resources might become invalid.
+"""
+function unsafe_reset!(pctx::CuPrimaryContext)
+    ctx = CuContext(pctx)
+    invalidate!(ctx)
+    if version() >= v"11"
+        cuDevicePrimaryCtxReset_v2(pctx.dev)
+    else
+        cuDevicePrimaryCtxReset(pctx.dev)
+    end
+    return
+end
+
+function state(pctx::CuPrimaryContext)
+    flags = Ref{Cuint}()
+    active = Ref{Cint}()
+    cuDevicePrimaryCtxGetState(pctx.dev, flags, active)
+    return (flags[], active[] == one(Cint))
+end
+
+"""
+    isactive(pctx::CuPrimaryContext)
+
+Query whether a primary context is active.
+"""
+isactive(pctx::CuPrimaryContext) = state(pctx)[2]
+
+"""
+    flags(pctx::CuPrimaryContext)
+
+Query the flags of a primary context.
+"""
+flags(pctx::CuPrimaryContext) = state(pctx)[1]
+
+"""
+    setflags!(pctx::CuPrimaryContext)
+
+Set the flags of a primary context.
+"""
+function setflags!(pctx::CuPrimaryContext, flags)
+    if version() >= v"11"
+        cuDevicePrimaryCtxSetFlags_v2(pctx.dev, flags)
+    else
+        cuDevicePrimaryCtxSetFlags(pctx.dev, flags)
     end
 end
 

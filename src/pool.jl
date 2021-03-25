@@ -456,7 +456,7 @@ end
 function pool_cleanup()
   while true
     t1 = time()
-    @pool_timeit "cleanup" for dev in devices()
+    @pool_timeit "cleanup" for dev in keys(pools)
       t0 = last_use[dev]
       t0 === nothing && continue
 
@@ -552,7 +552,7 @@ macro timed(ex)
         while false; end # compiler heuristic: compile this block (alter this if the heuristic changes)
 
         # @time(d) might surround an application, so be sure to initialize CUDA before that
-        CUDA.initialize_cuda_context()
+        CUDA.prepare_cuda_state()
 
         # coarse synchronization to exclude effects from previously-executed code
         synchronize()
@@ -640,18 +640,6 @@ end
 ## init
 
 function __init_pool__()
-  # usage
-  initialize!(usage, ndevices())
-  initialize!(last_use, ndevices())
-  initialize!(usage_limit, ndevices())
-
-  # allocation tracking
-  initialize!(allocated, ndevices())
-  initialize!(requested, ndevices())
-
-  # memory pools
-  initialize!(pools, ndevices())
-
   TimerOutputs.reset_timer!(alloc_to)
   TimerOutputs.reset_timer!(PoolUtils.to)
 

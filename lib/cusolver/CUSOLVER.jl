@@ -30,96 +30,94 @@ include("multigpu.jl")
 # high-level integrations
 include("linalg.jl")
 
-# thread cache for task-local library handles
-const thread_dense_handles  = Vector{Union{Nothing,cusolverDnHandle_t}}()
-const thread_sparse_handles = Vector{Union{Nothing,cusolverSpHandle_t}}()
-const thread_mg_handles  = Vector{Union{Nothing,cusolverMgHandle_t}}()
-
 # cache for created, but unused handles
 const handle_cache_lock = ReentrantLock()
 const idle_dense_handles = DefaultDict{CuContext,Vector{cusolverDnHandle_t}}(()->cusolverDnHandle_t[])
 const idle_sparse_handles = DefaultDict{CuContext,Vector{cusolverSpHandle_t}}(()->cusolverSpHandle_t[])
 
 function dense_handle()
-    CUDA.detect_state_changes()
-    tid = Threads.threadid()
-    if @inbounds thread_dense_handles[tid] === nothing
-        ctx = context()
-        thread_dense_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :dense, ctx)) do
-            handle = lock(handle_cache_lock) do
-                if isempty(idle_dense_handles[ctx])
-                    cusolverDnCreate()
-                else
-                    pop!(idle_dense_handles[ctx])
-                end
+    state = CUDA.active_state()
+    handle, stream = get!(task_local_storage(), (:CUSOLVER, :dense, state.context)) do
+        new_handle = @lock handle_cache_lock begin
+            if isempty(idle_dense_handles[state.context])
+                cusolverDnCreate()
+            else
+                pop!(idle_dense_handles[state.context])
             end
-
-            finalizer(current_task()) do task
-                lock(handle_cache_lock) do
-                    push!(idle_dense_handles[ctx], handle)
-                end
-            end
-            # TODO: cusolverDnDestroy to preserve memory, or at exit?
-
-            cusolverDnSetStream(handle, stream())
-
-            handle
         end
+
+        finalizer(current_task()) do task
+            @spinlock handle_cache_lock begin
+                push!(idle_dense_handles[state.context], new_handle)
+            end
+        end
+        # TODO: cusolverDnDestroy to preserve memory, or at exit?
+
+        cusolverDnSetStream(new_handle, state.stream)
+
+        new_handle, state.stream
+    end::Tuple{cusolverDnHandle_t,CuStream}
+
+    if stream != state.stream
+        cusolverDnSetStream(handle, state.stream)
+        task_local_storage((:CUSOLVER, :dense, state.context), (handle, state.stream))
     end
-    something(@inbounds thread_dense_handles[tid])
+
+    return handle
 end
 
 function sparse_handle()
-    CUDA.detect_state_changes()
-    tid = Threads.threadid()
-    if @inbounds thread_sparse_handles[tid] === nothing
-        ctx = context()
-        thread_sparse_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :sparse, ctx)) do
-            handle = if isempty(idle_sparse_handles[ctx])
+    state = CUDA.active_state()
+    handle, stream = get!(task_local_storage(), (:CUSOLVER, :sparse, state.context)) do
+        new_handle = @lock handle_cache_lock begin
+            if isempty(idle_sparse_handles[state.context])
                 cusolverSpCreate()
             else
-                pop!(idle_sparse_handles[ctx])
+                pop!(idle_sparse_handles[state.context])
             end
-
-            finalizer(current_task()) do task
-                push!(idle_sparse_handles[ctx], handle)
-            end
-            # TODO: cusolverSpDestroy to preserve memory, or at exit?
-
-            cusolverSpSetStream(handle, stream())
-
-            handle
         end
+
+        finalizer(current_task()) do task
+            @spinlock handle_cache_lock begin
+                push!(idle_sparse_handles[state.context], new_handle)
+            end
+        end
+        # TODO: cusolverSpDestroy to preserve memory, or at exit?
+
+        cusolverSpSetStream(new_handle, state.stream)
+
+        new_handle, state.stream
+    end::Tuple{cusolverSpHandle_t,CuStream}
+
+    if stream != state.stream
+        cusolverSpSetStream(handle, state.stream)
+        task_local_storage((:CUSOLVER, :sparse, state.context), (handle, state.stream))
     end
-    something(@inbounds thread_sparse_handles[tid])
+
+    return handle
 end
 
 function mg_handle()
-    CUDA.detect_state_changes()
-    tid = Threads.threadid()
-    if @inbounds thread_mg_handles[tid] === nothing
-        ctx = context()
-        thread_mg_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :mg, ctx)) do
-            # we can't reuse cusolverMg handles because they can only be assigned devices once
-            handle = cusolverMgCreate()
+    ctx = context()
+    get!(task_local_storage(), (:CUSOLVER, :mg, ctx)) do
+        # we can't reuse cusolverMg handles because they can only be assigned devices once
+        handle = cusolverMgCreate()
 
-            finalizer(current_task()) do task
-                tls = task.storage
-                if haskey(tls, (:CUSOLVER, :mg, ctx)) && CUDA.isvalid(ctx)
-                    # look-up the handle again, because it might have been destroyed already
-                    # (e.g. in `devices!`)
-                    handle = tls[(:CUSOLVER, :mg, ctx)]
-                    cusolverMgDestroy(handle)
-                end
+        finalizer(current_task()) do task
+            tls = task.storage
+            if haskey(tls, (:CUSOLVER, :mg, ctx)) && CUDA.isvalid(ctx)
+                # look-up the handle again, because it might have been destroyed already
+                # (e.g. in `devices!`)
+                handle = tls[(:CUSOLVER, :mg, ctx)]
+                cusolverMgDestroy(handle)
             end
-
-            # select devices
-            cusolverMgDeviceSelect(handle, ndevices(), devices())
-
-            handle
         end
-    end
-    something(@inbounds thread_mg_handles[tid])
+
+        # select devices
+        cusolverMgDeviceSelect(handle, ndevices(), devices())
+
+        handle
+    end::cusolverMgHandle_t
 end
 
 # module-local version of CUDA's devices/ndevices to support flexible device selection
@@ -139,52 +137,10 @@ function devices!(devs::Vector{CuDevice})
     if haskey(task_local_storage(), (:CUSOLVER, :mg, ctx))
         handle = task_local_storage((:CUSOLVER, :mg, ctx))
         cusolverMgDestroy(handle)
-
-        tid = Threads.threadid()
-        thread_mg_handles[tid] = nothing
         delete!(task_local_storage(), (:CUSOLVER, :mg, ctx))
     end
 
     return
-end
-
-@inline function set_stream(stream::CuStream)
-    ctx = context()
-    tls = task_local_storage()
-    dense_handle = get(tls, (:CUSOLVER, :dense, ctx), nothing)
-    if dense_handle !== nothing
-        cusolverDnSetStream(dense_handle, stream)
-    end
-    sparse_handle = get(tls, (:CUSOLVER, :sparse, ctx), nothing)
-    if sparse_handle !== nothing
-        cusolverSpSetStream(sparse_handle, stream)
-    end
-    return
-end
-
-function __init__()
-    resize!(thread_dense_handles, Threads.nthreads())
-    fill!(thread_dense_handles, nothing)
-
-    resize!(thread_sparse_handles, Threads.nthreads())
-    fill!(thread_sparse_handles, nothing)
-
-    resize!(thread_mg_handles, Threads.nthreads())
-    fill!(thread_mg_handles, nothing)
-
-    CUDA.atdeviceswitch() do
-        tid = Threads.threadid()
-        thread_dense_handles[tid] = nothing
-        thread_sparse_handles[tid] = nothing
-        thread_mg_handles[tid] = nothing
-    end
-
-    CUDA.attaskswitch() do
-        tid = Threads.threadid()
-        thread_dense_handles[tid] = nothing
-        thread_sparse_handles[tid] = nothing
-        thread_mg_handles[tid] = nothing
-    end
 end
 
 end

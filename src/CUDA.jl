@@ -109,7 +109,4 @@ export NVML, has_nvml
 
 include("deprecated.jl")
 
-include("precompile.jl")
-_precompile_()
-
 end

@@ -153,6 +153,10 @@ macro debug_ccall(target, rettyp, argtyps, args...)
     f, lib = target.args
 
     quote
+        # get the call target, as e.g. libcuda() triggers initialization, even though we
+        # can't use the result in the ccall expression below as it's supposed to be constant
+        $(esc(target))
+
         print($f, '(')
         for (i, arg) in enumerate(($(map(esc, args)...),))
             i > 1 && print(", ")

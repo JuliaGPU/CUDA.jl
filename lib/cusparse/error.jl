@@ -22,7 +22,7 @@ description(err::CUSPARSEError) = unsafe_string(cusparseGetErrorString(err))
 end
 
 function initialize_api()
-    CUDA.initialize_cuda_context()
+    CUDA.prepare_cuda_state()
 end
 
 macro check(ex, errs...)

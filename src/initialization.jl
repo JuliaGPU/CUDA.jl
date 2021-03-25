@@ -72,25 +72,6 @@ function __init__()
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("-nvptx-fma-level=1")
 
-    resize!(thread_state, Threads.nthreads())
-    fill!(thread_state, nothing)
-
-    resize!(thread_tasks, Threads.nthreads())
-    fill!(thread_tasks, nothing)
-
-    resize!(thread_streams, Threads.nthreads())
-    fill!(thread_streams, nothing)
-
-    atdeviceswitch() do
-        tid = Threads.threadid()
-        thread_streams[tid] = nothing
-    end
-
-    attaskswitch() do
-        tid = Threads.threadid()
-        thread_streams[tid] = nothing
-    end
-
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
     if !precompiling
         eval(overrides)
@@ -137,7 +118,6 @@ function __runtime_init__()
         end
     end
 
-    initialize!(cufunction_cache, ndevices())
     resize!(__device_contexts, ndevices())
     fill!(__device_contexts, nothing)
 

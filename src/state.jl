@@ -4,134 +4,108 @@
 # computations in, with support for Julia constructs like tasks (and executing those on
 # multiple threads), using a GPU of your choice (with the ability to reset that device, or
 # use different devices on different threads).
-
-# XXX: a task switch hook would make much of this complexity go away...
+#
+# this is complicated by the fact that CUDA uses thread-bound contexts, while we want to be
+# able to switch between tasks executing on the same thread. the current approach involves
+# prefixing every CUDA API call with code that ensures the CUDA thread-bound state is
+# identical to Julia's task-local one.
 
 export context, context!, device, device!, device_reset!, deviceid, stream, stream!
 
 
-## hooks
+## task-local state
 
-"""
-    CUDA.attaskswitch(f::Function)
+@enum MathMode begin
+    # use prescribed precision and standardized arithmetic for all calculations.
+    # this may serialize operations, and reduce performance.
+    PEDANTIC_MATH
 
-Register a function to be called after switching to or initializing a task on a thread.
+    # use at least the required precision, and allow reordering operations for performance.
+    DEFAULT_MATH
 
-Use this hook to invalidate thread-local state that depends on the current task.
-"""
-attaskswitch(f::Function) = (pushfirst!(task_hooks, f); nothing)
-const task_hooks = []
-_attaskswitch() = foreach(f->Base.invokelatest(f), task_hooks)
-
-"""
-    CUDA.atdeviceswitch(f::Function)
-
-Register a function to be called after switching to or initializing a device on a thread.
-
-Use this hook to invalidate thread-local state that depends on the current device. If that
-state is also context dependent, be sure to query the context in your callback.
-"""
-atdeviceswitch(f::Function) = (pushfirst!(device_switch_hooks, f); nothing)
-const device_switch_hooks = []
-_atdeviceswitch() = foreach(f->Base.invokelatest(f), device_switch_hooks)
-
-"""
-    CUDA.atdevicereset(f::Function)
-
-Register a function to be called after resetting devices. The function is passed one
-argument: the device which has been reset.
-
-Use this hook to invalidate global state that depends on the current device.
-"""
-atdevicereset(f::Function) = (pushfirst!(device_reset_hooks, f); nothing)
-const device_reset_hooks = []
-_atdevicereset(dev) = foreach(f->Base.invokelatest(f, dev), device_reset_hooks)
-
-
-## initialization
-
-# Many CUDA APIs, like the CUDA driver API used by CUDA.jl, use implicit thread-local state
-# to determine, e.g., which device to use. With Julia however, code is grouped in tasks.
-# Execution can switch between them, and tasks can be executing on (and in the future
-# migrate between) different threads. To synchronize these two worlds, we try to detect task
-# and thread switches, making sure CUDA's state is mirrored appropriately.
-
-# If you need to maintain your own task-local state, subscribe to device and task switch
-# events using [`CUDA.atdeviceswitch`](@ref) and [`CUDA.attaskswitch`](@ref) for proper
-# invalidation. If your state is device-specific, but global (i.e. not task-bound), it
-# suffices to index your state with the current [`deviceid()`](@ref) and invalidate that
-# state when the device is reset by subscribing to [`CUDA.atdevicereset()`](@ref).
-
-@inline function detect_state_changes()
-    detect_task_switches()
-
-    # make sure to initialize the CUDA context, which is responsible for triggering a
-    # device switch event after the device has been reset.
-    initialize_cuda_context()
-
-    return
+    # additionally allow downcasting operations for better use of hardware resources.
+    # whenever possible the `precision` flag passed to `math_mode!` will be used
+    # to constrain those downcasts.
+    FAST_MATH
 end
 
-@inline function detect_task_switches()
-    tid = Threads.threadid()
-
-    # detect when a different task is now executing on a thread
-    task = @inbounds thread_tasks[tid]
-    if task === nothing || task.value === nothing || task.value::Task !== current_task()
-        switched_tasks(tid, current_task())
-    end
-
-    return
-end
-
-const thread_tasks = Union{Nothing,WeakRef}[]
-@noinline function switched_tasks(tid::Int, task::Task)
-    thread_tasks[tid] = WeakRef(task)
-    _attaskswitch()
-
-    # switch contexts if task switched to was already bound to one
-    ctx = get(task_local_storage(), :CuContext, nothing)
-    if ctx !== nothing && isvalid(ctx)
-        # NOTE: the context may be invalid if another task reset it (which we detect here
-        #       since we can't touch other tasks' local state from `device_reset!`)
-        context!(ctx)
-    else
-        thread_state[tid] = nothing  # trigger `initialize_thread` down the line
-        # NOTE: actually deactivating the CUDA context would be more correct,
-        #       but that confuses CUDA and leads to invalid contexts later on.
-    end
-end
-
-# prepare for a CUDA API call, which requires a CUDA device to be selected.
-# we can't do this eagerly because it consumes quite some memory.
-@inline function initialize_cuda_context()
-    tid = Threads.threadid()
-
-    # initialize CUDA state when first executing on a thread
-    state = @inbounds thread_state[tid]
-    if state === nothing
-        initialize_current_thread()
-    end
-
-    return
-end
+# math mode and precision are sticky (once set on a task, inherit to newly created tasks)
+const default_math_mode = Ref{Union{Nothing,MathMode}}(nothing)
+const default_math_precision = Ref{Union{Nothing,Symbol}}(nothing)
 
 # the default device unitialized tasks will use, set when switching devices.
 # this behavior differs from the CUDA Runtime, where device 0 is always used.
 # this setting won't be used when switching tasks on a pre-initialized thread.
 const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
 
-# CUDA uses thread-bound state, but calling CuCurrent* all the time is expensive,
-# so we maintain our own thread-local copy keeping track of the current CUDA state.
-const CuCurrentState = NamedTuple{(:ctx, :dev), Tuple{CuContext,CuDevice}}
-const thread_state = Union{Nothing,CuCurrentState}[]
-@noinline function initialize_current_thread()
-    dev = something(default_device[], CuDevice(0))
-    device!(dev)
+mutable struct TaskLocalState
+    device::CuDevice
+    context::CuContext
+    streams::Vector{Union{Nothing,CuStream}}
+    math_mode::MathMode
+    math_precision::Symbol
 
-    # NOTE: we can't be compatible with externally initialize contexts here (i.e., reuse
-    #       the CuCurrentContext we don't know about) because of how device_reset! works:
-    #       contexts that got reset remain bound, and are not discernible from regular ones.
+    function TaskLocalState(dev::CuDevice=something(default_device[], CuDevice(0)),
+                            ctx::CuContext = context(dev))
+        math_mode = something(default_math_mode[],
+                              Base.JLOptions().fast_math==1 ? FAST_MATH : DEFAULT_MATH)
+        math_precision = something(default_math_precision[], :TensorFloat32)
+        new(dev, ctx, Base.fill(nothing, ndevices()), math_mode, math_precision)
+    end
+end
+
+function validate_task_local_state(state::TaskLocalState)
+    # NOTE: the context may be invalid if another task reset it (which we detect here
+    #       since we can't touch other tasks' local state from `device_reset!`)
+    if !isvalid(state.context)
+        device!(state.device)
+        state.streams[deviceid(state.device)+1] = nothing
+    end
+    return state
+end
+
+# get or create the task local state, and make sure it's valid
+function task_local_state!(args...)
+    tls = task_local_storage()
+    if haskey(tls, :CUDA)
+        validate_task_local_state(@inbounds(tls[:CUDA]))
+    else
+        tls[:CUDA] = TaskLocalState(args...)
+    end::TaskLocalState
+end
+
+# only get the task local state (it may be invalid!), or return nothing if unitialized
+function task_local_state()
+    tls = task_local_storage()
+    if haskey(tls, :CUDA)
+        @inbounds(tls[:CUDA])
+    else
+        nothing
+    end::Union{TaskLocalState,Nothing}
+end
+
+@inline function prepare_cuda_state()
+    state = task_local_state!()
+
+    # NOTE: CuCurrentContext() is too slow to use here (taking a lock, accessing a dict)
+    #       so we use the raw handle. is that safe though, when we reset the device?
+    #ctx = CuCurrentContext()
+    ctx = Ref{CUcontext}()
+    cuCtxGetCurrent(ctx)
+    if ctx[] != state.context.handle
+        activate(state.context)
+    end
+
+    return
+end
+
+# convenience function to get all relevant state
+# without querying task local storage multiple times
+@inline function active_state()
+    # inline to remove unused state properties
+    state = task_local_state!()
+    return (device=state.device, context=state.context, stream=stream(state),
+            math_mode=state.math_mode, math_precision=state.math_precision)
 end
 
 
@@ -144,43 +118,35 @@ Get or create a CUDA context for the current thread (as opposed to
 `CuCurrentContext` which may return `nothing` if there is no context bound to the
 current thread).
 """
-@inline function context()
-    detect_state_changes()
-    tid = Threads.threadid()
-
-    state = @inbounds thread_state[tid]::CuCurrentState
-
-    if Base.JLOptions().debug_level >= 2
-        @assert state.ctx == CuCurrentContext()
-    end
-    state.ctx
+function context()
+    task_local_state!().context
 end
 
 """
     context!(ctx::CuContext)
 
-Bind the current host thread to the context `ctx`.
+Bind the current host thread to the context `ctx`. Returns the previously-bound context.
 
 Note that the contexts used with this call should be previously acquired by calling
 [`context`](@ref), and not arbitrary contexts created by calling the `CuContext` constructor.
 """
 function context!(ctx::CuContext)
-    detect_task_switches()
-    tid = Threads.threadid()
+    activate(ctx) # we generally only apply CUDA state lazily, i.e. in `prepare_cuda_state`,
+                    # but we need to do so early here to be able to get the context's device.
+    dev = CuCurrentDevice()::CuDevice
 
-    # update the thread-local state
-    state = @inbounds thread_state[tid]
-    if state === nothing || state.ctx != ctx
-        activate(ctx)
-        dev = CuCurrentDevice()::CuDevice
-        thread_state[tid] = (;ctx=ctx, dev=dev)
-        _atdeviceswitch()
+    # switch contexts
+    state = task_local_state()
+    if state === nothing
+        old_ctx = nothing
+        task_local_state!(dev, ctx)
+    else
+        old_ctx = state.context
+        state.device = dev
+        state.context = ctx
     end
 
-    # update the task-local state
-    task_local_storage(:CuContext, ctx)
-
-    return
+    return old_ctx
 end
 
 macro context!(ex...)
@@ -204,19 +170,12 @@ macro context!(ex...)
     quote
         ctx = $(esc(ctx))
         if isvalid(ctx)
-            detect_task_switches()
-            tid = Threads.threadid()
-
-            # NOTE: we don't use `context()` here, since that initializes
-            old_state = @inbounds thread_state[tid]
-            if old_state === nothing || old_state.ctx != ctx
-                context!(ctx)   # XXX: context! performs a lot of the same checks...
-            end
+            old_ctx = context!(ctx)
             try
                 $(esc(body))
             finally
-                if old_state !== nothing && ctx != old_state.ctx
-                    context!(old_state.ctx)
+                if old_ctx !== nothing && old_ctx != ctx && isvalid(old_ctx)
+                    context!(old_ctx)
                 end
             end
         elseif !$(esc(skip_destroyed))
@@ -231,6 +190,7 @@ end
 Sets the active context for the duration of `f`.
 """
 @inline function context!(f::Function, ctx::CuContext; skip_destroyed::Bool=false)
+    # @inline so that the kwarg method is inlined too and we can const-prop skip_destroyed
     @context! skip_destroyed=skip_destroyed ctx f()
 end
 
@@ -243,16 +203,8 @@ end
 Get the CUDA device for the current thread, similar to how [`context()`](@ref) works
 compared to [`CuCurrentContext()`](@ref).
 """
-@inline function device()
-    detect_state_changes()
-    tid = Threads.threadid()
-
-    state = @inbounds thread_state[tid]::CuCurrentState
-
-    if Base.JLOptions().debug_level >= 2
-        @assert state.dev == CuCurrentDevice()
-    end
-    state.dev
+function device()
+    task_local_state!().device
 end
 
 const __device_contexts = Union{Nothing,CuContext}[]
@@ -262,7 +214,7 @@ device_context!(i, ctx) = @after_init(@inbounds __device_contexts[i] = ctx)
 function context(dev::CuDevice)
     devidx = deviceid(dev)+1
 
-    # querying the primary context for a device is expensive, so cache it
+    # querying the primary context for a device is expensive (~100ns), so cache it
     ctx = device_context(devidx)
     if ctx !== nothing
         return ctx
@@ -287,14 +239,8 @@ end
 
 Sets `dev` as the current active device for the calling host thread. Devices can be
 specified by integer id, or as a `CuDevice` (slightly faster).
-
-If your library or code needs to perform an action when the active device changes,
-add a hook using [`CUDA.atdeviceswitch`](@ref).
 """
 function device!(dev::CuDevice, flags=nothing)
-    detect_task_switches()  # we got a CuDevice, so CUDA is initialized already
-    tid = Threads.threadid()
-
     # configure the primary context flags
     if flags !== nothing
         devidx = deviceid(dev)+1
@@ -307,15 +253,14 @@ function device!(dev::CuDevice, flags=nothing)
     # make this device the new default
     default_device[] = dev
 
-    # bail out if switching to the current device
-    state = @inbounds thread_state[tid]
-    if state !== nothing && state.dev == dev
-        return
+    # switch contexts
+    state = task_local_state()
+    if state === nothing
+        task_local_state!(dev)
+    else
+        state.device = dev
+        state.context = context(dev)
     end
-
-    # actually switch contexts
-    ctx = context(dev)
-    context!(ctx)
 end
 
 macro device!(dev, body)
@@ -333,7 +278,7 @@ Sets the active device for the duration of `f`.
 Note that this call is intended for temporarily switching devices, and does not change the
 default device used to initialize new threads or tasks.
 """
-@inline function device!(f::Function, dev::CuDevice)
+function device!(f::Function, dev::CuDevice)
     @device! dev f()
 end
 
@@ -342,11 +287,6 @@ end
 
 Reset the CUDA state associated with a device. This call with release the underlying
 context, at which point any objects allocated in that context will be invalidated.
-
-If your library or code needs to perform an action when the active context changes,
-add a hook using [`CUDA.atdevicereset`](@ref). Resetting the device will also cause
-the [`CUDA.atdeviceswitch`](@ref) hook to fire when `initialize_cuda_context` is called,
-so it is generally not needed to subscribe to the reset hook specifically.
 
 !!! warning
 
@@ -371,18 +311,9 @@ function device_reset!(dev::CuDevice=device())
     pctx = CuPrimaryContext(dev)
     unsafe_reset!(pctx)
 
-    # wipe the thread-local state for all threads using this device
-    for (tid, state) in enumerate(thread_state)
-        if state !== nothing && state.dev == dev
-            thread_state[tid] = nothing
-        end
-    end
-
     # wipe the device-specific state
     devidx = deviceid(dev)+1
     device_context!(devidx, nothing)
-
-    _atdevicereset(dev)
 
     return
 end
@@ -405,44 +336,32 @@ deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev))
 
 ## helpers
 
-# helper struct to maintain state per device
-# - make it possible to index directly with CuDevice (without converting to integer index)
-# - initialize function to fill state based on a constructor function
-# - automatically wiping state on device reset
-struct PerDevice{T,F} <: AbstractVector{T}
-    inner::Vector{T}
+# helper struct to maintain state per device and invalidate it when the device is reset
+struct PerDevice{T,F} <: AbstractDict{T,F}
+    inner::Dict{CuDevice,Tuple{CuContext,T}}
     ctor::F
 
-    PerDevice{T,F}(ctor::F) where {T,F<:Function} = new(Vector{T}(), ctor)
+    PerDevice{T,F}(ctor::F) where {T,F<:Function} = new(Dict{CuDevice,Tuple{CuContext,T}}(), ctor)
 end
 
 PerDevice{T}(ctor::F) where {T,F} = PerDevice{T,F}(ctor)
 
-function initialize!(x::PerDevice, n::Integer)
-    @assert isempty(x.inner)
-
-    resize!(x.inner, n)
-    for i in 0:n-1
-        x[i] = x.ctor(CuDevice(i))
+function Base.getindex(x::PerDevice, dev::CuDevice)
+    entry = get(x.inner, dev, nothing)
+    if entry === nothing || !isvalid(entry[1])
+        ctx = context(dev)
+        val = x.ctor(dev)
+        x.inner[dev] = (ctx, val)
+        val
+    else
+        entry[2]
     end
-
-    atdevicereset() do dev
-        x[dev] = x.ctor(dev)
-    end
-
-    return
 end
-
-# 0-based indexing for using CUDA device identifiers
-Base.getindex(x::PerDevice, devidx::Integer) = x.inner[devidx+1]
-Base.setindex!(x::PerDevice, val, devidx::Integer) = (x.inner[devidx+1] = val; )
-
-# indexing using CuDevice objecs
-Base.getindex(x::PerDevice, dev::CuDevice) = x[deviceid(dev)]
-Base.setindex!(x::PerDevice, val, dev::CuDevice) = (x[deviceid(dev)] = val; )
+Base.setindex!(x::PerDevice, val, dev::CuDevice) = (x.inner[dev] = (context(dev), val); )
 
 Base.length(x::PerDevice) = length(x.inner)
 Base.size(x::PerDevice) = size(x.inner)
+Base.keys(x::PerDevice) = keys(x.inner)
 
 function Base.show(io::IO, mime::MIME"text/plain", x::PerDevice{T}) where {T}
     print(io, "PerDevice{$T} with $(length(x)) entries")
@@ -451,125 +370,64 @@ end
 
 ## math mode
 
-@enum MathMode begin
-    # use prescribed precision and standardized arithmetic for all calculations.
-    # this may serialize operations, and reduce performance.
-    PEDANTIC_MATH
-
-    # use at least the required precision, and allow reordering operations for performance.
-    DEFAULT_MATH
-
-    # additionally allow downcasting operations for better use of hardware resources.
-    # whenever possible the `precision` flag passed to `math_mode!` will be used
-    # to constrain those downcasts.
-    FAST_MATH
-end
-
-# math mode and precision are sticky (once set on a task, inherit to newly created tasks)
-const default_math_mode = Ref{Union{Nothing,MathMode}}(nothing)
-const default_math_precision = Ref{Union{Nothing,Symbol}}(nothing)
-
 function math_mode!(mode::MathMode; precision=nothing)
-    # make sure we initialize first, or recursion might overwrite the math mode
-    ctx = context()
+    state = task_local_state!()
 
-    tls = task_local_storage()
-    tls[(:CUDA, :math_mode)] = mode
+    state.math_mode = mode
     default_math_mode[] = mode
-    if precision !== nothing
-        tls[(:CUDA, :math_precision)] = precision
-        default_math_precision[] = precision
-    end
 
-    # reapply the CUBLAS math mode if it had been set already
-    cublas_handle = get(tls, (:CUBLAS, ctx), nothing)
-    if cublas_handle !== nothing
-        CUBLAS.math_mode!(cublas_handle, mode)
+    if precision !== nothing
+        state.math_precision = math_precision
+        default_math_precision[] = precision
     end
 
     return
 end
 
-math_mode() =
-    get!(task_local_storage(), (:CUDA, :math_mode)) do
-        something(default_math_mode[],
-                  Base.JLOptions().fast_math==1 ? FAST_MATH : DEFAULT_MATH)
-    end
-math_precision() =
-    get!(task_local_storage(), (:CUDA, :math_precision)) do
-        something(default_math_precision[], :TensorFloat32)
-    end
+math_mode() = task_local_state!().math_mode
+math_precision() = task_local_state!().math_precision
 
 
 ## streams
-
-# thread cache for task-local streams
-const thread_streams = Vector{Union{Nothing,CuStream}}()
 
 """
     stream()
 
 Get the CUDA stream that should be used as the default one for the currently executing task.
 """
-@inline function stream()
-    detect_state_changes()
-    tid = Threads.threadid()
+@inline function stream(state=task_local_state!())
+    # @inline so that it can be DCE'd when unused from active_state
+    devidx = deviceid(state.device)+1
+    if state.streams[devidx] === nothing
+        stream = CuStream()
 
-    if @inbounds thread_streams[tid] === nothing
-        ctx = context()
-        thread_streams[tid] = get!(task_local_storage(), (:CuStream, ctx)) do
-            stream = CuStream()
+        # register the name of this task
+        t = current_task()
+        tptr = pointer_from_objref(current_task())
+        tptrstr = string(convert(UInt, tptr), base=16, pad=Sys.WORD_SIZE>>2)
+        NVTX.nvtxNameCuStreamA(stream, "Task(0x$tptrstr)")
 
-            t = current_task()
-            tptr = pointer_from_objref(current_task())
-            tptrstr = string(convert(UInt, tptr), base=16, pad=Sys.WORD_SIZE>>2)
-            NVTX.nvtxNameCuStreamA(stream, "Task(0x$tptrstr)")
-
-            stream
-        end
+        state.streams[devidx] = stream
+    else
+        state.streams[devidx]::CuStream
     end
-    something(@inbounds thread_streams[tid])
 end
 
-function set_library_streams(s)
-    CUBLAS.set_stream(s)
-    CUSPARSE.set_stream(s)
-    CUSOLVER.set_stream(s)
-    CURAND.set_stream(s)
-    CUFFT.set_stream(s)
-
-    CUDNN.set_stream(s)
-    CUTENSOR.set_stream(s)
+function stream!(stream::CuStream)
+    state = task_local_state!()
+    devidx = deviceid(state.device)+1
+    state.streams[devidx] = stream
+    return
 end
 
-function stream!(s::CuStream)
-    # task switch detected by context()
-    tid = Threads.threadid()
-
-    ctx = context()
-    task_local_storage((:CuStream, ctx), s)
-
-    # update the thread cache
-    @inbounds thread_streams[tid] = s
-
-    set_library_streams(s)
-end
-
-function stream!(f::Function, s::CuStream)
-    # task switch detected by stream()
-    tid = Threads.threadid()
-
-    # NOTE: we can't read `thread_streams` directly here, or could end up with `nothing`,
-    #       and we need a valid stream to fall back to and reset the library handles with.
-    old_s = stream()
+function stream!(f::Function, stream::CuStream)
+    state = task_local_state!()
+    devidx = deviceid(state.device)+1
+    old_stream = state.streams[devidx]
+    state.streams[devidx] = stream
     try
-        return task_local_storage(:CuStream, s) do
-            thread_streams[tid] = s
-            set_library_streams(s)
-            f()
-        end
+        f()
     finally
-        thread_streams[tid] = old_s
-        set_library_streams(old_s)
+        state.streams[devidx] = old_stream
     end
 end
