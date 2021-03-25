@@ -5,9 +5,15 @@
 @test CuCurrentContext() == nothing
 @test CuCurrentDevice() == nothing
 
-# now cause initialization
 ctx = context()
 dev = device()
+
+# querying Julia's side of things shouldn't cause initialization
+@test CuCurrentContext() == nothing
+@test CuCurrentDevice() == nothing
+
+# now cause initialization
+a = CuArray([42])
 @test CuCurrentContext() == ctx
 @test CuCurrentDevice() == dev
 
@@ -16,10 +22,6 @@ task = @async begin
     context()
 end
 @test ctx == fetch(task)
-
-# ... back to the main task
-ctx = context()
-dev = device()
 
 device!(CuDevice(0))
 @test device!(()->true, CuDevice(0))

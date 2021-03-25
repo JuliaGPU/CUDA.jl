@@ -74,43 +74,41 @@ function math_mode!(handle, mode)
 end
 
 function handle()
-    ctx = context()
-    active_stream = stream()
-    active_math_mode = CUDA.math_mode()
-    handle, chosen_stream, chosen_math_mode = get!(task_local_storage(), (:CUBLAS, ctx)) do
+    state = CUDA.active_state()
+    handle, stream, math_mode = get!(task_local_storage(), (:CUBLAS, state.context)) do
         new_handle = @lock handle_cache_lock begin
-            if isempty(idle_handles[ctx])
+            if isempty(idle_handles[state.context])
                 cublasCreate()
                 # FIXME: use cublasSetWorkspace? cublasSetStream reset it.
             else
-                pop!(idle_handles[ctx])
+                pop!(idle_handles[state.context])
             end
         end
 
         finalizer(current_task()) do task
             @spinlock handle_cache_lock begin
-                push!(idle_handles[ctx], new_handle)
+                push!(idle_handles[state.context], new_handle)
             end
         end
         # TODO: cublasDestroy to preserve memory, or at exit?
 
-        cublasSetStream_v2(new_handle, active_stream)
+        cublasSetStream_v2(new_handle, state.stream)
 
-        math_mode!(new_handle, active_math_mode)
+        math_mode!(new_handle, state.math_mode)
 
-        new_handle, active_stream, active_math_mode
+        new_handle, state.stream, state.math_mode
     end::Tuple{cublasHandle_t,CuStream,CUDA.MathMode}
 
-    if chosen_stream != active_stream
-        cublasSetStream_v2(handle, active_stream)
-        task_local_storage((:CUBLAS, ctx), (handle, active_stream, chosen_math_mode))
-        chosen_stream = active_stream
+    if stream != state.stream
+        cublasSetStream_v2(handle, state.stream)
+        task_local_storage((:CUBLAS, state.context), (handle, state.stream, math_mode))
+        stream = state.stream
     end
 
-    if chosen_math_mode != active_math_mode
-        math_mode!(handle, active_math_mode)
-        task_local_storage((:CUBLAS, ctx), (handle, chosen_stream, active_math_mode))
-        chosen_math_mode = active_math_mode
+    if math_mode != state.math_mode
+        math_mode!(handle, state.math_mode)
+        task_local_storage((:CUBLAS, state.context), (handle, stream, state.math_mode))
+        math_mode = state.math_mode
     end
 
     return handle

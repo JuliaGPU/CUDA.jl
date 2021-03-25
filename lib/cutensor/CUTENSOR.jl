@@ -33,7 +33,6 @@ const idle_handles = DefaultDict{CuContext,Vector{Base.RefValue{cutensorHandle_t
 
 function handle()
     ctx = context()
-    active_stream = stream()
     get!(task_local_storage(), (:CUTENSOR, ctx)) do
         handle = @lock handle_cache_lock begin
             if isempty(idle_handles[ctx])

@@ -56,32 +56,31 @@ const handle_cache_lock = ReentrantLock()
 const idle_handles = DefaultDict{CuContext,Vector{cudnnHandle_t}}(()->cudnnHandle_t[])
 
 function handle()
-    ctx = context()
-    active_stream = stream()
-    handle, chosen_stream = get!(task_local_storage(), (:CUDNN, ctx)) do
+    state = CUDA.active_state()
+    handle, stream = get!(task_local_storage(), (:CUDNN, state.context)) do
         new_handle = @lock handle_cache_lock begin
-            if isempty(idle_handles[ctx])
+            if isempty(idle_handles[state.context])
                 cudnnCreate()
             else
-                pop!(idle_handles[ctx])
+                pop!(idle_handles[state.context])
             end
         end
 
         finalizer(current_task()) do task
             @spinlock handle_cache_lock begin
-                push!(idle_handles[ctx], new_handle)
+                push!(idle_handles[state.context], new_handle)
             end
         end
         # TODO: cudnnDestroy to preserve memory, or at exit?
 
-        cudnnSetStream(new_handle, active_stream)
+        cudnnSetStream(new_handle, state.stream)
 
-        new_handle, active_stream
+        new_handle, state.stream
     end::Tuple{cudnnHandle_t,CuStream}
 
-    if chosen_stream != active_stream
-        cudnnSetStream(handle, active_stream)
-        task_local_storage((:CUDNN, ctx), (handle, active_stream))
+    if stream != state.stream
+        cudnnSetStream(handle, state.stream)
+        task_local_storage((:CUDNN, state.context), (handle, state.stream))
     end
 
     return handle

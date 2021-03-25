@@ -13,35 +13,99 @@
 export context, context!, device, device!, device_reset!, deviceid, stream, stream!
 
 
-## initialization
+## task-local state
+
+@enum MathMode begin
+    # use prescribed precision and standardized arithmetic for all calculations.
+    # this may serialize operations, and reduce performance.
+    PEDANTIC_MATH
+
+    # use at least the required precision, and allow reordering operations for performance.
+    DEFAULT_MATH
+
+    # additionally allow downcasting operations for better use of hardware resources.
+    # whenever possible the `precision` flag passed to `math_mode!` will be used
+    # to constrain those downcasts.
+    FAST_MATH
+end
+
+# math mode and precision are sticky (once set on a task, inherit to newly created tasks)
+const default_math_mode = Ref{Union{Nothing,MathMode}}(nothing)
+const default_math_precision = Ref{Union{Nothing,Symbol}}(nothing)
 
 # the default device unitialized tasks will use, set when switching devices.
 # this behavior differs from the CUDA Runtime, where device 0 is always used.
 # this setting won't be used when switching tasks on a pre-initialized thread.
 const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
 
-@inline function initialize_cuda_context()
-    julia_ctx = get(task_local_storage(), :CuContext, nothing)::Union{CuContext,Nothing}
+mutable struct TaskLocalState
+    device::CuDevice
+    context::CuContext
+    streams::Vector{Union{Nothing,CuStream}}
+    math_mode::MathMode
+    math_precision::Symbol
+
+    function TaskLocalState(dev::CuDevice=something(default_device[], CuDevice(0)),
+                            ctx::CuContext = context(dev))
+        math_mode = something(default_math_mode[],
+                              Base.JLOptions().fast_math==1 ? FAST_MATH : DEFAULT_MATH)
+        math_precision = something(default_math_precision[], :TensorFloat32)
+        new(dev, ctx, Base.fill(nothing, ndevices()), math_mode, math_precision)
+    end
+end
+
+function validate_task_local_state(state::TaskLocalState)
     # NOTE: the context may be invalid if another task reset it (which we detect here
     #       since we can't touch other tasks' local state from `device_reset!`)
-    if julia_ctx === nothing || !isvalid(julia_ctx)
-        dev = something(default_device[], CuDevice(0))
-        device!(dev)
-        # NOTE: we can't be compatible with externally initialize contexts here (i.e., reuse
-        #       the CuCurrentContext we don't know about) because of how device_reset! works:
-        #       contexts that got reset remain bound, and are not discernible from regular ones.
+    if !isvalid(state.context)
+        device!(state.device)
+        state.streams[deviceid(state.device)+1] = nothing
+    end
+    return state
+end
+
+# get or create the task local state
+function task_local_state!(args...)
+    tls = task_local_storage()
+    if haskey(tls, :CUDA)
+        validate_task_local_state(@inbounds(tls[:CUDA]))
     else
-        #cuda_ctx = CuCurrentContext()
-        # NOTE: CuCurrentContext() is too slow to use here (taking a lock, accessing a dict)
-        #       so we use the raw handle. is that safe though, when we reset the device?
-        cuda_ctx = Ref{CUcontext}()
-        cuCtxGetCurrent(cuda_ctx)
-        if cuda_ctx[] != julia_ctx.handle
-            context!(julia_ctx)
-        end
+        tls[:CUDA] = TaskLocalState(args...)
+    end::TaskLocalState
+end
+
+# only get the task local state, or return nothing
+function task_local_state()
+    tls = task_local_storage()
+    if haskey(tls, :CUDA)
+        validate_task_local_state(@inbounds(tls[:CUDA]))
+    else
+        nothing
+    end::Union{TaskLocalState,Nothing}
+end
+
+@inline function prepare_cuda_state()
+    state = task_local_state!()
+
+    # NOTE: CuCurrentContext() is too slow to use here (taking a lock, accessing a dict)
+    #       so we use the raw handle. is that safe though, when we reset the device?
+    #ctx = CuCurrentContext()
+    ctx = Ref{CUcontext}()
+    cuCtxGetCurrent(ctx)
+    if ctx[] != state.context.handle
+        activate(state.context)
     end
 
     return
+end
+
+# convenience function to get all relevant state
+# without querying task local storage multiple times
+@inline function active_state()
+    # inline to remove unused state properties
+    state = task_local_state!()
+    return (device=state.device, context=state.context, stream=stream(state),
+            math_mode=state.math_mode, math_precision=state.math_precision)
 end
 
 
@@ -54,9 +118,8 @@ Get or create a CUDA context for the current thread (as opposed to
 `CuCurrentContext` which may return `nothing` if there is no context bound to the
 current thread).
 """
-@inline function context()
-    initialize_cuda_context()
-    task_local_storage(:CuContext)::CuContext
+function context()
+    task_local_state!().context
 end
 
 """
@@ -68,11 +131,21 @@ Note that the contexts used with this call should be previously acquired by call
 [`context`](@ref), and not arbitrary contexts created by calling the `CuContext` constructor.
 """
 function context!(ctx::CuContext)
-    old_ctx = get(task_local_storage(), :CuContext, nothing)::Union{CuContext,Nothing}
-    if old_ctx != ctx
-        task_local_storage(:CuContext, ctx)
-        activate(ctx)
+    activate(ctx) # we generally only apply CUDA state lazily, i.e. in `prepare_cuda_state`,
+                    # but we need to do so early here to be able to get the context's device.
+    dev = CuCurrentDevice()::CuDevice
+
+    # switch contexts
+    state = task_local_state()
+    if state === nothing
+        old_ctx = nothing
+        task_local_state!(dev, ctx)
+    else
+        old_ctx = state.context
+        state.device = dev
+        state.context = ctx
     end
+
     return old_ctx
 end
 
@@ -117,6 +190,7 @@ end
 Sets the active context for the duration of `f`.
 """
 @inline function context!(f::Function, ctx::CuContext; skip_destroyed::Bool=false)
+    # @inline so that the kwarg method is inlined too and we can const-prop skip_destroyed
     @context! skip_destroyed=skip_destroyed ctx f()
 end
 
@@ -129,9 +203,8 @@ end
 Get the CUDA device for the current thread, similar to how [`context()`](@ref) works
 compared to [`CuCurrentContext()`](@ref).
 """
-@inline function device()
-    initialize_cuda_context()
-    CuCurrentDevice()::CuDevice
+function device()
+    task_local_state!().device
 end
 
 const __device_contexts = Union{Nothing,CuContext}[]
@@ -181,8 +254,13 @@ function device!(dev::CuDevice, flags=nothing)
     default_device[] = dev
 
     # switch contexts
-    ctx = context(dev)
-    context!(ctx)
+    state = task_local_state()
+    if state === nothing
+        task_local_state!(dev)
+    else
+        state.device = dev
+        state.context = context(dev)
+    end
 end
 
 macro device!(dev, body)
@@ -200,7 +278,7 @@ Sets the active device for the duration of `f`.
 Note that this call is intended for temporarily switching devices, and does not change the
 default device used to initialize new threads or tasks.
 """
-@inline function device!(f::Function, dev::CuDevice)
+function device!(f::Function, dev::CuDevice)
     @device! dev f()
 end
 
@@ -292,48 +370,22 @@ end
 
 ## math mode
 
-@enum MathMode begin
-    # use prescribed precision and standardized arithmetic for all calculations.
-    # this may serialize operations, and reduce performance.
-    PEDANTIC_MATH
-
-    # use at least the required precision, and allow reordering operations for performance.
-    DEFAULT_MATH
-
-    # additionally allow downcasting operations for better use of hardware resources.
-    # whenever possible the `precision` flag passed to `math_mode!` will be used
-    # to constrain those downcasts.
-    FAST_MATH
-end
-
-# math mode and precision are sticky (once set on a task, inherit to newly created tasks)
-const default_math_mode = Ref{Union{Nothing,MathMode}}(nothing)
-const default_math_precision = Ref{Union{Nothing,Symbol}}(nothing)
-
 function math_mode!(mode::MathMode; precision=nothing)
-    # make sure we initialize first, or recursion might overwrite the math mode
-    ctx = context()
+    state = task_local_state()
 
-    tls = task_local_storage()
-    tls[(:CUDA, :math_mode)] = mode
+    state.math_mode = mode
     default_math_mode[] = mode
+
     if precision !== nothing
-        tls[(:CUDA, :math_precision)] = precision
+        state.math_precision = math_precision
         default_math_precision[] = precision
     end
 
     return
 end
 
-math_mode() =
-    get!(task_local_storage(), (:CUDA, :math_mode)) do
-        something(default_math_mode[],
-                  Base.JLOptions().fast_math==1 ? FAST_MATH : DEFAULT_MATH)
-    end::MathMode
-math_precision() =
-    get!(task_local_storage(), (:CUDA, :math_precision)) do
-        something(default_math_precision[], :TensorFloat32)
-    end::Symbol
+math_mode() = task_local_state().math_mode
+math_precision() = task_local_state().math_precision
 
 
 ## streams
@@ -343,9 +395,10 @@ math_precision() =
 
 Get the CUDA stream that should be used as the default one for the currently executing task.
 """
-@inline function stream()
-    ctx = context()
-    get!(task_local_storage(), (:CuStream, ctx)) do
+@inline function stream(state=task_local_state!())
+    # @inline so that it can be DCE'd when unused from active_state
+    devidx = deviceid(state.device)+1
+    if state.streams[devidx] === nothing
         stream = CuStream()
 
         # register the name of this task
@@ -354,16 +407,27 @@ Get the CUDA stream that should be used as the default one for the currently exe
         tptrstr = string(convert(UInt, tptr), base=16, pad=Sys.WORD_SIZE>>2)
         NVTX.nvtxNameCuStreamA(stream, "Task(0x$tptrstr)")
 
-        stream
-    end::CuStream
+        state.streams[devidx] = stream
+    else
+        state.streams[devidx]::CuStream
+    end
 end
 
-function stream!(s::CuStream)
-    ctx = context()
-    task_local_storage((:CuStream, ctx), s)
+function stream!(stream::CuStream)
+    state = task_local_state!()
+    devidx = deviceid(state.device)+1
+    state.streams[devidx] = stream
+    return
 end
 
-function stream!(f::Function, s::CuStream)
-    ctx = context()
-    task_local_storage(f, (:CuStream, ctx), s)
+function stream!(f::Function, stream::CuStream)
+    state = task_local_state!()
+    devidx = deviceid(state.device)+1
+    old_stream = state.streams[devidx]
+    state.streams[devidx] = stream
+    try
+        f()
+    finally
+        state.streams[devidx] = old_stream
+    end
 end

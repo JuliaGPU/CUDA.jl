@@ -32,14 +32,13 @@ const idle_curand_rngs = DefaultDict{CuContext,Vector{RNG}}(()->RNG[])
 const idle_gpuarray_rngs = DefaultDict{CuContext,Vector{GPUArrays.RNG}}(()->GPUArrays.RNG[])
 
 function default_rng()
-    ctx = context()
-    active_stream = stream()
-    rng, chosen_stream = get!(task_local_storage(), (:CURAND, ctx)) do
+    state = CUDA.active_state()
+    rng, stream = get!(task_local_storage(), (:CURAND, state.context)) do
         new_rng = @lock rng_cache_lock begin
-            new_rng = if isempty(idle_curand_rngs[ctx])
+            new_rng = if isempty(idle_curand_rngs[state.context])
                 RNG()
             else
-                pop!(idle_curand_rngs[ctx])
+                pop!(idle_curand_rngs[state.context])
             end
 
             # protect handles from the GC when the owning task is collected. we only
@@ -51,21 +50,21 @@ function default_rng()
 
         finalizer(current_task()) do task
             @spinlock rng_cache_lock begin
-                push!(idle_curand_rngs[ctx], new_rng)
+                push!(idle_curand_rngs[state.context], new_rng)
                 delete!(active_curand_rngs, new_rng)
             end
         end
         # TODO: curandDestroyGenerator to preserve memory, or at exit?
 
-        curandSetStream(new_rng, active_stream)
+        curandSetStream(new_rng, state.stream)
 
         Random.seed!(new_rng)
-        new_rng, active_stream
+        new_rng, state.stream
     end::Tuple{RNG,CuStream}
 
-    if chosen_stream != active_stream
-        curandSetStream(rng, active_stream)
-        task_local_storage((:CURAND, ctx), (rng, active_stream))
+    if stream != state.stream
+        curandSetStream(rng, state.stream)
+        task_local_storage((:CURAND, state.context), (rng, state.stream))
     end
 
     return rng

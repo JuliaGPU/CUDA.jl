@@ -36,64 +36,62 @@ const idle_dense_handles = DefaultDict{CuContext,Vector{cusolverDnHandle_t}}(()-
 const idle_sparse_handles = DefaultDict{CuContext,Vector{cusolverSpHandle_t}}(()->cusolverSpHandle_t[])
 
 function dense_handle()
-    ctx = context()
-    active_stream = stream()
-    handle, chosen_stream = get!(task_local_storage(), (:CUSOLVER, :dense, ctx)) do
+    state = CUDA.active_state()
+    handle, stream = get!(task_local_storage(), (:CUSOLVER, :dense, state.context)) do
         new_handle = @lock handle_cache_lock begin
-            if isempty(idle_dense_handles[ctx])
+            if isempty(idle_dense_handles[state.context])
                 cusolverDnCreate()
             else
-                pop!(idle_dense_handles[ctx])
+                pop!(idle_dense_handles[state.context])
             end
         end
 
         finalizer(current_task()) do task
             @spinlock handle_cache_lock begin
-                push!(idle_dense_handles[ctx], new_handle)
+                push!(idle_dense_handles[state.context], new_handle)
             end
         end
         # TODO: cusolverDnDestroy to preserve memory, or at exit?
 
-        cusolverDnSetStream(new_handle, active_stream)
+        cusolverDnSetStream(new_handle, state.stream)
 
-        new_handle, active_stream
+        new_handle, state.stream
     end::Tuple{cusolverDnHandle_t,CuStream}
 
-    if chosen_stream != active_stream
-        cusolverDnSetStream(handle, active_stream)
-        task_local_storage((:CUSOLVER, :dense, ctx), (handle, active_stream))
+    if stream != state.stream
+        cusolverDnSetStream(handle, state.stream)
+        task_local_storage((:CUSOLVER, :dense, state.context), (handle, state.stream))
     end
 
     return handle
 end
 
 function sparse_handle()
-    ctx = context()
-    active_stream = stream()
-    handle, chosen_stream = get!(task_local_storage(), (:CUSOLVER, :sparse, ctx)) do
+    state = CUDA.active_state()
+    handle, stream = get!(task_local_storage(), (:CUSOLVER, :sparse, state.context)) do
         new_handle = @lock handle_cache_lock begin
-            if isempty(idle_sparse_handles[ctx])
+            if isempty(idle_sparse_handles[state.context])
                 cusolverSpCreate()
             else
-                pop!(idle_sparse_handles[ctx])
+                pop!(idle_sparse_handles[state.context])
             end
         end
 
         finalizer(current_task()) do task
             @spinlock handle_cache_lock begin
-                push!(idle_sparse_handles[ctx], new_handle)
+                push!(idle_sparse_handles[state.context], new_handle)
             end
         end
         # TODO: cusolverSpDestroy to preserve memory, or at exit?
 
-        cusolverSpSetStream(new_handle, active_stream)
+        cusolverSpSetStream(new_handle, state.stream)
 
-        new_handle, active_stream
+        new_handle, state.stream
     end::Tuple{cusolverSpHandle_t,CuStream}
 
-    if chosen_stream != active_stream
-        cusolverSpSetStream(handle, active_stream)
-        task_local_storage((:CUSOLVER, :sparse, ctx), (handle, active_stream))
+    if stream != state.stream
+        cusolverSpSetStream(handle, state.stream)
+        task_local_storage((:CUSOLVER, :sparse, state.context), (handle, state.stream))
     end
 
     return handle
