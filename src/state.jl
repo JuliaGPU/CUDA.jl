@@ -64,7 +64,7 @@ function validate_task_local_state(state::TaskLocalState)
     return state
 end
 
-# get or create the task local state
+# get or create the task local state, and make sure it's valid
 function task_local_state!(args...)
     tls = task_local_storage()
     if haskey(tls, :CUDA)
@@ -74,11 +74,11 @@ function task_local_state!(args...)
     end::TaskLocalState
 end
 
-# only get the task local state, or return nothing
+# only get the task local state (it may be invalid!), or return nothing if unitialized
 function task_local_state()
     tls = task_local_storage()
     if haskey(tls, :CUDA)
-        validate_task_local_state(@inbounds(tls[:CUDA]))
+        @inbounds(tls[:CUDA])
     else
         nothing
     end::Union{TaskLocalState,Nothing}
@@ -371,7 +371,7 @@ end
 ## math mode
 
 function math_mode!(mode::MathMode; precision=nothing)
-    state = task_local_state()
+    state = task_local_state!()
 
     state.math_mode = mode
     default_math_mode[] = mode
@@ -384,8 +384,8 @@ function math_mode!(mode::MathMode; precision=nothing)
     return
 end
 
-math_mode() = task_local_state().math_mode
-math_precision() = task_local_state().math_precision
+math_mode() = task_local_state!().math_mode
+math_precision() = task_local_state!().math_precision
 
 
 ## streams
