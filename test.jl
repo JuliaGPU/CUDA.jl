@@ -14,83 +14,6 @@ function printIt(a...)
 end
 
 
-## Linked List trial
-
-abstract type List{T}
-end
-
-mutable struct Nil{T} <: List{T}
-end
-
-mutable struct Cons{T} <: List{T}
-    value::T
-    next::List{T} # problem
-end
-
-struct Nil2{T}
-end
-
-struct Cons2{T, TT}
-    value::T
-    next::TT
-end
-
-
-Cons{T}(value::T) where T = Cons{T}(value, Nil{T}())
-
-function List{T}(pointer, count::Integer) where T
-    result ::Union{Cons{Int64}, Nil{Int64}} = Nil{T}()
-    while count > 1
-        result = Cons{T}(pointer[count], result)
-        pointer[count] = 0
-        count -= 1
-    end
-    # for i in count:-1:1
-    #     # CUDA.@cpu types=(Nothing, Int) printIt(i)
-    #     result = Cons{T}(pointer[i], result)
-    # end
-    result
-end
-
-function listR(pointer, count::Integer)
-    result ::Union{Cons{Int64}, Nil{Int64}} = Nil{Int64}()
-    while count > 1
-        result = Cons{Int64}(@inbounds pointer[count], result)
-        @inbounds pointer[count] = 0
-        count -= 1
-    end
-    # for i in count:-1:1
-    #     # CUDA.@cpu types=(Nothing, Int) printIt(i)
-    #     result = Cons{T}(pointer[i], result)
-    # end
-    return
-end
-
-
-function kernels(a)
-    b = Nil2{Int64}()
-    c = Cons2{Int64, Nil2{Int64}}(@inbounds a[1], b)
-    d = Cons2{Int64, Cons2{Int64, Nil2{Int64}}}(@inbounds a[2], c)
-
-    a[3] = d.next.value
-
-    return
-end
-
-function main()
-    b = Array(1:21)
-    a = CuArray(b)
-
-    @CUDA.sync blocking=false @CUDA.cuda kernels(a)
-
-    println(a)
-
-    return
-end
-
-
-
-
 ## Features trial (view and HostRef)
 mutable struct FooBar
     x::Int
@@ -105,30 +28,23 @@ end
     return div(get_thread_id() - 1, warpsize()) + 1
 end
 
-# cu_area = Val("cpucall_area")
 getFoobar20(x) = FooBar(x, 42)
 function test_test(x)
 
     function testFooBars()
-        # @cuprintln("%d", CUDA.hostcall_area())
-        # b = CUDA.hostcall_area()
         size = warpsize()
         id = threadIdx().x - 1
         block = blockIdx().x - 1
         warp = get_warp_id()
-        # @cuprintln("id $id block $block size $size warp $warp")
 
-        foobar = @CUDA.cpu types=(CUDA.HostRef, Int64,) getFoobar20(id)
+        foobar = @CUDA.cpu types=(CUDA.HostRef, Int64,) getFoobar20(id) # Test HostRef
         @CUDA.cpu types=(Nothing, CUDA.HostRef,) printIt(foobar)
-        # if id % size == 0
-            @CUDA.cpu types=(Nothing, Int128, Int64) printIt(id, block)
-        # end
+        @CUDA.cpu types=(Nothing, Int128, Int64) printIt(id, block)
 
         return
     end
 
-    # CUDA.@sync
-    @cuda threads=x testFooBars()
+    CUDA.@sync @cuda threads=x testFooBars()
     return
 end
 
@@ -148,7 +64,7 @@ function test_view()
 end
 
 
-## Benchmark cuda on GPU/CPU
+## Benchmark bump allocator on GPU/CPU
 
 mutable struct Bump
     ptr::Ptr{UInt8}
@@ -263,7 +179,6 @@ function bench()
     result = median(run(SUITE, verbose=false))
 
     println("threads,cuda,cpu,nothing")
-    # for n in 1:10:201
     for n in 1:30
         xs = result[string(n)]
         cpu = xs["cpu"]
@@ -277,5 +192,4 @@ function bench()
             println("$n,,$(time(cpu)/1000000),$(time(empty)/1000000)")
         end
     end
-    # println(result)
 end

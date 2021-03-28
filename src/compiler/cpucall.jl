@@ -1,10 +1,10 @@
 const CPUCALL_AREA = "hostcall_area"
 
+const cpucall_areas = Dict{CuContext, Mem.HostBuffer}()
+has_hostcalls(ctx::CuContext) = haskey(cpucall_areas, ctx)
 
 function wait_and_kill_watcher(e::CuEvent, ctx::CuContext)
-    if !has_hostcalls(ctx)
-        return
-    end
+    has_hostcalls(ctx) || return
 
     println("Start the watcher!")
 
@@ -16,6 +16,7 @@ function wait_and_kill_watcher(e::CuEvent, ctx::CuContext)
     catch e
         println("Failed $e")
     end
+
     println("Killed the watcher!")
 end
 
@@ -32,7 +33,6 @@ cpucall_area_size() = sizeof(UInt8) * 1024 * 1024
           """, "entry"), Ptr{Cvoid}, Tuple{})
 
 
-const cpucall_areas = Dict{CuContext, Mem.HostBuffer}()
 
 dump_memory(ty=UInt8) = dump_memory{UInt8}(ty)
 dump_memory(ty::Type{T}, size=cpucall_area_size() ÷ sizeof(ty), ctx::CuContext=context()) where {T} = dump_memory(ty, size, ctx)
@@ -42,10 +42,9 @@ function dump_memory(::Type{T}, size::Int64, ctx::CuContext=context()) where {T}
     println("Dump $cuarray")
 end
 
+
 function reset_cpucall_area!(ctx::CuContext)
-    if !has_hostcalls(ctx)
-        return
-    end
+    has_hostcalls(ctx) || return
 
     println("resetting")
     ptr    = convert(Ptr{Int64}, cpucall_areas[ctx])
@@ -54,7 +53,7 @@ function reset_cpucall_area!(ctx::CuContext)
     unsafe_store!(ptr, 0, 2)
 end
 
-"Allocate memory for cpu call area"
+
 function create_cpucall_area!(mod::CuModule)
     flag_ptr = CuGlobal{Ptr{Cvoid}}(mod, CPUCALL_AREA)
     cpucall_area = get!(cpucall_areas, mod.ctx,
@@ -69,7 +68,6 @@ function create_cpucall_area!(mod::CuModule)
 end
 
 
-has_hostcalls(ctx::CuContext) = haskey(cpucall_areas, ctx)
 
 time_ms() = round(Int64, time() * 1000)
 
@@ -95,26 +93,24 @@ function handle_cpucall(ctx::CuContext)
     llvmptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, ptr)
     ptr_u8 = convert(Ptr{UInt8}, cpucall_areas[ctx])
 
-
     v = atomic_cas!(llvmptr, CPU_CALL, CPU_HANDLING)
 
     if v != CPU_CALL
-        # println("flag $v")
         return
     end
 
-    # t = 0
+    # this code is very fragile
+    # https://docs.nvidia.com/cuda/cuda-c-programming-guide/#mapped-memory
+    # 'Note that atomic functions (see Atomic Functions) operating on mapped page-locked memory are not atomic from the point of view of the host or other devices.'
     while atomic_cas!(llvmptr, CPU_CALL, CPU_HANDLING) == CPU_CALL
-        # t += 1
         unsafe_store!(ptr, CPU_HANDLING)
     end
-    # println("1: Had to try $t times")
 
 
     # Fetch this cpucall
     cpucall = unsafe_load(ptr+8)
-
     # update!(timer2)
+
 
     try
         ## Handle cpucall
@@ -124,14 +120,10 @@ function handle_cpucall(ctx::CuContext)
         println(e)
     end
 
-    # Notify end
-    # t = 0
+    # this code is very fragile
     while atomic_cas!(llvmptr, CPU_HANDLING, CPU_DONE) == CPU_HANDLING
-        # t += 1
         unsafe_store!(ptr, CPU_DONE)
     end
-    # println("2: Had to try $t times")
-
 end
 
 
@@ -140,6 +132,7 @@ struct TypeCache{T, I}
     stash::Dict{T, I}
     vec::Vector{T}
 end
+const cpufunctions = TypeCache{Tuple{Symbol, Expr}, Int64}(Dict(), Vector())
 
 function type_to_int!(cache::TypeCache{T, I}, type::T) where {T, I}
     if haskey(cache.stash, type)
@@ -168,7 +161,6 @@ function exec_hostmethode(::Type{A}, ::Type{R}, func::Function, ptr::Ptr{UInt8})
     unsafe_store!(ret_ptr, ret)
 end
 
-const cpufunctions = TypeCache{Tuple{Symbol, Expr}, Int64}(Dict(), Vector())
 
 struct HostRef
     index::Int32
@@ -189,17 +181,11 @@ Adapt.adapt(::InvAdaptor, t::HostRef) = host_refs[t.index].value
 
 
 @inline function acquire_lock(ptr::Core.LLVMPtr{Int64,AS.Global}, expected::Int64, value::Int64, id)
-    # try_count = 0
-    ## TRY CAPTURE LOCK
-    while atomic_cas!(ptr, expected, value) != expected # && try_count < 5000000
-        # try_count += 1
+    ## try capture lock
+    while atomic_cas!(ptr, expected, value) != expected
     end
 
     return
-
-    # if try_count == 5000000
-    #     @cuprintln("Trycount $id maxed out")
-    # end
 end
 
 
@@ -217,7 +203,7 @@ function prettier_string(thing)
 end
 
 
-# Stores a value at a particular address.
+# unused
 @generated function volatile_store!(ptr::Ptr{T}, value::T) where T
     JuliaContext() do ctx
         ptr_type = convert(LLVMType, Ptr{T}, ctx)
@@ -233,6 +219,7 @@ end
 end
 
 
+# unused
 @generated function volatile_load(ptr::Ptr{T}) where T
     JuliaContext() do ctx
         ptr_type = convert(LLVMType, Ptr{T}, ctx)
@@ -248,50 +235,30 @@ end
     end
 end
 
-function warp_serialized(func::Function)
-    # Get the current thread's ID.
-    thread_id = threadIdx().x - 1
-
-    # Get the size of a warp.
-    size = warpsize()
-
-    local result
-    i = 0
-    while i < size
-        if thread_id % size == i
-            result = func()
-        end
-        i += 1
-    end
-    return result
-end
-
 
 @inline function call_hostcall(::Type{R}, n, args::A) where {R, A}
     llvmptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, cpucall_area())
     ptr     = reinterpret(Ptr{UInt8}, llvmptr)
     ptr_64  = reinterpret(Ptr{Int64}, llvmptr)
 
-    # warp_serialized() do
-        ## STORE ARGS
-        acquire_lock(llvmptr, IDLE, LOADING, 1)
-        args_ptr =  reinterpret(Ptr{A}, ptr + 16)
-        unsafe_store!(args_ptr, args)
+    ## Store args
+    acquire_lock(llvmptr, IDLE, LOADING, 1)
+    args_ptr =  reinterpret(Ptr{A}, ptr + 16)
+    unsafe_store!(args_ptr, args)
 
-        ## Notify CPU of syscall 'syscall'
-        unsafe_store!(ptr + 8, n)
-        unsafe_store!(ptr, CPU_CALL)
+    ## Notify CPU of syscall 'syscall'
+    unsafe_store!(ptr + 8, n)
+    unsafe_store!(ptr, CPU_CALL)
 
-        local try_count = 0
-        acquire_lock(llvmptr, CPU_DONE, LOADING, 2)
+    local try_count = 0
+    acquire_lock(llvmptr, CPU_DONE, LOADING, 2)
 
-        ## GET RETURN ARGS
-        unsafe_store!(ptr, LOADING)
-        local ret = unsafe_load(reinterpret(Ptr{R}, ptr_64 + 16))
-        unsafe_store!(ptr, IDLE)
+    ## get return args
+    unsafe_store!(ptr, LOADING)
+    local ret = unsafe_load(reinterpret(Ptr{R}, ptr_64 + 16))
+    unsafe_store!(ptr, IDLE)
 
-        ret
-    # end
+    ret
 end
 
 
@@ -323,6 +290,7 @@ macro cpu(ex...)
 
     # make sure this exists
     # To be safe this should just increment
+    # this has multiple problems
     indx = type_to_int!(cpufunctions, (f, val))
 
     println("hostcall $indx")
