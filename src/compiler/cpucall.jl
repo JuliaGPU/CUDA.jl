@@ -3,24 +3,81 @@ const CPUCALL_AREA = "hostcall_area"
 const cpucall_areas = Dict{CuContext, Mem.HostBuffer}()
 has_hostcalls(ctx::CuContext) = haskey(cpucall_areas, ctx)
 
-function wait_and_kill_watcher(e::CuEvent, ctx::CuContext)
-    has_hostcalls(ctx) || return
+usleep(usecs) = ccall(:usleep, Cint, (Cuint,), usecs)
 
-    println("Start the watcher!")
+abstract type Poller end
 
-    try
-        while !query(e)
-            handle_cpucall(ctx)
-            yield()
-        end
-    catch e
-        println("Failed $e")
-    end
+struct AlwaysPoller <: Poller end
+struct ConstantPoller <: Poller
+    dur :: UInt32
+end
+mutable struct VarPoller <: Poller
 
-    println("Killed the watcher!")
 end
 
-cpucall_area_size() = sizeof(UInt8) * 1024 * 1024
+
+function wait_and_kill_watcher(poller::P, event::CuEvent, ctx::CuContext) where {P<:Poller}
+    empty!(host_refs)
+    t = @async begin
+        has_hostcalls(ctx) || return
+        # reset!(timer)
+
+        println("Start the watcher!")
+        try
+            launch_poller(poller, event, ctx)
+        catch e
+            println("Failed $e")
+            stacktrace()
+        end
+        println("Killed the watcher!")
+    end
+
+    while !istaskstarted(t)
+        yield()
+    end
+
+    return t
+end
+
+
+function launch_poller(::AlwaysPoller, e::CuEvent, ctx::CuContext)
+    llvmptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, cpucall_areas[ctx].ptr)
+    count = cpucall_area_count()-1
+    size = cpucall_area_size()
+
+    while !query(e)
+        for i in 0:count
+            if handle_cpucall(llvmptr + i * size)
+                println("handled $i")
+            end
+        end
+        yield()
+    end
+end
+
+
+function launch_poller(poller::ConstantPoller, e::CuEvent, ctx::CuContext)
+    llvmptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, cpucall_areas[ctx].ptr)
+    count = cpucall_area_count()-1
+    size = cpucall_area_size()
+
+    while !query(e)
+        for i in 0:count
+            handle_cpucall(llvmptr + i * size)
+        end
+
+        usleep(poller.dur)
+    end
+end
+
+
+function launch_poller(poller::VarPoller, e::CuEvent, ctx::CuContext)
+    error("Not yet supported")
+end
+
+
+cpucall_area_count() = 20
+cpucall_area_size() = sizeof(UInt8) * 1024
 
 @eval @inline cpucall_area() =
     Base.llvmcall(
@@ -35,7 +92,7 @@ cpucall_area_size() = sizeof(UInt8) * 1024 * 1024
 
 
 dump_memory(ty=UInt8) = dump_memory{UInt8}(ty)
-dump_memory(ty::Type{T}, size=cpucall_area_size() ÷ sizeof(ty), ctx::CuContext=context()) where {T} = dump_memory(ty, size, ctx)
+dump_memory(ty::Type{T}, size=cpucall_area_size() ÷ sizeof(ty) * cpucall_area_count(), ctx::CuContext=context()) where {T} = dump_memory(ty, size, ctx)
 function dump_memory(::Type{T}, size::Int64, ctx::CuContext=context()) where {T}
     ptr    = convert(CuPtr{T}, cpucall_areas[ctx])
     cuarray = unsafe_wrap(CuArray{T}, ptr, size)
@@ -57,11 +114,11 @@ end
 function create_cpucall_area!(mod::CuModule)
     flag_ptr = CuGlobal{Ptr{Cvoid}}(mod, CPUCALL_AREA)
     cpucall_area = get!(cpucall_areas, mod.ctx,
-        Mem.alloc(Mem.Host, cpucall_area_size(), Mem.HOSTALLOC_DEVICEMAP | Mem.HOSTALLOC_WRITECOMBINED))
+        Mem.alloc(Mem.Host, cpucall_area_size() * cpucall_area_count(), Mem.HOSTALLOC_DEVICEMAP | Mem.HOSTALLOC_WRITECOMBINED))
     flag_ptr[] = reinterpret(Ptr{Cvoid}, convert(CuPtr{Cvoid}, cpucall_area))
 
     ptr    = convert(CuPtr{UInt8}, cpucall_area)
-    cuarray = unsafe_wrap(CuArray{UInt8}, ptr, cpucall_area_size())
+    cuarray = unsafe_wrap(CuArray{UInt8}, ptr, cpucall_area_size() * cpucall_area_count())
     fill!(cuarray, 0)
 
     return
@@ -71,32 +128,80 @@ end
 
 time_ms() = round(Int64, time() * 1000)
 
+
 mutable struct Timer
-    name :: String
-    last_handled :: Int64
+    sample::Int64
+    total_duration::Float64
+    total_duration_useless::Float64
+    count::Int64
+    count_useless::Int64
+    last_start::Union{Nothing,Float64}
 end
 
-const timer = Timer("timer 1", time_ms())
-const timer2 = Timer("timer 2", time_ms())
+function start_sample!(timer::Timer)
+    timer.sample += 1
+end
 
-function update!(timer::Timer)
-    time = time_ms()
-    if time > timer.last_handled + 1
-        println("$(timer.name): It's been a while $(time - timer.last_handled)ms")
+const timer = Timer(0,0,0,0,0,nothing)
+
+function start!(timer::Timer)
+    sample = time()
+    timer.last_start = sample
+end
+
+
+function stop!(timer::Timer, useless=True)
+    sample = time()
+    if isa(timer.last_start, Float64)
+        delta = sample - timer.last_start
+        if useless
+            timer.total_duration_useless += delta
+            timer.count_useless += 1
+        end
+        timer.total_duration += delta
+
+        timer.count += 1
+    else
+        println("Something fucked")
     end
-    timer.last_handled = time
+    timer.last_start = nothing
 end
 
-function handle_cpucall(ctx::CuContext)
-    # update!(timer)
-    ptr    = convert(Ptr{Int64}, cpucall_areas[ctx])
-    llvmptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, ptr)
-    ptr_u8 = convert(Ptr{UInt8}, cpucall_areas[ctx])
+function Base.show(io::IO, timer::Timer)
+    percentage_time = timer.total_duration_useless/timer.total_duration * 100
+    percentage_count = Float32(timer.count_useless) / Float32(timer.count) * 100
+    @printf(io, "<Timer tried: %d (%.3f%% useless) in %.3fs (%.3f%% useless) samples=%d>",
+        timer.count / timer.sample, percentage_count,timer.total_duration / timer.sample, percentage_time, timer.sample)
+end
+
+function reset!(timer::Timer)
+    timer.last_start = nothing
+    timer.count = 0
+    timer.sample = 0
+    timer.count_useless = 0
+    timer.total_duration = 0
+    timer.total_duration_useless = 0
+end
+
+function time_it(f::Function)
+    reset!(timer)
+
+    f(timer)
+
+    return timer
+end
+
+
+function handle_cpucall(llvmptr::Core.LLVMPtr{Int64,AS.Global})
+    start!(timer)
+    ptr     = reinterpret(Ptr{Int64}, llvmptr)
+    ptr_u8  = reinterpret(Ptr{UInt8}, llvmptr)
 
     v = atomic_cas!(llvmptr, CPU_CALL, CPU_HANDLING)
 
     if v != CPU_CALL
-        return
+        stop!(timer, true)
+        return false
     end
 
     # this code is very fragile
@@ -124,6 +229,9 @@ function handle_cpucall(ctx::CuContext)
     while atomic_cas!(llvmptr, CPU_HANDLING, CPU_DONE) == CPU_HANDLING
         unsafe_store!(ptr, CPU_DONE)
     end
+
+    stop!(timer, false)
+    return true
 end
 
 
@@ -167,12 +275,16 @@ struct HostRef
 end
 
 const host_refs = Vector{WeakRef}()
+const host_refs_lk = ReentrantLock()
 
 Base.show(io::IO, t::HostRef) = print(io, "HostRef to $(host_refs[t.index])")
 Base.convert(::Type{HostRef}, t::HostRef) = t
 
 function Base.convert(::Type{HostRef}, t::T) where {T}
-    push!(host_refs, WeakRef(t))
+    lock(host_refs_lk) do
+        push!(host_refs, WeakRef(t))
+    end
+
     return HostRef(length(host_refs))
 end
 
@@ -180,20 +292,26 @@ Base.convert(::Type{Any}, t::HostRef) = host_refs[t.index].value
 Adapt.adapt(::InvAdaptor, t::HostRef) = host_refs[t.index].value
 
 
-@inline function acquire_lock(ptr::Core.LLVMPtr{Int64,AS.Global}, expected::Int64, value::Int64, id)
+@inline function acquire_lock(ptr::Core.LLVMPtr{Int64,AS.Global}, expected::Int64, value::Int64, count)
     ## try capture lock
-    while atomic_cas!(ptr, expected, value) != expected
+
+    area_size = cpucall_area_size()
+    i = 0
+
+    while atomic_cas!(ptr + (i % count) * area_size, expected, value) != expected
+        nanosleep(UInt32(16))
+        i += 1
     end
 
-    return
+    return ptr + (i % count) * area_size
 end
 
 
-const IDLE = convert(Int64, 0)
-const CPU_DONE = convert(Int64, 1)
-const LOADING = convert(Int64, 2)
-const CPU_CALL = convert(Int64, 3)
-const CPU_HANDLING = convert(Int64, 4)
+const IDLE = Int64(0)
+const CPU_DONE = Int64(1)
+const LOADING = Int64(2)
+const CPU_CALL = Int64(3)
+const CPU_HANDLING = Int64(4)
 
 
 function prettier_string(thing)
@@ -238,11 +356,13 @@ end
 
 @inline function call_hostcall(::Type{R}, n, args::A) where {R, A}
     llvmptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, cpucall_area())
-    ptr     = reinterpret(Ptr{UInt8}, llvmptr)
-    ptr_64  = reinterpret(Ptr{Int64}, llvmptr)
 
     ## Store args
-    acquire_lock(llvmptr, IDLE, LOADING, 1)
+    llvmptr = acquire_lock(llvmptr, IDLE, LOADING, cpucall_area_count())
+
+
+    ptr     = reinterpret(Ptr{UInt8}, llvmptr)
+    ptr_64  = reinterpret(Ptr{Int64}, llvmptr)
     args_ptr =  reinterpret(Ptr{A}, ptr + 16)
     unsafe_store!(args_ptr, args)
 
@@ -251,7 +371,7 @@ end
     unsafe_store!(ptr, CPU_CALL)
 
     local try_count = 0
-    acquire_lock(llvmptr, CPU_DONE, LOADING, 2)
+    acquire_lock(llvmptr, CPU_DONE, LOADING, 1)
 
     ## get return args
     unsafe_store!(ptr, LOADING)

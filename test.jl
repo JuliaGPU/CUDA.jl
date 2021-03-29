@@ -50,6 +50,7 @@ end
 
 
 function kernel3(a)
+    nanosleep(UInt32(18))
     a[1] = 42
     return
 end
@@ -158,6 +159,17 @@ function bench2()
 end
 
 
+function small_bench()
+    result = nothing
+    timer = CUDA.time_it() do timer
+        result = @benchmark test_test(100) setup=(CUDA.start_sample!($timer))
+    end
+
+    m = time(mean(result)) / 1000000000
+
+    println("mean $m secs timer $timer")
+end
+
 function bench()
     BenchmarkTools.DEFAULT_PARAMETERS.samples = 50
     SUITE = BenchmarkGroup()
@@ -193,3 +205,28 @@ function bench()
         end
     end
 end
+
+
+# BenchmarkTools.Trial:
+#   memory estimate:  461.59 KiB
+#   allocs estimate:  23388
+#   --------------
+#   minimum time:     40.987 ms (0.00% GC)
+#   median time:      44.807 ms (0.00% GC)
+#   mean time:        45.837 ms (0.30% GC)
+#   maximum time:     60.897 ms (24.97% GC)
+#   --------------
+#   samples:          110
+#   evals/sample:     1
+
+# BenchmarkTools.Trial:
+#   memory estimate:  238.42 KiB
+#   allocs estimate:  7586
+#   --------------
+#   minimum time:     646.981 ms (0.00% GC)
+#   median time:      651.066 ms (0.00% GC)
+#   mean time:        650.383 ms (0.00% GC)
+#   maximum time:     653.093 ms (0.00% GC)
+#   --------------
+#   samples:          8
+#   evals/sample:     1

@@ -380,17 +380,16 @@ function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs
     # TODO cleanup
     reset_cpucall_area!(kernel.ctx)
 
-    t = @async wait_and_kill_watcher(event, kernel.ctx)
-    while !istaskstarted(t)
-        yield()
-    end
+    # t = wait_and_kill_watcher(ConstantPoller(5000), event, kernel.ctx)
+    t = wait_and_kill_watcher(AlwaysPoller(), event, kernel.ctx)
 
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
     CUDA.record(event, stream())
 
-    while !istaskdone(t)
-        yield()
-    end
+    Base.wait(t)
+    # while !istaskdone(t)
+    #     yield()
+    # end
 end
 
 
