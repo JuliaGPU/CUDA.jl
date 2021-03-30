@@ -232,6 +232,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6-nightly
+    env:
+      JULIA_CUDA_MEMORY_POOL: 'none'  # CUDA.jl#794
     command: |
       julia --project -e '
         println("--- :julia: Instantiating project")
