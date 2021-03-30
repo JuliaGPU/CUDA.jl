@@ -315,6 +315,11 @@ function device_reset!(dev::CuDevice=device())
     devidx = deviceid(dev)+1
     device_context!(devidx, nothing)
 
+    # wipe external per-device state
+    for x in __perdevices
+        delete!(x, dev)
+    end
+
     return
 end
 
@@ -337,27 +342,41 @@ deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev))
 ## helpers
 
 # helper struct to maintain state per device and invalidate it when the device is reset
+const __perdevices = Vector{Any}()  # XXX: use WeakRef once that survives precompilation
 struct PerDevice{T,F} <: AbstractDict{T,F}
-    inner::Dict{CuDevice,Tuple{CuContext,T}}
+    inner::Vector{Union{T,Nothing}}
     ctor::F
 
-    PerDevice{T,F}(ctor::F) where {T,F<:Function} = new(Dict{CuDevice,Tuple{CuContext,T}}(), ctor)
+    function PerDevice{T,F}(ctor::F) where {T,F<:Function}
+        obj = new(T[], ctor)
+        push!(__perdevices, obj)
+        return obj
+    end
 end
 
 PerDevice{T}(ctor::F) where {T,F} = PerDevice{T,F}(ctor)
 
+# lazy initialization
+@inline function initialized(x::PerDevice)
+    if length(x.inner) == 0
+        resize!(x.inner, ndevices())
+        fill!(x.inner, nothing)
+    end
+    x.inner
+end
+
 function Base.getindex(x::PerDevice, dev::CuDevice)
-    entry = get(x.inner, dev, nothing)
-    if entry === nothing || !isvalid(entry[1])
-        ctx = context(dev)
-        val = x.ctor(dev)
-        x.inner[dev] = (ctx, val)
-        val
-    else
-        entry[2]
+    y = initialized(x)
+    id = deviceid(dev)+1
+    @inbounds begin
+        if y[id] === nothing
+            y[id] = x.ctor(dev)
+        end
+        y[id]
     end
 end
-Base.setindex!(x::PerDevice, val, dev::CuDevice) = (x.inner[dev] = (context(dev), val); )
+Base.setindex!(x::PerDevice, val, dev::CuDevice) = @inbounds(initialized(x)[deviceid(dev)+1] = val)
+Base.delete!(x::PerDevice, dev::CuDevice) = @inbounds(initialized(x)[deviceid(dev)+1] = nothing)
 
 Base.length(x::PerDevice) = length(x.inner)
 Base.size(x::PerDevice) = size(x.inner)

@@ -24,12 +24,12 @@ Base.unsafe_convert(::Type{cufftHandle}, p::CuFFTPlan) = p.handle
 # for some reason, cufftHandle is an integer and not a pointer...
 Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = Base.unsafe_convert(cufftHandle, p)
 
-function CUDA.unsafe_free!(plan::CuFFTPlan, finalizer::Bool=false)
+function CUDA.unsafe_free!(plan::CuFFTPlan, stream::CuStream=stream())
     @context! skip_destroyed=true plan.workarea.ctx cufftDestroy(plan)
-    unsafe_free!(plan.workarea, finalizer)
+    unsafe_free!(plan.workarea, stream)
 end
 
-unsafe_finalize!(plan::CuFFTPlan) = unsafe_free!(plan, true)
+unsafe_finalize!(plan::CuFFTPlan) = unsafe_free!(plan, CuDefaultStream())
 
 mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     handle::cufftHandle

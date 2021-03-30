@@ -30,18 +30,19 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
 end
 
 """
-    CUDA.unsafe_free!(a::CuArray, [finalizer::Bool=false])
+    CUDA.unsafe_free!(a::CuArray, [stream::CuStream])
 
 Release the memory of an array for reuse by future allocations. This function is
 automatically called by the finalizer when an array goes out of scope, but can be called
 earlier to reduce pressure on the memory allocator.
 
-If calling this function from a finalizer, be sure to set `finalizer` to true (or call
-`CUDA.unsafe_finalize!`), which will ensure all streams are synchronized to prevent freeing
-memory still in use (by using the default stream instead of the task-local one). By default,
-this argument is set to `false`, and the operation will be queued on the task-local stream.
+By default, the operation is performed on the task-local stream. During task or process
+finalization however, that stream may be destroyed already, so be sure to specify a safe
+stream (i.e. `CuDefaultStream()`, which will ensure the operation will block on other
+streams) when calling this function from a finalizer. For simplicity, the `unsafe_finalize!`
+function does exactly that.
 """
-function unsafe_free!(xs::CuArray, finalizer::Bool=false)
+function unsafe_free!(xs::CuArray, stream::CuStream=stream())
   # this call should only have an effect once, becuase both the user and the GC can call it
   if xs.state == ARRAY_FREED
     return
@@ -50,16 +51,7 @@ function unsafe_free!(xs::CuArray, finalizer::Bool=false)
   end
 
   @context! skip_destroyed=true xs.ctx begin
-    # during task or process finalization, the local stream might be destroyed already, so
-    # use the default stream. additionally, since we don't use per-thread APIs, this default
-    # stream follows legacy semantics and will synchronize all other streams. this protects
-    # against freeing resources that are still in use.
-    #
-    # TODO: although this is still an asynchronous operation, even when using the default
-    # stream, it synchronizes "too much". we could do better, e.g., by keeping track of all
-    # streams involved, or by refcounting uses and decrementing that refcount after the
-    # operation using `cuLaunchHostFunc`. See CUDA.jl#778 and CUDA.jl#780 for details.
-    free(xs.baseptr; stream = finalizer ? CuDefaultStream() : stream())
+    free(xs.baseptr; stream)
   end
   xs.state = ARRAY_FREED
 
@@ -69,7 +61,18 @@ function unsafe_free!(xs::CuArray, finalizer::Bool=false)
   return
 end
 
-unsafe_finalize!(xs::CuArray) = unsafe_free!(xs, true)
+function unsafe_finalize!(xs::CuArray)
+  # during task or process finalization, the local stream might be destroyed already, so
+  # use the default stream. additionally, since we don't use per-thread APIs, this default
+  # stream follows legacy semantics and will synchronize all other streams. this protects
+  # against freeing resources that are still in use.
+  #
+  # TODO: although this is still an asynchronous operation, even when using the default
+  # stream, it synchronizes "too much". we could do better, e.g., by keeping track of all
+  # streams involved, or by refcounting uses and decrementing that refcount after the
+  # operation using `cuLaunchHostFunc`. See CUDA.jl#778 and CUDA.jl#780 for details.
+  unsafe_free!(xs, CuDefaultStream())
+end
 
 
 ## alias detection

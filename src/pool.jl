@@ -118,7 +118,7 @@ function hard_limit(dev::CuDevice)
 end
 
 function actual_alloc(bytes::Integer, last_resort::Bool=false;
-                      stream_ordered::Bool=false, stream::CuStream=stream())
+                      stream_ordered::Bool=false, stream::Union{CuStream,Nothing}=nothing)
   dev = device()
 
   # check the memory allocation limit
@@ -148,7 +148,7 @@ function actual_alloc(bytes::Integer, last_resort::Bool=false;
   return Block(buf, bytes; state=AVAILABLE)
 end
 
-function actual_free(block::Block; stream_ordered::Bool=false, stream::CuStream=stream())
+function actual_free(block::Block; stream_ordered::Bool=false, stream::Union{CuStream,Nothing}=nothing)
   dev = device()
 
   @assert iswhole(block) "Cannot free $block: block is not whole"

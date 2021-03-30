@@ -70,13 +70,14 @@ GPU, and requires explicit calls to `unsafe_copyto!`, which wraps `cuMemcpy`,
 for access on the CPU.
 """
 function alloc(::Type{DeviceBuffer}, bytesize::Integer;
-               async::Bool=false, stream::CuStream=stream(),
+               async::Bool=false, stream::Union{Nothing,CuStream}=nothing,
                pool::Union{Nothing,CuMemoryPool}=nothing,
                stream_ordered::Bool=has_stream_ordered())
     bytesize == 0 && return DeviceBuffer(CU_NULL, 0)
 
     ptr_ref = Ref{CUDA.CUdeviceptr}()
     if stream_ordered
+        stream = stream===nothing ? CUDA.stream() : stream
         if pool !== nothing
             CUDA.cuMemAllocFromPoolAsync(ptr_ref, bytesize, pool, stream)
         else
@@ -91,11 +92,12 @@ function alloc(::Type{DeviceBuffer}, bytesize::Integer;
 end
 
 
-function free(buf::DeviceBuffer; async::Bool=false, stream::CuStream=stream(),
+function free(buf::DeviceBuffer; async::Bool=false, stream::Union{Nothing,CuStream}=nothing,
               stream_ordered::Bool=CUDA.version() >= v"11.2")
     pointer(buf) == CU_NULL && return
 
     if stream_ordered
+        stream = stream===nothing ? CUDA.stream() : stream
         CUDA.cuMemFreeAsync(buf, stream)
         async || synchronize(stream)
     else
