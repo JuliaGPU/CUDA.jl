@@ -4,6 +4,105 @@ using Random
 
 export rand_logn!, rand_poisson!
 
+
+# native RNG
+
+"""
+    CUDA.RNG()
+
+A random number generator using `rand()` in a device kernel.
+
+!!! warning
+
+    This generator is experimental, and not used by default yet. Currently, it does not
+    pass SmallCrush (but neither does the current GPUArrays.jl-based generator). If you
+    can, use a CURAND-based generator for now.
+
+See also: [SharedTauswortheGenerator](@ref)
+"""
+struct RNG <: AbstractRNG
+    state::CuVector{UInt32}
+
+    function RNG(seed)
+        @assert length(seed) == 32
+        new(seed)
+    end
+end
+
+RNG() = RNG(rand(UInt32, 32))
+
+function Random.seed!(rng::RNG, seed::AbstractVector{UInt32})
+    @assert length(seed) == 32
+    copyto!(rng.state, seed)
+end
+
+function Random.seed!(rng::RNG)
+    Random.rand!(rng.state)
+    return
+end
+
+function Random.rand!(rng::RNG, A::AnyCuArray)
+    function kernel(A::AbstractArray{T}, state::AbstractVector{UInt32}) where {T}
+        device_rng = Random.default_rng()
+
+        # initialize the state
+        tid = threadIdx().x
+        if tid <= 32
+            # we know for sure the seed will contain 32 values
+            @inbounds Random.seed!(device_rng, state)
+        end
+
+        sync_threads()
+
+        # grid-stride loop
+        offset = (blockIdx().x - 1) * blockDim().x
+        while offset < length(A)
+            # generating random numbers synchronizes threads, so needs to happen uniformly.
+            val = Random.rand(device_rng, T)
+
+            i = tid + offset
+            if i <= length(A)
+                @inbounds A[i] = val
+            end
+
+            offset += (blockDim().x - 1) * gridDim().x
+        end
+
+        sync_threads()
+
+        # save the device rng state of the first block (other blocks are derived from it)
+        # so that subsequent launches generate different random numbers
+        if blockIdx().x == 1 && tid <= 32
+            @inbounds state[tid] = device_rng.state[tid]
+        end
+
+        return
+    end
+
+    kernel = @cuda launch=false name="rand!" kernel(A, rng.state)
+    config = launch_configuration(kernel.fun; max_threads=64)
+    threads = max(32, min(config.threads, length(A)))
+    blocks = min(config.blocks, cld(length(A), threads))
+    kernel(A, rng.state; threads=threads, blocks=blocks)
+
+    # XXX: updating the state from within the kernel is racey,
+    #      so we should have a RNG per stream
+
+    A
+end
+
+function Random.rand(rng::RNG, T::Type)
+    assertscalar("scalar rand")
+    A = CuArray{T}(undef, 1)
+    Random.rand!(rng, A)
+    A[]
+end
+
+# TODO: `randn!`; cannot reuse from Base or RandomNumbers, as those do scalar indexing
+
+
+# RNG-less interface
+
 # the interface is split in two levels:
 # - functions that extend the Random standard library, and take an RNG as first argument,
 #   will only ever dispatch to CURAND and as a result are limited in the types they support.
