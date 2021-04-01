@@ -91,14 +91,23 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
     A
 end
 
-function Random.rand(rng::RNG, T::Type)
+# TODO: `randn!`; cannot reuse from Base or RandomNumbers, as those do scalar indexing
+
+
+# generic functionality
+
+function Random.rand!(rng::Union{RNG,CURAND.RNG,GPUArrays.RNG}, A::AbstractArray{T}) where {T}
+    B = CuArray{T}(undef, size(A))
+    Random.rand!(rng, B)
+    copyto!(A, B)
+end
+
+function Random.rand(rng::Union{RNG,CURAND.RNG,GPUArrays.RNG}, T::Type)
     assertscalar("scalar rand")
     A = CuArray{T}(undef, 1)
     Random.rand!(rng, A)
     A[]
 end
-
-# TODO: `randn!`; cannot reuse from Base or RandomNumbers, as those do scalar indexing
 
 
 # RNG-less interface
