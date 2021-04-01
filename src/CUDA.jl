@@ -60,10 +60,10 @@ export CUPTI, NVTX
 
 # compiler implementation
 include("compiler/gpucompiler.jl")
+include("compiler/hostcall.jl")
 include("compiler/execution.jl")
 include("compiler/exceptions.jl")
 include("compiler/reflection.jl")
-include("compiler/cpucall.jl")
 
 # array implementation
 include("gpuarrays.jl")

@@ -40,7 +40,11 @@ macro cuda(ex...)
         split_kwargs(kwargs,
                      [:dynamic, :launch],
                      [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name],
+<<<<<<< HEAD
                      [:cooperative, :blocks, :threads, :shmem, :stream])
+=======
+                     [:cooperative, :blocks, :threads, :config, :shmem, :stream, :manager, :poller])
+>>>>>>> make manager and poller call kwargs
     if !isempty(other_kwargs)
         key,val = first(other_kwargs).args
         throw(ArgumentError("Unsupported keyword argument '$key'"))
@@ -115,8 +119,6 @@ struct Adaptor end
 
 ## device to host value conversion
 
-struct InvAdaptor end
-
 # convert CUDA host pointers to device pointers
 # TODO: use ordinary ptr?
 Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = reinterpret(LLVMPtr{T,AS.Generic}, p)
@@ -137,10 +139,6 @@ Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
 Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
   Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
 
-# convert CUDA device points to host pointers
-Adapt.adapt_storage(to::InvAdaptor, p::LLVMPtr{T,AS.Generic}) where {T} = reinterpret(CuPtr{T}, p)
-
-
 """
     cudaconvert(x)
 
@@ -152,7 +150,6 @@ Do not add methods to this function, but instead extend the underlying Adapt.jl 
 register methods for the the `CUDA.Adaptor` type.
 """
 cudaconvert(arg) = adapt(Adaptor(), arg)
-invcudaconvert(arg) = adapt(InvAdaptor(), arg)
 
 
 ## abstract kernel functionality
@@ -366,30 +363,28 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
         filter!(!isequal("global_random_seed"), compiled.external_gvars)
     end
 
-    if "hostcall_area" in compiled.external_gvars
-        create_cpucall_area!(mod)
-        filter!(!isequal("hostcall_area"), compiled.external_gvars)
-    end
+    # TODO cleanup, but how
+    # filter!(!isequal(HOSTCALLAREA), compiled.external_gvars)
+    # filter!(!isequal(KINDCONFIG), compiled.external_gvars)
 
     return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun)
 end
 
-function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
+function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1,
+            poller::Poller=AlwaysPoller(0),
+            manager::AreaManager=SimpleAreaManager(140, 128),
+            kwargs...)
+    println("Using manager $manager\nPoller $poller")
     event = CuEvent(CUDA.EVENT_DISABLE_TIMING)
 
-    # TODO cleanup
-    reset_cpucall_area!(kernel.ctx)
 
-    # t = wait_and_kill_watcher(ConstantPoller(5000), event, kernel.ctx)
-    t = wait_and_kill_watcher(AlwaysPoller(), event, kernel.ctx)
+    t = wait_and_kill_watcher(kernel.mod, poller, manager, event)
 
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
     CUDA.record(event, stream())
 
+    # Benchmarking purposes
     Base.wait(t)
-    # while !istaskdone(t)
-    #     yield()
-    # end
 end
 
 

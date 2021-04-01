@@ -40,3 +40,17 @@ function check_exceptions()
     end
     return
 end
+
+function reset_exceptions()
+    for (ctx,buf) in exception_flags
+        if isvalid(ctx)
+            ptr = convert(Ptr{Int}, buf)
+            flag = unsafe_load(ptr)
+            if flag != 0
+                unsafe_store!(ptr, 0)
+                dev = CuDevice(ctx)
+                println("$dev")
+            end
+        end
+    end
+end
