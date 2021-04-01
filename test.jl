@@ -14,6 +14,49 @@ function printIt(a...)
 end
 
 
+## Linked List
+
+mutable struct Nil end
+mutable struct LinkedList{T}
+    value::T
+    next::Union{Nil, LinkedList{T}}
+end
+
+function linked_list_from_list(l, count, ::Type{T})::Union{Nil, LinkedList{Int}} where {T}
+    if count == 0
+        return Nil
+    end
+    tail :: LinkedList{T} = LinkedList(l[1], Nil())
+    for i in 2:count
+        t = l[i]
+        tail = LinkedList(t, tail)
+    end
+    return tail
+end
+
+function count_list(list::Union{Nil, LinkedList{Int}})
+    sum = 0
+    while isa(list, LinkedList{Int})
+        sum += list.value
+        list = list.next
+    end
+    return sum
+end
+
+function test()
+    function ll_kernel(a, c)
+        l = linked_list_from_list(a, c, Int)
+        d = count_list(l)
+        @cuprintln("It %d", d)
+        # @CUDA.cpu types=(Nothing, Int) printIt()
+        return
+    end
+    a = [1,2,3,4,5]
+    c = CuArray(a)
+    @cuda ll_kernel(c, 5)
+end
+
+
 ## Features trial (view and HostRef)
 mutable struct FooBar
     x::Int

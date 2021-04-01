@@ -63,7 +63,7 @@ include("compiler/gpucompiler.jl")
 include("compiler/execution.jl")
 include("compiler/exceptions.jl")
 include("compiler/reflection.jl")
-include("compiler/cpucall.jl")
+include("compiler/hostcall.jl")
 
 # array implementation
 include("gpuarrays.jl")
