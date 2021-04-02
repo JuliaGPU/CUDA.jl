@@ -31,7 +31,9 @@ end
 ############################################################################################
 
 @testset "math" begin
-    @test testf(a->log10.(a), Float32[100])
+    @testset "log10" begin
+        @test testf(a->log10.(a), Float32[100])
+    end
 
     @testset "pow" begin
         for T in (Float32, Float64, ComplexF32, ComplexF64)
@@ -70,6 +72,13 @@ end
                 @test testf(x->op.(x), -rand(T, 1))
             end
 
+        end
+    end
+    @testset "mod and rem" begin
+        # CUDA follows C's fmod, which behaves differently than Julia on negative numbers
+        for op in (mod, rem), T in (Float32, Float64)
+            @test testf(a->op.(a, T(2)), T[1])
+            @test testf(a->op.(a, T(2)), T[-1])
         end
     end
 end
