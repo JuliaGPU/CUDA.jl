@@ -200,15 +200,13 @@ end
 
 ## host-side kernels
 
-mutable struct HostKernel{F,TT} <: AbstractKernel{F,TT}
+struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     ctx::CuContext
     mod::CuModule
     fun::CuFunction
 
-    random_state::Union{Nothing,Missing,CuVector{UInt32}}
-
-    function HostKernel{F,TT}(ctx::CuContext, mod::CuModule, fun::CuFunction, random_state) where {F,TT}
-        kernel = new{F,TT}(ctx, mod, fun, random_state)
+    function HostKernel{F,TT}(ctx::CuContext, mod::CuModule, fun::CuFunction) where {F,TT}
+        kernel = new{F,TT}(ctx, mod, fun)
     end
 end
 
@@ -358,19 +356,17 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
         filter!(!isequal("exception_flag"), compiled.external_gvars)
     end
 
-    random_state = nothing
-    if "global_random_state" in compiled.external_gvars
+    # initialize random seeds, if used
+    if "global_random_seed" in compiled.external_gvars
         random_state = missing
-        filter!(!isequal("global_random_state"), compiled.external_gvars)
+        initialize_random_seeds!(mod)
+        filter!(!isequal("global_random_seed"), compiled.external_gvars)
     end
 
-    return HostKernel{job.source.f,job.source.tt}(ctx, mod, fun, random_state)
+    return HostKernel{job.source.f,job.source.tt}(ctx, mod, fun)
 end
 
 function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
-    if kernel.random_state !== nothing
-        init_random_state!(kernel, prod(threads) * prod(blocks))
-    end
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
 end
 

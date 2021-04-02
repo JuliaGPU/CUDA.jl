@@ -171,6 +171,9 @@ if Sys.ARCH == :aarch64
     # CUFFT segfaults on ARM
     push!(skip_tests, "cufft")
 end
+if VERSION < v"1.6.1-"
+    push!(skip_tests, "device/random")
+end
 for (i, test) in enumerate(skip_tests)
     # we find tests by scanning the file system, so make sure the path separator matches
     skip_tests[i] = replace(test, '/'=>Base.Filesystem.path_separator)

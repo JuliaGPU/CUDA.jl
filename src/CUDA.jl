@@ -57,6 +57,7 @@ include("device/intrinsics.jl")
 include("device/llvm.jl")
 include("device/runtime.jl")
 include("device/texture.jl")
+include("device/random.jl")
 
 # array essentials
 include("pool.jl")
