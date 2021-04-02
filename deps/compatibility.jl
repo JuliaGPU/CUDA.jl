@@ -178,10 +178,7 @@ function llvm_compat(version=LLVM.version())
     InitializeNVPTXTarget()
 
     cap_support = sort(collect(llvm_cap_support(version)))
-
-    ptx_support = llvm_ptx_support(version)
-    push!(ptx_support, v"6.0") # JuliaLang/julia#23817
-    ptx_support = sort(collect(ptx_support))
+    ptx_support = sort(collect(llvm_ptx_support(version)))
 
     return (cap=cap_support, ptx=ptx_support)
 end
