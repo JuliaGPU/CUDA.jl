@@ -21,17 +21,6 @@ using Memoize
 using ExprTools
 
 
-##
-
-const ci_cache = GPUCompiler.CodeCache()
-
-@static if isdefined(Base.Experimental, Symbol("@overlay"))
-Base.Experimental.@MethodTable(method_table)
-else
-const method_table = nothing
-end
-
-
 ## source code includes
 
 include("pointer.jl")
@@ -51,6 +40,7 @@ include("../deps/compatibility.jl")
 include("../deps/bindeps.jl")
 
 # device functionality (needs to be loaded first, because of generated functions)
+include("device/utils.jl")
 include("device/pointer.jl")
 include("device/array.jl")
 include("device/intrinsics.jl")
