@@ -328,10 +328,7 @@ end
 
 function gpu_add3!(y, x)
     index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    stride = blockDim().x * gridDim().x
-    for i = index:stride:length(y)
-        @inbounds y[i] += x[i]
-    end
+    @inbounds y[index] += x[index]
     return
 end
 
