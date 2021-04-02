@@ -1,5 +1,6 @@
 function CUDACompilerTarget(dev::CuDevice; kwargs...)
     cap = supported_capability(dev)
+    ptx = v"6.3"    # we only need 6.2, but NVPTX doesn't support that
 
     exitable = true
     if cap < v"7"
@@ -16,7 +17,7 @@ function CUDACompilerTarget(dev::CuDevice; kwargs...)
 
     debuginfo = false
 
-    PTXCompilerTarget(; cap, exitable, debuginfo, kwargs...)
+    PTXCompilerTarget(; cap, ptx, exitable, debuginfo, kwargs...)
 end
 
 struct CUDACompilerParams <: AbstractCompilerParams end
