@@ -1,15 +1,11 @@
 # Warp Shuffle (B.14)
 
-export FULL_MASK
+# TODO: this functionality should throw <sm_30
 
 # TODO: does not work on sub-word (ie. Int16) or non-word divisible sized types
 
 # TODO: these functions should dispatch based on the actual warp size
 const ws = Int32(32)
-
-const FULL_MASK = 0xffffffff
-
-# TODO: this functionality should throw <sm_30
 
 
 # core intrinsics

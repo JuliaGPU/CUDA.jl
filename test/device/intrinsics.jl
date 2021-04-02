@@ -14,6 +14,10 @@
     @on_device blockIdx().z
     @on_device gridDim().z
 
+    @on_device warpsize()
+    @on_device laneid()
+    @on_device active_mask()
+
     @testset "range metadata" begin
         foobar() = threadIdx().x
         ir = sprint(io->CUDA.code_llvm(io, foobar, Tuple{}; raw=true))

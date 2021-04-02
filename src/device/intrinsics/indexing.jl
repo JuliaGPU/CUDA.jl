@@ -1,8 +1,7 @@
 # Indexing and dimensions (B.4)
 
 export
-    threadIdx, blockDim, blockIdx, gridDim,
-    warpsize
+    threadIdx, blockDim, blockIdx, gridDim, laneid, warpsize, active_mask, FULL_MASK
 
 @generated function _index(::Val{name}, ::Val{range}) where {name, range}
     JuliaContext() do ctx
@@ -96,3 +95,20 @@ Returns the thread index within the block.
 Returns the warp size (in threads).
 """
 @inline warpsize() = Int(ccall("llvm.nvvm.read.ptx.sreg.warpsize", llvmcall, UInt32, ()))
+
+"""
+    laneid()::UInt32
+
+Returns the thread's lane within the warp.
+"""
+@inline laneid() = Int(ccall("llvm.nvvm.read.ptx.sreg.laneid", llvmcall, UInt32, ()))+UInt32(1)
+
+"""
+    active_mask()
+
+Returns a 32-bit mask indicating which threads in a warp are active with the current
+executing thread.
+"""
+@inline active_mask() = @asmcall("activemask.b32 \$0;", "=r", false, UInt32, Tuple{})
+
+const FULL_MASK = 0xffffffff
