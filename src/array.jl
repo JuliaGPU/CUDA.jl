@@ -417,12 +417,15 @@ cuviewlength() = ()
 @inline cuviewlength(i1::AbstractUnitRange, I...) = (Base.unsafe_length(i1), cuviewlength(I...)...)
 @inline cuviewlength(i1::AbstractUnitRange, ::Base.ScalarIndex...) = (Base.unsafe_length(i1),)
 
+struct BackToCPU end
+Adapt.adapt_storage(::BackToCPU, xs::CuArray) = convert(Array, xs)
+
 @inline function Base.view(A::CuArray, I::Vararg{Any,N}) where {N}
     J = to_indices(A, I)
     @boundscheck begin
         # Base's boundscheck accesses the indices, so make sure they reside on the CPU.
         # this is expensive, but it's a bounds check after all.
-        J_cpu = map(j->adapt(Array, j), J)
+        J_cpu = map(j->adapt(BackToCPU(), j), J)
         checkbounds(A, J_cpu...)
     end
     J_gpu = map(j->adapt(CuArray, j), J)
