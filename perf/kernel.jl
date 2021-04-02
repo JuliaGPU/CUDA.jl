@@ -26,3 +26,10 @@ function checked_indexing_kernel(dest, src)
     return
 end
 group["indexing_checked"] = @async_benchmarkable @cuda threads=size(src,1) blocks=size(src,2) $checked_indexing_kernel($dest, $src)
+
+function rand_kernel(dest::AbstractArray{T}) where {T}
+    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    dest[i] = rand(T)
+    return
+end
+group["rand"] = @async_benchmarkable @cuda threads=size(src,1) blocks=size(src,2) $rand_kernel($dest)
