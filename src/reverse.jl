@@ -85,8 +85,8 @@ end
 
 # in-place
 function Base.reverse!(data::AnyCuArray{T, N}; dims::Integer) where {T, N}
-    if !(1 ≤ dims ≤ length(size(data)))
-      ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $length(size(input))")
+    if !(1 ≤ dims ≤ ndims(data))
+        throw(ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $(ndims(data))"))
     end
 
     _reverse(data; dims=dims)
@@ -96,8 +96,8 @@ end
 
 # out-of-place
 function Base.reverse(input::AnyCuArray{T, N}; dims::Integer) where {T, N}
-    if !(1 ≤ dims ≤ length(size(input)))
-      ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $length(size(input))")
+    if !(1 ≤ dims ≤ ndims(input))
+        throw(ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $(ndims(input))"))
     end
 
     output = similar(input)
