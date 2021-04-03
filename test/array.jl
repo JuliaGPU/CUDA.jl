@@ -419,6 +419,14 @@ end
 
     # wrapped array
     @test testf(x->reverse(x), reshape(rand(2,2), 4))
+
+    # error throwing
+    cpu = rand(1,2,3,4)
+    gpu = CuArray(cpu)
+    @test_throws ArgumentError reverse!(gpu, dims=5)
+    @test_throws ArgumentError reverse!(gpu, dims=0)
+    @test_throws ArgumentError reverse(gpu, dims=5)
+    @test_throws ArgumentError reverse(gpu, dims=0)
 end
 
 @testset "findall" begin
