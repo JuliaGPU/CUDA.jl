@@ -416,7 +416,7 @@ CUDA memory pool) and return a specific error code when failing to.
 macro retry_reclaim(isfailed, ex)
   quote
     ret = nothing
-    for phase in 1:4
+    for phase in 1:5
       ret = $(esc(ex))
       $(esc(isfailed))(ret) || break
 
@@ -435,7 +435,11 @@ macro retry_reclaim(isfailed, ex)
       elseif phase == 4 && pool.stream_ordered
         # this phase is unique to retry_reclaim, as regular allocations come from the pool
         # so are assumed to never need to trim its contents.
-        trim(memory_pool(device()))
+        trim(memory_pool(dev))
+      elseif phase == 5 && pool.stream_ordered
+        # trim does not release resources of pending streams, so synchronize those first.
+        device_synchronize()
+        trim(memory_pool(dev))
       end
     end
     ret
