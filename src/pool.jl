@@ -217,7 +217,7 @@ const pools = PerDevice{AbstractPool}(dev->begin
       SplitPool(; stream_ordered=false)
   elseif pool_name == "cuda"
       @assert version() >= v"11.2" "The CUDA memory pool is only supported on CUDA 11.2+"
-      @assert(attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1,
+      @assert(attribute(dev, DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1,
               "Your device $(name(dev)) does not support the CUDA memory pool")
       NoPool(; stream_ordered=true)
   else
