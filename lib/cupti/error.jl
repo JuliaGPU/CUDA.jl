@@ -110,7 +110,11 @@ end
 
 # outlined functionality to avoid GC frame allocation
 @noinline function throw_api_error(res)
-    throw(CUPTIError(res))
+    if res == CUPTI_ERROR_OUT_OF_MEMORY
+        throw(OutOfGPUMemoryError())
+    else
+        throw(CUPTIError(res))
+    end
 end
 
 function initialize_api()
@@ -125,9 +129,7 @@ macro check(ex, errs...)
 
     quote
         res = @retry_reclaim err->$check $(esc(ex))
-        if res == CUPTI_ERROR_OUT_OF_MEMORY
-            throw(OutOfGPUMemoryError())
-        elseif res != CUPTI_SUCCESS
+        if res != CUPTI_SUCCESS
             throw_api_error(res)
         end
 

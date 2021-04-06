@@ -58,7 +58,11 @@ end
 
 # outlined functionality to avoid GC frame allocation
 @noinline function throw_api_error(res)
-    throw(CUFFTError(res))
+    if res == CUFFT_ALLOC_FAILED
+        throw(OutOfGPUMemoryError())
+    else
+        throw(CUFFTError(res))
+    end
 end
 
 function initialize_api()
@@ -73,9 +77,7 @@ macro check(ex, errs...)
 
     quote
         res = @retry_reclaim err->$check $(esc(ex))
-        if res == CUFFT_ALLOC_FAILED
-            throw(OutOfGPUMemoryError())
-        elseif res != CUFFT_SUCCESS
+        if res != CUFFT_SUCCESS
             throw_api_error(res)
         end
 

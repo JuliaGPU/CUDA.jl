@@ -16,7 +16,11 @@ name(err::CUDNNError) = unsafe_string(cudnnGetErrorString(err))
 
 # outlined functionality to avoid GC frame allocation
 @noinline function throw_api_error(res)
-    throw(CUDNNError(res))
+    if res == CUDNN_STATUS_ALLOC_FAILED
+        throw(OutOfGPUMemoryError())
+    else
+        throw(CUDNNError(res))
+    end
 end
 
 function initialize_api()
@@ -31,9 +35,7 @@ macro check(ex, errs...)
 
     quote
         res = @retry_reclaim err->$check $(esc(ex))
-        if res == CUDNN_STATUS_ALLOC_FAILED
-            throw(OutOfGPUMemoryError())
-        elseif res != CUDNN_STATUS_SUCCESS
+        if res != CUDNN_STATUS_SUCCESS
             throw_api_error(res)
         end
 

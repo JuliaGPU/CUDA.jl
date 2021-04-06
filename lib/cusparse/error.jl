@@ -18,7 +18,11 @@ description(err::CUSPARSEError) = unsafe_string(cusparseGetErrorString(err))
 
 # outlined functionality to avoid GC frame allocation
 @noinline function throw_api_error(res)
-    throw(CUSPARSEError(res))
+    if res == CUSPARSE_STATUS_ALLOC_FAILED
+        throw(OutOfGPUMemoryError())
+    else
+        throw(CUSPARSEError(res))
+    end
 end
 
 function initialize_api()
@@ -33,9 +37,7 @@ macro check(ex, errs...)
 
     quote
         res = @retry_reclaim err->$check $(esc(ex))
-        if res == CUSPARSE_STATUS_ALLOC_FAILED
-            throw(OutOfGPUMemoryError())
-        elseif res != CUSPARSE_STATUS_SUCCESS
+        if res != CUSPARSE_STATUS_SUCCESS
             throw_api_error(res)
         end
 
