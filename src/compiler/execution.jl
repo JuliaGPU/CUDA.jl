@@ -306,12 +306,12 @@ function cufunction_compile(@nospecialize(job::CompilerJob))
     code = GPUCompiler.emit_asm(job, ir, kernel; format=LLVM.API.LLVMAssemblyFile)
 
     # check if we'll need the device runtime
-    undefined_fns = filter(collect(functions(ir))) do f
+    undefined_fs = filter(collect(functions(ir))) do f
         isdeclaration(f) && !LLVM.isintrinsic(f)
     end
     intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
                     "__nvvm_reflect" #= TODO: should have been optimized away =#]
-    needs_cudadevrt = !isempty(setdiff(undefined_fns, intrinsic_fns))
+    needs_cudadevrt = !isempty(setdiff(LLVM.name.(undefined_fs), intrinsic_fns))
 
     # find externally-initialized global variables; we'll access those using CUDA APIs.
     external_gvars = filter(isextinit, collect(globals(ir))) .|> LLVM.name
