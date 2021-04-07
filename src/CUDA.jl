@@ -92,6 +92,7 @@ include("iterator.jl")
 include("statistics.jl")
 include("random.jl")
 include("sorting.jl")
+include("kronecker.jl")
 
 # other libraries
 include("../lib/nvml/NVML.jl")
