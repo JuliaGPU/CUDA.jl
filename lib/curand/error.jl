@@ -50,7 +50,11 @@ end
 
 # outlined functionality to avoid GC frame allocation
 @noinline function throw_api_error(res)
-    throw(CURANDError(res))
+    if res == CURAND_STATUS_ALLOCATION_FAILED
+        throw(OutOfGPUMemoryError())
+    else
+        throw(CURANDError(res))
+    end
 end
 
 function initialize_api()
@@ -65,9 +69,7 @@ macro check(ex, errs...)
 
     quote
         res = @retry_reclaim err->$check $(esc(ex))
-        if res == CURAND_STATUS_ALLOCATION_FAILED
-            throw(OutOfGPUMemoryError())
-        elseif res != CURAND_STATUS_SUCCESS
+        if res != CURAND_STATUS_SUCCESS
             throw_api_error(res)
         end
 

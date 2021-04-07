@@ -82,7 +82,11 @@ Base.show(io::IO, ::MIME"text/plain", err::CuError) = print(io, "CuError($(err.c
     return
 end
 @noinline function throw_api_error(res)
-    throw(CuError(res))
+    if res == ERROR_OUT_OF_MEMORY
+        throw(OutOfGPUMemoryError())
+    else
+        throw(CuError(res))
+    end
 end
 
 macro check(ex)

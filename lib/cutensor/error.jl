@@ -52,7 +52,11 @@ end
 
 # outlined functionality to avoid GC frame allocation
 @noinline function throw_api_error(res)
-    throw(CUTENSORError(res))
+    if res == CUTENSOR_STATUS_ALLOC_FAILED
+        throw(OutOfGPUMemoryError())
+    else
+        throw(CUTENSORError(res))
+    end
 end
 
 function initialize_api()
@@ -67,9 +71,7 @@ macro check(ex, errs...)
 
     quote
         res = @retry_reclaim err->$check $(esc(ex))
-        if res == CUTENSOR_STATUS_ALLOC_FAILED
-            throw(OutOfGPUMemoryError())
-        elseif res != CUTENSOR_STATUS_SUCCESS
+        if res != CUTENSOR_STATUS_SUCCESS
             throw_api_error(res)
         end
 

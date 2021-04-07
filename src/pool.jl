@@ -217,8 +217,10 @@ const pools = PerDevice{AbstractPool}(dev->begin
       SplitPool(; stream_ordered=false)
   elseif pool_name == "cuda"
       @assert version() >= v"11.2" "The CUDA memory pool is only supported on CUDA 11.2+"
-      @assert(attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1,
+      @assert(attribute(dev, DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1,
               "Your device $(name(dev)) does not support the CUDA memory pool")
+      attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD,
+                 UInt64(reserved_memory(dev)))
       NoPool(; stream_ordered=true)
   else
       error("Invalid memory pool '$pool_name'")
@@ -414,7 +416,7 @@ CUDA memory pool) and return a specific error code when failing to.
 macro retry_reclaim(isfailed, ex)
   quote
     ret = nothing
-    for phase in 1:4
+    for phase in 1:5
       ret = $(esc(ex))
       $(esc(isfailed))(ret) || break
 
@@ -433,7 +435,11 @@ macro retry_reclaim(isfailed, ex)
       elseif phase == 4 && pool.stream_ordered
         # this phase is unique to retry_reclaim, as regular allocations come from the pool
         # so are assumed to never need to trim its contents.
-        trim(memory_pool(device()))
+        trim(memory_pool(dev))
+      elseif phase == 5 && pool.stream_ordered
+        # trim does not release resources of pending streams, so synchronize those first.
+        device_synchronize()
+        trim(memory_pool(dev))
       end
     end
     ret
