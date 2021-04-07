@@ -169,8 +169,8 @@ The following keyword arguments are supported:
 AbstractKernel
 
 @generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
-    sig = Base.signature_type(F, TT)
-    args = (:F, (:( args[$i] ) for i in 1:length(args))...)
+    sig = Tuple{F, TT.parameters...}    # Base.signature_type with a function type
+    args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
 
     # filter out arguments that shouldn't be passed
     predicate = dt -> isghosttype(dt) || Core.Compiler.isconstType(dt)
@@ -201,13 +201,10 @@ end
 ## host-side kernels
 
 struct HostKernel{F,TT} <: AbstractKernel{F,TT}
+    f::F
     ctx::CuContext
     mod::CuModule
     fun::CuFunction
-
-    function HostKernel{F,TT}(ctx::CuContext, mod::CuModule, fun::CuFunction) where {F,TT}
-        kernel = new{F,TT}(ctx, mod, fun)
-    end
 end
 
 @doc (@doc AbstractKernel) HostKernel
@@ -291,7 +288,7 @@ function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where
     job = CompilerJob(target, source, params)
     return GPUCompiler.cached_compilation(cache, job,
                                           cufunction_compile,
-                                          cufunction_link)::HostKernel{f,tt}
+                                          cufunction_link)::HostKernel{F,tt}
 end
 
 const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
@@ -363,7 +360,7 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
         filter!(!isequal("global_random_seed"), compiled.external_gvars)
     end
 
-    return HostKernel{job.source.f,job.source.tt}(ctx, mod, fun)
+    return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun)
 end
 
 function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
@@ -374,6 +371,7 @@ end
 ## device-side kernels
 
 struct DeviceKernel{F,TT} <: AbstractKernel{F,TT}
+    f::F
     fun::CuDeviceFunction
 end
 
@@ -390,10 +388,10 @@ a callable kernel object. Device-side equivalent of [`CUDA.cufunction`](@ref).
 
 No keyword arguments are supported.
 """
-@inline function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
+@inline function dynamic_cufunction(f::F, tt::Type=Tuple{}) where {F <: Function}
     fptr = GPUCompiler.deferred_codegen(Val(f), Val(tt))
     fun = CuDeviceFunction(fptr)
-    DeviceKernel{f,tt}(fun)
+    DeviceKernel{F,tt}(f, fun)
 end
 
 (kernel::DeviceKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
