@@ -26,11 +26,7 @@ function kron!(A::CUDA.CuDeviceArray{<:Number},B::CUDA.CuDeviceArray{<:Number},C
 end
 
 function kron(A::CUDA.CuArray{S},B::CUDA.CuArray{T}) where {S,T <: Number}
-	# Need to specify thread count.
 
-	# The if statement is to handle a nuance of CUDA where if a column count
-	# is specified in CUDA.zeros, it will ALWAYS return a CuArray of dim=2.
-	# Otherwise, this function would be incompatible with ket.
 	col = size(A,2)*size(B,2)
 	if col == one(col)
 		C = CUDA.zeros(promote_type(S,T),size(A,1)*size(B,1))
