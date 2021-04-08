@@ -366,10 +366,9 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
         filter!(!isequal("global_random_seed"), compiled.external_gvars)
     end
 
-    if HOSTCALLAREA in compiled.external_gvars
-        create_hostcall_area!(mod)
-        filter!(!isequal(HOSTCALLAREA), compiled.external_gvars)
-    end
+    # TODO cleanup, but how
+    # filter!(!isequal(HOSTCALLAREA), compiled.external_gvars)
+    # filter!(!isequal(KINDCONFIG), compiled.external_gvars)
 
     return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun)
 end
@@ -377,19 +376,15 @@ end
 function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
     event = CuEvent(CUDA.EVENT_DISABLE_TIMING)
 
-    # TODO cleanup
-    reset_hostcall_area!(kernel.ctx)
 
-    # t = wait_and_kill_watcher(ConstantPoller(5000), event, kernel.ctx)
-    t = wait_and_kill_watcher(AlwaysPoller(), event, kernel.ctx)
+    manager = SimpleAreaManager(140, 128)
+    t = wait_and_kill_watcher(kernel.mod, AlwaysPoller(0), manager, event)
 
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
     CUDA.record(event, stream())
 
+    # Benchmarking purposes
     Base.wait(t)
-    # while !istaskdone(t)
-    #     yield()
-    # end
 end
 
 

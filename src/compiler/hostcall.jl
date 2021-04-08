@@ -1,106 +1,37 @@
+include("hostcall/area_manager.jl")
 include("hostcall/hostref.jl")
-include("hostcall/poller.jl")
 include("hostcall/timer.jl")
-
-const HOSTCALLAREA = "hostcall_area"
-
-# Maps CuContext to big hostcall area
-const hostcall_areas = Dict{CuContext, Mem.HostBuffer}()
-has_hostcalls(ctx::CuContext) = haskey(hostcall_areas, ctx)
-
-
-# flag states
-const IDLE = Int64(0)           # nothing is happening
-const HOST_DONE = Int64(1)      # the host has handled hostcall
-const LOADING = Int64(2)        # host or device are transfering data
-const HOST_CALL = Int64(3)      # host should handle hostcall
-const HOST_HANDLING = Int64(4)  # host is handling hostcall
-
-# Variable to indicate how many hostcall areas are/should be created
-hostcall_area_count() = 20
-# Variable to indicate how large a hostcall area is/should be
-hostcall_area_size() = sizeof(UInt8) * 1024
-
-@eval @inline hostcall_area() =
-    Base.llvmcall(
-        $("""@$(HOSTCALLAREA) = weak externally_initialized global i$(WORD_SIZE) 0
-             define i64 @entry() #0 {
-                 %ptr = load i$(WORD_SIZE), i$(WORD_SIZE)* @$(HOSTCALLAREA), align 8
-                 ret i$(WORD_SIZE) %ptr
-             }
-             attributes #0 = { alwaysinline }
-          """, "entry"), Ptr{Cvoid}, Tuple{})
-
-
-function reset_hostcall_area!(ctx::CuContext)
-    has_hostcalls(ctx) || return
-
-    ptr = convert(Ptr{Int64}, hostcall_areas[ctx])
-
-    # Unset flag and hostcall id
-    unsafe_store!(ptr, 0, 1)
-    unsafe_store!(ptr, 0, 2)
-end
-
-
-function create_hostcall_area!(mod::CuModule)
-    flag_ptr = CuGlobal{Ptr{Cvoid}}(mod, HOSTCALLAREA)
-    hostcall_area = get!(hostcall_areas, mod.ctx,
-        Mem.alloc(Mem.Host, hostcall_area_size() * hostcall_area_count(), Mem.HOSTALLOC_DEVICEMAP | Mem.HOSTALLOC_WRITECOMBINED))
-    flag_ptr[] = reinterpret(Ptr{Cvoid}, convert(CuPtr{Cvoid}, hostcall_area))
-
-    ptr    = convert(CuPtr{UInt8}, hostcall_area)
-    cuarray = unsafe_wrap(CuArray{UInt8}, ptr, hostcall_area_size() * hostcall_area_count())
-    fill!(cuarray, 0)
-
-    return
-end
+include("hostcall/poller.jl")
 
 
 """
     handle_hostcall(llvmptr::Core.LLVMPtr{Int64,AS.Global})
 
-Host side function that checks are executes outstanding hostmethods.
-Checking only one hostcall area.
+Host side function that checks and executes outstanding hostmethods.
+Checking only one index.
 """
-function handle_hostcall(llvmptr::Core.LLVMPtr{Int64,AS.Global})
+function handle_hostcall(manager::AreaManager, ctx::CuContext, index::Int64)
     start!(timer)
-    ptr     = reinterpret(Ptr{Int64}, llvmptr)
-    ptr_u8  = reinterpret(Ptr{UInt8}, llvmptr)
 
-    v = atomic_cas!(llvmptr, HOST_CALL, HOST_HANDLING)
-
-    if v != HOST_CALL
+    checked = check_area(manager, ctx, index)
+    if checked === nothing
         stop!(timer, true)
         return false
     end
 
-    # this code is very fragile
-    # https://docs.nvidia.com/cuda/cuda-c-programming-guide/#mapped-memory
-    # 'Note that atomic functions (see Atomic Functions) operating on mapped page-locked memory are not atomic from the point of view of the host or other devices.'
-    count = 0
-    while atomic_cas!(llvmptr, HOST_CALL, HOST_HANDLING) == HOST_CALL
-        unsafe_store!(ptr, HOST_HANDLING)
+    (hostcall, ptrs) = checked
+    hostcall = Val(hostcall)
+    for ptr in ptrs
+        try
+            ## Handle hostcall
+            handle_hostcall(hostcall, convert(Ptr{UInt8}, ptr))
+        catch e
+            println("ERROR ERROR")
+            println(e)
+        end
     end
 
-
-    # Fetch this hostcall
-    hostcall = unsafe_load(ptr+8)
-    # update!(timer2)
-
-
-    try
-        ## Handle hostcall
-        handle_hostcall(Val(hostcall), ptr_u8+16)
-    catch e
-        println("ERROR ERROR")
-        println(e)
-    end
-
-    # this code is very fragile
-    while atomic_cas!(llvmptr, HOST_HANDLING, HOST_DONE) == HOST_HANDLING
-        unsafe_store!(ptr, HOST_DONE)
-    end
+    finish_area(manager, ctx, index)
 
     stop!(timer, false)
     return true
@@ -140,26 +71,6 @@ end
 
 
 """
-    acquire_lock(ptr::LLVMPtr, expected::Int64, value::Int64, count)
-
-Try to acquire a lock in `ptr + hostcall_area_size() * i` for i in range(count).
-Loops over all hostcall areas until an acceptable hostcall area is found.
-"""
-@inline function acquire_lock(ptr::Core.LLVMPtr{Int64,AS.Global}, expected::Int64, value::Int64, count)
-    ## try capture lock
-
-    area_size = hostcall_area_size()
-    i = 0
-
-    while atomic_cas!(ptr + (i % count) * area_size, expected, value) != expected
-        nanosleep(UInt32(16))
-        i += 1
-    end
-
-    return ptr + (i % count) * area_size
-end
-
-"""
     call_hostcall(::Type{R}, n, args::A)
 
 Device side function to call a hostmethod. This function is invoked with `@cpu`.
@@ -167,30 +78,27 @@ Device side function to call a hostmethod. This function is invoked with `@cpu`.
 `n` is the hostcall id, a number to identify the required hostmethod to execute.
 """
 @inline function call_hostcall(::Type{R}, n, args::A) where {R, A}
-    llvmptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, hostcall_area())
+    # Get the area_manager of current execution
+    kind_config = get_manager_kind()
 
-    ## Store args
-    llvmptr = acquire_lock(llvmptr, IDLE, LOADING, hostcall_area_count())
+    # Acquire lock
+    (index, llvmptr) = acquire_lock(kind_config)
 
-
-    ptr     = reinterpret(Ptr{UInt8}, llvmptr)
-    ptr_64  = reinterpret(Ptr{Int64}, llvmptr)
-    args_ptr =  reinterpret(Ptr{A}, ptr + 16)
+    # Store arguments
+    args_ptr = reinterpret(Ptr{A}, llvmptr)
     unsafe_store!(args_ptr, args)
 
-    ## Notify CPU of syscall 'syscall'
-    unsafe_store!(ptr + 8, n)
-    unsafe_store!(ptr, HOST_CALL)
+    # Call host
+    call_host_function(kind_config, index, n)
 
-    local try_count = 0
-    # Just wait for HOST_DONE
-    acquire_lock(llvmptr, HOST_DONE, LOADING, 1)
+    # Get return value
+    ret_ptr = reinterpret(Ptr{R}, llvmptr)
+    local ret = unsafe_load(ret_ptr)
 
-    ## get return args
-    unsafe_store!(ptr, LOADING)
-    local ret = unsafe_load(reinterpret(Ptr{R}, ptr_64 + 16))
-    unsafe_store!(ptr, IDLE)
+    # Finish method
+    finish_function(kind_config, index)
 
+    # Return
     ret
 end
 
@@ -206,6 +114,7 @@ struct TypeCache{T, I}
     vec::Vector{T}
 end
 
+
 function type_to_int!(cache::TypeCache{T, I}, type::T) where {T, I}
     if haskey(cache.stash, type)
         return cache.stash[type]
@@ -215,12 +124,14 @@ function type_to_int!(cache::TypeCache{T, I}, type::T) where {T, I}
     end
 end
 
+
 int_to_type(cache::TypeCache{T, I}, index::I) where {T, I} = cache.vec[index]
 
 
 """ Struct to keep track of all compiled hostmethods """
 # This is not really used at it's best
 const cpufunctions = TypeCache{Tuple{Symbol, Expr}, Int64}(Dict(), Vector())
+
 
 """
     @cpu [kwargs...] func(args...)
@@ -289,19 +200,6 @@ macro cpu(ex...)
     return esc(call_cpu)
 end
 
-
-"""
-    dump_memory(::Type{T}, ty_count::Int64, ctx::CuContext=context())
-
-Print hostcall area of `ctx` as type `ty`.
-"""
-dump_memory(ty=UInt8) = dump_memory{UInt8}(ty)
-dump_memory(ty::Type{T}, ty_count=hostcall_area_size() ÷ sizeof(ty) * hostcall_area_count(), ctx::CuContext=context()) where {T} = dump_memory(ty, ty_count, ctx)
-function dump_memory(::Type{T}, ty_count::Int64, ctx::CuContext=context()) where {T}
-    ptr    = convert(CuPtr{T}, hostcall_areas[ctx])
-    cuarray = unsafe_wrap(CuArray{T}, ptr, ty_count)
-    println("Dump $cuarray")
-end
 
 """
     prettier_string(expr::Expr)::String

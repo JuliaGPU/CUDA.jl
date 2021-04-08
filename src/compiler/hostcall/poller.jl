@@ -3,7 +3,9 @@ usleep(usecs) = ccall(:usleep, Cint, (Cuint,), usecs)
 
 abstract type Poller end
 
-struct AlwaysPoller <: Poller end
+struct AlwaysPoller <: Poller
+    count :: Int32
+end
 struct ConstantPoller <: Poller
     dur :: UInt32
 end
@@ -19,20 +21,22 @@ Called before executing device kernel.
 This function starts an async task that polls according to the supplied `Poller`
 while the device kernel runs.
 """
-function wait_and_kill_watcher(poller::P, event::CuEvent, ctx::CuContext) where {P<:Poller}
+function wait_and_kill_watcher(mod::CuModule, poller::P, manager::AreaManager, event::CuEvent, ) where {P<:Poller}
     empty!(host_refs)
-    t = @async begin
-        has_hostcalls(ctx) || return
-        # reset!(timer)
+    reset_hostcall_area!(manager, mod)
+    ctx = mod.ctx
 
-        println("Start the watcher!")
+    t = @async begin
+        yield()
+        # println("Start the watcher!")
+
         try
-            launch_poller(poller, event, ctx)
+            launch_poller(poller, manager, event, ctx)
         catch e
             println("Failed $e")
             stacktrace()
         end
-        println("Killed the watcher!")
+        # println("Killed the watcher!")
     end
 
     while !istaskstarted(t)
@@ -45,16 +49,12 @@ end
 """
 Polls as often as is allowed.
 """
-function launch_poller(::AlwaysPoller, e::CuEvent, ctx::CuContext)
-    llvmptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, hostcall_areas[ctx].ptr)
-    count = hostcall_area_count()-1
-    size = hostcall_area_size()
+function launch_poller(poller::AlwaysPoller, manager::AreaManager, e::CuEvent, ctx::CuContext)
+    count = area_count(manager)
 
     while !query(e)
-        for i in 0:count
-            if handle_hostcall(llvmptr + i * size)
-                println("handled $i")
-            end
+        for i in 1:count
+            handle_hostcall(manager, ctx, i)
         end
         yield()
     end
@@ -64,14 +64,12 @@ end
 """
 Polls all hostcall areas then sleeps for a certain duration.
 """
-function launch_poller(poller::ConstantPoller, e::CuEvent, ctx::CuContext)
-    llvmptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, hostcall_areas[ctx].ptr)
-    count = hostcall_area_count()-1
-    size = hostcall_area_size()
+function launch_poller(poller::ConstantPoller, manager::AreaManager, e::CuEvent, ctx::CuContext)
+    count = area_count(manager)
 
     while !query(e)
-        for i in 0:count
-            handle_hostcall(llvmptr + i * size)
+        for i in 1:count
+            handle_hostcall(manager, ctx, i)
         end
 
         usleep(poller.dur)
