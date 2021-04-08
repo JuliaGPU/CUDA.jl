@@ -6,11 +6,13 @@ end
 
 function alloc(pool::NoPool, sz; stream::CuStream)
     block = nothing
-    for phase in 1:3
+    for phase in 1:4
         if phase == 2
             @pool_timeit "$phase.0 gc (incremental)" GC.gc(false)
         elseif phase == 3
             @pool_timeit "$phase.0 gc (full)" GC.gc(true)
+        elseif phase == 4 && pool.stream_ordered
+            @pool_timeit "$phase.0 synchronize" device_synchronize()
         end
 
         @pool_timeit "$phase.1 alloc" begin
