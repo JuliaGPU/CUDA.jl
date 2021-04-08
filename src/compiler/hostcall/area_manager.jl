@@ -7,6 +7,7 @@ const LOADING = Int64(2)        # host or device are transfering data
 const HOST_CALL = Int64(3)      # host should handle hostcall
 const HOST_HANDLING = Int64(4)  # host is handling hostcall
 
+
 """
     KindConfig
 
@@ -18,6 +19,7 @@ struct KindConfig
     kind::Int64
     area_ptr::Core.LLVMPtr{Int64,AS.Global}
 end
+
 
 @eval @inline manager_kind() =
     Base.llvmcall(
@@ -91,6 +93,7 @@ end
 stride(manager::WarpAreaManager) = manager.area_size * manager.warp_size + 3 * sizeof(Int64)
 kind(::WarpAreaManager) = 1
 
+
 """
     acquire_lock(kind::KindConfig)::(UInt64, Ptr{Int64})
 
@@ -117,13 +120,13 @@ function acquire_lock(kind::KindConfig)::Tuple{UInt64, Core.LLVMPtr{Int64,AS.Glo
     end
 end
 
+
 """
     call_host_function(kind::KindConfig, index::UInt64, hostcall::Int64)
 
 Device function for invoking the hostmethod and waiting for identifier `index`.
 """
 function call_host_function(kind::KindConfig, index::UInt64, hostcall::Int64)
-    @cuprintln("calling $hostcall")
     ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
     unsafe_store!(ptr + 8, hostcall)
     threadfence()

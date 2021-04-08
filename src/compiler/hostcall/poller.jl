@@ -28,7 +28,6 @@ function wait_and_kill_watcher(mod::CuModule, poller::P, manager::AreaManager, e
 
     t = @async begin
         yield()
-        # println("Start the watcher!")
 
         try
             launch_poller(poller, manager, event, ctx)
@@ -36,7 +35,6 @@ function wait_and_kill_watcher(mod::CuModule, poller::P, manager::AreaManager, e
             println("Failed $e")
             stacktrace()
         end
-        # println("Killed the watcher!")
     end
 
     while !istaskstarted(t)

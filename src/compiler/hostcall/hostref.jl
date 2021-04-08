@@ -1,3 +1,10 @@
+
+struct InvAdaptor end
+# convert CUDA device points to host pointers
+Adapt.adapt_storage(to::InvAdaptor, p::LLVMPtr{T,AS.Generic}) where {T} = reinterpret(CuPtr{T}, p)
+invcudaconvert(arg) = adapt(InvAdaptor(), arg)
+
+
 """
     HostRef
 
