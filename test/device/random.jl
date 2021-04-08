@@ -38,7 +38,7 @@ n = 256
         @cuda threads=n kernel(b, seed)
 
         if seed === nothing || seed === missing
-            @test all(Array(a) .!= Array(b))
+            @test Array(a) != Array(b)
         else
             @test Array(a) == Array(b)
         end
@@ -59,7 +59,7 @@ n = 256
 
         @cuda threads=n kernel(a, b, seed)
 
-        @test all(Array(a) .!= Array(b))
+        @test Array(a) != Array(b)
     end
 
     # different threads should get different numbers
