@@ -416,7 +416,7 @@ CUDA memory pool) and return a specific error code when failing to.
 macro retry_reclaim(isfailed, ex)
   quote
     ret = nothing
-    for phase in 1:5
+    for phase in 1:6
       ret = $(esc(ex))
       $(esc(isfailed))(ret) || break
 
@@ -433,12 +433,13 @@ macro retry_reclaim(isfailed, ex)
         GC.gc(true)
         reclaim()
       elseif phase == 4 && pool.stream_ordered
-        # this phase is unique to retry_reclaim, as regular allocations come from the pool
-        # so are assumed to never need to trim its contents.
-        trim(memory_pool(dev))
-      elseif phase == 5 && pool.stream_ordered
-        # trim does not release resources of pending streams, so synchronize those first.
+        # synchronizing streams forces asynchronous free operations to finish.
+        # in combination with the configured release threshold, this should also free up
+        # some actual memory (without having to trim the memory pool as in the next phase).
         device_synchronize()
+      elseif phase == 5 && pool.stream_ordered
+        # release all cached allocations from the memory pool (for when the allocating code
+        # does not use the stream-ordered allocator).
         trim(memory_pool(dev))
       end
     end
