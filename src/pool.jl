@@ -141,7 +141,7 @@ function actual_alloc(bytes::Integer, last_resort::Bool=false;
 
     buf
   catch err
-    (isa(err, CuError) && err.code == ERROR_OUT_OF_MEMORY) || rethrow()
+    isa(err, OutOfGPUMemoryError) || rethrow()
     return nothing
   end
 
