@@ -616,7 +616,7 @@ function memory_status(io::IO=stdout)
   alloc_used_bytes = used_memory(dev)
   alloc_cached_bytes = cached_memory(pool)
   alloc_total_bytes = alloc_used_bytes + alloc_cached_bytes
-  @printf(io, "Memory pool '%s' usage: %s (%s allocated, %s cached)\n", string(pool),
+  @printf(io, "Memory pool usage: %s (%s allocated, %s cached)\n",
               Base.format_bytes(alloc_total_bytes), Base.format_bytes(alloc_used_bytes),
               Base.format_bytes(alloc_cached_bytes))
 
