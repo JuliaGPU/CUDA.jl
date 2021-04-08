@@ -30,6 +30,16 @@ mutable struct CuModule
         end
         optionKeys, optionVals = encode(options)
 
+        # XXX: cuModuleLoadData is sensitive to memory pressure, and can segfault when
+        #      running close to OOM on CUDA 11.2 / driver 460 (NVIDIA bug #3284677).
+        #
+        #      this happens often when using the stream-ordered memory allocator, because
+        #      the reserve of available memory we try to maintain is often not actually
+        #      available, but cached by the allocator. by configuring the allocator with a
+        #      release threshold, we have it actually free up that memory, but that requires
+        #      synchronizing all streams to make sure pending frees are actually executed.
+        device_synchronize()
+
         # FIXME: maybe all CUDA API calls need to run under retry_reclaim?
         #        that would require a redesign of the memory pool,
         #        so maybe do so when we replace it with CUDA 11.2's pool.
