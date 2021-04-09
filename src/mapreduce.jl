@@ -7,10 +7,10 @@
 # Reduce a value across a warp
 @inline function reduce_warp(op, val)
     assume(warpsize() == 32)
-    offset = 1
+    offset = UInt32(1)
     while offset < warpsize()
         val = op(val, shfl_down_sync(0xffffffff, val, offset))
-        offset *= 2
+        offset <<= 1
     end
 
     return val
