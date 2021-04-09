@@ -257,8 +257,6 @@ Adapt.adapt_storage(::Type{CuArray}, xs::AT) where {AT<:AbstractArray} =
 Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
   isbitstype(AT) ? xs : convert(CuArray{T}, xs)
 
-Adapt.adapt_storage(::Type{Array}, xs::CuArray) = convert(Array, xs)
-
 Base.collect(x::CuArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), x)
 
 function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
@@ -417,6 +415,9 @@ cuviewlength() = ()
 @inline cuviewlength(i1::AbstractUnitRange, I...) = (Base.unsafe_length(i1), cuviewlength(I...)...)
 @inline cuviewlength(i1::AbstractUnitRange, ::Base.ScalarIndex...) = (Base.unsafe_length(i1),)
 
+# we don't really want an array, so don't call `adapt(Array, ...)`,
+# but just want CuArray indices to get downloaded back to the CPU.
+# this makes sure we preserve array-like containers, like Base.Slice.
 struct BackToCPU end
 Adapt.adapt_storage(::BackToCPU, xs::CuArray) = convert(Array, xs)
 
