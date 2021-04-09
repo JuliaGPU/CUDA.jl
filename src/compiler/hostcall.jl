@@ -229,6 +229,10 @@ end
     end
 end
 
+struct FooBar
+    x::Int64
+    y::Int64
+end
 
 # unused
 @generated function volatile_load(ptr::Ptr{T}) where T

@@ -7,6 +7,14 @@ const LOADING = Int64(2)        # host or device are transfering data
 const HOST_CALL = Int64(3)      # host should handle hostcall
 const HOST_HANDLING = Int64(4)  # host is handling hostcall
 
+"""
+    align(value, bound=32)
+
+Aligns value to bound
+
+!!! Warning: Works only for bounds that are powers of 2!
+"""
+align(v, b=32) = (v + b-1) & ~(b-1);
 
 """
     KindConfig
@@ -23,13 +31,14 @@ end
 
 @eval @inline manager_kind() =
     Base.llvmcall(
-        $("""@$(KINDCONFIG) = weak externally_initialized global i$(WORD_SIZE) 0
-             define i64 @entry() #0 {
-                 %ptr = load i$(WORD_SIZE), i$(WORD_SIZE)* @$(KINDCONFIG), align 8
-                 ret i$(WORD_SIZE) %ptr
-             }
-             attributes #0 = { alwaysinline }
-          """, "entry"), Ptr{Cvoid}, Tuple{})
+        $("""@$(KINDCONFIG) = weak addrspace($(AS.Constant)) externally_initialized global [$(sizeof(KindConfig)) x i8] zeroinitializer, align 8
+             define i8 addrspace($(AS.Constant))* @entry() #0 {
+                %ptr = getelementptr inbounds [$(sizeof(KindConfig)) x i8], [$(sizeof(KindConfig)) x i8] addrspace($(AS.Constant))* @$(KINDCONFIG), i64 0, i64 0
+                %untyped_ptr = bitcast i8 addrspace($(AS.Constant))* %ptr to i8 addrspace($(AS.Constant))*
+                ret i8 addrspace($(AS.Constant))* %untyped_ptr
+            }
+            attributes #0 = { alwaysinline }
+          """, "entry"), LLVMPtr{KindConfig, AS.Constant}, Tuple{})
 
 
 """
@@ -37,9 +46,9 @@ end
 
 Device function to get the current KindConfig
 """
-function get_manager_kind()
-    ptr = reinterpret(Ptr{KindConfig}, manager_kind())
-    return unsafe_load(ptr)
+function get_manager_kind()::KindConfig
+    # ptr = reinterpret(Ptr{KindConfig}, manager_kind())
+    return unsafe_load(manager_kind())
 end
 
 
@@ -75,7 +84,7 @@ struct SimpleAreaManager <: AreaManager
     area_count::Int
     area_size::Int
 end
-stride(manager::SimpleAreaManager) = manager.area_size + 2 * sizeof(Int64)
+stride(manager::SimpleAreaManager) = align(manager.area_size + 2 * sizeof(Int64))
 kind(::SimpleAreaManager) = 0
 
 
@@ -90,7 +99,7 @@ struct WarpAreaManager <: AreaManager
     area_size::Int
     warp_size::Int
 end
-stride(manager::WarpAreaManager) = manager.area_size * manager.warp_size + 3 * sizeof(Int64)
+stride(manager::WarpAreaManager) = align(manager.area_size * manager.warp_size + 3 * sizeof(Int64))
 kind(::WarpAreaManager) = 1
 
 
@@ -154,9 +163,6 @@ end
 
 # Maps CuContext to big hostcall area
 const hostcall_areas = Dict{CuContext, Mem.HostBuffer}()
-# Maps CuContext to KindConfig buffer
-const kind_memories = Dict{CuContext, Mem.HostBuffer}()
-
 
 """
     assure_hostcall_area(ctx::CuContext, required::Int)::Mem.HostBuffer
@@ -190,25 +196,9 @@ Updating the KindConfig buffer with runtime config for `manager`.
 function reset_hostcall_area!(manager::AreaManager, mod::CuModule)
     hostcall_area = assure_hostcall_area(mod.ctx, required_size(manager))
 
-    if !haskey(kind_memories, mod.ctx)
-        println("creating new kind memories")
-        kind_memories[mod.ctx] = Mem.alloc(Mem.Host, sizeof(KindConfig),
-            Mem.HOSTALLOC_DEVICEMAP | Mem.HOSTALLOC_WRITECOMBINED)
-
-        kind_memory = convert(Ptr{KindConfig}, kind_memories[mod.ctx])
-    else
-        kind_memory = convert(Ptr{KindConfig}, kind_memories[mod.ctx])
-    end
-
-    try
-        flag_ptr = CuGlobal{Ptr{Cvoid}}(mod, KINDCONFIG)
-        flag_ptr[] = reinterpret(Ptr{Cvoid}, kind_memory)
-    catch e
-        println("Failed $e")
-        stacktrace()
-    end
-
-    unsafe_store!(kind_memory, kind_config(manager, hostcall_area))
+    kind = kind_config(manager, hostcall_area)
+    kind_global = CuGlobal{KindConfig}(mod, KINDCONFIG)
+    kind_global[] = kind
 end
 
 
