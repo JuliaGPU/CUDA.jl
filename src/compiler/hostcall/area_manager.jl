@@ -7,6 +7,7 @@ const LOADING = Int64(2)        # host or device are transfering data
 const HOST_CALL = Int64(3)      # host should handle hostcall
 const HOST_HANDLING = Int64(4)  # host is handling hostcall
 
+
 """
     align(value, bound=32)
 
@@ -15,6 +16,7 @@ Aligns value to bound
 !!! Warning: Works only for bounds that are powers of 2!
 """
 align(v, b=32) = (v + b-1) & ~(b-1);
+
 
 """
     KindConfig
@@ -47,7 +49,6 @@ end
 Device function to get the current KindConfig
 """
 function get_manager_kind()::KindConfig
-    # ptr = reinterpret(Ptr{KindConfig}, manager_kind())
     return unsafe_load(manager_kind())
 end
 
@@ -86,6 +87,7 @@ struct SimpleAreaManager <: AreaManager
 end
 stride(manager::SimpleAreaManager) = align(manager.area_size + 2 * sizeof(Int64))
 kind(::SimpleAreaManager) = 0
+kind(::Type{SimpleAreaManager}) = 0
 
 
 """
@@ -101,6 +103,7 @@ struct WarpAreaManager <: AreaManager
 end
 stride(manager::WarpAreaManager) = align(manager.area_size * manager.warp_size + 3 * sizeof(Int64))
 kind(::WarpAreaManager) = 1
+kind(::Type{WarpAreaManager}) = 1
 
 
 """
@@ -109,24 +112,35 @@ kind(::WarpAreaManager) = 1
 Device function acquiring a lock for the `kind` KindConfig
 Returning an identifier (often an index) and a point for argument storing and return value gathering
 """
-function acquire_lock(kind::KindConfig)::Tuple{UInt64, Core.LLVMPtr{Int64,AS.Global}}
-    if kind.kind == 0 # SimpleAreaManager
-        ptr = kind.area_ptr
-        stride = kind.stride
-        count = kind.count
-
-        i = threadIdx().x - 1
-
-        while atomic_cas!(ptr + (i % count) * stride, IDLE, LOADING) != IDLE
-            nanosleep(UInt32(16))
-            i += 1
-        end
-
-        return (i%count, ptr + (i % count) * stride + 16)
-    else # WarpAreaManager
-        # TODO
-        (0, kind.area_ptr)
+function acquire_lock(kindconfig::KindConfig)::Tuple{UInt64, Core.LLVMPtr{Int64,AS.Global}}
+    if kindconfig.kind == kind(SimpleAreaManager)
+        acquire_lock_impl(SimpleAreaManager, kindconfig)
+    elseif kindconfig.kind == kind(WarpAreaManager)
+        acquire_lock_impl(WarpAreaManager, kindconfig)
+    else
+        error("Unknown kindconfig")
     end
+end
+
+
+function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig)::Tuple{UInt64, Core.LLVMPtr{Int64,AS.Global}}
+    ptr = kind.area_ptr
+    stride = kind.stride
+    count = kind.count
+
+    i = threadIdx().x - 1
+
+    while atomic_cas!(ptr + (i % count) * stride, IDLE, LOADING) != IDLE
+        nanosleep(UInt32(16))
+        i += 1
+    end
+
+    return (i%count, ptr + (i % count) * stride + 16)
+end
+
+#TODO!
+function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig)::Tuple{UInt64, Core.LLVMPtr{Int64,AS.Global}}
+    (0, kind.area_ptr)
 end
 
 
@@ -135,7 +149,33 @@ end
 
 Device function for invoking the hostmethod and waiting for identifier `index`.
 """
-function call_host_function(kind::KindConfig, index::UInt64, hostcall::Int64)
+function call_host_function(kindconfig::KindConfig, index::UInt64, hostcall::Int64)
+    if kindconfig.kind == kind(SimpleAreaManager)
+        call_host_function_impl(SimpleAreaManager, kindconfig, index, hostcall)
+    elseif kindconfig.kind == kind(WarpAreaManager)
+        call_host_function_impl(WarpAreaManager, kindconfig, index, hostcall)
+    else
+        error("Unknown kindconfig")
+    end
+end
+
+
+function call_host_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, index::UInt64, hostcall::Int64)
+    ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
+    unsafe_store!(ptr + 8, hostcall)
+    threadfence()
+    unsafe_store!(ptr, HOST_CALL)
+
+    while volatile_load(ptr + 8) != 0
+        nanosleep(UInt32(16))
+        threadfence()
+    end
+
+    unsafe_store!(ptr, LOADING)
+end
+
+
+function call_host_function_impl(::Type{WarpAreaManager}, kind::KindConfig, index::UInt64, hostcall::Int64)
     ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
     unsafe_store!(ptr + 8, hostcall)
     threadfence()
@@ -155,10 +195,29 @@ end
 
 Device function for finishing a hostmethod, notifying the end of the invokation for identifier `index`.
 """
-function finish_function(kind::KindConfig, index::UInt64)
+function finish_function(kindconfig::KindConfig, index::UInt64)
+    if kindconfig.kind == kind(SimpleAreaManager)
+        finish_function_impl(SimpleAreaManager, kindconfig, index)
+    elseif kindconfig.kind == kind(WarpAreaManager)
+        finish_function_impl(WarpAreaManager, kindconfig, index)
+    else
+        error("Unknown kindconfig")
+    end
+end
+
+
+function finish_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, index::UInt64)
     ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
     unsafe_store!(ptr, IDLE)
 end
+
+
+function finish_function_impl(::Type{WarpAreaManager}, kind::KindConfig, index::UInt64)
+    ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
+    unsafe_store!(ptr, IDLE)
+end
+
+
 
 
 # Maps CuContext to big hostcall area
