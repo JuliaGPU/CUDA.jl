@@ -22,7 +22,8 @@ This function starts an async task that polls according to the supplied `Poller`
 while the device kernel runs.
 """
 function wait_and_kill_watcher(mod::CuModule, poller::P, manager::AreaManager, event::CuEvent, ) where {P<:Poller}
-    empty!(host_refs)
+    # empty!(host_refs)
+    reset()
     reset_hostcall_area!(manager, mod)
     ctx = mod.ctx
 
@@ -35,6 +36,8 @@ function wait_and_kill_watcher(mod::CuModule, poller::P, manager::AreaManager, e
             println("Failed $e")
             stacktrace()
         end
+
+        println("$(val())")
     end
 
     while !istaskstarted(t)
