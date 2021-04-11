@@ -42,10 +42,10 @@ struct KindConfig
 end
 
 struct Data
-    a::Int64
-    b::Int64
-    c::Int64
-    d::Int64
+    a::Int32
+    b::UInt32
+    c::Int32
+    d::Int32
 end
 
 
