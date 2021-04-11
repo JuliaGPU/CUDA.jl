@@ -202,6 +202,55 @@ end
 
 
 # Sorting
+"""
+Finds the median of `vals` starting after `lo` and going for `blockDim().x`
+elements spaced by `stride`. Performs bitonic sort in shmem, returns middle value.
+Faster than bubble sort, but not as flexible. Does not modify `vals`
+"""
+function bitonic_median(vals :: AbstractArray{T}, swap, lo, L, stride, lt::F1, by::F2) where {T,F1,F2}
+    sync_threads()
+    bitonic_lt(i1, i2) = @inbounds flex_lt(swap[i1 + 1], swap[i2 + 1], false, lt, by)
+
+    @inbounds swap[threadIdx().x] = vals[lo + threadIdx().x * stride]
+    sync_threads()
+    old_val = zero(eltype(swap))
+
+    log_blockDim = begin
+        out = 0
+        k = blockDim().x
+        while k > 1
+            k = k >> 1
+            out += 1
+        end
+        out
+    end
+
+    log_k = 1
+    while log_k <= log_blockDim
+        k = 1 << log_k
+        j = k ÷ 2
+
+        while j > 0
+            i = threadIdx().x - 1
+            l = xor(i, j)
+            to_swap = (i & k) == 0 && bitonic_lt(l, i) || (i & k) != 0 && bitonic_lt(i, l)
+            to_swap = to_swap == (i < l)
+
+            if to_swap
+                @inbounds old_val = swap[l + 1]
+            end
+            sync_threads()
+            if to_swap
+                @inbounds swap[i + 1] = old_val
+            end
+            sync_threads()
+            j = j ÷ 2
+        end
+        log_k += 1
+    end
+    sync_threads()
+    return @inbounds swap[blockDim().x ÷ 2]
+end
 
 """
 Performs bubble sort on `vals` starting after `lo` and going for min(`L`, `blockDim().x`)
@@ -311,15 +360,15 @@ function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sy
         view(vals, idxs...)
     end
 
-    # step 1: single block bubble sort. It'll either finish sorting a subproblem or
+    # step 1: single block sort. It'll either finish sorting a subproblem or
     # help select a pivot value
-    bubble_sort(slice, swap, lo, L, L <= blockDim().x ? 1 : L ÷ blockDim().x, lt, by)
 
     if L <= blockDim().x
+        bubble_sort(slice, swap, lo, L, 1, lt, by)
         return
     end
 
-    pivot = @inbounds slice[lo + (blockDim().x ÷ 2) * (L ÷ blockDim().x)]
+    pivot = bitonic_median(slice, swap, lo, L, L ÷ blockDim().x, lt, by)
 
     # step 2: use pivot to partition into batches
     call_batch_partition(slice, pivot, swap, b_sums, lo, hi, parity, sync, lt, by)
