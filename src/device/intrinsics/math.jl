@@ -139,8 +139,8 @@ Base.expm1(x::Float16) = Float16(CUDA.expm1(Float32(x)))
 @device_function clz(x::Int32) =   ccall("extern __nv_clz", llvmcall, Int32, (Int32,), x)
 @device_function clz(x::Int64) =   ccall("extern __nv_clzll", llvmcall, Int32, (Int64,), x)
 
-@device_function ffs(x::Int32) = ccall("extern __nv_ffs", llvmcall, Int32, (Int32,), x)
-@device_function ffs(x::Int64) = ccall("extern __nv_ffsll", llvmcall, Int32, (Int64,), x)
+@device_function @inline ffs(x::Int32) = ccall("extern __nv_ffs", llvmcall, Int32, (Int32,), x)
+@device_function @inline ffs(x::Int64) = ccall("extern __nv_ffsll", llvmcall, Int32, (Int64,), x)
 
 @device_function byte_perm(x::Int32, y::Int32, z::Int32) = ccall("extern __nv_byte_perm", llvmcall, Int32, (Int32, Int32, Int32), x, y, z)
 

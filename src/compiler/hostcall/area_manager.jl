@@ -8,6 +8,16 @@ const HOST_CALL = Int64(3)      # host should handle hostcall
 const HOST_HANDLING = Int64(4)  # host is handling hostcall
 
 
+@inline packfoo(x, y)::Int64 = (Int64(x) << 32) | y
+@inline unpackfoo(x)::Tuple{Int32, Int32} = ((x >>> 32) % Int32, (x & typemax(Int32)) % Int32)
+
+@inline _ffs(x::Int32) = ccall("extern __nv_ffs", llvmcall, Int32, (Int32,), x)
+@inline _ffs(x::UInt32) = ccall("extern __nv_ffs", llvmcall, Int32, (UInt32,), x)
+@inline _ffs(x::Int64) = ccall("extern __nv_ffsll", llvmcall, Int32, (Int64,), x)
+@inline _ffs(x::UInt64) = ccall("extern __nv_ffsll", llvmcall, Int32, (UInt64,), x)
+
+
+
 """
     align(value, bound=32)
 
@@ -24,10 +34,18 @@ align(v, b=32) = (v + b-1) & ~(b-1);
 Datastruct storing all required runtime information about the current area manager
 """
 struct KindConfig
-    stride::UInt64
-    count::UInt64
+    stride::Int64
+    area_size::Int64
+    count::Int64
     kind::Int64
     area_ptr::Core.LLVMPtr{Int64,AS.Global}
+end
+
+struct Data
+    a::Int64
+    b::Int64
+    c::Int64
+    d::Int64
 end
 
 
@@ -71,7 +89,7 @@ Function returning the current runtime KindConfig.
 """
 function kind_config(manager::AreaManager, buffer::Mem.HostBuffer)
     ptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, buffer.ptr)
-    KindConfig(stride(manager), area_count(manager), kind(manager), ptr)
+    KindConfig(stride(manager), manager.area_size, area_count(manager), kind(manager), ptr)
 end
 
 
@@ -107,12 +125,12 @@ kind(::Type{WarpAreaManager}) = 1
 
 
 """
-    acquire_lock(kind::KindConfig)::(UInt64, Ptr{Int64})
+    acquire_lock(kind::KindConfig)::(Int64, Ptr{Int64})
 
 Device function acquiring a lock for the `kind` KindConfig
 Returning an identifier (often an index) and a point for argument storing and return value gathering
 """
-function acquire_lock(kindconfig::KindConfig)::Tuple{UInt64, Core.LLVMPtr{Int64,AS.Global}}
+function acquire_lock(kindconfig::KindConfig)::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}}
     if kindconfig.kind == kind(SimpleAreaManager)
         acquire_lock_impl(SimpleAreaManager, kindconfig)
     elseif kindconfig.kind == kind(WarpAreaManager)
@@ -123,7 +141,7 @@ function acquire_lock(kindconfig::KindConfig)::Tuple{UInt64, Core.LLVMPtr{Int64,
 end
 
 
-function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig)::Tuple{UInt64, Core.LLVMPtr{Int64,AS.Global}}
+function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig)::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}}
     ptr = kind.area_ptr
     stride = kind.stride
     count = kind.count
@@ -135,21 +153,53 @@ function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig)::Tuple{U
         i += 1
     end
 
-    return (i%count, ptr + (i % count) * stride + 16)
+    return (Data(i%count,0, 0, 0) , ptr + (i % count) * stride + 16)
 end
 
+
 #TODO!
-function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig)::Tuple{UInt64, Core.LLVMPtr{Int64,AS.Global}}
-    (0, kind.area_ptr)
+function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig)::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}}
+    mask = vote_ballot(true)
+    # @cuprintln("mask $mask")
+    leader = _ffs(mask) # determine first 1 in mask, that's our true leader!
+    threadx = threadIdx().x - 1
+    laneid = (threadx % warpsize()) + 1
+
+
+    index = 0
+    if leader == laneid
+        # gotto get a lock for my peeps
+        warpid = div(threadx, ws)
+
+        ptr = kind.area_ptr
+        stride = kind.stride
+        count = kind.count
+
+        i = warpid
+
+        while atomic_cas!(ptr + (i % count) * stride, IDLE, LOADING) != IDLE
+            nanosleep(UInt32(16))
+            i += 1
+        end
+
+        index = i % count
+    end
+
+    index = shfl_sync(mask, index, leader)
+
+    ptr = kind.area_ptr + index * kind.stride + 24 + (laneid - 1) * kind.area_size
+
+
+    (Data(index, mask, laneid, leader), ptr)
 end
 
 
 """
-    call_host_function(kind::KindConfig, index::UInt64, hostcall::Int64)
+    call_host_function(kind::KindConfig, index::Int64, hostcall::Int64)
 
 Device function for invoking the hostmethod and waiting for identifier `index`.
 """
-function call_host_function(kindconfig::KindConfig, index::UInt64, hostcall::Int64)
+function call_host_function(kindconfig::KindConfig, index::Data, hostcall::Int64)
     if kindconfig.kind == kind(SimpleAreaManager)
         call_host_function_impl(SimpleAreaManager, kindconfig, index, hostcall)
     elseif kindconfig.kind == kind(WarpAreaManager)
@@ -160,7 +210,9 @@ function call_host_function(kindconfig::KindConfig, index::UInt64, hostcall::Int
 end
 
 
-function call_host_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, index::UInt64, hostcall::Int64)
+function call_host_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, data::Data, hostcall::Int64)
+    index = data.a
+
     ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
     unsafe_store!(ptr + 8, hostcall)
     threadfence()
@@ -175,48 +227,67 @@ function call_host_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, in
 end
 
 
-function call_host_function_impl(::Type{WarpAreaManager}, kind::KindConfig, index::UInt64, hostcall::Int64)
-    ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
-    unsafe_store!(ptr + 8, hostcall)
-    threadfence()
-    unsafe_store!(ptr, HOST_CALL)
+function call_host_function_impl(::Type{WarpAreaManager}, kind::KindConfig, data::Data, hostcall::Int64)
+    sync_warp(data.b) # sync so all arguments are loaded
 
-    while volatile_load(ptr + 8) != 0
-        nanosleep(UInt32(16))
+    if data.c == data.d
+        index = data.a
+        ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
+
+        unsafe_store!(ptr + 8, hostcall)
+        unsafe_store!(ptr + 16, data.b) # store mask
+
         threadfence()
+        unsafe_store!(ptr, HOST_CALL)
+
+        while volatile_load(ptr + 8) != 0
+            nanosleep(UInt32(16))
+            threadfence()
+        end
+
+        unsafe_store!(ptr, LOADING)
     end
 
-    unsafe_store!(ptr, LOADING)
+    sync_warp(data.b)
 end
 
 
 """
-    finish_function(kind::KindConfig, index::UInt64)
+    finish_function(kind::KindConfig, data::Data)
 
-Device function for finishing a hostmethod, notifying the end of the invokation for identifier `index`.
+Device function for finishing a hostmethod, notifying the end of the invokation for identifier `data`.
 """
-function finish_function(kindconfig::KindConfig, index::UInt64)
+function finish_function(kindconfig::KindConfig, data::Data)
     if kindconfig.kind == kind(SimpleAreaManager)
-        finish_function_impl(SimpleAreaManager, kindconfig, index)
+        finish_function_impl(SimpleAreaManager, kindconfig, data)
     elseif kindconfig.kind == kind(WarpAreaManager)
-        finish_function_impl(WarpAreaManager, kindconfig, index)
+        finish_function_impl(WarpAreaManager, kindconfig, data)
     else
         error("Unknown kindconfig")
     end
 end
 
 
-function finish_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, index::UInt64)
+function finish_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, data::Data)
+    index = data.a
+
     ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
     unsafe_store!(ptr, IDLE)
 end
 
 
-function finish_function_impl(::Type{WarpAreaManager}, kind::KindConfig, index::UInt64)
-    ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
-    unsafe_store!(ptr, IDLE)
-end
+function finish_function_impl(::Type{WarpAreaManager}, kind::KindConfig, data::Data)
+    sync_warp(data.b) # wait for all threads return arguments are loaded
 
+    if data.c == data.d # leader
+        index = data.a
+        ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
+
+        unsafe_store!(ptr, IDLE)
+    end
+
+    sync_warp(data.b)
+end
 
 
 
@@ -271,7 +342,7 @@ function check_area(manager::AreaManager, ctx::CuContext, index::Int64)::Union{N
     ptr = convert(Ptr{Int64}, hostcall_areas[ctx])
     ptr += stride(manager) * (index - 1)
 
-    if unsafe_load(ptr) == HOST_CALL
+    if volatile_load(ptr + 8) != 0
         unsafe_store!(ptr, HOST_HANDLING)
         hostcall = volatile_load(ptr + 8)
         ptrs = areas_in(manager, ptr)
@@ -290,16 +361,18 @@ Calculates all used hostmethod zones in `ptr`
 """
 areas_in(::SimpleAreaManager, ptr::Ptr{Int64}) = Ptr{Int64}[ptr+16]
 function areas_in(manager::WarpAreaManager, ptr::Ptr{Int64})
-    # TODO
+    mask = unsafe_load(ptr + 16)
+
     out = Ptr{Int64}[]
 
+    ptr += 24
     st = manager.area_size
-    for _ in [1:manager.warp_size]
-        push!(out, ptr)
+    for digit in digits(mask, base=2, pad=32)
+        if digit == 1
+            push!(out, ptr)
+        end
         ptr += st
     end
-
-    println("Area count $(length(out))")
 
     return out
 end
