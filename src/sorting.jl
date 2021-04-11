@@ -225,7 +225,11 @@ elements spaced by `stride`. Good for sampling pivot values as well as short sor
             end
             sync_threads()
             if 1 <= buddy <= L && threadIdx().x <= L
-                if (threadIdx().x < buddy) != flex_lt(swap[threadIdx().x], buddy_val, false, lt, by)
+                is_left = threadIdx().x < buddy
+                # flex_lt needs to handle equivalence in opposite ways for the
+                # two threads in each swap pair. Otherwise, if there are two
+                # different values with the same by, one will overwrite the other
+                if is_left != flex_lt(swap[threadIdx().x], buddy_val, is_left, lt, by)
                     swap[threadIdx().x] = buddy_val
                 end
             end

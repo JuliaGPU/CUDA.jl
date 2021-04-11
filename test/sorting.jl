@@ -252,7 +252,15 @@ end
 
     # using a `by` argument
     @test check_sort(Float32, 100000; by=x->abs(x - 0.5))
-    @test check_sort(Float64, (4, 100000); by=x->8*x-round(8*x), dims=2)
+    @test check_sort!(Float32, (100000, 4); by=x->abs(x - 0.5), dims=1)
+    @test check_sort!(Float32, (4, 100000); by=x->abs(x - 0.5), dims=2)
+    @test check_sort!(Float64, 400000; by=x->8*x-round(8*x))
+    @test check_sort!(Float64, (100000, 4); by=x->8*x-round(8*x), dims=1)
+    @test check_sort!(Float64, (4, 100000); by=x->8*x-round(8*x), dims=2)
+    # target bubble sort by using sub-blocksize input:
+    @test check_sort!(Int, 200; by=x->x % 2)
+    @test check_sort!(Int, 200; by=x->x % 3)
+    @test check_sort!(Int, 200; by=x->x % 4)
 end
 
 end
