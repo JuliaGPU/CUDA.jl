@@ -431,8 +431,12 @@ function main()
 
     process("cusparse", "$cuda/cusparse.h"; include_dirs=[cuda])
 
-    process("cusolver", "$cuda/cusolverDn.h", "$cuda/cusolverSp.h", "$cuda/cusolverMg.h";
-            wrapped_headers=["cusolver_common.h", "cusolverDn.h", "cusolverSp.h", "cusolverMg.h"],
+    process("cusolver", "$cuda/cusolverDn.h",
+            "$cuda/cusolverSp.h", "$cuda/cusolverSp_LOWLEVEL_PREVIEW.h",
+            "$cuda/cusolverMg.h", "$cuda/cusolverRf.h";
+            wrapped_headers=["cusolver_common.h", "cusolverDn.h",
+                             "cusolverSp.h", "cusolverSp_LOWLEVEL_PREVIEW.h",
+                             "cusolverMg.h", "cusolverRf.h"],
             include_dirs=[cuda])
 
     process("cudnn", "$cudnn/cudnn_version.h", "$cudnn/cudnn_ops_infer.h",
