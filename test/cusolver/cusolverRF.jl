@@ -94,8 +94,9 @@ n = 512
         # Create a batch of matrices
         As_batch = [sparse(I, J, randn(nnzA)) for i in 1:nbatch]
         d_As_batch = [CuSparseMatrixCSR(Ab) for Ab in As_batch]
-        CUDA.@time CUSOLVER.rf_batch_refactor!(rflu, d_As_batch)
+        CUSOLVER.rf_batch_refactor!(rflu, d_As_batch)
         ldiv!(d_X, rflu, d_B)
+        res = Array(d_X)
         for i in 1:nbatch
             solution = As_batch[i] \ B[:, i]
             @test isapprox(res[:, i], solution)
