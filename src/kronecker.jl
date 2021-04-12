@@ -2,7 +2,7 @@ import Base.kron
 
 export kron, kron!
 
-function kron!(A::CuDeviceArray{<:Number},B::CuDeviceArray{<:Number},C::CuDeviceArray{<:Number})
+function kron_3D!(A::CuDeviceArray{<:Number},B::CuDeviceArray{<:Number},C::CuDeviceArray{<:Number})
 
     C_rows = size(C,1)
     B_rows = size(B,1)
@@ -22,6 +22,21 @@ function kron!(A::CuDeviceArray{<:Number},B::CuDeviceArray{<:Number},C::CuDevice
         @inbounds for k = 1:B_rows
             C[(B_rows*(i-1) + k) + C_rows*((B_cols*(j-1) + l)-1)] = aij*B[k,l]
         end
+    end
+end
+
+function kron!(A::CuDeviceArray{<:Number},B::CuDeviceArray{<:Number},C::CuDeviceArray{<:Number})
+
+    p = size(B,1)
+    q = size(B,2)
+
+    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    stride = blockDim().x * gridDim().x
+
+    @inbounds for element=index:stride:length(C)
+        j = ceil(Int,(element/size(C,1)))
+        i = ((element-1)%size(C,1))+1
+        C[element] = A[ceil(Int,(i/p)),ceil(Int,j/q)]*B[((i-1)%p)+1, ((j-1)%q)+1]
     end
 end
 
