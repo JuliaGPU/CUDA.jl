@@ -25,19 +25,23 @@ function kron!(A::CuDeviceArray{<:Number},B::CuDeviceArray{<:Number},C::CuDevice
     end
 end
 
+
 function kron(A::CuArray{S},B::CuArray{T}) where {S,T <: Number}
 
-	col = size(A,2)*size(B,2)
-	if col == one(col)
-		C = CUDA.zeros(promote_type(S,T),size(A,1)*size(B,1))
-	else
-		C = CUDA.zeros(promote_type(S,T),size(A,1)*size(B,1),col)
-	end
+    col = size(A,2)*size(B,2)
+    if col == one(col)
+        C = CUDA.zeros(promote_type(S,T),size(A,1)*size(B,1))
+    else
+        C = CUDA.zeros(promote_type(S,T),size(A,1)*size(B,1),col)
+    end
 
-    nthreads = (8,8,8)
-    nelements = size(A,1)*size(B,1)*col
-    nblocks = cld(nelements, prod(nthreads))
-
-    @cuda threads=nthreads blocks=nblocks kron!(A,B,C)
-	return C
+    dev = device()
+    wanted_threads = nextwarp(dev, length(C))
+    kron_kernel = @cuda launch=false kron!(A,B,C)
+    kernel_config = launch_configuration(kron_kernel.fun)
+    max_threads = kernel_config.threads
+    nthreads = wanted_threads > max_threads ? prevwarp(dev,max_threads) : wanted_threads
+    nblocks=cld(length(C), nthreads)
+    kron_kernel(A,B,C,threads=nthreads,blocks=nblocks)
+    return C
 end
