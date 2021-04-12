@@ -81,6 +81,21 @@ end
             @test testf(a->op.(a, T(2)), T[-1])
         end
     end
+
+    @testset "rsqrt" begin
+        # GPUCompiler.jl#173: a CUDA-only device function fails to validate
+        function kernel(a)
+            a[] = CUDA.rsqrt(a[])
+            return
+        end
+
+        # make sure this test uses an actual device function
+        @test_throws ErrorException kernel(ones(1))
+
+        a = CuArray{Float32}([4])
+        @cuda kernel(a)
+        @test Array(a) == [0.5]
+    end
 end
 
 
