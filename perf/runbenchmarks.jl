@@ -74,8 +74,15 @@ end
 # so don't benefit from warm-up or tuning.
 include("latency.jl")
 
+# integration tests are currently not part of the benchmark suite
+addgroup!(SUITE, "integration")
+
 @info "Running benchmarks"
 results = run(SUITE, verbose=true)
+
+# integration tests (that do nasty things, so need to be run last)
+results["integration"]["volumerhs"] = include("volumerhs.jl")
+
 println(results)
 
 
