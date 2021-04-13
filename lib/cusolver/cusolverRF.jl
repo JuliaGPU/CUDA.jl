@@ -18,10 +18,10 @@ mutable struct RfHandle
     handle::Ptr{cusolverRfHandle_t}
 end
 
-function RfHandle(;
+function sparse_rf_handle(;
     fast_mode=true, nzero=0.0, nboost=0.0,
-    factorization_algo=CUSOLVERRF_FACTORIZATION_ALG2,
-    triangular_algo=CUSOLVERRF_TRIANGULAR_SOLVE_ALG2,
+    factorization_algo=CUSOLVERRF_FACTORIZATION_ALG0,
+    triangular_algo=CUSOLVERRF_TRIANGULAR_SOLVE_ALG1,
 )
     # Create handle
     gH = cusolverRfCreate()
@@ -135,7 +135,7 @@ function RfHostLU(
         size_perm,
     )
 
-    buffer_cpu = Base.Libc.malloc(size_perm[] * sizeof(Cint))
+    buffer_cpu = zeros(Cint, size_perm[])
     cusolverSpXcsrpermHost(
         spH,
         m, n, nnzA, desca,
@@ -167,7 +167,7 @@ function RfHostLU(
     )
 
     n_bytes = size_lu[] * sizeof(Cint)
-    buffer_lu = Base.Libc.malloc(n_bytes)
+    buffer_lu = zeros(Cint, size_lu[])
     pivot_threshold = 1.0
 
     cusolverSpDcsrluFactorHost(
@@ -228,15 +228,6 @@ function RfHostLU(
     h_P = h_Qreorder[h_Plu .+ 1]
     h_Q = h_Qreorder[h_Qlu .+ 1]
 
-    if buffer_lu != C_NULL
-        Base.Libc.free(buffer_lu)
-        buffer_lu = C_NULL
-    end
-    if buffer_cpu != C_NULL
-        Base.Libc.free(buffer_cpu)
-        buffer_cpu = C_NULL
-    end
-
     return RfHostLU(
         nnzA, h_rowsA, h_colsA, h_valsA,
         nnzL, h_rowsL, h_colsL, h_valsL,
@@ -260,18 +251,24 @@ end
 
 function RfLU(
     A::CuSparseMatrixCSR{T};
-    nrhs=1, fast_mode=true, ordering=:AMD,
+    nrhs=1, ordering=:AMD, check=true, fast_mode=true,
+    factorization_algo=CUSOLVERRF_FACTORIZATION_ALG0,
+    triangular_algo=CUSOLVERRF_TRIANGULAR_SOLVE_ALG1,
 ) where T
     if nrhs > 1
         error("Currently CusolverRF supports only one right-hand side.")
     end
     n, m = size(A)
-    lu_host = RfHostLU(A; ordering=ordering)
+    lu_host = RfHostLU(A; ordering=ordering, check=check)
 
     # Allocations (device)
     d_T = CUDA.zeros(Cdouble, m * nrhs)
 
-    rf = RfHandle(; fast_mode=fast_mode)
+    rf = sparse_rf_handle(;
+        fast_mode=fast_mode,
+        factorization_algo=factorization_algo,
+        triangular_algo=triangular_algo,
+    )
 
     # Assemble internal data structures
     cusolverRfSetupHost(
@@ -327,15 +324,21 @@ end
 
 function RfBatchLU(
     A::CuSparseMatrixCSR{T}, batchsize::Int;
-    fast_mode=true, ordering=:AMD,
+    ordering=:AMD, check=true, fast_mode=true,
+    factorization_algo=CUSOLVERRF_FACTORIZATION_ALG0,
+    triangular_algo=CUSOLVERRF_TRIANGULAR_SOLVE_ALG1,
 ) where T
     n, m = size(A)
-    lu_host = RfHostLU(A; ordering=ordering)
+    lu_host = RfHostLU(A; ordering=ordering, check=check)
 
     # Allocations (device)
     d_T = CUDA.zeros(Cdouble, m * batchsize * 2)
 
-    rf = RfHandle(; fast_mode=fast_mode)
+    rf = sparse_rf_handle(;
+        fast_mode=fast_mode,
+        factorization_algo=factorization_algo,
+        triangular_algo=triangular_algo,
+    )
 
     # Assemble internal data structures
     h_valsA_batch = Vector{Float64}[lu_host.valsA for i in 1:batchsize]
@@ -369,6 +372,7 @@ function rf_batch_refactor!(rflu::RfBatchLU{T}, A::CuSparseMatrixCSR{T}) where T
         rflu.drowsA, rflu.dcolsA, Aptrs, rflu.dP, rflu.dQ,
         rflu.rf
     )
+    unsafe_free!(Aptrs)
     CUDA.@sync cusolverRfBatchRefactor(rflu.rf)
     return
 end
@@ -382,6 +386,7 @@ function rf_batch_refactor!(rflu::RfBatchLU{T}, As::Vector{CuSparseMatrixCSR{T}}
         rflu.drowsA, rflu.dcolsA, Aptrs, rflu.dP, rflu.dQ,
         rflu.rf
     )
+    unsafe_free!(Aptrs)
     CUDA.@sync cusolverRfBatchRefactor(rflu.rf)
     return
 end
@@ -391,6 +396,7 @@ function rf_batch_solve!(rflu::RfBatchLU{T}, xs::Vector{CuVector{T}}) where T
     n, nrhs = rflu.n, 1
     Xptrs = unsafe_batch(xs)
     CUDA.@sync cusolverRfBatchSolve(rflu.rf, rflu.dP, rflu.dQ, nrhs, rflu.dT, n, Xptrs, n)
+    unsafe_free!(Xptrs)
     return
 end
 
@@ -401,6 +407,7 @@ function rf_batch_solve!(rflu::RfBatchLU{T}, X::CuMatrix{T}) where T
     Xptrs = unsafe_strided_batch(X)
     # Forward and backward solve
     CUDA.@sync cusolverRfBatchSolve(rflu.rf, rflu.dP, rflu.dQ, nrhs, rflu.dT, n, Xptrs, n)
+    unsafe_free!(Xptrs)
     return
 end
 

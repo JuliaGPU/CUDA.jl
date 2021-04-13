@@ -127,6 +127,14 @@ const cusolverSpContext = Cvoid
 const cusolverSpHandle_t = Ptr{cusolverSpContext}
 const csrqrInfo = Cvoid
 const csrqrInfo_t = Ptr{csrqrInfo}
+const csrluInfoHost = Cvoid
+const csrluInfoHost_t = Ptr{csrluInfoHost}
+const csrqrInfoHost = Cvoid
+const csrqrInfoHost_t = Ptr{csrqrInfoHost}
+const csrcholInfoHost = Cvoid
+const csrcholInfoHost_t = Ptr{csrcholInfoHost}
+const csrcholInfo = Cvoid
+const csrcholInfo_t = Ptr{csrcholInfo}
 const cusolverMgContext = Cvoid
 const cusolverMgHandle_t = Ptr{cusolverMgContext}
 
@@ -174,13 +182,3 @@ end
 
 const cusolverRfCommon = Cvoid
 const cusolverRfHandle_t = Ptr{cusolverRfCommon}
-
-const csrluInfoHost = Cvoid
-const csrluInfoHost_t = Ptr{csrluInfoHost}
-const csrqrInfoHost = Cvoid
-const csrqrInfoHost_t = Ptr{csrqrInfoHost}
-const csrcholInfoHost = Cvoid
-const csrcholInfoHost_t = Ptr{csrcholInfoHost}
-const csrcholInfo = Cvoid
-const csrcholInfo_t = Ptr{csrcholInfo}
-
