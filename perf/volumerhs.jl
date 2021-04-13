@@ -247,7 +247,7 @@ function main()
 
     rhs = CuArray(zeros(DFloat, Nq, Nq, Nq, nvar, nelem))
 
-    threads=(N+1, N+1, N+1)
+    threads=(N+1, N+1)
 
     kernel = @cuda launch=false volumerhs!(rhs, Q, vgeo, DFloat(grav), D, nelem)
     # XXX: should we print these for all kernels? maybe upload them to Codespeed?
