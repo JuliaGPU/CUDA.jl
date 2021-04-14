@@ -72,6 +72,20 @@ function __init__()
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("-nvptx-fma-level=1")
 
+    # ensure that operations executed by the REPL back-end finish before returning,
+    # because displaying values happens on a different task (CUDA.jl#831)
+    if isdefined(Base, :active_repl_backend)
+        push!(Base.active_repl_backend.ast_transforms, ex->
+            quote
+                try
+                    $(ex)
+                finally
+                    $synchronize()
+                end
+            end
+        )
+    end
+
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
     if !precompiling
         eval(overrides)
