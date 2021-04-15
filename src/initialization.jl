@@ -80,7 +80,7 @@ function __init__()
                 try
                     $(ex)
                 finally
-                    $synchronize()
+                    $configured[] == 1 && $synchronize()
                 end
             end
         )
