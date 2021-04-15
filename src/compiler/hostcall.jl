@@ -4,7 +4,7 @@ include("hostcall/hostref.jl")
 include("hostcall/timer.jl")
 include("hostcall/poller.jl")
 
-
+ret_offset() = 16
 """
     handle_hostcall(llvmptr::Core.LLVMPtr{Int64,AS.Global})
 
@@ -12,29 +12,36 @@ Host side function that checks and executes outstanding hostmethods.
 Checking only one index.
 """
 function handle_hostcall(manager::AreaManager, ctx::CuContext, index::Int64)
-    start!(timer)
+    start("handle_hostcall")
 
     checked = check_area(manager, ctx, index)
     if checked === nothing
-        stop!(timer, true)
+        stop("handle_hostcall", "hostcall_failed")
         return false
     end
 
     (hostcall, ptrs) = checked
+    if hostcall == 2
+        inc("checks")
+        inc("ptrs", length(ptrs))
+    end
     hostcall = Val(hostcall)
     for ptr in ptrs
         try
             ## Handle hostcall
-            handle_hostcall(hostcall, convert(Ptr{UInt8}, ptr))
+            handle_hostcall(hostcall, ptr)
         catch e
-            println("ERROR ERROR")
-            println(e)
+            println("ERROR ERROR hostcall $(hostcall)")
+            for (exc, bt) in Base.catch_stack()
+                showerror(stdout, exc, bt)
+                println(stdout)
+            end
         end
     end
 
     finish_area(manager, ctx, index)
 
-    stop!(timer, false)
+    stop("handle_hostcall", "hostcall_succesful")
     return true
 end
 
@@ -59,14 +66,16 @@ Downloads and invconverts arguments in hostcall area
 Actually call the hostmethod
 Set converted return argument in hostcall area
 """
-function exec_hostmethode(::Type{A}, ::Type{R}, func::Function, ptr::Ptr{UInt8}) where {A, R}
+function exec_hostmethode(::Type{A}, ::Type{R}, func::Function, ptr::Ptr{Int64}) where {A, R}
     arg_tuple_ptr = reinterpret(Ptr{A}, ptr)
     arg_tuple = unsafe_load(arg_tuple_ptr)
+
     args = map(invcudaconvert, arg_tuple)
 
     # Actually call function
     ret = cudaconvert(func(args...))
-    ret_ptr = reinterpret(Ptr{R}, ptr)
+    unsafe_store!(reinterpret(Ptr{Int64}, ptr), 0)
+    ret_ptr = reinterpret(Ptr{R}, ptr + ret_offset())
     unsafe_store!(ret_ptr, ret)
 end
 
@@ -83,7 +92,10 @@ Device side function to call a hostmethod. This function is invoked with `@cpu`.
     kind_config = get_manager_kind()
 
     # Acquire lock
-    (index, llvmptr) = acquire_lock(kind_config)
+    (index, llvmptr) = acquire_lock(kind_config, n)
+    while reinterpret(Int64, llvmptr) == 0
+        (index, llvmptr) = acquire_lock(kind_config, n)
+    end
 
     # Store arguments
     args_ptr = reinterpret(Ptr{A}, llvmptr)
@@ -93,7 +105,7 @@ Device side function to call a hostmethod. This function is invoked with `@cpu`.
     call_host_function(kind_config, index, n)
 
     # Get return value
-    ret_ptr = reinterpret(Ptr{R}, llvmptr)
+    ret_ptr = reinterpret(Ptr{R}, llvmptr + ret_offset())
     local ret = unsafe_load(ret_ptr)
 
     # Finish method
@@ -176,7 +188,7 @@ macro cpu(ex...)
     # this has multiple problems
     indx = type_to_int!(cpufunctions, (f, val))
 
-    println("hostcall $indx")
+    println("hostcall $indx -> $f")
     # remember this module
     caller_module = __module__
 
@@ -185,7 +197,7 @@ macro cpu(ex...)
 
     # handle_hostcall function that is called from handle_hostcall(ctx::CuContext)
     new_fn = quote
-        handle_hostcall(::Val{$indx}, ptr::Ptr{UInt8}) = exec_hostmethode($types_type_quote, $(types[1]), $caller_module.$f, ptr)
+        handle_hostcall(::Val{$indx}, ptr::Ptr{Int64}) = (inc("handle_call_$($indx)_$($caller_module.$f)"); exec_hostmethode($types_type_quote, $(types[1]), $caller_module.$f, ptr))
     end
 
     # Put function in julia space
@@ -215,7 +227,7 @@ end
 
 
 # unused
-@generated function volatile_store!(ptr::Ptr{T}, value::T) where T
+@generated function volatile_store!(ptr::Ptr{T}, value, index=1) where T
     JuliaContext() do ctx
         ptr_type = convert(LLVMType, Ptr{T}, ctx)
         lt = convert(LLVMType, T, ctx)
@@ -225,17 +237,13 @@ end
             store volatile $lt %1, $lt* %ptr
             ret void
             """
-        :(Core.Intrinsics.llvmcall($ir, Cvoid, Tuple{$(Ptr{T}), $T}, ptr, value))
+        :(Core.Intrinsics.llvmcall($ir, Cvoid, Tuple{$(Ptr{T}), $T}, ptr + (index - 1) * sizeof(T), convert(T, value)))
     end
 end
 
-struct FooBar
-    x::Int64
-    y::Int64
-end
 
 # unused
-@generated function volatile_load(ptr::Ptr{T}) where T
+@generated function volatile_load(ptr::Ptr{T}, index=1) where T
     JuliaContext() do ctx
         ptr_type = convert(LLVMType, Ptr{T}, ctx)
         lt = convert(LLVMType, T, ctx)
@@ -246,6 +254,6 @@ end
             ret $lt %value
             """
 
-        :(Base.llvmcall($ir, T, Tuple{Ptr{T}}, ptr))
+        :(Base.llvmcall($ir, T, Tuple{Ptr{T}}, ptr + (index - 1) * sizeof(T)))
     end
 end

@@ -1,3 +1,5 @@
+
+
 const KINDCONFIG = "kind_config"
 
 # flag states
@@ -70,9 +72,10 @@ function get_manager_kind()::KindConfig
     return unsafe_load(manager_kind())
 end
 
-
-
 abstract type AreaManager end
+
+include("manager/simple.jl")
+include("manager/warp.jl")
 
 """
     required_size(manager::AreaManager)
@@ -94,103 +97,19 @@ end
 
 
 """
-    SimpleAreaManager(area_count, area_size)
-
-Simple AreaManager that makes threads fight for locks.
-There are `area_count` hostcall areas.
-"""
-struct SimpleAreaManager <: AreaManager
-    area_count::Int
-    area_size::Int
-end
-stride(manager::SimpleAreaManager) = align(manager.area_size + 2 * sizeof(Int64))
-kind(::SimpleAreaManager) = 0
-kind(::Type{SimpleAreaManager}) = 0
-
-
-"""
-    WarpAreaManager(warp_area_count, area_size, warp_size=32)
-
-Less simple AreaManager that locks an area per warp when invoked, reducing congestion.
-Uses Opportunistic Warp-level Programming to achieve this.
-"""
-struct WarpAreaManager <: AreaManager
-    warp_area_count::Int
-    area_size::Int
-    warp_size::Int
-end
-stride(manager::WarpAreaManager) = align(manager.area_size * manager.warp_size + 3 * sizeof(Int64))
-kind(::WarpAreaManager) = 1
-kind(::Type{WarpAreaManager}) = 1
-
-
-"""
     acquire_lock(kind::KindConfig)::(Int64, Ptr{Int64})
 
 Device function acquiring a lock for the `kind` KindConfig
 Returning an identifier (often an index) and a point for argument storing and return value gathering
 """
-function acquire_lock(kindconfig::KindConfig)::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}}
+function acquire_lock(kindconfig::KindConfig, hostcall::Int64)::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}}
     if kindconfig.kind == kind(SimpleAreaManager)
-        acquire_lock_impl(SimpleAreaManager, kindconfig)
+        acquire_lock_impl(SimpleAreaManager, kindconfig, hostcall)
     elseif kindconfig.kind == kind(WarpAreaManager)
-        acquire_lock_impl(WarpAreaManager, kindconfig)
+        acquire_lock_impl(WarpAreaManager, kindconfig, hostcall)
     else
         error("Unknown kindconfig")
     end
-end
-
-
-function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig)::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}}
-    ptr = kind.area_ptr
-    stride = kind.stride
-    count = kind.count
-
-    i = threadIdx().x - 1
-
-    while atomic_cas!(ptr + (i % count) * stride, IDLE, LOADING) != IDLE
-        nanosleep(UInt32(16))
-        i += 1
-    end
-
-    return (Data(i%count,0, 0, 0) , ptr + (i % count) * stride + 16)
-end
-
-
-#TODO!
-function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig)::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}}
-    mask = vote_ballot(true)
-    # @cuprintln("mask $mask")
-    leader = _ffs(mask) # determine first 1 in mask, that's our true leader!
-    threadx = threadIdx().x - 1
-    laneid = (threadx % warpsize()) + 1
-
-
-    index = 0
-    if leader == laneid
-        # gotto get a lock for my peeps
-        warpid = div(threadx, ws)
-
-        ptr = kind.area_ptr
-        stride = kind.stride
-        count = kind.count
-
-        i = warpid
-
-        while atomic_cas!(ptr + (i % count) * stride, IDLE, LOADING) != IDLE
-            nanosleep(UInt32(16))
-            i += 1
-        end
-
-        index = i % count
-    end
-
-    index = shfl_sync(mask, index, leader)
-
-    ptr = kind.area_ptr + index * kind.stride + 24 + (laneid - 1) * kind.area_size
-
-
-    (Data(index, mask, laneid, leader), ptr)
 end
 
 
@@ -210,48 +129,6 @@ function call_host_function(kindconfig::KindConfig, index::Data, hostcall::Int64
 end
 
 
-function call_host_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, data::Data, hostcall::Int64)
-    index = data.a
-
-    ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
-    unsafe_store!(ptr + 8, hostcall)
-    threadfence()
-    unsafe_store!(ptr, HOST_CALL)
-
-    while volatile_load(ptr + 8) != 0
-        nanosleep(UInt32(16))
-        threadfence()
-    end
-
-    unsafe_store!(ptr, LOADING)
-end
-
-
-function call_host_function_impl(::Type{WarpAreaManager}, kind::KindConfig, data::Data, hostcall::Int64)
-    sync_warp(data.b) # sync so all arguments are loaded
-
-    if data.c == data.d
-        index = data.a
-        ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
-
-        unsafe_store!(ptr + 8, hostcall)
-        unsafe_store!(ptr + 16, data.b) # store mask
-
-        threadfence()
-        unsafe_store!(ptr, HOST_CALL)
-
-        while volatile_load(ptr + 8) != 0
-            nanosleep(UInt32(16))
-            threadfence()
-        end
-
-        unsafe_store!(ptr, LOADING)
-    end
-
-    sync_warp(data.b)
-end
-
-
 """
     finish_function(kind::KindConfig, data::Data)
 
@@ -266,29 +143,6 @@ function finish_function(kindconfig::KindConfig, data::Data)
         error("Unknown kindconfig")
     end
 end
-
-
-function finish_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, data::Data)
-    index = data.a
-
-    ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
-    unsafe_store!(ptr, IDLE)
-end
-
-
-function finish_function_impl(::Type{WarpAreaManager}, kind::KindConfig, data::Data)
-    sync_warp(data.b) # wait for all threads return arguments are loaded
-
-    if data.c == data.d # leader
-        index = data.a
-        ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
-
-        unsafe_store!(ptr, IDLE)
-    end
-
-    sync_warp(data.b)
-end
-
 
 
 # Maps CuContext to big hostcall area
@@ -329,6 +183,12 @@ function reset_hostcall_area!(manager::AreaManager, mod::CuModule)
     kind = kind_config(manager, hostcall_area)
     kind_global = CuGlobal{KindConfig}(mod, KINDCONFIG)
     kind_global[] = kind
+
+    ptr = kind.area_ptr
+    for i in 1:area_count(manager)
+        unsafe_store!(ptr, 0)
+        ptr += stride(manager)
+    end
 end
 
 
@@ -342,15 +202,18 @@ function check_area(manager::AreaManager, ctx::CuContext, index::Int64)::Union{N
     ptr = convert(Ptr{Int64}, hostcall_areas[ctx])
     ptr += stride(manager) * (index - 1)
 
-    if volatile_load(ptr + 8) != 0
+    (state, hostcall) = volatile_load(reinterpret(Ptr{NTuple{2, Int64}}, ptr))
+
+
+    if state == HOST_CALL && hostcall != 0
         unsafe_store!(ptr, HOST_HANDLING)
-        hostcall = volatile_load(ptr + 8)
         ptrs = areas_in(manager, ptr)
         return (hostcall, ptrs)
     end
 
     nothing
 end
+
 
 """
     areas_in(::AreaManager, ptr::Ptr{Int64})::Vector{Ptr{Int64}}
@@ -359,23 +222,7 @@ Calculates all used hostmethod zones in `ptr`
 
 ! Expects the area to be in `HOST_CALL`
 """
-areas_in(::SimpleAreaManager, ptr::Ptr{Int64}) = Ptr{Int64}[ptr+16]
-function areas_in(manager::WarpAreaManager, ptr::Ptr{Int64})
-    mask = unsafe_load(ptr + 16)
-
-    out = Ptr{Int64}[]
-
-    ptr += 24
-    st = manager.area_size
-    for digit in digits(mask, base=2, pad=32)
-        if digit == 1
-            push!(out, ptr)
-        end
-        ptr += st
-    end
-
-    return out
-end
+areas_in
 
 
 """
@@ -387,7 +234,8 @@ function finish_area(manager::T, ctx::CuContext, index::Int64) where {T<:AreaMan
     ptr = convert(Ptr{Int64}, hostcall_areas[ctx])
     ptr += stride(manager) * (index - 1)
 
-    unsafe_store!(ptr+8, 0)
+    volatile_store!(ptr+8, 0)
+    volatile_store!(ptr+16, 0)
 end
 
 
@@ -396,5 +244,4 @@ end
 
 Method returning how many area's should be checked periodically
 """
-area_count(manager::SimpleAreaManager) = manager.area_count
-area_count(manager::WarpAreaManager) = manager.warp_area_count
+area_count
