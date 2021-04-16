@@ -468,6 +468,8 @@ end
 # CUDA.jl atomics
 for (op,impl) in [(+)      => atomic_add!,
                   (-)      => atomic_sub!,
+                  (*)      => atomic_mul!,
+                  (/)      => atomic_div!,
                   (&)      => atomic_and!,
                   (|)      => atomic_or!,
                   (⊻)      => atomic_xor!,
