@@ -1055,6 +1055,36 @@ end
     end
 end
 
+@testset "mul" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64, Float32]
+        a = CuArray([zero(T)])
+
+        function kernel(T, a)
+            @atomic a[1] = a[1] * T(1)
+            @atomic a[1] *= T(1)
+            return
+        end
+
+        @cuda threads=1024 kernel(T, a)
+        @test Array(a)[1] == T(2048)
+    end
+end
+
+@testset "div" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64, Float32]
+        a = CuArray([T(4096)])
+
+        function kernel(T, a)
+            @atomic a[1] = a[1] / T(1)
+            @atomic a[1] /= T(1)
+            return
+        end
+
+        @cuda threads=1024 kernel(T, a)
+        @test Array(a)[1] == T(2048)
+    end
+end
+
 @testset "and" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
         a = CuArray([~zero(T), ~zero(T)])
