@@ -1056,8 +1056,7 @@ end
 end
 
 @testset "mul" begin
-    types = [Float32]
-    capability(device()) >= v"6.0" && push!(types, Float64)
+    types = (capability(device()) >= v"6.0") ? [Float32, Float64] : []
 
     @testset for T in types
         a = CuArray([T(1)])
@@ -1074,8 +1073,7 @@ end
 end
 
 @testset "div" begin
-    types = [Float32]
-    capability(device()) >= v"6.0" && push!(types, Float64)
+    types = (capability(device()) >= v"6.0") ? [Float32, Float64] : []
 
     @testset for T in types
         a = CuArray([T(65536)])
