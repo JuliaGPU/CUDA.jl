@@ -1056,32 +1056,38 @@ end
 end
 
 @testset "mul" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64, Float32]
-        a = CuArray([zero(T)])
+    types = [Float32]
+    capability(device()) >= v"6.0" && push!(types, Float64)
+
+    @testset for T in types
+        a = CuArray([T(1)])
 
         function kernel(T, a)
-            @atomic a[1] = a[1] * T(1)
-            @atomic a[1] *= T(1)
+            @atomic a[1] = a[1] * T(2)
+            @atomic a[1] *= T(2)
             return
         end
 
-        @cuda threads=1024 kernel(T, a)
-        @test Array(a)[1] == T(2048)
+        @cuda threads=8 kernel(T, a)
+        @test Array(a)[1] == T(65536)
     end
 end
 
 @testset "div" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64, Float32]
-        a = CuArray([T(4096)])
+    types = [Float32]
+    capability(device()) >= v"6.0" && push!(types, Float64)
+
+    @testset for T in types
+        a = CuArray([T(65536)])
 
         function kernel(T, a)
-            @atomic a[1] = a[1] / T(1)
-            @atomic a[1] /= T(1)
+            @atomic a[1] = a[1] / T(2)
+            @atomic a[1] /= T(2)
             return
         end
 
-        @cuda threads=1024 kernel(T, a)
-        @test Array(a)[1] == T(2048)
+        @cuda threads=8 kernel(T, a)
+        @test Array(a)[1] == T(1)
     end
 end
 
