@@ -13,12 +13,12 @@ dimensions equal to 1 indicate the dimensions of `x` to be reduced.  Keyword arg
 
 * `dims = ntuple(i->1,ndims(x))`: specifies the shape of the output when `y` is not given
 * `indices = nothing`: previously allocated space for writing indices which can be generated for min and max ops only, can be a `CuArray` of `UInt8`, `UInt16`, `UInt32` or `UInt64`
-* `alpha=1, beta=0` are used for scaling, i.e. `y .= alpha*op.(x1) .+ beta*y`
+* `alpha=1, beta=0` are used for scaling, i.e. `y .= alpha * op.(x1) .+ beta * y`
 
 Keyword arguments that can be used when `reduceTensorDesc` is not specified:
-* `op = CUDNN_REDUCE_TENSOR_ADD`: Reduction operation, ADD can be replaced with MUL, MIN, MAX, AMAX, AVG, NORM1, NORM2, MUL_NO_ZEROS
+* `op = CUDNN_REDUCE_TENSOR_ADD`: Reduction operation, `ADD` can be replaced with `MUL`, `MIN`, `MAX`, `AMAX`, `AVG`, `NORM1`, `NORM2`, `MUL_NO_ZEROS`
 * `compType = (eltype(x) <: Float64 ? Float64 : Float32)`: Computation datatype
-* `nanOpt = CUDNN_NOT_PROPAGATE_NAN`: NAN propagation policy, the other option is `CUDNN_PROPAGATE_NAN`
+* `nanOpt = CUDNN_NOT_PROPAGATE_NAN`: NaN propagation policy, the other option is `CUDNN_PROPAGATE_NAN`
 """
 cudnnReduceTensor, cudnnReduceTensor!
 

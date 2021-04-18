@@ -1,3 +1,10 @@
+"""
+    CUDA.CUDNN
+
+High level interface to cuDNN functions. See
+https://github.com/JuliaGPU/CUDA.jl/blob/master/lib/cudnn/README.md
+for a design overview.
+"""
 module CUDNN
 
 using ..APIUtils

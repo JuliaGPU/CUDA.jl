@@ -8,22 +8,22 @@ Return batch normalization applied to `x`:
     y .= ((x .- xmean) ./ sqrt.(epsilon .+ xvar)) .* scale .+ bias                  # inference
 
 
-Bias and scale are trainable parameters, xmean and xvar are modified to collect statistics
+`bias` and `scale` are trainable parameters, `xmean` and `xvar` are modified to collect statistics
 during training and treated as constants during inference. Note that during inference the
-values given by xmean and xvar arguments are used in the formula whereas during training the
-actual mean and variance of the minibatch are used in the formula: the xmean/xvar arguments
-are only used to collect statistics. In the original paper bias is referred to as beta and
-scale as gamma (Batch Normalization: Accelerating Deep Network Training by Reducing Internal
+values given by `xmean` and `xvar` arguments are used in the formula whereas during training the
+actual mean and variance of the minibatch are used in the formula: the `xmean`/`xvar` arguments
+are only used to collect statistics. In the original paper `bias` is referred to as `beta` and
+`scale` as `gamma` (Batch Normalization: Accelerating Deep Network Training by Reducing Internal
 Covariate Shift, S. Ioffe, C. Szegedy, 2015).
 
 Keyword arguments:
 * `epsilon = 1e-5`: epsilon value used in the normalization formula
 * `exponentialAverageFactor = 0.1`: factor used in running mean/variance calculation: `runningMean = runningMean*(1-factor) + newMean*factor`
 * `training = false`: boolean indicating training vs inference mode
-* `mode::cudnnNormMode_t = CUDNN_NORM_PER_CHANNEL`: Per-channel layer is based on the paper. In this mode `scale` etc. have dimensions (1,1,C,1). The other alternative is `CUDNN_NORM_PER_ACTIVATION` where `scale` etc. have dimensions `(W,H,C,1)`.
+* `mode::cudnnNormMode_t = CUDNN_NORM_PER_CHANNEL`: Per-channel layer is based on the paper. In this mode `scale` etc. have dimensions `(1,1,C,1)`. The other alternative is `CUDNN_NORM_PER_ACTIVATION` where `scale` etc. have dimensions `(W,H,C,1)`.
 * `algo::cudnnNormAlgo_t = CUDNN_NORM_ALGO_STANDARD`: The other alternative, `CUDNN_NORM_ALGO_PERSIST`, triggers the new semi-persistent NHWC kernel when certain conditions are met (see cudnn docs).
 * `normOps::cudnnNormOps_t = CUDNN_NORM_OPS_NORM`: Currently the other alternatives, `CUDNN_NORM_OPS_NORM_ACTIVATION` and `CUDNN_NORM_OPS_NORM_ADD_ACTIVATION` are not supported.
-* `z = nothing`: for residual addition to the result of the normalization operation, prior to the activation (will be supported when CUDNN_NORM_OPS_NORM_ADD_ACTIVATION is supported)
+* `z = nothing`: for residual addition to the result of the normalization operation, prior to the activation (will be supported when `CUDNN_NORM_OPS_NORM_ADD_ACTIVATION` is supported)
 * `groupCnt = 1`: Place holder for future work, should be set to 1 now
 * `alpha = 1; beta = 0`: scaling parameters: return `alpha * new_y + beta * old_y`
 

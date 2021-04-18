@@ -14,7 +14,7 @@ activation and/or scaling:
     y .= activation.(alpha * conv(w,x) + beta * z .+ bias) 
 
 All tensors should have the same number of dimensions. If they are less than 4-D their
-dimensions are assumed to be padded on the left with 1's. `x` has size `(X...,Cx,N)` where
+dimensions are assumed to be padded on the left with ones. `x` has size `(X...,Cx,N)` where
 `(X...)` are the spatial dimensions, `Cx` is the number of input channels, and `N` is the
 number of instances. `y,z` have size `(Y...,Cy,N)` where `(Y...)` are the spatial dimensions
 and `Cy` is the number of output channels (`y` and `z` can be the same array). Both `Cx` and

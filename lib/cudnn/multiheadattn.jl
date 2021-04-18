@@ -30,7 +30,7 @@ Keyword arguments describing the tensors:
 Keyword arguments describing the attention operation when `d` is not given:
 * `attnMode::Unsigned = CUDNN_ATTN_QUERYMAP_ALL_TO_ONE | CUDNN_ATTN_DISABLE_PROJ_BIASES`: bitwise flags indicating various attention options. See cudnn docs for details.
 * `nHeads::Integer = 1`: number of attention heads.
-* `smScaler::Real = 1`: softmax smoothing (1.0 >= smScaler >= 0.0) or sharpening (smScaler > 1.0) coefficient. Negative values are not accepted.
+* `smScaler::Real = 1`: softmax smoothing (`1.0 >= smScaler >= 0.0`) or sharpening (`smScaler > 1.0`) coefficient. Negative values are not accepted.
 * `mathType::cudnnMathType_t = math_mode()`: NVIDIA Tensor Core settings.
 * `qProjSize, kProjSize, vProjSize, oProjSize`: vector lengths after projections, set to 0 by default which disables projections.
 * `qoMaxSeqLength::Integer`: largest sequence length expected in queries and out, set to their TIME dim by default.
@@ -40,8 +40,8 @@ Keyword arguments describing the attention operation when `d` is not given:
 
 Other keyword arguments:
 * `residuals = nothing`: optional tensor with the same size as queries that can be used to implement residual connections (see figure in cudnn docs). When residual connections are enabled, the vector length in `queries` should match the vector length in `out`, so that a vector addition is feasible. 
-* `currIdx::Integer = -1`: Time-step (0-based) in queries to process. When the currIdx argument is negative, all Q time-steps are processed. When currIdx is zero or positive, the forward response is computed for the selected time-step only. The latter input can be used in inference mode only, to process one time-step while updating the next attention window and Q, R, K, V inputs in-between calls.
-* `loWinIdx, hiWinIdx::Array{Cint}`: Two host integer arrays specifying the start and end (0-based) indices of the attention window for each Q time-step. The start index in K, V sets is inclusive, and the end index is exclusive. By default set at 0 and `kvMaxSeqLength` respectively.
+* `currIdx::Integer = -1`: Time-step (0-based) in queries to process. When the `currIdx` argument is negative, all ``Q`` time-steps are processed. When `currIdx` is zero or positive, the forward response is computed for the selected time-step only. The latter input can be used in inference mode only, to process one time-step while updating the next attention window and ``Q``, ``R``, ``K``, ``V`` inputs in-between calls.
+* `loWinIdx, hiWinIdx::Array{Cint}`: Two host integer arrays specifying the start and end (0-based) indices of the attention window for each ``Q`` time-step. The start index in ``K``, ``V`` sets is inclusive, and the end index is exclusive. By default set at 0 and `kvMaxSeqLength` respectively.
 """
 cudnnMultiHeadAttnForward, cudnnMultiHeadAttnForward!
 
