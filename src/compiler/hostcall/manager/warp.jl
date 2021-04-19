@@ -9,7 +9,7 @@ struct WarpAreaManager <: AreaManager
     area_size::Int
     warp_size::Int
 end
-warp_meta_size() = 3 * sizeof(Int64) # state, hostcall, mask
+warp_meta_size() = 4 * sizeof(Int64) # state, hostcall, mask
 stride(manager::WarpAreaManager) = align(manager.area_size * (manager.warp_size + sizeof(Int64)) + warp_meta_size())
 kind(::WarpAreaManager) = 1
 kind(::Type{WarpAreaManager}) = 1
@@ -18,10 +18,10 @@ kind(::Type{WarpAreaManager}) = 1
 get_warp_ptr(kind::KindConfig, data::Data) = kind.area_ptr + data.a * kind.stride + warp_meta_size() + (data.c - 1) * kind.area_size
 @inline warp_destruct_data(data::Data) = (data.a, data.b, data.c, data.d)
 
-function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig, hostcall::Int64)::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}}
+function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig, hostcall::Int64, blocking::Val{B})::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}} where {B}
     mask1 = vote_ballot(true)
     leader = _ffs(mask1) # determine first 1 in mask, that's our true leader!
-    threadx = i = (blockIdx().x-1) * blockDim().x + threadIdx().x - 1
+    threadx = (blockIdx().x-1) * align(blockDim().x) + threadIdx().x - 1
     laneid = (threadx % 32) + 1
 
     leader_hostcall = shfl_sync(mask1, hostcall, leader)
@@ -40,10 +40,19 @@ function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig, hostcall::
         stride = kind.stride
         count = kind.count
 
-        while atomic_cas!(ptr + (i % count) * stride, IDLE, LOADING) != IDLE
+        tc = 0
+        cptr = ptr + (i % count) * stride
+        while(!try_lock(cptr)) && tc < 50000
             nanosleep(UInt32(16))
             i += 1
+            tc += 1
+            cptr = ptr + (i % count) * stride
         end
+
+        if tc == 50000
+            @cuprintln("Timed out")
+        end
+
 
         index = i % count
     end
@@ -56,24 +65,40 @@ function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig, hostcall::
     (data, ptr)
 end
 
-
-function call_host_function_impl(::Type{WarpAreaManager}, kind::KindConfig, data::Data, hostcall::Int64)
+function call_host_function_impl(::Type{WarpAreaManager}, kind::KindConfig, data::Data, hostcall::Int64, ::Val{true})
     (index, mask, laneid, leader) = warp_destruct_data(data)
 
     if laneid == leader
         ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
-        unsafe_store!(ptr + 8, hostcall)
-        unsafe_store!(ptr + 16, mask)
+        unsafe_store!(ptr + 16, hostcall)
+        unsafe_store!(ptr + 24, mask)
 
         threadfence()
-        unsafe_store!(ptr, HOST_CALL)
+        unsafe_store!(ptr+8, HOST_CALL_BLOCKING)
 
-        while volatile_load(ptr + 8) != 0
+        while volatile_load(ptr + 16) != 0
             nanosleep(UInt32(16))
             threadfence()
         end
 
-        unsafe_store!(ptr, LOADING)
+        unsafe_store!(ptr + 8, LOADING)
+    end
+
+    sync_warp(mask)
+end
+
+function call_host_function_impl(::Type{WarpAreaManager}, kind::KindConfig, data::Data, hostcall::Int64, ::Val{false})
+    (index, mask, laneid, leader) = warp_destruct_data(data)
+
+    if laneid == leader
+        cptr = kind.area_ptr + index * kind.stride
+        unsafe_store!(cptr + 16, hostcall)
+        unsafe_store!(cptr + 24, mask)
+
+        threadfence()
+        unsafe_store!(cptr+8, HOST_CALL_NON_BLOCKING)
+
+        unlock_area(cptr)
     end
 
     sync_warp(mask)
@@ -85,11 +110,12 @@ function finish_function_impl(::Type{WarpAreaManager}, kind::KindConfig, data::D
 
     if laneid == leader # leader
         index = index
-        ptr = reinterpret(Ptr{Int64}, kind.area_ptr + index * kind.stride)
+        cptr = kind.area_ptr + index * kind.stride
 
-        unsafe_store!(ptr+16, 0)
-        unsafe_store!(ptr+8, 0)
-        unsafe_store!(ptr, IDLE)
+        unsafe_store!(cptr+24, 0)
+        unsafe_store!(cptr+16, IDLE)
+
+        unlock_area(cptr)
     end
 end
 
@@ -97,7 +123,7 @@ end
 area_count(manager::WarpAreaManager) = manager.warp_area_count
 function areas_in(manager::WarpAreaManager, ptr::Ptr{Int64})
     ptrs = Ptr{Int64}[]
-    mask = unsafe_load(ptr + 16)
+    mask = unsafe_load(ptr + 24)
     ptr += warp_meta_size()
     st = manager.area_size
     for digit in digits(mask, base=2, pad=32)

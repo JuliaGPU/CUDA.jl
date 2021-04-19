@@ -11,35 +11,30 @@ ret_offset() = 16
 Host side function that checks and executes outstanding hostmethods.
 Checking only one index.
 """
-function handle_hostcall(manager::AreaManager, ctx::CuContext, index::Int64)
+function handle_hostcall(manager::AreaManager, area::Ptr{Int64}, index::Int64)
     start("handle_hostcall")
 
-    checked = check_area(manager, ctx, index)
+    checked = check_area(manager, area, index)
     if checked === nothing
         stop("handle_hostcall", "hostcall_failed")
         return false
     end
 
     (hostcall, ptrs) = checked
-    if hostcall == 2
-        inc("checks")
-        inc("ptrs", length(ptrs))
-    end
+    inc("ptr_$(hostcall)_$(length(ptrs))")
     hostcall = Val(hostcall)
-    for ptr in ptrs
-        try
-            ## Handle hostcall
-            handle_hostcall(hostcall, ptr)
-        catch e
-            println("ERROR ERROR hostcall $(hostcall)")
-            for (exc, bt) in Base.catch_stack()
-                showerror(stdout, exc, bt)
-                println(stdout)
-            end
+    try
+        ## Handle hostcall
+        handle_hostcalls(hostcall, manager, ptrs, area, index)
+    catch e
+        println("ERROR ERROR hostcall $(hostcall)")
+        for (exc, bt) in Base.catch_stack()
+            showerror(stdout, exc, bt)
+            println(stdout)
         end
-    end
 
-    finish_area(manager, ctx, index)
+        finish_area(manager, area, index)
+    end
 
     stop("handle_hostcall", "hostcall_succesful")
     return true
@@ -47,36 +42,57 @@ end
 
 
 """
-    handle_hostcall(::Val{N}, ptr::Ptr{UInt8})
+    handle_hostcalls(::Val{N}, manager::AreaManager, ptrs::Ptr{UInt8}, area::Ptr{Int64}, index::Int64)
 
+    TODO
 Executes hostmethod with id N using hostcall area at `ptr`
 
 This is the catch all function, but specialized functions are generated inside `@cpu`.
 Specialized functions are aliased to `exec_hostmethode` with particular types.
 """
-function handle_hostcall(::Val{N}, ptr::Ptr{UInt8}) where {N}
+function handle_hostcalls(::Val{N}, manager::AreaManager, ptrs::Vector{Ptr{Int64}}, area::Ptr{Int64}, index::Int64) where {N}
     println("Syscall $N not supported")
 end
 
 
 """
-    exec_hostmethode(::Type{A}, ::Type{R}, func::Function, ptr::Ptr{UInt8})
+    exec_hostmethodes(::Type{A}, ::Type{R}, func::Function, ptr::Ptr{UInt8})
 
 Downloads and invconverts arguments in hostcall area
 Actually call the hostmethod
 Set converted return argument in hostcall area
 """
-function exec_hostmethode(::Type{A}, ::Type{R}, func::Function, ptr::Ptr{Int64}) where {A, R}
-    arg_tuple_ptr = reinterpret(Ptr{A}, ptr)
-    arg_tuple = unsafe_load(arg_tuple_ptr)
+function exec_hostmethodes(::Type{A}, ::Type{R}, manager::AreaManager, func::Function, ptrs::Vector{Ptr{Int64}}, area::Ptr{Int64}, index::Int64, blocking::Bool) where {A, R}
+    function load_arg(ptr::Ptr{Int64})
+        arg_tuple_ptr = reinterpret(Ptr{A}, ptr)
+        arg_tuple = unsafe_load(arg_tuple_ptr)
 
-    args = map(invcudaconvert, arg_tuple)
+        args = map(invcudaconvert, arg_tuple)
 
-    # Actually call function
-    ret = cudaconvert(func(args...))
-    unsafe_store!(reinterpret(Ptr{Int64}, ptr), 0)
-    ret_ptr = reinterpret(Ptr{R}, ptr + ret_offset())
-    unsafe_store!(ret_ptr, ret)
+        (args, ptr)
+    end
+
+    args = map(load_arg, ptrs)
+
+    if !blocking
+        finish_area(manager, area, index)
+    end
+
+    function exec_f((args, ptr))
+        ret_v = func(args...)
+
+        if blocking
+            ret = cudaconvert(ret_v)
+            ret_ptr = reinterpret(Ptr{R}, ptr + ret_offset())
+            unsafe_store!(ret_ptr, ret)
+        end
+    end
+
+    foreach(exec_f, args)
+
+    if blocking
+        finish_area(manager, area, index)
+    end
 end
 
 
@@ -87,14 +103,14 @@ Device side function to call a hostmethod. This function is invoked with `@cpu`.
 `R` is the return argument type.
 `n` is the hostcall id, a number to identify the required hostmethod to execute.
 """
-@inline function call_hostcall(::Type{R}, n, args::A) where {R, A}
+@inline function call_hostcall(::Type{R}, n, args::A, blocking::Val{B}) where {R, A, B}
     # Get the area_manager of current execution
     kind_config = get_manager_kind()
 
     # Acquire lock
-    (index, llvmptr) = acquire_lock(kind_config, n)
+    (index, llvmptr) = acquire_lock(kind_config, n, blocking)
     while reinterpret(Int64, llvmptr) == 0
-        (index, llvmptr) = acquire_lock(kind_config, n)
+        (index, llvmptr) = acquire_lock(kind_config, n, blocking)
     end
 
     # Store arguments
@@ -102,17 +118,21 @@ Device side function to call a hostmethod. This function is invoked with `@cpu`.
     unsafe_store!(args_ptr, args)
 
     # Call host
-    call_host_function(kind_config, index, n)
+    call_host_function(kind_config, index, n, blocking)
 
-    # Get return value
-    ret_ptr = reinterpret(Ptr{R}, llvmptr + ret_offset())
-    local ret = unsafe_load(ret_ptr)
+    if B
+        # Get return value
+        ret_ptr = reinterpret(Ptr{R}, llvmptr + ret_offset())
+        local ret = unsafe_load(ret_ptr)
 
-    # Finish method
-    finish_function(kind_config, index)
+        # Finish method
+        finish_function(kind_config, index)
 
-    # Return
-    ret
+        # Return
+        ret
+    else
+        nothing
+    end
 end
 
 
@@ -143,7 +163,7 @@ int_to_type(cache::TypeCache{T, I}, index::I) where {T, I} = cache.vec[index]
 
 """ Struct to keep track of all compiled hostmethods """
 # This is not really used at it's best
-const cpufunctions = TypeCache{Tuple{Symbol, Expr}, Int64}(Dict(), Vector())
+const cpufunctions = TypeCache{Tuple{Symbol, Expr, Bool}, Int64}(Dict(), Vector())
 
 
 """
@@ -167,16 +187,34 @@ macro cpu(ex...)
     f = call.args[1]
     args = call.args[2:end]
 
-    types_kwargs, other_kwargs = split_kwargs(kwargs, [:types])
+    macro_kwargs, other_kwargs = split_kwargs(kwargs, [:handle_hostcalltypes, :blocking, :async])
 
-    if length(types_kwargs) != 1
+    types = nothing
+    blocking = true
+    async = false
+
+    arg_c = length(args) + 1 # number of arguments + return type
+
+    for kwarg in macro_kwargs
+        key,val = kwarg.args
+        if key == :types
+            types = eval(val)::NTuple{arg_c, DataType}
+        elseif key == :blocking
+            isa(val, Bool) || throw(ArgumentError("`blocking` keyword argument to @cpu should be a constant value"))
+            blocking = val::Bool
+        elseif key == :async
+            isa(val, Bool) || throw(ArgumentError("`async` keyword argument to @cpu should be a constant value"))
+            async = val::Bool
+        else
+            throw(ArgumentError("Unsupported keyword argument '$key'"))
+        end
+    end
+
+    if types === nothing
         throw(ArgumentError("'types' keyword argument is required (for now), with 1 tuple argument"))
     end
 
-    _,val = types_kwargs[1].args
-
-    arg_c = length(args) + 1 # number of arguments + return type
-    types = eval(val)::NTuple{arg_c, DataType} # types of arguments
+    println("types $types, blocking $blocking, async $async")
 
     if !isempty(other_kwargs)
         key,val = first(other_kwargs).args
@@ -186,7 +224,7 @@ macro cpu(ex...)
     # make sure this exists
     # To be safe this should just increment
     # this has multiple problems
-    indx = type_to_int!(cpufunctions, (f, val))
+    indx = type_to_int!(cpufunctions, (f, val, blocking))
 
     println("hostcall $indx -> $f")
     # remember this module
@@ -197,8 +235,9 @@ macro cpu(ex...)
 
     # handle_hostcall function that is called from handle_hostcall(ctx::CuContext)
     new_fn = quote
-        handle_hostcall(::Val{$indx}, ptr::Ptr{Int64}) = (inc("handle_call_$($indx)_$($caller_module.$f)"); exec_hostmethode($types_type_quote, $(types[1]), $caller_module.$f, ptr))
+        handle_hostcalls(::Val{$indx}, manager::AreaManager, ptrs::Vector{Ptr{Int64}}, area::Ptr{Int64}, index::Int64) = (inc("handle_call_$($indx)_$($caller_module.$f)"); exec_hostmethodes($types_type_quote, $(types[1]), manager, $caller_module.$f, ptrs, area, index, $blocking))
     end
+
 
     # Put function in julia space
     eval(new_fn)
@@ -207,7 +246,7 @@ macro cpu(ex...)
     args_tuple = Expr(:tuple, args...)
 
     call_cpu = quote
-        CUDA.call_hostcall($(types[1]), $indx, $args_tuple)
+        CUDA.call_hostcall($(types[1]), $indx, $args_tuple, Val($blocking))
     end
 
     return esc(call_cpu)

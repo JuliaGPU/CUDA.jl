@@ -2,12 +2,17 @@
 
 const KINDCONFIG = "kind_config"
 
+# Lock states
+const UNLOCKED = Int64(6)
+const LOCKED = Int64(7)
+
 # flag states
 const IDLE = Int64(0)           # nothing is happening
-const HOST_DONE = Int64(1)      # the host has handled hostcall
-const LOADING = Int64(2)        # host or device are transfering data
-const HOST_CALL = Int64(3)      # host should handle hostcall
+const LOADING = Int64(1)        # host or device are transfering data
+const HOST_CALL_BLOCKING = Int64(2)      # the host has handled hostcall
+const HOST_CALL_NON_BLOCKING = Int64(3)      # host should handle hostcall
 const HOST_HANDLING = Int64(4)  # host is handling hostcall
+const HOST_DONE = Int64(5)  # host is handling hostcall
 
 
 @inline packfoo(x, y)::Int64 = (Int64(x) << 32) | y
@@ -102,11 +107,11 @@ end
 Device function acquiring a lock for the `kind` KindConfig
 Returning an identifier (often an index) and a point for argument storing and return value gathering
 """
-function acquire_lock(kindconfig::KindConfig, hostcall::Int64)::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}}
+function acquire_lock(kindconfig::KindConfig, hostcall::Int64, blocking::Val{B})::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}} where {B}
     if kindconfig.kind == kind(SimpleAreaManager)
-        acquire_lock_impl(SimpleAreaManager, kindconfig, hostcall)
+        acquire_lock_impl(SimpleAreaManager, kindconfig, hostcall, blocking)
     elseif kindconfig.kind == kind(WarpAreaManager)
-        acquire_lock_impl(WarpAreaManager, kindconfig, hostcall)
+        acquire_lock_impl(WarpAreaManager, kindconfig, hostcall, blocking)
     else
         error("Unknown kindconfig")
     end
@@ -118,11 +123,11 @@ end
 
 Device function for invoking the hostmethod and waiting for identifier `index`.
 """
-function call_host_function(kindconfig::KindConfig, index::Data, hostcall::Int64)
+function call_host_function(kindconfig::KindConfig, index::Data, hostcall::Int64, blocking::Val{B}) where {B}
     if kindconfig.kind == kind(SimpleAreaManager)
-        call_host_function_impl(SimpleAreaManager, kindconfig, index, hostcall)
+        call_host_function_impl(SimpleAreaManager, kindconfig, index, hostcall, blocking)
     elseif kindconfig.kind == kind(WarpAreaManager)
-        call_host_function_impl(WarpAreaManager, kindconfig, index, hostcall)
+        call_host_function_impl(WarpAreaManager, kindconfig, index, hostcall, blocking)
     else
         error("Unknown kindconfig")
     end
@@ -177,7 +182,7 @@ This method is called just before a kernel is launched using this AreaManger.
 Assuring a correct hostcall_area for `manager`.
 Updating the KindConfig buffer with runtime config for `manager`.
 """
-function reset_hostcall_area!(manager::AreaManager, mod::CuModule)
+function reset_hostcall_area!(manager::AreaManager, mod::CuModule)::Ptr{Int64}
     hostcall_area = assure_hostcall_area(mod.ctx, required_size(manager))
 
     kind = kind_config(manager, hostcall_area)
@@ -186,9 +191,13 @@ function reset_hostcall_area!(manager::AreaManager, mod::CuModule)
 
     ptr = kind.area_ptr
     for i in 1:area_count(manager)
-        unsafe_store!(ptr, 0)
+        unsafe_store!(ptr, UNLOCKED)
+        unsafe_store!(ptr + 8, 0)
+        unsafe_store!(ptr + 16, 0)
         ptr += stride(manager)
     end
+
+    return reinterpret(Ptr{Int64}, kind.area_ptr)
 end
 
 
@@ -198,15 +207,14 @@ end
 Checks area `index` for open hostmethod calls.
 There might be multiple open hostmethod calls related to as certain `index` (1-indexed).
 """
-function check_area(manager::AreaManager, ctx::CuContext, index::Int64)::Union{Nothing, Tuple{Int, Vector{Ptr{Int64}}}}
-    ptr = convert(Ptr{Int64}, hostcall_areas[ctx])
+function check_area(manager::AreaManager, ptr::Ptr{Int64}, index::Int64)::Union{Nothing, Tuple{Int, Vector{Ptr{Int64}}}}
     ptr += stride(manager) * (index - 1)
 
-    (state, hostcall) = volatile_load(reinterpret(Ptr{NTuple{2, Int64}}, ptr))
+    (state, hostcall) = volatile_load(reinterpret(Ptr{NTuple{2, Int64}}, ptr + 8))
 
 
-    if state == HOST_CALL && hostcall != 0
-        unsafe_store!(ptr, HOST_HANDLING)
+    if (state == HOST_CALL_BLOCKING || state == HOST_CALL_NON_BLOCKING) && hostcall != 0
+        unsafe_store!(ptr + 8, HOST_HANDLING)
         ptrs = areas_in(manager, ptr)
         return (hostcall, ptrs)
     end
@@ -230,11 +238,9 @@ areas_in
 
 Finishes checking an area, notifying the device the host is done handling this function
 """
-function finish_area(manager::T, ctx::CuContext, index::Int64) where {T<:AreaManager}
-    ptr = convert(Ptr{Int64}, hostcall_areas[ctx])
+function finish_area(manager::T, ptr::Ptr{Int64}, index::Int64) where {T<:AreaManager}
     ptr += stride(manager) * (index - 1)
-
-    volatile_store!(ptr+8, 0)
+    volatile_store!(ptr + 8, HOST_DONE)
     volatile_store!(ptr+16, 0)
 end
 
@@ -245,3 +251,34 @@ end
 Method returning how many area's should be checked periodically
 """
 area_count
+
+function lock_area(ptr::Core.LLVMPtr{Int64,AS.Global})::Bool
+    atomic_cas!(ptr, UNLOCKED, LOCKED) == UNLOCKED
+end
+
+function unlock_area(ptr::Core.LLVMPtr{Int64,AS.Global})::Bool
+    v = atomic_xchg!(ptr, UNLOCKED)
+    if v != LOCKED
+        @cuprintln("Failed $v")
+    end
+    return v == LOCKED
+end
+
+
+function try_lock(cptr::Core.LLVMPtr{Int64,AS.Global})::Bool
+    lock_area(cptr) || return false # Could not even lock this
+
+    if unsafe_load(cptr+8) == IDLE # 'normal' case, the flag is on IDLE
+        unsafe_store!(cptr+8, LOADING)
+        return true
+    end
+
+    if unsafe_load(cptr + 16) == 0 # non-blocking case and host handled call
+        unsafe_store!(cptr+8, LOADING)
+        return true
+    end
+
+    unlock_area(cptr)
+
+    return false
+end

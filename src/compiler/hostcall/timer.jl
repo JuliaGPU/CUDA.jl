@@ -23,13 +23,18 @@ end
 Counter() = Counter(Dict(), Dict())
 global_counter = Counter()
 
+# inc(x...) = ()
+# start(x...) = ()
+# stop(x...) = ()
+
+
+val() = global_counter
+reset() = (global_counter.counts = Dict(); global_counter.times = Dict())
+
 function inc(x::String, v=1)
     haskey(global_counter.counts, x) || (global_counter.counts[x] = 0)
     global_counter.counts[x] += v
 end
-val() = global_counter
-reset() = (global_counter.counts = Dict(); global_counter.times = Dict())
-
 
 start(x::String) = (get!(global_counter.times, x, Timer()).last_start = time())
 function stop(x::String, y...)
@@ -46,13 +51,6 @@ function stop(x::String, y...)
         t = get!(global_counter.times, i, Timer())
         push!(t.vals, delta)
     end
-end
-
-
-function time_it(f::Function, x::String)
-    start(x)
-    f()
-    stop(x)
 end
 
 function Base.show(io::IO, u::Timer)
