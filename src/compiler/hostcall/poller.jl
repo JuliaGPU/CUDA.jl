@@ -24,14 +24,13 @@ while the device kernel runs.
 function wait_and_kill_watcher(mod::CuModule, poller::P, manager::AreaManager, event::CuEvent, ) where {P<:Poller}
     # empty!(host_refs)
     reset()
-    reset_hostcall_area!(manager, mod)
-    ctx = mod.ctx
+    area = reset_hostcall_area!(manager, mod)
 
     t = @async begin
         yield()
 
         try
-            launch_poller(poller, manager, event, ctx)
+            launch_poller(poller, manager, event, area)
         catch e
             println("Failed $e")
             stacktrace()
@@ -50,14 +49,18 @@ end
 """
 Polls as often as is allowed.
 """
-function launch_poller(poller::AlwaysPoller, manager::AreaManager, e::CuEvent, ctx::CuContext)
+function launch_poller(poller::AlwaysPoller, manager::AreaManager, e::CuEvent, area::Ptr{Int64})
     count = area_count(manager)
 
     while !query(e)
         for i in 1:count
-            handle_hostcall(manager, ctx, i)
+            handle_hostcall(manager, area, i)
         end
         yield()
+    end
+
+    for i in 1:count
+        handle_hostcall(manager, area, i)
     end
 end
 
@@ -65,15 +68,19 @@ end
 """
 Polls all hostcall areas then sleeps for a certain duration.
 """
-function launch_poller(poller::ConstantPoller, manager::AreaManager, e::CuEvent, ctx::CuContext)
+function launch_poller(poller::ConstantPoller, manager::AreaManager, e::CuEvent, area::Ptr{Int64})
     count = area_count(manager)
 
     while !query(e)
         for i in 1:count
-            handle_hostcall(manager, ctx, i)
+            handle_hostcall(manager, area, i)
         end
 
         usleep(poller.dur)
+    end
+
+    for i in 1:count
+        handle_hostcall(manager, area, i)
     end
 end
 
