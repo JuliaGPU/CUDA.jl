@@ -21,7 +21,7 @@ function handle_hostcall(manager::AreaManager, area::Ptr{Int64}, index::Int64)
     end
 
     (hostcall, ptrs) = checked
-    inc("ptr_$(hostcall)_$(length(ptrs))")
+    inc("ptr_$(hostcall)", length(ptrs))
     hostcall = Val(hostcall)
     try
         ## Handle hostcall
