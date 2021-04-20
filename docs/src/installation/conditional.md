@@ -25,7 +25,7 @@ julia> CUDA.version()
 
 To avoid this, you should call `CUDA.functional()` to inspect whether the package is
 functional and condition your use of GPU functionality on that. Let's illustrate with two
-scenario's, one where having a GPU is required, and one where it's optional.
+scenarios, one where having a GPU is required, and one where it's optional.
 
 
 ## Scenario 1: GPU is required
