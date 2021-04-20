@@ -1055,6 +1055,40 @@ end
     end
 end
 
+@testset "mul" begin
+    types = (capability(device()) >= v"6.0") ? [Float32, Float64] : []
+
+    @testset for T in types
+        a = CuArray([T(1)])
+
+        function kernel(T, a)
+            @atomic a[1] = a[1] * T(2)
+            @atomic a[1] *= T(2)
+            return
+        end
+
+        @cuda threads=8 kernel(T, a)
+        @test Array(a)[1] == T(65536)
+    end
+end
+
+@testset "div" begin
+    types = (capability(device()) >= v"6.0") ? [Float32, Float64] : []
+
+    @testset for T in types
+        a = CuArray([T(65536)])
+
+        function kernel(T, a)
+            @atomic a[1] = a[1] / T(2)
+            @atomic a[1] /= T(2)
+            return
+        end
+
+        @cuda threads=8 kernel(T, a)
+        @test Array(a)[1] == T(1)
+    end
+end
+
 @testset "and" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
         a = CuArray([~zero(T), ~zero(T)])
