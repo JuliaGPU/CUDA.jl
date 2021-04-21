@@ -54,7 +54,7 @@ end
     thread = threadIdx().x
 
     # shared mem for a complete reduction
-    shared = @cuDynamicSharedMem(T, (2*threads,))
+    shared = @cuDynamicSharedMem(T, (threads,))
     @inbounds shared[thread] = val
 
     # perform a reduction
@@ -62,6 +62,7 @@ end
     while d < threads
         sync_threads()
         index = 2 * d * (thread-1) + 1
+        # NOTE: for power-of-2 block sizes, index+d will always be in 1:threads
         if index <= threads
             @inbounds shared[index] = op(shared[index], shared[index+d])
         end
@@ -181,7 +182,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     # that's why each threads also loops across their inputs, processing multiple values
     # so that we can span the entire reduction dimension using a single thread block.
     kernel = @cuda launch=false partial_mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), R′, A)
-    compute_shmem(threads) = shuffle ? 0 : 2*threads*sizeof(T)
+    compute_shmem(threads) = shuffle ? 0 : threads*sizeof(T)
     kernel_config = launch_configuration(kernel.fun; shmem=compute_shmem∘compute_threads)
     reduce_threads = compute_threads(kernel_config.threads)
     reduce_shmem = compute_shmem(reduce_threads)
