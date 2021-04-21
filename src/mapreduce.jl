@@ -212,8 +212,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     # perform the actual reduction
     if reduce_blocks == 1
         # we can cover the dimensions to reduce using a single block
-        @cuda threads=threads blocks=blocks shmem=shmem partial_mapreduce_grid(
-            f, op, init, Rreduce, Rother, Val(shuffle), R′, A)
+        kernel(f, op, init, Rreduce, Rother, Val(shuffle), R′, A; threads, blocks, shmem)
     else
         # we need multiple steps to cover all values to reduce
         partial = similar(R, (size(R)..., reduce_blocks))
@@ -226,8 +225,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
                 copyto!(partial, (i-1)*sz+1, R, 1, sz)
             end
         end
-        @cuda threads=threads blocks=blocks shmem=shmem partial_mapreduce_grid(
-            f, op, init, Rreduce, Rother, Val(shuffle), partial, A)
+        kernel(f, op, init, Rreduce, Rother, Val(shuffle), partial, A; threads, blocks, shmem)
 
         GPUArrays.mapreducedim!(identity, op, R′, partial; init=init)
     end
