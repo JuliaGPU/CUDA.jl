@@ -244,6 +244,9 @@ end
     @test check_sort!(Int32, (4, 50000, 4); dims=2)
     @test check_sort!(Int32, (4, 4, 50000); dims=3, rev=true)
 
+    # large sizes
+    @test check_sort!(Float32, 2^25)
+
     # various sync depths
     for depth in 0:4
         CUDA.limit!(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH, depth)
