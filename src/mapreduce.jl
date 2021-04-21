@@ -62,9 +62,13 @@ end
     while d < threads
         sync_threads()
         index = 2 * d * (thread-1) + 1
-        # NOTE: for power-of-2 block sizes, index+d will always be in 1:threads
         if index <= threads
-            @inbounds shared[index] = op(shared[index], shared[index+d])
+            other_val = if index + d <= threads
+                shared[index+d]
+            else
+                neutral
+            end
+            @inbounds shared[index] = op(shared[index], other_val)
         end
         d *= 2
     end
@@ -167,10 +171,10 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     # threads in a block work together to reduce values across the reduction dimensions;
     # we want as many as possible to improve algorithm efficiency and execution occupancy.
     dev = device()
-    wanted_threads = shuffle ? nextwarp(dev, length(Rreduce)) : nextpow(2, length(Rreduce))
+    wanted_threads = shuffle ? nextwarp(dev, length(Rreduce)) : length(Rreduce)
     function compute_threads(max_threads)
         if wanted_threads > max_threads
-            shuffle ? prevwarp(dev, max_threads) : prevpow(2, max_threads)
+            shuffle ? prevwarp(dev, max_threads) : max_threads
         else
             wanted_threads
         end
