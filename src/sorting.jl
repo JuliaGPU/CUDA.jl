@@ -70,7 +70,8 @@ Uses block y index to decide which values to operate on.
 """
 @inline function batch_partition(values, pivot, swap, sums, lo, hi, parity, lt::F1, by::F2) where {F1,F2}
     sync_threads()
-    idx0 = lo + (blockIdx().y - 1) * blockDim().x + threadIdx().x
+    blockIdx_yz = (blockIdx().z - 1) * gridDim().y + blockIdx().y
+    idx0 = lo + (blockIdx_yz - 1) * blockDim().x + threadIdx().x
     val = idx0 <= hi ? values[idx0] : one(eltype(values))
     comparison = flex_lt(pivot, val, parity, lt, by)
 
@@ -298,10 +299,20 @@ Launch batch partition kernel and sync
                                       parity, sync::Val{true}, lt::F1, by::F2) where {T, F1, F2}
     L = hi - lo
     if threadIdx().x == 1
-        @cuda(blocks=(1,ceil(Int, L / blockDim().x)), threads=blockDim().x, dynamic=true,
+        blocks_y = ceil(Int, L / blockDim().x)
+
+        # TODO: add wrappers
+        device = Ref{Cint}()
+        CUDA.cudaGetDevice(device)
+        max_blocks_y = Ref{Cint}()
+        CUDA.cudaDeviceGetAttribute(max_blocks_y, CUDA.cudaDevAttrMaxGridDimY, device[])
+
+        blocks_z, blocks_y = fldmod1(blocks_y, max_blocks_y[])
+
+        @cuda(blocks=(1,blocks_y,blocks_z), threads=blockDim().x, dynamic=true,
               shmem=blockDim().x*(sizeof(Int)+sizeof(T)),
               partition_batches_kernel(vals, pivot, lo, hi, parity, lt, by))
-        CUDA.device_synchronize()
+        device_synchronize()
     end
 end
 
