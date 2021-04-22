@@ -25,18 +25,17 @@ function wait_and_kill_watcher(mod::CuModule, poller::P, manager::AreaManager, e
     # empty!(host_refs)
     reset()
     area = reset_hostcall_area!(manager, mod)
-
     t = @async begin
         yield()
 
         try
-            launch_poller(poller, manager, event, area)
+            area !== nothing && launch_poller(poller, manager, event, area)
         catch e
             println("Failed $e")
             stacktrace()
         end
 
-        println("$(val())")
+        # println("$(val())")
     end
 
     while !istaskstarted(t)

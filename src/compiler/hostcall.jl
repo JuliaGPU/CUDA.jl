@@ -187,11 +187,14 @@ macro cpu(ex...)
     f = call.args[1]
     args = call.args[2:end]
 
-    macro_kwargs, other_kwargs = split_kwargs(kwargs, [:handle_hostcalltypes, :blocking, :async])
+    macro_kwargs, other_kwargs = split_kwargs(kwargs, [:types, :blocking, :async, :gran_gather, :gran_scatter])
 
     types = nothing
     blocking = true
     async = false
+
+    gran_gather = nothing
+    gran_scatter = nothing
 
     arg_c = length(args) + 1 # number of arguments + return type
 
@@ -205,6 +208,10 @@ macro cpu(ex...)
         elseif key == :async
             isa(val, Bool) || throw(ArgumentError("`async` keyword argument to @cpu should be a constant value"))
             async = val::Bool
+        elseif key == :gran_gather
+            gran_gather = val
+        elseif key == :gran_scatter
+            gran_scatter = val
         else
             throw(ArgumentError("Unsupported keyword argument '$key'"))
         end
@@ -214,7 +221,14 @@ macro cpu(ex...)
         throw(ArgumentError("'types' keyword argument is required (for now), with 1 tuple argument"))
     end
 
-    println("types $types, blocking $blocking, async $async")
+    if gran_gather !== nothing && gran_scatter === nothing
+        throw(ArgumentError("When supplying 'gather' function please also supply 'scatter' function"))
+    end
+
+    if gran_scatter !== nothing && gran_gather === nothing
+        throw(ArgumentError("When supplying 'scatter' function please also supply 'gather' function"))
+    end
+
 
     if !isempty(other_kwargs)
         key,val = first(other_kwargs).args
@@ -224,7 +238,7 @@ macro cpu(ex...)
     # make sure this exists
     # To be safe this should just increment
     # this has multiple problems
-    indx = type_to_int!(cpufunctions, (f, val, blocking))
+    indx = type_to_int!(cpufunctions, (f, quote types end, blocking))
 
     println("hostcall $indx -> $f")
     # remember this module
@@ -245,8 +259,14 @@ macro cpu(ex...)
     # Convert to correct arguments
     args_tuple = Expr(:tuple, args...)
 
-    call_cpu = quote
-        CUDA.call_hostcall($(types[1]), $indx, $args_tuple, Val($blocking))
+    if gran_gather !== nothing
+        call_cpu = quote
+            CUDA.gather_scatter($args_tuple, $(types[1]), $gran_gather, $gran_scatter, (v...) -> CUDA.call_hostcall($(types[1]), $indx, v, Val($blocking)))
+        end
+    else
+        call_cpu = quote
+            CUDA.call_hostcall($(types[1]), $indx, $args_tuple, Val($blocking))
+        end
     end
 
     return esc(call_cpu)
@@ -254,18 +274,150 @@ end
 
 
 """
-    prettier_string(expr::Expr)::String
+    macro dotimes f times start
 
-Util function to make generated code more readable, can be used for debugging.
+Macro to unroll `times` itself with inner state `start`.
+
+The argument is inside tuple to prevent `eval` from evaling that Expr
+f is a function (Expr,) -> Expr.
 """
-function prettier_string(expr)
-    lines = split(string(expr), "\n")
-    lines = filter(x -> strip(x)[1] != '#', lines)
-    return join(lines, "\n")
+macro dotime(f, times, current=(quote end))
+    for i in 1:times
+        inner = (current, nothing,)
+        current = eval(quote $f($inner) end)
+    end
+    return esc(current)
+end
+
+_popc(x::UInt32) = ccall("extern __nv_popc", llvmcall, Int32, (UInt32,), x)
+"""
+    gather_scatter(value::T, returntype::Type{R}, gather_f, scatter_f, f)::R
+
+    Execute gather scatter algorithm at warp level.
+
+    gather_f  :: T -> T -> (S, T) (unite 2 arguments into 1 argument, leaving behind some state)
+    scatter_f :: S -> R -> (R, R) (scatter 1 return value with some created state into 2 return values)
+    f         :: T -> R (execute operant on big value)
+
+    ! Important !
+    This uses dynamic shared memory, please provide your kernel invocation with enough shared memory.
+    Enough: sizeof(T) * threads + sizeof(R) * threads
+
+    Expectation:
+      (state, large_arg) = gather_f(arg1, arg2)
+      (f(arg1), f(arg2)) == scatter_f(state, f(large_arg))
+
+      # T -> T -> (S, T)
+      add_with_state(v1, v2) = (v1, v1+v2)
+      # S -> R -> (R, R)
+      get_with_state(state, t) = (state * 2, t-(state*2))
+
+      vv = CUDA.gather_scatter(threadx, Int64, add_with_state, get_with_state, c -> c*2)
+
+
+    ```julia-REPL
+    julia> add_with_state(v1, v2) = (v1, v1+v2) # T -> T -> (S, T)
+    julia> get_with_state(state, t) = (state * 2, t-(state*2)) # S -> R -> (R, R)
+    julia> function kernel()
+        id = threadIdx().x
+        id2 = CUDA.gather_scatter(id, Int64, add_with_state, get_with_state, c -> c*2)
+        @cuprintln("\$id * 2 == \$id2")
+        return
+    end
+    julia> @cuda threads=5 shmem=5*2*sizeof(Int64) kernel()
+    1 * 2 = 2
+    2 * 2 = 4
+    3 * 2 = 6
+    4 * 2 = 8
+    5 * 2 = 10
+    ```
+"""
+@inline function gather_scatter(v::T, ::Type{R}, gather, scatter, f)::R where {T, R}
+    sync_warp() # This is a bug (shouldn't be needed)
+
+    # TODO: make memory smaller by overlapping, either sm_t or sm_r is used at once
+    # get for this T, a slice of shared memory to gather arguments
+    sm_t = @cuDynamicSharedMem(T, 32, div(threadIdx().x - 1, 32) * 32 * sizeof(T))
+    # get behind all T slices a slice of shared memory to scatter return values
+    sm_r = @cuDynamicSharedMem(R, 32, blockDim().x * sizeof(T) + div(threadIdx().x - 1, 32) * 32 * sizeof(R))
+
+    threadx = (blockIdx().x-1) * align(blockDim().x) + threadIdx().x - 1
+    laneid = threadx % 32
+    mask = vote_ballot(true)
+    lane_mask = UInt32((1 << laneid) - 1)
+    rank = _popc(mask & lane_mask)
+
+    popc = _popc(mask) # how many threads want to gather and scatter
+
+    # initialize gather
+    @inbounds sm_t[rank+1] = v
+    sync_warp()
+
+    i = 1 # current warp level merge
+    mask1 = mask # current mask of sync threads
+
+    """
+    # means good && above < popc
+    o used value, but not itself
+    . means unused value
+
+rank
+000  #-#--#----#
+001  o/. /.   /.
+010  #-o/ .  / .
+011  o/.  . /  .
+100  #-#--o/   .
+101  o/. /.    .
+110  #-o/ .    .
+111  o/.  .    .
+
+    """
+
+    @dotime(c -> begin
+        @gensym state lm im above #something like scope variables
+        quote
+            # so gather rank and above togather into rank, this is a check for not fully filled warps etc
+            $above = rank | i
+            # rank has a zero at place i
+            good = i & rank == 0
+
+            # the new mask of this iteration
+            mask1 = vote_ballot_sync(mask1, good)
+            # store in local scope
+            $lm = mask1
+            $im = i
+
+            if good # My turn to be useful
+                if $above < popc
+                    ($state, v...) = gather(sm_t[rank+1]..., sm_t[$above+1]...)
+                    @inbounds sm_t[rank+1] = v
+                end
+
+                i = i << 1
+                sync_warp($lm)
+
+                $(c[1])
+
+                sync_warp($lm)
+
+                # if this is not the case, the expected value is already at sm_r[rank+1]
+                if $above < popc
+                    (v1, v2) = scatter($state, sm_r[rank+1])
+
+                    @inbounds sm_r[rank+1] = v1
+                    @inbounds sm_r[$above+1] = v2
+                end
+            end
+        end
+
+    end, 5, start=(@inbounds sm_r[1] = f(sm_t[1]...))) # 2 ** 5 == 32, apply f to totally gathered result and store in sm_r
+
+    sync_warp(mask)
+
+    return sm_r[rank+1]
 end
 
 
-# unused
 @generated function volatile_store!(ptr::Ptr{T}, value, index=1) where T
     JuliaContext() do ctx
         ptr_type = convert(LLVMType, Ptr{T}, ctx)
@@ -281,7 +433,6 @@ end
 end
 
 
-# unused
 @generated function volatile_load(ptr::Ptr{T}, index=1) where T
     JuliaContext() do ctx
         ptr_type = convert(LLVMType, Ptr{T}, ctx)

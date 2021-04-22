@@ -19,7 +19,7 @@ function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig, hostcall
     stride = kind.stride
     count = kind.count
 
-    i = threadIdx().x - 1
+    i = (blockIdx().x-1) * align(blockDim().x) + threadIdx().x - 1
 
     tc = 0
 
