@@ -157,17 +157,20 @@ macro debug_ccall(target, rettyp, argtyps, args...)
         # can't use the result in the ccall expression below as it's supposed to be constant
         $(esc(target))
 
-        print($f, '(')
+        # printing without task switches
+        io = Core.stdout
+
+        print(io, $f, '(')
         for (i, arg) in enumerate(($(map(esc, args)...),))
-            i > 1 && print(", ")
-            render_arg(stdout, arg)
+            i > 1 && print(io, ", ")
+            render_arg(io, arg)
         end
-        print(')')
+        print(io, ')')
         rv = ccall($(esc(target)), $(esc(rettyp)), $(esc(argtyps)), $(map(esc, args)...))
-        println(" = ", rv)
+        println(io, " = ", rv)
         for (i, arg) in enumerate(($(map(esc, args)...),))
             if arg isa Base.RefValue
-                println(" $i: ", arg[])
+                println(io, " $i: ", arg[])
             end
         end
         rv
