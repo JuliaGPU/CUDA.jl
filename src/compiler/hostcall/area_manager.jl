@@ -163,7 +163,7 @@ function assure_hostcall_area(ctx::CuContext, required)
     if !haskey(hostcall_areas, ctx) || sizeof(hostcall_areas[ctx]) < required
         haskey(hostcall_areas, ctx) && (println("Freeing"); Mem.free(hostcall_areas[ctx]))
 
-        println("creating new hostcall area")
+        # println("creating new hostcall area")
         hostcall_area = Mem.alloc(Mem.Host, required,
             Mem.HOSTALLOC_DEVICEMAP | Mem.HOSTALLOC_WRITECOMBINED)
 
@@ -182,22 +182,27 @@ This method is called just before a kernel is launched using this AreaManger.
 Assuring a correct hostcall_area for `manager`.
 Updating the KindConfig buffer with runtime config for `manager`.
 """
-function reset_hostcall_area!(manager::AreaManager, mod::CuModule)::Ptr{Int64}
+function reset_hostcall_area!(manager::AreaManager, mod::CuModule)::Union{Nothing, Ptr{Int64}}
     hostcall_area = assure_hostcall_area(mod.ctx, required_size(manager))
 
-    kind = kind_config(manager, hostcall_area)
-    kind_global = CuGlobal{KindConfig}(mod, KINDCONFIG)
-    kind_global[] = kind
+    try
+        # try
+        kind = kind_config(manager, hostcall_area)
+        kind_global = CuGlobal{KindConfig}(mod, KINDCONFIG)
+        kind_global[] = kind
 
-    ptr = kind.area_ptr
-    for i in 1:area_count(manager)
-        unsafe_store!(ptr, UNLOCKED)
-        unsafe_store!(ptr + 8, 0)
-        unsafe_store!(ptr + 16, 0)
-        ptr += stride(manager)
+        ptr = kind.area_ptr
+        for i in 1:area_count(manager)
+            unsafe_store!(ptr, UNLOCKED)
+            unsafe_store!(ptr + 8, 0)
+            unsafe_store!(ptr + 16, 0)
+            ptr += stride(manager)
+        end
+
+        return reinterpret(Ptr{Int64}, kind.area_ptr)
+    catch
+        return nothing
     end
-
-    return reinterpret(Ptr{Int64}, kind.area_ptr)
 end
 
 
