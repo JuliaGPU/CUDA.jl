@@ -143,10 +143,28 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
   xs = CuArray{T, length(dims)}(convert(CuPtr{Cvoid}, ptr), dims, ctx)
   if own
+    # identify the buffer
+    typ = memory_type(xs.baseptr)
+    buf = if is_managed(xs.baseptr)
+      Mem.UnifiedBuffer(xs.baseptr, sizeof(xs))
+    elseif typ == CU_MEMORYTYPE_DEVICE
+      Mem.DeviceBuffer(xs.baseptr, sizeof(xs))
+    elseif typ == CU_MEMORYTYPE_HOST
+      error("Cannot unsafe_wrap a host pointer with a CuArray")
+    else
+      error("""Could not identify the buffer type; please file an issue.
+               In the mean time, use `own=false` and provide your own finalizer.""")
+    end
+
     finalizer(xs) do obj
-      buf = Mem.DeviceBuffer(obj.baseptr, sizeof(obj))
-      # see comments in unsafe_free! for notes on the use of CuDefaultStream
-      @context! skip_destroyed=true obj.ctx Mem.free(buf; stream=CuDefaultStream())
+      @context! skip_destroyed=true obj.ctx begin
+        if buf isa Mem.DeviceBuffer
+          # see comments in unsafe_free! for notes on the use of CuDefaultStream
+          Mem.free(buf; stream=CuDefaultStream())
+        else
+          Mem.free(buf)
+        end
+      end
     end
   end
   return xs
