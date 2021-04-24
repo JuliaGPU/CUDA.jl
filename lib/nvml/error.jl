@@ -9,7 +9,6 @@ Base.convert(::Type{nvmlReturn_t}, err::NVMLError) = err.code
 Base.showerror(io::IO, err::NVMLError) =
     print(io, "NVMLError: ", description(err), " (code $(reinterpret(Int32, err.code)))")
 
-# FIXME: errors during init cannot use `nvmlErrorString`
 description(err::NVMLError) = unsafe_string(nvmlErrorString(err))
 
 @enum_without_prefix nvmlReturn_enum NVML_
@@ -25,7 +24,11 @@ end
 const initialized = Ref(false)
 function initialize_api()
     if !initialized[]
-        nvmlInitWithFlags(0)
+        res = unsafe_nvmlInitWithFlags(0)
+        if res !== NVML_SUCCESS
+            # NOTE: we can't call nvmlErrorString during initialization
+            error("NVML could not be initialized ($res)")
+        end
         atexit() do
             nvmlShutdown()
         end

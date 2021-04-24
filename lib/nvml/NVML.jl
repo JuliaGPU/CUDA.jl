@@ -25,7 +25,22 @@ using Libdl
         "libnvidia-ml.so.1"
     end
 end
-@memoize has_nvml() = Libdl.dlopen(libnvml(); throw_error=false) !== nothing
+
+@memoize function has_nvml()
+    if Libdl.dlopen(libnvml(); throw_error=false) === nothing
+        return false
+    end
+
+    # JuliaGPU/CUDA.jl#860: initialization can fail on Windows
+    try
+        initialize_api()
+    catch err
+        @error "Cannot use NVML, as it failed to initialize" exception=(err, catch_backtrace())
+        return false
+    end
+
+    return true
+end
 
 
 # core library
