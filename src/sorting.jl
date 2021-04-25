@@ -328,6 +328,24 @@ Partition batches in a loop using a single block
 end
 
 """
+Quicksort recursion condition
+For a full sort, `partial` is nothing so it shouldn't affect whether recursion
+happens.
+"""
+function partial_range_overlap(lo, hi, partial :: Nothing)
+    true
+end
+
+"""
+Quicksort recursion condition
+If the domain to sort `lo` to `hi` overlaps with `partial`, then we should
+do recursion on it, and this returns true (if not, then false)
+"""
+function partial_range_overlap(lo, hi, partial_k)
+    return !(lo > last(partial_k) || hi < first(partial_k))
+end
+
+"""
 Perform quicksort on dimension `dims` of `vals` for the region with `lo` as an exclusive
 floor and `hi` as an inclusive ceiling. `parity` is a boolean which says whether to
 partition by < or <= with respect to the pivot. `sync_depth` is how many (more) levels of
@@ -351,7 +369,7 @@ it's possible that the first pivot will be that value, which could lead to an in
 early end to recursion if we started `stuck` at 0.
 """
 function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sync_depth,
-                      prev_pivot, lt::F1, by::F2, ::Val{dims}, stuck=-1) where {T, N, S, F1, F2, dims}
+                      prev_pivot, lt::F1, by::F2, ::Val{dims}, partial=nothing, stuck=-1) where {T, N, S, F1, F2, dims}
     b_sums = @cuDynamicSharedMem(Int, blockDim().x)
     swap = @cuDynamicSharedMem(T, blockDim().x, sizeof(b_sums))
     shmem = sizeof(b_sums) + sizeof(swap)
@@ -394,30 +412,30 @@ function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sy
     if threadIdx().x == 1
         stuck = (pivot == prev_pivot && partition == lo || partition == hi) ? stuck + 1 : 0
 
-        if stuck < 2 && partition > lo
+        if stuck < 2 && partition > lo && partial_range_overlap(lo, partition, partial)
             s = CuDeviceStream()
             if S && sync_depth > 1
                 @cuda(threads=blockDim().x, dynamic=true, stream=s, shmem=shmem,
                       qsort_kernel(slice, lo, partition, !parity, Val(true), sync_depth - 1,
-                      pivot, lt, by, Val(1), stuck))
+                      pivot, lt, by, Val(1), partial, stuck))
             else
                 @cuda(threads=blockDim().x, dynamic=true, stream=s, shmem=shmem,
                       qsort_kernel(slice, lo, partition, !parity, Val(false), sync_depth - 1,
-                      pivot, lt, by, Val(1), stuck))
+                      pivot, lt, by, Val(1), partial, stuck))
             end
             CUDA.unsafe_destroy!(s)
         end
 
-        if stuck < 2 && partition < hi
+        if stuck < 2 && partition < hi && partial_range_overlap(partition, hi, partial)
             s = CuDeviceStream()
             if S && sync_depth > 1
                 @cuda(threads=blockDim().x, dynamic=true, stream=s, shmem=shmem,
                       qsort_kernel(slice, partition, hi, !parity, Val(true), sync_depth - 1,
-                      pivot, lt, by, Val(1), stuck))
+                      pivot, lt, by, Val(1), partial, stuck))
             else
                 @cuda(threads=blockDim().x, dynamic=true, stream=s, shmem=shmem,
                       qsort_kernel(slice, partition, hi, !parity, Val(false), sync_depth - 1,
-                      pivot, lt, by, Val(1), stuck))
+                      pivot, lt, by, Val(1), partial, stuck))
             end
             CUDA.unsafe_destroy!(s)
         end
@@ -426,21 +444,33 @@ function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sy
     return
 end
 
-function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int) where {T,N,F1,F2}
+function sort_args(args, partial_k :: Nothing)
+    return args
+end
+
+function sort_args(args, partial_k)
+    return (args..., partial_k)
+end
+
+#function sort
+
+function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int, partial_k=nothing) where {T,N,F1,F2}
     max_depth = CUDA.limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
     len = size(c, dims)
 
     1 <= dims <= N || throw(ArgumentError("dimension out of range"))
     otherdims = ntuple(i -> i == dims ? 1 : size(c, i), N)
 
-    kernel = @cuda launch=false qsort_kernel(c, 0, len, true, Val(N==1 && max_depth > 1),
-                                             max_depth, nothing, lt, by, Val(dims))
+    my_sort_args = sort_args((c, 0, len, true, Val(N==1 && max_depth > 1),
+             max_depth, nothing, lt, by, Val(dims)), partial_k)
+
+    kernel = @cuda launch=false qsort_kernel(my_sort_args...)
 
     get_shmem(threads) = threads * (sizeof(Int) + sizeof(T))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads))
     threads = prevpow(2, config.threads)
 
-    kernel(c, 0, len, true, Val(N==1 && max_depth > 1), max_depth, nothing, lt, by, Val(dims);
+    kernel(my_sort_args...;
            blocks=prod(otherdims), threads=threads, shmem=get_shmem(threads))
 
     return c
@@ -475,4 +505,27 @@ end
 
 function Base.sort(c::AnyCuArray; kwargs...)
     return sort!(copy(c); kwargs...)
+end
+
+function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange}; lt=isless, by=identity, rev=false)
+    # for reverse sorting, invert the less-than function
+    if rev
+        lt = !lt
+    end
+
+    function out(k :: OrdinalRange)
+        return copy(c[k])
+    end
+
+    # work around disallowed scalar index
+    function out(k :: Integer)
+        return Array(c[k:k])[1]
+    end
+
+    quicksort!(c; lt, by, dims=1, partial_k=k)
+    return out(k)
+end
+
+function Base.partialsort(c::AnyCuArray, k::Union{Integer, OrdinalRange}; kwargs...)
+    return partialsort!(copy(c), k; kwargs...)
 end
