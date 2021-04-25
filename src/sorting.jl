@@ -148,7 +148,7 @@ Must only run on 1 SM.
 @inline function consolidate_batch_partition(vals::AbstractArray{T}, pivot, lo, L, b_sums,
                                              parity, lt::F1, by::F2) where {T,F1,F2}
     sync_threads()
-    @inline N_b() = ceil(Int, L / blockDim().x)
+    @inline N_b() = cld(L , blockDim().x)
     @inline batch(k) = threadIdx().x + k * blockDim().x
 
     my_iter = 0
@@ -167,7 +167,7 @@ Must only run on 1 SM.
         end
 
         function n_eff()
-            if batch_i != ceil(Int, L / blockDim().x) || L % blockDim().x == 0
+            if batch_i != N_b() || L % blockDim().x == 0
                 blockDim().x
             else
                 L % blockDim().x
@@ -299,7 +299,7 @@ Launch batch partition kernel and sync
                                       parity, sync::Val{true}, lt::F1, by::F2) where {T, F1, F2}
     L = hi - lo
     if threadIdx().x == 1
-        blocks_y = ceil(Int, L / blockDim().x)
+        blocks_y = cld(L, blockDim().x)
 
         # TODO: add wrappers
         device = Ref{Cint}()
