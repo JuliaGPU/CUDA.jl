@@ -7,12 +7,12 @@
 Return the result of the specified elementwise activation operation applied to `x`.
 Optionally `y` holds the result and `d` specifies the operation. `y` should be similar to
 `x` if specified. Keyword arguments `alpha=1, beta=0` can be used for scaling, i.e. `y .=
-alpha*op.(x1) .+ beta*y`.  The following keyword arguments specify the operation if `d` is
+alpha * op.(x) .+ beta * y`.  The following keyword arguments specify the operation if `d` is
 not given:
 
-* `mode = CUDNN_ACTIVATION_RELU`: Options are SIGMOID, RELU, TANH, CLIPPED_RELU, ELU, IDENTITY
-* `nanOpt = CUDNN_NOT_PROPAGATE_NAN`: NAN propagation policy, the other option is `CUDNN_PROPAGATE_NAN`
-* `coef=1`: When the activation mode is set to CUDNN_ACTIVATION_CLIPPED_RELU, this input specifies the clipping threshold; and when the activation mode is set to CUDNN_ACTIVATION_ELU, this input specifies the α parameter.
+* `mode = CUDNN_ACTIVATION_RELU`: Options are `SIGMOID`, `RELU`, `TANH`, `CLIPPED_RELU`, `ELU`, `IDENTITY`
+* `nanOpt = CUDNN_NOT_PROPAGATE_NAN`: NaN propagation policy, the other option is `CUDNN_PROPAGATE_NAN`
+* `coef=1`: When the activation mode is set to `CUDNN_ACTIVATION_CLIPPED_RELU`, this input specifies the clipping threshold; and when the activation mode is set to `CUDNN_ACTIVATION_ELU`, this input specifies the `alpha` parameter.
 """
 cudnnActivationForward, cudnnActivationForward!
 

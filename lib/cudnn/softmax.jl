@@ -8,9 +8,9 @@ arguments:
 
 * `algo = (CUDA.math_mode()===CUDA.FAST_MATH ? CUDNN_SOFTMAX_FAST : CUDNN_SOFTMAX_ACCURATE)`: Options are `CUDNN_SOFTMAX_ACCURATE` which subtracts max from every point to avoid overflow, `CUDNN_SOFTMAX_FAST` which doesn't and `CUDNN_SOFTMAX_LOG` which returns logsoftmax.
 * `mode = CUDNN_SOFTMAX_MODE_INSTANCE`: Compute softmax per image (N) across the dimensions C,H,W. `CUDNN_SOFTMAX_MODE_CHANNEL` computes softmax per spatial location (H,W) per image (N) across the dimension C. 
-* `alpha=1, beta=0` can be used for scaling, i.e. `y .= alpha*op(x1) .+ beta*y`
+* `alpha=1, beta=0` can be used for scaling, i.e. `y .= alpha * op(x1) .+ beta * y`
 """
-
+cudnnSoftmaxForward, cudnnSoftmaxForward!
 
 # Public methods
 cudnnSoftmaxForward(x; o...) = cudnnSoftmaxForwardWithDefaults(x; o...)

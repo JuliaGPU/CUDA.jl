@@ -20,11 +20,11 @@ instead.
 
 Arguments:
 * `mode = CUDNN_POOLING_MAX`: Pooling method, other options are `CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING`, `CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING`, `CUDNN_POOLING_MAX_DETERMINISTIC`
-* `nanOpt = CUDNN_NOT_PROPAGATE_NAN`: NAN propagation policy, the other option is `CUDNN_PROPAGATE_NAN`
+* `nanOpt = CUDNN_NOT_PROPAGATE_NAN`: NaN propagation policy, the other option is `CUDNN_PROPAGATE_NAN`
 * `window = 2`: Pooling window size
 * `padding = 0`: Padding assumed around `x`
 * `stride = window`: How far to shift pooling window at each step
-* `alpha=1, beta=0` can be used for scaling, i.e. `y .= alpha*op(x1) .+ beta*y`
+* `alpha=1, beta=0` can be used for scaling, i.e. `y .= alpha * op(x1) .+ beta * y`
 """
 cudnnPoolingForward, cudnnPoolingForward!
 

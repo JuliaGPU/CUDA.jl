@@ -18,9 +18,9 @@ tensor `y` or must be equal to 1. Keyword arguments:
 
 Keyword arguments used when `cudnnOpTensorDescriptor` is not specified:
 
-* `op = CUDNN_OP_TENSOR_ADD`, ADD can be replaced with MUL, MIN, MAX, SQRT, NOT; SQRT and NOT performed only on x1; NOT computes 1-x1
+* `op = CUDNN_OP_TENSOR_ADD`, `ADD` can be replaced with `MUL`, `MIN`, `MAX`, `SQRT`, `NOT`; `SQRT` and `NOT` performed only on `x1`; `NOT` computes `1-x1`
 * `compType = (eltype(x1) <: Float64 ? Float64 : Float32)`: Computation datatype (see cudnn docs for available options)
-* `nanOpt = CUDNN_NOT_PROPAGATE_NAN`: NAN propagation policy. The other option is `CUDNN_PROPAGATE_NAN`.
+* `nanOpt = CUDNN_NOT_PROPAGATE_NAN`: NaN propagation policy. The other option is `CUDNN_PROPAGATE_NAN`.
 """
 cudnnOpTensor, cudnnOpTensor!
 
