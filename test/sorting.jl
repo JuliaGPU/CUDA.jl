@@ -209,6 +209,36 @@ function check_sort(T, N, f=identity; kwargs...)
     check_equivalence(original_arr, host_result; kwargs...)
 end
 
+"""
+Tests if `c` is a valid sort of `a`
+"""
+function check_partial_equivalence(a::Vector, c::Vector, partial_k; kwargs...)
+    # check that the right amount of elements are present
+    if counter(a) != counter(c)
+        return false
+    end
+    # check that the range partial_k is sorted
+    if !issorted(c; kwargs...)
+        return false
+    end
+    lo, hi = first(partial_k), last(partial_k)
+    # check that everything left of partial_k is lesser, and everything right greater
+    if :by in keys(kwargs)
+        c = map(kwargs[:by], c)
+    end
+    if ! all(x <= c[lo] for x in c[1:lo]) || !all(x >= c[hi] for x in c[hi:end])
+    end
+    return true
+end
+
+function check_partialsort!(T, N, partial_k, f=identity; kwargs...)
+    original_arr, device_arr = init_case(T, f, N)
+    out = partialsort!(device_arr, partial_k; kwargs...)
+    right_size = size(out) == size(partial_k)
+    host_result = Array(device_arr)
+    right_size && check_partial_equivalence(original_arr, host_result, partial_k; kwargs...)
+end
+
 
 # FIXME: these tests hang when running under compute-sanitizer on CUDA 11.2 with -g2
 @not_if_sanitize @testset "interface" begin
@@ -264,6 +294,18 @@ end
     @test check_sort!(Int, 200; by=x->x % 2)
     @test check_sort!(Int, 200; by=x->x % 3)
     @test check_sort!(Int, 200; by=x->x % 4)
+
+    #partial sort
+    @test check_partialsort!(Int, 100000, 1)
+    @test check_partialsort!(Int, 100000, 100000)
+    @test check_partialsort!(Int, 100000, 50000)
+    @test check_partialsort!(Int, 100000, 10000:20000)
+    @test check_partialsort!(Int, 100000, 1:100000)
+    @test check_partialsort!(Float32, 100000, 1; by=x->abs(x - 0.5))
+    @test check_partialsort!(Float32, 100000, 100000; by=x->abs(x - 0.5))
+    @test check_partialsort!(Float32, 100000, 50000; by=x->abs(x - 0.5))
+    @test check_partialsort!(Float32, 100000, 10000:20000; by=x->abs(x - 0.5))
+    @test check_partialsort!(Float32, 100000, 1:100000; by=x->abs(x - 0.5))
 end
 
 end
