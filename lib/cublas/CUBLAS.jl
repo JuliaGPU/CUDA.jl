@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcublas, unsafe_free!, @retry_reclaim, isdebug, @sync
+using ..CUDA: libcublas, unsafe_free!, @retry_reclaim, isdebug, @sync, @context!
 
 using GPUArrays
 
@@ -31,11 +31,6 @@ include("wrappers.jl")
 
 # high-level integrations
 include("linalg.jl")
-
-# cache for created, but unused handles
-const handle_cache_lock = ReentrantLock()
-const idle_handles = DefaultDict{CuContext,Vector{cublasHandle_t}}(()->cublasHandle_t[])
-const idle_xt_handles = DefaultDict{Any,Vector{cublasHandle_t}}(()->cublasHandle_t[])
 
 function math_mode!(handle, mode)
     flags = 0
@@ -73,24 +68,22 @@ function math_mode!(handle, mode)
     return
 end
 
+# cache for created, but unused handles
+const idle_handles = HandleCache{CuContext,cublasHandle_t}()
+const idle_xt_handles = HandleCache{Any,cublasXtHandle_t}()
+
 function handle()
     state = CUDA.active_state()
     handle, stream, math_mode = get!(task_local_storage(), (:CUBLAS, state.context)) do
-        new_handle = @lock handle_cache_lock begin
-            if isempty(idle_handles[state.context])
-                cublasCreate()
-                # FIXME: use cublasSetWorkspace? cublasSetStream reset it.
-            else
-                pop!(idle_handles[state.context])
-            end
+        new_handle = pop!(idle_handles, state.context) do
+            cublasCreate()
         end
 
         finalizer(current_task()) do task
-            @spinlock handle_cache_lock begin
-                push!(idle_handles[state.context], new_handle)
+            push!(idle_handles, state.context, new_handle) do
+                @context! skip_destroyed=true state.context cublasDestroy_v2(handle)
             end
         end
-        # TODO: cublasDestroy to preserve memory, or at exit?
 
         cublasSetStream_v2(new_handle, state.stream)
 
@@ -117,27 +110,23 @@ end
 function xt_handle()
     ctxs = Tuple(context(dev) for dev in devices())
     get!(task_local_storage(), (:CUBLASxt, ctxs)) do
-        handle = @lock handle_cache_lock begin
-            if isempty(idle_xt_handles[ctxs])
-                cublasXtCreate()
-            else
-                pop!(idle_xt_handles[ctxs])
-            end
+        handle = pop!(idle_xt_handles, ctxs) do
+            cublasXtCreate()
         end
 
         finalizer(current_task()) do task
-            @spinlock handle_cache_lock begin
-                push!(idle_xt_handles[ctxs], handle)
+            push!(idle_xt_handles, ctxs, handle) do
+                # TODO: which context do we need to destroy this on?
+                cublasXtDestroy(handle)
             end
         end
-        # TODO: cublasXtDestroy to preserve memory, or at exit?
 
         # select all devices
         devs = convert.(Cint, devices())
         cublasXtDeviceSelect(handle, length(devs), devs)
 
         handle
-    end::cublasHandle_t
+    end::cublasXtHandle_t
 end
 
 function log_message(cstr)
