@@ -40,7 +40,7 @@ Keyword arguments describing the attention operation when `d` is not given:
 
 Other keyword arguments:
 * `residuals = nothing`: optional tensor with the same size as queries that can be used to implement residual connections (see figure in cudnn docs). When residual connections are enabled, the vector length in `queries` should match the vector length in `out`, so that a vector addition is feasible. 
-* `currIdx::Integer = -1`: Time-step (0-based) in queries to process. When the `currIdx` argument is negative, all ``Q`` time-steps are processed. When `currIdx` is zero or positive, the forward response is computed for the selected time-step only. The latter input can be used in inference mode only, to process one time-step while updating the next attention window and ``Q``, ``R``, ``K``, ``V`` inputs in-between calls.
+* `currIdx::Integer = -1`: Time-step (0-based) in queries to process. When the `currIdx` argument is negative, all ``Q`` time-steps are processed. When `currIdx` is zero or positive, the forward response is computed for the selected time-step only. The latter input can be used in inference mode only, to process one time-step while updating the next attention window and ``Q``, ``K``, ``V`` inputs in-between calls.
 * `loWinIdx, hiWinIdx::Array{Cint}`: Two host integer arrays specifying the start and end (0-based) indices of the attention window for each ``Q`` time-step. The start index in ``K``, ``V`` sets is inclusive, and the end index is exclusive. By default set at 0 and `kvMaxSeqLength` respectively.
 """
 cudnnMultiHeadAttnForward, cudnnMultiHeadAttnForward!
