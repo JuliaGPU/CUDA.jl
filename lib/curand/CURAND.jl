@@ -30,7 +30,7 @@ const idle_gpuarray_rngs = HandleCache{CuContext,GPUArrays.RNG}()
 
 function default_rng()
     state = CUDA.active_state()
-    rng, stream = get!(task_local_storage(), (:CURAND, state.context)) do
+    rng = get!(task_local_storage(), (:CURAND, state.context)) do
         new_rng = pop!(idle_curand_rngs, state.context) do
             RNG()
         end
@@ -41,16 +41,9 @@ function default_rng()
             end
         end
 
-        curandSetStream(new_rng, state.stream)
-
         Random.seed!(new_rng)
-        new_rng, state.stream
-    end::Tuple{RNG,CuStream}
-
-    if stream != state.stream
-        curandSetStream(rng, state.stream)
-        task_local_storage((:CURAND, state.context), (rng, state.stream))
-    end
+        new_rng
+    end::RNG
 
     return rng
 end
