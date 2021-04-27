@@ -100,7 +100,7 @@ using SpecialFunctions
 @device_override Base.exp2(x::Float64) = ccall("extern __nv_exp2", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.exp2(x::Float32) = ccall("extern __nv_exp2f", llvmcall, Cfloat, (Cfloat,), x)
 # TODO: enable once PTX > 7.0 is supported
-# @device_override Base.wxp2(x::Float16) = @asmcall("ex2.approx.f16 \$0, \$1", "=h,h", Float16, Tuple{Float16}, x)
+# @device_override Base.exp2(x::Float16) = @asmcall("ex2.approx.f16 \$0, \$1", "=h,h", Float16, Tuple{Float16}, x)
 
 @device_override Base.exp10(x::Float64) = ccall("extern __nv_exp10", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.exp10(x::Float32) = ccall("extern __nv_exp10f", llvmcall, Cfloat, (Cfloat,), x)
@@ -249,8 +249,6 @@ Base.expm1(x::Float16) = Float16(CUDA.expm1(Float32(x)))
 # NOTE: CUDA follows fmod, which behaves differently than Base.mod for negative numbers
 #@device_override Base.mod(x::Float64, y::Float64) = ccall("extern __nv_fmod", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 #@device_override Base.mod(x::Float32, y::Float32) = ccall("extern __nv_fmodf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-@device_override Base.mod(x::Float16, y::Float16) = Float16(mod(Float32(x), Float32(y)))
-
 
 @device_override Base.rem(x::Float64, y::Float64) = ccall("extern __nv_remainder", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @device_override Base.rem(x::Float32, y::Float32) = ccall("extern __nv_remainderf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
@@ -310,7 +308,7 @@ Base.expm1(x::Float16) = Float16(CUDA.expm1(Float32(x)))
 
 @device_override Base.fma(x::Float64, y::Float64, z::Float64) = ccall("extern __nv_fma", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
 @device_override Base.fma(x::Float32, y::Float32, z::Float32) = ccall("extern __nv_fmaf", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
-# @device_override Base.fma(x::Float16, y::Float16, z::Float16) = @asmcall("fma.rnd.f16 \$0, \$1, \$2, \$3", "=h,h,h,h", Float16, Tuple{Float16, Float16, Float16}, x, y, z)
+@device_override Base.fma(x::Float16, y::Float16, z::Float16) = @asmcall("fma.rn.f16 \$0, \$1, \$2, \$3;", "=h,h,h,h", true, Float16, Tuple{Float16, Float16, Float16}, x, y, z)
 
 @device_function sad(x::Int32, y::Int32, z::Int32) = ccall("extern __nv_sad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z)
 @device_function sad(x::UInt32, y::UInt32, z::UInt32) = convert(UInt32, ccall("extern __nv_usad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z))
