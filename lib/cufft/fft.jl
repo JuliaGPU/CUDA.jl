@@ -34,7 +34,7 @@ unsafe_finalize!(plan::CuFFTPlan) = unsafe_free!(plan, CuDefaultStream())
 mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     handle::cufftHandle
     ctx::CuContext
-    #workarea::CuVector{Int8}
+    stream::CuStream
     sz::NTuple{N,Int} # Julia size of input array
     osz::NTuple{N,Int} # Julia size of output array
     xtype::cufftType
@@ -42,10 +42,10 @@ mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     pinv::ScaledPlan # required by AbstractFFT API
 
     function cCuFFTPlan{T,K,inplace,N}(handle::cufftHandle,
-                                       X::DenseCuArray{T,N}, sizey::Tuple, region, xtype
-                                       ) where {T<:cufftNumber,K,inplace,N}
+                                       X::DenseCuArray{T,N}, sizey::Tuple, region, xtype;
+                                       stream::CuStream=stream()) where {T<:cufftNumber,K,inplace,N}
         # maybe enforce consistency of sizey
-        p = new(handle, context(), size(X), sizey, xtype, region)
+        p = new(handle, context(), stream, size(X), sizey, xtype, region)
         finalizer(unsafe_finalize!, p)
         p
     end
@@ -54,7 +54,7 @@ end
 mutable struct rCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     handle::cufftHandle
     ctx::CuContext
-    #workarea::CuVector{Int8}
+    stream::CuStream
     sz::NTuple{N,Int} # Julia size of input array
     osz::NTuple{N,Int} # Julia size of output array
     xtype::cufftType
@@ -62,10 +62,10 @@ mutable struct rCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     pinv::ScaledPlan # required by AbstractFFT API
 
     function rCuFFTPlan{T,K,inplace,N}(handle::cufftHandle,
-                                       X::DenseCuArray{T,N}, sizey::Tuple, region, xtype
-                                       ) where {T<:cufftNumber,K,inplace,N}
+                                       X::DenseCuArray{T,N}, sizey::Tuple, region, xtype;
+                                       stream::CuStream=stream()) where {T<:cufftNumber,K,inplace,N}
         # maybe enforce consistency of sizey
-        p = new(handle, context(), size(X), sizey, xtype, region)
+        p = new(handle, context(), stream, size(X), sizey, xtype, region)
         finalizer(unsafe_finalize!, p)
         p
     end
@@ -98,6 +98,18 @@ function Base.show(io::IO, p::CuFFTPlan{T,K,inplace}) where {T,K,inplace}
 end
 
 Base.size(p::CuFFTPlan) = p.sz
+
+# FFT plans can be user-created on a different task, whose stream might be different from
+# the one used in the current task. call this function before every API call that performs
+# operations on a stream to ensure the plan is using the correct task-local stream.
+@inline function update_stream(plan::CuFFTPlan)
+    new_stream = stream()
+    if plan.stream != new_stream
+        plan.stream = new_stream
+        cufftSetStream(plan, new_stream)
+    end
+    return
+end
 
 
 ## plan methods
@@ -387,13 +399,13 @@ end
 function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,true,N},
                          x::DenseCuArray{cufftComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_C2C
-    cufftSetStream(plan, stream())
+    update_stream(plan)
     cufftExecC2C(plan, x, x, K)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,true,N},
                          x::DenseCuArray{cufftComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_C2R
-    cufftSetStream(plan, stream())
+    update_stream(plan)
     cufftExecC2R(plan, x, x)
 end
 
@@ -402,7 +414,7 @@ function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,false,N},
                          ) where {K,N}
     @assert plan.xtype == CUFFT_C2C
     x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
-    cufftSetStream(plan, stream())
+    update_stream(plan)
     cufftExecC2C(plan, x, y, K)
     unsafe_free!(x)
 end
@@ -411,7 +423,7 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
                          ) where {K,N}
     @assert plan.xtype == CUFFT_C2R
     x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
-    cufftSetStream(plan, stream())
+    update_stream(plan)
     cufftExecC2R(plan, x, y)
     unsafe_free!(x)
 end
@@ -421,7 +433,7 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftReal,K,false,N},
                          ) where {K,N}
     @assert plan.xtype == CUFFT_R2C
     x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
-    cufftSetStream(plan, stream())
+    update_stream(plan)
     cufftExecR2C(plan, x, y)
     unsafe_free!(x)
 end
@@ -433,7 +445,7 @@ function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,true,N},
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,true,N},
                          x::DenseCuArray{cufftDoubleComplex,N}) where {K,N}
-    cufftSetStream(plan, stream())
+    update_stream(plan)
     @assert plan.xtype == CUFFT_Z2D
     cufftExecZ2D(plan, x, x)
 end
@@ -443,7 +455,7 @@ function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,false,N},
                          ) where {K,N}
     @assert plan.xtype == CUFFT_Z2Z
     x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
-    cufftSetStream(plan, stream())
+    update_stream(plan)
     cufftExecZ2Z(plan, x, y, K)
     unsafe_free!(x)
 end
@@ -452,7 +464,7 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,false,N},
                          ) where {K,N}
     @assert plan.xtype == CUFFT_Z2D
     x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
-    cufftSetStream(plan, stream())
+    update_stream(plan)
     cufftExecZ2D(plan, x, y)
     unsafe_free!(x)
 end
@@ -462,7 +474,7 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleReal,K,false,N},
                          ) where {K,N}
     @assert plan.xtype == CUFFT_D2Z
     x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
-    cufftSetStream(plan, stream())
+    update_stream(plan)
     cufftExecD2Z(plan, x, y)
     unsafe_free!(x)
 end

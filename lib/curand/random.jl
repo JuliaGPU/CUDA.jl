@@ -8,18 +8,18 @@ using GPUArrays
 mutable struct RNG <: Random.AbstractRNG
     handle::curandGenerator_t
     ctx::CuContext
+    stream::CuStream
     typ::Int
 
-    function RNG(typ=CURAND_RNG_PSEUDO_DEFAULT)
+    function RNG(typ=CURAND_RNG_PSEUDO_DEFAULT; stream=stream())
         handle = curandCreateGenerator(typ)
-        curandSetStream(handle, stream())   # XXX: duplicate with default_rng
-        obj = new(handle, context(), typ)
+        if stream !== nothing
+            curandSetStream(handle, stream)
+        end
+        obj = new(handle, context(), stream, typ)
         finalizer(unsafe_destroy!, obj)
         return obj
     end
-
-    # TODO: this design doesn't work nicely in the presence of streams.
-    #       if the user switches streams, a local RNG object won't be updated.
 end
 
 function unsafe_destroy!(rng::RNG)
@@ -28,10 +28,23 @@ end
 
 Base.unsafe_convert(::Type{curandGenerator_t}, rng::RNG) = rng.handle
 
+# RNG objects can be user-created on a different task, whose stream might be different from
+# the one used in the current task. call this function before every API call that performs
+# operations on a stream to ensure the RNG is using the correct task-local stream.
+@inline function update_stream(rng::RNG)
+    new_stream = stream()
+    if rng.stream != new_stream
+        rng.stream = new_stream
+        curandSetStream(rng, new_stream)
+    end
+    return
+end
+
 
 ## seeding
 
 function Random.seed!(rng::RNG, seed=Base.rand(UInt64), offset=0)
+    update_stream(rng)
     curandSetPseudoRandomGeneratorSeed(rng, seed)
     curandSetGeneratorOffset(rng, offset)
     @check unsafe_curandGenerateSeeds(rng) CURAND_STATUS_PREEXISTING_FAILURE
@@ -47,14 +60,17 @@ Random.seed!(rng::RNG, ::Nothing) = Random.seed!(rng)
 const UniformType = Union{Type{Float32},Type{Float64},Type{UInt32}}
 const UniformArray = DenseCuArray{<:Union{Float32,Float64,UInt32}}
 function Random.rand!(rng::RNG, A::DenseCuArray{UInt32})
+    update_stream(rng)
     curandGenerate(rng, A, length(A))
     return A
 end
 function Random.rand!(rng::RNG, A::DenseCuArray{Float32})
+    update_stream(rng)
     curandGenerateUniform(rng, A, length(A))
     return A
 end
 function Random.rand!(rng::RNG, A::DenseCuArray{Float64})
+    update_stream(rng)
     curandGenerateUniformDouble(rng, A, length(A))
     return A
 end
@@ -78,10 +94,12 @@ end
 const NormalType = Union{Type{Float32},Type{Float64}}
 const NormalArray = DenseCuArray{<:Union{Float32,Float64}}
 function Random.randn!(rng::RNG, A::DenseCuArray{Float32}; mean=0, stddev=1)
+    update_stream(rng)
     inplace_pow2(A, B->curandGenerateNormal(rng, B, length(B), mean, stddev))
     return A
 end
 function Random.randn!(rng::RNG, A::DenseCuArray{Float64}; mean=0, stddev=1)
+    update_stream(rng)
     inplace_pow2(A, B->curandGenerateNormalDouble(rng, B, length(B), mean, stddev))
     return A
 end
@@ -90,10 +108,12 @@ end
 const LognormalType = Union{Type{Float32},Type{Float64}}
 const LognormalArray = DenseCuArray{<:Union{Float32,Float64}}
 function rand_logn!(rng::RNG, A::DenseCuArray{Float32}; mean=0, stddev=1)
+    update_stream(rng)
     inplace_pow2(A, B->curandGenerateLogNormal(rng, B, length(B), mean, stddev))
     return A
 end
 function rand_logn!(rng::RNG, A::DenseCuArray{Float64}; mean=0, stddev=1)
+    update_stream(rng)
     inplace_pow2(A, B->curandGenerateLogNormalDouble(rng, B, length(B), mean, stddev))
     return A
 end
@@ -102,6 +122,7 @@ end
 const PoissonType = Union{Type{Cuint}}
 const PoissonArray = DenseCuArray{Cuint}
 function rand_poisson!(rng::RNG, A::DenseCuArray{Cuint}; lambda=1)
+    update_stream(rng)
     curandGeneratePoisson(rng, A, length(A), lambda)
     return A
 end
