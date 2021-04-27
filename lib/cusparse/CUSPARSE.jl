@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim
+using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim, @context!
 
 using CEnum
 
@@ -46,23 +46,18 @@ include("generic.jl")
 include("interfaces.jl")
 
 # cache for created, but unused handles
-const handle_cache_lock = ReentrantLock()
-const idle_handles = DefaultDict{CuContext,Vector{cusparseHandle_t}}(()->cusparseHandle_t[])
+const idle_handles = HandleCache{CuContext,cusparseHandle_t}()
 
 function handle()
     state = CUDA.active_state()
     handle, stream = get!(task_local_storage(), (:CUSPARSE, state.context)) do
-        new_handle = @lock handle_cache_lock begin
-            if isempty(idle_handles[state.context])
-                cusparseCreate()
-            else
-                pop!(idle_handles[state.context])
-            end
+        new_handle = pop!(idle_handles, state.context) do
+            cusparseCreate()
         end
 
         finalizer(current_task()) do task
-            @spinlock handle_cache_lock begin
-                push!(idle_handles[state.context], new_handle)
+            push!(idle_handles, state.context, new_handle) do
+                @context! skip_destroyed=true state.context cusparseDestroy(new_handle)
             end
         end
         # TODO: cusparseDestroy to preserve memory, or at exit?

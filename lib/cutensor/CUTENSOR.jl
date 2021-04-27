@@ -28,28 +28,22 @@ include("wrappers.jl")
 include("interfaces.jl")
 
 # cache for created, but unused handles
-const handle_cache_lock = ReentrantLock()
-const idle_handles = DefaultDict{CuContext,Vector{Base.RefValue{cutensorHandle_t}}}(()->Base.RefValue{cutensorHandle_t}[])
+const idle_handles = HandleCache{CuContext,Base.RefValue{cutensorHandle_t}}()
 
 function handle()
     ctx = context()
     get!(task_local_storage(), (:CUTENSOR, ctx)) do
-        handle = @lock handle_cache_lock begin
-            if isempty(idle_handles[ctx])
-                handle = Ref{cutensorHandle_t}()
-                cutensorInit(handle)
-                handle
-            else
-                pop!(idle_handles[ctx])
-            end
+        handle = pop!(idle_handles, ctx) do
+            handle = Ref{cutensorHandle_t}()
+            cutensorInit(handle)
+            handle
         end
 
         finalizer(current_task()) do task
-            @spinlock handle_cache_lock begin
-                push!(idle_handles[ctx], handle)
+            push!(idle_handles, ctx, handle) do
+                # CUTENSOR doesn't need to actively destroy its handle
             end
         end
-        # TODO: destroy to preserve memory, or at exit?
 
         handle
     end::Base.RefValue{cutensorHandle_t}

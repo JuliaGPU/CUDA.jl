@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcusolver, libcusolvermg, @allowscalar, assertscalar, unsafe_free!, @retry_reclaim
+using ..CUDA: libcusolver, libcusolvermg, @allowscalar, assertscalar, unsafe_free!, @retry_reclaim, @context!
 
 using ..CUBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
 using ..CUSPARSE: cusparseMatDescr_t
@@ -31,27 +31,21 @@ include("multigpu.jl")
 include("linalg.jl")
 
 # cache for created, but unused handles
-const handle_cache_lock = ReentrantLock()
-const idle_dense_handles = DefaultDict{CuContext,Vector{cusolverDnHandle_t}}(()->cusolverDnHandle_t[])
-const idle_sparse_handles = DefaultDict{CuContext,Vector{cusolverSpHandle_t}}(()->cusolverSpHandle_t[])
+const idle_dense_handles = HandleCache{CuContext,cusolverDnHandle_t}()
+const idle_sparse_handles = HandleCache{CuContext,cusolverSpHandle_t}()
 
 function dense_handle()
     state = CUDA.active_state()
     handle, stream = get!(task_local_storage(), (:CUSOLVER, :dense, state.context)) do
-        new_handle = @lock handle_cache_lock begin
-            if isempty(idle_dense_handles[state.context])
-                cusolverDnCreate()
-            else
-                pop!(idle_dense_handles[state.context])
-            end
+        new_handle = pop!(idle_dense_handles, state.context) do
+            cusolverDnCreate()
         end
 
         finalizer(current_task()) do task
-            @spinlock handle_cache_lock begin
-                push!(idle_dense_handles[state.context], new_handle)
+            push!(idle_dense_handles, state.context, new_handle) do
+                @context! skip_destroyed=true state.context cusolverDnDestroy()
             end
         end
-        # TODO: cusolverDnDestroy to preserve memory, or at exit?
 
         cusolverDnSetStream(new_handle, state.stream)
 
@@ -69,20 +63,15 @@ end
 function sparse_handle()
     state = CUDA.active_state()
     handle, stream = get!(task_local_storage(), (:CUSOLVER, :sparse, state.context)) do
-        new_handle = @lock handle_cache_lock begin
-            if isempty(idle_sparse_handles[state.context])
-                cusolverSpCreate()
-            else
-                pop!(idle_sparse_handles[state.context])
-            end
+        new_handle = pop!(idle_sparse_handles, state.context) do
+            cusolverSpCreate()
         end
 
         finalizer(current_task()) do task
-            @spinlock handle_cache_lock begin
-                push!(idle_sparse_handles[state.context], new_handle)
+            push!(idle_sparse_handles, state.context, new_handle) do
+                @context! skip_destroyed=true state.context cusolverSpDestroy(new_handle)
             end
         end
-        # TODO: cusolverSpDestroy to preserve memory, or at exit?
 
         cusolverSpSetStream(new_handle, state.stream)
 

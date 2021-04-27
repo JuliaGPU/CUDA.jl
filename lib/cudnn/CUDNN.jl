@@ -11,7 +11,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, libraryPropertyType
-using ..CUDA: libcudnn, @retry_reclaim, isdebug
+using ..CUDA: libcudnn, @retry_reclaim, isdebug, @context!
 
 using CEnum
 
@@ -59,26 +59,20 @@ function math_mode(mode=CUDA.math_mode())
 end
 
 # cache for created, but unused handles
-const handle_cache_lock = ReentrantLock()
-const idle_handles = DefaultDict{CuContext,Vector{cudnnHandle_t}}(()->cudnnHandle_t[])
+const idle_handles = HandleCache{CuContext,cudnnHandle_t}()
 
 function handle()
     state = CUDA.active_state()
     handle, stream = get!(task_local_storage(), (:CUDNN, state.context)) do
-        new_handle = @lock handle_cache_lock begin
-            if isempty(idle_handles[state.context])
-                cudnnCreate()
-            else
-                pop!(idle_handles[state.context])
-            end
+        new_handle = pop!(idle_handles, state.context) do
+            cudnnCreate()
         end
 
         finalizer(current_task()) do task
-            @spinlock handle_cache_lock begin
-                push!(idle_handles[state.context], new_handle)
+            push!(idle_handles, state.context, new_handle) do
+                @context! skip_destroyed=true state.context cudnnDestroy(new_handle)
             end
         end
-        # TODO: cudnnDestroy to preserve memory, or at exit?
 
         cudnnSetStream(new_handle, state.stream)
 

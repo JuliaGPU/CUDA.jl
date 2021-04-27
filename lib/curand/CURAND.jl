@@ -25,36 +25,21 @@ include("wrappers.jl")
 include("random.jl")
 
 # cache for created, but unused handles
-const rng_cache_lock = ReentrantLock()
-const active_curand_rngs = Set{RNG}()
-const active_gpuarray_rngs = Set{GPUArrays.RNG}()
-const idle_curand_rngs = DefaultDict{CuContext,Vector{RNG}}(()->RNG[])
-const idle_gpuarray_rngs = DefaultDict{CuContext,Vector{GPUArrays.RNG}}(()->GPUArrays.RNG[])
+const idle_curand_rngs = HandleCache{CuContext,RNG}()
+const idle_gpuarray_rngs = HandleCache{CuContext,GPUArrays.RNG}()
 
 function default_rng()
     state = CUDA.active_state()
     rng, stream = get!(task_local_storage(), (:CURAND, state.context)) do
-        new_rng = @lock rng_cache_lock begin
-            new_rng = if isempty(idle_curand_rngs[state.context])
-                RNG()
-            else
-                pop!(idle_curand_rngs[state.context])
-            end
-
-            # protect handles from the GC when the owning task is collected. we only
-            # need to do this for CURAND, as handles typically don't have finalizers.
-            push!(active_curand_rngs, new_rng)
-
-            new_rng
+        new_rng = pop!(idle_curand_rngs, state.context) do
+            RNG()
         end
 
         finalizer(current_task()) do task
-            @spinlock rng_cache_lock begin
-                push!(idle_curand_rngs[state.context], new_rng)
-                delete!(active_curand_rngs, new_rng)
+            push!(idle_curand_rngs, state.context, new_rng) do
+                # no need to do anything, as the RNG is collected by its finalizer
             end
         end
-        # TODO: curandDestroyGenerator to preserve memory, or at exit?
 
         curandSetStream(new_rng, state.stream)
 
@@ -73,28 +58,18 @@ end
 function GPUArrays.default_rng(::Type{<:CuArray})
     ctx = context()
     get!(task_local_storage(), (:GPUArraysRNG, ctx)) do
-        rng = @lock rng_cache_lock begin
-            rng = if isempty(idle_gpuarray_rngs[ctx])
-                dev = device()
-                N = attribute(dev, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
-                state = CuArray{NTuple{4, UInt32}}(undef, N)
-                GPUArrays.RNG(state)
-            else
-                pop!(idle_gpuarray_rngs[ctx])
-            end
-
-            push!(active_gpuarray_rngs, rng)
-
-            rng
+        rng = pop!(idle_gpuarray_rngs, ctx) do
+            dev = device()
+            N = attribute(dev, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
+            state = CuArray{NTuple{4, UInt32}}(undef, N)
+            GPUArrays.RNG(state)
         end
 
         finalizer(current_task()) do task
-            @spinlock rng_cache_lock begin
-                push!(idle_gpuarray_rngs[ctx], rng)
-                delete!(active_gpuarray_rngs, rng)
+            push!(idle_gpuarray_rngs, ctx, rng) do
+                # no need to do anything, as the RNG is collected by its finalizer
             end
         end
-        # TODO: destroy to preserve memory, or at exit?
 
         Random.seed!(rng)
         rng
