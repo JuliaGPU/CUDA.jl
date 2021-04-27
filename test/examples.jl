@@ -2,9 +2,6 @@
 #                     but --show-backtrace=no does not survive execve.
 @not_if_sanitize begin
 
-# these tests spawn subprocesses, so reset the current context to conserve memory
-CUDA.any_stream_ordered() || CUDA.device_reset!()
-
 function find_sources(path::String, sources=String[])
     if isdir(path)
         for entry in readdir(path)

@@ -103,7 +103,7 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
         end
         res = vcat(collect(data), cpu_rss, gpu_rss)
 
-        CUDA.any_stream_ordered() || device_reset!()
+        CUDA.can_reset_device() && device_reset!()
         res
     finally
         if snoop !== nothing

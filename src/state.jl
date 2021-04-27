@@ -282,6 +282,9 @@ function device!(f::Function, dev::CuDevice)
     @device! dev f()
 end
 
+# NVIDIA bug #3240770
+can_reset_device() = !(release() == v"11.2" && any(dev->pools[dev].stream_ordered, devices()))
+
 """
     device_reset!(dev::CuDevice=device())
 
@@ -296,7 +299,7 @@ context, at which point any objects allocated in that context will be invalidate
     this package.
 """
 function device_reset!(dev::CuDevice=device())
-    if any_stream_ordered()
+    if !can_reset_device()
         @error """Due to a bug in CUDA, resetting the device is not possible on CUDA 11.2 when using the stream-ordered memory allocator.
 
                   If you are calling this function to free memory, that may not be required anymore
