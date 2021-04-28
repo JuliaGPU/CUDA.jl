@@ -25,7 +25,7 @@ function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig, hostcall
 
     cptr = ptr + (i % count) * stride
     while (!try_lock(cptr)) &&  tc < 80000
-        nanosleep(UInt32(16))
+        nanosleep(UInt32(32))
         i += 1
         tc += 1
         cptr = ptr + (i % count) * stride

@@ -87,7 +87,7 @@ include("manager/warp.jl")
 
 Function returning the expected minimum hostcall area size.
 """
-required_size(manager::T) where {T <: AreaManager} = area_count(manager) * stride(manager)
+required_size(manager::AreaManager) = area_count(manager) * stride(manager)
 
 
 """

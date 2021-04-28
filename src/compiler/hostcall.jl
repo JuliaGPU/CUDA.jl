@@ -11,21 +11,17 @@ ret_offset() = 16
 Host side function that checks and executes outstanding hostmethods.
 Checking only one index.
 """
-function handle_hostcall(manager::AreaManager, area::Ptr{Int64}, index::Int64)
-    start("handle_hostcall")
-
+function handle_hostcall(manager::AreaManager, area::Ptr{Int64}, index::Int64)::Int64
     checked = check_area(manager, area, index)
     if checked === nothing
-        stop("handle_hostcall", "hostcall_failed")
-        return false
+        return 0
     end
 
     (hostcall, ptrs) = checked
-    inc("ptr_$(hostcall)", length(ptrs))
-    hostcall = Val(hostcall)
+    hostcall_type = Val(hostcall)
     try
         ## Handle hostcall
-        handle_hostcalls(hostcall, manager, ptrs, area, index)
+        handle_hostcalls(hostcall_type, manager, ptrs, area, index)
     catch e
         println("ERROR ERROR hostcall $(hostcall)")
         for (exc, bt) in Base.catch_stack()
@@ -36,8 +32,7 @@ function handle_hostcall(manager::AreaManager, area::Ptr{Int64}, index::Int64)
         finish_area(manager, area, index)
     end
 
-    stop("handle_hostcall", "hostcall_succesful")
-    return true
+    return hostcall
 end
 
 
@@ -249,7 +244,7 @@ macro cpu(ex...)
 
     # handle_hostcall function that is called from handle_hostcall(ctx::CuContext)
     new_fn = quote
-        handle_hostcalls(::Val{$indx}, manager::AreaManager, ptrs::Vector{Ptr{Int64}}, area::Ptr{Int64}, index::Int64) = (inc("handle_call_$($indx)_$($caller_module.$f)"); exec_hostmethodes($types_type_quote, $(types[1]), manager, $caller_module.$f, ptrs, area, index, $blocking))
+        handle_hostcalls(::Val{$indx}, manager::AreaManager, ptrs::Vector{Ptr{Int64}}, area::Ptr{Int64}, index::Int64) = exec_hostmethodes($types_type_quote, $(types[1]), manager, $caller_module.$f, ptrs, area, index, $blocking)
     end
 
 
@@ -261,7 +256,7 @@ macro cpu(ex...)
 
     if gran_gather !== nothing
         call_cpu = quote
-            CUDA.gather_scatter($args_tuple, $(types[1]), $gran_gather, $gran_scatter, (v...) -> CUDA.call_hostcall($(types[1]), $indx, v, Val($blocking)))
+            CUDA.gather_scatter($args_tuple, $(types[1]), $gran_gather, $gran_scatter, v -> CUDA.call_hostcall($(types[1]), $indx, v, Val($blocking)))
         end
     else
         call_cpu = quote
@@ -289,7 +284,7 @@ macro dotime(f, times, current=(quote end))
     return esc(current)
 end
 
-_popc(x::UInt32) = ccall("extern __nv_popc", llvmcall, Int32, (UInt32,), x)
+_popc(x::UInt32) = ccall("extern __nv_popc", llvmcall, UInt32, (UInt32,), x)
 """
     gather_scatter(value::T, returntype::Type{R}, gather_f, scatter_f, f)::R
 
@@ -374,7 +369,7 @@ rank
     """
 
     @dotime(c -> begin
-        @gensym state lm im above #something like scope variables
+        @gensym state last_mask above #something like scope variables
         quote
             # so gather rank and above togather into rank, this is a check for not fully filled warps etc
             $above = rank | i
@@ -384,21 +379,20 @@ rank
             # the new mask of this iteration
             mask1 = vote_ballot_sync(mask1, good)
             # store in local scope
-            $lm = mask1
-            $im = i
+            $last_mask = mask1
 
             if good # My turn to be useful
                 if $above < popc
-                    ($state, v...) = gather(sm_t[rank+1]..., sm_t[$above+1]...)
+                    ($state, v) = gather(sm_t[rank+1], sm_t[$above+1])
                     @inbounds sm_t[rank+1] = v
                 end
 
                 i = i << 1
-                sync_warp($lm)
+                sync_warp($last_mask)
 
                 $(c[1])
 
-                sync_warp($lm)
+                sync_warp($last_mask)
 
                 # if this is not the case, the expected value is already at sm_r[rank+1]
                 if $above < popc
@@ -410,7 +404,7 @@ rank
             end
         end
 
-    end, 5, start=(@inbounds sm_r[1] = f(sm_t[1]...))) # 2 ** 5 == 32, apply f to totally gathered result and store in sm_r
+    end, 5, start=(@inbounds sm_r[1] = f(sm_t[1]))) # 2 ** 5 == 32
 
     sync_warp(mask)
 

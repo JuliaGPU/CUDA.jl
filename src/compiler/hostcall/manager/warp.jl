@@ -10,9 +10,10 @@ struct WarpAreaManager <: AreaManager
     warp_size::Int
 end
 warp_meta_size() = 4 * sizeof(Int64) # state, hostcall, mask
-stride(manager::WarpAreaManager) = align(manager.area_size * (manager.warp_size + sizeof(Int64)) + warp_meta_size())
+stride(manager::WarpAreaManager) = align(manager.area_size * manager.warp_size + warp_meta_size())
 kind(::WarpAreaManager) = 1
 kind(::Type{WarpAreaManager}) = 1
+area_count(manager::WarpAreaManager) = manager.warp_area_count
 
 
 get_warp_ptr(kind::KindConfig, data::Data) = kind.area_ptr + data.a * kind.stride + warp_meta_size() + (data.c - 1) * kind.area_size
@@ -43,7 +44,7 @@ function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig, hostcall::
         tc = 0
         cptr = ptr + (i % count) * stride
         while(!try_lock(cptr)) && tc < 50000
-            nanosleep(UInt32(16))
+            nanosleep(UInt32(32))
             i += 1
             tc += 1
             cptr = ptr + (i % count) * stride
@@ -120,7 +121,6 @@ function finish_function_impl(::Type{WarpAreaManager}, kind::KindConfig, data::D
 end
 
 
-area_count(manager::WarpAreaManager) = manager.warp_area_count
 function areas_in(manager::WarpAreaManager, ptr::Ptr{Int64})
     ptrs = Ptr{Int64}[]
     mask = unsafe_load(ptr + 24)
