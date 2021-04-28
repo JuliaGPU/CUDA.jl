@@ -308,7 +308,17 @@ Base.expm1(x::Float16) = Float16(CUDA.expm1(Float32(x)))
 
 @device_override Base.fma(x::Float64, y::Float64, z::Float64) = ccall("extern __nv_fma", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
 @device_override Base.fma(x::Float32, y::Float32, z::Float32) = ccall("extern __nv_fmaf", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
-@device_override Base.fma(x::Float16, y::Float16, z::Float16) = @asmcall("fma.rn.f16 \$0, \$1, \$2, \$3;", "=h,h,h,h", true, Float16, Tuple{Float16, Float16, Float16}, x, y, z)
+
+@device_override function Base.fma(x::Float16, y::Float16, z::Float16)
+    mod = """
+        declare half @llvm.fma.f16(half %a, half %b, half %c)
+
+        define half @entry(half %0, half %1, half %2) #0 {
+            %rv = call half @llvm.fma.f16(half %0, half %1, half %2)
+            ret half %rv
+        }"""
+    return Base.llvmcall((mod, "entry"), Float16, Tuple{Float16, Float16, Float16}, x, y, z)
+end
 
 @device_function sad(x::Int32, y::Int32, z::Int32) = ccall("extern __nv_sad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z)
 @device_function sad(x::UInt32, y::UInt32, z::UInt32) = convert(UInt32, ccall("extern __nv_usad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z))

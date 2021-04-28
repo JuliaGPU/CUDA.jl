@@ -98,6 +98,14 @@ end
             @test Array(a) == [0.5]
         end
     end
+
+    @testset "fma" begin
+        for T in (Float16, Float32, Float64)
+            @test testf((x,y,z)->fma.(x,y,z), rand(T, 1), rand(T, 1), rand(T, 1))
+            @test testf((x,y,z)->fma.(x,y,z), rand(T, 1), -rand(T, 1), -rand(T, 1))
+        end
+    end
+
 end
 
 
