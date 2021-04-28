@@ -28,9 +28,9 @@ end
 Stats() = Stats(Dict(), Dict())
 global_counter = Stats()
 
-inc(x...) = ()
-start(x...) = ()
-stop(x...) = ()
+inc(x...) = println(x)
+start(x...) = println(x)
+stop(x...) = println(x)
 
 
 val(;counter=global_counter) = counter
@@ -80,6 +80,7 @@ function Base.show(io::IO, u::Counter)
 
     @printf(io, "total %-5d mean %.6fs, median %.6fs, var %.6fs, min %.6fs, max %.6fs", total, mean, median, var, minv, maxv)
 end
+
 
 function Base.show(io::IO, u::Stats)
     println(io, "\nPlain counts")

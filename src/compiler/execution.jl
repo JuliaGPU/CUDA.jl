@@ -40,11 +40,7 @@ macro cuda(ex...)
         split_kwargs(kwargs,
                      [:dynamic, :launch],
                      [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name],
-<<<<<<< HEAD
-                     [:cooperative, :blocks, :threads, :shmem, :stream])
-=======
                      [:cooperative, :blocks, :threads, :config, :shmem, :stream, :manager, :poller])
->>>>>>> make manager and poller call kwargs
     if !isempty(other_kwargs)
         key,val = first(other_kwargs).args
         throw(ArgumentError("Unsupported keyword argument '$key'"))
@@ -377,8 +373,9 @@ function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1,
     println("Using manager $manager\nPoller $poller")
     event = CuEvent(CUDA.EVENT_DISABLE_TIMING)
 
+    policy_type = SimpleNotificationPolicy
 
-    t = wait_and_kill_watcher(kernel.mod, poller, manager, event)
+    t = wait_and_kill_watcher(kernel.mod, poller, manager, policy_type(area_count(manager)), event)
 
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
     CUDA.record(event, stream())
