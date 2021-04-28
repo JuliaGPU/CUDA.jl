@@ -44,9 +44,25 @@ threads](@ref).
 !!! warning
 
     You currently need to re-set the device at the start of every task, i.e., call `device!`
-    as the first statement in your `@async` of `@spawn` block. This is due to the
-    newly-created task deriving the active device from the previously-active task, and not
-    from its parent task. This is expected to be fixed in the future.
+    as one of the first statement in your `@async` or `@spawn` block:
+
+    ```julia
+    @sync begin
+        @async begin
+            device!(0)
+            # do work on GPU 0 here
+        end
+        @async begin
+            device!(1)
+            # do work on GPU 1 here
+        end
+    end
+    ```
+
+    Without this, the newly-created task would use the same device as the
+    previously-executing task, and not the parent task as could be expected. This is
+    expected to be improved in the future using [context
+    variables](https://github.com/JuliaLang/julia/pull/35833).
 
 
 ### Memory management
