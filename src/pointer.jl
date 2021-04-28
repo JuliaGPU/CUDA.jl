@@ -173,6 +173,20 @@ Base.cconvert(::Type{<:CuArrayPtr}, x) = x
 Base.unsafe_convert(::Type{P}, x::CuArrayPtr) where {P<:CuArrayPtr} = convert(P, x)
 
 
+## limited pointer arithmetic & comparison
+
+Base.isequal(x::CuArrayPtr, y::CuArrayPtr) = (x === y)
+Base.isless(x::CuArrayPtr{T}, y::CuArrayPtr{T}) where {T} = x < y
+
+Base.:(==)(x::CuArrayPtr, y::CuArrayPtr) = UInt(x) == UInt(y)
+Base.:(<)(x::CuArrayPtr,  y::CuArrayPtr) = UInt(x) < UInt(y)
+Base.:(-)(x::CuArrayPtr,  y::CuArrayPtr) = UInt(x) - UInt(y)
+
+Base.:(+)(x::CuArrayPtr, y::Integer) = oftype(x, Base.add_ptr(UInt(x), (y % UInt) % UInt))
+Base.:(-)(x::CuArrayPtr, y::Integer) = oftype(x, Base.sub_ptr(UInt(x), (y % UInt) % UInt))
+Base.:(+)(x::Integer, y::CuArrayPtr) = y + x
+
+
 
 #
 # CUDA reference objects
