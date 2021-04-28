@@ -532,59 +532,74 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
     srcPos = CUDA.CuDim3(srcPos)
     dstPos = CUDA.CuDim3(dstPos)
 
+    # JuliaGPU/CUDA.jl#863: cuMemcpy3DAsync calculates wrong offset
+    #                       when using the stream-ordered memory allocator
+    # NOTE: we apply the workaround unconditionally, since we want to keep this call cheap.
+    if v"11.2" <= CUDA.release() <= v"11.3" #&& CUDA.pools[device()].stream_ordered
+        srcOffset = (srcPos.x-1)*sizeof(T) + srcPitch*((srcPos.y-1) + srcHeight*(srcPos.z-1))
+        dstOffset = (dstPos.x-1)*sizeof(T) + dstPitch*((dstPos.y-1) + dstHeight*(dstPos.z-1))
+    else
+        srcOffset = 0
+        dstOffset = 0
+    end
+
     srcMemoryType, srcHost, srcDevice, srcArray = if srcTyp == Host
         CUDA.CU_MEMORYTYPE_HOST,
-        src::Ptr,
+        src::Ptr + srcOffset,
         0,
         0
     elseif srcTyp == Mem.Device
         CUDA.CU_MEMORYTYPE_DEVICE,
         0,
-        src::CuPtr,
+        src::CuPtr + srcOffset,
         0
     elseif srcTyp == Mem.Unified
         CUDA.CU_MEMORYTYPE_UNIFIED,
         0,
-        reinterpret(CuPtr{Cvoid}, src),
+        reinterpret(CuPtr{Cvoid}, src) + srcOffset,
         0
     elseif srcTyp == Mem.Array
         CUDA.CU_MEMORYTYPE_ARRAY,
         0,
         0,
-        src::CuArrayPtr
+        src::CuArrayPtr + srcOffset
     end
 
     dstMemoryType, dstHost, dstDevice, dstArray = if dstTyp == Host
         CUDA.CU_MEMORYTYPE_HOST,
-        dst::Ptr,
+        dst::Ptr + dstOffset,
         0,
         0
     elseif dstTyp == Mem.Device
         CUDA.CU_MEMORYTYPE_DEVICE,
         0,
-        dst::CuPtr,
+        dst::CuPtr + dstOffset,
         0
     elseif dstTyp == Mem.Unified
         CUDA.CU_MEMORYTYPE_UNIFIED,
         0,
-        reinterpret(CuPtr{Cvoid}, dst),
+        reinterpret(CuPtr{Cvoid}, dst) + dstOffset,
         0
     elseif dstTyp == Mem.Array
         CUDA.CU_MEMORYTYPE_ARRAY,
         0,
         0,
-        dst::CuArrayPtr
+        dst::CuArrayPtr + dstOffset
     end
 
     params_ref = Ref(CUDA.CUDA_MEMCPY3D(
         # source
-        (srcPos.x-1)*sizeof(T), srcPos.y-1, srcPos.z-1,
+        srcOffset==0 ? (srcPos.x-1)*sizeof(T) : 0,
+        srcOffset==0 ? srcPos.y-1             : 0,
+        srcOffset==0 ? srcPos.z-1             : 0,
         0, # LOD
         srcMemoryType, srcHost, srcDevice, srcArray,
         C_NULL, # reserved
         srcPitch, srcHeight,
         # destination
-        (dstPos.x-1)*sizeof(T), dstPos.y-1, dstPos.z-1,
+        dstOffset==0 ? (dstPos.x-1)*sizeof(T) : 0,
+        dstOffset==0 ? dstPos.y-1             : 0,
+        dstOffset==0 ? dstPos.z-1             : 0,
         0, # LOD
         dstMemoryType, dstHost, dstDevice, dstArray,
         C_NULL, # reserved

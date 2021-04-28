@@ -193,7 +193,7 @@ let
                        srcPitch=nx*sizeof(T), srcHeight=ny,
                        dstPitch=nx*sizeof(T), dstHeight=1)
 
-    @test all(check .== data)
+    @test check == data
 
     # copy back into a 3-D array
     check2 = zeros(T, nx, ny, nz)
@@ -203,9 +203,8 @@ let
                        dstPos=(1,2,1),
                        srcPitch=nx*sizeof(T), srcHeight=ny,
                        dstPitch=nx*sizeof(T), dstHeight=ny)
-    @test all(check2[:,2,:] .== data)
+    @test check2[:,2,:] == data
 end
-
 let
     # copying an y-z plane of a 3-D array
 
@@ -229,7 +228,7 @@ let
                        srcPitch=nx*sizeof(T), srcHeight=ny,
                        dstPitch=1*sizeof(T), dstHeight=ny)
 
-    @test all(check .== data)
+    @test check == data
 
     # copy back into a 3-D array
     check2 = zeros(T, nx, ny, nz)
@@ -239,7 +238,23 @@ let
                        dstPos=(2,1,1),
                        srcPitch=nx*sizeof(T), srcHeight=ny,
                        dstPitch=nx*sizeof(T), dstHeight=ny)
-    @test all(check2[2,:,:] .== data)
+    @test check2[2,:,:] == data
+end
+let
+    # JuliaGPU/CUDA.jl#863: wrong offset calculation
+    nx, ny, nz = 1, 2, 1
+
+    A = zeros(Int, nx, nz)
+    B = CuArray(reshape([1:(nx*ny*nz)...], (nx, ny, nz)))
+    Mem.unsafe_copy3d!(
+        pointer(A), Mem.Host, pointer(B), Mem.Device,
+        nx, 1, nz;
+        srcPos=(1,2,1),
+        srcPitch=nx*sizeof(A[1]), srcHeight=ny,
+        dstPitch=nx*sizeof(A[1]), dstHeight=1
+    )
+
+    @test A == Array(B)[:,2,:]
 end
 
 # pinned memory with existing memory
