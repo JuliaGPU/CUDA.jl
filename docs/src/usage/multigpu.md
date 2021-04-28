@@ -41,6 +41,14 @@ Furthermore, as the active device is a task-local property you can easily work w
 devices using one task per device. For more details, refer to the section on [Tasks and
 threads](@ref).
 
+!!! warning
+
+    You currently need to re-set the device at the start of every task, i.e., call `device!`
+    as the first statement in your `@async` of `@spawn` block. This is due to the
+    newly-created task deriving the active device from the previously-active task, and not
+    from its parent task. This is expected to be fixed in the future.
+
+
 ### Memory management
 
 When working with multiple devices, you need to be careful with allocated memory:
