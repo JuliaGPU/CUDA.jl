@@ -35,7 +35,7 @@ end
     @test testf(cov, rand(Complex{Float64}, s, 2))
     @test testf(cov, rand(s, 2); dims=2)
     @test testf(cov, rand(Complex{Float64}, s, 2); dims=2)
-    @test testf(cov, rand(Int64, s))
+    @test testf(cov, rand(1:100, s))
 end
 
 @testset "cor" begin
@@ -46,5 +46,5 @@ end
     @test testf(cor, rand(Complex{Float64}, s, 2))
     @test testf(cor, rand(s, 2); dims=2)
     @test testf(cor, rand(Complex{Float64}, s, 2); dims=2)
-    @test testf(cor, rand(Int64, s))
+    @test testf(cor, rand(1:100, s))
 end
