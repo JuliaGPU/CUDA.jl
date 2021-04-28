@@ -36,7 +36,7 @@ end
     end
 
     @testset "pow" begin
-        for T in (Float32, Float64, ComplexF32, ComplexF64)
+        for T in (Float16, Float32, Float64, ComplexF32, ComplexF64)
             range = (T<:Integer) ? (T(5):T(10)) : T
             @test testf((x,y)->x.^y, rand(Float32, 1), rand(range, 1))
             @test testf((x,y)->x.^y, rand(Float32, 1), -rand(range, 1))
@@ -57,7 +57,7 @@ end
 
     for op in (exp, angle, exp2, exp10, expm1)
         @testset "$op" begin
-            for T in (Float32, Float64)
+            for T in (Float16, Float32, Float64)
                 @test testf(x->op.(x), rand(T, 1))
                 @test testf(x->op.(x), -rand(T, 1))
             end
@@ -67,7 +67,7 @@ end
 
     for op in (exp, abs, abs2, angle, log)
         @testset "Complex - $op" begin
-            for T in (ComplexF32, ComplexF64)
+            for T in (ComplexF16, ComplexF32, ComplexF64)
                 @test testf(x->op.(x), rand(T, 1))
                 @test testf(x->op.(x), -rand(T, 1))
             end
@@ -76,7 +76,7 @@ end
     end
     @testset "mod and rem" begin
         # CUDA follows C's fmod, which behaves differently than Julia on negative numbers
-        for op in (mod, rem), T in (Float32, Float64)
+        for op in (mod, rem), T in (Float16, Float32, Float64)
             @test testf(a->op.(a, T(2)), T[1])
             @test testf(a->op.(a, T(2)), T[-1])
         end
@@ -92,10 +92,20 @@ end
         # make sure this test uses an actual device function
         @test_throws ErrorException kernel(ones(1))
 
-        a = CuArray{Float32}([4])
-        @cuda kernel(a)
-        @test Array(a) == [0.5]
+        for T in (Float16, Float32)
+            a = CuArray{T}([4])
+            @cuda kernel(a)
+            @test Array(a) == [0.5]
+        end
     end
+
+    @testset "fma" begin
+        for T in (Float16, Float32, Float64)
+            @test testf((x,y,z)->fma.(x,y,z), rand(T, 1), rand(T, 1), rand(T, 1))
+            @test testf((x,y,z)->fma.(x,y,z), rand(T, 1), -rand(T, 1), -rand(T, 1))
+        end
+    end
+
 end
 
 
@@ -329,7 +339,7 @@ end
 end
 
 @testset "parametrically typed" begin
-    @testset for T in [Int32, Int64, Float32, Float64]
+    @testset for T in [Int32, Int64, Float16, Float32, Float64]
         function kernel(d::CuDeviceArray{T}, n) where {T}
             t = threadIdx().x
             tr = n-t+1
@@ -392,7 +402,7 @@ end
 end
 
 @testset "parametrically typed" begin
-    @testset for typ in [Int32, Int64, Float32, Float64]
+    @testset for typ in [Int32, Int64, Float16, Float32, Float64]
         function kernel(d::CuDeviceArray{T}, n) where {T}
             t = threadIdx().x
             tr = n-t+1
@@ -522,7 +532,8 @@ if capability(device()) >= v"3.0"
 
     @testset for T in [UInt8, UInt16, UInt32, UInt64, UInt128,
                        Int8, Int16, Int32, Int64, Int128,
-                       Float32, Float64, ComplexF32, ComplexF64, Bool]
+                       Float16, Float32, Float64,
+                       ComplexF32, ComplexF64, Bool]
         a = rand(T, warpsize)
         d_a = CuArray(a)
         @cuda threads=warpsize kernel(d_a)
@@ -789,6 +800,7 @@ end
 @testset "atomic_add" begin
     types = [Int32, Int64, UInt32, UInt64, Float32]
     capability(device()) >= v"6.0" && push!(types, Float64)
+    capability(device()) >= v"7.0" && push!(types, Float16)
 
     @testset for T in types
         a = CuArray([zero(T)])
@@ -1025,6 +1037,7 @@ end
 @testset "add" begin
     types = [Int32, Int64, UInt32, UInt64, Float32]
     capability(device()) >= v"6.0" && push!(types, Float64)
+    capability(device()) >= v"7.0" && push!(types, Float16)
 
     @testset for T in types
         a = CuArray([zero(T)])

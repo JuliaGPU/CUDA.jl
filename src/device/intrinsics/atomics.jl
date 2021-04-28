@@ -188,6 +188,24 @@ for A in (AS.Generic, AS.Global, AS.Shared)
     end
 end
 
+# half-precision atomics using PTX instruction 
+
+for A in (AS.Generic, AS.Global, AS.Shared)
+
+    if A == AS.Global
+        scope = ".global"
+    elseif A == AS.Shared
+        scope = ".shared"
+    else
+        scope = ""
+    end
+
+    T = Symbol(Float16)
+    PTX = "atom$scope.add.noftz.f16 \$0, [\$1], \$2;"
+
+    @eval @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) =
+        @Interop.asmcall($PTX, "=h,l,h", true, $T, Tuple{Core.LLVMPtr{$T,$A},$T}, ptr, val) 
+end
 
 ## Julia
 
