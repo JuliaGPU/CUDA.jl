@@ -82,6 +82,8 @@ results = run(SUITE, verbose=true)
 
 # integration tests (that do nasty things, so need to be run last)
 results["integration"]["volumerhs"] = include("volumerhs.jl")
+results["integration"]["byval"] = include("byval.jl")
+results["integration"]["cudadevrt"] = include("cudadevrt.jl")
 
 println(results)
 
