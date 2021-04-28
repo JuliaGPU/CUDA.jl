@@ -56,9 +56,9 @@ julia> cu(cpu)
 
 !!! warning
 
-    The `cu` function is opinionated and converts input scalars to `Float32`. This is
-    often a good call, as `Float64` and many other scalar types perform badly on the GPU.
-    If this is unwanted, use `adapt` directly.
+    The `cu` function is opinionated and converts input most floating-point scalars to
+    `Float32`. This is often a good call, as `Float64` and many other scalar types perform
+    badly on the GPU. If this is unwanted, use `adapt` directly.
 
 
 ## Garbage collection

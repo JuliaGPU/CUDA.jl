@@ -33,7 +33,7 @@ context!(ctx)
 
 @test_throws ErrorException device!(0, CUDA.CU_CTX_SCHED_YIELD)
 
-if !CUDA.any_stream_ordered()
+if CUDA.can_reset_device()
     # NVIDIA bug #3240770
     device_reset!()
 

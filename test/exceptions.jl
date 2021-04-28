@@ -3,7 +3,7 @@
 @not_if_sanitize begin
 
 # these tests spawn subprocesses, so reset the current context to conserve memory
-CUDA.any_stream_ordered() || CUDA.device_reset!()
+CUDA.can_reset_device() && device_reset!()
 
 @testset "stack traces at different debug levels" begin
 

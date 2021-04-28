@@ -29,9 +29,11 @@ function run(a, b)
     @sync begin
         @async begin
             results[1] = Array(compute(a,b))
+            nothing # JuliaLang/julia#40626
         end
         @async begin
             results[2] = Array(compute(a,b))
+            nothing # JuliaLang/julia#40626
         end
     end
 
@@ -89,9 +91,11 @@ function run(a, b)
     @sync begin
         @async begin
             copyto!(results[1], compute(a,b))
+            nothing # JuliaLang/julia#40626
         end
         @async begin
             copyto!(results[2], compute(a,b))
+            nothing # JuliaLang/julia#40626
         end
     end
 
@@ -121,9 +125,11 @@ function run(a, b)
     @sync begin
         Threads.@spawn begin
             results[1] = Array(compute(a,b))
+            nothing # JuliaLang/julia#40626
         end
         Threads.@spawn begin
             results[2] = Array(compute(a,b))
+            nothing # JuliaLang/julia#40626
         end
     end
 
