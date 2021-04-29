@@ -2,7 +2,6 @@
 
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 
-
 ## high-level @cuda interface
 
 """
@@ -41,7 +40,7 @@ macro cuda(ex...)
         split_kwargs(kwargs,
                      [:dynamic, :launch],
                      [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name],
-                     [:cooperative, :blocks, :threads, :shmem, :stream])
+                     [:cooperative, :blocks, :threads, :config, :shmem, :stream, :manager, :poller])
     if !isempty(other_kwargs)
         key,val = first(other_kwargs).args
         throw(ArgumentError("Unsupported keyword argument '$key'"))
@@ -110,14 +109,17 @@ macro cuda(ex...)
     return esc(code)
 end
 
-
 ## host to device value conversion
 
 struct Adaptor end
 
+## device to host value conversion
+
 # convert CUDA host pointers to device pointers
 # TODO: use ordinary ptr?
 Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = reinterpret(LLVMPtr{T,AS.Generic}, p)
+
+Adapt.adapt_storage(to::Adaptor, p::String) = adapt(to, CuArray(Vector{UInt8}(p)))
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 struct CuRefValue{T} <: Ref{T}
@@ -167,7 +169,6 @@ The following keyword arguments are supported:
 - `stream` (defaults to the default stream)
 """
 AbstractKernel
-
 @generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
     sig = Tuple{F, TT.parameters...}    # Base.signature_type with a function type
     args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
@@ -192,11 +193,9 @@ AbstractKernel
 
     quote
         Base.@_inline_meta
-
         cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
     end
 end
-
 
 ## host-side kernels
 
@@ -360,11 +359,28 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
         filter!(!isequal("global_random_seed"), compiled.external_gvars)
     end
 
+    # TODO cleanup, but how
+    # filter!(!isequal(HOSTCALLAREA), compiled.external_gvars)
+    # filter!(!isequal(KINDCONFIG), compiled.external_gvars)
+
     return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun)
 end
 
-function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
+function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1,
+            poller::Poller=AlwaysPoller(0),
+            manager::AreaManager=SimpleAreaManager(140, 128),
+            kwargs...)
+    println("Using manager $manager\nPoller $poller")
+    event = CuEvent(CUDA.EVENT_DISABLE_TIMING)
+
+
+    t = wait_and_kill_watcher(kernel.mod, poller, manager, event)
+
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
+    CUDA.record(event, stream())
+
+    # Benchmarking purposes
+    Base.wait(t)
 end
 
 
