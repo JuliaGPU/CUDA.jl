@@ -40,7 +40,7 @@ macro cuda(ex...)
         split_kwargs(kwargs,
                      [:dynamic, :launch],
                      [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name],
-                     [:cooperative, :blocks, :threads, :config, :shmem, :stream, :manager, :poller])
+                     [:cooperative, :blocks, :threads, :config, :shmem, :stream, :manager, :poller, :policy_type])
     if !isempty(other_kwargs)
         key,val = first(other_kwargs).args
         throw(ArgumentError("Unsupported keyword argument '$key'"))
@@ -100,9 +100,11 @@ macro cuda(ex...)
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     local $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
                     if $launch
+                        # changed for benchmark
                         $kernel($(var_exprs...); $(call_kwargs...))
+                    else
+                        $kernel
                     end
-                    $kernel
                 end
              end)
     end
@@ -369,19 +371,19 @@ end
 function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1,
             poller::Poller=AlwaysPoller(0),
             manager::AreaManager=SimpleAreaManager(140, 128),
+            policy_type::DataType=SimpleNotificationPolicy,
             kwargs...)
-    println("Using manager $manager\nPoller $poller")
+    # println("Using manager $manager\nPoller $poller, and policy type $policy_type")
     event = CuEvent(CUDA.EVENT_DISABLE_TIMING)
 
-    policy_type = SimpleNotificationPolicy
-
-    t = wait_and_kill_watcher(kernel.mod, poller, manager, policy_type(area_count(manager)), event)
+    t = wait_and_kill_watcher(kernel.mod, poller, manager, policy_type(area_count(manager)), event, 1)
 
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
     CUDA.record(event, stream())
 
     # Benchmarking purposes
-    Base.wait(t)
+    Base.fetch(t)
+    # synchronize()
 end
 
 

@@ -1,3 +1,5 @@
+export WarpAreaManager
+
 """
     WarpAreaManager(warp_area_count, area_size, warp_size=32)
 
@@ -9,6 +11,7 @@ struct WarpAreaManager <: AreaManager
     area_size::Int
     warp_size::Int
 end
+WarpAreaManager(warp_area_count, area_size) = AreaManager(warp_area_count, area_size, 32)
 
 struct WarpData
     index::Int32
@@ -23,6 +26,9 @@ kind(::WarpAreaManager) = 1
 kind(::Type{WarpAreaManager}) = 1
 area_count(manager::WarpAreaManager) = manager.warp_area_count
 
+function Base.show(io::IO, manager::WarpAreaManager)
+    print(io, "WarpAreaManager($(manager.warp_area_count), $(manager.area_size))")
+end
 
 get_warp_ptr(kind::KindConfig, data::WarpData) = kind.area_ptr + data.index * kind.stride + warp_meta_size() + (data.laneid - 1) * kind.area_size
 
@@ -50,14 +56,14 @@ function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig, hostcall::
 
         tc = 0
         cptr = ptr + (i % count) * stride
-        while(!try_lock(cptr)) && tc < 50000
+        while(!try_lock(cptr)) && tc < 1000000
             nanosleep(UInt32(32))
             i += 1
             tc += 1
             cptr = ptr + (i % count) * stride
         end
 
-        if tc == 50000
+        if tc == 1000000
             @cuprintln("Timed out")
         end
 
@@ -86,9 +92,15 @@ function call_host_function(kind::KindConfig, data::WarpData, hostcall::Int64, :
         notify_host(kind.notification, data.index)
 
         if blocking
-            while volatile_load(ptr + 16) != 0
+            tc = 0
+            while volatile_load(ptr + 16) != 0 && tc < 500000
                 nanosleep(UInt32(16))
+                tc += 1
                 threadfence()
+            end
+
+            if tc == 500000
+                @cuprintln("Timed out here warp")
             end
 
             unsafe_store!(ptr + 8, LOADING)

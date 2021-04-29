@@ -1,3 +1,5 @@
+export SimpleAreaManager
+
 """
     SimpleAreaManager(area_count, area_size)
 
@@ -15,6 +17,11 @@ end
 stride(manager::SimpleAreaManager) = align(manager.area_size + 3 * sizeof(Int64))
 kind(::SimpleAreaManager) = 0
 kind(::Type{SimpleAreaManager}) = 0
+
+
+function Base.show(io::IO, manager::SimpleAreaManager)
+    print(io, "SimpleAreaManager($(manager.area_count), $(manager.area_size))")
+end
 
 simple_meta_size() = 3 * sizeof(Int64) # lock, state, hostcall
 get_simple_ptr(kind::KindConfig, data::SimpleData) = kind.area_ptr + data.index * kind.stride + simple_meta_size()
@@ -37,7 +44,7 @@ function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig, hostcall
     end
 
     if tc == 50000
-        @cuprintln("Timed out")
+        @cuprintln("Timed out acquire lock")
     end
 
     data = SimpleData(i%count)
@@ -57,9 +64,15 @@ function call_host_function(kind::KindConfig, data::SimpleData, hostcall::Int64,
     notify_host(kind.notification, data.index)
 
     if blocking
-        while volatile_load(ptr + 8) != HOST_DONE
+        tc = 0
+        while volatile_load(ptr + 8) != HOST_DONE &&  tc < 1000000
             nanosleep(UInt32(16))
             threadfence()
+            tc += 1
+        end
+
+        if tc == 1000000
+            @cuprintln("Timed out simple call")
         end
 
         unsafe_store!(ptr + 8, LOADING)
