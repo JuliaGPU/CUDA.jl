@@ -8,13 +8,18 @@ struct SimpleAreaManager <: AreaManager
     area_count::Int
     area_size::Int
 end
+struct SimpleData
+    index::Int32
+end
+
 stride(manager::SimpleAreaManager) = align(manager.area_size + 3 * sizeof(Int64))
 kind(::SimpleAreaManager) = 0
 kind(::Type{SimpleAreaManager}) = 0
 
-get_simple_ptr(kind::KindConfig, data::Data) = kind.area_ptr + data.a * kind.stride + 3 * sizeof(Int64)
+simple_meta_size() = 3 * sizeof(Int64) # lock, state, hostcall
+get_simple_ptr(kind::KindConfig, data::SimpleData) = kind.area_ptr + data.index * kind.stride + simple_meta_size()
 
-function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig, hostcall::Int64, blocking::Val{B})::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}} where {B}
+function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig, hostcall::Int64)::Tuple{SimpleData, Core.LLVMPtr{Int64,AS.Global}}
     ptr = kind.area_ptr
     stride = kind.stride
     count = kind.count
@@ -35,15 +40,14 @@ function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig, hostcall
         @cuprintln("Timed out")
     end
 
-    data = Data(i%count,0, 0, 0)
+    data = SimpleData(i%count)
 
     return (data, get_simple_ptr(kind, data))
 end
 
 
-function call_host_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, data::Data, hostcall::Int64, ::Val{true})
-    index = data.a
-    cptr = kind.area_ptr + index * kind.stride
+function call_host_function(kind::KindConfig, data::SimpleData, hostcall::Int64, ::Val{true})
+    cptr = kind.area_ptr + data.index * kind.stride
 
     ptr = reinterpret(Ptr{Int64}, cptr)
     unsafe_store!(ptr + 16, hostcall)
@@ -58,9 +62,8 @@ function call_host_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, da
     unsafe_store!(ptr + 8, LOADING)
 end
 
-function call_host_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, data::Data, hostcall::Int64, ::Val{false})
-    index = data.a
-    cptr = kind.area_ptr + index * kind.stride
+function call_host_function(kind::KindConfig, data::SimpleData, hostcall::Int64, ::Val{false})
+    cptr = kind.area_ptr + data.index * kind.stride
 
     unsafe_store!(cptr + 16, hostcall)
     unsafe_store!(cptr + 8, HOST_CALL_NON_BLOCKING)
@@ -70,9 +73,8 @@ function call_host_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, da
 end
 
 
-function finish_function_impl(::Type{SimpleAreaManager}, kind::KindConfig, data::Data)
-    index = data.a
-    cptr = kind.area_ptr + index * kind.stride
+function finish_function(kind::KindConfig, data::SimpleData)
+    cptr = kind.area_ptr + data.index * kind.stride
     unsafe_store!(cptr+8, IDLE) # challenge the gods the host did this
     unlock_area(cptr)
 end

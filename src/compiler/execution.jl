@@ -40,11 +40,7 @@ macro cuda(ex...)
         split_kwargs(kwargs,
                      [:dynamic, :launch],
                      [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name],
-<<<<<<< HEAD
-                     [:cooperative, :blocks, :threads, :shmem, :stream])
-=======
                      [:cooperative, :blocks, :threads, :config, :shmem, :stream, :manager, :poller])
->>>>>>> make manager and poller call kwargs
     if !isempty(other_kwargs)
         key,val = first(other_kwargs).args
         throw(ArgumentError("Unsupported keyword argument '$key'"))

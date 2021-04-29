@@ -103,9 +103,9 @@ Device side function to call a hostmethod. This function is invoked with `@cpu`.
     kind_config = get_manager_kind()
 
     # Acquire lock
-    (index, llvmptr) = acquire_lock(kind_config, n, blocking)
+    (index, llvmptr) = acquire_lock(kind_config, n)
     while reinterpret(Int64, llvmptr) == 0
-        (index, llvmptr) = acquire_lock(kind_config, n, blocking)
+        (index, llvmptr) = acquire_lock(kind_config, n)
     end
 
     # Store arguments

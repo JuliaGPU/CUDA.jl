@@ -15,9 +15,6 @@ const HOST_HANDLING = Int64(4)  # host is handling hostcall
 const HOST_DONE = Int64(5)  # host is handling hostcall
 
 
-@inline packfoo(x, y)::Int64 = (Int64(x) << 32) | y
-@inline unpackfoo(x)::Tuple{Int32, Int32} = ((x >>> 32) % Int32, (x & typemax(Int32)) % Int32)
-
 @inline _ffs(x::Int32) = ccall("extern __nv_ffs", llvmcall, Int32, (Int32,), x)
 @inline _ffs(x::UInt32) = ccall("extern __nv_ffs", llvmcall, Int32, (UInt32,), x)
 @inline _ffs(x::Int64) = ccall("extern __nv_ffsll", llvmcall, Int32, (Int64,), x)
@@ -48,12 +45,6 @@ struct KindConfig
     area_ptr::Core.LLVMPtr{Int64,AS.Global}
 end
 
-struct Data
-    a::Int32
-    b::UInt32
-    c::Int32
-    d::Int32
-end
 
 
 @eval @inline manager_kind() =
@@ -107,47 +98,34 @@ end
 Device function acquiring a lock for the `kind` KindConfig
 Returning an identifier (often an index) and a point for argument storing and return value gathering
 """
-function acquire_lock(kindconfig::KindConfig, hostcall::Int64, blocking::Val{B})::Tuple{Data, Core.LLVMPtr{Int64,AS.Global}} where {B}
+function acquire_lock(kindconfig::KindConfig, hostcall::Int64)::Tuple{Union{SimpleData, WarpData}, Core.LLVMPtr{Int64,AS.Global}}
     if kindconfig.kind == kind(SimpleAreaManager)
-        acquire_lock_impl(SimpleAreaManager, kindconfig, hostcall, blocking)
+        (v, p) = acquire_lock_impl(SimpleAreaManager, kindconfig, hostcall)
     elseif kindconfig.kind == kind(WarpAreaManager)
-        acquire_lock_impl(WarpAreaManager, kindconfig, hostcall, blocking)
+        (v, p) = acquire_lock_impl(WarpAreaManager, kindconfig, hostcall)
     else
         error("Unknown kindconfig")
     end
+    return (v, p)
 end
 
 
 """
-    call_host_function(kind::KindConfig, index::Int64, hostcall::Int64)
+    call_host_function(kindconfig::KindConfig, data::Union{SimpleData, WarpData}, hostcall::Int64, blocking::Val{B})
 
 Device function for invoking the hostmethod and waiting for identifier `index`.
 """
-function call_host_function(kindconfig::KindConfig, index::Data, hostcall::Int64, blocking::Val{B}) where {B}
-    if kindconfig.kind == kind(SimpleAreaManager)
-        call_host_function_impl(SimpleAreaManager, kindconfig, index, hostcall, blocking)
-    elseif kindconfig.kind == kind(WarpAreaManager)
-        call_host_function_impl(WarpAreaManager, kindconfig, index, hostcall, blocking)
-    else
-        error("Unknown kindconfig")
-    end
-end
+call_host_function
+
 
 
 """
-    finish_function(kind::KindConfig, data::Data)
+    finish_function(kind::KindConfig, data::Union{SimpleData, WarpData})
 
 Device function for finishing a hostmethod, notifying the end of the invokation for identifier `data`.
 """
-function finish_function(kindconfig::KindConfig, data::Data)
-    if kindconfig.kind == kind(SimpleAreaManager)
-        finish_function_impl(SimpleAreaManager, kindconfig, data)
-    elseif kindconfig.kind == kind(WarpAreaManager)
-        finish_function_impl(WarpAreaManager, kindconfig, data)
-    else
-        error("Unknown kindconfig")
-    end
-end
+finish_function
+
 
 
 # Maps CuContext to big hostcall area
