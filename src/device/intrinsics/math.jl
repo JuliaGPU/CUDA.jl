@@ -5,6 +5,11 @@ using Base: FastMath
 using SpecialFunctions
 
 
+## helpers
+
+within(lower, upper) = (val) -> lower <= val <= upper
+
+
 ## trigonometric
 
 @device_override Base.cos(x::Float64) = ccall("extern __nv_cos", llvmcall, Cdouble, (Cdouble,), x)
@@ -136,17 +141,27 @@ Base.expm1(x::Float16) = Float16(CUDA.expm1(Float32(x)))
 @device_function brev(x::Union{Int32, UInt32}) =   ccall("extern __nv_brev", llvmcall, UInt32, (UInt32,), x)
 @device_function brev(x::Union{Int64, UInt64}) =   ccall("extern __nv_brevll", llvmcall, UInt64, (UInt64,), x)
 
-# TODO: range 0-32
-@device_function clz(x::Union{Int32, UInt32}) =   ccall("extern __nv_clz", llvmcall, Int32, (UInt32,), x)
-@device_function clz(x::Union{Int64, UInt64}) =   ccall("extern __nv_clzll", llvmcall, Int32, (UInt64,), x)
 
-# TODO: range 0-32
-@device_function ffs(x::Union{Int32, UInt32}) = ccall("extern __nv_ffs", llvmcall, Int32, (UInt32,), x)
-@device_function ffs(x::Union{Int64, UInt64}) = ccall("extern __nv_ffsll", llvmcall, Int32, (UInt64,), x)
+@device_function clz(x::Union{Int32, UInt32}) =
+    assume(within(UInt32(0), UInt32(32)),
+           ccall("extern __nv_clz", llvmcall, Int32, (UInt32,), x))
+@device_function clz(x::Union{Int64, UInt64}) =
+    assume(within(UInt64(0), UInt64(64)),
+           ccall("extern __nv_clzll", llvmcall, Int32, (UInt64,), x))
 
-# TODO: range 0-32
-@device_function popc(x::Union{Int32, UInt32}) = ccall("extern __nv_popc", llvmcall, Int32, (UInt32,), x)
-@device_function popc(x::Union{Int64, UInt64}) = ccall("extern __nv_popcll", llvmcall, Int32, (UInt64,), x)
+@device_function ffs(x::Union{Int32, UInt32}) =
+    assume(within(UInt32(0), UInt32(32)),
+           ccall("extern __nv_ffs", llvmcall, Int32, (UInt32,), x))
+@device_function ffs(x::Union{Int64, UInt64}) =
+    assume(within(UInt64(0), UInt64(64)),
+           ccall("extern __nv_ffsll", llvmcall, Int32, (UInt64,), x))
+
+@device_function popc(x::Union{Int32, UInt32}) =
+    assume(within(UInt32(0), UInt32(32)),
+           ccall("extern __nv_popc", llvmcall, Int32, (UInt32,), x))
+@device_function popc(x::Union{Int64, UInt64}) =
+    assume(within(UInt64(0), UInt64(64)),
+           ccall("extern __nv_popcll", llvmcall, Int32, (UInt64,), x))
 
 @device_function byte_perm(x::Union{Int32, UInt32}, y::Union{Int32, UInt32}, z::Union{Int32, UInt32}) =
     ccall("extern __nv_byte_perm", llvmcall, Int32, (UInt32, UInt32, UInt32), x, y, z)

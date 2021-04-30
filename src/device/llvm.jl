@@ -13,3 +13,9 @@
 
         attributes #0 = { alwaysinline }""", "entry"),
     Nothing, Tuple{Bool}, cond)
+
+# do-block syntax
+@inline function assume(f::F, val...) where {F}
+    assume(f(val...))
+    return val
+end
