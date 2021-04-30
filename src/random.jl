@@ -42,48 +42,46 @@ function Random.seed!(rng::RNG)
 end
 
 function Random.rand!(rng::RNG, A::AnyCuArray)
-    function kernel(A::AbstractArray{T}, state::AbstractVector{UInt32}) where {T}
+    function kernel(A::AbstractArray{T}, seed::AbstractVector{UInt32},
+                    state::AbstractVector{UInt32}) where {T}
         device_rng = Random.default_rng()
 
         # initialize the state
         tid = threadIdx().x
         if tid <= 32
             # we know for sure the seed will contain 32 values
-            @inbounds Random.seed!(device_rng, state)
+            @inbounds Random.seed!(device_rng, seed)
         end
-
-        sync_threads()
 
         # grid-stride loop
         offset = (blockIdx().x - 1) * blockDim().x
         while offset < length(A)
-            # generating random numbers synchronizes threads, so needs to happen uniformly.
-            val = Random.rand(device_rng, T)
-
             i = tid + offset
             if i <= length(A)
-                @inbounds A[i] = val
+                @inbounds A[i] = Random.rand(device_rng, T)
             end
 
             offset += (blockDim().x - 1) * gridDim().x
         end
 
-        sync_threads()
-
-        # save the device rng state of the first block (other blocks are derived from it)
-        # so that subsequent launches generate different random numbers
+        # update the host-side state so that subsequent launches generate different numbers
         if blockIdx().x == 1 && tid <= 32
-            @inbounds state[tid] = device_rng.state[tid]
+            @inbounds state[tid] = Random.rand(UInt32)
         end
 
         return
     end
 
-    kernel = @cuda launch=false name="rand!" kernel(A, rng.state)
+    # use the current host state as the device seed
+    # NOTE: we need the copy, because we don't want to synchronize the entire grid
+    #       before we update the state (from the first warp in the first block)
+    seed = copy(rng.state)
+
+    kernel = @cuda launch=false name="rand!" kernel(A, seed, rng.state)
     config = launch_configuration(kernel.fun; max_threads=64)
     threads = max(32, min(config.threads, length(A)))
     blocks = min(config.blocks, cld(length(A), threads))
-    kernel(A, rng.state; threads=threads, blocks=blocks)
+    kernel(A, seed, rng.state; threads=threads, blocks=blocks)
 
     # XXX: updating the state from within the kernel is racey,
     #      so we should have a RNG per stream
