@@ -133,19 +133,23 @@ Base.expm1(x::Float16) = Float16(CUDA.expm1(Float32(x)))
 
 ## integer handling (bit twiddling)
 
-@device_function brev(x::Int32) =   ccall("extern __nv_brev", llvmcall, Int32, (Int32,), x)
-@device_function brev(x::Int64) =   ccall("extern __nv_brevll", llvmcall, Int64, (Int64,), x)
+@device_function brev(x::Union{Int32, UInt32}) =   ccall("extern __nv_brev", llvmcall, UInt32, (UInt32,), x)
+@device_function brev(x::Union{Int64, UInt64}) =   ccall("extern __nv_brevll", llvmcall, UInt64, (UInt64,), x)
 
-@device_function clz(x::Int32) =   ccall("extern __nv_clz", llvmcall, Int32, (Int32,), x)
-@device_function clz(x::Int64) =   ccall("extern __nv_clzll", llvmcall, Int32, (Int64,), x)
+# TODO: range 0-32
+@device_function clz(x::Union{Int32, UInt32}) =   ccall("extern __nv_clz", llvmcall, Int32, (UInt32,), x)
+@device_function clz(x::Union{Int64, UInt64}) =   ccall("extern __nv_clzll", llvmcall, Int32, (UInt64,), x)
 
-@device_function ffs(x::Int32) = ccall("extern __nv_ffs", llvmcall, Int32, (Int32,), x)
-@device_function ffs(x::Int64) = ccall("extern __nv_ffsll", llvmcall, Int32, (Int64,), x)
+# TODO: range 0-32
+@device_function ffs(x::Union{Int32, UInt32}) = ccall("extern __nv_ffs", llvmcall, Int32, (UInt32,), x)
+@device_function ffs(x::Union{Int64, UInt64}) = ccall("extern __nv_ffsll", llvmcall, Int32, (UInt64,), x)
 
-@device_function byte_perm(x::Int32, y::Int32, z::Int32) = ccall("extern __nv_byte_perm", llvmcall, Int32, (Int32, Int32, Int32), x, y, z)
+# TODO: range 0-32
+@device_function popc(x::Union{Int32, UInt32}) = ccall("extern __nv_popc", llvmcall, Int32, (UInt32,), x)
+@device_function popc(x::Union{Int64, UInt64}) = ccall("extern __nv_popcll", llvmcall, Int32, (UInt64,), x)
 
-@device_function popc(x::Int32) = ccall("extern __nv_popc", llvmcall, Int32, (Int32,), x)
-@device_function popc(x::Int64) = ccall("extern __nv_popcll", llvmcall, Int32, (Int64,), x)
+@device_function byte_perm(x::Union{Int32, UInt32}, y::Union{Int32, UInt32}, z::Union{Int32, UInt32}) =
+    ccall("extern __nv_byte_perm", llvmcall, Int32, (UInt32, UInt32, UInt32), x, y, z)
 
 
 ## floating-point handling
