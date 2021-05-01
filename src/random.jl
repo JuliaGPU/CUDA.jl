@@ -12,51 +12,38 @@ export rand_logn!, rand_poisson!
 
 A random number generator using `rand()` in a device kernel.
 
-!!! warning
-
-    This generator is experimental, and not used by default yet. Currently, it does not
-    pass SmallCrush (but neither does the current GPUArrays.jl-based generator). If you
-    can, use a CURAND-based generator for now.
-
-See also: [SharedTauswortheGenerator](@ref)
+See also: [CUDA.Philox2x32](@ref)
 """
-struct RNG <: AbstractRNG
-    state::CuVector{UInt32}
+mutable struct RNG <: AbstractRNG
+    seed::UInt32
+    counter::UInt32
 
-    function RNG(seed)
-        @assert length(seed) == 32
-        new(seed)
+    function RNG(seed::Integer)
+        new(seed%UInt32, 0)
     end
 end
 
-RNG() = RNG(rand(UInt32, 32))
+RNG() = RNG(Random.rand(UInt32))
 
-function Random.seed!(rng::RNG, seed::AbstractVector{UInt32})
-    @assert length(seed) == 32
-    copyto!(rng.state, seed)
+function Random.seed!(rng::RNG, seed::Integer)
+    rng.seed = seed % UInt32
+    rng.counter = 0
 end
 
-function Random.seed!(rng::RNG)
-    Random.rand!(rng.state)
-    return
-end
+Random.seed!(rng::RNG) = seed!(rng, Random.rand(UInt32))
 
 function Random.rand!(rng::RNG, A::AnyCuArray)
-    function kernel(A::AbstractArray{T}, seed::AbstractVector{UInt32},
-                    state::AbstractVector{UInt32}) where {T}
+    function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32) where {T}
         device_rng = Random.default_rng()
 
         # initialize the state
-        tid = threadIdx().x
-        if tid <= 32
-            # we know for sure the seed will contain 32 values
-            @inbounds Random.seed!(device_rng, seed)
-        end
+        @inbounds Random.seed!(device_rng, seed, counter)
 
         # grid-stride loop
+        threadId = threadIdx().x
         offset = (blockIdx().x - 1) * blockDim().x
         while offset < length(A)
-            i = tid + offset
+            i = threadId + offset
             if i <= length(A)
                 @inbounds A[i] = Random.rand(device_rng, T)
             end
@@ -64,27 +51,19 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
             offset += (blockDim().x - 1) * gridDim().x
         end
 
-        # update the host-side state so that subsequent launches generate different numbers
-        if blockIdx().x == 1 && tid <= 32
-            @inbounds state[tid] = Random.rand(UInt32)
-        end
-
         return
     end
 
-    # use the current host state as the device seed
-    # NOTE: we need the copy, because we don't want to synchronize the entire grid
-    #       before we update the state (from the first warp in the first block)
-    seed = copy(rng.state)
-
-    kernel = @cuda launch=false name="rand!" kernel(A, seed, rng.state)
+    kernel = @cuda launch=false name="rand!" kernel(A, rng.seed, rng.counter)
     config = launch_configuration(kernel.fun; max_threads=64)
     threads = max(32, min(config.threads, length(A)))
     blocks = min(config.blocks, cld(length(A), threads))
-    kernel(A, seed, rng.state; threads=threads, blocks=blocks)
+    kernel(A, rng.seed, rng.counter; threads=threads, blocks=blocks)
 
-    # XXX: updating the state from within the kernel is racey,
-    #      so we should have a RNG per stream
+    new_counter = Int64(rng.counter) + length(A)
+    overflow, remainder = fldmod(new_counter, typemax(UInt32))
+    rng.seed += overflow     # XXX: is this OK?
+    rng.counter = remainder
 
     A
 end
