@@ -147,6 +147,22 @@ const cuprint_specifiers = Dict(
         if haskey(cuprint_specifiers, T)
             fmt *= cuprint_specifiers[T]
             push!(args, part)
+        elseif T <: Tuple
+            fmt *= "("
+            for (j, U) in enumerate(T.parameters)
+                if haskey(cuprint_specifiers, U)
+                    fmt *= cuprint_specifiers[U]
+                    push!(args, :($part[$j]))
+                    if j < length(T.parameters)
+                        fmt *= ", "
+                    elseif length(T.parameters) == 1
+                        fmt *= ","
+                    end
+                else
+                    @error("@cuprint does not support values of type $U")
+                end
+            end
+            fmt *= ")"
         elseif T <: String
             @error("@cuprint does not support non-literal strings")
         else

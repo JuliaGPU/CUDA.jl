@@ -221,6 +221,10 @@ end
     test_output(true, "1")
     test_output(false, "0")
 
+    test_output((1,), "(1,)")
+    test_output((1,2), "(1, 2)")
+    test_output((1,2,3.), "(1, 2, 3.000000)")
+
 
     # escaping
 
