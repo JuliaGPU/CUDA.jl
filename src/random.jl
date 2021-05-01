@@ -60,7 +60,10 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
     blocks = min(config.blocks, cld(length(A), threads))
     kernel(A, rng.seed, rng.counter; threads=threads, blocks=blocks)
 
-    rng.counter += length(A)
+    new_counter = Int64(rng.counter) + length(A)
+    overflow, remainder = fldmod(new_counter, typemax(UInt32))
+    rng.seed += overflow     # XXX: is this OK?
+    rng.counter = remainder
 
     A
 end

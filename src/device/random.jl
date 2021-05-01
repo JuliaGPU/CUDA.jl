@@ -147,6 +147,7 @@ function Random.rand(rng::Philox2x32{R},::Type{UInt64}) where {R}
     # update the warp counter
     # NOTE: this performs the same update on every thread in the warp, but each warp writes
     #       to a unique location so the duplicate writes are innocuous
+    # XXX: what if this overflows? we can't increment ctr2. bump the key?
     rng.ctr1 += UInt32(1)
 
     # NOTE: it's too expensive to keep both numbers around in case the user only wanted one,
