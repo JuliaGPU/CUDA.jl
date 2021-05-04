@@ -306,6 +306,10 @@ end
   @test view(a, :, 1:2:4, 1) isa SubArray
   @test view(a, 1:2:5, 1, 1) isa SubArray
 
+  # CartsianIndices should be treated as scalars
+  @test view(a, 1, :, CartesianIndex(3)) isa SubArray
+  @test view(a, CartesianIndex(1), :, CartesianIndex(3)) isa SubArray
+
   b = reshape(a, (6,10))
   @test b isa CuArray
   @test b isa StridedCuArray
