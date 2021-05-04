@@ -1,5 +1,5 @@
 dev = device()
-if attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+if CUDA.version() >= v"11.2" && attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
 
 pool = memory_pool(dev)
 
