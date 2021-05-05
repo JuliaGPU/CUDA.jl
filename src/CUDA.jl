@@ -89,7 +89,6 @@ include("accumulate.jl")
 include("reverse.jl")
 include("linalg.jl")
 include("iterator.jl")
-include("statistics.jl")
 include("random.jl")
 include("sorting.jl")
 
