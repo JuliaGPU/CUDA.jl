@@ -1,8 +1,8 @@
 # Automatically generated using Clang.jl
 
 const CUTENSOR_MAJOR = 1
-const CUTENSOR_MINOR = 2
-const CUTENSOR_PATCH = 2
+const CUTENSOR_MINOR = 3
+const CUTENSOR_PATCH = 0
 
 @cenum cutensorOperator_t::UInt32 begin
     CUTENSOR_OP_IDENTITY = 1
@@ -117,23 +117,23 @@ struct cutensorHandle_t
 end
 
 struct cutensorPlanCacheline_t
-    fields::NTuple{640, Int64}
+    fields::NTuple{1408, Int64}
 end
 
 struct cutensorPlanCache_t
-    fields::NTuple{8192, Int64}
+    fields::NTuple{12288, Int64}
 end
 
 struct cutensorTensorDescriptor_t
-    fields::NTuple{64, Int64}
+    fields::NTuple{72, Int64}
 end
 
 struct cutensorContractionDescriptor_t
-    fields::NTuple{256, Int64}
+    fields::NTuple{288, Int64}
 end
 
 struct cutensorContractionPlan_t
-    fields::NTuple{640, Int64}
+    fields::NTuple{1408, Int64}
 end
 
 struct cutensorContractionFind_t

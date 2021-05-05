@@ -1,11 +1,11 @@
 # Automatically generated using Clang.jl
 
 const CUDNN_MAJOR = 8
-const CUDNN_MINOR = 1
+const CUDNN_MINOR = 2
 const CUDNN_PATCHLEVEL = 0
 const CUDNN_VERSION = CUDNN_MAJOR * 1000 + CUDNN_MINOR * 100 + CUDNN_PATCHLEVEL
 const CUDNN_OPS_INFER_MAJOR = 8
-const CUDNN_OPS_INFER_MINOR = 1
+const CUDNN_OPS_INFER_MINOR = 2
 const CUDNN_OPS_INFER_PATCH = 0
 const CUDNN_DIM_MAX = 8
 const CUDNN_LRN_MIN_N = 1
@@ -171,6 +171,7 @@ end
     CUDNN_ACTIVATION_CLIPPED_RELU = 3
     CUDNN_ACTIVATION_ELU = 4
     CUDNN_ACTIVATION_IDENTITY = 5
+    CUDNN_ACTIVATION_SWISH = 6
 end
 
 @cenum cudnnLRNMode_t::UInt32 begin
@@ -271,9 +272,11 @@ end
 #struct cudnnAlgorithm_t
 #    algo::Algorithm
 #end
-cudnnAlgorithm_t = Cint
+#
+#const cudnnAlgorithm_t = cudnnAlgorithmUnionStruct
+const cudnnAlgorithm_t = Cint
 
-struct cudnnDebug_t
+struct cudnnDebugStruct
     cudnn_version::UInt32
     cudnnStatus::cudnnStatus_t
     time_sec::UInt32
@@ -287,12 +290,13 @@ struct cudnnDebug_t
     reserved::NTuple{15, Cint}
 end
 
+const cudnnDebug_t = cudnnDebugStruct
 const cudnnCallback_t = Ptr{Cvoid}
 const CUDNN_OPS_TRAIN_MAJOR = 8
-const CUDNN_OPS_TRAIN_MINOR = 1
+const CUDNN_OPS_TRAIN_MINOR = 2
 const CUDNN_OPS_TRAIN_PATCH = 0
 const CUDNN_ADV_INFER_MAJOR = 8
-const CUDNN_ADV_INFER_MINOR = 1
+const CUDNN_ADV_INFER_MINOR = 2
 const CUDNN_ADV_INFER_PATCH = 0
 const CUDNN_RNN_PADDED_IO_DISABLED = 0
 const CUDNN_RNN_PADDED_IO_ENABLED = UInt32(1) << 0
@@ -376,7 +380,7 @@ const cudnnAttnDescriptor_t = Ptr{cudnnAttnStruct}
 end
 
 const CUDNN_ADV_TRAIN_MAJOR = 8
-const CUDNN_ADV_TRAIN_MINOR = 1
+const CUDNN_ADV_TRAIN_MINOR = 2
 const CUDNN_ADV_TRAIN_PATCH = 0
 
 @cenum cudnnWgradMode_t::UInt32 begin
@@ -390,7 +394,7 @@ end
 end
 
 const CUDNN_CNN_INFER_MAJOR = 8
-const CUDNN_CNN_INFER_MINOR = 1
+const CUDNN_CNN_INFER_MINOR = 2
 const CUDNN_CNN_INFER_PATCH = 0
 const cudnnConvolutionStruct = Cvoid
 const cudnnConvolutionDescriptor_t = Ptr{cudnnConvolutionStruct}
@@ -405,7 +409,7 @@ end
     CUDNN_NO_REORDER = 1
 end
 
-struct cudnnConvolutionFwdAlgoPerf_t
+struct cudnnConvolutionFwdAlgoPerfStruct
     algo::cudnnConvolutionFwdAlgo_t
     status::cudnnStatus_t
     time::Cfloat
@@ -415,7 +419,9 @@ struct cudnnConvolutionFwdAlgoPerf_t
     reserved::NTuple{3, Cint}
 end
 
-struct cudnnConvolutionBwdDataAlgoPerf_t
+const cudnnConvolutionFwdAlgoPerf_t = cudnnConvolutionFwdAlgoPerfStruct
+
+struct cudnnConvolutionBwdDataAlgoPerfStruct
     algo::cudnnConvolutionBwdDataAlgo_t
     status::cudnnStatus_t
     time::Cfloat
@@ -425,6 +431,7 @@ struct cudnnConvolutionBwdDataAlgoPerf_t
     reserved::NTuple{3, Cint}
 end
 
+const cudnnConvolutionBwdDataAlgoPerf_t = cudnnConvolutionBwdDataAlgoPerfStruct
 const cudnnFusedOpsConstParamStruct = Cvoid
 const cudnnFusedOpsConstParamPack_t = Ptr{cudnnFusedOpsConstParamStruct}
 const cudnnFusedOpsVariantParamStruct = Cvoid
@@ -522,10 +529,10 @@ end
 end
 
 const CUDNN_CNN_TRAIN_MAJOR = 8
-const CUDNN_CNN_TRAIN_MINOR = 1
+const CUDNN_CNN_TRAIN_MINOR = 2
 const CUDNN_CNN_TRAIN_PATCH = 0
 
-struct cudnnConvolutionBwdFilterAlgoPerf_t
+struct cudnnConvolutionBwdFilterAlgoPerfStruct
     algo::cudnnConvolutionBwdFilterAlgo_t
     status::cudnnStatus_t
     time::Cfloat
@@ -534,3 +541,5 @@ struct cudnnConvolutionBwdFilterAlgoPerf_t
     mathType::cudnnMathType_t
     reserved::NTuple{3, Cint}
 end
+
+const cudnnConvolutionBwdFilterAlgoPerf_t = cudnnConvolutionBwdFilterAlgoPerfStruct

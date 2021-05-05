@@ -32,23 +32,23 @@ git-tree-sha1 = "9b0304368ea1d13218dc4d00824877949f585b7f"
 uuid = "4f82f1eb-248c-5f56-a42e-99106d144614"
 version = "11.2.2+0"
 
-[[CUDA_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "7333b5469b21868ad61982e80930db5eeb0b8cd5"
-uuid = "e9e359dc-d701-5aa8-82ae-09bbf812ea83"
-version = "11.2.0+1"
+[[CUDA_loader_jll]]
+deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
+git-tree-sha1 = "5f89c2840ba7d48511c0270a580a348e47982f7d"
+uuid = "46276fb2-733a-55e8-a436-109f48337aca"
+version = "0.1.0+0"
 
-[[CUDNN_CUDA112_jll]]
-deps = ["Artifacts", "CUDA_jll", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "59a3db19ec9de37cc77cc399adff35ad10faf6e4"
-uuid = "d433cf69-735b-5d73-bb80-2d42f39ec054"
-version = "8.1.0+0"
+[[CUDNN_jll]]
+deps = ["Artifacts", "CUDA_loader_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
+git-tree-sha1 = "de88fe5684b0804701f918329eff1c4014eaf7f4"
+uuid = "62b44479-cb7b-5706-934f-f13b2eb2e645"
+version = "8.2.0+0"
 
-[[CUTENSOR_CUDA112_jll]]
-deps = ["Artifacts", "CUDA_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "6487434c3eba5c949b6fd6ce8c91cd618c520d50"
-uuid = "973b338e-f8c7-52f3-bf7b-688ce4a92402"
-version = "1.2.2+0"
+[[CUTENSOR_jll]]
+deps = ["Artifacts", "CUDA_loader_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
+git-tree-sha1 = "1e72cba23fe24d1baef3886792dfa98358eae65f"
+uuid = "35b6c64b-1ee1-5834-92a3-3f624899209a"
+version = "1.3.0+0"
 
 [[Clang]]
 deps = ["BinaryProvider", "CEnum", "DataStructures", "Libdl"]
@@ -82,6 +82,10 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 git-tree-sha1 = "a431f5f2ca3f4feef3bd7a5e94b8b8d4f2f647a0"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
 version = "1.2.0"
+
+[[LazyArtifacts]]
+deps = ["Artifacts", "Pkg"]
+uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 
 [[LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
