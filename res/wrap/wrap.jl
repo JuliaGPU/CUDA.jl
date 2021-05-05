@@ -275,7 +275,7 @@ end
 # Main application
 #
 
-using CUDA_full_jll, CUDNN_CUDA112_jll, CUTENSOR_CUDA112_jll
+using CUDA_full_jll, CUDNN_jll, CUTENSOR_jll
 
 function process(name, headers...; libname=name, kwargs...)
     new_output_file, new_common_file = wrap(libname, headers...; kwargs...)
@@ -395,8 +395,8 @@ end
 function main()
     cuda = joinpath(CUDA_full_jll.artifact_dir, "cuda", "include")
     cupti = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
-    cudnn = joinpath(CUDNN_CUDA112_jll.artifact_dir, "include")
-    cutensor = joinpath(CUTENSOR_CUDA112_jll.artifact_dir, "include")
+    cudnn = joinpath(CUDNN_jll.artifact_dir, "include")
+    cutensor = joinpath(CUTENSOR_jll.artifact_dir, "include")
 
     process("cudadrv", "$cuda/cuda.h","$cuda/cudaGL.h", "$cuda/cudaProfiler.h";
             include_dirs=[cuda], libname="cuda")

@@ -2388,3 +2388,17 @@ end
     initialize_api()
     ccall((:cudnnNormalizationBackward, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnNormMode_t, cudnnNormOps_t, cudnnNormAlgo_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid}, Cdouble, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, cudnnActivationDescriptor_t, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t, Cint), handle, mode, normOps, algo, alphaDataDiff, betaDataDiff, alphaParamDiff, betaParamDiff, xDesc, xData, yDesc, yData, dyDesc, dyData, dzDesc, dzData, dxDesc, dxData, dNormScaleBiasDesc, normScaleData, normBiasData, dNormScaleData, dNormBiasData, epsilon, normMeanVarDesc, savedMean, savedInvVariance, activationDesc, workSpace, workSpaceSizeInBytes, reserveSpace, reserveSpaceSizeInBytes, groupCnt)
 end
+
+## Added in CUDNN 8.2
+
+@checked function cudnnSetActivationDescriptorSwishBeta(activationDesc, swish_beta)
+    initialize_api()
+    ccall((:cudnnSetActivationDescriptorSwishBeta, libcudnn), cudnnStatus_t, (cudnnActivationDescriptor_t, Cdouble), activationDesc, swish_beta)
+end
+
+@checked function cudnnGetActivationDescriptorSwishBeta(activationDesc, swish_beta)
+    initialize_api()
+    ccall((:cudnnGetActivationDescriptorSwishBeta, libcudnn), cudnnStatus_t, (cudnnActivationDescriptor_t, Ptr{Cdouble}), activationDesc, swish_beta)
+end
+
+##

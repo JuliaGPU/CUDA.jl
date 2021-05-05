@@ -57,8 +57,9 @@ steps:
   - label: "CUDA 11.3"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.6-nightly
-      - JuliaCI/julia-test#v1: ~
+          version: 1.6
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -78,7 +79,7 @@ steps:
   - label: "CUDA 11.2"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.6-nightly
+          version: 1.6
       - JuliaCI/julia-test#v1:
           test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
@@ -100,7 +101,7 @@ steps:
   - label: "CUDA 11.1"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.6-nightly
+          version: 1.6
       - JuliaCI/julia-test#v1:
           test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
@@ -122,7 +123,7 @@ steps:
   - label: "CUDA 11.0"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.6-nightly
+          version: 1.6
       - JuliaCI/julia-test#v1:
           test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
@@ -144,7 +145,7 @@ steps:
   - label: "CUDA 10.2"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.6-nightly
+          version: 1.6
       - JuliaCI/julia-test#v1:
           test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
@@ -166,7 +167,7 @@ steps:
   - label: "CUDA 10.1"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.6-nightly
+          version: 1.6
       - JuliaCI/julia-test#v1:
           test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
@@ -252,7 +253,7 @@ steps:
   - label: "Benchmarks (dry run)"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.6-nightly
+          version: 1.6
     command: |
       julia --project -e '
         println("--- :julia: Instantiating project")
