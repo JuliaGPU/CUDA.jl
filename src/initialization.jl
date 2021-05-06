@@ -118,20 +118,6 @@ function __runtime_init__()
                  It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
     end
 
-    if has_cudnn()
-        cudnn_release = VersionNumber(CUDNN.version().major, CUDNN.version().minor)
-        if cudnn_release < v"8.0"
-            @warn "This version of CUDA.jl only supports CUDNN 8.0 or higher"
-        end
-    end
-
-    if has_cutensor()
-        cutensor_release = VersionNumber(CUTENSOR.version().major, CUTENSOR.version().minor)
-        if cutensor_release != v"1.3"
-            @warn "This version of CUDA.jl only supports CUTENSOR 1.3"
-        end
-    end
-
     resize!(__device_contexts, ndevices())
     fill!(__device_contexts, nothing)
 
@@ -140,7 +126,6 @@ function __runtime_init__()
     __init_pool__()
 
     CUBLAS.__runtime_init__()
-    has_cudnn() && CUDNN.__runtime_init__()
     return
 end
 

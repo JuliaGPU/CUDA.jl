@@ -47,8 +47,6 @@ const __libcusolver = Ref{String}()
 const __libcufft = Ref{String}()
 const __libcurand = Ref{String}()
 const __libcusolverMg = Ref{Union{Nothing,String}}(nothing)
-const __libcudnn = Ref{Union{Nothing,String}}(nothing)
-const __libcutensor = Ref{Union{Nothing,String}}(nothing)
 
 nvdisasm() = @after_init(__nvdisasm[])
 function compute_sanitizer()
@@ -88,23 +86,9 @@ function libcusolvermg()
         __libcusolverMg[]
     end
 end
-function libcudnn()
-    @after_init begin
-        @assert has_cudnn() "This functionality is unavailabe as CUDNN is missing."
-        __libcudnn[]
-    end
-end
-function libcutensor()
-    @after_init begin
-        @assert has_cutensor() "This functionality is unavailabe as CUTENSOR is missing."
-        __libcutensor[]
-    end
-end
 
-export has_cudnn, has_cutensor, has_cusolvermg
+export has_cusolvermg
 has_cusolvermg() = @after_init(__libcusolverMg[]) !== nothing
-has_cudnn() = @after_init(__libcudnn[]) !== nothing
-has_cutensor() = @after_init(__libcutensor[]) !== nothing
 
 
 ## discovery
@@ -222,8 +206,6 @@ function use_artifact_cuda()
 
     @debug "Using CUDA $(__toolkit_version[]) from an artifact at $(artifact.dir)"
     __toolkit_origin[] = :artifact
-    use_artifact_cudnn(artifact.version)
-    use_artifact_cutensor(artifact.version)
     return true
 end
 
@@ -301,97 +283,133 @@ function use_local_cuda()
     end
     @debug "Found local CUDA $(cuda_version) at $(join(__toolkit_dirs[], ", "))"
     __toolkit_origin[] = :local
-    use_local_cudnn(cuda_dirs)
-    use_local_cutensor(cuda_dirs)
     return true
 end
 
 # CUDNN
 
-function use_artifact_cudnn(cuda_version)
-    artifact_dir = try
-        cuda_artifact("CUDNN", cuda_version)
-    catch ex
-        @debug "Could not use CUDNN from artifacts" exception=(ex, catch_backtrace())
-        return false
-    end
-    version = v"8"
-    path = artifact_library(artifact_dir, "cudnn", version)
+export has_cudnn
 
-    # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
-    for sublibrary in ("ops_infer", "ops_train",
-                        "cnn_infer", "cnn_train",
-                        "adv_infer", "adv_train")
-        sublibrary_path = artifact_library(artifact_dir, "cudnn_$(sublibrary)", version)
-        Libdl.dlopen(sublibrary_path)
-    end
-    Libdl.dlopen(path)
+const __libcudnn = Ref{Union{String,Nothing}}()
+function find_cudnn()
+    try
+        version = v"8"
+        if toolkit_origin() == :artifact
+            artifact_dir = cuda_artifact("CUDNN", toolkit_version())
+            path = artifact_library(artifact_dir, "cudnn", version)
 
-    __libcudnn[] = path
-    @debug "Using CUDNN from an artifact at $(artifact_dir)"
-    return true
+            # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
+            for sublibrary in ("ops_infer", "ops_train",
+                            "cnn_infer", "cnn_train",
+                            "adv_infer", "adv_train")
+                sublibrary_path = artifact_library(artifact_dir, "cudnn_$(sublibrary)", version)
+                Libdl.dlopen(sublibrary_path)
+            end
+            Libdl.dlopen(path)
+
+            @debug "Using CUDNN from an artifact at $(artifact_dir)"
+            __libcudnn[] = path
+        else
+            path = find_library("cudnn", version; locations=__toolkit_dirs[])
+            path === nothing && error("Could not find a local CUDNN")
+
+            # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
+            for sublibrary in ("ops_infer", "ops_train",
+                            "cnn_infer", "cnn_train",
+                            "adv_infer", "adv_train")
+                sublibrary_path = find_library("cudnn_$(sublibrary)", version; locations=__toolkit_dirs[])
+                sublibrary_path === nothing && error("Could not find local CUDNN sublibrary $sublibrary")
+                Libdl.dlopen(sublibrary_path)
+            end
+            Libdl.dlopen(path)
+
+            @debug "Using local CUDNN at $(path)"
+            __libcudnn[] = path
+        end
+    catch err
+        @debug "Failed to load CUDNN" exception=(err, catch_backtrace())
+        @warn "Could not find or load CUDNN; run with JULIA_DEBUG=CUDA for more details."
+        __libcudnn[] = nothing
+        return
+    end
+
+    # __libcudnn is set, so the CUDNN module is functional now
+
+    cudnn_release = VersionNumber(CUDNN.version().major, CUDNN.version().minor)
+    if cudnn_release < v"8.0"
+        @warn "This version of CUDA.jl only supports CUDNN 8.0 or higher"
+    end
+
+    CUDNN.__runtime_init__()
 end
 
-function use_local_cudnn(cuda_dirs)
-    path = find_library("cudnn", v"8"; locations=cuda_dirs)
-    path === nothing && return false
-
-    # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
-    for sublibrary in ("ops_infer", "ops_train",
-                       "cnn_infer", "cnn_train",
-                       "adv_infer", "adv_train")
-        sublibrary_path = find_library("cudnn_$(sublibrary)", v"8"; locations=cuda_dirs)
-        @assert sublibrary_path !== nothing "Could not find CUDNN sublibrary $sublibrary"
-        Libdl.dlopen(sublibrary_path)
+function has_cudnn()
+    @after_init begin
+        isassigned(__libcudnn) || find_cudnn()
+        __libcudnn[] !== nothing
     end
-    Libdl.dlopen(path)
+end
 
-    __libcudnn[] = path
-    @debug "Using local CUDNN at $(path)"
-    return true
+function libcudnn()
+    has_cudnn() || error("This functionality is unavailabe as CUDNN is missing.")
+    __libcudnn[]
 end
 
 # CUTENSOR
 
-function use_artifact_cutensor(cuda_version)
-    artifact_dir = try
-        cuda_artifact("CUTENSOR", cuda_version)
-    catch ex
-        @debug "Could not use CUTENSOR from artifacts" exception=(ex, catch_backtrace())
-        return false
-    end
-    version = Sys.iswindows() ? nothing : v"1"  # cutensor.dll is unversioned on Windows
-    path = artifact_library(artifact_dir, "cutensor", version)
+export has_cutensor
+
+const __libcutensor = Ref{Union{String,Nothing}}()
+function find_cutensor()
     try
-        Libdl.dlopen(path)
-    catch ex
-        @error "Could not load CUTENSOR; please file an issue (if on Windows, be sure to install the VS C++ redistributable first)" exception=(ex,catch_backtrace())
-        return false
+        version = Sys.iswindows() ? nothing : v"1"  # cutensor.dll is unversioned on Windows
+        if toolkit_origin() == :artifact
+            artifact_dir = cuda_artifact("CUTENSOR", toolkit_version())
+            path = artifact_library(artifact_dir, "cutensor", version)
+            Libdl.dlopen(path)
+
+            @debug "Using CUTENSOR from an artifact at $(artifact_dir)"
+            __libcutensor[] = path
+        else
+            path = find_library("cutensor", version; locations=__toolkit_dirs[])
+            if path === nothing
+                path = find_library("cutensor"; locations=__toolkit_dirs[])
+            end
+            path === nothing && error("Could not find a local CUTENSOR")
+            Libdl.dlopen(path)
+
+            @debug "Using local CUTENSOR at $(path)"
+            __libcutensor[] = path
+        end
+    catch err
+        @debug "Failed to load CUTENSOR" exception=(err, catch_backtrace())
+        @warn "Could not find or load CUTENSOR; run with JULIA_DEBUG=CUDA for more details."
+        __libcutensor[] = nothing
+        return
     end
 
-    __libcutensor[] = path
-    @debug "Using CUTENSOR from an artifact at $(artifact_dir)"
-    return true
+    # __libcutensor is set, so the CUTENSOR module is functional now
+
+    cutensor_release = VersionNumber(CUTENSOR.version().major, CUTENSOR.version().minor)
+    if cutensor_release != v"1.3"
+        @warn "This version of CUDA.jl only supports CUTENSOR 1.3"
+    end
 end
 
-function use_local_cutensor(cuda_dirs)
-    path = find_library("cutensor", v"1"; locations=cuda_dirs)
-    if path === nothing
-        path = find_library("cutensor"; locations=cuda_dirs)
+function has_cutensor()
+    @after_init begin
+        isassigned(__libcutensor) || find_cutensor()
+        __libcutensor[] !== nothing
     end
-    path === nothing && return false
-
-    try
-        Libdl.dlopen(path)
-    catch ex
-        @error "Could not load CUTENSOR; please file an issue (if on Windows, be sure to install the VS C++ redistributable first)" exception=(ex,catch_backtrace())
-        return false
-    end
-
-    __libcutensor[] = path
-    @debug "Using local CUTENSOR at $(path)"
-    return true
 end
+
+function libcutensor()
+    has_cutensor() || error("This functionality is unavailabe as CUTENSOR is missing.")
+    __libcutensor[]
+end
+
+
+## lazy initialization
 
 function __init_dependencies__()
     found = false
