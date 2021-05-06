@@ -243,13 +243,21 @@ function use_local_cuda()
     # CUSOLVER (which has a handle-less version getter that does not initialize)
     # to be sure which CUDA we're dealing with (it only matters for CUPTI).
     if cuda_version == v"11.1.0"
-        # nothing is initialized at this point, so we need to use raw ccalls.
-        version = Ref{Cint}()
-        @assert 0 == ccall((:cusolverGetVersion, __libcusolver[]), Cint, (Ref{Cint},), version)
-        if version[] == 11001
-            cuda_version = v"11.1.1"
-        elseif version[] != 11000
-            @debug "Could not disambiguate CUDA 11.1 from Update 1 with CUSOLVER version $(version[])"
+        __libcusolver[] = find_cuda_library("cusolver", __toolkit_dirs[], v"11.1.0")
+        if __libcusolver[] === nothing
+            __libcusolver[] = find_cuda_library("cusolver", __toolkit_dirs[], v"11.1.1")
+        end
+        if __libcusolver[] === nothing
+            @debug "Could not disambiguate CUDA 11.1 from Update 1 due to not finding CUSOLVER"
+        else
+            # nothing is initialized at this point, so we need to use raw ccalls.
+            version = Ref{Cint}()
+            @assert 0 == ccall((:cusolverGetVersion, __libcusolver[]), Cint, (Ref{Cint},), version)
+            if version[] == 11001
+                cuda_version = v"11.1.1"
+            elseif version[] != 11000
+                @debug "Could not disambiguate CUDA 11.1 from Update 1 with CUSOLVER version $(version[])"
+            end
         end
     end
     __toolkit_version[] = cuda_version
