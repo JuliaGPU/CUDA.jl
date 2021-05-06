@@ -32,6 +32,9 @@ Returns the CUDA release part of the version as returned by [`version`](@ref).
 """
 toolkit_release() = @after_init(VersionNumber(__toolkit_version[].major, __toolkit_version[].minor))
 
+# if using a local toolkit, this contains a list of relevant directories
+const __toolkit_dirs = Ref{Vector{String}}()
+
 const __nvdisasm = Ref{String}()
 const __compute_sanitizer = Ref{Union{Nothing,String}}()
 const __libdevice = Ref{String}()
@@ -227,8 +230,8 @@ end
 function use_local_cuda()
     @debug "Trying to use local installation..."
 
-    cuda_dirs = find_toolkit()
-    let path = find_cuda_binary("nvdisasm", cuda_dirs)
+    __toolkit_dirs[] = find_toolkit()
+    let path = find_cuda_binary("nvdisasm", __toolkit_dirs[])
         if path === nothing
             @debug "Could not find nvdisasm"
             return false
@@ -236,7 +239,7 @@ function use_local_cuda()
         __nvdisasm[] = path
     end
 
-    __compute_sanitizer[] = find_cuda_binary("compute-sanitizer", cuda_dirs)
+    __compute_sanitizer[] = find_cuda_binary("compute-sanitizer", __toolkit_dirs[])
 
     cuda_version = parse_toolkit_version("nvdisasm", __nvdisasm[])
     if cuda_version === nothing
@@ -246,7 +249,7 @@ function use_local_cuda()
     for library in ("cublas", "cusparse", "cusolver", "cufft", "curand")
         handle = getfield(CUDA, Symbol("__lib$library"))
 
-        path = find_cuda_library(library, cuda_dirs, cuda_version)
+        path = find_cuda_library(library, __toolkit_dirs[], cuda_version)
         if path === nothing
             @debug "Could not find $library"
             return false
@@ -269,17 +272,17 @@ function use_local_cuda()
     end
     __toolkit_version[] = cuda_version
 
-    __libcupti[] = find_cuda_library("cupti", cuda_dirs, cuda_version)
-    __libnvtx[] = find_cuda_library("nvtx", cuda_dirs, cuda_version)
+    __libcupti[] = find_cuda_library("cupti", __toolkit_dirs[], cuda_version)
+    __libnvtx[] = find_cuda_library("nvtx", __toolkit_dirs[], cuda_version)
 
-    let path = find_libcudadevrt(cuda_dirs)
+    let path = find_libcudadevrt(__toolkit_dirs[])
         if path === nothing
             @debug "Could not find libcudadevrt"
             return false
         end
         __libcudadevrt[] = path
     end
-    let path = find_libdevice(cuda_dirs)
+    let path = find_libdevice(__toolkit_dirs[])
         if path === nothing
             @debug "Could not find libdevice"
             return false
@@ -289,14 +292,14 @@ function use_local_cuda()
 
     for library in ("cublas", "cusparse", "cusolver", "cufft", "curand", "cusolverMg")
         handle = getfield(CUDA, Symbol("__lib$library"))
-        path = find_cuda_library(library, cuda_dirs, cuda_version)
+        path = find_cuda_library(library, __toolkit_dirs[], cuda_version)
         if path === nothing
             @debug "Could not find $library"
             return false
         end
         handle[] = path
     end
-    @debug "Found local CUDA $(cuda_version) at $(join(cuda_dirs, ", "))"
+    @debug "Found local CUDA $(cuda_version) at $(join(__toolkit_dirs[], ", "))"
     __toolkit_origin[] = :local
     use_local_cudnn(cuda_dirs)
     use_local_cutensor(cuda_dirs)
