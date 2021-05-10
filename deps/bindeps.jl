@@ -51,7 +51,8 @@ const __libcusolverMg = Ref{Union{Nothing,String}}(nothing)
 nvdisasm() = @after_init(__nvdisasm[])
 function compute_sanitizer()
     @after_init begin
-        @assert has_compute_sanitizer() "This functionality is unavailabe as compute-sanitizer is missing."
+        has_compute_sanitizer() ||
+            error("This functionality is unavailabe as compute-sanitizer is missing.")
         __compute_sanitizer[]
     end
 end
@@ -59,13 +60,15 @@ libdevice() = @after_init(__libdevice[])
 libcudadevrt() = @after_init(__libcudadevrt[])
 function libcupti()
     @after_init begin
-        @assert has_cupti() "This functionality is unavailable as CUPTI is missing."
+        has_cupti() ||
+            error("This functionality is unavailable as CUPTI is missing.")
         __libcupti[]
     end
 end
 function libnvtx()
     @after_init begin
-        @assert has_nvtx() "This functionality is unavailable as NVTX is missing."
+        has_nvtx() ||
+            error("This functionality is unavailable as NVTX is missing.")
         __libnvtx[]
     end
 end
@@ -82,7 +85,8 @@ libcufft()    = @after_init(__libcufft[])
 libcurand()   = @after_init(__libcurand[])
 function libcusolvermg()
     @after_init begin
-        @assert has_cusolvermg() "This functionality is unavailabe as CUSOLVERMG is missing."
+        has_cusolvermg() ||
+            error("This functionality is unavailabe as CUSOLVERMG is missing.")
         __libcusolverMg[]
     end
 end
@@ -170,19 +174,24 @@ function use_artifact_cuda()
 
     __toolkit_version[] = artifact.version
 
+    assert_artifact_file(path) =
+        isfile(path) ||
+            error("""Could not find $(basename(path)) in $(dirname(path))!
+                     This is a bug; please file an issue with a verbose directory listing of $(dirname(path)).""")
+
     __nvdisasm[] = artifact_binary(artifact.dir, "nvdisasm")
-    @assert isfile(__nvdisasm[])
+    assert_artifact_file(__nvdisasm[])
     __compute_sanitizer[] = artifact_binary(artifact.dir, "compute-sanitizer")
 
     __libcupti[] = artifact_cuda_library(artifact.dir, "cupti", artifact.version)
-    @assert isfile(__libcupti[])
+    assert_artifact_file(__libcupti[])
     __libnvtx[] = artifact_cuda_library(artifact.dir, "nvtx", artifact.version)
-    @assert isfile(__libnvtx[])
+    assert_artifact_file(__libnvtx[])
 
     __libcudadevrt[] = artifact_static_library(artifact.dir, "cudadevrt")
-    @assert isfile(__libcudadevrt[])
+    assert_artifact_file(__libcudadevrt[])
     __libdevice[] = artifact_file(artifact.dir, joinpath("share", "libdevice", "libdevice.10.bc"))
-    @assert isfile(__libdevice[])
+    assert_artifact_file(__libdevice[])
 
     # HACK: eagerly load cublasLt, required by cublas (but with the same version), to prevent
     #       a system CUDA installation from messing with our artifacts (JuliaGPU/CUDA.jl#609)
