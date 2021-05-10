@@ -107,23 +107,39 @@ end
     synchronize([stream::CuStream]; blocking=true)
 
 Wait until `stream` has finished executing, with `stream` defaulting to the stream
-associated with the current Julia task. If `blocking` is true (the default), Julia will be
-asked to yield to any other scheduled task, otherwise it will spin indefinitely.
+associated with the current Julia task. If `blocking` is true (the default), the active
+task will block to conserve CPU time. If latency is important, set `blocking` to false.
 
 See also: [`device_synchronize`](@ref)
 """
-function synchronize(s::CuStream=stream(); blocking::Bool=true)
-    # TODO: exponential back-off and sleep?
-    while !query(s)
-        if blocking
-            yield()
-        else
+function synchronize(stream::CuStream=stream(); blocking::Bool=true)
+    # fast path
+    query(stream) && @goto(exit)
+
+    # minimize latency of short operations by busy-waiting,
+    # initially without even yielding to other tasks
+    spins = 0
+    while blocking || spins < 256
+        if spins < 32
             ccall(:jl_cpu_pause, Cvoid, ())
             # Temporary solution before we have gc transition support in codegen.
             ccall(:jl_gc_safepoint, Cvoid, ())
+        else
+            yield()
         end
+        query(stream) && @goto(exit)
+        spins += 1
     end
 
+    # minimize CPU usage of long-running kernels
+    # by waiting for an event signalled by CUDA
+    event = Threads.Event()
+    launch(; stream) do
+        notify(event)
+    end
+    Base.wait(event)
+
+    @label(exit)
     check_exceptions()
 end
 
