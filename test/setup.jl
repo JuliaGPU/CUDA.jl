@@ -26,6 +26,10 @@ CUDA.precompile_runtime()
 # for when we include tests directly
 CUDA.allowscalar(false)
 
+# enable debug timers
+using TimerOutputs
+TimerOutputs.enable_debug_timings(CUDA)
+
 
 ## entry point
 

@@ -278,8 +278,8 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where
-                   {F<:Core.Function, TT<:Type}
+@timeit_debug to function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where
+                                    {F<:Core.Function, TT<:Type}
     dev = device()
     cache = cufunction_cache[dev]
     source = FunctionSpec(f, tt, true, name)
@@ -294,11 +294,11 @@ end
 const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
 
 # compile to PTX
-function cufunction_compile(@nospecialize(job::CompilerJob))
+@timeit_debug to "compile" function cufunction_compile(@nospecialize(job::CompilerJob))
     # compile
-    method_instance, world = GPUCompiler.emit_julia(job)
-    ir, kernel = GPUCompiler.emit_llvm(job, method_instance, world)
-    code = GPUCompiler.emit_asm(job, ir, kernel; format=LLVM.API.LLVMAssemblyFile)
+    method_instance, world = @timeit_debug to "emit_julia" GPUCompiler.emit_julia(job)
+    ir, kernel = @timeit_debug to "emit_llvm" GPUCompiler.emit_llvm(job, method_instance, world)
+    code = @timeit_debug to "emit_asm" GPUCompiler.emit_asm(job, ir, kernel; format=LLVM.API.LLVMAssemblyFile)
 
     # check if we'll need the device runtime
     undefined_fs = filter(collect(functions(ir))) do f
@@ -315,7 +315,7 @@ function cufunction_compile(@nospecialize(job::CompilerJob))
 end
 
 # link to device code
-function cufunction_link(@nospecialize(job::CompilerJob), compiled)
+@timeit_debug to "link" function cufunction_link(@nospecialize(job::CompilerJob), compiled)
     ctx = context()
 
     # settings to JIT based on Julia's debug setting
@@ -335,16 +335,18 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
     intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
                     "__nvvm_reflect" #= TODO: should have been optimized away =#]
     image = if compiled.needs_cudadevrt
+        @timeit_debug to "cudadevrt" begin
         linker = CuLink(jit_options)
         add_file!(linker, libcudadevrt(), JIT_INPUT_LIBRARY)
         add_data!(linker, compiled.entry, compiled.code)
         complete(linker)
+        end
     else
         compiled.code
     end
 
     # JIT into an executable kernel object
-    mod = CuModule(image, jit_options)
+    mod = @timeit_debug to "CuModule" CuModule(image, jit_options)
     fun = CuFunction(mod, compiled.entry)
 
     # initialize and register the exception flag, if any

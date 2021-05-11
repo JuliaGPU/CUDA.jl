@@ -86,6 +86,13 @@ function __init__()
         )
     end
 
+    reset_timer!(to)
+    atexit() do
+        TimerOutputs.complement!(to)
+        @debug """CUDA.jl timings:
+                  $to"""
+    end
+
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
     if !precompiling
         eval(overrides)
