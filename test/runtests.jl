@@ -438,12 +438,13 @@ elapsed = canonicalize(Dates.CompoundPeriod(t1-t0))
 println("Testing finished in $elapsed")
 
 # report work timings
+println()
 for to in timings
     TimerOutputs.merge!(CUDA.to, to)
 end
 TimerOutputs.complement!(CUDA.to)
-@info """CUDA.jl timings:
-         $(CUDA.to)"""
+show(CUDA.to, sortby=:name)
+println()
 
 # construct a testset to render the test results
 o_ts = Test.DefaultTestSet("Overall")
