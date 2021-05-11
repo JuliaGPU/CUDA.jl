@@ -289,14 +289,20 @@ function use_local_cuda()
         __libdevice[] = path
     end
 
-    for library in ("cublas", "cusparse", "cusolver", "cufft", "curand", "cusolverMg")
+    for (library, required) in (("cublas", true), ("cusparse", true), ("cusolver", true),
+                                ("cufft", true), ("curand", true), ("cusolverMg", false))
         handle = getfield(CUDA, Symbol("__lib$library"))
         path = find_cuda_library(library, __toolkit_dirs[], cuda_version)
         if path === nothing
             @debug "Could not find $library"
-            return false
+            if required
+                return false
+            else
+                handle[] = nothing
+            end
+        else
+            handle[] = path
         end
-        handle[] = path
     end
     @debug "Found local CUDA $(cuda_version) at $(join(__toolkit_dirs[], ", "))"
     __toolkit_origin[] = :local
