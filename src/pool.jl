@@ -66,11 +66,7 @@ const usage = PerDevice{Threads.Atomic{Int}}() do dev
   Threads.Atomic{Int}(0)
 end
 const usage_limit = PerDevice{Int}() do dev
-  if haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT")
-    parse(Int, ENV["JULIA_CUDA_MEMORY_LIMIT"])
-  else
-    typemax(Int)
-  end
+  getenv("JULIA_CUDA_MEMORY_LIMIT", typemax(Int))
 end
 
 @memoize function allocatable_memory(dev::CuDevice)

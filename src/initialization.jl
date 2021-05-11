@@ -167,3 +167,18 @@ if it contains a CUDA-capable GPU. See [`has_cuda`](@ref) for more details.
 Note that this function initializes the CUDA API in order to check for the number of GPUs.
 """
 has_cuda_gpu(show_reason::Bool=false) = has_cuda(show_reason) && length(devices()) > 0
+
+# robustly get and parse an env var
+function getenv(var, default::T) where T
+    if haskey(ENV, var)
+        result = tryparse(T, ENV[var])
+        if result === nothing
+            @warn "Could not parse $(var)=$(ENV[var]), using default value '$default'"
+            default
+        else
+            result
+        end
+    else
+        default
+    end
+end

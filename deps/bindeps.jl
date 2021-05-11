@@ -437,15 +437,6 @@ end
 function __init_dependencies__()
     found = false
 
-    # robustly get and parse an env var
-    function getenv(var, default::T) where T
-        if haskey(ENV, var)
-            something(tryparse(T, ENV[var]), default)
-        else
-            default
-        end
-    end
-
     # CI runs in a well-defined environment, so prefer a local CUDA installation there
     if getenv("CI", false) && !haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER")
         found = use_local_cuda()
