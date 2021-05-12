@@ -181,10 +181,14 @@ macro test_throws_macro(ty, ex)
         Test.@test_throws $(esc(ty)) try
             $(esc(ex))
         catch err
-            @test err isa LoadError
-            @test err.file === $(string(__source__.file))
-            @test err.line === $(__source__.line + 1)
-            rethrow(err.error)
+            if VERSION < v"1.7-"
+                @test err isa LoadError
+                @test err.file === $(string(__source__.file))
+                @test err.line === $(__source__.line + 1)
+                rethrow(err.error)
+            else
+                rethrow(err)
+            end
         end
     end
 end
