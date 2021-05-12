@@ -135,6 +135,22 @@ end
     end
 end
 
+@testset "construction f16" begin
+    @testset for elty in [Float16, ComplexF16]
+        @testset "CSC" begin
+            x = sprand(elty,m,n, 0.2)
+            d_x = CuSparseMatrixCSC(x)
+            @test collect(d_x) == collect(x)
+        end
+
+        @testset "CSR" begin
+            x = sprand(elty,m,n, 0.2)
+            d_x  = CuSparseMatrixCSR(x)
+            @test collect(d_x) == collect(x)
+        end
+    end
+end
+
 @testset "conversion" begin
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         @testset "CSC(::CSR)" begin
@@ -205,6 +221,55 @@ end
         end
     end
 end
+
+@testset "conversion f16" begin
+    @testset for elty in [Float16, ComplexF16]
+        @testset "CSC(::CSR)" begin
+            x = sprand(elty,m,n, 0.2)
+            d_x = CuSparseMatrixCSR(x)
+            d_x = CuSparseMatrixCSC(d_x)
+            @test collect(d_x) == collect(x)
+        end
+
+        @testset "CSR(::CSC)" begin
+            x = sprand(elty,m,n, 0.2)
+            d_x = CuSparseMatrixCSC(x)
+            d_x = CuSparseMatrixCSR(d_x)
+            @test collect(d_x) == collect(x)
+        end
+
+        @testset "Dense(::CSR)" begin
+            x = sprand(elty,m,n, 0.2)
+            d_x = CuSparseMatrixCSR(x)
+            h_x = collect(d_x)
+            @test h_x ≈ Array(x)
+        end
+
+        @testset "Dense(::CSC)" begin
+            x = sprand(elty,m,n, 0.2)
+            d_x = CuSparseMatrixCSC(x)
+            h_x = collect(d_x)
+            @test h_x ≈ Array(x)
+        end
+
+        @testset "CSC(::Dense)" begin
+            x = rand(elty,m,n)
+            d_x = CuArray(x)
+            d_x = CuSparseMatrixCSC(d_x)
+            h_x = collect(d_x)
+            @test h_x ≈ sparse(x)
+        end
+
+        @testset "CSR(::Dense)" begin
+            x = rand(elty,m,n)
+            d_x = CuArray(x)
+            d_x = CuSparseMatrixCSR(d_x)
+            h_x = collect(d_x)
+            @test h_x ≈ sparse(x)
+        end
+    end
+end
+
 
 @testset "bsric02" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
@@ -825,6 +890,27 @@ end
             h_z = collect(d_y)
             z = alpha * A * x + beta * y
             @test z ≈ h_z
+            #if d_A isa CuSparseMatrixCSR
+            #    @test d_y' * (d_A * d_x) ≈ (d_y' * d_A) * d_x
+            #end
+        end
+    end
+    @testset for elty in [Float16,ComplexF16]
+        A = sparse(rand(elty,m,n))
+        x = rand(elty,n)
+        y = rand(elty,m)
+        alpha = rand(elty)
+        beta = rand(elty)
+        @testset "$(typeof(d_A))" for d_A in [CuSparseMatrixCSR(A),
+                                              CuSparseMatrixCSC(A)]
+            d_x = CuArray(x)
+            d_y = CuArray(y)
+            @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
+            @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
+            CUSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
+            h_z = collect(d_y)
+            z = alpha * A * x + beta * y
+            @test z ≈ h_z
             if d_A isa CuSparseMatrixCSR
                 @test d_y' * (d_A * d_x) ≈ (d_y' * d_A) * d_x
             end
@@ -864,7 +950,7 @@ end
             @test D ≈ h_D
         end
     end
-
+    
     @testset "issue 493" begin
         x = cu(rand(20))
         cu(sprand(Float32,10,10,0.1)) * @view(x[1:10])

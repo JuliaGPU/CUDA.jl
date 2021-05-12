@@ -29,7 +29,7 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
 
     @eval begin
         function LinearAlgebra.mul!(C::CuVector{T}, A::$TypeA, B::DenseCuVector{T},
-                                    alpha::Number, beta::Number) where {T <: BlasFloat}
+                                    alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
             mv_wrapper($transa, alpha, $(untaga(unwrapa(:A))), B, beta, C)
         end
     end
@@ -44,7 +44,7 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
             # LinearAlgebra.
             @eval begin
                 function LinearAlgebra.mul!(C::CuMatrix{T}, A::$TypeA, B::$TypeB,
-                                            alpha::Number, beta::Number) where {T <: BlasComplex}
+                                            alpha::Number, beta::Number) where {T <: Union{ComplexF16, BlasComplex}}
                     mm_wrapper($transa, $transb, alpha, $(untaga(unwrapa(:A))),
                                $(untagb(unwrapb(:B))), beta, C)
                 end
@@ -54,7 +54,7 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
             transb_real = transb == 'C' ? 'T' : transb
             @eval begin
                 function LinearAlgebra.mul!(C::CuMatrix{T}, A::$TypeA, B::$TypeB,
-                                            alpha::Number, beta::Number) where {T <: BlasReal}
+                                            alpha::Number, beta::Number) where {T <: Union{Float16, BlasReal}}
                     mm_wrapper($transa_real, $transb_real, alpha, $(untaga(unwrapa(:A))),
                                $(untagb(unwrapb(:B))), beta, C)
                 end
@@ -62,7 +62,7 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
         else
             @eval begin
                 function LinearAlgebra.mul!(C::CuMatrix{T}, A::$TypeA, B::$TypeB,
-                                            alpha::Number, beta::Number) where {T <: BlasFloat}
+                                            alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
                     mm_wrapper($transa, $transb, alpha, $(untaga(unwrapa(:A))),
                                $(untagb(unwrapb(:B))), beta, C)
                 end
