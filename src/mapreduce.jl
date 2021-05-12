@@ -62,13 +62,13 @@ end
     while d < threads
         sync_threads()
         index = 2 * d * (thread-1) + 1
-        if index <= threads
+        @inbounds if index <= threads
             other_val = if index + d <= threads
                 shared[index+d]
             else
                 neutral
             end
-            @inbounds shared[index] = op(shared[index], other_val)
+            shared[index] = op(shared[index], other_val)
         end
         d *= 2
     end
