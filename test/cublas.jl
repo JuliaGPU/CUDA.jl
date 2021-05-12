@@ -36,13 +36,13 @@ Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
         @test testf(BLAS.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
 
         if T <: Complex
-            @test testf(BLAS.dotu, rand(T, m), rand(T, m))
+            @test testf(dot, rand(T, m), rand(T, m))
             x = rand(T, m)
             y = rand(T, m)
             dx = CuArray(x)
             dy = CuArray(y)
-            dz = BLAS.dot(dx, dy)
-            z = BLAS.dotc(x, y)
+            dz = dot(dx, dy)
+            z = dot(x, y)
             @test dz ≈ z
         end
 

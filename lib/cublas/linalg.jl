@@ -12,26 +12,23 @@ LinearAlgebra.rmul!(x::StridedCuArray{<:CublasFloat}, k::Number) =
 LinearAlgebra.rmul!(x::DenseCuArray{<:CublasFloat}, k::Real) =
   invoke(rmul!, Tuple{typeof(x), Number}, x, k)
 
-function LinearAlgebra.BLAS.dot(DX::StridedCuArray{T}, DY::StridedCuArray{T}) where T<:Union{Float32,Float64}
-    n = length(DX)
-    n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dot(n, DX, DY)
+function LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:CublasReal
+    n = length(x)
+    n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
+    dot(n, x, y)
 end
 
-function LinearAlgebra.BLAS.dotc(DX::StridedCuArray{T}, DY::StridedCuArray{T}) where T<:Union{ComplexF32,ComplexF64}
-    n = length(DX)
-    n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dotc(n, DX, DY)
+function LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:CublasComplex
+    n = length(x)
+    n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
+    dotc(n, x, y)
 end
 
-function LinearAlgebra.BLAS.dot(DX::DenseCuArray{T}, DY::DenseCuArray{T}) where T<:Union{ComplexF32,ComplexF64}
-    BLAS.dotc(DX, DY)
-end
-
-function LinearAlgebra.BLAS.dotu(DX::StridedCuArray{T}, DY::StridedCuArray{T}) where T<:Union{ComplexF32,ComplexF64}
-    n = length(DX)
-    n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dotu(n, DX, DY)
+function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}}, y::StridedCuVector{T}) where T<:CublasComplex
+    x = transx.parent
+    n = length(x)
+    n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
+    return dotu(n, x, y)
 end
 
 LinearAlgebra.norm(x::DenseCuArray{<:CublasFloat}) = nrm2(x)
