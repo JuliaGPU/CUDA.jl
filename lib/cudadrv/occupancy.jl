@@ -59,13 +59,10 @@ function launch_configuration(fun::CuFunction; shmem::Union{Integer,Base.Callabl
         cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, C_NULL, shmem, max_threads)
     elseif Sys.ARCH == :x86 || Sys.ARCH == :x86_64
         shmem_cint = threads -> Cint(shmem(threads))
-        # `@cfunction` needs a lock currently, https://github.com/JuliaLang/julia/issues/38709
-        cb = lock(_shmem_cb_lock) do
-            @cfunction($shmem_cint, Cint, (Cint,))
-        end
+        @cfunction($shmem_cint, Cint, (Cint,))
         cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, cb, 0, max_threads)
     else
-        lock(_shmem_cb_lock) do 
+        lock(_shmem_cb_lock) do
             global _shmem_cb
             _shmem_cb = shmem
             cb = @cfunction(_shmem_cint_cb, Cint, (Cint,))
