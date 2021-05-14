@@ -149,5 +149,5 @@ end
     _, out = @grab_output @on_device kernel()
     @test occursin("pointer(a) = ", out)
     @test occursin("pointer(b) = ", out)
-    @test occursin("= 0x", out)
+    @test occursin("= 0", out)  # 0x... on Linux, 0... on Windows
 end
