@@ -20,7 +20,7 @@ typed_pointer(buf::Mem.Host, T)                       = convert(Ptr{T},   buf)
 for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     dstTy in [Mem.Device, Mem.Host, Mem.Unified]
 
-    local dummy = Mem.alloc(srcTy, 0)
+    dummy = Mem.alloc(srcTy, 0)
     Mem.free(dummy)
 
     src = Mem.alloc(srcTy, nb)

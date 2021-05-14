@@ -59,7 +59,9 @@ Base.show(io::IO, buf::DeviceBuffer) =
 Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
     convert(CuPtr{T}, pointer(buf))
 
-@memoize has_stream_ordered() = CUDA.version() >= v"11.2" && !haskey(ENV, "CUDA_MEMCHECK")
+@memoize has_stream_ordered(dev::CuDevice=device()) =
+    CUDA.version() >= v"11.2" && !haskey(ENV, "CUDA_MEMCHECK") &&
+    attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
 
 """
     Mem.alloc(DeviceBuffer, bytesize::Integer;
@@ -93,7 +95,7 @@ end
 
 
 function free(buf::DeviceBuffer; async::Bool=false, stream::Union{Nothing,CuStream}=nothing,
-              stream_ordered::Bool=CUDA.version() >= v"11.2")
+              stream_ordered::Bool=has_stream_ordered())
     pointer(buf) == CU_NULL && return
 
     if stream_ordered
