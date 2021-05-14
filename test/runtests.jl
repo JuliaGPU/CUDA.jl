@@ -53,6 +53,11 @@ include("setup.jl")     # make sure everything is precompiled
 # choose tests
 const tests = ["initialization"]    # needs to run first
 const test_runners = Dict()
+## GPUArrays testsuite
+for name in keys(TestSuite.tests)
+    push!(tests, "gpuarrays$(Base.Filesystem.path_separator)$name")
+    test_runners["gpuarrays$(Base.Filesystem.path_separator)$name"] = ()->TestSuite.tests[name](CuArray)
+end
 ## files in the test folder
 for (rootpath, dirs, files) in walkdir(@__DIR__)
   # find Julia files
@@ -75,14 +80,10 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
   end
 
   append!(tests, files)
+  sort(files; by=(file)->stat("$(@__DIR__)/$file.jl").size, rev=true) # large (slow) tests first
   for file in files
     test_runners[file] = ()->include("$(@__DIR__)/$file.jl")
   end
-end
-## GPUArrays testsuite
-for name in keys(TestSuite.tests)
-    push!(tests, "gpuarrays$(Base.Filesystem.path_separator)$name")
-    test_runners["gpuarrays$(Base.Filesystem.path_separator)$name"] = ()->TestSuite.tests[name](CuArray)
 end
 unique!(tests)
 
@@ -165,7 +166,7 @@ if !has_cutensor() || CUDA.version() < v"10.1" || first(picks).cap < v"7.0"
 end
 is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
 if first(picks).cap < v"7.0"
-    push!(skip_tests, "device/wmma")
+    push!(skip_tests, "device/intrinsics/wmma")
 end
 if Sys.ARCH == :aarch64
     # CUFFT segfaults on ARM
@@ -309,6 +310,7 @@ function print_testworker_errored(name, wrkr)
 end
 
 # run tasks
+t0 = now()
 results = []
 all_tasks = Task[]
 try
@@ -422,6 +424,9 @@ finally
         schedule(stdin_monitor, InterruptException(); error=true)
     end
 end
+t1 = now()
+elapsed = canonicalize(Dates.CompoundPeriod(t1-t0))
+println("Testing finished in $elapsed")
 
 # construct a testset to render the test results
 o_ts = Test.DefaultTestSet("Overall")
