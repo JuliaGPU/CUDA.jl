@@ -43,8 +43,12 @@ Depending on your system and GPU, you may need to install an older version of th
 
 ## Quick start
 
-The package can be installed with the Julia package manager.
-From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
+Before all, make sure you have a recent NVIDIA driver. On Windows, make sure you have the
+[Visual C++ redistributable](https://aka.ms/vs/16/release/vc_redist.x64.exe) installed.
+You do not need to install the CUDA Toolkit.
+
+CUDA.jl can be installed with the Julia package manager. From the Julia REPL, type `]` to
+enter the Pkg REPL mode and run:
 
 ```
 pkg> add CUDA
