@@ -742,6 +742,11 @@ function gemmExComputeType(TA, TB, TC, m, k, n)
         return nothing
     end
 
+    # JuliaGPU/CUDA.jl#609: Float16-gemmEx doesn't seem to work on sm_52
+    if Float16 in sig && cap <= v"5.2"
+        return nothing
+    end
+
     math_mode = CUDA.math_mode()
     reduced_precision = CUDA.math_precision()
 
