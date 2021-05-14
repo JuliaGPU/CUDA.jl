@@ -1,4 +1,5 @@
 steps:
+
   # Julia versions
 
   - label: "Julia 1.6"
@@ -222,6 +223,23 @@ steps:
       cuda: "*"
     env:
       JULIA_CUDA_MEMORY_POOL: 'split'
+    if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 120
+
+  - label: "Windows"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: 1.6
+      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu-windows"
+      cuda: "*"
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 120
 
