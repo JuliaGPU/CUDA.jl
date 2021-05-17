@@ -15,45 +15,13 @@ This call is intended for packages that support conditionally using an available
 fail to check whether CUDA is functional, actual use of functionality might warn and error.
 """
 function functional(show_reason::Bool=false)
-    if configured[] < 0
-        Bool(_functional(show_reason))
-    else
-        Bool(configured[])
-    end
-end
-
-const configure_lock = ReentrantLock()
-@noinline function _functional(show_reason::Bool=false)
-    Base.@lock configure_lock begin
-        if configured[] == -1
-            configured[] = -2
-            configured[] = try
-                __runtime_init__()
-                1
-            catch ex
-                show_reason && @error("Error during initialization of CUDA.jl", exception=(ex,catch_backtrace()))
-                0
-            end
-        elseif configured[] == -2
-            # claim that we're initialized _during_ initialization (this can only happen
-            # on the same task that's currently initializing, due to the reentrant lock)
-            1
-        else
-            # we got stuck on the lock while another thread was initializing
-            configured[]
-        end
-    end
-end
-
-# macro to guard code that only can run after the package has successfully initialized
-macro after_init(ex)
-    quote
-        if !functional(true)
-            error("""CUDA.jl did not successfully initialize, and is not usable.
-                     If you did not see any other error message, try again in a new session
-                     with the JULIA_DEBUG environment variable set to 'CUDA'.""")
-        end
-        $(esc(ex))
+    try
+        CUDA.version()
+        CUDA.toolkit()
+        return true
+    catch
+        show_reason || rethrow()
+        return false
     end
 end
 
@@ -93,9 +61,7 @@ end
     return
 end
 
-function __runtime_init__()
-    __init_dependencies__() || error("Could not find a suitable CUDA installation")
-
+function __init_toolkit__()
     if toolkit_release() < v"10.1"
         @warn "This version of CUDA.jl only supports CUDA 10.1 or higher (your toolkit provides CUDA $(toolkit_release()))"
     elseif toolkit_release() > release()

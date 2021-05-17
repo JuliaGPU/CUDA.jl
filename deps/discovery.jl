@@ -296,9 +296,12 @@ function cuda_library_version(library, toolkit_version)
         if !haskey(cuda_library_versions, toolkit_version)
             error("CUDA.jl does not yet support CUDA $toolkit_version; please file an issue.")
         end
+        # HACK: generalize this?
         if library == "cusolverMg"
-            # HACK: generalize this?
             library = "cusolver"
+        end
+        if library == "cublasLt"
+            library = "cublas"
         end
         cuda_library_versions[toolkit_version][library]
     else

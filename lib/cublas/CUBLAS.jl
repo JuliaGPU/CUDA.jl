@@ -72,34 +72,9 @@ end
 const idle_handles = HandleCache{CuContext,cublasHandle_t}()
 const idle_xt_handles = HandleCache{Any,cublasXtHandle_t}()
 
-const __initialized = Ref(false)
-
-function log_message(cstr)
-    # NOTE: we can't `@debug` these messages, because the logging function is called for
-    #       every line... also not sure what the i!/I! prefixes mean (info?)
-    # NOTE: turns out we even can't `print` these messages, as cublasXt callbacks might
-    #       happen from a different thread! we could strdup + uv_async_send, but I couldn't
-    #       find an easy way to attach data to that
-    # TODO: use a pre-allocated lock-free global message buffer?
-    len = ccall(:strlen, Csize_t, (Cstring,), cstr)
-    ccall(:write, Cint, (Cint, Cstring, Csize_t), 0, cstr, len)
-    return
-end
-
 function handle()
     state = CUDA.active_state()
     handle, stream, math_mode = get!(task_local_storage(), (:CUBLAS, state.context)) do
-        if !__initialized[]
-            # enable library logging when launched with JULIA_DEBUG=CUBLAS
-            if isdebug(:init, CUBLAS)
-                callback = @cfunction(log_message, Nothing, (Cstring,))
-                cublasSetLoggerCallback(callback)
-            end
-
-            # TODO: do this when first discovering cublas (from bindeps.jl)
-            __initialized[] = true
-        end
-
         new_handle = pop!(idle_handles, state.context) do
             cublasCreate()
         end
@@ -152,6 +127,26 @@ function xt_handle()
 
         handle
     end::cublasXtHandle_t
+end
+
+function log_message(cstr)
+    # NOTE: we can't `@debug` these messages, because the logging function is called for
+    #       every line... also not sure what the i!/I! prefixes mean (info?)
+    # NOTE: turns out we even can't `print` these messages, as cublasXt callbacks might
+    #       happen from a different thread! we could strdup + uv_async_send, but I couldn't
+    #       find an easy way to attach data to that
+    # TODO: use a pre-allocated lock-free global message buffer?
+    len = ccall(:strlen, Csize_t, (Cstring,), cstr)
+    ccall(:write, Cint, (Cint, Cstring, Csize_t), 0, cstr, len)
+    return
+end
+
+function __runtime_init__()
+    # enable library logging when launched with JULIA_DEBUG=CUBLAS
+    if isdebug(:init, CUBLAS)
+        callback = @cfunction(log_message, Nothing, (Cstring,))
+        cublasSetLoggerCallback(callback)
+    end
 end
 
 end

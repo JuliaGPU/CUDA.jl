@@ -108,6 +108,10 @@ function log_message(sev, udata, dbg_ptr, ptr)
 end
 
 function __runtime_init__()
+    if version() < v"8.0"
+        @warn "This version of CUDA.jl only supports CUDNN 8.0 or higher"
+    end
+
     # enable library logging when launched with JULIA_DEBUG=CUDNN
     # FIXME: this doesn't work, and the mask remains 0 (as observed with cudnnGetCallback)
     if isdebug(:init, CUDNN)
