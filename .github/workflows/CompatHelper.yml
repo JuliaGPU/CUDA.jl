@@ -19,7 +19,7 @@ jobs:
       - uses: julia-actions/setup-julia@v1
         with:
           # version: ${{ steps.julia_compat.outputs.version }}
-          version: "1.6-nightly"
+          version: "1.6"
       - name: Pkg.add("CompatHelper")
         run: julia -e 'using Pkg; Pkg.add("CompatHelper")'
       - name: CompatHelper.main()
