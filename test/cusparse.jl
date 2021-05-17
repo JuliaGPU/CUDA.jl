@@ -950,7 +950,7 @@ end
             @test D ≈ h_D
         end
     end
-    
+
     @testset "issue 493" begin
         x = cu(rand(20))
         cu(sprand(Float32,10,10,0.1)) * @view(x[1:10])

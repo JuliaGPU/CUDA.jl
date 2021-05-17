@@ -108,9 +108,9 @@ for (fname, elty) in ((:cublasDscal_v2,:Float64),
 end
 function scal!(n::Integer, alpha::Number, x::StridedCuArray{Float16})
     if version() > v"10.1"
-        α = convert(Float32, alpha)   
+        α = convert(Float32, alpha)
         cublasScalEx(handle(), n, Ref{Float32}(α), Float32, x, Float16, stride(x, 1), Float32)
-        return x 
+        return x
     else
         wide_x = widen.(x)
         scal!(n, alpha, wide_x)
@@ -160,7 +160,7 @@ function dot(n::Integer, x::DenseCuArray{Float16}, y::DenseCuArray{Float16})
     if version() > v"10.1"
         result = Ref{Float16}()
         cublasDotEx(handle(), n, x, Float16, stride(x, 1), y, Float16, stride(y, 1), result, Float16, Float32)
-        return result[] 
+        return result[]
     else
         return convert(Float16, dot(n, convert(DenseCuArray{Float32}, x), convert(DenseCuArray{Float32}, y)))
     end
@@ -192,7 +192,7 @@ function nrm2(n::Integer, x::StridedCuArray{Float16})
     if version() > v"10.1"
         result = Ref{Float16}()
         cublasNrm2Ex(handle(), n, x, Float16, stride(x, 1), result, Float16, Float32)
-        return result[] 
+        return result[]
     else
         wide_x = widen.(x)
         nrm    = nrm2(n, wide_x)
@@ -247,7 +247,7 @@ function axpy!(n::Integer, alpha::Number, dx::StridedCuArray{Float16}, dy::Strid
         axpy!(n, alpha, wide_x, wide_y)
         thin_y = convert(typeof(dy), wide_y)
         copyto!(dy, thin_y)
-        return dy 
+        return dy
     end
 end
 function axpy!(n::Integer, alpha::Number, dx::StridedCuArray{ComplexF16}, dy::StridedCuArray{ComplexF16})
@@ -256,7 +256,7 @@ function axpy!(n::Integer, alpha::Number, dx::StridedCuArray{ComplexF16}, dy::St
     axpy!(n, alpha, wide_x, wide_y)
     thin_y = convert(typeof(dy), wide_y)
     copyto!(dy, thin_y)
-    return dy 
+    return dy
 end
 
 ## rot
