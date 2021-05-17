@@ -73,9 +73,6 @@ end
         @warn "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.1 or higher (yours is for CUDA $(version()))"
     end
 
-    resize!(__device_contexts, ndevices())
-    fill!(__device_contexts, nothing)
-
     # ensure that operations executed by the REPL back-end finish before returning,
     # because displaying values happens on a different task (CUDA.jl#831)
     if isdefined(Base, :active_repl_backend)
