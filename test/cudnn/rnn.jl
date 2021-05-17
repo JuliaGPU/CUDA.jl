@@ -119,7 +119,10 @@ using CUDA.CUDNN:
     rnntest(seqLengthArray=Cint[1,2,1,2])
     rnntest(fwdMode=CUDNN_FWD_MODE_TRAINING)
     rnntest(hiddenSize=16)
-    rnntest(algo=CUDNN_RNN_ALGO_PERSIST_STATIC)
+    # XXX: it's unclear which devices support this algorithm
+    if capability(device()) >= v"6.1"
+        rnntest(algo=CUDNN_RNN_ALGO_PERSIST_STATIC)
+    end
     #rnntest(algo=CUDNN_RNN_ALGO_PERSIST_DYNAMIC) # causes segfault
     rnntest(cellMode=CUDNN_RNN_RELU)
     rnntest(cellMode=CUDNN_RNN_TANH)
