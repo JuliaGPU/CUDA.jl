@@ -135,6 +135,7 @@ end
     end
 end
 
+if capability(device()) >= v"5.3"
 @testset "construction f16" begin
     @testset for elty in [Float16, ComplexF16]
         @testset "CSC" begin
@@ -149,6 +150,7 @@ end
             @test collect(d_x) == collect(x)
         end
     end
+end
 end
 
 @testset "conversion" begin
@@ -222,6 +224,7 @@ end
     end
 end
 
+if capability(device()) >= v"5.3"
 @testset "conversion f16" begin
     @testset for elty in [Float16, ComplexF16]
         @testset "CSC(::CSR)" begin
@@ -268,6 +271,7 @@ end
             @test h_x ≈ sparse(x)
         end
     end
+end
 end
 
 
@@ -895,6 +899,8 @@ end
             #end
         end
     end
+
+    if capability(device()) >= v"5.3"
     @testset for elty in [Float16,ComplexF16]
         A = sparse(rand(elty,m,n))
         x = rand(elty,n)
@@ -915,6 +921,7 @@ end
                 @test d_y' * (d_A * d_x) ≈ (d_y' * d_A) * d_x
             end
         end
+    end
     end
 end
 
