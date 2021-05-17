@@ -2,8 +2,6 @@ module PoolUtils
 
 using ..CUDA
 
-using TimerOutputs
-
 using Printf
 
 
@@ -50,17 +48,6 @@ function Base.show(io::IO, block::Block)
     block.next !== nothing && push!(fields, "next=Block(offset=$(block.next.off))")
 
     print(io, "Block(", join(fields, ", "), ")")
-end
-
-
-## timing
-
-export @pool_timeit
-
-const to = TimerOutput()
-
-macro pool_timeit(args...)
-    TimerOutputs.timer_expr(CUDA, true, :($PoolUtils.to), args...)
 end
 
 end

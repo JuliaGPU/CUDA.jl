@@ -52,25 +52,11 @@ AllocStats(b::AllocStats, a::AllocStats) =
 
 ## CUDA allocator
 
-const alloc_to = TimerOutput()
-
-"""
-    alloc_timings()
-
-Show the timings of the CUDA allocator. Assumes [`CUDA.enable_timings()`](@ref) has been
-called.
-"""
-alloc_timings() = (show(alloc_to; allocations=false, sortby=:name); println())
-
 const usage = PerDevice{Threads.Atomic{Int}}() do dev
   Threads.Atomic{Int}(0)
 end
 const usage_limit = PerDevice{Int}() do dev
-  if haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT")
-    parse(Int, ENV["JULIA_CUDA_MEMORY_LIMIT"])
-  else
-    typemax(Int)
-  end
+  getenv("JULIA_CUDA_MEMORY_LIMIT", typemax(Int))
 end
 
 @memoize function allocatable_memory(dev::CuDevice)
@@ -117,8 +103,9 @@ function hard_limit(dev::CuDevice)
   usage_limit[dev]
 end
 
-function actual_alloc(bytes::Integer, last_resort::Bool=false;
-                      stream_ordered::Bool=false, stream::Union{CuStream,Nothing}=nothing)
+@timeit_debug to function actual_alloc(bytes::Integer, last_resort::Bool=false;
+                                       stream_ordered::Bool=false,
+                                       stream::Union{CuStream,Nothing}=nothing)
   dev = device()
 
   # check the memory allocation limit
@@ -129,8 +116,8 @@ function actual_alloc(bytes::Integer, last_resort::Bool=false;
   # try the actual allocation
   buf = try
     time = Base.@elapsed begin
-      @timeit_debug alloc_to "alloc" begin
-        buf = Mem.alloc(Mem.Device, bytes; async=true, stream_ordered, stream)
+      buf = @timeit_debug "Mem.alloc" begin
+        Mem.alloc(Mem.Device, bytes; async=true, stream_ordered, stream)
       end
     end
 
@@ -148,7 +135,8 @@ function actual_alloc(bytes::Integer, last_resort::Bool=false;
   return Block(buf, bytes; state=AVAILABLE)
 end
 
-function actual_free(block::Block; stream_ordered::Bool=false, stream::Union{CuStream,Nothing}=nothing)
+@timeit_debug to function actual_free(block::Block; stream_ordered::Bool=false,
+                                      stream::Union{CuStream,Nothing}=nothing)
   dev = device()
 
   @assert iswhole(block) "Cannot free $block: block is not whole"
@@ -156,17 +144,15 @@ function actual_free(block::Block; stream_ordered::Bool=false, stream::Union{CuS
   @assert block.state == AVAILABLE "Cannot free $block: block is not available"
 
   # free the memory
-  @timeit_debug alloc_to "free" begin
-    time = Base.@elapsed begin
-      Mem.free(block.buf; async=true, stream_ordered, stream)
-    end
-    block.state = INVALID
-
-    Threads.atomic_sub!(usage[dev], sizeof(block.buf))
-    alloc_stats.actual_time += time
-    alloc_stats.actual_nfree += 1
-    alloc_stats.actual_free += sizeof(block.buf)
+  time = Base.@elapsed begin
+    @timeit_debug to "Mem.free" Mem.free(block.buf; async=true, stream_ordered, stream)
   end
+  block.state = INVALID
+
+  Threads.atomic_sub!(usage[dev], sizeof(block.buf))
+  alloc_stats.actual_time += time
+  alloc_stats.actual_nfree += 1
+  alloc_stats.actual_free += sizeof(block.buf)
 
   return
 end
@@ -270,7 +256,7 @@ end
 Allocate a number of bytes `sz` from the memory pool. Returns a `CuPtr{Nothing}`; may throw
 a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 """
-@inline function alloc(sz; stream::CuStream=stream())
+@inline @timeit_debug to function alloc(sz; stream::CuStream=stream())
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return CU_NULL
 
@@ -278,7 +264,7 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   pool = pools[dev]
 
   time = Base.@elapsed begin
-    @pool_timeit "pooled alloc" block = alloc(pool, sz; stream)::Union{Nothing,Block}
+    block = @timeit_debug to "pool" alloc(pool, sz; stream)::Union{Nothing,Block}
   end
   block === nothing && throw(OutOfGPUMemoryError(sz))
 
@@ -335,7 +321,9 @@ end
 
 Releases a buffer pointed to by `ptr` to the memory pool.
 """
-@inline function free(ptr::CuPtr{Nothing}; stream::CuStream=stream())
+@inline @timeit_debug to function free(ptr::CuPtr{Nothing}; stream::CuStream=stream())
+  # XXX: have @timeit_debug use the root timer, since we may be called from a finalizer
+
   # 0-byte allocations shouldn't hit the pool
   ptr == CU_NULL && return
 
@@ -372,7 +360,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     end
 
     time = Base.@elapsed begin
-      @pool_timeit "pooled free" free(pool, block; stream)
+      @timeit_debug to "pool" free(pool, block; stream)
     end
 
     alloc_stats.pool_time += time
@@ -460,7 +448,7 @@ end
 function pool_cleanup()
   while true
     t1 = time()
-    @pool_timeit "cleanup" for dev in keys(pools)
+    for dev in keys(pools)
       t0 = last_use[dev]
       t0 === nothing && continue
 
@@ -644,19 +632,6 @@ end
 ## init
 
 function __init_pool__()
-  TimerOutputs.reset_timer!(alloc_to)
-  TimerOutputs.reset_timer!(PoolUtils.to)
-
-  if isdebug(:init, CUDA)
-    TimerOutputs.enable_debug_timings(CUDA)
-    atexit() do
-        println("Memory pool timings:")
-        pool_timings()
-        println("Allocator timings:")
-        alloc_timings()
-    end
-  end
-
   if isinteractive()
     @async pool_cleanup()
   end

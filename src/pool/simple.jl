@@ -75,27 +75,22 @@ function alloc(pool::SimplePool, sz; stream::CuStream)
     block = nothing
     for phase in 1:3
         if phase == 2
-            @pool_timeit "$phase.0 gc (incremental)" GC.gc(false)
+            GC.gc(false)
         elseif phase == 3
-            @pool_timeit "$phase.0 gc (full)" GC.gc(true)
+            GC.gc(true)
         end
 
-        @pool_timeit "$phase.1 repopulate" repopulate(pool)
+        repopulate(pool)
 
-        @pool_timeit "$phase.2 scan" begin
-            block = scan(pool, sz)
-        end
+        block = scan(pool, sz)
         block === nothing || break
 
-        @pool_timeit "$phase.3 alloc" begin
-            block = actual_alloc(sz; pool.stream_ordered)
-        end
+        block = actual_alloc(sz; pool.stream_ordered)
         block === nothing || break
 
-        @pool_timeit "$phase.4 reclaim + alloc" begin
-            reclaim(pool, sz)
-            block = actual_alloc(sz, phase==3; pool.stream_ordered)
-        end
+        reclaim(pool, sz)
+        block = actual_alloc(sz, phase==3; pool.stream_ordered)
+
         block === nothing || break
     end
 

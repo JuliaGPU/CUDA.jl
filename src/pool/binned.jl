@@ -61,29 +61,27 @@ function reclaim(pool::BinnedPool, target_bytes::Int=typemax(Int))
   pool_repopulate(pool)
 
   @lock pool.lock begin
-    @pool_timeit "reclaim" begin
-      freed_bytes = 0
+    freed_bytes = 0
 
-      # process pools in reverse, to discard largest buffers first
-      for pid in reverse(1:length(pool.cache))
-        bytes = poolsize(pid)
-        cache = pool.cache[pid]
+    # process pools in reverse, to discard largest buffers first
+    for pid in reverse(1:length(pool.cache))
+      bytes = poolsize(pid)
+      cache = pool.cache[pid]
 
-        bufcount = length(cache)
-        for i in 1:bufcount
-          block = pop!(cache)
+      bufcount = length(cache)
+      for i in 1:bufcount
+        block = pop!(cache)
 
-          actual_free(block; pool.stream_ordered)
+        actual_free(block; pool.stream_ordered)
 
-          freed_bytes += bytes
-          if freed_bytes >= target_bytes
-            return freed_bytes
-          end
+        freed_bytes += bytes
+        if freed_bytes >= target_bytes
+          return freed_bytes
         end
       end
-
-      return freed_bytes
     end
+
+    return freed_bytes
   end
 end
 
@@ -131,9 +129,7 @@ function alloc(pool::BinnedPool, bytes; stream::CuStream)
   end
 
   if block === nothing
-    @pool_timeit "0. repopulate" begin
-      pool_repopulate(pool)
-    end
+    pool_repopulate(pool)
 
     @lock pool.lock begin
       if pid != -1 && !isempty(pool.cache[pid])
@@ -143,19 +139,12 @@ function alloc(pool::BinnedPool, bytes; stream::CuStream)
   end
 
   if block === nothing
-    @pool_timeit "1. try alloc" begin
-      block = actual_alloc(bytes; pool.stream_ordered)
-    end
+    block = actual_alloc(bytes; pool.stream_ordered)
   end
 
   if block === nothing
-    @pool_timeit "2a. gc (incremental)" begin
-      GC.gc(false)
-    end
-
-    @pool_timeit "2b. repopulate" begin
-      pool_repopulate(pool)
-    end
+    GC.gc(false)
+    pool_repopulate(pool)
 
     @lock pool.lock begin
       if pid != -1 && !isempty(pool.cache[pid])
@@ -168,23 +157,13 @@ function alloc(pool::BinnedPool, bytes; stream::CuStream)
   #       would require proper block splitting + compaction to be any efficient.
 
   if block === nothing
-    @pool_timeit "3. reclaim" begin
-      reclaim(pool, bytes)
-    end
-
-    @pool_timeit "4. try alloc" begin
-      block = actual_alloc(bytes; pool.stream_ordered)
-    end
+    reclaim(pool, bytes)
+    block = actual_alloc(bytes; pool.stream_ordered)
   end
 
   if block === nothing
-    @pool_timeit "5a. gc (full)" begin
-      GC.gc(true)
-    end
-
-    @pool_timeit "5b. repopulate" begin
-      pool_repopulate(pool)
-    end
+    GC.gc(true)
+    pool_repopulate(pool)
 
     @lock pool.lock begin
       if pid != -1 && !isempty(pool.cache[pid])
@@ -194,23 +173,13 @@ function alloc(pool::BinnedPool, bytes; stream::CuStream)
   end
 
   if block === nothing
-    @pool_timeit "6. reclaim" begin
-      reclaim(pool, bytes)
-    end
-
-    @pool_timeit "7. try alloc" begin
-      block = actual_alloc(bytes; pool.stream_ordered)
-    end
+    reclaim(pool, bytes)
+    block = actual_alloc(bytes; pool.stream_ordered)
   end
 
   if block === nothing
-    @pool_timeit "8. reclaim everything" begin
-      reclaim(pool, typemax(Int))
-    end
-
-    @pool_timeit "9. try alloc" begin
-      block = actual_alloc(bytes, true; pool.stream_ordered)
-    end
+    reclaim(pool, typemax(Int))
+    block = actual_alloc(bytes, true; pool.stream_ordered)
   end
 
   if block !== nothing && pid != -1

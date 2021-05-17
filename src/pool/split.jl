@@ -248,40 +248,34 @@ function alloc(pool::SplitPool, sz; stream::CuStream)
     block = nothing
     for phase in 1:3
         if phase == 2
-            @pool_timeit "$phase.0 gc (incremental)" GC.gc(false)
+            GC.gc(false)
         elseif phase == 3
-            @pool_timeit "$phase.0 gc (full)" GC.gc(true)
+            GC.gc(true)
         end
 
-        @pool_timeit "$phase.1 repopulate" pool_repopulate(pool)
+        pool_repopulate(pool)
 
-        @pool_timeit "$phase.2 scan" begin
-            block = pool_scan(pool, cache, sz, max_overhead)
-        end
+        block = pool_scan(pool, cache, sz, max_overhead)
         block === nothing || break
 
-        @pool_timeit "$phase.3 alloc" begin
-            block = actual_alloc(sz; pool.stream_ordered)
-        end
+        block = actual_alloc(sz; pool.stream_ordered)
         block === nothing || break
 
         # we're out of memory, try freeing up some memory. this is a fairly expensive
         # operation, so start with the largest pool that is likely to free up much memory
         # without requiring many calls to free.
         for cache in (pool.huge, pool.large, pool.small)
-            @pool_timeit "$phase.4a reclaim" reclaim_single(pool, cache, sz)
-            @pool_timeit "$phase.4b alloc" block = actual_alloc(sz; pool.stream_ordered)
+            reclaim_single(pool, cache, sz)
+            block = actual_alloc(sz; pool.stream_ordered)
             block === nothing || break
         end
         block === nothing || break
 
         # last-ditch effort, reclaim everything
-        @pool_timeit "$phase.5a reclaim" begin
-            reclaim_single(pool, pool.huge)
-            reclaim_single(pool, pool.large)
-            reclaim_single(pool, pool.small)
-        end
-        @pool_timeit "$phase.5b alloc" block = actual_alloc(sz, phase==3; pool.stream_ordered)
+        reclaim_single(pool, pool.huge)
+        reclaim_single(pool, pool.large)
+        reclaim_single(pool, pool.small)
+        block = actual_alloc(sz, phase==3; pool.stream_ordered)
     end
 
     if block !== nothing
