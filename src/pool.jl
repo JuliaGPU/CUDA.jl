@@ -191,6 +191,7 @@ const pools = PerDevice{AbstractPool}(dev->begin
   else
       "binned"
   end
+
   pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", default_pool)
   pool = if pool_name == "none"
       NoPool(; stream_ordered=false)
@@ -208,6 +209,11 @@ const pools = PerDevice{AbstractPool}(dev->begin
   else
       error("Invalid memory pool '$pool_name'")
   end
+
+  if isinteractive() && !isassigned(__pool_cleanup)
+    __pool_cleanup[] = @async pool_cleanup()
+  end
+
   pool
 end)
 
@@ -463,6 +469,8 @@ function pool_cleanup()
   end
 end
 
+const __pool_cleanup = Ref{Task}()
+
 
 ## utilities
 
@@ -625,14 +633,5 @@ function memory_status(io::IO=stdout)
       Base.show_backtrace(io, stack)
       println(io)
     end
-  end
-end
-
-
-## init
-
-function __init_pool__()
-  if isinteractive()
-    @async pool_cleanup()
   end
 end

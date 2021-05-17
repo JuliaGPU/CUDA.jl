@@ -76,11 +76,28 @@ Base.show(io::IO, ::MIME"text/plain", err::CuError) = print(io, "CuError($(err.c
 
 ## API call wrapper
 
-# outlined functionality to avoid GC frame allocation
-@noinline function initialize_api()
+const __initialized_driver = Ref(false)
+@inline function initialize_api()
+    if !__initialized_driver[]
+        if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
+            error("Running under rr, which is incompatible with CUDA")
+        end
+        cuInit(0)
+
+        __initialized_driver[] = true
+        __init_driver__()
+    end
+    return
+end
+
+@inline function initialize_context()
     prepare_cuda_state()
     return
 end
+
+# outlined functionality to avoid GC frame allocation
+@noinline throw_stub_error() =
+    error("Cannot use the CUDA stub libraries. You either don't have the NVIDIA driver installed, or it is not properly discoverable.")
 @noinline function throw_api_error(res)
     if res == ERROR_OUT_OF_MEMORY
         throw(OutOfGPUMemoryError())
@@ -92,7 +109,9 @@ end
 macro check(ex)
     quote
         res = $(esc(ex))
-        if res != SUCCESS
+        if res == 0xffffffff
+            throw_stub_error()
+        elseif res != SUCCESS
             throw_api_error(res)
         end
 

@@ -195,34 +195,27 @@ function cuda_compat(driver_release=release(), toolkit_release=toolkit_release()
     return (cap=cap_support, ptx=ptx_support)
 end
 
+@memoize function supported_toolchain()
+    llvm_support = llvm_compat()
+    cuda_support = cuda_compat()
+
+    target_support = sort(collect(llvm_support.cap ∩ cuda_support.cap))
+    isempty(target_support) && error("Your toolchain does not support any device capability")
+
+    ptx_support = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
+    isempty(ptx_support) && error("Your toolchain does not support any PTX ISA")
+
+    @debug("Toolchain with LLVM $(LLVM.version()), CUDA driver $(version()) and toolkit $(toolkit_version()) supports devices $(verlist(target_support)); PTX $(verlist(ptx_support))")
+
+    return (cap=target_support, ptx=ptx_support)
+end
+
 # select the highest capability that is supported by both the toolchain and device
 @memoize function supported_capability(dev::CuDevice)
     dev_cap = capability(dev)
-    compat_caps = filter(cap -> cap <= dev_cap, target_support())
+    compat_caps = filter(cap -> cap <= dev_cap, supported_toolchain().cap)
     isempty(compat_caps) &&
         error("Device capability v$dev_cap not supported by available toolchain")
 
     return maximum(compat_caps)
-end
-
-
-## initialization
-
-const __target_support = Ref{Vector{VersionNumber}}()
-const __ptx_support = Ref{Vector{VersionNumber}}()
-
-target_support() = @after_init(__target_support[])
-ptx_support() = @after_init(__ptx_support[])
-
-function __init_compatibility__()
-    llvm_support = llvm_compat()
-    cuda_support = cuda_compat()
-
-    __target_support[] = sort(collect(llvm_support.cap ∩ cuda_support.cap))
-    isempty(__target_support[]) && error("Your toolchain does not support any device capability")
-
-    __ptx_support[] = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
-    isempty(__ptx_support[]) && error("Your toolchain does not support any PTX ISA")
-
-    @debug("Toolchain with LLVM $(LLVM.version()), CUDA driver $(version()) and toolkit $(toolkit_version()) supports devices $(verlist(__target_support[])); PTX $(verlist(__ptx_support[]))")
 end

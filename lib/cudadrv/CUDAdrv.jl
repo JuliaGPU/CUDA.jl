@@ -6,6 +6,8 @@ using Memoize
 
 using Printf
 
+const libcuda = Sys.iswindows() ? "nvcuda" : ( Sys.islinux() ? "libcuda.so.1" : "libcuda" )
+
 
 # low-level wrappers
 const CUdeviceptr = CuPtr{Cvoid}

@@ -141,7 +141,7 @@ else
     CUDA.version()
 end
 ## only consider devices that are fully supported by our CUDA toolkit, or tools can fail.
-## NOTE: we don't reuse target_support which is also bounded by LLVM support,
+## NOTE: we don't reuse supported_toolchain() which is also bounded by LLVM support,
 #        and is used to pick a codegen target regardless of the actual device.
 cuda_support = CUDA.cuda_compat()
 filter!(x->x.cap in cuda_support.cap, candidates)

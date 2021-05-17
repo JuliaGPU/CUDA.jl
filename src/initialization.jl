@@ -60,40 +60,21 @@ end
 
 ## deferred initialization API
 
-const __libcuda = Sys.iswindows() ? "nvcuda" : ( Sys.islinux() ? "libcuda.so.1" : "libcuda" )
-libcuda() = @after_init(__libcuda)
-
-function __runtime_init__()
-    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-        error("Running under rr, which is incompatible with CUDA")
+function __init__()
+    # register device overrides
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    if !precompiling
+        eval(overrides)
     end
+end
 
-    # initialize the CUDA driver
-    res = ccall((:cuInit, __libcuda), CUresult, (UInt32,), 0)
-    if res == 0xffffffff
-        error("Cannot use the CUDA stub libraries. You either don't have the NVIDIA driver installed, or it is not properly discoverable.")
-    elseif res != SUCCESS
-        throw_api_error(res)
-    end
-
+@noinline function __init_driver__()
     if version() < v"10.1"
         @warn "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.1 or higher (yours is for CUDA $(version()))"
     end
 
-    __init_dependencies__() || error("Could not find a suitable CUDA installation")
-
-    if toolkit_release() < v"10.1"
-        @warn "This version of CUDA.jl only supports CUDA 10.1 or higher (your toolkit provides CUDA $(toolkit_release()))"
-    elseif toolkit_release() > release()
-        @warn """You are using CUDA toolkit $(toolkit_release()) with a driver that only supports up to $(release()).
-                 It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
-    end
-
     resize!(__device_contexts, ndevices())
     fill!(__device_contexts, nothing)
-
-    # enable generation of FMA instructions to mimic behavior of nvcc
-    LLVM.clopts("-nvptx-fma-level=1")
 
     # ensure that operations executed by the REPL back-end finish before returning,
     # because displaying values happens on a different task (CUDA.jl#831)
@@ -103,20 +84,28 @@ function __runtime_init__()
                 try
                     $(ex)
                 finally
-                    $synchronize()
+                    $configured[] == 1 && $synchronize()
                 end
             end
         )
     end
 
-    # register device overrides
-    eval(overrides)
+    # enable generation of FMA instructions to mimic behavior of nvcc
+    LLVM.clopts("-nvptx-fma-level=1")
 
-    __init_compatibility__()
+    return
+end
 
-    __init_pool__()
+function __runtime_init__()
+    __init_dependencies__() || error("Could not find a suitable CUDA installation")
 
-    CUBLAS.__runtime_init__()
+    if toolkit_release() < v"10.1"
+        @warn "This version of CUDA.jl only supports CUDA 10.1 or higher (your toolkit provides CUDA $(toolkit_release()))"
+    elseif toolkit_release() > release()
+        @warn """You are using CUDA toolkit $(toolkit_release()) with a driver that only supports up to $(release()).
+                 It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
+    end
+
     return
 end
 
