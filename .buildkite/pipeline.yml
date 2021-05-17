@@ -62,6 +62,8 @@ steps:
       cuda: "*"
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 120
+    soft_fail:
+      - exit_status: 1
 
 
     # CUDA versions (from artifacts)
