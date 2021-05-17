@@ -29,6 +29,7 @@ CUDA.allowscalar(false)
 # enable debug timers
 using TimerOutputs
 TimerOutputs.enable_debug_timings(CUDA)
+reset_timer!(CUDA.to)
 
 
 ## entry point
