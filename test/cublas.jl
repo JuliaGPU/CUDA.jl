@@ -51,6 +51,17 @@ Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
 
         @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
         @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
+
+        # swap is an extension
+        x = rand(T, m)
+        y = rand(T, m)
+        dx = CuArray(x)
+        dy = CuArray(y)
+        CUBLAS.swap!(m, dx, dy)
+        h_x = collect(dx)
+        h_y = collect(dy)
+        @test h_x ≈ y
+        @test h_y ≈ x
     end # level 1 testset
     @testset for T in [Float16, ComplexF16]
         A = CuVector(rand(T, m)) # CUDA.rand doesn't work with 16 bit types yet
@@ -99,6 +110,17 @@ end
             A = rand(elty, m + 1, m )
             dA = CuArray(A)
             @test_throws DimensionMismatch mul!(dy, dA, dx)
+            x = rand(elty, m)
+            A = rand(elty, n, m)
+            dx = CuArray(x)
+            dA = CuArray(A)
+            alpha = rand(elty)
+            dy = CUBLAS.gemv('N', alpha, dA, dx)
+            hy = collect(dy)
+            @test hy ≈ alpha * A * x
+            dy = CUBLAS.gemv('N', dA, dx)
+            hy = collect(dy)
+            @test hy ≈ A * x
         end
 
         @testset "mul! y = $f(A) * x * $Ts(a) + y * $Ts(b)" for f in (identity, transpose, adjoint), Ts in (Int, elty)
@@ -146,6 +168,11 @@ end
                 BLAS.gbmv!('C',m,kl,ku,alpha,Ab,y,beta,x)
                 h_x = Array(d_x)
                 @test x ≈ h_x
+                # test alpha=1 version without y
+                d_y = CUBLAS.gbmv('N',m,kl,ku,d_Ab,d_x)
+                y   = BLAS.gbmv('N',m,kl,ku,Ab,x)
+                h_y = Array(d_y)
+                @test y ≈ h_y
             end
             x = rand(elty,n)
             d_x = CuArray(x)
@@ -313,6 +340,7 @@ end
             # compare
             h_y = Array(d_y)
             @test y ≈ h_y
+            @test_throws DimensionMismatch CUBLAS.trmv!('U','N','N',dA,CUDA.rand(elty,m+1))
         end
 
         @testset "trmv" begin
@@ -368,6 +396,7 @@ end
             # compare
             h_y = Array(d_y)
             @test y ≈ h_y
+            @test_throws DimensionMismatch CUBLAS.trsv!('U','N','N',dA,CUDA.rand(elty,m+1))
         end
 
         @testset "trsv" begin
@@ -1133,6 +1162,12 @@ end
             # C = (alpha*A)*transpose(B) + beta*C
             d_syrkx_C = CUBLAS.syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_syrkx_C)
             final_C = (alpha*syrkx_A)*transpose(syrkx_B) + beta*syrkx_C
+            # move to host and compare
+            h_C = Array(d_syrkx_C)
+            @test triu(final_C) ≈ triu(h_C)
+            # C = A*transpose(B)
+            d_syrkx_C = CUBLAS.syrkx('U','N',d_syrkx_A,d_syrkx_B)
+            final_C   = syrkx_A*transpose(syrkx_B)
             # move to host and compare
             h_C = Array(d_syrkx_C)
             @test triu(final_C) ≈ triu(h_C)
