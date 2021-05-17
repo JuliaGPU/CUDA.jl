@@ -63,41 +63,12 @@ end
 const __libcuda = Sys.iswindows() ? "nvcuda" : ( Sys.islinux() ? "libcuda.so.1" : "libcuda" )
 libcuda() = @after_init(__libcuda)
 
-# load-time initialization: only perform mininal checks here
-function __init__()
-    if Base.libllvm_version != LLVM.version()
-        error("LLVM $(LLVM.version()) incompatible with Julia's LLVM $(Base.libllvm_version)")
-    end
-
-    # enable generation of FMA instructions to mimic behavior of nvcc
-    LLVM.clopts("-nvptx-fma-level=1")
-
-    # ensure that operations executed by the REPL back-end finish before returning,
-    # because displaying values happens on a different task (CUDA.jl#831)
-    if isdefined(Base, :active_repl_backend)
-        push!(Base.active_repl_backend.ast_transforms, ex->
-            quote
-                try
-                    $(ex)
-                finally
-                    $configured[] == 1 && $synchronize()
-                end
-            end
-        )
-    end
-
-    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    if !precompiling
-        eval(overrides)
-    end
-end
-
 function __runtime_init__()
     if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
         error("Running under rr, which is incompatible with CUDA")
     end
 
-    @debug "Initializing CUDA driver"
+    # initialize the CUDA driver
     res = ccall((:cuInit, __libcuda), CUresult, (UInt32,), 0)
     if res == 0xffffffff
         error("Cannot use the CUDA stub libraries. You either don't have the NVIDIA driver installed, or it is not properly discoverable.")
@@ -120,6 +91,26 @@ function __runtime_init__()
 
     resize!(__device_contexts, ndevices())
     fill!(__device_contexts, nothing)
+
+    # enable generation of FMA instructions to mimic behavior of nvcc
+    LLVM.clopts("-nvptx-fma-level=1")
+
+    # ensure that operations executed by the REPL back-end finish before returning,
+    # because displaying values happens on a different task (CUDA.jl#831)
+    if isdefined(Base, :active_repl_backend)
+        push!(Base.active_repl_backend.ast_transforms, ex->
+            quote
+                try
+                    $(ex)
+                finally
+                    $synchronize()
+                end
+            end
+        )
+    end
+
+    # register device overrides
+    eval(overrides)
 
     __init_compatibility__()
 
