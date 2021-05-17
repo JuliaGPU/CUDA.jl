@@ -52,6 +52,30 @@ Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
         @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
         @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
     end # level 1 testset
+    @testset for T in [Float16, ComplexF16]
+        A = CuVector(rand(T, m)) # CUDA.rand doesn't work with 16 bit types yet
+        B = CuArray{T}(undef, m)
+        CUBLAS.copy!(m,A,B)
+        @test Array(A) == Array(B)
+
+        @test testf(dot, rand(T, m), rand(T, m))
+        @test testf(*, transpose(rand(T, m)), rand(T, m))
+        @test testf(*, rand(T, m)', rand(T, m))
+        @test testf(norm, rand(T, m))
+        @test testf(BLAS.axpy!, Ref(rand()), rand(T, m), rand(T, m))
+        @test testf(BLAS.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
+
+        if T <: Complex
+            @test testf(dot, rand(T, m), rand(T, m))
+            x = rand(T, m)
+            y = rand(T, m)
+            dx = CuArray(x)
+            dy = CuArray(y)
+            dz = dot(dx, dy)
+            z = dot(x, y)
+            @test dz ≈ z
+        end
+    end # level 1 testset
 end
 
 ############################################################################################

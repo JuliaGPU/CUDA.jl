@@ -84,13 +84,15 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},Cu
     descA = CuSparseMatrixDescriptor(A)
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
-
+    compute_type = T == Float16 && version() >= v"11.4.0" ? Float32 : T
+    α = convert(compute_type, alpha)
+    β = convert(compute_type, beta)
     @workspace size=@argout(
-            cusparseSpMV_bufferSize(handle(), transa, Ref{T}(alpha), descA, descX, Ref{T}(beta),
-                                    descY, T, CUSPARSE_MV_ALG_DEFAULT, out(Ref{Csize_t}()))
+            cusparseSpMV_bufferSize(handle(), transa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
+                                    descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, out(Ref{Csize_t}()))
         )[] buffer->begin
-            cusparseSpMV(handle(), transa, Ref{T}(alpha), descA, descX, Ref{T}(beta),
-                         descY, T, CUSPARSE_MV_ALG_DEFAULT, buffer)
+            cusparseSpMV(handle(), transa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
+                         descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, buffer)
         end
     Y
 end
@@ -116,13 +118,15 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::Dens
     descA = CuSparseMatrixDescriptor(A)
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
-
+    compute_type = T == Float16 && version() >= v"11.4.0" ? Float32 : T
+    α = convert(compute_type, alpha)
+    β = convert(compute_type, beta)
     @workspace size=@argout(
-            cusparseSpMV_bufferSize(handle(), ctransa, Ref{T}(alpha), descA, descX, Ref{T}(beta),
-                                    descY, T, CUSPARSE_MV_ALG_DEFAULT, out(Ref{Csize_t}()))
+            cusparseSpMV_bufferSize(handle(), ctransa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
+                                    descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, out(Ref{Csize_t}()))
         )[] buffer->begin
-            cusparseSpMV(handle(), ctransa, Ref{T}(alpha), descA, descX, Ref{T}(beta),
-                         descY, T, CUSPARSE_MV_ALG_DEFAULT, buffer)
+            cusparseSpMV(handle(), ctransa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
+                         descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, buffer)
         end
 
     return Y

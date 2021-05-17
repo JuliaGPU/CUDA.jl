@@ -88,6 +88,9 @@ for (fname, elty) in ((:cublasDcopy_v2,:Float64),
         end
     end
 end
+function copy!(n::Integer, x::StridedCuArray{T}, y::StridedCuArray{T}) where {T <: Union{Float16, ComplexF16}}
+    copyto!(y, x) # bad
+end
 
 ## scal
 for (fname, elty) in ((:cublasDscal_v2,:Float64),
@@ -103,6 +106,19 @@ for (fname, elty) in ((:cublasDscal_v2,:Float64),
         end
     end
 end
+function scal!(n::Integer, alpha::Number, x::StridedCuArray{Float16})
+    if version() > v"10.1"
+        α = convert(Float32, alpha)
+        cublasScalEx(handle(), n, Ref{Float32}(α), Float32, x, Float16, stride(x, 1), Float32)
+        return x
+    else
+        wide_x = widen.(x)
+        scal!(n, alpha, wide_x)
+        thin_x = convert(typeof(x), wide_x)
+        copyto!(x, thin_x)
+        return x
+    end
+end
 # specific variants in case x is complex and alpha is real
 for (fname, elty, celty) in ((:cublasCsscal_v2, :Float32, :ComplexF32),
                              (:cublasZdscal_v2, :Float64, :ComplexF64))
@@ -114,6 +130,13 @@ for (fname, elty, celty) in ((:cublasCsscal_v2, :Float32, :ComplexF32),
             x
         end
     end
+end
+function scal!(n::Integer, alpha::Number, x::StridedCuArray{ComplexF16})
+    wide_x = widen.(x)
+    scal!(n, alpha, wide_x)
+    thin_x = convert(typeof(x), wide_x)
+    copyto!(x, thin_x)
+    return x
 end
 
 ## dot, dotc, dotu
@@ -133,6 +156,21 @@ for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
         end
     end
 end
+function dot(n::Integer, x::DenseCuArray{Float16}, y::DenseCuArray{Float16})
+    if version() > v"10.1"
+        result = Ref{Float16}()
+        cublasDotEx(handle(), n, x, Float16, stride(x, 1), y, Float16, stride(y, 1), result, Float16, Float32)
+        return result[]
+    else
+        return convert(Float16, dot(n, convert(DenseCuArray{Float32}, x), convert(DenseCuArray{Float32}, y)))
+    end
+end
+function dotc(n::Integer, x::DenseCuArray{ComplexF16}, y::DenseCuArray{ComplexF16})
+    return convert(ComplexF16, dotc(n, convert(DenseCuArray{ComplexF32}, x), convert(DenseCuArray{ComplexF32}, y)))
+end
+function dotu(n::Integer, x::DenseCuArray{ComplexF16}, y::DenseCuArray{ComplexF16})
+    return convert(ComplexF16, dotu(n, convert(DenseCuArray{ComplexF32}, x), convert(DenseCuArray{ComplexF32}, y)))
+end
 
 ## nrm2
 for (fname, elty, ret_type) in ((:cublasDnrm2_v2,:Float64,:Float64),
@@ -149,6 +187,23 @@ for (fname, elty, ret_type) in ((:cublasDnrm2_v2,:Float64,:Float64),
     end
 end
 nrm2(x::StridedCuArray) = nrm2(length(x), x)
+
+function nrm2(n::Integer, x::StridedCuArray{Float16})
+    if version() > v"10.1"
+        result = Ref{Float16}()
+        cublasNrm2Ex(handle(), n, x, Float16, stride(x, 1), result, Float16, Float32)
+        return result[]
+    else
+        wide_x = widen.(x)
+        nrm    = nrm2(n, wide_x)
+        return convert(Float16, nrm)
+    end
+end
+function nrm2(n::Integer, x::StridedCuArray{ComplexF16})
+    wide_x = widen.(x)
+    nrm    = nrm2(n, wide_x)
+    return convert(ComplexF16, nrm)
+end
 
 ## asum
 for (fname, elty, ret_type) in ((:cublasDasum_v2,:Float64,:Float64),
@@ -179,6 +234,29 @@ for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
             dy
         end
     end
+end
+
+function axpy!(n::Integer, alpha::Number, dx::StridedCuArray{Float16}, dy::StridedCuArray{Float16})
+    if version() >= v"10.1"
+        α = convert(Float32, alpha)
+        cublasAxpyEx(handle(), n, Ref{Float32}(α), Float32, dx, Float16, stride(dx, 1), dy, Float16, stride(dy, 1), Float32)
+        return dy
+    else
+        wide_x = widen.(dx)
+        wide_y = widen.(dy)
+        axpy!(n, alpha, wide_x, wide_y)
+        thin_y = convert(typeof(dy), wide_y)
+        copyto!(dy, thin_y)
+        return dy
+    end
+end
+function axpy!(n::Integer, alpha::Number, dx::StridedCuArray{ComplexF16}, dy::StridedCuArray{ComplexF16})
+    wide_x = widen.(dx)
+    wide_y = widen.(dy)
+    axpy!(n, alpha, wide_x, wide_y)
+    thin_y = convert(typeof(dy), wide_y)
+    copyto!(dy, thin_y)
+    return dy
 end
 
 ## rot
@@ -219,7 +297,7 @@ function axpby!(n::Integer,
                 alpha::Number,
                 dx::StridedCuArray{T},
                 beta::Number,
-                dy::StridedCuArray{T}) where T <: CublasFloat
+                dy::StridedCuArray{T}) where T <: Union{Float16, ComplexF16, CublasFloat}
             scal!(n, beta, dy)
             axpy!(n, alpha, dx, dy)
             dy
@@ -742,8 +820,8 @@ function gemmExComputeType(TA, TB, TC, m, k, n)
         return nothing
     end
 
-    # JuliaGPU/CUDA.jl#609: Float16-gemmEx doesn't seem to work on sm_52
-    if Float16 in sig && cap <= v"5.2"
+    # source: CUBLAS Features and Technical Specifications
+    if Float16 in sig && cap < v"5.3"
         return nothing
     end
 
