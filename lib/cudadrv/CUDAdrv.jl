@@ -2,9 +2,11 @@ using .APIUtils
 
 using CEnum
 
-using Memoize
+using Memoization
 
 using Printf
+
+const libcuda = Sys.iswindows() ? "nvcuda" : ( Sys.islinux() ? "libcuda.so.1" : "libcuda" )
 
 
 # low-level wrappers

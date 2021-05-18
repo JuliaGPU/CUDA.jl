@@ -16,12 +16,28 @@ using LinearAlgebra
 
 using BFloat16s
 
-using Memoize
+using Memoization
 
 using ExprTools
 
-using TimerOutputs
-const to = TimerOutput()
+# XXX: to be replaced by a JLL
+include("../deps/Deps.jl")
+using .Deps
+
+# only use TimerOutputs on non latency-critical CI, in part because
+# @timeit_debug isn't truely zero-cost (KristofferC/TimerOutputs.jl#120)
+if getenv("CI", false) && !getenv("BENCHMARKS", false)
+    using TimerOutputs
+    const to = TimerOutput()
+
+    macro timeit_ci(args...)
+        TimerOutputs.timer_expr(CUDA, false, :($CUDA.to), args...)
+    end
+else
+    macro timeit_ci(args...)
+        esc(args[end])
+    end
+end
 
 
 ## source code includes
@@ -36,11 +52,6 @@ include("../lib/cudadrv/CUDAdrv.jl")
 include("initialization.jl")
 include("state.jl")
 include("debug.jl")
-
-# binary dependencies
-include("../deps/discovery.jl")
-include("../deps/compatibility.jl")
-include("../deps/bindeps.jl")
 
 # device functionality (needs to be loaded first, because of generated functions)
 include("device/utils.jl")

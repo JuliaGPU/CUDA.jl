@@ -207,9 +207,26 @@ function device()
     task_local_state!().device
 end
 
+const __device_contexts_lock = ReentrantLock()
 const __device_contexts = Union{Nothing,CuContext}[]
-device_context(i) = @after_init(@inbounds __device_contexts[i])
-device_context!(i, ctx) = @after_init(@inbounds __device_contexts[i] = ctx)
+@noinline function __init_device_contexts()
+    resize!(__device_contexts, ndevices())
+    fill!(__device_contexts, nothing)
+    return
+end
+function device_context(i)
+    @lock __device_contexts_lock begin
+        isempty(__device_contexts) && __init_device_contexts()
+        @inbounds __device_contexts[i]
+    end
+end
+function device_context!(i, ctx)
+    @lock __device_contexts_lock begin
+        isempty(__device_contexts) && __init_device_contexts()
+        @inbounds __device_contexts[i] = ctx
+    end
+    return
+end
 
 function context(dev::CuDevice)
     devidx = deviceid(dev)+1

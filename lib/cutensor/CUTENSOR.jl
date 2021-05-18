@@ -8,7 +8,7 @@ using ..CUDA: libcutensor,  @retry_reclaim
 
 using CEnum
 
-using Memoize
+using Memoization
 
 using DataStructures
 

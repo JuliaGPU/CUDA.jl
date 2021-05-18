@@ -112,7 +112,7 @@ end
 
 # check that CI is using the requested toolkit
 toolkit_release = CUDA.toolkit_release() # ensure artifacts are downloaded
-if parse(Bool, get(ENV, "CI", "false")) && haskey(ENV, "JULIA_CUDA_VERSION")
+if CUDA.getenv("CI", false) && haskey(ENV, "JULIA_CUDA_VERSION")
   @test toolkit_release == VersionNumber(ENV["JULIA_CUDA_VERSION"])
 end
 
@@ -141,7 +141,7 @@ else
     CUDA.version()
 end
 ## only consider devices that are fully supported by our CUDA toolkit, or tools can fail.
-## NOTE: we don't reuse target_support which is also bounded by LLVM support,
+## NOTE: we don't reuse supported_toolchain() which is also bounded by LLVM support,
 #        and is used to pick a codegen target regardless of the actual device.
 cuda_support = CUDA.cuda_compat()
 filter!(x->x.cap in cuda_support.cap, candidates)
@@ -394,10 +394,12 @@ try
                 end
 
                 # fetch worker timings
-                to = remotecall_fetch(p) do
-                    CUDA.to
+                if isdefined(CUDA, :to)
+                    to = remotecall_fetch(p) do
+                        CUDA.to
+                    end
+                    push!(timings, to)
                 end
-                push!(timings, to)
 
                 if p != 1
                     # Free up memory =)
@@ -438,13 +440,15 @@ elapsed = canonicalize(Dates.CompoundPeriod(t1-t0))
 println("Testing finished in $elapsed")
 
 # report work timings
-println()
-for to in timings
-    TimerOutputs.merge!(CUDA.to, to)
+if isdefined(CUDA, :to)
+    println()
+    for to in timings
+        TimerOutputs.merge!(CUDA.to, to)
+    end
+    TimerOutputs.complement!(CUDA.to)
+    show(CUDA.to, sortby=:name)
+    println()
 end
-TimerOutputs.complement!(CUDA.to)
-show(CUDA.to, sortby=:name)
-println()
 
 # construct a testset to render the test results
 o_ts = Test.DefaultTestSet("Overall")

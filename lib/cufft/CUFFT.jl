@@ -10,7 +10,7 @@ using CEnum
 
 using Reexport
 
-using Memoize
+using Memoization
 
 
 # core library

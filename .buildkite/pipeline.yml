@@ -259,6 +259,7 @@ steps:
       - JuliaCI/julia#v1:
           version: 1.6
     env:
+      BENCHMARKS: "true"
       CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
       CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
       CODESPEED_COMMIT: "$BUILDKITE_COMMIT"

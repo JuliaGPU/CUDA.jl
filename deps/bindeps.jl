@@ -4,120 +4,71 @@ using CompilerSupportLibraries_jll
 using LazyArtifacts
 import Libdl
 
+const dependency_lock = ReentrantLock()
 
-## global state
+macro initialize_ref(ref, ex)
+    quote
+        ref = $ref
+        # test and test-and-set
+        if !isassigned(ref)
+            Base.@lock dependency_lock begin
+                if !isassigned(ref)
+                    $ex
+                end
+            end
+        end
 
-const __toolkit_origin = Ref{Symbol}()
-
-"""
-    toolkit_origin()
-
-Returns the origin of the CUDA toolkit in use (either :artifact, or :local).
-"""
-toolkit_origin() = @after_init(__toolkit_origin[])
-
-const __toolkit_version = Ref{VersionNumber}()
-
-"""
-    toolkit_version()
-
-Returns the version of the CUDA toolkit in use.
-"""
-toolkit_version() = @after_init(__toolkit_version[])
-
-"""
-    toolkit_release()
-
-Returns the CUDA release part of the version as returned by [`version`](@ref).
-"""
-toolkit_release() = @after_init(VersionNumber(__toolkit_version[].major, __toolkit_version[].minor))
-
-# if using a local toolkit, this contains a list of relevant directories
-const __toolkit_dirs = Ref{Vector{String}}()
-
-const __nvdisasm = Ref{String}()
-const __compute_sanitizer = Ref{Union{Nothing,String}}()
-const __libdevice = Ref{String}()
-const __libcudadevrt = Ref{String}()
-const __libcupti = Ref{Union{Nothing,String}}()
-const __libnvtx = Ref{Union{Nothing,String}}()
-const __libcublas = Ref{String}()
-const __libcusparse = Ref{String}()
-const __libcusolver = Ref{String}()
-const __libcufft = Ref{String}()
-const __libcurand = Ref{String}()
-const __libcusolverMg = Ref{Union{Nothing,String}}(nothing)
-
-nvdisasm() = @after_init(__nvdisasm[])
-function compute_sanitizer()
-    @after_init begin
-        has_compute_sanitizer() ||
-            error("This functionality is unavailabe as compute-sanitizer is missing.")
-        __compute_sanitizer[]
-    end
-end
-libdevice() = @after_init(__libdevice[])
-libcudadevrt() = @after_init(__libcudadevrt[])
-function libcupti()
-    @after_init begin
-        has_cupti() ||
-            error("This functionality is unavailable as CUPTI is missing.")
-        __libcupti[]
-    end
-end
-function libnvtx()
-    @after_init begin
-        has_nvtx() ||
-            error("This functionality is unavailable as NVTX is missing.")
-        __libnvtx[]
     end
 end
 
-export has_compute_sanitizer, has_cupti, has_nvtx
-has_compute_sanitizer() = @after_init(__compute_sanitizer[]) !== nothing
-has_cupti() = @after_init(__libcupti[]) !== nothing
-has_nvtx()  = @after_init(__libnvtx[]) !== nothing
 
-libcublas()   = @after_init(__libcublas[])
-libcusparse() = @after_init(__libcusparse[])
-libcusolver() = @after_init(__libcusolver[])
-libcufft()    = @after_init(__libcufft[])
-libcurand()   = @after_init(__libcurand[])
-function libcusolvermg()
-    @after_init begin
-        has_cusolvermg() ||
-            error("This functionality is unavailabe as CUSOLVERMG is missing.")
-        __libcusolverMg[]
+#
+# CUDA toolkit
+#
+
+export toolkit
+
+abstract type AbstractToolkit end
+
+struct ArtifactToolkit <: AbstractToolkit
+    version::VersionNumber
+    artifact::String
+end
+
+struct LocalToolkit <: AbstractToolkit
+    version::VersionNumber
+    dirs::Vector{String}
+end
+
+const __toolkit = Ref{AbstractToolkit}()
+
+function toolkit()
+    @initialize_ref __toolkit begin
+        toolkit = nothing
+
+        # CI runs in a well-defined environment, so prefer a local CUDA installation there
+        if getenv("CI", false) && !haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER")
+            toolkit = find_local_cuda()
+        end
+
+        if toolkit === nothing && getenv("JULIA_CUDA_USE_BINARYBUILDER", true)
+            toolkit = find_artifact_cuda()
+        end
+
+        # if the user didn't specifically request an artifact version, look for a local installation
+        if toolkit === nothing && !haskey(ENV, "JULIA_CUDA_VERSION")
+            toolkit = find_local_cuda()
+        end
+
+        if toolkit === nothing
+            error("Could not find a suitable CUDA installation")
+        end
+
+        __toolkit[] = toolkit
+        CUDA.__init_toolkit__()
     end
+    __toolkit[]
 end
-
-export has_cusolvermg
-has_cusolvermg() = @after_init(__libcusolverMg[]) !== nothing
-
-
-## discovery
-
-# utilities to look up stuff in the artifact (at known locations)
-artifact_binary(artifact_dir, name) = joinpath(artifact_dir, "bin", Sys.iswindows() ? "$name.exe" : name)
-artifact_static_library(artifact_dir, name) = joinpath(artifact_dir, "lib", Sys.iswindows() ? "$name.lib" : "lib$name.a")
-artifact_file(artifact_dir, path) = joinpath(artifact_dir, path)
-function artifact_library(artifact, name, version)
-    dir = joinpath(artifact, Sys.iswindows() ? "bin" : "lib")
-    all_names = library_versioned_names(name, version)
-    for name in all_names
-        path = joinpath(dir, name)
-        ispath(path) && return path
-    end
-    error("Could not find $name ($(join(all_names, ", ", " or "))) in $dir")
-end
-
-function artifact_cuda_library(artifact, library, toolkit_version)
-    version = cuda_library_version(library, toolkit_version)
-    name = get(cuda_library_names, library, library)
-    artifact_library(artifact, name, version)
-end
-
-# CUDA
 
 # workaround @artifact_str eagerness on unsupported platforms by passing a variable
 function cuda_artifact(id, cuda::VersionNumber)
@@ -137,7 +88,7 @@ const cuda_toolkits = [
     (release=v"10.1", version=v"10.1.243", preferred=true),
 ]
 
-function use_artifact_cuda()
+function find_artifact_cuda()
     @debug "Trying to use artifacts..."
 
     # select compatible artifacts
@@ -149,7 +100,7 @@ function use_artifact_cuda()
         end
         isempty(candidate_toolkits) && @debug "Requested CUDA version $wanted is not provided by any artifact"
     else
-        driver_release = release()
+        driver_release = CUDA.release()
         @debug "Selecting artifacts based on driver compatibility $driver_release"
         candidate_toolkits = filter(cuda_toolkits) do toolkit
             toolkit.preferred && toolkit.release <= driver_release
@@ -172,284 +123,432 @@ function use_artifact_cuda()
         return false
     end
 
-    __toolkit_version[] = artifact.version
-
-    assert_artifact_file(path) =
-        isfile(path) ||
-            error("""Could not find $(basename(path)) in $(dirname(path))!
-                     This is a bug; please file an issue with a verbose directory listing of $(dirname(path)).""")
-
-    __nvdisasm[] = artifact_binary(artifact.dir, "nvdisasm")
-    assert_artifact_file(__nvdisasm[])
-    __compute_sanitizer[] = artifact_binary(artifact.dir, "compute-sanitizer")
-
-    __libcupti[] = artifact_cuda_library(artifact.dir, "cupti", artifact.version)
-    assert_artifact_file(__libcupti[])
-    __libnvtx[] = artifact_cuda_library(artifact.dir, "nvtx", artifact.version)
-    assert_artifact_file(__libnvtx[])
-
-    __libcudadevrt[] = artifact_static_library(artifact.dir, "cudadevrt")
-    assert_artifact_file(__libcudadevrt[])
-    __libdevice[] = artifact_file(artifact.dir, joinpath("share", "libdevice", "libdevice.10.bc"))
-    assert_artifact_file(__libdevice[])
-
-    # HACK: eagerly load cublasLt, required by cublas (but with the same version), to prevent
-    #       a system CUDA installation from messing with our artifacts (JuliaGPU/CUDA.jl#609)
-    if artifact.version >= v"10.1"
-        version = cuda_library_version("cublas", artifact.version)
-        path = artifact_library(artifact.dir, "cublasLt", version)
-        Libdl.dlopen(path)
-    end
-
-    if artifact.version >= v"10.1"
-        lib_list =  ("cublas", "cusparse", "cusolver", "cufft", "curand", "cusolverMg")
-    else
-        lib_list =  ("cublas", "cusparse", "cusolver", "cufft", "curand")
-    end
-    for library in lib_list
-        handle = getfield(CUDA, Symbol("__lib$library"))
-
-        handle[] = artifact_cuda_library(artifact.dir, library, artifact.version)
-        Libdl.dlopen(handle[])
-    end
-
-    @debug "Using CUDA $(__toolkit_version[]) from an artifact at $(artifact.dir)"
-    __toolkit_origin[] = :artifact
-    return true
+    @debug "Using CUDA $(artifact.version) from an artifact at $(artifact.dir)"
+    return ArtifactToolkit(artifact.version, artifact.dir)
 end
 
-function use_local_cuda()
+const __temp_libcusolver = Ref{Union{Nothing,String}}[]
+function find_local_cuda()
     @debug "Trying to use local installation..."
 
-    __toolkit_dirs[] = find_toolkit()
-    let path = find_cuda_binary("nvdisasm", __toolkit_dirs[])
+    dirs = find_toolkit()
+    let path = find_cuda_binary("nvdisasm", dirs)
         if path === nothing
             @debug "Could not find nvdisasm"
-            return false
+            return nothing
         end
         __nvdisasm[] = path
     end
 
-    __compute_sanitizer[] = find_cuda_binary("compute-sanitizer", __toolkit_dirs[])
-
-    cuda_version = parse_toolkit_version("nvdisasm", __nvdisasm[])
-    if cuda_version === nothing
-        return false
-    end
-
-    for library in ("cublas", "cusparse", "cusolver", "cufft", "curand")
-        handle = getfield(CUDA, Symbol("__lib$library"))
-
-        path = find_cuda_library(library, __toolkit_dirs[], cuda_version)
-        if path === nothing
-            @debug "Could not find $library"
-            return false
-        end
-        handle[] = path
+    version = parse_toolkit_version("nvdisasm", __nvdisasm[])
+    if version === nothing
+        return nothing
     end
 
     # CUDA 11.1 Update 1 ships the same `nvdisasm` as 11.1 GA, so look at the version of
     # CUSOLVER (which has a handle-less version getter that does not initialize)
     # to be sure which CUDA we're dealing with (it only matters for CUPTI).
-    if cuda_version == v"11.1.0"
-        __libcusolver[] = find_cuda_library("cusolver", __toolkit_dirs[], v"11.1.0")
-        if __libcusolver[] === nothing
-            __libcusolver[] = find_cuda_library("cusolver", __toolkit_dirs[], v"11.1.1")
+    if version == v"11.1.0"
+        __temp_libcusolver[] = find_cuda_library("cusolver", dirs, v"11.1.0")
+        if __temp_libcusolver[] === nothing
+            __temp_libcusolver[] = find_cuda_library("cusolver", dirs, v"11.1.1")
         end
-        if __libcusolver[] === nothing
+        if __temp_libcusolver[] === nothing
             @debug "Could not disambiguate CUDA 11.1 from Update 1 due to not finding CUSOLVER"
         else
             # nothing is initialized at this point, so we need to use raw ccalls.
-            version = Ref{Cint}()
-            @assert 0 == ccall((:cusolverGetVersion, __libcusolver[]), Cint, (Ref{Cint},), version)
-            if version[] == 11001
-                cuda_version = v"11.1.1"
-            elseif version[] != 11000
-                @debug "Could not disambiguate CUDA 11.1 from Update 1 with CUSOLVER version $(version[])"
+            cusolver_version = Ref{Cint}()
+            @assert 0 == ccall((:cusolverGetVersion, __temp_libcusolver[]), Cint, (Ref{Cint},), cusolver_version)
+            if cusolver_version[] == 11001
+                version = v"11.1.1"
+            elseif cusolver_version[] != 11000
+                @debug "Could not disambiguate CUDA 11.1 from Update 1 with CUSOLVER version $(cusolver_version[])"
             end
         end
     end
-    __toolkit_version[] = cuda_version
 
-    __libcupti[] = find_cuda_library("cupti", __toolkit_dirs[], cuda_version)
-    __libnvtx[] = find_cuda_library("nvtx", __toolkit_dirs[], cuda_version)
-
-    let path = find_libcudadevrt(__toolkit_dirs[])
-        if path === nothing
-            @debug "Could not find libcudadevrt"
-            return false
-        end
-        __libcudadevrt[] = path
-    end
-    let path = find_libdevice(__toolkit_dirs[])
-        if path === nothing
-            @debug "Could not find libdevice"
-            return false
-        end
-        __libdevice[] = path
-    end
-
-    for (library, required) in (("cublas", true), ("cusparse", true), ("cusolver", true),
-                                ("cufft", true), ("curand", true), ("cusolverMg", false))
-        handle = getfield(CUDA, Symbol("__lib$library"))
-        path = find_cuda_library(library, __toolkit_dirs[], cuda_version)
-        if path === nothing
-            @debug "Could not find $library"
-            if required
-                return false
-            else
-                handle[] = nothing
-            end
-        else
-            handle[] = path
-        end
-    end
-    @debug "Found local CUDA $(cuda_version) at $(join(__toolkit_dirs[], ", "))"
-    __toolkit_origin[] = :local
-    return true
+    @debug "Found local CUDA $(version) at $(join(dirs, ", "))"
+    return LocalToolkit(version, dirs)
 end
 
-# CUDNN
 
-export has_cudnn
+## properties
+
+export toolkit_origin, toolkit_version, toolkit_release
+
+"""
+    toolkit_origin()
+
+Returns the origin of the CUDA toolkit in use (either :artifact, or :local).
+"""
+toolkit_origin() = toolkit_origin(toolkit())
+toolkit_origin(::ArtifactToolkit) = :artifact
+toolkit_origin(::LocalToolkit) = :local
+
+"""
+    toolkit_version()
+
+Returns the version of the CUDA toolkit in use.
+"""
+toolkit_version() = toolkit().version
+
+"""
+    toolkit_release()
+
+Returns the CUDA release part of the version as returned by [`version`](@ref).
+"""
+toolkit_release() = VersionNumber(toolkit_version().major, toolkit_version().minor)
+
+
+## binaries
+
+export nvdisasm, compute_sanitizer, has_compute_sanitizer
+
+# nvdisasm: used for reflection (decompiling SASS code)
+const __nvdisasm = Ref{String}()
+function nvdisasm()
+    @initialize_ref __nvdisasm begin
+        __nvdisasm[] = find_binary(toolkit(), "nvdisasm")
+    end
+    __nvdisasm[]
+end
+
+# compute-santizer: used by the test suite
+const __compute_sanitizer = Ref{Union{Nothing,String}}()
+function compute_sanitizer(throw_error::Bool=true)
+    @initialize_ref __compute_sanitizer begin
+        __compute_sanitizer[] = find_binary(toolkit(), "compute-sanitizer"; optional=true)
+    end
+    if __compute_sanitizer[] === nothing && throw_error
+        error("This functionality is unavailabe as compute-sanitizer is missing.")
+    end
+    __compute_sanitizer[]
+end
+has_compute_sanitizer() = compute_sanitizer(throw_error=false) !== nothing
+
+artifact_binary(artifact_dir, name) = joinpath(artifact_dir, "bin", Sys.iswindows() ? "$name.exe" : name)
+
+function find_binary(cuda::ArtifactToolkit, name; optional=false)
+    path = artifact_binary(cuda.artifact, name)
+    if isfile(path)
+        return path
+    else
+        optional ||
+            error("""Could not find binary '$name' in $(dirname(path))!
+                     This is a bug; please file an issue with a verbose directory listing of $(dirname(path)).""")
+        return nothing
+    end
+end
+
+function find_binary(cuda::LocalToolkit, name; optional=false)
+    path = find_cuda_binary(name, cuda.dirs)
+    if path !== nothing
+        return path
+    else
+        optional || error("Could not find binary '$name' in your local CUDA installation.")
+        return nothing
+    end
+end
+
+
+## libraries
+
+export libcublas, libcusparse, libcufft, libcurand, libcusolver,
+       libcusolvermg, has_cusolvermg, libcupti, has_cupti, libnvtx, has_nvtx
+
+const __libcublas = Ref{String}()
+function libcublas()
+    @initialize_ref __libcublas begin
+        cuda = toolkit()
+
+        # HACK: eagerly load cublasLt, required by cublas (but with the same version), to
+        #       prevent a local CUDA from messing with our artifacts (JuliaGPU/CUDA.jl#609)
+        if cuda isa ArtifactToolkit && cuda.version >= v"10.1"
+            find_library(cuda, "cublasLt")
+        end
+
+        __libcublas[] = find_library(cuda, "cublas")
+        CUDA.CUBLAS.__runtime_init__()
+    end
+    __libcublas[]
+end
+
+const __libcusparse = Ref{String}()
+function libcusparse()
+    @initialize_ref __libcusparse begin
+        __libcusparse[] = find_library(toolkit(), "cusparse")
+    end
+    __libcusparse[]
+end
+
+const __libcufft = Ref{String}()
+function libcufft()
+    @initialize_ref __libcufft begin
+        __libcufft[] = find_library(toolkit(), "cufft")
+    end
+    __libcufft[]
+end
+
+const __libcurand = Ref{String}()
+function libcurand()
+    @initialize_ref __libcurand begin
+        __libcurand[] = find_library(toolkit(), "curand")
+    end
+    __libcurand[]
+end
+
+const __libcusolver = Ref{String}()
+function libcusolver()
+    @initialize_ref __libcusolver begin
+        __libcusolver[] = find_library(toolkit(), "cusolver")
+    end
+    __libcusolver[]
+end
+
+const __libcusolverMg = Ref{Union{String,Nothing}}()
+function libcusolvermg(; throw_error::Bool=true)
+    @initialize_ref __libcusolverMg begin
+        if toolkit_version() < v"10.1"
+            __libcusolverMg[] = nothing
+        else
+            __libcusolverMg[] = find_library(toolkit(), "cusolverMg")
+        end
+    end
+    if __libcusolverMg[] === nothing && throw_error
+        error("This functionality is unavailabe as cuSolverMg is missing.")
+    end
+    __libcusolverMg[]
+end
+has_cusolvermg() = libcusolvermg(throw_error=false) !== nothing
+
+const __libcupti = Ref{Union{String,Nothing}}()
+function libcupti(; throw_error::Bool=true)
+    @initialize_ref __libcupti begin
+        __libcupti[] = find_library(toolkit(), "cupti")
+    end
+    if __libcupti[] === nothing && throw_error
+        error("This functionality is unavailabe as CUPTI is missing.")
+    end
+    __libcupti[]
+end
+has_cupti() = libcupti(throw_error=false) !== nothing
+
+const __libnvtx = Ref{Union{String,Nothing}}()
+function libnvtx(; throw_error::Bool=true)
+    @initialize_ref __libnvtx begin
+        __libnvtx[] = find_library(toolkit(), "nvtx")
+    end
+    if __libnvtx[] === nothing && throw_error
+        error("This functionality is unavailabe as NVTX is missing.")
+    end
+    __libnvtx[]
+end
+has_nvtx() = libnvtx(throw_error=false) !== nothing
+
+function artifact_library(artifact, name, version)
+    dir = joinpath(artifact, Sys.iswindows() ? "bin" : "lib")
+    all_names = library_versioned_names(name, version)
+    for name in all_names
+        path = joinpath(dir, name)
+        ispath(path) && return path
+    end
+    error("Could not find $name ($(join(all_names, ", ", " or "))) in $dir")
+end
+
+function artifact_cuda_library(artifact, library, toolkit_version)
+    version = cuda_library_version(library, toolkit_version)
+    name = get(cuda_library_names, library, library)
+    artifact_library(artifact, name, version)
+end
+
+function find_library(cuda::ArtifactToolkit, name; optional=false)
+    path = artifact_cuda_library(cuda.artifact, name, cuda.version)
+    if isfile(path)
+        Libdl.dlopen(path)
+        return path
+    else
+        optional ||
+            error("""Could not find library '$name' in $(dirname(path))!
+                     This is a bug; please file an issue with a verbose directory listing of $(dirname(path)).""")
+        return nothing
+    end
+end
+
+function find_library(cuda::LocalToolkit, name; optional=false)
+    path = find_cuda_library(name, cuda.dirs, cuda.version)
+    if path !== nothing
+        return path
+    else
+        optional || error("Could not find library '$name' in your local CUDA installation.")
+        return nothing
+    end
+end
+
+
+## other
+
+export libdevice, libcudadevrt
+
+const __libdevice = Ref{String}()
+function libdevice()
+    @initialize_ref __libdevice begin
+        __libdevice[] = find_libdevice(toolkit())
+    end
+    __libdevice[]
+end
+
+artifact_file(artifact_dir, path) = joinpath(artifact_dir, path)
+
+function find_libdevice(cuda::ArtifactToolkit)
+    path = artifact_file(cuda.artifact, joinpath("share", "libdevice", "libdevice.10.bc"))
+    if isfile(path)
+        return path
+    else
+        error("""Could not find libdevice in $(dirname(path))!
+                 This is a bug; please file an issue with a verbose directory listing of $(dirname(path)).""")
+    end
+end
+
+function find_libdevice(cuda::LocalToolkit)
+    path = find_libdevice(cuda.dirs)
+    if path !== nothing
+        return path
+    else
+        error("Could not find libdevice in your local CUDA installation.")
+    end
+end
+
+const __libcudadevrt = Ref{String}()
+function libcudadevrt()
+    @initialize_ref __libcudadevrt begin
+        __libcudadevrt[] = find_libcudadevrt(toolkit())
+    end
+    __libcudadevrt[]
+end
+
+artifact_static_library(artifact_dir, name) = joinpath(artifact_dir, "lib", Sys.iswindows() ? "$name.lib" : "lib$name.a")
+
+function find_libcudadevrt(cuda::ArtifactToolkit)
+    path = artifact_static_library(cuda.artifact, "cudadevrt")
+    if isfile(path)
+        return path
+    else
+        error("""Could not find libcudadevrt in $(dirname(path))!
+                 This is a bug; please file an issue with a verbose directory listing of $(dirname(path)).""")
+    end
+end
+
+function find_libcudadevrt(cuda::LocalToolkit)
+    path = find_libcudadevrt(cuda.dirs)
+    if path !== nothing
+        return path
+    else
+        error("Could not find libcudadevrt in your local CUDA installation.")
+    end
+end
+
+
+#
+# CUDNN
+#
+
+export libcudnn, has_cudnn
 
 const __libcudnn = Ref{Union{String,Nothing}}()
-function find_cudnn()
-    try
-        version = v"8"
-        if toolkit_origin() == :artifact
-            artifact_dir = cuda_artifact("CUDNN", toolkit_version())
-            path = artifact_library(artifact_dir, "cudnn", version)
-
-            # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
-            for sublibrary in ("ops_infer", "ops_train",
-                            "cnn_infer", "cnn_train",
-                            "adv_infer", "adv_train")
-                sublibrary_path = artifact_library(artifact_dir, "cudnn_$(sublibrary)", version)
-                Libdl.dlopen(sublibrary_path)
-            end
-            Libdl.dlopen(path)
-
-            @debug "Using CUDNN from an artifact at $(artifact_dir)"
-            __libcudnn[] = path
-        else
-            path = find_library("cudnn", version; locations=__toolkit_dirs[])
-            path === nothing && error("Could not find a local CUDNN")
-
-            # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
-            for sublibrary in ("ops_infer", "ops_train",
-                            "cnn_infer", "cnn_train",
-                            "adv_infer", "adv_train")
-                sublibrary_path = find_library("cudnn_$(sublibrary)", version; locations=__toolkit_dirs[])
-                sublibrary_path === nothing && error("Could not find local CUDNN sublibrary $sublibrary")
-                Libdl.dlopen(sublibrary_path)
-            end
-            Libdl.dlopen(path)
-
-            @debug "Using local CUDNN at $(path)"
-            __libcudnn[] = path
+function libcudnn(; throw_error::Bool=true)
+    @initialize_ref __libcudnn begin
+        __libcudnn[] = find_cudnn(toolkit(), v"8")
+        if __libcudnn[] !== nothing
+            CUDA.CUDNN.__runtime_init__()
         end
-    catch err
-        @debug "Failed to load CUDNN" exception=(err, catch_backtrace())
-        @warn "Could not find or load CUDNN; run with JULIA_DEBUG=CUDA for more details."
-        __libcudnn[] = nothing
-        return
     end
-
-    # __libcudnn is set, so the CUDNN module is functional now
-
-    cudnn_release = VersionNumber(CUDNN.version().major, CUDNN.version().minor)
-    if cudnn_release < v"8.0"
-        @warn "This version of CUDA.jl only supports CUDNN 8.0 or higher"
+    if __libcudnn[] === nothing && throw_error
+        error("This functionality is unavailabe as CUDNN is missing.")
     end
-
-    CUDNN.__runtime_init__()
-end
-
-function has_cudnn()
-    @after_init begin
-        isassigned(__libcudnn) || find_cudnn()
-        __libcudnn[] !== nothing
-    end
-end
-
-function libcudnn()
-    has_cudnn() || error("This functionality is unavailabe as CUDNN is missing.")
     __libcudnn[]
 end
+has_cudnn() = libcudnn(throw_error=false) !== nothing
 
+function find_cudnn(cuda::ArtifactToolkit, version)
+    artifact_dir = cuda_artifact("CUDNN", cuda.version)
+    path = artifact_library(artifact_dir, "cudnn", version)
+    if !isfile(path)
+        error("""Could not find CUDNN in $(dirname(path))!
+                 This is a bug; please file an issue with a verbose directory listing of $(dirname(path)).""")
+    end
+
+    # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
+    for sublibrary in ("ops_infer", "ops_train",
+                       "cnn_infer", "cnn_train",
+                       "adv_infer", "adv_train")
+        sublibrary_path = artifact_library(artifact_dir, "cudnn_$(sublibrary)", version)
+        Libdl.dlopen(sublibrary_path)
+    end
+
+    @debug "Using CUDNN from an artifact at $(artifact_dir)"
+    Libdl.dlopen(path)
+    return path
+end
+
+function find_cudnn(cuda::LocalToolkit, version)
+    path = find_library("cudnn", version; locations=cuda.dirs)
+    if path === nothing
+        return nothing
+    end
+
+    # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
+    for sublibrary in ("ops_infer", "ops_train",
+                       "cnn_infer", "cnn_train",
+                       "adv_infer", "adv_train")
+        sublibrary_path = find_library("cudnn_$(sublibrary)", version; locations=cuda.dirs)
+        sublibrary_path === nothing && error("Could not find local CUDNN sublibrary $sublibrary")
+        Libdl.dlopen(sublibrary_path)
+    end
+
+    @debug "Using local CUDNN at $(path)"
+    Libdl.dlopen(path)
+    return path
+end
+
+
+#
 # CUTENSOR
+#
 
-export has_cutensor
+export libcutensor, has_cutensor
 
 const __libcutensor = Ref{Union{String,Nothing}}()
-function find_cutensor()
-    try
+function libcutensor(; throw_error::Bool=true)
+    @initialize_ref __libcutensor begin
         version = Sys.iswindows() ? nothing : v"1"  # cutensor.dll is unversioned on Windows
-        if toolkit_origin() == :artifact
-            artifact_dir = cuda_artifact("CUTENSOR", toolkit_version())
-            path = artifact_library(artifact_dir, "cutensor", version)
-            Libdl.dlopen(path)
-
-            @debug "Using CUTENSOR from an artifact at $(artifact_dir)"
-            __libcutensor[] = path
-        else
-            path = find_library("cutensor", version; locations=__toolkit_dirs[])
-            if path === nothing
-                path = find_library("cutensor"; locations=__toolkit_dirs[])
-            end
-            path === nothing && error("Could not find a local CUTENSOR")
-            Libdl.dlopen(path)
-
-            @debug "Using local CUTENSOR at $(path)"
-            __libcutensor[] = path
-        end
-    catch err
-        @debug "Failed to load CUTENSOR" exception=(err, catch_backtrace())
-        @warn "Could not find or load CUTENSOR; run with JULIA_DEBUG=CUDA for more details."
-        __libcutensor[] = nothing
-        return
+        __libcutensor[] = find_cutensor(toolkit(), version)
     end
-
-    # __libcutensor is set, so the CUTENSOR module is functional now
-
-    cutensor_release = VersionNumber(CUTENSOR.version().major, CUTENSOR.version().minor)
-    if cutensor_release != v"1.3"
-        @warn "This version of CUDA.jl only supports CUTENSOR 1.3"
+    if __libcutensor[] === nothing && throw_error
+        error("This functionality is unavailabe as CUDNN is missing.")
     end
-end
-
-function has_cutensor()
-    @after_init begin
-        isassigned(__libcutensor) || find_cutensor()
-        __libcutensor[] !== nothing
-    end
-end
-
-function libcutensor()
-    has_cutensor() || error("This functionality is unavailabe as CUTENSOR is missing.")
     __libcutensor[]
 end
+has_cutensor() = libcutensor(throw_error=false) !== nothing
 
+function find_cutensor(cuda::ArtifactToolkit, version)
+    artifact_dir = cuda_artifact("CUTENSOR", cuda.version)
+    path = artifact_library(artifact_dir, "cutensor", version)
 
-## lazy initialization
+    @debug "Using CUTENSOR from an artifact at $(artifact_dir)"
+    Libdl.dlopen(path)
+    return path
+end
 
-function __init_dependencies__()
-    found = false
-
-    # CI runs in a well-defined environment, so prefer a local CUDA installation there
-    if getenv("CI", false) && !haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER")
-        found = use_local_cuda()
+function find_cutensor(cuda::LocalToolkit, version)
+    path = find_library("cutensor", version; locations=cuda.dirs)
+    if path === nothing
+        path = find_library("cutensor"; locations=cuda.dirs)
+    end
+    if path === nothing
+        return nothing
     end
 
-    if !found && getenv("JULIA_CUDA_USE_BINARYBUILDER", true)
-        found = use_artifact_cuda()
-    end
-
-    # if the user didn't specifically request an artifact version, look for a local installation
-    if !found && !haskey(ENV, "JULIA_CUDA_VERSION")
-        found = use_local_cuda()
-    end
-
-    return found
+    @debug "Using local CUTENSOR at $(path)"
+    Libdl.dlopen(path)
+    return path
 end

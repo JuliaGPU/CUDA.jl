@@ -23,7 +23,35 @@ module Profile
 
 using ..CUDA
 
-const nsight = Ref{Union{Nothing,String}}(nothing)
+const __nsight = Ref{Union{Nothing,String}}(nothing)
+function nsight()
+    if !isassigned(__nsight)
+        # find the active Nsight Systems profiler
+        if haskey(ENV, "NSYS_PROFILING_SESSION_ID") && ccall(:jl_generating_output, Cint, ()) == 0
+            __nsight[] = if haskey(ENV, "JULIA_CUDA_NSYS")
+                ENV["JULIA_CUDA_NSYS"]
+            elseif haskey(ENV, "_")
+                ENV["_"]
+            elseif haskey(ENV, "LD_PRELOAD")
+                libraries = split(ENV["LD_PRELOAD"], ':')
+                filter!(isfile, libraries)
+                directories = map(dirname, libraries)
+                candidates = map(dir->joinpath(dir, "nsys"), directories)
+                filter!(isfile, candidates)
+                isempty(candidates) && error("Could not find nsys relative to LD_PRELOAD=$(ENV["LD_PRELOAD"])")
+                first(candidates)
+            else
+                error("Running under Nsight Systems, but could not find the `nsys` binary to start the profiler. Please specify using JULIA_CUDA_NSYS=path/to/nsys, and file an issue with the contents of ENV.")
+            end
+            @assert isfile(__nsight[])
+            @info "Running under Nsight Systems, CUDA.@profile will automatically start the profiler"
+        else
+            __nsight[] = nothing
+        end
+    end
+
+    __nsight[]
+end
 
 
 """
@@ -33,8 +61,8 @@ Enables profile collection by the active profiling tool for the current context.
 profiling is already enabled, then this call has no effect.
 """
 function start()
-    if nsight[] !== nothing
-        run(`$(nsight[]) start --capture-range=cudaProfilerApi`)
+    if nsight() !== nothing
+        run(`$(nsight()) start --capture-range=cudaProfilerApi`)
         # it takes a while for the profiler to actually start tracing our process
         sleep(0.01)
     else
@@ -56,34 +84,9 @@ profiling is already disabled, then this call has no effect.
 """
 function stop()
     CUDA.cuProfilerStop()
-    if nsight[] !== nothing
-        run(`$(nsight[]) stop`)
+    if nsight() !== nothing
+        run(`$(nsight()) stop`)
         @info "Profiling has finished, open the report listed above with `nsight-sys`"
-    end
-end
-
-function __init__()
-    # find the active Nsight Systems profiler
-    if haskey(ENV, "NSYS_PROFILING_SESSION_ID") && ccall(:jl_generating_output, Cint, ()) == 0
-        nsight[] = if haskey(ENV, "JULIA_CUDA_NSYS")
-            ENV["JULIA_CUDA_NSYS"]
-        elseif haskey(ENV, "_")
-            ENV["_"]
-        elseif haskey(ENV, "LD_PRELOAD")
-            libraries = split(ENV["LD_PRELOAD"], ':')
-            filter!(isfile, libraries)
-            directories = map(dirname, libraries)
-            candidates = map(dir->joinpath(dir, "nsys"), directories)
-            filter!(isfile, candidates)
-            isempty(candidates) && error("Could not find nsys relative to LD_PRELOAD=$(ENV["LD_PRELOAD"])")
-            first(candidates)
-        else
-            error("Running under Nsight Systems, but could not find the `nsys` binary to start the profiler. Please specify using JULIA_CUDA_NSYS=path/to/nsys, and file an issue with the contents of ENV.")
-        end
-        @assert isfile(nsight[])
-        @info "Running under Nsight Systems, CUDA.@profile will automatically start the profiler"
-    else
-        nsight[] = nothing
     end
 end
 

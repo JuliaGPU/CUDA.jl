@@ -6,7 +6,7 @@ using ..CUDA: CUstream, CUdevice, CUcontext, CUevent
 
 using CEnum
 
-using Memoize
+using Memoization
 
 using ExprTools
 

@@ -9,7 +9,7 @@ using ..CUDA: CUuuid, CUcontext, CUstream, CUdevice, CUdevice_attribute,
 
 using CEnum
 
-using Memoize
+using Memoization
 
 
 # core library
