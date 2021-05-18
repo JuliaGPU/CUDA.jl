@@ -1,25 +1,41 @@
 const ci_cache = GPUCompiler.CodeCache()
 
+const __device_properties_lock = ReentrantLock()
+const __device_properties = @NamedTuple{cap::VersionNumber, ptx::VersionNumber, exitable::Bool, debuginfo::Bool}[]
+function device_properties(dev)
+    @lock __device_properties_lock  begin
+        if isempty(__device_properties)
+            resize!(__device_properties, ndevices())
+
+            # determine compilation properties of each device
+            for dev in devices()
+                cap = supported_capability(capability(dev))
+                ptx = v"6.3"    # we only need 6.2, but NVPTX doesn't support that
+
+                exitable = true
+                if cap < v"7"
+                    # JuliaGPU/CUDAnative.jl#4
+                    # ptxas for old compute capabilities has a bug where it messes up the
+                    # synchronization stack in the presence of shared memory and thread-divergent exit.
+                    exitable = false
+                end
+                if !has_nvml() || NVML.driver_version() < v"460"
+                    # JuliaGPU/CUDA.jl#431
+                    # TODO: tighten this conditional
+                    exitable = false
+                end
+
+                debuginfo = false
+
+                __device_properties[deviceid(dev)+1] = (; cap, ptx, exitable, debuginfo)
+            end
+        end
+        @inbounds __device_properties[deviceid(dev)+1]
+    end
+end
+
 function CUDACompilerTarget(dev::CuDevice; kwargs...)
-    cap = supported_capability(capability(dev))
-    ptx = v"6.3"    # we only need 6.2, but NVPTX doesn't support that
-
-    exitable = true
-    if cap < v"7"
-        # JuliaGPU/CUDAnative.jl#4
-        # ptxas for old compute capabilities has a bug where it messes up the
-        # synchronization stack in the presence of shared memory and thread-divergent exit.
-        exitable = false
-    end
-    if !has_nvml() || NVML.driver_version() < v"460"
-        # JuliaGPU/CUDA.jl#431
-        # TODO: tighten this conditional
-        exitable = false
-    end
-
-    debuginfo = false
-
-    PTXCompilerTarget(; cap, ptx, exitable, debuginfo, kwargs...)
+    PTXCompilerTarget(; device_properties(dev)..., kwargs...)
 end
 
 struct CUDACompilerParams <: AbstractCompilerParams end
