@@ -8,9 +8,21 @@ import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!, plan_ifft,
 
 using LinearAlgebra
 
-Base.:(*)(p::Plan{T}, x::DenseCuArray) where {T} = p * copy1(T, x)
-Base.:(*)(p::ScaledPlan, x::DenseCuArray) = rmul!(p.p * x, p.scale)
+Base.:(*)(p::Plan{T}, x::StridedCuArray) where {T} = p * copy1(T, x)
+Base.:(*)(p::ScaledPlan, x::StridedCuArray) = rmul!(p.p * x, p.scale)
 
+# FakeCuArray is used to pass the strides and size information into create_plan,
+# With this, plan_brfft, plan_inv don't need to allocate a "real" CuArray.
+struct FakeCuArray{T,N} <: AbstractArray{T,N}
+    sz::NTuple{N,Int}
+    st::NTuple{N,Int}
+    FakeCuArray{T}(sz::NTuple{N,Int}) where {T,N} = new{T,N}(sz, cumprod((1,sz[1:end-1]...)))
+end
+Base.size(a::FakeCuArray) = a.sz
+Base.strides(a::FakeCuArray) = a.st
+FakeCuArray{T}(sz...) where T = FakeCuArray{T}(sz)
+
+const CuPlanArray{T,N} = Union{FakeCuArray{T,N}, StridedCuArray{T,N}}
 
 ## plan structure
 
@@ -38,15 +50,17 @@ mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     workarea::CuVector{Int8}
     sz::NTuple{N,Int} # Julia size of input array
     osz::NTuple{N,Int} # Julia size of output array
+    istride::NTuple{N,Int} # Julia strides of input array
+    ostride::NTuple{N,Int} # Julia strides of output array
     xtype::cufftType
     region::Any
     pinv::ScaledPlan # required by AbstractFFT API
 
     function cCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, workarea::CuVector{Int8},
-                                       X::DenseCuArray{T,N}, sizey::Tuple, region, xtype;
-                                       stream::CuStream=stream()) where {T<:cufftNumber,K,inplace,N}
+                                       X::CuPlanArray{T,N}, Y::CuPlanArray{T,N}, region, xtype;
+                                       stream::CuStream=stream()) where {T<:cufftComplexes,K,inplace,N}
         # maybe enforce consistency of sizey
-        p = new(handle, context(), stream, workarea, size(X), sizey, xtype, region)
+        p = new(handle, context(), stream, workarea, size(X), size(Y), strides(X), strides(Y), xtype, region)
         finalizer(unsafe_finalize!, p)
         p
     end
@@ -59,15 +73,17 @@ mutable struct rCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     workarea::CuVector{Int8}
     sz::NTuple{N,Int} # Julia size of input array
     osz::NTuple{N,Int} # Julia size of output array
+    istride::NTuple{N,Int} # Julia strides of input array
+    ostride::NTuple{N,Int} # Julia strides of output array
     xtype::cufftType
     region::Any
     pinv::ScaledPlan # required by AbstractFFT API
 
     function rCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, workarea::CuVector{Int8},
-                                       X::DenseCuArray{T,N}, sizey::Tuple, region, xtype;
-                                       stream::CuStream=stream()) where {T<:cufftNumber,K,inplace,N}
+                                       X::CuPlanArray{T,N}, Y::CuPlanArray{T2,N}, region, xtype;
+                                       stream::CuStream=stream()) where {T<:cufftNumber,T2<:cufftNumber,K,inplace,N}
         # maybe enforce consistency of sizey
-        p = new(handle, context(), stream, workarea, size(X), sizey, xtype, region)
+        p = new(handle, context(), stream, workarea, size(X), size(Y), strides(X), strides(Y), xtype, region)
         finalizer(unsafe_finalize!, p)
         p
     end
@@ -122,13 +138,88 @@ end
 
 ## plan methods
 
-# Note: we don't implement padded storage dimensions
-function create_plan(xtype, xdims, region)
-    nrank = length(region)
-    sz = [xdims[i] for i in region]
-    csz = copy(sz)
-    csz[1] = div(sz[1],2) + 1
-    batch = prod(xdims) ÷ prod(sz)
+# Try to implement padded storage dimensions
+
+# Only 1D batch is supported.
+# For some strided layout, we can "reshape" to reduce the batch dimension(Similar to contiguous check in previous version)
+function reduce_howmany!(sz, ist, ost)
+    # We found a processable setting
+    cion(x) = x |> only |> Cint
+    length(sz) == 0 && return (batch = Cint(1), dists = (typemax(Cint), typemax(Cint))) 
+    length(sz) == 1 && return (batch = cion(sz), dists = (cion(ist), cion(ost)))
+    # move the last element to the excluded location, and resize! the vector.
+    _reduce!(a,i) = begin
+        @inbounds a[i] = a[end]
+        resize!(a, length(a) - 1)
+    end
+    # The following check seems redundant, but i think this won't be the bottleneck
+    @inbounds for i in eachindex(sz), j in eachindex(sz)
+        if sz[i] .* (ist[i], ost[i]) == (ist[j], ost[j])
+            sz[i] *= sz[j] 
+            _reduce!.(tuple(sz, ist, ost), j)
+            return reduce_howmany!(sz, ist, ost)
+        end
+    end
+    throw(ArgumentError("Unreducable batch setting"))
+end
+
+# The strides information is represented by:
+#   i/ostrides = [i/ostride, i/onembed[end:2]...] |> cumprod
+# Thus not all strided layout is supported. 
+# This function translate the stride information and check it. 
+function check_dims(sz, ist, ost)
+    # Cufft support 1,2,3D tranform
+    0 < length(sz) < 4 || throw(ArgumentError("Length of region must be 1,2,3!"))
+    # region = (3,1) is now supported, so reverse is replaced with sort.
+    ind = sortperm(ist; rev = true)
+    sz, ist, ost = sz[ind], ist[ind], ost[ind]
+    # calculate the nembed and check
+    _div(x,y) = begin
+        x ÷ y * y == x || throw(ArgumentError("Unsupport Layout"))
+        x ÷ y
+    end
+    sts = ist[end], ost[end] # pick the i/ostride
+    # i/onembeds[0] is useless, we can fix it to 2147483647
+    nembeds = Cint[typemax(Cint), _div.(ist[1:end-1],ist[2:end])...],
+              Cint[typemax(Cint), _div.(ost[1:end-1],ost[2:end])...]
+    (sz = Cint[sz...], sts = Cint.(sts), nembeds = nembeds)
+end
+
+# dims_howmany is named after FFTW’s guru interface. 
+# The size and i/ostrides of fft region are stored in dims.
+# And the batch informations are stored in howmany.
+# Dimension with size 1 will be excluded at the first stage.
+function dims_howmany(X::CuPlanArray, Y::CuPlanArray, sz, region) 
+    reg = unique!(Int[region...])
+    length(reg) < length(region) && throw(ArgumentError("each dimension can be transformed at most once"))
+    ist, ost = [strides(X)...], [strides(Y)...]
+    reg = filter!(i -> sz[i] > 1, reg)
+    oreg = filter(i -> !in(i, reg) && sz[i] > 1, 1:ndims(X))
+    # translate the layout information
+    dims = check_dims(sz[reg], ist[reg], ost[reg]) 
+    howmany = reduce_howmany!(sz[oreg], ist[oreg], ost[oreg]) 
+    return dims, howmany
+end
+
+# Unfortunately, the strided 2D fft with batch number >= 256 gives wrong result under CUDA 10.x for many size
+# so I believe the strided layout support must be dropped, at least the user should be warned.
+@inline allowstrided(x) = version() >= v"10.2.1" || throw(ArgumentError("StridedCuArray is not supported for CUDA 10.x"))
+@inline allowstrided(::FakeCuArray)  = nothing
+@inline allowstrided(::DenseCuArray) = nothing
+
+# Only the advanced api is used here(like FFTW.jl)
+function create_plan(xtype, X::CuPlanArray, Y::CuPlanArray, region)
+    # do the version check at the very beginning
+    allowstrided(X)
+    allowstrided(Y)
+    if xtype in (CUFFT_C2R, CUFFT_Z2D)
+        dims, howmany = dims_howmany(X, Y, [size(Y)...], region) # brfft use outputs' size
+    else
+        dims, howmany = dims_howmany(X, Y, [size(X)...], region)
+    end
+    nrank = length(dims.sz)
+    batch, (idist, odist) = howmany.batch, howmany.dists
+    sz, (inembed, onembed), (istride, ostride)  = dims.sz, dims.nembeds, dims.sts
 
     # initialize the plan handle
     handle_ref = Ref{cufftHandle}()
@@ -141,113 +232,9 @@ function create_plan(xtype, xdims, region)
 
     # make the plan
     worksize_ref = Ref{Csize_t}()
-    if (nrank == 1) && (batch == 1)
-        cufftMakePlan1d(handle, sz[1], xtype, 1, worksize_ref)
-    elseif (nrank == 2) && (batch == 1)
-        cufftMakePlan2d(handle, sz[2], sz[1], xtype, worksize_ref)
-    elseif (nrank == 3) && (batch == 1)
-        cufftMakePlan3d(handle, sz[3], sz[2], sz[1], xtype, worksize_ref)
-    else
-        rsz = (length(sz) > 1) ? rsz = reverse(sz) : sz
-        if ((region...,) == ((1:nrank)...,))
-            # handle simple case ... simply! (for robustness)
-           cufftMakePlanMany(handle, nrank, Cint[rsz...], C_NULL, 1, 1, C_NULL, 1, 1,
-                             xtype, batch, worksize_ref)
-        else
-            if nrank==1 || all(diff(collect(region)) .== 1)
-                # _stride: successive elements in innermost dimension
-                # _dist: distance between first elements of batches
-                if region[1] == 1
-                    istride = 1
-                    idist = prod(sz)
-                    cdist = prod(csz)
-                else
-                    if region[end] != length(xdims)
-                        throw(ArgumentError("batching dims must be sequential"))
-                    end
-                    istride = prod(xdims[1:region[1]-1])
-                    idist = 1
-                    cdist = 1
-                end
-                inembed = Cint[rsz...]
-                cnembed = (length(csz) > 1) ? Cint[reverse(csz)...] : Cint[csz[1]]
-                ostride = istride
-                if xtype == CUFFT_R2C || xtype == CUFFT_D2Z
-                    odist = cdist
-                    onembed = cnembed
-                else
-                    odist = idist
-                    onembed = inembed
-                end
-                if xtype == CUFFT_C2R || xtype == CUFFT_Z2D
-                    idist = cdist
-                    inembed = cnembed
-                end
-            else
-                if any(diff(collect(region)) .< 1)
-                    throw(ArgumentError("region must be an increasing sequence"))
-                end
-                cdims = collect(xdims)
-                cdims[region[1]] = div(cdims[region[1]],2)+1
-
-                if region[1] == 1
-                    istride = 1
-                    ii=1
-                    while (ii < nrank) && (region[ii] == region[ii+1]-1)
-                        ii += 1
-                    end
-                    idist = prod(xdims[1:ii])
-                    cdist = prod(cdims[1:ii])
-                    ngaps = 0
-                else
-                    istride = prod(xdims[1:region[1]-1])
-                    idist = 1
-                    cdist = 1
-                    ngaps = 1
-                end
-                nem = ones(Int,nrank)
-                cem = ones(Int,nrank)
-                id = 1
-                for ii=1:nrank-1
-                    if region[ii+1] > region[ii]+1
-                        ngaps += 1
-                    end
-                    while id < region[ii+1]
-                        nem[ii] *= xdims[id]
-                        cem[ii] *= cdims[id]
-                        id += 1
-                    end
-                    @assert nem[ii] >= sz[ii]
-                end
-                if region[end] < length(xdims)
-                    ngaps += 1
-                end
-                # CUFFT represents batches by a single stride (_dist)
-                # so we must verify that region is consistent with this:
-                if ngaps > 1
-                    throw(ArgumentError("batch regions must be sequential"))
-                end
-
-                inembed = Cint[reverse(nem)...]
-                cnembed = Cint[reverse(cem)...]
-                ostride = istride
-                if xtype == CUFFT_R2C || xtype == CUFFT_D2Z
-                    odist = cdist
-                    onembed = cnembed
-                else
-                    odist = idist
-                    onembed = inembed
-                end
-                if xtype == CUFFT_C2R || xtype == CUFFT_Z2D
-                    idist = cdist
-                    inembed = cnembed
-                end
-            end
-            cufftMakePlanMany(handle, nrank, Cint[rsz...],
-                              inembed, istride, idist, onembed, ostride, odist,
-                              xtype, batch, worksize_ref)
-        end
-    end
+    cufftMakePlanMany(handle, nrank, sz,
+                    inembed, istride, idist, onembed, ostride, odist,
+                    xtype, batch, worksize_ref)
 
     # assign the workarea
     workarea = CuArray{Int8}(undef, worksize_ref[])
@@ -261,122 +248,131 @@ end
 for f in (:fft, :bfft, :ifft)
     pf = Symbol("plan_", f)
     @eval begin
-        $f(x::DenseCuArray{<:Real}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::DenseCuArray{<:Real}, region) = $pf(complexfloat(x), region)
-        $f(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region) = $pf(complexfloat(x), region)
+        $f(x::StridedCuArray{<:Real}, region=1:ndims(x)) = $f(complexfloat(x), region)
+        $pf(x::StridedCuArray{<:Real}, region) = $pf(complexfloat(x), region)
+        $f(x::StridedCuArray{<:Complex{<:Union{Integer,Rational}}}, region=1:ndims(x)) = $f(complexfloat(x), region)
+        $pf(x::StridedCuArray{<:Complex{<:Union{Integer,Rational}}}, region) = $pf(complexfloat(x), region)
     end
 end
-rfft(x::DenseCuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
-plan_rfft(x::DenseCuArray{<:Real}, region) = plan_rfft(realfloat(x), region)
+rfft(x::StridedCuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
+plan_rfft(x::StridedCuArray{<:Real}, region) = plan_rfft(realfloat(x), region)
 
 # region is an iterable subset of dimensions
 # spec. an integer, range, tuple, or array
 
 # inplace complex
-function plan_fft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
+function plan_fft!(X::StridedCuArray{T,N}, region) where {T<:cufftComplexes,N}
     K = CUFFT_FORWARD
     inplace = true
     xtype = (T == cufftComplex) ? CUFFT_C2C : CUFFT_Z2Z
 
-    handle, workarea = create_plan(xtype, size(X), region)
+    handle, workarea = create_plan(xtype, X, X, region)
 
-    cCuFFTPlan{T,K,inplace,N}(handle, workarea, X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,N}(handle, workarea, X, X, region, xtype)
 end
 
-function plan_bfft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
+function plan_bfft!(X::StridedCuArray{T,N}, region) where {T<:cufftComplexes,N}
     K = CUFFT_INVERSE
     inplace = true
     xtype =  (T == cufftComplex) ? CUFFT_C2C : CUFFT_Z2Z
 
-    handle, workarea = create_plan(xtype, size(X), region)
+    handle, workarea = create_plan(xtype, X, X, region)
 
-    cCuFFTPlan{T,K,inplace,N}(handle, workarea, X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,N}(handle, workarea, X, X, region, xtype)
 end
 
 # out-of-place complex
-function plan_fft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
+function plan_fft(X::StridedCuArray{T,N}, region) where {T<:cufftComplexes,N}
     K = CUFFT_FORWARD
     xtype =  (T == cufftComplex) ? CUFFT_C2C : CUFFT_Z2Z
     inplace = false
 
-    handle, workarea = create_plan(xtype, size(X), region)
+    Y = FakeCuArray{T}(size(X))
+    handle, workarea = create_plan(xtype, X, Y, region)
 
-    cCuFFTPlan{T,K,inplace,N}(handle, workarea, X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,N}(handle, workarea, X, Y, region, xtype)
 end
 
-function plan_bfft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
+function plan_bfft(X::StridedCuArray{T,N}, region) where {T<:cufftComplexes,N}
     K = CUFFT_INVERSE
     inplace = false
     xtype =  (T == cufftComplex) ? CUFFT_C2C : CUFFT_Z2Z
 
-    handle, workarea = create_plan(xtype, size(X), region)
+    Y = FakeCuArray{T}(size(X))
+    handle, workarea = create_plan(xtype, X, Y, region)
 
-    cCuFFTPlan{T,K,inplace,N}(handle, workarea, X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,N}(handle, workarea, X, Y, region, xtype)
 end
 
 # out-of-place real-to-complex
-function plan_rfft(X::DenseCuArray{T,N}, region) where {T<:cufftReals,N}
+function plan_rfft(X::StridedCuArray{T,N}, region) where {T<:cufftReals,N}
     K = CUFFT_FORWARD
     inplace = false
     xtype =  (T == cufftReal) ? CUFFT_R2C : CUFFT_D2Z
 
-    handle, workarea = create_plan(xtype, size(X), region)
-
+    halfdim = minimum(region)
     ydims = collect(size(X))
-    ydims[region[1]] = div(ydims[region[1]],2)+1
+    ydims[halfdim] = div(ydims[halfdim],2)+1
+    Y = FakeCuArray{complex(T)}(ydims...)
+    handle, workarea = create_plan(xtype, X, Y, region)
 
-    rCuFFTPlan{T,K,inplace,N}(handle, workarea, X, (ydims...,), region, xtype)
+    rCuFFTPlan{T,K,inplace,N}(handle, workarea, X, Y, region, xtype)
 end
 
-function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::Any) where {T<:cufftComplexes,N}
+function plan_brfft(X::StridedCuArray{T,N}, d::Integer, region::Any) where {T<:cufftComplexes,N}
     K = CUFFT_INVERSE
     inplace = false
     xtype =  (T == cufftComplex) ? CUFFT_C2R : CUFFT_Z2D
+
+    halfdim = minimum(region)
     ydims = collect(size(X))
-    ydims[region[1]] = d
+    ydims[halfdim] = d
+    Y = FakeCuArray{real(T)}(ydims...)
 
-    handle, workarea = create_plan(xtype, (ydims...,), region)
+    # brfft will break input, a copy is performed before execution, 
+    # so the istrides should follow the copy's layout
+    X′ = FakeCuArray{T}(size(X)) 
 
-    rCuFFTPlan{T,K,inplace,N}(handle, workarea, X, (ydims...,), region, xtype)
+    handle, workarea = create_plan(xtype, X′, Y, region)
+
+    rCuFFTPlan{T,K,inplace,N}(handle, workarea, X′, Y, region, xtype) # istride is useless 
 end
 
-# FIXME: plan_inv methods allocate needlessly (to provide type parameters)
-# Perhaps use FakeArray types to avoid this.
+# plan inv use FakeCuArray to avoid allocations now.
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}) where {T,N,inplace}
-    X = CuArray{T}(undef, p.sz)
-    handle, workarea = create_plan(p.xtype, p.sz, p.region)
-    ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}(handle, workarea, X, p.sz, p.region,
+    X = FakeCuArray{T}(p.sz)
+    handle, workarea = create_plan(p.xtype, X, X, p.region)
+    ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}(handle, workarea, X, X, p.region,
                                                      p.xtype),
                normalization(X, p.region))
 end
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}) where {T,N,inplace}
-    X = CuArray{T}(undef, p.sz)
-    handle, workarea = create_plan(p.xtype, p.sz, p.region)
-    ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}(handle, workarea, X, p.sz, p.region,
+    X = FakeCuArray{T}(p.sz)
+    handle, workarea = create_plan(p.xtype, X, X, p.region)
+    ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}(handle, workarea, X, X, p.region,
                                                      p.xtype),
                normalization(X, p.region))
 end
 
 function plan_inv(p::rCuFFTPlan{T,CUFFT_INVERSE,inplace,N}
                   ) where {T<:cufftComplexes,N,inplace}
-    X = CuArray{real(T)}(undef, p.osz)
-    Y = CuArray{T}(undef, p.sz)
+    X = FakeCuArray{real(T)}(p.osz)
+    Y = FakeCuArray{T}(p.sz)
     xtype = p.xtype == CUFFT_C2R ? CUFFT_R2C : CUFFT_D2Z
-    handle, workarea = create_plan(xtype, p.osz, p.region)
-    ScaledPlan(rCuFFTPlan{real(T),CUFFT_FORWARD,inplace,N}(handle, workarea, X, p.sz, p.region, xtype),
+    handle, workarea = create_plan(xtype, X, Y, p.region)
+    ScaledPlan(rCuFFTPlan{real(T),CUFFT_FORWARD,inplace,N}(handle, workarea, X, Y, p.region, xtype),
                normalization(X, p.region))
 end
 
 function plan_inv(p::rCuFFTPlan{T,CUFFT_FORWARD,inplace,N}
                   ) where {T<:cufftReals,N,inplace}
-    X = CuArray{complex(T)}(undef, p.osz)
-    Y = CuArray{T}(undef, p.sz)
+    X = FakeCuArray{complex(T)}(p.osz)
+    Y = FakeCuArray{T}(p.sz)
     xtype = p.xtype == CUFFT_R2C ? CUFFT_C2R : CUFFT_Z2D
-    handle, workarea = create_plan(xtype, p.sz, p.region)
-    ScaledPlan(rCuFFTPlan{complex(T),CUFFT_INVERSE,inplace,N}(handle, workarea, X, p.sz,
+    handle, workarea = create_plan(xtype, X, Y, p.region)
+    ScaledPlan(rCuFFTPlan{complex(T),CUFFT_INVERSE,inplace,N}(handle, workarea, X, Y,
                                                               p.region, xtype),
                normalization(Y, p.region))
 end
@@ -384,15 +380,19 @@ end
 
 ## plan execution
 
-function assert_applicable(p::CuFFTPlan{T,K}, X::DenseCuArray{T}) where {T,K}
+function assert_applicable(p::CuFFTPlan{T,K}, X::StridedCuArray{T}) where {T,K}
     (size(X) == p.sz) ||
         throw(ArgumentError("CuFFT plan applied to wrong-size input"))
+    p.xtype in (CUFFT_C2R,CUFFT_Z2D) || (strides(X) == p.istride) || #brfft don't need to check the istride
+        throw(ArgumentError("CuFFT plan applied to wrong-stride input"))
 end
 
-function assert_applicable(p::CuFFTPlan{T,K}, X::DenseCuArray{T}, Y::DenseCuArray{Ty}) where {T,K,Ty}
+function assert_applicable(p::CuFFTPlan{T,K}, X::StridedCuArray{T}, Y::StridedCuArray{Ty}) where {T,K,Ty}
     assert_applicable(p, X)
     (size(Y) == p.osz) ||
         throw(ArgumentError("CuFFT plan applied to wrong-size output"))
+    (strides(Y) == p.ostride) ||
+        throw(ArgumentError("CuFFT plan applied to wrong-stride output"))
     # type errors should be impossible by dispatch, but just in case:
     if p.xtype ∈ [CUFFT_C2R, CUFFT_Z2D]
         (Ty == real(T)) ||
@@ -407,11 +407,14 @@ function assert_applicable(p::CuFFTPlan{T,K}, X::DenseCuArray{T}, Y::DenseCuArra
 end
 
 function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,true,N},
-                         x::DenseCuArray{cufftComplex,N}) where {K,N}
+                         x::StridedCuArray{cufftComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_C2C
     update_stream(plan)
     cufftExecC2C(plan, x, x, K)
 end
+# plan_brfft! is not implemented now, 
+# but inplace brfft will destroy the input for strided layout
+# So I think we should force it to dense.
 function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,true,N},
                          x::DenseCuArray{cufftComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_C2R
@@ -420,16 +423,14 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,true,N},
 end
 
 function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,false,N},
-                         x::DenseCuArray{cufftComplex,N}, y::DenseCuArray{cufftComplex}
+                         x::StridedCuArray{cufftComplex,N}, y::StridedCuArray{cufftComplex}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_C2C
-    x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
     update_stream(plan)
     cufftExecC2C(plan, x, y, K)
-    unsafe_free!(x)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
-                         x::DenseCuArray{cufftComplex,N}, y::DenseCuArray{cufftReal}
+                         x::StridedCuArray{cufftComplex,N}, y::StridedCuArray{cufftReal}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_C2R
     x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
@@ -439,17 +440,15 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
 end
 
 function unsafe_execute!(plan::rCuFFTPlan{cufftReal,K,false,N},
-                         x::DenseCuArray{cufftReal,N}, y::DenseCuArray{cufftComplex,N}
+                         x::StridedCuArray{cufftReal,N}, y::StridedCuArray{cufftComplex,N}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_R2C
-    x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
     update_stream(plan)
     cufftExecR2C(plan, x, y)
-    unsafe_free!(x)
 end
 
 function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,true,N},
-                         x::DenseCuArray{cufftDoubleComplex,N}) where {K,N}
+                         x::StridedCuArray{cufftDoubleComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_Z2Z
     cufftExecZ2Z(plan, x, x, K)
 end
@@ -461,16 +460,14 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,true,N},
 end
 
 function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,false,N},
-                         x::DenseCuArray{cufftDoubleComplex,N}, y::DenseCuArray{cufftDoubleComplex}
+                         x::StridedCuArray{cufftDoubleComplex,N}, y::StridedCuArray{cufftDoubleComplex}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_Z2Z
-    x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
     update_stream(plan)
     cufftExecZ2Z(plan, x, y, K)
-    unsafe_free!(x)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,false,N},
-                         x::DenseCuArray{cufftDoubleComplex,N}, y::DenseCuArray{cufftDoubleReal}
+                         x::StridedCuArray{cufftDoubleComplex,N}, y::StridedCuArray{cufftDoubleReal}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_Z2D
     x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
@@ -480,29 +477,27 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,false,N},
 end
 
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleReal,K,false,N},
-                         x::DenseCuArray{cufftDoubleReal,N}, y::DenseCuArray{cufftDoubleComplex,N}
+                         x::StridedCuArray{cufftDoubleReal,N}, y::StridedCuArray{cufftDoubleComplex,N}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_D2Z
-    x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
     update_stream(plan)
     cufftExecD2Z(plan, x, y)
-    unsafe_free!(x)
 end
 
-function LinearAlgebra.mul!(y::DenseCuArray{Ty}, p::CuFFTPlan{T,K,false}, x::DenseCuArray{T}
+function LinearAlgebra.mul!(y::StridedCuArray{Ty}, p::CuFFTPlan{T,K,false}, x::StridedCuArray{T}
                            ) where {Ty,T,K}
     assert_applicable(p,x,y)
     unsafe_execute!(p,x,y)
     return y
 end
 
-function Base.:(*)(p::cCuFFTPlan{T,K,true,N}, x::DenseCuArray{T,N}) where {T,K,N}
+function Base.:(*)(p::cCuFFTPlan{T,K,true,N}, x::StridedCuArray{T,N}) where {T,K,N}
     assert_applicable(p,x)
     unsafe_execute!(p,x)
     x
 end
 
-function Base.:(*)(p::rCuFFTPlan{T,CUFFT_FORWARD,false,N}, x::DenseCuArray{T,N}
+function Base.:(*)(p::rCuFFTPlan{T,CUFFT_FORWARD,false,N}, x::StridedCuArray{T,N}
            ) where {T<:cufftReals,N}
     @assert p.xtype ∈ [CUFFT_R2C,CUFFT_D2Z]
     y = CuArray{complex(T),N}(undef, p.osz)
@@ -510,7 +505,7 @@ function Base.:(*)(p::rCuFFTPlan{T,CUFFT_FORWARD,false,N}, x::DenseCuArray{T,N}
     y
 end
 
-function Base.:(*)(p::rCuFFTPlan{T,CUFFT_INVERSE,false,N}, x::DenseCuArray{T,N}
+function Base.:(*)(p::rCuFFTPlan{T,CUFFT_INVERSE,false,N}, x::StridedCuArray{T,N}
            ) where {T<:cufftComplexes,N}
     @assert p.xtype ∈ [CUFFT_C2R,CUFFT_Z2D]
     y = CuArray{real(T),N}(undef, p.osz)
@@ -518,7 +513,7 @@ function Base.:(*)(p::rCuFFTPlan{T,CUFFT_INVERSE,false,N}, x::DenseCuArray{T,N}
     y
 end
 
-function Base.:(*)(p::cCuFFTPlan{T,K,false,N}, x::DenseCuArray{T,N}) where {T,K,N}
+function Base.:(*)(p::cCuFFTPlan{T,K,false,N}, x::StridedCuArray{T,N}) where {T,K,N}
     y = CuArray{T,N}(undef, p.osz)
     mul!(y,p,x)
     y
