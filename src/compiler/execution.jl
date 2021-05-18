@@ -278,8 +278,7 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-@timeit_debug to function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where
-                                    {F<:Core.Function, TT<:Type}
+@timeit_debug to function cufunction(f::F, tt::Type{TT}=Tuple{}; name=nothing, kwargs...) where {F, TT}
     dev = device()
     cache = cufunction_cache[dev]
     source = FunctionSpec(f, tt, true, name)
@@ -288,7 +287,7 @@ when function changes, or when different types or keyword arguments are provided
     job = CompilerJob(target, source, params)
     return GPUCompiler.cached_compilation(cache, job,
                                           cufunction_compile,
-                                          cufunction_link)::HostKernel{F,tt}
+                                          cufunction_link)::HostKernel{F,TT}
 end
 
 const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
