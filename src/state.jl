@@ -207,6 +207,7 @@ function device()
     task_local_state!().device
 end
 
+const __device_contexts_lock = ReentrantLock()
 const __device_contexts = Union{Nothing,CuContext}[]
 @noinline function __init_device_contexts()
     resize!(__device_contexts, ndevices())
@@ -214,12 +215,16 @@ const __device_contexts = Union{Nothing,CuContext}[]
     return
 end
 function device_context(i)
-    isempty(__device_contexts) && __init_device_contexts()
-    @inbounds __device_contexts[i]
+    @lock __device_contexts_lock begin
+        isempty(__device_contexts) && __init_device_contexts()
+        @inbounds __device_contexts[i]
+    end
 end
 function device_context!(i, ctx)
-    isempty(__device_contexts) && __init_device_contexts()
-    @inbounds __device_contexts[i] = ctx
+    @lock __device_contexts_lock begin
+        isempty(__device_contexts) && __init_device_contexts()
+        @inbounds __device_contexts[i] = ctx
+    end
     return
 end
 
