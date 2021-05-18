@@ -174,8 +174,10 @@ end
 
 ## high-level functions that return target and isa support
 
+export llvm_compat, cuda_compat, supported_toolchain, supported_capability
+
 function llvm_compat(version=LLVM.version())
-    InitializeNVPTXTarget()
+    LLVM.InitializeNVPTXTarget()
 
     cap_support = sort(collect(llvm_cap_support(version)))
     ptx_support = sort(collect(llvm_ptx_support(version)))
@@ -183,7 +185,7 @@ function llvm_compat(version=LLVM.version())
     return (cap=cap_support, ptx=ptx_support)
 end
 
-function cuda_compat(driver_release=release(), toolkit_release=toolkit_release())
+function cuda_compat(driver_release=CUDA.release(), toolkit_release=toolkit_release())
     driver_cap_support = cuda_cap_support(driver_release)
     toolkit_cap_support = cuda_cap_support(toolkit_release)
     cap_support = sort(collect(driver_cap_support ∩ toolkit_cap_support))
@@ -211,8 +213,7 @@ end
 end
 
 # select the highest capability that is supported by both the toolchain and device
-@memoize function supported_capability(dev::CuDevice)
-    dev_cap = capability(dev)
+@memoize function supported_capability(dev_cap::VersionNumber)
     compat_caps = filter(cap -> cap <= dev_cap, supported_toolchain().cap)
     isempty(compat_caps) &&
         error("Device capability v$dev_cap not supported by available toolchain")

@@ -1,7 +1,7 @@
 const ci_cache = GPUCompiler.CodeCache()
 
 function CUDACompilerTarget(dev::CuDevice; kwargs...)
-    cap = supported_capability(dev)
+    cap = supported_capability(capability(dev))
     ptx = v"6.3"    # we only need 6.2, but NVPTX doesn't support that
 
     exitable = true

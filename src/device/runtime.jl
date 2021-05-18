@@ -9,7 +9,7 @@ import Base.Sys: WORD_SIZE
 GPUCompiler.reset_runtime()
 
 # load or build the runtime for the most likely compilation job given a compute capability
-function precompile_runtime(caps=llvm_cap_support(LLVM.version()))
+function precompile_runtime(caps=CUDA.llvm_compat(LLVM.version()).cap)
     dummy_source = FunctionSpec(()->return, Tuple{})
     params = CUDACompilerParams()
     JuliaContext() do ctx

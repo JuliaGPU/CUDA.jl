@@ -38,9 +38,9 @@ include("state.jl")
 include("debug.jl")
 
 # binary dependencies
-include("../deps/discovery.jl")
-include("../deps/compatibility.jl")
-include("../deps/bindeps.jl")
+# XXX: to be replaced by a JLL
+include("../deps/Deps.jl")
+using .Deps
 
 # device functionality (needs to be loaded first, because of generated functions)
 include("device/utils.jl")

@@ -26,6 +26,8 @@ end
 # CUDA toolkit
 #
 
+export toolkit
+
 abstract type AbstractToolkit end
 
 struct ArtifactToolkit <: AbstractToolkit
@@ -63,7 +65,7 @@ function toolkit()
         end
 
         __toolkit[] = toolkit
-        __init_toolkit__()
+        CUDA.__init_toolkit__()
     end
     __toolkit[]
 end
@@ -98,7 +100,7 @@ function find_artifact_cuda()
         end
         isempty(candidate_toolkits) && @debug "Requested CUDA version $wanted is not provided by any artifact"
     else
-        driver_release = release()
+        driver_release = CUDA.release()
         @debug "Selecting artifacts based on driver compatibility $driver_release"
         candidate_toolkits = filter(cuda_toolkits) do toolkit
             toolkit.preferred && toolkit.release <= driver_release
@@ -172,6 +174,8 @@ end
 
 ## properties
 
+export toolkit_origin, toolkit_version, toolkit_release
+
 """
     toolkit_origin()
 
@@ -198,7 +202,7 @@ toolkit_release() = VersionNumber(toolkit_version().major, toolkit_version().min
 
 ## binaries
 
-export has_compute_sanitizer
+export nvdisasm, compute_sanitizer, has_compute_sanitizer
 
 # nvdisasm: used for reflection (decompiling SASS code)
 const __nvdisasm = Ref{String}()
@@ -249,7 +253,8 @@ end
 
 ## libraries
 
-export has_cusolvermg, has_cupti, has_nvtx
+export libcublas, libcusparse, libcufft, libcurand, libcusolver,
+       libcusolvermg, has_cusolvermg, libcupti, has_cupti, libnvtx, has_nvtx
 
 const __libcublas = Ref{String}()
 function libcublas()
@@ -263,7 +268,7 @@ function libcublas()
         end
 
         __libcublas[] = find_library(cuda, "cublas")
-        CUBLAS.__runtime_init__()
+        CUDA.CUBLAS.__runtime_init__()
     end
     __libcublas[]
 end
@@ -382,6 +387,8 @@ end
 
 ## other
 
+export libdevice, libcudadevrt
+
 const __libdevice = Ref{String}()
 function libdevice()
     @initialize_ref __libdevice begin
@@ -445,14 +452,14 @@ end
 # CUDNN
 #
 
-export has_cudnn
+export libcudnn, has_cudnn
 
 const __libcudnn = Ref{Union{String,Nothing}}()
 function libcudnn(; throw_error::Bool=true)
     @initialize_ref __libcudnn begin
         __libcudnn[] = find_cudnn(toolkit(), v"8")
         if __libcudnn[] !== nothing
-            CUDNN.__runtime_init__()
+            CUDA.CUDNN.__runtime_init__()
         end
     end
     if __libcudnn[] === nothing && throw_error
@@ -508,7 +515,7 @@ end
 # CUTENSOR
 #
 
-export has_cutensor
+export libcutensor, has_cutensor
 
 const __libcutensor = Ref{Union{String,Nothing}}()
 function libcutensor(; throw_error::Bool=true)
