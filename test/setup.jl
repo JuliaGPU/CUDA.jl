@@ -28,8 +28,9 @@ CUDA.allowscalar(false)
 
 # enable debug timers
 using TimerOutputs
-TimerOutputs.enable_debug_timings(CUDA)
-reset_timer!(CUDA.to)
+if isdefined(CUDA, :to)
+    reset_timer!(CUDA.to)
+end
 
 
 ## entry point

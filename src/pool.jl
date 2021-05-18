@@ -2,7 +2,6 @@
 
 using Printf
 using Logging
-using TimerOutputs
 using DataStructures
 
 include("pool/utils.jl")
@@ -103,7 +102,7 @@ function hard_limit(dev::CuDevice)
   usage_limit[dev]
 end
 
-@timeit_debug to function actual_alloc(bytes::Integer, last_resort::Bool=false;
+@timeit_ci function actual_alloc(bytes::Integer, last_resort::Bool=false;
                                        stream_ordered::Bool=false,
                                        stream::Union{CuStream,Nothing}=nothing)
   dev = device()
@@ -116,7 +115,7 @@ end
   # try the actual allocation
   buf = try
     time = Base.@elapsed begin
-      buf = @timeit_debug "Mem.alloc" begin
+      buf = @timeit_ci "Mem.alloc" begin
         Mem.alloc(Mem.Device, bytes; async=true, stream_ordered, stream)
       end
     end
@@ -135,7 +134,7 @@ end
   return Block(buf, bytes; state=AVAILABLE)
 end
 
-@timeit_debug to function actual_free(block::Block; stream_ordered::Bool=false,
+@timeit_ci function actual_free(block::Block; stream_ordered::Bool=false,
                                       stream::Union{CuStream,Nothing}=nothing)
   dev = device()
 
@@ -145,7 +144,7 @@ end
 
   # free the memory
   time = Base.@elapsed begin
-    @timeit_debug to "Mem.free" Mem.free(block.buf; async=true, stream_ordered, stream)
+    @timeit_ci "Mem.free" Mem.free(block.buf; async=true, stream_ordered, stream)
   end
   block.state = INVALID
 
@@ -159,14 +158,6 @@ end
 
 
 ## memory pools
-
-"""
-    pool_timings()
-
-Show the timings of the currently active memory pool. Assumes
-[`CUDA.enable_timings()`](@ref) has been called.
-"""
-pool_timings() = (show(PoolUtils.to; allocations=false, sortby=:name); println())
 
 # pool API:
 # - constructor taking a CuDevice
@@ -262,7 +253,7 @@ end
 Allocate a number of bytes `sz` from the memory pool. Returns a `CuPtr{Nothing}`; may throw
 a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 """
-@inline @timeit_debug to function alloc(sz; stream::CuStream=stream())
+@inline @timeit_ci function alloc(sz; stream::CuStream=stream())
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return CU_NULL
 
@@ -270,7 +261,7 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   pool = pools[dev]
 
   time = Base.@elapsed begin
-    block = @timeit_debug to "pool" alloc(pool, sz; stream)::Union{Nothing,Block}
+    block = @timeit_ci "pool" alloc(pool, sz; stream)::Union{Nothing,Block}
   end
   block === nothing && throw(OutOfGPUMemoryError(sz))
 
@@ -327,8 +318,8 @@ end
 
 Releases a buffer pointed to by `ptr` to the memory pool.
 """
-@inline @timeit_debug to function free(ptr::CuPtr{Nothing}; stream::CuStream=stream())
-  # XXX: have @timeit_debug use the root timer, since we may be called from a finalizer
+@inline @timeit_ci function free(ptr::CuPtr{Nothing}; stream::CuStream=stream())
+  # XXX: have @timeit use the root timer, since we may be called from a finalizer
 
   # 0-byte allocations shouldn't hit the pool
   ptr == CU_NULL && return
@@ -366,7 +357,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     end
 
     time = Base.@elapsed begin
-      @timeit_debug to "pool" free(pool, block; stream)
+      @timeit_ci "pool" free(pool, block; stream)
     end
 
     alloc_stats.pool_time += time

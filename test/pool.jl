@@ -30,11 +30,6 @@ end
     @test CUDA.@retry_reclaim(isequal(42), 41) == 41
 end
 
-@testset "timings" begin
-    CUDA.enable_timings()
-    CUDA.disable_timings()
-end
-
 @testset "memory_status" begin
     CUDA.memory_status(devnull)
 end

@@ -112,7 +112,7 @@ end
 
 # check that CI is using the requested toolkit
 toolkit_release = CUDA.toolkit_release() # ensure artifacts are downloaded
-if parse(Bool, get(ENV, "CI", "false")) && haskey(ENV, "JULIA_CUDA_VERSION")
+if CUDA.getenv("CI", false) && haskey(ENV, "JULIA_CUDA_VERSION")
   @test toolkit_release == VersionNumber(ENV["JULIA_CUDA_VERSION"])
 end
 
@@ -394,10 +394,12 @@ try
                 end
 
                 # fetch worker timings
-                to = remotecall_fetch(p) do
-                    CUDA.to
+                if isdefined(CUDA, :to)
+                    to = remotecall_fetch(p) do
+                        CUDA.to
+                    end
+                    push!(timings, to)
                 end
-                push!(timings, to)
 
                 if p != 1
                     # Free up memory =)
@@ -438,13 +440,15 @@ elapsed = canonicalize(Dates.CompoundPeriod(t1-t0))
 println("Testing finished in $elapsed")
 
 # report work timings
-println()
-for to in timings
-    TimerOutputs.merge!(CUDA.to, to)
+if isdefined(CUDA, :to)
+    println()
+    for to in timings
+        TimerOutputs.merge!(CUDA.to, to)
+    end
+    TimerOutputs.complement!(CUDA.to)
+    show(CUDA.to, sortby=:name)
+    println()
 end
-TimerOutputs.complement!(CUDA.to)
-show(CUDA.to, sortby=:name)
-println()
 
 # construct a testset to render the test results
 o_ts = Test.DefaultTestSet("Overall")
