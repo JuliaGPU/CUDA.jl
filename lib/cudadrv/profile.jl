@@ -12,9 +12,11 @@ itself, you need external tools for that.
 macro profile(ex)
     quote
         Profile.start()
-        local ret = $(esc(ex))
-        Profile.stop()
-        ret
+        try
+            $(esc(ex))
+        finally
+            Profile.stop()
+        end
     end
 end
 
@@ -23,7 +25,7 @@ module Profile
 
 using ..CUDA
 
-const __nsight = Ref{Union{Nothing,String}}(nothing)
+const __nsight = Ref{Union{Nothing,String}}()
 function nsight()
     if !isassigned(__nsight)
         # find the active Nsight Systems profiler
