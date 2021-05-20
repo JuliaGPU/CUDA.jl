@@ -91,24 +91,34 @@ end
 
 export devices, ndevices
 
-struct DeviceSet end
+struct DeviceIterator end
 
 """
     devices()
 
 Get an iterator for the compute devices.
 """
-devices() = DeviceSet()
+devices() = DeviceIterator()
 
-Base.eltype(::DeviceSet) = CuDevice
+Base.eltype(::DeviceIterator) = CuDevice
 
-function Base.iterate(iter::DeviceSet, i=1)
+function Base.iterate(iter::DeviceIterator, i=1)
     i >= length(iter) + 1 ? nothing : (CuDevice(i-1), i+1)
 end
 
-Base.length(::DeviceSet) = ndevices()
+Base.length(::DeviceIterator) = ndevices()
 
-Base.IteratorSize(::DeviceSet) = Base.HasLength()
+Base.IteratorSize(::DeviceIterator) = Base.HasLength()
+
+function Base.show(io::IO, ::MIME"text/plain", iter::DeviceIterator)
+    print(io, "CUDA.DeviceIterator() for $(length(iter)) devices")
+    if !isempty(iter)
+        print(io, ":")
+        for dev in iter
+            print(io, "\n$(deviceid(dev)). $(name(dev))")
+        end
+    end
+end
 
 @memoize function ndevices()
     count_ref = Ref{Cint}()
