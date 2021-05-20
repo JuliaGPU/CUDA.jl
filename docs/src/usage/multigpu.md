@@ -132,3 +132,100 @@ using Test
 c = Array(d_c)
 @test a+b ≈ c
 ```
+
+### Example: Large Matrix Vector Multiply 
+
+A simple example that compares performance between a single GPU against
+multiple-GPU environment for large matrix-vector multiplies.
+
+```julia
+using CUDA, BenchmarkTools
+n = 10000
+m = 300000
+W = cu(rand(Float32, (n,m)))
+x = cu(rand(Float32, m))
+y = cu(zeros(Float32, n))
+@benchmark CUDA.@sync y .= W*x
+```
+
+Benchmark Results running on a single GPU:
+```
+BenchmarkTools.Trial:
+  memory estimate:  123.75 KiB
+  allocs estimate:  7717
+  --------------
+  minimum time:     15.338 ms (0.00% GC)
+  median time:      15.391 ms (0.00% GC)
+  mean time:        15.393 ms (0.17% GC)
+  maximum time:     15.798 ms (0.00% GC)
+  --------------
+  samples:          325
+  evals/sample:     1
+```
+
+In a multiple GPU environment, the dimensions are split up such so that
+matrix-vector multiplies can be done on different devices in parallel. Note that
+Julia is column major order, so we explicitly split up the work along the
+columns of the matrix.
+
+```julia
+# setup cpu elements
+n_gpus = 3
+n = 10000
+m = 300000
+dims = (n, div(m,n_gpus), n_gpus)
+W = rand(Float32, dims)
+x = rand(Float32, (div(m,n_gpus), n_gpus))
+y = zeros(Float32, n, n_gpus)
+
+# copy to gpu
+buf_w = Mem.alloc(Mem.Unified, sizeof(W))
+d_w = unsafe_wrap(CuArray{Float32,3}, convert(CuPtr{Float32}, buf_w), dims)
+finalizer(d_w) do _
+    Mem.free(buf_w)
+end
+copyto!(d_w, W)
+
+buf_x = Mem.alloc(Mem.Unified, sizeof(x))
+d_x = unsafe_wrap(CuArray{Float32,2}, convert(CuPtr{Float32}, buf_x), size(x))
+finalizer(d_x) do _
+    Mem.free(buf_x)
+end
+copyto!(d_x, x)
+
+buf_y = Mem.alloc(Mem.Unified, sizeof(y))
+d_y = unsafe_wrap(CuArray{Float32,2}, convert(CuPtr{Float32}, buf_y), size(y))
+finalizer(d_y) do _
+    Mem.free(buf_y)
+end
+copyto!(d_y, y)
+
+@benchmark CUDA.@sync begin
+    @sync begin
+        for (gpu, dev) in enumerate(devices())
+            @async begin
+                device!(dev)
+                @views d_y[:,gpu] .= d_w[:,:,gpu] * d_x[:,gpu]
+            end
+        end
+    end
+end
+```
+
+Benchmark results: 
+```
+BenchmarkTools.Trial:
+  memory estimate:  8.95 KiB
+  allocs estimate:  277
+  --------------
+  minimum time:     371.604 μs (0.00% GC)
+  median time:      3.522 ms (0.00% GC)
+  mean time:        4.485 ms (41.30% GC)
+  maximum time:     39.372 ms (95.88% GC)
+  --------------
+  samples:          1111
+  evals/sample:     1
+```
+
+As expected the speedup with splitting the work across 3 GPUs results in
+roughly a 3x speedup.
