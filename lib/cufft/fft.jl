@@ -112,7 +112,7 @@ Base.size(p::CuFFTPlan) = p.sz
 
         # replace the workarea by one (asynchronously) allocated on the current stream
         new_workarea = similar(plan.workarea)
-        cufftSetWorkArea(new_workarea)
+        cufftSetWorkArea(plan, new_workarea)
         plan.workarea = plan.workarea
     end
     return
