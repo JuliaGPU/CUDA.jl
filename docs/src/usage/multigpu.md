@@ -209,23 +209,24 @@ copyto!(d_y, y)
             end
         end
     end
+    device_synchronize()
 end
 ```
 
 Benchmark results: 
 ```
 BenchmarkTools.Trial:
-  memory estimate:  8.95 KiB
-  allocs estimate:  277
+  memory estimate:  9.08 KiB
+  allocs estimate:  285
   --------------
-  minimum time:     371.604 μs (0.00% GC)
-  median time:      3.522 ms (0.00% GC)
-  mean time:        4.485 ms (41.30% GC)
-  maximum time:     39.372 ms (95.88% GC)
+  minimum time:     5.331 ms (0.00% GC)
+  median time:      8.133 ms (0.00% GC)
+  mean time:        7.046 ms (19.94% GC)
+  maximum time:     22.511 ms (75.23% GC)
   --------------
-  samples:          1111
+  samples:          709
   evals/sample:     1
 ```
 
 As expected the speedup with splitting the work across 3 GPUs results in
-roughly a 3x speedup.
+roughly a 2-3x speedup.
