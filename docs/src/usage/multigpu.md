@@ -230,3 +230,85 @@ BenchmarkTools.Trial:
 
 As expected the speedup with splitting the work across 3 GPUs results in
 roughly a 2-3x speedup.
+
+
+### Example: Reduce over large vector
+
+Here we try a reduction over a large vector by summing over all elements. On a
+single GPU we might do: 
+```julia
+using CUDA, BenchmarkTools
+m = 30000000
+x = cu(rand(Float32, m))
+result = 0
+@benchmark CUDA.@sync result = reduce(+, x)
+```
+
+Benchmark results:
+```
+BenchmarkTools.Trial:
+  memory estimate:  2.34 KiB
+  allocs estimate:  104
+  --------------
+  minimum time:     239.676 μs (0.00% GC)
+  median time:      246.791 μs (0.00% GC)
+  mean time:        257.546 μs (0.86% GC)
+  maximum time:     98.832 ms (22.52% GC)
+  --------------
+  samples:          10000
+  evals/sample:     1
+```
+
+Distributing the work on multiple gpus, we might do: 
+```julia
+using CUDA, BenchmarkTools
+
+# cpu data
+n_gpus = 3
+m = 30000000
+x = rand(Float32, (div(m,n_gpus), n_gpus))
+
+# copy to gpu
+cux = Array{CuArray{Float32, 1}, 1}()
+for (gpu, dev) in enumerate(devices())
+    device!(dev)
+    push!(cux, x[:,gpu])
+end
+
+results = Vector{Any}(undef, n_gpus)
+
+# revert back to default
+device!(first(devices()))
+
+@benchmark CUDA.@sync begin
+    @sync begin
+        for (gpu, dev) in enumerate(devices())
+            @async begin
+                device!(dev)
+                results[gpu] = reduce(+, cux[gpu])
+            end
+        end
+    end
+    device_synchronize()
+    result = reduce(+, results)
+end
+```
+
+Benchmark results:
+```
+BenchmarkTools.Trial:
+  memory estimate:  11.75 KiB
+  allocs estimate:  402
+  --------------
+  minimum time:     410.079 μs (0.00% GC)
+  median time:      5.131 ms (0.00% GC)
+  mean time:        5.317 ms (0.00% GC)
+  maximum time:     30.191 ms (0.00% GC)
+  --------------
+  samples:          942
+  evals/sample:     1
+```
+
+Strangely enough, the median/mean time for multiple-GPUs is significantly higher
+than that of a single GPU, however the maximum time is about 1/3 the single GPU
+scenario. Why the large variance? 
