@@ -43,13 +43,13 @@ if do_help
     exit(0)
 end
 _, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
-_, gpus = extract_flag!(ARGS, "--gpus", 1)
 do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
 do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
 do_thorough, _ = extract_flag!(ARGS, "--thorough")
 do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
 
 include("setup.jl")     # make sure everything is precompiled
+_, gpus = extract_flag!(ARGS, "--gpus", ndevices())
 
 # choose tests
 const tests = ["initialization"]    # needs to run first
