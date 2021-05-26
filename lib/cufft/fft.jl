@@ -113,6 +113,7 @@ Base.size(p::CuFFTPlan) = p.sz
         # replace the workarea by one (asynchronously) allocated on the current stream
         new_workarea = similar(plan.workarea)
         cufftSetWorkArea(plan, new_workarea)
+        CUDA.unsafe_free!(plan.workarea)
         plan.workarea = plan.workarea
     end
     return
