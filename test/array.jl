@@ -584,3 +584,8 @@ end
   b .= 3
   @test Array(y) == [2]
 end
+
+@testset "issue 919" begin
+  # two-step mapreduce with wrapped CuArray as output
+  @test vec(Array(sum!(view(CUDA.zeros(1,1,1), 1, :, :), CUDA.ones(1,4096)))) == [4096f0]
+end
