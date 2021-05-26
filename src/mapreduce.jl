@@ -225,7 +225,10 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
                 copyto!(partial, (i-1)*sz+1, R, 1, sz)
             end
         end
-        kernel(f, op, init, Rreduce, Rother, Val(shuffle), partial, A; threads, blocks, shmem)
+        # NOTE: we can't use the previously-compiled kernel, since the type of `partial`
+        #       might not match the original output container (e.g. if that was a view).
+        @cuda(threads=threads, blocks=blocks, shmem=shmem,
+              partial_mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), partial, A))
 
         GPUArrays.mapreducedim!(identity, op, R′, partial; init=init)
     end
