@@ -318,7 +318,7 @@ for (fname, elty) in ((:cublasIdamax_v2,:Float64),
         end
     end
 end
-iamax(dx::DenseCuArray) = iamax(length(dx), dx, 1)
+iamax(dx::DenseCuArray) = iamax(length(dx), dx)
 
 ## iamin
 # iamin is not in standard blas is a CUBLAS extension
@@ -335,7 +335,7 @@ for (fname, elty) in ((:cublasIdamin_v2,:Float64),
         end
     end
 end
-iamin(dx::DenseCuArray) = iamin(length(dx), dx, 1)
+iamin(dx::DenseCuArray) = iamin(length(dx), dx)
 
 # Level 2
 ## mv

@@ -124,10 +124,13 @@ function compute_processes(dev::Device)
         throw_api_error(res)
     end
 
-    infos = Vector{nvmlProcessInfoV1_t}(undef, count_ref[])
-    nvmlDeviceGetComputeRunningProcesses(dev, count_ref, infos)
+    # "Allocate more space for infos table in case new compute processes are spawned."
+    count::Cuint = count_ref[] + 2
 
-    return Dict(map(infos) do info
+    infos = Vector{nvmlProcessInfoV1_t}(undef, count)
+    nvmlDeviceGetComputeRunningProcesses(dev, Ref(count), infos)
+
+    return Dict(map(infos[1:count_ref[]]) do info
             pid = Int(info.pid)
             used_gpu_memory = if info.usedGpuMemory == (NVML.NVML_VALUE_NOT_AVAILABLE %
                                                         typeof(info.usedGpuMemory))

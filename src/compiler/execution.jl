@@ -354,13 +354,6 @@ end
         filter!(!isequal("exception_flag"), compiled.external_gvars)
     end
 
-    # initialize random seeds, if used
-    if "global_random_seed" in compiled.external_gvars
-        random_state = missing
-        initialize_random_seeds!(mod)
-        filter!(!isequal("global_random_seed"), compiled.external_gvars)
-    end
-
     return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun)
 end
 

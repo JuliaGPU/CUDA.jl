@@ -3,9 +3,6 @@
 # CUDA packages require complex initialization (discover CUDA, download artifacts, etc)
 # that can't happen at module load time, so defer that to run time upon actual use.
 
-const configured = Threads.Atomic{Int}(-1)   # -1=unconfigured, -2=configuring,
-                                             # 0=failed, 1=configured
-
 """
     functional(show_reason=false)
 
@@ -16,11 +13,11 @@ fail to check whether CUDA is functional, actual use of functionality might warn
 """
 function functional(show_reason::Bool=false)
     try
-        CUDA.version()
-        CUDA.toolkit()
+        version()
+        toolkit()
         return true
     catch
-        show_reason || rethrow()
+        show_reason && rethrow()
         return false
     end
 end
@@ -41,6 +38,11 @@ end
         @warn "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.1 or higher (yours is for CUDA $(version()))"
     end
 
+    if version() < v"11.2"
+        @warn """The NVIDIA driver on this system only supports up to CUDA $(version()).
+                 For performance reasons, it is recommended to upgrade to a driver that supports CUDA 11.2 or higher."""
+    end
+
     # ensure that operations executed by the REPL back-end finish before returning,
     # because displaying values happens on a different task (CUDA.jl#831)
     if isdefined(Base, :active_repl_backend)
@@ -49,7 +51,7 @@ end
                 try
                     $(ex)
                 finally
-                    $configured[] == 1 && $synchronize()
+                    $task_local_state() !== nothing && $synchronize()
                 end
             end
         )
