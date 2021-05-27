@@ -11,18 +11,20 @@ using LinearAlgebra
 Base.:(*)(p::Plan{T}, x::StridedCuArray) where {T} = p * copy1(T, x)
 Base.:(*)(p::ScaledPlan, x::StridedCuArray) = rmul!(p.p * x, p.scale)
 
-# FakeCuArray is used to pass the strides and size information into create_plan,
-# With this, plan_brfft, plan_inv don't need to allocate a "real" CuArray.
+# FakeCuArray is used to pass the strides and size information into `create_plan`,
+# and avoid having to allocate an actual CuArray in `plan_brfft`, `plan_inv`, etc.
 struct FakeCuArray{T,N} <: AbstractArray{T,N}
     sz::NTuple{N,Int}
     st::NTuple{N,Int}
-    FakeCuArray{T}(sz::NTuple{N,Int}) where {T,N} = new{T,N}(sz, cumprod((1,sz[1:end-1]...)))
+    FakeCuArray{T}(sz::NTuple{N,Int}) where {T,N} =
+        new{T,N}(sz, cumprod((1,sz[1:end-1]...)))
 end
 Base.size(a::FakeCuArray) = a.sz
 Base.strides(a::FakeCuArray) = a.st
 FakeCuArray{T}(sz...) where T = FakeCuArray{T}(sz)
 
 const CuPlanArray{T,N} = Union{FakeCuArray{T,N}, StridedCuArray{T,N}}
+
 
 ## plan structure
 
@@ -59,7 +61,7 @@ mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     function cCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, workarea::CuVector{Int8},
                                        X::CuPlanArray{T,N}, Y::CuPlanArray{T,N}, region, xtype;
                                        stream::CuStream=stream()) where {T<:cufftComplexes,K,inplace,N}
-        # maybe enforce consistency of sizey
+        # TODO: enforce consistency of sizey?
         p = new(handle, context(), stream, workarea, size(X), size(Y), strides(X), strides(Y), xtype, region)
         finalizer(unsafe_finalize!, p)
         p
@@ -82,7 +84,7 @@ mutable struct rCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     function rCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, workarea::CuVector{Int8},
                                        X::CuPlanArray{T,N}, Y::CuPlanArray{T2,N}, region, xtype;
                                        stream::CuStream=stream()) where {T<:cufftNumber,T2<:cufftNumber,K,inplace,N}
-        # maybe enforce consistency of sizey
+        # TODO: enforce consistency of sizey?
         p = new(handle, context(), stream, workarea, size(X), size(Y), strides(X), strides(Y), xtype, region)
         finalizer(unsafe_finalize!, p)
         p
@@ -138,76 +140,80 @@ end
 
 ## plan methods
 
-# Try to implement padded storage dimensions
+# TODO: implement padded storage dimensions
 
 # Only 1D batch is supported.
-# For some strided layout, we can "reshape" to reduce the batch dimension(Similar to contiguous check in previous version)
+# For some strided layout, we can "reshape" to reduce the batch dimension
 function reduce_howmany!(sz, ist, ost)
     # We found a processable setting
     cion(x) = x |> only |> Cint
-    length(sz) == 0 && return (batch = Cint(1), dists = (typemax(Cint), typemax(Cint))) 
+    length(sz) == 0 && return (batch = Cint(1), dists = (typemax(Cint), typemax(Cint)))
     length(sz) == 1 && return (batch = cion(sz), dists = (cion(ist), cion(ost)))
+
     # move the last element to the excluded location, and resize! the vector.
     _reduce!(a,i) = begin
         @inbounds a[i] = a[end]
         resize!(a, length(a) - 1)
     end
+
     # The following check seems redundant, but i think this won't be the bottleneck
     @inbounds for i in eachindex(sz), j in eachindex(sz)
         if sz[i] .* (ist[i], ost[i]) == (ist[j], ost[j])
-            sz[i] *= sz[j] 
+            sz[i] *= sz[j]
             _reduce!.(tuple(sz, ist, ost), j)
             return reduce_howmany!(sz, ist, ost)
         end
     end
+
     throw(ArgumentError("Unreducable batch setting"))
 end
 
 # The strides information is represented by:
 #   i/ostrides = [i/ostride, i/onembed[end:2]...] |> cumprod
-# Thus not all strided layout is supported. 
-# This function translate the stride information and check it. 
+# Thus not all strided layout is supported.
+# This function translate the stride information and checks it.
 function check_dims(sz, ist, ost)
-    # Cufft support 1,2,3D tranform
+    # CUFFT only support 1, 2, and 3D tranforms
     0 < length(sz) < 4 || throw(ArgumentError("Length of region must be 1,2,3!"))
     # region = (3,1) is now supported, so reverse is replaced with sort.
     ind = sortperm(ist; rev = true)
     sz, ist, ost = sz[ind], ist[ind], ost[ind]
+
     # calculate the nembed and check
     _div(x,y) = begin
         x ÷ y * y == x || throw(ArgumentError("Unsupport Layout"))
         x ÷ y
     end
     sts = ist[end], ost[end] # pick the i/ostride
+
     # i/onembeds[0] is useless, we can fix it to 2147483647
     nembeds = Cint[typemax(Cint), _div.(ist[1:end-1],ist[2:end])...],
               Cint[typemax(Cint), _div.(ost[1:end-1],ost[2:end])...]
+
     (sz = Cint[sz...], sts = Cint.(sts), nembeds = nembeds)
 end
 
-# dims_howmany is named after FFTW’s guru interface. 
+# dims_howmany is named after FFTW’s guru interface.
 # The size and i/ostrides of fft region are stored in dims.
 # And the batch informations are stored in howmany.
 # Dimension with size 1 will be excluded at the first stage.
-function dims_howmany(X::CuPlanArray, Y::CuPlanArray, sz, region) 
+function dims_howmany(X::CuPlanArray, Y::CuPlanArray, sz, region)
     reg = unique!(Int[region...])
     length(reg) < length(region) && throw(ArgumentError("each dimension can be transformed at most once"))
     ist, ost = [strides(X)...], [strides(Y)...]
     reg = filter!(i -> sz[i] > 1, reg)
     oreg = filter(i -> !in(i, reg) && sz[i] > 1, 1:ndims(X))
     # translate the layout information
-    dims = check_dims(sz[reg], ist[reg], ost[reg]) 
-    howmany = reduce_howmany!(sz[oreg], ist[oreg], ost[oreg]) 
+    dims = check_dims(sz[reg], ist[reg], ost[reg])
+    howmany = reduce_howmany!(sz[oreg], ist[oreg], ost[oreg])
     return dims, howmany
 end
 
-# Unfortunately, the strided 2D fft with batch number >= 256 gives wrong result under CUDA 10.x for many size
-# so I believe the strided layout support must be dropped, at least the user should be warned.
+# XXX: the strided 2D fft with batch number >= 256 gives wrong result sunder CUDA 10.x.
 @inline allowstrided(x) = version() >= v"10.2.1" || throw(ArgumentError("StridedCuArray is not supported for CUDA 10.x"))
 @inline allowstrided(::FakeCuArray)  = nothing
 @inline allowstrided(::DenseCuArray) = nothing
 
-# Only the advanced api is used here(like FFTW.jl)
 function create_plan(xtype, X::CuPlanArray, Y::CuPlanArray, region)
     # do the version check at the very beginning
     allowstrided(X)
@@ -231,6 +237,7 @@ function create_plan(xtype, X::CuPlanArray, Y::CuPlanArray, region)
     cufftSetStream(handle, stream())
 
     # make the plan
+    # NOTE: we're only using the advanced API, like FFTW.jl
     worksize_ref = Ref{Csize_t}()
     cufftMakePlanMany(handle, nrank, sz,
                     inembed, istride, idist, onembed, ostride, odist,
@@ -329,16 +336,14 @@ function plan_brfft(X::StridedCuArray{T,N}, d::Integer, region::Any) where {T<:c
     ydims[halfdim] = d
     Y = FakeCuArray{real(T)}(ydims...)
 
-    # brfft will break input, a copy is performed before execution, 
+    # brfft will break input, a copy is performed before execution,
     # so the istrides should follow the copy's layout
-    X′ = FakeCuArray{T}(size(X)) 
+    X′ = FakeCuArray{T}(size(X))
 
     handle, workarea = create_plan(xtype, X′, Y, region)
 
-    rCuFFTPlan{T,K,inplace,N}(handle, workarea, X′, Y, region, xtype) # istride is useless 
+    rCuFFTPlan{T,K,inplace,N}(handle, workarea, X′, Y, region, xtype) # istride is useless
 end
-
-# plan inv use FakeCuArray to avoid allocations now.
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}) where {T,N,inplace}
     X = FakeCuArray{T}(p.sz)
@@ -412,9 +417,9 @@ function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,true,N},
     update_stream(plan)
     cufftExecC2C(plan, x, x, K)
 end
-# plan_brfft! is not implemented now, 
-# but inplace brfft will destroy the input for strided layout
-# So I think we should force it to dense.
+
+# XXX: inplace brfft will destroy the input for strided layout; even though `plan_brfft!`
+#      is currently not implemented, we force the input to be dense.
 function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,true,N},
                          x::DenseCuArray{cufftComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_C2R
