@@ -62,6 +62,11 @@ Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
         h_y = collect(dy)
         @test h_x ≈ y
         @test h_y ≈ x
+
+        a = convert.(T, [1.0, 2.0, -0.8, 5.0, 3.0])
+        ca = CuArray(a)
+        @test BLAS.iamax(a)  == CUBLAS.iamax(ca)
+        @test CUBLAS.iamin(ca) == 3
     end # level 1 testset
     @testset for T in [Float16, ComplexF16]
         A = CuVector(rand(T, m)) # CUDA.rand doesn't work with 16 bit types yet
