@@ -6,20 +6,6 @@ import RandomNumbers
 
 # global state
 
-# constant memory with the compile-time seed
-@eval @inline function global_random_seed()
-    ptr = Base.llvmcall(
-        $("""@global_random_seed = weak addrspace($(AS.Constant)) externally_initialized global [1 x i32] zeroinitializer, align 32
-             define i8 addrspace($(AS.Constant))* @entry() #0 {
-                 %ptr = getelementptr inbounds [1 x i32], [1 x i32] addrspace($(AS.Constant))* @global_random_seed, i64 0, i64 0
-                 %untyped_ptr = bitcast i32 addrspace($(AS.Constant))* %ptr to i8 addrspace($(AS.Constant))*
-                 ret i8 addrspace($(AS.Constant))* %untyped_ptr
-             }
-             attributes #0 = { alwaysinline }
-          """, "entry"), LLVMPtr{UInt32, AS.Constant}, Tuple{})
-    CuDeviceArray((1,), ptr)
-end
-
 # shared memory with the actual seed, per warp, loaded lazily or overridden by calling `seed!`
 @eval @inline function global_random_keys()
     ptr = Base.llvmcall(
@@ -48,11 +34,6 @@ end
     CuDeviceArray((32,), ptr)
 end
 
-function initialize_random_seeds!(mod)
-    seed = CuGlobal{UInt32}(mod, "global_random_seed")
-    seed[async=true] = Base.rand(UInt32)
-end
-
 @device_override Random.make_seed() = clock(UInt32)
 
 
@@ -65,7 +46,13 @@ struct Philox2x32{R} <: RandomNumbers.AbstractRNG{UInt64}
     @inline function Philox2x32{R}() where R
         rng = new{R}()
         if rng.key == 0
-            rng.key = rng.seed
+            # initialize the key. this happens when first accessing the (0-initialized)
+            # shared memory key from each block. if we ever want to make the device seed
+            # controlable from the host, this would be the place to read a global seed.
+            #
+            # note however that it is undefined how shared memory persists across e.g.
+            # launches, so we may not be able to rely on the zero initalization then.
+            rng.key = Random.make_seed()
         end
         return rng
     end
