@@ -13,11 +13,11 @@ fail to check whether CUDA is functional, actual use of functionality might warn
 """
 function functional(show_reason::Bool=false)
     try
-        CUDA.version()
-        CUDA.toolkit()
+        version()
+        toolkit()
         return true
     catch
-        show_reason || rethrow()
+        show_reason && rethrow()
         return false
     end
 end
