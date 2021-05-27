@@ -3,9 +3,6 @@
 # CUDA packages require complex initialization (discover CUDA, download artifacts, etc)
 # that can't happen at module load time, so defer that to run time upon actual use.
 
-const configured = Threads.Atomic{Int}(-1)   # -1=unconfigured, -2=configuring,
-                                             # 0=failed, 1=configured
-
 """
     functional(show_reason=false)
 
@@ -54,7 +51,7 @@ end
                 try
                     $(ex)
                 finally
-                    $configured[] == 1 && $synchronize()
+                    $task_local_state() !== nothing && $synchronize()
                 end
             end
         )
