@@ -292,6 +292,19 @@ end
 
 const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
 
+# helper to run a binary and collect all relevant output
+function run_and_collect(cmd)
+    stdout = Pipe()
+    proc = run(pipeline(ignorestatus(cmd); stdout, stderr=stdout), wait=false)
+    close(stdout.in)
+
+    reader = @async String(read(stdout))
+    Base.wait(proc)
+    log = strip(fetch(reader))
+
+    return proc, log
+end
+
 # compile to executable machine code
 @timeit_ci "compile" function cufunction_compile(@nospecialize(job::CompilerJob))
     # lower to PTX
@@ -311,31 +324,18 @@ const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
     external_gvars = filter(isextinit, collect(globals(ir))) .|> LLVM.name
 
     # prepare invocations of CUDA compiler tools
-    ptxas_cmd = `$(ptxas())`
-    nvlink_cmd = `$(nvlink())`
+    ptxas_opts = String[]
+    nvlink_opts = String[]
     ## debug flags
     if Base.JLOptions().debug_level == 1
-        ptxas_cmd = `$ptxas_cmd --generate-line-info`
+        push!(ptxas_opts, "--generate-line-info")
     elseif Base.JLOptions().debug_level >= 2
-        ptxas_cmd = `$ptxas_cmd --device-debug`
-        nvlink_cmd = `$nvlink_cmd --debug`
+        push!(ptxas_opts, "--device-debug")
+        push!(nvlink_opts, "--debug")
     end
     ## relocatable device code
     if needs_cudadevrt
-        ptxas_cmd = `$ptxas_cmd --compile-only`
-    end
-
-    # helper to run a binary and collect all relevant output
-    function run_and_collect(cmd)
-        stdout = Pipe()
-        proc = run(pipeline(ignorestatus(cmd); stdout, stderr=stdout), wait=false)
-        close(stdout.in)
-
-        reader = @async String(read(stdout))
-        Base.wait(proc)
-        log = strip(fetch(reader))
-
-        return proc, log
+        push!(ptxas_opts, "--compile-only")
     end
 
     # compile to machine code
@@ -355,10 +355,13 @@ const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
         #    version, which is hard to correlate to PTX JIT improvements;
         # 3. if we want to be able to use newer (minor upgrades) of the CUDA toolkit on an
         #    older driver, we should use the newer compiler to ensure compatibility.
-        proc, log = @timeit_ci "ptxas" run_and_collect(
-            ```$ptxas_cmd --gpu-name $arch
-                          --verbose
-                          --output-file $ptxas_output $ptx_input```)
+        append!(ptxas_opts, [
+            "--verbose",
+            "--gpu-name", arch,
+            "--output-file", ptxas_output,
+            ptx_input
+        ])
+        proc, log = @timeit_ci "ptxas" run_and_collect(`$(ptxas()) $ptxas_opts`)
         if !success(proc)
             error("Failed to compile PTX code" * (isempty(log) ? "" : "\n$log"))
         elseif !isempty(log)
@@ -372,12 +375,15 @@ const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
         # TODO: try LTO, `--link-time-opt --nvvmpath /opt/cuda/nvvm`.
         #       fails with `Ignoring -lto option because no LTO objects found`
         if needs_cudadevrt
-            proc, log = @timeit_ci "nvlink" run_and_collect(
-                ```$nvlink_cmd --arch $arch
-                               --library-path $(dirname(libcudadevrt()))
-                               --library cudadevrt
-                               --verbose --extra-warnings
-                               --output-file $nvlink_output $ptxas_output```)
+            append!(nvlink_opts, [
+                "--verbose", "--extra-warnings",
+                "--arch", arch,
+                "--library-path", dirname(libcudadevrt()),
+                "--library", "cudadevrt",
+                "--output-file", nvlink_output,
+                ptxas_output
+            ])
+            proc, log = @timeit_ci "nvlink" run_and_collect(`$(nvlink()) $nvlink_opts`)
             if !success(proc)
                 error("Failed to link PTX code" * (isempty(log) ? "" : "\n$log"))
             elseif !isempty(log)
