@@ -41,17 +41,6 @@ end
 end
 
 
-@testset "inference" begin
-    foo() = @cuda dummy()
-    @inferred foo()
-
-    # with arguments, we call cudaconvert
-    kernel(a) = return
-    bar(a) = @cuda kernel(a)
-    @inferred bar(CuArray([1]))
-end
-
-
 @testset "reflection" begin
     CUDA.code_lowered(dummy, Tuple{})
     CUDA.code_typed(dummy, Tuple{})

@@ -202,7 +202,25 @@ toolkit_release() = VersionNumber(toolkit_version().major, toolkit_version().min
 
 ## binaries
 
-export nvdisasm, compute_sanitizer, has_compute_sanitizer
+export ptxas, nvlink, nvdisasm, compute_sanitizer, has_compute_sanitizer
+
+# pxtas: used for compiling PTX to SASS
+const __ptxas = Ref{String}()
+function ptxas()
+    @initialize_ref __ptxas begin
+        __ptxas[] = find_binary(toolkit(), "ptxas")
+    end
+    __ptxas[]
+end
+
+# nvlink: used for linking additional libraries
+const __nvlink = Ref{String}()
+function nvlink()
+    @initialize_ref __nvlink begin
+        __nvlink[] = find_binary(toolkit(), "nvlink")
+    end
+    __nvlink[]
+end
 
 # nvdisasm: used for reflection (decompiling SASS code)
 const __nvdisasm = Ref{String}()

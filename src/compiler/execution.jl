@@ -278,7 +278,7 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-@timeit_ci function cufunction(f::F, tt::Type{TT}=Tuple{}; name=nothing, kwargs...) where {F, TT}
+@timeit_ci function cufunction(f, tt=Tuple{}; name=nothing, kwargs...)
     dev = device()
     cache = cufunction_cache[dev]
     source = FunctionSpec(f, tt, true, name)
@@ -287,14 +287,27 @@ when function changes, or when different types or keyword arguments are provided
     job = CompilerJob(target, source, params)
     return GPUCompiler.cached_compilation(cache, job,
                                           cufunction_compile,
-                                          cufunction_link)::HostKernel{F,TT}
+                                          cufunction_link)
 end
 
 const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
 
-# compile to PTX
+# helper to run a binary and collect all relevant output
+function run_and_collect(cmd)
+    stdout = Pipe()
+    proc = run(pipeline(ignorestatus(cmd); stdout, stderr=stdout), wait=false)
+    close(stdout.in)
+
+    reader = @async String(read(stdout))
+    Base.wait(proc)
+    log = strip(fetch(reader))
+
+    return proc, log
+end
+
+# compile to executable machine code
 @timeit_ci "compile" function cufunction_compile(@nospecialize(job::CompilerJob))
-    # compile
+    # lower to PTX
     method_instance, world = @timeit_ci "emit_julia" GPUCompiler.emit_julia(job)
     ir, kernel = @timeit_ci "emit_llvm" GPUCompiler.emit_llvm(job, method_instance, world)
     code = @timeit_ci "emit_asm" GPUCompiler.emit_asm(job, ir, kernel; format=LLVM.API.LLVMAssemblyFile)
@@ -304,48 +317,97 @@ const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
         isdeclaration(f) && !LLVM.isintrinsic(f)
     end
     intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
-                    "__nvvm_reflect" #= TODO: should have been optimized away =#]
+                     "__nvvm_reflect" #= TODO: should have been optimized away =#]
     needs_cudadevrt = !isempty(setdiff(LLVM.name.(undefined_fs), intrinsic_fns))
 
     # find externally-initialized global variables; we'll access those using CUDA APIs.
     external_gvars = filter(isextinit, collect(globals(ir))) .|> LLVM.name
 
-    return (code, entry=LLVM.name(kernel), needs_cudadevrt, external_gvars)
+    # prepare invocations of CUDA compiler tools
+    ptxas_opts = String[]
+    nvlink_opts = String[]
+    ## debug flags
+    if Base.JLOptions().debug_level == 1
+        push!(ptxas_opts, "--generate-line-info")
+    elseif Base.JLOptions().debug_level >= 2
+        push!(ptxas_opts, "--device-debug")
+        push!(nvlink_opts, "--debug")
+    end
+    ## relocatable device code
+    if needs_cudadevrt
+        push!(ptxas_opts, "--compile-only")
+    end
+
+    # compile to machine code
+    # NOTE: we use tempname since mktemp doesn't support suffixes, and mktempdir is slow
+    ptx_input = tempname(cleanup=false) * ".ptx"
+    ptxas_output = tempname(cleanup=false) * ".cubin"
+    nvlink_output = tempname(cleanup=false) * ".cubin"
+    image = try
+        write(ptx_input, code)
+
+        arch = "sm_$(job.target.cap.major)$(job.target.cap.minor)"
+
+        # we could use the driver's embedded JIT compiler, but that has several disadvantages:
+        # 1. fixes and improvements are slower to arrive, by using `ptxas` we only need to
+        #    upgrade the toolkit to get a newer compiler;
+        # 2. version checking is simpler, we otherwise need to use NVML to query the driver
+        #    version, which is hard to correlate to PTX JIT improvements;
+        # 3. if we want to be able to use newer (minor upgrades) of the CUDA toolkit on an
+        #    older driver, we should use the newer compiler to ensure compatibility.
+        append!(ptxas_opts, [
+            "--verbose",
+            "--gpu-name", arch,
+            "--output-file", ptxas_output,
+            ptx_input
+        ])
+        proc, log = @timeit_ci "ptxas" run_and_collect(`$(ptxas()) $ptxas_opts`)
+        if !success(proc)
+            error("Failed to compile PTX code" * (isempty(log) ? "" : "\n$log"))
+        elseif !isempty(log)
+            @debug "PTX compiler log:\n" * log
+        end
+
+        # link device libraries, if necessary
+        #
+        # this requires relocatable device code, which prevents certain optimizations and
+        # hurts performance. as such, we only do so when absolutely necessary.
+        # TODO: try LTO, `--link-time-opt --nvvmpath /opt/cuda/nvvm`.
+        #       fails with `Ignoring -lto option because no LTO objects found`
+        if needs_cudadevrt
+            append!(nvlink_opts, [
+                "--verbose", "--extra-warnings",
+                "--arch", arch,
+                "--library-path", dirname(libcudadevrt()),
+                "--library", "cudadevrt",
+                "--output-file", nvlink_output,
+                ptxas_output
+            ])
+            proc, log = @timeit_ci "nvlink" run_and_collect(`$(nvlink()) $nvlink_opts`)
+            if !success(proc)
+                error("Failed to link PTX code" * (isempty(log) ? "" : "\n$log"))
+            elseif !isempty(log)
+                @debug "PTX linker info log:\n" * log
+            end
+
+            read(nvlink_output)
+        else
+            read(ptxas_output)
+        end
+    finally
+        rm(ptx_input)
+        ispath(ptxas_output) && rm(ptxas_output)
+        ispath(nvlink_output) && rm(nvlink_output)
+    end
+
+    return (image, entry=LLVM.name(kernel), external_gvars)
 end
 
-# link to device code
+# link into an executable kernel
 @timeit_ci "link" function cufunction_link(@nospecialize(job::CompilerJob), compiled)
+    # load as an executable kernel object
     ctx = context()
-
-    # settings to JIT based on Julia's debug setting
-    jit_options = Dict{CUjit_option,Any}()
-    if Base.JLOptions().debug_level == 1
-        jit_options[JIT_GENERATE_LINE_INFO] = true
-    elseif Base.JLOptions().debug_level >= 2
-        jit_options[JIT_GENERATE_DEBUG_INFO] = true
-    end
-
-    # link the CUDA device library
-    # linking the device runtime library requires use of the CUDA linker,
-    # which in turn switches compilation to device relocatable code (-rdc) mode.
-    #
-    # even if not doing any actual calls that need -rdc (i.e., calls to the runtime
-    # library), this significantly hurts performance, so don't do it unconditionally
-    intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
-                    "__nvvm_reflect" #= TODO: should have been optimized away =#]
-    image = if compiled.needs_cudadevrt
-        @timeit_ci "cudadevrt" begin
-        linker = CuLink(jit_options)
-        add_file!(linker, libcudadevrt(), JIT_INPUT_LIBRARY)
-        add_data!(linker, compiled.entry, compiled.code)
-        complete(linker)
-        end
-    else
-        compiled.code
-    end
-
-    # JIT into an executable kernel object
-    mod = @timeit_ci "CuModule" CuModule(image, jit_options)
+    mod = @timeit_ci "CuModule" CuModule(compiled.image)
     fun = CuFunction(mod, compiled.entry)
 
     # initialize and register the exception flag, if any
