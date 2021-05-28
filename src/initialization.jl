@@ -66,8 +66,11 @@ end
 function __init_toolkit__()
     if toolkit_release() < v"10.1"
         @warn "This version of CUDA.jl only supports CUDA 10.1 or higher (your toolkit provides CUDA $(toolkit_release()))"
-    elseif toolkit_release() > release()
+    elseif release() < v"11" && toolkit_release() > release()
         @warn """You are using CUDA toolkit $(toolkit_release()) with a driver that only supports up to $(release()).
+                 It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
+    elseif release() >= v"11" && toolkit_release().major > release().major
+        @warn """You are using CUDA toolkit $(toolkit_release()) with a driver that only supports up to $(release().major).x.
                  It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
     end
 

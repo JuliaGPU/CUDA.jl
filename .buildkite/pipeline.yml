@@ -37,11 +37,11 @@ steps:
             - examples
     agents:
       queue: "juliagpu"
-      cuda: "11.2"                    # older versions of CUDA have issues
+      cuda: "11.0"
       cap: "recent"                   # test as much as possible
     env:
       JULIA_CUDA_MEMORY_POOL: 'none'  # compute-sanitizer uses a lot of memory, so we need device_reset!
-      JULIA_CUDA_VERSION: '11.2'
+      JULIA_CUDA_VERSION: '11.2'      # older versions of CUDA have issues
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 120
@@ -88,7 +88,7 @@ steps:
             - examples
     agents:
       queue: "juliagpu"
-      cuda: "11.3"
+      cuda: "11.0"
       cap: "recent"
     env:
       JULIA_CUDA_VERSION: '11.3'
@@ -110,7 +110,7 @@ steps:
             - examples
     agents:
       queue: "juliagpu"
-      cuda: "11.2"
+      cuda: "11.0"
       cap: "recent"
     env:
       JULIA_CUDA_VERSION: '11.2'
@@ -132,7 +132,7 @@ steps:
             - examples
     agents:
       queue: "juliagpu"
-      cuda: "11.1"
+      cuda: "11.0"
       cap: "recent"
     env:
       JULIA_CUDA_VERSION: '11.1'
