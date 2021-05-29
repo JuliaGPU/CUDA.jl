@@ -103,7 +103,11 @@ function find_artifact_cuda()
         driver_release = CUDA.release()
         @debug "Selecting artifacts based on driver compatibility $driver_release"
         candidate_toolkits = filter(cuda_toolkits) do toolkit
-            toolkit.preferred && toolkit.release <= driver_release
+            toolkit.preferred &&
+                (toolkit.release <= driver_release ||
+                 # CUDA 11: Enhanced Compatibility (aka. semver)
+                 (driver_release >= v"11" &&
+                  toolkit.release.major <= driver_release.major))
         end
         isempty(candidate_toolkits) && @debug "CUDA driver compatibility $driver_release is not compatible with any artifact"
     end
