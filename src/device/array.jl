@@ -76,22 +76,108 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, a::CuDeviceArray{T,N,A}) where {T,A,N}
 #       this information, because it enables optimizations like Load Store Vectorization
 #       (cfr. shared memory and its wider-than-datatype alignment)
 
+# XXX: try without @generated
+@generated function alignment(::CuDeviceArray{T}) where {T}
+    val = if Base.isbitsunion(T)
+        _, sz, al = Base.uniontype_layout(T)
+        al
+    else
+        Base.datatype_alignment(T)
+    end
+    :($val)
+end
+
+# enumerate the union types in the order that the selector indexes them
+# XXX: where does Base determine this order?
+function union_types(T::Union)
+    typs = DataType[T.a]
+    tail = T.b
+    while tail isa Union
+        push!(typs, tail.a)
+        tail = tail.b
+    end
+    push!(typs, tail)
+    return typs
+end
+
 @inline function arrayref(A::CuDeviceArray{T}, index::Int) where {T}
     @boundscheck checkbounds(A, index)
-    align = Base.datatype_alignment(T)
+    if isbitstype(T)
+        arrayref_bits(A, index)
+    else #if isbitsunion(T)
+        arrayref_union(A, index)
+    end
+end
+
+@inline function arrayref_bits(A::CuDeviceArray{T}, index::Int) where {T}
+    align = alignment(A)
     unsafe_load(pointer(A), index, Val(align))
+end
+
+reinterpret_ptr(::Type{T}, ptr::LLVMPtr{<:Any,A}) where {T,A} = reinterpret(LLVMPtr{T,A}, ptr)
+
+@inline @generated function arrayref_union(A::CuDeviceArray{T}, index::Int) where {T}
+    typs = union_types(T)
+
+    # generate code that conditionally loads a value based on the selector value
+    # XXX: returning T from unreachable is a hack to convince inference this only returns T
+    ex = :(Base.llvmcall("unreachable", $T, Tuple{}))
+    for (sel, typ) in Iterators.reverse(enumerate(typs))
+        ex = quote
+            if selector == $(sel-1)
+                ptr = reinterpret_ptr($typ, data_ptr)
+                unsafe_load(ptr, 1) # XXX: Val(align)
+            else
+                $ex
+            end
+        end
+    end
+
+    quote
+        selector_ptr = reinterpret_ptr(UInt8, pointer(A) + sizeof(A))
+        selector = unsafe_load(selector_ptr, index)
+
+        align = alignment(A)
+        data_ptr = pointer(A, index)
+
+        return $ex
+    end
 end
 
 @inline function arrayset(A::CuDeviceArray{T}, x::T, index::Int) where {T}
     @boundscheck checkbounds(A, index)
-    align = Base.datatype_alignment(T)
-    unsafe_store!(pointer(A), x, index, Val(align))
+    if isbitstype(T)
+        arrayset_bits(A, x, index)
+    else #if isbitsunion(T)
+        arrayset_union(A, x, index)
+    end
     return A
+end
+
+@inline function arrayset_bits(A::CuDeviceArray{T}, x::T, index::Int) where {T}
+    align = alignment(A)
+    unsafe_store!(pointer(A), x, index, Val(align))
+end
+
+@inline @generated function arrayset_union(A::CuDeviceArray{T}, x::T, index::Int) where {T}
+    typs = union_types(T)
+    sel = findfirst(isequal(x), typs)
+
+    quote
+        selector_ptr = reinterpret_ptr(UInt8, pointer(A) + sizeof(A))
+        unsafe_store!(selector_ptr, $(UInt8(sel-1)))
+
+        align = alignment(A)
+        data_ptr = pointer(A, index)
+
+        unsafe_store!(reinterpret_ptr($x, data_ptr), x, 1, Val(align))
+        return
+    end
 end
 
 @inline function const_arrayref(A::CuDeviceArray{T}, index::Int) where {T}
     @boundscheck checkbounds(A, index)
-    align = Base.datatype_alignment(T)
+    align = alignment(A)
     unsafe_cached_load(pointer(A), index, Val(align))
 end
 

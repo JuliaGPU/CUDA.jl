@@ -589,3 +589,29 @@ end
   # two-step mapreduce with wrapped CuArray as output
   @test vec(Array(sum!(view(CUDA.zeros(1,1,1), 1, :, :), CUDA.ones(1,4096)))) == [4096f0]
 end
+
+
+@testset "isbits unions" begin
+  # test that the selector bytes are preserved when up and downloading
+  let a = [1, nothing, 3]
+    b = CuArray(a)
+    c = Array(b)
+    @test a == c
+  end
+
+  # test that we can correctly read and write unions from device code
+  let a = [1, nothing, 3]
+    b = CuArray(a)
+    c = similar(b, Bool)
+    function kernel(x)
+      i = threadIdx().x
+      val = x[i]
+      if val !== nothing
+        x[i] = val + 1
+      end
+      return
+    end
+    @cuda threads=length(a) kernel(b)
+    @test Array(b) == [2, nothing, 4]
+  end
+end

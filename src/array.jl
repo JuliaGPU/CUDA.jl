@@ -15,16 +15,20 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
   ctx::CuContext
 
   function CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
-    Base.isbitsunion(T) && error("CuArray does not yet support union bits types")
-    Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
-    ptr = alloc(prod(dims) * sizeof(T))
+    Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
+    sz = prod(dims) * sizeof(T)
+    if Base.isbitsunion(T)
+      # type tag array past the last element
+      sz += prod(dims)
+    end
+    ptr = alloc(sz)
     obj = new{T,N}(ptr, 0, dims, ARRAY_MANAGED, context())
     finalizer(unsafe_finalize!, obj)
   end
 
   function CuArray{T,N}(ptr::CuPtr{Nothing}, dims::Dims{N}, ctx=context(); offset::Int=0) where {T,N}
-    Base.isbitsunion(T) && error("CuArray does not yet support union bits types")
-    Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
+    Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
+    Base.isbitsunion(T)     && error("Wrapping a pointer with an isbits union array is not implemented")
     return new{T,N}(ptr, offset, dims, ARRAY_UNMANAGED, ctx)
   end
 end
@@ -319,17 +323,20 @@ end
 Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
     copyto!(dest, 1, src, 1, length(src))
 
+typetag_pointer(a::Array, off=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + off - 1
+typetag_pointer(a::CuArray, off=1) = convert(CuPtr{UInt8}, pointer(a) + sizeof(a)) + off - 1
+
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::Array{T}, soffs, n) where T
   if !is_pinned(pointer(src))
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
     synchronize()
   end
-  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n;
-                                       async=true)
-  if Base.isbitsunion(T)
-    # copy selector bytes
-    error("Not implemented")
+  GC.@preserve src dest begin
+    unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+    if Base.isbitsunion(T)
+      unsafe_copyto!(typetag_pointer(dest, doffs), typetag_pointer(src, soffs), n; async=true)
+    end
   end
   return dest
 end
@@ -340,22 +347,22 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs, src::DenseCuArray{T}, soffs,
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
     synchronize()
   end
-  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n;
-                                       async=true)
-  if Base.isbitsunion(T)
-    # copy selector bytes
-    error("Not implemented")
+  GC.@preserve src dest begin
+    unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+    if Base.isbitsunion(T)
+      unsafe_copyto!(typetag_pointer(dest, doffs), typetag_pointer(src, soffs), n; async=true)
+    end
   end
   synchronize() # users expect values to be available after this call
   return dest
 end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
-  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n;
-                                       async=true)
-  if Base.isbitsunion(T)
-    # copy selector bytes
-    error("Not implemented")
+  GC.@preserve src dest begin
+    unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+    if Base.isbitsunion(T)
+      unsafe_copyto!(typetag_pointer(dest, doffs), typetag_pointer(src, soffs), n; async=true)
+    end
   end
   return dest
 end
