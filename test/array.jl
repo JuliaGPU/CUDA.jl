@@ -180,110 +180,6 @@ end
 end
 
 
-function kernel_shmem_reinterpet_equal_size!(y)
-  a = @cuDynamicSharedMem(Float32, (blockDim().x,))
-  b = reinterpret(UInt32, a)
-  a[threadIdx().x] = threadIdx().x
-  b[threadIdx().x] += 1
-  y[threadIdx().x] = a[threadIdx().x]
-  return
-end
-
-function shmem_reinterpet_equal_size()
-  threads = 4
-  y = CUDA.zeros(threads)
-  shmem = sizeof(Float32) * threads
-  @cuda(
-    threads = threads,
-    blocks = 1,
-    shmem = shmem,
-    kernel_shmem_reinterpet_equal_size!(y)
-  )
-  return y
-end
-
-@testset "reinterpret shmem: equal size" begin
-  gpu = shmem_reinterpet_equal_size()
-  a = zeros(Float32, length(gpu))
-  b = reinterpret(UInt32, a)
-  a .= 1:length(b)
-  b .+= 1
-  @test collect(gpu) == a
-end
-
-function kernel_shmem_reinterpet_smaller_size!(y)
-  a = @cuDynamicSharedMem(UInt128, (blockDim().x,))
-  i32 = Int32(threadIdx().x)
-  p = i32 + i32 * im
-  q = i32 - i32 * im
-  b = reinterpret(typeof(p), a)
-  b[1 + 2 * (threadIdx().x - 1)] = p
-  b[2 + 2 * (threadIdx().x - 1)] = q
-  y[threadIdx().x] = a[threadIdx().x]
-  return
-end
-
-function shmem_reinterpet_smaller_size()
-  threads = 4
-  y = CUDA.zeros(UInt128, threads)
-  shmem = sizeof(UInt128) * threads
-  @cuda(
-    threads = threads,
-    blocks = 1,
-    shmem = shmem,
-    kernel_shmem_reinterpet_smaller_size!(y)
-  )
-  return y
-end
-
-@testset "reinterpret shmem: smaller size" begin
-  gpu = shmem_reinterpet_smaller_size()
-  n = length(gpu)
-  a = zeros(UInt128, n)
-  p(i) = Int32(i) + Int32(i) * im
-  q(i) = Int32(i) - Int32(i) * im
-  b = reinterpret(typeof(p(0)), a)
-  b[1:2:end] .= p.(1:n)
-  b[2:2:end] .= q.(1:n)
-  @test collect(gpu) == a
-end
-
-function kernel_shmem_reinterpet_larger_size!(y)
-  a = @cuDynamicSharedMem(Float32, (4 * blockDim().x,))
-  b = reinterpret(UInt128, a)
-  a[1 + 4 * (threadIdx().x - 1)] = threadIdx().x
-  a[2 + 4 * (threadIdx().x - 1)] = threadIdx().x * 2
-  a[3 + 4 * (threadIdx().x - 1)] = threadIdx().x * 3
-  a[4 + 4 * (threadIdx().x - 1)] = threadIdx().x * 4
-  y[threadIdx().x] = b[threadIdx().x]
-  return
-end
-
-function shmem_reinterpet_larger_size()
-  threads = 4
-  y = CUDA.zeros(UInt128, threads)
-  shmem = sizeof(UInt128) * threads
-  @cuda(
-    threads = threads,
-    blocks = 1,
-    shmem = shmem,
-    kernel_shmem_reinterpet_larger_size!(y)
-  )
-  return y
-end
-
-@testset "reinterpret shmem: larger size" begin
-  gpu = shmem_reinterpet_larger_size()
-  n = length(gpu)
-  b = zeros(UInt128, n)
-  a = reinterpret(Float32, b)
-  a[1:4:end] .= 1:n
-  a[2:4:end] .= (1:n) .* 2
-  a[3:4:end] .= (1:n) .* 3
-  a[4:4:end] .= (1:n) .* 4
-  @test collect(gpu) == b
-end
-
 @testset "Dense derivatives" begin
   a = CUDA.rand(Int64, 5, 4, 3)
   @test a isa CuArray
@@ -468,7 +364,7 @@ end
   let x = rand(Float32, 100)
       @test findmax(x) == findmax(CuArray(x))
       @test findmax(x; dims=1) == Array.(findmax(CuArray(x); dims=1))
-      
+
       x[32] = x[33] = x[55] = x[66] = NaN32
       @test isequal(findmax(x), findmax(CuArray(x)))
       @test isequal(findmax(x; dims=1), Array.(findmax(CuArray(x); dims=1)))
@@ -611,7 +507,30 @@ end
       end
       return
     end
-    @cuda threads=length(a) kernel(b)
+    @cuda threads=length(b) kernel(b)
+    @test Array(b) == [2, nothing, 4]
+  end
+
+  # same for views
+  let a = [0, nothing, 1, nothing, 3, nothing]
+    b = CuArray(a)
+    b = view(b, 3:5)
+    c = Array(b)
+    @test view(a, 3:5) == c
+  end
+  let a = [0, nothing, 1, nothing, 3, nothing]
+    b = CuArray(a)
+    b = view(b, 3:5)
+    c = similar(b, Bool)
+    function kernel(x)
+      i = threadIdx().x
+      val = x[i]
+      if val !== nothing
+        x[i] = val + 1
+      end
+      return
+    end
+    @cuda threads=length(b) kernel(b)
     @test Array(b) == [2, nothing, 4]
   end
 end

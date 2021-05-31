@@ -8,7 +8,9 @@ end
 
 mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
   baseptr::CuPtr{Nothing}
+  maxsize::Int  # maximum data size; excluding any selector bytes
   offset::Int
+
   dims::Dims{N}
 
   state::ArrayState
@@ -16,20 +18,22 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
 
   function CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
     Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
-    sz = prod(dims) * sizeof(T)
-    if Base.isbitsunion(T)
-      # type tag array past the last element
-      sz += prod(dims)
+    maxsize = prod(dims) * sizeof(T)
+    bufsize = if Base.isbitsunion(T)
+      # type tag array past the data
+      maxsize + prod(dims)
+    else
+      maxsize
     end
-    ptr = alloc(sz)
-    obj = new{T,N}(ptr, 0, dims, ARRAY_MANAGED, context())
+    ptr = alloc(bufsize)
+    obj = new{T,N}(ptr, maxsize, 0, dims, ARRAY_MANAGED, context())
     finalizer(unsafe_finalize!, obj)
   end
 
-  function CuArray{T,N}(ptr::CuPtr{Nothing}, dims::Dims{N}, ctx=context(); offset::Int=0) where {T,N}
+  function CuArray{T,N}(ptr::CuPtr{Nothing}, dims::Dims{N}, ctx=context();
+                        maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N}
     Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
-    Base.isbitsunion(T)     && error("Wrapping a pointer with an isbits union array is not implemented")
-    return new{T,N}(ptr, offset, dims, ARRAY_UNMANAGED, ctx)
+    return new{T,N}(ptr, maxsize, offset, dims, ARRAY_UNMANAGED, ctx)
   end
 end
 
@@ -145,6 +149,7 @@ take ownership of the memory, calling `cudaFree` when the array is no longer ref
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
+  Base.isbitstype(T) || error("Can only unsafe_wrap a pointer to a bits type")
   xs = CuArray{T, length(dims)}(convert(CuPtr{Cvoid}, ptr), dims, ctx)
   if own
     # identify the buffer
@@ -263,11 +268,15 @@ Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
 ## interop with device arrays
 
 function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArray{T,N}) where {T,N}
-  CuDeviceArray{T,N,AS.Global}(size(a), reinterpret(LLVMPtr{T,AS.Global}, pointer(a)))
+  CuDeviceArray{T,N,AS.Global}(size(a), reinterpret(LLVMPtr{T,AS.Global}, a.baseptr), a.maxsize, a.offset)
 end
 
 
 ## interop with CPU arrays
+
+typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
+typetagdata(a::CuArray, i=1) =
+  convert(CuPtr{UInt8}, a.baseptr + a.maxsize) + a.offset÷Base.elsize(a) + i - 1
 
 # We don't convert isbits types in `adapt`, since they are already
 # considered GPU-compatible.
@@ -323,9 +332,6 @@ end
 Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
     copyto!(dest, 1, src, 1, length(src))
 
-typetag_pointer(a::Array, off=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + off - 1
-typetag_pointer(a::CuArray, off=1) = convert(CuPtr{UInt8}, pointer(a) + sizeof(a)) + off - 1
-
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::Array{T}, soffs, n) where T
   if !is_pinned(pointer(src))
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
@@ -335,7 +341,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::Array{T}, soffs,
   GC.@preserve src dest begin
     unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
     if Base.isbitsunion(T)
-      unsafe_copyto!(typetag_pointer(dest, doffs), typetag_pointer(src, soffs), n; async=true)
+      unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
     end
   end
   return dest
@@ -350,7 +356,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs, src::DenseCuArray{T}, soffs,
   GC.@preserve src dest begin
     unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
     if Base.isbitsunion(T)
-      unsafe_copyto!(typetag_pointer(dest, doffs), typetag_pointer(src, soffs), n; async=true)
+      unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
     end
   end
   synchronize() # users expect values to be available after this call
@@ -361,7 +367,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T},
   GC.@preserve src dest begin
     unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
     if Base.isbitsunion(T)
-      unsafe_copyto!(typetag_pointer(dest, doffs), typetag_pointer(src, soffs), n; async=true)
+      unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
     end
   end
   return dest
@@ -469,7 +475,7 @@ end
             alias(a.baseptr)
         end
     end
-    b = CuArray{T,M}(a.baseptr, dims, a.ctx; offset=a.offset+offset)
+    b = CuArray{T,M}(a.baseptr, dims, a.ctx; a.maxsize, offset=a.offset+offset)
     if a.state == ARRAY_MANAGED
         finalizer(unsafe_finalize!, b)
     end
@@ -518,7 +524,7 @@ function Base.reshape(a::CuArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
           alias(a.baseptr)
       end
   end
-  b = CuArray{T,N}(a.baseptr, dims, a.ctx; offset=a.offset)
+  b = CuArray{T,N}(a.baseptr, dims, a.ctx; a.maxsize, a.offset)
   if a.state == ARRAY_MANAGED
       finalizer(unsafe_finalize!, b)
   end
@@ -589,25 +595,12 @@ function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
           alias(a.baseptr)
       end
   end
-  b = CuArray{T,N}(a.baseptr, osize, a.ctx; offset=a.offset)
+  b = CuArray{T,N}(a.baseptr, osize, a.ctx; a.maxsize, a.offset)
   if a.state == ARRAY_MANAGED
       finalizer(unsafe_finalize!, b)
   end
   b.state = a.state
   return b
-end
-
-function Base.reinterpret(::Type{T}, a::CuDeviceArray{S,N,A}) where {T,S,N,A}
-  if sizeof(T) == sizeof(S) # fast case
-    return CuDeviceArray(size(a), reinterpret(LLVMPtr{T,A}, pointer(a)))
-  end
-  err = _reinterpret_exception(T, a)
-  err === nothing || throw(err)
-
-  isize = size(a)
-  size1 = div(isize[1]*sizeof(S), sizeof(T))
-  osize = tuple(size1, Base.tail(isize)...)
-  return CuDeviceArray(osize, reinterpret(LLVMPtr{T,A}, pointer(a)))
 end
 
 
@@ -624,7 +617,15 @@ Note that this operation is only supported on managed buffers, i.e., not on arra
 created by `unsafe_wrap` with `own=false`.
 """
 function Base.resize!(A::CuVector{T}, n::Int) where T
-  ptr = alloc(n * sizeof(T))
+  # TODO: add additional space to allow for quicker resizing
+  maxsize = n * sizeof(T)
+  bufsize = if Base.isbitsunion(T)
+    # type tag array past the data
+    maxsize + n
+  else
+    maxsize
+  end
+  ptr = alloc(bufsize)
   m = Base.min(length(A), n)
   unsafe_copyto!(convert(CuPtr{T}, ptr), pointer(A), m)
 
@@ -633,6 +634,7 @@ function Base.resize!(A::CuVector{T}, n::Int) where T
   A.state = ARRAY_MANAGED
   A.dims = (n,)
   A.baseptr = ptr
+  A.maxsize = maxsize
   A.offset = 0
 
   A

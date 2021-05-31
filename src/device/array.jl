@@ -23,12 +23,18 @@ CuDeviceArray
 # NOTE: we can't support the typical `tuple or series of integer` style construction,
 #       because we're currently requiring a trailing pointer argument.
 
-struct CuDeviceArray{T,N,A} <: AbstractArray{T,N}
-    shape::Dims{N}
-    ptr::LLVMPtr{T,A}
+struct CuDeviceArray{T,N,A} <: DenseArray{T,N}
+    baseptr::LLVMPtr{T,A}
+    maxsize::Int
+    offset::Int
+
+    dims::Dims{N}
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
-    CuDeviceArray{T,N,A}(shape::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N} = new(shape,ptr)
+    # TODO: deprecate; put `ptr` first like CuArray
+    CuDeviceArray{T,N,A}(dims::Dims{N}, ptr::LLVMPtr{T,A}, maxsize::Int=prod(dims)*sizeof(T),
+                         offset::Int=0) where {T,A,N} =
+        new(ptr, maxsize, offset, dims)
 end
 
 const CuDeviceVector = CuDeviceArray{T,1,A} where {T,A}
@@ -49,22 +55,29 @@ CuDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} =
 CuDeviceVector{T,A}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((Int(len),), p)
 
 
-## getters
-
-Base.pointer(a::CuDeviceArray) = a.ptr
-Base.pointer(a::CuDeviceArray, i::Integer) =
-    pointer(a) + (i - 1) * Base.elsize(a)
+## array interface
 
 Base.elsize(::Type{<:CuDeviceArray{T}}) where {T} = sizeof(T)
-Base.size(g::CuDeviceArray) = g.shape
-Base.length(g::CuDeviceArray) = prod(g.shape)
+Base.size(g::CuDeviceArray) = g.dims
+Base.length(g::CuDeviceArray) = prod(g.dims)
 
 Base.sizeof(x::CuDeviceArray) = Base.elsize(x) * length(x)
+
+Base.pointer(x::CuDeviceArray{T,<:Any,A}) where {T,A} = Base.unsafe_convert(LLVMPtr{T,A}, x)
+@inline function Base.pointer(x::CuDeviceArray{T,<:Any,A}, i::Integer) where {T,A}
+    Base.unsafe_convert(LLVMPtr{T,A}, x) + Base._memory_offset(x, i)
+end
+
+# NOTE: if this division is too expensive, we could maintain an offset in number of elements
+#       and multiply by the element size in `unsafe_convert` instead
+typetagdata(a::CuDeviceArray{<:Any,<:Any,A}, i=1) where {A} =
+  reinterpret(LLVMPtr{UInt8,A}, a.baseptr + a.maxsize) + a.offset÷Base.elsize(a) + i - 1
 
 
 ## conversions
 
-Base.unsafe_convert(::Type{LLVMPtr{T,A}}, a::CuDeviceArray{T,N,A}) where {T,A,N} = pointer(a)
+Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,A} =
+  x.baseptr + x.offset
 
 
 ## indexing intrinsics
@@ -134,8 +147,8 @@ reinterpret_ptr(::Type{T}, ptr::LLVMPtr{<:Any,A}) where {T,A} = reinterpret(LLVM
     end
 
     quote
-        selector_ptr = reinterpret_ptr(UInt8, pointer(A) + sizeof(A))
-        selector = unsafe_load(selector_ptr, index)
+        selector_ptr = typetagdata(A, index)
+        selector = unsafe_load(selector_ptr)
 
         align = alignment(A)
         data_ptr = pointer(A, index)
@@ -164,7 +177,7 @@ end
     sel = findfirst(isequal(x), typs)
 
     quote
-        selector_ptr = reinterpret_ptr(UInt8, pointer(A) + sizeof(A))
+        selector_ptr = typetagdata(A, index)
         unsafe_store!(selector_ptr, $(UInt8(sel-1)))
 
         align = alignment(A)
@@ -224,7 +237,7 @@ Base.@propagate_inbounds ldg(A::CuDeviceArray, i1::Integer) = const_arrayref(A, 
 Base.show(io::IO, a::CuDeviceVector) =
     print(io, "$(length(a))-element device array at $(pointer(a))")
 Base.show(io::IO, a::CuDeviceArray) =
-    print(io, "$(join(a.shape, '×')) device array at $(pointer(a))")
+    print(io, "$(join(a.dims, '×')) device array at $(pointer(a))")
 
 Base.show(io::IO, mime::MIME"text/plain", a::CuDeviceArray) = show(io, a)
 
@@ -234,4 +247,17 @@ Base.show(io::IO, mime::MIME"text/plain", a::CuDeviceArray) = show(io, a)
     else
         nothing
     end
+end
+
+function Base.reinterpret(::Type{T}, a::CuDeviceArray{S,N,A}) where {T,S,N,A}
+  if sizeof(T) == sizeof(S) # fast case
+    return CuDeviceArray{T,N,A}(size(a), reinterpret(LLVMPtr{T,A}, a.baseptr), a.maxsize, a.offset)
+  end
+  err = _reinterpret_exception(T, a)
+  err === nothing || throw(err)
+
+  isize = size(a)
+  size1 = div(isize[1]*sizeof(S), sizeof(T))
+  osize = tuple(size1, Base.tail(isize)...)
+  return CuDeviceArray{T,N,A}(osize, reinterpret(LLVMPtr{T,A}, a.baseptr), a.maxsize, a.offset)
 end
