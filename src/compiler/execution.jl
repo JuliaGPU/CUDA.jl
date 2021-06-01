@@ -363,7 +363,8 @@ end
         ])
         proc, log = @timeit_ci "ptxas" run_and_collect(`$(ptxas()) $ptxas_opts`)
         if !success(proc)
-            error("Failed to compile PTX code" * (isempty(log) ? "" : "\n$log"))
+            reason = proc.termsignal > 0 ? "received signal $(proc.termsignal)" : "exited with code $(proc.exitcode)"
+            error("Failed to compile PTX code (ptxas $reason)" * (isempty(log) ? "" : "\n$log"))
         elseif !isempty(log)
             @debug "PTX compiler log:\n" * log
         end
@@ -385,7 +386,8 @@ end
             ])
             proc, log = @timeit_ci "nvlink" run_and_collect(`$(nvlink()) $nvlink_opts`)
             if !success(proc)
-                error("Failed to link PTX code" * (isempty(log) ? "" : "\n$log"))
+                reason = proc.termsignal > 0 ? "received signal $(proc.termsignal)" : "exited with code $(proc.exitcode)"
+                error("Failed to link PTX code (nvlink $reason)" * (isempty(log) ? "" : "\n$log"))
             elseif !isempty(log)
                 @debug "PTX linker info log:\n" * log
             end
