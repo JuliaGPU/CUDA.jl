@@ -79,22 +79,17 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
 
 ## indexing intrinsics
 
-# NOTE: these intrinsics are now implemented using plain and simple pointer operations;
-#       when adding support for isbits union arrays we will need to implement that here.
-
 # TODO: arrays as allocated by the CUDA APIs are 256-byte aligned. we should keep track of
 #       this information, because it enables optimizations like Load Store Vectorization
 #       (cfr. shared memory and its wider-than-datatype alignment)
 
-# XXX: try without @generated
 @generated function alignment(::CuDeviceArray{T}) where {T}
-    val = if Base.isbitsunion(T)
+    if Base.isbitsunion(T)
         _, sz, al = Base.uniontype_layout(T)
         al
     else
         Base.datatype_alignment(T)
     end
-    :($val)
 end
 
 # enumerate the union types in the order that the selector indexes them
@@ -124,19 +119,17 @@ end
     unsafe_load(pointer(A), index, Val(align))
 end
 
-reinterpret_ptr(::Type{T}, ptr::LLVMPtr{<:Any,A}) where {T,A} = reinterpret(LLVMPtr{T,A}, ptr)
-
-@inline @generated function arrayref_union(A::CuDeviceArray{T}, index::Int) where {T}
+@inline @generated function arrayref_union(A::CuDeviceArray{T,AS}, index::Int) where {T,AS}
     typs = union_types(T)
 
-    # generate code that conditionally loads a value based on the selector value
-    # XXX: returning T from unreachable is a hack to convince inference this only returns T
+    # generate code that conditionally loads a value based on the selector value.
+    # lacking noreturn, we return T to avoid inference thinking this can return Nothing.
     ex = :(Base.llvmcall("unreachable", $T, Tuple{}))
     for (sel, typ) in Iterators.reverse(enumerate(typs))
         ex = quote
             if selector == $(sel-1)
-                ptr = reinterpret_ptr($typ, data_ptr)
-                unsafe_load(ptr, 1) # XXX: Val(align)
+                ptr = reinterpret(LLVMPtr{$typ,AS}, data_ptr)
+                unsafe_load(ptr, 1, Val(align))
             else
                 $ex
             end
@@ -169,7 +162,7 @@ end
     unsafe_store!(pointer(A), x, index, Val(align))
 end
 
-@inline @generated function arrayset_union(A::CuDeviceArray{T}, x::T, index::Int) where {T}
+@inline @generated function arrayset_union(A::CuDeviceArray{T,AS}, x::T, index::Int) where {T,AS}
     typs = union_types(T)
     sel = findfirst(isequal(x), typs)
 
@@ -180,7 +173,7 @@ end
         align = alignment(A)
         data_ptr = pointer(A, index)
 
-        unsafe_store!(reinterpret_ptr($x, data_ptr), x, 1, Val(align))
+        unsafe_store!(reinterpret(LLVMPtr{$x,AS}, data_ptr), x, 1, Val(align))
         return
     end
 end
