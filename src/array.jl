@@ -537,6 +537,11 @@ end
 
 # optimize reshape to return a CuArray
 
+struct _CuReinterpretBitsTypeError{T,A} <: Exception end
+function Base.showerror(io::IO, ::_CuReinterpretBitsTypeError{T, <:AbstractArray{S}}) where {T, S}
+  print(io, "cannot reinterpret an `$(S)` array to `$(T)`, because not all types are bitstypes")
+end
+
 struct _CuReinterpretZeroDimError{T,A} <: Exception end
 function Base.showerror(io::IO, ::_CuReinterpretZeroDimError{T, <:AbstractArray{S,N}}) where {T, S, N}
   print(io, "cannot reinterpret a zero-dimensional `$(S)` array to `$(T)` which is of a different size")
@@ -562,6 +567,9 @@ function Base.showerror(io::IO, err::_CuReinterpretFirstIndexError{T, <:Abstract
 end
 
 function _reinterpret_exception(::Type{T}, a::AbstractArray{S,N}) where {T,S,N}
+  if !isbitstype(T) || !isbitstype(S)
+    return _CuReinterpretBitsTypeError{T,typeof(a)}()
+  end
   if N == 0 && sizeof(T) != sizeof(S)
     return _CuReinterpretZeroDimError{T,typeof(a)}()
   end

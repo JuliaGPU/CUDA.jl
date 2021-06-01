@@ -250,11 +250,12 @@ Base.show(io::IO, mime::MIME"text/plain", a::CuDeviceArray) = show(io, a)
 end
 
 function Base.reinterpret(::Type{T}, a::CuDeviceArray{S,N,A}) where {T,S,N,A}
+  err = _reinterpret_exception(T, a)
+  err === nothing || throw(err)
+
   if sizeof(T) == sizeof(S) # fast case
     return CuDeviceArray{T,N,A}(size(a), reinterpret(LLVMPtr{T,A}, a.baseptr), a.maxsize, a.offset)
   end
-  err = _reinterpret_exception(T, a)
-  err === nothing || throw(err)
 
   isize = size(a)
   size1 = div(isize[1]*sizeof(S), sizeof(T))

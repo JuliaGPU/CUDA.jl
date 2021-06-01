@@ -152,6 +152,19 @@ end
     @test Array(c) == reinterpret(UInt32, Int32[-2,-3])
   end
 
+  @testset "exception: non-isbits" begin
+    local err
+    @test try
+      reinterpret(Float64, CuArray([1,nothing]))
+      nothing
+    catch err′
+      err = err′
+    end isa Exception
+    @test occursin(
+      "cannot reinterpret an `Union{Nothing, Int64}` array to `Float64`, because not all types are bitstypes",
+      sprint(showerror, err))
+  end
+
   @testset "exception: 0-dim" begin
     local err
     @test try
