@@ -1,7 +1,8 @@
 const ci_cache = GPUCompiler.CodeCache()
 
 const __device_properties_lock = ReentrantLock()
-const __device_properties = @NamedTuple{cap::VersionNumber, ptx::VersionNumber, exitable::Bool, debuginfo::Bool}[]
+const __device_properties = @NamedTuple{cap::VersionNumber, ptx::VersionNumber,
+                                        exitable::Bool, debuginfo::Bool, unreachable::Bool}[]
 function device_properties(dev)
     @lock __device_properties_lock  begin
         if isempty(__device_properties)
@@ -12,22 +13,23 @@ function device_properties(dev)
                 cap = supported_capability(capability(dev))
                 ptx = v"6.3"    # we only need 6.2, but NVPTX doesn't support that
 
-                exitable = true
-                if cap < v"7"
-                    # JuliaGPU/CUDAnative.jl#4
-                    # ptxas for old compute capabilities has a bug where it messes up the
-                    # synchronization stack in the presence of shared memory and thread-divergent exit.
-                    exitable = false
+                # we need to take care emitting instructions like `unreachable` (in LLVM)
+                # and `exit`, which often result in thread-divergent control flow.
+                # specific combinations of ptxas and device capabilities cannot handle this,
+                # resulting in silent corruption (JuliaGPU/CUDAnative.jl#4, JuliaGPU/CUDA.jl#431)
+                unreachable = true
+                if cap < v"7" || toolkit_version() < v"11.3"
+                    unreachable = false
                 end
-                if !has_nvml() || NVML.driver_version() < v"460"
-                    # JuliaGPU/CUDA.jl#431
-                    # TODO: tighten this conditional
+                exitable = true
+                if cap < v"7" || toolkit_version() < v"11.2"
                     exitable = false
                 end
 
                 debuginfo = false
 
-                __device_properties[deviceid(dev)+1] = (; cap, ptx, exitable, debuginfo)
+                __device_properties[deviceid(dev)+1] =
+                    (; cap, ptx, exitable, debuginfo, unreachable)
             end
         end
         @inbounds __device_properties[deviceid(dev)+1]
