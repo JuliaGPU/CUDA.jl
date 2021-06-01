@@ -47,7 +47,6 @@ macro cuDynamicSharedMem(T, dims, offset=0)
     quote
         len = prod($(esc(dims)))
         ptr = emit_shmem(Val($(QuoteNode(id))), $(esc(T))) + $(esc(offset))
-        # TODO: pass offset to CuDeviceArray
         CuDeviceArray($(esc(dims)), ptr)
     end
 end
