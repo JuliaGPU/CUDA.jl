@@ -5,6 +5,9 @@
 # these tests spawn subprocesses, so reset the current context to conserve memory
 CUDA.can_reset_device() && device_reset!()
 
+host_error_re = r"ERROR: (KernelException: exception thrown during kernel execution on device|CUDA error: an illegal instruction was encountered|CUDA error: unspecified launch failure)"
+device_error_re = r"ERROR: a \w+ was thrown during kernel execution"
+
 @testset "stack traces at different debug levels" begin
 
 script = """
@@ -32,28 +35,22 @@ script = """
 
 let (code, out, err) = julia_script(script, `-g0`)
     @test code == 1
-    @test  occursin("ERROR: KernelException: exception thrown during kernel execution on device", err) ||
-           occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
-           occursin("ERROR: CUDA error: unspecified launch failure", err)
-    @test !occursin(r"ERROR: a \w+ was thrown during kernel execution", out)
+    @test  occursin(host_error_re, err)
+    @test !occursin(device_error_re, out)
     # NOTE: stdout sometimes contain a failure to free the CuArray with ILLEGAL_ACCESS
 end
 
 let (code, out, err) = julia_script(script, `-g1`)
     @test code == 1
-    @test occursin("ERROR: KernelException: exception thrown during kernel execution on device", err) ||
-          occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
-          occursin("ERROR: CUDA error: unspecified launch failure", err)
-    @test occursin(r"ERROR: a \w+ was thrown during kernel execution", out)
+    @test occursin(host_error_re, err)
+    @test occursin(device_error_re, out)
     @test occursin("Run Julia on debug level 2 for device stack traces", out)
 end
 
 let (code, out, err) = julia_script(script, `-g2`)
     @test code == 1
-    @test occursin("ERROR: KernelException: exception thrown during kernel execution on device", err) ||
-          occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
-          occursin("ERROR: CUDA error: unspecified launch failure", err)
-    @test occursin(r"ERROR: a \w+ was thrown during kernel execution", out)
+    @test occursin(host_error_re, err)
+    @test occursin(device_error_re, out)
     @test occursin("[1] Int64 at float.jl", out)
     @test occursin("[4] kernel at none:5", out)
 end
@@ -74,10 +71,8 @@ script = """
 
 let (code, out, err) = julia_script(script, `-g2`)
     @test code == 1
-    @test occursin("ERROR: KernelException: exception thrown during kernel execution on device", err) ||
-          occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
-          occursin("ERROR: CUDA error: unspecified launch failure", err)
-    @test occursin(r"ERROR: a \w+ was thrown during kernel execution", out)
+    @test occursin(host_error_re, err)
+    @test occursin(device_error_re, out)
     @test occursin("foo at none:4", out)
     @test occursin("bar at none:5", out)
 end
