@@ -29,7 +29,7 @@ function device_properties(dev)
                     exitable = false
                 end
 
-                debuginfo = false
+                debuginfo = true
 
                 __device_properties[deviceid(dev)+1] =
                     (; cap, ptx, exitable, debuginfo, unreachable)
