@@ -13,16 +13,19 @@ function device_properties(dev)
                 cap = supported_capability(capability(dev))
                 ptx = v"6.3"    # we only need 6.2, but NVPTX doesn't support that
 
-                # we need to take care emitting instructions like `unreachable` (in LLVM)
-                # and `exit`, which often result in thread-divergent control flow.
-                # specific combinations of ptxas and device capabilities cannot handle this,
-                # resulting in silent corruption (JuliaGPU/CUDAnative.jl#4, JuliaGPU/CUDA.jl#431)
+                # we need to take care emitting LLVM instructions like `unreachable`, which
+                # may result in thread-divergent control flow that older `ptxas` doesn't like.
+                # see e.g. JuliaGPU/CUDAnative.jl#4
                 unreachable = true
                 if cap < v"7" || toolkit_version() < v"11.3"
                     unreachable = false
                 end
+
+                # there have been issues with emitting PTX `exit` instead of `trap` as well,
+                # see e.g. JuliaGPU/CUDA.jl#431 and NVIDIA bug #3231266 (but since switching
+                # to the toolkit's `ptxas` that specific machine/GPU now _requires_ exit...)
                 exitable = true
-                if cap < v"7" || toolkit_version() < v"11.2"
+                if cap < v"7"
                     exitable = false
                 end
 
