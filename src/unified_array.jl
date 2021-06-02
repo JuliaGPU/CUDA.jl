@@ -12,7 +12,7 @@ mutable struct CuUnifiedArray{T,N} <: AbstractGPUArray{T,N}
     buf = Mem.alloc(Mem.Unified, prod(dims) * sizeof(T))
     ptr = convert(CuPtr{T}, buf)
     obj = new{T,N}(buf, ptr, dims, context())
-    finalizer(Mem.free, obj)
+    finalizer(t -> Mem.free(t.buf), obj)
   end
 end
 
@@ -53,3 +53,57 @@ function Base.mightalias(A::CuUnifiedArray, B::CuUnifiedArray)
 end
 
 Base.pointer(x::CuUnifiedArray) = x.baseptr
+
+Base.similar(a::CuUnifiedArray{T,N}) where {T,N} = CuUnifiedArray{T,N}(undef, size(a))
+Base.similar(a::CuUnifiedArray{T}, dims::Base.Dims{N}) where {T,N} = CuUnifiedArray{T,N}(undef, dims)
+Base.similar(a::CuUnifiedArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = CuUnifiedArray{T,N}(undef, dims)
+
+function Base.copy(a::CuUnifiedArray{T,N}) where {T,N}
+  b = similar(a)
+  @inbounds copyto!(b, a)
+end
+
+function Base.copyto!(dest::Array{T}, doffs::Integer, src::CuUnifiedArray{T,N}, soffs::Integer,
+                      n::Integer) where {T,N}
+  # rely on CuArray, first wrap unsafely, and use CuArray's interface.
+  src_cuarray = unsafe_wrap(CuArray{T,N}, src.baseptr, src.dims; own=false)
+  copyto!(dest, doffs, src_cuarray, soffs, n)
+  return dest
+end
+
+# underspecified constructors
+CuUnifiedArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = CuUnifiedArray{T,N}(xs)
+(::Type{CuUnifiedArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = CuUnifiedArray{S,N}(x)
+CuUnifiedArray(A::AbstractArray{T,N}) where {T,N} = CuUnifiedArray{T,N}(A)
+
+# idempotency
+CuUnifiedArray{T,N}(xs::CuUnifiedArray{T,N}) where {T,N} = xs
+
+## conversions
+Base.convert(::Type{T}, x::T) where T <: CuUnifiedArray = x
+
+## interop with C libraries
+
+Base.unsafe_convert(::Type{Ptr{T}}, x::CuUnifiedArray{T}) where {T} =
+  throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
+
+Base.unsafe_convert(::Type{CuPtr{T}}, x::CuUnifiedArray{T}) where {T} =
+  convert(CuPtr{T}, x.baseptr)
+
+## interop with device arrays
+
+function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuUnifiedArray{T,N}) where {T,N}
+  CuDeviceArray{T,N,AS.Global}(size(a), reinterpret(LLVMPtr{T,AS.Global}, pointer(a)))
+end
+
+## interop with CPU arrays
+
+# We don't convert isbits types in `adapt`, since they are already
+# considered GPU-compatible.
+
+Adapt.adapt_storage(::Type{CuUnifiedArray}, xs::AT) where {AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuUnifiedArray, xs)
+
+# if an element type is specified, convert to it
+Adapt.adapt_storage(::Type{<:CuUnifiedArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuUnifiedArray{T}, xs)
