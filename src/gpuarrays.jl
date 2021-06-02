@@ -66,3 +66,4 @@ end
 #
 
 GPUArrays.backend(::Type{<:CuArray}) = CuArrayBackend()
+GPUArrays.backend(::Type{<:CuUnifiedArray}) = CuArrayBackend()
