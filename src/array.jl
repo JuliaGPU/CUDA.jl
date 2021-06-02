@@ -100,7 +100,7 @@ CuArray{T,N}(::UndefInitializer, dims::Integer...) where {T,N} = CuArray{T,N}(un
 # type but not dimensionality specified
 CuArray{T}(::UndefInitializer, dims::Dims{N}) where {T,N} = CuArray{T,N}(undef, dims)
 CuArray{T}(::UndefInitializer, dims::Integer...) where {T} =
-CuArray{T}(undef, convert(Tuple{Vararg{Int}}, dims))
+  CuArray{T}(undef, convert(Tuple{Vararg{Int}}, dims))
 
 # empty vector constructor
 CuArray{T,1}() where {T} = CuArray{T,1}(undef, 0)
