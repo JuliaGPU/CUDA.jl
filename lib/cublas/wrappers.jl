@@ -33,13 +33,9 @@ end
   value_ref[]
 end
 
-@memoize function version(handle=handle())
-  version_ref = Ref{Cint}()
-  cublasGetVersion_v2(handle, version_ref)
-  major, rem = divrem(version_ref[], 1000)
-  minor, patch = divrem(rem, 100)
-  VersionNumber(major, minor, patch)
-end
+@memoize version() = VersionNumber(cublasGetProperty(CUDA.MAJOR_VERSION),
+                                   cublasGetProperty(CUDA.MINOR_VERSION),
+                                   cublasGetProperty(CUDA.PATCH_LEVEL))
 
 @memoize function juliaStorageType(T::Type{<:Real}, ct::cublasComputeType_t)
     if ct == CUBLAS_COMPUTE_16F || ct == CUBLAS_COMPUTE_16F_PEDANTIC
