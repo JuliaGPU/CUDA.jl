@@ -118,27 +118,29 @@ end
 
 # find suitable devices
 @info "System information:\n" * sprint(io->CUDA.versioninfo(io))
-candidates, driver_version, cuda_driver_version = if has_nvml()
-    [(index=i,
-      uuid=NVML.uuid(dev),
-      name=NVML.name(dev),
-      cap=NVML.compute_capability(dev),
-      mem=NVML.memory_info(dev).free)
-     for (i,dev) in enumerate(NVML.devices())],
-    NVML.driver_version(),
-    NVML.cuda_driver_version()
-else
-    # using CUDA to query this information requires initializing a context,
-    # which might fail if the device is heavily loaded.
-    [(device!(dev);
-     (index=i,
-      uuid=uuid(dev),
-      name=CUDA.name(dev),
-      cap=capability(dev),
-      mem=CUDA.available_memory()))
-     for (i,dev) in enumerate(devices())],
-    "(unknown)",
-    CUDA.version()
+candidates = []
+for (index,dev) in enumerate(devices())
+    # fetch info that doesn't require a context
+    id=deviceid(dev)
+    uuid=CUDA.uuid(dev)
+    name=CUDA.name(dev)
+    cap=capability(dev)
+
+    mem = try
+        device!(dev)
+        CUDA.available_memory()
+    catch err
+        if isa(err, OutOfGPUMemoryError)
+            # the device doesn't even have enough memory left to instantiate a context...
+            0
+        else
+            rethrow()
+        end
+    end
+
+    push!(candidates, (; id, uuid, name, cap, mem))
+
+    # NOTE: we don't use NVML here because it doesn't respect CUDA_VISIBLE_DEVICES
 end
 ## only consider devices that are fully supported by our CUDA toolkit, or tools can fail.
 ## NOTE: we don't reuse supported_toolchain() which is also bounded by LLVM support,
@@ -155,7 +157,7 @@ sort!(candidates, by=x->x.mem)
 ## apply
 picks = reverse(candidates[end-gpus+1:end])   # best GPU first
 ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"GPU-$(pick.uuid)", picks), ",")
-@info "Testing using $(length(picks)) device(s): " * join(map(pick->"$(pick.index). $(pick.name) (UUID $(pick.uuid))", picks), ", ")
+@info "Testing using $(length(picks)) device(s): " * join(map(pick->"$(pick.id). $(pick.name) (UUID $(pick.uuid))", picks), ", ")
 
 # determine tests to skip
 skip_tests = []
