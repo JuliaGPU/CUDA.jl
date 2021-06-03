@@ -465,7 +465,11 @@ for (testname, (resp,)) in results
     elseif isa(resp, Tuple{Int,Int})
         fake = Test.DefaultTestSet(testname)
         for i in 1:resp[1]
-            Test.record(fake, Test.Pass(:test, nothing, nothing, nothing))
+            if VERSION >= v"1.7-"
+                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
+            else
+                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing))
+            end
         end
         for i in 1:resp[2]
             Test.record(fake, Test.Broken(:test, nothing))
@@ -479,7 +483,11 @@ for (testname, (resp,)) in results
         println()
         fake = Test.DefaultTestSet(testname)
         for i in 1:resp.captured.ex.pass
-            Test.record(fake, Test.Pass(:test, nothing, nothing, nothing))
+            if VERSION >= v"1.7-"
+                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
+            else
+                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing))
+            end
         end
         for i in 1:resp.captured.ex.broken
             Test.record(fake, Test.Broken(:test, nothing))
