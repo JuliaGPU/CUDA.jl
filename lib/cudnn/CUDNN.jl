@@ -87,23 +87,47 @@ function handle()
     return handle
 end
 
+
+## logging
+
+const log_messages = []
+const log_lock = ReentrantLock()
+const log_cond = Ref{Any}()    # root
+
 function log_message(sev, udata, dbg_ptr, ptr)
-    # "Each line of this message is terminated by \0, and the end of the message is
-    # terminated by \0\0"
+    dbg = unsafe_load(dbg_ptr)
+
+    # find the length of the message, as denoted by two null terminators
     len = 0
-    while true
-        if unsafe_load(ptr, len+1) == '\0' && unsafe_load(ptr, len+2) == '\0'
+    while true && len < 10000
+        if unsafe_load(ptr, len+1) == 0 && unsafe_load(ptr, len+2) == 0
             break
         end
         len += 1
     end
-    str = unsafe_string(ptr, len)
-    lines = split(str, '\0')
-    msg = join(str, '\n')
+    str = unsafe_string(ptr, len)   # XXX: can this yield?
 
-    # TODO: inspect `sev` to generate an appropriate message (@debug, @info, etc)
-    dbg = unsafe_load(dbg_ptr)
-    println(msg)
+    # print asynchronously
+    @spinlock log_lock begin
+        push!(log_messages, (; sev, dbg, str))
+    end
+    ccall(:uv_async_send, Cint, (Ptr{Cvoid},), udata)
+
+    return
+end
+
+function _log_message(sev, dbg, str)
+    lines = split(str, '\0')
+    msg = join(lines, '\n')
+    if sev == CUDNN_SEV_INFO
+        @debug msg
+    elseif sev == CUDNN_SEV_WARNING
+        @warn msg
+    elseif sev == CUDNN_SEV_ERROR
+        @error msg
+    elseif sev == CUDNN_SEV_FATAL
+        error(msg)
+    end
     return
 end
 
@@ -112,12 +136,16 @@ function __runtime_init__()
         @warn "This version of CUDA.jl only supports CUDNN 8.0 or higher"
     end
 
-    # enable library logging when launched with JULIA_DEBUG=CUDNN
-    # FIXME: this doesn't work, and the mask remains 0 (as observed with cudnnGetCallback)
-    if isdebug(:init, CUDNN)
+    # register a log callback
+    if version() >= v"8.2"  # NVIDIA bug #3256123
+        log_cond[] = Base.AsyncCondition() do async_cond
+            message =  @lock log_lock popfirst!(log_messages)
+            _log_message(message...)
+        end
+
         callback = @cfunction(log_message, Nothing,
                               (cudnnSeverity_t, Ptr{Cvoid}, Ptr{cudnnDebug_t}, Ptr{UInt8}))
-        cudnnSetCallback(typemax(UInt32), C_NULL, callback)
+        cudnnSetCallback(typemax(UInt32), log_cond[], callback)
     end
 end
 

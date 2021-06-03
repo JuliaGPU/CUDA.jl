@@ -129,24 +129,60 @@ function xt_handle()
     end::cublasXtHandle_t
 end
 
-function log_message(cstr)
-    # NOTE: we can't `@debug` these messages, because the logging function is called for
-    #       every line... also not sure what the i!/I! prefixes mean (info?)
-    # NOTE: turns out we even can't `print` these messages, as cublasXt callbacks might
-    #       happen from a different thread! we could strdup + uv_async_send, but I couldn't
-    #       find an easy way to attach data to that
-    # TODO: use a pre-allocated lock-free global message buffer?
-    len = ccall(:strlen, Csize_t, (Cstring,), cstr)
-    ccall(:write, Cint, (Cint, Cstring, Csize_t), 0, cstr, len)
+
+## logging
+
+const log_entries = []
+const log_lock = ReentrantLock()
+const log_cond = Ref{Any}()    # root
+
+function log_message(ptr)
+    str = unsafe_string(ptr)
+
+    # print asynchronously
+    @spinlock log_lock begin
+        push!(log_entries, strip(str))
+    end
+    ccall(:uv_async_send, Cint, (Ptr{Cvoid},), log_cond[])
+
+    return
+end
+
+function _log_message(blob)
+    # the message format isn't documented, but it looks like a message starts with a capital
+    # and the severity (e.g. `I!`), and subsequent lines start with a lowercase mark (`!i`)
+    for message in split(blob, r"\n(?=[A-Z]!)")
+        code = message[1]
+        lines = split(message[3:end], r"\n[a-z]!")
+        submessage = join(lines, '\n')
+        if code == 'I'
+            @debug submessage
+        elseif code == 'W'
+            @warn submessage
+        elseif code == 'E'
+            @error submessage
+        elseif code == 'F'
+            error(submessage)
+        else
+            @info "Unknown log message, please file an issue.\n$message"
+        end
+    end
     return
 end
 
 function __runtime_init__()
-    # enable library logging when launched with JULIA_DEBUG=CUBLAS
-    if isdebug(:init, CUBLAS)
-        callback = @cfunction(log_message, Nothing, (Cstring,))
-        cublasSetLoggerCallback(callback)
+    # register a log callback
+    log_cond[] = Base.AsyncCondition() do async_cond
+        blob =  @lock log_lock begin
+            blob = join(log_entries, '\n')
+            empty!(log_entries)
+            blob
+        end
+        _log_message(blob)
+        return
     end
+    callback = @cfunction(log_message, Nothing, (Cstring,))
+    cublasSetLoggerCallback(callback)
 end
 
 end
