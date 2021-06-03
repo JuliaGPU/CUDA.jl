@@ -312,6 +312,20 @@ end
     ir, kernel = @timeit_ci "emit_llvm" GPUCompiler.emit_llvm(job, method_instance, world)
     code = @timeit_ci "emit_asm" GPUCompiler.emit_asm(job, ir, kernel; format=LLVM.API.LLVMAssemblyFile)
 
+    # remove extraneous debug info on lower debug levels
+    if Base.JLOptions().debug_level < 2
+        # LLVM sets `.target debug` as soon as the debug emission kind isn't NoDebug. this
+        # is unwanted, as the flag makes `ptxas` behave as if `--device-debug` were set.
+        # ideally, we'd need something like LocTrackingOnly/EmitDebugInfo from D4234, but
+        # that got removed in favor of NoDebug in D18808, seemingly breaking the use case of
+        # only emitting `.loc` instructions...
+        #
+        # according to NVIDIA, "it is fine for PTX producers to produce debug info but not
+        # set `.target debug` and if `--device-debug` isn't passed, PTXAS will compile in
+        # release mode".
+        code = replace(code, r"(\.target .+), debug" => s"\1")
+    end
+
     # check if we'll need the device runtime
     undefined_fs = filter(collect(functions(ir))) do f
         isdeclaration(f) && !LLVM.isintrinsic(f)
