@@ -84,7 +84,7 @@ end
 ## hardware-supported indexing
 
 # we only support Float32 indices
-@inline Base.getindex(t::CuDeviceTexture, idx::Vararg{<:Real,N}) where {N} =
+@inline Base.getindex(t::CuDeviceTexture, idx::Vararg{Real,N}) where {N} =
     Base.getindex(t, ntuple(i->Float32(idx[i]), N)...)
 
 @inline function Base.getindex(t::CuDeviceTexture{T,N,<:Any,true,I}, idx::Vararg{Float32,N}) where
