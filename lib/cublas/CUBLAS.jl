@@ -189,8 +189,10 @@ function __runtime_init__()
         _log_message(blob)
         return
     end
-    callback = @cfunction(log_message, Nothing, (Cstring,))
-    cublasSetLoggerCallback(callback)
+    if !Sys.iswindows() # NVIDIA bug #3321130
+        callback = @cfunction(log_message, Nothing, (Cstring,))
+        cublasSetLoggerCallback(callback)
+    end
 end
 
 end
