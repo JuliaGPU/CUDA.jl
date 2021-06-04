@@ -132,18 +132,21 @@ end
 
 ## logging
 
-const log_entries = []
-const log_lock = ReentrantLock()
-const log_cond = Ref{Any}()    # root
+const MAX_LOG_BUFLEN = UInt(1024*1024)
+const log_buffer = Vector{UInt8}(undef, MAX_LOG_BUFLEN)
+const log_cursor = Threads.Atomic{UInt}(0)
+const log_cond = Ref{Base.AsyncCondition}()    # root
 
 function log_message(ptr)
-    str = unsafe_string(ptr)
-
-    # print asynchronously
-    @spinlock log_lock begin
-        push!(log_entries, strip(str))
+    # NOTE: this function may be called from unmanaged threads (by cublasXt),
+    #       so we can't even allocate, let alone perform I/O.
+    len = @ccall strlen(ptr::Cstring)::Csize_t
+    cursor = Threads.atomic_add!(log_cursor, len+1)
+    if cursor+len+1 <= MAX_LOG_BUFLEN
+        @ccall memmove((pointer(log_buffer)+cursor)::Ptr{Nothing},
+                       pointer(ptr)::Ptr{Nothing}, (len+1)::Csize_t)::Nothing
+        @ccall uv_async_send(log_cond[]::Ptr{Nothing})::Cint
     end
-    ccall(:uv_async_send, Cint, (Ptr{Cvoid},), log_cond[])
 
     return
 end
@@ -151,9 +154,12 @@ end
 function _log_message(blob)
     # the message format isn't documented, but it looks like a message starts with a capital
     # and the severity (e.g. `I!`), and subsequent lines start with a lowercase mark (`!i`)
-    for message in split(blob, r"\n(?=[A-Z]!)")
+    #
+    # lines are separated by a \0 if they came in separately, but there may also be multiple
+    # actual lines separated by \n in each message.
+    for message in split(blob, r"[\0\n]+(?=[A-Z]!)")
         code = message[1]
-        lines = split(message[3:end], r"\n[a-z]!")
+        lines = split(message[3:end], r"[\0\n]+[a-z]!")
         submessage = join(lines, '\n')
         if code == 'I'
             @debug submessage
@@ -173,10 +179,12 @@ end
 function __runtime_init__()
     # register a log callback
     log_cond[] = Base.AsyncCondition() do async_cond
-        blob =  @lock log_lock begin
-            blob = join(log_entries, '\n')
-            empty!(log_entries)
-            blob
+        blob = ""
+        while true
+            blob = unsafe_string(pointer(log_buffer), log_cursor[])
+            if Threads.atomic_cas!(log_cursor, UInt(length(blob)), UInt(0)) == length(blob)
+                break
+            end
         end
         _log_message(blob)
         return
