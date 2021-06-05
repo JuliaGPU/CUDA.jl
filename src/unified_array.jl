@@ -42,7 +42,7 @@ Base.sizeof(x::CuUnifiedArray) = Base.elsize(x) * length(x)
 
 ## alias detection
 
-Base.dataids(A::CuUnifiedArray) = (UInt(A.ptr),)
+Base.dataids(A::CuUnifiedArray) = (UInt(A.baseptr),)
 
 Base.unaliascopy(A::CuUnifiedArray) = copy(A)
 
@@ -69,6 +69,13 @@ function Base.copyto!(dest::Array{T}, doffs::Integer, src::CuUnifiedArray{T,N}, 
   src_cuarray = unsafe_wrap(CuArray{T,N}, src.baseptr, src.dims; own=false)
   copyto!(dest, doffs, src_cuarray, soffs, n)
   return dest
+end
+
+## interop with other arrays
+@inline function CuUnifiedArray{T,N}(xs::AbstractArray{<:Any,N}) where {T,N}
+  A = CuUnifiedArray{T,N}(undef, size(xs))
+  copyto!(A, convert(Array{T}, xs))
+  return A
 end
 
 # underspecified constructors

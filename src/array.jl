@@ -203,13 +203,15 @@ export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,
        StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat,
        AnyCuArray, AnyCuVector, AnyCuMatrix, AnyCuVecOrMat
 
+include("unified_array.jl")
+
 # dense arrays: stored contiguously in memory
 #
 # all common dense wrappers are currently represented as CuArray objects.
 # this simplifies common use cases, and greatly improves load time.
 # CUDA.jl 2.0 experimented with using ReshapedArray/ReinterpretArray/SubArray,
 # but that proved much too costly. TODO: revisit when we have better Base support.
-DenseCuArray{T,N} = CuArray{T,N}
+DenseCuArray{T,N} = Union{CuArray{T,N}, CuUnifiedArray{T,N}}
 DenseCuVector{T} = DenseCuArray{T,1}
 DenseCuMatrix{T} = DenseCuArray{T,2}
 DenseCuVecOrMat{T} = Union{DenseCuVector{T}, DenseCuMatrix{T}}
@@ -218,7 +220,7 @@ DenseCuVecOrMat{T} = Union{DenseCuVector{T}, DenseCuMatrix{T}}
 StridedSubCuArray{T,N,I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
                                             Base.AbstractCartesianIndex}}}} =
   SubArray{T,N,<:CuArray,I}
-StridedCuArray{T,N} = Union{CuArray{T,N}, StridedSubCuArray{T,N}}
+StridedCuArray{T,N} = Union{CuArray{T,N}, CuUnifiedArray{T,N}, StridedSubCuArray{T,N}}
 StridedCuVector{T} = StridedCuArray{T,1}
 StridedCuMatrix{T} = StridedCuArray{T,2}
 StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
@@ -229,7 +231,7 @@ Base.pointer(x::StridedCuArray{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
 end
 
 # anything that's (secretly) backed by a CuArray
-AnyCuArray{T,N} = Union{CuArray{T,N}, WrappedArray{T,N,CuArray,CuArray{T,N}}}
+AnyCuArray{T,N} = Union{CuArray{T,N}, CuUnifiedArray{T,N}, WrappedArray{T,N,CuArray,CuArray{T,N}}}
 AnyCuVector{T} = AnyCuArray{T,1}
 AnyCuMatrix{T} = AnyCuArray{T,2}
 AnyCuVecOrMat{T} = Union{AnyCuVector{T}, AnyCuMatrix{T}}
@@ -454,7 +456,7 @@ cuviewlength() = ()
 struct BackToCPU end
 Adapt.adapt_storage(::BackToCPU, xs::CuArray) = convert(Array, xs)
 
-@inline function Base.view(A::CuArray, I::Vararg{Any,N}) where {N}
+@inline function Base.view(A::DenseCuArray, I::Vararg{Any,N}) where {N}
     J = to_indices(A, I)
     @boundscheck begin
         # Base's boundscheck accesses the indices, so make sure they reside on the CPU.
@@ -462,7 +464,7 @@ Adapt.adapt_storage(::BackToCPU, xs::CuArray) = convert(Array, xs)
         J_cpu = map(j->adapt(BackToCPU(), j), J)
         checkbounds(A, J_cpu...)
     end
-    J_gpu = map(j->adapt(CuArray, j), J)
+    J_gpu = map(j->adapt(typeof(A), j), J)
     unsafe_view(A, J_gpu, CuIndexStyle(I...))
 end
 
