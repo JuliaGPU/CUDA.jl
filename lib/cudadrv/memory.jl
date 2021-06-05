@@ -759,6 +759,8 @@ memory_type(x) = CUmemorytype(attribute(Cuint, x, POINTER_ATTRIBUTE_MEMORY_TYPE)
 
 is_managed(x) = convert(Bool, attribute(Cuint, x, POINTER_ATTRIBUTE_IS_MANAGED))
 
+CuDevice(x::Union{Ptr,CuPtr}) = CuDevice(convert(Int, attribute(Cuint, x, POINTER_ATTRIBUTE_DEVICE_ORDINAL)))
+
 function is_pinned(ptr::Ptr)
     # unpinned memory makes cuPointerGetAttribute return ERROR_INVALID_VALUE; but instead of
     # calling `memory_type` with an expensive try/catch we perform low-level API calls.

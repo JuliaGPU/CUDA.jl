@@ -156,7 +156,7 @@ const cuda_releases = [v"1.0", v"1.1",
                        v"8.0",
                        v"9.0", v"9.1", v"9.2",
                        v"10.0", v"10.1", v"10.2",
-                       v"11.0", v"11.1", v"11.2"]
+                       v"11.0", v"11.1", v"11.2", v"11.3"]
 
 const cuda_library_versions = Dict(
     v"11.0.1" => Dict(
@@ -286,6 +286,20 @@ const cuda_library_versions = Dict(
         "npp"       => v"11.3.3", #.44
         "nvjpeg"    => v"11.4.1", #.53
     ),
+    v"11.3.1" => Dict(
+        "cudart"    => v"11.3.109",
+        "cupti"     => "2021.1.1", # docs mention 11.3.111
+        "nvrtc"     => v"11.3.109",
+        "nvtx"      => v"11.3.109",
+        "nvvp"      => v"11.3.111",
+        "cublas"    => v"11.5.1", #.109
+        "cufft"     => v"10.4.2", #.109
+        "curand"    => v"10.2.4", #.109
+        "cusolver"  => v"11.1.2", #.109
+        "cusparse"  => v"11.6.0", #.109
+        "npp"       => v"11.3.3", #.95
+        "nvjpeg"    => v"11.5.0", #.109
+    ),
 )
 
 function cuda_library_version(library, toolkit_version)
@@ -341,7 +355,12 @@ const cuda_binary_versions = Dict(
         "nvdisasm"  => v"11.2.152"
     ),
     v"11.3.0" => Dict(
-        "nvdisasm"  => v"11.3.58"
+        "nvdisasm"  => v"11.3.58",
+        "ptxas"     => v"11.3.58"
+    ),
+    v"11.3.1" => Dict(
+        "nvdisasm"  => v"11.3.58",  # ambiguous!
+        "ptxas"     => v"11.3.109"
     ),
 )
 
@@ -484,7 +503,8 @@ function parse_toolkit_version(tool, tool_path::String)
         # NOTE: we can't always tell, e.g. nvdisasm is the same in CUDA 11.1.0 and 11.1.1.
         #       return the lowest version to ensure compatibility.
         for toolkit_version in sort(collect(keys(cuda_binary_versions)))
-            if cuda_binary_versions[toolkit_version][tool] == version
+            if haskey(cuda_binary_versions[toolkit_version], tool) &&
+               cuda_binary_versions[toolkit_version][tool] == version
                 @debug "CUDA toolkit identified as $toolkit_version (providing $tool $version)"
                 return toolkit_version
             end

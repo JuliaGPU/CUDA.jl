@@ -79,6 +79,15 @@ mutable struct CuContext
             new_unique(handle_ref[])
         end
     end
+
+    """
+        CuContext(ptr)
+
+    Identify the context a CUDA memory buffer was allocated in.
+    """
+    function CuContext(x::Union{Ptr,CuPtr})
+        new_unique(attribute(CUcontext, x, POINTER_ATTRIBUTE_CONTEXT))
+    end
 end
 
 # the `valid` bit serves two purposes: make sure we don't double-free a context (in case we

@@ -113,7 +113,7 @@ within(lower, upper) = (val) -> lower <= val <= upper
 
 @device_override Base.expm1(x::Float64) = ccall("extern __nv_expm1", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.expm1(x::Float32) = ccall("extern __nv_expm1f", llvmcall, Cfloat, (Cfloat,), x)
-Base.expm1(x::Float16) = Float16(CUDA.expm1(Float32(x)))
+@device_override Base.expm1(x::Float16) = Float16(CUDA.expm1(Float32(x)))
 
 @device_override Base.ldexp(x::Float64, y::Int32) = ccall("extern __nv_ldexp", llvmcall, Cdouble, (Cdouble, Int32), x, y)
 @device_override Base.ldexp(x::Float32, y::Int32) = ccall("extern __nv_ldexpf", llvmcall, Cfloat, (Cfloat, Int32), x, y)
