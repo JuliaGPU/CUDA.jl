@@ -121,3 +121,21 @@ end
   a .+= b
   @test all(Base.Fix1(==,3.0), a)
 end
+
+@testset "multi-gpu addition" begin
+  N = 25
+  D = length(devices())
+  a = reshape(CuUnifiedArray(ones(Float32, N*D)*2), (N, D))
+  b = reshape(CuUnifiedArray(ones(Float32, N*D)), (N, D))
+  c = reshape(CuUnifiedArray(zeros(Float32, N*D)), (N, D))
+  @sync begin
+      for (gpu, dev) in enumerate(devices())
+          @async begin
+              device!(dev)
+              @views c[:,gpu] .= a[:,gpu] + b[:,gpu]
+          end
+      end
+  end
+  device_synchronize()
+  @test all(Base.Fix1(==,3.0), c)
+end
