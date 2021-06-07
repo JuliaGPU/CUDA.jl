@@ -67,7 +67,6 @@ include("device/quirks.jl")
 # array essentials
 include("pool.jl")
 include("array.jl")
-include("unified_array.jl")
 
 # compiler libraries
 include("../lib/cupti/CUPTI.jl")
