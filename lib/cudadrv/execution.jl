@@ -149,6 +149,7 @@ function launch(f::Base.Callable; stream::CuStream=stream())
         f()
         close(async_cond)
     end
+    # FIXME: protect this from GC
 
     callback = @cfunction(async_send, Cint, (Ptr{Cvoid},))
     cuLaunchHostFunc(stream, callback, cond)
