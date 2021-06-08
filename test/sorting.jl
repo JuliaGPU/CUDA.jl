@@ -240,7 +240,7 @@ function check_partialsort!(T, N, partial_k, f=identity; kwargs...)
 end
 
 # Makes sure that non-maximally-large block sizes don't result in race conds
-@not_if_sanitize @testset "reduced block sizes" begin
+@testset "reduced block sizes" begin
     function init()
         a = map(x -> x%UInt8, reverse(1:100000))
         c = CuArray(a)
@@ -264,8 +264,7 @@ end
     end
 end
 
-# FIXME: these tests hang when running under compute-sanitizer on CUDA 11.2 with -g2
-@not_if_sanitize @testset "interface" begin
+@testset "interface" begin
     # pre-sorted
     @test check_sort!(Int, 1000000)
     @test check_sort!(Int32, 1000000)
