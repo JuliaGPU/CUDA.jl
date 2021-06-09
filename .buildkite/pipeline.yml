@@ -41,7 +41,7 @@ steps:
       cap: "recent"                   # test as much as possible
     env:
       JULIA_CUDA_MEMORY_POOL: 'none'  # compute-sanitizer uses a lot of memory, so we need device_reset!
-      JULIA_CUDA_VERSION: '11.2'      # older versions of CUDA have issues
+      JULIA_CUDA_VERSION: '11.3'      # older versions of CUDA have issues
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 120
