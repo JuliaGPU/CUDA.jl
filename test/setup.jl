@@ -226,7 +226,7 @@ end
                      %value = load volatile i64, i64* %slot
                      ret i64 %value""", Int64, Tuple{Int64}, i)
 
-function julia_script(code, args=``)
+function julia_script(code, args=``, env...)
     # FIXME: this doesn't work when the compute mode is set to exclusive
     script = """using CUDA
                 device!($(device()))
@@ -240,7 +240,7 @@ function julia_script(code, args=``)
 
     out = Pipe()
     err = Pipe()
-    proc = run(pipeline(cmd, stdout=out, stderr=err), wait=false)
+    proc = run(pipeline(addenv(cmd, env...), stdout=out, stderr=err), wait=false)
     close(out.in)
     close(err.in)
     wait(proc)

@@ -312,6 +312,20 @@ end
     ir, kernel = @timeit_ci "emit_llvm" GPUCompiler.emit_llvm(job, method_instance, world)
     code = @timeit_ci "emit_asm" GPUCompiler.emit_asm(job, ir, kernel; format=LLVM.API.LLVMAssemblyFile)
 
+    # remove extraneous debug info on lower debug levels
+    if Base.JLOptions().debug_level < 2
+        # LLVM sets `.target debug` as soon as the debug emission kind isn't NoDebug. this
+        # is unwanted, as the flag makes `ptxas` behave as if `--device-debug` were set.
+        # ideally, we'd need something like LocTrackingOnly/EmitDebugInfo from D4234, but
+        # that got removed in favor of NoDebug in D18808, seemingly breaking the use case of
+        # only emitting `.loc` instructions...
+        #
+        # according to NVIDIA, "it is fine for PTX producers to produce debug info but not
+        # set `.target debug` and if `--device-debug` isn't passed, PTXAS will compile in
+        # release mode".
+        code = replace(code, r"(\.target .+), debug" => s"\1")
+    end
+
     # check if we'll need the device runtime
     undefined_fs = filter(collect(functions(ir))) do f
         isdeclaration(f) && !LLVM.isintrinsic(f)
@@ -338,66 +352,79 @@ end
         push!(ptxas_opts, "--compile-only")
     end
 
+    arch = "sm_$(job.target.cap.major)$(job.target.cap.minor)"
+
     # compile to machine code
     # NOTE: we use tempname since mktemp doesn't support suffixes, and mktempdir is slow
     ptx_input = tempname(cleanup=false) * ".ptx"
     ptxas_output = tempname(cleanup=false) * ".cubin"
-    nvlink_output = tempname(cleanup=false) * ".cubin"
-    image = try
-        write(ptx_input, code)
+    write(ptx_input, code)
 
-        arch = "sm_$(job.target.cap.major)$(job.target.cap.minor)"
+    # we could use the driver's embedded JIT compiler, but that has several disadvantages:
+    # 1. fixes and improvements are slower to arrive, by using `ptxas` we only need to
+    #    upgrade the toolkit to get a newer compiler;
+    # 2. version checking is simpler, we otherwise need to use NVML to query the driver
+    #    version, which is hard to correlate to PTX JIT improvements;
+    # 3. if we want to be able to use newer (minor upgrades) of the CUDA toolkit on an
+    #    older driver, we should use the newer compiler to ensure compatibility.
+    append!(ptxas_opts, [
+        "--verbose",
+        "--gpu-name", arch,
+        "--output-file", ptxas_output,
+        ptx_input
+    ])
+    proc, log = @timeit_ci "ptxas" run_and_collect(`$(ptxas()) $ptxas_opts`)
+    log = strip(log)
+    if !success(proc)
+        reason = proc.termsignal > 0 ? "ptxas received signal $(proc.termsignal)" :
+                                       "ptxas exited with code $(proc.exitcode)"
+        msg = "Failed to compile PTX code ($reason)"
+        if !isempty(log)
+            msg *= "\n" * log
+        end
+        msg *= "\nIf you think this is a bug, please file an issue and attach $(ptx_input)"
+        error(msg)
+    elseif !isempty(log)
+        @debug "PTX compiler log:\n" * log
+    end
+    rm(ptx_input)
 
-        # we could use the driver's embedded JIT compiler, but that has several disadvantages:
-        # 1. fixes and improvements are slower to arrive, by using `ptxas` we only need to
-        #    upgrade the toolkit to get a newer compiler;
-        # 2. version checking is simpler, we otherwise need to use NVML to query the driver
-        #    version, which is hard to correlate to PTX JIT improvements;
-        # 3. if we want to be able to use newer (minor upgrades) of the CUDA toolkit on an
-        #    older driver, we should use the newer compiler to ensure compatibility.
-        append!(ptxas_opts, [
-            "--verbose",
-            "--gpu-name", arch,
-            "--output-file", ptxas_output,
-            ptx_input
+    # link device libraries, if necessary
+    #
+    # this requires relocatable device code, which prevents certain optimizations and
+    # hurts performance. as such, we only do so when absolutely necessary.
+    # TODO: try LTO, `--link-time-opt --nvvmpath /opt/cuda/nvvm`.
+    #       fails with `Ignoring -lto option because no LTO objects found`
+    if needs_cudadevrt
+        nvlink_output = tempname(cleanup=false) * ".cubin"
+        append!(nvlink_opts, [
+            "--verbose", "--extra-warnings",
+            "--arch", arch,
+            "--library-path", dirname(libcudadevrt()),
+            "--library", "cudadevrt",
+            "--output-file", nvlink_output,
+            ptxas_output
         ])
-        proc, log = @timeit_ci "ptxas" run_and_collect(`$(ptxas()) $ptxas_opts`)
+        proc, log = @timeit_ci "nvlink" run_and_collect(`$(nvlink()) $nvlink_opts`)
+        log = strip(log)
         if !success(proc)
-            error("Failed to compile PTX code" * (isempty(log) ? "" : "\n$log"))
-        elseif !isempty(log)
-            @debug "PTX compiler log:\n" * log
-        end
-
-        # link device libraries, if necessary
-        #
-        # this requires relocatable device code, which prevents certain optimizations and
-        # hurts performance. as such, we only do so when absolutely necessary.
-        # TODO: try LTO, `--link-time-opt --nvvmpath /opt/cuda/nvvm`.
-        #       fails with `Ignoring -lto option because no LTO objects found`
-        if needs_cudadevrt
-            append!(nvlink_opts, [
-                "--verbose", "--extra-warnings",
-                "--arch", arch,
-                "--library-path", dirname(libcudadevrt()),
-                "--library", "cudadevrt",
-                "--output-file", nvlink_output,
-                ptxas_output
-            ])
-            proc, log = @timeit_ci "nvlink" run_and_collect(`$(nvlink()) $nvlink_opts`)
-            if !success(proc)
-                error("Failed to link PTX code" * (isempty(log) ? "" : "\n$log"))
-            elseif !isempty(log)
-                @debug "PTX linker info log:\n" * log
+            reason = proc.termsignal > 0 ? "nvlink received signal $(proc.termsignal)" :
+                                           "nvlink exited with code $(proc.exitcode)"
+            msg = "Failed to link PTX code ($reason)"
+            if !isempty(log)
+                msg *= "\n" * log
             end
-
-            read(nvlink_output)
-        else
-            read(ptxas_output)
+            msg *= "\nIf you think this is a bug, please file an issue and attach $(ptxas_output)"
+            error(msg)
+        elseif !isempty(log)
+            @debug "PTX linker info log:\n" * log
         end
-    finally
-        rm(ptx_input)
-        ispath(ptxas_output) && rm(ptxas_output)
-        ispath(nvlink_output) && rm(nvlink_output)
+
+        image = read(nvlink_output)
+        rm(nvlink_output)
+    else
+        image = read(ptxas_output)
+        rm(ptxas_output)
     end
 
     return (image, entry=LLVM.name(kernel), external_gvars)
