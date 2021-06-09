@@ -308,9 +308,9 @@ end
 # compile to executable machine code
 @timeit_ci "compile" function cufunction_compile(@nospecialize(job::CompilerJob))
     # lower to PTX
-    method_instance, world = @timeit_ci "emit_julia" GPUCompiler.emit_julia(job)
-    ir, kernel = @timeit_ci "emit_llvm" GPUCompiler.emit_llvm(job, method_instance, world)
-    code = @timeit_ci "emit_asm" GPUCompiler.emit_asm(job, ir, kernel; format=LLVM.API.LLVMAssemblyFile)
+    mi, mi_meta = @timeit_ci "emit_julia" GPUCompiler.emit_julia(job)
+    ir, ir_meta = @timeit_ci "emit_llvm" GPUCompiler.emit_llvm(job, mi)
+    asm, asm_meta = @timeit_ci "emit_asm" GPUCompiler.emit_asm(job, ir; format=LLVM.API.LLVMAssemblyFile)
 
     # remove extraneous debug info on lower debug levels
     if Base.JLOptions().debug_level < 2
@@ -323,7 +323,7 @@ end
         # according to NVIDIA, "it is fine for PTX producers to produce debug info but not
         # set `.target debug` and if `--device-debug` isn't passed, PTXAS will compile in
         # release mode".
-        code = replace(code, r"(\.target .+), debug" => s"\1")
+        asm = replace(asm, r"(\.target .+), debug" => s"\1")
     end
 
     # check if we'll need the device runtime
@@ -358,7 +358,7 @@ end
     # NOTE: we use tempname since mktemp doesn't support suffixes, and mktempdir is slow
     ptx_input = tempname(cleanup=false) * ".ptx"
     ptxas_output = tempname(cleanup=false) * ".cubin"
-    write(ptx_input, code)
+    write(ptx_input, asm)
 
     # we could use the driver's embedded JIT compiler, but that has several disadvantages:
     # 1. fixes and improvements are slower to arrive, by using `ptxas` we only need to
@@ -427,7 +427,7 @@ end
         rm(ptxas_output)
     end
 
-    return (image, entry=LLVM.name(kernel), external_gvars)
+    return (image, entry=LLVM.name(ir_meta.entry), external_gvars)
 end
 
 # link into an executable kernel
