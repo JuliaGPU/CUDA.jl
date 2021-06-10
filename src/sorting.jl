@@ -314,6 +314,11 @@ Launch batch partition kernel and sync
               partition_batches_kernel(vals, pivot, lo, hi, parity, lt, by))
         device_synchronize()
     end
+
+    # XXX: this global fence shouldn't be needed, according to the CUDA docs a sync_threads
+    #      should be sufficient to propagate the global memory writes from the child grid
+    #      to the (single-block) parent. See JuliaGPU/CUDA.jl#955 for more details.
+    threadfence()
 end
 
 """
@@ -454,7 +459,7 @@ end
 
 #function sort
 
-function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int, partial_k=nothing) where {T,N,F1,F2}
+function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int, partial_k=nothing, block_size_shift=0) where {T,N,F1,F2}
     max_depth = CUDA.limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
     len = size(c, dims)
 
@@ -469,6 +474,7 @@ function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int, partial_k=
     get_shmem(threads) = threads * (sizeof(Int) + sizeof(T))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads))
     threads = prevpow(2, config.threads)
+    threads = threads >> block_size_shift   # for testing purposes
 
     kernel(my_sort_args...;
            blocks=prod(otherdims), threads=threads, shmem=get_shmem(threads))

@@ -3,7 +3,7 @@ using DataStructures
 
 @testset "quicksort" begin
 
-import CUDA.Quicksort: flex_lt, find_partition,
+import CUDA.Quicksort: flex_lt, find_partition, quicksort!,
         partition_batches_kernel, consolidate_batch_partition, bubble_sort
 
 @testset "integer functions" begin
@@ -239,9 +239,32 @@ function check_partialsort!(T, N, partial_k, f=identity; kwargs...)
     right_size && check_partial_equivalence(original_arr, host_result, partial_k; kwargs...)
 end
 
+# Makes sure that non-maximally-large block sizes don't result in race conds
+@testset "reduced block sizes" begin
+    function init()
+        a = map(x -> x%UInt8, reverse(1:100000))
+        c = CuArray(a)
+        a, c
+    end
 
-# FIXME: these tests hang when running under compute-sanitizer on CUDA 11.2 with -g2
-@not_if_sanitize @testset "interface" begin
+    function check(block_size_shift)
+        original_arr, device_arr = init()
+        sort!(device_arr)
+        quicksort!(device_arr; lt=isless, by=identity, dims=1, block_size_shift=block_size_shift)
+        host_result = Array(device_arr)
+        @test check_equivalence(original_arr, host_result)
+    end
+
+    # repeat since race-conditions non-deterministic
+    for x in 1:25
+        check(1)
+        check(2)
+        check(3)
+        check(4)
+    end
+end
+
+@testset "interface" begin
     # pre-sorted
     @test check_sort!(Int, 1000000)
     @test check_sort!(Int32, 1000000)

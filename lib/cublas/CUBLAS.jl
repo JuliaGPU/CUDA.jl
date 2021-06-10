@@ -129,21 +129,67 @@ function xt_handle()
     end::cublasXtHandle_t
 end
 
-function log_message(cstr)
-    # NOTE: we can't `@debug` these messages, because the logging function is called for
-    #       every line... also not sure what the i!/I! prefixes mean (info?)
-    # NOTE: turns out we even can't `print` these messages, as cublasXt callbacks might
-    #       happen from a different thread! we could strdup + uv_async_send, but I couldn't
-    #       find an easy way to attach data to that
-    # TODO: use a pre-allocated lock-free global message buffer?
-    len = ccall(:strlen, Csize_t, (Cstring,), cstr)
-    ccall(:write, Cint, (Cint, Cstring, Csize_t), 0, cstr, len)
+
+## logging
+
+const MAX_LOG_BUFLEN = UInt(1024*1024)
+const log_buffer = Vector{UInt8}(undef, MAX_LOG_BUFLEN)
+const log_cursor = Threads.Atomic{UInt}(0)
+const log_cond = Ref{Base.AsyncCondition}()    # root
+
+function log_message(ptr)
+    # NOTE: this function may be called from unmanaged threads (by cublasXt),
+    #       so we can't even allocate, let alone perform I/O.
+    len = @ccall strlen(ptr::Cstring)::Csize_t
+    cursor = Threads.atomic_add!(log_cursor, len+1)
+    if cursor+len+1 <= MAX_LOG_BUFLEN
+        @ccall memmove((pointer(log_buffer)+cursor)::Ptr{Nothing},
+                       pointer(ptr)::Ptr{Nothing}, (len+1)::Csize_t)::Nothing
+        @ccall uv_async_send(log_cond[]::Ptr{Nothing})::Cint
+    end
+
+    return
+end
+
+function _log_message(blob)
+    # the message format isn't documented, but it looks like a message starts with a capital
+    # and the severity (e.g. `I!`), and subsequent lines start with a lowercase mark (`!i`)
+    #
+    # lines are separated by a \0 if they came in separately, but there may also be multiple
+    # actual lines separated by \n in each message.
+    for message in split(blob, r"[\0\n]+(?=[A-Z]!)")
+        code = message[1]
+        lines = split(message[3:end], r"[\0\n]+[a-z]!")
+        submessage = join(lines, '\n')
+        if code == 'I'
+            @debug submessage
+        elseif code == 'W'
+            @warn submessage
+        elseif code == 'E'
+            @error submessage
+        elseif code == 'F'
+            error(submessage)
+        else
+            @info "Unknown log message, please file an issue.\n$message"
+        end
+    end
     return
 end
 
 function __runtime_init__()
-    # enable library logging when launched with JULIA_DEBUG=CUBLAS
-    if isdebug(:init, CUBLAS)
+    # register a log callback
+    log_cond[] = Base.AsyncCondition() do async_cond
+        blob = ""
+        while true
+            blob = unsafe_string(pointer(log_buffer), log_cursor[])
+            if Threads.atomic_cas!(log_cursor, UInt(length(blob)), UInt(0)) == length(blob)
+                break
+            end
+        end
+        _log_message(blob)
+        return
+    end
+    if !Sys.iswindows() # NVIDIA bug #3321130
         callback = @cfunction(log_message, Nothing, (Cstring,))
         cublasSetLoggerCallback(callback)
     end
