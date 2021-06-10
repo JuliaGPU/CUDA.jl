@@ -13,10 +13,10 @@ A typical approach for porting or developing an application for the GPU is as fo
 
 ## [Scalar indexing](@id UsageWorkflowScalar)
 
-To facilitate porting code, `CuArray` supports executing so-called "scalar code" which
-processes one element at a time, e.g., in a for loop. Given how a GPU works, this is
-extremely slow and will negate any performance benefit of using a GPU. As such, you will be
-warned when performing this kind of iteration:
+Many array operations in Julia are implemented using loops, processing one element at a
+time. Doing so with GPU arrays is very ineffective, as the loop won't actually execute on
+the GPU, but transfer one element at a time and process it on the CPU. As this wrecks
+performance, you will be warned when performing this kind of iteration:
 
 ```julia
 julia> a = CuArray([1])
@@ -24,13 +24,16 @@ julia> a = CuArray([1])
  1
 
 julia> a[1] += 1
-┌ Warning: Performing scalar operations on GPU arrays: This is very slow, consider disallowing these operations with `allowscalar(false)`
-└ @ GPUArrays GPUArrays/src/indexing.jl:16
+┌ Warning: Performing scalar indexing.
+│ ...
+└ @ GPUArrays ~/Julia/pkg/GPUArrays/src/host/indexing.jl:57
 2
 ```
 
-Once you've verified that your application executes correctly on the GPU, you should
-disallow scalar indexing and use GPU-friendly array operations instead:
+Scalar indexing is only allowed in an interactive session, e.g. the REPL, because it is
+convenient when porting CPU code to the GPU. If you want to disallow scalar indexing, e.g.
+to verify that your application executes correctly on the GPU, call the `allowscalar`
+function:
 
 ```julia
 julia> CUDA.allowscalar(false)
@@ -48,22 +51,23 @@ julia> a .+ 1
  2
 ```
 
-Many array operations however have been implemented themselves using scalar indexing. As a
-result, calling into a seemingly GPU-friendly array operation might error out:
+In a non-interactive session, e.g. when running code from a script or application, scalar
+indexing is disallowed by default. There is no global toggle to allow scalar indexing; if
+you really need it, you can mark expressions using `allowscalar` with do-block syntax or
+`@allowscalar` macro:
 
 ```julia
-julia> a = CuArray([1,2])
-2-element CuArray{Int64,1,Nothing}:
+julia> a = CuArray([1])
+1-element CuArray{Int64, 1}:
  1
- 2
 
-julia> var(a)
-0.5
+julia> CUDA.allowscalar(false)
 
-julia> var(a,dims=1)
-ERROR: scalar getindex is disallowed
+julia> CUDA.allowscalar() do
+         a[1] += 1
+       end
+2
+
+julia> CUDA.@allowscalar a[1] += 1
+3
 ```
-
-To resolve such issues, many array operations for `CuArray` are replaced with GPU-friendly
-alternatives. If you run into a case like this, have a look at the CUDA.jl issue tracker and
-file a bug report if there isn't one yet.

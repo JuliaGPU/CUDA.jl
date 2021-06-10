@@ -1,7 +1,6 @@
 # benchmark suite execution and codespeed submission
 
 using CUDA
-CUDA.allowscalar(false)
 
 using BenchmarkTools
 
