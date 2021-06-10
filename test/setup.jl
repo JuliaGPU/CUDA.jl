@@ -23,9 +23,6 @@ end
 # precompile the runtime library
 CUDA.precompile_runtime()
 
-# for when we include tests directly
-CUDA.allowscalar(false)
-
 # enable debug timers
 using TimerOutputs
 if isdefined(CUDA, :to)
@@ -56,7 +53,6 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
 
         ex = quote
             Random.seed!(1)
-            CUDA.allowscalar(false)
 
             if $(QuoteNode(time_source)) == :cuda
                 CUDA.@timed @testset $name begin
