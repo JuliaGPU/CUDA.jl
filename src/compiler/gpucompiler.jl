@@ -21,13 +21,7 @@ function device_properties(dev)
                     unreachable = false
                 end
 
-                # there have been issues with emitting PTX `exit` instead of `trap` as well,
-                # see e.g. JuliaGPU/CUDA.jl#431 and NVIDIA bug #3231266 (but since switching
-                # to the toolkit's `ptxas` that specific machine/GPU now _requires_ exit...)
                 exitable = true
-                if cap < v"7"
-                    exitable = false
-                end
 
                 debuginfo = getenv("JULIA_CUDA_DEBUG_INFO", true)
 
