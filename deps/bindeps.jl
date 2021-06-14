@@ -6,18 +6,31 @@ import Libdl
 
 const dependency_lock = ReentrantLock()
 
-macro initialize_ref(ref, ex)
+# lazily initialize a Ref containing a path to a library.
+# the arguments to this macro is the name of the ref, an expression to populate it
+# (possibly returning `nothing` if the library wasn't found), and an optional initialization
+# hook to be executed after successfully discovering the library and setting the ref.
+macro initialize_ref(ref, ex, hook=:())
     quote
         ref = $ref
+
         # test and test-and-set
         if !isassigned(ref)
             Base.@lock dependency_lock begin
                 if !isassigned(ref)
-                    $ex
+                    val = $ex
+                    if val === nothing && !(eltype($ref) <: Union{Nothing,<:Any})
+                        error($"Could not find a required library")
+                    end
+                    $ref[] = $ex
+                    if val !== nothing
+                        $hook
+                    end
                 end
             end
         end
 
+        $ref[]
     end
 end
 
@@ -64,9 +77,8 @@ function toolkit()
             error("Could not find a suitable CUDA installation")
         end
 
-        __toolkit[] = toolkit
-        CUDA.__init_toolkit__()
-    end
+        toolkit
+    end CUDA.__init_toolkit__()
     __toolkit[]
 end
 
@@ -224,39 +236,32 @@ export ptxas, nvlink, nvdisasm, compute_sanitizer, has_compute_sanitizer
 const __ptxas = Ref{String}()
 function ptxas()
     @initialize_ref __ptxas begin
-        __ptxas[] = find_binary(toolkit(), "ptxas")
+        find_binary(toolkit(), "ptxas")
     end
-    __ptxas[]
 end
 
 # nvlink: used for linking additional libraries
 const __nvlink = Ref{String}()
 function nvlink()
     @initialize_ref __nvlink begin
-        __nvlink[] = find_binary(toolkit(), "nvlink")
+        find_binary(toolkit(), "nvlink")
     end
-    __nvlink[]
 end
 
 # nvdisasm: used for reflection (decompiling SASS code)
 const __nvdisasm = Ref{String}()
 function nvdisasm()
     @initialize_ref __nvdisasm begin
-        __nvdisasm[] = find_binary(toolkit(), "nvdisasm")
+        find_binary(toolkit(), "nvdisasm")
     end
-    __nvdisasm[]
 end
 
 # compute-santizer: used by the test suite
 const __compute_sanitizer = Ref{Union{Nothing,String}}()
 function compute_sanitizer(throw_error::Bool=true)
     @initialize_ref __compute_sanitizer begin
-        __compute_sanitizer[] = find_binary(toolkit(), "compute-sanitizer"; optional=true)
+        find_binary(toolkit(), "compute-sanitizer"; optional=true)
     end
-    if __compute_sanitizer[] === nothing && throw_error
-        error("This functionality is unavailabe as compute-sanitizer is missing.")
-    end
-    __compute_sanitizer[]
 end
 has_compute_sanitizer() = compute_sanitizer(throw_error=false) !== nothing
 
@@ -301,81 +306,75 @@ function libcublas()
             find_library(cuda, "cublasLt")
         end
 
-        __libcublas[] = find_library(cuda, "cublas")
-        CUDA.CUBLAS.__runtime_init__()
-    end
-    __libcublas[]
+        find_library(cuda, "cublas")
+    end CUDA.CUBLAS.__runtime_init__()
 end
 
 const __libcusparse = Ref{String}()
 function libcusparse()
     @initialize_ref __libcusparse begin
-        __libcusparse[] = find_library(toolkit(), "cusparse")
+        find_library(toolkit(), "cusparse")
     end
-    __libcusparse[]
 end
 
 const __libcufft = Ref{String}()
 function libcufft()
     @initialize_ref __libcufft begin
-        __libcufft[] = find_library(toolkit(), "cufft")
+        find_library(toolkit(), "cufft")
     end
-    __libcufft[]
 end
 
 const __libcurand = Ref{String}()
 function libcurand()
     @initialize_ref __libcurand begin
-        __libcurand[] = find_library(toolkit(), "curand")
+        find_library(toolkit(), "curand")
     end
-    __libcurand[]
 end
 
 const __libcusolver = Ref{String}()
 function libcusolver()
     @initialize_ref __libcusolver begin
-        __libcusolver[] = find_library(toolkit(), "cusolver")
+        find_library(toolkit(), "cusolver")
     end
-    __libcusolver[]
 end
 
 const __libcusolverMg = Ref{Union{String,Nothing}}()
 function libcusolvermg(; throw_error::Bool=true)
-    @initialize_ref __libcusolverMg begin
+     path = @initialize_ref __libcusolverMg begin
         if toolkit_version() < v"10.1"
-            __libcusolverMg[] = nothing
+            nothing
         else
-            __libcusolverMg[] = find_library(toolkit(), "cusolverMg")
+            find_library(toolkit(), "cusolverMg")
         end
     end
-    if __libcusolverMg[] === nothing && throw_error
+    if path === nothing && throw_error
         error("This functionality is unavailabe as cuSolverMg is missing.")
     end
-    __libcusolverMg[]
+    path
 end
 has_cusolvermg() = libcusolvermg(throw_error=false) !== nothing
 
 const __libcupti = Ref{Union{String,Nothing}}()
 function libcupti(; throw_error::Bool=true)
-    @initialize_ref __libcupti begin
-        __libcupti[] = find_library(toolkit(), "cupti")
+    path = @initialize_ref __libcupti begin
+        find_library(toolkit(), "cupti")
     end
-    if __libcupti[] === nothing && throw_error
+    if path === nothing && throw_error
         error("This functionality is unavailabe as CUPTI is missing.")
     end
-    __libcupti[]
+    path
 end
 has_cupti() = libcupti(throw_error=false) !== nothing
 
 const __libnvtx = Ref{Union{String,Nothing}}()
 function libnvtx(; throw_error::Bool=true)
-    @initialize_ref __libnvtx begin
-        __libnvtx[] = find_library(toolkit(), "nvtx")
+    path = @initialize_ref __libnvtx begin
+        find_library(toolkit(), "nvtx")
     end
-    if __libnvtx[] === nothing && throw_error
+    if path === nothing && throw_error
         error("This functionality is unavailabe as NVTX is missing.")
     end
-    __libnvtx[]
+    path
 end
 has_nvtx() = libnvtx(throw_error=false) !== nothing
 
@@ -426,9 +425,8 @@ export libdevice, libcudadevrt
 const __libdevice = Ref{String}()
 function libdevice()
     @initialize_ref __libdevice begin
-        __libdevice[] = find_libdevice(toolkit())
+        find_libdevice(toolkit())
     end
-    __libdevice[]
 end
 
 artifact_file(artifact_dir, path) = joinpath(artifact_dir, path)
@@ -455,9 +453,8 @@ end
 const __libcudadevrt = Ref{String}()
 function libcudadevrt()
     @initialize_ref __libcudadevrt begin
-        __libcudadevrt[] = find_libcudadevrt(toolkit())
+        find_libcudadevrt(toolkit())
     end
-    __libcudadevrt[]
 end
 
 artifact_static_library(artifact_dir, name) = joinpath(artifact_dir, "lib", Sys.iswindows() ? "$name.lib" : "lib$name.a")
@@ -490,16 +487,13 @@ export libcudnn, has_cudnn
 
 const __libcudnn = Ref{Union{String,Nothing}}()
 function libcudnn(; throw_error::Bool=true)
-    @initialize_ref __libcudnn begin
-        __libcudnn[] = find_cudnn(toolkit(), v"8")
-        if __libcudnn[] !== nothing
-            CUDA.CUDNN.__runtime_init__()
-        end
-    end
-    if __libcudnn[] === nothing && throw_error
+    path = @initialize_ref __libcudnn begin
+        find_cudnn(toolkit(), v"8")
+    end CUDA.CUDNN.__runtime_init__()
+    if path === nothing && throw_error
         error("This functionality is unavailabe as CUDNN is missing.")
     end
-    __libcudnn[]
+    path
 end
 has_cudnn() = libcudnn(throw_error=false) !== nothing
 
@@ -553,14 +547,14 @@ export libcutensor, has_cutensor
 
 const __libcutensor = Ref{Union{String,Nothing}}()
 function libcutensor(; throw_error::Bool=true)
-    @initialize_ref __libcutensor begin
+    path = @initialize_ref __libcutensor begin
         version = Sys.iswindows() ? nothing : v"1"  # cutensor.dll is unversioned on Windows
-        __libcutensor[] = find_cutensor(toolkit(), version)
+        find_cutensor(toolkit(), version)
     end
-    if __libcutensor[] === nothing && throw_error
-        error("This functionality is unavailabe as CUDNN is missing.")
+    if path === nothing && throw_error
+        error("This functionality is unavailabe as CUTENSOR is missing.")
     end
-    __libcutensor[]
+    path
 end
 has_cutensor() = libcutensor(throw_error=false) !== nothing
 
