@@ -136,7 +136,7 @@ function find_artifact_cuda()
     end
     if artifact == nothing
         @debug "Could not find a compatible artifact."
-        return false
+        return nothing
     end
 
     @debug "Using CUDA $(artifact.version) from an artifact at $(artifact.dir)"
