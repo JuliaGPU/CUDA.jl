@@ -207,7 +207,7 @@ end
     ptx_support = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
     isempty(ptx_support) && error("Your toolchain does not support any PTX ISA")
 
-    @debug("Toolchain with LLVM $(LLVM.version()), CUDA driver $(version()) and toolkit $(toolkit_version()) supports devices $(verlist(target_support)); PTX $(verlist(ptx_support))")
+    @debug("Toolchain with LLVM $(LLVM.version()), CUDA driver $(CUDA.version()) and toolkit $(toolkit_version()) supports devices $(verlist(target_support)); PTX $(verlist(ptx_support))")
 
     return (cap=target_support, ptx=ptx_support)
 end
