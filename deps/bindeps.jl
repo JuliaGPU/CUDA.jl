@@ -131,7 +131,6 @@ function find_artifact_cuda()
     return ArtifactToolkit(artifact.version, artifact.dir)
 end
 
-const __temp_libcusolver = Ref{Union{Nothing,String}}[]
 function find_local_cuda()
     @debug "Trying to use local installation..."
 
@@ -153,21 +152,28 @@ function find_local_cuda()
     # CUSOLVER (which has a handle-less version getter that does not initialize)
     # to be sure which CUDA we're dealing with (it only matters for CUPTI).
     if version == v"11.1.0"
-        __temp_libcusolver[] = find_cuda_library("cusolver", dirs, v"11.1.0")
-        if __temp_libcusolver[] === nothing
-            __temp_libcusolver[] = find_cuda_library("cusolver", dirs, v"11.1.1")
+        temp_libcusolver = find_cuda_library("cusolver", dirs, v"11.1.0")
+        if temp_libcusolver === nothing
+            temp_libcusolver = find_cuda_library("cusolver", dirs, v"11.1.1")
         end
-        if __temp_libcusolver[] === nothing
+        if temp_libcusolver === nothing
             @debug "Could not disambiguate CUDA 11.1 from Update 1 due to not finding CUSOLVER"
         else
             # nothing is initialized at this point, so we need to use raw ccalls.
-            cusolver_version = Ref{Cint}()
-            @assert 0 == ccall((:cusolverGetVersion, __temp_libcusolver[]), Cint, (Ref{Cint},), cusolver_version)
-            if cusolver_version[] == 11001
-                version = v"11.1.1"
-            elseif cusolver_version[] != 11000
-                @debug "Could not disambiguate CUDA 11.1 from Update 1 with CUSOLVER version $(cusolver_version[])"
+            Libdl.dlopen(temp_libcusolver) do lib
+                fun = Libdl.dlsym(lib, :cusolverGetVersion)
+                @assert fun != C_NULL
+
+                cusolver_version = Ref{Cint}()
+                @assert 0 == ccall(fun, Cint, (Ref{Cint},), cusolver_version)
+                if cusolver_version[] == 11001
+                    version = v"11.1.1"
+                elseif cusolver_version[] != 11000
+                    @debug "Could not disambiguate CUDA 11.1 from Update 1 with CUSOLVER version $(cusolver_version[])"
+                end
             end
+
+            __libcusolver[] = temp_libcusolver
         end
     end
 
