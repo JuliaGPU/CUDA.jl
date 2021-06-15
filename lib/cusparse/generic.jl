@@ -87,13 +87,17 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},Cu
     compute_type = T == Float16 && version() >= v"11.4.0" ? Float32 : T
     α = convert(compute_type, alpha)
     β = convert(compute_type, beta)
-    @workspace size=@argout(
-            cusparseSpMV_bufferSize(handle(), transa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
-                                    descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, out(Ref{Csize_t}()))
-        )[] buffer->begin
-            cusparseSpMV(handle(), transa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
-                         descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, buffer)
-        end
+
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cusparseSpMV_bufferSize(handle(), transa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
+                                descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, out)
+        return out[]
+    end
+    with_workspace(size=bufferSize) do buffer
+        cusparseSpMV(handle(), transa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
+                     descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, buffer)
+    end
     Y
 end
 
@@ -121,13 +125,17 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::Dens
     compute_type = T == Float16 && version() >= v"11.4.0" ? Float32 : T
     α = convert(compute_type, alpha)
     β = convert(compute_type, beta)
-    @workspace size=@argout(
-            cusparseSpMV_bufferSize(handle(), ctransa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
-                                    descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, out(Ref{Csize_t}()))
-        )[] buffer->begin
-            cusparseSpMV(handle(), ctransa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
-                         descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, buffer)
-        end
+
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cusparseSpMV_bufferSize(handle(), ctransa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
+                                descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, out)
+        return out[]
+    end
+    with_workspace(size=bufferSize) do buffer
+        cusparseSpMV(handle(), ctransa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
+                     descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, buffer)
+    end
 
     return Y
 end
@@ -151,11 +159,14 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
-    @workspace size=@argout(
+    function bufferSize()
+        out = Ref{Csize_t}()
         cusparseSpMM_bufferSize(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, CUSPARSE_MM_ALG_DEFAULT, out(Ref{Csize_t}()))
-    )[] buffer->begin
+            descC, T, CUSPARSE_MM_ALG_DEFAULT, out)
+        return out[]
+    end
+    with_workspace(size=bufferSize) do buffer
         cusparseSpMM(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, CUSPARSE_MM_ALG_DEFAULT, buffer)
@@ -191,11 +202,14 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
-    @workspace size=@argout(
+    function bufferSize()
+        out = Ref{Csize_t}()
         cusparseSpMM_bufferSize(
             handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, CUSPARSE_MM_ALG_DEFAULT, out(Ref{Csize_t}()))
-    )[] buffer->begin
+            descC, T, CUSPARSE_MM_ALG_DEFAULT, out)
+        return out[]
+    end
+    with_workspace(size=bufferSize) do buffer
         cusparseSpMM(
             handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, CUSPARSE_MM_ALG_DEFAULT, buffer)

@@ -23,12 +23,16 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
             n       = checksquare(A)
             lda     = max(1, stride(A, 2))
 
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), uplo, n, A, lda, out)
+                out[]
+            end
+
             devinfo = CuArray{Cint}(undef, 1)
-            @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), uplo, n, A, lda, out(Ref{Cint}(0)))
-                )[] buffer->begin
-                    $fname(dense_handle(), uplo, n, A, lda, buffer, length(buffer), devinfo)
-                end
+            with_workspace(eltyp=$elty, size=bufferSize) do buffer
+                $fname(dense_handle(), uplo, n, A, lda, buffer, length(buffer), devinfo)
+            end
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
@@ -84,21 +88,25 @@ for (bname, fname,elty) in ((:cusolverDnSpotri_bufferSize, :cusolverDnSpotri, :F
 @eval begin
     function LinearAlgebra.LAPACK.potri!(uplo::Char,
                     A::CuMatrix{$elty})
-           n       = checksquare(A)
-           lda     = max(1, stride(A, 2))
-           devinfo = CuArray{Cint}(undef, 1)
+            n       = checksquare(A)
+            lda     = max(1, stride(A, 2))
 
-           @workspace eltyp=$elty size=@argout(
-                   $bname(dense_handle(), uplo, n, A, lda, out(Ref{Cint}(0)))
-               )[] buffer->begin
-                   $fname(dense_handle(), uplo, n, A, lda, buffer, length(buffer), devinfo)
-               end
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), uplo, n, A, lda, out)
+                out[]
+            end
 
-           info = @allowscalar devinfo[1]
-           unsafe_free!(devinfo)
-           chkargsok(BlasInt(info))
+            devinfo = CuArray{Cint}(undef, 1)
+            with_workspace(eltyp=$elty, size=bufferSize) do buffer
+                $fname(dense_handle(), uplo, n, A, lda, buffer, length(buffer), devinfo)
+            end
 
-           A
+            info = @allowscalar devinfo[1]
+            unsafe_free!(devinfo)
+            chkargsok(BlasInt(info))
+
+            A
         end
     end
 end
@@ -113,13 +121,17 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
             m,n     = size(A)
             lda     = max(1, stride(A, 2))
 
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), m, n, A, lda, out)
+                return out[]
+            end
+
             devipiv = CuArray{Cint}(undef, min(m,n))
             devinfo = CuArray{Cint}(undef, 1)
-            @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), m, n, A, lda, out(Ref{Cint}(0)))
-                )[] buffer->begin
-                    $fname(dense_handle(), m, n, A, lda, buffer, devipiv, devinfo)
-                end
+            with_workspace(eltyp=$elty, size=bufferSize) do buffer
+                $fname(dense_handle(), m, n, A, lda, buffer, devipiv, devinfo)
+            end
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
@@ -144,10 +156,15 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
             m, n    = size(A)
             lda     = max(1, stride(A, 2))
 
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), m, n, A, lda, out)
+                return out[]
+            end
+
             tau  = CuArray{$elty}(undef, min(m, n))
             devinfo = CuArray{Cint}(undef, 1)
-            @workspace eltyp=$elty size=@argout(
-                $bname(dense_handle(), m, n, A, lda, out(Ref{Cint}(0))))[] buffer->begin
+            with_workspace(eltyp=$elty, size=bufferSize) do buffer
                 $fname(dense_handle(), m, n, A, lda, tau, buffer, length(buffer), devinfo)
             end
 
@@ -173,13 +190,17 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
             n      = checksquare(A)
             lda = max(1, stride(A, 2))
 
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), n, A, lda, out)
+                return out[]
+            end
+
             devipiv = CuArray{Cint}(undef, n)
             devinfo = CuArray{Cint}(undef, 1)
-            @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), n, A, lda, out(Ref{Cint}(0)))
-                )[] buffer->begin
-                    $fname(dense_handle(), uplo, n, A, lda, devipiv, buffer, length(buffer), devinfo)
-                end
+            with_workspace(eltyp=$elty, size=bufferSize) do buffer
+                $fname(dense_handle(), uplo, n, A, lda, devipiv, buffer, length(buffer), devinfo)
+            end
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
@@ -257,14 +278,17 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
             end
             k       = length(tau)
 
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), side, trans, m, n, k, A, lda, tau, C, ldc, out)
+                return out[]
+            end
+
             devinfo = CuArray{Cint}(undef, 1)
-            @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), side, trans, m, n, k, A, lda, tau, C, ldc,
-                        out(Ref{Cint}(0)))
-                )[] buffer->begin
-                    $fname(dense_handle(), side, trans, m, n, k, A, lda, tau, C, ldc,
-                        buffer, length(buffer), devinfo)
-                end
+            with_workspace(eltyp=$elty, size=bufferSize) do buffer
+                $fname(dense_handle(), side, trans, m, n, k, A, lda, tau, C, ldc,
+                    buffer, length(buffer), devinfo)
+            end
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
@@ -289,12 +313,16 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
             lda = max(1, stride(A, 2))
             k = length(tau)
 
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), m, n, k, A, lda, tau, out)
+                return out[]
+            end
+
             devinfo = CuArray{Cint}(undef, 1)
-            @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), m, n, k, A, lda, tau, out(Ref{Cint}(0)))
-                )[] buffer->begin
-                    $fname(dense_handle(), m, n, k, A, lda, tau, buffer, length(buffer), devinfo)
-                end
+            with_workspace(eltyp=$elty, size=bufferSize) do buffer
+                $fname(dense_handle(), m, n, k, A, lda, tau, buffer, length(buffer), devinfo)
+            end
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
@@ -321,17 +349,22 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
             m, n    = size(A)
             lda     = max(1, stride(A, 2))
 
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), m, n, out)
+                return out[]
+            end
+
             devinfo = CuArray{Cint}(undef, 1)
             k       = min(m, n)
             D       = CuArray{$relty}(undef, k)
             E       = CUDA.zeros($relty, k)
             TAUQ    = CuArray{$elty}(undef, k)
             TAUP    = CuArray{$elty}(undef, k)
-            @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), m, n, out(Ref{Cint}(0)))
-                )[] buffer->begin
-                    $fname(dense_handle(), m, n, A, lda, D, E, TAUQ, TAUP, buffer, length(buffer), devinfo)
-                end
+
+            with_workspace(eltyp=$elty, size=bufferSize) do buffer
+                $fname(dense_handle(), m, n, A, lda, D, E, TAUQ, TAUP, buffer, length(buffer), devinfo)
+            end
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
@@ -378,14 +411,18 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             end
             ldvt    = max(1, stride(Vt, 2))
 
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), m, n, out)
+                return out[]
+            end
+
             rwork   = CuArray{$relty}(undef, min(m, n) - 1)
             devinfo = CuArray{Cint}(undef, 1)
-            @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), m, n, out(Ref{Cint}(0)))
-                )[] work->begin
-                    $fname(dense_handle(), jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt,
-                        work, sizeof(work), rwork, devinfo)
-                end
+            with_workspace(eltyp=$elty, size=bufferSize) do work
+                $fname(dense_handle(), jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt,
+                    work, sizeof(work), rwork, devinfo)
+            end
             unsafe_free!(rwork)
 
             info = @allowscalar devinfo[1]
@@ -435,14 +472,18 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
             cusolverDnXgesvdjSetTolerance(params[], tol)
             cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
 
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
+                       out, params[])
+                return out[]
+            end
+
             devinfo = CuArray{Cint}(undef, 1)
-            @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
-                        out(Ref{Cint}(0)), params[])
-                )[] work->begin
-                    $fname(dense_handle(), jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
-                        work, sizeof(work), devinfo, params[])
-                end
+            with_workspace(eltyp=$elty, size=bufferSize) do work
+                $fname(dense_handle(), jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
+                       work, sizeof(work), devinfo, params[])
+            end
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
@@ -469,14 +510,17 @@ for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSiz
             lda     = max(1, stride(A, 2))
             W       = CuArray{$relty}(undef, n)
 
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), jobz, uplo, n, A, lda, W, out)
+                return out[]
+            end
+
             devinfo = CuArray{Cint}(undef, 1)
-            @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), jobz, uplo, n, A, lda, W,
-                        out(Ref{Cint}(0)))
-                )[] buffer->begin
-                    $fname(dense_handle(), jobz, uplo, n, A, lda, W,
-                        buffer, length(buffer), devinfo)
-                end
+            with_workspace(eltyp=$elty, size=bufferSize) do buffer
+                $fname(dense_handle(), jobz, uplo, n, A, lda, W,
+                       buffer, length(buffer), devinfo)
+            end
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
@@ -512,14 +556,17 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
             ldb     = max(1, stride(B, 2))
             W       = CuArray{$relty}(undef, n)
 
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W, out)
+                return out[]
+            end
+
             devinfo = CuArray{Cint}(undef, 1)
-            @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
-                        out(Ref{Cint}(0)))
-                )[] buffer->begin
-                    $fname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
-                        buffer, length(buffer), devinfo)
-                end
+            with_workspace(eltyp=$elty, size=bufferSize) do buffer
+                $fname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
+                    buffer, length(buffer), devinfo)
+            end
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
@@ -561,14 +608,18 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
             cusolverDnXsyevjSetTolerance(params[], tol)
             cusolverDnXsyevjSetMaxSweeps(params[], max_sweeps)
 
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
+                       out, params[])
+                return out[]
+            end
+
             devinfo = CuArray{Cint}(undef, 1)
-            @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
-                        out(Ref{Cint}(0)), params[])
-                )[] buffer->begin
-                    $fname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
-                        buffer, length(buffer), devinfo, params[])
-                end
+            with_workspace(eltyp=$elty, size=bufferSize) do buffer
+                $fname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
+                    buffer, length(buffer), devinfo, params[])
+            end
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
@@ -613,13 +664,16 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
             cusolverDnXsyevjSetMaxSweeps(params[], max_sweeps)
 
             # Calculate the workspace size
-            lwork = @argout(CUSOLVER.$bname(dense_handle(), jobz, uplo, n,
-                            A, lda, W, out(Ref{Cint}(0)), params, batchSize))[]
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), jobz, uplo, n, A, lda, W, out, params, batchSize)
+                return out[]
+            end
 
             # Run the solver
-            @workspace eltyp=$elty size=lwork work->begin
+            with_workspace(eltyp=$elty, size=bufferSize) do work
                 $fname(dense_handle(), jobz, uplo, n, A, lda, W, work,
-                       lwork, devinfo, params[], batchSize)
+                       length(work), devinfo, params[], batchSize)
             end
 
             # Copy the solver info and delete the device memory

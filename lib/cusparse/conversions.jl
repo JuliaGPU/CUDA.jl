@@ -19,17 +19,20 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
             nzVal = CUDA.zeros($elty, nnz(csr))
             if version() >= v"10.2"
                 # TODO: algorithm configuratibility?
-                @workspace size=@argout(
-                        cusparseCsr2cscEx2_bufferSize(handle(), m, n, nnz(csr), nonzeros(csr),
-                            csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
-                            $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                            CUSPARSE_CSR2CSC_ALG1, out(Ref{Csize_t}(1)))
-                    )[] buffer->begin
-                        cusparseCsr2cscEx2(handle(), m, n, nnz(csr), nonzeros(csr),
-                            csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
-                            $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                            CUSPARSE_CSR2CSC_ALG1, buffer)
-                    end
+                function bufferSize()
+                    out = Ref{Csize_t}(1)
+                    cusparseCsr2cscEx2_bufferSize(handle(), m, n, nnz(csr), nonzeros(csr),
+                        csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
+                        $elty, CUSPARSE_ACTION_NUMERIC, inda,
+                        CUSPARSE_CSR2CSC_ALG1, out)
+                    return out[]
+                end
+                with_workspace(size=bufferSize) do buffer
+                    cusparseCsr2cscEx2(handle(), m, n, nnz(csr), nonzeros(csr),
+                        csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
+                        $elty, CUSPARSE_ACTION_NUMERIC, inda,
+                        CUSPARSE_CSR2CSC_ALG1, buffer)
+                end
             else
                 $fname(handle(), m, n, nnz(csr), nonzeros(csr),
                     csr.rowPtr, csr.colVal, nzVal, rowVal,
@@ -45,17 +48,20 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
             nzVal  = CUDA.zeros($elty,nnz(csc))
             if version() >= v"10.2"
                 # TODO: algorithm configuratibility?
-                @workspace size=@argout(
-                        cusparseCsr2cscEx2_bufferSize(handle(), n, m, nnz(csc), nonzeros(csc),
-                            csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
-                            $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                            CUSPARSE_CSR2CSC_ALG1, out(Ref{Csize_t}(1)))
-                    )[] buffer->begin
-                        cusparseCsr2cscEx2(handle(), n, m, nnz(csc), nonzeros(csc),
-                            csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
-                            $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                            CUSPARSE_CSR2CSC_ALG1, buffer)
-                    end
+                function bufferSize()
+                    out = Ref{Csize_t}(1)
+                    cusparseCsr2cscEx2_bufferSize(handle(), n, m, nnz(csc), nonzeros(csc),
+                        csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
+                        $elty, CUSPARSE_ACTION_NUMERIC, inda,
+                        CUSPARSE_CSR2CSC_ALG1, out)
+                    return out[]
+                end
+                with_workspace(size=bufferSize) do buffer
+                    cusparseCsr2cscEx2(handle(), n, m, nnz(csc), nonzeros(csc),
+                        csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
+                        $elty, CUSPARSE_ACTION_NUMERIC, inda,
+                        CUSPARSE_CSR2CSC_ALG1, buffer)
+                end
             else
                 $fname(handle(), n, m, nnz(csc), nonzeros(csc),
                     csc.colPtr, rowvals(csc), nzVal, colVal,
@@ -76,17 +82,20 @@ for (elty, welty) in ((:Float16, :Float32),
             nzVal = CUDA.zeros($elty, nnz(csr))
             # TODO: algorithm configuratibility?
             if version() >= v"10.2" && $elty == Float16 #broken for ComplexF16?
-                @workspace size=@argout(
-                        cusparseCsr2cscEx2_bufferSize(handle(), m, n, nnz(csr), nonzeros(csr),
-                            csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
-                            $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                            CUSPARSE_CSR2CSC_ALG1, out(Ref{Csize_t}(1)))
-                    )[] buffer->begin
-                        cusparseCsr2cscEx2(handle(), m, n, nnz(csr), nonzeros(csr),
-                            csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
-                            $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                            CUSPARSE_CSR2CSC_ALG1, buffer)
-                    end
+                function bufferSize()
+                    out = Ref{Csize_t}(1)
+                    cusparseCsr2cscEx2_bufferSize(handle(), m, n, nnz(csr), nonzeros(csr),
+                        csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
+                        $elty, CUSPARSE_ACTION_NUMERIC, inda,
+                        CUSPARSE_CSR2CSC_ALG1, out)
+                    return out[]
+                end
+                with_workspace(size=bufferSize) do buffer
+                    cusparseCsr2cscEx2(handle(), m, n, nnz(csr), nonzeros(csr),
+                        csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
+                        $elty, CUSPARSE_ACTION_NUMERIC, inda,
+                        CUSPARSE_CSR2CSC_ALG1, buffer)
+                end
                 return CuSparseMatrixCSC(colPtr,rowVal,nzVal,csr.dims)
             else
                 wide_csr = CuSparseMatrixCSR(csr.rowPtr, csr.colVal, convert(CuVector{$welty}, nonzeros(csr)), csr.dims)
@@ -102,17 +111,20 @@ for (elty, welty) in ((:Float16, :Float32),
             nzVal  = CUDA.zeros($elty,nnz(csc))
             if version() >= v"10.2" && $elty == Float16 #broken for ComplexF16?
                 # TODO: algorithm configuratibility?
-                @workspace size=@argout(
-                        cusparseCsr2cscEx2_bufferSize(handle(), n, m, nnz(csc), nonzeros(csc),
-                            csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
-                            $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                            CUSPARSE_CSR2CSC_ALG1, out(Ref{Csize_t}(1)))
-                    )[] buffer->begin
-                        cusparseCsr2cscEx2(handle(), n, m, nnz(csc), nonzeros(csc),
-                            csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
-                            $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                            CUSPARSE_CSR2CSC_ALG1, buffer)
-                    end
+                function bufferSize()
+                    out = Ref{Csize_t}(1)
+                    cusparseCsr2cscEx2_bufferSize(handle(), n, m, nnz(csc), nonzeros(csc),
+                        csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
+                        $elty, CUSPARSE_ACTION_NUMERIC, inda,
+                        CUSPARSE_CSR2CSC_ALG1, out)
+                    return out[]
+                end
+                with_workspace(size=bufferSize) do buffer
+                    cusparseCsr2cscEx2(handle(), n, m, nnz(csc), nonzeros(csc),
+                        csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
+                        $elty, CUSPARSE_ACTION_NUMERIC, inda,
+                        CUSPARSE_CSR2CSC_ALG1, buffer)
+                end
                 return CuSparseMatrixCSR(rowPtr,colVal,nzVal,csc.dims)
             else
                 wide_csc = CuSparseMatrixCSC(csc.colPtr, csc.rowVal, convert(CuVector{$welty}, nonzeros(csc)), csc.dims)
@@ -209,13 +221,17 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
                 desc_csr   = CuSparseMatrixDescriptor(csr)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
-                @workspace size=@argout(
-                        cusparseSparseToDense_bufferSize(handle(), desc_csr, desc_dense,
-                            CUSPARSE_SPARSETODENSE_ALG_DEFAULT, out(Ref{Csize_t}(1)))
-                    )[] buffer->begin
-                        cusparseSparseToDense(handle(), desc_csr, desc_dense,
-                            CUSPARSE_SPARSETODENSE_ALG_DEFAULT, buffer)
-                    end
+
+                function bufferSize()
+                    out = Ref{Csize_t}(1)
+                    cusparseSparseToDense_bufferSize(handle(), desc_csr, desc_dense,
+                        CUSPARSE_SPARSETODENSE_ALG_DEFAULT, out)
+                    return out[]
+                end
+                with_workspace(size=bufferSize) do buffer
+                    cusparseSparseToDense(handle(), desc_csr, desc_dense,
+                        CUSPARSE_SPARSETODENSE_ALG_DEFAULT, buffer)
+                end
                 return denseA
             else
                 cudesc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, ind)
@@ -231,13 +247,17 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
                 desc_csc   = CuSparseMatrixDescriptor(csc)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
-                @workspace size=@argout(
-                        cusparseSparseToDense_bufferSize(handle(), desc_csc, desc_dense,
-                            CUSPARSE_SPARSETODENSE_ALG_DEFAULT, out(Ref{Csize_t}(1)))
-                    )[] buffer->begin
-                        cusparseSparseToDense(handle(), desc_csc, desc_dense,
-                            CUSPARSE_SPARSETODENSE_ALG_DEFAULT, buffer)
-                    end
+
+                function bufferSize()
+                    out = Ref{Csize_t}(1)
+                    cusparseSparseToDense_bufferSize(handle(), desc_csc, desc_dense,
+                        CUSPARSE_SPARSETODENSE_ALG_DEFAULT, out)
+                    return out[]
+                end
+                with_workspace(size=bufferSize) do buffer
+                    cusparseSparseToDense(handle(), desc_csc, desc_dense,
+                        CUSPARSE_SPARSETODENSE_ALG_DEFAULT, buffer)
+                end
                 return denseA
             else
                 lda = max(1,stride(denseA,2))
@@ -259,13 +279,17 @@ for (elty, welty) in ((:Float16, :Float32),
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
                 desc_csr   = CuSparseMatrixDescriptor(csr)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
-                @workspace size=@argout(
-                        cusparseSparseToDense_bufferSize(handle(), desc_csr, desc_dense,
-                            CUSPARSE_SPARSETODENSE_ALG_DEFAULT, out(Ref{Csize_t}(1)))
-                    )[] buffer->begin
-                        cusparseSparseToDense(handle(), desc_csr, desc_dense,
-                            CUSPARSE_SPARSETODENSE_ALG_DEFAULT, buffer)
-                    end
+
+                function bufferSize()
+                    out = Ref{Csize_t}(1)
+                    cusparseSparseToDense_bufferSize(handle(), desc_csr, desc_dense,
+                        CUSPARSE_SPARSETODENSE_ALG_DEFAULT, out)
+                    return out[]
+                end
+                with_workspace(size=bufferSize) do buffer
+                    cusparseSparseToDense(handle(), desc_csr, desc_dense,
+                        CUSPARSE_SPARSETODENSE_ALG_DEFAULT, buffer)
+                end
                 return denseA
             else
                 wide_csr = CuSparseMatrixCSR(csr.rowPtr, csr.colVal, convert(CuVector{$welty}, nonzeros(csr)), csr.dims)
@@ -280,13 +304,17 @@ for (elty, welty) in ((:Float16, :Float32),
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
                 desc_csc   = CuSparseMatrixDescriptor(csc)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
-                @workspace size=@argout(
-                        cusparseSparseToDense_bufferSize(handle(), desc_csc, desc_dense,
-                            CUSPARSE_SPARSETODENSE_ALG_DEFAULT, out(Ref{Csize_t}(1)))
-                    )[] buffer->begin
-                        cusparseSparseToDense(handle(), desc_csc, desc_dense,
-                            CUSPARSE_SPARSETODENSE_ALG_DEFAULT, buffer)
-                    end
+
+                function bufferSize()
+                    out = Ref{Csize_t}(1)
+                    cusparseSparseToDense_bufferSize(handle(), desc_csc, desc_dense,
+                        CUSPARSE_SPARSETODENSE_ALG_DEFAULT, out)
+                    return out[]
+                end
+                with_workspace(size=bufferSize) do buffer
+                    cusparseSparseToDense(handle(), desc_csc, desc_dense,
+                        CUSPARSE_SPARSETODENSE_ALG_DEFAULT, buffer)
+                end
                 return denseA
             else
                 wide_csc = CuSparseMatrixCSR(csc.rowPtr, csc.colVal, convert(CuVector{$welty}, nonzeros(csc)), csc.dims)

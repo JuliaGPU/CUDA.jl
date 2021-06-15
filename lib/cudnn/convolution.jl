@@ -100,7 +100,7 @@ end
 # AD method
 function cudnnConvolutionForwardAD(w, x, bias, z; y, activation, convDesc, wDesc, xDesc, yDesc, zDesc, biasDesc, alpha, beta, dw, dx, dz, dbias, dready)
     p = cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation)
-    @workspace size=p.memory workspace->begin
+    with_workspace(size=p.memory) do workspace
         if bias === nothing && activation === CUDNN_ACTIVATION_IDENTITY && (z === y || beta[] == 0)
             cudnnConvolutionForward(handle(), alpha, xDesc, x, wDesc, w, convDesc, p.algo, workspace, sizeof(workspace), beta, yDesc, y)
         else
@@ -171,11 +171,12 @@ end
 
 const cudnnConvolutionFwdAlgoPerfCache = Dict{Tuple,cudnnConvolutionFwdAlgoPerf_t}()
 function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation)
-    get!(cudnnConvolutionFwdAlgoPerfCache, (xDesc, wDesc, convDesc, biasDesc, activation)) do 
+    get!(cudnnConvolutionFwdAlgoPerfCache, (xDesc, wDesc, convDesc, biasDesc, activation)) do
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_FWD_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
         perfResults = Array{cudnnConvolutionFwdAlgoPerf_t}(undef,requestedAlgoCount)
-        @workspace size=cudnnFindConvolutionAlgorithmWorkspaceSize(x) workspace->begin
+        workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
+        with_workspace(size=workspaceSize) do workspace
             cudnnFindConvolutionForwardAlgorithmEx(handle(),xDesc,x,wDesc,w,convDesc,yDesc,y,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
         cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
@@ -184,11 +185,12 @@ end
 
 const cudnnConvolutionBwdDataAlgoPerfCache = Dict{Tuple,cudnnConvolutionBwdDataAlgoPerf_t}()
 function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc, dx)
-    get!(cudnnConvolutionBwdDataAlgoPerfCache, (wDesc, dyDesc, convDesc)) do 
+    get!(cudnnConvolutionBwdDataAlgoPerfCache, (wDesc, dyDesc, convDesc)) do
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
         perfResults = Array{cudnnConvolutionBwdDataAlgoPerf_t}(undef,requestedAlgoCount)
-        @workspace size=cudnnFindConvolutionAlgorithmWorkspaceSize(dx) workspace->begin
+        workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(dx)
+        with_workspace(size=workspaceSize) do workspace
             cudnnFindConvolutionBackwardDataAlgorithmEx(handle(),wDesc,w,dyDesc,dy,convDesc,dxDesc,dx,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
         cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
@@ -197,11 +199,12 @@ end
 
 const cudnnConvolutionBwdFilterAlgoPerfCache = Dict{Tuple,cudnnConvolutionBwdFilterAlgoPerf_t}()
 function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDesc, dw)
-    get!(cudnnConvolutionBwdFilterAlgoPerfCache, (xDesc, dyDesc, convDesc)) do 
+    get!(cudnnConvolutionBwdFilterAlgoPerfCache, (xDesc, dyDesc, convDesc)) do
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
         perfResults = Array{cudnnConvolutionBwdFilterAlgoPerf_t}(undef,requestedAlgoCount)
-        @workspace size=cudnnFindConvolutionAlgorithmWorkspaceSize(x) workspace->begin
+        workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
+        with_workspace(size=workspaceSize) do workspace
             cudnnFindConvolutionBackwardFilterAlgorithmEx(handle(),xDesc,x,dyDesc,dy,convDesc,dwDesc,dw,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
         cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])

@@ -268,10 +268,13 @@ function contraction!(
                    computeType)
     find = Ref{cutensorContractionFind_t}()
     cutensorInitContractionFind(handle(), find, algo)
-    @workspace fallback=1<<27 size=@argout(
-            cutensorContractionGetWorkspace(handle(), desc, find, pref,
-                                            out(Ref{UInt64}(C_NULL)))
-        )[] workspace->begin
+
+        function workspaceSize()
+            out = Ref{UInt64}(0)
+            cutensorContractionGetWorkspace(handle(), desc, find, pref, out)
+            return out[]
+        end
+        with_workspace(size=workspaceSize, fallback=1<<27) do workspace
             plan_ref = Ref{cutensorContractionPlan_t}()
             if isnothing(plan)
                 cutensorInitContractionPlan(handle(), plan_ref, desc, find, sizeof(workspace))
@@ -349,21 +352,24 @@ function reduction!(
     modeA = collect(Cint, Ainds)
     modeC = collect(Cint, Cinds)
 
-    @workspace fallback=1<<13 size=@argout(
-            cutensorReductionGetWorkspace(handle(),
-                A, descA, modeA,
-                C, descC, modeC,
-                C, descC, modeC,
-                opReduce, typeCompute,
-                out(Ref{UInt64}(C_NULL)))
-        )[] workspace->begin
-            cutensorReduction(handle(),
-                Ref{T}(alpha), A, descA, modeA,
-                Ref{T}(beta),  C, descC, modeC,
-                        C, descC, modeC,
-                opReduce, typeCompute,
-                workspace, sizeof(workspace), stream())
-        end
+    function workspaceSize()
+        out = Ref{UInt64}(0)
+        cutensorReductionGetWorkspace(handle(),
+            A, descA, modeA,
+            C, descC, modeC,
+            C, descC, modeC,
+            opReduce, typeCompute,
+            out)
+        return out[]
+    end
+    with_workspace(size=workspaceSize, fallback=1<<13) do workspace
+        cutensorReduction(handle(),
+            Ref{T}(alpha), A, descA, modeA,
+            Ref{T}(beta),  C, descC, modeC,
+                    C, descC, modeC,
+            opReduce, typeCompute,
+            workspace, sizeof(workspace), stream())
+    end
 
     return C
 end
