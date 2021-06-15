@@ -1,6 +1,6 @@
 name = "CUDA"
 uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
-version = "3.2.1"
+version = "3.3.0"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -35,8 +35,8 @@ BFloat16s = "0.1"
 CEnum = "0.2, 0.3, 0.4"
 DataStructures = "0.17, 0.18"
 ExprTools = "0.1"
-GPUArrays = "6.4.0"
-GPUCompiler = "0.11.3"
+GPUArrays = "7"
+GPUCompiler = "0.12"
 LLVM = "3"
 Memoization = "0.1.8"
 Random123 = "1.2"
