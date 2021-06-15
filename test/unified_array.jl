@@ -139,3 +139,25 @@ end
   device_synchronize()
   @test all(Base.Fix1(==,3.0), c)
 end
+
+@testset "multi-gpu matrix vector multiplication" begin
+  N = 10
+  M = 25
+  D = length(devices())
+  a = CuUnifiedArray(ones(Float32, (N, M, D))*2)
+  b = CuUnifiedArray(ones(Float32, (M,D)))
+  c = CuUnifiedArray(zeros(Float32, (M, D)))
+  # a = reshape(CuUnifiedArray(ones(Float32, (N, M*D))*2), (N, M, D))
+  # b = reshape(CuUnifiedArray(ones(Float32, M*D)), (M, D))
+  # c = reshape(CuUnifiedArray(zeros(Float32, M*D)), (M, D))
+  @sync begin
+      for (gpu, dev) in enumerate(devices())
+          @async begin
+              device!(dev)
+              @views c[:,gpu] .= a[:,:,gpu] * b[:,gpu]
+          end
+      end
+  end
+  device_synchronize()
+  @test all(Base.Fix1(==,3.0), c)
+end

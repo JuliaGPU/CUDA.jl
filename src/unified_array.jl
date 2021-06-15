@@ -9,10 +9,10 @@ mutable struct CuUnifiedArray{T,N} <: AbstractGPUArray{T,N}
   function CuUnifiedArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
     Base.isbitsunion(T) && error("CuUnifiedArray does not yet support union bits types")
     Base.isbitstype(T)  || error("CuUnifiedArray only supports bits types") # allocatedinline on 1.3+
-    buf = Mem.alloc(Mem.Unified, prod(dims) * sizeof(T))
+    buf = alloc(Mem.Unified, prod(dims) * sizeof(T))
     ptr = convert(CuPtr{T}, buf)
     obj = new{T,N}(buf, ptr, dims, context())
-    finalizer(t -> Mem.free(t.buf), obj)
+    finalizer(t -> free(t.buf), obj)
   end
 end
 

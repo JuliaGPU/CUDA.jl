@@ -226,6 +226,11 @@ const requested = PerDevice{Dict{CuPtr{Nothing},Vector}}() do dev
   Dict{CuPtr{Nothing},Vector}()
 end
 
+# Keep ref-counts for allocated managed arrays. Useful when aliasing
+# UnifiedBuffers.
+const managed_refcounts_lock = NonReentrantLock()
+const managed_refcounts = Dict{CuPtr, Int}()
+
 """
     OutOfGPUMemoryError()
 
@@ -292,6 +297,27 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   return ptr
 end
 
+@inline function alloc(::Type{Mem.UnifiedBuffer}, sz)
+  buf = try
+    time = Base.@elapsed begin
+      buf = @timeit_ci "Mem.alloc" begin
+        Mem.alloc(Mem.Unified, sz)
+      end
+    end
+    buf
+  catch err
+    isa(err, OutOfGPUMemoryError) || rethrow()
+    return nothing
+  end
+
+  @lock managed_refcounts_lock begin
+      @assert !haskey(managed_refcounts, buf.ptr)
+      managed_refcounts[buf.ptr] = 1
+  end
+
+  return buf
+end
+
 """
     alias(ptr)
 
@@ -310,6 +336,14 @@ multiple calls to `free` before this buffer is put back into the memory pool.
     allocated[dev][ptr] = block, refcount+1
   end
 
+  return
+end
+
+@inline function alias(buf::UnifiedBuffer)
+  @spinlock managed_refcounts_lock begin
+    refcount = managed_refcounts[buf.ptr]
+    managed_refcounts[buf.ptr] = refcount + 1
+  end
   return
 end
 
@@ -369,6 +403,28 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   end
 
   return
+end
+
+@inline function free(buf::Mem.UnifiedBuffer)
+  # this function is typically called from a finalizer, where we can't switch tasks,
+  # so perform our own error handling.
+  try
+    # look up the memory block, and bail out if its refcount isn't 1
+    @spinlock managed_refcounts_lock begin
+      refcount = managed_refcounts[buf.ptr]
+      if refcount == 1
+        delete!(managed_refcounts, buf.ptr)
+        Mem.free(buf)
+      else
+        # we can't actually free this block yet, so decrease its refcount and return
+        managed_refcounts[buf.ptr] = refcount - 1
+      end
+    end
+  catch ex
+    Base.showerror_nostdio(ex, "WARNING: Error while freeing $buf")
+    Base.show_backtrace(Core.stdout, catch_backtrace())
+    Core.println()
+  end
 end
 
 """
