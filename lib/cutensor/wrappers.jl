@@ -270,11 +270,13 @@ function contraction!(
     cutensorInitContractionFind(handle(), find, algo)
 
         function workspaceSize()
+            @nospecialize
             out = Ref{UInt64}(C_NULL)
             cutensorContractionGetWorkspace(handle(), desc, find, pref, out)
             return out[]
         end
         with_workspace(workspaceSize, 1<<27) do workspace
+            @nospecialize
             plan_ref = Ref{cutensorContractionPlan_t}()
             if isnothing(plan)
                 cutensorInitContractionPlan(handle(), plan_ref, desc, find, sizeof(workspace))
@@ -353,6 +355,7 @@ function reduction!(
     modeC = collect(Cint, Cinds)
 
     function workspaceSize()
+        @nospecialize
         out = Ref{UInt64}(C_NULL)
         cutensorReductionGetWorkspace(handle(),
             A, descA, modeA,
@@ -363,6 +366,7 @@ function reduction!(
         return out[]
     end
     with_workspace(workspaceSize, 1<<13) do workspace
+        @nospecialize
         cutensorReduction(handle(),
             Ref{T}(alpha), A, descA, modeA,
             Ref{T}(beta),  C, descC, modeC,
