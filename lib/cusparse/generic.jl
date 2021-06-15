@@ -94,7 +94,7 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},Cu
                                 descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, out)
         return out[]
     end
-    with_workspace(size=bufferSize) do buffer
+    with_workspace(bufferSize) do buffer
         cusparseSpMV(handle(), transa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
                      descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, buffer)
     end
@@ -132,7 +132,7 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::Dens
                                 descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, out)
         return out[]
     end
-    with_workspace(size=bufferSize) do buffer
+    with_workspace(bufferSize) do buffer
         cusparseSpMV(handle(), ctransa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
                      descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, buffer)
     end
@@ -166,7 +166,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
             descC, T, CUSPARSE_MM_ALG_DEFAULT, out)
         return out[]
     end
-    with_workspace(size=bufferSize) do buffer
+    with_workspace(bufferSize) do buffer
         cusparseSpMM(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, CUSPARSE_MM_ALG_DEFAULT, buffer)
@@ -209,7 +209,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
             descC, T, CUSPARSE_MM_ALG_DEFAULT, out)
         return out[]
     end
-    with_workspace(size=bufferSize) do buffer
+    with_workspace(bufferSize) do buffer
         cusparseSpMM(
             handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, CUSPARSE_MM_ALG_DEFAULT, buffer)

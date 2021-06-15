@@ -73,7 +73,7 @@ function cudnnReduceTensorAD(x; reduceTensorDesc, alpha, xDesc, beta, yDesc, y, 
         cudnnGetReductionWorkspaceSize(handle(), reduceTensorDesc, xDesc, yDesc, out)
         return out[]
     end
-    with_workspace(size=bufferSize) do workspace
+    with_workspace(bufferSize) do workspace
         cudnnReduceTensor(handle(), reduceTensorDesc, something(indices, C_NULL),
                           sizeof(indices), workspace, sizeof(workspace), alpha, xDesc, x,
                           beta, yDesc, y)

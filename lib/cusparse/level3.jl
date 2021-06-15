@@ -176,7 +176,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
                        out)
                 return out[]
             end
-            with_workspace(size=bufferSize) do buffer
+            with_workspace(bufferSize) do buffer
                 $aname(handle(), A.dir, transa, transxy,
                         mb, nX, nnz(A), desc, nonzeros(A), A.rowPtr,
                         A.colVal, A.blockDim, info[],
@@ -236,7 +236,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                         out)
                 return out[]
             end
-            with_workspace(size=bufferSize) do buffer
+            with_workspace(bufferSize) do buffer
                 $aname(handle(), 0, transa, transxy,
                         m, nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
                         A.colVal, X, ldx, info[],
@@ -304,7 +304,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                        out)
                 return out[]
             end
-            with_workspace(size=bufferSize) do buffer
+            with_workspace(bufferSize) do buffer
                 $aname(handle(), 0, ctransa, transxy,
                         m, nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
                         rowvals(A), X, ldx, info[],

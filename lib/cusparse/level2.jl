@@ -85,7 +85,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
                        info[1], out)
                 return out[]
             end
-            with_workspace(size=bufferSize) do buffer
+            with_workspace(bufferSize) do buffer
                 $aname(handle(), A.dir, transa, mb, nnz(A),
                         desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
                         info[1], CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -137,7 +137,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                        out)
                 return out[]
             end
-            with_workspace(size=bufferSize) do buffer
+            with_workspace(bufferSize) do buffer
                 $aname(handle(), transa, m, nnz(A),
                         desc, nonzeros(A), A.rowPtr, A.colVal, info[1],
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -197,7 +197,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                        out)
                 return out[]
             end
-            with_workspace(size=bufferSize) do buffer
+            with_workspace(bufferSize) do buffer
                 $aname(handle(), ctransa, m, nnz(A),
                         desc, nonzeros(A), A.colPtr, rowvals(A), info[1],
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)

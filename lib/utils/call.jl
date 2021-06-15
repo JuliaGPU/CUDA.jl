@@ -36,7 +36,7 @@ macro checked(ex)
 end
 
 """
-    with_workspace(; size, [eltyp=UInt8], [fallback=nothing]) do workspace
+    with_workspace([eltyp=UInt8], size, [eltyp=UInt8]) do workspace
         ...
     end
 
@@ -50,24 +50,27 @@ This helper protects against the rare but real issue of the workspace size gette
 different results based on the GPU device memory pressure, which might change _after_
 initial allocation of the workspace (which can cause a GC collection).
 """
-@inline with_workspace(f; eltyp::Type=UInt8, size::Union{Number,Function}, fallback=nothing) =
-    _with_workspace(f, eltyp, isa(size, Integer) ? ()->size : size, fallback)
+@inline with_workspace(f, size::Union{Integer,Function}, fallback=nothing) =
+    with_workspace(f, UInt8, isa(size, Integer) ? ()->size : size, fallback)
 
-function _with_workspace(f::Function, eltyp::Type{T}, size::Function,
-                         fallback::Union{Nothing,Integer}) where {T}
+function with_workspace(f::Function, eltyp::Type{T}, size::Union{Integer,Function},
+                        fallback::Union{Nothing,Integer}=nothing) where {T}
+    get_size() = Int(isa(size, Integer) ? size : size()::Integer)
+
     # allocate
-    sz = size()
+    sz = get_size()
     workspace = nothing
     try
         while workspace === nothing || length(workspace) < sz
-            workspace = CuArray{T}(undef, sz)
-            sz = size()
+            workspace = CuVector{T}(undef, sz)
+            sz = get_size()
         end
     catch ex
         fallback === nothing && rethrow()
         isa(ex, OutOfGPUMemoryError) || rethrow()
-        workspace = CuArray{T}(undef, fallback)
+        workspace = CuVector{T}(undef, fallback)
     end
+    workspace = workspace::CuVector{T}
 
     # use & free
     try

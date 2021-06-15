@@ -27,7 +27,7 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                         CUSPARSE_CSR2CSC_ALG1, out)
                     return out[]
                 end
-                with_workspace(size=bufferSize) do buffer
+                with_workspace(bufferSize) do buffer
                     cusparseCsr2cscEx2(handle(), m, n, nnz(csr), nonzeros(csr),
                         csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
                         $elty, CUSPARSE_ACTION_NUMERIC, inda,
@@ -56,7 +56,7 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                         CUSPARSE_CSR2CSC_ALG1, out)
                     return out[]
                 end
-                with_workspace(size=bufferSize) do buffer
+                with_workspace(bufferSize) do buffer
                     cusparseCsr2cscEx2(handle(), n, m, nnz(csc), nonzeros(csc),
                         csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
                         $elty, CUSPARSE_ACTION_NUMERIC, inda,
@@ -90,7 +90,7 @@ for (elty, welty) in ((:Float16, :Float32),
                         CUSPARSE_CSR2CSC_ALG1, out)
                     return out[]
                 end
-                with_workspace(size=bufferSize) do buffer
+                with_workspace(bufferSize) do buffer
                     cusparseCsr2cscEx2(handle(), m, n, nnz(csr), nonzeros(csr),
                         csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
                         $elty, CUSPARSE_ACTION_NUMERIC, inda,
@@ -119,7 +119,7 @@ for (elty, welty) in ((:Float16, :Float32),
                         CUSPARSE_CSR2CSC_ALG1, out)
                     return out[]
                 end
-                with_workspace(size=bufferSize) do buffer
+                with_workspace(bufferSize) do buffer
                     cusparseCsr2cscEx2(handle(), n, m, nnz(csc), nonzeros(csc),
                         csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
                         $elty, CUSPARSE_ACTION_NUMERIC, inda,
@@ -228,7 +228,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
                         CUSPARSE_SPARSETODENSE_ALG_DEFAULT, out)
                     return out[]
                 end
-                with_workspace(size=bufferSize) do buffer
+                with_workspace(bufferSize) do buffer
                     cusparseSparseToDense(handle(), desc_csr, desc_dense,
                         CUSPARSE_SPARSETODENSE_ALG_DEFAULT, buffer)
                 end
@@ -254,7 +254,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
                         CUSPARSE_SPARSETODENSE_ALG_DEFAULT, out)
                     return out[]
                 end
-                with_workspace(size=bufferSize) do buffer
+                with_workspace(bufferSize) do buffer
                     cusparseSparseToDense(handle(), desc_csc, desc_dense,
                         CUSPARSE_SPARSETODENSE_ALG_DEFAULT, buffer)
                 end
@@ -286,7 +286,7 @@ for (elty, welty) in ((:Float16, :Float32),
                         CUSPARSE_SPARSETODENSE_ALG_DEFAULT, out)
                     return out[]
                 end
-                with_workspace(size=bufferSize) do buffer
+                with_workspace(bufferSize) do buffer
                     cusparseSparseToDense(handle(), desc_csr, desc_dense,
                         CUSPARSE_SPARSETODENSE_ALG_DEFAULT, buffer)
                 end
@@ -311,7 +311,7 @@ for (elty, welty) in ((:Float16, :Float32),
                         CUSPARSE_SPARSETODENSE_ALG_DEFAULT, out)
                     return out[]
                 end
-                with_workspace(size=bufferSize) do buffer
+                with_workspace(bufferSize) do buffer
                     cusparseSparseToDense(handle(), desc_csc, desc_dense,
                         CUSPARSE_SPARSETODENSE_ALG_DEFAULT, buffer)
                 end
