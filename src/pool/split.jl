@@ -62,6 +62,7 @@ unique_sizeof(block::Block) = (UInt128(sizeof(block))<<64) | UInt64(pointer(bloc
 const UniqueIncreasingSize = Base.By(unique_sizeof)
 
 Base.@kwdef struct SplitPool <: AbstractPool
+    device::CuDevice
     stream_ordered::Bool
 
     lock::ReentrantLock = ReentrantLock()

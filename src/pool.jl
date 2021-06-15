@@ -185,18 +185,18 @@ const pools = PerDevice{AbstractPool}(dev->begin
 
   pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", default_pool)
   pool = if pool_name == "none"
-      NoPool(; stream_ordered=false)
+      NoPool(; device=dev, stream_ordered=false)
   elseif pool_name == "simple"
-      SimplePool(; stream_ordered=false)
+      SimplePool(; device=dev, stream_ordered=false)
   elseif pool_name == "binned"
-      BinnedPool(; stream_ordered=false)
+      BinnedPool(; device=dev, stream_ordered=false)
   elseif pool_name == "split"
-      SplitPool(; stream_ordered=false)
+      SplitPool(; device=dev, stream_ordered=false)
   elseif pool_name == "cuda"
       @assert Mem.has_stream_ordered(dev) "The CUDA memory pool is not compatible with your set-up"
       attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD,
                  UInt64(reserved_memory(dev)))
-      NoPool(; stream_ordered=true)
+      NoPool(; device=dev, stream_ordered=true)
   else
       error("Invalid memory pool '$pool_name'")
   end

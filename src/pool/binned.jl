@@ -23,6 +23,7 @@ const MAX_DELAY = 5.0
 ## infrastructure
 
 Base.@kwdef struct BinnedPool <: AbstractPool
+  device::CuDevice
   stream_ordered::Bool
 
   # TODO: npools
