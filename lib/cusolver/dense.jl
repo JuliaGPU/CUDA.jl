@@ -391,23 +391,23 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             end
             lda     = max(1, stride(A, 2))
 
-            if jobu === 'S' && m > n
-                U   = CuArray{$elty}(undef, m, n)
+            U = if jobu === 'S' && m > n
+                CuArray{$elty}(undef, m, n)
             elseif jobu === 'N'
-                U   = CuArray{$elty}(undef, m, 0)
+                CuArray{$elty}(undef, m, 0)
             else
-                U   = CuArray{$elty}(undef, m, m)
+                CuArray{$elty}(undef, m, m)
             end
             ldu     = max(1, stride(U, 2))
 
             S       = CuArray{$relty}(undef, min(m, n))
 
-            if jobvt === 'S' && m < n
-                Vt  = CuArray{$elty}(undef, m, n)
+            Vt = if jobvt === 'S' && m < n
+                CuArray{$elty}(undef, m, n)
             elseif jobvt === 'N'
-                Vt  = CuArray{$elty}(undef, 0, n)
+                CuArray{$elty}(undef, 0, n)
             else
-                Vt  = CuArray{$elty}(undef, n, n)
+                CuArray{$elty}(undef, n, n)
             end
             ldvt    = max(1, stride(Vt, 2))
 
@@ -451,19 +451,19 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
 
             # Warning! For some reason, the solver needs to access U and V even
             # when only the values are requested
-            if jobz === 'V' && econ == 1 && m > n
-                U   = CuArray{$elty}(undef, m, n)
+            U = if jobz === 'V' && econ == 1 && m > n
+                CuArray{$elty}(undef, m, n)
             else
-                U   = CuArray{$elty}(undef, m, m)
+                CuArray{$elty}(undef, m, m)
             end
             ldu     = max(1, stride(U, 2))
 
             S       = CuArray{$relty}(undef, min(m, n))
 
-            if jobz === 'V' && econ == 1 && m < n
-                V   = CuArray{$elty}(undef, n, m)
+            V = if jobz === 'V' && econ == 1 && m < n
+                CuArray{$elty}(undef, n, m)
             else
-                V   = CuArray{$elty}(undef, n, n)
+                CuArray{$elty}(undef, n, n)
             end
             ldv     = max(1, stride(V, 2))
 
