@@ -105,11 +105,9 @@ version = "1.3.0"
 
 [[LLVM]]
 deps = ["CEnum", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "cdff842927d24f11e99c9babfd25ead5534a4364"
-repo-rev = "1def0ec"
-repo-url = "https://github.com/maleadt/LLVM.jl.git"
+git-tree-sha1 = "b3cd5971a37d3ac3c13ca805916b90878c699eaf"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "3.7.1"
+version = "3.8.0"
 
 [[LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
