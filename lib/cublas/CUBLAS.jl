@@ -189,7 +189,8 @@ function __runtime_init__()
         _log_message(blob)
         return
     end
-    if !Sys.iswindows() # NVIDIA bug #3321130
+    if (isdebug(:init, CUBLAS) || Base.JLOptions().debug_level >= 2) &&
+       !Sys.iswindows() # NVIDIA bug #3321130
         callback = @cfunction(log_message, Nothing, (Cstring,))
         cublasSetLoggerCallback(callback)
     end
