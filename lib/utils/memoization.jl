@@ -88,12 +88,13 @@ macro memoize(ex...)
         const $global_cache = $(global_cache_eltyp)[]
     end
     global_ex = quote
-        while $(esc(global_cache_status))[] != 2
+        # outlined, unlikely initialization path
+        @noinline function initialize_global_cache()
             status = Threads.atomic_cas!($(esc(global_cache_status)), 0, 1)
             if status == 0
                 resize!($(esc(global_cache)), Threads.nthreads())
                 for thread in 1:Threads.nthreads()
-                    $(esc(global_cache))[thread] = $global_init
+                    @inbounds $(esc(global_cache))[thread] = $global_init
                 end
                 $(esc(global_cache_status))[] = 2
             else
@@ -101,6 +102,10 @@ macro memoize(ex...)
                 # Temporary solution before we have gc transition support in codegen.
                 ccall(:jl_gc_safepoint, Cvoid, ())
             end
+        end
+
+        while $(esc(global_cache_status))[] != 2
+            initialize_global_cache()
         end
     end
 
