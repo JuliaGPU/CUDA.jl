@@ -20,6 +20,7 @@ end
 ## pooling
 
 Base.@kwdef struct SimplePool <: AbstractPool
+    device::CuDevice
     stream_ordered::Bool
 
     lock::ReentrantLock = ReentrantLock()

@@ -1,6 +1,7 @@
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
 Base.@kwdef struct NoPool <: AbstractPool
+    device::CuDevice
     stream_ordered::Bool
 end
 
@@ -27,6 +28,14 @@ function free(pool::NoPool, block; stream::CuStream)
     return
 end
 
-reclaim(pool::NoPool, target_bytes::Int=typemax(Int)) = return 0
+function reclaim(pool::NoPool, target_bytes::Int=typemax(Int))
+    if pool.stream_ordered
+        # TODO: respect target_bytes
+        device_synchronize()
+        trim(memory_pool(pool.device))
+    else
+        return 0
+    end
+end
 
 cached_memory(pool::NoPool) = 0

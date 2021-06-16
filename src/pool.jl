@@ -185,18 +185,18 @@ const pools = PerDevice{AbstractPool}(dev->begin
 
   pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", default_pool)
   pool = if pool_name == "none"
-      NoPool(; stream_ordered=false)
+      NoPool(; device=dev, stream_ordered=false)
   elseif pool_name == "simple"
-      SimplePool(; stream_ordered=false)
+      SimplePool(; device=dev, stream_ordered=false)
   elseif pool_name == "binned"
-      BinnedPool(; stream_ordered=false)
+      BinnedPool(; device=dev, stream_ordered=false)
   elseif pool_name == "split"
-      SplitPool(; stream_ordered=false)
+      SplitPool(; device=dev, stream_ordered=false)
   elseif pool_name == "cuda"
       @assert Mem.has_stream_ordered(dev) "The CUDA memory pool is not compatible with your set-up"
       attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD,
                  UInt64(reserved_memory(dev)))
-      NoPool(; stream_ordered=true)
+      NoPool(; device=dev, stream_ordered=true)
   else
       error("Invalid memory pool '$pool_name'")
   end
@@ -398,7 +398,7 @@ CUDA memory pool) and return a specific error code when failing to.
 macro retry_reclaim(isfailed, ex)
   quote
     ret = nothing
-    for phase in 1:6
+    for phase in 1:5
       ret = $(esc(ex))
       $(esc(isfailed))(ret) || break
 
@@ -406,23 +406,32 @@ macro retry_reclaim(isfailed, ex)
       pool = pools[dev]
 
       # incrementally more costly reclaim of cached memory
-      if phase == 1
-        reclaim()
-      elseif phase == 2
-        GC.gc(false)
-        reclaim()
-      elseif phase == 3
-        GC.gc(true)
-        reclaim()
-      elseif phase == 4 && pool.stream_ordered
-        # synchronizing streams forces asynchronous free operations to finish.
-        # in combination with the configured release threshold, this should also free up
-        # some actual memory (without having to trim the memory pool as in the next phase).
-        device_synchronize()
-      elseif phase == 5 && pool.stream_ordered
-        # release all cached allocations from the memory pool (for when the allocating code
-        # does not use the stream-ordered allocator).
-        trim(memory_pool(dev))
+      if pool.stream_ordered
+        if phase == 1
+          # synchronizing streams forces asynchronous free operations to finish.
+          device_synchronize()
+        elseif phase == 2
+          GC.gc(false)
+          device_synchronize()
+        elseif phase == 3
+          GC.gc(true)
+          device_synchronize()
+        elseif phase == 4
+          # maybe this allocation doesn't use the pool, so trim it.
+          reclaim()
+          device_synchronize()
+        end
+      else
+        if phase == 1
+          # our pools quickly fragment, so start by releasing its memory.
+          reclaim()
+        elseif phase == 2
+          GC.gc(false)
+          reclaim()
+        elseif phase == 3
+          GC.gc(true)
+          reclaim()
+        end
       end
     end
     ret
