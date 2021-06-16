@@ -141,12 +141,17 @@ function log_message(ptr)
     # NOTE: this function may be called from unmanaged threads (by cublasXt),
     #       so we can't even allocate, let alone perform I/O.
     len = @ccall strlen(ptr::Cstring)::Csize_t
-    cursor = Threads.atomic_add!(log_cursor, len+1)
-    if cursor+len+1 <= MAX_LOG_BUFLEN
-        @ccall memmove((pointer(log_buffer)+cursor)::Ptr{Nothing},
-                       pointer(ptr)::Ptr{Nothing}, (len+1)::Csize_t)::Nothing
-        @ccall uv_async_send(log_cond[]::Ptr{Nothing})::Cint
+    old_cursor = log_cursor[]
+    new_cursor = old_cursor + len+1
+    if new_cursor >= MAX_LOG_BUFLEN
+        # overrun
+        return
     end
+
+    @ccall memmove((pointer(log_buffer)+old_cursor)::Ptr{Nothing},
+                   pointer(ptr)::Ptr{Nothing}, (len+1)::Csize_t)::Nothing
+    log_cursor[] = new_cursor   # the consumer handles CAS'ing this value
+    @ccall uv_async_send(log_cond[]::Ptr{Nothing})::Cint
 
     return
 end
@@ -181,8 +186,9 @@ function __runtime_init__()
     log_cond[] = Base.AsyncCondition() do async_cond
         blob = ""
         while true
-            blob = unsafe_string(pointer(log_buffer), log_cursor[])
-            if Threads.atomic_cas!(log_cursor, UInt(length(blob)), UInt(0)) == length(blob)
+            message_length = log_cursor[]
+            blob = unsafe_string(pointer(log_buffer), message_length)
+            if Threads.atomic_cas!(log_cursor, message_length, UInt(0)) == message_length
                 break
             end
         end
