@@ -89,9 +89,9 @@ version = "7.0.0"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "ExprTools", "InteractiveUtils", "LLVM", "Libdl", "Logging", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "e12c5495c19b852e8840bf2640b539383dda3954"
+git-tree-sha1 = "765d5b600d3177f1d422c9489525938dd8bd95d1"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.12.0"
+version = "0.12.2"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
@@ -105,11 +105,9 @@ version = "1.3.0"
 
 [[LLVM]]
 deps = ["CEnum", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "cdff842927d24f11e99c9babfd25ead5534a4364"
-repo-rev = "1def0ec"
-repo-url = "https://github.com/maleadt/LLVM.jl.git"
+git-tree-sha1 = "b3cd5971a37d3ac3c13ca805916b90878c699eaf"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "3.7.1"
+version = "3.8.0"
 
 [[LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
