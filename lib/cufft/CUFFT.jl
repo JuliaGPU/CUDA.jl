@@ -10,8 +10,6 @@ using CEnum
 
 using Reexport
 
-using Memoization
-
 
 # core library
 include("libcufft_common.jl")

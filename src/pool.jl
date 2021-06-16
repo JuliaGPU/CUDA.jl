@@ -58,9 +58,8 @@ const usage_limit = PerDevice{Int}() do dev
   getenv("JULIA_CUDA_MEMORY_LIMIT", typemax(Int))
 end
 
-@memoize function allocatable_memory(dev::CuDevice)
-  # NOTE: this function queries available memory, which obviously changes after we allocate,
-  #       so we memoize it to ensure only the first value is ever returned.
+function allocatable_memory(dev::CuDevice)
+  # NOTE: this function queries available memory, which obviously changes after we allocate.
   device!(dev) do
     Base.min(available_memory(), usage_limit[dev])
   end
@@ -91,11 +90,12 @@ end
 
 # This limit depends on the actually available memory, which might be an underestimation
 # (e.g. when the GPU was in use initially). The hard limit does not rely on such heuristics.
-@memoize function soft_limit(dev::CuDevice)
+function soft_limit(dev::CuDevice)
   available = allocatable_memory(dev)
   reserve = reserved_memory(dev)
   return available - reserve
 end
+const soft_limits = PerDevice{Int}(soft_limit)
 
 function hard_limit(dev::CuDevice)
   # ignore the available memory heuristic, and even allow to eat in to the reserve
@@ -103,12 +103,12 @@ function hard_limit(dev::CuDevice)
 end
 
 @timeit_ci function actual_alloc(bytes::Integer, last_resort::Bool=false;
-                                       stream_ordered::Bool=false,
-                                       stream::Union{CuStream,Nothing}=nothing)
+                                 stream_ordered::Bool=false,
+                                 stream::Union{CuStream,Nothing}=nothing)
   dev = device()
 
   # check the memory allocation limit
-  if usage[dev][] + bytes > (last_resort ? hard_limit(dev) : soft_limit(dev))
+  if usage[dev][] + bytes > (last_resort ? hard_limit(dev) : soft_limits[dev])
     return nothing
   end
 
@@ -207,9 +207,6 @@ const pools = PerDevice{AbstractPool}(dev->begin
 
   pool
 end)
-
-# NVIDIA bug #3240770
-@memoize any_stream_ordered() = any(dev->pools[dev].stream_ordered, devices())
 
 
 ## interface

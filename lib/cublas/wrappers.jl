@@ -27,17 +27,17 @@ function cublasXtGetPinningMemMode(handle)
   mm[]
 end
 
-@memoize function cublasGetProperty(property::libraryPropertyType)
+function cublasGetProperty(property::libraryPropertyType)
   value_ref = Ref{Cint}()
   cublasGetProperty(property, value_ref)
   value_ref[]
 end
 
-@memoize version() = VersionNumber(cublasGetProperty(CUDA.MAJOR_VERSION),
-                                   cublasGetProperty(CUDA.MINOR_VERSION),
-                                   cublasGetProperty(CUDA.PATCH_LEVEL))
+version() = VersionNumber(cublasGetProperty(CUDA.MAJOR_VERSION),
+                          cublasGetProperty(CUDA.MINOR_VERSION),
+                          cublasGetProperty(CUDA.PATCH_LEVEL))
 
-@memoize function juliaStorageType(T::Type{<:Real}, ct::cublasComputeType_t)
+function juliaStorageType(T::Type{<:Real}, ct::cublasComputeType_t)
     if ct == CUBLAS_COMPUTE_16F || ct == CUBLAS_COMPUTE_16F_PEDANTIC
         return T == BFloat16 ? BFloat16 : Float16
     elseif ct == CUBLAS_COMPUTE_32F || ct == CUBLAS_COMPUTE_32F_PEDANTIC ||
@@ -53,7 +53,7 @@ end
     end
 end
 
-@memoize function juliaStorageType(T::Type{<:Complex}, ct::cublasComputeType_t)
+function juliaStorageType(T::Type{<:Complex}, ct::cublasComputeType_t)
     if ct == CUBLAS_COMPUTE_16F || ct == CUBLAS_COMPUTE_16F_PEDANTIC
         return T == Complex{BFloat16} == Complex{BFloat16} : Complex{Float16}
     elseif ct == CUBLAS_COMPUTE_32F || ct == CUBLAS_COMPUTE_32F_PEDANTIC ||

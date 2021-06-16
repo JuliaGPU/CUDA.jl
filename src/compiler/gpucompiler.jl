@@ -4,7 +4,7 @@ const __device_properties_lock = ReentrantLock()
 const __device_properties = @NamedTuple{cap::VersionNumber, ptx::VersionNumber,
                                         exitable::Bool, debuginfo::Bool, unreachable::Bool}[]
 function device_properties(dev)
-    @lock __device_properties_lock  begin
+    @lock __device_properties_lock begin
         if isempty(__device_properties)
             resize!(__device_properties, ndevices())
 

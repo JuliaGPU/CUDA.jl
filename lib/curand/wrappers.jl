@@ -6,12 +6,12 @@ function curandCreateGenerator(typ)
   handle_ref[]
 end
 
-@memoize function curandGetProperty(property::libraryPropertyType)
+function curandGetProperty(property::libraryPropertyType)
   value_ref = Ref{Cint}()
   curandGetProperty(property, value_ref)
   value_ref[]
 end
 
-@memoize version() = VersionNumber(curandGetProperty(CUDA.MAJOR_VERSION),
-                                   curandGetProperty(CUDA.MINOR_VERSION),
-                                   curandGetProperty(CUDA.PATCH_LEVEL))
+version() = VersionNumber(curandGetProperty(CUDA.MAJOR_VERSION),
+                          curandGetProperty(CUDA.MINOR_VERSION),
+                          curandGetProperty(CUDA.PATCH_LEVEL))

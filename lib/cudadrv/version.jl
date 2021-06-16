@@ -5,7 +5,7 @@
 
 Returns the CUDA version as reported by the driver.
 """
-@memoize function version()
+function version()
     version_ref = Ref{Cint}()
     cuDriverGetVersion(version_ref)
     major, ver = divrem(version_ref[], 1000)
@@ -18,4 +18,4 @@ end
 
 Returns the CUDA release part of the version as returned by [`version`](@ref).
 """
-@memoize release() = VersionNumber(version().major, version().minor)
+release() = VersionNumber(version().major, version().minor)
