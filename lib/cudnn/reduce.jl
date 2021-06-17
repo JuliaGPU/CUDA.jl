@@ -68,10 +68,15 @@ cudnnIndicesType(x)=error("Bad type $x for cudnnIndices, use Vector{UInt8, 16, 3
 
 # AD method
 function cudnnReduceTensorAD(x; reduceTensorDesc, alpha, xDesc, beta, yDesc, y, indices)
-    @workspace size=@argout(
-        cudnnGetReductionWorkspaceSize(handle(), reduceTensorDesc, xDesc, yDesc, out(Ref{Csize_t}()))
-    )[] workspace->begin
-        cudnnReduceTensor(handle(), reduceTensorDesc, something(indices, C_NULL), sizeof(indices), workspace, sizeof(workspace), alpha, xDesc, x, beta, yDesc, y)
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cudnnGetReductionWorkspaceSize(handle(), reduceTensorDesc, xDesc, yDesc, out)
+        return out[]
+    end
+    with_workspace(bufferSize) do workspace
+        cudnnReduceTensor(handle(), reduceTensorDesc, something(indices, C_NULL),
+                          sizeof(indices), workspace, sizeof(workspace), alpha, xDesc, x,
+                          beta, yDesc, y)
     end
     return y
 end

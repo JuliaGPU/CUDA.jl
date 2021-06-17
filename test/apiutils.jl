@@ -9,6 +9,7 @@ using CUDA.APIUtils
 
     @test mod.ENUM_VALUE == mod.MY_ENUM_VALUE
 end
+
 @testset "@checked" begin
     mod = @eval module $(gensym())
         using CUDA.APIUtils
@@ -31,14 +32,4 @@ end
     @test mod.checks[] == 1
     @test mod.unsafe_foo() == getpid()
     @test mod.checks[] == 1
-end
-
-@testset "@argout" begin
-  f() = 1
-  f(a) = 2
-  f(a,b) = 3
-
-  @test CUDA.@argout(f()) == nothing
-  @test CUDA.@argout(f(out(4))) == 4
-  @test CUDA.@argout(f(out(5), out(6))) == (5,6)
 end
