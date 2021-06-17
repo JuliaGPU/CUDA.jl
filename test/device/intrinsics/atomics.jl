@@ -6,7 +6,7 @@
     capability(device()) >= v"7.0" && push!(types, Float16)
 
     @testset for T in types
-        a = CuArray([zero(T)])
+        a = CuArray(T[0])
 
         function kernel(a, b)
             CUDA.atomic_add!(pointer(a), b)
@@ -14,7 +14,7 @@
         end
 
         @cuda threads=1024 kernel(a, one(T))
-        @test Array(a)[1] == T(1024)
+        @test Array(a)[1] == 1024
     end
 end
 
@@ -23,7 +23,7 @@ end
     capability(device()) >= v"6.0" && append!(types, [Float32, Float64])
 
     @testset for T in types
-        a = CuArray([T(2048)])
+        a = CuArray(T[2048])
 
         function kernel(a, b)
             CUDA.atomic_sub!(pointer(a), b)
@@ -31,13 +31,13 @@ end
         end
 
         @cuda threads=1024 kernel(a, one(T))
-        @test Array(a)[1] == T(1024)
+        @test Array(a)[1] == 1024
     end
 end
 
 @testset "atomic_inc" begin
     @testset for T in [Int32]
-        a = CuArray([zero(T)])
+        a = CuArray(T[0])
 
         function kernel(a, b)
             CUDA.atomic_inc!(pointer(a), b)
@@ -45,13 +45,13 @@ end
         end
 
         @cuda threads=768 kernel(a, T(512))
-        @test Array(a)[1] == T(255)
+        @test Array(a)[1] == 255
     end
 end
 
 @testset "atomic_dec" begin
     @testset for T in [Int32]
-        a = CuArray([T(1024)])
+        a = CuArray(T[1024])
 
         function kernel(a, b)
             CUDA.atomic_dec!(pointer(a), b)
@@ -59,7 +59,7 @@ end
         end
 
         @cuda threads=256 kernel(a, T(512))
-        @test Array(a)[1] == T(257)
+        @test Array(a)[1] == 257
     end
 end
 
@@ -79,7 +79,7 @@ end
 
 @testset "atomic_and" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
-        a = CuArray([T(1023)])
+        a = CuArray(T[1023])
 
         function kernel(a, T)
             i = threadIdx().x - 1
@@ -99,7 +99,7 @@ end
 
 @testset "atomic_or" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
-        a = CuArray([zero(T)])
+        a = CuArray(T[0])
 
         function kernel(a, T)
             i = threadIdx().x
@@ -113,13 +113,13 @@ end
         end
 
         @cuda threads=10 kernel(a, T)
-        @test Array(a)[1] == T(1023)
+        @test Array(a)[1] == 1023
     end
 end
 
 @testset "atomic_xor" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
-        a = CuArray([T(1023)])
+        a = CuArray(T[1023])
 
         function kernel(a, T)
             i = threadIdx().x
@@ -133,7 +133,7 @@ end
         end
 
         @cuda threads=10 kernel(a, T)
-        @test Array(a)[1] == zero(T)
+        @test Array(a)[1] == 0
     end
 end
 
@@ -141,7 +141,7 @@ if capability(device()) >= v"6.0"
 
 @testset "atomic_cas" begin
     @testset for T in [Int32, Int64, Float32, Float64]
-        a = CuArray([zero(T)])
+        a = CuArray(T[0])
 
         function kernel(a, b, c)
             CUDA.atomic_cas!(pointer(a), b, c)
@@ -149,7 +149,7 @@ if capability(device()) >= v"6.0"
         end
 
         @cuda threads=1024 kernel(a, zero(T), one(T))
-        @test Array(a)[1] == one(T)
+        @test Array(a)[1] == 1
     end
 end
 
@@ -169,7 +169,7 @@ end
         end
 
         @cuda threads=1024 kernel(a, T)
-        @test Array(a)[1] == T(1024)
+        @test Array(a)[1] == 1024
     end
 end
 
@@ -178,7 +178,7 @@ end
     capability(device()) >= v"6.0" && append!(types, [Float32, Float64])
 
     @testset for T in types
-        a = CuArray([T(1024)])
+        a = CuArray(T[1024])
 
         function kernel(a, T)
             i = threadIdx().x
@@ -187,7 +187,7 @@ end
         end
 
         @cuda threads=1024 kernel(a, T)
-        @test Array(a)[1] == one(T)
+        @test Array(a)[1] == 1
     end
 end
 
@@ -203,13 +203,13 @@ if capability(device()) >= v"6.0"
         end
 
         @cuda threads=10 kernel(a, T(2))
-        @test Array(a)[1] == T(1024)
+        @test Array(a)[1] == 1024
     end
 end
 
 @testset "atomic_div" begin
     @testset for T in [Float32, Float64]
-        a = CuArray([T(1024)])
+        a = CuArray(T[1024])
 
         function kernel(a, b)
             CUDA.atomic_div!(pointer(a), b)
@@ -246,28 +246,28 @@ end
         a = CuArray([zero(T)])
 
         function kernel(T, a)
-            @atomic a[1] = a[1] + T(1)
-            @atomic a[1] += T(1)
+            @atomic a[1] = a[1] + 1
+            @atomic a[1] += 1
             return
         end
 
         @cuda threads=1024 kernel(T, a)
-        @test Array(a)[1] == T(2048)
+        @test Array(a)[1] == 2048
     end
 end
 
 @testset "sub" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
-        a = CuArray([T(4096)])
+        a = CuArray(T[4096])
 
         function kernel(T, a)
-            @atomic a[1] = a[1] - T(1)
-            @atomic a[1] -= T(1)
+            @atomic a[1] = a[1] - 1
+            @atomic a[1] -= 1
             return
         end
 
         @cuda threads=1024 kernel(T, a)
-        @test Array(a)[1] == T(2048)
+        @test Array(a)[1] == 2048
     end
 end
 
@@ -275,16 +275,16 @@ end
     types = (capability(device()) >= v"6.0") ? [Float32, Float64] : []
 
     @testset for T in types
-        a = CuArray([T(1)])
+        a = CuArray(T[1])
 
         function kernel(T, a)
-            @atomic a[1] = a[1] * T(2)
-            @atomic a[1] *= T(2)
+            @atomic a[1] = a[1] * 2
+            @atomic a[1] *= 2
             return
         end
 
         @cuda threads=8 kernel(T, a)
-        @test Array(a)[1] == T(65536)
+        @test Array(a)[1] == 65536
     end
 end
 
@@ -292,16 +292,16 @@ end
     types = (capability(device()) >= v"6.0") ? [Float32, Float64] : []
 
     @testset for T in types
-        a = CuArray([T(65536)])
+        a = CuArray(T[65536])
 
         function kernel(T, a)
-            @atomic a[1] = a[1] / T(2)
-            @atomic a[1] /= T(2)
+            @atomic a[1] = a[1] / 2
+            @atomic a[1] /= 2
             return
         end
 
         @cuda threads=8 kernel(T, a)
-        @test Array(a)[1] == T(1)
+        @test Array(a)[1] == 1
     end
 end
 
@@ -366,7 +366,7 @@ end
 
         function kernel(T, a)
             i = threadIdx().x
-            @atomic a[1] = max(a[1], T(i))
+            @atomic a[1] = max(a[1], i)
             return
         end
 
@@ -381,7 +381,7 @@ end
 
         function kernel(T, a)
             i = threadIdx().x
-            @atomic a[1] = min(a[1], T(i))
+            @atomic a[1] = min(a[1], i)
             return
         end
 
