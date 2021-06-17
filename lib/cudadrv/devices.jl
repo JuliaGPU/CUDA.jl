@@ -120,7 +120,7 @@ function Base.show(io::IO, ::MIME"text/plain", iter::DeviceIterator)
     end
 end
 
-@memoize function ndevices()
+function ndevices()
     count_ref = Ref{Cint}()
     cuDeviceGetCount(count_ref)
     return count_ref[]

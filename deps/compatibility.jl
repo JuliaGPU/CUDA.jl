@@ -197,7 +197,7 @@ function cuda_compat(driver_release=CUDA.release(), toolkit_release=toolkit_rele
     return (cap=cap_support, ptx=ptx_support)
 end
 
-@memoize function supported_toolchain()
+function supported_toolchain()
     llvm_support = llvm_compat()
     cuda_support = cuda_compat()
 
@@ -213,7 +213,7 @@ end
 end
 
 # select the highest capability that is supported by both the toolchain and device
-@memoize function supported_capability(dev_cap::VersionNumber)
+function supported_capability(dev_cap::VersionNumber)
     compat_caps = filter(cap -> cap <= dev_cap, supported_toolchain().cap)
     isempty(compat_caps) &&
         error("Device capability v$dev_cap not supported by available toolchain")

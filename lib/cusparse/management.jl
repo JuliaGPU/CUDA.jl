@@ -6,12 +6,12 @@ function cusparseCreate()
     handle[]
 end
 
-@memoize function cusparseGetProperty(property::libraryPropertyType)
+function cusparseGetProperty(property::libraryPropertyType)
     value_ref = Ref{Cint}()
     cusparseGetProperty(property, value_ref)
     value_ref[]
 end
 
-@memoize version() = VersionNumber(cusparseGetProperty(CUDA.MAJOR_VERSION),
-                                   cusparseGetProperty(CUDA.MINOR_VERSION),
-                                   cusparseGetProperty(CUDA.PATCH_LEVEL))
+version() = VersionNumber(cusparseGetProperty(CUDA.MAJOR_VERSION),
+                          cusparseGetProperty(CUDA.MINOR_VERSION),
+                          cusparseGetProperty(CUDA.PATCH_LEVEL))

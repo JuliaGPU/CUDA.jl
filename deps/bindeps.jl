@@ -79,7 +79,7 @@ function toolkit()
 
         toolkit
     end CUDA.__init_toolkit__()
-    __toolkit[]
+    __toolkit[]::Union{ArtifactToolkit,LocalToolkit}
 end
 
 # workaround @artifact_str eagerness on unsupported platforms by passing a variable
@@ -215,7 +215,7 @@ export toolkit_origin, toolkit_version, toolkit_release
 
 Returns the origin of the CUDA toolkit in use (either :artifact, or :local).
 """
-toolkit_origin() = toolkit_origin(toolkit())
+toolkit_origin() = toolkit_origin(toolkit())::Symbol
 toolkit_origin(::ArtifactToolkit) = :artifact
 toolkit_origin(::LocalToolkit) = :local
 
@@ -224,14 +224,14 @@ toolkit_origin(::LocalToolkit) = :local
 
 Returns the version of the CUDA toolkit in use.
 """
-toolkit_version() = toolkit().version
+toolkit_version() = toolkit().version::VersionNumber
 
 """
     toolkit_release()
 
 Returns the CUDA release part of the version as returned by [`version`](@ref).
 """
-toolkit_release() = VersionNumber(toolkit_version().major, toolkit_version().minor)
+toolkit_release() = VersionNumber(toolkit_version().major, toolkit_version().minor)::VersionNumber
 
 
 ## binaries

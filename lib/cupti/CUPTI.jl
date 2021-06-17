@@ -9,8 +9,6 @@ using ..CUDA: CUuuid, CUcontext, CUstream, CUdevice, CUdevice_attribute,
 
 using CEnum
 
-using Memoization
-
 
 # core library
 include("libcupti_common.jl")
