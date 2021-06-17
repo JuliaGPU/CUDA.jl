@@ -41,28 +41,28 @@ Furthermore, as the active device is a task-local property you can easily work w
 devices using one task per device. For more details, refer to the section on [Tasks and
 threads](@ref).
 
-!!! warning
+**!!! Warning !!!**
 
-    You currently need to re-set the device at the start of every task, i.e., call `device!`
-    as one of the first statement in your `@async` or `@spawn` block:
+You currently need to re-set the device at the start of every task, i.e., call `device!`
+as one of the first statement in your `@async` or `@spawn` block:
 
-    ```julia
-    @sync begin
-        @async begin
-            device!(0)
-            # do work on GPU 0 here
-        end
-        @async begin
-            device!(1)
-            # do work on GPU 1 here
-        end
+```julia
+@sync begin
+    @async begin
+        device!(0)
+        # do work on GPU 0 here
     end
-    ```
+    @async begin
+        device!(1)
+        # do work on GPU 1 here
+    end
+end
+```
 
-    Without this, the newly-created task would use the same device as the
-    previously-executing task, and not the parent task as could be expected. This is
-    expected to be improved in the future using [context
-    variables](https://github.com/JuliaLang/julia/pull/35833).
+Without this, the newly-created task would use the same device as the
+previously-executing task, and not the parent task as could be expected. This is
+expected to be improved in the future using [context
+variables](https://github.com/JuliaLang/julia/pull/35833).
 
 
 ### Memory management
