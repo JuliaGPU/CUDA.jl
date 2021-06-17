@@ -95,14 +95,12 @@ end
 end
 
 @checked function cublasSetLoggerCallback(userCallback)
-    initialize_api()
     ccall((:cublasSetLoggerCallback, libcublas()), cublasStatus_t,
                    (cublasLogCallback,),
                    userCallback)
 end
 
 @checked function cublasGetLoggerCallback(userCallback)
-    initialize_api()
     ccall((:cublasGetLoggerCallback, libcublas()), cublasStatus_t,
                    (Ref{cublasLogCallback},),
                    userCallback)

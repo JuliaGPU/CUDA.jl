@@ -12,8 +12,6 @@ using Base: @deprecate_binding
 
 using Printf
 
-using Memoization
-
 using DataStructures
 
 
@@ -59,9 +57,11 @@ Base.show(io::IO, buf::DeviceBuffer) =
 Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
     convert(CuPtr{T}, pointer(buf))
 
-@memoize has_stream_ordered(dev::CuDevice=device()) =
-    CUDA.version() >= v"11.2" && !haskey(ENV, "CUDA_MEMCHECK") &&
-    attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+has_stream_ordered(dev::CuDevice=device()) =
+    @memoize dev::CuDevice begin
+        CUDA.version() >= v"11.2" && !haskey(ENV, "CUDA_MEMCHECK") &&
+        attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+    end::Bool
 
 """
     Mem.alloc(DeviceBuffer, bytesize::Integer;

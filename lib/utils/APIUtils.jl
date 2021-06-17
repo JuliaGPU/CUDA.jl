@@ -9,5 +9,6 @@ include("call.jl")
 include("enum.jl")
 include("cache.jl")
 include("threading.jl")
+include("memoization.jl")
 
 end

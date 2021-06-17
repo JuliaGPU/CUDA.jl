@@ -2126,14 +2126,12 @@ end
 end
 
 @checked function cudnnSetCallback(mask, udata, fptr)
-    initialize_api()
     ccall((:cudnnSetCallback, libcudnn()), cudnnStatus_t,
                    (UInt32, Ptr{Cvoid}, cudnnCallback_t),
                    mask, udata, fptr)
 end
 
 @checked function cudnnGetCallback(mask, udata, fptr)
-    initialize_api()
     ccall((:cudnnGetCallback, libcudnn()), cudnnStatus_t,
                    (Ptr{UInt32}, Ptr{Ptr{Cvoid}}, Ptr{cudnnCallback_t}),
                    mask, udata, fptr)

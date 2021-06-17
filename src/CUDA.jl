@@ -16,9 +16,9 @@ using LinearAlgebra
 
 using BFloat16s
 
-using Memoization
-
 using ExprTools
+
+# TODO: set lib versions in bindeps or so
 
 # XXX: to be replaced by a JLL
 include("../deps/Deps.jl")

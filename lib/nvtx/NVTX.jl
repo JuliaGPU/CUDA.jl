@@ -6,8 +6,6 @@ using ..CUDA: CUstream, CUdevice, CUcontext, CUevent
 
 using CEnum
 
-using Memoization
-
 using ExprTools
 
 

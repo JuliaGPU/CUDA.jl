@@ -159,7 +159,7 @@ using CUDA.WMMA
             new_a = (a_layout == "col" ? a : transpose(a))
             new_b = (b_layout == "col" ? b : transpose(b))
 
-            @test all(isapprox.(new_a * new_b + c, Array(d_dev); rtol=sqrt(eps(Float16))))
+            @test new_a * new_b + c ≈ Array(d_dev) rtol=Base.rtoldefault(Float16)
         end
     end
 end
@@ -251,9 +251,9 @@ end
         new_d = (d_layout == ColMajor) ? d : transpose(d)
 
         if do_mac
-            @test all(isapprox.(alpha * new_a * new_b + beta * new_c, new_d; rtol=sqrt(eps(Float16))))
+            @test alpha * new_a * new_b + beta * new_c ≈ new_d rtol=Base.rtoldefault(Float16)
         else
-            @test all(isapprox.(alpha * new_a * new_b, new_d; rtol=sqrt(eps(Float16))))
+            @test alpha * new_a * new_b ≈ new_d rtol=Base.rtoldefault(Float16)
         end
     end
 

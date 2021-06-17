@@ -15,8 +15,6 @@ using ..CUDA: libcudnn, @retry_reclaim, isdebug, @context!
 
 using CEnum
 
-using Memoization
-
 using DataStructures
 
 
@@ -137,7 +135,8 @@ function __runtime_init__()
     end
 
     # register a log callback
-    if version() >= v"8.2"  # NVIDIA bug #3256123
+    if (isdebug(:init, CUDNN) || Base.JLOptions().debug_level >= 2) &&
+       version() >= v"8.2"  # NVIDIA bug #3256123
         log_cond[] = Base.AsyncCondition() do async_cond
             message =  @lock log_lock popfirst!(log_messages)
             _log_message(message...)

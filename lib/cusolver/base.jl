@@ -1,14 +1,14 @@
 # wrappers of low-level functionality
 
-@memoize function cusolverGetProperty(property::libraryPropertyType)
+function cusolverGetProperty(property::libraryPropertyType)
   value_ref = Ref{Cint}()
   cusolverGetProperty(property, value_ref)
   value_ref[]
 end
 
-@memoize version() = VersionNumber(cusolverGetProperty(CUDA.MAJOR_VERSION),
-                                   cusolverGetProperty(CUDA.MINOR_VERSION),
-                                   cusolverGetProperty(CUDA.PATCH_LEVEL))
+version() = VersionNumber(cusolverGetProperty(CUDA.MAJOR_VERSION),
+                          cusolverGetProperty(CUDA.MINOR_VERSION),
+                          cusolverGetProperty(CUDA.PATCH_LEVEL))
 
 function Base.convert(::Type{cusolverEigType_t}, typ::Int)
     if typ == 1

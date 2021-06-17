@@ -4,13 +4,13 @@ function cudnnCreate()
     return handle_ref[]
 end
 
-@memoize function cudnnGetProperty(property::CUDA.libraryPropertyType)
+function cudnnGetProperty(property::CUDA.libraryPropertyType)
   value_ref = Ref{Cint}()
   cudnnGetProperty(property, value_ref)
   value_ref[]
 end
 
-@memoize function version()
+function version()
   ver = cudnnGetVersion()
   major, ver = divrem(ver, 1000)
   minor, patch = divrem(ver, 10)
@@ -18,7 +18,7 @@ end
   VersionNumber(major, minor, patch)
 end
 
-@memoize function cuda_version()
+function cuda_version()
   ver = cudnnGetCudartVersion()
   major, ver = divrem(ver, 1000)
   minor, patch = divrem(ver, 10)
