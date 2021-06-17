@@ -188,7 +188,7 @@ for A in (AS.Generic, AS.Global, AS.Shared)
     end
 end
 
-# half-precision atomics using PTX instruction 
+# half-precision atomics using PTX instruction
 
 for A in (AS.Generic, AS.Global, AS.Shared)
 
@@ -204,7 +204,7 @@ for A in (AS.Generic, AS.Global, AS.Shared)
     PTX = "atom$scope.add.noftz.f16 \$0, [\$1], \$2;"
 
     @eval @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) =
-        @Interop.asmcall($PTX, "=h,l,h", true, $T, Tuple{Core.LLVMPtr{$T,$A},$T}, ptr, val) 
+        @Interop.asmcall($PTX, "=h,l,h", true, $T, Tuple{Core.LLVMPtr{$T,$A},$T}, ptr, val)
 end
 
 ## Julia
@@ -477,8 +477,8 @@ macro atomic(ex)
 end
 
 # FIXME: make this respect the indexing style
-@inline atomic_arrayset(A::AbstractArray, Is::Tuple, op::Function, val) =
-    atomic_arrayset(A, Base._to_linear_index(A, Is...), op, val)
+@inline atomic_arrayset(A::AbstractArray{T}, Is::Tuple, op::Function, val) where {T} =
+    atomic_arrayset(A, Base._to_linear_index(A, Is...), op, convert(T, val))
 
 function atomic_arrayset(A::AbstractArray, I::Integer, op::Function, val)
     error("Don't know how to atomically perform $op on $(typeof(A))")
