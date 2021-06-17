@@ -164,6 +164,8 @@ preinit_apicalls = Set{String}([
     "cublasGetVersion",
     "cublasGetProperty",
     "cublasGetCudartVersion",
+    "cublasSetLoggerCallback",
+    "cublasGetLoggerCallback",
     # CURAND
     "curandGetVersion",
     "curandGetProperty",
@@ -183,6 +185,8 @@ preinit_apicalls = Set{String}([
     "cudnnGetProperty",
     "cudnnGetCudartVersion",
     "cudnnGetErrorString",
+    "cudnnSetCallback",
+    "cudnnGetCallback",
     # CUTENSOR
     "cutensorGetVersion",
     "cutensorGetCudartVersion",
