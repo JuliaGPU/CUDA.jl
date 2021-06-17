@@ -290,7 +290,10 @@ when function changes, or when different types or keyword arguments are provided
                                           cufunction_link)::HostKernel{F,tt}
 end
 
-const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
+# XXX: does this need a lock? we'll only write to it when we have the typeinf lock.
+const cufunction_cache = PerDevice{Dict{UInt, Any}}() do dev
+    Dict{UInt, Any}()
+end
 
 # helper to run a binary and collect all relevant output
 function run_and_collect(cmd)

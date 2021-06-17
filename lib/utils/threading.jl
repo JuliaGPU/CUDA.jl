@@ -1,4 +1,4 @@
-export NonReentrantLock, @spinlock, @lock
+export NonReentrantLock, @spinlock, @lock, LazyInitialized
 
 const var"@lock" = Base.var"@lock"
 
@@ -36,4 +36,49 @@ macro spinlock(l, ex)
       unlock(temp)
     end
   end
+end
+
+
+"""
+    LazyInitialized{T}() do
+        # initialization, producing a value of type T
+    end
+
+A thread-safe, lazily-initialized wrapper for a value of type `T`. Fetch the value by
+calling `getindex`. The constructor is ensured to only be called once from a single thread.
+
+This type is intended for lazy initialization of e.g. global structures, without using
+`__init__`. It is similar to protecting accesses using a lock, but is much cheaper.
+
+"""
+struct LazyInitialized{T,F}
+    # 0: uninitialized
+    # 1: initializing
+    # 2: initialized
+    guard::Threads.Atomic{Int}
+    value::Base.RefValue{T}
+    constructor::F
+
+    LazyInitialized{T,F}(constructor::F) where {T,F} =
+        new(Threads.Atomic{Int}(0), Ref{T}(), constructor)
+end
+LazyInitialized{T}(constructor::F) where {T,F} = LazyInitialized{T,F}(constructor)
+
+function Base.getindex(x::LazyInitialized)
+    while x.guard[] != 2
+        initialize!(x)
+    end
+    assume(isassigned(x.value)) # to get rid of the check
+    x.value[]
+end
+
+@noinline function initialize!(x::LazyInitialized)
+    status = Threads.atomic_cas!(x.guard, 0, 1)
+    if status == 0
+        x.value[] = x.constructor()
+        x.guard[] = 2
+    else
+        yield()
+    end
+    return
 end
