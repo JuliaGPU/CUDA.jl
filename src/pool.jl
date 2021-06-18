@@ -336,7 +336,7 @@ multiple calls to `free` before this buffer is put back into the memory pool.
   return
 end
 
-@inline function alias(buf::UnifiedBuffer)
+@inline function alias(buf::Mem.UnifiedBuffer)
   @spinlock managed_refcounts_lock begin
     refcount = managed_refcounts[buf.ptr]
     managed_refcounts[buf.ptr] = refcount + 1

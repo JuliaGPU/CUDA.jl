@@ -5,13 +5,22 @@ mutable struct CuUnifiedArray{T,N} <: AbstractGPUArray{T,N}
   baseptr::CuPtr{T}
   dims::Dims{N}
   ctx::CuContext
+  offset::Int
 
   function CuUnifiedArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
     Base.isbitsunion(T) && error("CuUnifiedArray does not yet support union bits types")
     Base.isbitstype(T)  || error("CuUnifiedArray only supports bits types") # allocatedinline on 1.3+
     buf = alloc(Mem.Unified, prod(dims) * sizeof(T))
     ptr = convert(CuPtr{T}, buf)
-    obj = new{T,N}(buf, ptr, dims, context())
+    obj = new{T,N}(buf, ptr, dims, context(), 0)
+    finalizer(t -> free(t.buf), obj)
+  end
+
+  # increase ref count using `alias` when creating from an existing buffer.
+  function CuUnifiedArray{T,N}(buf::Mem.UnifiedBuffer, dims::Dims{N}, offset::Int) where {T,N}
+    alias(buf)
+    ptr = convert(CuPtr{T}, buf)
+    obj = new{T,N}(buf, ptr, dims, context(), offset)
     finalizer(t -> free(t.buf), obj)
   end
 end
@@ -28,6 +37,8 @@ CuUnifiedArray{T,N}(::UndefInitializer, dims::Integer...) where {T,N} = CuUnifie
 CuUnifiedArray{T}(::UndefInitializer, dims::Dims{N}) where {T,N} = CuUnifiedArray{T,N}(undef, dims)
 
 CuUnifiedArray{T}(::UndefInitializer, dims::Integer...) where {T} = CuUnifiedArray{T}(undef, convert(Tuple{Vararg{Int}}, dims))
+
+CuUnifiedArray{T}(buf::Mem.UnifiedBuffer, dims::Integer...) where {T} = CuUnifiedArray{T}(buf, convert(Tuple{Vararg{Int}}, dims))
 
 # empty vector constructor
 CuUnifiedArray{T,1}() where {T} = CuUnifiedArray{T,1}(undef, 0)
@@ -52,7 +63,7 @@ function Base.mightalias(A::CuUnifiedArray, B::CuUnifiedArray)
   return first(rA) <= first(rB) < last(rA) || first(rB) <= first(rA) < last(rB)
 end
 
-Base.pointer(x::CuUnifiedArray) = x.baseptr
+Base.pointer(x::CuUnifiedArray) = x.baseptr + x.offset
 
 Base.similar(a::CuUnifiedArray{T,N}) where {T,N} = CuUnifiedArray{T,N}(undef, size(a))
 Base.similar(a::CuUnifiedArray{T}, dims::Base.Dims{N}) where {T,N} = CuUnifiedArray{T,N}(undef, dims)
@@ -114,3 +125,22 @@ Adapt.adapt_storage(::Type{CuUnifiedArray}, xs::AT) where {AT<:AbstractArray} =
 # if an element type is specified, convert to it
 Adapt.adapt_storage(::Type{<:CuUnifiedArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
   isbitstype(AT) ? xs : convert(CuUnifiedArray{T}, xs)
+
+# optimize reshape to return a CuUnifiedArray
+
+function Base.reshape(a::CuUnifiedArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
+  if prod(dims) != length(a)
+      throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $(size(a))"))
+  end
+  if N == M && dims == size(a)
+      return a
+  end
+  b = CuUnifiedArray{T,N}(a.buf, dims, a.offset)
+  return b
+end
+
+@inline function unsafe_contiguous_view(a::CuUnifiedArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
+    offset = Base.compute_offset1(a, 1, I) * sizeof(T)
+    b = CuUnifiedArray{T,M}(a.buf, dims, offset)
+    return b
+end
