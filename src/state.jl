@@ -364,33 +364,39 @@ manner, you should still take care about thread-safety when using the contained 
 For example, if you need to update the value, use atomics; if it's a complex structure like
 an array or a dictionary, use additional locks.
 """
-struct PerDevice{T,F,L}
+struct PerDevice{T,F,L,C}
     lock::ReentrantLock
     constructor::F
     values::L
+    contexts::C
 end
 
 function PerDevice{T}(constructor::F) where {T,F}
-    values = LazyInitialized{Vector{Union{Nothing,Tuple{CuContext,T}}}}() do
+    values = LazyInitialized{Vector{Union{Nothing,T}}}() do
         [nothing for _ in 1:ndevices()]
     end
-    PerDevice{T,F,typeof(values)}(ReentrantLock(), constructor, values)
+    contexts = LazyInitialized{Vector{Union{Nothing,CuContext}}}() do
+        [nothing for _ in 1:ndevices()]
+    end
+    PerDevice{T,F,typeof(values),typeof(contexts)}(ReentrantLock(), constructor, values, contexts)
 end
 
 function Base.getindex(x::PerDevice, dev::CuDevice)
-    y = x.values[]
     id = deviceid(dev)+1
     ctx = device_context(id)    # may be nothing
+    values = x.values[]
+    contexts = x.contexts[]
     @inbounds begin
         # test-lock-test
-        if y[id] === nothing || y[id][1] !== ctx
+        if values[id] === nothing || contexts[id] !== ctx
             Base.@lock x.lock begin
-                if y[id] === nothing || y[id][1] !== ctx
-                    y[id] = (context(), x.constructor(dev))
+                if values[id] === nothing || contexts[id] !== ctx
+                    values[id] = x.constructor(dev)
+                    contexts[id] = ctx
                 end
             end
         end
-        y[id][2]
+        values[id]
     end
 end
 
