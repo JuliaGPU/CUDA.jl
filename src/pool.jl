@@ -54,14 +54,24 @@ AllocStats(b::AllocStats, a::AllocStats) =
 const usage = PerDevice{Threads.Atomic{Int}}() do dev
   Threads.Atomic{Int}(0)
 end
-const usage_limit = PerDevice{Int}() do dev
+
+# ignore the available memory heuristic, and even allow to eat in to the reserve
+const usage_hard_limit = PerDevice{Int}() do dev
   getenv("JULIA_CUDA_MEMORY_LIMIT", typemax(Int))
+end
+
+# This limit depends on the actually available memory, which might be an underestimation
+# (e.g. when the GPU was in use initially). The hard limit does not rely on such heuristics.
+const usage_soft_limit = PerDevice{Int}() do dev
+  available = allocatable_memory(dev)
+  reserve = reserved_memory(dev)
+  return available - reserve
 end
 
 function allocatable_memory(dev::CuDevice)
   # NOTE: this function queries available memory, which obviously changes after we allocate.
   device!(dev) do
-    Base.min(available_memory(), usage_limit[dev])
+    Base.min(available_memory(), usage_hard_limit[dev])
   end
 end
 
@@ -88,27 +98,13 @@ function reserved_memory(dev::CuDevice)
   end
 end
 
-# This limit depends on the actually available memory, which might be an underestimation
-# (e.g. when the GPU was in use initially). The hard limit does not rely on such heuristics.
-function soft_limit(dev::CuDevice)
-  available = allocatable_memory(dev)
-  reserve = reserved_memory(dev)
-  return available - reserve
-end
-const soft_limits = PerDevice{Int}(soft_limit)
-
-function hard_limit(dev::CuDevice)
-  # ignore the available memory heuristic, and even allow to eat in to the reserve
-  usage_limit[dev]
-end
-
 @timeit_ci function actual_alloc(bytes::Integer, last_resort::Bool=false;
                                  stream_ordered::Bool=false,
                                  stream::Union{CuStream,Nothing}=nothing)
   dev = device()
 
   # check the memory allocation limit
-  if usage[dev][] + bytes > (last_resort ? hard_limit(dev) : soft_limits[dev])
+  if usage[dev][] + bytes > (last_resort ? usage_hard_limit[dev] : usage_soft_limit[dev])
     return nothing
   end
 
@@ -176,7 +172,7 @@ include("pool/simple.jl")
 include("pool/binned.jl")
 include("pool/split.jl")
 
-const pools = PerDevice{AbstractPool}(dev->begin
+const pools = PerDevice{AbstractPool}() do dev
   default_pool = if Mem.has_stream_ordered(dev)
       "cuda"
   else
@@ -206,7 +202,7 @@ const pools = PerDevice{AbstractPool}(dev->begin
   end
 
   pool
-end)
+end
 
 
 ## interface
@@ -323,7 +319,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
 
   dev = device()
   pool = pools[dev]
-  last_use[dev] = time()
+  last_use[dev][] = time()
 
   if MEMDEBUG && ptr == CuPtr{Cvoid}(0xbbbbbbbbbbbbbbbb)
     Core.println("Freeing a scrubbed pointer!")
@@ -443,8 +439,8 @@ end
 
 ## management
 
-const last_use = PerDevice{Union{Nothing,Float64}}() do dev
-  nothing
+const last_use = PerDevice{Threads.Atomic{Float64}}() do dev
+  Threads.Atomic{Float64}(0.0)
 end
 
 # reclaim unused pool memory after a certain time
@@ -452,8 +448,8 @@ function pool_cleanup()
   while true
     t1 = time()
     for dev in keys(pools)
-      t0 = last_use[dev]
-      t0 === nothing && continue
+      t0 = last_use[dev][]
+      t0 === 0.0 && continue
 
       if t1-t0 > 300
         # the pool hasn't been used for a while, so reclaim unused buffers
@@ -597,8 +593,8 @@ function memory_status(io::IO=stdout)
               Base.format_bytes(total_bytes))
 
   @printf(io, "CUDA allocator usage: %s", Base.format_bytes(usage[dev][]))
-  if usage_limit[dev] !== typemax(Int)
-    @printf(io, " (capped at %s)", Base.format_bytes(usage_limit[dev]))
+  if usage_hard_limit[dev] !== typemax(Int)
+    @printf(io, " (capped at %s)", Base.format_bytes(usage_hard_limit[dev]))
   end
   println(io)
 

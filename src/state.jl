@@ -207,24 +207,16 @@ function device()
     task_local_state!().device
 end
 
-const __device_contexts_lock = ReentrantLock()
-const __device_contexts = Union{Nothing,CuContext}[]
-@noinline function __init_device_contexts()
-    resize!(__device_contexts, ndevices())
-    fill!(__device_contexts, nothing)
-    return
+const __device_contexts = LazyInitialized{Vector{Union{Nothing,CuContext}}}() do
+    [nothing for _ in 1:ndevices()]
 end
 function device_context(i)
-    @lock __device_contexts_lock begin
-        isempty(__device_contexts) && __init_device_contexts()
-        @inbounds __device_contexts[i]
-    end
+    contexts = __device_contexts[]
+    @inbounds contexts[i]
 end
 function device_context!(i, ctx)
-    @lock __device_contexts_lock begin
-        isempty(__device_contexts) && __init_device_contexts()
-        @inbounds __device_contexts[i] = ctx
-    end
+    contexts = __device_contexts[]
+    @inbounds contexts[i] = ctx
     return
 end
 
@@ -335,11 +327,6 @@ function device_reset!(dev::CuDevice=device())
     devidx = deviceid(dev)+1
     device_context!(devidx, nothing)
 
-    # wipe external per-device state
-    for x in __perdevices
-        delete!(x, dev)
-    end
-
     return
 end
 
@@ -361,46 +348,55 @@ deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev))
 
 ## helpers
 
-# helper struct to maintain state per device and invalidate it when the device is reset
-const __perdevices = Vector{Any}()  # XXX: use WeakRef once that survives precompilation
-struct PerDevice{T,F} <: AbstractDict{T,F}
-    inner::Vector{Union{T,Nothing}}
-    ctor::F
-
-    function PerDevice{T,F}(ctor::F) where {T,F<:Function}
-        obj = new(T[], ctor)
-        push!(__perdevices, obj)
-        return obj
+"""
+    PerDevice{T} do dev
+        # generate a value of type `T` for device `dev`
     end
+
+A helper struct for maintaining per-device state that's lazily initialized and automatically
+invalidated when the device is reset. Use `per_device[dev::CuDevice]` to fetch a value.
+
+Mutating or deleting state is not supported. If this is required, use a `Ref` as value.
+
+Furthermore, even though the initialization of this helper, fetching its value for a
+given device, and clearing it when the device is reset are all performed in a thread-safe
+manner, you should still take care about thread-safety when using the contained value.
+For example, if you need to update the value, use atomics; if it's a complex structure like
+an array or a dictionary, use additional locks.
+"""
+struct PerDevice{T,F,L}
+    lock::ReentrantLock
+    constructor::F
+    values::L
 end
 
-PerDevice{T}(ctor::F) where {T,F} = PerDevice{T,F}(ctor)
-
-# lazy initialization
-@inline function initialized(x::PerDevice)
-    if length(x.inner) == 0
-        resize!(x.inner, ndevices())
-        fill!(x.inner, nothing)
+function PerDevice{T}(constructor::F) where {T,F}
+    values = LazyInitialized{Vector{Union{Nothing,Tuple{CuContext,T}}}}() do
+        [nothing for _ in 1:ndevices()]
     end
-    x.inner
+    PerDevice{T,F,typeof(values)}(ReentrantLock(), constructor, values)
 end
 
 function Base.getindex(x::PerDevice, dev::CuDevice)
-    y = initialized(x)
+    y = x.values[]
     id = deviceid(dev)+1
+    ctx = device_context(id)    # may be nothing
     @inbounds begin
-        if y[id] === nothing
-            y[id] = x.ctor(dev)
+        # test-lock-test
+        if y[id] === nothing || y[id][1] !== ctx
+            Base.@lock x.lock begin
+                if y[id] === nothing || y[id][1] !== ctx
+                    y[id] = (context(), x.constructor(dev))
+                end
+            end
         end
-        y[id]
+        y[id][2]
     end
 end
-Base.setindex!(x::PerDevice, val, dev::CuDevice) = @inbounds(initialized(x)[deviceid(dev)+1] = val)
-Base.delete!(x::PerDevice, dev::CuDevice) = @inbounds(initialized(x)[deviceid(dev)+1] = nothing)
 
-Base.length(x::PerDevice) = length(x.inner)
-Base.size(x::PerDevice) = size(x.inner)
-Base.keys(x::PerDevice) = keys(x.inner)
+Base.length(x::PerDevice) = length(x.values[])
+Base.size(x::PerDevice) = size(x.values[])
+Base.keys(x::PerDevice) = keys(x.values[])
 
 function Base.show(io::IO, mime::MIME"text/plain", x::PerDevice{T}) where {T}
     print(io, "PerDevice{$T} with $(length(x)) entries")

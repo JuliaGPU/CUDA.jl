@@ -2,6 +2,9 @@ module APIUtils
 
 using ..CUDA
 
+using LLVM
+using LLVM.Interop
+
 using Libdl
 
 # helpers that facilitate working with CUDA APIs
