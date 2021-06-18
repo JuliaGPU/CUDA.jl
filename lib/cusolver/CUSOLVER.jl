@@ -155,8 +155,10 @@ function devices!(devs::Vector{CuDevice})
 end
 
 devices() = get!(task_local_storage(), :CUSOLVERmg_devices) do
-    # by default, select all devices
-    sort(collect(CUDA.devices()); by=deviceid)
+    # by default, select only the first device
+    [first(CUDA.devices())]
+    # TODO: select all devices
+    #sort(collect(CUDA.devices()); by=deviceid)
 end::Vector{CuDevice}
 
 ndevices() = length(devices())
