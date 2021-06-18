@@ -33,101 +33,132 @@ const idle_dense_handles = HandleCache{CuContext,cusolverDnHandle_t}()
 const idle_sparse_handles = HandleCache{CuContext,cusolverSpHandle_t}()
 
 function dense_handle()
-    state = CUDA.active_state()
-    handle, stream = get!(task_local_storage(), (:CUSOLVER, :dense, state.context)) do
-        new_handle = pop!(idle_dense_handles, state.context) do
+    cuda = CUDA.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{handle::cusolverDnHandle_t, stream::CuStream}
+    states = get!(task_local_storage(), :CUSOLVER_dense) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get library state
+    @noinline function new_state(cuda)
+        new_handle = pop!(idle_dense_handles, cuda.context) do
             cusolverDnCreate()
         end
 
         finalizer(current_task()) do task
-            push!(idle_dense_handles, state.context, new_handle) do
-                @context! skip_destroyed=true state.context cusolverDnDestroy()
+            push!(idle_dense_handles, cuda.context, new_handle) do
+                @context! skip_destroyed=true cuda.context cusolverDnDestroy(new_handle)
             end
         end
 
-        cusolverDnSetStream(new_handle, state.stream)
-
-        new_handle, state.stream
-    end::Tuple{cusolverDnHandle_t,CuStream}
-
-    if stream != state.stream
-        cusolverDnSetStream(handle, state.stream)
-        task_local_storage((:CUSOLVER, :dense, state.context), (handle, state.stream))
+        cusolverDnSetStream(new_handle, cuda.stream)
+        (; handle=new_handle, cuda.stream)
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
     end
 
-    return handle
+    # update stream
+    @noinline function update_stream(cuda, state)
+        cusolverDnSetStream(state.handle, cuda.stream)
+        (; state.handle, cuda.stream)
+    end
+    if state.stream != cuda.stream
+        states[cuda.context] = state = update_stream(cuda, state)
+    end
+
+    return state.handle
 end
 
 function sparse_handle()
-    state = CUDA.active_state()
-    handle, stream = get!(task_local_storage(), (:CUSOLVER, :sparse, state.context)) do
-        new_handle = pop!(idle_sparse_handles, state.context) do
+    cuda = CUDA.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{handle::cusolverSpHandle_t, stream::CuStream}
+    states = get!(task_local_storage(), :CUSOLVER_sparse) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get or create handle
+    @noinline function new_state(cuda)
+        new_handle = pop!(idle_sparse_handles, cuda.context) do
             cusolverSpCreate()
         end
 
         finalizer(current_task()) do task
-            push!(idle_sparse_handles, state.context, new_handle) do
-                @context! skip_destroyed=true state.context cusolverSpDestroy(new_handle)
+            push!(idle_sparse_handles, cuda.context, new_handle) do
+                @context! skip_destroyed=true cuda.context cusolverSpDestroy(new_handle)
             end
         end
 
-        cusolverSpSetStream(new_handle, state.stream)
-
-        new_handle, state.stream
-    end::Tuple{cusolverSpHandle_t,CuStream}
-
-    if stream != state.stream
-        cusolverSpSetStream(handle, state.stream)
-        task_local_storage((:CUSOLVER, :sparse, state.context), (handle, state.stream))
+        cusolverSpSetStream(new_handle, cuda.stream)
+        (; handle=new_handle, cuda.stream)
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
     end
 
-    return handle
+    # update stream
+    @noinline function update_stream(cuda, state)
+        cusolverSpSetStream(state.handle, cuda.stream)
+        (; state.handle, cuda.stream)
+    end
+    if state.stream != cuda.stream
+        states[cuda.context] = state = update_stream(cuda, state)
+    end
+
+    return state.handle
 end
 
 function mg_handle()
-    ctx = context()
-    get!(task_local_storage(), (:CUSOLVER, :mg, ctx)) do
-        # we can't reuse cusolverMg handles because they can only be assigned devices once
-        handle = cusolverMgCreate()
+    cuda = CUDA.active_state()
 
-        finalizer(current_task()) do task
-            tls = task.storage
-            if haskey(tls, (:CUSOLVER, :mg, ctx)) && CUDA.isvalid(ctx)
-                # look-up the handle again, because it might have been destroyed already
-                # (e.g. in `devices!`)
-                handle = tls[(:CUSOLVER, :mg, ctx)]
-                cusolverMgDestroy(handle)
-            end
-        end
+    # every task maintains library state per set of devices
+    LibraryState = @NamedTuple{handle::cusolverMgHandle_t}
+    states = get!(task_local_storage(), :CUSOLVERmg) do
+        Dict{UInt,LibraryState}()
+    end::Dict{UInt,LibraryState}
 
-        # select devices
-        cusolverMgDeviceSelect(handle, ndevices(), devices())
-
-        handle
-    end::cusolverMgHandle_t
-end
-
-# module-local version of CUDA's devices/ndevices to support flexible device selection
-# TODO: make this task-local
-const __devices = Cint[0]
-devices() = __devices
-ndevices() = length(__devices)
-
-# NOTE: this invalidates any existing cusolverMg handle
-function devices!(devs::Vector{CuDevice})
-    resize!(__devices, length(devs))
-    __devices .= deviceid.(devs)
-
-    # we can't select different devices _after_ having initialized the handle,
-    # so just destroy it and wait for initialization to kick in again
-    ctx = context()
-    if haskey(task_local_storage(), (:CUSOLVER, :mg, ctx))
-        handle = task_local_storage((:CUSOLVER, :mg, ctx))
-        cusolverMgDestroy(handle)
-        delete!(task_local_storage(), (:CUSOLVER, :mg, ctx))
+    # derive a key from the active and selected devices
+    key = hash(cuda.context)
+    for dev in devices()
+        # we hash the device context to support device resets
+        key = hash(context(dev), key)
     end
 
+    # get library state
+    @noinline function new_state(cuda)
+        # we can't reuse cusolverMg handles because they can only be assigned devices once
+        new_handle = cusolverMgCreate()
+
+        finalizer(current_task()) do task
+            @context! skip_destroyed=true cuda.context cusolverMgDestroy(new_handle)
+        end
+
+        devs = convert.(Cint, devices())
+        cusolverMgDeviceSelect(new_handle, length(devs), devs)
+
+        (; handle=new_handle)
+    end
+    state = get!(states, key) do
+        new_state(cuda)
+    end
+
+    return state.handle
+end
+
+function devices!(devs::Vector{CuDevice})
+    task_local_storage(:CUSOLVERmg_devices, sort(devs; by=deviceid))
     return
 end
+
+devices() = get!(task_local_storage(), :CUSOLVERmg_devices) do
+    # by default, select all devices
+    sort(collect(CUDA.devices()); by=deviceid)
+end::Vector{CuDevice}
+
+ndevices() = length(devices())
 
 end

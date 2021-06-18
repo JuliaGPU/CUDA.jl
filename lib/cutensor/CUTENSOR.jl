@@ -29,22 +29,35 @@ include("interfaces.jl")
 const idle_handles = HandleCache{CuContext,Base.RefValue{cutensorHandle_t}}()
 
 function handle()
-    ctx = context()
-    get!(task_local_storage(), (:CUTENSOR, ctx)) do
-        handle = pop!(idle_handles, ctx) do
+    cuda = CUDA.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{handle::Base.RefValue{cutensorHandle_t}}
+    states = get!(task_local_storage(), :CUTENSOR) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get library state
+    @noinline function new_state(cuda)
+        new_handle = pop!(idle_handles, cuda.context) do
             handle = Ref{cutensorHandle_t}()
             cutensorInit(handle)
             handle
         end
 
         finalizer(current_task()) do task
-            push!(idle_handles, ctx, handle) do
+            push!(idle_handles, cuda.context, new_handle) do
                 # CUTENSOR doesn't need to actively destroy its handle
             end
         end
 
-        handle
-    end::Base.RefValue{cutensorHandle_t}
+        (; handle=new_handle)
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
+    end
+
+    return state.handle
 end
 
 end

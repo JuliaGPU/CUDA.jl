@@ -71,61 +71,110 @@ const idle_handles = HandleCache{CuContext,cublasHandle_t}()
 const idle_xt_handles = HandleCache{Any,cublasXtHandle_t}()
 
 function handle()
-    state = CUDA.active_state()
-    handle, stream, math_mode = get!(task_local_storage(), (:CUBLAS, state.context)) do
-        new_handle = pop!(idle_handles, state.context) do
+    cuda = CUDA.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{handle::cublasHandle_t, stream::CuStream, math_mode::CUDA.MathMode}
+    states = get!(task_local_storage(), :CUBLAS) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get library state
+    @noinline function new_state(cuda)
+        new_handle = pop!(idle_handles, cuda.context) do
             cublasCreate()
         end
 
         finalizer(current_task()) do task
-            push!(idle_handles, state.context, new_handle) do
-                @context! skip_destroyed=true state.context cublasDestroy_v2(handle)
+            push!(idle_handles, cuda.context, new_handle) do
+                @context! skip_destroyed=true cuda.context cublasDestroy_v2(new_handle)
             end
         end
 
-        cublasSetStream_v2(new_handle, state.stream)
+        cublasSetStream_v2(new_handle, cuda.stream)
 
-        math_mode!(new_handle, state.math_mode)
+        math_mode!(new_handle, cuda.math_mode)
 
-        new_handle, state.stream, state.math_mode
-    end::Tuple{cublasHandle_t,CuStream,CUDA.MathMode}
-
-    if stream != state.stream
-        cublasSetStream_v2(handle, state.stream)
-        task_local_storage((:CUBLAS, state.context), (handle, state.stream, math_mode))
-        stream = state.stream
+        (; handle=new_handle, cuda.stream, cuda.math_mode)
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
     end
 
-    if math_mode != state.math_mode
-        math_mode!(handle, state.math_mode)
-        task_local_storage((:CUBLAS, state.context), (handle, stream, state.math_mode))
-        math_mode = state.math_mode
+    # update stream
+    @noinline function update_stream(cuda, state)
+        cublasSetStream_v2(state.handle, cuda.stream)
+        (; state.handle, stream=cuda.stream, state.math_mode)
+    end
+    if state.stream != cuda.stream
+        states[cuda.context] = state = update_stream(cuda, state)
     end
 
-    return handle
+    # update math mode
+    @noinline function update_math_mode(cuda, state)
+        math_mode!(state.handle, cuda.math_mode)
+        (; state.handle, state.stream, math_mode=cuda.math_mode)
+    end
+    if state.math_mode != cuda.math_mode
+        states[cuda.context] = state = update_math_mode(cuda, state)
+    end
+
+    return state.handle
 end
 
 function xt_handle()
-    ctxs = Tuple(context(dev) for dev in devices())
-    get!(task_local_storage(), (:CUBLASxt, ctxs)) do
-        handle = pop!(idle_xt_handles, ctxs) do
+    cuda = CUDA.active_state()
+
+    # every task maintains library state per set of devices
+    # TODO: use PerDevice here? it's a little slower, and allocates.
+    LibraryState = @NamedTuple{handle::cublasXtHandle_t}
+    states = get!(task_local_storage(), :CUBLASxt) do
+        Dict{UInt,LibraryState}()
+    end::Dict{UInt,LibraryState}
+
+    # derive a key from the selected devices
+    key = zero(UInt)
+    for dev in devices()
+        # we hash the device context to support device resets
+        key = hash(context(dev), key)
+    end
+
+    # get library state
+    @noinline function new_state(cuda)
+        new_handle = pop!(idle_xt_handles, cuda.context) do
             cublasXtCreate()
         end
 
         finalizer(current_task()) do task
-            push!(idle_xt_handles, ctxs, handle) do
+            push!(idle_xt_handles, cuda.context, new_handle) do
                 # TODO: which context do we need to destroy this on?
                 cublasXtDestroy(handle)
             end
         end
 
-        # select all devices
         devs = convert.(Cint, devices())
-        cublasXtDeviceSelect(handle, length(devs), devs)
+        cublasXtDeviceSelect(new_handle, length(devs), devs)
 
-        handle
-    end::cublasXtHandle_t
+        (; handle=new_handle)
+    end
+    state = get!(states, key) do
+        new_state(cuda)
+    end
+
+    return state.handle
 end
+
+function devices!(devs::Vector{CuDevice})
+    task_local_storage(:CUBLASxt_devices, sort(devs; by=deviceid))
+    return
+end
+
+devices() = get!(task_local_storage(), :CUBLASxt_devices) do
+    # by default, select all devices
+    sort(collect(CUDA.devices()); by=deviceid)
+end::Vector{CuDevice}
+
+ndevices() = length(devices())
 
 
 ## logging
