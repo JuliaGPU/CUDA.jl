@@ -2,7 +2,7 @@
     CUDA.CUDNN
 
 High level interface to cuDNN functions. See
-https://github.com/JuliaGPU/CUDA.jl/blob/master/lib/cudnn/README.md
+https://github.com/JuliaGPU/CUDA.jl/blob/master/lib/state/README.md
 for a design overview.
 """
 module CUDNN
@@ -60,29 +60,44 @@ end
 const idle_handles = HandleCache{CuContext,cudnnHandle_t}()
 
 function handle()
-    state = CUDA.active_state()
-    handle, stream = get!(task_local_storage(), (:CUDNN, state.context)) do
-        new_handle = pop!(idle_handles, state.context) do
+    cuda = CUDA.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{handle::cudnnHandle_t, stream::CuStream}
+    states = get!(task_local_storage(), :CUDNN) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get library state
+    @noinline function new_state(cuda)
+        new_handle = pop!(idle_handles, cuda.context) do
             cudnnCreate()
         end
 
         finalizer(current_task()) do task
-            push!(idle_handles, state.context, new_handle) do
-                @context! skip_destroyed=true state.context cudnnDestroy(new_handle)
+            push!(idle_handles, cuda.context, new_handle) do
+                @context! skip_destroyed=true cuda.context cudnnDestroy(new_handle)
             end
         end
 
-        cudnnSetStream(new_handle, state.stream)
+        cudnnSetStream(new_handle, cuda.stream)
 
-        new_handle, state.stream
-    end::Tuple{cudnnHandle_t,CuStream}
-
-    if stream != state.stream
-        cudnnSetStream(handle, state.stream)
-        task_local_storage((:CUDNN, state.context), (handle, state.stream))
+        (; handle=new_handle, cuda.stream)
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
     end
 
-    return handle
+    # update stream
+    @noinline function update_stream(cuda, state)
+        cudnnSetStream(state.handle, cuda.stream)
+        (; state.handle, cuda.stream)
+    end
+    if state.stream != cuda.stream
+        states[cuda.context] = state = update_stream(cuda, state)
+    end
+
+    return state.handle
 end
 
 

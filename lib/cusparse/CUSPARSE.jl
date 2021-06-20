@@ -47,30 +47,44 @@ include("interfaces.jl")
 const idle_handles = HandleCache{CuContext,cusparseHandle_t}()
 
 function handle()
-    state = CUDA.active_state()
-    handle, stream = get!(task_local_storage(), (:CUSPARSE, state.context)) do
-        new_handle = pop!(idle_handles, state.context) do
+    cuda = CUDA.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{handle::cusparseHandle_t, stream::CuStream}
+    states = get!(task_local_storage(), :CUSPARSE) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get library state
+    @noinline function new_state(cuda)
+        new_handle = pop!(idle_handles, cuda.context) do
             cusparseCreate()
         end
 
         finalizer(current_task()) do task
-            push!(idle_handles, state.context, new_handle) do
-                @context! skip_destroyed=true state.context cusparseDestroy(new_handle)
+            push!(idle_handles, cuda.context, new_handle) do
+                @context! skip_destroyed=true cuda.context cusparseDestroy(new_handle)
             end
         end
-        # TODO: cusparseDestroy to preserve memory, or at exit?
 
-        cusparseSetStream(new_handle, state.stream)
+        cusparseSetStream(new_handle, cuda.stream)
 
-        new_handle, state.stream
-    end::Tuple{cusparseHandle_t,CuStream}
-
-    if stream != state.stream
-        cusparseSetStream(handle, state.stream)
-        task_local_storage((:CUSPARSE, state.context), (handle, state.stream))
+        (; handle=new_handle, cuda.stream)
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
     end
 
-    return handle
+    # update stream
+    @noinline function update_stream(cuda, state)
+        cusparseSetStream_v2(state.handle, cuda.stream)
+        (; state.handle, cuda.stream)
+    end
+    if state.stream != cuda.stream
+        states[cuda.context] = state = update_stream(cuda, state)
+    end
+
+    return state.handle
 end
 
 end
