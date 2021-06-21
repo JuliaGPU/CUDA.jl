@@ -126,7 +126,6 @@ function xt_handle()
     cuda = CUDA.active_state()
 
     # every task maintains library state per set of devices
-    # TODO: use PerDevice here? it's a little slower, and allocates.
     LibraryState = @NamedTuple{handle::cublasXtHandle_t}
     states = get!(task_local_storage(), :CUBLASxt) do
         Dict{UInt,LibraryState}()
