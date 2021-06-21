@@ -51,31 +51,34 @@ AllocStats(b::AllocStats, a::AllocStats) =
 
 ## CUDA allocator
 
-const usage = PerDevice{Threads.Atomic{Int}}() do dev
+const _usage = Dict{CuContext, Threads.Atomic{Int}}()
+usage(ctx::CuContext) = get!(_usage, ctx) do
   Threads.Atomic{Int}(0)
 end
 
 # ignore the available memory heuristic, and even allow to eat in to the reserve
-const usage_hard_limit = PerDevice{Int}() do dev
+const _usage_hard_limit = Dict{CuContext,Int}()
+usage_hard_limit(ctx::CuContext) = get!(_usage_hard_limit, ctx) do
   getenv("JULIA_CUDA_MEMORY_LIMIT", typemax(Int))
 end
 
 # This limit depends on the actually available memory, which might be an underestimation
 # (e.g. when the GPU was in use initially). The hard limit does not rely on such heuristics.
-const usage_soft_limit = PerDevice{Int}() do dev
-  available = allocatable_memory(dev)
-  reserve = reserved_memory(dev)
+const _usage_soft_limit = Dict{CuContext,Int}()
+usage_soft_limit(ctx::CuContext) = get!(_usage_soft_limit, ctx) do
+  available = allocatable_memory(ctx)
+  reserve = reserved_memory(ctx)
   return available - reserve
 end
 
-function allocatable_memory(dev::CuDevice)
+function allocatable_memory(ctx::CuContext)
   # NOTE: this function queries available memory, which obviously changes after we allocate.
-  device!(dev) do
-    Base.min(available_memory(), usage_hard_limit[dev])
+  context!(ctx) do
+    Base.min(available_memory(), usage_hard_limit(ctx))
   end
 end
 
-function reserved_memory(dev::CuDevice)
+function reserved_memory(ctx::CuContext)
   # taken from TensorFlow's `MinSystemMemory`
   #
   # if the available memory is < 2GiB, we allocate 225MiB to system memory.
@@ -83,10 +86,11 @@ function reserved_memory(dev::CuDevice)
   #  500MiB (for cuda_compute_capability <= 6.x) or
   # 1050MiB (for cuda_compute_capability <= 7.x) or
   # 1536MiB (for cuda_compute_capability >= 8.x)
-  available = allocatable_memory(dev)
+  available = allocatable_memory(ctx)
   if available <= 1<<31
     225 * 1024 * 1024
   else
+    dev = CuDevice(ctx)
     cap = capability(dev)
     if cap <= v"6"
       500 * 1024 * 1024
@@ -101,10 +105,10 @@ end
 @timeit_ci function actual_alloc(bytes::Integer, last_resort::Bool=false;
                                  stream_ordered::Bool=false,
                                  stream::Union{CuStream,Nothing}=nothing)
-  dev = device()
+  ctx = context()
 
   # check the memory allocation limit
-  if usage[dev][] + bytes > (last_resort ? usage_hard_limit[dev] : usage_soft_limit[dev])
+  if usage(ctx)[] + bytes > (last_resort ? usage_hard_limit(ctx) : usage_soft_limit(ctx))
     return nothing
   end
 
@@ -116,7 +120,7 @@ end
       end
     end
 
-    Threads.atomic_add!(usage[dev], bytes)
+    Threads.atomic_add!(usage(ctx), bytes)
     alloc_stats.actual_time += time
     alloc_stats.actual_nalloc += 1
     alloc_stats.actual_alloc += bytes
@@ -132,7 +136,7 @@ end
 
 @timeit_ci function actual_free(block::Block; stream_ordered::Bool=false,
                                       stream::Union{CuStream,Nothing}=nothing)
-  dev = device()
+  ctx = context()
 
   @assert iswhole(block) "Cannot free $block: block is not whole"
   @assert block.off == 0
@@ -144,7 +148,7 @@ end
   end
   block.state = INVALID
 
-  Threads.atomic_sub!(usage[dev], sizeof(block.buf))
+  Threads.atomic_sub!(usage(ctx), sizeof(block.buf))
   alloc_stats.actual_time += time
   alloc_stats.actual_nfree += 1
   alloc_stats.actual_free += sizeof(block.buf)
@@ -172,7 +176,9 @@ include("pool/simple.jl")
 include("pool/binned.jl")
 include("pool/split.jl")
 
-const pools = PerDevice{AbstractPool}() do dev
+const _pools = Dict{CuContext,AbstractPool}();
+pools(ctx::CuContext) = get!(_pools, ctx) do
+  dev = CuDevice(ctx)
   default_pool = if Mem.has_stream_ordered(dev)
       "cuda"
   else
@@ -191,7 +197,7 @@ const pools = PerDevice{AbstractPool}() do dev
   elseif pool_name == "cuda"
       @assert Mem.has_stream_ordered(dev) "The CUDA memory pool is not compatible with your set-up"
       attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD,
-                 UInt64(reserved_memory(dev)))
+                 UInt64(reserved_memory(ctx)))
       NoPool(; device=dev, stream_ordered=true)
   else
       error("Invalid memory pool '$pool_name'")
@@ -210,12 +216,14 @@ end
 export OutOfGPUMemoryError
 
 const allocated_lock = NonReentrantLock()
-const allocated = PerDevice{Dict{CuPtr,Tuple{Block,Int}}}() do dev
+const _allocated = Dict{CuContext, Dict{CuPtr,Tuple{Block,Int}}}()
+allocated(ctx::CuContext) = get!(_allocated, ctx) do
     Dict{CuPtr,Tuple{Block,Int}}()
 end
 
 const requested_lock = NonReentrantLock()
-const requested = PerDevice{Dict{CuPtr{Nothing},Vector}}() do dev
+const _requested = Dict{CuContext, Dict{CuPtr{Nothing},Vector}}()
+requested(ctx::CuContext) = get!(_requested, ctx) do
   Dict{CuPtr{Nothing},Vector}()
 end
 
@@ -250,8 +258,8 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return CU_NULL
 
-  dev = device()
-  pool = pools[dev]
+  ctx = context()
+  pool = pools(ctx)
 
   time = Base.@elapsed begin
     block = @timeit_ci "pool" alloc(pool, sz; stream)::Union{Nothing,Block}
@@ -261,16 +269,16 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   # record the memory block
   ptr = pointer(block)
   @lock allocated_lock begin
-      @assert !haskey(allocated[dev], ptr)
-      allocated[dev][ptr] = block, 1
+      @assert !haskey(allocated(ctx), ptr)
+      allocated(ctx)[ptr] = block, 1
   end
 
   # record the allocation site
   if Base.JLOptions().debug_level >= 2
     bt = backtrace()
     @lock requested_lock begin
-      @assert !haskey(requested[dev], ptr)
-      requested[dev][ptr] = bt
+      @assert !haskey(requested(ctx), ptr)
+      requested(ctx)[ptr] = bt
     end
   end
 
@@ -295,12 +303,12 @@ multiple calls to `free` before this buffer is put back into the memory pool.
   # 0-byte allocations shouldn't hit the pool
   ptr == CU_NULL && return
 
-  dev = device()
+  ctx = context()
 
   # look up the memory block
   @spinlock allocated_lock begin
-    block, refcount = allocated[dev][ptr]
-    allocated[dev][ptr] = block, refcount+1
+    block, refcount = allocated(ctx)[ptr]
+    allocated(ctx)[ptr] = block, refcount+1
   end
 
   return
@@ -317,9 +325,9 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   # 0-byte allocations shouldn't hit the pool
   ptr == CU_NULL && return
 
-  dev = device()
-  pool = pools[dev]
-  last_use[dev][] = time()
+  ctx = context()
+  pool = pools(ctx)
+  last_use(ctx)[] = time()
 
   if MEMDEBUG && ptr == CuPtr{Cvoid}(0xbbbbbbbbbbbbbbbb)
     Core.println("Freeing a scrubbed pointer!")
@@ -330,13 +338,13 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   try
     # look up the memory block, and bail out if its refcount isn't 1
     block = @spinlock allocated_lock begin
-        block, refcount = allocated[dev][ptr]
+        block, refcount = allocated(ctx)[ptr]
         if refcount == 1
-          delete!(allocated[dev], ptr)
+          delete!(allocated(ctx), ptr)
           block
         else
           # we can't actually free this block yet, so decrease its refcount and return
-          allocated[dev][ptr] = block, refcount-1
+          allocated(ctx)[ptr] = block, refcount-1
           return
         end
     end
@@ -344,8 +352,8 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     # look up the allocation site
     if Base.JLOptions().debug_level >= 2
       @lock requested_lock begin
-        @assert haskey(requested[dev], ptr)
-        delete!(requested[dev], ptr)
+        @assert haskey(requested(ctx), ptr)
+        delete!(requested(ctx), ptr)
       end
     end
 
@@ -372,8 +380,8 @@ functionality that does not use the CUDA memory pool. Returns the number of byte
 actually reclaimed.
 """
 function reclaim(sz::Int=typemax(Int))
-  dev = device()
-  pool = pools[dev]
+  ctx = context()
+  pool = pools(ctx)
   reclaim(pool, sz)
 end
 
@@ -395,8 +403,8 @@ macro retry_reclaim(isfailed, ex)
       ret = $(esc(ex))
       $(esc(isfailed))(ret) || break
 
-      dev = device()
-      pool = pools[dev]
+      ctx = context()
+      pool = pools(ctx)
 
       # incrementally more costly reclaim of cached memory
       if pool.stream_ordered
@@ -439,7 +447,8 @@ end
 
 ## management
 
-const last_use = PerDevice{Threads.Atomic{Float64}}() do dev
+const _last_use = Dict{CuContext, Threads.Atomic{Float64}}()
+last_use(ctx::CuContext) = get!(_last_use, ctx) do
   Threads.Atomic{Float64}(0.0)
 end
 
@@ -447,13 +456,15 @@ end
 function pool_cleanup()
   while true
     t1 = time()
-    for dev in keys(pools)
-      t0 = last_use[dev][]
+    for ctx in keys(pools)
+      isvalid(ctx) || continue
+
+      t0 = last_use(ctx)[]
       t0 === 0.0 && continue
 
       if t1-t0 > 300
         # the pool hasn't been used for a while, so reclaim unused buffers
-        pool = pools[dev]
+        pool = pools(ctx)
         reclaim(pool)
       end
     end
@@ -467,8 +478,8 @@ const __pool_cleanup = Ref{Task}()
 
 ## utilities
 
-used_memory(dev=device()) = @lock allocated_lock begin
-    mapreduce(sizeof∘first, +, values(allocated[dev]); init=0)
+used_memory(ctx=context()) = @lock allocated_lock begin
+    mapreduce(sizeof∘first, +, values(allocated(ctx)); init=0)
 end
 
 
@@ -572,8 +583,8 @@ macro timed(ex)
     end
 end
 
-function cached_memory(dev::CuDevice=device())
-  pool = pools[dev]
+function cached_memory(ctx::CuContext=context())
+  pool = pools(ctx)
   cached_memory(pool)
 end
 
@@ -583,7 +594,7 @@ end
 Report to `io` on the memory status of the current GPU and the active memory pool.
 """
 function memory_status(io::IO=stdout)
-  dev = device()
+  ctx = context()
 
   free_bytes, total_bytes = Mem.info()
   used_bytes = total_bytes - free_bytes
@@ -592,14 +603,14 @@ function memory_status(io::IO=stdout)
               100*used_ratio, Base.format_bytes(used_bytes),
               Base.format_bytes(total_bytes))
 
-  @printf(io, "CUDA allocator usage: %s", Base.format_bytes(usage[dev][]))
-  if usage_hard_limit[dev] !== typemax(Int)
-    @printf(io, " (capped at %s)", Base.format_bytes(usage_hard_limit[dev]))
+  @printf(io, "CUDA allocator usage: %s", Base.format_bytes(usage(ctx)[]))
+  if usage_hard_limit(ctx) !== typemax(Int)
+    @printf(io, " (capped at %s)", Base.format_bytes(usage_hard_limit(ctx)))
   end
   println(io)
 
-  pool = pools[dev]
-  alloc_used_bytes = used_memory(dev)
+  pool = pools(ctx)
+  alloc_used_bytes = used_memory(ctx)
   alloc_cached_bytes = cached_memory(pool)
   alloc_total_bytes = alloc_used_bytes + alloc_cached_bytes
   @printf(io, "Memory pool usage: %s (%s allocated, %s cached)\n",
@@ -608,14 +619,14 @@ function memory_status(io::IO=stdout)
 
   # check if the memory usage as counted by the CUDA allocator wrapper
   # matches what is reported by the pool implementation
-  discrepancy = Base.abs(usage[dev][] - alloc_total_bytes)
+  discrepancy = Base.abs(usage(ctx)[] - alloc_total_bytes)
   if discrepancy != 0
     println(io, "Discrepancy of $(Base.format_bytes(discrepancy)) between memory pool and allocator!")
   end
 
   if Base.JLOptions().debug_level >= 2
     requested′, allocated′ = @lock requested_lock begin
-      copy(requested[dev]), copy(allocated[dev])
+      copy(requested(ctx)), copy(allocated(ctx))
     end
     for (ptr, bt) in requested′
       block = allocated′[ptr]

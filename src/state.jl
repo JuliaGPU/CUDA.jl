@@ -292,7 +292,8 @@ function device!(f::Function, dev::CuDevice)
 end
 
 # NVIDIA bug #3240770
-can_reset_device() = !(release() == v"11.2" && any(dev->pools[dev].stream_ordered, devices()))
+can_reset_device() = !(release() == v"11.2" &&
+                       any(dev->pools(context(dev)).stream_ordered, devices()))
 
 """
     device_reset!(dev::CuDevice=device())
@@ -344,69 +345,6 @@ Get the ID number of the current device of execution. This is a 0-indexed number
 corresponding to the device ID as known to CUDA.
 """
 deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev))
-
-
-## helpers
-
-"""
-    PerDevice{T} do dev
-        # generate a value of type `T` for device `dev`
-    end
-
-A helper struct for maintaining per-device state that's lazily initialized and automatically
-invalidated when the device is reset. Use `per_device[dev::CuDevice]` to fetch a value.
-
-Mutating or deleting state is not supported. If this is required, use a `Ref` as value.
-
-Furthermore, even though the initialization of this helper, fetching its value for a
-given device, and clearing it when the device is reset are all performed in a thread-safe
-manner, you should still take care about thread-safety when using the contained value.
-For example, if you need to update the value, use atomics; if it's a complex structure like
-an array or a dictionary, use additional locks.
-"""
-struct PerDevice{T,F,L,C}
-    lock::ReentrantLock
-    constructor::F
-    values::L
-    contexts::C
-end
-
-function PerDevice{T}(constructor::F) where {T,F}
-    values = LazyInitialized{Vector{Union{Nothing,T}}}() do
-        [nothing for _ in 1:ndevices()]
-    end
-    contexts = LazyInitialized{Vector{Union{Nothing,CuContext}}}() do
-        [nothing for _ in 1:ndevices()]
-    end
-    PerDevice{T,F,typeof(values),typeof(contexts)}(ReentrantLock(), constructor, values, contexts)
-end
-
-function Base.getindex(x::PerDevice, dev::CuDevice)
-    id = deviceid(dev)+1
-    ctx = device_context(id)    # may be nothing
-    values = x.values[]
-    contexts = x.contexts[]
-    @inbounds begin
-        # test-lock-test
-        if values[id] === nothing || contexts[id] !== ctx
-            Base.@lock x.lock begin
-                if values[id] === nothing || contexts[id] !== ctx
-                    values[id] = x.constructor(dev)
-                    contexts[id] = ctx
-                end
-            end
-        end
-        values[id]
-    end
-end
-
-Base.length(x::PerDevice) = length(x.values[])
-Base.size(x::PerDevice) = size(x.values[])
-Base.keys(x::PerDevice) = keys(x.values[])
-
-function Base.show(io::IO, mime::MIME"text/plain", x::PerDevice{T}) where {T}
-    print(io, "PerDevice{$T} with $(length(x)) entries")
-end
 
 
 ## math mode

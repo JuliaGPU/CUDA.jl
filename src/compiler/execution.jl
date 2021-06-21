@@ -279,10 +279,10 @@ in a hot path without degrading performance. New code will be generated automati
 when function changes, or when different types or keyword arguments are provided.
 """
 @timeit_ci function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
-    dev = device()
-    cache = cufunction_cache[dev]
+    cuda = active_state()
+    cache = cufunction_cache(cuda.context)
     source = FunctionSpec(f, tt, true, name)
-    target = CUDACompilerTarget(dev; kwargs...)
+    target = CUDACompilerTarget(cuda.device; kwargs...)
     params = CUDACompilerParams()
     job = CompilerJob(target, source, params)
     return GPUCompiler.cached_compilation(cache, job,
@@ -291,7 +291,8 @@ when function changes, or when different types or keyword arguments are provided
 end
 
 # XXX: does this need a lock? we'll only write to it when we have the typeinf lock.
-const cufunction_cache = PerDevice{Dict{UInt, Any}}() do dev
+const _cufunction_cache = Dict{CuContext, Dict{UInt, Any}}();
+cufunction_cache(ctx::CuContext) = get!(_cufunction_cache, ctx) do
     Dict{UInt, Any}()
 end
 
