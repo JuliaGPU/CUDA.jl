@@ -59,7 +59,7 @@ function validate_task_local_state(state::TaskLocalState)
     #       since we can't touch other tasks' local state from `device_reset!`)
     if !isvalid(state.context)
         device!(state.device)
-        state.streams[deviceid(state.device)+1] = nothing
+        @inbounds state.streams[deviceid(state.device)+1] = nothing
     end
     return state
 end
@@ -212,6 +212,7 @@ const __device_contexts = LazyInitialized{Vector{Union{Nothing,CuContext}}}() do
 end
 function device_context(i)
     contexts = __device_contexts[]
+    assume(isassigned(contexts, i))
     @inbounds contexts[i]
 end
 function device_context!(i, ctx)
