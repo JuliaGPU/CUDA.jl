@@ -295,6 +295,8 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 end
 
 @inline function alloc(::Type{Mem.UnifiedBuffer}, sz)
+  # 0-byte allocations shouldn't hit the pool
+  sz == 0 && return Mem.UnifiedBuffer(CU_NULL, 0)
   buf = try
     time = Base.@elapsed begin
       buf = @timeit_ci "Mem.alloc" begin
@@ -311,7 +313,6 @@ end
       @assert !haskey(managed_refcounts, buf.ptr)
       managed_refcounts[buf.ptr] = 1
   end
-
   return buf
 end
 
@@ -337,6 +338,7 @@ multiple calls to `free` before this buffer is put back into the memory pool.
 end
 
 @inline function alias(buf::Mem.UnifiedBuffer)
+  buf.ptr == CU_NULL && return
   @spinlock managed_refcounts_lock begin
     refcount = managed_refcounts[buf.ptr]
     managed_refcounts[buf.ptr] = refcount + 1
@@ -405,6 +407,10 @@ end
 @inline function free(buf::Mem.UnifiedBuffer)
   # this function is typically called from a finalizer, where we can't switch tasks,
   # so perform our own error handling.
+
+  # 0-byte allocations shouldn't hit the pool
+  buf.ptr == CU_NULL && return
+
   try
     # look up the memory block, and bail out if its refcount isn't 1
     @spinlock managed_refcounts_lock begin

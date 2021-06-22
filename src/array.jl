@@ -403,6 +403,7 @@ Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{BFloat16}) =
   isbits(xs) ? xs : convert(CuArray, xs)
 
 cu(xs) = adapt(Float32Adaptor(), xs)
+multicu(xs) = adapt(CuUnifiedArray, xs)
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
 
