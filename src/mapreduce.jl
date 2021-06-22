@@ -134,6 +134,32 @@ function partial_mapreduce_grid(f, op, neutral, Rreduce, Rother, shuffle, R, As.
     return
 end
 
+
+"""
+If `Rother` is large enough, then a naive loop is more efficient than partial
+reductions.
+"""
+function big_mapreduce_kernel(f, op, neutral, Rreduce, Rother, R, As)
+	val = op(neutral, neutral)
+	grid_idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+	if grid_idx > length(Rother)
+		return
+	end
+	i = Rother[grid_idx]
+	j = j1 = Rreduce[1]
+	for j in Rreduce
+		val = op(val, f(As[i + j - j1]))
+	end
+	R[i] = val
+	return
+end
+
+function big_mapreduce_threshold(dev)
+	max_concurrency = attribute(dev, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK) *
+					  attribute(dev, DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
+	return max_concurrency
+end
+
 ## COV_EXCL_STOP
 
 function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
@@ -161,6 +187,17 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     @assert length(Rall) == length(Rother) * length(Rreduce)
     @assert length(Rother) > 0
 
+	dev = device()
+
+	if length(Rother) >= big_mapreduce_threshold(dev)
+		args = (f, op, init, Rreduce, Rother, R, A)
+		kernel = @cuda launch=false big_mapreduce_kernel(args...)
+		kernel_config = launch_configuration(kernel.fun)
+		t = kernel_config.threads
+		kernel(args...; threads=t, blocks=cld(length(Rother), t))
+		return R
+	end
+
     # allocate an additional, empty dimension to write the reduced value to.
     # this does not affect the actual location in memory of the final values,
     # but allows us to write a generalized kernel supporting partial reductions.
@@ -170,7 +207,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     #
     # threads in a block work together to reduce values across the reduction dimensions;
     # we want as many as possible to improve algorithm efficiency and execution occupancy.
-    dev = device()
+
     wanted_threads = shuffle ? nextwarp(dev, length(Rreduce)) : length(Rreduce)
     function compute_threads(max_threads)
         if wanted_threads > max_threads
