@@ -96,8 +96,8 @@ function cuda_artifact(id, cuda::VersionNumber)
 
     # sometimes artifact downloads fail (e.g. JuliaGPU/CUDA.jl#1003)
     if isempty(readdir(dir))
-        error("The artifact directory at $dir is empty! This probably indicates a failed download.
-               Try removing the empty directory and restarting your code to trigger a new download attempt.")
+        error("""The artifact at $dir is empty.
+                 This is probably caused by a failed download. Remove the directory and try again.""")
     end
 
     return dir
@@ -297,7 +297,8 @@ function artifact_binary(artifact_dir, name)
     path = joinpath(artifact_dir, "bin", Sys.iswindows() ? "$name.exe" : name)
     if !ispath(path)
         error("""Could not find binary '$name' in $artifact_dir!
-                 This is a bug; please file an issue with a verbose directory listing of $artifact_dir.""")
+                 This is a bug; please file an issue with a verbose directory listing of $artifact_dir
+                 If this directory is empty, delete it and try again.""")
     end
     return path
 end
@@ -415,8 +416,9 @@ function artifact_library(artifact, name, version)
     end
 
     # we should _always_ find libraries in artifacts
-    error("""Could not find library '$name' in $artifact!
-             This is a bug; please file an issue with a verbose directory listing of $dir.""")
+    error("""Could not find library '$name' in $artifact
+             This is a bug; please file an issue with a verbose directory listing of $dir
+             If this directory is empty, delete it and try again.""")
 end
 
 function artifact_cuda_library(artifact, library, toolkit_version)
@@ -457,8 +459,9 @@ end
 function artifact_file(artifact_dir, name)
     path = joinpath(artifact_dir, name)
     if !ispath(path)
-        error("""Could not find $name in $artifact_dir!
-                 This is a bug; please file an issue with a verbose directory listing of $artifact_dir.""")
+        error("""Could not find '$name' in $artifact_dir!
+                 This is a bug; please file an issue with a verbose directory listing of $artifact_dir
+                 If this directory is empty, delete it and try again.""")
     end
     return path
 end
@@ -490,8 +493,9 @@ end
 function artifact_static_library(artifact_dir, name)
     path = joinpath(artifact_dir, "lib", Sys.iswindows() ? "$name.lib" : "lib$name.a")
     if !ispath(path)
-        error("""Could not find static library $name in $artifact_dir!
-                 This is a bug; please file an issue with a verbose directory listing of $artifact_dir.""")
+        error("""Could not find static library '$name' in $artifact_dir
+                 This is a bug; please file an issue with a verbose directory listing of $artifact_dir
+                 If this directory is empty, delete it and try again.""")
     end
     return path
 end
