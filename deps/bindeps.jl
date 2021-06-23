@@ -575,6 +575,9 @@ export libcutensor, has_cutensor
 const __libcutensor = Ref{Union{String,Nothing}}()
 function libcutensor(; throw_error::Bool=true)
     path = @initialize_ref __libcutensor begin
+        # CUTENSOR depends on CUBLAS and CUBLASlt to be discoverable by the linker
+        libcublas()
+
         version = Sys.iswindows() ? nothing : v"1"  # cutensor.dll is unversioned on Windows
         find_cutensor(toolkit(), version)
     end
