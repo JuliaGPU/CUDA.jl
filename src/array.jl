@@ -616,6 +616,21 @@ function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
   return b
 end
 
+function Base.reinterpret(::Type{T}, a::CuUnifiedArray{S,N}) where {T,S,N}
+  err = _reinterpret_exception(T, a)
+  err === nothing || throw(err)
+
+  if sizeof(T) == sizeof(S) # for N == 0
+    osize = size(a)
+  else
+    isize = size(a)
+    size1 = div(isize[1]*sizeof(S), sizeof(T))
+    osize = tuple(size1, Base.tail(isize)...)
+  end
+
+  b = CuUnifiedArray{T,N}(a.buf, osize, a.offset)
+  return b
+end
 
 ## resizing
 

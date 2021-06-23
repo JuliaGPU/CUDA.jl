@@ -8,9 +8,15 @@ mutable struct CuUnifiedArray{T,N} <: AbstractGPUArray{T,N}
   offset::Int
 
   function CuUnifiedArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
-    Base.isbitsunion(T) && error("CuUnifiedArray does not yet support union bits types")
-    Base.isbitstype(T)  || error("CuUnifiedArray only supports bits types") # allocatedinline on 1.3+
-    buf = alloc(Mem.Unified, prod(dims) * sizeof(T))
+    Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
+    maxsize = prod(dims) * sizeof(T)
+    bufsize = if Base.isbitsunion(T)
+      # type tag array past the data
+      maxsize + prod(dims)
+    else
+      maxsize
+    end
+    buf = alloc(Mem.Unified, bufsize)
     ptr = convert(CuPtr{T}, buf)
     obj = new{T,N}(buf, ptr, dims, context(), 0)
     finalizer(t -> free(t.buf), obj)
@@ -20,6 +26,7 @@ mutable struct CuUnifiedArray{T,N} <: AbstractGPUArray{T,N}
   function CuUnifiedArray{T,N}(buf::Mem.UnifiedBuffer, dims::Dims{N}, offset::Int) where {T,N}
     alias(buf)
     ptr = convert(CuPtr{T}, buf)
+    Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
     obj = new{T,N}(buf, ptr, dims, context(), offset)
     finalizer(t -> free(t.buf), obj)
   end
@@ -50,7 +57,6 @@ Base.elsize(::Type{<:CuUnifiedArray{T}}) where {T} = sizeof(T)
 Base.size(x::CuUnifiedArray) = x.dims
 Base.sizeof(x::CuUnifiedArray) = Base.elsize(x) * length(x)
 
-
 ## alias detection
 
 Base.dataids(A::CuUnifiedArray) = (UInt(A.baseptr),)
@@ -72,14 +78,6 @@ Base.similar(a::CuUnifiedArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = CuU
 function Base.copy(a::CuUnifiedArray{T,N}) where {T,N}
   b = similar(a)
   @inbounds copyto!(b, a)
-end
-
-function Base.copyto!(dest::Array{T}, doffs::Integer, src::CuUnifiedArray{T,N}, soffs::Integer,
-                      n::Integer) where {T,N}
-  # rely on CuArray, first wrap unsafely, and use CuArray's interface.
-  src_cuarray = unsafe_wrap(CuArray{T,N}, src.baseptr, src.dims; own=false)
-  copyto!(dest, doffs, src_cuarray, soffs, n)
-  return dest
 end
 
 ## interop with other arrays
@@ -115,6 +113,12 @@ function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuUnifiedA
 end
 
 ## interop with CPU arrays
+
+typetagdata(a::CuUnifiedArray, i=1) =
+  # buf.bytesize is total buffer size not accounting for the space allocated for typetags.
+  # subtract the prod(dims) to get proper offset to copy typetag info
+  convert(CuPtr{UInt8}, a.baseptr + a.buf.bytesize - prod(a.dims)) + a.offset÷Base.elsize(a) + i - 1
+
 
 # We don't convert isbits types in `adapt`, since they are already
 # considered GPU-compatible.

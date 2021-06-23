@@ -56,7 +56,7 @@ end
       err = err′
     end isa Exception
     @test occursin(
-      "does not yet support union bits types",
+      "because not all types are bitstypes",
       sprint(showerror, err))
   end
 
