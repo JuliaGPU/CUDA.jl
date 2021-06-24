@@ -327,7 +327,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
 
   ctx = context()
   pool = pools(ctx)
-  last_use(ctx)[] = time()
+  last_use(ctx)[] = trunc(Int, time())
 
   if MEMDEBUG && ptr == CuPtr{Cvoid}(0xbbbbbbbbbbbbbbbb)
     Core.println("Freeing a scrubbed pointer!")
@@ -447,9 +447,9 @@ end
 
 ## management
 
-const _last_use = Dict{CuContext, Threads.Atomic{Float64}}()
+const _last_use = Dict{CuContext, Threads.Atomic{Int}}()
 last_use(ctx::CuContext) = get!(_last_use, ctx) do
-  Threads.Atomic{Float64}(0.0)
+  Threads.Atomic{Int}(0)
 end
 
 # reclaim unused pool memory after a certain time
@@ -460,7 +460,7 @@ function pool_cleanup()
       isvalid(ctx) || continue
 
       t0 = last_use(ctx)[]
-      t0 === 0.0 && continue
+      t0 === 0 && continue
 
       if t1-t0 > 300
         # the pool hasn't been used for a while, so reclaim unused buffers
