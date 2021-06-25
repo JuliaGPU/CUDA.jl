@@ -106,6 +106,11 @@ function Random.seed!(rng::Philox2x32, seed::Integer, counter::Integer=0)
     return
 end
 
+if VERSION >= v"1.7-"
+@device_override Random.seed!(::Random._GLOBAL_RNG, seed) =
+    Random.seed!(Random.default_rng(), seed)
+end
+
 """
     Random.rand(rng::Philox2x32, UInt32)
 

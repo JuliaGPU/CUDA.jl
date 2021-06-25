@@ -11,7 +11,7 @@ k = 1
 @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     @testset "Cholesky (po)" begin
         A    = rand(elty,n,n)
-        A    = A*A' #posdef
+        A    = A*A'+I #posdef
         B    = rand(elty,n,n)
         d_A  = CuArray(A)
         d_B  = CuArray(B)
@@ -41,7 +41,7 @@ k = 1
     CUDA.CUSOLVER.version() >= v"10.1" && @testset "Cholesky inverse (potri)" begin
         # test lower
         A    = rand(elty,n,n)
-        A    = A*A' #posdef
+        A    = A*A'+I #posdef
         d_A  = CuArray(A)
 
         LinearAlgebra.LAPACK.potrf!('L', A)
@@ -53,7 +53,7 @@ k = 1
 
         # test upper
         A    = rand(elty,n,n)
-        A    = A*A' #posdef
+        A    = A*A'+I #posdef
         d_A  = CuArray(A)
 
         LinearAlgebra.LAPACK.potrf!('U', A)
@@ -233,8 +233,8 @@ k = 1
     @testset "sygvd!" begin
         A              = rand(elty,m,m)
         B              = rand(elty,m,m)
-        A             *= A'
-        B             *= B'
+        A              = A*A'+I # posdef
+        B              = B*B'+I # posdef
         d_A            = CuArray(A)
         d_B            = CuArray(B)
         local d_W, d_VA, d_VB
@@ -271,8 +271,8 @@ k = 1
     @testset "syevj!" begin
         A              = rand(elty,m,m)
         B              = rand(elty,m,m)
-        A             *= A'
-        B             *= B'
+        A              = A*A'+I # posdef
+        B              = B*B'+I # posdef
         d_A            = CuArray(A)
         d_B            = CuArray(B)
         local d_W, d_VA, d_VB

@@ -50,6 +50,23 @@ steps:
   - label: "Julia 1.7"
     plugins:
       - JuliaCI/julia#v1:
+          version: 1.7-nightly
+      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "*"
+    if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 120
+
+  - label: "Julia 1.8"
+    plugins:
+      - JuliaCI/julia#v1:
           version: nightly
       - JuliaCI/julia-test#v1: ~
       - JuliaCI/julia-coverage#v1:
