@@ -38,7 +38,7 @@ if CUDA.toolkit_version() >= v"11.0"
     @testset "mg_potrf!" begin
         @testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
             A = rand(elty, m, m)
-            A = A*A'
+            A = A*A'+I # posdef
             hA = copy(A)
             A = CUSOLVER.mg_potrf!('L',A)
             LinearAlgebra.LAPACK.potrf!('L', hA)
@@ -51,7 +51,7 @@ if CUDA.toolkit_version() >= v"11.0"
         #@testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         @testset "element type $elty" for elty in [Float64, ComplexF64]
             A = rand(elty, m, m)
-            A = A*A'
+            A = A*A'+I # posdef
             hA = copy(A)
             LinearAlgebra.LAPACK.potrf!('L', hA)
             A = CUSOLVER.mg_potrf!('L',A)
@@ -67,7 +67,7 @@ if CUDA.toolkit_version() >= v"11.0"
         @testset "element type $elty" for elty in [Float64, ComplexF64]
             A = rand(elty, m, m)
             B = rand(elty, m, m)
-            A = A*A'
+            A = A*A'+I # posdef
             hA = copy(A)
             hB = copy(B)
             LinearAlgebra.LAPACK.potrf!('L', hA)
