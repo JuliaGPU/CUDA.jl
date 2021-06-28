@@ -191,7 +191,7 @@ end
 Allocate a number of bytes `sz` from the memory pool. Returns a `CuPtr{Nothing}`; may throw
 an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 """
-@inline @timeit_ci function alloc(sz; stream::CuStream=stream())
+@inline @timeit_ci function alloc(sz; stream::Union{Nothing,CuStream}=nothing)
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return CU_NULL
 
@@ -212,7 +212,8 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
               device_synchronize()
           end
 
-          buf = actual_alloc(state.context, sz, phase==4; stream_ordered=true, stream)
+          buf = actual_alloc(state.context, sz, phase==4;
+                             stream_ordered=true, stream=something(stream, state.stream))
           buf === nothing || break
       end
     else
@@ -223,7 +224,8 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
               GC.gc(true)
           end
 
-          buf = actual_alloc(state.context, sz, phase==3; stream_ordered=false, stream)
+          buf = actual_alloc(state.context, sz, phase==3;
+                             stream_ordered=false, stream=something(stream, state.stream))
           buf === nothing || break
       end
     end
@@ -233,12 +235,14 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   # record the memory buffer
   ptr = pointer(buf)
   @lock allocated_lock begin
-      @assert !haskey(allocated(state.context), ptr)
+      @static if Base.JLOptions().debug_level >= 2
+          @assert !haskey(allocated(state.context), ptr)
+      end
       allocated(state.context)[ptr] = buf, 1
   end
 
   # record the allocation site
-  if Base.JLOptions().debug_level >= 2
+  @static if Base.JLOptions().debug_level >= 2
     bt = backtrace()
     @lock requested_lock begin
       @assert !haskey(requested(state.context), ptr)
@@ -250,8 +254,8 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   alloc_stats.pool_nalloc += 1
   alloc_stats.pool_alloc += sz
 
-  if MEMDEBUG && ptr == CuPtr{Cvoid}(0xbbbbbbbbbbbbbbbb)
-    error("Allocated a scrubbed pointer")
+  @static if MEMDEBUG
+    ptr == CuPtr{Cvoid}(0xbbbbbbbbbbbbbbbb) && error("Allocated a scrubbed pointer")
   end
 
   return ptr
@@ -283,7 +287,8 @@ end
 
 Releases a buffer pointed to by `ptr` to the memory pool.
 """
-@inline @timeit_ci function free(ptr::CuPtr{Nothing}; stream::CuStream=stream())
+@inline @timeit_ci function free(ptr::CuPtr{Nothing};
+                                 stream::Union{Nothing,CuStream}=nothing)
   # XXX: have @timeit use the root timer, since we may be called from a finalizer
 
   # 0-byte allocations shouldn't hit the pool
@@ -316,13 +321,16 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     # look up the allocation site
     if Base.JLOptions().debug_level >= 2
       @lock requested_lock begin
-        @assert haskey(requested(state.context), ptr)
+        @static if Base.JLOptions().debug_level >= 2
+          @assert haskey(requested(state.context), ptr)
+        end
         delete!(requested(state.context), ptr)
       end
     end
 
     time = Base.@elapsed actual_free(state.context, buf;
-                                     stream_ordered=stream_ordered(state.device), stream)
+                                     stream_ordered=stream_ordered(state.device),
+                                     stream=something(stream, state.stream))
 
     alloc_stats.pool_time += time
     alloc_stats.pool_nfree += 1
