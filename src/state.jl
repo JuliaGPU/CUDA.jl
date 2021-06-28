@@ -293,30 +293,17 @@ function device!(f::Function, dev::CuDevice)
 end
 
 # NVIDIA bug #3240770
-can_reset_device() = !(release() == v"11.2" &&
-                       any(dev->pools(context(dev)).stream_ordered, devices()))
+can_reset_device() = !(release() == v"11.2" && any(dev->stream_ordered(dev), devices()))
 
 """
     device_reset!(dev::CuDevice=device())
 
 Reset the CUDA state associated with a device. This call with release the underlying
 context, at which point any objects allocated in that context will be invalidated.
-
-!!! warning
-
-    This function is broken on CUDA 11.2 when using the CUDA memory pool (the default).
-    If you need to reset the device, use another memory pool by setting the
-    `JULIA_CUDA_MEMORY_POOL` environment variable to, e.g., `binned` before importing
-    this package.
 """
 function device_reset!(dev::CuDevice=device())
     if !can_reset_device()
-        @error """Due to a bug in CUDA, resetting the device is not possible on CUDA 11.2 when using the stream-ordered memory allocator.
-
-                  If you are calling this function to free memory, that may not be required anymore
-                  as the stream-ordered memory allocator releases memory much more eagerly.
-                  If you do need this functionality, switch to another memory pool by setting
-                  the `JULIA_CUDA_MEMORY_POOL` environment variable to, e.g., `binned`."""
+        @error "Due to a bug in CUDA, resetting the device is not possible on CUDA 11.2 when using the stream-ordered memory allocator."
         return
     end
 
