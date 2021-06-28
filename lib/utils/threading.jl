@@ -64,19 +64,22 @@ struct LazyInitialized{T,F}
 end
 LazyInitialized{T}(constructor::F) where {T,F} = LazyInitialized{T,F}(constructor)
 
-function Base.getindex(x::LazyInitialized)
+function Base.getindex(x::LazyInitialized; hook=nothing)
     while x.guard[] != 2
-        initialize!(x)
+        initialize!(x, hook)
     end
     assume(isassigned(x.value)) # to get rid of the check
     x.value[]
 end
 
-@noinline function initialize!(x::LazyInitialized)
+@noinline function initialize!(x::LazyInitialized, hook::F) where {F}
     status = Threads.atomic_cas!(x.guard, 0, 1)
     if status == 0
         x.value[] = x.constructor()
         x.guard[] = 2
+        if hook !== nothing
+          hook()
+        end
     else
         yield()
     end
