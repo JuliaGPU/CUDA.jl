@@ -23,16 +23,30 @@ import Adapt
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
 
   # unsafe_wrap
-  @test Base.unsafe_wrap(CuArray, CU_NULL, 1; own=false).state == CUDA.ARRAY_UNMANAGED
-  ## compare structs without using mapreduce
-  structeq(a,b) = false
-  structeq(a::T,b::T) where T = all(field->getfield(a,field) == getfield(b,field), fieldnames(T))
-  @test structeq(Base.unsafe_wrap(CuArray, CU_NULL, 2),                CuArray{Nothing,1}(CU_NULL, (2,)))
-  @test structeq(Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, 2),       CuArray{Nothing,1}(CU_NULL, (2,)))
-  @test structeq(Base.unsafe_wrap(CuArray{Nothing,1}, CU_NULL, 2),     CuArray{Nothing,1}(CU_NULL, (2,)))
-  @test structeq(Base.unsafe_wrap(CuArray, CU_NULL, (1,2)),            CuArray{Nothing,2}(CU_NULL, (1,2)))
-  @test structeq(Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, (1,2)),   CuArray{Nothing,2}(CU_NULL, (1,2)))
-  @test structeq(Base.unsafe_wrap(CuArray{Nothing,2}, CU_NULL, (1,2)), CuArray{Nothing,2}(CU_NULL, (1,2)))
+  let
+    data = CuArray{Int}(undef, 2)
+    ptr = pointer(data)
+
+    @test Base.unsafe_wrap(CuArray, ptr, 1; own=false).storage.refcount[] == -1
+
+    ## compare the fields we care about: the buffer, size, offset, and context
+    function test_eq(a, b)
+      @test eltype(a) == eltype(b)
+      @test ndims(a) == ndims(b)
+      @test a.storage.buffer == b.storage.buffer
+      @test a.maxsize == b.maxsize
+      @test a.offset == b.offset
+      @test a.dims == b.dims
+      @test a.ctx == b.ctx
+    end
+
+    test_eq(Base.unsafe_wrap(CuArray, ptr, 2),              CuArray{Int,1}(data.storage, (2,)))
+    test_eq(Base.unsafe_wrap(CuArray{Int}, ptr, 2),         CuArray{Int,1}(data.storage, (2,)))
+    test_eq(Base.unsafe_wrap(CuArray{Int,1}, ptr, 2),       CuArray{Int,1}(data.storage, (2,)))
+    test_eq(Base.unsafe_wrap(CuArray, ptr, (1,2)),          CuArray{Int,2}(data.storage, (1,2)))
+    test_eq(Base.unsafe_wrap(CuArray{Int}, ptr, (1,2)),     CuArray{Int,2}(data.storage, (1,2)))
+    test_eq(Base.unsafe_wrap(CuArray{Int,2}, ptr, (1,2)),   CuArray{Int,2}(data.storage, (1,2)))
+  end
 
   @test collect(CUDA.zeros(2, 2)) == zeros(Float32, 2, 2)
   @test collect(CUDA.ones(2, 2)) == ones(Float32, 2, 2)
