@@ -422,16 +422,17 @@ end
 function pool_cleanup()
   while true
     t1 = time()
-    for ctx in keys(__stream_ordered)
-      isvalid(ctx) || continue
+    for dev in devices()
+      ctx = device_context(dev)
+      if ctx !== nothing && stream_ordered(dev)
+        t0 = last_use(ctx)[]
+        t0 === 0 && continue
 
-      t0 = last_use(ctx)[]
-      t0 === 0 && continue
-
-      if t1-t0 > 300
-        # the pool hasn't been used for a while, so reclaim unused buffers
-        pool = pools(ctx)
-        reclaim(pool)
+        if t1-t0 > 300
+          # the pool hasn't been used for a while, so reclaim unused buffers
+          pool = pools(ctx)
+          reclaim(pool)
+        end
       end
     end
 

@@ -210,16 +210,18 @@ end
 const __device_contexts = LazyInitialized{Vector{Union{Nothing,CuContext}}}() do
     [nothing for _ in 1:ndevices()]
 end
-function device_context(i)
+function device_context(i::Int)
     contexts = __device_contexts[]
     assume(isassigned(contexts, i))
     @inbounds contexts[i]
 end
-function device_context!(i, ctx)
+function device_context!(i::Int, ctx)
     contexts = __device_contexts[]
     @inbounds contexts[i] = ctx
     return
 end
+device_context(dev::CuDevice) = device_context(deviceid(dev)+1)
+device_context!(dev::CuDevice, ctx) = device_context!(deviceid(dev)+1, ctx)
 
 function context(dev::CuDevice)
     devidx = deviceid(dev)+1
