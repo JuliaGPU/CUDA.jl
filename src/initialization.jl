@@ -43,6 +43,12 @@ end
                  For performance reasons, it is recommended to upgrade to a driver that supports CUDA 11.2 or higher."""
     end
 
+    haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT") &&
+        @warn "Support for GPU memory limits (JULIA_CUDA_MEMORY_LIMIT) has been removed."
+
+    haskey(ENV, "JULIA_CUDA_MEMORY_POOL") &&
+        @warn "Support for alternative memory pools (JULIA_CUDA_MEMORY_POOL) has been removed."
+
     # ensure that operations executed by the REPL back-end finish before returning,
     # because displaying values happens on a different task (CUDA.jl#831)
     if isdefined(Base, :active_repl_backend)
