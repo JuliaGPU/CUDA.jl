@@ -46,7 +46,4 @@ function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
     # the complete rhs
     return LinearAlgebra._cut_B(BB, 1:n)
 end
-# disambiguate
-Base.:\(F::LinearAlgebra.LAPACKFactorizations{T}, B::VecOrMat{Complex{T}}) where {T<:LinearAlgebra.BlasReal} =
-    invoke(\, Tuple{Factorization{T}, VecOrMat{Complex{T}}}, F, B)
 end
