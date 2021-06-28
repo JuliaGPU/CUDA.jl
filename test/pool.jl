@@ -17,7 +17,8 @@ end
     @test isa(ret, CuArray{Int32})
     @test occursin("1 GPU allocation: 4 bytes", out)
 
-    ret, out = @grab_output CUDA.@time Base.unsafe_wrap(CuArray, CuPtr{Int32}(12345678), (2, 3))
+    x = CuArray{Int32}(undef, 6)
+    ret, out = @grab_output CUDA.@time Base.unsafe_wrap(CuArray, pointer(x), (2, 3))
     @test isa(ret, CuArray{Int32})
     @test !occursin("GPU allocation", out)
 end

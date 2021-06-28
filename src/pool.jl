@@ -173,27 +173,15 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
     memory_status(io)
 end
 
-const allocated_lock = NonReentrantLock()
-const _allocated = Dict{CuContext, Dict{CuPtr,Tuple{Mem.DeviceBuffer,Int}}}()
-allocated(ctx::CuContext) = get!(_allocated, ctx) do
-    Dict{CuPtr,Tuple{Mem.DeviceBuffer,Int}}()
-end
-
-const requested_lock = NonReentrantLock()
-const _requested = Dict{CuContext, Dict{CuPtr{Nothing},Vector}}()
-requested(ctx::CuContext) = get!(_requested, ctx) do
-  Dict{CuPtr{Nothing},Vector}()
-end
-
 """
     alloc(sz)
 
-Allocate a number of bytes `sz` from the memory pool. Returns a `CuPtr{Nothing}`; may throw
+Allocate a number of bytes `sz` from the memory pool. Returns a buffer object; may throw
 an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 """
 @inline @timeit_ci function alloc(sz; stream::Union{Nothing,CuStream}=nothing)
   # 0-byte allocations shouldn't hit the pool
-  sz == 0 && return CU_NULL
+  sz == 0 && return Mem.DeviceBuffer(CU_NULL, 0)
 
   state = active_state()
 
@@ -232,71 +220,24 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   end
   buf === nothing && throw(OutOfGPUMemoryError(sz))
 
-  # record the memory buffer
-  ptr = pointer(buf)
-  @lock allocated_lock begin
-      @static if Base.JLOptions().debug_level >= 2
-          @assert !haskey(allocated(state.context), ptr)
-      end
-      allocated(state.context)[ptr] = buf, 1
-  end
-
-  # record the allocation site
-  @static if Base.JLOptions().debug_level >= 2
-    bt = backtrace()
-    @lock requested_lock begin
-      @assert !haskey(requested(state.context), ptr)
-      requested(state.context)[ptr] = bt
-    end
-  end
-
   alloc_stats.pool_time += time
   alloc_stats.pool_nalloc += 1
   alloc_stats.pool_alloc += sz
 
-  @static if MEMDEBUG
-    ptr == CuPtr{Cvoid}(0xbbbbbbbbbbbbbbbb) && error("Allocated a scrubbed pointer")
-  end
-
-  return ptr
+  return buf
 end
 
 """
-    alias(ptr)
+    free(buf)
 
-Increase the reference count of a buffer pointed to by `ptr`. As a result, it will require
-multiple calls to `free` before this buffer is put back into the memory pool.
+Releases a buffer `buf` to the memory pool.
 """
-@inline function alias(ptr::CuPtr{Nothing})
-  # 0-byte allocations shouldn't hit the pool
-  ptr == CU_NULL && return
-
-  ctx = context()
-
-  # look up the memory buffer
-  @spinlock allocated_lock begin
-    buf, refcount = allocated(ctx)[ptr]
-    allocated(ctx)[ptr] = buf, refcount+1
-  end
-
-  return
-end
-
-"""
-    free(ptr)
-
-Releases a buffer pointed to by `ptr` to the memory pool.
-"""
-@inline @timeit_ci function free(ptr::CuPtr{Nothing};
+@inline @timeit_ci function free(buf::Mem.DeviceBuffer;
                                  stream::Union{Nothing,CuStream}=nothing)
   # XXX: have @timeit use the root timer, since we may be called from a finalizer
 
   # 0-byte allocations shouldn't hit the pool
-  ptr == CU_NULL && return
-
-  if MEMDEBUG && ptr == CuPtr{Cvoid}(0xbbbbbbbbbbbbbbbb)
-    Core.println("Freeing a scrubbed pointer!")
-  end
+  sizeof(buf) == 0 && return
 
   state = active_state()
 
@@ -305,29 +246,6 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   # this function is typically called from a finalizer, where we can't switch tasks,
   # so perform our own error handling.
   try
-    # look up the memory buffer, and bail out if its refcount isn't 1
-    buf = @spinlock allocated_lock begin
-        buf, refcount = allocated(state.context)[ptr]
-        if refcount == 1
-          delete!(allocated(state.context), ptr)
-          buf
-        else
-          # we can't actually free this buffer yet, so decrease its refcount and return
-          allocated(state.context)[ptr] = buf, refcount-1
-          return
-        end
-    end
-
-    # look up the allocation site
-    if Base.JLOptions().debug_level >= 2
-      @lock requested_lock begin
-        @static if Base.JLOptions().debug_level >= 2
-          @assert haskey(requested(state.context), ptr)
-        end
-        delete!(requested(state.context), ptr)
-      end
-    end
-
     time = Base.@elapsed actual_free(state.context, buf;
                                      stream_ordered=stream_ordered(state.device),
                                      stream=something(stream, state.stream))
@@ -335,7 +253,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     alloc_stats.pool_time += time
     alloc_stats.pool_nfree += 1
   catch ex
-    Base.showerror_nostdio(ex, "WARNING: Error while freeing $ptr")
+    Base.showerror_nostdio(ex, "WARNING: Error while freeing $buf")
     Base.show_backtrace(Core.stdout, catch_backtrace())
     Core.println()
   end
@@ -592,20 +510,5 @@ function memory_status(io::IO=stdout)
     end
   else
     @printf(io, "No memory pool is in use.")
-  end
-
-  if Base.JLOptions().debug_level >= 2
-    requested′, allocated′ = @lock requested_lock begin
-      copy(requested(ctx)), copy(allocated(ctx))
-    end
-    for (ptr, bt) in requested′
-      buf = allocated′[ptr]
-      @printf(io, "\nOutstanding memory allocation of %s at %p",
-              Base.format_bytes(sizeof(buf)), Int(ptr))
-      stack = stacktrace(bt, false)
-      StackTraces.remove_frames!(stack, :alloc)
-      Base.show_backtrace(io, stack)
-      println(io)
-    end
   end
 end

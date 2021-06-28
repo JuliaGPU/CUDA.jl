@@ -11,7 +11,7 @@ cubatches = CuIterator(batch for batch in batches) # ensure generators are accep
 previous_cubatch = missing
 for (batch, cubatch) in zip(batches, cubatches)
     global previous_cubatch
-    @test ismissing(previous_cubatch) || all(x -> x.state == CUDA.ARRAY_FREED, previous_cubatch)
+    @test ismissing(previous_cubatch) || all(x -> x.storage === nothing, previous_cubatch)
     @test batch == Array.(cubatch)
     @test all(x -> x isa CuArray, cubatch)
     previous_cubatch = cubatch
