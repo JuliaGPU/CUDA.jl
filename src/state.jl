@@ -398,3 +398,76 @@ function stream!(f::Function, stream::CuStream)
         state.streams[devidx] = old_stream
     end
 end
+
+
+## helpers
+
+"""
+    PerDevice{T}()
+
+A helper struct for maintaining per-device state that's lazily initialized and automatically
+invalidated when the device is reset. Use `get!(per_device, dev) do ... end` to initialize
+and fetch a value.
+
+Mutating or deleting state is not supported. If this is required, use a boxed value, like
+a `Ref` or a `Threads.Atomic`.
+
+Furthermore, even though the initialization of this helper, fetching its value for a
+given device, and clearing it when the device is reset are all performed in a thread-safe
+manner, you should still take care about thread-safety when using the contained value.
+For example, if you need to update the value, use atomics; if it's a complex structure like
+an array or a dictionary, use additional locks.
+"""
+struct PerDevice{T,L}
+    lock::ReentrantLock
+    values::L
+end
+
+function PerDevice{T}() where {T}
+    values = LazyInitialized{Vector{Union{Nothing,Tuple{CuContext,T}}}}() do
+        fill(nothing, ndevices())
+    end
+    PerDevice{T,typeof(values)}(ReentrantLock(), values)
+end
+
+function Base.get(x::PerDevice, dev::CuDevice, val)
+    y = x.values[]
+    id = deviceid(dev)+1
+    ctx = device_context(id)    # may be nothing
+    @inbounds begin
+        # test-lock-test
+        if y[id] === nothing || y[id][1] !== ctx
+            val
+        else
+            y[id][2]
+        end
+    end
+end
+
+function Base.get!(constructor::F, x::PerDevice, dev::CuDevice) where {F}
+    y = x.values[]
+    id = deviceid(dev)+1
+    ctx = device_context(id)    # may be nothing
+    @inbounds begin
+        # test-lock-test
+        if y[id] === nothing || y[id][1] !== ctx
+            Base.@lock x.lock begin
+                if y[id] === nothing || y[id][1] !== ctx
+                    y[id] = (context(), constructor())
+                end
+            end
+        end
+        y[id][2]
+    end
+end
+
+Base.length(x::PerDevice) = length(x.values[])
+Base.size(x::PerDevice) = size(x.values[])
+Base.keys(x::PerDevice) = keys(x.values[])
+
+function Base.show(io::IO, mime::MIME"text/plain", x::PerDevice{T}) where {T}
+    print(io, "PerDevice{$T}:")
+    for dev in devices()
+        print(io, "\n $(deviceid(dev)): ", get(x, dev, "#undef"))
+    end
+end

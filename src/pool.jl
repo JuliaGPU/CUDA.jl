@@ -131,10 +131,8 @@ function reserved_memory(dev::CuDevice)
   end
 end
 
-const pool_lock = NonReentrantLock()
-const _pool = Dict{CuContext, CuMemoryPool}()
-pool(ctx::CuContext) = get!(_pool, ctx) do
-    dev = CuDevice(ctx)
+const _pool = PerDevice{CuMemoryPool}()
+pool(dev::CuDevice) = get!(_pool, dev) do
     pool = memory_pool(dev)
 
     # first time on this context, so configure the pool
@@ -203,10 +201,7 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   time = Base.@elapsed begin
     if stream_ordered(state.device)
       # make sure the pool is configured
-      # TODO: re-introduce PerDevice to avoid taking a lock here?
-      @lock pool_lock begin
-        pool(state.context)
-      end
+      pool(state.device)
 
       for phase in 1:4
           if phase == 2
