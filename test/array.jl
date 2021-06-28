@@ -34,10 +34,10 @@ import Adapt
       @test eltype(a) == eltype(b)
       @test ndims(a) == ndims(b)
       @test a.storage.buffer == b.storage.buffer
+      @test a.storage.ctx == b.storage.ctx
       @test a.maxsize == b.maxsize
       @test a.offset == b.offset
       @test a.dims == b.dims
-      @test a.ctx == b.ctx
     end
 
     test_eq(Base.unsafe_wrap(CuArray, ptr, 2),              CuArray{Int,1}(data.storage, (2,)))

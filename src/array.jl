@@ -1,7 +1,9 @@
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
 
-mutable struct ArrayStorage
+struct ArrayStorage
   buffer::Mem.DeviceBuffer
+
+  ctx::CuContext
 
   # the refcount also encodes the state of the array:
   # < 0: unmanaged
@@ -10,20 +12,16 @@ mutable struct ArrayStorage
   refcount::Threads.Atomic{Int}
 end
 
-ArrayStorage(buf::Mem.DeviceBuffer, state::Int) =
-  ArrayStorage(buf, Threads.Atomic{Int}(state))
-
-const NullStorage = ArrayStorage(Mem.DeviceBuffer(CU_NULL, 0), 0)
+ArrayStorage(buf::Mem.DeviceBuffer, ctx::CuContext, state::Int) =
+  ArrayStorage(buf, ctx, Threads.Atomic{Int}(state))
 
 mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
-  storage::ArrayStorage
+  storage::Union{Nothing,ArrayStorage}
 
   maxsize::Int  # maximum data size; excluding any selector bytes
   offset::Int
 
   dims::Dims{N}
-
-  ctx::CuContext
 
   function CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
     Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
@@ -34,15 +32,15 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
     else
       maxsize
     end
-    storage = ArrayStorage(alloc(bufsize), 1)
-    obj = new{T,N}(storage, maxsize, 0, dims, context())
+    storage = ArrayStorage(alloc(bufsize), context(), 1)
+    obj = new{T,N}(storage, maxsize, 0, dims)
     finalizer(unsafe_finalize!, obj)
   end
 
-  function CuArray{T,N}(storage::ArrayStorage, dims::Dims{N}, ctx=context();
+  function CuArray{T,N}(storage::ArrayStorage, dims::Dims{N};
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N}
     Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
-    return new{T,N}(storage, maxsize, offset, dims, ctx)
+    return new{T,N}(storage, maxsize, offset, dims,)
   end
 end
 
@@ -61,22 +59,21 @@ function does exactly that.
 """
 function unsafe_free!(xs::CuArray, stream::CuStream=stream())
   # this call should only have an effect once, because both the user and the GC can call it
-  refcount = xs.storage.refcount[]
-  if refcount == 0
+  if xs.storage === nothing
     return
-  elseif refcount < 0
+  elseif xs.storage.refcount[] < 0
     throw(ArgumentError("Cannot free an unmanaged buffer."))
   end
 
   refcount = Threads.atomic_add!(xs.storage.refcount, -1)
   if refcount == 1
-    @context! skip_destroyed=true xs.ctx begin
+    @context! skip_destroyed=true xs.storage.ctx begin
       free(xs.storage.buffer; stream)
     end
   end
 
   # this array object is now dead, so replace its storage by a dummy one
-  xs.storage = NullStorage
+  xs.storage = nothing
 
   return
 end
@@ -180,12 +177,12 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
       error("Could not identify the buffer type; are you passing a valid CUDA pointer to unsafe_wrap?")
   end
 
-  storage = ArrayStorage(buf, -1)
+  storage = ArrayStorage(buf, ctx, -1)
   # TODO: make this array normally managed too (deal in pool.jl with different buffer types)
-  xs = CuArray{T, length(dims)}(storage, dims, ctx)
+  xs = CuArray{T, length(dims)}(storage, dims)
   if own
     finalizer(xs) do obj
-      @context! skip_destroyed=true obj.ctx begin
+      @context! skip_destroyed=true ctx begin
         if buf isa Mem.DeviceBuffer
           # see comments in unsafe_free! for notes on the use of CuDefaultStream
           Mem.free(buf; stream=CuDefaultStream())
@@ -201,7 +198,7 @@ end
 function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
                           p::CuPtr{T}, dim::Integer;
                           own::Bool=false, ctx::CuContext=context()) where {T}
-  unsafe_wrap(Atype, p, (dim,); own=own, ctx=ctx)
+  unsafe_wrap(Atype, p, (dim,); own, ctx)
 end
 
 Base.unsafe_wrap(T::Type{<:CuArray}, ::Ptr, dims::NTuple{N,Int}; kwargs...) where {N} =
@@ -497,7 +494,7 @@ end
       Threads.atomic_add!(a.storage.refcount, 1)
     end
 
-    b = CuArray{T,M}(a.storage, dims, a.ctx; a.maxsize, offset=a.offset+offset)
+    b = CuArray{T,M}(a.storage, dims; a.maxsize, offset=a.offset+offset)
     if refcount > 0
         finalizer(unsafe_finalize!, b)
     end
@@ -546,7 +543,7 @@ function Base.reshape(a::CuArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
     Threads.atomic_add!(a.storage.refcount, 1)
   end
 
-  b = CuArray{T,N}(a.storage, dims, a.ctx; a.maxsize, a.offset)
+  b = CuArray{T,N}(a.storage, dims; a.maxsize, a.offset)
   if refcount > 0
       finalizer(unsafe_finalize!, b)
   end
@@ -625,7 +622,7 @@ function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
     Threads.atomic_add!(a.storage.refcount, 1)
   end
 
-  b = CuArray{T,N}(a.storage, osize, a.ctx; a.maxsize, a.offset)
+  b = CuArray{T,N}(a.storage, osize; a.maxsize, a.offset)
   if refcount > 0
       finalizer(unsafe_finalize!, b)
   end
@@ -654,14 +651,17 @@ function Base.resize!(A::CuVector{T}, n::Int) where T
   else
     maxsize
   end
-  buf = alloc(bufsize)
-  ptr = convert(CuPtr{T}, buf)
-  m = Base.min(length(A), n)
-  unsafe_copyto!(ptr, pointer(A), m)
+
+  new_storage = @context! A.storage.ctx begin
+    buf = alloc(bufsize)
+    ptr = convert(CuPtr{T}, buf)
+    m = Base.min(length(A), n)
+    unsafe_copyto!(ptr, pointer(A), m)
+    ArrayStorage(buf, A.storage.ctx, 1)
+  end
 
   unsafe_free!(A)
-
-  A.storage = ArrayStorage(buf, 1)
+  A.storage = new_storage
   A.dims = (n,)
   A.maxsize = maxsize
   A.offset = 0
