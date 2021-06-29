@@ -207,16 +207,17 @@ function device()
     task_local_state!().device
 end
 
-const __device_contexts = LazyInitialized{Vector{Union{Nothing,CuContext}}}() do
+const __device_contexts = LazyInitialized{Vector{Union{Nothing,CuContext}}}()
+device_contexts() = get!(__device_contexts) do
     [nothing for _ in 1:ndevices()]
 end
 function device_context(i::Int)
-    contexts = __device_contexts[]
+    contexts = device_contexts()
     assume(isassigned(contexts, i))
     @inbounds contexts[i]
 end
 function device_context!(i::Int, ctx)
-    contexts = __device_contexts[]
+    contexts = device_contexts()
     @inbounds contexts[i] = ctx
     return
 end
@@ -420,20 +421,22 @@ manner, you should still take care about thread-safety when using the contained 
 For example, if you need to update the value, use atomics; if it's a complex structure like
 an array or a dictionary, use additional locks.
 """
-struct PerDevice{T,L}
+struct PerDevice{T}
     lock::ReentrantLock
-    values::L
+    values::LazyInitialized{Vector{Union{Nothing,Tuple{CuContext,T}}}}
 end
 
 function PerDevice{T}() where {T}
-    values = LazyInitialized{Vector{Union{Nothing,Tuple{CuContext,T}}}}() do
-        fill(nothing, ndevices())
-    end
-    PerDevice{T,typeof(values)}(ReentrantLock(), values)
+    values = LazyInitialized{Vector{Union{Nothing,Tuple{CuContext,T}}}}()
+    PerDevice{T}(ReentrantLock(), values)
+end
+
+get_values(x::PerDevice) = get!(x.values) do
+    fill(nothing, ndevices())
 end
 
 function Base.get(x::PerDevice, dev::CuDevice, val)
-    y = x.values[]
+    y = get_values(x)
     id = deviceid(dev)+1
     ctx = device_context(id)    # may be nothing
     @inbounds begin
@@ -447,7 +450,7 @@ function Base.get(x::PerDevice, dev::CuDevice, val)
 end
 
 function Base.get!(constructor::F, x::PerDevice, dev::CuDevice) where {F}
-    y = x.values[]
+    y = get_values(x)
     id = deviceid(dev)+1
     ctx = device_context(id)    # may be nothing
     @inbounds begin
@@ -463,9 +466,9 @@ function Base.get!(constructor::F, x::PerDevice, dev::CuDevice) where {F}
     end
 end
 
-Base.length(x::PerDevice) = length(x.values[])
-Base.size(x::PerDevice) = size(x.values[])
-Base.keys(x::PerDevice) = keys(x.values[])
+Base.length(x::PerDevice) = length(get_values(x))
+Base.size(x::PerDevice) = size(get_values(x))
+Base.keys(x::PerDevice) = keys(get_values(x))
 
 function Base.show(io::IO, mime::MIME"text/plain", x::PerDevice{T}) where {T}
     print(io, "PerDevice{$T}:")

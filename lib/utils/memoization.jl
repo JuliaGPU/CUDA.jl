@@ -38,9 +38,10 @@ macro memoize(ex...)
     if isempty(args)
         # if we don't have to key on anything, use the global cache directly
         global_cache_eltyp = :(Union{Nothing,$rettyp})
-        global_init = :(nothing)
         ex = quote
-            cache = $(esc(global_cache))[]
+            cache = get!($(esc(global_cache))) do
+                [nothing for _ in 1:Threads.nthreads()]
+            end
             cached_value = @inbounds cache[Threads.threadid()]
             if cached_value !== nothing
                 cached_value
@@ -61,7 +62,9 @@ macro memoize(ex...)
             key = :(tuple($(map(esc, argvars)...)))
         end
         ex = quote
-            cache = $(esc(global_cache))[]
+            cache = get!($(esc(global_cache))) do
+                [$global_init for _ in 1:Threads.nthreads()]
+            end
             local_cache = @inbounds cache[Threads.threadid()]
             cached_value = get(local_cache, $key, nothing)
             if cached_value !== nothing
@@ -76,9 +79,7 @@ macro memoize(ex...)
 
     # define the per-thread cache
     @eval __module__ begin
-        const $global_cache = LazyInitialized{Vector{$(global_cache_eltyp)}}() do
-            [$global_init for _ in 1:Threads.nthreads()]
-        end
+        const $global_cache = LazyInitialized{Vector{$(global_cache_eltyp)}}()
     end
 
     quote
