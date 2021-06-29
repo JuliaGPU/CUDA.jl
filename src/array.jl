@@ -1,5 +1,11 @@
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
 
+
+## array storage
+
+# array storage is shared by arrays that refer to the same data, while keeping track of
+# the number of outstanding references
+
 struct ArrayStorage
   buffer::Mem.DeviceBuffer
 
@@ -14,6 +20,9 @@ end
 
 ArrayStorage(buf::Mem.DeviceBuffer, ctx::CuContext, state::Int) =
   ArrayStorage(buf, ctx, Threads.Atomic{Int}(state))
+
+
+## array type
 
 mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
   storage::Union{Nothing,ArrayStorage}
