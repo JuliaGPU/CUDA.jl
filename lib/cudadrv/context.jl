@@ -36,10 +36,11 @@ deletion, or use do-block syntax with this constructor.
 """
 mutable struct CuContext
     handle::CUcontext
+    valid::Bool
 
     function new_unique(handle)
         Base.@lock context_lock get!(valid_contexts, handle) do
-            new(handle)
+            new(handle, true)
         end
     end
 
@@ -96,11 +97,12 @@ end
 # out-of-order finalizer execution)
 const valid_contexts = Dict{CUcontext,CuContext}()
 const context_lock = ReentrantLock()
-isvalid(ctx::CuContext) = any(x->x==ctx, values(valid_contexts))
+isvalid(ctx::CuContext) = ctx.valid
 # NOTE: we can't just look up by the handle, because contexts derived from a primary one
 #       have the same handle even though they might have been destroyed in the meantime.
 function invalidate!(ctx::CuContext)
-    delete!(valid_contexts, ctx.handle)
+    Base.@lock context_lock delete!(valid_contexts, ctx.handle)
+    ctx.valid = false
     return
 end
 
