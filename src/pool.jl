@@ -109,19 +109,59 @@ function reserved_memory(dev::CuDevice)
 end
 
 const _pool = PerDevice{CuMemoryPool}()
-pool(dev::CuDevice) = get!(_pool, dev) do
-    pool = memory_pool(dev)
+function pool(dev::CuDevice)
+  pool_active(dev)[] = true
 
-    # first time on this context, so configure the pool
-    attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD,
-               UInt64(reserved_memory(dev)))
+  get!(_pool, dev) do
+      pool = memory_pool(dev)
 
-    # also launch a task to periodically trim the pool
-    if isinteractive() && !isassigned(__pool_cleanup)
-      __pool_cleanup[] = @async pool_cleanup()
+      # first time on this context, so configure the pool
+      attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD,
+                 UInt64(reserved_memory(dev)))
+
+      # also launch a task to periodically trim the pool
+      if isinteractive() && !isassigned(__pool_cleanup)
+        __pool_cleanup[] = @async pool_cleanup()
+      end
+
+      pool
+  end
+end
+
+# per-device flag indicating if any memory has been allocated recently
+const _pool_active = PerDevice{Threads.Atomic{Bool}}()
+pool_active(dev::CuDevice) = get!(_pool_active, dev) do
+  Threads.Atomic{Bool}(false)
+end
+
+# reclaim unused pool memory after a certain time
+const __pool_cleanup = Ref{Task}()
+function pool_cleanup()
+  idle_counters = fill(0, ndevices())
+  while true
+    for (i, dev) in enumerate(devices())
+      if stream_ordered(dev)
+        # check and reset the flag
+        active = pool_active(dev)[]
+        pool_active(dev)[] = 0
+
+        if active
+          idle_counters[i] = 0
+        else
+          idle_counters[i] += 1
+        end
+
+        if idle_counters[i] == 5
+          # the pool hasn't been used for a while, so reclaim unused buffers
+          device!(dev) do
+            reclaim()
+          end
+        end
+      end
     end
 
-    pool
+    sleep(60)
+  end
 end
 
 
@@ -166,7 +206,7 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   gctime = 0.0  # using Base.@timed/gc_num is too expensive
   time = Base.@elapsed begin
     if stream_ordered(state.device)
-      # make sure the pool is configured
+      # make sure the pool is configured and active
       pool(state.device)
 
       for phase in 1:4
@@ -218,14 +258,15 @@ Releases a buffer `buf` to the memory pool.
 
   state = active_state()
 
-  last_use(state.context)[] = trunc(Int, time())
-
   # this function is typically called from a finalizer, where we can't switch tasks,
   # so perform our own error handling.
   try
 
     time = Base.@elapsed begin
       if stream_ordered(state.device)
+        # make sure the pool is configured and active
+        pool(state.device)
+
         actual_free(buf; stream_ordered=true, stream=something(stream, state.stream))
       else
         actual_free(buf; stream_ordered=false)
@@ -318,38 +359,6 @@ end
 function retry_reclaim(f, check)
   @retry_reclaim check f()
 end
-
-
-## management
-
-const _last_use = Dict{CuContext, Threads.Atomic{Int}}()
-last_use(ctx::CuContext) = get!(_last_use, ctx) do
-  Threads.Atomic{Int}(0)
-end
-
-# reclaim unused pool memory after a certain time
-function pool_cleanup()
-  while true
-    t1 = time()
-    for dev in devices()
-      ctx = device_context(dev)
-      if ctx !== nothing && stream_ordered(dev)
-        t0 = last_use(ctx)[]
-        t0 === 0 && continue
-
-        if t1-t0 > 300
-          # the pool hasn't been used for a while, so reclaim unused buffers
-          pool = pools(ctx)
-          reclaim(pool)
-        end
-      end
-    end
-
-    sleep(60)
-  end
-end
-
-const __pool_cleanup = Ref{Task}()
 
 
 ## utilities
