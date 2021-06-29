@@ -462,11 +462,6 @@ macro timed(ex)
     end
 end
 
-function cached_memory(ctx::CuContext=context())
-  pool = pools(ctx)
-  cached_memory(pool)
-end
-
 """
     memory_status([io=stdout])
 
