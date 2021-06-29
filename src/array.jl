@@ -293,8 +293,7 @@ Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
 ## interop with device arrays
 
 function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArray{T,N}) where {T,N}
-  CuDeviceArray{T,N,AS.Global}(size(a),
-                               reinterpret(LLVMPtr{T,AS.Global}, pointer(a.storage.buffer) + a.offset),
+  CuDeviceArray{T,N,AS.Global}(size(a), reinterpret(LLVMPtr{T,AS.Global}, pointer(a)),
                                a.maxsize - a.offset)
 end
 
