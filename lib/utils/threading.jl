@@ -75,10 +75,14 @@ end
 @noinline function initialize!(x::LazyInitialized, hook::F) where {F}
     status = Threads.atomic_cas!(x.guard, 0, 1)
     if status == 0
-        x.value[] = x.constructor()
-        x.guard[] = 2
-        if hook !== nothing
-          hook()
+        try
+          x.value[] = x.constructor()
+          x.guard[] = 2
+          if hook !== nothing
+            hook()
+          end
+        finally
+          x.guard[] = 0
         end
     else
         yield()
