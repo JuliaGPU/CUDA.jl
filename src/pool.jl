@@ -2,9 +2,6 @@
 
 using Printf
 using Logging
-using DataStructures
-
-const MEMDEBUG = ccall(:jl_is_memdebug, Bool, ())
 
 
 ## allocation statistics

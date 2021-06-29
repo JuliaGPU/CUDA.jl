@@ -13,8 +13,6 @@ using LinearAlgebra: HermOrSym
 
 using Adapt
 
-using DataStructures
-
 using SparseArrays
 
 const SparseChar = Char

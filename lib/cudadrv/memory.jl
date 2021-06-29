@@ -12,8 +12,6 @@ using Base: @deprecate_binding
 
 using Printf
 
-using DataStructures
-
 
 #
 # buffers

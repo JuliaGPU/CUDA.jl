@@ -14,8 +14,6 @@ using BFloat16s
 
 using CEnum
 
-using DataStructures
-
 
 # core library
 include("libcublas_common.jl")

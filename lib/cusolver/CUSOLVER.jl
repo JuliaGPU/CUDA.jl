@@ -11,8 +11,6 @@ using ..CUSPARSE: cusparseMatDescr_t
 
 using CEnum
 
-using DataStructures
-
 
 # core library
 include("libcusolver_common.jl")

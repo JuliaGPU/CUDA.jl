@@ -8,8 +8,6 @@ using ..CUDA: libcurand, @retry_reclaim
 
 using CEnum
 
-using DataStructures
-
 
 # core library
 include("libcurand_common.jl")
