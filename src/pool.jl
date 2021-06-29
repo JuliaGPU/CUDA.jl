@@ -32,7 +32,7 @@ AllocStats(b::AllocStats, a::AllocStats) =
 
 ## CUDA allocator
 
-@timeit_ci function actual_alloc(ctx::CuContext, bytes::Integer, last_resort::Bool=false;
+@timeit_ci function actual_alloc(bytes::Integer;
                                  stream_ordered::Bool=false,
                                  stream::Union{CuStream,Nothing}=nothing)
   # try the actual allocation
@@ -52,7 +52,7 @@ AllocStats(b::AllocStats, a::AllocStats) =
   return buf
 end
 
-@timeit_ci function actual_free(ctx::CuContext, buf::Mem.DeviceBuffer; stream_ordered::Bool=false,
+@timeit_ci function actual_free(buf::Mem.DeviceBuffer; stream_ordered::Bool=false,
                                 stream::Union{CuStream,Nothing}=nothing)
   # free the memory
   time = Base.@elapsed begin
@@ -178,8 +178,7 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
               device_synchronize()
           end
 
-          buf = actual_alloc(state.context, sz, phase==4;
-                             stream_ordered=true, stream=something(stream, state.stream))
+          buf = actual_alloc(sz; stream_ordered=true, stream=something(stream, state.stream))
           buf === nothing || break
       end
     else
@@ -190,8 +189,7 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
               gctime += Base.@elapsed GC.gc(true)
           end
 
-          buf = actual_alloc(state.context, sz, phase==3;
-                             stream_ordered=false, stream=something(stream, state.stream))
+          buf = actual_alloc(sz; stream_ordered=false)
           buf === nothing || break
       end
     end
@@ -225,9 +223,14 @@ Releases a buffer `buf` to the memory pool.
   # this function is typically called from a finalizer, where we can't switch tasks,
   # so perform our own error handling.
   try
-    time = Base.@elapsed actual_free(state.context, buf;
-                                     stream_ordered=stream_ordered(state.device),
-                                     stream=something(stream, state.stream))
+
+    time = Base.@elapsed begin
+      if stream_ordered(state.device)
+        actual_free(buf; stream_ordered=true, stream=something(stream, state.stream))
+      else
+        actual_free(buf; stream_ordered=false)
+      end
+    end
 
     alloc_stats.free_count += 1
     alloc_stats.free_bytes += sizeof(buf)
