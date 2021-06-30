@@ -8,8 +8,6 @@ using ..CUDA: libcutensor,  @retry_reclaim
 
 using CEnum
 
-using DataStructures
-
 
 const cudaDataType_t = cudaDataType
 

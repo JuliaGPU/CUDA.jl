@@ -15,8 +15,6 @@ using ..CUDA: libcudnn, @retry_reclaim, isdebug, @context!
 
 using CEnum
 
-using DataStructures
-
 
 # core library
 include("libcudnn_common.jl")

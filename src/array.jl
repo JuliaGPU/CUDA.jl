@@ -1,5 +1,11 @@
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
 
+
+## array storage
+
+# array storage is shared by arrays that refer to the same data, while keeping track of
+# the number of outstanding references
+
 struct ArrayStorage
   buffer::Mem.DeviceBuffer
 
@@ -14,6 +20,9 @@ end
 
 ArrayStorage(buf::Mem.DeviceBuffer, ctx::CuContext, state::Int) =
   ArrayStorage(buf, ctx, Threads.Atomic{Int}(state))
+
+
+## array type
 
 mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
   storage::Union{Nothing,ArrayStorage}
@@ -284,8 +293,7 @@ Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
 ## interop with device arrays
 
 function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArray{T,N}) where {T,N}
-  CuDeviceArray{T,N,AS.Global}(size(a),
-                               reinterpret(LLVMPtr{T,AS.Global}, pointer(a.storage.buffer) + a.offset),
+  CuDeviceArray{T,N,AS.Global}(size(a), reinterpret(LLVMPtr{T,AS.Global}, pointer(a)),
                                a.maxsize - a.offset)
 end
 
