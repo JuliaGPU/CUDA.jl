@@ -52,8 +52,8 @@ let (code, out, err) = julia_script(script, `-g2`,
     @test code == 1
     @test occursin(host_error_re, err)
     @test occursin(device_error_re, out)
-    @test occursin("[1] Int64 at float.jl", out)
-    @test occursin("[4] kernel at none:5", out)
+    @test occursin("[1] Int64 at $(joinpath(".", "float.jl"))", out)
+    @test occursin("[4] kernel at $(joinpath(".", "none")):5", out)
 end
 
 end
@@ -75,8 +75,8 @@ let (code, out, err) = julia_script(script, `-g2`,
     @test code == 1
     @test occursin(host_error_re, err)
     @test occursin(device_error_re, out)
-    @test occursin("foo at none:4", out)
-    @test occursin("bar at none:5", out)
+    @test occursin("foo at $(joinpath(".", "none")):4", out)
+    @test occursin("bar at $(joinpath(".", "none")):5", out)
 end
 
 end

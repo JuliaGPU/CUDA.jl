@@ -12,13 +12,13 @@ GPUCompiler.reset_runtime()
 function precompile_runtime(caps=CUDA.llvm_compat(LLVM.version()).cap)
     dummy_source = FunctionSpec(()->return, Tuple{})
     params = CUDACompilerParams()
-    JuliaContext() do ctx
+    Context() do ctx
         for cap in caps
             # NOTE: this often runs when we don't have a functioning set-up,
             #       so we don't use CUDACompilerTarget(...) which requires NVML
             target = PTXCompilerTarget(; cap=cap)
             job = CompilerJob(target, dummy_source, params)
-            GPUCompiler.load_runtime(job, ctx)
+            GPUCompiler.load_runtime(job; ctx)
         end
     end
     return
@@ -77,9 +77,9 @@ end
 
 ## CUDA device library
 
-function load_libdevice(cap, ctx)
+function load_libdevice(cap; ctx)
     path = libdevice()
-    parse(LLVM.Module, read(path), ctx)
+    parse(LLVM.Module, read(path); ctx)
 end
 
 function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)
@@ -89,7 +89,7 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)
     if !any(fn->startswith(fn, "__nv_"), undefined_fns)
         return
     end
-    lib::LLVM.Module = load_libdevice(cap, ctx)
+    lib::LLVM.Module = load_libdevice(cap; ctx)
 
     # override libdevice's triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
@@ -98,8 +98,8 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)
     GPUCompiler.link_library!(mod, lib)
 
     ModulePassManager() do pm
-        push!(metadata(mod), "nvvm-reflect-ftz",
-              MDNode([ConstantInt(Int32(1), ctx)]))
+        push!(metadata(mod)["nvvm-reflect-ftz"],
+              MDNode([ConstantInt(Int32(1); ctx)]; ctx))
         run!(pm, mod)
     end
 end
