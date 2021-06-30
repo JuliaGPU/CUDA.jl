@@ -88,18 +88,21 @@ end
 
 ## stream-ordered memory pool
 
-const __stream_ordered = LazyInitialized{Vector{Bool}}() do
-  vals = Vector{Bool}(undef, ndevices())
-  if version() < v"11.2" || haskey(ENV, "CUDA_MEMCHECK")
-    fill!(vals, false)
-  else
-    for dev in devices()
-      vals[deviceid(dev)+1] = attribute(dev, DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+const __stream_ordered = LazyInitialized{Vector{Bool}}()
+function stream_ordered(dev::CuDevice)
+  flags = get!(__stream_ordered) do
+    val = Vector{Bool}(undef, ndevices())
+    if version() < v"11.2" || haskey(ENV, "CUDA_MEMCHECK")
+      fill!(val, false)
+    else
+      for dev in devices()
+        val[deviceid(dev)+1] = attribute(dev, DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+      end
     end
+    val
   end
-  vals
+  @inbounds flags[deviceid(dev)+1]
 end
-stream_ordered(dev::CuDevice) = @inbounds __stream_ordered[][deviceid(dev)+1]
 
 function allocatable_memory(dev::CuDevice)
   # NOTE: this function queries available memory, which obviously changes after we allocate.

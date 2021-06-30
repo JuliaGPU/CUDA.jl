@@ -40,43 +40,45 @@ end
 
 
 """
-    LazyInitialized{T}() do
-        # initialization, producing a value of type T
-    end
+    LazyInitialized{T}()
 
-A thread-safe, lazily-initialized wrapper for a value of type `T`. Fetch the value by
-calling `getindex`. The constructor is ensured to only be called once from a single thread.
+A thread-safe, lazily-initialized wrapper for a value of type `T`. Initialize and fetch the
+value by calling `get!`. The constructor is ensured to only be called once.
 
 This type is intended for lazy initialization of e.g. global structures, without using
 `__init__`. It is similar to protecting accesses using a lock, but is much cheaper.
 
 """
-struct LazyInitialized{T,F}
+struct LazyInitialized{T}
     # 0: uninitialized
     # 1: initializing
     # 2: initialized
     guard::Threads.Atomic{Int}
     value::Base.RefValue{T}
-    constructor::F
 
-    LazyInitialized{T,F}(constructor::F) where {T,F} =
-        new(Threads.Atomic{Int}(0), Ref{T}(), constructor)
+    LazyInitialized{T}() where {T} =
+        new(Threads.Atomic{Int}(0), Ref{T}())
 end
-LazyInitialized{T}(constructor::F) where {T,F} = LazyInitialized{T,F}(constructor)
 
-function Base.getindex(x::LazyInitialized; hook=nothing)
+function Base.get!(constructor, x::LazyInitialized; hook=nothing)
     while x.guard[] != 2
-        initialize!(x, hook)
+        initialize!(x, constructor, hook)
     end
     assume(isassigned(x.value)) # to get rid of the check
     x.value[]
 end
 
-@noinline function initialize!(x::LazyInitialized, hook::F) where {F}
+@noinline function initialize!(x::LazyInitialized, constructor::F1, hook::F2) where {F1, F2}
     status = Threads.atomic_cas!(x.guard, 0, 1)
     if status == 0
-        x.value[] = x.constructor()
-        x.guard[] = 2
+        try
+          x.value[] = constructor()
+          x.guard[] = 2
+        catch
+          x.guard[] = 0
+          rethrow()
+        end
+
         if hook !== nothing
           hook()
         end
