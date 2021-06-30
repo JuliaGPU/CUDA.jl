@@ -108,11 +108,15 @@ function reserved_memory(dev::CuDevice)
   end
 end
 
-const _pool = PerDevice{CuMemoryPool}()
-function pool(dev::CuDevice)
-  pool_active(dev)[] = true
-
-  get!(_pool, dev) do
+# per-device flag indicating the status of a pool
+const _pool_status = PerDevice{Ref{Union{Nothing,Bool}}}()
+pool_status(dev::CuDevice) = get!(_pool_status, dev) do
+  # nothing=uninitialized, false=idle, true=active
+  Ref{Union{Nothing,Bool}}(nothing)
+end
+function pool_mark(dev::CuDevice)
+  status = pool_status(dev)
+  if status[] === nothing
       pool = memory_pool(dev)
 
       # first time on this context, so configure the pool
@@ -123,15 +127,9 @@ function pool(dev::CuDevice)
       if isinteractive() && !isassigned(__pool_cleanup)
         __pool_cleanup[] = @async pool_cleanup()
       end
-
-      pool
   end
-end
-
-# per-device flag indicating if any memory has been allocated recently
-const _pool_active = PerDevice{Threads.Atomic{Bool}}()
-pool_active(dev::CuDevice) = get!(_pool_active, dev) do
-  Threads.Atomic{Bool}(false)
+  status[] = true
+  return
 end
 
 # reclaim unused pool memory after a certain time
@@ -140,22 +138,22 @@ function pool_cleanup()
   idle_counters = fill(0, ndevices())
   while true
     for (i, dev) in enumerate(devices())
-      if stream_ordered(dev)
-        # check and reset the flag
-        active = pool_active(dev)[]
-        pool_active(dev)[] = 0
+      stream_ordered(dev) || continue
 
-        if active
-          idle_counters[i] = 0
-        else
-          idle_counters[i] += 1
-        end
+      status = pool_status(dev)
+      status[] === nothing && continue
 
-        if idle_counters[i] == 5
-          # the pool hasn't been used for a while, so reclaim unused buffers
-          device!(dev) do
-            reclaim()
-          end
+      if status[]
+        idle_counters[i] = 0
+      else
+        idle_counters[i] += 1
+      end
+      status[] = 0
+
+      if idle_counters[i] == 5
+        # the pool hasn't been used for a while, so reclaim unused buffers
+        device!(dev) do
+          reclaim()
         end
       end
     end
@@ -206,8 +204,8 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   gctime = 0.0  # using Base.@timed/gc_num is too expensive
   time = Base.@elapsed begin
     if stream_ordered(state.device)
-      # make sure the pool is configured and active
-      pool(state.device)
+      # mark the pool as active
+      pool_mark(state.device)
 
       for phase in 1:4
           if phase == 2
@@ -264,8 +262,8 @@ Releases a buffer `buf` to the memory pool.
 
     time = Base.@elapsed begin
       if stream_ordered(state.device)
-        # make sure the pool is configured and active
-        pool(state.device)
+        # mark the pool as active
+        pool_mark(state.device)
 
         actual_free(buf; stream_ordered=true, stream=something(stream, state.stream))
       else
