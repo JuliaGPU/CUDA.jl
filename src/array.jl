@@ -1,4 +1,4 @@
-export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
+export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, is_unified
 
 
 ## array storage
@@ -7,7 +7,7 @@ export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
 # the number of outstanding references
 
 struct ArrayStorage
-  buffer::Mem.DeviceBuffer
+  buffer::Union{Mem.DeviceBuffer, Mem.UnifiedBuffer}
 
   ctx::CuContext
 
@@ -18,8 +18,7 @@ struct ArrayStorage
   refcount::Threads.Atomic{Int}
 end
 
-ArrayStorage(buf::Mem.DeviceBuffer, ctx::CuContext, state::Int) =
-  ArrayStorage(buf, ctx, Threads.Atomic{Int}(state))
+ArrayStorage(buf, ctx, state::Int) = ArrayStorage(buf, ctx, Threads.Atomic{Int}(state))
 
 
 ## array type
@@ -32,7 +31,7 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
 
   dims::Dims{N}
 
-  function CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
+  function CuArray{T,N}(::UndefInitializer, dims::Dims{N}; unified::Bool=false) where {T,N}
     Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
     maxsize = prod(dims) * sizeof(T)
     bufsize = if Base.isbitsunion(T)
@@ -41,7 +40,8 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
     else
       maxsize
     end
-    storage = ArrayStorage(alloc(bufsize), context(), 1)
+    buf = alloc(bufsize; unified)
+    storage = ArrayStorage(buf, context(), 1)
     obj = new{T,N}(storage, maxsize, 0, dims)
     finalizer(unsafe_finalize!, obj)
   end
@@ -52,6 +52,8 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
     return new{T,N}(storage, maxsize, offset, dims,)
   end
 end
+
+is_unified(a::CuArray) = isa(a.storage.buffer, Mem.UnifiedBuffer)
 
 """
     CUDA.unsafe_free!(a::CuArray, [stream::CuStream])
@@ -121,21 +123,23 @@ CuMatrix{T} = CuArray{T,2}
 CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
 # type and dimensionality specified, accepting dims as series of Ints
-CuArray{T,N}(::UndefInitializer, dims::Integer...) where {T,N} = CuArray{T,N}(undef, dims)
+CuArray{T,N}(::UndefInitializer, dims::Integer...; kwargs...) where {T,N} =
+  CuArray{T,N}(undef, dims; kwargs...)
 
 # type but not dimensionality specified
-CuArray{T}(::UndefInitializer, dims::Dims{N}) where {T,N} = CuArray{T,N}(undef, dims)
-CuArray{T}(::UndefInitializer, dims::Integer...) where {T} =
-  CuArray{T}(undef, convert(Tuple{Vararg{Int}}, dims))
+CuArray{T}(::UndefInitializer, dims::Dims{N}; kwargs...) where {T,N} =
+  CuArray{T,N}(undef, dims; kwargs...)
+CuArray{T}(::UndefInitializer, dims::Integer...; kwargs...) where {T} =
+  CuArray{T}(undef, convert(Tuple{Vararg{Int}}, dims); kwargs...)
 
 # empty vector constructor
-CuArray{T,1}() where {T} = CuArray{T,1}(undef, 0)
+CuArray{T,1}(; kwargs...) where {T} = CuArray{T,1}(undef, 0; kwargs...)
 
 # do-block constructors
 for (ctor, tvars) in (:CuArray => (), :(CuArray{T}) => (:T,), :(CuArray{T,N}) => (:T, :N))
   @eval begin
-    function $ctor(f::Function, args...) where {$(tvars...)}
-      xs = $ctor(args...)
+    function $ctor(f::Function, args...; kwargs...) where {$(tvars...)}
+      xs = $ctor(args...; kwargs...)
       try
         f(xs)
       finally
@@ -145,9 +149,12 @@ for (ctor, tvars) in (:CuArray => (), :(CuArray{T}) => (:T,), :(CuArray{T,N}) =>
   end
 end
 
-Base.similar(a::CuArray{T,N}) where {T,N} = CuArray{T,N}(undef, size(a))
-Base.similar(a::CuArray{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef, dims)
-Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef, dims)
+Base.similar(a::CuArray{T,N}) where {T,N} =
+  CuArray{T,N}(undef, size(a); unified=is_unified(a))
+Base.similar(a::CuArray{T}, dims::Base.Dims{N}) where {T,N} =
+  CuArray{T,N}(undef, dims; unified=is_unified(a))
+Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} =
+  CuArray{T,N}(undef, dims; unified=is_unified(a))
 
 function Base.copy(a::CuArray{T,N}) where {T,N}
   b = similar(a)
@@ -186,22 +193,8 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
       error("Could not identify the buffer type; are you passing a valid CUDA pointer to unsafe_wrap?")
   end
 
-  storage = ArrayStorage(buf, ctx, -1)
-  # TODO: make this array normally managed too (deal in pool.jl with different buffer types)
-  xs = CuArray{T, length(dims)}(storage, dims)
-  if own
-    finalizer(xs) do obj
-      @context! skip_destroyed=true ctx begin
-        if buf isa Mem.DeviceBuffer
-          # see comments in unsafe_free! for notes on the use of CuDefaultStream
-          Mem.free(buf; stream=CuDefaultStream())
-        else
-          Mem.free(buf)
-        end
-      end
-    end
-  end
-  return xs
+  storage = ArrayStorage(buf, ctx, own ? 1 : -1)
+  CuArray{T, length(dims)}(storage, dims)
 end
 
 function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
@@ -262,19 +255,29 @@ AnyCuVecOrMat{T} = Union{AnyCuVector{T}, AnyCuMatrix{T}}
 
 ## interop with other arrays
 
-@inline function CuArray{T,N}(xs::AbstractArray{<:Any,N}) where {T,N}
-  A = CuArray{T,N}(undef, size(xs))
+@inline function CuArray{T,N}(xs::AbstractArray{<:Any,N}; kwargs...) where {T,N}
+  A = CuArray{T,N}(undef, size(xs); kwargs...)
   copyto!(A, convert(Array{T}, xs))
   return A
 end
 
 # underspecified constructors
-CuArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(xs)
-(::Type{CuArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = CuArray{S,N}(x)
-CuArray(A::AbstractArray{T,N}) where {T,N} = CuArray{T,N}(A)
+CuArray{T}(xs::AbstractArray{S,N}; kwargs...) where {T,N,S} = CuArray{T,N}(xs; kwargs...)
+(::Type{CuArray{T,N} where T})(x::AbstractArray{S,N}; kwargs...) where {S,N} =
+  CuArray{S,N}(x; kwargs...)
+CuArray(A::AbstractArray{T,N}; kwargs...) where {T,N} = CuArray{T,N}(A; kwargs...)
 
 # idempotency
-CuArray{T,N}(xs::CuArray{T,N}) where {T,N} = xs
+function CuArray{T,N}(xs::CuArray{T,N}; unified::Bool=false) where {T,N}
+  if (unified && xs.storage.buffer isa Mem.UnifiedBuffer) ||
+     (!unified && xs.storage.buffer isa Mem.DeviceBuffer)
+    return xs
+  else
+    A = CuArray{T,N}(undef, size(xs); unified)
+    copyto!(A, xs)
+    return A
+  end
+end
 
 
 ## conversions

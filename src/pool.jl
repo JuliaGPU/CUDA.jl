@@ -197,15 +197,19 @@ end
 Allocate a number of bytes `sz` from the memory pool. Returns a buffer object; may throw
 an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 """
-@inline @timeit_ci function alloc(sz; stream::Union{Nothing,CuStream}=nothing)
+@inline @timeit_ci function alloc(sz; unified::Bool=false, stream::Union{Nothing,CuStream}=nothing)
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return Mem.DeviceBuffer(CU_NULL, 0)
 
-  state = active_state()
-
-  buf = nothing
   gctime = 0.0  # using Base.@timed/gc_num is too expensive
-  time = Base.@elapsed begin
+  time = Base.@elapsed if unified
+    # TODO: integrate this with the non-unified code path (e.g. we want to retry & gc too)
+    # TODO: add a memory type argument to `alloc`?
+    buf = Mem.alloc(Mem.Unified, sz)
+  else
+    state = active_state()
+
+    buf = nothing
     if stream_ordered(state.device)
       # mark the pool as active
       pool_mark(state.device)
@@ -234,8 +238,8 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
           buf === nothing || break
       end
     end
+    buf === nothing && throw(OutOfGPUMemoryError(sz))
   end
-  buf === nothing && throw(OutOfGPUMemoryError(sz))
 
   alloc_stats.alloc_count += 1
   alloc_stats.alloc_bytes += sz
@@ -250,20 +254,20 @@ end
 
 Releases a buffer `buf` to the memory pool.
 """
-@inline @timeit_ci function free(buf::Mem.DeviceBuffer;
+@inline @timeit_ci function free(buf::Mem.AbstractBuffer;
                                  stream::Union{Nothing,CuStream}=nothing)
   # XXX: have @timeit use the root timer, since we may be called from a finalizer
 
   # 0-byte allocations shouldn't hit the pool
   sizeof(buf) == 0 && return
 
-  state = active_state()
-
   # this function is typically called from a finalizer, where we can't switch tasks,
   # so perform our own error handling.
   try
-
-    time = Base.@elapsed begin
+    time = Base.@elapsed if buf isa Mem.UnifiedBuffer
+      Mem.free(buf)
+    else
+      state = active_state()
       if stream_ordered(state.device)
         # mark the pool as active
         pool_mark(state.device)
