@@ -112,7 +112,7 @@ function reserved_memory(dev::CuDevice)
 end
 
 # per-device flag indicating the status of a pool
-const _pool_status = PerDevice{Ref{Union{Nothing,Bool}}}()
+const _pool_status = PerDevice{Base.RefValue{Union{Nothing,Bool}}}()
 pool_status(dev::CuDevice) = get!(_pool_status, dev) do
   # nothing=uninitialized, false=idle, true=active
   Ref{Union{Nothing,Bool}}(nothing)
