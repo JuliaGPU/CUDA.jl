@@ -87,6 +87,26 @@ results["integration"]["cudadevrt"] = include("cudadevrt.jl")
 println(results)
 
 
+## comparison
+
+# write out the results
+BenchmarkTools.save(joinpath(@__DIR__, "results.json"), results)
+
+# compare against previous results
+# TODO: store these results so that we can compare when benchmarking PRs
+reference_path = joinpath(@__DIR__, "reference.json")
+if ispath(reference_path)
+    reference = BenchmarkTools.load(reference_path)[1]
+    comparison = judge(minimum(results), minimum(reference))
+
+    println("Improvements:")
+    println(improvements(comparison))
+
+    println("Regressions:")
+    println(regressions(comparison))
+end
+
+
 ## submission
 
 using JSON, HTTP
