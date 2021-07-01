@@ -156,149 +156,108 @@ const cuda_releases = [v"1.0", v"1.1",
                        v"8.0",
                        v"9.0", v"9.1", v"9.2",
                        v"10.0", v"10.1", v"10.2",
-                       v"11.0", v"11.1", v"11.2", v"11.3"]
+                       v"11.0", v"11.1", v"11.2", v"11.3", v"11.4"]
 
 const cuda_library_versions = Dict(
     v"11.0.1" => Dict(
         # NOTE: encountered this version in a Docker container; not sure where it came from.
-        "cudart"    => v"11.0.171",
         "cupti"     => "2020.1.0", # wtf
-        "nvrtc"     => v"11.0.167",
         "nvtx"      => v"11.0.167",
-        "nvvp"      => v"11.0.167",
         "cublas"    => v"11.0.0", #.191
         "cufft"     => v"10.1.3", #.191
         "curand"    => v"10.2.0", #.191
         "cusolver"  => v"10.4.0", #.191
         "cusparse"  => v"11.0.0", #.191
-        "npp"       => v"11.0.0", #.191
-        "nvjpeg"    => v"11.0.0", #.191
     ),
     v"11.0.2" => Dict(
-        "cudart"    => v"11.0.171",
         "cupti"     => "2020.1.0", # wtf
-        "nvrtc"     => v"11.0.167",
         "nvtx"      => v"11.0.167",
-        "nvvp"      => v"11.0.167",
         "cublas"    => v"11.0.0", #.191
         "cufft"     => v"10.1.3", #.191
         "curand"    => v"10.2.0", #.191
         "cusolver"  => v"10.4.0", #.191
         "cusparse"  => v"11.0.0", #.191
-        "npp"       => v"11.0.0", #.191
-        "nvjpeg"    => v"11.0.0", #.191
     ),
     v"11.0.3" => Dict(
-        "cudart"    => v"11.0.221",
         "cupti"     => "2020.1.1", # docs mention 11.0.221
-        "nvrtc"     => v"11.0.221",
         "nvtx"      => v"11.0.167",
-        "nvvp"      => v"11.0.221",
         "cublas"    => v"11.2.0", #.252
         "cufft"     => v"10.2.1", #.245
         "curand"    => v"10.2.1", #.245
         "cusolver"  => v"10.6.0", #.245
         "cusparse"  => v"11.1.1", #.245
-        "npp"       => v"11.1.0", #.245
-        "nvjpeg"    => v"11.1.1", #.245
     ),
     v"11.1.0" => Dict(
-        "cudart"    => v"11.1.74",
         "cupti"     => "2020.2.0", # docs mention 11.1.69
-        "nvrtc"     => v"11.1.74",
         "nvtx"      => v"11.1.74",
-        "nvvp"      => v"11.1.74",
         "cublas"    => v"11.2.1", #.74
         "cufft"     => v"10.3.0", #.74
         "curand"    => v"10.2.2", #.74
         "cusolver"  => v"11.0.0", #.74
         "cusparse"  => v"11.2.0", #.275
-        "npp"       => v"11.1.1", #.269
-        "nvjpeg"    => v"11.2.0", #.74
     ),
     v"11.1.1" => Dict(
-        "cudart"    => v"11.1.74",
         "cupti"     => "2020.2.1", # docs mention 11.1.105
-        "nvrtc"     => v"11.1.105",
         "nvtx"      => v"11.1.74",
-        "nvvp"      => v"11.1.105",
         "cublas"    => v"11.3.0", #.106
         "cufft"     => v"10.3.0", #.105
         "curand"    => v"10.2.2", #.105
         "cusolver"  => v"11.0.1", #.105
         "cusparse"  => v"11.3.0", #.10
-        "npp"       => v"11.1.2", #.105
-        "nvjpeg"    => v"11.3.0", #.105
     ),
     v"11.2.0" => Dict(
-        "cudart"    => v"11.2.72",
         "cupti"     => "2020.3.0", # docs mention 11.2.67
-        "nvrtc"     => v"11.2.67",
         "nvtx"      => v"11.2.67",
-        "nvvp"      => v"11.2.67",
         "cublas"    => v"11.3.1", #.68
         "cufft"     => v"10.4.0", #.72
         "curand"    => v"10.2.3", #.68
         "cusolver"  => v"11.0.2", #.68
         "cusparse"  => v"11.3.1", #.68
-        "npp"       => v"11.2.1", #.68
-        "nvjpeg"    => v"11.3.1", #.68
     ),
     v"11.2.1" => Dict(
-        "cudart"    => v"11.2.146",
         "cupti"     => "2020.3.1", # docs mention 11.2.135
-        "nvrtc"     => v"11.2.142",
         "nvtx"      => v"11.2.67",
-        "nvvp"      => v"11.2.135",
         "cublas"    => v"11.4.1", #.1026
         "cufft"     => v"10.4.0", #.135
         "curand"    => v"10.2.3", #.135
         "cusolver"  => v"11.1.0", #.135
         "cusparse"  => v"11.4.0", #.135
-        "npp"       => v"11.3.2", #.139
-        "nvjpeg"    => v"11.4.0", #.135
     ),
     v"11.2.2" => Dict(
-        "cudart"    => v"11.2.152",
         "cupti"     => "2020.3.1", # docs mention 11.2.152
-        "nvrtc"     => v"11.2.152",
         "nvtx"      => v"11.2.152",
-        "nvvp"      => v"11.2.152",
         "cublas"    => v"11.4.1", #.1043
         "cufft"     => v"10.4.1", #.152
         "curand"    => v"10.2.3", #.152
         "cusolver"  => v"11.1.0", #.152
         "cusparse"  => v"11.4.1", #.1152
-        "npp"       => v"11.3.2", #.152
-        "nvjpeg"    => v"11.4.0", #.152
     ),
     v"11.3.0" => Dict(
-        "cudart"    => v"11.3.58",
         "cupti"     => "2021.1.0", # docs mention 11.3.58
-        "nvrtc"     => v"11.3.58",
         "nvtx"      => v"11.3.58",
-        "nvvp"      => v"11.3.58",
         "cublas"    => v"11.4.2", #.10064
         "cufft"     => v"10.4.2", #.58
         "curand"    => v"10.2.4", #.58
         "cusolver"  => v"11.1.1", #.58
         "cusparse"  => v"11.5.0", #.58
-        "npp"       => v"11.3.3", #.44
-        "nvjpeg"    => v"11.4.1", #.53
     ),
     v"11.3.1" => Dict(
-        "cudart"    => v"11.3.109",
         "cupti"     => "2021.1.1", # docs mention 11.3.111
-        "nvrtc"     => v"11.3.109",
         "nvtx"      => v"11.3.109",
-        "nvvp"      => v"11.3.111",
         "cublas"    => v"11.5.1", #.109
         "cufft"     => v"10.4.2", #.109
         "curand"    => v"10.2.4", #.109
         "cusolver"  => v"11.1.2", #.109
         "cusparse"  => v"11.6.0", #.109
-        "npp"       => v"11.3.3", #.95
-        "nvjpeg"    => v"11.5.0", #.109
+    ),
+    v"11.4.0" => Dict(
+        "cupti"     => "2021.2.0", # docs mention 11.4.65
+        "nvtx"      => v"11.4.43",
+        "cublas"    => v"11.5.2", #.43
+        "cufft"     => v"10.5.0", #.43
+        "curand"    => v"10.2.5", #.43
+        "cusolver"  => v"11.2.0", #.43
+        "cusparse"  => v"11.6.0", #.43
     ),
 )
 
@@ -361,6 +320,9 @@ const cuda_binary_versions = Dict(
     v"11.3.1" => Dict(
         "nvdisasm"  => v"11.3.58",  # ambiguous!
         "ptxas"     => v"11.3.109"
+    ),
+    v"11.3.1" => Dict(
+        "nvdisasm"  => v"11.4.43"
     ),
 )
 
