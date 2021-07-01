@@ -423,6 +423,7 @@ end
         elseif !isempty(log)
             @debug "PTX linker info log:\n" * log
         end
+        rm(ptxas_output)
 
         image = read(nvlink_output)
         rm(nvlink_output)
