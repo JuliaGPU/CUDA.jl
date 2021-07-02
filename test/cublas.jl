@@ -1535,7 +1535,8 @@ end
             pivot, info = CUBLAS.getrf_batched!(d_A, false)
             h_info = Array(info)
             for As in 1:length(d_A)
-                C   = lu!(copy(A[As]), Val(false)) # lu(A[As],pivot=false)
+                pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
+                C   = lu!(copy(A[As]), pivot) # lu(A[As],pivot=false)
                 h_A = Array(d_A[As])
                 #reconstruct L,U
                 dL = Matrix(one(elty)*I, m, m)
@@ -1591,7 +1592,8 @@ end
             pivot, info, d_B = CUBLAS.getrf_batched(d_A, false)
             h_info = Array(info)
             for Bs in 1:length(d_B)
-                C   = lu!(copy(A[Bs]),Val(false)) # lu(A[Bs],pivot=false)
+                pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
+                C   = lu!(copy(A[Bs]),pivot) # lu(A[Bs],pivot=false)
                 h_B = Array(d_B[Bs])
                 #reconstruct L,U
                 dL = Matrix(one(elty)*I, m, m)
@@ -1617,7 +1619,8 @@ end
             pivot, info = CUBLAS.getrf_strided_batched!(d_A, false)
             h_info = Array(info)
             for As in 1:size(d_A, 3)
-                C   = lu!(copy(A[:,:,As]), Val(false)) # lu(A[As],pivot=false)
+                pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
+                C   = lu!(copy(A[:,:,As]), pivot) # lu(A[As],pivot=false)
                 h_A = Array(d_A[:,:,As])
                 #reconstruct L,U
                 dL = Matrix(one(elty)*I, m, m)
@@ -1673,7 +1676,8 @@ end
             end
 
             for Bs in 1:size(d_B, 3)
-                C   = lu!(copy(A[:,:,Bs]),Val(false)) # lu(A[Bs],pivot=false)
+                pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
+                C   = lu!(copy(A[:,:,Bs]),pivot) # lu(A[Bs],pivot=false)
                 h_B = Array(d_B[:,:,Bs])
                 #reconstruct L,U
                 dL = Matrix(one(elty)*I, m, m)

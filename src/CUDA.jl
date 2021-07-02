@@ -16,7 +16,7 @@ using LinearAlgebra
 
 using BFloat16s
 
-using ExprTools
+using ExprTools: splitdef, combinedef
 
 # TODO: set lib versions in bindeps or so
 

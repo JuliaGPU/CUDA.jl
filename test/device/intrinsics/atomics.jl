@@ -1,3 +1,6 @@
+# TODO: unify with Base.@atomic
+using CUDA: @atomic
+
 @testset "atomics (low-level)" begin
 
 @testset "atomic_add" begin
