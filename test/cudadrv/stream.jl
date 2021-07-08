@@ -24,3 +24,5 @@ synchronize()
 synchronize(; blocking=false)
 synchronize(stream())
 synchronize(stream(); blocking=false)
+
+@grab_output show(stdout, stream())

@@ -15,3 +15,4 @@ capability(dev)
 @grab_output show(stdout, "text/plain", CUDA.DEVICE_INVALID)
 
 @test length(devices()) == ndevices()
+@grab_output show(stdout, "text/plain", devices())
