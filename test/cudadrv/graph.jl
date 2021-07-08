@@ -6,6 +6,7 @@ let A = CUDA.zeros(Int, 1)
     @test Array(A) == [1]
 
     graph = capture() do
+        @test is_capturing()
         A .+= 1
     end
     @test Array(A) == [1]
