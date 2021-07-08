@@ -70,6 +70,8 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
         @test_throws ArgumentError convert(Ptr, src)
     end
 
+    @grab_output show(stdout, src)
+    @grab_output show(stdout, dst)
     Mem.free(src)
     Mem.free(dst)
 end
