@@ -2,14 +2,19 @@
 
 export CuMemoryPool, default_memory_pool, memory_pool, memory_pool!, trim, attribute, attribute!
 
+@enum_without_prefix CUmemAllocationType CU_MEM_
+@enum_without_prefix CUmemAllocationHandleType CU_MEM_
+
 mutable struct CuMemoryPool
     handle::CUmemoryPool
     ctx::CuContext
 
-    function CuMemoryPool(dev::CuDevice)
+    function CuMemoryPool(dev::CuDevice;
+                          alloc_type::CUmemAllocationType=ALLOCATION_TYPE_PINNED,
+                          handle_type::CUmemAllocationHandleType=HANDLE_TYPE_NONE)
         props = Ref(CUmemPoolProps(
-            CU_MEM_ALLOCATION_TYPE_PINNED,
-            CU_MEM_HANDLE_TYPE_NONE,
+            alloc_type,
+            handle_type,
             CUmemLocation(
                 CU_MEM_LOCATION_TYPE_DEVICE,
                 deviceid(dev)
