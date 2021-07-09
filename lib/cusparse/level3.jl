@@ -22,9 +22,9 @@ for (fname,elty) in ((:cusparseSbsrmm, :Float32),
                      transb::SparseChar,
                      alpha::Number,
                      A::CuSparseMatrixBSR{$elty},
-                     B::CuMatrix{$elty},
+                     B::StridedCuMatrix{$elty},
                      beta::Number,
-                     C::CuMatrix{$elty},
+                     C::StridedCuMatrix{$elty},
                      index::SparseChar)
             desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, index)
             m,k = A.dims
@@ -60,9 +60,9 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
                       transb::SparseChar,
                       alpha::Number,
                       A::CuSparseMatrixCSR{$elty},
-                      B::CuMatrix{$elty},
+                      B::StridedCuMatrix{$elty},
                       beta::Number,
-                      C::CuMatrix{$elty},
+                      C::StridedCuMatrix{$elty},
                       index::SparseChar)
             if transb == 'C'
                 throw(ArgumentError("B^H is not supported"))
@@ -92,9 +92,9 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
                       transb::SparseChar,
                       alpha::Number,
                       A::CuSparseMatrixCSC{$elty},
-                      B::CuMatrix{$elty},
+                      B::StridedCuMatrix{$elty},
                       beta::Number,
-                      C::CuMatrix{$elty},
+                      C::StridedCuMatrix{$elty},
                       index::SparseChar)
             if transb == 'C'
                 throw(ArgumentError("B^H is not supported"))
@@ -149,7 +149,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
                       diag::SparseChar,
                       alpha::Number,
                       A::CuSparseMatrixBSR{$elty},
-                      X::CuMatrix{$elty},
+                      X::StridedCuMatrix{$elty},
                       index::SparseChar)
             desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, uplo, diag, index)
             m,n = A.dims
@@ -209,7 +209,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                       diag::SparseChar,
                       alpha::Number,
                       A::CuSparseMatrixCSR{$elty},
-                      X::CuMatrix{$elty},
+                      X::StridedCuMatrix{$elty},
                       index::SparseChar)
             desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, uplo, diag, index)
             m,n = A.dims
@@ -269,7 +269,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                       diag::SparseChar,
                       alpha::Number,
                       A::CuSparseMatrixCSC{$elty},
-                      X::CuMatrix{$elty},
+                      X::StridedCuMatrix{$elty},
                       index::SparseChar)
             ctransa = 'N'
             cuplo = 'U'
@@ -333,7 +333,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
                      diag::SparseChar,
                      alpha::Number,
                      A::CuSparseMatrix{$elty},
-                     X::CuMatrix{$elty},
+                     X::StridedCuMatrix{$elty},
                      index::SparseChar)
             sm2!(transa,transxy,uplo,diag,alpha,A,copy(X),index)
         end
@@ -342,7 +342,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
                      uplo::SparseChar,
                      diag::SparseChar,
                      A::CuSparseMatrix{$elty},
-                     X::CuMatrix{$elty},
+                     X::StridedCuMatrix{$elty},
                      index::SparseChar)
             sm2!(transa,transxy,uplo,diag,one($elty),A,copy(X),index)
         end
@@ -350,7 +350,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
                      transxy::SparseChar,
                      uplo::SparseChar,
                      A::CuSparseMatrix{$elty},
-                     X::CuMatrix{$elty},
+                     X::StridedCuMatrix{$elty},
                      index::SparseChar)
             sm2!(transa,transxy,uplo,'N',one($elty),A,copy(X),index)
         end
