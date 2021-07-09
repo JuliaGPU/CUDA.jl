@@ -21,16 +21,16 @@
 # >   that points to either the global address space or the shared address space.
 
 @generated function llvm_atomic_op(::Val{binop}, ptr::LLVMPtr{T,A}, val::T) where {binop, T, A}
-    JuliaContext() do ctx
-        T_val = convert(LLVMType, T, ctx)
-        T_ptr = convert(LLVMType, ptr, ctx)
+    Context() do ctx
+        T_val = convert(LLVMType, T; ctx)
+        T_ptr = convert(LLVMType, ptr; ctx)
 
         T_typed_ptr = LLVM.PointerType(T_val, A)
 
         llvm_f, _ = create_function(T_val, [T_ptr, T_val])
 
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
             typed_ptr = bitcast!(builder, parameters(llvm_f)[1], T_typed_ptr)
@@ -42,7 +42,7 @@
             ret!(builder, rv)
         end
 
-        call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T}, :((ptr,val)))
+        call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T}, :ptr, :val)
     end
 end
 
@@ -89,16 +89,16 @@ for T in (Int32, Int64, UInt32, UInt64)
 end
 
 @generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T) where {T, A}
-    JuliaContext() do ctx
-        T_val = convert(LLVMType, T, ctx)
-        T_ptr = convert(LLVMType, ptr, ctx)
+    Context() do ctx
+        T_val = convert(LLVMType, T; ctx)
+        T_ptr = convert(LLVMType, ptr,;ctx)
 
         T_typed_ptr = LLVM.PointerType(T_val, A)
 
         llvm_f, _ = create_function(T_val, [T_ptr, T_val, T_val])
 
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
             typed_ptr = bitcast!(builder, parameters(llvm_f)[1], T_typed_ptr)
@@ -112,7 +112,7 @@ end
             ret!(builder, rv)
         end
 
-        call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T, T}, :((ptr,cmp,val)))
+        call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T, T}, :ptr, :cmp, :val)
     end
 end
 
