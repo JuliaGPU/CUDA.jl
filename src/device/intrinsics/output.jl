@@ -36,7 +36,7 @@ macro cuprintf(fmt::String, args...)
 end
 
 @generated function _cuprintf(::Val{fmt}, argspec...) where {fmt}
-    JuliaContext() do ctx
+    Context() do ctx
         arg_exprs = [:( argspec[$i] ) for i in 1:length(argspec)]
         arg_types = [argspec...]
 
@@ -45,13 +45,13 @@ end
         T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx))
 
         # create functions
-        param_types = LLVMType[convert(LLVMType, typ, ctx) for typ in arg_types]
+        param_types = LLVMType[convert(LLVMType, typ; ctx) for typ in arg_types]
         llvm_f, _ = create_function(T_int32, param_types)
         mod = LLVM.parent(llvm_f)
 
         # generate IR
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
             str = globalstring_ptr!(builder, String(fmt))
@@ -60,7 +60,7 @@ end
             if isempty(argspec)
                 buffer = LLVM.PointerNull(T_pint8)
             else
-                argtypes = LLVM.StructType("printf_args", ctx)
+                argtypes = LLVM.StructType("printf_args"; ctx)
                 elements!(argtypes, param_types)
 
                 args = alloca!(builder, argtypes)
@@ -80,8 +80,7 @@ end
             ret!(builder, chars)
         end
 
-        arg_tuple = Expr(:tuple, arg_exprs...)
-        call_function(llvm_f, Int32, Tuple{arg_types...}, arg_tuple)
+        call_function(llvm_f, Int32, Tuple{arg_types...}, arg_exprs...)
     end
 end
 
