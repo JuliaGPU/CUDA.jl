@@ -23,13 +23,22 @@
       end
     end
 
-    for op in (exp, angle, exp2, exp10, expm1)
+    for op in (exp, angle, exp2, exp10,)
         @testset "$op" begin
             for T in (Float16, Float32, Float64)
                 @test testf(x->op.(x), rand(T, 1))
                 @test testf(x->op.(x), -rand(T, 1))
             end
+        end
+    end
 
+    for op in (expm1,)
+        @testset "$op" begin
+            # FIXME: add expm1(::Float16) to Base
+            for T in (Float32, Float64)
+                @test testf(x->op.(x), rand(T, 1))
+                @test testf(x->op.(x), -rand(T, 1))
+            end
         end
     end
 
