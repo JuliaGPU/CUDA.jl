@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Custom sum · CUDA.jl</title><script>(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-154489943-2', 'auto');
+ga('send', 'pageview', {'page': location.pathname + location.search + location.hash});
+</script><link rel="canonical" href="https://juliagpu.github.io/CUDA.jl/stable/tutorials/sum/"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="CUDA.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit">CUDA.jl</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Tutorials</span><ul><li><a class="tocitem" href="../introduction/">Introduction</a></li><li class="is-active"><a class="tocitem" href>Custom sum</a></li></ul></li><li><span class="tocitem">Installation</span><ul><li><a class="tocitem" href="../../installation/overview/">Overview</a></li><li><a class="tocitem" href="../../installation/conditional/">Conditional use</a></li><li><a class="tocitem" href="../../installation/troubleshooting/">Troubleshooting</a></li></ul></li><li><span class="tocitem">Usage</span><ul><li><a class="tocitem" href="../../usage/overview/">Overview</a></li><li><a class="tocitem" href="../../usage/workflow/">Workflow</a></li><li><a class="tocitem" href="../../usage/array/">Array programming</a></li><li><a class="tocitem" href="../../usage/memory/">Memory management</a></li><li><a class="tocitem" href="../../usage/multigpu/">Multiple GPUs</a></li></ul></li><li><span class="tocitem">Development</span><ul><li><a class="tocitem" href="../../development/profiling/">Profiling</a></li><li><a class="tocitem" href="../../development/troubleshooting/">Troubleshooting</a></li></ul></li><li><span class="tocitem">API reference</span><ul><li><a class="tocitem" href="../../api/essentials/">Essentials</a></li><li><a class="tocitem" href="../../api/compiler/">Compiler</a></li><li><a class="tocitem" href="../../api/kernel/">Kernel programming</a></li><li><a class="tocitem" href="../../api/array/">Array programming</a></li></ul></li><li><span class="tocitem">Library reference</span><ul><li><a class="tocitem" href="../../lib/driver/">CUDA driver</a></li></ul></li><li><a class="tocitem" href="../../faq/">FAQ</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorials</a></li><li class="is-active"><a href>Custom sum</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Custom sum</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaGPU/CUDA.jl/blob/master/docs/src/tutorials/sum.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Custom-sum"><a class="docs-heading-anchor" href="#Custom-sum">Custom sum</a><a id="Custom-sum-1"></a><a class="docs-heading-anchor-permalink" href="#Custom-sum" title="Permalink"></a></h1><p>This tutorial shows, how to implement custom reduction algorithms on CPU. Our example will be a custom sum. We will start with the most simple possible implementation and provide faster implementations later.</p><pre><code class="language-julia">using CUDA
+
+function sum_baseline_kernel(out, arr)
+    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    stride = blockDim().x * gridDim().x
+    for i = index:stride:length(arr)
+        @atomic out[] += arr[i]
+    end
+    return nothing
+end</code></pre><pre class="documenter-example-output">sum_baseline_kernel (generic function with 1 method)</pre><p>Observe that kernels have no return values. So instead of returning the result, we write it in a 0-dimensional array <code>out</code>. First we should check, whether our kernel is correct</p><pre><code class="language-julia">using Test
+out = CUDA.zeros()
+arr = CUDA.randn(10^6)
+@cuda sum_baseline_kernel(out, arr)
+@test CUDA.sum(arr) ≈ out[]</code></pre><pre class="documenter-example-output">Test Passed</pre><p>Lets wrap the kernel in a function, that takes care of allocating <code>out</code> and launching the kernel.</p><pre><code class="language-">function sum_baseline(arr)
+    out = CUDA.zeros(eltype(arr))
+    CUDA.@sync begin
+        @cuda threads=256 blocks=64 sum_baseline_kernel(out, arr)
+    end
+    out[]
+end
+
+using BenchmarkTools
+@test sum_baseline(arr) ≈ CUDA.sum(arr)
+@btime sum_baseline(arr) # 1.675 ms (9 allocations: 368 bytes)
+@btime CUDA.sum(arr) # 42.621 μs (32 allocations: 1.25 KiB)</code></pre><p>Our kernel is much slower, then the optimized implementation <code>CUDA.sum</code>. The problem is, that at the end of the day we are computing the sum sequentially. While we use lots of threads, only one can execute the incrementation <code>out[] += arr[i]</code> at a time. We can improve the situation by accessing <code>out[]</code> less often:</p><pre><code class="language-">function sum_atomic_kernel(out, arr)
+    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    stride = blockDim().x * gridDim().x
+    acc = zero(eltype(out))
+    for i = index:stride:length(arr)
+        @inbounds acc += arr[i]
+    end
+    @atomic out[] += acc
+    return nothing
+end
+function sum_atomic(arr)
+    out = CUDA.zeros(eltype(arr))
+    CUDA.@sync begin
+        @cuda threads=256 blocks=64 sum_atomic_kernel(out, arr)
+    end
+    out[]
+end
+
+@test CUDA.sum(arr) ≈ sum_atomic(arr)
+@btime sum_atomic(arr) # 61.939 μs (9 allocations: 368 bytes)
+@btime sum(arr) # 42.652 μs (32 allocations: 1.25 KiB)</code></pre><p>Performance is much better now, but there is still a gap. The reason is that there is still a multitude of threads which desire access <code>out[]</code> at the same time.</p><p>We can further improve the situation by using shared memory. The following code is based on a <a href="https://sodocumentation.net/cuda/topic/6566/parallel-reduction--e-g--how-to-sum-an-array-">CUDA tutorial</a>.</p><pre><code class="language-">function sum_block_kernel!(out, x)
+    ithread = threadIdx().x
+    iblock = blockIdx().x
+    index = (iblock - 1) * blockDim().x + ithread
+    stride = blockDim().x * gridDim().x
+    acc = zero(eltype(out))
+    for i in index:stride:length(x)
+        @inbounds acc += x[i]
+    end
+    shmem = @cuDynamicSharedMem(eltype(out), blockDim().x)
+    shmem[ithread] = acc
+    imax = blockDim().x ÷ 2
+    sync_threads()
+    while imax &gt;= 1
+        if ithread &lt;= imax
+            shmem[ithread] += shmem[ithread+imax]
+        end
+        imax = imax ÷ 2
+        sync_threads()
+    end
+    if ithread === 1
+        out[iblock] = shmem[1]
+    end
+    nothing
+end
+
+function sum_shmem(x)
+    threads = 256
+    blocks = 64
+    block_sums = CUDA.zeros(eltype(x), blocks)
+    CUDA.@sync begin
+        shmem = sizeof(eltype(x)) * threads
+        @assert ispow2(threads)
+        k = @cuda threads=threads blocks=blocks shmem=shmem sum_block_kernel!(block_sums, x)
+    end
+    out = CUDA.zeros(eltype(x), 1)
+    CUDA.@sync begin
+        shmem = sizeof(eltype(x)) * threads
+        @assert ispow2(threads)
+        k = @cuda threads=threads blocks=1 shmem=shmem sum_block_kernel!(out, block_sums)
+    end
+    return only(collect(out))
+end
+
+@test CUDA.sum(arr) ≈ sum_shmem(arr)
+@btime sum_shmem(arr) # 47.592 μs (16 allocations: 624 bytes)
+@btime sum(arr) # 42.772 μs (32 allocations: 1.25 KiB)</code></pre><p>Now we are pretty close to <code>sum</code>.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../introduction/">« Introduction</a><a class="docs-footer-nextpage" href="../../installation/overview/">Overview »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Thursday 4 February 2021 03:00">Thursday 4 February 2021</span>. Using Julia version 1.6.0-beta1.91.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

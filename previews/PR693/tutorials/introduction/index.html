@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Introduction · CUDA.jl</title><script>(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-154489943-2', 'auto');
+ga('send', 'pageview', {'page': location.pathname + location.search + location.hash});
+</script><link rel="canonical" href="https://juliagpu.github.io/CUDA.jl/stable/tutorials/introduction/"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="CUDA.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit">CUDA.jl</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Tutorials</span><ul><li class="is-active"><a class="tocitem" href>Introduction</a><ul class="internal"><li><a class="tocitem" href="#A-simple-example-on-the-CPU"><span>A simple example on the CPU</span></a></li><li><a class="tocitem" href="#Your-first-GPU-computation"><span>Your first GPU computation</span></a></li><li><a class="tocitem" href="#Summary"><span>Summary</span></a></li></ul></li></ul></li><li><span class="tocitem">Installation</span><ul><li><a class="tocitem" href="../../installation/overview/">Overview</a></li><li><a class="tocitem" href="../../installation/conditional/">Conditional use</a></li><li><a class="tocitem" href="../../installation/troubleshooting/">Troubleshooting</a></li></ul></li><li><span class="tocitem">Usage</span><ul><li><a class="tocitem" href="../../usage/overview/">Overview</a></li><li><a class="tocitem" href="../../usage/workflow/">Workflow</a></li><li><a class="tocitem" href="../../usage/array/">Array programming</a></li><li><a class="tocitem" href="../../usage/memory/">Memory management</a></li><li><a class="tocitem" href="../../usage/multigpu/">Multiple GPUs</a></li></ul></li><li><span class="tocitem">Development</span><ul><li><a class="tocitem" href="../../development/profiling/">Profiling</a></li><li><a class="tocitem" href="../../development/troubleshooting/">Troubleshooting</a></li></ul></li><li><span class="tocitem">API reference</span><ul><li><a class="tocitem" href="../../api/essentials/">Essentials</a></li><li><a class="tocitem" href="../../api/compiler/">Compiler</a></li><li><a class="tocitem" href="../../api/kernel/">Kernel programming</a></li><li><a class="tocitem" href="../../api/array/">Array programming</a></li></ul></li><li><span class="tocitem">Library reference</span><ul><li><a class="tocitem" href="../../lib/driver/">CUDA driver</a></li></ul></li><li><a class="tocitem" href="../../faq/">FAQ</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorials</a></li><li class="is-active"><a href>Introduction</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Introduction</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaGPU/CUDA.jl/blob/master/docs/src/tutorials/introduction.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Introduction"><a class="docs-heading-anchor" href="#Introduction">Introduction</a><a id="Introduction-1"></a><a class="docs-heading-anchor-permalink" href="#Introduction" title="Permalink"></a></h1><p><em>A gentle introduction to parallelization and GPU programming in Julia</em></p><p><a href="https://julialang.org/">Julia</a> has first-class support for GPU programming: you can use high-level abstractions or obtain fine-grained control, all without ever leaving your favorite programming language. The purpose of this tutorial is to help Julia users take their first step into GPU computing. In this tutorial, you&#39;ll compare CPU and GPU implementations of a simple calculation, and learn about a few of the factors that influence the performance you obtain.</p><p>This tutorial is inspired partly by a blog post by Mark Harris, <a href="https://devblogs.nvidia.com/even-easier-introduction-cuda/">An Even Easier Introduction to CUDA</a>, which introduced CUDA using the C++ programming language. You do not need to read that tutorial, as this one starts from the beginning.</p><h2 id="A-simple-example-on-the-CPU"><a class="docs-heading-anchor" href="#A-simple-example-on-the-CPU">A simple example on the CPU</a><a id="A-simple-example-on-the-CPU-1"></a><a class="docs-heading-anchor-permalink" href="#A-simple-example-on-the-CPU" title="Permalink"></a></h2><p>We&#39;ll consider the following demo, a simple calculation on the CPU.</p><pre><code class="language-julia">N = 2^20
+x = fill(1.0f0, N)  # a vector filled with 1.0 (Float32)
+y = fill(2.0f0, N)  # a vector filled with 2.0
+
+y .+= x             # increment each element of y with the corresponding element of x</code></pre><pre class="documenter-example-output">1048576-element Vector{Float32}:
+ 3.0
+ 3.0
+ 3.0
+ 3.0
+ 3.0
+ 3.0
+ 3.0
+ 3.0
+ 3.0
+ 3.0
+ ⋮
+ 3.0
+ 3.0
+ 3.0
+ 3.0
+ 3.0
+ 3.0
+ 3.0
+ 3.0
+ 3.0</pre><p>check that we got the right answer</p><pre><code class="language-julia">using Test
+@test all(y .== 3.0f0)</code></pre><pre class="documenter-example-output">Test Passed</pre><p>From the <code>Test Passed</code> line we know everything is in order. We used <code>Float32</code> numbers in preparation for the switch to GPU computations: GPUs are faster (sometimes, much faster) when working with <code>Float32</code> than with <code>Float64</code>.</p><p>A distinguishing feature of this calculation is that every element of <code>y</code> is being updated using the same operation. This suggests that we might be able to parallelize this.</p><h3 id="Parallelization-on-the-CPU"><a class="docs-heading-anchor" href="#Parallelization-on-the-CPU">Parallelization on the CPU</a><a id="Parallelization-on-the-CPU-1"></a><a class="docs-heading-anchor-permalink" href="#Parallelization-on-the-CPU" title="Permalink"></a></h3><p>First let&#39;s do the parallelization on the CPU. We&#39;ll create a &quot;kernel function&quot; (the computational core of the algorithm) in two implementations, first a sequential version:</p><pre><code class="language-julia">function sequential_add!(y, x)
+    for i in eachindex(y, x)
+        @inbounds y[i] += x[i]
+    end
+    return nothing
+end
+
+fill!(y, 2)
+sequential_add!(y, x)
+@test all(y .== 3.0f0)</code></pre><pre class="documenter-example-output">Test Passed</pre><p>And now a parallel implementation:</p><pre><code class="language-julia">function parallel_add!(y, x)
+    Threads.@threads for i in eachindex(y, x)
+        @inbounds y[i] += x[i]
+    end
+    return nothing
+end
+
+fill!(y, 2)
+parallel_add!(y, x)
+@test all(y .== 3.0f0)</code></pre><pre class="documenter-example-output">Test Passed</pre><p>Now if I&#39;ve started Julia with <code>JULIA_NUM_THREADS=4</code> on a machine with at least 4 cores, I get the following:</p><pre><code class="language-julia">using BenchmarkTools
+@btime sequential_add!($y, $x)</code></pre><pre><code class="language-none">  487.303 μs (0 allocations: 0 bytes)</code></pre><p>versus</p><pre><code class="language-julia">@btime parallel_add!($y, $x)</code></pre><pre><code class="language-none">  259.587 μs (13 allocations: 1.48 KiB)</code></pre><p>You can see there&#39;s a performance benefit to parallelization, though not by a factor of 4 due to the overhead for starting threads. With larger arrays, the overhead would be &quot;diluted&quot; by a larger amount of &quot;real work&quot;; these would demonstrate scaling that is closer to linear in the number of cores. Conversely, with small arrays, the parallel version might be slower than the serial version.</p><h2 id="Your-first-GPU-computation"><a class="docs-heading-anchor" href="#Your-first-GPU-computation">Your first GPU computation</a><a id="Your-first-GPU-computation-1"></a><a class="docs-heading-anchor-permalink" href="#Your-first-GPU-computation" title="Permalink"></a></h2><h3 id="Installation"><a class="docs-heading-anchor" href="#Installation">Installation</a><a id="Installation-1"></a><a class="docs-heading-anchor-permalink" href="#Installation" title="Permalink"></a></h3><p>For most of this tutorial you need to have a computer with a compatible GPU and have installed <a href="https://developer.nvidia.com/cuda-downloads">CUDA</a>. You should also install the following packages using Julia&#39;s <a href="https://docs.julialang.org/en/latest/stdlib/Pkg/">package manager</a>:</p><pre><code class="language-julia">pkg&gt; add CUDA</code></pre><p>If this is your first time, it&#39;s not a bad idea to test whether your GPU is working by testing the CUDA.jl package:</p><pre><code class="language-julia">pkg&gt; add CUDA
+pkg&gt; test CUDA</code></pre><h3 id="Parallelization-on-the-GPU"><a class="docs-heading-anchor" href="#Parallelization-on-the-GPU">Parallelization on the GPU</a><a id="Parallelization-on-the-GPU-1"></a><a class="docs-heading-anchor-permalink" href="#Parallelization-on-the-GPU" title="Permalink"></a></h3><p>We&#39;ll first demonstrate GPU computations at a high level using the <code>CuArray</code> type, without explicitly writing a kernel function:</p><pre><code class="language-julia">using CUDA
+
+x_d = CUDA.fill(1.0f0, N)  # a vector stored on the GPU filled with 1.0 (Float32)
+y_d = CUDA.fill(2.0f0, N)  # a vector stored on the GPU filled with 2.0</code></pre><pre class="documenter-example-output">1048576-element CuArray{Float32, 1}:
+ 2.0
+ 2.0
+ 2.0
+ 2.0
+ 2.0
+ 2.0
+ 2.0
+ 2.0
+ 2.0
+ 2.0
+ ⋮
+ 2.0
+ 2.0
+ 2.0
+ 2.0
+ 2.0
+ 2.0
+ 2.0
+ 2.0
+ 2.0</pre><p>Here the <code>d</code> means &quot;device,&quot; in contrast with &quot;host&quot;. Now let&#39;s do the increment:</p><pre><code class="language-julia">y_d .+= x_d
+@test all(Array(y_d) .== 3.0f0)</code></pre><pre class="documenter-example-output">Test Passed</pre><p>The statement <code>Array(y_d)</code> moves the data in <code>y_d</code> back to the host for testing. If we want to benchmark this, let&#39;s put it in a function:</p><pre><code class="language-julia">function add_broadcast!(y, x)
+    CUDA.@sync y .+= x
+    return
+end</code></pre><pre class="documenter-example-output">add_broadcast! (generic function with 1 method)</pre><pre><code class="language-julia">@btime add_broadcast!($y_d, $x_d)</code></pre><pre><code class="language-none">  67.047 μs (84 allocations: 2.66 KiB)</code></pre><p>The most interesting part of this is the call to <code>CUDA.@sync</code>. The CPU can assign jobs to the GPU and then go do other stuff (such as assigning <em>more</em> jobs to the GPU) while the GPU completes its tasks. Wrapping the execution in a <code>CUDA.@sync</code> block will make the CPU block until the queued GPU tasks are done, similar to how <code>Base.@sync</code> waits for distributed CPU tasks. Without such synchronization, you&#39;d be measuring the time takes to launch the computation, not the time to perform the computation. But most of the time you don&#39;t need to synchronize explicitly: many operations, like copying memory from the GPU to the CPU, implicitly synchronize execution.</p><p>For this particular computer and GPU, you can see the GPU computation was significantly faster than the single-threaded CPU computation, and that the use of multiple CPU threads makes the CPU implementation competitive. Depending on your hardware you may get different results.</p><h3 id="Writing-your-first-GPU-kernel"><a class="docs-heading-anchor" href="#Writing-your-first-GPU-kernel">Writing your first GPU kernel</a><a id="Writing-your-first-GPU-kernel-1"></a><a class="docs-heading-anchor-permalink" href="#Writing-your-first-GPU-kernel" title="Permalink"></a></h3><p>Using the high-level GPU array functionality made it easy to perform this computation on the GPU. However, we didn&#39;t learn about what&#39;s going on under the hood, and that&#39;s the main goal of this tutorial. So let&#39;s implement the same functionality with a GPU kernel:</p><pre><code class="language-julia">function gpu_add1!(y, x)
+    for i = 1:length(y)
+        @inbounds y[i] += x[i]
+    end
+    return nothing
+end
+
+fill!(y_d, 2)
+@cuda gpu_add1!(y_d, x_d)
+@test all(Array(y_d) .== 3.0f0)</code></pre><pre class="documenter-example-output">Test Passed</pre><p>Aside from using the <code>CuArray</code>s <code>x_d</code> and <code>y_d</code>, the only GPU-specific part of this is the <em>kernel launch</em> via <code>@cuda</code>. The first time you issue this <code>@cuda</code> statement, it will compile the kernel (<code>gpu_add1!</code>) for execution on the GPU. Once compiled, future invocations are fast. You can see what <code>@cuda</code> expands to using <code>?@cuda</code> from the Julia prompt.</p><p>Let&#39;s benchmark this:</p><pre><code class="language-julia">function bench_gpu1!(y, x)
+    CUDA.@sync begin
+        @cuda gpu_add1!(y, x)
+    end
+end</code></pre><pre class="documenter-example-output">bench_gpu1! (generic function with 1 method)</pre><pre><code class="language-julia">@btime bench_gpu1!($y_d, $x_d)</code></pre><pre><code class="language-none">  119.783 ms (47 allocations: 1.23 KiB)</code></pre><p>That&#39;s a <em>lot</em> slower than the version above based on broadcasting. What happened?</p><h3 id="Profiling"><a class="docs-heading-anchor" href="#Profiling">Profiling</a><a id="Profiling-1"></a><a class="docs-heading-anchor-permalink" href="#Profiling" title="Permalink"></a></h3><p>When you don&#39;t get the performance you expect, usually your first step should be to profile the code and see where it&#39;s spending its time. For that, you&#39;ll need to be able to run NVIDIA&#39;s <a href="https://devblogs.nvidia.com/cuda-pro-tip-nvprof-your-handy-universal-gpu-profiler/"><code>nvprof</code> tool</a>. On Unix systems, launch Julia this way:</p><pre><code class="language-sh">$ nvprof --profile-from-start off /path/to/julia</code></pre><p>replacing the <code>/path/to/julia</code> with the path to your Julia binary. Note that we don&#39;t immediately start the profiler, but instead call into the CUDA APIs and manually start the profiler with <code>CUDA.@profile</code> (thus excluding the time to compile our kernel):</p><pre><code class="language-julia">bench_gpu1!(y_d, x_d)  # run it once to force compilation
+CUDA.@profile bench_gpu1!(y_d, x_d)</code></pre><pre class="documenter-example-output">CUDA.HostKernel{Main.ex-introduction.gpu_add1!, Tuple{CuDeviceVector{Float32, 1}, CuDeviceVector{Float32, 1}}}(CuContext(0x0000000003406ad0, instance ac2d34472f4352f5), CuModule(Ptr{Nothing} @0x0000000025cd2500, CuContext(0x0000000003406ad0, instance ac2d34472f4352f5)), CuFunction(Ptr{Nothing} @0x00000000260f9fb0, CuModule(Ptr{Nothing} @0x0000000025cd2500, CuContext(0x0000000003406ad0, instance ac2d34472f4352f5))))</pre><p>When we quit the Julia REPL, the profiler process will print information about the executed kernels and API calls:</p><pre><code class="language-none">==2574== Profiling result:
+            Type  Time(%)      Time     Calls       Avg       Min       Max  Name
+ GPU activities:  100.00%  247.61ms         1  247.61ms  247.61ms  247.61ms  ptxcall_gpu_add1__1
+      API calls:   99.54%  247.83ms         1  247.83ms  247.83ms  247.83ms  cuEventSynchronize
+                    0.46%  1.1343ms         1  1.1343ms  1.1343ms  1.1343ms  cuLaunchKernel
+                    0.00%  4.9490us         1  4.9490us  4.9490us  4.9490us  cuEventRecord
+                    0.00%  4.4190us         1  4.4190us  4.4190us  4.4190us  cuEventCreate
+                    0.00%     960ns         2     480ns     358ns     602ns  cuCtxGetCurrent</code></pre><p>You can see that 100% of the time was spent in <code>ptxcall_gpu_add1__1</code>, the name of the kernel that CUDA.jl assigned when compiling <code>gpu_add1!</code> for these inputs. (Had you created arrays of multiple data types, e.g., <code>xu_d = CUDA.fill(0x01, N)</code>, you might have also seen <code>ptxcall_gpu_add1__2</code> and so on. Like the rest of Julia, you can define a single method and it will be specialized at compile time for the particular data types you&#39;re using.)</p><p>For further insight, run the profiling with the option <code>--print-gpu-trace</code>. You can also invoke Julia with as argument the path to a file containing all commands you want to run (including a call to <code>CUDA.@profile</code>):</p><pre><code class="language-sh">$ nvprof --profile-from-start off --print-gpu-trace /path/to/julia /path/to/script.jl
+     Start  Duration   Grid Size   Block Size     Regs*    SSMem*    DSMem*           Device   Context    Stream  Name
+  13.3134s  245.04ms     (1 1 1)      (1 1 1)        20        0B        0B  GeForce GTX TIT         1         7  ptxcall_gpu_add1__1 [34]</code></pre><p>The key thing to note here is the <code>(1 1 1)</code> in the &quot;Grid Size&quot; and &quot;Block Size&quot; columns. These terms will be explained shortly, but for now, suffice it to say that this is an indication that this computation ran sequentially. Of note, sequential processing with GPUs is much slower than with CPUs; where GPUs shine is with large-scale parallelism.</p><h3 id="Writing-a-parallel-GPU-kernel"><a class="docs-heading-anchor" href="#Writing-a-parallel-GPU-kernel">Writing a parallel GPU kernel</a><a id="Writing-a-parallel-GPU-kernel-1"></a><a class="docs-heading-anchor-permalink" href="#Writing-a-parallel-GPU-kernel" title="Permalink"></a></h3><p>To speed up the kernel, we want to parallelize it, which means assigning different tasks to different threads.  To facilitate the assignment of work, each CUDA thread gets access to variables that indicate its own unique identity, much as <a href="https://docs.julialang.org/en/latest/manual/parallel-computing/#Multi-Threading-(Experimental)-1"><code>Threads.threadid()</code></a> does for CPU threads. The CUDA analogs of <code>threadid</code> and <code>nthreads</code> are called <code>threadIdx</code> and <code>blockDim</code>, respectively; one difference is that these return a 3-dimensional structure with fields <code>x</code>, <code>y</code>, and <code>z</code> to simplify cartesian indexing for up to 3-dimensional arrays. Consequently we can assign unique work in the following way:</p><pre><code class="language-julia">function gpu_add2!(y, x)
+    index = threadIdx().x    # this example only requires linear indexing, so just use `x`
+    stride = blockDim().x
+    for i = index:stride:length(y)
+        @inbounds y[i] += x[i]
+    end
+    return nothing
+end
+
+fill!(y_d, 2)
+@cuda threads=256 gpu_add2!(y_d, x_d)
+@test all(Array(y_d) .== 3.0f0)</code></pre><pre class="documenter-example-output">Test Passed</pre><p>Note the <code>threads=256</code> here, which divides the work among 256 threads numbered in a linear pattern. (For a two-dimensional array, we might have used <code>threads=(16, 16)</code> and then both <code>x</code> and <code>y</code> would be relevant.)</p><p>Now let&#39;s try benchmarking it:</p><pre><code class="language-julia">function bench_gpu2!(y, x)
+    CUDA.@sync begin
+        @cuda threads=256 gpu_add2!(y, x)
+    end
+end</code></pre><pre class="documenter-example-output">bench_gpu2! (generic function with 1 method)</pre><pre><code class="language-julia">@btime bench_gpu2!($y_d, $x_d)</code></pre><pre><code class="language-none">  1.873 ms (47 allocations: 1.23 KiB)</code></pre><p>Much better!</p><p>But obviously we still have a ways to go to match the initial broadcasting result. To do even better, we need to parallelize more. GPUs have a limited number of threads they can run on a single <em>streaming multiprocessor</em> (SM), but they also have multiple SMs. To take advantage of them all, we need to run a kernel with multiple <em>blocks</em>. We&#39;ll divide up the work like this:</p><p><img src="../intro1.png" alt="block grid"/></p><p>This diagram was <a href="https://devblogs.nvidia.com/even-easier-introduction-cuda/">borrowed from a description of the C/C++ library</a>; in Julia, threads and blocks begin numbering with 1 instead of 0. In this diagram, the 4096 blocks of 256 threads (making 1048576 = 2^20 threads) ensures that each thread increments just a single entry; however, to ensure that arrays of arbitrary size can be handled, let&#39;s still use a loop:</p><pre><code class="language-julia">function gpu_add3!(y, x)
+    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    stride = blockDim().x * gridDim().x
+    for i = index:stride:length(y)
+        @inbounds y[i] += x[i]
+    end
+    return
+end
+
+numblocks = ceil(Int, N/256)
+
+fill!(y_d, 2)
+@cuda threads=256 blocks=numblocks gpu_add3!(y_d, x_d)
+@test all(Array(y_d) .== 3.0f0)</code></pre><pre class="documenter-example-output">Test Passed</pre><p>The benchmark:</p><pre><code class="language-julia">function bench_gpu3!(y, x)
+    numblocks = ceil(Int, length(y)/256)
+    CUDA.@sync begin
+        @cuda threads=256 blocks=numblocks gpu_add3!(y, x)
+    end
+end</code></pre><pre class="documenter-example-output">bench_gpu3! (generic function with 1 method)</pre><pre><code class="language-julia">@btime bench_gpu3!($y_d, $x_d)</code></pre><pre><code class="language-none">  67.268 μs (52 allocations: 1.31 KiB)</code></pre><p>Finally, we&#39;ve achieved the similar performance to what we got with the broadcasted version. Let&#39;s run <code>nvprof</code> again to confirm this launch configuration:</p><pre><code class="language-none">==23972== Profiling result:
+   Start  Duration            Grid Size      Block Size     Regs*    SSMem*    DSMem*           Device   Context    Stream  Name
+13.3526s  101.22us           (4096 1 1)       (256 1 1)        32        0B        0B  GeForce GTX TIT         1         7  ptxcall_gpu_add3__1 [34]</code></pre><h3 id="Printing"><a class="docs-heading-anchor" href="#Printing">Printing</a><a id="Printing-1"></a><a class="docs-heading-anchor-permalink" href="#Printing" title="Permalink"></a></h3><p>When debugging, it&#39;s not uncommon to want to print some values. This is achieved with <code>@cuprint</code>:</p><pre><code class="language-julia">function gpu_add2_print!(y, x)
+    index = threadIdx().x    # this example only requires linear indexing, so just use `x`
+    stride = blockDim().x
+    @cuprintln(&quot;thread $index, block $stride&quot;)
+    for i = index:stride:length(y)
+        @inbounds y[i] += x[i]
+    end
+    return nothing
+end
+
+@cuda threads=16 gpu_add2_print!(y_d, x_d)
+synchronize()</code></pre><p>Note that the printed output is only generated when synchronizing the entire GPU with <code>synchronize()</code>. This is similar to <code>CUDA.@sync</code>, and is the counterpart of <code>cudaDeviceSynchronize</code> in CUDA C++.</p><h3 id="Error-handling"><a class="docs-heading-anchor" href="#Error-handling">Error-handling</a><a id="Error-handling-1"></a><a class="docs-heading-anchor-permalink" href="#Error-handling" title="Permalink"></a></h3><p>The final topic of this intro concerns the handling of errors. Note that the kernels above used <code>@inbounds</code>, but did not check whether <code>y</code> and <code>x</code> have the same length. If your kernel does not respect these bounds, you will run into nasty errors:</p><pre><code class="language-none">ERROR: CUDA error: an illegal memory access was encountered (code #700, ERROR_ILLEGAL_ADDRESS)
+Stacktrace:
+ [1] ...</code></pre><p>If you remove the <code>@inbounds</code> annotation, instead you get</p><pre><code class="language-none">ERROR: a exception was thrown during kernel execution.
+       Run Julia on debug level 2 for device stack traces.</code></pre><p>As the error message mentions, a higher level of debug information will result in a more detailed report. Let&#39;s run the same code with with <code>-g2</code>:</p><pre><code class="language-none">ERROR: a exception was thrown during kernel execution.
+Stacktrace:
+ [1] throw_boundserror at abstractarray.jl:484
+ [2] checkbounds at abstractarray.jl:449
+ [3] setindex! at /home/tbesard/Julia/CUDA/src/device/array.jl:79
+ [4] some_kernel at /tmp/tmpIMYANH:6</code></pre><div class="admonition is-warning"><header class="admonition-header">Warning</header><div class="admonition-body"><p>On older GPUs (with a compute capability below <code>sm_70</code>) these errors are fatal, and effectively kill the CUDA environment. On such GPUs, it&#39;s often a good idea to perform your &quot;sanity checks&quot; using code that runs on the CPU and only turn over the computation to the GPU once you&#39;ve deemed it to be safe.</p></div></div><h2 id="Summary"><a class="docs-heading-anchor" href="#Summary">Summary</a><a id="Summary-1"></a><a class="docs-heading-anchor-permalink" href="#Summary" title="Permalink"></a></h2><p>Keep in mind that the high-level functionality of CUDA often means that you don&#39;t need to worry about writing kernels at such a low level. However, there are many cases where computations can be optimized using clever low-level manipulations. Hopefully, you now feel comfortable taking the plunge.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Home</a><a class="docs-footer-nextpage" href="../../installation/overview/">Overview »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Wednesday 3 February 2021 12:48">Wednesday 3 February 2021</span>. Using Julia version 1.6.0-beta1.91.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
