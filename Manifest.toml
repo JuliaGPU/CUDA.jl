@@ -34,9 +34,9 @@ version = "0.4.1"
 
 [[ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
-git-tree-sha1 = "be770c08881f7bb928dfd86d1ba83798f76cf62a"
+git-tree-sha1 = "dcc25ff085cf548bc8befad5ce048391a7c07d40"
 uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-version = "0.10.9"
+version = "0.10.11"
 
 [[Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "SHA", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
@@ -77,9 +77,9 @@ deps = ["ArgTools", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 
 [[ExprTools]]
-git-tree-sha1 = "555eab1f7c501166ba87eeb5d561e9f5e7d167d3"
+git-tree-sha1 = "b7e3d17636b348f005f11040025ae8c6f645fe92"
 uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
-version = "0.1.4"
+version = "0.1.6"
 
 [[GPUArrays]]
 deps = ["AbstractFFTs", "Adapt", "LinearAlgebra", "Printf", "Random", "Serialization", "Statistics"]
@@ -105,15 +105,15 @@ version = "1.3.0"
 
 [[LLVM]]
 deps = ["CEnum", "LLVMExtra_jll", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "23796c78e8d89c86f6bc87b8248213167e074f3e"
+git-tree-sha1 = "1b7ba36ea7aa6fa2278118951bad114fbb8359f2"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "4.0.1"
+version = "4.1.0"
 
 [[LLVMExtra_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "d1f5d399ad21bb98936cee54081003d6a3f22aef"
+git-tree-sha1 = "b36c0677a0549c7d1dc8719899a4133abbfacf7d"
 uuid = "dad2f222-ce93-54a1-a47d-0025e8a3acab"
-version = "0.0.5+2"
+version = "0.0.6+0"
 
 [[LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
