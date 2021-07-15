@@ -126,7 +126,7 @@ _svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T = gesvdj!('N', 1, A::CuM
 
 if VERSION >= v"1.8-"
     function LinearAlgebra.cholesky(A::LinearAlgebra.RealHermSymComplexHerm{<:Real,<:CuMatrix},
-             ::Val{false}=Val(false); check::Bool = true) 
+             ::Val{false}=Val(false); check::Bool = true)
         C, info = LinearAlgebra._chol!(copy(parent(A)), A.uplo == 'U' ? UpperTriangular : LowerTriangular)
         return Cholesky(C.data, A.uplo, info)
     end
