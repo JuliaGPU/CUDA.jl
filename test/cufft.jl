@@ -136,7 +136,7 @@ end
     end
 
     X = rand(T, dims)
-    @test_throws ArgumentError batched(X,(3,1))
+    # @test_throws ArgumentError batched(X,(3,1))
 end
 
 @testset "Batch 2D (in 4D)" begin
@@ -231,7 +231,7 @@ end
     end
 
     X = rand(T, dims)
-    @test_throws ArgumentError batched(X,(3,1))
+    # @test_throws ArgumentError batched(X,(3,1))
 end
 
 @testset "Batch 2D (in 4D)" begin
@@ -302,4 +302,121 @@ end
     out_of_place(X)
 end
 
+end
+
+# stride layout tests
+strided_test_2d(::Type{T}, fun, fun′) where T = begin
+    @testset "2D" begin
+        a = @view CUDA.rand(T,33,32)[1:32,:]
+        @test fun(a) ≈ fun′(a)
+        @test fun(a,1) ≈ fun′(a,1)
+        @test fun(a,2) ≈ fun′(a,2)
+    end
+end
+strided_test_3d(::Type{T}, fun, fun′) where T = begin
+    @testset "3D" begin
+        a = @view CUDA.rand(T,33,32,32)[1:32,:,:] #view in dim 1
+        @test fun(a) ≈ fun′(a)
+        @test fun(a,1) ≈ fun′(a,1)
+        for r in ((1,2), (2,3), (3,1))
+            @test fun(a,r) ≈ fun′(a,r)
+        end
+        a = @view CUDA.rand(T,32,33,32)[:,1:32,:] #view in dim 2
+        @test fun(a) ≈ fun′(a)
+        @test fun(a,3) ≈ fun′(a,3)
+        for r in ((1,2), (2,3), (3,1))
+            @test fun(a,r) ≈ fun′(a,r)
+        end
+        a = @view CUDA.rand(T,33,33,32)[1:32,1:32,:] #view in dim 1, 2
+        @test fun(a) ≈ fun′(a)
+        for r in ((1,2), (2,3), (3,1))
+            @test fun(a,r) ≈ fun′(a,r)
+        end
+    end
+end
+strided_test_3d_throw(::Type{T}, fun) where T = begin
+    @testset "3D_throw" begin
+        a = @view CUDA.rand(T,33,32,32)[1:32,:,:] #view in dim 1
+        @test_throws ArgumentError fun(a,2)
+        @test_throws ArgumentError fun(a,3)
+        a = @view CUDA.rand(T,32,33,32)[:,1:32,:] #view in dim 2
+        @test_throws ArgumentError fun(a,1)
+        @test_throws ArgumentError fun(a,2)
+        a = @view CUDA.rand(T,33,33,32)[1:32,1:32,:] #view in dim 1, 2
+        @test_throws ArgumentError fun(a,1)
+        @test_throws ArgumentError fun(a,2)
+        @test_throws ArgumentError fun(a,3)
+    end
+end
+strided_test_4d(::Type{T}, fun, fun′) where T = begin
+    @testset "4D" begin
+        a = @view CUDA.rand(T,17,16,16,16)[1:16,:,:,:] #view in dim 1
+        @test fun(a,1) ≈ fun′(a,1)
+        @test fun(a,(1,2)) ≈ fun′(a,(2,1))
+        @test fun(a,(1,4)) ≈ fun′(a,(4,1))
+        for i in 1:4
+            r = filter(x -> x != i, (1,2,3,4))
+            @test fun(a, r) ≈ fun′(a, reverse(r))
+        end
+    end
+end
+strided_test_4d_throw(::Type{T}, fun) where T = begin
+    @testset "4D_throw" begin
+        #view in dim 1
+        a = @view CUDA.rand(T,17,16,16,16)[1:16,:,:,:]
+        @test_throws ArgumentError fun(a)
+        for i in (2,3,4)
+            @test_throws ArgumentError fun(a,i)
+        end
+        for i in ((1,3),(2,3),(2,4),(3,4))
+            @test_throws ArgumentError fun(a,i)
+        end
+    end
+end
+
+#We drop such support in CUDA10.1 and 10.2
+if CUFFT.version() >= v"10.2.1"
+    @testset for fun in (fft, rfft)
+        #out-place (r)fft with strided layout's.
+        #Only fft is tested, as bfft and ifft has the same kernel plan
+        #brfft need copy, test elsewhere
+        @testset for T in (Float32, Float64)
+            if fun == fft
+                T = complex(T)
+            end
+            copyfun(x) = fun(copy(x))
+            copyfun(x,y) = fun(copy(x),y)
+            #compare the results of (r)fft with strided and dense layout
+            strided_test_2d(T, fun, copyfun)
+            strided_test_3d(T, fun, copyfun)
+            strided_test_4d(T, fun, copyfun)
+            #unreducable batch should throw an ArgumentError
+            strided_test_3d_throw(T, fun)
+            strided_test_4d_throw(T, fun)
+        end
+    end
+
+    # inplace fft is not tested for throw
+    @testset for T in (ComplexF32, ComplexF64)
+        fft!copy(x) = copy(fft!(x))
+        fft!copy(x,y) = copy(fft!(x,y))
+        #compare the result of inplace and outplace fft with strided layout
+        strided_test_2d(T, fft, fft!copy)
+        strided_test_3d(T, fft, fft!copy)
+        strided_test_4d(T, fft, fft!copy)
+    end
+    # bfft 
+    @testset "brfft" begin
+        a = CUDA.rand(ComplexF32,33,32)
+        b = @view a[1:32,:]
+        p = plan_brfft(b,63)
+        @test p * b ≈ p * copy(b)
+        a = CUDA.rand(ComplexF32,34,32)
+        b = @view a[2:33,:]
+        @test p * b ≈ p * copy(b)
+    end
+else
+    # CUDA 10.x don't support this.
+    a = @view CUDA.rand(ComplexF32,10,10)[1:9,:]
+    @test_throws ArgumentError fft(a)
 end
