@@ -595,5 +595,51 @@ end
   expected = sum(a, dims=2)
   actual = sum(c, dims=2)
   @test expected == Array(actual)
+end
 
+@testset "unified memory" begin
+  dev = device()
+
+  let
+    a = CuArray{Int}(undef, 1)
+    @test !is_unified(a)
+    @test !is_managed(pointer(a))
+  end
+
+  let
+    a = CuArray{Int}(undef, 1; unified=true)
+    @test is_unified(a)
+    @test is_managed(pointer(a))
+    a .= 0
+    @test Array(a) == [0]
+
+    if length(devices()) > 1
+      other_devs = filter(!isequal(dev), collect(devices()))
+      device!(first(other_devs)) do
+        a .+= 1
+        @test Array(a) == [1]
+      end
+      @test Array(a) == [1]
+    end
+  end
+
+  let
+    a = CUDA.rand(1)
+    @test !is_unified(a)
+    @test !is_managed(pointer(a))
+
+    ax = similar(a)
+    @test !is_unified(ax)
+    @test !is_managed(pointer(ax))
+
+    b = CuArray(a; unified=true)
+    @test is_unified(b)
+    @test is_managed(pointer(b))
+
+    bx = similar(b)
+    @test is_unified(bx)
+    @test is_managed(pointer(bx))
+
+    @test Array(a) == Array(b)
+  end
 end
