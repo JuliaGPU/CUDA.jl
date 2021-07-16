@@ -364,6 +364,26 @@ end
 # 13.3526s  101.22us           (4096 1 1)       (256 1 1)        32        0B        0B  GeForce GTX TIT         1         7  ptxcall_gpu_add3__1 [34]
 # ```
 
+# In the previous example the number of threads was manually selected.
+# The number of threads affects performance. The number of threads is also not unbounded
+# and different GPU's have different number of maximum allowed threads.
+# We thus want to automate the launch configuration, both for performance and portability reasons.
+# The easiest way to achieve this is to use the occupancy API by available through the launch_configuration function
+
+fill!(y_d, 2)
+@cuda  config=kernel->launch_configuration(kernel.fun) gpu_add3!(y_d, x_d)
+@test all(Array(y_d) .== 3.0f0)
+
+# The benchmark:
+
+function bench_gpu4!(y, x)
+    CuArrays.@sync begin
+        @cuda config=kernel->launch_configuration(kernel.fun) gpu_add3!(y, x)
+    end
+end
+@btime bench_gpu4!($y_d, $x_d)
+
+# A comparable performance.
 
 # ### Printing
 
