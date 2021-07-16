@@ -4,7 +4,31 @@ using CEnum
 
 using Printf
 
-const libcuda = Sys.iswindows() ? "nvcuda" : ( Sys.islinux() ? "libcuda.so.1" : "libcuda" )
+using Libdl
+
+const _libcuda = Ref{String}()
+function libcuda()
+    # in a perfect world, this would be a constant expression. however, many systems are
+    # configured badly, with libcuda not discoverable. do some extra effort finding those.
+    if !isassigned(_libcuda)
+        if Sys.iswindows()
+            _libcuda[] = "nvcuda"
+        else
+            dirs = [
+                "/usr/local/nvidia/lib64",
+                "/usr/local/cuda/lib64",
+            ]
+            _libcuda[] = Libdl.find_library(["libcuda.so.1", "libcuda.so"])
+            if isempty(_libcuda[])
+                error("""Could not find the CUDA driver library 'libcuda.so'. Please make sure you have installed the NVIDIA driver for your GPU.
+                         If you're sure it's installed, open an issue on CUDA.jl with the location of 'libcuda.so' on your system.""")
+            end
+        end
+    end
+
+    # memoized because otherwise each ccall would perform discovery again
+    _libcuda[]
+end
 
 
 # low-level wrappers
