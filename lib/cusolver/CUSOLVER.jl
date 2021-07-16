@@ -22,6 +22,7 @@ include("base.jl")
 include("sparse.jl")
 include("dense.jl")
 include("multigpu.jl")
+include("cusolverRF.jl")
 
 # high-level integrations
 include("linalg.jl")
