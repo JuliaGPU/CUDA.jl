@@ -220,8 +220,22 @@ within(lower, upper) = (val) -> lower <= val <= upper
 @device_override FastMath.pow_fast(x::Float32, y::Float32) = ccall("extern __nv_fast_powf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_override Base.:(^)(x::Float64, y::Int32) = ccall("extern __nv_powi", llvmcall, Cdouble, (Cdouble, Int32), x, y)
 @device_override Base.:(^)(x::Float32, y::Int32) = ccall("extern __nv_powif", llvmcall, Cfloat, (Cfloat, Int32), x, y)
-@device_override Base.:(^)(x::Float64, y::Int64) = x ^ Float64(y)
-@device_override Base.:(^)(x::Float32, y::Int64) = x ^ Float32(y)
+@device_override @inline function Base.:(^)(x::Float32, y::Int64)
+    y == -1 && return inv(x)
+    y == 0 && return one(x)
+    y == 1 && return x
+    y == 2 && return x*x
+    y == 3 && return x*x*x
+    x ^ Float32(y)
+end
+@device_override @inline function Base.:(^)(x::Float64, y::Int64)
+    y == -1 && return inv(x)
+    y == 0 && return one(x)
+    y == 1 && return x
+    y == 2 && return x*x
+    y == 3 && return x*x*x
+    x ^ Float64(y)
+end
 
 ## rounding and selection
 
