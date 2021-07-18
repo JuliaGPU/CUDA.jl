@@ -107,7 +107,7 @@ parallel_add!(y, x)
 # For most of this tutorial you need to have a computer with a compatible GPU and have
 # installed [CUDA](https://developer.nvidia.com/cuda-downloads). You should also install
 # the following packages using Julia's [package
-# manager](https://docs.julialang.org/en/latest/stdlib/Pkg/):
+# manager](https://docs.julialang.org/en/v1/stdlib/Pkg/):
 
 # ```julia
 # pkg> add CUDA
