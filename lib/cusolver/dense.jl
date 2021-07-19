@@ -19,7 +19,7 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
                             (:cusolverDnZpotrf_bufferSize, :cusolverDnZpotrf, :ComplexF64))
     @eval begin
         function LinearAlgebra.LAPACK.potrf!(uplo::Char,
-                        A::CuMatrix{$elty})
+                        A::StridedCuMatrix{$elty})
             n       = checksquare(A)
             lda     = max(1, stride(A, 2))
 
@@ -50,8 +50,8 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
                      (:cusolverDnZpotrs, :ComplexF64))
     @eval begin
         function LinearAlgebra.LAPACK.potrs!(uplo::Char,
-                        A::CuMatrix{$elty},
-                        B::CuVecOrMat{$elty})
+                        A::StridedCuMatrix{$elty},
+                        B::StridedCuVecOrMat{$elty})
             n = checksquare(A)
             if size(B, 1) != n
                 throw(DimensionMismatch("first dimension of B, $(size(B,1)), must match second dimension of A, $n"))
@@ -87,7 +87,7 @@ for (bname, fname,elty) in ((:cusolverDnSpotri_bufferSize, :cusolverDnSpotri, :F
                      (:cusolverDnZpotri_bufferSize, :cusolverDnZpotri, :ComplexF64))
 @eval begin
     function LinearAlgebra.LAPACK.potri!(uplo::Char,
-                    A::CuMatrix{$elty})
+                    A::StridedCuMatrix{$elty})
             n       = checksquare(A)
             lda     = max(1, stride(A, 2))
 
@@ -117,7 +117,7 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
                             (:cusolverDnCgetrf_bufferSize, :cusolverDnCgetrf, :ComplexF32),
                             (:cusolverDnZgetrf_bufferSize, :cusolverDnZgetrf, :ComplexF64))
     @eval begin
-        function getrf!(A::CuMatrix{$elty})
+        function getrf!(A::StridedCuMatrix{$elty})
             m,n     = size(A)
             lda     = max(1, stride(A, 2))
 
@@ -152,7 +152,7 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
                             (:cusolverDnCgeqrf_bufferSize, :cusolverDnCgeqrf, :ComplexF32),
                             (:cusolverDnZgeqrf_bufferSize, :cusolverDnZgeqrf, :ComplexF64))
     @eval begin
-        function geqrf!(A::CuMatrix{$elty})
+        function geqrf!(A::StridedCuMatrix{$elty})
             m, n    = size(A)
             lda     = max(1, stride(A, 2))
 
@@ -186,7 +186,7 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
                             (:cusolverDnZsytrf_bufferSize, :cusolverDnZsytrf, :ComplexF64))
     @eval begin
         function sytrf!(uplo::Char,
-                        A::CuMatrix{$elty})
+                        A::StridedCuMatrix{$elty})
             n      = checksquare(A)
             lda = max(1, stride(A, 2))
 
@@ -222,9 +222,9 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
                      (:cusolverDnZgetrs, :ComplexF64))
     @eval begin
         function getrs!(trans::Char,
-                        A::CuMatrix{$elty},
+                        A::StridedCuMatrix{$elty},
                         ipiv::CuVector{Cint},
-                        B::CuVecOrMat{$elty})
+                        B::StridedCuVecOrMat{$elty})
             n = size(A, 1)
             if size(A, 2) != n
                 throw(DimensionMismatch("LU factored matrix A must be square!"))
@@ -307,7 +307,7 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
                              (:cusolverDnCungqr_bufferSize, :cusolverDnCungqr, :ComplexF32),
                              (:cusolverDnZungqr_bufferSize, :cusolverDnZungqr, :ComplexF64))
     @eval begin
-        function orgqr!(A::CuMatrix{$elty}, tau::CuVector{$elty})
+        function orgqr!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty})
             m = size(A , 1)
             n = min(m, size(A, 2))
             lda = max(1, stride(A, 2))
@@ -345,7 +345,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
                                     (:cusolverDnCgebrd_bufferSize, :cusolverDnCgebrd, :ComplexF32, :Float32),
                                     (:cusolverDnZgebrd_bufferSize, :cusolverDnZgebrd, :ComplexF64, :Float64))
     @eval begin
-        function gebrd!(A::CuMatrix{$elty})
+        function gebrd!(A::StridedCuMatrix{$elty})
             m, n    = size(A)
             lda     = max(1, stride(A, 2))
 
@@ -384,7 +384,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
     @eval begin
         function gesvd!(jobu::Char,
                         jobvt::Char,
-                        A::CuMatrix{$elty})
+                        A::StridedCuMatrix{$elty})
             m, n    = size(A)
             if m < n
                 throw(ArgumentError("CUSOLVER's gesvd currently requires m >= n"))
@@ -443,7 +443,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
     @eval begin
         function gesvdj!(jobz::Char,
                          econ::Int,
-                         A::CuMatrix{$elty};
+                         A::StridedCuMatrix{$elty};
                          tol::$relty=eps($relty),
                          max_sweeps::Int=100)
             m,n     = size(A)
@@ -505,7 +505,7 @@ for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSiz
     @eval begin
         function $jname(jobz::Char,
                         uplo::Char,
-                        A::CuMatrix{$elty})
+                        A::StridedCuMatrix{$elty})
             n       = checksquare(A)
             lda     = max(1, stride(A, 2))
             W       = CuArray{$relty}(undef, n)
@@ -545,8 +545,8 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
         function $jname(itype::Int,
                         jobz::Char,
                         uplo::Char,
-                        A::CuMatrix{$elty},
-                        B::CuMatrix{$elty})
+                        A::StridedCuMatrix{$elty},
+                        B::StridedCuMatrix{$elty})
             nA, nB  = checksquare(A, B)
             if nB != nA
                 throw(DimensionMismatch("Dimensions of A ($nA, $nA) and B ($nB, $nB) must match!"))
@@ -591,8 +591,8 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
         function $jname(itype::Int,
                         jobz::Char,
                         uplo::Char,
-                        A::CuMatrix{$elty},
-                        B::CuMatrix{$elty};
+                        A::StridedCuMatrix{$elty},
+                        B::StridedCuMatrix{$elty};
                         tol::$relty=eps($relty),
                         max_sweeps::Int=100)
             nA, nB  = checksquare(A, B)
@@ -646,7 +646,7 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
     @eval begin
         function $jname(jobz::Char,
                         uplo::Char,
-                        A::DenseCuArray{$elty};
+                        A::StridedCuArray{$elty};
                         tol::$relty=eps($relty),
                         max_sweeps::Int=100)
 
@@ -703,7 +703,9 @@ for (jname, fname, elty) in ((:potrsBatched!, :cusolverDnSpotrsBatched, :Float32
                              (:potrsBatched!, :cusolverDnZpotrsBatched, :ComplexF64)
                              )
     @eval begin
-        function $jname(uplo::Char, A::Vector{<:CuMatrix{$elty}}, B::Vector{<:CuVecOrMat{$elty}})
+        function $jname(uplo::Char,
+                        A::Vector{<:StridedCuMatrix{$elty}},
+                        B::Vector{<:StridedCuVecOrMat{$elty}})
             if length(A) != length(B)
                 throw(DimensionMismatch(""))
             end
@@ -744,7 +746,7 @@ for (jname, fname, elty) in ((:potrfBatched!, :cusolverDnSpotrfBatched, :Float32
                              (:potrfBatched!, :cusolverDnZpotrfBatched, :ComplexF64)
                              )
     @eval begin
-        function $jname(uplo::Char, A::Vector{<:CuMatrix{$elty}})
+        function $jname(uplo::Char, A::Vector{<:StridedCuMatrix{$elty}})
 
             # Set up information for the solver arguments
             n = checksquare(A[1])
