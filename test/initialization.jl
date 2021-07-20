@@ -84,6 +84,11 @@ if length(devices()) > 1
     fetch(task)
     @test device() == CuDevice(0)
 
+    # math_mode
+    old_mm = CUDA.math_mode()
+    CUDA.math_mode!(CUDA.PEDANTIC_MATH)
+    CUDA.math_mode!(old_mm)
+
     # tasks on multiple threads
     Threads.@threads for d in 0:1
         for x in 1:100  # give threads a chance to trample over each other
