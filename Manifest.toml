@@ -105,9 +105,9 @@ version = "1.3.0"
 
 [[LLVM]]
 deps = ["CEnum", "LLVMExtra_jll", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "1b7ba36ea7aa6fa2278118951bad114fbb8359f2"
+git-tree-sha1 = "733abcbdc67337bb6aaf873c6bebbe1e6440a5df"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "4.1.0"
+version = "4.1.1"
 
 [[LLVMExtra_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]

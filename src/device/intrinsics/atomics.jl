@@ -10,6 +10,12 @@
 
 ## LLVM
 
+# all atomic operations have acquire and/or release semantics,
+# depending on whether they load or store values (mimics Base)
+const atomic_acquire = LLVM.API.LLVMAtomicOrderingAcquire
+const atomic_release = LLVM.API.LLVMAtomicOrderingRelease
+const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
+
 # common arithmetic operations on integers using LLVM instructions
 #
 # > 8.6.6. atomicrmw Instruction
@@ -19,7 +25,6 @@
 # >
 # > - The pointer must be either a global pointer, a shared pointer, or a generic pointer
 # >   that points to either the global address space or the shared address space.
-
 @generated function llvm_atomic_op(::Val{binop}, ptr::LLVMPtr{T,A}, val::T) where {binop, T, A}
     Context() do ctx
         T_val = convert(LLVMType, T; ctx)
@@ -57,24 +62,16 @@ const binops = Dict(
     :min   => LLVM.API.LLVMAtomicRMWBinOpMin,
     :umax  => LLVM.API.LLVMAtomicRMWBinOpUMax,
     :umin  => LLVM.API.LLVMAtomicRMWBinOpUMin,
-    #:fadd  => LLVM.API.LLVMAtomicRMWBinOpFAdd,
-    #:fsub  => LLVM.API.LLVMAtomicRMWBinOpFSub,
+    :fadd  => LLVM.API.LLVMAtomicRMWBinOpFAdd,
+    :fsub  => LLVM.API.LLVMAtomicRMWBinOpFSub,
 )
-
-# all atomic operations have acquire and/or release semantics,
-# depending on whether they load or store values (mimics Base)
-const atomic_acquire = LLVM.API.LLVMAtomicOrderingAcquire
-const atomic_release = LLVM.API.LLVMAtomicOrderingRelease
-const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
 
 for T in (Int32, Int64, UInt32, UInt64)
     ops = [:xchg, :add, :sub, :and, :or, :xor, :max, :min]
 
-    ptrs = LLVMPtr{}
-
     for op in ops
         # LLVM distinguishes signedness in the operation, not the integer type.
-        rmw =  if T <: Unsigned && (op == :max || op == :min)
+        rmw = if T <: Unsigned && (op == :max || op == :min)
             Symbol("u$op")
         else
             Symbol("$op")
@@ -86,6 +83,28 @@ for T in (Int32, Int64, UInt32, UInt64)
                                      LLVMPtr{$T,AS.Shared}}, val::$T) =
             llvm_atomic_op($(Val(binops[rmw])), ptr, val)
     end
+end
+
+for T in (Float32, Float64)
+    ops = [:add]
+
+    for op in ops
+        # LLVM has specific operations for floating point types.
+        rmw = Symbol("f$op")
+
+        fn = Symbol("atomic_$(op)!")
+        # XXX: cannot select
+        @eval @inline $fn(ptr::Union{LLVMPtr{$T,AS.Generic},
+                                     LLVMPtr{$T,AS.Global},
+                                     LLVMPtr{$T,AS.Shared}}, val::$T) =
+           llvm_atomic_op($(Val(binops[rmw])), ptr, val)
+    end
+
+    # there's no specific NNVM intrinsic for fsub, resulting in a selection error.
+    @eval @inline atomic_sub!(ptr::Union{LLVMPtr{$T,AS.Generic},
+                                         LLVMPtr{$T,AS.Global},
+                                         LLVMPtr{$T,AS.Shared}}, val::$T) =
+        atomic_add!(ptr, -val)
 end
 
 @generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T) where {T, A}
@@ -121,57 +140,27 @@ for T in (Int32, Int64, UInt32, UInt64)
         llvm_atomic_cas(ptr, cmp, val)
 end
 
+# NVPTX doesn't support cmpxchg with i16 yet
+for A in (AS.Generic, AS.Global, AS.Shared), T in (Int16, UInt16)
+    if A == AS.Global
+        scope = ".global"
+    elseif A == AS.Shared
+        scope = ".shared"
+    else
+        scope = ""
+    end
+
+    intr = "atom$scope.cas.b16 \$0, [\$1], \$2, \$3;"
+    @eval @inline atomic_cas!(ptr::LLVMPtr{$T,$A}, cmp::$T, val::$T) =
+        @asmcall($intr, "=h,l,h,h", true, $T, Tuple{Core.LLVMPtr{$T,$A},$T,$T}, ptr, cmp, val)
+end
+
 
 ## NVVM
 
 # floating-point operations using NVVM intrinsics
 
 for A in (AS.Generic, AS.Global, AS.Shared)
-    # declare float @llvm.nvvm.atomic.load.add.f32.p0f32(float* address, float val)
-    # declare float @llvm.nvvm.atomic.load.add.f32.p1f32(float addrspace(1)* address, float val)
-    # declare float @llvm.nvvm.atomic.load.add.f32.p3f32(float addrspace(3)* address, float val)
-    #
-    # FIXME: these only works on sm_60+, but we can't verify that for now
-    # declare double @llvm.nvvm.atomic.load.add.f64.p0f64(double* address, double val)
-    # declare double @llvm.nvvm.atomic.load.add.f64.p1f64(double addrspace(1)* address, double val)
-    # declare double @llvm.nvvm.atomic.load.add.f64.p3f64(double addrspace(3)* address, double val)
-    for T in (Float32, Float64)
-        nb = sizeof(T)*8
-        intr = "llvm.nvvm.atomic.load.add.f$nb.p$(convert(Int, A))f$nb"
-        #@eval @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) =
-        #    @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,$A}, $T), ptr, val)
-        # NOTE: this is implemented as `atomicrmw fadd` on LLVM 9+, but the C headers
-        #       lack an export: https://github.com/llvm/llvm-project/commit/f57e968dd036b2230c59c00e1ed10fecf1668828
-        #       by using IR, we trigger the AutoUpgrader which fixes this.
-        # TODO: implement as atomicrmw when using LLVM 10 (Julia 1.6)
-
-        import Base.Sys: WORD_SIZE
-        if T == Float32
-            T_val = "float"
-        else
-            T_val = "double"
-        end
-        if A == AS.Generic
-            T_untyped_ptr = "i8*"
-            T_typed_ptr = "$(T_val)*"
-        else
-            T_untyped_ptr = "i8 addrspace($(convert(Int, A)))*"
-            T_typed_ptr = "$(T_val) addrspace($(convert(Int, A)))*"
-        end
-        mod = """
-            declare $T_val @$intr($T_typed_ptr, $T_val)
-
-            define $T_val @entry($T_untyped_ptr %0, $T_val %1) #0 {
-                %ptr = bitcast $T_untyped_ptr %0 to $T_typed_ptr
-                %rv = call $T_val @$intr($T_typed_ptr %ptr, $T_val %1)
-                ret $T_val %rv
-            }
-
-            attributes #0 = { alwaysinline }"""
-        @eval @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) =
-            Base.llvmcall(($mod, "entry"), $T, Tuple{LLVMPtr{$T,$A}, $T}, ptr, val)
-    end
-
     # declare i32 @llvm.nvvm.atomic.load.inc.32.p0i32(i32* address, i32 val)
     # declare i32 @llvm.nvvm.atomic.load.inc.32.p1i32(i32 addrspace(1)* address, i32 val)
     # declare i32 @llvm.nvvm.atomic.load.inc.32.p3i32(i32 addrspace(3)* address, i32 val)
@@ -188,10 +177,12 @@ for A in (AS.Generic, AS.Global, AS.Shared)
     end
 end
 
+
+## PTX
+
 # half-precision atomics using PTX instruction
 
-for A in (AS.Generic, AS.Global, AS.Shared)
-
+for A in (AS.Generic, AS.Global, AS.Shared), T in (Float16,)
     if A == AS.Global
         scope = ".global"
     elseif A == AS.Shared
@@ -200,12 +191,11 @@ for A in (AS.Generic, AS.Global, AS.Shared)
         scope = ""
     end
 
-    T = Symbol(Float16)
-    PTX = "atom$scope.add.noftz.f16 \$0, [\$1], \$2;"
-
+    intr = "atom$scope.add.noftz.f16 \$0, [\$1], \$2;"
     @eval @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) =
-        @Interop.asmcall($PTX, "=h,l,h", true, $T, Tuple{Core.LLVMPtr{$T,$A},$T}, ptr, val)
+        @asmcall($intr, "=h,l,h", true, $T, Tuple{Core.LLVMPtr{$T,$A},$T}, ptr, val)
 end
+
 
 ## Julia
 
@@ -216,33 +206,13 @@ inttype(::Type{Float16}) = Int16
 inttype(::Type{Float32}) = Int32
 inttype(::Type{Float64}) = Int64
 
-for T in [Float32, Float64]
+for T in [Float16, Float32, Float64]
     @eval @inline function atomic_cas!(ptr::LLVMPtr{$T,A}, cmp::$T, new::$T) where {A}
         IT = inttype($T)
         cmp_i = reinterpret(IT, cmp)
         new_i = reinterpret(IT, new)
         old_i = atomic_cas!(reinterpret(LLVMPtr{IT,A}, ptr), cmp_i, new_i)
         return reinterpret($T, old_i)
-    end
-end
-
-# floating-point operations via atomic_cas!
-
-const opnames = Dict{Symbol, Symbol}(:- => :sub, :* => :mul, :/ => :div)
-
-for T in [Float32, Float64]
-    for op in [:-, :*, :/, :max, :min]
-        opname = get(opnames, op, op)
-        fn = Symbol("atomic_$(opname)!")
-        @eval @inline function $fn(ptr::LLVMPtr{$T}, val::$T)
-            old = Base.unsafe_load(ptr, 1)
-            while true
-                cmp = old
-                new = $op(old, val)
-                old = atomic_cas!(ptr, cmp, new)
-                (old == cmp) && return new
-            end
-        end
     end
 end
 
@@ -257,6 +227,8 @@ Reads the value `old` located at address `ptr` and compare with `cmp`. If `old` 
 operations are performed in one atomic transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+Additionally, on GPU hardware with compute capability 7.0+, values of type UInt16 are
+supported.
 """
 atomic_cas!
 
@@ -291,34 +263,8 @@ back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
-Additionally, on GPU hardware with compute capability 6.0+, values of type Float32 and
-Float64 are supported.
 """
 atomic_sub!
-
-"""
-    atomic_mul!(ptr::LLVMPtr{T}, val::T)
-
-Reads the value `old` located at address `ptr`, computes `*(old, val)`, and stores the
-result back to memory at the same address. These operations are performed in one atomic
-transaction. The function returns `old`.
-
-This operation is supported on GPU hardware with compute capability 6.0+ for values of type
-Float32 and Float64.
-"""
-atomic_mul!
-
-"""
-    atomic_div!(ptr::LLVMPtr{T}, val::T)
-
-Reads the value `old` located at address `ptr`, computes `/(old, val)`, and stores the
-result back to memory at the same address. These operations are performed in one atomic
-transaction. The function returns `old`.
-
-This operation is supported on GPU hardware with compute capability 6.0+ for values of type
-Float32 and Float64.
-"""
-atomic_div!
 
 """
     atomic_and!(ptr::LLVMPtr{T}, val::T)
@@ -361,8 +307,6 @@ result back to memory at the same address. These operations are performed in one
 transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
-Additionally, on GPU hardware with compute capability 6.0+, values of type Float32 and
-Float64 are supported.
 """
 atomic_min!
 
@@ -374,8 +318,6 @@ result back to memory at the same address. These operations are performed in one
 transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
-Additionally, on GPU hardware with compute capability 6.0+, values of type Float32 and
-Float64 are supported.
 """
 atomic_max!
 
@@ -445,7 +387,7 @@ and not induce any side-effects.
 
 !!! warn
     This interface is experimental, and might change without warning.  Use the lower-level
-    `atomic_...!` functions for a stable API.
+    `atomic_...!` functions for a stable API, albeit one limited to natively-supported ops.
 """
 macro atomic(ex)
     # decode assignment and call
@@ -480,21 +422,29 @@ end
 @inline atomic_arrayset(A::AbstractArray{T}, Is::Tuple, op::Function, val) where {T} =
     atomic_arrayset(A, Base._to_linear_index(A, Is...), op, convert(T, val))
 
-function atomic_arrayset(A::AbstractArray, I::Integer, op::Function, val)
-    error("Don't know how to atomically perform $op on $(typeof(A))")
-    # TODO: while { acquire, op, cmpxchg }
+# native atomics
+# TODO: accurately model device support (e.g. using LLVM intrinsics for the capability);
+#       we now don't always use native intrinsics when possible (e.g. add! with Float64)
+for (op,impl,typ) in [(+,   atomic_add!, [UInt32,Int32,UInt64,Int64,Float32]),
+                      (-,   atomic_sub!, [UInt32,Int32,UInt64,Int64,Float32]),
+                      (&,   atomic_and!, [UInt32,Int32,UInt64,Int64]),
+                      (|,   atomic_or!,  [UInt32,Int32,UInt64,Int64]),
+                      (⊻,   atomic_xor!, [UInt32,Int32,UInt64,Int64]),
+                      (max, atomic_max!, [UInt32,Int32,UInt64,Int64]),
+                      (min, atomic_min!, [UInt32,Int32,UInt64,Int64])]
+    @eval @inline atomic_arrayset(A::CuDeviceArray{T}, I::Integer, ::typeof($op),
+                                  val::T) where {T<:Union{$(typ...)}} =
+        $impl(pointer(A, I), val)
 end
 
-# CUDA.jl atomics
-for (op,impl) in [(+)      => atomic_add!,
-                  (-)      => atomic_sub!,
-                  (*)      => atomic_mul!,
-                  (/)      => atomic_div!,
-                  (&)      => atomic_and!,
-                  (|)      => atomic_or!,
-                  (⊻)      => atomic_xor!,
-                  Base.max => atomic_max!,
-                  Base.min => atomic_min!]
-    @eval @inline atomic_arrayset(A::CuDeviceArray, I::Integer, ::typeof($op), val) =
-        $impl(pointer(A, I), val)
+# fallback using compare-and-swap
+function atomic_arrayset(A::AbstractArray{T}, I::Integer, op::Function, val) where {T}
+    ptr = pointer(A, I)
+    old = Base.unsafe_load(ptr)
+    while true
+        cmp = old
+        new = convert(T, op(old, val))
+        old = atomic_cas!(ptr, cmp, new)
+        (old == cmp) && return new
+    end
 end
