@@ -1,5 +1,8 @@
 # wrappers for functionality provided by the CUDA toolkit
 
+# special intrinsics for writing version-dependent code
+include("intrinsics/version.jl")
+
 # extensions to the C language
 include("intrinsics/memory_shared.jl")
 include("intrinsics/indexing.jl")
