@@ -13,14 +13,14 @@ struct CuArrayBackend <: AbstractGPUBackend end
 struct CuKernelContext <: AbstractKernelContext end
 
 @inline function GPUArrays.launch_heuristic(::CuArrayBackend, f::F, args::Vararg{Any,N};
-                                            maximize_blocksize=false) where {F,N}
+                                            elements::Int, elements_per_thread::Int) where {F,N}
     kernel = @cuda launch=false f(CuKernelContext(), args...)
-    if maximize_blocksize
-        # some kernels benefit (algorithmically) from a large block size
+
+    # launching many large blocks) lowers performance, as observed with broadcast, so cap
+    # the block size if we don't have a grid-stride kernel (which would keep the grid small)
+    if elements_per_thread > 1
         launch_configuration(kernel.fun)
     else
-        # otherwise, using huge blocks often hurts performance: even though it maximizes
-        # occupancy, we'd rather have a couple of blocks to switch between.
         launch_configuration(kernel.fun; max_threads=256)
     end
 end
@@ -39,13 +39,6 @@ GPUArrays.blockidx(ctx::CuKernelContext) = blockIdx().x
 GPUArrays.blockdim(ctx::CuKernelContext) = blockDim().x
 GPUArrays.threadidx(ctx::CuKernelContext) = threadIdx().x
 GPUArrays.griddim(ctx::CuKernelContext) = gridDim().x
-
-# math
-
-@inline GPUArrays.cos(ctx::CuKernelContext, x) = cos(x)
-@inline GPUArrays.sin(ctx::CuKernelContext, x) = sin(x)
-@inline GPUArrays.sqrt(ctx::CuKernelContext, x) = sqrt(x)
-@inline GPUArrays.log(ctx::CuKernelContext, x) = log(x)
 
 # memory
 
