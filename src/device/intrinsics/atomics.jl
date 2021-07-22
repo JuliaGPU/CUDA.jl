@@ -217,6 +217,19 @@ for T in [Float16, Float32, Float64]
 end
 
 
+# generic atomic support using compare-and-swap
+
+@inline function atomic_op!(ptr::LLVMPtr{T}, op::Function, val) where {T}
+    old = Base.unsafe_load(ptr)
+    while true
+        cmp = old
+        new = convert(T, op(old, val))
+        old = atomic_cas!(ptr, cmp, new)
+        (old == cmp) && return new
+    end
+end
+
+
 ## documentation
 
 """
@@ -423,8 +436,6 @@ end
     atomic_arrayset(A, Base._to_linear_index(A, Is...), op, convert(T, val))
 
 # native atomics
-# TODO: accurately model device support (e.g. using LLVM intrinsics for the capability);
-#       we now don't always use native intrinsics when possible (e.g. add! with Float64)
 for (op,impl,typ) in [(+,   atomic_add!, [UInt32,Int32,UInt64,Int64,Float32]),
                       (-,   atomic_sub!, [UInt32,Int32,UInt64,Int64,Float32]),
                       (&,   atomic_and!, [UInt32,Int32,UInt64,Int64]),
@@ -432,19 +443,22 @@ for (op,impl,typ) in [(+,   atomic_add!, [UInt32,Int32,UInt64,Int64,Float32]),
                       (⊻,   atomic_xor!, [UInt32,Int32,UInt64,Int64]),
                       (max, atomic_max!, [UInt32,Int32,UInt64,Int64]),
                       (min, atomic_min!, [UInt32,Int32,UInt64,Int64])]
-    @eval @inline atomic_arrayset(A::CuDeviceArray{T}, I::Integer, ::typeof($op),
+    @eval @inline atomic_arrayset(A::AbstractArray{T}, I::Integer, ::typeof($op),
                                   val::T) where {T<:Union{$(typ...)}} =
         $impl(pointer(A, I), val)
 end
 
-# fallback using compare-and-swap
-function atomic_arrayset(A::AbstractArray{T}, I::Integer, op::Function, val) where {T}
+# native atomics that are not supported on all devices
+@inline function atomic_arrayset(A::AbstractArray{T}, I::Integer, op::typeof(+),
+                                 val::T) where {T <: Union{Float64}}
     ptr = pointer(A, I)
-    old = Base.unsafe_load(ptr)
-    while true
-        cmp = old
-        new = convert(T, op(old, val))
-        old = atomic_cas!(ptr, cmp, new)
-        (old == cmp) && return new
+    if compute_capability() >= sv"6.0"
+        atomic_add!(ptr, val)
+    else
+        atomic_op!(ptr, op, val)
     end
 end
+
+# fallback using compare-and-swap
+@inline atomic_arrayset(A::AbstractArray{T}, I::Integer, op::Function, val) where {T} =
+    atomic_op!(pointer(A, I), op, val)
