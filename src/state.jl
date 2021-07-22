@@ -274,6 +274,8 @@ function device!(dev::CuDevice, flags=nothing)
         state.device = dev
         state.context = context(dev)
     end
+
+    dev
 end
 
 macro device!(dev, body)
