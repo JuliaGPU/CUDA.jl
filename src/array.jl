@@ -6,8 +6,8 @@ export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, is_unified
 # array storage is shared by arrays that refer to the same data, while keeping track of
 # the number of outstanding references
 
-struct ArrayStorage
-  buffer::Union{Mem.DeviceBuffer, Mem.UnifiedBuffer}
+struct ArrayStorage{B}
+  buffer::B
 
   ctx::CuContext
 
@@ -18,20 +18,21 @@ struct ArrayStorage
   refcount::Threads.Atomic{Int}
 end
 
-ArrayStorage(buf, ctx, state::Int) = ArrayStorage(buf, ctx, Threads.Atomic{Int}(state))
+ArrayStorage(buf::B, ctx, state::Int) where {B} =
+  ArrayStorage{B}(buf, ctx, Threads.Atomic{Int}(state))
 
 
 ## array type
 
-mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
-  storage::Union{Nothing,ArrayStorage}
+mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
+  storage::Union{Nothing,ArrayStorage{B}}
 
   maxsize::Int  # maximum data size; excluding any selector bytes
   offset::Int
 
   dims::Dims{N}
 
-  function CuArray{T,N}(::UndefInitializer, dims::Dims{N}; unified::Bool=false) where {T,N}
+  function CuArray{T,N,B}(::UndefInitializer, dims::Dims{N}) where {T,N,B}
     Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
     maxsize = prod(dims) * sizeof(T)
     bufsize = if Base.isbitsunion(T)
@@ -40,20 +41,18 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
     else
       maxsize
     end
-    buf = alloc(bufsize; unified)
+    buf = alloc(B, bufsize)
     storage = ArrayStorage(buf, context(), 1)
-    obj = new{T,N}(storage, maxsize, 0, dims)
+    obj = new{T,N,B}(storage, maxsize, 0, dims)
     finalizer(unsafe_finalize!, obj)
   end
 
-  function CuArray{T,N}(storage::ArrayStorage, dims::Dims{N};
-                        maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N}
+  function CuArray{T,N}(storage::ArrayStorage{B}, dims::Dims{N};
+                        maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,B}
     Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
-    return new{T,N}(storage, maxsize, offset, dims,)
+    return new{T,N,B}(storage, maxsize, offset, dims,)
   end
 end
-
-is_unified(a::CuArray) = isa(a.storage.buffer, Mem.UnifiedBuffer)
 
 """
     CUDA.unsafe_free!(a::CuArray, [stream::CuStream])
@@ -122,24 +121,35 @@ CuVector{T} = CuArray{T,1}
 CuMatrix{T} = CuArray{T,2}
 CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
+# default to non-unified memory
+CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N} =
+  CuArray{T,N,Mem.DeviceBuffer}(undef, dims)
+is_unified(a::CuArray) = isa(a.storage.buffer, Mem.UnifiedBuffer)
+
 # type and dimensionality specified, accepting dims as series of Ints
-CuArray{T,N}(::UndefInitializer, dims::Integer...; kwargs...) where {T,N} =
-  CuArray{T,N}(undef, dims; kwargs...)
+CuArray{T,N,B}(::UndefInitializer, dims::Integer...) where {T,N,B} =
+  CuArray{T,N,B}(undef, dims)
+CuArray{T,N}(::UndefInitializer, dims::Integer...) where {T,N} =
+  CuArray{T,N}(undef, dims)
 
 # type but not dimensionality specified
-CuArray{T}(::UndefInitializer, dims::Dims{N}; kwargs...) where {T,N} =
-  CuArray{T,N}(undef, dims; kwargs...)
-CuArray{T}(::UndefInitializer, dims::Integer...; kwargs...) where {T} =
-  CuArray{T}(undef, convert(Tuple{Vararg{Int}}, dims); kwargs...)
+CuArray{T}(::UndefInitializer, dims::Dims{N}) where {T,N} =
+  CuArray{T,N}(undef, dims)
+CuArray{T}(::UndefInitializer, dims::Integer...) where {T} =
+  CuArray{T}(undef, convert(Tuple{Vararg{Int}}, dims))
 
 # empty vector constructor
-CuArray{T,1}(; kwargs...) where {T} = CuArray{T,1}(undef, 0; kwargs...)
+CuArray{T,1,B}() where {T,B} = CuArray{T,1,B}(undef, 0)
+CuArray{T,1}() where {T} = CuArray{T,1}(undef, 0)
 
 # do-block constructors
-for (ctor, tvars) in (:CuArray => (), :(CuArray{T}) => (:T,), :(CuArray{T,N}) => (:T, :N))
+for (ctor, tvars) in (:CuArray => (),
+                      :(CuArray{T}) => (:T,),
+                      :(CuArray{T,N}) => (:T, :N),
+                      :(CuArray{T,N,B}) => (:T, :N, :B))
   @eval begin
-    function $ctor(f::Function, args...; kwargs...) where {$(tvars...)}
-      xs = $ctor(args...; kwargs...)
+    function $ctor(f::Function, args...) where {$(tvars...)}
+      xs = $ctor(args...)
       try
         f(xs)
       finally
@@ -149,12 +159,12 @@ for (ctor, tvars) in (:CuArray => (), :(CuArray{T}) => (:T,), :(CuArray{T,N}) =>
   end
 end
 
-Base.similar(a::CuArray{T,N}) where {T,N} =
-  CuArray{T,N}(undef, size(a); unified=is_unified(a))
-Base.similar(a::CuArray{T}, dims::Base.Dims{N}) where {T,N} =
-  CuArray{T,N}(undef, dims; unified=is_unified(a))
-Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} =
-  CuArray{T,N}(undef, dims; unified=is_unified(a))
+Base.similar(a::CuArray{T,N,B}) where {T,N,B} =
+  CuArray{T,N,B}(undef, size(a))
+Base.similar(a::CuArray{T,<:Any,B}, dims::Base.Dims{N}) where {T,N,B} =
+  CuArray{T,N,B}(undef, dims)
+Base.similar(a::CuArray{<:Any,<:Any,B}, ::Type{T}, dims::Base.Dims{N}) where {T,N,B} =
+  CuArray{T,N,B}(undef, dims)
 
 function Base.copy(a::CuArray{T,N}) where {T,N}
   b = similar(a)
@@ -255,29 +265,26 @@ AnyCuVecOrMat{T} = Union{AnyCuVector{T}, AnyCuMatrix{T}}
 
 ## interop with other arrays
 
-@inline function CuArray{T,N}(xs::AbstractArray{<:Any,N}; kwargs...) where {T,N}
-  A = CuArray{T,N}(undef, size(xs); kwargs...)
+@inline function CuArray{T,N,B}(xs::AbstractArray{<:Any,N}) where {T,N,B}
+  A = CuArray{T,N,B}(undef, size(xs))
   copyto!(A, convert(Array{T}, xs))
   return A
 end
 
+@inline CuArray{T,N}(xs::AbstractArray{<:Any,N}) where {T,N} =
+  CuArray{T,N,Mem.Device}(xs)
+
+@inline CuArray{T,N}(xs::CuArray{<:Any,N,B}) where {T,N,B} =
+  CuArray{T,N,B}(xs)
+
 # underspecified constructors
-CuArray{T}(xs::AbstractArray{S,N}; kwargs...) where {T,N,S} = CuArray{T,N}(xs; kwargs...)
-(::Type{CuArray{T,N} where T})(x::AbstractArray{S,N}; kwargs...) where {S,N} =
-  CuArray{S,N}(x; kwargs...)
-CuArray(A::AbstractArray{T,N}; kwargs...) where {T,N} = CuArray{T,N}(A; kwargs...)
+CuArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(xs)
+(::Type{CuArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = CuArray{S,N}(x)
+CuArray(A::AbstractArray{T,N}) where {T,N} = CuArray{T,N}(A)
 
 # idempotency
-function CuArray{T,N}(xs::CuArray{T,N}; unified::Bool=false) where {T,N}
-  if (unified && xs.storage.buffer isa Mem.UnifiedBuffer) ||
-     (!unified && xs.storage.buffer isa Mem.DeviceBuffer)
-    return xs
-  else
-    A = CuArray{T,N}(undef, size(xs); unified)
-    copyto!(A, xs)
-    return A
-  end
-end
+CuArray{T,N,B}(xs::CuArray{T,N,B}) where {T,N,B} = xs
+CuArray{T,N}(xs::CuArray{T,N,B}) where {T,N,B} = xs
 
 
 ## conversions
@@ -668,7 +675,7 @@ function Base.resize!(A::CuVector{T}, n::Int) where T
   end
 
   new_storage = @context! A.storage.ctx begin
-    buf = alloc(bufsize)
+    buf = alloc(typeof(A.storage.buffer), bufsize)
     ptr = convert(CuPtr{T}, buf)
     m = Base.min(length(A), n)
     unsafe_copyto!(ptr, pointer(A), m)

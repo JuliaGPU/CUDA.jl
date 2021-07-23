@@ -601,13 +601,13 @@ end
   dev = device()
 
   let
-    a = CuArray{Int}(undef, 1)
+    a = CuVector{Int}(undef, 1)
     @test !is_unified(a)
     @test !is_managed(pointer(a))
   end
 
   let
-    a = CuArray{Int}(undef, 1; unified=true)
+    a = CuVector{Int,Mem.UnifiedBuffer}(undef, 1)
     @test is_unified(a)
     @test is_managed(pointer(a))
     a .= 0
@@ -624,22 +624,49 @@ end
   end
 
   let
-    a = CUDA.rand(1)
-    @test !is_unified(a)
-    @test !is_managed(pointer(a))
+    # default ctor: device memory
+    let a = CUDA.rand(1)
+      @test !is_unified(a)
+      @test !is_managed(pointer(a))
+    end
 
-    ax = similar(a)
-    @test !is_unified(ax)
-    @test !is_managed(pointer(ax))
+    for B = [Mem.DeviceBuffer, Mem.UnifiedBuffer]
+      a = CuVector{Float32,B}(rand(Float32, 1))
+      @test !xor(B == Mem.UnifiedBuffer, is_unified(a))
 
-    b = CuArray(a; unified=true)
-    @test is_unified(b)
-    @test is_managed(pointer(b))
+      # check that buffer types are preserved
+      let b = similar(a)
+        @test eltype(b) == eltype(a)
+        @test !xor(B == Mem.UnifiedBuffer, is_unified(b))
+      end
+      let b = CuArray(a)
+        @test eltype(b) == eltype(a)
+        @test !xor(B == Mem.UnifiedBuffer, is_unified(b))
+      end
+      let b = CuArray{Float64}(a)
+        @test eltype(b) == Float64
+        @test !xor(B == Mem.UnifiedBuffer, is_unified(b))
+      end
 
-    bx = similar(b)
-    @test is_unified(bx)
-    @test is_managed(pointer(bx))
+      # change buffer type
+      let b = CuVector{Float32,Mem.DeviceBuffer}(a)
+        @test eltype(b) == eltype(a)
+        @test !is_unified(b)
+      end
+      let b = CuVector{Float32,Mem.UnifiedBuffer}(a)
+        @test eltype(b) == eltype(a)
+        @test is_unified(b)
+      end
 
-    @test Array(a) == Array(b)
+      # change type and buffer type
+      let b = CuVector{Float64,Mem.DeviceBuffer}(a)
+        @test eltype(b) == Float64
+        @test !is_unified(b)
+      end
+      let b = CuVector{Float64,Mem.UnifiedBuffer}(a)
+        @test eltype(b) == Float64
+        @test is_unified(b)
+      end
+    end
   end
 end

@@ -192,61 +192,71 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
 end
 
 """
-    alloc(sz)
+    alloc([::BufferType], sz; [stream::CuStream])
 
 Allocate a number of bytes `sz` from the memory pool. Returns a buffer object; may throw
 an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 """
-@inline @timeit_ci function alloc(sz; unified::Bool=false, stream::Union{Nothing,CuStream}=nothing)
+@inline @timeit_ci alloc(sz::Integer; kwargs...) = alloc(Mem.DeviceBuffer, sz; kwargs...)
+@inline @timeit_ci function alloc(::Type{B}, sz; stream::Union{Nothing,CuStream}=nothing) where {B<:Mem.AbstractBuffer}
   # 0-byte allocations shouldn't hit the pool
-  sz == 0 && return Mem.DeviceBuffer(CU_NULL, 0)
+  sz == 0 && return B(CU_NULL, 0)
 
-  gctime = 0.0  # using Base.@timed/gc_num is too expensive
-  time = Base.@elapsed if unified
-    # TODO: integrate this with the non-unified code path (e.g. we want to retry & gc too)
-    # TODO: add a memory type argument to `alloc`?
-    buf = Mem.alloc(Mem.Unified, sz)
-  else
-    state = active_state()
-
-    buf = nothing
-    if stream_ordered(state.device)
-      # mark the pool as active
-      pool_mark(state.device)
-
-      for phase in 1:4
-          if phase == 2
-              gctime += Base.@elapsed GC.gc(false)
-          elseif phase == 3
-              gctime += Base.@elapsed GC.gc(true)
-          elseif phase == 4
-              device_synchronize()
-          end
-
-          buf = actual_alloc(sz; stream_ordered=true, stream=something(stream, state.stream))
-          buf === nothing || break
-      end
-    else
-      for phase in 1:4
-          if phase == 2
-              gctime += Base.@elapsed GC.gc(false)
-          elseif phase == 3
-              gctime += Base.@elapsed GC.gc(true)
-          end
-
-          buf = actual_alloc(sz; stream_ordered=false)
-          buf === nothing || break
-      end
-    end
-    buf === nothing && throw(OutOfGPUMemoryError(sz))
-  end
+  # _alloc reports its own time measurement, since it may spend time in garbage collection
+  # (and using Base.@timed/gc_num to exclude that time is too expensive)
+  buf, time = _alloc(B, sz; stream)
 
   alloc_stats.alloc_count += 1
   alloc_stats.alloc_bytes += sz
-  alloc_stats.total_time += time - gctime
+  alloc_stats.total_time += time
   # NOTE: total_time might be an over-estimation if we trigger GC somewhere else
 
   return buf
+end
+@inline function _alloc(::Type{Mem.DeviceBuffer}, sz; stream::Union{Nothing,CuStream})
+    state = active_state()
+
+    gctime = 0.0
+    time = Base.@elapsed begin
+      buf = nothing
+      if stream_ordered(state.device)
+        # mark the pool as active
+        pool_mark(state.device)
+
+        for phase in 1:4
+            if phase == 2
+                gctime += Base.@elapsed GC.gc(false)
+            elseif phase == 3
+                gctime += Base.@elapsed GC.gc(true)
+            elseif phase == 4
+                device_synchronize()
+            end
+
+            buf = actual_alloc(sz; stream_ordered=true, stream=something(stream, state.stream))
+            buf === nothing || break
+        end
+      else
+        for phase in 1:4
+            if phase == 2
+                gctime += Base.@elapsed GC.gc(false)
+            elseif phase == 3
+                gctime += Base.@elapsed GC.gc(true)
+            end
+
+            buf = actual_alloc(sz; stream_ordered=false)
+            buf === nothing || break
+        end
+      end
+      buf === nothing && throw(OutOfGPUMemoryError(sz))
+    end
+
+    buf, time - gctime
+end
+@inline function _alloc(::Type{Mem.UnifiedBuffer}, sz; stream::Union{Nothing,CuStream})
+  time = Base.@elapsed begin
+    buf = Mem.alloc(Mem.Unified, sz)
+  end
+  buf, time
 end
 
 """
@@ -264,18 +274,8 @@ Releases a buffer `buf` to the memory pool.
   # this function is typically called from a finalizer, where we can't switch tasks,
   # so perform our own error handling.
   try
-    time = Base.@elapsed if buf isa Mem.UnifiedBuffer
-      Mem.free(buf)
-    else
-      state = active_state()
-      if stream_ordered(state.device)
-        # mark the pool as active
-        pool_mark(state.device)
-
-        actual_free(buf; stream_ordered=true, stream=something(stream, state.stream))
-      else
-        actual_free(buf; stream_ordered=false)
-      end
+    time = Base.@elapsed begin
+      _free(buf; stream)
     end
 
     alloc_stats.free_count += 1
@@ -289,6 +289,18 @@ Releases a buffer `buf` to the memory pool.
 
   return
 end
+@inline function _free(buf::Mem.DeviceBuffer; stream::Union{Nothing,CuStream})
+    state = active_state()
+    if stream_ordered(state.device)
+      # mark the pool as active
+      pool_mark(state.device)
+
+      actual_free(buf; stream_ordered=true, stream=something(stream, state.stream))
+    else
+      actual_free(buf; stream_ordered=false)
+    end
+end
+@inline _free(buf::Mem.UnifiedBuffer; stream::Union{Nothing,CuStream}) = Mem.free(buf)
 
 """
     reclaim([sz=typemax(Int)])
