@@ -47,3 +47,16 @@ function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
     return LinearAlgebra._cut_B(BB, 1:n)
 end
 end
+
+
+# qr
+
+using LinearAlgebra: AbstractQ
+
+# AbstractQ's `size` is the size of the full matrix,
+# while `Matrix(Q)` only gives the compact Q.
+# See JuliaLang/julia#26591 and JuliaGPU/CUDA.jl#969.
+CuMatrix{T}(Q::AbstractQ{S}) where {T,S} = convert(CuArray, Matrix{T}(Q))
+CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
+CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
+CuArray(Q::AbstractQ) = CuMatrix(Q)
