@@ -668,5 +668,15 @@ end
         @test is_unified(b)
       end
     end
+
+    # cu: supports unified keyword
+    let a = cu(rand(Float64, 1); unified=true)
+      @test is_unified(a)
+      @test eltype(a) == Float32
+    end
+    let a = cu(rand(Float64, 1))
+      @test !is_unified(a)
+      @test eltype(a) == Float32
+    end
   end
 end

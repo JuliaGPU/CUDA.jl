@@ -413,26 +413,26 @@ function Base.deepcopy_internal(x::CuArray, dict::IdDict)
 end
 
 
-## Float32-preferring conversion
+## opinionated gpu array adaptor
 
-struct Float32Adaptor end
+# eagerly converts Float64 to Float32, for performance reasons
 
-Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray) =
-  isbits(xs) ? xs : convert(CuArray, xs)
+struct CuArrayAdaptor{B} end
 
-Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:AbstractFloat}) =
-  isbits(xs) ? xs : convert(CuArray{Float32}, xs)
+Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T,N,B} =
+  isbits(xs) ? xs : CuArray{T,N,B}(xs)
 
-Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:Complex{<:AbstractFloat}}) =
-  isbits(xs) ? xs : convert(CuArray{ComplexF32}, xs)
+Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:AbstractFloat,N,B} =
+  isbits(xs) ? xs : CuArray{Float32,N,B}(xs)
+
+Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Complex{<:AbstractFloat},N,B} =
+  isbits(xs) ? xs : CuArray{ComplexF32,N,B}(xs)
 
 # not for Float16
-Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{Float16}) =
-  isbits(xs) ? xs : convert(CuArray, xs)
-Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{BFloat16}) =
-  isbits(xs) ? xs : convert(CuArray, xs)
+Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Union{Float16,BFloat16},N,B} =
+  isbits(xs) ? xs : CuArray{T,N,B}(xs)
 
-cu(xs) = adapt(Float32Adaptor(), xs)
+@inline cu(xs; unified::Bool=false) = adapt(CuArrayAdaptor{unified ? Mem.UnifiedBuffer : Mem.DeviceBuffer}(), xs)
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
 
