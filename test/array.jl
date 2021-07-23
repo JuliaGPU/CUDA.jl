@@ -595,5 +595,4 @@ end
   expected = sum(a, dims=2)
   actual = sum(c, dims=2)
   @test expected == Array(actual)
-
 end
