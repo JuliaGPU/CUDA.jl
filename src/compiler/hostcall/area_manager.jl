@@ -44,6 +44,7 @@ struct KindConfig
     kind::Int64
     notification::NotificationConfig
     area_ptr::Core.LLVMPtr{Int64,AS.Global}
+    meta_ptr::Core.LLVMPtr{Int64,AS.Global}
 end
 
 
@@ -75,11 +76,19 @@ include("manager/simple.jl")
 include("manager/warp.jl")
 
 """
-    required_size(manager::AreaManager)
+    required_area_size(manager::AreaManager)
 
 Function returning the expected minimum hostcall area size.
 """
-required_size(manager::AreaManager) = area_count(manager) * stride(manager)
+required_area_size(manager::AreaManager) = area_count(manager) * stride(manager)
+
+
+"""
+    required_meta_size(manager::AreaManager)
+
+Function returning the expected minimum hostcall area size.
+"""
+required_meta_size(manager::AreaManager) = area_count(manager) * meta_size(manager)
 
 
 """
@@ -87,9 +96,10 @@ required_size(manager::AreaManager) = area_count(manager) * stride(manager)
 
 Function returning the current runtime KindConfig.
 """
-function kind_config(manager::AreaManager, area_buffer::Mem.HostBuffer, policy_config::NotificationConfig)
-    ptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, area_buffer.ptr)
-    KindConfig(stride(manager), manager.area_size, area_count(manager), kind(manager), policy_config, ptr)
+function kind_config(manager::AreaManager, area_buffer::Mem.HostBuffer, meta_buffer::Mem.HostBuffer, policy_config::NotificationConfig)
+    area_ptr = reinterpret(Core.LLVMPtr{Int64,AS.Global}, area_buffer.ptr)
+    meta_ptr = reinterpret(Core.LLVMPtr{Int64, AS.Global}, meta_buffer.ptr)
+    KindConfig(stride(manager), manager.area_size, area_count(manager), kind(manager), policy_config, area_ptr, meta_ptr)
 end
 
 
@@ -132,6 +142,7 @@ finish_function
 # Maps CuContext to big hostcall area
 const hostcall_areas = Dict{CuContext, Mem.HostBuffer}()
 const policy_areas   = Dict{CuContext, Mem.HostBuffer}()
+const meta_areas   = Dict{CuContext, Mem.HostBuffer}()
 
 """
     assure_hostcall_area(ctx::CuContext, required::Int)::Mem.HostBuffer
@@ -139,7 +150,7 @@ const policy_areas   = Dict{CuContext, Mem.HostBuffer}()
 Assures `ctx` has a HostBuffer of at least `required` size.
 Returning that buffer.
 """
-function assure_area!(areas::Dict{CuContext, Mem.HostBuffer}, ctx::CuContext, required)
+function assure_area!(areas::Dict{CuContext, Mem.HostBuffer}, ctx::CuContext, required)::Mem.HostBuffer
     if !haskey(areas, ctx) || sizeof(areas[ctx]) < required
         haskey(areas, ctx) && (println("Freeing"); Mem.free(areas[ctx]))
 
@@ -162,34 +173,28 @@ This method is called just before a kernel is launched using this AreaManger.
 Assuring a correct hostcall_area for `manager`.
 Updating the KindConfig buffer with runtime config for `manager`.
 """
-function reset_hostcall_area!(manager::AreaManager, policy::NotificationPolicy, mod::CuModule)::Union{Nothing, Tuple{Ptr{Int64}, Ptr{Int64}}}
-    hostcall_area = assure_area!(hostcall_areas, mod.ctx, required_size(manager))
-    policy_area = assure_area!(policy_areas, mod.ctx, required_size(policy))
-    policy_ptr = reinterpret(Ptr{Int64}, policy_area.ptr)
+function reset_hostcall_area!(manager::AreaManager, policy::NotificationPolicy, mod::CuModule)::Union{Nothing, Tuple{Ptr{Int64}, Ptr{Int64}, Ptr{Int64}}}
+    hostcall_area = assure_area!(hostcall_areas, mod.ctx, required_area_size(manager))
+    meta_area = assure_area!(meta_areas, mod.ctx, required_meta_size(manager))
+    policy_area = assure_area!(policy_areas, mod.ctx, required_policy_size(policy))
 
     try
-
-        # try
-        kind = kind_config(manager, hostcall_area, NotificationConfig(policy, policy_area))
+        kind = kind_config(manager, hostcall_area, meta_area, NotificationConfig(policy, policy_area))
         kind_global = CuGlobal{KindConfig}(mod, KINDCONFIG)
         kind_global[] = kind
 
-        # reset hostcall area
-        ptr = kind.area_ptr
-        for i in 1:area_count(manager)
-            unsafe_store!(ptr, UNLOCKED)
-            unsafe_store!(ptr + 8, IDLE)
-            unsafe_store!(ptr + 16, 0)
-            ptr += stride(manager)
-        end
+        # reset meta area
+        meta_p = reinterpret(CuPtr{Int64}, kind.meta_ptr)
+        meta_array = unsafe_wrap(CuArray{Int64}, meta_p, div(required_meta_size(manager), sizeof(Int64)) )
+        fill!(meta_array, 0)
 
-        reset_policy_area!(policy, policy_ptr)
-        # synchronize()
-        # usleep(500)
+        policy_p = reinterpret(CuPtr{Int64}, policy_area.ptr)
+        policy_array = unsafe_wrap(CuArray{Int64}, policy_p, div(required_policy_size(policy), sizeof(Int64)) )
+        fill!(policy_array, 0)
 
-        return (reinterpret(Ptr{Int64}, kind.area_ptr), policy_area)
+        return (reinterpret(Ptr{Int64}, kind.area_ptr), reinterpret(Ptr{Int64}, kind.meta_ptr), policy_area)
     catch e
-        # @error "Something went wrong" exception=(e, catch_backtrace())
+        @error "Something went wrong" exception=(e, catch_backtrace())
         return nothing
     end
 end
@@ -201,21 +206,23 @@ end
 Checks area `index` for open hostmethod calls.
 There might be multiple open hostmethod calls related to as certain `index` (1-indexed).
 """
-function check_area(manager::AreaManager, area_ptr::Ptr{Int64}, policy::NotificationPolicy, policy_area::Ptr{Int64}, index::Int64)::Vector{Tuple{Int, Vector{Ptr{Int64}}, Int64}}
+function check_area(manager::AreaManager, area_p::Ptr{Int64}, meta_p::Ptr{Int64}, policy::NotificationPolicy, policy_area::Ptr{Int64}, index::Int64)::Vector{Tuple{Int, Vector{Ptr{Int64}}, Int64}}
     out = Vector{Tuple{Int, Vector{Ptr{Int64}}, Int64}}()
 
     for area_index in check_notification(policy, policy_area, index)
-        ptr = area_ptr + stride(manager) * (area_index - 1)
+        # +8 for skip lock
+        meta_ptr = meta_p + meta_size(manager) * (area_index - 1)
+        area_ptr = area_p + stride(manager) * (area_index-1)
 
-        (state, hostcall) = volatile_load(reinterpret(Ptr{NTuple{2, Int64}}, ptr + 8))
+        (state, hostcall) = volatile_load(reinterpret(Ptr{NTuple{2, Int64}}, meta_ptr + 8))
 
         if state == HOST_CALL && hostcall != 0
-            unsafe_store!(ptr + 8, HOST_HANDLING)
-            ptrs = areas_in(manager, ptr)
+            unsafe_store!(meta_ptr + 8, HOST_HANDLING)
+            ptrs = areas_in(manager, meta_ptr, area_ptr)
             push!(out, (hostcall, ptrs, area_index))
         else
             # Area got notified, but no open hostcall
-            println("you done goofed")
+            println("you done goofed state $state hostcall $hostcall")
         end
     end
 
@@ -224,7 +231,7 @@ end
 
 
 """
-    areas_in(::AreaManager, ptr::Ptr{Int64})::Vector{Ptr{Int64}}
+    areas_in(::AreaManager, meta_ptr::Ptr{Int64}, area_ptr::Ptr{Int64})::Vector{Ptr{Int64}}
 
 Calculates all used hostmethod zones in `ptr`
 
@@ -234,12 +241,12 @@ areas_in
 
 
 """
-    finish_area(manager::AreaManager, index::Int)
+    finish_area(manager::AreaManager, meta_p::Ptr{Int64}, index::Int)
 
 Finishes checking an area, notifying the device the host is done handling this function
 """
-function finish_area(manager::T, ptr::Ptr{Int64}, index::Int64) where {T<:AreaManager}
-    ptr += stride(manager) * (index - 1)
+function finish_area(manager::T, meta_p::Ptr{Int64}, index::Int64) where {T<:AreaManager}
+    ptr = meta_p + meta_size(manager) * (index - 1)
     volatile_store!(ptr + 8, HOST_DONE)
     volatile_store!(ptr+16, 0)
 end
@@ -253,13 +260,14 @@ Method returning how many area's should be checked periodically
 area_count
 
 function lock_area(ptr::Core.LLVMPtr{Int64,AS.Global})::Bool
-    atomic_cas!(ptr, UNLOCKED, LOCKED) == UNLOCKED
+    l = atomic_cas!(ptr, UNLOCKED, LOCKED)
+    l == UNLOCKED
 end
 
 function unlock_area(ptr::Core.LLVMPtr{Int64,AS.Global})::Bool
     v = atomic_xchg!(ptr, UNLOCKED)
     if v != LOCKED
-        @cuprintln("Failed $v")
+        @cuprintln("Device: failed $v")
     end
     return v == LOCKED
 end
@@ -268,12 +276,16 @@ end
 function try_lock(cptr::Core.LLVMPtr{Int64,AS.Global})::Bool
     lock_area(cptr) || return false # Could not even lock this
 
-    if unsafe_load(cptr+8) == IDLE # 'normal' case, the flag is on IDLE
+
+    state_flag = unsafe_load(cptr+8)
+    if state_flag == IDLE # 'normal' case, the flag is on IDLE
         unsafe_store!(cptr+8, LOADING)
         return true
     end
 
-    if unsafe_load(cptr + 16) == 0 # non-blocking case and host handled call
+
+    hostcall_flag = unsafe_load(cptr + 16)
+    if hostcall_flag == 0 # non-blocking case and host handled call
         unsafe_store!(cptr+8, LOADING)
         return true
     end

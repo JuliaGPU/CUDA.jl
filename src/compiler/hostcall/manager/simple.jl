@@ -13,8 +13,10 @@ end
 struct SimpleData
     index::Int32
 end
+const SIMPLE_META_SIZE = 3 * sizeof(Int64)
+meta_size(::SimpleAreaManager) = SIMPLE_META_SIZE
 
-stride(manager::SimpleAreaManager) = align(manager.area_size + 3 * sizeof(Int64))
+stride(manager::SimpleAreaManager) = align(manager.area_size)
 kind(::SimpleAreaManager) = 0
 kind(::Type{SimpleAreaManager}) = 0
 
@@ -23,27 +25,32 @@ function Base.show(io::IO, manager::SimpleAreaManager)
     print(io, "SimpleAreaManager($(manager.area_count), $(manager.area_size))")
 end
 
-simple_meta_size() = 3 * sizeof(Int64) # lock, state, hostcall
-get_simple_ptr(kind::KindConfig, data::SimpleData) = kind.area_ptr + data.index * kind.stride + simple_meta_size()
+
+get_simple_ptr(kind::KindConfig, data::SimpleData) = kind.area_ptr + data.index * kind.stride
+
 
 function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig, hostcall::Int64)::Tuple{SimpleData, Core.LLVMPtr{Int64,AS.Global}}
-    ptr = kind.area_ptr
-    stride = kind.stride
+    ptr = kind.meta_ptr
     count = kind.count
 
-    i = (blockIdx().x-1) * align(blockDim().x) + threadIdx().x - 1
+    i = ((blockIdx().x-1) * align(blockDim().x) + threadIdx().x - 1) % count
 
     tc = 0
 
-    cptr = ptr + (i % count) * stride
-    while (!try_lock(cptr)) &&  tc < 50000
+    cptr = ptr + i * SIMPLE_META_SIZE
+    while (!try_lock(cptr)) &&  tc < 250000
         nanosleep(UInt32(32))
         i += 1
         tc += 1
-        cptr = ptr + (i % count) * stride
+
+        cptr += SIMPLE_META_SIZE
+        if i == count
+            i = 0
+            cptr = ptr
+        end
     end
 
-    if tc == 50000
+    if tc == 250000
         @cuprintln("Timed out acquire lock")
     end
 
@@ -54,11 +61,14 @@ end
 
 
 function call_host_function(kind::KindConfig, data::SimpleData, hostcall::Int64, ::Val{blocking}) where {blocking}
-    cptr = kind.area_ptr + data.index * kind.stride
+    # Setup meta data for function call
+    cptr = kind.meta_ptr + data.index * SIMPLE_META_SIZE
+
 
     ptr = reinterpret(Ptr{Int64}, cptr)
     unsafe_store!(ptr + 16, hostcall)
     unsafe_store!(ptr + 8, HOST_CALL)
+
 
     threadfence()
     notify_host(kind.notification, data.index)
@@ -83,10 +93,10 @@ end
 
 
 function finish_function(kind::KindConfig, data::SimpleData)
-    cptr = kind.area_ptr + data.index * kind.stride
+    cptr = kind.meta_ptr + data.index * SIMPLE_META_SIZE
     unsafe_store!(cptr+8, IDLE) # challenge the gods the host did this
     unlock_area(cptr)
 end
 
-areas_in(::SimpleAreaManager, ptr::Ptr{Int64}) = Ptr{Int64}[ptr+24]
+areas_in(::SimpleAreaManager, ::Ptr{Int64}, area_ptr::Ptr{Int64}) = Ptr{Int64}[area_ptr]
 area_count(manager::SimpleAreaManager) = manager.area_count

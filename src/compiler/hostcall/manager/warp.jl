@@ -11,7 +11,7 @@ struct WarpAreaManager <: AreaManager
     area_size::Int
     warp_size::Int
 end
-WarpAreaManager(warp_area_count, area_size) = AreaManager(warp_area_count, area_size, 32)
+WarpAreaManager(warp_area_count, area_size) = WarpAreaManager(warp_area_count, area_size, 32)
 
 struct WarpData
     index::Int32
@@ -19,18 +19,21 @@ struct WarpData
     laneid::Int32
     leader::Int32
 end
+const WARP_META_SIZE = 4 * sizeof(Int64)# lock, state, hostcall, mask
 
-warp_meta_size() = 4 * sizeof(Int64) # lock, state, hostcall, mask
-stride(manager::WarpAreaManager) = align(manager.area_size * manager.warp_size + warp_meta_size())
+meta_size(::WarpAreaManager) = WARP_META_SIZE
+stride(manager::WarpAreaManager) = align(manager.area_size * manager.warp_size)
 kind(::WarpAreaManager) = 1
 kind(::Type{WarpAreaManager}) = 1
 area_count(manager::WarpAreaManager) = manager.warp_area_count
+
 
 function Base.show(io::IO, manager::WarpAreaManager)
     print(io, "WarpAreaManager($(manager.warp_area_count), $(manager.area_size))")
 end
 
-get_warp_ptr(kind::KindConfig, data::WarpData) = kind.area_ptr + data.index * kind.stride + warp_meta_size() + (data.laneid - 1) * kind.area_size
+
+get_warp_ptr(kind::KindConfig, data::WarpData) = kind.area_ptr + data.index * kind.stride + (data.laneid - 1) * kind.area_size
 
 function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig, hostcall::Int64)::Tuple{WarpData, Core.LLVMPtr{Int64,AS.Global}}
     mask1 = vote_ballot(true)
@@ -48,19 +51,23 @@ function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig, hostcall::
     index = 0
     if leader == laneid
         # acquire lock for warp
-        i = div(threadx, ws)
-
-        ptr = kind.area_ptr
-        stride = kind.stride
+        ptr = kind.meta_ptr
         count = kind.count
 
+        i = div(threadx, ws) % count
+
         tc = 0
-        cptr = ptr + (i % count) * stride
+
+        cptr = ptr + i * WARP_META_SIZE
         while(!try_lock(cptr)) && tc < 1000000
             nanosleep(UInt32(32))
             i += 1
             tc += 1
-            cptr = ptr + (i % count) * stride
+            cptr += WARP_META_SIZE
+            if i == count
+                i = 0
+                cptr = ptr
+            end
         end
 
         if tc == 1000000
@@ -68,7 +75,7 @@ function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig, hostcall::
         end
 
 
-        index = i % count
+        index = i
     end
 
     index = shfl_sync(mask, index, leader)
@@ -82,7 +89,7 @@ end
 
 function call_host_function(kind::KindConfig, data::WarpData, hostcall::Int64, ::Val{blocking}) where {blocking}
     if data.laneid == data.leader
-        cptr = kind.area_ptr + data.index * kind.stride
+        cptr = kind.meta_ptr + data.index * WARP_META_SIZE
         ptr = reinterpret(Ptr{Int64}, cptr)
         unsafe_store!(ptr + 16, hostcall)
         unsafe_store!(ptr + 24, data.mask)
@@ -117,26 +124,25 @@ end
 
 function finish_function(kind::KindConfig, data::WarpData)
     if data.laneid == data.leader # leader
-        cptr = kind.area_ptr + data.index * kind.stride
+        cptr = kind.meta_ptr + data.index * WARP_META_SIZE
 
         unsafe_store!(cptr+24, 0)
-        unsafe_store!(cptr+16, IDLE)
+        unsafe_store!(cptr+8, IDLE)
 
         unlock_area(cptr)
     end
 end
 
 
-function areas_in(manager::WarpAreaManager, ptr::Ptr{Int64})
+function areas_in(manager::WarpAreaManager, meta_ptr::Ptr{Int64}, area_ptr::Ptr{Int64})
     ptrs = Ptr{Int64}[]
-    mask = unsafe_load(ptr + 24)
-    ptr += warp_meta_size()
+    mask = unsafe_load(meta_ptr + 24)
     st = manager.area_size
     for digit in digits(mask, base=2, pad=32)
         if digit == 1
-            push!(ptrs, ptr)
+            push!(ptrs, area_ptr)
         end
-        ptr += st
+        area_ptr += st
     end
 
     return ptrs

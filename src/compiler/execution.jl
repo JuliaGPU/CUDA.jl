@@ -100,7 +100,6 @@ macro cuda(ex...)
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     local $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
                     if $launch
-                        # changed for benchmark
                         $kernel($(var_exprs...); $(call_kwargs...))
                     else
                         $kernel
@@ -206,6 +205,7 @@ struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     ctx::CuContext
     mod::CuModule
     fun::CuFunction
+    uses_hostcall::Bool
 end
 
 @doc (@doc AbstractKernel) HostKernel
@@ -363,27 +363,33 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
 
     # TODO cleanup, but how
     # filter!(!isequal(HOSTCALLAREA), compiled.external_gvars)
+    # println("has kindconfig $(KINDCONFIG in compiled.external_gvars)")
     # filter!(!isequal(KINDCONFIG), compiled.external_gvars)
 
-    return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun)
+    return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun, KINDCONFIG in compiled.external_gvars)
 end
 
 function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1,
             poller::Poller=AlwaysPoller(0),
-            manager::AreaManager=SimpleAreaManager(140, 128),
+            manager::AreaManager=SimpleAreaManager(div(threads * blocks, 32, RoundUp), 128),
             policy_type::DataType=SimpleNotificationPolicy,
             kwargs...)
-    # println("Using manager $manager\nPoller $poller, and policy type $policy_type")
-    event = CuEvent(CUDA.EVENT_DISABLE_TIMING)
 
-    t = wait_and_kill_watcher(kernel.mod, poller, manager, policy_type(area_count(manager)), event, 1)
+    event = nothing
+    t = nothing
+
+    if kernel.uses_hostcall
+        # println("Using manager $manager\nPoller $poller, and policy type $policy_type")
+        event = CuEvent(CUDA.EVENT_DISABLE_TIMING)
+        t = wait_and_kill_watcher(kernel.mod, poller, manager, policy_type(area_count(manager)), event, 1)
+    end
 
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
-    CUDA.record(event, stream())
 
-    # Benchmarking purposes
-    Base.fetch(t)
-    # synchronize()
+    if kernel.uses_hostcall
+        CUDA.record(event, stream())
+        Base.fetch(t)
+    end
 end
 
 

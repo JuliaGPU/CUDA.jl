@@ -11,14 +11,14 @@ ret_offset() = 16
 Host side function that checks and executes outstanding hostmethods.
 Checking only one index.
 """
-function handle_hostcall(manager::AreaManager, area::Ptr{Int64}, policy::NotificationPolicy, policy_area::Ptr{Int64}, index::Int64)::Vector{Int64}
+function handle_hostcall(manager::AreaManager, area::Ptr{Int64}, meta::Ptr{Int64}, policy::NotificationPolicy, policy_area::Ptr{Int64}, index::Int64)::Vector{Int64}
     out = Int64[]
 
-    for (hostcall, ptrs, area_index) in check_area(manager, area, policy, policy_area, index)
+    for (hostcall, ptrs, area_index) in check_area(manager, area, meta, policy, policy_area, index)
         push!(out, hostcall)
         try
             ## Handle hostcall
-            handle_hostcalls(Val(hostcall), manager, ptrs, area, area_index)
+            handle_hostcalls(Val(hostcall), manager, ptrs, area, meta, area_index)
         catch e
             println("ERROR ERROR hostcall $(hostcall)")
             for (exc, bt) in Base.catch_stack()
@@ -26,7 +26,7 @@ function handle_hostcall(manager::AreaManager, area::Ptr{Int64}, policy::Notific
                 println(stdout)
             end
 
-            finish_area(manager, area, area_index)
+            finish_area(manager, meta, area_index)
         end
     end
 
@@ -35,7 +35,7 @@ end
 
 
 """
-    handle_hostcalls(::Val{N}, manager::AreaManager, ptrs::Ptr{UInt8}, area::Ptr{Int64}, index::Int64)
+    handle_hostcalls(::Val{N}, manager::AreaManager, ptrs::Ptr{UInt8}, area::Ptr{Int64}, meta::Ptr{Int64}, index::Int64)
 
     TODO
 Executes hostmethod with id N using hostcall area at `ptr`
@@ -43,7 +43,7 @@ Executes hostmethod with id N using hostcall area at `ptr`
 This is the catch all function, but specialized functions are generated inside `@cpu`.
 Specialized functions are aliased to `exec_hostmethode` with particular types.
 """
-function handle_hostcalls(::Val{N}, manager::AreaManager, ptrs::Vector{Ptr{Int64}}, area::Ptr{Int64}, index::Int64) where {N}
+function handle_hostcalls(::Val{N}, manager::AreaManager, ptrs::Vector{Ptr{Int64}}, area::Ptr{Int64}, meta::Ptr{Int64}, index::Int64) where {N}
     println("Syscall $N not supported")
 end
 
@@ -55,7 +55,7 @@ Downloads and invconverts arguments in hostcall area
 Actually call the hostmethod
 Set converted return argument in hostcall area
 """
-function exec_hostmethodes(::Type{A}, ::Type{R}, manager::AreaManager, func::Function, ptrs::Vector{Ptr{Int64}}, area::Ptr{Int64}, index::Int64, blocking::Bool) where {A, R}
+function exec_hostmethodes(::Type{A}, ::Type{R}, manager::AreaManager, func::Function, ptrs::Vector{Ptr{Int64}}, area::Ptr{Int64}, meta::Ptr{Int64}, index::Int64, blocking::Bool) where {A, R}
     function load_arg(ptr::Ptr{Int64})
         arg_tuple_ptr = reinterpret(Ptr{A}, ptr)
         arg_tuple = unsafe_load(arg_tuple_ptr)
@@ -68,7 +68,7 @@ function exec_hostmethodes(::Type{A}, ::Type{R}, manager::AreaManager, func::Fun
     args = map(load_arg, ptrs)
 
     if !blocking
-        finish_area(manager, area, index)
+        finish_area(manager, meta, index)
     end
 
     function exec_f((args, ptr))
@@ -76,7 +76,7 @@ function exec_hostmethodes(::Type{A}, ::Type{R}, manager::AreaManager, func::Fun
 
         if blocking
             ret = cudaconvert(ret_v)
-            ret_ptr = reinterpret(Ptr{R}, ptr + ret_offset())
+            ret_ptr = reinterpret(Ptr{R}, ptr)
             unsafe_store!(ret_ptr, ret)
         end
     end
@@ -84,7 +84,7 @@ function exec_hostmethodes(::Type{A}, ::Type{R}, manager::AreaManager, func::Fun
     foreach(exec_f, args)
 
     if blocking
-        finish_area(manager, area, index)
+        finish_area(manager, meta, index)
     end
 end
 
@@ -115,7 +115,7 @@ Device side function to call a hostmethod. This function is invoked with `@cpu`.
 
     if B
         # Get return value
-        ret_ptr = reinterpret(Ptr{R}, llvmptr + ret_offset())
+        ret_ptr = reinterpret(Ptr{R}, llvmptr)
         local ret = unsafe_load(ret_ptr)
 
         # Finish method
@@ -242,7 +242,7 @@ macro cpu(ex...)
 
     # handle_hostcall function that is called from handle_hostcall(ctx::CuContext)
     new_fn = quote
-        handle_hostcalls(::Val{$indx}, manager::AreaManager, ptrs::Vector{Ptr{Int64}}, area::Ptr{Int64}, index::Int64) = exec_hostmethodes($types_type_quote, $(types[1]), manager, $caller_module.$f, ptrs, area, index, $blocking)
+        handle_hostcalls(::Val{$indx}, manager::AreaManager, ptrs::Vector{Ptr{Int64}}, area::Ptr{Int64}, meta::Ptr{Int64}, index::Int64) = exec_hostmethodes($types_type_quote, $(types[1]), manager, $caller_module.$f, ptrs, area, meta, index, $blocking)
     end
 
 

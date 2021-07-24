@@ -81,8 +81,8 @@ function wait_and_kill_watcher(mod::CuModule, poller::Poller, manager::AreaManag
     if t === nothing
         return @async begin end
     end
-    (area_ptr, policy_ptr) = t
-    f = (i) -> handle_hostcall(manager, area_ptr, policy, policy_ptr, i)
+    (area_ptr, meta_ptr, policy_ptr) = t
+    f = (i) -> handle_hostcall(manager, area_ptr, meta_ptr, policy, policy_ptr, i)
 
     poll_intervals = poll_slices(policy, pollers)
     pollers = length(poll_intervals) # If asked for too many, this is reduced, so update value
@@ -98,7 +98,6 @@ function wait_and_kill_watcher(mod::CuModule, poller::Poller, manager::AreaManag
             Base.release(sem)
 
             yield()
-            # out = ([], [])
 
             try
                 # Hoist all these params
@@ -109,8 +108,6 @@ function wait_and_kill_watcher(mod::CuModule, poller::Poller, manager::AreaManag
                 println("Failed $e")
                 stacktrace()
             end
-
-            # return out
         end
 
         push!(tasks, t)
@@ -121,28 +118,12 @@ function wait_and_kill_watcher(mod::CuModule, poller::Poller, manager::AreaManag
     end
 
     return @async begin
-
-        # hit_times = Vector{Vector{Float64}}()
-        # miss_times = Vector{Vector{Float64}}()
-
         start = get_times()[1]
         for i in 1:pollers
             Base.fetch(tasks[i])
-            # push!(hit_times, hits)
-            # push!(miss_times, misses)
         end
         end_time = get_times()[1]
 
-
-        # hits = [x for y in hit_times for x in y]
-        # misses = [x for y in miss_times for x in y]
-        # println(policy)
-
-        # @printf "hits %d, misses %d\n" length(hits) length(misses)
-        # print("Hit  stats: "); print_stats(hits); println()
-        # print("MIss stats: "); print_stats(misses); println()
-
-        # return (hits, misses)
         return (end_time - start)
     end
 end
@@ -164,24 +145,13 @@ end
 Polls all hostcall areas then sleeps for a certain duration.
 """
 function launch_poller(poller::Poller, e::CuEvent, min::Int64, max::Int64, f::Function)
-    # hits = 0
-    # misses = 0
-    # hit_times = Float64[]
-    # miss_times = Float64[]
 
     i = min
     while true
-        # s_time = time()
-
         hostcalls = f(i)
 
         if isempty(hostcalls)
-            # misses += 1
-            # push!(miss_times, time() - s_time)
             do_poller(poller, 0)
-        else
-            # hits += 1
-            # push!(hit_times, time() - s_time)
         end
 
         for hostcall in hostcalls
@@ -200,8 +170,6 @@ function launch_poller(poller::Poller, e::CuEvent, min::Int64, max::Int64, f::Fu
     for i in min:max
         f(i)
     end
-
-    # return (hit_times, miss_times)
 end
 
 
@@ -218,27 +186,3 @@ end
 function launch_poller(poller::VarPoller, e::CuEvent, ctx::CuContext)
     error("Not yet supported")
 end
-
-# AlwaysPoller
-#     zonder gather
-#         hits 9174, misses 67626
-#         0.169635 seconds
-#     met gather
-#         hits 4059, misses 22261
-#         0.065526 seconds
-
-# ConstantPoller(50)
-#     zonder gather
-#         hits 9174, misses 41386
-#         4.275604 seconds
-#     met gather
-#         hits 4059, misses 2901
-#         0.307719 seconds
-
-# VarPoller(CUDA.SaturationCounter(5), [5, 50, 100, 150, 200])
-#     zonder gather
-#         hits 9174, misses 44586
-#         2.542565 seconds
-#     met gather
-#         hits 4059, misses 3541
-#         0.243481 seconds

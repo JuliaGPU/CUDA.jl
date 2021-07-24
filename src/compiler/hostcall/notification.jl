@@ -1,6 +1,6 @@
 
 abstract type NotificationPolicy end
-required_size(::NotificationPolicy) = 0
+required_policy_size(::NotificationPolicy) = 0
 kind(::NotificationPolicy) = -1
 reset_policy_area!(inner::NotificationPolicy, policy_buffer::Mem.HostBuffer) = () # TODO
 poll_slices(::NotificationPolicy, wanted::Int64) = []
@@ -47,7 +47,7 @@ end
 
 
 
-required_size(policy::SimpleNotificationPolicy) = policy.count * sizeof(Int64)
+required_policy_size(policy::SimpleNotificationPolicy) = policy.count * sizeof(Int64)
 
 
 function check_notification(policy::SimpleNotificationPolicy, policy_area::Ptr{Int64}, index::Int64)::Vector{Int64}
@@ -61,13 +61,6 @@ function check_notification(policy::SimpleNotificationPolicy, policy_area::Ptr{I
     end
 
     return out
-end
-
-
-function reset_policy_area!(simple::SimpleNotificationPolicy, policy_buffer::Ptr{Int64})
-    for i in 1:simple.count
-        unsafe_store!(policy_buffer, 0, i)
-    end
 end
 
 
@@ -143,32 +136,6 @@ function check_notification(policy::TreeNotificationPolicy{Depth}, policy_area::
 
 
     return out
-end
-
-
-function reset_policy_area!(policy::TreeNotificationPolicy, policy_buffer::Ptr{Int64})
-    # ptr    = convert(CuPtr{Int64}, policy_buffer)
-    # cuarray = unsafe_wrap(CuArray{Int64}, ptr, policy.tree_size * policy.tree_count)
-    # fill!(cuarray, 0)
-    for i in 1:(policy.tree_size * policy.tree_count)
-        unsafe_store!(policy_buffer, 0, i)
-    end
-
-
-end
-
-function reset_policy_area!(policy::TreeNotificationPolicy, policy_buffer::Mem.HostBuffer)
-    ptr    = convert(CuPtr{Int64}, policy_buffer)
-    ptr_u = reinterpret(CuPtr{UInt32}, ptr)
-    Mem.set!(ptr_u, 0, policy.tree_size * policy.tree_count * 2)
-
-    # cuarray = unsafe_wrap(CuArray{Int64}, ptr, policy.tree_size * policy.tree_count)
-    # fill!(cuarray, 0)
-    # for i in 1:(policy.tree_size * policy.tree_count)
-    #     unsafe_store!(policy_buffer, 0, i)
-    # end
-
-
 end
 
 
