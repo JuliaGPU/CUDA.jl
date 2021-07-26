@@ -8,7 +8,7 @@ const method_table = nothing
 end
 
 # list of overrides (only for Julia 1.6)
-const overrides = quote end
+const overrides = Expr[]
 
 macro device_override(ex)
     code = quote
@@ -17,7 +17,7 @@ macro device_override(ex)
     if isdefined(Base.Experimental, Symbol("@overlay"))
         return esc(code)
     else
-        push!(overrides.args, code)
+        push!(overrides, code)
         return
     end
 end
