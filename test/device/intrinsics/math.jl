@@ -1,3 +1,5 @@
+using SpecialFunctions
+
 @testset "math" begin
     @testset "log10" begin
         @test testf(a->log10.(a), Float32[100])
@@ -83,4 +85,8 @@
         end
     end
 
+    # something from SpecialFunctions.jl
+    @testset "erf" begin
+        @test testf(a->SpecialFunctions.erf.(a), Float32[1.0])
+    end
 end
