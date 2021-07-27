@@ -17,7 +17,8 @@ function precompile_runtime(caps=CUDA.llvm_compat(LLVM.version()).cap)
             # NOTE: this often runs when we don't have a functioning set-up,
             #       so we don't use CUDACompilerTarget(...) which requires NVML
             target = PTXCompilerTarget(; cap=cap)
-            job = CompilerJob(target, dummy_source, params)
+            compiler = Compiler(target, params)
+            job = CompilerJob(compiler, dummy_source)
             GPUCompiler.load_runtime(job; ctx)
         end
     end

@@ -59,8 +59,8 @@ version = "7.0.1"
 
 [[GPUCompiler]]
 deps = ["ExprTools", "InteractiveUtils", "LLVM", "Libdl", "Logging", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "e1b185a261c5278b60b2936e5c1be51c677c974a"
-repo-rev = "6946763"
+git-tree-sha1 = "7ea54a9fc9816d3f4f6b2f33cf32b36b080f1d4c"
+repo-rev = "tb/latency"
 repo-url = "https://github.com/JuliaGPU/GPUCompiler.jl.git"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
 version = "0.12.6"
