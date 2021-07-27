@@ -19,10 +19,8 @@ Base.:(*)(p::ScaledPlan, x::DenseCuArray) = rmul!(p.p * x, p.scale)
 
 abstract type CuFFTPlan{T<:cufftNumber, K, inplace} <: Plan{T} end
 
-Base.unsafe_convert(::Type{cufftHandle}, p::CuFFTPlan) = p.handle
-
 # for some reason, cufftHandle is an integer and not a pointer...
-Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = Base.unsafe_convert(cufftHandle, p)
+Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = p.handle
 
 function CUDA.unsafe_free!(plan::CuFFTPlan, stream::CuStream=stream())
     @context! skip_destroyed=true plan.ctx cufftDestroy(plan)
