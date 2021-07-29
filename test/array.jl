@@ -596,3 +596,87 @@ end
   actual = sum(c, dims=2)
   @test expected == Array(actual)
 end
+
+@testset "unified memory" begin
+  dev = device()
+
+  let
+    a = CuVector{Int}(undef, 1)
+    @test !is_unified(a)
+    @test !is_managed(pointer(a))
+  end
+
+  let
+    a = CuVector{Int,Mem.UnifiedBuffer}(undef, 1)
+    @test is_unified(a)
+    @test is_managed(pointer(a))
+    a .= 0
+    @test Array(a) == [0]
+
+    if length(devices()) > 1
+      other_devs = filter(!isequal(dev), collect(devices()))
+      device!(first(other_devs)) do
+        a .+= 1
+        @test Array(a) == [1]
+      end
+      @test Array(a) == [1]
+    end
+  end
+
+  let
+    # default ctor: device memory
+    let a = CUDA.rand(1)
+      @test !is_unified(a)
+      @test !is_managed(pointer(a))
+    end
+
+    for B = [Mem.DeviceBuffer, Mem.UnifiedBuffer]
+      a = CuVector{Float32,B}(rand(Float32, 1))
+      @test !xor(B == Mem.UnifiedBuffer, is_unified(a))
+
+      # check that buffer types are preserved
+      let b = similar(a)
+        @test eltype(b) == eltype(a)
+        @test !xor(B == Mem.UnifiedBuffer, is_unified(b))
+      end
+      let b = CuArray(a)
+        @test eltype(b) == eltype(a)
+        @test !xor(B == Mem.UnifiedBuffer, is_unified(b))
+      end
+      let b = CuArray{Float64}(a)
+        @test eltype(b) == Float64
+        @test !xor(B == Mem.UnifiedBuffer, is_unified(b))
+      end
+
+      # change buffer type
+      let b = CuVector{Float32,Mem.DeviceBuffer}(a)
+        @test eltype(b) == eltype(a)
+        @test !is_unified(b)
+      end
+      let b = CuVector{Float32,Mem.UnifiedBuffer}(a)
+        @test eltype(b) == eltype(a)
+        @test is_unified(b)
+      end
+
+      # change type and buffer type
+      let b = CuVector{Float64,Mem.DeviceBuffer}(a)
+        @test eltype(b) == Float64
+        @test !is_unified(b)
+      end
+      let b = CuVector{Float64,Mem.UnifiedBuffer}(a)
+        @test eltype(b) == Float64
+        @test is_unified(b)
+      end
+    end
+
+    # cu: supports unified keyword
+    let a = cu(rand(Float64, 1); unified=true)
+      @test is_unified(a)
+      @test eltype(a) == Float32
+    end
+    let a = cu(rand(Float64, 1))
+      @test !is_unified(a)
+      @test eltype(a) == Float32
+    end
+  end
+end

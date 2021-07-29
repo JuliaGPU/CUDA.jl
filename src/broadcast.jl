@@ -6,7 +6,7 @@ struct CuArrayStyle{N} <: AbstractGPUArrayStyle{N} end
 CuArrayStyle(::Val{N}) where N = CuArrayStyle{N}()
 CuArrayStyle{M}(::Val{N}) where {N,M} = CuArrayStyle{N}()
 
-BroadcastStyle(::Type{CuArray{T,N}}) where {T,N} = CuArrayStyle{N}()
+BroadcastStyle(::Type{<:CuArray{T,N}}) where {T,N} = CuArrayStyle{N}()
 
 Base.similar(bc::Broadcasted{CuArrayStyle{N}}, ::Type{T}) where {N,T} =
     similar(CuArray{T}, axes(bc))
