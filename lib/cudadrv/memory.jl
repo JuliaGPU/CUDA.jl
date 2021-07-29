@@ -376,21 +376,17 @@ const Array   = ArrayBuffer
 ## initialization
 
 """
-    Mem.set!(buf::CuPtr, value::Union{UInt8,UInt16,UInt32}, len::Integer;
-             async::Bool=false, stream::CuStream)
+    Mem.set!(buf::CuPtr, value::Union{UInt8,UInt16,UInt32}, len::Integer; [stream::CuStream])
 
-Initialize device memory by copying `val` for `len` times. Executed asynchronously if
-`async` is true, otherwise `stream` is synchronized.
+Initialize device memory by copying `val` for `len` times.
 """
 set!
 
 for T in [UInt8, UInt16, UInt32]
     bits = 8*sizeof(T)
     fn = Symbol("cuMemsetD$(bits)Async")
-    @eval function set!(ptr::CuPtr{$T}, value::$T, len::Integer;
-                        async::Bool=false, stream::CuStream=stream())
+    @eval function set!(ptr::CuPtr{$T}, value::$T, len::Integer; stream::CuStream=stream())
         $(getproperty(CUDA, fn))(ptr, value, len, stream)
-        async || synchronize(stream)
         return
     end
 end

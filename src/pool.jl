@@ -39,7 +39,7 @@ AllocStats(b::AllocStats, a::AllocStats) =
   buf = try
     time = Base.@elapsed begin
       buf = @timeit_ci "Mem.alloc" begin
-        Mem.alloc(Mem.Device, bytes; async=true, stream_ordered, stream)
+        Mem.alloc(Mem.Device, bytes; stream_ordered, stream)
       end
     end
 

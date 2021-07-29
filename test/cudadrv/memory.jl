@@ -91,7 +91,7 @@ let
 
     unsafe_copyto!(typed_pointer(src, T), pointer(data), N; async=true)
 
-    Mem.set!(typed_pointer(src, T), zero(T), N; async=true, stream=stream())
+    Mem.set!(typed_pointer(src, T), zero(T), N; stream=stream())
 
     Mem.free(src)
 end
