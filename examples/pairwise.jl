@@ -117,4 +117,4 @@ function main(n = 1000)
 
     @test pairwise_dist_cpu(lat, lon) ≈ pairwise_dist_gpu(lat, lon) rtol=1e-2
 end
-# main()
+main()

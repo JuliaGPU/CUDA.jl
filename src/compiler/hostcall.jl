@@ -1,7 +1,6 @@
 include("hostcall/notification.jl")
 include("hostcall/area_manager.jl")
 include("hostcall/hostref.jl")
-include("hostcall/timer.jl")
 include("hostcall/poller.jl")
 
 ret_offset() = 16
@@ -254,7 +253,7 @@ macro cpu(ex...)
 
     if gran_gather !== nothing
         call_cpu = quote
-            CUDA.gather_scatter($args_tuple, $(types[1]), $gran_gather, $gran_scatter, v -> CUDA.call_hostcall($(types[1]), $indx, v, Val($blocking)))
+            CUDA.gather_scatter($args_tuple, $(types[1]), $gran_gather, $gran_scatter, $indx, v -> CUDA.call_hostcall($(types[1]), $indx, v, Val($blocking)))
         end
     else
         call_cpu = quote
@@ -325,7 +324,7 @@ _popc(x::UInt32) = ccall("extern __nv_popc", llvmcall, UInt32, (UInt32,), x)
     5 * 2 = 10
     ```
 """
-@inline function gather_scatter(v::T, ::Type{R}, gather, scatter, f)::R where {T, R}
+@inline function gather_scatter(v::T, ::Type{R}, gather, scatter, index, f)::R where {T, R}
     sync_warp() # This is a bug (shouldn't be needed)
 
     # TODO: make memory smaller by overlapping, either sm_t or sm_r is used at once
@@ -341,6 +340,10 @@ _popc(x::UInt32) = ccall("extern __nv_popc", llvmcall, UInt32, (UInt32,), x)
     rank = _popc(mask & lane_mask)
 
     popc = _popc(mask) # how many threads want to gather and scatter
+
+
+    leader = _ffs(mask) # determine first 1 in mask, that's our true leader!
+    leader_hostcall = shfl_sync(mask, index, leader)
 
     # initialize gather
     @inbounds sm_t[rank+1] = v

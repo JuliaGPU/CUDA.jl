@@ -56,4 +56,4 @@ function peakflops(n::Integer=5000, dev::CuDevice=CuDevice(0))
     end
 end
 
-# println(peakflops())
+println(peakflops())

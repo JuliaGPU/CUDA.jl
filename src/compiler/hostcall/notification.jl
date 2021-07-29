@@ -55,7 +55,11 @@ function check_notification(policy::SimpleNotificationPolicy, policy_area::Ptr{I
 
     out = Int64[]
 
-    if policy.indices[index] < unsafe_load(policy_area, index) # We found a gucci
+    t = unsafe_load(policy_area, index)
+    if policy.indices[index] < t # We found a gucci
+        if (t - policy.indices[index]) > 1
+            println("Wtf happend $t vs $(policy.indices[index])")
+        end
         policy.indices[index] += 1
         push!(out, index)
     end
@@ -102,7 +106,7 @@ function TreeNotificationPolicy{Depth}(count::Int64) where {Depth}
     TreeNotificationPolicy{Depth}([[0 for i in 1:nodes_per_tree] for j in 1:many_trees], nodes_per_tree, areas_per_tree, many_trees)
 end
 
-required_size(policy::TreeNotificationPolicy) = policy.tree_size * policy.tree_count * sizeof(Int64)
+required_policy_size(policy::TreeNotificationPolicy) = policy.tree_size * policy.tree_count * sizeof(Int64)
 poll_slices(tree::TreeNotificationPolicy, wanted::Int64) = line_split(tree.tree_count, wanted)
 
 
@@ -166,10 +170,6 @@ function notify_host(conf::TreeConfig, policy_ptr::Core.LLVMPtr{Int64,AS.Global}
         end
         index_in_tree = div(index_in_tree - 1, 2)
     end
-
-    zeros == 1 || @cuprintln("you done goofed here tree $zeros")
-
-    index_in_tree == 0 || @cuprintln("you done goofed here too")
 end
 
 

@@ -234,22 +234,12 @@ AnyCuVecOrMat{T} = Union{AnyCuVector{T}, AnyCuMatrix{T}}
   return A
 end
 
+
 # underspecified constructors
 CuArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(xs)
 (::Type{CuArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = CuArray{S,N}(x)
 CuArray(A::AbstractArray{T,N}) where {T,N} = CuArray{T,N}(A)
 
-CuArray(s::String) = CuArray(Vector{UInt8}(s))
-
-function CuArray(ss::AbstractArray{String})
-  max = maximum(length.(ss)) + 1 # terminating zero byte
-  arr = zeros(UInt8, length(ss), max)
-  for (i, s) in enumerate(ss)
-    copyto!(arr, (i-1) * max + 1, Array{UInt8}(s), 1)
-  end
-
-  CuArray(arr)
-end
 
 # idempotency
 CuArray{T,N}(xs::CuArray{T,N}) where {T,N} = xs
@@ -278,16 +268,6 @@ function Base.unsafe_convert(::Type{CuArray{T, N}}, a::CuDeviceArray{T,N,AS.Glob
   ptr = reinterpret(CuPtr{T}, a.ptr)
   unsafe_wrap(CuArray{T}, ptr, a.shape)
 end
-
-# Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
-#   Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
-
-# # we materialize ReshapedArray/ReinterpretArray/SubArray/... directly as a device array
-# Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
-#   Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
-
-
-# Adapt.adapt_storage(::InvAdaptor, xs::CuDeviceArray{T,N,AS.Global}) where {T,N} = Base.unsafe_convert(CuArray{T, N}, xs)
 
 
 ## interop with CPU arrays

@@ -71,7 +71,7 @@ function acquire_lock_impl(::Type{WarpAreaManager}, kind::KindConfig, hostcall::
         end
 
         if tc == 1000000
-            @cuprintln("Timed out")
+            @cuprintln("Timed out acquire lock")
         end
 
 
@@ -107,7 +107,7 @@ function call_host_function(kind::KindConfig, data::WarpData, hostcall::Int64, :
             end
 
             if tc == 500000
-                @cuprintln("Timed out here warp")
+                @cuprintln("Warp timed out")
             end
 
             unsafe_store!(ptr + 8, LOADING)
@@ -131,6 +131,7 @@ function finish_function(kind::KindConfig, data::WarpData)
 
         unlock_area(cptr)
     end
+    sync_warp(data.mask)
 end
 
 

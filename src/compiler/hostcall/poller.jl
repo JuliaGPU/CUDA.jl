@@ -61,7 +61,7 @@ end
 
 into_time(x) = parse(Int64, x)
 
-get_times() = map(into_time, split(readchomp(pipeline(`get_times.sh $(getpid())`, `tail -n $(Threads.nthreads())`))))
+get_times() = map(into_time, split(readchomp(pipeline(`bash rpc-benchmarks/get_times.sh $(getpid())`, `tail -n $(Threads.nthreads())`))))
 
 """
     wait_and_kill_watcher(mod, poller::Poller, manager::AreaManager, policy::NotificationPolicy, event::CuEvent, ctx::CuContext,  pollers=1)
@@ -129,18 +129,6 @@ function wait_and_kill_watcher(mod::CuModule, poller::Poller, manager::AreaManag
 end
 
 
-function print_stats(values)
-    total = sum(values)
-    mean = Statistics.mean(values)
-    median = Statistics.median(values)
-    var = Statistics.var(values)
-    minv = min(values...)
-    maxv = max(values...)
-
-    @printf "total %.6fs, mean %.6fs, median %.6fs, var %.6fs, min %.6fs, max %.6fs" total mean median var minv maxv
-end
-
-
 """
 Polls all hostcall areas then sleeps for a certain duration.
 """
@@ -181,8 +169,4 @@ function do_poller(poller::VarPoller, hostcall::Int64)
         usleep(sleep)
     end
     correct!(poller.branch_predictor, hostcall)
-end
-
-function launch_poller(poller::VarPoller, e::CuEvent, ctx::CuContext)
-    error("Not yet supported")
 end

@@ -38,7 +38,7 @@ function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig, hostcall
     tc = 0
 
     cptr = ptr + i * SIMPLE_META_SIZE
-    while (!try_lock(cptr)) &&  tc < 250000
+    while (!try_lock(cptr)) &&  tc < 1000000
         nanosleep(UInt32(32))
         i += 1
         tc += 1
@@ -50,7 +50,7 @@ function acquire_lock_impl(::Type{SimpleAreaManager}, kind::KindConfig, hostcall
         end
     end
 
-    if tc == 250000
+    if tc == 1000000
         @cuprintln("Timed out acquire lock")
     end
 
@@ -75,14 +75,14 @@ function call_host_function(kind::KindConfig, data::SimpleData, hostcall::Int64,
 
     if blocking
         tc = 0
-        while volatile_load(ptr + 8) != HOST_DONE &&  tc < 1000000
+        while volatile_load(ptr + 8) != HOST_DONE &&  tc < 5000000
             nanosleep(UInt32(16))
             threadfence()
             tc += 1
         end
 
-        if tc == 1000000
-            @cuprintln("Timed out simple call")
+        if tc == 5000000
+            @cuprintln("Simple timed out")
         end
 
         unsafe_store!(ptr + 8, LOADING)

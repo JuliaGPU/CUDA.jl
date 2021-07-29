@@ -2,6 +2,7 @@
 
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 
+
 ## high-level @cuda interface
 
 """
@@ -40,7 +41,7 @@ macro cuda(ex...)
         split_kwargs(kwargs,
                      [:dynamic, :launch],
                      [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name],
-                     [:cooperative, :blocks, :threads, :config, :shmem, :stream, :manager, :poller, :policy_type])
+                     [:cooperative, :blocks, :threads, :config, :shmem, :stream, :manager, :poller, :policy_type, :poller_count])
     if !isempty(other_kwargs)
         key,val = first(other_kwargs).args
         throw(ArgumentError("Unsupported keyword argument '$key'"))
@@ -119,8 +120,6 @@ struct Adaptor end
 # convert CUDA host pointers to device pointers
 # TODO: use ordinary ptr?
 Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = reinterpret(LLVMPtr{T,AS.Generic}, p)
-
-Adapt.adapt_storage(to::Adaptor, p::String) = adapt(to, CuArray(Vector{UInt8}(p)))
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 struct CuRefValue{T} <: Ref{T}
@@ -373,22 +372,22 @@ function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1,
             poller::Poller=AlwaysPoller(0),
             manager::AreaManager=SimpleAreaManager(div(threads * blocks, 32, RoundUp), 128),
             policy_type::DataType=SimpleNotificationPolicy,
+            poller_count::Int64=1,
             kwargs...)
-
     event = nothing
     t = nothing
 
     if kernel.uses_hostcall
         # println("Using manager $manager\nPoller $poller, and policy type $policy_type")
         event = CuEvent(CUDA.EVENT_DISABLE_TIMING)
-        t = wait_and_kill_watcher(kernel.mod, poller, manager, policy_type(area_count(manager)), event, 1)
+        t = wait_and_kill_watcher(kernel.mod, poller, manager, policy_type(area_count(manager)), event, poller_count)
     end
 
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
 
     if kernel.uses_hostcall
         CUDA.record(event, stream())
-        Base.fetch(t)
+        return t
     end
 end
 
