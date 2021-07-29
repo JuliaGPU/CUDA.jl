@@ -47,14 +47,16 @@ function code_sass(io::IO, @nospecialize(func), @nospecialize(types), kernel::Bo
     tt = Base.to_tuple_type(types)
     target = CUDACompilerTarget(device(); kwargs...)
     params = CUDACompilerParams()
-    job = CompilerJob(target, FunctionSpec(func, tt, kernel), params)
+    compiler = Compiler(target, params)
+    source =  FunctionSpec(func, tt, kernel)
+    job = CompilerJob(compiler, source)
     code_sass(io, job; verbose=verbose)
 end
 
 # multiple subscribers aren't supported, so make sure we only call CUPTI once
 const cupti_lock = ReentrantLock()
 
-function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
+function code_sass(io::IO, job::CompilerJob; verbose::Bool=false)
     if !job.source.kernel
         error("Can only generate SASS code for kernel functions")
     end
@@ -118,10 +120,11 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
         function $method(io::IO, @nospecialize(func), @nospecialize(types);
                          kernel::Bool=false, minthreads=nothing, maxthreads=nothing,
                          blocks_per_sm=nothing, maxregs=nothing, kwargs...)
-            source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
             target = CUDACompilerTarget(device(); minthreads, maxthreads, blocks_per_sm, maxregs)
             params = CUDACompilerParams()
-            job = CompilerJob(target, source, params)
+            compiler = Compiler(target, params)
+            source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
+            job = CompilerJob(compiler, source)
             GPUCompiler.$method($(args...); kwargs...)
         end
         $method(@nospecialize(func), @nospecialize(types); kwargs...) =
@@ -149,7 +152,7 @@ Evaluates the expression `ex` and prints the result of [`CUDA.code_sass`](@ref) 
 [`CUDA.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
-    function hook(job::CUDACompilerJob; io::IO=stdout, kwargs...)
+    function hook(job::CompilerJob; io::IO=stdout, kwargs...)
         println(io, "// $job")
         println(io)
         code_sass(io, job; kwargs...)

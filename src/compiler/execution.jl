@@ -281,10 +281,11 @@ when function changes, or when different types or keyword arguments are provided
 @timeit_ci function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
     cuda = active_state()
     cache = cufunction_cache(cuda.context)
-    source = FunctionSpec(f, tt, true, name)
     target = CUDACompilerTarget(cuda.device; kwargs...)
     params = CUDACompilerParams()
-    job = CompilerJob(target, source, params)
+    compiler = Compiler(target, params)
+    source = FunctionSpec(f, tt, true, name)
+    job = CompilerJob(compiler, source)
     return GPUCompiler.cached_compilation(cache, job,
                                           cufunction_compile,
                                           cufunction_link)::HostKernel{F,tt}
@@ -310,7 +311,7 @@ function run_and_collect(cmd)
 end
 
 # compile to executable machine code
-@timeit_ci "compile" function cufunction_compile(@nospecialize(job::CompilerJob))
+@timeit_ci "compile" function cufunction_compile(job::CompilerJob)
     # lower to PTX
     mi, mi_meta = @timeit_ci "emit_julia" GPUCompiler.emit_julia(job)
     ir, ir_meta = @timeit_ci "emit_llvm" GPUCompiler.emit_llvm(job, mi)
@@ -356,7 +357,7 @@ end
         push!(ptxas_opts, "--compile-only")
     end
 
-    arch = "sm_$(job.target.cap.major)$(job.target.cap.minor)"
+    arch = "sm_$(job.compiler.target.cap.major)$(job.compiler.target.cap.minor)"
 
     # compile to machine code
     # NOTE: we use tempname since mktemp doesn't support suffixes, and mktempdir is slow
@@ -436,7 +437,7 @@ end
 end
 
 # link into an executable kernel
-@timeit_ci "link" function cufunction_link(@nospecialize(job::CompilerJob), compiled)
+@timeit_ci "link" function cufunction_link(job::CompilerJob, compiled)
     # load as an executable kernel object
     ctx = context()
     mod = @timeit_ci "CuModule" CuModule(compiled.image)

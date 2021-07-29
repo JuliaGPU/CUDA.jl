@@ -138,7 +138,7 @@ end
 # reclaim unused pool memory after a certain time
 const __pool_cleanup = Ref{Task}()
 function pool_cleanup()
-  idle_counters = fill(0, ndevices())
+  idle_counters = Base.fill(0, ndevices())
   while true
     for (i, dev) in enumerate(devices())
       stream_ordered(dev) || continue

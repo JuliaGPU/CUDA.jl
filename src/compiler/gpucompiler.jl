@@ -43,25 +43,26 @@ end
 
 struct CUDACompilerParams <: AbstractCompilerParams end
 
-CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
+PTXCompiler = Compiler{PTXCompilerTarget}
+CUDACompiler = Compiler{PTXCompilerTarget,CUDACompilerParams}
 
-GPUCompiler.runtime_module(@nospecialize(job::CUDACompilerJob)) = CUDA
+GPUCompiler.runtime_module(job::CUDACompiler) = CUDA
 
 # filter out functions from libdevice and cudadevrt
-GPUCompiler.isintrinsic(@nospecialize(job::CUDACompilerJob), fn::String) =
+GPUCompiler.isintrinsic(job::CUDACompiler, fn::String) =
     invoke(GPUCompiler.isintrinsic,
-           Tuple{CompilerJob{PTXCompilerTarget}, typeof(fn)},
+           Tuple{PTXCompiler, typeof(fn)},
            job, fn) ||
     fn == "__nvvm_reflect" || startswith(fn, "cuda")
 
-function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module,
-                                     undefined_fns::Vector{String})
+function GPUCompiler.link_libraries!(compiler::CUDACompiler, source::FunctionSpec,
+                                     mod::LLVM.Module, undefined_fns::Vector{String})
     invoke(GPUCompiler.link_libraries!,
-           Tuple{CompilerJob{PTXCompilerTarget}, typeof(mod), typeof(undefined_fns)},
-           job, mod, undefined_fns)
-    link_libdevice!(mod, job.target.cap, undefined_fns)
+           Tuple{PTXCompiler, typeof(source), typeof(mod), typeof(undefined_fns)},
+           compiler, source, mod, undefined_fns)
+    link_libdevice!(mod, compiler.target.cap, undefined_fns)
 end
 
-GPUCompiler.ci_cache(@nospecialize(job::CUDACompilerJob)) = ci_cache
+GPUCompiler.ci_cache(job::CUDACompiler) = ci_cache
 
-GPUCompiler.method_table(@nospecialize(job::CUDACompilerJob)) = method_table
+GPUCompiler.method_table(job::CUDACompiler) = method_table

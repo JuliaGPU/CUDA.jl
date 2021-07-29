@@ -7,7 +7,9 @@ export cudacall
 
 # pack arguments in a buffer that CUDA expects
 @generated function pack_arguments(f::Function, args...)
-    all(isbitstype, args) || throw(ArgumentError("Arguments to kernel should be bitstype."))
+    for arg in args
+        isbitstype(arg) || throw(ArgumentError("Arguments to kernel should be bitstype."))
+    end
 
     ex = quote
         Base.@_inline_meta
