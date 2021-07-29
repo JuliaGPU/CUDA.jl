@@ -33,7 +33,7 @@ import Adapt
     function test_eq(a, b)
       @test eltype(a) == eltype(b)
       @test ndims(a) == ndims(b)
-      @test a.storage.buffer == b.storage.buffer
+      @test a.storage.buffer.ptr == b.storage.buffer.ptr
       @test a.storage.ctx == b.storage.ctx
       @test a.maxsize == b.maxsize
       @test a.offset == b.offset

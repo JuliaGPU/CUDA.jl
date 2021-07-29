@@ -32,14 +32,13 @@ AllocStats(b::AllocStats, a::AllocStats) =
 
 ## CUDA allocator
 
-@timeit_ci function actual_alloc(bytes::Integer;
-                                 stream_ordered::Bool=false,
+@timeit_ci function actual_alloc(bytes::Integer; async::Bool=false,
                                  stream::Union{CuStream,Nothing}=nothing)
   # try the actual allocation
   buf = try
     time = Base.@elapsed begin
       buf = @timeit_ci "Mem.alloc" begin
-        Mem.alloc(Mem.Device, bytes; async=true, stream_ordered, stream)
+        Mem.alloc(Mem.Device, bytes; async, stream)
       end
     end
 
@@ -52,11 +51,11 @@ AllocStats(b::AllocStats, a::AllocStats) =
   return buf
 end
 
-@timeit_ci function actual_free(buf::Mem.DeviceBuffer; stream_ordered::Bool=false,
+@timeit_ci function actual_free(buf::Mem.DeviceBuffer;
                                 stream::Union{CuStream,Nothing}=nothing)
   # free the memory
   time = Base.@elapsed begin
-    @timeit_ci "Mem.free" Mem.free(buf; async=true, stream_ordered, stream)
+    @timeit_ci "Mem.free" Mem.free(buf; stream)
   end
 
   return
@@ -200,7 +199,7 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 @inline @timeit_ci alloc(sz::Integer; kwargs...) = alloc(Mem.DeviceBuffer, sz; kwargs...)
 @inline @timeit_ci function alloc(::Type{B}, sz; stream::Union{Nothing,CuStream}=nothing) where {B<:Mem.AbstractBuffer}
   # 0-byte allocations shouldn't hit the pool
-  sz == 0 && return B(CU_NULL, 0)
+  sz == 0 && return B()
 
   # _alloc reports its own time measurement, since it may spend time in garbage collection
   # (and using Base.@timed/gc_num to exclude that time is too expensive)
@@ -232,7 +231,7 @@ end
                 device_synchronize()
             end
 
-            buf = actual_alloc(sz; stream_ordered=true, stream=something(stream, state.stream))
+            buf = actual_alloc(sz; async=true, stream=something(stream, state.stream))
             buf === nothing || break
         end
       else
@@ -243,7 +242,7 @@ end
                 gctime += Base.@elapsed GC.gc(true)
             end
 
-            buf = actual_alloc(sz; stream_ordered=false)
+            buf = actual_alloc(sz; async=false)
             buf === nothing || break
         end
       end
@@ -295,9 +294,9 @@ end
       # mark the pool as active
       pool_mark(state.device)
 
-      actual_free(buf; stream_ordered=true, stream=something(stream, state.stream))
+      actual_free(buf; stream=something(stream, state.stream))
     else
-      actual_free(buf; stream_ordered=false)
+      actual_free(buf)
     end
 end
 @inline _free(buf::Mem.UnifiedBuffer; stream::Union{Nothing,CuStream}) = Mem.free(buf)
