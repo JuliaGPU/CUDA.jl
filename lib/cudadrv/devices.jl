@@ -147,3 +147,9 @@ function capability(dev::CuDevice)
     return VersionNumber(attribute(dev, DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR),
                          attribute(dev, DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR))
 end
+
+has_stream_ordered(dev::CuDevice) =
+    @memoize dev::CuDevice begin
+        CUDA.version() >= v"11.2" && !haskey(ENV, "CUDA_MEMCHECK") &&
+        attribute(dev, DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+    end::Bool

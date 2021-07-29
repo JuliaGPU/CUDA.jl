@@ -53,7 +53,7 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
 
     # test device with context in which pointer was allocated.
     @test CuDevice(typed_pointer(src, T)) == device()
-    if !Mem.has_stream_ordered()
+    if !CUDA.has_stream_ordered(device())
         # NVIDIA bug #3319609
         @test CuContext(typed_pointer(src, T)) == context()
     end

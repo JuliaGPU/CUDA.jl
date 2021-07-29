@@ -56,7 +56,7 @@ end
                                 stream::Union{CuStream,Nothing}=nothing)
   # free the memory
   time = Base.@elapsed begin
-    @timeit_ci "Mem.free" Mem.free(buf; async=true, stream_ordered, stream)
+    @timeit_ci "Mem.free" Mem.free(buf; stream)
   end
 
   return
@@ -200,7 +200,7 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 @inline @timeit_ci alloc(sz::Integer; kwargs...) = alloc(Mem.DeviceBuffer, sz; kwargs...)
 @inline @timeit_ci function alloc(::Type{B}, sz; stream::Union{Nothing,CuStream}=nothing) where {B<:Mem.AbstractBuffer}
   # 0-byte allocations shouldn't hit the pool
-  sz == 0 && return B(CU_NULL, 0)
+  sz == 0 && return B()
 
   # _alloc reports its own time measurement, since it may spend time in garbage collection
   # (and using Base.@timed/gc_num to exclude that time is too expensive)

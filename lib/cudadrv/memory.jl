@@ -44,7 +44,11 @@ A buffer of device memory residing on the GPU.
 struct DeviceBuffer <: AbstractBuffer
     ptr::CuPtr{Cvoid}
     bytesize::Int
+
+    async::Bool
 end
+
+DeviceBuffer() = DeviceBuffer(CU_NULL, 0, false)
 
 Base.pointer(buf::DeviceBuffer) = buf.ptr
 Base.sizeof(buf::DeviceBuffer) = buf.bytesize
@@ -55,12 +59,6 @@ Base.show(io::IO, buf::DeviceBuffer) =
 Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
     convert(CuPtr{T}, pointer(buf))
 
-has_stream_ordered(dev::CuDevice=device()) =
-    @memoize dev::CuDevice begin
-        CUDA.version() >= v"11.2" && !haskey(ENV, "CUDA_MEMCHECK") &&
-        attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
-    end::Bool
-
 """
     Mem.alloc(DeviceBuffer, bytesize::Integer;
               [async=false], [stream::CuStream], [pool::CuMemoryPool])
@@ -70,10 +68,10 @@ GPU, and requires explicit calls to `unsafe_copyto!`, which wraps `cuMemcpy`,
 for access on the CPU.
 """
 function alloc(::Type{DeviceBuffer}, bytesize::Integer;
-               async::Bool=false, stream::Union{Nothing,CuStream}=nothing,
-               pool::Union{Nothing,CuMemoryPool}=nothing,
-               stream_ordered::Bool=has_stream_ordered())
-    bytesize == 0 && return DeviceBuffer(CU_NULL, 0)
+               stream_ordered::Bool=CUDA.has_stream_ordered(device()),
+               stream::Union{Nothing,CuStream}=nothing,
+               pool::Union{Nothing,CuMemoryPool}=nothing)
+    bytesize == 0 && return DeviceBuffer()
 
     ptr_ref = Ref{CUDA.CUdeviceptr}()
     if stream_ordered
@@ -83,23 +81,19 @@ function alloc(::Type{DeviceBuffer}, bytesize::Integer;
         else
             CUDA.cuMemAllocAsync(ptr_ref, bytesize, stream)
         end
-        async || synchronize(stream)
     else
         CUDA.cuMemAlloc_v2(ptr_ref, bytesize)
     end
 
-    return DeviceBuffer(reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize)
+    return DeviceBuffer(reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, stream_ordered)
 end
 
-
-function free(buf::DeviceBuffer; async::Bool=false, stream::Union{Nothing,CuStream}=nothing,
-              stream_ordered::Bool=has_stream_ordered())
+function free(buf::DeviceBuffer; stream::Union{Nothing,CuStream}=nothing)
     pointer(buf) == CU_NULL && return
 
-    if stream_ordered
+    if buf.async
         stream = stream===nothing ? CUDA.stream() : stream
         CUDA.cuMemFreeAsync(buf, stream)
-        async || synchronize(stream)
     else
         CUDA.cuMemFree_v2(buf)
     end
@@ -120,6 +114,8 @@ struct HostBuffer <: AbstractBuffer
 
     mapped::Bool
 end
+
+HostBuffer() = HostBuffer(C_NULL, 0, false)
 
 Base.pointer(buf::HostBuffer) = buf.ptr
 Base.sizeof(buf::HostBuffer) = buf.bytesize
@@ -162,7 +158,7 @@ multiple devices. Multiple `flags` can be set at one time using a bytewise `OR`:
 
 """
 function alloc(::Type{HostBuffer}, bytesize::Integer, flags=0)
-    bytesize == 0 && return HostBuffer(C_NULL, 0, false)
+    bytesize == 0 && return HostBuffer()
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     CUDA.cuMemHostAlloc(ptr_ref, bytesize, flags)
@@ -224,6 +220,8 @@ struct UnifiedBuffer <: AbstractBuffer
     bytesize::Int
 end
 
+UnifiedBuffer() = UnifiedBuffer(CU_NULL, 0)
+
 Base.pointer(buf::UnifiedBuffer) = buf.ptr
 Base.sizeof(buf::UnifiedBuffer) = buf.bytesize
 
@@ -246,7 +244,7 @@ GPU, with the CUDA driver automatically copying upon first access.
 """
 function alloc(::Type{UnifiedBuffer}, bytesize::Integer,
               flags::CUDA.CUmemAttach_flags=ATTACH_GLOBAL)
-    bytesize == 0 && return UnifiedBuffer(CU_NULL, 0)
+    bytesize == 0 && return UnifiedBuffer()
 
     ptr_ref = Ref{CuPtr{Cvoid}}()
     CUDA.cuMemAllocManaged(ptr_ref, bytesize, flags)
