@@ -434,7 +434,7 @@ function PerDevice{T}() where {T}
 end
 
 get_values(x::PerDevice) = get!(x.values) do
-    fill(nothing, ndevices())
+    Base.fill(nothing, ndevices())
 end
 
 function Base.get(x::PerDevice, dev::CuDevice, val)
