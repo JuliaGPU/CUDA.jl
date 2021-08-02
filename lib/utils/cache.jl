@@ -17,18 +17,23 @@ end
 # remove a handle from the cache, or create a new one
 function Base.pop!(f::Function, cache::HandleCache{K,V}, key) where {K,V}
     function check_cache(f::Function=()->nothing)
-        lock(cache.lock) do
-            handle = if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
-                f()
-            else
-                pop!(cache.idle_handles[key])
-            end
+        try
+            GC.disable_finalizers()
+            lock(cache.lock) do
+                handle = if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
+                    f()
+                else
+                    pop!(cache.idle_handles[key])
+                end
 
-            if handle !== nothing
-                push!(cache.active_handles, key=>handle)
-            end
+                if handle !== nothing
+                    push!(cache.active_handles, key=>handle)
+                end
 
-            return handle
+                return handle
+            end
+        finally
+            GC.enable_finalizers()
         end
     end
 
