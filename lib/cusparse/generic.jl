@@ -54,9 +54,9 @@ mutable struct CuSparseMatrixDescriptor
 
     function CuSparseMatrixDescriptor(A::CuSparseMatrixCSC)
         desc_ref = Ref{cusparseSpMatDescr_t}()
-        cusparseCreateCsr(
+        cusparseCreateCsc(
             desc_ref,
-            reverse(A.dims)..., length(nonzeros(A)),
+            A.dims..., length(nonzeros(A)),
             A.colPtr, rowvals(A), nonzeros(A),
             eltype(A.colPtr), eltype(rowvals(A)), 'O', eltype(nonzeros(A))
         )

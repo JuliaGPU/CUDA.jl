@@ -67,3 +67,20 @@ using LinearAlgebra, SparseArrays
         @test C ≈ collect(dC)
     end
 end
+
+@testset "Conversion" begin
+    @testset "Type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        n = 10
+        A = sprand(elty, n, n, rand())
+
+        dA_sparse_csc = CuSparseMatrixCSC(A)
+
+        # Conversion as CuMatrix
+        dA_dense_from_csc = CuMatrix(dA_sparse_csc)
+        @test collect(dA_dense_from_csc) == A
+
+        # Conversion as Matrix
+        A_dense_from_csc = Matrix(dA_sparse_csc)
+        @test A_dense_from_csc == A
+    end
+end

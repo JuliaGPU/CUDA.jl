@@ -326,6 +326,8 @@ for (elty, welty) in ((:Float16, :Float32),
     end
 end
 
+Base.Array{T, 2}(A::AbstractCuSparseMatrix{T}) where T = Base.Array{T, 2}(CuMatrix{T}(A))
+
 for (nname,cname,rname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseSdense2csr, :Float32),
                                  (:cusparseDnnz, :cusparseDdense2csc, :cusparseDdense2csr, :Float64),
                                  (:cusparseCnnz, :cusparseCdense2csc, :cusparseCdense2csr, :ComplexF32),
