@@ -17,6 +17,9 @@ using LinearAlgebra, SparseArrays
         db = CuArray(b)
         dc = CuArray(c)
 
+        # test with empty inputs
+        @test Array(dA * CUDA.zeros(elty, n, 0)) == zeros(elty, n, 0)
+
         mul!(c, f(A), b, alpha, beta)
         mul!(dc, f(dA), db, alpha, beta)
         @test c ≈ collect(dc)
