@@ -924,6 +924,7 @@ end
 for (fname, elty) in
         ((:cublasDgemmBatched,:Float64),
          (:cublasSgemmBatched,:Float32),
+         (:cublasHgemmBatched,:Float16),
          (:cublasZgemmBatched,:ComplexF64),
          (:cublasCgemmBatched,:ComplexF32))
     @eval begin
@@ -985,6 +986,7 @@ end
 for (fname, elty) in
         ((:cublasDgemmStridedBatched,:Float64),
          (:cublasSgemmStridedBatched,:Float32),
+         (:cublasHgemmStridedBatched,:Float16),
          (:cublasZgemmStridedBatched,:ComplexF64),
          (:cublasCgemmStridedBatched,:ComplexF32))
     @eval begin
