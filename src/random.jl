@@ -41,6 +41,7 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
 
         # grid-stride loop
         threadId = threadIdx().x
+        window = (blockDim().x - 1) * gridDim().x
         offset = (blockIdx().x - 1) * blockDim().x
         while offset < length(A)
             i = threadId + offset
@@ -48,7 +49,7 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
                 @inbounds A[i] = Random.rand(device_rng, T)
             end
 
-            offset += (blockDim().x - 1) * gridDim().x
+            offset += window
         end
 
         return
@@ -68,7 +69,51 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
     A
 end
 
-# TODO: `randn!`; cannot reuse from Base or RandomNumbers, as those do scalar indexing
+function Random.randn!(rng::RNG, A::AnyCuArray)
+    function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32) where {T}
+        device_rng = Random.default_rng()
+
+        # initialize the state
+        @inbounds Random.seed!(device_rng, seed, counter)
+
+        # grid-stride loop
+        threadId = threadIdx().x
+        window = (blockDim().x - 1) * gridDim().x
+        offset = (blockIdx().x - 1) * blockDim().x
+        while offset < length(A)
+            i = threadId + offset
+            j = threadId + offset + window
+            if i <= length(A)
+                # Box–Muller transform
+                U1 = Random.rand(device_rng, T)
+                U2 = Random.rand(device_rng, T)
+                Z0 = sqrt(T(-2.0)*log(U1))*cos(T(2pi)*U2)
+                Z1 = sqrt(T(-2.0)*log(U1))*sin(T(2pi)*U2)
+                @inbounds A[i] = Z0
+                if j <= length(A)
+                    @inbounds A[j] = Z1
+                end
+            end
+
+            offset += 2*window
+        end
+
+        return
+    end
+
+    kernel = @cuda launch=false name="rand!" kernel(A, rng.seed, rng.counter)
+    config = launch_configuration(kernel.fun; max_threads=64)
+    threads = max(32, min(config.threads, length(A)÷2))
+    blocks = min(config.blocks, cld(length(A)÷2, threads))
+    kernel(A, rng.seed, rng.counter; threads=threads, blocks=blocks)
+
+    new_counter = Int64(rng.counter) + length(A)
+    overflow, remainder = fldmod(new_counter, typemax(UInt32))
+    rng.seed += overflow     # XXX: is this OK?
+    rng.counter = remainder
+
+    A
+end
 
 
 # generic functionality
