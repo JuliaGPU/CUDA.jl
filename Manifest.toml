@@ -77,9 +77,9 @@ version = "0.1.6"
 
 [[GPUArrays]]
 deps = ["Adapt", "LinearAlgebra", "Printf", "Random", "Serialization", "Statistics"]
-git-tree-sha1 = "dbc86e71cdc8cafae25ca5f96a2722327e77eacd"
+git-tree-sha1 = "8034b1a19f7a19743c53cda450fcc65d1b8f7ab5"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
-version = "8.0.0"
+version = "8.0.1"
 
 [[GPUCompiler]]
 deps = ["ExprTools", "InteractiveUtils", "LLVM", "Libdl", "Logging", "TimerOutputs", "UUIDs"]
