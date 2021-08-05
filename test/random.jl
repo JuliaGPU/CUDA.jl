@@ -70,13 +70,16 @@ end
     rng = CUDA.RNG()
 
     for T in (Float16, Float32, Float64,
-              ComplexF16, Complex32, Complex64,
+              ComplexF16, ComplexF32, ComplexF64,
               Int8, Int16, Int32, Int64, Int128,
               UInt8, UInt16, UInt32, UInt64, UInt128)
         A = CuArray{T}(undef, 2048)
         rand!(rng, A)
+    end
 
-        B = CuArray{T}(undef, 2048)
-        randn!(rng, B)
+    for T in (Float16, Float32, Float64,
+              ComplexF16, ComplexF32, ComplexF64)
+        A = CuArray{T}(undef, 2048)
+        randn!(rng, A)
     end
 end

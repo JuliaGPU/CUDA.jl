@@ -69,8 +69,8 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
     A
 end
 
-function Random.randn!(rng::RNG, A::AnyCuArray)
-    function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32) where {T}
+function Random.randn!(rng::RNG, A::AnyCuArray{<:T}) where {T<:Union{AbstractFloat,Complex{<:AbstractFloat}}}
+    function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32)
         device_rng = Random.default_rng()
 
         # initialize the state
