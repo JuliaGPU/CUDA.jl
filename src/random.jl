@@ -115,27 +115,6 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:T}) where {T<:Union{AbstractFlo
     A
 end
 
-
-# generic functionality
-
-function Random.rand!(rng::Union{RNG,CURAND.RNG,GPUArrays.RNG}, A::AbstractArray{T}) where {T}
-    B = CuArray{T}(undef, size(A))
-    Random.rand!(rng, B)
-    copyto!(A, B)
-end
-
-function Random.rand(rng::Union{RNG,CURAND.RNG,GPUArrays.RNG}, T::Type)
-    assertscalar("scalar rand")
-    A = CuArray{T}(undef, 1)
-    Random.rand!(rng, A)
-    A[]
-end
-
-
-# RNG-less interface
-
-# the CURAND RNG is defined in lib/curand/CURAND.jl
-
 function default_rng()
     cuda = CUDA.active_state()
 
@@ -156,6 +135,65 @@ function default_rng()
 
     return state.rng
 end
+
+
+# old native RNG
+
+# we keep this for the GPUArrays.jl tests
+
+const idle_gpuarray_rngs = HandleCache{CuContext,GPUArrays.RNG}()
+
+function GPUArrays.default_rng(::Type{<:CuArray})
+    cuda = CUDA.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{rng::GPUArrays.RNG}
+    states = get!(task_local_storage(), :GPUArraysRNG) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get library state
+    @noinline function new_state(cuda)
+        new_rng = pop!(idle_gpuarray_rngs, cuda.context) do
+            N = attribute(cuda.device, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
+            buf = CuArray{NTuple{4, UInt32}}(undef, N)
+            GPUArrays.RNG(buf)
+        end
+
+        finalizer(current_task()) do task
+            push!(idle_gpuarray_rngs, cuda.context, new_rng) do
+                # no need to do anything, as the RNG is collected by its finalizer
+            end
+        end
+
+        Random.seed!(new_rng)
+        (; rng=new_rng)
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
+    end
+
+    return state.rng
+end
+
+
+# generic functionality
+
+function Random.rand!(rng::Union{RNG,CURAND.RNG,GPUArrays.RNG}, A::AbstractArray{T}) where {T}
+    B = CuArray{T}(undef, size(A))
+    Random.rand!(rng, B)
+    copyto!(A, B)
+end
+
+function Random.rand(rng::Union{RNG,CURAND.RNG,GPUArrays.RNG}, T::Type)
+    assertscalar("scalar rand")
+    A = CuArray{T}(undef, 1)
+    Random.rand!(rng, A)
+    A[]
+end
+
+
+# RNG-less interface
 
 cuda_rng() = default_rng()
 curand_rng() = CURAND.default_rng()
