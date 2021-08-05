@@ -245,6 +245,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             m,n = csc.dims
             denseA = CUDA.zeros($elty,m,n)
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
+                # Load correct CSC description with create_csc_descriptor util
                 desc_csc   = create_csc_descriptor(csc)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
 
@@ -302,6 +303,7 @@ for (elty, welty) in ((:Float16, :Float32),
             m,n = csc.dims
             denseA = CUDA.zeros($elty,m,n)
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
+                # Load correct CSC description with create_csc_descriptor util
                 desc_csc   = create_csc_descriptor(csc)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
 

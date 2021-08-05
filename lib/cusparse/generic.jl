@@ -69,6 +69,11 @@ end
 
 Base.unsafe_convert(::Type{cusparseSpMatDescr_t}, desc::CuSparseMatrixDescriptor) = desc.handle
 
+# Utility function to create a correct CSC description. Return a CuSparseMatrixDescriptor.
+# Note: By default, CuSparseMatrixDescriptor calls cusparseCreateCsr for CSC matrices,
+#       as in cuSPARSE matrix multiplication routines (mv! and mm!) do not support CSC sparse format.
+#       To create a correct CSC description with cusparseCreateCsc, we need to call
+#       explicitly create_csc_descriptor.
 function create_csc_descriptor(A::CuSparseMatrixCSC)
     desc_ref = Ref{cusparseSpMatDescr_t}()
     cusparseCreateCsc(
