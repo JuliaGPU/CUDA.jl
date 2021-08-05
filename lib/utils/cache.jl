@@ -17,18 +17,23 @@ end
 # remove a handle from the cache, or create a new one
 function Base.pop!(f::Function, cache::HandleCache{K,V}, key) where {K,V}
     function check_cache(f::Function=()->nothing)
-        lock(cache.lock) do
-            handle = if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
-                f()
-            else
-                pop!(cache.idle_handles[key])
-            end
+        try
+            GC.disable_finalizers()
+            lock(cache.lock) do
+                handle = if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
+                    f()
+                else
+                    pop!(cache.idle_handles[key])
+                end
 
-            if handle !== nothing
-                push!(cache.active_handles, key=>handle)
-            end
+                if handle !== nothing
+                    push!(cache.active_handles, key=>handle)
+                end
 
-            return handle
+                return handle
+            end
+        finally
+            GC.enable_finalizers()
         end
     end
 
@@ -46,18 +51,18 @@ end
 
 # put a handle in the cache, or destroy it if it doesn't fit
 function Base.push!(f::Function, cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
-    # cache accesses should be protected by lock(), which inhibits finalizers.
-    # XXX: regular lock so that can be called from non-finalizers?
-    @assert !islocked(cache.lock)
-    delete!(cache.active_handles, key=>handle)
+    # XXX: take this lock in a normal way once we have JuliaLang/julia#35689
+    @spinlock cache.lock begin
+        delete!(cache.active_handles, key=>handle)
 
-    if haskey(cache.idle_handles, key)
-        if length(cache.idle_handles[key]) > cache.max_entries
-            f()
+        if haskey(cache.idle_handles, key)
+            if length(cache.idle_handles[key]) > cache.max_entries
+                f()
+            else
+                push!(cache.idle_handles[key], handle)
+            end
         else
-            push!(cache.idle_handles[key], handle)
+            cache.idle_handles[key] = [handle]
         end
-    else
-        cache.idle_handles[key] = [handle]
     end
 end
