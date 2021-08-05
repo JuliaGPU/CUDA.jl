@@ -1796,6 +1796,17 @@ end
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
 
+@checked function cublasHgemmBatched(handle, transa, transb, m, n, k, alpha, Aarray, lda,
+                                     Barray, ldb, beta, Carray, ldc, batchCount)
+    initialize_api()
+    ccall((:cublasHgemmBatched, libcublas()), cublasStatus_t,
+                   (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
+                    Cint, RefOrCuRef{Float16}, CuPtr{Ptr{Float16}}, Cint, CuPtr{Ptr{Float16}},
+                    Cint, RefOrCuRef{Float16}, CuPtr{Ptr{Float16}}, Cint, Cint),
+                   handle, transa, transb, m, n, k, alpha, Aarray, lda, Barray, ldb, beta,
+                   Carray, ldc, batchCount)
+end
+
 @checked function cublasSgemmBatched(handle, transa, transb, m, n, k, alpha, Aarray, lda,
                                      Barray, ldb, beta, Carray, ldc, batchCount)
     initialize_api()
@@ -1883,6 +1894,19 @@ end
                    handle, transa, transb, m, n, k, alpha, A, Atype, lda, strideA, B,
                    Btype, ldb, strideB, beta, C, Ctype, ldc, strideC, batchCount,
                    computeType, algo)
+end
+
+@checked function cublasHgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda,
+                                            strideA, B, ldb, strideB, beta, C, ldc,
+                                            strideC, batchCount)
+    initialize_api()
+    ccall((:cublasHgemmStridedBatched, libcublas()), cublasStatus_t,
+                   (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
+                    Cint, RefOrCuRef{Float16}, CuPtr{Float16}, Cint, Clonglong,
+                    CuPtr{Float16}, Cint, Clonglong, RefOrCuRef{Float16}, CuPtr{Float16},
+                    Cint, Clonglong, Cint),
+                   handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
+                   strideB, beta, C, ldc, strideC, batchCount)
 end
 
 @checked function cublasSgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda,
