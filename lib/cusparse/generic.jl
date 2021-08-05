@@ -39,6 +39,7 @@ Base.unsafe_convert(::Type{cusparseDnMatDescr_t}, desc::CuDenseMatrixDescriptor)
 mutable struct CuSparseMatrixDescriptor
     handle::cusparseSpMatDescr_t
 
+    CuSparseMatrixDescriptor(desc_ref::Ref{Ptr{Cvoid}}) = new(desc_ref[])
     function CuSparseMatrixDescriptor(A::CuSparseMatrixCSR)
         desc_ref = Ref{cusparseSpMatDescr_t}()
         cusparseCreateCsr(
@@ -52,14 +53,25 @@ mutable struct CuSparseMatrixDescriptor
         return obj
     end
 
-    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSC)
+    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSC; convert=true)
         desc_ref = Ref{cusparseSpMatDescr_t}()
-        cusparseCreateCsr(
-            desc_ref,
-            reverse(A.dims)..., length(nonzeros(A)),
-            A.colPtr, rowvals(A), nonzeros(A),
-            eltype(A.colPtr), eltype(rowvals(A)), 'O', eltype(nonzeros(A))
-        )
+        if convert
+            # many algorithms, e.g. mv! and mm!, do not support CSC sparse format
+            # so we eagerly convert this to a CSR matrix.
+            cusparseCreateCsr(
+                desc_ref,
+                reverse(A.dims)..., length(nonzeros(A)),
+                A.colPtr, rowvals(A), nonzeros(A),
+                eltype(A.colPtr), eltype(rowvals(A)), 'O', eltype(nonzeros(A))
+            )
+        else
+            cusparseCreateCsc(
+                desc_ref,
+                A.dims..., length(nonzeros(A)),
+                A.colPtr, rowvals(A), nonzeros(A),
+                eltype(A.colPtr), eltype(rowvals(A)), 'O', eltype(nonzeros(A))
+            )
+        end
         obj = new(desc_ref[])
         finalizer(cusparseDestroySpMat, obj)
         return obj
@@ -67,7 +79,6 @@ mutable struct CuSparseMatrixDescriptor
 end
 
 Base.unsafe_convert(::Type{cusparseSpMatDescr_t}, desc::CuSparseMatrixDescriptor) = desc.handle
-
 
 ## API functions
 

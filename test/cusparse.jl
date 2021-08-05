@@ -212,6 +212,11 @@ end
             d_x = CuSparseMatrixCSC(d_x)
             h_x = collect(d_x)
             @test h_x ≈ sparse(x)
+
+            d_x_dense = CuMatrix(d_x)
+            @test h_x == collect(d_x_dense)
+            h_x_dense = Array(d_x)
+            @test h_x == h_x_dense
         end
 
         @testset "CSR(::Dense)" begin
@@ -220,6 +225,11 @@ end
             d_x = CuSparseMatrixCSR(d_x)
             h_x = collect(d_x)
             @test h_x ≈ sparse(x)
+
+            d_x_dense = CuMatrix(d_x)
+            @test h_x == collect(d_x_dense)
+            h_x_dense = Array(d_x)
+            @test h_x == h_x_dense
         end
     end
 end
