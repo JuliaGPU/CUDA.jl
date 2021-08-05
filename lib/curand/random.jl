@@ -2,8 +2,6 @@
 
 using Random
 
-using GPUArrays
-
 
 mutable struct RNG <: Random.AbstractRNG
     handle::curandGenerator_t

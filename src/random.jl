@@ -41,6 +41,7 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
 
         # grid-stride loop
         threadId = threadIdx().x
+        window = (blockDim().x - 1) * gridDim().x
         offset = (blockIdx().x - 1) * blockDim().x
         while offset < length(A)
             i = threadId + offset
@@ -48,7 +49,7 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
                 @inbounds A[i] = Random.rand(device_rng, T)
             end
 
-            offset += (blockDim().x - 1) * gridDim().x
+            offset += window
         end
 
         return
@@ -68,7 +69,112 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
     A
 end
 
-# TODO: `randn!`; cannot reuse from Base or RandomNumbers, as those do scalar indexing
+function Random.randn!(rng::RNG, A::AnyCuArray{<:T}) where {T<:Union{AbstractFloat,Complex{<:AbstractFloat}}}
+    function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32)
+        device_rng = Random.default_rng()
+
+        # initialize the state
+        @inbounds Random.seed!(device_rng, seed, counter)
+
+        # grid-stride loop
+        threadId = threadIdx().x
+        window = (blockDim().x - 1) * gridDim().x
+        offset = (blockIdx().x - 1) * blockDim().x
+        while offset < length(A)
+            i = threadId + offset
+            j = threadId + offset + window
+            if i <= length(A)
+                # Box–Muller transform
+                U1 = Random.rand(device_rng, T)
+                U2 = Random.rand(device_rng, T)
+                Z0 = sqrt(T(-2.0)*log(U1))*cos(T(2pi)*U2)
+                Z1 = sqrt(T(-2.0)*log(U1))*sin(T(2pi)*U2)
+                @inbounds A[i] = Z0
+                if j <= length(A)
+                    @inbounds A[j] = Z1
+                end
+            end
+
+            offset += 2*window
+        end
+
+        return
+    end
+
+    kernel = @cuda launch=false name="rand!" kernel(A, rng.seed, rng.counter)
+    config = launch_configuration(kernel.fun; max_threads=64)
+    threads = max(32, min(config.threads, length(A)÷2))
+    blocks = min(config.blocks, cld(length(A)÷2, threads))
+    kernel(A, rng.seed, rng.counter; threads=threads, blocks=blocks)
+
+    new_counter = Int64(rng.counter) + length(A)
+    overflow, remainder = fldmod(new_counter, typemax(UInt32))
+    rng.seed += overflow     # XXX: is this OK?
+    rng.counter = remainder
+
+    A
+end
+
+function default_rng()
+    cuda = CUDA.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{rng::RNG}
+    states = get!(task_local_storage(), :RNG) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get library state
+    @noinline function new_state(cuda)
+        # CUDA RNG objects are cheap, so we don't need to cache them
+        (; rng=RNG())
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
+    end
+
+    return state.rng
+end
+
+
+# old native RNG
+
+# we keep this for the GPUArrays.jl tests
+
+const idle_gpuarray_rngs = HandleCache{CuContext,GPUArrays.RNG}()
+
+function GPUArrays.default_rng(::Type{<:CuArray})
+    cuda = CUDA.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{rng::GPUArrays.RNG}
+    states = get!(task_local_storage(), :GPUArraysRNG) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get library state
+    @noinline function new_state(cuda)
+        new_rng = pop!(idle_gpuarray_rngs, cuda.context) do
+            N = attribute(cuda.device, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
+            buf = CuArray{NTuple{4, UInt32}}(undef, N)
+            GPUArrays.RNG(buf)
+        end
+
+        finalizer(current_task()) do task
+            push!(idle_gpuarray_rngs, cuda.context, new_rng) do
+                # no need to do anything, as the RNG is collected by its finalizer
+            end
+        end
+
+        Random.seed!(new_rng)
+        (; rng=new_rng)
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
+    end
+
+    return state.rng
+end
 
 
 # generic functionality
@@ -89,18 +195,12 @@ end
 
 # RNG-less interface
 
-# the interface is split in two levels:
-# - functions that extend the Random standard library, and take an RNG as first argument,
-#   will only ever dispatch to CURAND and as a result are limited in the types they support.
-# - functions that take an array will dispatch to either CURAND or GPUArrays
-# - non-exported functions are provided for constructing GPU arrays from only an eltype
-
-const curand_rng = CURAND.default_rng
-gpuarrays_rng() = GPUArrays.default_rng(CuArray)
+cuda_rng() = default_rng()
+curand_rng() = CURAND.default_rng()
 
 function seed!(seed=Base.rand(UInt64))
+    Random.seed!(cuda_rng(), seed)
     Random.seed!(curand_rng(), seed)
-    Random.seed!(gpuarrays_rng(), seed)
 end
 
 # CURAND in-place
@@ -125,17 +225,15 @@ rand_logn(T::CURAND.LognormalType, dim1::Integer, dims::Integer...; kwargs...) =
 rand_poisson(T::CURAND.PoissonType, dim1::Integer, dims::Integer...; kwargs...) =
     CURAND.rand_poisson(curand_rng(), T, Dims((dim1, dims...)); kwargs...)
 
-# GPUArrays in-place
-Random.rand!(A::AnyCuArray) = Random.rand!(gpuarrays_rng(), A)
-Random.randn!(A::AnyCuArray; kwargs...) =
-    error("CUDA.jl does not support generating normally-distributed random numbers of type $(eltype(A))")
-# FIXME: GPUArrays.jl has a randn! nowadays, but it doesn't work with e.g. Cuint
+# native in-place
+Random.rand!(A::AnyCuArray) = Random.rand!(cuda_rng(), A)
+Random.randn!(A::AnyCuArray) = Random.randn!(cuda_rng(), A)
 rand_logn!(A::AnyCuArray; kwargs...) =
     error("CUDA.jl does not support generating lognormally-distributed random numbers of type $(eltype(A))")
 rand_poisson!(A::AnyCuArray; kwargs...) =
     error("CUDA.jl does not support generating Poisson-distributed random numbers of type $(eltype(A))")
 
-# GPUArrays out-of-place
+# native out-of-place
 rand(T::Type, dims::Dims) = Random.rand!(CuArray{T}(undef, dims...))
 randn(T::Type, dims::Dims; kwargs...) = Random.randn!(CuArray{T}(undef, dims...); kwargs...)
 rand_logn(T::Type, dims::Dims; kwargs...) = rand_logn!(CuArray{T}(undef, dims...); kwargs...)
