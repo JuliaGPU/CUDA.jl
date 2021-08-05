@@ -134,18 +134,35 @@ end
 
 # RNG-less interface
 
-# the interface is split in two levels:
-# - functions that extend the Random standard library, and take an RNG as first argument,
-#   will only ever dispatch to CURAND and as a result are limited in the types they support.
-# - functions that take an array will dispatch to either CURAND or GPUArrays
-# - non-exported functions are provided for constructing GPU arrays from only an eltype
+# the CURAND RNG is defined in lib/curand/CURAND.jl
 
-const curand_rng = CURAND.default_rng
-gpuarrays_rng() = GPUArrays.default_rng(CuArray)
+function default_rng()
+    cuda = CUDA.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{rng::RNG}
+    states = get!(task_local_storage(), :RNG) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get library state
+    @noinline function new_state(cuda)
+        # CUDA RNG objects are cheap, so we don't need to cache them
+        (; rng=RNG())
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
+    end
+
+    return state.rng
+end
+
+cuda_rng() = default_rng()
+curand_rng() = CURAND.default_rng()
 
 function seed!(seed=Base.rand(UInt64))
+    Random.seed!(cuda_rng(), seed)
     Random.seed!(curand_rng(), seed)
-    Random.seed!(gpuarrays_rng(), seed)
 end
 
 # CURAND in-place
@@ -170,17 +187,15 @@ rand_logn(T::CURAND.LognormalType, dim1::Integer, dims::Integer...; kwargs...) =
 rand_poisson(T::CURAND.PoissonType, dim1::Integer, dims::Integer...; kwargs...) =
     CURAND.rand_poisson(curand_rng(), T, Dims((dim1, dims...)); kwargs...)
 
-# GPUArrays in-place
-Random.rand!(A::AnyCuArray) = Random.rand!(gpuarrays_rng(), A)
-Random.randn!(A::AnyCuArray; kwargs...) =
-    error("CUDA.jl does not support generating normally-distributed random numbers of type $(eltype(A))")
-# FIXME: GPUArrays.jl has a randn! nowadays, but it doesn't work with e.g. Cuint
+# native in-place
+Random.rand!(A::AnyCuArray) = Random.rand!(cuda_rng(), A)
+Random.randn!(A::AnyCuArray) = Random.randn!(cuda_rng(), A)
 rand_logn!(A::AnyCuArray; kwargs...) =
     error("CUDA.jl does not support generating lognormally-distributed random numbers of type $(eltype(A))")
 rand_poisson!(A::AnyCuArray; kwargs...) =
     error("CUDA.jl does not support generating Poisson-distributed random numbers of type $(eltype(A))")
 
-# GPUArrays out-of-place
+# native out-of-place
 rand(T::Type, dims::Dims) = Random.rand!(CuArray{T}(undef, dims...))
 randn(T::Type, dims::Dims; kwargs...) = Random.randn!(CuArray{T}(undef, dims...); kwargs...)
 rand_logn(T::Type, dims::Dims; kwargs...) = rand_logn!(CuArray{T}(undef, dims...); kwargs...)
