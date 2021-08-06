@@ -9,7 +9,7 @@ using ..CUDA: libcusolver, libcusolvermg, @allowscalar, assertscalar, unsafe_fre
 using ..CUBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
 using ..CUSPARSE: cusparseMatDescr_t
 
-using CEnum
+using CEnum: @cenum
 
 
 # core library

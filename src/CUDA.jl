@@ -8,13 +8,13 @@ using LLVM
 using LLVM.Interop
 using Core: LLVMPtr
 
-using Adapt
+using Adapt: Adapt, adapt, WrappedArray
 
-using Requires
+using Requires: @require
 
 using LinearAlgebra
 
-using BFloat16s
+using BFloat16s: BFloat16
 
 using ExprTools: splitdef, combinedef
 

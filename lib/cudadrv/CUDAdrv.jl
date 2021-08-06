@@ -1,10 +1,10 @@
 using .APIUtils
 
-using CEnum
+using CEnum: @cenum
 
 using Printf
 
-using Libdl
+import Libdl
 
 const _libcuda = Ref{String}()
 function libcuda()

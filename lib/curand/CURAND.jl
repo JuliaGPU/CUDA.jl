@@ -6,7 +6,7 @@ using ..CUDA
 using ..CUDA: CUstream, libraryPropertyType, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK
 using ..CUDA: libcurand, @retry_reclaim
 
-using CEnum
+using CEnum: @cenum
 
 
 # core library

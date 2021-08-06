@@ -4,9 +4,9 @@ using ..CUDA
 using ..CUDA: libnvtx, @checked
 using ..CUDA: CUstream, CUdevice, CUcontext, CUevent
 
-using CEnum
+using CEnum: @cenum
 
-using ExprTools
+using ExprTools: splitdef, combinedef
 
 
 # core library

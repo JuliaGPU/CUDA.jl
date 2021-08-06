@@ -6,9 +6,9 @@ using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType
 using ..CUDA: libcufft, unsafe_free!, @retry_reclaim, @context!
 
-using CEnum
+using CEnum: @cenum
 
-using Reexport
+using Reexport: @reexport
 
 
 # core library

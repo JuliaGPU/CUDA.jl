@@ -4,9 +4,9 @@ using ..APIUtils
 
 using ..CUDA
 
-using CEnum
+using CEnum: @cenum
 
-using Libdl
+import Libdl
 
 
 function libnvml()

@@ -10,9 +10,9 @@ using GPUArrays
 
 using LinearAlgebra
 
-using BFloat16s
+using BFloat16s: BFloat16
 
-using CEnum
+using CEnum: @cenum
 
 
 # core library
