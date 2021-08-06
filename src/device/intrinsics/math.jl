@@ -28,6 +28,32 @@ within(lower, upper) = (val) -> lower <= val <= upper
 @device_override Base.tan(x::Float32) = ccall("extern __nv_tanf", llvmcall, Cfloat, (Cfloat,), x)
 @device_override FastMath.tan_fast(x::Float32) = ccall("extern __nv_fast_tanf", llvmcall, Cfloat, (Cfloat,), x)
 
+@device_override function Base.sincos(x::Float64)
+    s = Ref{Cdouble}()
+    c = Ref{Cdouble}()
+    ccall("extern __nv_sincos", llvmcall, Cvoid, (Cdouble, Ptr{Cdouble}, Ptr{Cdouble}), x, s, c)
+    return (s[], c[])
+end
+@device_override function Base.sincos(x::Float32)
+    s = Ref{Cfloat}()
+    c = Ref{Cfloat}()
+    ccall("extern __nv_sincosf", llvmcall, Cvoid, (Cfloat, Ptr{Cfloat}, Ptr{Cfloat}), x, s, c)
+    return (s[], c[])
+end
+
+@device_override function Base.sincospi(x::Float64)
+    s = Ref{Cdouble}()
+    c = Ref{Cdouble}()
+    ccall("extern __nv_sincospi", llvmcall, Cvoid, (Cdouble, Ptr{Cdouble}, Ptr{Cdouble}), x, s, c)
+    return (s[], c[])
+end
+@device_override function Base.sincospi(x::Float32)
+    s = Ref{Cfloat}()
+    c = Ref{Cfloat}()
+    ccall("extern __nv_sincospif", llvmcall, Cvoid, (Cfloat, Ptr{Cfloat}, Ptr{Cfloat}), x, s, c)
+    return (s[], c[])
+end
+
 
 ## inverse trigonometric
 
