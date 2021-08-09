@@ -12,7 +12,7 @@ using ..APIUtils
 using ..CUDA
 using ..CUDA: CUstream, libraryPropertyType
 using ..CUDA: libcudnn, @retry_reclaim, isdebug, @context!
-using ..CUDA: BFloat16s
+using BFloat16s
 
 using CEnum: @cenum
 
