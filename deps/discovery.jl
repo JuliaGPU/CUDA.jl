@@ -321,7 +321,7 @@ const cuda_binary_versions = Dict(
         "nvdisasm"  => v"11.3.58",  # ambiguous!
         "ptxas"     => v"11.3.109"
     ),
-    v"11.3.1" => Dict(
+    v"11.4.0" => Dict(
         "nvdisasm"  => v"11.4.43"
     ),
 )
