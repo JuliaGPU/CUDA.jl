@@ -259,6 +259,15 @@ const cuda_library_versions = Dict(
         "cusolver"  => v"11.2.0", #.43
         "cusparse"  => v"11.6.0", #.43
     ),
+    v"11.4.1" => Dict(
+        "cupti"     => "2021.2.1", # docs mention 11.4.100
+        "nvtx"      => v"11.4.100",
+        "cublas"    => v"11.5.4", #.8
+        "cufft"     => v"10.5.1", #.100
+        "curand"    => v"10.2.5", #.100
+        "cusolver"  => v"11.2.0", #.100
+        "cusparse"  => v"11.6.0", #.100
+    ),
 )
 
 function cuda_library_version(library, toolkit_version)
@@ -321,8 +330,11 @@ const cuda_binary_versions = Dict(
         "nvdisasm"  => v"11.3.58",  # ambiguous!
         "ptxas"     => v"11.3.109"
     ),
-    v"11.3.1" => Dict(
+    v"11.4.0" => Dict(
         "nvdisasm"  => v"11.4.43"
+    ),
+    v"11.4.1" => Dict(
+        "nvdisasm"  => v"11.4.100"
     ),
 )
 

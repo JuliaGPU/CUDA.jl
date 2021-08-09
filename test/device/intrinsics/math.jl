@@ -52,10 +52,10 @@
         end
     end
     @testset "mod and rem" begin
-        # CUDA follows C's fmod, which behaves differently than Julia on negative numbers
-        for op in (mod, rem), T in (Float16, Float32, Float64)
-            @test testf(a->op.(a, T(2)), T[1])
-            @test testf(a->op.(a, T(2)), T[-1])
+        for T in (Float16, Float32, Float64)
+            @test testf(a->rem.(a, T(2)), T[0, 1, 1.5, 2, -1])
+            @test testf(a->rem.(a, T(2), RoundNearest), T[0, 1, 1.5, 2, -1])
+            @test testf(a->mod.(a, T(2)), T[0, 1, 1.5, 2, -1])
         end
     end
 
@@ -83,4 +83,9 @@
         end
     end
 
+
+    @testset "exp" begin
+        # JuliaGPU/CUDA.jl#1085: exp uses Base.sincos performing a global CPU load
+        @test testf(x->exp.(x), [1e7im])
+    end
 end

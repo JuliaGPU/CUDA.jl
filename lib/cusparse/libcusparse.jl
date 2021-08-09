@@ -5227,7 +5227,7 @@ end
 
 @checked function cusparseSparseToDense(handle, matA, matB, alg, buffer)
     initialize_api()
-    ccall((:cusparseSparseToDense, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseSpMatDescr_t, cusparseDnMatDescr_t, cusparseSparseToDenseAlg_t, Ptr{Cvoid}), handle, matA, matB, alg, buffer)
+    ccall((:cusparseSparseToDense, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseSpMatDescr_t, cusparseDnMatDescr_t, cusparseSparseToDenseAlg_t, CuPtr{Cvoid}), handle, matA, matB, alg, buffer)
 end
 
 @checked function cusparseCscSetPointers(spMatDescr, cscColOffsets, cscRowInd, cscValues)
@@ -5237,7 +5237,7 @@ end
 
 @checked function cusparseCreateCsc(spMatDescr, rows, cols, nnz, csrColOffsets, csrRowInd, csrValues, csrColOffsetsType, csrRowIndType, idxBase, valueType)
     initialize_api()
-    ccall((:cusparseCreateCsc, libcusparse()), cusparseStatus_t, (Ptr{cusparseSpMatDescr_t}, Int64, Int64, Int64, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, cusparseIndexType_t, cusparseIndexType_t, cusparseIndexBase_t, cudaDataType), spMatDescr, rows, cols, nnz, csrColOffsets, csrRowInd, csrValues, csrColOffsetsType, csrRowIndType, idxBase, valueType)
+    ccall((:cusparseCreateCsc, libcusparse()), cusparseStatus_t, (Ptr{cusparseSpMatDescr_t}, Int64, Int64, Int64, CuPtr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid}, cusparseIndexType_t, cusparseIndexType_t, cusparseIndexBase_t, cudaDataType), spMatDescr, rows, cols, nnz, csrColOffsets, csrRowInd, csrValues, csrColOffsetsType, csrRowIndType, idxBase, valueType)
 end
 
 @checked function cusparseDenseToSparse_bufferSize(handle, matA, matB, alg, bufferSize)
