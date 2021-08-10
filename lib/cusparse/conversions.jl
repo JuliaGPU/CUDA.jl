@@ -1,6 +1,45 @@
 # conversion routines between different sparse and dense storage formats
 
-SparseArrays.sparse(::DenseCuArray, args...) = error("CUSPARSE supports multiple sparse formats, use specific constructors instead (e.g. CuSparseMatrixCSC)")
+"""
+    sparse(x::DenseCuMatrix; fmt=:csc)
+    sparse(I::CuVector, J::CuVector, V::CuVector, [m, n]; fmt=:csc)
+
+Return a sparse cuda matrix, with type determined by `fmt`.
+Possible formats are :csc, :csr, :bsr, and :coo.
+"""
+function SparseArrays.sparse(x::DenseCuMatrix; fmt=:csc)
+    if fmt == :csc
+        return CuSparseMatrixCSC(x)
+    elseif fmt == :csr
+        return CuSparseMatrixCSR(x)
+    elseif fmt == :bsr
+        return CuSparseMatrixBSR(x)
+    elseif fmt == :coo
+        return CuSparseMatrixCOO(x)
+    else
+        error("Format :$fmt not available, use :csc, :csr, :bsr or :coo.")
+    end
+end
+
+SparseArrays.sparse(I::CuVector, J::CuVector, V::CuVector; kws...) =
+    sparse(I, J, V, maximum(I), maximum(J); kws...)
+
+SparseArrays.sparse(I::CuVector, J::CuVector, V::CuVector, m, n; kws...) =
+    sparse(Cint.(I), Cint.(J), V, m, n; kws...)
+
+function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{Tv}, m, n;
+            fmt=:csc) where Tv
+    spcoo = CuSparseMatrixCOO{Tv}(I, J, V, (m, n))
+    if fmt == :csc
+        return CuSparseMatrixCSC(spcoo)
+    elseif fmt == :csr
+        return CuSparseMatrixCSR(spcoo)
+    elseif fmt == :coo
+        return spcoo
+    else
+        error("Format :$fmt not available, use :csc, :csr, or :coo.")
+    end
+end
 
 
 ## CSR to CSC
@@ -237,6 +276,14 @@ function CuSparseMatrixCOO(csr::CuSparseMatrixCSR{Tv}, ind::SparseChar='O') wher
     cusparseXcsr2coo(handle(), csr.rowPtr, nnz, m, cooRowInd, ind)
     CuSparseMatrixCOO{Tv}(cooRowInd, csr.colVal, csr.nzVal, csr.dims, nnz)
 end
+
+### CSC/BST to COO and viceversa
+
+CuSparseMatrixCSC(coo::CuSparseMatrixCOO) = CuSparseMatrixCSC(CuSparseMatrixCSR(coo)) # no direct conversion
+CuSparseMatrixCOO(csc::CuSparseMatrixCSC) = CuSparseMatrixCOO(CuSparseMatrixCSR(csc)) # no direct conversion
+CuSparseMatrixBSR(coo::CuSparseMatrixCOO, blockdim) = CuSparseMatrixBSR(CuSparseMatrixCSR(coo), blockdim) # no direct conversion
+CuSparseMatrixCOO(bsr::CuSparseMatrixBSR) = CuSparseMatrixCOO(CuSparseMatrixCSR(bsr)) # no direct conversion
+
 
 ## sparse to dense, and vice-versa
 
