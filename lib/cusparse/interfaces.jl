@@ -10,9 +10,12 @@ end
 
 function mm_wrapper(transa::SparseChar, transb::SparseChar, alpha::Number,
                     A::CuSparseMatrix{T}, B::CuMatrix{T}, beta::Number, C::CuMatrix{T}) where {T}
-    size(A, 2) == size(B, 1) || throw(DimensionMismatch())
-    size(A, 1) == size(C, 1) || throw(DimensionMismatch())
-    size(B, 2) == size(C, 2) || throw(DimensionMismatch())
+    n_A, m_A = (transa != 'N') ? reverse(size(A)) : size(A)
+    n_B, m_B = (transb != 'N') ? reverse(size(B)) : size(B)
+    n_C, m_C = size(C)
+    m_A == n_B || throw(DimensionMismatch())
+    n_A == n_C || throw(DimensionMismatch())
+    m_B == m_C || throw(DimensionMismatch())
     isempty(B) && return CUDA.zeros(eltype(B), size(A, 1), 0)
 
     if version() <= v"10.3.1"
