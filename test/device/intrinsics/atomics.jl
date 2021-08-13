@@ -380,6 +380,23 @@ end
     end
 end
 
+@testset "shift" begin
+    types = [Int32, Int64, UInt32, UInt64]
+    capability(device()) >= v"7.0" && append!(types, [Int16, UInt16])
+
+    @testset for T in types
+        a = CuArray([one(T)])
+
+        function kernel(T, a)
+            @atomic a[1] <<= 1
+            return
+        end
+
+        @cuda threads=8 kernel(T, a)
+        @test Array(a)[1] == 1<<8
+    end
+end
+
 @testset "macro" begin
     using CUDA: AtomicError
 
