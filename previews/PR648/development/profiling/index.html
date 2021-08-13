@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Profiling · CUDA.jl</title><script>(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-154489943-2', 'auto');
+ga('send', 'pageview', {'page': location.pathname + location.search + location.hash});
+</script><link rel="canonical" href="https://juliagpu.github.io/CUDA.jl/stable/development/profiling/"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="CUDA.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit">CUDA.jl</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Tutorials</span><ul><li><a class="tocitem" href="../../tutorials/introduction/">Introduction</a></li></ul></li><li><span class="tocitem">Installation</span><ul><li><a class="tocitem" href="../../installation/overview/">Overview</a></li><li><a class="tocitem" href="../../installation/conditional/">Conditional use</a></li><li><a class="tocitem" href="../../installation/troubleshooting/">Troubleshooting</a></li></ul></li><li><span class="tocitem">Usage</span><ul><li><a class="tocitem" href="../../usage/overview/">Overview</a></li><li><a class="tocitem" href="../../usage/workflow/">Workflow</a></li><li><a class="tocitem" href="../../usage/array/">Array programming</a></li><li><a class="tocitem" href="../../usage/memory/">Memory management</a></li><li><a class="tocitem" href="../../usage/multigpu/">Multiple GPUs</a></li></ul></li><li><span class="tocitem">Development</span><ul><li class="is-active"><a class="tocitem" href>Profiling</a><ul class="internal"><li><a class="tocitem" href="#Time-measurements"><span>Time measurements</span></a></li><li><a class="tocitem" href="#Application-profiling"><span>Application profiling</span></a></li><li><a class="tocitem" href="#Source-code-annotations"><span>Source-code annotations</span></a></li><li><a class="tocitem" href="#Compiler-options"><span>Compiler options</span></a></li></ul></li><li><a class="tocitem" href="../troubleshooting/">Troubleshooting</a></li></ul></li><li><span class="tocitem">API reference</span><ul><li><a class="tocitem" href="../../api/essentials/">Essentials</a></li><li><a class="tocitem" href="../../api/compiler/">Compiler</a></li><li><a class="tocitem" href="../../api/kernel/">Kernel programming</a></li><li><a class="tocitem" href="../../api/array/">Array programming</a></li></ul></li><li><span class="tocitem">Library reference</span><ul><li><a class="tocitem" href="../../lib/driver/">CUDA driver</a></li></ul></li><li><a class="tocitem" href="../../faq/">FAQ</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Development</a></li><li class="is-active"><a href>Profiling</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Profiling</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaGPU/CUDA.jl/blob/master/docs/src/development/profiling.md#" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Profiling"><a class="docs-heading-anchor" href="#Profiling">Profiling</a><a id="Profiling-1"></a><a class="docs-heading-anchor-permalink" href="#Profiling" title="Permalink"></a></h1><p>Profiling GPU code is harder than profiling Julia code executing on the CPU. For one, kernels typically execute asynchronously, and thus require appropriate synchronization when measuring their execution time. Furthermore, because the code executes on a different processor, it is much harder to know what is currently executing. CUDA, and the Julia CUDA packages, provide several tools and APIs to remedy this.</p><h2 id="Time-measurements"><a class="docs-heading-anchor" href="#Time-measurements">Time measurements</a><a id="Time-measurements-1"></a><a class="docs-heading-anchor-permalink" href="#Time-measurements" title="Permalink"></a></h2><p>To accurately measure execution time in the presence of asynchronously-executing kernels, CUDA.jl provides an <code>@elapsed</code> macro that, much like <code>Base.@elapsed</code>, measures the total execution time of a block of code on the GPU:</p><pre><code class="language-julia">julia&gt; a = CUDA.rand(1024,1024,1024);
+
+julia&gt; Base.@elapsed sin.(a)  # WRONG!
+0.008714211
+
+julia&gt; CUDA.@elapsed sin.(a)
+0.051607586f0</code></pre><p>This macro is a low-level utility, assumes the GPU is synchronized before calling, and is useful if you need execution timings in your application. For most purposes, you should use <code>CUDA.@time</code> which mimics <code>Base.@time</code> by printing execution times as well as memory allocation stats:</p><pre><code class="language-julia">julia&gt; a = CUDA.rand(1024,1024,1024);
+
+julia&gt; CUDA.@time sin.(a);
+  0.046063 seconds (96 CPU allocations: 3.750 KiB) (1 GPU allocation: 4.000 GiB, 14.33% gc time of which 99.89% spent allocating)</code></pre><p>The <code>@time</code> macro is more user-friendly (synchronizes the GPU before measuring so you don&#39;t need to do a thing), uses wall-clock time, and is a generally more useful tool when measuring the end-to-end performance characteristics of a GPU application.</p><p>For robust measurements however, it is advised to use the <a href="https://github.com/JuliaCI/BenchmarkTools.jl">BenchmarkTools.jl</a> package which goes to great lengths to perform accurate measurements. Due to the asynchronous nature of GPUs, you need to ensure the GPU is synchronized at the end of every sample, e.g. by calling <code>synchronize()</code>. An easier, and better-performing alternative is to use the unexported <code>@sync</code> macro:</p><pre><code class="language-julia">julia&gt; a = CUDA.rand(1024,1024,1024);
+
+julia&gt; @benchmark CUDA.@sync sin.($a)
+BenchmarkTools.Trial:
+  memory estimate:  3.73 KiB
+  allocs estimate:  95
+  --------------
+  minimum time:     46.341 ms (0.00% GC)
+  median time:      133.302 ms (0.50% GC)
+  mean time:        130.087 ms (0.49% GC)
+  maximum time:     153.465 ms (0.43% GC)
+  --------------
+  samples:          39
+  evals/sample:     1</code></pre><p>Note that the allocations as reported by BenchmarkTools are CPU allocations. For the GPU allocation behavior you need to consult <code>CUDA.@time</code>.</p><p>If you are timing very short operations, it might be beneficial to use the non-blocking version of <code>CUDA.@sync</code>. The operation will then spin, resulting in a lower overhead:</p><pre><code class="language-julia">julia&gt; @benchmark CUDA.@sync begin end
+BenchmarkTools.Trial:
+  memory estimate:  80 bytes
+  allocs estimate:  4
+  --------------
+  minimum time:     6.874 μs (0.00% GC)
+  median time:      8.328 μs (0.00% GC)
+  mean time:        14.004 μs (0.00% GC)
+  maximum time:     358.932 μs (0.00% GC)
+  --------------
+  samples:          10000
+  evals/sample:     4
+
+julia&gt; @benchmark CUDA.@sync blocking=false begin end
+BenchmarkTools.Trial:
+  memory estimate:  80 bytes
+  allocs estimate:  4
+  --------------
+  minimum time:     679.136 ns (0.00% GC)
+  median time:      724.792 ns (0.00% GC)
+  mean time:        915.382 ns (3.77% GC)
+  maximum time:     783.136 μs (18.57% GC)
+  --------------
+  samples:          10000
+  evals/sample:     154</code></pre><h2 id="Application-profiling"><a class="docs-heading-anchor" href="#Application-profiling">Application profiling</a><a id="Application-profiling-1"></a><a class="docs-heading-anchor-permalink" href="#Application-profiling" title="Permalink"></a></h2><p>For profiling large applications, simple timings are insufficient. Instead, we want a overview of how and when the GPU was active, to avoid times where the device was idle and/or find which kernels needs optimization.</p><p>As we cannot use the Julia profiler for this task, we will be using external profiling software as part of the CUDA toolkit. To inform those external tools which code needs to be profiled (e.g., to exclude warm-up iterations or other noninteresting elements) you can use the <code>CUDA.@profile</code> macro to surround interesting code with. Again, this macro mimics an equivalent from the standard library, but this time requires external software to actually perform the profiling:</p><pre><code class="language-julia">julia&gt; a = CUDA.rand(1024,1024,1024);
+
+julia&gt; sin.(a);  # warmup
+
+julia&gt; CUDA.@profile sin.(a);
+┌ Warning: Calling CUDA.@profile only informs an external profiler to start.
+│ The user is responsible for launching Julia under a CUDA profiler like `nvprof`.
+└ @ CUDA.Profile ~/Julia/pkg/CUDA/src/profile.jl:42</code></pre><h3 id="nvprof-and-nvvp"><a class="docs-heading-anchor" href="#nvprof-and-nvvp"><code>nvprof</code> and <code>nvvp</code></a><a id="nvprof-and-nvvp-1"></a><a class="docs-heading-anchor-permalink" href="#nvprof-and-nvvp" title="Permalink"></a></h3><div class="admonition is-warning"><header class="admonition-header">Warning</header><div class="admonition-body"><p>These tools are deprecated, and will be removed from future versions of CUDA. Prefer to use the Nsight tools described below.</p></div></div><p>For simple profiling, prefix your Julia command-line invocation with the <code>nvprof</code> utility. For a better timeline, be sure to use <code>CUDA.@profile</code> to delimit interesting code and start <code>nvprof</code> with the option <code>--profile-from-start off</code>:</p><pre><code class="language-none">$ nvprof --profile-from-start off julia
+
+julia&gt; using CUDA
+
+julia&gt; a = CUDA.rand(1024,1024,1024);
+
+julia&gt; sin.(a);
+
+julia&gt; CUDA.@profile sin.(a);
+
+julia&gt; exit()
+==156406== Profiling application: julia
+==156406== Profiling result:
+            Type  Time(%)      Time     Calls       Avg       Min       Max  Name
+ GPU activities:  100.00%  44.777ms         1  44.777ms  44.777ms  44.777ms  ptxcall_broadcast_1
+      API calls:   56.46%  6.6544ms         1  6.6544ms  6.6544ms  6.6544ms  cuMemAlloc
+                   43.52%  5.1286ms         1  5.1286ms  5.1286ms  5.1286ms  cuLaunchKernel
+                    0.01%  1.3200us         1  1.3200us  1.3200us  1.3200us  cuDeviceGetCount
+                    0.01%     725ns         3     241ns     196ns     301ns  cuCtxGetCurrent</code></pre><p>For a visual overview of these results, you can use the NVIDIA Visual Profiler (<code>nvvp</code>):</p><p><img src="../nvvp.png" alt="&quot;NVIDIA Visual Profiler&quot;"/></p><p>Note however that both <code>nvprof</code> and <code>nvvp</code> are deprecated, and will be removed from future versions of the CUDA toolkit.</p><h3 id="NVIDIA-Nsight-Systems"><a class="docs-heading-anchor" href="#NVIDIA-Nsight-Systems">NVIDIA Nsight Systems</a><a id="NVIDIA-Nsight-Systems-1"></a><a class="docs-heading-anchor-permalink" href="#NVIDIA-Nsight-Systems" title="Permalink"></a></h3><p>Following the deprecation of above tools, NVIDIA published the Nsight Systems and Nsight Compute tools for respectively timeline profiling and more detailed kernel analysis. The former is well-integrated with the Julia GPU packages, and makes it possible to iteratively profile without having to restart Julia as was the case with <code>nvvp</code> and <code>nvprof</code>.</p><p>After downloading and installing NSight Systems (a version might have been installed alongside with the CUDA toolkit, but it is recommended to download and install the latest version from the NVIDIA website), you need to launch Julia from the command-line, wrapped by the <code>nsys</code> utility from NSight Systems:</p><pre><code class="language-none">$ nsys launch julia</code></pre><p>You can then execute whatever code you want in the REPL, including e.g. loading Revise so that you can modify your application as you go. When you call into code that is wrapped by <code>CUDA.@profile</code>, the profiler will become active and generate a profile output file in the current folder:</p><pre><code class="language-julia">julia&gt; using CUDA
+
+julia&gt; a = CUDA.rand(1024,1024,1024);
+
+julia&gt; sin.(a);
+
+julia&gt; CUDA.@profile sin.(a);
+start executed
+Processing events...
+Capturing symbol files...
+Saving intermediate &quot;report.qdstrm&quot; file to disk...
+
+Importing [===============================================================100%]
+Saved report file to &quot;report.qdrep&quot;
+stop executed</code></pre><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>Even with a warm-up iteration, the first kernel or API call might seem to take significantly longer in the profiler. If you are analyzing short executions, instead of whole applications, repeat the operation twice (optionally separated by a call to <code>CUDA.synchronize()</code> or wrapping in <code>CUDA.@sync</code>)</p></div></div><p>You can open the resulting <code>.qdrep</code> file with <code>nsight-sys</code>:</p><p><img src="../nsight_systems.png" alt="&quot;NVIDIA Nsight Systems&quot;"/></p><h3 id="NVIDIA-Nsight-Compute"><a class="docs-heading-anchor" href="#NVIDIA-Nsight-Compute">NVIDIA Nsight Compute</a><a id="NVIDIA-Nsight-Compute-1"></a><a class="docs-heading-anchor-permalink" href="#NVIDIA-Nsight-Compute" title="Permalink"></a></h3><p>If you want details on the execution properties of a kernel, or inspect API interactions, Nsight Compute is the tool for you. It is again possible to use this profiler with an interactive session of Julia, and debug or profile only those sections of your application that are marked with <code>CUDA.@profile</code>.</p><p>Start with launching Julia under the Nsight Compute CLI tool:</p><pre><code class="language-none">$ nv-nsight-cu-cli --mode=launch julia</code></pre><p>You will get an interactive REPL, where you can execute whatever code you want:</p><pre><code class="language-julia">julia&gt; using CUDA
+
+julia&gt; CUDA.version()
+
+# Julia hangs!</code></pre><p>As soon as you use CUDA.jl, your Julia process will hang. This is expected, as the tool breaks upon the very first call to the CUDA API, at which point you are expected to launch the Nsight Compute GUI utility and attach to the running session:</p><p><img src="../nsight_compute-attach.png" alt="&quot;NVIDIA Nsight Compute - Attaching to a session&quot;"/></p><p>You will see that the tool has stopped execution on the call to <code>cuInit</code>. Now check <code>Profile &gt; Auto Profile</code> to make Nsight Compute gather statistics on our kernels, and clock <code>Debug &gt; Resume</code> to resume your session.</p><p>Now our CLI session comes to life again, and we can enter the rest of our script:</p><pre><code class="language-julia">julia&gt; a = CUDA.rand(1024,1024,1024);
+
+julia&gt; sin.(a);
+
+julia&gt; CUDA.@profile sin.(a);</code></pre><p>Once that&#39;s finished, the Nsight Compute GUI window will have plenty details on our kernel:</p><p><img src="../nsight_compute-kernel.png" alt="&quot;NVIDIA Nsight Compute - Kernel profiling&quot;"/></p><p>At any point in time, you can also pause your application from the debug menu, and inspect the API calls that have been made:</p><p><img src="../nsight_compute-api.png" alt="&quot;NVIDIA Nsight Compute - API inspection&quot;"/></p><h2 id="Source-code-annotations"><a class="docs-heading-anchor" href="#Source-code-annotations">Source-code annotations</a><a id="Source-code-annotations-1"></a><a class="docs-heading-anchor-permalink" href="#Source-code-annotations" title="Permalink"></a></h2><p>If you want to put additional information in the profile, e.g. phases of your application, or expensive CPU operations, you can use the NVTX library. Wrappers for this library are included in recent versions of CUDA.jl:</p><pre><code class="language-julia">using CUDA
+
+NVTX.@range &quot;doing X&quot; begin
+    ...
+end
+
+NVTX.@mark &quot;reached Y&quot;</code></pre><h2 id="Compiler-options"><a class="docs-heading-anchor" href="#Compiler-options">Compiler options</a><a id="Compiler-options-1"></a><a class="docs-heading-anchor-permalink" href="#Compiler-options" title="Permalink"></a></h2><p>Some tools, like <code>nvvp</code> and NSight Systems Compute, also make it possible to do source-level profiling. CUDA.jl will by default emit the necessary source line information, which you can disable by launching Julia with <code>-g0</code>. Conversely, launching with <code>-g2</code> will emit additional debug information, which can be useful in combination with tools like <code>cuda-gdb</code>, but might hurt performance or code size.</p><div class="admonition is-warning"><header class="admonition-header">Warning</header><div class="admonition-body"><p>Due to bugs in LLVM and CUDA, debug info emission is unavailable in Julia 1.4 and higher.</p></div></div></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../usage/multigpu/">« Multiple GPUs</a><a class="docs-footer-nextpage" href="../troubleshooting/">Troubleshooting »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Wednesday 13 January 2021 15:22">Wednesday 13 January 2021</span>. Using Julia version 1.6.0-beta1.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Tasks and threads · CUDA.jl</title><script>(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-154489943-2', 'auto');
+ga('send', 'pageview', {'page': location.pathname + location.search + location.hash});
+</script><link rel="canonical" href="https://juliagpu.github.io/CUDA.jl/stable/usage/multitasking/"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="CUDA.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit">CUDA.jl</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Tutorials</span><ul><li><a class="tocitem" href="../../tutorials/introduction/">Introduction</a></li></ul></li><li><span class="tocitem">Installation</span><ul><li><a class="tocitem" href="../../installation/overview/">Overview</a></li><li><a class="tocitem" href="../../installation/conditional/">Conditional use</a></li><li><a class="tocitem" href="../../installation/troubleshooting/">Troubleshooting</a></li></ul></li><li><span class="tocitem">Usage</span><ul><li><a class="tocitem" href="../overview/">Overview</a></li><li><a class="tocitem" href="../workflow/">Workflow</a></li><li><a class="tocitem" href="../array/">Array programming</a></li><li><a class="tocitem" href="../memory/">Memory management</a></li><li class="is-active"><a class="tocitem" href>Tasks and threads</a><ul class="internal"><li><a class="tocitem" href="#Task-based-programming"><span>Task-based programming</span></a></li><li><a class="tocitem" href="#Multithreading"><span>Multithreading</span></a></li></ul></li><li><a class="tocitem" href="../multigpu/">Multiple GPUs</a></li></ul></li><li><span class="tocitem">Development</span><ul><li><a class="tocitem" href="../../development/profiling/">Profiling</a></li><li><a class="tocitem" href="../../development/troubleshooting/">Troubleshooting</a></li></ul></li><li><span class="tocitem">API reference</span><ul><li><a class="tocitem" href="../../api/essentials/">Essentials</a></li><li><a class="tocitem" href="../../api/compiler/">Compiler</a></li><li><a class="tocitem" href="../../api/kernel/">Kernel programming</a></li><li><a class="tocitem" href="../../api/array/">Array programming</a></li></ul></li><li><span class="tocitem">Library reference</span><ul><li><a class="tocitem" href="../../lib/driver/">CUDA driver</a></li></ul></li><li><a class="tocitem" href="../../faq/">FAQ</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Usage</a></li><li class="is-active"><a href>Tasks and threads</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Tasks and threads</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaGPU/CUDA.jl/blob/master/docs/src/usage/multitasking.md#" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Tasks-and-threads"><a class="docs-heading-anchor" href="#Tasks-and-threads">Tasks and threads</a><a id="Tasks-and-threads-1"></a><a class="docs-heading-anchor-permalink" href="#Tasks-and-threads" title="Permalink"></a></h1><p>CUDA.jl can be used with Julia tasks and threads, offering a convenient way to work with multiple devices, or to perform independent computations that may execute concurrently on the GPU.</p><h2 id="Task-based-programming"><a class="docs-heading-anchor" href="#Task-based-programming">Task-based programming</a><a id="Task-based-programming-1"></a><a class="docs-heading-anchor-permalink" href="#Task-based-programming" title="Permalink"></a></h2><p>Each Julia task gets its own local CUDA execution environment, with its own stream, library handles, and active device selection. That makes it easy to use one task per device, or to use tasks for independent operations that can be overlapped. At the same time, it&#39;s important to take care when sharing data between tasks.</p><p>For example, let&#39;s take some dummy expensive computation and execute it from two tasks:</p><pre><code class="language-julia"># an expensive computation
+function compute(a, b)
+    c = a * b             # library call
+    broadcast!(sin, c, c) # Julia kernel
+    c
+end
+
+function run(a, b)
+    results = Vector{Any}(undef, 2)
+
+    # computation
+    @sync begin
+        @async begin
+            results[1] = Array(compute(a,b))
+        end
+        @async begin
+            results[2] = Array(compute(a,b))
+        end
+    end
+
+    # comparison
+    results[1] == results[2]
+end</code></pre><p>We use familiar Julia constructs to create two tasks and re-synchronize afterwards (<code>@async</code> and <code>@sync</code>), while the dummy <code>compute</code> function demonstrates both the use of a library (matrix multiplication uses CUBLAS) and a native Julia kernel. The function is passed three GPU arrays filled with random numbers:</p><pre><code class="language-julia">function main(N=1024)
+    a = CUDA.rand(N,N)
+    b = CUDA.rand(N,N)
+
+    # make sure this data can be used by other tasks!
+    synchronize()
+
+    run(a, b)
+end</code></pre><p>The <code>main</code> function illustrates how we need to take care when sharing data between tasks: GPU operations typically execute asynchronously, queued on an execution stream, so if we switch tasks and thus switch execution streams we need to <code>synchronize()</code> to ensure the data is actually available.</p><p>Using Nsight Systems, we can visualize the execution of this example:</p><p><img src="tasks.png" alt="&quot;Profiling overlapping execution using multiple tasks"/></p><p>You can see how the two invocations of <code>compute</code> resulted in overlapping execution. The memory copies, however, were executed in serial. This is expected: Regular CPU arrays cannot be used for asynchronous operations, because their memory is not page-locked. For most applications, this does not matter as the time to compute will typically be much larger than the time to copy memory.</p><p>If your application needs to perform many copies between the CPU and GPU, it might be beneficial to &quot;pin&quot; the CPU memory so that asynchronous memory copies are possible. This operation is expensive though, and should only be used if you can pre-allocate and re-use your CPU buffers. Applied to the previous example:</p><pre><code class="language-julia">function run(a, b)
+    results = Vector{Any}(undef, 2)
+
+    # pre-allocate and pin destination CPU memory
+    results[1] = Mem.pin(Array{eltype(a)}(undef, size(a)))
+    results[2] = Mem.pin(Array{eltype(a)}(undef, size(a)))
+
+    # computation
+    @sync begin
+        @async begin
+            copyto!(results[1], compute(a,b))
+        end
+        @async begin
+            copyto!(results[2], compute(a,b))
+        end
+    end
+
+    # comparison
+    results[1] == results[2]
+end</code></pre><p><img src="tasks_pinned.png" alt="&quot;Profiling overlapping execution using multiple tasks and pinned memory"/></p><p>The profile reveals that the memory copies themselves could not be overlapped, but the first copy was executed while the GPU was still active with the second round of computations. Furthermore, the copies executed much quicker – if the memory were unpinned, it would first have to be staged to a pinned CPU buffer anyway.</p><h2 id="Multithreading"><a class="docs-heading-anchor" href="#Multithreading">Multithreading</a><a id="Multithreading-1"></a><a class="docs-heading-anchor-permalink" href="#Multithreading" title="Permalink"></a></h2><p>Use of tasks can be easily extended to multiple threads with functionality from the Threads standard library:</p><pre><code class="language-julia">function run(a, b)
+    results = Vector{Any}(undef, 2)
+
+    # computation
+    @sync begin
+        Threads.@spawn begin
+            results[1] = Array(compute(a,b))
+        end
+        Threads.@spawn begin
+            results[2] = Array(compute(a,b))
+        end
+    end
+
+    # comparison
+    results[1] == results[2]
+end</code></pre><p>By using the <code>Threads.@spawn</code> macro, the tasks will be scheduled to be run on different CPU threads. This can be useful when you are calling a lot of operations that &quot;block&quot; in CUDA, e.g., memory copies to or from unpinned memory. Generally though, operations that synchronize GPU execution (including the call to <code>synchronize</code> itself) are implemented in a way that they yield back to the Julia scheduler, to enable concurrent execution without requiring the use of different CPU threads.</p><div class="admonition is-warning"><header class="admonition-header">Warning</header><div class="admonition-body"><p>Use of multiple threads with CUDA.jl is a recent addition, and there may still be bugs or performance issues.</p></div></div></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../memory/">« Memory management</a><a class="docs-footer-nextpage" href="../multigpu/">Multiple GPUs »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Wednesday 24 March 2021 09:15">Wednesday 24 March 2021</span>. Using Julia version 1.6.0-rc3.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

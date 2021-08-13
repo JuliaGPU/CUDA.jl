@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Array programming · CUDA.jl</title><script>(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-154489943-2', 'auto');
+ga('send', 'pageview', {'page': location.pathname + location.search + location.hash});
+</script><link rel="canonical" href="https://juliagpu.github.io/CUDA.jl/stable/usage/array/"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="CUDA.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit">CUDA.jl</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Tutorials</span><ul><li><a class="tocitem" href="../../tutorials/introduction/">Introduction</a></li></ul></li><li><span class="tocitem">Installation</span><ul><li><a class="tocitem" href="../../installation/overview/">Overview</a></li><li><a class="tocitem" href="../../installation/conditional/">Conditional use</a></li><li><a class="tocitem" href="../../installation/troubleshooting/">Troubleshooting</a></li></ul></li><li><span class="tocitem">Usage</span><ul><li><a class="tocitem" href="../overview/">Overview</a></li><li><a class="tocitem" href="../workflow/">Workflow</a></li><li class="is-active"><a class="tocitem" href>Array programming</a><ul class="internal"><li><a class="tocitem" href="#Construction-and-Initialization"><span>Construction and Initialization</span></a></li><li><a class="tocitem" href="#Higher-order-abstractions"><span>Higher-order abstractions</span></a></li><li><a class="tocitem" href="#Logical-operations"><span>Logical operations</span></a></li><li><a class="tocitem" href="#Array-wrappers"><span>Array wrappers</span></a></li><li><a class="tocitem" href="#Random-numbers"><span>Random numbers</span></a></li><li><a class="tocitem" href="#Linear-algebra"><span>Linear algebra</span></a></li><li><a class="tocitem" href="#Solver"><span>Solver</span></a></li><li><a class="tocitem" href="#Sparse-arrays"><span>Sparse arrays</span></a></li><li><a class="tocitem" href="#FFTs"><span>FFTs</span></a></li></ul></li><li><a class="tocitem" href="../memory/">Memory management</a></li><li><a class="tocitem" href="../multitasking/">Tasks and threads</a></li><li><a class="tocitem" href="../multigpu/">Multiple GPUs</a></li></ul></li><li><span class="tocitem">Development</span><ul><li><a class="tocitem" href="../../development/profiling/">Profiling</a></li><li><a class="tocitem" href="../../development/troubleshooting/">Troubleshooting</a></li></ul></li><li><span class="tocitem">API reference</span><ul><li><a class="tocitem" href="../../api/essentials/">Essentials</a></li><li><a class="tocitem" href="../../api/compiler/">Compiler</a></li><li><a class="tocitem" href="../../api/kernel/">Kernel programming</a></li><li><a class="tocitem" href="../../api/array/">Array programming</a></li></ul></li><li><span class="tocitem">Library reference</span><ul><li><a class="tocitem" href="../../lib/driver/">CUDA driver</a></li></ul></li><li><a class="tocitem" href="../../faq/">FAQ</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Usage</a></li><li class="is-active"><a href>Array programming</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Array programming</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaGPU/CUDA.jl/blob/master/docs/src/usage/array.md#" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Array-programming"><a class="docs-heading-anchor" href="#Array-programming">Array programming</a><a id="Array-programming-1"></a><a class="docs-heading-anchor-permalink" href="#Array-programming" title="Permalink"></a></h1><p>The easiest way to use the GPU&#39;s massive parallelism, is by expressing operations in terms of arrays: CUDA.jl provides an array type, <code>CuArray</code>, and many specialized array operations that execute efficiently on the GPU hardware. In this section, we will briefly demonstrate use of the <code>CuArray</code> type. Since we expose CUDA&#39;s functionality by implementing existing Julia interfaces on the <code>CuArray</code> type, you should refer to the <a href="https://docs.julialang.org">upstream Julia documentation</a> for more information on these operations.</p><p>If you encounter missing functionality, or are running into operations that trigger so-called <a href="../workflow/#UsageWorkflowScalar">&quot;scalar iteration&quot;</a>, have a look at the <a href="https://github.com/JuliaGPU/CUDA.jl/issues">issue tracker</a> and file a new issue if there&#39;s none. Do note that you can always access the underlying CUDA APIs by calling into the relevant submodule. For example, if parts of the Random interface isn&#39;t properly implemented by CUDA.jl, you can look at the CURAND documentation and possibly call methods from the <code>CURAND</code> submodule directly. These submodules are available after importing the CUDA package.</p><h2 id="Construction-and-Initialization"><a class="docs-heading-anchor" href="#Construction-and-Initialization">Construction and Initialization</a><a id="Construction-and-Initialization-1"></a><a class="docs-heading-anchor-permalink" href="#Construction-and-Initialization" title="Permalink"></a></h2><p>The <code>CuArray</code> type aims to implement the <code>AbstractArray</code> interface, and provide implementations of methods that are commonly used when working with arrays. That means you can construct <code>CuArray</code>s in the same way as regular <code>Array</code> objects:</p><pre><code class="language-julia">julia&gt; CuArray{Int}(undef, 2)
+2-element CuArray{Int64, 1}:
+ 0
+ 0
+
+julia&gt; CuArray{Int}(undef, (1,2))
+1×2 CuArray{Int64, 2}:
+ 0  0
+
+julia&gt; similar(ans)
+1×2 CuArray{Int64, 2}:
+ 0  0</code></pre><p>Copying memory to or from the GPU can be expressed using constructors as well, or by calling <code>copyto!</code>:</p><pre><code class="language-julia-repl">julia&gt; a = CuArray([1,2])
+2-element CuArray{Int64, 1}:
+ 1
+ 2
+
+julia&gt; b = Array(a)
+2-element Vector{Int64}:
+ 1
+ 2
+
+julia&gt; copyto!(b, a)
+2-element Vector{Int64}:
+ 1
+ 2</code></pre><h2 id="Higher-order-abstractions"><a class="docs-heading-anchor" href="#Higher-order-abstractions">Higher-order abstractions</a><a id="Higher-order-abstractions-1"></a><a class="docs-heading-anchor-permalink" href="#Higher-order-abstractions" title="Permalink"></a></h2><p>The real power of programming GPUs with arrays comes from Julia&#39;s higher-order array abstractions: Operations that take user code as an argument, and specialize execution on it. With these functions, you can often avoid having to write custom kernels. For example, to perform simple element-wise operations you can use <code>map</code> or <code>broadcast</code>:</p><pre><code class="language-julia-repl">julia&gt; a = CuArray{Float32}(undef, (1,2));
+
+julia&gt; a .= 5
+1×2 CuArray{Float32, 2}:
+ 5.0  5.0
+
+julia&gt; map(sin, a)
+1×2 CuArray{Float32, 2}:
+ -0.958924  -0.958924</code></pre><p>To reduce the dimensionality of arrays, CUDA.jl implements the various flavours of <code>(map)reduce(dim)</code>:</p><pre><code class="language-julia-repl">julia&gt; a = CUDA.ones(2,3)
+2×3 CuArray{Float32, 2}:
+ 1.0  1.0  1.0
+ 1.0  1.0  1.0
+
+julia&gt; reduce(+, a)
+6.0f0
+
+julia&gt; mapreduce(sin, *, a; dims=2)
+2×1 CuArray{Float32, 2}:
+ 0.59582335
+ 0.59582335
+
+julia&gt; b = CUDA.zeros(1)
+1-element CuArray{Float32, 1}:
+ 0.0
+
+julia&gt; Base.mapreducedim!(identity, +, b, a)
+1×1 CuArray{Float32, 2}:
+ 6.0</code></pre><p>To retain intermediate values, you can use <code>accumulate</code>:</p><pre><code class="language-julia-repl">julia&gt; a = CUDA.ones(2,3)
+2×3 CuArray{Float32, 2}:
+ 1.0  1.0  1.0
+ 1.0  1.0  1.0
+
+julia&gt; accumulate(+, a; dims=2)
+2×3 CuArray{Float32, 2}:
+ 1.0  2.0  3.0
+ 1.0  2.0  3.0</code></pre><h2 id="Logical-operations"><a class="docs-heading-anchor" href="#Logical-operations">Logical operations</a><a id="Logical-operations-1"></a><a class="docs-heading-anchor-permalink" href="#Logical-operations" title="Permalink"></a></h2><p><code>CuArray</code>s can also be indexed with arrays of boolean values to select items:</p><pre><code class="language-julia-repl">julia&gt; a = CuArray([1,2,3])
+3-element CuArray{Int64, 1}:
+ 1
+ 2
+ 3
+
+julia&gt; a[[false,true,false]]
+1-element CuArray{Int64, 1}:
+ 2</code></pre><p>Built on top of this, are several functions with higher-level semantics:</p><pre><code class="language-julia-repl">julia&gt; a = CuArray([11,12,13])
+3-element CuArray{Int64, 1}:
+ 11
+ 12
+ 13
+
+julia&gt; findall(isodd, a)
+2-element CuArray{Int64, 1}:
+ 1
+ 3
+
+julia&gt; findfirst(isodd, a)
+1
+
+julia&gt; b = CuArray([11 12 13; 21 22 23])
+2×3 CuArray{Int64, 2}:
+ 11  12  13
+ 21  22  23
+
+julia&gt; findmin(b)
+(11, CartesianIndex(1, 1))
+
+julia&gt; findmax(b; dims=2)
+([13; 23], CartesianIndex{2}[CartesianIndex(1, 3); CartesianIndex(2, 3)])</code></pre><h2 id="Array-wrappers"><a class="docs-heading-anchor" href="#Array-wrappers">Array wrappers</a><a id="Array-wrappers-1"></a><a class="docs-heading-anchor-permalink" href="#Array-wrappers" title="Permalink"></a></h2><p>To some extent, CUDA.jl also supports well-known array wrappers from the standard library:</p><pre><code class="language-julia-repl">julia&gt; a = CuArray(collect(1:10))
+10-element CuArray{Int64, 1}:
+  1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+
+julia&gt; a = CuArray(collect(1:6))
+6-element CuArray{Int64, 1}:
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+
+julia&gt; b = reshape(a, (2,3))
+2×3 CuArray{Int64, 2}:
+ 1  3  5
+ 2  4  6
+
+julia&gt; c = view(a, 2:5)
+4-element CuArray{Int64, 1}:
+ 2
+ 3
+ 4
+ 5</code></pre><p>The above contiguous <code>view</code> and <code>reshape</code> have been specialized to return new objects of type <code>CuArray</code>. Other wrappers, such as non-contiguous views or the LinearAlgebra wrappers that will be discussed below, are implemented using their own type (e.g. <code>SubArray</code> or <code>Transpose</code>). This can cause problems, as calling methods with these wrapped objects will not dispatch to specialized <code>CuArray</code> methods anymore. That may result in a call to fallback functionality that performs scalar iteration.</p><p>Certain common operations, like broadcast or matrix multiplication, do know how to deal with array wrappers by using the <a href="https://github.com/JuliaGPU/Adapt.jl">Adapt.jl</a> package. This is still not a complete solution though, e.g. new array wrappers are not covered, and only one level of wrapping is supported. Sometimes the only solution is to materialize the wrapper to a <code>CuArray</code> again.</p><h2 id="Random-numbers"><a class="docs-heading-anchor" href="#Random-numbers">Random numbers</a><a id="Random-numbers-1"></a><a class="docs-heading-anchor-permalink" href="#Random-numbers" title="Permalink"></a></h2><p>Base&#39;s convenience functions for generating random numbers are available in the CUDA module as well:</p><pre><code class="language-julia-repl">julia&gt; CUDA.rand(2)
+2-element CuArray{Float32, 1}:
+ 0.74021935
+ 0.9209938
+
+julia&gt; CUDA.randn(Float64, 2, 1)
+2×1 CuArray{Float64, 2}:
+ -0.3893830994647195
+  1.618410515635752</code></pre><p>Behind the scenes, these random numbers come from two different generators: one backed by <a href="https://docs.nvidia.com/cuda/curand/index.html">CURAND</a>, another by kernels defined in GPUArrays.jl. Operations on these generators are implemented using methods from the Random standard library:</p><pre><code class="language-julia-repl">julia&gt; using Random
+
+julia&gt; a = Random.rand(CURAND.default_rng(), Float32, 1)
+1-element CuArray{Float32, 1}:
+ 0.74021935
+
+julia&gt; using CUDA: GPUArrays
+
+julia&gt; a = Random.rand!(GPUArrays.default_rng(CuArray), a)
+1-element CuArray{Float32, 1}:
+ 0.13394515</code></pre><p>CURAND also supports generating lognormal and Poisson-distributed numbers:</p><pre><code class="language-julia-repl">julia&gt; CUDA.rand_logn(Float32, 1, 5; mean=2, stddev=20)
+1×5 CuArray{Float32, 2}:
+ 2567.61  4.256f-6  54.5948  0.00283999  9.81175f22
+
+julia&gt; CUDA.rand_poisson(UInt32, 1, 10; lambda=100)
+1×10 CuArray{UInt32, 2}:
+ 0x00000058  0x00000066  0x00000061  …  0x0000006b  0x0000005f  0x00000069</code></pre><p>Note that these custom operations are only supported on a subset of types.</p><h2 id="Linear-algebra"><a class="docs-heading-anchor" href="#Linear-algebra">Linear algebra</a><a id="Linear-algebra-1"></a><a class="docs-heading-anchor-permalink" href="#Linear-algebra" title="Permalink"></a></h2><p>CUDA&#39;s linear algebra functionality from the <a href="https://developer.nvidia.com/cublas">CUBLAS</a> library is exposed by implementing methods in the LinearAlgebra standard library:</p><pre><code class="language-julia">julia&gt; # enable logging to demonstrate a CUBLAS kernel is used
+       CUBLAS.cublasLoggerConfigure(1, 0, 1, C_NULL)
+
+julia&gt; CUDA.rand(2,2) * CUDA.rand(2,2)
+I! cuBLAS (v10.2) function cublasStatus_t cublasSgemm_v2(cublasContext*, cublasOperation_t, cublasOperation_t, int, int, int, const float*, const float*, int, const float*, int, const float*, float*, int) called
+2×2 CuArray{Float32, 2}:
+ 0.295727  0.479395
+ 0.624576  0.557361</code></pre><p>Certain operations, like the above matrix-matrix multiplication, also have a native fallback written in Julia for the purpose of working with types that are not supported by CUBLAS:</p><pre><code class="language-julia">julia&gt; # enable logging to demonstrate no CUBLAS kernel is used
+       CUBLAS.cublasLoggerConfigure(1, 0, 1, C_NULL)
+
+julia&gt; CUDA.rand(Int128, 2, 2) * CUDA.rand(Int128, 2, 2)
+2×2 CuArray{Int128, 2}:
+ -147256259324085278916026657445395486093  -62954140705285875940311066889684981211
+ -154405209690443624360811355271386638733  -77891631198498491666867579047988353207</code></pre><p>Operations that exist in CUBLAS, but are not (yet) covered by high-level constructs in the LinearAlgebra standard library, can be accessed directly from the CUBLAS submodule. Note that you do not need to call the C wrappers directly (e.g. <code>cublasDdot</code>), as many operations have more high-level wrappers available as well (e.g. <code>dot</code>):</p><pre><code class="language-julia-repl">julia&gt; x = CUDA.rand(2)
+2-element CuArray{Float32, 1}:
+ 0.74021935
+ 0.9209938
+
+julia&gt; y = CUDA.rand(2)
+2-element CuArray{Float32, 1}:
+ 0.03902049
+ 0.9689629
+
+julia&gt; CUBLAS.dot(2, x, y)
+0.92129254f0
+
+julia&gt; using LinearAlgebra
+
+julia&gt; dot(Array(x), Array(y))
+0.92129254f0</code></pre><h2 id="Solver"><a class="docs-heading-anchor" href="#Solver">Solver</a><a id="Solver-1"></a><a class="docs-heading-anchor-permalink" href="#Solver" title="Permalink"></a></h2><p>LAPACK-like functionality as found in the <a href="https://docs.nvidia.com/cuda/cusolver/index.html">CUSOLVER</a> library can be accessed through methods in the LinearAlgebra standard library too:</p><pre><code class="language-julia-repl">julia&gt; using LinearAlgebra
+
+julia&gt; a = CUDA.rand(2,2)
+2×2 CuArray{Float32, 2}:
+ 0.740219  0.0390205
+ 0.920994  0.968963
+
+julia&gt; a = a * a&#39;
+2×2 CuArray{Float32, 2}:
+ 0.549447  0.719547
+ 0.719547  1.78712
+
+julia&gt; cholesky(a)
+Cholesky{Float32, CuArray{Float32, 2}}
+U factor:
+2×2 UpperTriangular{Float32, CuArray{Float32, 2}}:
+ 0.741247  0.970725
+  ⋅        0.919137</code></pre><p>Other operations are bound to the left-division operator:</p><pre><code class="language-julia-repl">julia&gt; a = CUDA.rand(2,2)
+2×2 CuArray{Float32, 2}:
+ 0.740219  0.0390205
+ 0.920994  0.968963
+
+julia&gt; b = CUDA.rand(2,2)
+2×2 CuArray{Float32, 2}:
+ 0.925141  0.667319
+ 0.44635   0.109931
+
+julia&gt; a \ b
+2×2 CuArray{Float32, 2}:
+  1.29018    0.942772
+ -0.765663  -0.782648
+
+julia&gt; Array(a) \ Array(b)
+2×2 Matrix{Float32}:
+  1.29018    0.942773
+ -0.765663  -0.782648</code></pre><h2 id="Sparse-arrays"><a class="docs-heading-anchor" href="#Sparse-arrays">Sparse arrays</a><a id="Sparse-arrays-1"></a><a class="docs-heading-anchor-permalink" href="#Sparse-arrays" title="Permalink"></a></h2><p>Sparse array functionality from the <a href="https://docs.nvidia.com/cuda/cusparse/index.html">CUSPARSE</a> library is mainly available through functionality from the SparseArrays package applied to <code>CuSparseArray</code> objects:</p><pre><code class="language-julia-repl">julia&gt; using SparseArrays
+
+julia&gt; x = sprand(10,0.2)
+10-element SparseVector{Float64, Int64} with 4 stored entries:
+  [3 ]  =  0.585812
+  [4 ]  =  0.539289
+  [7 ]  =  0.260036
+  [8 ]  =  0.910047
+
+julia&gt; using CUDA.CUSPARSE
+
+julia&gt; d_x = CuSparseVector(x)
+10-element CuSparseVector{Float64} with 4 stored entries:
+  [3 ]  =  0.585812
+  [4 ]  =  0.539289
+  [7 ]  =  0.260036
+  [8 ]  =  0.910047
+
+julia&gt; nonzeros(d_x)
+4-element CuArray{Float64, 1}:
+ 0.5858115517433242
+ 0.5392892841426182
+ 0.26003585026904785
+ 0.910046541351011
+
+julia&gt; nnz(d_x)
+4</code></pre><p>For 2-D arrays the <code>CuSparseMatrixCSC</code> and <code>CuSparseMatrixCSR</code> can be used.</p><p>Non-integrated functionality can be access directly in the CUSPARSE submodule again.</p><h2 id="FFTs"><a class="docs-heading-anchor" href="#FFTs">FFTs</a><a id="FFTs-1"></a><a class="docs-heading-anchor-permalink" href="#FFTs" title="Permalink"></a></h2><p>Functionality from <a href="https://docs.nvidia.com/cuda/cufft/index.html">CUFFT</a> is integrated with the interfaces from the <a href="https://github.com/JuliaMath/AbstractFFTs.jl">AbstractFFTs.jl</a> package:</p><pre><code class="language-julia-repl">julia&gt; a = CUDA.rand(2,2)
+2×2 CuArray{Float32, 2}:
+ 0.740219  0.0390205
+ 0.920994  0.968963
+
+julia&gt; using CUDA.CUFFT
+
+julia&gt; fft(a)
+2×2 CuArray{ComplexF32, 2}:
+   2.6692+0.0im   0.65323+0.0im
+ -1.11072+0.0im  0.749168+0.0im</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../workflow/">« Workflow</a><a class="docs-footer-nextpage" href="../memory/">Memory management »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Friday 2 April 2021 17:08">Friday 2 April 2021</span>. Using Julia version 1.6.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
