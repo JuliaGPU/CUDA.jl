@@ -486,8 +486,8 @@ if VERSION >= v"1.8.0-DEV.120"
 @inline cuviewlength(i1::AbstractUnitRange, I...) = (Base.length(i1), cuviewlength(I...)...)
 @inline cuviewlength(i1::AbstractUnitRange, ::Base.ScalarIndex...) = (Base.length(i1),)
 else
-@inline cuviewlength(i1::AbstractUnitRange, I...) = (Base.unsafe_length(i1), cuviewlength(I...)...)
-@inline cuviewlength(i1::AbstractUnitRange, ::Base.ScalarIndex...) = (Base.unsafe_length(i1),)
+@inline cuviewlength(i1::AbstractUnitRange, I...) = (length(i1), cuviewlength(I...)...)
+@inline cuviewlength(i1::AbstractUnitRange, ::Base.ScalarIndex...) = (length(i1),)
 end
 
 # we don't really want an array, so don't call `adapt(Array, ...)`,
