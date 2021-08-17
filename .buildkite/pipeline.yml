@@ -88,8 +88,8 @@ steps:
     # NOTE: we support those CUDA versions for which the latest cuDNN is available
     #       https://developer.nvidia.com/rdp/cudnn-archive
 
-    # NOTE: we make sure to run all tests on CUDA versions that have CUDNN & CUTENSOR
-    #       by using the --thorough flag to the test runner, and using a recent GPU.
+    # NOTE: only the latest version of CUDA that has CUDNN & CUTENSOR is tested thoroughly.
+    #       once we have sufficient CI resources, expand this to all CUDA versions again.
 
   - label: "CUDA 11.4"
     plugins:
@@ -117,8 +117,7 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1:
-          test_args: "--thorough"
+      - JuliaCI/julia-test#v1: ~
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -128,7 +127,6 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "11.0"
-      cap: "recent"
     env:
       JULIA_CUDA_VERSION: '11.3'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
@@ -139,8 +137,7 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1:
-          test_args: "--thorough"
+      - JuliaCI/julia-test#v1: ~
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -150,7 +147,6 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "11.0"
-      cap: "recent"
     env:
       JULIA_CUDA_VERSION: '11.2'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
@@ -161,8 +157,7 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1:
-          test_args: "--thorough"
+      - JuliaCI/julia-test#v1: ~
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -172,7 +167,6 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "11.0"
-      cap: "recent"
     env:
       JULIA_CUDA_VERSION: '11.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
@@ -183,8 +177,7 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1:
-          test_args: "--thorough"
+      - JuliaCI/julia-test#v1: ~
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -194,7 +187,6 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "11.0"
-      cap: "recent"
     env:
       JULIA_CUDA_VERSION: '11.0'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
@@ -205,8 +197,7 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1:
-          test_args: "--thorough"
+      - JuliaCI/julia-test#v1: ~
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -216,7 +207,6 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "10.2"
-      cap: "recent"
     env:
       JULIA_CUDA_VERSION: '10.2'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
@@ -227,8 +217,7 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1:
-          test_args: "--thorough"
+      - JuliaCI/julia-test#v1: ~
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -238,7 +227,6 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "10.1"
-      cap: "recent"
     env:
       JULIA_CUDA_VERSION: '10.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
