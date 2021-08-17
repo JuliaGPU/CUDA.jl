@@ -265,6 +265,32 @@ steps:
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 120
 
+  - label: "NNlibCUDA.jl"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: 1.6
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    command: |
+      julia -e 'using Pkg;
+
+                println("--- :julia: Instantiating project");
+                Pkg.develop(PackageSpec(path=pwd()));
+                Pkg.add(PackageSpec(name="NNlibCUDA", rev="master"));
+                Pkg.instantiate();
+
+                println("+++ :julia: Running tests");
+                Pkg.test("NNlibCUDA"; coverage=true);'
+    agents:
+      queue: "juliagpu"
+      cuda: "*"
+    if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 60
+
 
   # other tasks
 
