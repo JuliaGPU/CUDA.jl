@@ -519,3 +519,18 @@ function memory_status(io::IO=stdout)
     @printf(io, "No memory pool is in use.")
   end
 end
+
+"""
+    cached_memory()
+
+Returns the cached amount of memory (in bytes) being held on by the CUDA allocator.
+"""
+function cached_memory()
+  state = active_state()
+  if stream_ordered(state.device)
+    pool = memory_pool(state.device)
+    Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
+  else
+    0
+  end
+end
