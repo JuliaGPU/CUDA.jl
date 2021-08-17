@@ -54,7 +54,8 @@ end
         @warn "Support for GPU memory limits (JULIA_CUDA_MEMORY_LIMIT) has been removed."
 
     haskey(ENV, "JULIA_CUDA_MEMORY_POOL") &&
-        @warn "Support for alternative memory pools (JULIA_CUDA_MEMORY_POOL) has been removed."
+    ENV["JULIA_CUDA_MEMORY_POOL"] != "none" && ENV["JULIA_CUDA_MEMORY_POOL"] != "cuda" &&
+        @warn "Support for memory pools (JULIA_CUDA_MEMORY_POOL) other than 'cuda' and 'none' has been removed."
 
     # ensure that operations executed by the REPL back-end finish before returning,
     # because displaying values happens on a different task (CUDA.jl#831)
