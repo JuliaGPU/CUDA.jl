@@ -68,7 +68,8 @@ const __stream_ordered = LazyInitialized{Vector{Bool}}()
 function stream_ordered(dev::CuDevice)
   flags = get!(__stream_ordered) do
     val = Vector{Bool}(undef, ndevices())
-    if version() < v"11.2" || haskey(ENV, "CUDA_MEMCHECK")
+    if version() < v"11.2" || haskey(ENV, "CUDA_MEMCHECK") ||
+       get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "none"
       fill!(val, false)
     else
       for dev in devices()
@@ -516,5 +517,20 @@ function memory_status(io::IO=stdout)
     end
   else
     @printf(io, "No memory pool is in use.")
+  end
+end
+
+"""
+    cached_memory()
+
+Returns the cached amount of memory (in bytes) being held on by the CUDA allocator.
+"""
+function cached_memory()
+  state = active_state()
+  if stream_ordered(state.device)
+    pool = memory_pool(state.device)
+    Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
+  else
+    0
   end
 end
