@@ -170,7 +170,7 @@ Stacktrace:
  [8] (::REPL.var"#26#27"{REPL.REPLBackend})() at ./task.jl:358
 ```
 
-### Environment variables
+### Environment variables (only available in versions prior to 3.4)
 
 Several environment variables affect the behavior of the memory allocator:
 
