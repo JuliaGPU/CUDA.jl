@@ -62,7 +62,6 @@ include("device/runtime.jl")
 include("device/texture.jl")
 include("device/random.jl")
 include("device/quirks.jl")
-include("device/sparse.jl")
 
 # array essentials
 include("pool.jl")
@@ -95,6 +94,9 @@ include("../lib/curand/CURAND.jl")
 include("../lib/cudnn/CUDNN.jl")
 include("../lib/cutensor/CUTENSOR.jl")
 export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND, CUDNN, CUTENSOR
+
+# sparse array device functionality
+include("device/sparse.jl")
 
 # integrations and specialized functionality
 include("indexing.jl")

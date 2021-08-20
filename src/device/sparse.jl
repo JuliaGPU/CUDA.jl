@@ -1,3 +1,7 @@
+using .CUSPARSE: AbstractCuSparseVector, AbstractCuSparseMatrix,
+    CuSparseVector, CuSparseMatrixCSC, CuSparseMatrixCSR,
+    CuSparseMatrixBSR, CuSparseMatrixCOO, SparseChar
+
 mutable struct CuSparseDeviceVector{Tv} <: AbstractCuSparseVector{Tv}
     iPtr::CuDeviceVector{Cint, AS.Global}
     nzVal::CuDeviceVector{Tv, AS.Global}
@@ -25,7 +29,7 @@ Base.length(g::CuSparseDeviceMatrixCSC) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixCSC) = g.dims
 Base.ndims(g::CuSparseDeviceMatrixCSC) = 2
 
-function Adapt.adapt_structure(::CUDA.Adaptor, x::CuSparseDeviceMatrixCSC{Tv}) where Tv
+function Adapt.adapt_structure(::CUDA.Adaptor, x::CuSparseMatrixCSC{Tv}) where Tv
     CuSparseDeviceMatrixCSR(
         cudaconvert(x.colPtr),
         cudaconvert(x.rowVal),
@@ -46,7 +50,7 @@ Base.length(g::CuSparseDeviceMatrixCSR) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixCSR) = g.dims
 Base.ndims(g::CuSparseDeviceMatrixCSR) = 2
 
-function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixCSR{Tv}) where Tv
+function Adapt.adapt_structure(::CUDA.Adaptor, x::CuSparseMatrixCSR{Tv}) where Tv
     CuSparseDeviceMatrixCSR(cudaconvert(x.rowPtr), cudaconvert(x.colVal), cudaconvert(x.nzVal), x.dims, x.nnz)
 end
 
@@ -64,7 +68,7 @@ Base.length(g::CuSparseDeviceMatrixBSR) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixBSR) = g.dims
 Base.ndims(g::CuSparseDeviceMatrixBSR) = 2
 
-function Adapt.adapt_structure(::CUDA.Adaptor, x::CuSparseDeviceMatrixBSR{Tv}) where Tv
+function Adapt.adapt_structure(::CUDA.Adaptor, x::CuSparseMatrixBSR{Tv}) where Tv
     CuSparseDeviceMatrixBSR(
         cudaconvert(x.rowPtr),
         cudaconvert(x.colVal),
@@ -86,7 +90,7 @@ Base.length(g::CuSparseDeviceMatrixCOO) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixCOO) = g.dims
 Base.ndims(g::CuSparseDeviceMatrixCOO) = 2
 
-function Adapt.adapt_structure(::CUDA.Adaptor, x::CuSparseDeviceMatrixCOO{Tv}) where Tv
+function Adapt.adapt_structure(::CUDA.Adaptor, x::CuSparseMatrixCOO{Tv}) where Tv
     CuSparseDeviceMatrixCOO(
         cudaconvert(x.rowInd),
         cudaconvert(x.colInd),
