@@ -62,6 +62,7 @@ include("device/runtime.jl")
 include("device/texture.jl")
 include("device/random.jl")
 include("device/quirks.jl")
+include("device/sparse.jl")
 
 # array essentials
 include("pool.jl")

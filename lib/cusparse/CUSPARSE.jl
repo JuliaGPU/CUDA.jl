@@ -27,7 +27,6 @@ include("libcusparse_deprecated.jl")
 include("array.jl")
 include("util.jl")
 include("types.jl")
-include("device.jl")
 
 # low-level wrappers
 include("helpers.jl")
