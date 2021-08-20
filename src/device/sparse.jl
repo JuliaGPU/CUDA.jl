@@ -30,7 +30,7 @@ Base.size(g::CuSparseDeviceMatrixCSC) = g.dims
 Base.ndims(g::CuSparseDeviceMatrixCSC) = 2
 
 function Adapt.adapt_structure(::CUDA.Adaptor, x::CuSparseMatrixCSC{Tv}) where Tv
-    CuSparseDeviceMatrixCSR(
+    CuSparseDeviceMatrixCSC(
         cudaconvert(x.colPtr),
         cudaconvert(x.rowVal),
         cudaconvert(x.nzVal),
