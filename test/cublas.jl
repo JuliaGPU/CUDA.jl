@@ -135,6 +135,15 @@ end
             mul!(y, f(A), x, Ts(1), Ts(2))
             @test Array(dy) ≈ y
         end
+
+        @testset "hermitian" begin
+            y, A, x = rand(elty, 5), Hermitian(rand(elty, 5, 5)), rand(elty, 5)
+            dy, dA, dx = CuArray(y), Hermitian(CuArray(A)), CuArray(x)
+            mul!(dy, dA, dx)
+            mul!(y, A, x)
+            @test Array(dy) ≈ y
+        end
+
         @testset "banded methods" begin
             # bands
             ku = 2
@@ -553,6 +562,15 @@ end
             mul!(C, f(A), g(B), Ts(1), Ts(2))
             @test Array(dC) ≈ C
         end
+
+        @testset "hermitian" begin
+            C, A, B = rand(elty, 5, 5), Hermitian(rand(elty, 5, 5)), rand(elty, 5, 5)
+            dC, dA, dB = CuArray(C), Hermitian(CuArray(A)), CuArray(B)
+            mul!(dC, dA, dB)
+            mul!(C, A, B)
+            @test Array(dC) ≈ C
+        end
+
         A = rand(elty,m,k)
         B = rand(elty,k,n)
         Bbad = rand(elty,k+1,n+1)
