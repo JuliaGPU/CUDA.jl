@@ -12,7 +12,7 @@
 # - warp-aggregate atomics
 # - the ND case is quite a bit slower than the 1D case (not using Cartesian indices,
 #   before 35fcbde1f2987023229034370b0c9091e18c4137). optimize or special-case?
-function partial_scan(op::Function, output::CuDeviceArray{T}, input::CuDeviceArray,
+function partial_scan(op::Function, output::AbstractArray{T}, input::AbstractArray,
                       Rdim, Rpre, Rpost, Rother, neutral, init,
                       ::Val{inclusive}=Val(true)) where {T, inclusive}
     threads = blockDim().x
@@ -97,8 +97,8 @@ function partial_scan(op::Function, output::CuDeviceArray{T}, input::CuDeviceArr
 end
 
 # aggregate the result of a partial scan by applying preceding block aggregates
-function aggregate_partial_scan(op::Function, output::CuDeviceArray,
-                                aggregates::CuDeviceArray, Rdim, Rpre, Rpost, Rother,
+function aggregate_partial_scan(op::Function, output::AbstractArray,
+                                aggregates::AbstractArray, Rdim, Rpre, Rpost, Rother,
                                 init)
     threads = blockDim().x
     thread = threadIdx().x
@@ -126,15 +126,13 @@ end
 
 ## COV_EXCL_STOP
 
-function scan!(f::Function, output::CuArray{T}, input::CuArray;
+function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
                dims::Integer, init=nothing, neutral=GPUArrays.neutral_element(f, T)) where {T}
     dims > 0 || throw(ArgumentError("dims must be a positive integer"))
     inds_t = axes(input)
     axes(output) == inds_t || throw(DimensionMismatch("shape of B must match A"))
     dims > ndims(input) && return copyto!(output, input)
     isempty(inds_t[dims]) && return output
-
-    f = cufunc(f)
 
     # iteration domain across the main dimension
     Rdim = CartesianIndices((size(input, dims),))
@@ -145,15 +143,12 @@ function scan!(f::Function, output::CuArray{T}, input::CuArray;
     Rother = CartesianIndices((length(Rpre), length(Rpost)))
 
     # determine how many threads we can launch for the scan kernel
-    args = (f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true))
-    kernel_args = cudaconvert.(args)
-    kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-    kernel = cufunction(partial_scan, kernel_tt)
+    kernel = @cuda launch=false partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true))
     kernel_config = launch_configuration(kernel.fun; shmem=(threads)->2*threads*sizeof(T))
 
     # determine the grid layout to cover the other dimensions
     if length(Rother) > 1
-        dev = device(kernel.fun.mod.ctx)
+        dev = device()
         max_other_blocks = attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y)
         blocks_other = (Base.min(length(Rother), max_other_blocks),
                         cld(length(Rother), max_other_blocks))
@@ -196,16 +191,16 @@ end
 
 ## Base interface
 
-Base._accumulate!(op, output::CuArray, input::CuVector, dims::Nothing, init::Nothing) =
+Base._accumulate!(op, output::AnyCuArray, input::AnyCuVector, dims::Nothing, init::Nothing) =
     scan!(op, output, input; dims=1)
 
-Base._accumulate!(op, output::CuArray, input::CuArray, dims::Integer, init::Nothing) =
+Base._accumulate!(op, output::AnyCuArray, input::AnyCuArray, dims::Integer, init::Nothing) =
     scan!(op, output, input; dims=dims)
 
-Base._accumulate!(op, output::CuArray, input::CuVector, dims::Nothing, init::Some) =
+Base._accumulate!(op, output::AnyCuArray, input::CuVector, dims::Nothing, init::Some) =
     scan!(op, output, input; dims=1, init=init)
 
-Base._accumulate!(op, output::CuArray, input::CuArray, dims::Integer, init::Some) =
+Base._accumulate!(op, output::AnyCuArray, input::AnyCuArray, dims::Integer, init::Some) =
     scan!(op, output, input; dims=dims, init=init)
 
-Base.accumulate_pairwise!(op, result::CuVector, v::CuVector) = accumulate!(op, result, v)
+Base.accumulate_pairwise!(op, result::AnyCuVector, v::AnyCuVector) = accumulate!(op, result, v)

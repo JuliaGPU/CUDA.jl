@@ -84,33 +84,27 @@ function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
     n = length(lat)
     rowresult_gpu = CuArray(zeros(Float32, n, n))
 
-    # calculate launch configuration
-    function get_config(kernel)
-        # calculate a 2D block size from the suggested 1D configuration
-        # NOTE: we want our launch configuration to be as square as possible,
-        #       because that minimizes shared memory usage
-        function get_threads(threads)
-            threads_x = floor(Int, sqrt(threads))
-            threads_y = threads ÷ threads_x
-            return (threads_x, threads_y)
-        end
-
-        # calculate the amount of dynamic shared memory for a 2D block size
-        get_shmem(threads) = 2 * sum(threads) * sizeof(Float32)
-
-        fun = kernel.fun
-        config = launch_configuration(fun, shmem=threads->get_shmem(get_threads(threads)))
-
-        # convert to 2D block size and figure out appropriate grid size
-        threads = get_threads(config.threads)
-        blocks = ceil.(Int, n ./ threads)
-        shmem = get_shmem(threads)
-
-        return (threads=threads, blocks=blocks, shmem=shmem)
+    # calculate a 2D block size from the suggested 1D configuration
+    # NOTE: we want our launch configuration to be as square as possible,
+    #       because that minimizes shared memory usage
+    function get_threads(threads)
+        threads_x = floor(Int, sqrt(threads))
+        threads_y = threads ÷ threads_x
+        return (threads_x, threads_y)
     end
 
-    @cuda config=get_config pairwise_dist_kernel(lat_gpu, lon_gpu, rowresult_gpu, n)
+    # calculate the amount of dynamic shared memory for a 2D block size
+    get_shmem(threads) = 2 * sum(threads) * sizeof(Float32)
 
+    kernel = @cuda launch=false pairwise_dist_kernel(lat_gpu, lon_gpu, rowresult_gpu, n)
+    config = launch_configuration(kernel.fun, shmem=threads->get_shmem(get_threads(threads)))
+
+    # convert to 2D block size and figure out appropriate grid size
+    threads = get_threads(config.threads)
+    blocks = ceil.(Int, n ./ threads)
+    shmem = get_shmem(threads)
+
+    kernel(lat_gpu, lon_gpu, rowresult_gpu, n; threads=threads, blocks=blocks, shmem=shmem)
     return Array(rowresult_gpu)
 end
 

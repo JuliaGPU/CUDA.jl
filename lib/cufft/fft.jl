@@ -8,8 +8,8 @@ import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!, plan_ifft,
 
 using LinearAlgebra
 
-Base.:(*)(p::Plan{T}, x::CuArray) where {T} = p * copy1(T, x)
-Base.:(*)(p::ScaledPlan, x::CuArray) = rmul!(p.p * x, p.scale)
+Base.:(*)(p::Plan{T}, x::DenseCuArray) where {T} = p * copy1(T, x)
+Base.:(*)(p::ScaledPlan, x::DenseCuArray) = rmul!(p.p * x, p.scale)
 
 
 ## plan structure
@@ -19,18 +19,20 @@ Base.:(*)(p::ScaledPlan, x::CuArray) = rmul!(p.p * x, p.scale)
 
 abstract type CuFFTPlan{T<:cufftNumber, K, inplace} <: Plan{T} end
 
-Base.unsafe_convert(::Type{cufftHandle}, p::CuFFTPlan) = p.handle
-
 # for some reason, cufftHandle is an integer and not a pointer...
-Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = Base.unsafe_convert(cufftHandle, p)
+Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = p.handle
 
-function unsafe_free!(plan::CuFFTPlan)
-    cufftDestroy(plan)
-    unsafe_free!(plan.workarea)
+function CUDA.unsafe_free!(plan::CuFFTPlan, stream::CuStream=stream())
+    @context! skip_destroyed=true plan.ctx cufftDestroy(plan)
+    unsafe_free!(plan.workarea, stream)
 end
+
+unsafe_finalize!(plan::CuFFTPlan) = unsafe_free!(plan, CuDefaultStream())
 
 mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     handle::cufftHandle
+    ctx::CuContext
+    stream::CuStream
     workarea::CuVector{Int8}
     sz::NTuple{N,Int} # Julia size of input array
     osz::NTuple{N,Int} # Julia size of output array
@@ -39,17 +41,19 @@ mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     pinv::ScaledPlan # required by AbstractFFT API
 
     function cCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, workarea::CuVector{Int8},
-                                       X::CuArray{T,N}, sizey::Tuple, region, xtype
-                                       ) where {T<:cufftNumber,K,inplace,N}
+                                       X::DenseCuArray{T,N}, sizey::Tuple, region, xtype;
+                                       stream::CuStream=stream()) where {T<:cufftNumber,K,inplace,N}
         # maybe enforce consistency of sizey
-        p = new(handle, workarea, size(X), sizey, xtype, region)
-        finalizer(unsafe_free!, p)
+        p = new(handle, context(), stream, workarea, size(X), sizey, xtype, region)
+        finalizer(unsafe_finalize!, p)
         p
     end
 end
 
 mutable struct rCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     handle::cufftHandle
+    ctx::CuContext
+    stream::CuStream
     workarea::CuVector{Int8}
     sz::NTuple{N,Int} # Julia size of input array
     osz::NTuple{N,Int} # Julia size of output array
@@ -58,11 +62,11 @@ mutable struct rCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     pinv::ScaledPlan # required by AbstractFFT API
 
     function rCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, workarea::CuVector{Int8},
-                                       X::CuArray{T,N}, sizey::Tuple, region, xtype
-                                       ) where {T<:cufftNumber,K,inplace,N}
+                                       X::DenseCuArray{T,N}, sizey::Tuple, region, xtype;
+                                       stream::CuStream=stream()) where {T<:cufftNumber,K,inplace,N}
         # maybe enforce consistency of sizey
-        p = new(handle, workarea, size(X), sizey, xtype, region)
-        finalizer(unsafe_free!, p)
+        p = new(handle, context(), stream, workarea, size(X), sizey, xtype, region)
+        finalizer(unsafe_finalize!, p)
         p
     end
 end
@@ -93,9 +97,25 @@ function Base.show(io::IO, p::CuFFTPlan{T,K,inplace}) where {T,K,inplace}
     showfftdims(io, p.sz, T)
 end
 
-set_stream(plan::CuFFTPlan, stream::CuStream) = cufftSetStream(plan, stream)
-
 Base.size(p::CuFFTPlan) = p.sz
+
+# FFT plans can be user-created on a different task, whose stream might be different from
+# the one used in the current task. call this function before every API call that performs
+# operations on a stream to ensure the plan is using the correct task-local stream.
+@inline function update_stream(plan::CuFFTPlan)
+    new_stream = stream()
+    if plan.stream != new_stream
+        plan.stream = new_stream
+        cufftSetStream(plan, new_stream)
+
+        # replace the workarea by one (asynchronously) allocated on the current stream
+        new_workarea = similar(plan.workarea)
+        cufftSetWorkArea(plan, new_workarea)
+        CUDA.unsafe_free!(plan.workarea)
+        plan.workarea = plan.workarea
+    end
+    return
+end
 
 
 ## plan methods
@@ -112,7 +132,10 @@ function create_plan(xtype, xdims, region)
     handle_ref = Ref{cufftHandle}()
     cufftCreate(handle_ref)
     handle = handle_ref[]
+
+    # take control over the workarea
     cufftSetAutoAllocation(handle, 0)
+    cufftSetStream(handle, stream())
 
     # make the plan
     worksize_ref = Ref{Csize_t}()
@@ -236,84 +259,84 @@ end
 for f in (:fft, :bfft, :ifft)
     pf = Symbol("plan_", f)
     @eval begin
-        $f(x::CuArray{<:Real}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::CuArray{<:Real}, region) = $pf(complexfloat(x), region)
-        $f(x::CuArray{<:Complex{<:Union{Integer,Rational}}}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::CuArray{<:Complex{<:Union{Integer,Rational}}}, region) = $pf(complexfloat(x), region)
+        $f(x::DenseCuArray{<:Real}, region=1:ndims(x)) = $f(complexfloat(x), region)
+        $pf(x::DenseCuArray{<:Real}, region) = $pf(complexfloat(x), region)
+        $f(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region=1:ndims(x)) = $f(complexfloat(x), region)
+        $pf(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region) = $pf(complexfloat(x), region)
     end
 end
-rfft(x::CuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
-plan_rfft(x::CuArray{<:Real}, region) = plan_rfft(realfloat(x), region)
+rfft(x::DenseCuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
+plan_rfft(x::DenseCuArray{<:Real}, region) = plan_rfft(realfloat(x), region)
 
 # region is an iterable subset of dimensions
 # spec. an integer, range, tuple, or array
 
 # inplace complex
-function plan_fft!(X::CuArray{T,N}, region) where {T<:cufftComplexes,N}
+function plan_fft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     K = CUFFT_FORWARD
     inplace = true
     xtype = (T == cufftComplex) ? CUFFT_C2C : CUFFT_Z2Z
 
-    pp = create_plan(xtype, size(X), region)
+    handle, workarea = create_plan(xtype, size(X), region)
 
-    cCuFFTPlan{T,K,inplace,N}(pp..., X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,N}(handle, workarea, X, size(X), region, xtype)
 end
 
-function plan_bfft!(X::CuArray{T,N}, region) where {T<:cufftComplexes,N}
+function plan_bfft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     K = CUFFT_INVERSE
     inplace = true
     xtype =  (T == cufftComplex) ? CUFFT_C2C : CUFFT_Z2Z
 
-    pp = create_plan(xtype, size(X), region)
+    handle, workarea = create_plan(xtype, size(X), region)
 
-    cCuFFTPlan{T,K,inplace,N}(pp..., X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,N}(handle, workarea, X, size(X), region, xtype)
 end
 
 # out-of-place complex
-function plan_fft(X::CuArray{T,N}, region) where {T<:cufftComplexes,N}
+function plan_fft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     K = CUFFT_FORWARD
     xtype =  (T == cufftComplex) ? CUFFT_C2C : CUFFT_Z2Z
     inplace = false
 
-    pp = create_plan(xtype, size(X), region)
+    handle, workarea = create_plan(xtype, size(X), region)
 
-    cCuFFTPlan{T,K,inplace,N}(pp..., X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,N}(handle, workarea, X, size(X), region, xtype)
 end
 
-function plan_bfft(X::CuArray{T,N}, region) where {T<:cufftComplexes,N}
+function plan_bfft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     K = CUFFT_INVERSE
     inplace = false
     xtype =  (T == cufftComplex) ? CUFFT_C2C : CUFFT_Z2Z
 
-    pp = create_plan(xtype, size(X), region)
+    handle, workarea = create_plan(xtype, size(X), region)
 
-    cCuFFTPlan{T,K,inplace,N}(pp..., X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,N}(handle, workarea, X, size(X), region, xtype)
 end
 
 # out-of-place real-to-complex
-function plan_rfft(X::CuArray{T,N}, region) where {T<:cufftReals,N}
+function plan_rfft(X::DenseCuArray{T,N}, region) where {T<:cufftReals,N}
     K = CUFFT_FORWARD
     inplace = false
     xtype =  (T == cufftReal) ? CUFFT_R2C : CUFFT_D2Z
 
-    pp = create_plan(xtype, size(X), region)
+    handle, workarea = create_plan(xtype, size(X), region)
 
     ydims = collect(size(X))
     ydims[region[1]] = div(ydims[region[1]],2)+1
 
-    rCuFFTPlan{T,K,inplace,N}(pp..., X, (ydims...,), region, xtype)
+    rCuFFTPlan{T,K,inplace,N}(handle, workarea, X, (ydims...,), region, xtype)
 end
 
-function plan_brfft(X::CuArray{T,N}, d::Integer, region::Any) where {T<:cufftComplexes,N}
+function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::Any) where {T<:cufftComplexes,N}
     K = CUFFT_INVERSE
     inplace = false
     xtype =  (T == cufftComplex) ? CUFFT_C2R : CUFFT_Z2D
     ydims = collect(size(X))
     ydims[region[1]] = d
 
-    pp = create_plan(xtype, (ydims...,), region)
+    handle, workarea = create_plan(xtype, (ydims...,), region)
 
-    rCuFFTPlan{T,K,inplace,N}(pp..., X, (ydims...,), region, xtype)
+    rCuFFTPlan{T,K,inplace,N}(handle, workarea, X, (ydims...,), region, xtype)
 end
 
 # FIXME: plan_inv methods allocate needlessly (to provide type parameters)
@@ -321,16 +344,16 @@ end
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}) where {T,N,inplace}
     X = CuArray{T}(undef, p.sz)
-    pp = create_plan(p.xtype, p.sz, p.region)
-    ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}(pp..., X, p.sz, p.region,
+    handle, workarea = create_plan(p.xtype, p.sz, p.region)
+    ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}(handle, workarea, X, p.sz, p.region,
                                                      p.xtype),
                normalization(X, p.region))
 end
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}) where {T,N,inplace}
     X = CuArray{T}(undef, p.sz)
-    pp = create_plan(p.xtype, p.sz, p.region)
-    ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}(pp..., X, p.sz, p.region,
+    handle, workarea = create_plan(p.xtype, p.sz, p.region)
+    ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}(handle, workarea, X, p.sz, p.region,
                                                      p.xtype),
                normalization(X, p.region))
 end
@@ -340,8 +363,8 @@ function plan_inv(p::rCuFFTPlan{T,CUFFT_INVERSE,inplace,N}
     X = CuArray{real(T)}(undef, p.osz)
     Y = CuArray{T}(undef, p.sz)
     xtype = p.xtype == CUFFT_C2R ? CUFFT_R2C : CUFFT_D2Z
-    pp = create_plan(xtype, p.osz, p.region)
-    ScaledPlan(rCuFFTPlan{real(T),CUFFT_FORWARD,inplace,N}(pp..., X, p.sz, p.region, xtype),
+    handle, workarea = create_plan(xtype, p.osz, p.region)
+    ScaledPlan(rCuFFTPlan{real(T),CUFFT_FORWARD,inplace,N}(handle, workarea, X, p.sz, p.region, xtype),
                normalization(X, p.region))
 end
 
@@ -350,8 +373,8 @@ function plan_inv(p::rCuFFTPlan{T,CUFFT_FORWARD,inplace,N}
     X = CuArray{complex(T)}(undef, p.osz)
     Y = CuArray{T}(undef, p.sz)
     xtype = p.xtype == CUFFT_R2C ? CUFFT_C2R : CUFFT_Z2D
-    pp = create_plan(xtype, p.sz, p.region)
-    ScaledPlan(rCuFFTPlan{complex(T),CUFFT_INVERSE,inplace,N}(pp..., X, p.sz,
+    handle, workarea = create_plan(xtype, p.sz, p.region)
+    ScaledPlan(rCuFFTPlan{complex(T),CUFFT_INVERSE,inplace,N}(handle, workarea, X, p.sz,
                                                               p.region, xtype),
                normalization(Y, p.region))
 end
@@ -359,12 +382,12 @@ end
 
 ## plan execution
 
-function assert_applicable(p::CuFFTPlan{T,K}, X::CuArray{T}) where {T,K}
+function assert_applicable(p::CuFFTPlan{T,K}, X::DenseCuArray{T}) where {T,K}
     (size(X) == p.sz) ||
         throw(ArgumentError("CuFFT plan applied to wrong-size input"))
 end
 
-function assert_applicable(p::CuFFTPlan{T,K}, X::CuArray{T}, Y::CuArray{Ty}) where {T,K,Ty}
+function assert_applicable(p::CuFFTPlan{T,K}, X::DenseCuArray{T}, Y::DenseCuArray{Ty}) where {T,K,Ty}
     assert_applicable(p, X)
     (size(Y) == p.osz) ||
         throw(ArgumentError("CuFFT plan applied to wrong-size output"))
@@ -382,81 +405,102 @@ function assert_applicable(p::CuFFTPlan{T,K}, X::CuArray{T}, Y::CuArray{Ty}) whe
 end
 
 function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,true,N},
-                         x::CuArray{cufftComplex,N}) where {K,N}
+                         x::DenseCuArray{cufftComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_C2C
+    update_stream(plan)
     cufftExecC2C(plan, x, x, K)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,true,N},
-                         x::CuArray{cufftComplex,N}) where {K,N}
+                         x::DenseCuArray{cufftComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_C2R
+    update_stream(plan)
     cufftExecC2R(plan, x, x)
 end
 
 function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,false,N},
-                         x::CuArray{cufftComplex,N}, y::CuArray{cufftComplex}
+                         x::DenseCuArray{cufftComplex,N}, y::DenseCuArray{cufftComplex}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_C2C
-    cufftExecC2C(plan, copy(x), y, K)   # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    update_stream(plan)
+    cufftExecC2C(plan, x, y, K)
+    unsafe_free!(x)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
-                         x::CuArray{cufftComplex,N}, y::CuArray{cufftReal}
+                         x::DenseCuArray{cufftComplex,N}, y::DenseCuArray{cufftReal}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_C2R
-    cufftExecC2R(plan, copy(x), y)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    update_stream(plan)
+    cufftExecC2R(plan, x, y)
+    unsafe_free!(x)
 end
 
 function unsafe_execute!(plan::rCuFFTPlan{cufftReal,K,false,N},
-                         x::CuArray{cufftReal,N}, y::CuArray{cufftComplex,N}
+                         x::DenseCuArray{cufftReal,N}, y::DenseCuArray{cufftComplex,N}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_R2C
-    cufftExecR2C(plan, copy(x), y)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    update_stream(plan)
+    cufftExecR2C(plan, x, y)
+    unsafe_free!(x)
 end
 
 function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,true,N},
-                         x::CuArray{cufftDoubleComplex,N}) where {K,N}
+                         x::DenseCuArray{cufftDoubleComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_Z2Z
     cufftExecZ2Z(plan, x, x, K)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,true,N},
-                         x::CuArray{cufftDoubleComplex,N}) where {K,N}
+                         x::DenseCuArray{cufftDoubleComplex,N}) where {K,N}
+    update_stream(plan)
     @assert plan.xtype == CUFFT_Z2D
     cufftExecZ2D(plan, x, x)
 end
 
 function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,false,N},
-                         x::CuArray{cufftDoubleComplex,N}, y::CuArray{cufftDoubleComplex}
+                         x::DenseCuArray{cufftDoubleComplex,N}, y::DenseCuArray{cufftDoubleComplex}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_Z2Z
-    cufftExecZ2Z(plan, copy(x), y, K)   # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    update_stream(plan)
+    cufftExecZ2Z(plan, x, y, K)
+    unsafe_free!(x)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,false,N},
-                         x::CuArray{cufftDoubleComplex,N}, y::CuArray{cufftDoubleReal}
+                         x::DenseCuArray{cufftDoubleComplex,N}, y::DenseCuArray{cufftDoubleReal}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_Z2D
-    cufftExecZ2D(plan, copy(x), y)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    update_stream(plan)
+    cufftExecZ2D(plan, x, y)
+    unsafe_free!(x)
 end
 
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleReal,K,false,N},
-                         x::CuArray{cufftDoubleReal,N}, y::CuArray{cufftDoubleComplex,N}
+                         x::DenseCuArray{cufftDoubleReal,N}, y::DenseCuArray{cufftDoubleComplex,N}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_D2Z
-    cufftExecD2Z(plan, copy(x), y)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    x = copy(x)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
+    update_stream(plan)
+    cufftExecD2Z(plan, x, y)
+    unsafe_free!(x)
 end
 
-function LinearAlgebra.mul!(y::CuArray{Ty}, p::CuFFTPlan{T,K,false}, x::CuArray{T}
+function LinearAlgebra.mul!(y::DenseCuArray{Ty}, p::CuFFTPlan{T,K,false}, x::DenseCuArray{T}
                            ) where {Ty,T,K}
     assert_applicable(p,x,y)
     unsafe_execute!(p,x,y)
     return y
 end
 
-function Base.:(*)(p::cCuFFTPlan{T,K,true,N}, x::CuArray{T,N}) where {T,K,N}
+function Base.:(*)(p::cCuFFTPlan{T,K,true,N}, x::DenseCuArray{T,N}) where {T,K,N}
     assert_applicable(p,x)
     unsafe_execute!(p,x)
     x
 end
 
-function Base.:(*)(p::rCuFFTPlan{T,CUFFT_FORWARD,false,N}, x::CuArray{T,N}
+function Base.:(*)(p::rCuFFTPlan{T,CUFFT_FORWARD,false,N}, x::DenseCuArray{T,N}
            ) where {T<:cufftReals,N}
     @assert p.xtype ∈ [CUFFT_R2C,CUFFT_D2Z]
     y = CuArray{complex(T),N}(undef, p.osz)
@@ -464,7 +508,7 @@ function Base.:(*)(p::rCuFFTPlan{T,CUFFT_FORWARD,false,N}, x::CuArray{T,N}
     y
 end
 
-function Base.:(*)(p::rCuFFTPlan{T,CUFFT_INVERSE,false,N}, x::CuArray{T,N}
+function Base.:(*)(p::rCuFFTPlan{T,CUFFT_INVERSE,false,N}, x::DenseCuArray{T,N}
            ) where {T<:cufftComplexes,N}
     @assert p.xtype ∈ [CUFFT_C2R,CUFFT_Z2D]
     y = CuArray{real(T),N}(undef, p.osz)
@@ -472,7 +516,7 @@ function Base.:(*)(p::rCuFFTPlan{T,CUFFT_INVERSE,false,N}, x::CuArray{T,N}
     y
 end
 
-function Base.:(*)(p::cCuFFTPlan{T,K,false,N}, x::CuArray{T,N}) where {T,K,N}
+function Base.:(*)(p::cCuFFTPlan{T,K,false,N}, x::DenseCuArray{T,N}) where {T,K,N}
     y = CuArray{T,N}(undef, p.osz)
     mul!(y,p,x)
     y

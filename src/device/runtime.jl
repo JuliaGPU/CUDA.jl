@@ -1,5 +1,7 @@
 # CUDA-specific runtime libraries
 
+import Base.Sys: WORD_SIZE
+
 
 ## GPU runtime library
 
@@ -7,15 +9,30 @@
 GPUCompiler.reset_runtime()
 
 # load or build the runtime for the most likely compilation job given a compute capability
-function load_runtime(cap::VersionNumber)
-    target = PTXCompilerTarget(; cap=cap)
+function precompile_runtime(caps=CUDA.llvm_compat(LLVM.version()).cap)
     dummy_source = FunctionSpec(()->return, Tuple{})
     params = CUDACompilerParams()
-    job = CompilerJob(target, dummy_source, params)
-    GPUCompiler.load_runtime(job)
+    Context() do ctx
+        for cap in caps
+            # NOTE: this often runs when we don't have a functioning set-up,
+            #       so we don't use CUDACompilerTarget(...) which requires NVML
+            target = PTXCompilerTarget(; cap=cap)
+            job = CompilerJob(target, dummy_source, params)
+            GPUCompiler.load_runtime(job; ctx)
+        end
+    end
+    return
 end
 
-@inline exception_flag() = ccall("extern julia_exception_flag", llvmcall, Ptr{Cvoid}, ())
+@eval @inline exception_flag() =
+    Base.llvmcall(
+        $("""@exception_flag = weak externally_initialized global i$(WORD_SIZE) 0
+             define i64 @entry() #0 {
+                 %ptr = load i$(WORD_SIZE), i$(WORD_SIZE)* @exception_flag, align 8
+                 ret i$(WORD_SIZE) %ptr
+             }
+             attributes #0 = { alwaysinline }
+          """, "entry"), Ptr{Cvoid}, Tuple{})
 
 function signal_exception()
     ptr = exception_flag()
@@ -60,24 +77,19 @@ end
 
 ## CUDA device library
 
-const libcache = Dict{String, LLVM.Module}()
-
-function load_libdevice(cap)
+function load_libdevice(cap; ctx)
     path = libdevice()
-
-    get!(libcache, path) do
-        open(path) do io
-            parse(LLVM.Module, read(path), JuliaContext())
-        end
-    end
+    parse(LLVM.Module, read(path); ctx)
 end
 
 function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)
+    ctx = LLVM.context(mod)
+
     # only link if there's undefined __nv_ functions
     if !any(fn->startswith(fn, "__nv_"), undefined_fns)
         return
     end
-    lib::LLVM.Module = load_libdevice(cap)
+    lib::LLVM.Module = load_libdevice(cap; ctx)
 
     # override libdevice's triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
@@ -86,8 +98,8 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)
     GPUCompiler.link_library!(mod, lib)
 
     ModulePassManager() do pm
-        push!(metadata(mod), "nvvm-reflect-ftz",
-              MDNode([ConstantInt(Int32(1), JuliaContext())]))
+        push!(metadata(mod)["nvvm-reflect-ftz"],
+              MDNode([ConstantInt(Int32(1); ctx)]; ctx))
         run!(pm, mod)
     end
 end

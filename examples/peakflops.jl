@@ -5,17 +5,19 @@ using Test
 "Dummy kernel doing 100 FMAs."
 function kernel_100fma(a, b, c, out)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-    @inbounds a_val = a[i]
-    @inbounds b_val = b[i]
-    @inbounds c_val = c[i]
+    @inbounds if i <= length(out)
+        a_val = a[i]
+        b_val = b[i]
+        c_val = c[i]
 
-    for j in 1:33
-        a_val = CUDA.fma(a_val, b_val, c_val)
-        b_val = CUDA.fma(a_val, b_val, c_val)
-        c_val = CUDA.fma(a_val, b_val, c_val)
+        for j in 1:33
+            a_val = CUDA.fma(a_val, b_val, c_val)
+            b_val = CUDA.fma(a_val, b_val, c_val)
+            c_val = CUDA.fma(a_val, b_val, c_val)
+        end
+
+        out[i] = CUDA.fma(a_val, b_val, c_val)
     end
-
-    @inbounds out[i] = CUDA.fma(a_val, b_val, c_val)
 
     return
 end
@@ -34,15 +36,18 @@ function peakflops(n::Integer=5000, dev::CuDevice=CuDevice(0))
         d_out = CuArray(out)
 
         len = prod(dims)
-        threads = min(len, 1024)
-        blocks = len ÷ threads
+
+        kernel = @cuda launch=false kernel_100fma(d_a, d_b, d_c, d_out)
+        config = launch_configuration(kernel.fun)
+        threads = Base.min(len, config.threads)
+        blocks = cld(len, threads)
 
         # warm-up
-        @cuda kernel_100fma(d_a, d_b, d_c, d_out)
+        kernel(d_a, d_b, d_c, d_out)
         synchronize()
 
         secs = CUDA.@elapsed begin
-            @cuda blocks=blocks threads=threads kernel_100fma(d_a, d_b, d_c, d_out)
+            kernel(d_a, d_b, d_c, d_out; threads=threads, blocks=blocks)
         end
         flopcount = 200*len
         flops = flopcount / secs

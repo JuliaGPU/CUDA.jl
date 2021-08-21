@@ -12,46 +12,6 @@
     @test !occursin("inttoptr", ir)
 end
 
-@testset "PTX TBAA" begin
-    load(ptr) = unsafe_load(ptr)
-    store(ptr) = unsafe_store!(ptr, 0)
-
-    for f in (load, store)
-        ir = sprint(io->CUDA.code_llvm(io, f,
-                                             Tuple{CUDA.DevicePtr{Float32,AS.Global}};
-                                             dump_module=true, raw=true))
-        @test occursin("gputbaa_global", ir)
-
-        # no TBAA on generic pointers
-        ir = sprint(io->CUDA.code_llvm(io, f,
-                                             Tuple{CUDA.DevicePtr{Float32,AS.Generic}};
-                                             dump_module=true, raw=true))
-        @test !occursin("gputbaa", ir)
-    end
-
-
-    cached_load(ptr) = unsafe_cached_load(ptr)
-
-    ir = sprint(io->CUDA.code_llvm(io, cached_load,
-                                         Tuple{CUDA.DevicePtr{Float32,AS.Global}};
-                                         dump_module=true, raw=true))
-    @test occursin("gputbaa_global", ir)
-end
-
-@testset "ghost values" begin
-    @eval struct Singleton end
-
-    ir = sprint(io->CUDA.code_llvm(io, unsafe_load,
-                                         Tuple{CUDA.DevicePtr{Singleton,AS.Global}}))
-    @test occursin("ret void", ir)
-    @test unsafe_load(reinterpret(CUDA.DevicePtr{Singleton,AS.Global}, C_NULL)) === Singleton()
-
-    ir = sprint(io->CUDA.code_llvm(io, unsafe_store!,
-                                         Tuple{CUDA.DevicePtr{Singleton,AS.Global},
-                                         Singleton}))
-    @test !occursin("\bstore\b", ir)
-end
-
 @testset "CUDA.jl#553" begin
     function kernel(ptr)
        unsafe_store!(ptr, CUDA.fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
@@ -60,11 +20,6 @@ end
 
     ir = sprint(io->CUDA.code_llvm(io, kernel, Tuple{Ptr{Float32}}))
     @test !occursin("@__nv_fmaf", ir)
-end
-
-@testset "ldg" begin
-    ir = sprint(io->CUDA.code_llvm(io, CUDA.pointerref_ldg, Tuple{CUDA.DevicePtr{Int,CUDA.AS.Global},Int,Val{1}}))
-    @test occursin("@llvm.nvvm.ldg", ir)
 end
 
 @testset "assume" begin
@@ -110,7 +65,6 @@ end
     @cuda threads=2 kernel(out, a, b)
     @test Array(out) == (_a .+ 1)
 end
-
 
 @testset "ptxas-compatible control flow" begin
     @noinline function throw_some()
@@ -162,15 +116,32 @@ end
 
 ############################################################################################
 
-# NOTE: CUPTI, needed for SASS reflection, does not seem to work under cuda-memcheck
-memcheck || @testset "SASS" begin
+@testset "PTX" begin
+
+@testset "local memory stores due to byval" begin
+    # JuliaGPU/GPUCompiler.jl#92
+    function kernel(y1, y2)
+        y = threadIdx().x == 1 ? y1 : y2
+        @inbounds y[] = 0
+        return
+    end
+
+    asm = sprint(io->CUDA.code_ptx(io, kernel, NTuple{2,CuDeviceArray{Float32,1,AS.Global}}))
+    @test !occursin(".local", asm)
+end
+
+end
+
+############################################################################################
+
+@testset "SASS" begin
 
 @testset "basic reflection" begin
     valid_kernel() = return
     invalid_kernel() = 1
 
-    @test CUDA.code_sass(devnull, valid_kernel, Tuple{}) == nothing
-    @test_throws CUDA.KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
+    @not_if_sanitize @test CUDA.code_sass(devnull, valid_kernel, Tuple{}) == nothing
+    @not_if_sanitize @test_throws CUDA.KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
 end
 
 @testset "function name mangling" begin
@@ -178,7 +149,13 @@ end
 
     @eval kernel_341(ptr) = (@inbounds unsafe_store!(ptr, $(Symbol("dummy_^"))(unsafe_load(ptr))); nothing)
 
-    CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
+    @not_if_sanitize CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
+end
+
+@testset "device runtime" begin
+    kernel() = (CUDA.cudaGetLastError(); return)
+
+    @not_if_sanitize CUDA.code_sass(devnull, kernel, Tuple{})
 end
 
 end

@@ -1,16 +1,7 @@
-# Need https://github.com/JuliaLang/julia/pull/33970
-# and  https://github.com/JuliaLang/julia/pull/34043
-if VERSION < v"1.4.0-DEV.666"
-    exit()
-end
-
 using CUDA
 if capability(device()) < v"7.0"
     exit()
 end
-
-is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
-(is_debug && VERSION < v"1.5.0-DEV.437") && exit()
 
 ### START
 using Test
@@ -30,13 +21,13 @@ d_dev = similar(c_dev)
 
 # Matrix multiply-accumulate kernel (D = A * B + C)
 function kernel(a_dev, b_dev, c_dev, d_dev)
-    a_frag = WMMA.llvm_wmma_load_a_col_m16n16k16_stride_f16(pointer(a_dev), 16)
-    b_frag = WMMA.llvm_wmma_load_b_col_m16n16k16_stride_f16(pointer(b_dev), 16)
-    c_frag = WMMA.llvm_wmma_load_c_col_m16n16k16_stride_f32(pointer(c_dev), 16)
+    a_frag = WMMA.llvm_wmma_load_a_col_m16n16k16_global_stride_f16(pointer(a_dev), 16)
+    b_frag = WMMA.llvm_wmma_load_b_col_m16n16k16_global_stride_f16(pointer(b_dev), 16)
+    c_frag = WMMA.llvm_wmma_load_c_col_m16n16k16_global_stride_f32(pointer(c_dev), 16)
 
     d_frag = WMMA.llvm_wmma_mma_col_col_m16n16k16_f32_f32(a_frag, b_frag, c_frag)
 
-    WMMA.llvm_wmma_store_d_col_m16n16k16_stride_f32(pointer(d_dev), d_frag, 16)
+    WMMA.llvm_wmma_store_d_col_m16n16k16_global_stride_f32(pointer(d_dev), d_frag, 16)
     return
 end
 

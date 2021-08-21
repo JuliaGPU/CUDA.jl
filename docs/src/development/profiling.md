@@ -23,10 +23,15 @@ julia> CUDA.@elapsed sin.(a)
 0.051607586f0
 ```
 
-This macro is a low-level utility, assumes the GPU is synchronized before calling, and is
-useful if you need execution timings in your application. For most purposes, you should use
-`CUDA.@time` which mimics `Base.@time` by printing execution times as well as memory
-allocation stats:
+This is a low-level utility, and measures time by submitting events to the GPU and measuring
+the time between them. As such, if the GPU was not idle in the first place, you may not get
+the expected result. The macro is mainly useful if your application needs to know about the
+time it took to complete certain GPU operations.
+
+For more convenient time reporting, you can use the `CUDA.@time` macro which mimics
+`Base.@time` by printing execution times as well as memory allocation stats, while making
+sure the GPU is idle before starting the measurement, as well as waiting for all
+asynchronous operations to complete:
 
 ```julia
 julia> a = CUDA.rand(1024,1024,1024);
@@ -35,16 +40,14 @@ julia> CUDA.@time sin.(a);
   0.046063 seconds (96 CPU allocations: 3.750 KiB) (1 GPU allocation: 4.000 GiB, 14.33% gc time of which 99.89% spent allocating)
 ```
 
-The `@time` macro is more user-friendly (synchronizes the GPU before measuring so you don't
-need to do a thing), uses wall-clock time, and is a generally more useful tool when
-measuring the end-to-end performance characteristics of a GPU application.
+The `@time` macro is more user-friendly and is a generally more useful tool when measuring
+the end-to-end performance characteristics of a GPU application.
 
 For robust measurements however, it is advised to use the
 [BenchmarkTools.jl](https://github.com/JuliaCI/BenchmarkTools.jl) package which goes to
 great lengths to perform accurate measurements. Due to the asynchronous nature of GPUs, you
 need to ensure the GPU is synchronized at the end of every sample, e.g. by calling
-`synchronize()`. An easier, and better-performing alternative is to use the unexported `@sync`
-macro:
+`synchronize()` or, even better, wrapping your code in `CUDA.@sync`:
 
 ```julia
 julia> a = CUDA.rand(1024,1024,1024);
@@ -199,10 +202,12 @@ You will get an interactive REPL, where you can execute whatever code you want:
 ```julia
 julia> using CUDA
 
+julia> CUDA.version()
+
 # Julia hangs!
 ```
 
-As soon as you import CUDA.jl, your Julia process will hang. This is expected, as the tool
+As soon as you use CUDA.jl, your Julia process will hang. This is expected, as the tool
 breaks upon the very first call to the CUDA API, at which point you are expected to launch
 the Nsight Compute GUI utility and attach to the running session:
 

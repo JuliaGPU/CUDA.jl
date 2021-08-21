@@ -3,23 +3,33 @@ name: CompatHelper
 on:
   schedule:
     - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   CompatHelper:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
       - name: Get Julia compatibility
         id: julia_compat
-        # NOTE: this requires a julia compat lower-bound with minor version!
+        # NOTE: this requires a Julia compat lower-bound with minor version!
         run : |
           version=$(grep '^julia = ' Project.toml | grep -o '".*"' | cut -d '"' -f2)
           echo "::set-output name=version::$version"
-      - uses: julia-actions/setup-julia@latest
+      - uses: julia-actions/setup-julia@v1
         with:
           version: ${{ steps.julia_compat.outputs.version }}
-      - name: Pkg.add("CompatHelper")
-        run: julia -e 'using Pkg; Pkg.add("CompatHelper")'
-      - name: CompatHelper.main()
+      - name: Install CompatHelper
+        run: |
+          import Pkg
+          name = "CompatHelper"
+          version = "2"
+          Pkg.add(; name, version)
+        shell: julia --color=yes {0}
+      - name: Run CompatHelper
+        run: |
+          using CompatHelper
+          CompatHelper.main()
+        shell: julia --color=yes {0}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: julia -e 'using CompatHelper; CompatHelper.main()'

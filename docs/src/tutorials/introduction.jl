@@ -57,7 +57,6 @@ sequential_add!(y, x)
 
 # And now a parallel implementation:
 
-# parallel implementation
 function parallel_add!(y, x)
     Threads.@threads for i in eachindex(y, x)
         @inbounds y[i] += x[i]
@@ -74,15 +73,27 @@ parallel_add!(y, x)
 
 @assert Threads.nthreads() == 4     #src
 
-using BenchmarkTools
-@btime sequential_add!($y, $x)
+# ```julia
+# using BenchmarkTools
+# @btime sequential_add!($y, $x)
+# ```
+
+# ```
+#   487.303 μs (0 allocations: 0 bytes)
+# ```
 
 # versus
 
-@btime parallel_add!($y, $x)
+# ```julia
+# @btime parallel_add!($y, $x)
+# ```
 
-# You can see there's a performance benefit to parallelization, though not by a full factor
-# of 4 due to the overhead for starting threads. With larger arrays, the overhead would be
+# ```
+#   259.587 μs (13 allocations: 1.48 KiB)
+# ```
+
+# You can see there's a performance benefit to parallelization, though not by a factor of 4
+# due to the overhead for starting threads. With larger arrays, the overhead would be
 # "diluted" by a larger amount of "real work"; these would demonstrate scaling that is
 # closer to linear in the number of cores. Conversely, with small arrays, the parallel
 # version might be slower than the serial version.
@@ -96,7 +107,7 @@ using BenchmarkTools
 # For most of this tutorial you need to have a computer with a compatible GPU and have
 # installed [CUDA](https://developer.nvidia.com/cuda-downloads). You should also install
 # the following packages using Julia's [package
-# manager](https://docs.julialang.org/en/latest/stdlib/Pkg/):
+# manager](https://docs.julialang.org/en/v1/stdlib/Pkg/):
 
 # ```julia
 # pkg> add CUDA
@@ -134,7 +145,13 @@ function add_broadcast!(y, x)
     return
 end
 
-@btime add_broadcast!($y_d, $x_d)
+# ```julia
+# @btime add_broadcast!($y_d, $x_d)
+# ```
+
+# ```
+#   67.047 μs (84 allocations: 2.66 KiB)
+# ```
 
 # The most interesting part of this is the call to `CUDA.@sync`. The CPU can assign
 # jobs to the GPU and then go do other stuff (such as assigning *more* jobs to the GPU)
@@ -182,7 +199,13 @@ function bench_gpu1!(y, x)
     end
 end
 
-@btime bench_gpu1!($y_d, $x_d)
+# ```julia
+# @btime bench_gpu1!($y_d, $x_d)
+# ```
+
+# ```
+#   119.783 ms (47 allocations: 1.23 KiB)
+# ```
 
 # That's a *lot* slower than the version above based on broadcasting. What happened?
 
@@ -201,7 +224,7 @@ end
 #
 # replacing the `/path/to/julia` with the path to your Julia binary. Note that we don't
 # immediately start the profiler, but instead call into the CUDA APIs and manually start the
-# profiler with `CUDq.@profile` (thus excluding the time to compile our kernel):
+# profiler with `CUDA.@profile` (thus excluding the time to compile our kernel):
 
 bench_gpu1!(y_d, x_d)  # run it once to force compilation
 CUDA.@profile bench_gpu1!(y_d, x_d)
@@ -278,7 +301,13 @@ function bench_gpu2!(y, x)
     end
 end
 
-@btime bench_gpu2!($y_d, $x_d)
+# ```julia
+# @btime bench_gpu2!($y_d, $x_d)
+# ```
+
+# ```
+#   1.873 ms (47 allocations: 1.23 KiB)
+# ```
 
 # Much better!
 
@@ -299,10 +328,7 @@ end
 
 function gpu_add3!(y, x)
     index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    stride = blockDim().x * gridDim().x
-    for i = index:stride:length(y)
-        @inbounds y[i] += x[i]
-    end
+    @inbounds y[index] += x[index]
     return
 end
 
@@ -321,7 +347,13 @@ function bench_gpu3!(y, x)
     end
 end
 
-@btime bench_gpu3!($y_d, $x_d)
+# ```julia
+# @btime bench_gpu3!($y_d, $x_d)
+# ```
+
+# ```
+#   67.268 μs (52 allocations: 1.31 KiB)
+# ```
 
 # Finally, we've achieved the similar performance to what we got with the broadcasted
 # version. Let's run `nvprof` again to confirm this launch configuration:

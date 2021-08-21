@@ -1,12 +1,13 @@
 module NVTX
 
 using ..CUDA
-using ..CUDA: libnvtx, @checked, @runtime_ccall
+using ..CUDA: libnvtx, @checked
 using ..CUDA: CUstream, CUdevice, CUcontext, CUevent
 
-using CEnum
+using CEnum: @cenum
 
-using ExprTools
+using ExprTools: splitdef, combinedef
+
 
 # core library
 initialize_api() = return

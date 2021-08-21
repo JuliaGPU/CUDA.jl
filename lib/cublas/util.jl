@@ -34,49 +34,44 @@ const CublasFloat = Union{Float64,Float32,ComplexF64,ComplexF32}
 const CublasReal = Union{Float64,Float32}
 const CublasComplex = Union{ComplexF64,ComplexF32}
 
-# convert Char {N,T,C} to cublasOperation_t
-function cublasop(trans::Char)
+function Base.convert(::Type{cublasOperation_t}, trans::Char)
     if trans == 'N'
         return CUBLAS_OP_N
-    end
-    if trans == 'T'
+    elseif trans == 'T'
         return CUBLAS_OP_T
-    end
-    if trans == 'C'
+    elseif trans == 'C'
         return CUBLAS_OP_C
+    else
+        throw(ArgumentError("Unknown operation $trans"))
     end
-    throw(ArgumentError("unknown cublas operation $trans"))
 end
 
-# convert Char {U,L} to cublasFillMode_t
-function cublasfill(uplo::Char)
+function Base.convert(::Type{cublasFillMode_t}, uplo::Char)
     if uplo == 'U'
         return CUBLAS_FILL_MODE_UPPER
-    end
-    if uplo == 'L'
+    elseif uplo == 'L'
         return CUBLAS_FILL_MODE_LOWER
+    else
+        throw(ArgumentError("Unknown fill mode $uplo"))
     end
-    throw(ArgumentError("unknown cublas fill mode $uplo"))
 end
 
-# convert Char {U,N} to cublasDiagType_t
-function cublasdiag(diag::Char)
+function Base.convert(::Type{cublasDiagType_t}, diag::Char)
     if diag == 'U'
         return CUBLAS_DIAG_UNIT
-    end
-    if diag == 'N'
+    elseif diag == 'N'
         return CUBLAS_DIAG_NON_UNIT
+    else
+        throw(ArgumentError("Unknown diag mode $diag"))
     end
-    throw(ArgumentError("unknown cublas diag mode $diag"))
 end
 
-# convert Char {L,R}
-function cublasside(side::Char)
+function Base.convert(::Type{cublasSideMode_t}, side::Char)
     if side == 'L'
         return CUBLAS_SIDE_LEFT
-    end
-    if side == 'R'
+    elseif side == 'R'
         return CUBLAS_SIDE_RIGHT
+    else
+        throw(ArgumentError("Unknown side mode $side"))
     end
-    throw(ArgumentError("unknown cublas side mode $side"))
 end

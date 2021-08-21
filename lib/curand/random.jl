@@ -2,74 +2,73 @@
 
 using Random
 
-using GPUArrays
-
-export rand_logn!, rand_poisson!
-
-# the interface is split in two levels:
-# - functions that extend the Random standard library, and take an RNG as first argument,
-#   will only ever dispatch to CURAND and as a result are limited in the types they support.
-# - functions that take an array will dispatch to either CURAND or GPUArrays
-# - non-exported functions are provided for constructing GPU arrays from only an eltype
-
 
 mutable struct RNG <: Random.AbstractRNG
     handle::curandGenerator_t
     ctx::CuContext
+    stream::CuStream
     typ::Int
 
-    function RNG(typ=CURAND_RNG_PSEUDO_DEFAULT)
-        handle_ref = Ref{curandGenerator_t}()
-        curandCreateGenerator(handle_ref, typ)
-
-        obj = new(handle_ref[], context(), typ)
+    function RNG(typ=CURAND_RNG_PSEUDO_DEFAULT; stream=stream())
+        handle = curandCreateGenerator(typ)
+        if stream !== nothing
+            curandSetStream(handle, stream)
+        end
+        obj = new(handle, context(), stream, typ)
         finalizer(unsafe_destroy!, obj)
         return obj
     end
 end
 
 function unsafe_destroy!(rng::RNG)
-    CUDA.isvalid(rng.ctx) || return
-    context!(rng.ctx) do
-        curandDestroyGenerator(rng)
-    end
+    CUDA.@context! skip_destroyed=true rng.ctx curandDestroyGenerator(rng)
 end
 
 Base.unsafe_convert(::Type{curandGenerator_t}, rng::RNG) = rng.handle
+
+# RNG objects can be user-created on a different task, whose stream might be different from
+# the one used in the current task. call this function before every API call that performs
+# operations on a stream to ensure the RNG is using the correct task-local stream.
+@inline function update_stream(rng::RNG)
+    new_stream = stream()
+    if rng.stream != new_stream
+        rng.stream = new_stream
+        curandSetStream(rng, new_stream)
+    end
+    return
+end
 
 
 ## seeding
 
 function Random.seed!(rng::RNG, seed=Base.rand(UInt64), offset=0)
+    update_stream(rng)
     curandSetPseudoRandomGeneratorSeed(rng, seed)
     curandSetGeneratorOffset(rng, offset)
-    curandGenerateSeeds(rng)
+    @check unsafe_curandGenerateSeeds(rng) CURAND_STATUS_PREEXISTING_FAILURE
     return
 end
 
 Random.seed!(rng::RNG, ::Nothing) = Random.seed!(rng)
-
-# convenience function that seeds both generators
-function seed!(seed=Base.rand(UInt64))
-    Random.seed!(generator(), seed)
-    Random.seed!(GPUArrays.global_rng(CuArray, device()), seed)
-end
 
 
 ## in-place
 
 # uniform
 const UniformType = Union{Type{Float32},Type{Float64},Type{UInt32}}
-const UniformArray = CuArray{<:Union{Float32,Float64,UInt32}}
-function Random.rand!(rng::RNG, A::CuArray{UInt32})
+const UniformArray = DenseCuArray{<:Union{Float32,Float64,UInt32}}
+function Random.rand!(rng::RNG, A::DenseCuArray{UInt32})
+    update_stream(rng)
     curandGenerate(rng, A, length(A))
     return A
 end
-function Random.rand!(rng::RNG, A::CuArray{Float32})
+function Random.rand!(rng::RNG, A::DenseCuArray{Float32})
+    update_stream(rng)
     curandGenerateUniform(rng, A, length(A))
     return A
 end
-function Random.rand!(rng::RNG, A::CuArray{Float64})
+function Random.rand!(rng::RNG, A::DenseCuArray{Float64})
+    update_stream(rng)
     curandGenerateUniformDouble(rng, A, length(A))
     return A
 end
@@ -91,32 +90,37 @@ end
 
 # normal
 const NormalType = Union{Type{Float32},Type{Float64}}
-const NormalArray = CuArray{<:Union{Float32,Float64}}
-function Random.randn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1)
+const NormalArray = DenseCuArray{<:Union{Float32,Float64}}
+function Random.randn!(rng::RNG, A::DenseCuArray{Float32}; mean=0, stddev=1)
+    update_stream(rng)
     inplace_pow2(A, B->curandGenerateNormal(rng, B, length(B), mean, stddev))
     return A
 end
-function Random.randn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1)
+function Random.randn!(rng::RNG, A::DenseCuArray{Float64}; mean=0, stddev=1)
+    update_stream(rng)
     inplace_pow2(A, B->curandGenerateNormalDouble(rng, B, length(B), mean, stddev))
     return A
 end
 
 # log-normal
 const LognormalType = Union{Type{Float32},Type{Float64}}
-const LognormalArray = CuArray{<:Union{Float32,Float64}}
-function rand_logn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1)
+const LognormalArray = DenseCuArray{<:Union{Float32,Float64}}
+function rand_logn!(rng::RNG, A::DenseCuArray{Float32}; mean=0, stddev=1)
+    update_stream(rng)
     inplace_pow2(A, B->curandGenerateLogNormal(rng, B, length(B), mean, stddev))
     return A
 end
-function rand_logn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1)
+function rand_logn!(rng::RNG, A::DenseCuArray{Float64}; mean=0, stddev=1)
+    update_stream(rng)
     inplace_pow2(A, B->curandGenerateLogNormalDouble(rng, B, length(B), mean, stddev))
     return A
 end
 
 # poisson
 const PoissonType = Union{Type{Cuint}}
-const PoissonArray = CuArray{Cuint}
-function rand_poisson!(rng::RNG, A::CuArray{Cuint}; lambda=1)
+const PoissonArray = DenseCuArray{Cuint}
+function rand_poisson!(rng::RNG, A::DenseCuArray{Cuint}; lambda=1)
+    update_stream(rng)
     curandGeneratePoisson(rng, A, length(A), lambda)
     return A
 end
@@ -165,62 +169,3 @@ rand_logn(rng::RNG, T::LognormalType, dim1::Integer, dims::Integer...; kwargs...
 rand_poisson(rng::RNG, T::PoissonType, dim1::Integer, dims::Integer...; kwargs...) =
     rand_poisson(rng, T, Dims((dim1, dims...)); kwargs...)
 
-
-## functions that dispatch to either CURAND or GPUArrays
-
-# CURAND in-place
-Random.rand!(A::UniformArray) = Random.rand!(generator(), A)
-Random.randn!(A::NormalArray; kwargs...) = Random.randn!(generator(), A; kwargs...)
-rand_logn!(A::LognormalArray; kwargs...) = rand_logn!(generator(), A; kwargs...)
-rand_poisson!(A::PoissonArray; kwargs...) = rand_poisson!(generator(), A; kwargs...)
-
-# CURAND out-of-place
-rand(T::UniformType, dims::Dims) = Random.rand(generator(), T, dims)
-randn(T::NormalType, dims::Dims; kwargs...) = Random.randn(generator(), T, dims; kwargs...)
-rand_logn(T::LognormalType, dims::Dims; kwargs...) = rand_logn(generator(), T, dims; kwargs...)
-rand_poisson(T::PoissonType, dims::Dims; kwargs...) = rand_poisson(generator(), T, dims; kwargs...)
-
-# support all dimension specifications
-rand(T::UniformType, dim1::Integer, dims::Integer...) =
-    Random.rand(generator(), T, Dims((dim1, dims...)))
-randn(T::NormalType, dim1::Integer, dims::Integer...; kwargs...) =
-    Random.randn(generator(), T, Dims((dim1, dims...)); kwargs...)
-rand_logn(T::LognormalType, dim1::Integer, dims::Integer...; kwargs...) =
-    rand_logn(generator(), T, Dims((dim1, dims...)); kwargs...)
-rand_poisson(T::PoissonType, dim1::Integer, dims::Integer...; kwargs...) =
-    rand_poisson(generator(), T, Dims((dim1, dims...)); kwargs...)
-
-# GPUArrays in-place
-Random.rand!(A::CuArray) = Random.rand!(GPUArrays.global_rng(A), A)
-Random.randn!(A::CuArray; kwargs...) =
-    error("CUDA.jl does not support generating normally-distrubyted random numbers of type $(eltype(A))")
-rand_logn!(A::CuArray; kwargs...) =
-    error("CUDA.jl does not support generating lognormally-distributed random numbers of type $(eltype(A))")
-rand_poisson!(A::CuArray; kwargs...) =
-    error("CUDA.jl does not support generating Poisson-distributed random numbers of type $(eltype(A))")
-
-# GPUArrays out-of-place
-rand(T::Type, dims::Dims) = Random.rand!(CuArray{T}(undef, dims...))
-randn(T::Type, dims::Dims; kwargs...) = Random.randn!(CuArray{T}(undef, dims...); kwargs...)
-rand_logn(T::Type, dims::Dims; kwargs...) = rand_logn!(CuArray{T}(undef, dims...); kwargs...)
-rand_poisson(T::Type, dims::Dims; kwargs...) = rand_poisson!(CuArray{T}(undef, dims...); kwargs...)
-
-# support all dimension specifications
-rand(T::Type, dim1::Integer, dims::Integer...) =
-    Random.rand!(CuArray{T}(undef, dim1, dims...))
-randn(T::Type, dim1::Integer, dims::Integer...; kwargs...) =
-    Random.randn!(CuArray{T}(undef, dim1, dims...); kwargs...)
-rand_logn(T::Type, dim1::Integer, dims::Integer...; kwargs...) =
-    rand_logn!(CuArray{T}(undef, dim1, dims...); kwargs...)
-rand_poisson(T::Type, dim1::Integer, dims::Integer...; kwargs...) =
-    rand_poisson!(CuArray{T}(undef, dim1, dims...); kwargs...)
-
-# untyped out-of-place
-rand(dim1::Integer, dims::Integer...) =
-    Random.rand(generator(), Dims((dim1, dims...)))
-randn(dim1::Integer, dims::Integer...; kwargs...) =
-    Random.randn(generator(), Dims((dim1, dims...)); kwargs...)
-rand_logn(dim1::Integer, dims::Integer...; kwargs...) =
-    rand_logn(generator(), Dims((dim1, dims...)); kwargs...)
-rand_poisson(dim1::Integer, dims::Integer...; kwargs...) =
-    rand_poisson(generator(), Dims((dim1, dims...)); kwargs...)

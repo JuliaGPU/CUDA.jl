@@ -15,32 +15,13 @@ managed automatically using `cudaconvert`. Finally, a call to `cudacall` is
 performed, scheduling a kernel launch on the current CUDA context.
 
 Several keyword arguments are supported that influence the behavior of `@cuda`.
-- `dynamic`: use dynamic parallelism to launch device-side kernels
+- `launch`: whether to launch this kernel, defaults to `true`. If `false` the returned
+  kernel object should be launched by calling it and passing arguments again.
+- `dynamic`: use dynamic parallelism to launch device-side kernels, defaults to `false`.
 - arguments that influence kernel compilation: see [`cufunction`](@ref) and
   [`dynamic_cufunction`](@ref)
 - arguments that influence kernel launch: see [`CUDA.HostKernel`](@ref) and
   [`CUDA.DeviceKernel`](@ref)
-
-The underlying operations (argument conversion, kernel compilation, kernel call) can be
-performed explicitly when more control is needed, e.g. to reflect on the resource usage of a
-kernel to determine the launch configuration. A host-side kernel launch is done as follows:
-
-    args = ...
-    GC.@preserve args begin
-        kernel_args = cudaconvert.(args)
-        kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-        kernel = cufunction(f, kernel_tt; compilation_kwargs)
-        kernel(kernel_args...; launch_kwargs)
-    end
-
-A device-side launch, aka. dynamic parallelism, is similar but more restricted:
-
-    args = ...
-    # GC.@preserve is not supported
-    # we're on the device already, so no need to cudaconvert
-    kernel_tt = Tuple{Core.Typeof(args[1]), ...}    # this needs to be fully inferred!
-    kernel = dynamic_cufunction(f, kernel_tt)       # no compiler kwargs supported
-    kernel(args...; launch_kwargs)
 """
 macro cuda(ex...)
     # destructure the `@cuda` expression
@@ -58,9 +39,9 @@ macro cuda(ex...)
     # group keyword argument
     macro_kwargs, compiler_kwargs, call_kwargs, other_kwargs =
         split_kwargs(kwargs,
-                     [:dynamic],
+                     [:dynamic, :launch],
                      [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name],
-                     [:cooperative, :blocks, :threads, :config, :shmem, :stream])
+                     [:cooperative, :blocks, :threads, :shmem, :stream])
     if !isempty(other_kwargs)
         key,val = first(other_kwargs).args
         throw(ArgumentError("Unsupported keyword argument '$key'"))
@@ -68,19 +49,26 @@ macro cuda(ex...)
 
     # handle keyword arguments that influence the macro's behavior
     dynamic = false
+    launch = true
     for kwarg in macro_kwargs
         key,val = kwarg.args
         if key == :dynamic
             isa(val, Bool) || throw(ArgumentError("`dynamic` keyword argument to @cuda should be a constant value"))
             dynamic = val::Bool
+        elseif key == :launch
+            isa(val, Bool) || throw(ArgumentError("`launch` keyword argument to @cuda should be a constant value"))
+            launch = val::Bool
         else
             throw(ArgumentError("Unsupported keyword argument '$key'"))
         end
     end
+    if !launch && !isempty(call_kwargs)
+        error("@cuda with launch=false does not support launch-time keyword arguments; use them when calling the kernel")
+    end
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
     #        we esc() the whole thing now, necessitating gensyms...
-    @gensym kernel_args kernel_tt kernel
+    @gensym f_var kernel_f kernel_args kernel_tt kernel
     if dynamic
         # FIXME: we could probably somehow support kwargs with constant values by either
         #        saving them in a global Dict here, or trying to pick them up from the Julia
@@ -91,22 +79,31 @@ macro cuda(ex...)
         push!(code.args,
             quote
                 # we're in kernel land already, so no need to cudaconvert arguments
-                local $kernel_tt = Tuple{$((:(Core.Typeof($var)) for var in var_exprs)...)}
+                local $kernel_args = ($(var_exprs...),)
+                local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                 local $kernel = $dynamic_cufunction($f, $kernel_tt)
-                $kernel($(var_exprs...); $(call_kwargs...))
+                if $launch
+                    $kernel($kernel_args...; $(call_kwargs...))
+                end
+                $kernel
              end)
     else
         # regular, host-side kernel launch
         #
-        # convert the arguments, call the compiler and launch the kernel
+        # convert the function, its arguments, call the compiler and launch the kernel
         # while keeping the original arguments alive
         push!(code.args,
             quote
-                GC.@preserve $(vars...) begin
+                $f_var = $f
+                GC.@preserve $(vars...) $f_var begin
+                    local $kernel_f = $cudaconvert($f_var)
                     local $kernel_args = map($cudaconvert, ($(var_exprs...),))
-                    local $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
-                    local $kernel = $cufunction($f, $kernel_tt; $(compiler_kwargs...))
-                    $kernel($kernel_args...; $(call_kwargs...))
+                    local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
+                    local $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
+                    if $launch
+                        $kernel($(var_exprs...); $(call_kwargs...))
+                    end
+                    $kernel
                 end
              end)
     end
@@ -119,7 +116,8 @@ end
 struct Adaptor end
 
 # convert CUDA host pointers to device pointers
-Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = DevicePtr{T,AS.Generic}(p)
+# TODO: use ordinary ptr?
+Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = reinterpret(LLVMPtr{T,AS.Generic}, p)
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 struct CuRefValue{T} <: Ref{T}
@@ -127,6 +125,13 @@ struct CuRefValue{T} <: Ref{T}
 end
 Base.getindex(r::CuRefValue) = r.x
 Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
+
+Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+
+# we materialize ReshapedArray/ReinterpretArray/SubArray/... directly as a device array
+Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
 
 """
     cudaconvert(x)
@@ -159,23 +164,16 @@ The following keyword arguments are supported:
 - `threads` (defaults to 1)
 - `blocks` (defaults to 1)
 - `shmem` (defaults to 0)
-- `config`: callback function to dynamically compute the launch configuration.
-  should accept a `HostKernel` and return a name tuple with any of the above as fields.
-  this functionality is intended to be used in combination with the CUDA occupancy API.
 - `stream` (defaults to the default stream)
 """
 AbstractKernel
 
 @generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
-    sig = Base.signature_type(F, TT)
-    args = (:F, (:( args[$i] ) for i in 1:length(args))...)
+    sig = Tuple{F, TT.parameters...}    # Base.signature_type with a function type
+    args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
 
     # filter out arguments that shouldn't be passed
-    predicate = if VERSION >= v"1.5.0-DEV.581"
-        dt -> isghosttype(dt) || Core.Compiler.isconstType(dt)
-    else
-        dt -> isghosttype(dt)
-    end
+    predicate = dt -> isghosttype(dt) || Core.Compiler.isconstType(dt)
     to_pass = map(!predicate, sig.parameters)
     call_t =                  Type[x[1] for x in zip(sig.parameters,  to_pass) if x[2]]
     call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass)            if x[2]]
@@ -195,7 +193,7 @@ AbstractKernel
     quote
         Base.@_inline_meta
 
-        cudacall(kernel, $call_tt, $(call_args...); call_kwargs...)
+        cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
     end
 end
 
@@ -203,20 +201,13 @@ end
 ## host-side kernels
 
 struct HostKernel{F,TT} <: AbstractKernel{F,TT}
+    f::F
     ctx::CuContext
     mod::CuModule
     fun::CuFunction
 end
 
 @doc (@doc AbstractKernel) HostKernel
-
-@inline function cudacall(kernel::HostKernel, tt, args...; config=nothing, kwargs...)
-    if config !== nothing
-        cudacall(kernel.fun, tt, args...; kwargs..., config(kernel)...)
-    else
-        cudacall(kernel.fun, tt, args...; kwargs...)
-    end
-end
 
 """
     version(k::HostKernel)
@@ -287,104 +278,192 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function cufunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...)
-    ctx = context()
-    env = hash(pointer_from_objref(ctx)) # contexts are unique, but handles might alias
-    # TODO: implement this as a hash function in for CuContext
-
+@timeit_ci function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
+    cuda = active_state()
+    cache = cufunction_cache(cuda.context)
     source = FunctionSpec(f, tt, true, name)
-    GPUCompiler.cached_compilation(_cufunction, source, env; kwargs...)::HostKernel{f,tt}
-end
-
-# actual compilation
-function _cufunction(source::FunctionSpec; kwargs...)
-    # compile to PTX
-    ctx = context()
-    dev = device(ctx)
-    cap = supported_capability(dev)
-    target = PTXCompilerTarget(; cap=supported_capability(dev), kwargs...)
+    target = CUDACompilerTarget(cuda.device; kwargs...)
     params = CUDACompilerParams()
     job = CompilerJob(target, source, params)
-    asm, kernel_fn, undefined_fns = GPUCompiler.compile(:asm, job)
-
-    # settings to JIT based on Julia's debug setting
-    jit_options = Dict{CUjit_option,Any}()
-    if Base.JLOptions().debug_level == 1
-        jit_options[JIT_GENERATE_LINE_INFO] = true
-    elseif Base.JLOptions().debug_level >= 2
-        jit_options[JIT_GENERATE_DEBUG_INFO] = true
-    end
-
-    # link the CUDA device library
-    image = asm
-    # linking the device runtime library requires use of the CUDA linker,
-    # which in turn switches compilation to device relocatable code (-rdc) mode.
-    #
-    # even if not doing any actual calls that need -rdc (i.e., calls to the runtime
-    # library), this significantly hurts performance, so don't do it unconditionally
-    intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
-                    "__nvvm_reflect" #= TODO: should have been optimized away =#]
-    if !isempty(setdiff(undefined_fns, intrinsic_fns))
-        linker = CuLink(jit_options)
-        add_file!(linker, libcudadevrt(), JIT_INPUT_LIBRARY)
-        add_data!(linker, kernel_fn, asm)
-        image = complete(linker)
-    end
-
-    # JIT into an executable kernel object
-    mod = CuModule(image, jit_options)
-    fun = CuFunction(mod, kernel_fn)
-    kernel = HostKernel{source.f,source.tt}(ctx, mod, fun)
-
-    create_exceptions!(mod)
-
-    return kernel
+    return GPUCompiler.cached_compilation(cache, job,
+                                          cufunction_compile,
+                                          cufunction_link)::HostKernel{F,tt}
 end
 
-# https://github.com/JuliaLang/julia/issues/14919
-(kernel::HostKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
+# XXX: does this need a lock? we'll only write to it when we have the typeinf lock.
+const _cufunction_cache = Dict{CuContext, Dict{UInt, Any}}();
+cufunction_cache(ctx::CuContext) = get!(_cufunction_cache, ctx) do
+    Dict{UInt, Any}()
+end
+
+# helper to run a binary and collect all relevant output
+function run_and_collect(cmd)
+    stdout = Pipe()
+    proc = run(pipeline(ignorestatus(cmd); stdout, stderr=stdout), wait=false)
+    close(stdout.in)
+
+    reader = @async String(read(stdout))
+    Base.wait(proc)
+    log = strip(fetch(reader))
+
+    return proc, log
+end
+
+# compile to executable machine code
+@timeit_ci "compile" function cufunction_compile(@nospecialize(job::CompilerJob))
+    # lower to PTX
+    mi, mi_meta = @timeit_ci "emit_julia" GPUCompiler.emit_julia(job)
+    ir, ir_meta = @timeit_ci "emit_llvm" GPUCompiler.emit_llvm(job, mi)
+    asm, asm_meta = @timeit_ci "emit_asm" GPUCompiler.emit_asm(job, ir; format=LLVM.API.LLVMAssemblyFile)
+
+    # remove extraneous debug info on lower debug levels
+    if Base.JLOptions().debug_level < 2
+        # LLVM sets `.target debug` as soon as the debug emission kind isn't NoDebug. this
+        # is unwanted, as the flag makes `ptxas` behave as if `--device-debug` were set.
+        # ideally, we'd need something like LocTrackingOnly/EmitDebugInfo from D4234, but
+        # that got removed in favor of NoDebug in D18808, seemingly breaking the use case of
+        # only emitting `.loc` instructions...
+        #
+        # according to NVIDIA, "it is fine for PTX producers to produce debug info but not
+        # set `.target debug` and if `--device-debug` isn't passed, PTXAS will compile in
+        # release mode".
+        asm = replace(asm, r"(\.target .+), debug" => s"\1")
+    end
+
+    # check if we'll need the device runtime
+    undefined_fs = filter(collect(functions(ir))) do f
+        isdeclaration(f) && !LLVM.isintrinsic(f)
+    end
+    intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
+                     "__nvvm_reflect" #= TODO: should have been optimized away =#]
+    needs_cudadevrt = !isempty(setdiff(LLVM.name.(undefined_fs), intrinsic_fns))
+
+    # find externally-initialized global variables; we'll access those using CUDA APIs.
+    external_gvars = filter(isextinit, collect(globals(ir))) .|> LLVM.name
+
+    # prepare invocations of CUDA compiler tools
+    ptxas_opts = String[]
+    nvlink_opts = String[]
+    ## debug flags
+    if Base.JLOptions().debug_level == 1
+        push!(ptxas_opts, "--generate-line-info")
+    elseif Base.JLOptions().debug_level >= 2
+        push!(ptxas_opts, "--device-debug")
+        push!(nvlink_opts, "--debug")
+    end
+    ## relocatable device code
+    if needs_cudadevrt
+        push!(ptxas_opts, "--compile-only")
+    end
+
+    arch = "sm_$(job.target.cap.major)$(job.target.cap.minor)"
+
+    # compile to machine code
+    # NOTE: we use tempname since mktemp doesn't support suffixes, and mktempdir is slow
+    ptx_input = tempname(cleanup=false) * ".ptx"
+    ptxas_output = tempname(cleanup=false) * ".cubin"
+    write(ptx_input, asm)
+
+    # we could use the driver's embedded JIT compiler, but that has several disadvantages:
+    # 1. fixes and improvements are slower to arrive, by using `ptxas` we only need to
+    #    upgrade the toolkit to get a newer compiler;
+    # 2. version checking is simpler, we otherwise need to use NVML to query the driver
+    #    version, which is hard to correlate to PTX JIT improvements;
+    # 3. if we want to be able to use newer (minor upgrades) of the CUDA toolkit on an
+    #    older driver, we should use the newer compiler to ensure compatibility.
+    append!(ptxas_opts, [
+        "--verbose",
+        "--gpu-name", arch,
+        "--output-file", ptxas_output,
+        ptx_input
+    ])
+    proc, log = @timeit_ci "ptxas" run_and_collect(`$(ptxas()) $ptxas_opts`)
+    log = strip(log)
+    if !success(proc)
+        reason = proc.termsignal > 0 ? "ptxas received signal $(proc.termsignal)" :
+                                       "ptxas exited with code $(proc.exitcode)"
+        msg = "Failed to compile PTX code ($reason)"
+        if !isempty(log)
+            msg *= "\n" * log
+        end
+        msg *= "\nIf you think this is a bug, please file an issue and attach $(ptx_input)"
+        error(msg)
+    elseif !isempty(log)
+        @debug "PTX compiler log:\n" * log
+    end
+    rm(ptx_input)
+
+    # link device libraries, if necessary
+    #
+    # this requires relocatable device code, which prevents certain optimizations and
+    # hurts performance. as such, we only do so when absolutely necessary.
+    # TODO: try LTO, `--link-time-opt --nvvmpath /opt/cuda/nvvm`.
+    #       fails with `Ignoring -lto option because no LTO objects found`
+    if needs_cudadevrt
+        nvlink_output = tempname(cleanup=false) * ".cubin"
+        append!(nvlink_opts, [
+            "--verbose", "--extra-warnings",
+            "--arch", arch,
+            "--library-path", dirname(libcudadevrt()),
+            "--library", "cudadevrt",
+            "--output-file", nvlink_output,
+            ptxas_output
+        ])
+        proc, log = @timeit_ci "nvlink" run_and_collect(`$(nvlink()) $nvlink_opts`)
+        log = strip(log)
+        if !success(proc)
+            reason = proc.termsignal > 0 ? "nvlink received signal $(proc.termsignal)" :
+                                           "nvlink exited with code $(proc.exitcode)"
+            msg = "Failed to link PTX code ($reason)"
+            if !isempty(log)
+                msg *= "\n" * log
+            end
+            msg *= "\nIf you think this is a bug, please file an issue and attach $(ptxas_output)"
+            error(msg)
+        elseif !isempty(log)
+            @debug "PTX linker info log:\n" * log
+        end
+        rm(ptxas_output)
+
+        image = read(nvlink_output)
+        rm(nvlink_output)
+    else
+        image = read(ptxas_output)
+        rm(ptxas_output)
+    end
+
+    return (image, entry=LLVM.name(ir_meta.entry), external_gvars)
+end
+
+# link into an executable kernel
+@timeit_ci "link" function cufunction_link(@nospecialize(job::CompilerJob), compiled)
+    # load as an executable kernel object
+    ctx = context()
+    mod = @timeit_ci "CuModule" CuModule(compiled.image)
+    fun = CuFunction(mod, compiled.entry)
+
+    # initialize and register the exception flag, if any
+    if "exception_flag" in compiled.external_gvars
+        create_exceptions!(mod)
+        filter!(!isequal("exception_flag"), compiled.external_gvars)
+    end
+
+    return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun)
+end
+
+function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
+    call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
+end
 
 
 ## device-side kernels
 
 struct DeviceKernel{F,TT} <: AbstractKernel{F,TT}
-    fun::Ptr{Cvoid}
+    f::F
+    fun::CuDeviceFunction
 end
 
 @doc (@doc AbstractKernel) DeviceKernel
-
-@inline cudacall(kernel::DeviceKernel, tt, args...; kwargs...) =
-    dynamic_cudacall(kernel.fun, tt, args...; kwargs...)
-
-# FIXME: duplication with cudacall
-@generated function dynamic_cudacall(f::Ptr{Cvoid}, tt::Type, args...;
-                                     blocks=UInt32(1), threads=UInt32(1), shmem=UInt32(0),
-                                     stream=CuDefaultStream())
-    types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
-
-    ex = quote
-        Base.@_inline_meta
-    end
-
-    # convert the argument values to match the kernel's signature (specified by the user)
-    # (this mimics `lower-ccall` in julia-syntax.scm)
-    converted_args = Vector{Symbol}(undef, length(args))
-    arg_ptrs = Vector{Symbol}(undef, length(args))
-    for i in 1:length(args)
-        converted_args[i] = gensym()
-        arg_ptrs[i] = gensym()
-        push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
-        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $(converted_args[i]))))
-    end
-
-    append!(ex.args, (quote
-        #GC.@preserve $(converted_args...) begin
-            device_launch(f, blocks, threads, shmem, stream, $(arg_ptrs...))
-        #end
-    end).args)
-
-    return ex
-end
 
 
 ## device-side API
@@ -397,12 +476,12 @@ a callable kernel object. Device-side equivalent of [`CUDA.cufunction`](@ref).
 
 No keyword arguments are supported.
 """
-@inline function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
+@inline function dynamic_cufunction(f::F, tt::Type=Tuple{}) where {F <: Function}
     fptr = GPUCompiler.deferred_codegen(Val(f), Val(tt))
-    DeviceKernel{f,tt}(fptr)
+    fun = CuDeviceFunction(fptr)
+    DeviceKernel{F,tt}(f, fun)
 end
 
-# https://github.com/JuliaLang/julia/issues/14919
 (kernel::DeviceKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
 
 

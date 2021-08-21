@@ -2,7 +2,7 @@
 #        after having moved to distributed test execution,
 #        regardless of the memory pool or system.
 
-false && @testset "threaded execution" begin
+@testset "threaded execution" begin
     function kernel(a, tid, id)
         a[1] = tid
         a[2] = id
@@ -22,7 +22,7 @@ false && @testset "threaded execution" begin
     end
 end
 
-false && @testset "threaded arrays" begin
+@testset "threaded arrays" begin
   test_lock = ReentrantLock()
   Threads.@threads for i in 1:Threads.nthreads()*100
     # uses libraries (rand, gemm) to test library handles
@@ -44,5 +44,30 @@ false && @testset "threaded arrays" begin
     yield()
     CUDA.unsafe_free!(da)
     CUDA.unsafe_free!(db)
+  end
+end
+
+@testset "threaded device usage" begin
+  test_lock = ReentrantLock()
+  Threads.@threads for i in 1:Threads.nthreads()*100
+    dev = rand(1:length(devices()))
+    device!(dev-1) do
+      da = CUDA.rand(64, 64)
+      db = CUDA.rand(64, 64)
+      yield()
+      dc = da * (db .* 2)
+      yield()
+
+      a = Array(da)
+      b = Array(db)
+      c = Array(dc)
+      lock(test_lock) do
+        @test c ≈ a * (b .* 2)
+      end
+
+      yield()
+      CUDA.unsafe_free!(da)
+      CUDA.unsafe_free!(db)
+    end
   end
 end

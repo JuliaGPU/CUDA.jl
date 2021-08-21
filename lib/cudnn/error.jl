@@ -16,20 +16,29 @@ name(err::CUDNNError) = unsafe_string(cudnnGetErrorString(err))
 
 # outlined functionality to avoid GC frame allocation
 @noinline function throw_api_error(res)
-    throw(CUDNNError(res))
+    if res == CUDNN_STATUS_ALLOC_FAILED
+        throw(OutOfGPUMemoryError())
+    else
+        throw(CUDNNError(res))
+    end
 end
 
 function initialize_api()
-    CUDA.prepare_cuda_call()
+    CUDA.prepare_cuda_state()
 end
 
-macro check(ex)
+macro check(ex, errs...)
+    check = :(isequal(err, CUDNN_STATUS_ALLOC_FAILED))
+    for err in errs
+        check = :($check || isequal(err, $(esc(err))))
+    end
+
     quote
-        res = @retry_reclaim CUDNN_STATUS_ALLOC_FAILED $(esc(ex))
+        res = @retry_reclaim err->$check $(esc(ex))
         if res != CUDNN_STATUS_SUCCESS
             throw_api_error(res)
         end
 
-        return
+        nothing
     end
 end

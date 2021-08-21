@@ -8,18 +8,31 @@ gpuarrays_root = dirname(dirname(gpuarrays))
 include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
 testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
 
-import LinearAlgebra
-LinearAlgebra.BLAS.set_num_threads(1)
-
 using Random
 
-# detect cuda-memcheck
-const memcheck = haskey(ENV, "CUDA_MEMCHECK")
+# detect compute-sanitizer, to disable incompatible tests (e.g. using CUPTI),
+# and to skip tests that are known to generate innocuous API errors
+const sanitize = any(contains("NV_SANITIZER"), keys(ENV))
+macro not_if_sanitize(ex)
+    sanitize || return esc(ex)
+    quote
+        @test_skip $ex
+    end
+end
+
+# precompile the runtime library
+CUDA.precompile_runtime()
+
+# enable debug timers
+using TimerOutputs
+if isdefined(CUDA, :to)
+    reset_timer!(CUDA.to)
+end
 
 
 ## entry point
 
-function runtests(f, name, device=nothing, snoop=nothing)
+function runtests(f, name, time_source=:cuda, snoop=nothing)
     old_print_setting = Test.TESTSET_PRINT_ENABLE[]
     Test.TESTSET_PRINT_ENABLE[] = false
 
@@ -29,47 +42,71 @@ function runtests(f, name, device=nothing, snoop=nothing)
     end
 
     try
+        # generate a temporary module to execute the tests in
+        mod_name = Symbol("Test", rand(1:100), "Main_", replace(name, '/' => '_'))
+        mod = @eval(Main, module $mod_name end)
+        @eval(mod, using Test, Random, CUDA)
+
         let id = myid()
             wait(@spawnat 1 print_testworker_started(name, id))
         end
 
         ex = quote
             Random.seed!(1)
-            CUDA.allowscalar(false)
 
-            if $device !== nothing
-                device!($device)
-                CUDA.@timed @testset $"$name" begin
+            if $(QuoteNode(time_source)) == :cuda
+                CUDA.@timed @testset $name begin
                     $f()
                 end
-            else
-                # take care not to initialize the device
-                res = @timed @testset $"$name" begin
+            elseif $(QuoteNode(time_source)) == :julia
+                res = @timed @testset $name begin
                     $f()
                 end
                 res..., 0, 0, 0
+            else
+                error("Unknown time source: " * $(string(time_source)))
             end
         end
-        res_and_time_data = Core.eval(Main, ex)
-        #res_and_time_data[1] is the testset
+        data = Core.eval(mod, ex)
+        #data[1] is the testset
 
         # process results
-        rss = Sys.maxrss()
-        # TODO: GPU RSS using nvmlDeviceGetComputeRunningProcesses
-        passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
-            Test.get_test_counts(res_and_time_data[1])
-        if res_and_time_data[1].anynonpass == false
-            res_and_time_data = (
-                                 (passes+c_passes,broken+c_broken),
-                                 res_and_time_data[2],
-                                 res_and_time_data[3],
-                                 res_and_time_data[4],
-                                 res_and_time_data[5],
-                                 res_and_time_data[6],
-                                 res_and_time_data[7],
-                                 res_and_time_data[8])
+        cpu_rss = Sys.maxrss()
+        gpu_rss = if has_nvml()
+            cuda_dev = device()
+            nvml_dev = NVML.Device(uuid(cuda_dev))
+            try
+                gpu_processes = NVML.compute_processes(nvml_dev)
+                if haskey(gpu_processes, getpid())
+                    gpu_processes[getpid()].used_gpu_memory
+                else
+                    # happens when we didn't do compute, or when using containers:
+                    # https://github.com/NVIDIA/gpu-monitoring-tools/issues/63
+                    missing
+                end
+            catch err
+                (isa(err, NVML.NVMLError) && err.code == NVML.ERROR_NOT_SUPPORTED) || rethrow()
+                missing
+            end
+        else
+            missing
         end
-        vcat(collect(res_and_time_data), rss)
+        passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
+            Test.get_test_counts(data[1])
+        if data[1].anynonpass == false
+            data = ((passes+c_passes,broken+c_broken),
+                    data[2],
+                    data[3],
+                    data[4],
+                    data[5],
+                    data[6],
+                    data[7],
+                    data[8])
+        end
+        res = vcat(collect(data), cpu_rss, gpu_rss)
+
+        CUDA.can_reset_device() && device_reset!()
+        res
     finally
         if snoop !== nothing
             ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), C_NULL)
@@ -91,6 +128,9 @@ macro grab_output(ex)
             open(fname, "w") do fout
                 redirect_stdout(fout) do
                     ret = $(esc(ex))
+
+                    # NOTE: CUDA requires a 'proper' sync to flush its printf buffer
+                    device_synchronize()
                 end
             end
             ret, read(fname, String)
@@ -119,20 +159,21 @@ end
 
 # @test_throw, with additional testing for the exception message
 macro test_throws_message(f, typ, ex...)
+    @gensym msg
     quote
-        msg = ""
+        $msg = ""
         @test_throws $(esc(typ)) try
             $(esc(ex...))
         catch err
-            msg = sprint(showerror, err)
+            $msg = sprint(showerror, err)
             rethrow()
         end
 
-        if !$(esc(f))(msg)
+        if !$(esc(f))($msg)
             # @test should return its result, but doesn't
-            @error "Failed to validate error message\n$msg"
+            @error "Failed to validate error message\n" * $msg
         end
-        @test $(esc(f))(msg)
+        @test $(esc(f))($msg)
     end
 end
 
@@ -142,15 +183,19 @@ macro test_throws_macro(ty, ex)
         Test.@test_throws $(esc(ty)) try
             $(esc(ex))
         catch err
-            @test err isa LoadError
-            @test err.file === $(string(__source__.file))
-            @test err.line === $(__source__.line + 1)
-            rethrow(err.error)
+            if VERSION < v"1.7-"
+                @test err isa LoadError
+                @test err.file === $(string(__source__.file))
+                @test err.line === $(__source__.line + 1)
+                rethrow(err.error)
+            else
+                rethrow(err)
+            end
         end
     end
 end
 
-# Run some code on-device, returning captured standard output
+# Run some code on-device
 macro on_device(ex)
     @gensym kernel
     esc(quote
@@ -160,8 +205,7 @@ macro on_device(ex)
                 return
             end
 
-            @cuda $kernel()
-            synchronize()
+            CUDA.@sync @cuda $kernel()
         end
     end)
 end
@@ -178,7 +222,7 @@ end
                      %value = load volatile i64, i64* %slot
                      ret i64 %value""", Int64, Tuple{Int64}, i)
 
-function julia_script(code, args=``)
+function julia_script(code, args=``, env...)
     # FIXME: this doesn't work when the compute mode is set to exclusive
     script = """using CUDA
                 device!($(device()))
@@ -188,11 +232,11 @@ function julia_script(code, args=``)
     if Base.JLOptions().project != C_NULL
         cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project))`
     end
-    cmd = `$cmd --eval $script $args`
+    cmd = `$cmd --color=no --eval $script $args`
 
     out = Pipe()
     err = Pipe()
-    proc = run(pipeline(cmd, stdout=out, stderr=err), wait=false)
+    proc = run(pipeline(addenv(cmd, env...), stdout=out, stderr=err), wait=false)
     close(out.in)
     close(err.in)
     wait(proc)

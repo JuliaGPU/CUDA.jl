@@ -45,38 +45,43 @@ See also: [`@device_code_sass`](@ref)
 function code_sass(io::IO, @nospecialize(func), @nospecialize(types), kernel::Bool=true;
                    verbose::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    target = PTXCompilerTarget(; cap=supported_capability(device()), kwargs...)
+    target = CUDACompilerTarget(device(); kwargs...)
     params = CUDACompilerParams()
     job = CompilerJob(target, FunctionSpec(func, tt, kernel), params)
     code_sass(io, job; verbose=verbose)
 end
+
+# multiple subscribers aren't supported, so make sure we only call CUPTI once
+const cupti_lock = ReentrantLock()
 
 function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
     if !job.source.kernel
         error("Can only generate SASS code for kernel functions")
     end
 
-    asm, _ = GPUCompiler.codegen(:asm, job)
+    compiled = cufunction_compile(job)
 
     cubin = Ref{Any}()
     callback = @cfunction(code_sass_callback, Cvoid,
                           (Ptr{Cvoid}, CUpti_CallbackDomain, CUpti_CallbackId, Ptr{Cvoid}))
 
     # JIT compile and capture the generated object file
-    subscriber_ref = Ref{CUpti_SubscriberHandle}()
-    res = CUPTI.unsafe_cuptiSubscribe(subscriber_ref, callback, Base.pointer_from_objref(cubin))
-    if res === CUPTI.CUPTI_ERROR_INSUFFICIENT_PRIVILEGES
-        error("""Insufficient priviliges: You don't have permissions to profile GPU code, which is required for `code_sass`.
-                 Get administrative priviles or allow all users to profile: https://developer.nvidia.com/ERR_NVGPUCTRPERM#SolnAdminTag""")
-    elseif res != CUPTI.CUPTI_SUCCESS
-        throw(CUPTIError(res))
-    end
-    subscriber = subscriber_ref[]
-    try
-        CUPTI.cuptiEnableDomain(1, subscriber, CUPTI.CUPTI_CB_DOMAIN_RESOURCE)
-        CuModule(asm)
-    finally
-        CUPTI.cuptiUnsubscribe(subscriber)
+    lock(cupti_lock) do
+        subscriber_ref = Ref{CUpti_SubscriberHandle}()
+        res = CUPTI.unsafe_cuptiSubscribe(subscriber_ref, callback, Base.pointer_from_objref(cubin))
+        if res === CUPTI.CUPTI_ERROR_INSUFFICIENT_PRIVILEGES
+            error("""Insufficient privilege: You don't have permissions to profile GPU code, which is required for `code_sass`.
+                    Get administrative privileges or allow all users to profile: https://developer.nvidia.com/ERR_NVGPUCTRPERM#SolnAdminTag""")
+        elseif res != CUPTI.CUPTI_SUCCESS
+            throw(CUPTIError(res))
+        end
+        subscriber = subscriber_ref[]
+        try
+            CUPTI.cuptiEnableDomain(1, subscriber, CUPTI.CUPTI_CB_DOMAIN_RESOURCE)
+            cufunction_link(job, compiled)
+        finally
+            CUPTI.cuptiUnsubscribe(subscriber)
+        end
     end
 
     # disassemble to SASS
@@ -114,9 +119,7 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
                          kernel::Bool=false, minthreads=nothing, maxthreads=nothing,
                          blocks_per_sm=nothing, maxregs=nothing, kwargs...)
             source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
-            target = PTXCompilerTarget(; cap=supported_capability(device()),
-                                       minthreads=minthreads, maxthreads=maxthreads,
-                                       blocks_per_sm=blocks_per_sm, maxregs=maxregs)
+            target = CUDACompilerTarget(device(); minthreads, maxthreads, blocks_per_sm, maxregs)
             params = CUDACompilerParams()
             job = CompilerJob(target, source, params)
             GPUCompiler.$method($(args...); kwargs...)

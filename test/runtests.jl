@@ -2,6 +2,7 @@ using Distributed
 using Dates
 import REPL
 using Printf: @sprintf
+using TimerOutputs
 
 # parse some command-line arguments
 function extract_flag!(args, flag, default=nothing)
@@ -10,7 +11,7 @@ function extract_flag!(args, flag, default=nothing)
             # Check if it's just `--flag` or if it's `--flag=foo`
             if f != flag
                 val = split(f, '=')[2]
-                if default !== nothing
+                if default !== nothing && !(typeof(default) <: AbstractString)
                   val = parse(typeof(default), val)
                 end
             else
@@ -29,24 +30,35 @@ if do_help
     println("""
         Usage: runtests.jl [--help] [--list] [--jobs=N] [TESTS...]
 
-               --help           Show this text.
-               --list           List all available tests.
-               --jobs=N         Launch `N` process to perform tests.
-                                Defaults to `Threads.nthreads()`.
-               --memcheck       Run the tests under `cuda-memcheck`.
-               --snoop=FILE     Snoop on compiled methods and save to `FILE`.""")
+               --help             Show this text.
+               --list             List all available tests.
+               --thorough         Don't allow skipping tests that are not supported.
+               --quickfail        Fail the entire run as soon as a single test errored.
+               --jobs=N           Launch `N` processes to perform tests (default: Threads.nthreads()).
+               --gpus=N           Expose `N` GPUs to test processes (default: 1).
+               --sanitize[=tool]  Run the tests under `compute-sanitizer`.
+               --snoop=FILE       Snoop on compiled methods and save to `FILE`.
+
+               Remaining arguments filter the tests that will be executed.""")
     exit(0)
 end
 _, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
-do_memcheck, _ = extract_flag!(ARGS, "--memcheck")
+do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
 do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
+do_thorough, _ = extract_flag!(ARGS, "--thorough")
+do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
 
 include("setup.jl")     # make sure everything is precompiled
+_, gpus = extract_flag!(ARGS, "--gpus", ndevices())
 
 # choose tests
-const tests = ["initialization",    # needs to run first
-               "cutensor"]          # prioritize slow tests
+const tests = ["initialization"]    # needs to run first
 const test_runners = Dict()
+## GPUArrays testsuite
+for name in keys(TestSuite.tests)
+    push!(tests, "gpuarrays$(Base.Filesystem.path_separator)$name")
+    test_runners["gpuarrays$(Base.Filesystem.path_separator)$name"] = ()->TestSuite.tests[name](CuArray)
+end
 ## files in the test folder
 for (rootpath, dirs, files) in walkdir(@__DIR__)
   # find Julia files
@@ -69,14 +81,10 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
   end
 
   append!(tests, files)
+  sort(files; by=(file)->stat("$(@__DIR__)/$file.jl").size, rev=true) # large (slow) tests first
   for file in files
     test_runners[file] = ()->include("$(@__DIR__)/$file.jl")
   end
-end
-## GPUArrays testsuite
-for name in keys(TestSuite.tests)
-    push!(tests, "gpuarrays/$name")
-    test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
 end
 unique!(tests)
 
@@ -90,6 +98,11 @@ if do_list
     end
     exit(0)
 end
+## no options should remain
+optlike_args = filter(startswith("-"), ARGS)
+if !isempty(optlike_args)
+    error("Unknown test options `$(join(optlike_args, " "))` (try `--help` for usage instructions)")
+end
 ## the remaining args filter tests
 if !isempty(ARGS)
   filter!(tests) do test
@@ -99,52 +112,85 @@ end
 
 # check that CI is using the requested toolkit
 toolkit_release = CUDA.toolkit_release() # ensure artifacts are downloaded
-if parse(Bool, get(ENV, "CI", "false")) && haskey(ENV, "JULIA_CUDA_VERSION")
+if CUDA.getenv("CI", false) && haskey(ENV, "JULIA_CUDA_VERSION")
   @test toolkit_release == VersionNumber(ENV["JULIA_CUDA_VERSION"])
 end
 
-# pick a suiteable device
-candidates = [(device!(dev);
-               (dev=dev,
-               cap=capability(dev),
-               mem=CUDA.available_memory()))
-               for dev in devices()]
-## pick a device that is fully supported by our CUDA installation, or tools can fail
-## NOTE: we don't reuse target_support which is also bounded by LLVM support,
+# find suitable devices
+@info "System information:\n" * sprint(io->CUDA.versioninfo(io))
+candidates = []
+for (index,dev) in enumerate(devices())
+    # fetch info that doesn't require a context
+    id=deviceid(dev)
+    uuid=CUDA.uuid(dev)
+    name=CUDA.name(dev)
+    cap=capability(dev)
+
+    mem = try
+        device!(dev)
+        CUDA.available_memory()
+    catch err
+        if isa(err, OutOfGPUMemoryError)
+            # the device doesn't even have enough memory left to instantiate a context...
+            0
+        else
+            rethrow()
+        end
+    end
+
+    push!(candidates, (; id, uuid, name, cap, mem))
+
+    # NOTE: we don't use NVML here because it doesn't respect CUDA_VISIBLE_DEVICES
+end
+## only consider devices that are fully supported by our CUDA toolkit, or tools can fail.
+## NOTE: we don't reuse supported_toolchain() which is also bounded by LLVM support,
 #        and is used to pick a codegen target regardless of the actual device.
 cuda_support = CUDA.cuda_compat()
 filter!(x->x.cap in cuda_support.cap, candidates)
+## only consider recent devices if we want testing to be thorough
+if do_thorough
+    filter!(x->x.cap >= v"7.0", candidates)
+end
 isempty(candidates) && error("Could not find any suitable device for this configuration")
 ## order by available memory, but also by capability if testing needs to be thorough
-thorough = parse(Bool, get(ENV, "CI_THOROUGH", "false"))
-if thorough
-    sort!(candidates, by=x->(x.cap, x.mem))
-else
-    sort!(candidates, by=x->x.mem)
-end
-pick = last(candidates)
-pick.cap >= v"2.0" || error("The CUDA.jl test suite requires a CUDA device with compute capability 2.0 or higher")
-@info("Testing using device $(name(pick.dev)) (compute capability $(pick.cap), $(Base.format_bytes(pick.mem)) available memory) on CUDA driver $(CUDA.version()) and toolkit $(CUDA.toolkit_version())")
+sort!(candidates, by=x->x.mem)
+## apply
+picks = reverse(candidates[end-gpus+1:end])   # best GPU first
+ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"GPU-$(pick.uuid)", picks), ",")
+@info "Testing using $(length(picks)) device(s): " * join(map(pick->"$(pick.id). $(pick.name) (UUID $(pick.uuid))", picks), ", ")
 
 # determine tests to skip
-const skip_tests = []
+skip_tests = []
 has_cudnn() || push!(skip_tests, "cudnn")
-if !has_cutensor() || CUDA.version() < v"10.1" || pick.cap < v"7.0"
+has_cusolvermg() || push!(skip_tests, "cusolvermg")
+has_nvml() || push!(skip_tests, "nvml")
+if !has_cutensor() || CUDA.version() < v"10.1" || first(picks).cap < v"7.0"
     push!(skip_tests, "cutensor")
 end
 is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
-if VERSION < v"1.4.1" || pick.cap < v"7.0" || (is_debug && VERSION < v"1.5.0-DEV.437")
-    push!(skip_tests, "device/wmma")
+if first(picks).cap < v"7.0"
+    push!(skip_tests, "device/intrinsics/wmma")
 end
-if do_memcheck
-    # CUFFT causes internal failures in cuda-memcheck
+if Sys.ARCH == :aarch64
+    # CUFFT segfaults on ARM
     push!(skip_tests, "cufft")
-    # there's also a bunch of `memcheck || ...` expressions in the tests themselves
 end
-if haskey(ENV, "CI_THOROUGH")
+if VERSION < v"1.6.1-"
+    push!(skip_tests, "device/random")
+end
+for (i, test) in enumerate(skip_tests)
+    # we find tests by scanning the file system, so make sure the path separator matches
+    skip_tests[i] = replace(test, '/'=>Base.Filesystem.path_separator)
+end
+# skip_tests is a list of patterns, expand it to actual tests we were going to run
+skip_tests = filter(test->any(skip->occursin(skip,test), skip_tests), tests)
+if do_thorough
     # we're not allowed to skip tests, so make sure we will mark them as such
     all_tests = copy(tests)
-    filter!(!in(skip_tests), tests)
+    if !isempty(skip_tests)
+        @error "Skipping the following tests: $(join(skip_tests, ", "))"
+        filter!(!in(skip_tests), tests)
+    end
 else
     if !isempty(skip_tests)
         @info "Skipping the following tests: $(join(skip_tests, ", "))"
@@ -160,22 +206,26 @@ filter!(test_exeflags.exec) do c
 end
 push!(test_exeflags.exec, "--check-bounds=yes")
 push!(test_exeflags.exec, "--startup-file=no")
-push!(test_exeflags.exec, "--depwarn=error")
+push!(test_exeflags.exec, "--depwarn=yes")
 if Base.JLOptions().project != C_NULL
     push!(test_exeflags.exec, "--project=$(unsafe_string(Base.JLOptions().project))")
 end
 const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
-    exename = if do_memcheck
-        `cuda-memcheck $test_exename`
+    exename = if do_sanitize
+        sanitizer = CUDA.compute_sanitizer()
+        @info "Running under $(readchomp(`$sanitizer --version`))"
+        # NVIDIA bug 3263616: compute-sanitizer crashes when generating host backtraces
+        `$sanitizer --tool $sanitize_tool --launch-timeout=0 --show-backtrace=no --target-processes=all --report-api-errors=no $test_exename`
     else
         test_exename
     end
 
-    procs = addprocs(X; exename=exename, exeflags=test_exeflags,
-                        dir=@__DIR__, kwargs...)
-    @everywhere procs include("setup.jl")
-    procs
+    withenv("JULIA_NUM_THREADS" => 1, "OPENBLAS_NUM_THREADS" => 1) do
+        procs = addprocs(X; exename=exename, exeflags=test_exeflags, kwargs...)
+        @everywhere procs include($(joinpath(@__DIR__, "setup.jl")))
+        procs
+    end
 end
 addworker(min(jobs, length(tests)))
 
@@ -192,16 +242,15 @@ name_align        = maximum([textwidth(testgroupheader) + textwidth(" ") +
                              textwidth(workerheader); map(x -> textwidth(x) +
                              3 + ndigits(nworkers()), tests)])
 elapsed_align     = textwidth("Time (s)")
-gpu_gc_align      = textwidth("GPU GC (s)")
-gpu_percent_align = textwidth("GPU GC %")
-gpu_alloc_align   = textwidth("GPU Alloc (MB)")
-cpu_gc_align      = textwidth("CPU GC (s)")
-cpu_percent_align = textwidth("CPU GC %")
-cpu_alloc_align   = textwidth("CPU Alloc (MB)")
-rss_align         = textwidth("RSS (MB)")
+gc_align      = textwidth("GC (s)")
+percent_align = textwidth("GC %")
+alloc_align   = textwidth("Alloc (MB)")
+rss_align     = textwidth("RSS (MB)")
+printstyled(" "^(name_align + textwidth(testgroupheader) - 3), " | ")
+printstyled("         | ---------------- GPU ---------------- | ---------------- CPU ---------------- |\n", color=:white)
 printstyled(testgroupheader, color=:white)
 printstyled(lpad(workerheader, name_align - textwidth(testgroupheader) + 1), " | ", color=:white)
-printstyled("Time (s) | GPU GC (s) | GPU GC % | GPU Alloc (MB) | CPU GC (s) | CPU GC % | CPU Alloc (MB) | RSS (MB)\n", color=:white)
+printstyled("Time (s) | GC (s) | GC % | Alloc (MB) | RSS (MB) | GC (s) | GC % | Alloc (MB) | RSS (MB) |\n", color=:white)
 print_lock = stdout isa Base.LibuvStream ? stdout.lock : ReentrantLock()
 if stderr isa Base.LibuvStream
     stderr.lock = print_lock
@@ -216,29 +265,32 @@ function print_testworker_stats(test, wrkr, resp)
         printstyled(lpad(time_str, elapsed_align, " "), " | ", color=:white)
 
         gpu_gc_str = @sprintf("%5.2f", resp[7])
-        printstyled(lpad(gpu_gc_str, gpu_gc_align, " "), " | ", color=:white)
+        printstyled(lpad(gpu_gc_str, gc_align, " "), " | ", color=:white)
         # since there may be quite a few digits in the percentage,
         # the left-padding here is less to make sure everything fits
         gpu_percent_str = @sprintf("%4.1f", 100 * resp[7] / resp[2])
-        printstyled(lpad(gpu_percent_str, gpu_percent_align, " "), " | ", color=:white)
+        printstyled(lpad(gpu_percent_str, percent_align, " "), " | ", color=:white)
         gpu_alloc_str = @sprintf("%5.2f", resp[6] / 2^20)
-        printstyled(lpad(gpu_alloc_str, gpu_alloc_align, " "), " | ", color=:white)
+        printstyled(lpad(gpu_alloc_str, alloc_align, " "), " | ", color=:white)
+
+        gpu_rss_str = ismissing(resp[10]) ? "N/A" : @sprintf("%5.2f", resp[10] / 2^20)
+        printstyled(lpad(gpu_rss_str, rss_align, " "), " | ", color=:white)
 
         cpu_gc_str = @sprintf("%5.2f", resp[4])
-        printstyled(lpad(cpu_gc_str, cpu_gc_align, " "), " | ", color=:white)
+        printstyled(lpad(cpu_gc_str, gc_align, " "), " | ", color=:white)
         cpu_percent_str = @sprintf("%4.1f", 100 * resp[4] / resp[2])
-        printstyled(lpad(cpu_percent_str, cpu_percent_align, " "), " | ", color=:white)
+        printstyled(lpad(cpu_percent_str, percent_align, " "), " | ", color=:white)
         cpu_alloc_str = @sprintf("%5.2f", resp[3] / 2^20)
-        printstyled(lpad(cpu_alloc_str, cpu_alloc_align, " "), " | ", color=:white)
+        printstyled(lpad(cpu_alloc_str, alloc_align, " "), " | ", color=:white)
 
-        rss_str = @sprintf("%5.2f", resp[9] / 2^20)
-        printstyled(lpad(rss_str, rss_align, " "), "\n", color=:white)
+        cpu_rss_str = @sprintf("%5.2f", resp[9] / 2^20)
+        printstyled(lpad(cpu_rss_str, rss_align, " "), " |\n", color=:white)
     finally
         unlock(print_lock)
     end
 end
 global print_testworker_started = (name, wrkr)->begin
-    if do_memcheck
+    if do_sanitize
         lock(print_lock)
         try
             printstyled(name, color=:white)
@@ -261,14 +313,16 @@ function print_testworker_errored(name, wrkr)
 end
 
 # run tasks
+t0 = now()
 results = []
 all_tasks = Task[]
+timings = TimerOutput[]
 try
     # Monitor stdin and kill this task on ^C
     # but don't do this on Windows, because it may deadlock in the kernel
+    t = current_task()
     running_tests = Dict{String, DateTime}()
     if !Sys.iswindows() && isa(stdin, Base.TTY)
-        t = current_task()
         stdin_monitor = @async begin
             term = REPL.Terminals.TTYTerminal("xterm", stdin, stdout, stderr)
             try
@@ -301,13 +355,16 @@ try
                     test = popfirst!(tests)
                     local resp
                     wrkr = p
-                    dev = test=="initialization" ? nothing : pick.dev
                     snoop = do_snoop ? mktemp() : (nothing, nothing)
+
+                    # tests that muck with the context should not be timed with CUDA events,
+                    # since they won't be valid at the end of the test anymore.
+                    time_source = in(test, ["initialization", "examples", "exceptions"]) ? :julia : :cuda
 
                     # run the test
                     running_tests[test] = now()
                     try
-                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, dev, snoop[1])
+                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, time_source, snoop[1])
                     catch e
                         isa(e, InterruptException) && return
                         resp = Any[e]
@@ -318,6 +375,7 @@ try
                     # act on the results
                     if resp[1] isa Exception
                         print_testworker_errored(test, wrkr)
+                        do_quickfail && Base.throwto(t, InterruptException())
 
                         # the worker encountered some failure, recycle it
                         # so future tests get a fresh environment
@@ -336,6 +394,15 @@ try
                         rm(snoop[1])
                     end
                 end
+
+                # fetch worker timings
+                if isdefined(CUDA, :to)
+                    to = remotecall_fetch(p) do
+                        CUDA.to
+                    end
+                    push!(timings, to)
+                end
+
                 if p != 1
                     # Free up memory =)
                     rmprocs(p, waitfor=30)
@@ -356,11 +423,33 @@ catch e
                 @error "InterruptException" exception=ex,catch_backtrace()
             end
         end, all_tasks)
-    foreach(wait, all_tasks)
+    for t in all_tasks
+        # NOTE: we can't just wait, but need to discard the exception,
+        #       because the throwto for --quickfail also kills the worker.
+        try
+            wait(t)
+        catch e
+            showerror(stderr, e)
+        end
+    end
 finally
     if @isdefined stdin_monitor
         schedule(stdin_monitor, InterruptException(); error=true)
     end
+end
+t1 = now()
+elapsed = canonicalize(Dates.CompoundPeriod(t1-t0))
+println("Testing finished in $elapsed")
+
+# report work timings
+if isdefined(CUDA, :to)
+    println()
+    for to in timings
+        TimerOutputs.merge!(CUDA.to, to)
+    end
+    TimerOutputs.complement!(CUDA.to)
+    show(CUDA.to, sortby=:name)
+    println()
 end
 
 # construct a testset to render the test results
@@ -376,7 +465,11 @@ for (testname, (resp,)) in results
     elseif isa(resp, Tuple{Int,Int})
         fake = Test.DefaultTestSet(testname)
         for i in 1:resp[1]
-            Test.record(fake, Test.Pass(:test, nothing, nothing, nothing))
+            if VERSION >= v"1.7-"
+                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
+            else
+                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing))
+            end
         end
         for i in 1:resp[2]
             Test.record(fake, Test.Broken(:test, nothing))
@@ -390,7 +483,11 @@ for (testname, (resp,)) in results
         println()
         fake = Test.DefaultTestSet(testname)
         for i in 1:resp.captured.ex.pass
-            Test.record(fake, Test.Pass(:test, nothing, nothing, nothing))
+            if VERSION >= v"1.7-"
+                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
+            else
+                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing))
+            end
         end
         for i in 1:resp.captured.ex.broken
             Test.record(fake, Test.Broken(:test, nothing))
@@ -434,4 +531,3 @@ else
     Test.print_test_errors(o_ts)
     throw(Test.FallbackTestSetException("Test run finished with errors"))
 end
-

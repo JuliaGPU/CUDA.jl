@@ -3,9 +3,6 @@
 # CUDA packages require complex initialization (discover CUDA, download artifacts, etc)
 # that can't happen at module load time, so defer that to run time upon actual use.
 
-const configured = Threads.Atomic{Int}(-1)   # -1=unconfigured, -2=configuring,
-                                             # 0=failed, 1=configured
-
 """
     functional(show_reason=false)
 
@@ -15,110 +12,81 @@ This call is intended for packages that support conditionally using an available
 fail to check whether CUDA is functional, actual use of functionality might warn and error.
 """
 function functional(show_reason::Bool=false)
-    if configured[] < 0
-        _functional(show_reason)
-    end
-    Bool(configured[])
-end
-
-const configure_lock = ReentrantLock()
-@noinline function _functional(show_reason::Bool=false)
-    lock(configure_lock) do
-        if configured[] == -1
-            configured[] = -2
-            if __configure__(show_reason)
-                configured[] = 1
-                try
-                    __runtime_init__()
-                catch
-                    configured[] = 0
-                    rethrow()
-                end
-            else
-                configured[] = 0
-            end
-        elseif configured[] == -2
-            @warn "Recursion during initialization of CUDA.jl"
-            configured[] = 0
-        end
-    end
-end
-
-# macro to guard code that only can run after the package has successfully initialized
-macro after_init(ex)
-    quote
-        @assert functional(true) "CUDA.jl did not successfully initialize, and is not usable."
-        $(esc(ex))
+    try
+        version()
+        toolkit()
+        return true
+    catch
+        show_reason && rethrow()
+        return false
     end
 end
 
 
 ## deferred initialization API
 
-const __libcuda = Sys.iswindows() ? :nvcuda : :libcuda
-libcuda() = @after_init(__libcuda)
-
-# load-time initialization: only perform mininal checks here
 function __init__()
-    if Base.libllvm_version != LLVM.version()
-        error("LLVM $(LLVM.version()) incompatible with Julia's LLVM $(Base.libllvm_version)")
+    # register device overrides
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    if !precompiling
+        eval(Expr(:block, overrides...))
+        empty!(overrides)
+
+        @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" begin
+            include("device/intrinsics/special_math.jl")
+            eval(Expr(:block, overrides...))
+            empty!(overrides)
+        end
+    end
+end
+
+@noinline function __init_driver__()
+    if version() < v"10.1"
+        @warn "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.1 or higher (yours is for CUDA $(version()))"
+    end
+
+    if version() < v"11.2"
+        @warn """The NVIDIA driver on this system only supports up to CUDA $(version()).
+                 For performance reasons, it is recommended to upgrade to a driver that supports CUDA 11.2 or higher."""
+    end
+
+    haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT") &&
+        @warn "Support for GPU memory limits (JULIA_CUDA_MEMORY_LIMIT) has been removed."
+
+    haskey(ENV, "JULIA_CUDA_MEMORY_POOL") &&
+    ENV["JULIA_CUDA_MEMORY_POOL"] != "none" && ENV["JULIA_CUDA_MEMORY_POOL"] != "cuda" &&
+        @warn "Support for memory pools (JULIA_CUDA_MEMORY_POOL) other than 'cuda' and 'none' has been removed."
+
+    # ensure that operations executed by the REPL back-end finish before returning,
+    # because displaying values happens on a different task (CUDA.jl#831)
+    if isdefined(Base, :active_repl_backend)
+        push!(Base.active_repl_backend.ast_transforms, ex->
+            quote
+                try
+                    $(ex)
+                finally
+                    $task_local_state() !== nothing && $synchronize()
+                end
+            end
+        )
     end
 
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("-nvptx-fma-level=1")
 
-    resize!(thread_contexts, Threads.nthreads())
-    fill!(thread_contexts, nothing)
-
-    resize!(thread_tasks, Threads.nthreads())
-    fill!(thread_tasks, nothing)
-
-    initializer(prepare_cuda_call)
-
-    __init_memory__()
-
-    @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
+    return
 end
 
-# run-time configuration: try and initialize CUDA, but don't error
-function __configure__(show_reason::Bool)
-    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-        show_reason && @error("Running under rr, which is incompatible with CUDA")
-        return false
-    end
-
-    try
-        @debug "Initializing CUDA driver"
-        res = @runtime_ccall((:cuInit, __libcuda), CUresult, (UInt32,), 0)
-        if res == 0xffffffff
-            error("Cannot use the CUDA stub libraries. You either don't have the NVIDIA driver installed, or it is not properly discoverable.")
-        elseif res != SUCCESS
-            throw_api_error(res)
-        end
-    catch ex
-        show_reason && @error("Could not initialize CUDA", exception=(ex,catch_backtrace()))
-        return false
-    end
-
-    return true
-end
-
-# run-time initialization: we have a driver, so try and discover CUDA
-function __runtime_init__()
-    if version() < v"9"
-        @warn "CUDA.jl only supports NVIDIA drivers for CUDA 9.0 or higher (yours is for CUDA $(version()))"
-    end
-
-    __init_dependencies__() || error("Could not find a suitable CUDA installation")
-
-    if toolkit_release() < v"9"
-        @warn "CUDA.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(toolkit_release()))"
-    elseif toolkit_release() > release()
+function __init_toolkit__()
+    if toolkit_release() < v"10.1"
+        @warn "This version of CUDA.jl only supports CUDA 10.1 or higher (your toolkit provides CUDA $(toolkit_release()))"
+    elseif release() < v"11" && toolkit_release() > release()
         @warn """You are using CUDA toolkit $(toolkit_release()) with a driver that only supports up to $(release()).
                  It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
+    elseif release() >= v"11" && toolkit_release().major > release().major
+        @warn """You are using CUDA toolkit $(toolkit_release()) with a driver that only supports up to $(release().major).x.
+                 It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
     end
-
-    __init_compatibility__()
 
     return
 end
@@ -129,6 +97,9 @@ end
 # TODO: update docstrings
 
 export has_cuda, has_cuda_gpu
+
+# backwards compatibility
+export has_cusolvermg, has_cudnn, has_cutensor, has_cupti, has_nvtx
 
 """
     has_cuda()::Bool

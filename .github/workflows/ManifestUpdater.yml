@@ -3,6 +3,7 @@ name: ManifestUpdater
 on:
   schedule:
     - cron: '0 0 * * 1'
+  workflow_dispatch:
 
 jobs:
   ManifestUpdater:
@@ -11,11 +12,11 @@ jobs:
       - uses: actions/checkout@v2
       - name: Get Julia compatibility
         id: julia_compat
-        # NOTE: this requires a julia compat lower-bound with minor version!
+        # NOTE: this requires a Julia compat lower-bound with minor version!
         run : |
           version=$(grep '^julia = ' Project.toml | grep -o '".*"' | cut -d '"' -f2)
           echo "::set-output name=version::$version"
-      - uses: julia-actions/setup-julia@latest
+      - uses: julia-actions/setup-julia@v1
         with:
           version: ${{ steps.julia_compat.outputs.version }}
       - name: Update packages
@@ -40,7 +41,7 @@ jobs:
           log=$(julia -e "println(Base.VERSION)")
           echo "::set-output name=log::$log"
       - name: Create pull request
-        uses: peter-evans/create-pull-request@v2
+        uses: peter-evans/create-pull-request@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: |

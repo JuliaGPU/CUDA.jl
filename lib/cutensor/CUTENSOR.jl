@@ -6,7 +6,8 @@ using ..CUDA
 using ..CUDA: CUstream, cudaDataType
 using ..CUDA: libcutensor,  @retry_reclaim
 
-using CEnum
+using CEnum: @cenum
+
 
 const cudaDataType_t = cudaDataType
 
@@ -22,33 +23,39 @@ include("wrappers.jl")
 # high-level integrations
 include("interfaces.jl")
 
-# thread cache for task-local library handles
-const thread_handles = Vector{Union{Nothing,Ref{cutensorHandle_t}}}()
+# cache for created, but unused handles
+const idle_handles = HandleCache{CuContext,Base.RefValue{cutensorHandle_t}}()
 
 function handle()
-    tid = Threads.threadid()
-    if @inbounds thread_handles[tid] === nothing
-        ctx = context()
-        thread_handles[tid] = get!(task_local_storage(), (:CUTENSOR, ctx)) do
+    cuda = CUDA.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{handle::Base.RefValue{cutensorHandle_t}}
+    states = get!(task_local_storage(), :CUTENSOR) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get library state
+    @noinline function new_state(cuda)
+        new_handle = pop!(idle_handles, cuda.context) do
             handle = Ref{cutensorHandle_t}()
             cutensorInit(handle)
             handle
         end
-    end
-    @inbounds thread_handles[tid]
-end
 
-function __init__()
-    resize!(thread_handles, Threads.nthreads())
-    fill!(thread_handles, nothing)
+        finalizer(current_task()) do task
+            push!(idle_handles, cuda.context, new_handle) do
+                # CUTENSOR doesn't need to actively destroy its handle
+            end
+        end
 
-    CUDA.atcontextswitch() do tid, ctx
-        thread_handles[tid] = nothing
+        (; handle=new_handle)
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
     end
 
-    CUDA.attaskswitch() do tid, task
-        thread_handles[tid] = nothing
-    end
+    return state.handle
 end
 
 end

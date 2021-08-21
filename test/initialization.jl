@@ -3,50 +3,53 @@
 
 # the API shouldn't have been initialized
 @test CuCurrentContext() == nothing
+@test CuCurrentDevice() == nothing
 
-context_cb = Union{Nothing, CuContext}[nothing for tid in 1:Threads.nthreads()]
-CUDA.atcontextswitch() do tid, ctx
-    context_cb[tid] = ctx
-end
+ctx = context()
+dev = device()
 
-task_cb = Union{Nothing, Task}[nothing for tid in 1:Threads.nthreads()]
-CUDA.attaskswitch() do tid, task
-    task_cb[tid] = task
-end
+# querying Julia's side of things shouldn't cause initialization
+@test CuCurrentContext() == nothing
+@test CuCurrentDevice() == nothing
 
 # now cause initialization
-ctx = context()
+a = CuArray([42])
 @test CuCurrentContext() == ctx
-@test device() == CuDevice(0)
-@test context_cb[1] == ctx
-@test task_cb[1] == current_task()
-
-fill!(context_cb, nothing)
-fill!(task_cb, nothing)
+@test CuCurrentDevice() == dev
 
 # ... on a different task
 task = @async begin
     context()
 end
 @test ctx == fetch(task)
-@test context_cb[1] == nothing
-@test task_cb[1] == task
 
 device!(CuDevice(0))
-device!(CuDevice(0)) do
-    nothing
-end
+@test device!(()->true, CuDevice(0))
+@inferred device!(()->42, CuDevice(0))
 
 context!(ctx)
-context!(ctx) do
-    nothing
+@test context!(()->true, ctx)
+@inferred context!(()->42, ctx)
+
+@test_throws ErrorException device!(0, CUDA.CU_CTX_SCHED_YIELD)
+
+if CUDA.can_reset_device()
+    # NVIDIA bug #3240770
+    device_reset!()
+
+    device!(0, CUDA.CU_CTX_SCHED_YIELD)
+
+    # reset on a different task
+    let ctx = context()
+        @test CUDA.isvalid(ctx)
+        @test ctx == fetch(@async context())
+
+        @sync @async device_reset!()
+
+        @test CUDA.isvalid(context())
+        @test ctx != context()
+    end
 end
-
-@test_throws AssertionError device!(0, CUDA.CU_CTX_SCHED_YIELD)
-
-device_reset!()
-
-device!(0, CUDA.CU_CTX_SCHED_YIELD)
 
 # test the device selection functionality
 if length(devices()) > 1
@@ -81,6 +84,11 @@ if length(devices()) > 1
     fetch(task)
     @test device() == CuDevice(0)
 
+    # math_mode
+    old_mm = CUDA.math_mode()
+    CUDA.math_mode!(CUDA.PEDANTIC_MATH)
+    CUDA.math_mode!(old_mm)
+
     # tasks on multiple threads
     Threads.@threads for d in 0:1
         for x in 1:100  # give threads a chance to trample over each other
@@ -99,3 +107,43 @@ if length(devices()) > 1
     end
     @test device() == CuDevice(0)
 end
+
+@test deviceid() >= 0
+@test deviceid(CuDevice(0)) == 0
+if length(devices()) > 1
+    @test deviceid(CuDevice(1)) == 1
+end
+
+
+## default streams
+
+default_s = stream()
+s = CuStream()
+@test s != default_s
+
+# test stream switching
+let
+    stream!(s)
+    @test stream() == s
+    stream!(default_s)
+    @test stream() == default_s
+end
+stream!(s) do
+    @test stream() == s
+end
+@test stream() == default_s
+
+# default stream in task
+task = @async begin
+    stream()
+end
+@test fetch(task) != default_s
+@test stream() == default_s
+
+# test stream switching in tasks
+task = @async begin
+    stream!(s)
+    stream()
+end
+@test fetch(task) == s
+@test stream() == default_s

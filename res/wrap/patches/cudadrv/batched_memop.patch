@@ -1,0 +1,17 @@
+--- a/libcuda.jl	2019-10-16 09:15:14.213122392 +0200
++++ b/libcuda.jl	2019-10-16 09:15:29.233281015 +0200
+@@ -964,5 +963,0 @@
+-@checked function cuStreamBatchMemOp(stream, count, paramArray, flags)
+-    initialize_api()
+-    ccall((:cuStreamBatchMemOp, libcuda), CUresult, (CUstream, UInt32, Ptr{CUstreamBatchMemOpParams}, UInt32), stream, count, paramArray, flags)
+-end
+-
+--- a/libcuda_common.jl	2019-10-16 09:15:14.289789877 +0200
++++ b/libcuda_common.jl	2019-10-16 09:16:50.574087901 +0200
+@@ -214,6 +213,0 @@
+-struct CUstreamBatchMemOpParams_union
+-    waitValue::CUstreamMemOpWaitValueParams_st
+-end
+-
+-const CUstreamBatchMemOpParams = CUstreamBatchMemOpParams_union
+-
