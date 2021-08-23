@@ -17,12 +17,9 @@ const exception_flags = Dict{CuContext, Mem.HostBuffer}()
 
 # create a CPU/GPU exception flag for error signalling, and put it in the module
 function create_exceptions!(mod::CuModule)
-    flag_ptr = CuGlobal{Ptr{Cvoid}}(mod, "exception_flag")
     exception_flag = get!(exception_flags, mod.ctx,
                           Mem.alloc(Mem.Host, sizeof(Int), Mem.HOSTALLOC_DEVICEMAP))
-    flag_ptr[async=true] = reinterpret(Ptr{Cvoid}, convert(CuPtr{Cvoid}, exception_flag))
-
-    return
+    return reinterpret(Ptr{Cvoid}, convert(CuPtr{Cvoid}, exception_flag))
 end
 
 # check the exception flags on every API call, similarly to how CUDA handles errors
