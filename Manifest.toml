@@ -40,9 +40,9 @@ version = "1.3.0"
 
 [[Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "SHA", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
-git-tree-sha1 = "344f143fa0ec67e47917848795ab19c6a455f32c"
+git-tree-sha1 = "727e463cfebd0c7b999bbf3e9e7e16f254b94193"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "3.32.0"
+version = "3.34.0"
 
 [[CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -104,15 +104,15 @@ version = "1.3.0"
 
 [[LLVM]]
 deps = ["CEnum", "LLVMExtra_jll", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "d6041ad706cf458b2c9f3e501152488a26451e9c"
+git-tree-sha1 = "8b2ada8605ac207b4382cd3549e807ad97916b5b"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "4.2.0"
+version = "4.3.0"
 
 [[LLVMExtra_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "a9b1130c4728b0e462a1c28772954650039eb847"
+git-tree-sha1 = "9c360e5ce980b88bb31a7b086dbb19469008154b"
 uuid = "dad2f222-ce93-54a1-a47d-0025e8a3acab"
-version = "0.0.7+0"
+version = "0.0.10+0"
 
 [[LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
@@ -208,9 +208,9 @@ uuid = "e6cf234a-135c-5ec9-84dd-332b85af5143"
 version = "1.5.3"
 
 [[Reexport]]
-git-tree-sha1 = "5f6c21241f0f655da3952fd60aa18477cf96c220"
+git-tree-sha1 = "adcd36e8ba9665c88eb0bd156d4e2a19f9b0d889"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
-version = "1.1.0"
+version = "1.2.0"
 
 [[Requires]]
 deps = ["UUIDs"]
