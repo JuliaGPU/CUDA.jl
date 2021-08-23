@@ -74,3 +74,5 @@ end
 GPUCompiler.ci_cache(@nospecialize(job::CUDACompilerJob)) = ci_cache
 
 GPUCompiler.method_table(@nospecialize(job::CUDACompilerJob)) = method_table
+
+GPUCompiler.kernel_state_type(job::CUDACompilerJob) = KernelState
