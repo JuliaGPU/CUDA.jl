@@ -123,8 +123,14 @@ Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = reinterpret(LLVMPtr{T,
 struct CuRefValue{T} <: Ref{T}
   x::T
 end
-Base.getindex(r::CuRefValue) = r.x
+Base.getindex(r::CuRefValue{T}) where T = r.x
 Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
+
+# broadcast sometimes passes a ref(type), resulting in a GPU-incompatible DataType box.
+# avoid that by using a special kind of ref that knows about the boxed type.
+struct CuRefType{T} <: Ref{DataType} end
+Base.getindex(r::CuRefType{T}) where T = T
+Adapt.adapt_structure(to::Adaptor, r::Base.RefValue{<:Union{DataType,Type}}) = CuRefType{r[]}()
 
 Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
   Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)

@@ -22,6 +22,7 @@
   end
   @test Array(Whatever{Int}.(CuArray([1]))) == Whatever{Int}.([1])
 end
+
 # https://github.com/JuliaGPU/CUDA.jl/issues/223
 @testset "Ref Broadcast" begin
   foobar(idx, A) = A[idx]
@@ -31,4 +32,10 @@ end
 @testset "Broadcast Fix" begin
   @test testf(x -> log.(x), rand(3,3))
   @test testf((x,xs) -> log.(x.+xs), Ref(1), rand(3,3))
+end
+
+# https://github.com/JuliaGPU/CUDA.jl/issues/261
+@testset "Broadcast Ref{<:Type}" begin
+  A = CuArray{ComplexF64}(undef, (2,2))
+  @test eltype(convert.(ComplexF32, A)) == ComplexF32
 end
