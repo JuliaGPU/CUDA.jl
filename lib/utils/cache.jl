@@ -18,7 +18,7 @@ end
 function Base.pop!(f::Function, cache::HandleCache{K,V}, key) where {K,V}
     function check_cache(f::Function=()->nothing)
         try
-            GC.disable_finalizers()
+            GC.enable_finalizers(false)
             lock(cache.lock) do
                 handle = if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
                     f()
@@ -33,7 +33,7 @@ function Base.pop!(f::Function, cache::HandleCache{K,V}, key) where {K,V}
                 return handle
             end
         finally
-            GC.enable_finalizers()
+            GC.enable_finalizers(true)
         end
     end
 
