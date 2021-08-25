@@ -19,7 +19,7 @@ function partial_scan(op::Function, output::AbstractArray{T}, input::AbstractArr
     thread = threadIdx().x
     block = blockIdx().x
 
-    temp = @cuDynamicSharedMem(T, (2*threads,))
+    temp = CuDynamicSharedArray(T, (2*threads,))
 
     # iterate the main dimension using threads and the first block dimension
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x

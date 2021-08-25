@@ -1,25 +1,32 @@
 # Shared Memory (part of B.2)
 
-export @cuStaticSharedMem, @cuDynamicSharedMem
+export @cuStaticSharedMem, @cuDynamicSharedMem, CuStaticSharedArray, CuDynamicSharedArray
 
 """
-    @cuStaticSharedMem(T::Type, dims) -> CuDeviceArray{T,AS.Shared}
+    CuStaticSharedArray(T::Type, dims) -> CuDeviceArray{T,AS.Shared}
 
 Get an array of type `T` and dimensions `dims` (either an integer length or tuple shape)
 pointing to a statically-allocated piece of shared memory. The type should be statically
 inferable and the dimensions should be constant, or an error will be thrown and the
 generator function will be called dynamically.
 """
+@inline function CuStaticSharedArray(::Type{T}, dims) where {T}
+    len = prod(dims)
+    # NOTE: this relies on const-prop to forward the literal length to the generator.
+    #       maybe we should include the size in the type, like StaticArrays does?
+    ptr = emit_shmem(T, Val(len))
+    CuDeviceArray(dims, ptr)
+end
+
 macro cuStaticSharedMem(T, dims)
+    Base.depwarn("@cuStaticSharedMem is deprecated, please use the CuStaticSharedArray function", :CuStaticSharedArray)
     quote
-        len = prod($(esc(dims)))
-        ptr = emit_shmem($(esc(T)), Val(len))
-        CuDeviceArray($(esc(dims)), ptr)
+        CuStaticSharedArray($(esc(T)), $(esc(dims)))
     end
 end
 
 """
-    @cuDynamicSharedMem(T::Type, dims, offset::Integer=0) -> CuDeviceArray{T,AS.Shared}
+    CuDynamicSharedArray(T::Type, dims, offset::Integer=0) -> CuDeviceArray{T,AS.Shared}
 
 Get an array of type `T` and dimensions `dims` (either an integer length or tuple shape)
 pointing to a dynamically-allocated piece of shared memory. The type should be statically
@@ -31,12 +38,17 @@ Optionally, an offset parameter indicating how many bytes to add to the base sha
 pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
 shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
 """
-macro cuDynamicSharedMem(T, dims, offset=0)
+@inline function CuDynamicSharedArray(::Type{T}, dims, offset=0) where {T}
+    len = prod(dims)
+    ptr = emit_shmem(T) + offset
     # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
+    CuDeviceArray(dims, ptr)
+end
+
+macro cuDynamicSharedMem(T, dims, offset=0)
+    Base.depwarn("@cuDynamicSharedMem is deprecated, please use the CuDynamicSharedArray function", :CuStaticSharedArray)
     quote
-        len = prod($(esc(dims)))
-        ptr = emit_shmem($(esc(T))) + $(esc(offset))
-        CuDeviceArray($(esc(dims)), ptr)
+        CuDynamicSharedArray($(esc(T)), $(esc(dims)), $(esc(offset)))
     end
 end
 

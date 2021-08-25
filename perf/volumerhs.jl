@@ -91,9 +91,9 @@ function volumerhs!(rhs, Q, vgeo, gravity, D, nelem)
 
     Nq = N + 1
 
-    s_D = @cuStaticSharedMem eltype(D) (Nq, Nq)
-    s_F = @cuStaticSharedMem eltype(Q) (Nq, Nq, _nstate)
-    s_G = @cuStaticSharedMem eltype(Q) (Nq, Nq, _nstate)
+    s_D = CuStaticSharedArray(eltype(D), (Nq, Nq))
+    s_F = CuStaticSharedArray(eltype(Q), (Nq, Nq, _nstate))
+    s_G = CuStaticSharedArray(eltype(Q), (Nq, Nq, _nstate))
 
     r_rhsρ = MArray{Tuple{Nq}, eltype(rhs)}(undef)
     r_rhsU = MArray{Tuple{Nq}, eltype(rhs)}(undef)

@@ -35,8 +35,8 @@ CUDA.Const
 ### Shared memory
 
 ```@docs
-@cuStaticSharedMem
-@cuDynamicSharedMem
+CuStaticSharedArray
+CuDynamicSharedArray
 ```
 
 ### Texture memory

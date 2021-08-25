@@ -102,8 +102,8 @@ from `lo` to `hi` of `values`.
 """
 function partition_batches_kernel(values::AbstractArray{T}, pivot, lo, hi, parity, lt::F1,
                                   by::F2) where {T,F1,F2}
-    sums = @cuDynamicSharedMem(Int, blockDim().x)
-    swap = @cuDynamicSharedMem(T, blockDim().x, sizeof(sums))
+    sums = CuDynamicSharedArray(Int, blockDim().x)
+    swap = CuDynamicSharedArray(T, blockDim().x, sizeof(sums))
     batch_partition(values, pivot, swap, sums, lo, hi, parity, lt, by)
     return
 end
@@ -375,8 +375,8 @@ early end to recursion if we started `stuck` at 0.
 """
 function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sync_depth,
                       prev_pivot, lt::F1, by::F2, ::Val{dims}, partial=nothing, stuck=-1) where {T, N, S, F1, F2, dims}
-    b_sums = @cuDynamicSharedMem(Int, blockDim().x)
-    swap = @cuDynamicSharedMem(T, blockDim().x, sizeof(b_sums))
+    b_sums = CuDynamicSharedArray(Int, blockDim().x)
+    swap = CuDynamicSharedArray(T, blockDim().x, sizeof(b_sums))
     shmem = sizeof(b_sums) + sizeof(swap)
     L = hi - lo
 

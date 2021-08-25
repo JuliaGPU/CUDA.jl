@@ -591,7 +591,7 @@ end
     function kernel(input::Int32, output::Core.LLVMPtr{Int32}, yes::Bool=true)
         i = threadIdx().x
 
-        temp = @cuStaticSharedMem(Cint, 1)
+        temp = CuStaticSharedArray(Cint, 1)
         if i == 1
             yes || trap()
             temp[1] = input
@@ -631,7 +631,7 @@ end
     function kernel(input::Int32, output::Core.LLVMPtr{Int32}, yes::Bool=true)
         i = threadIdx().x
 
-        temp = @cuStaticSharedMem(Cint, 1)
+        temp = CuStaticSharedArray(Cint, 1)
         if i == 1
             yes || unreachable()
             temp[1] = input
@@ -674,7 +674,7 @@ end
     end
 
     function reduce_kernel(f, op, v0::T, A, ::Val{LMEM}, result) where {T, LMEM}
-        tmp_local = @cuStaticSharedMem(T, LMEM)
+        tmp_local = CuStaticSharedArray(T, LMEM)
         global_index = threadIdx().x
         acc = v0
 
@@ -726,7 +726,7 @@ end
     end
 
     function reduce_kernel(f, op, v0::T, A, ::Val{LMEM}, result) where {T, LMEM}
-        tmp_local = @cuStaticSharedMem(T, LMEM)
+        tmp_local = CuStaticSharedArray(T, LMEM)
         global_index = threadIdx().x
         acc = v0
 
@@ -777,7 +777,7 @@ end
     end
 
     function reduce_kernel(f, op, v0::T, A, result) where {T}
-        tmp_local = @cuStaticSharedMem(T, 64)
+        tmp_local = CuStaticSharedArray(T, 64)
         acc = v0
 
         # Loop sequentially over chunks of input vector
