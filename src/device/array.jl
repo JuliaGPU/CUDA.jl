@@ -225,9 +225,9 @@ Base.@propagate_inbounds ldg(A::CuDeviceArray, i1::Integer) = const_arrayref(A, 
 ## other
 
 Base.show(io::IO, a::CuDeviceVector) =
-    print(io, "$(length(a))-element device array at $(pointer(a))")
+    @printf(io, "%g-element device array at %p", length(a), Int(pointer(a)))
 Base.show(io::IO, a::CuDeviceArray) =
-    print(io, "$(join(a.dims, '×')) device array at $(pointer(a))")
+    @printf(io, "%s device array at %p", join(a.dims, '×'), Int(pointer(a)))
 
 Base.show(io::IO, mime::MIME"text/plain", a::CuDeviceArray) = show(io, a)
 
