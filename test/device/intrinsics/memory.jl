@@ -19,20 +19,20 @@ n = 256
     @on_device CuStaticSharedArray(Tuple{RGB{Float32}, UInt32}, (1,2))
 
     # dynamic
-    @on_device CuDynamicSharedArray(Float32, 1)
-    @on_device CuDynamicSharedArray(Float32, (1, 2))
-    @on_device CuDynamicSharedArray(Tuple{Float32, Float32}, 1)
-    @on_device CuDynamicSharedArray(Tuple{Float32, Float32}, (1,2))
-    @on_device CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, 1)
-    @on_device CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, (1,2))
+    @on_device shmem=sizeof(Float32) CuDynamicSharedArray(Float32, 1)
+    @on_device shmem=sizeof(Float32) CuDynamicSharedArray(Float32, (1, 2))
+    @on_device shmem=sizeof(Tuple{Float32, Float32}) CuDynamicSharedArray(Tuple{Float32, Float32}, 1)
+    @on_device shmem=sizeof(Tuple{Float32, Float32}) CuDynamicSharedArray(Tuple{Float32, Float32}, (1,2))
+    @on_device shmem=sizeof(Tuple{RGB{Float32}, UInt32}) CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, 1)
+    @on_device shmem=sizeof(Tuple{RGB{Float32}, UInt32}) CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, (1,2))
 
     # dynamic with offset
-    @on_device CuDynamicSharedArray(Float32, 1, 8)
-    @on_device CuDynamicSharedArray(Float32, (1,2), 8)
-    @on_device CuDynamicSharedArray(Tuple{Float32, Float32}, 1, 8)
-    @on_device CuDynamicSharedArray(Tuple{Float32, Float32}, (1,2), 8)
-    @on_device CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, 1, 8)
-    @on_device CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, (1,2), 8)
+    @on_device shmem=sizeof(Float32)+8 CuDynamicSharedArray(Float32, 1, 8)
+    @on_device shmem=sizeof(Float32)+8 CuDynamicSharedArray(Float32, (1,2), 8)
+    @on_device shmem=sizeof(Tuple{Float32, Float32})+8 CuDynamicSharedArray(Tuple{Float32, Float32}, 1, 8)
+    @on_device shmem=sizeof(Tuple{Float32, Float32})+8 CuDynamicSharedArray(Tuple{Float32, Float32}, (1,2), 8)
+    @on_device shmem=sizeof(Tuple{RGB{Float32}, UInt32})+8 CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, 1, 8)
+    @on_device shmem=sizeof(Tuple{RGB{Float32}, UInt32})+8 CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, (1,2), 8)
 end
 
 

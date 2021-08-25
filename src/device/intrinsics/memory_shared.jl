@@ -40,8 +40,10 @@ shared memory; in the case of a homogeneous multi-part buffer it is preferred to
 """
 @inline function CuDynamicSharedArray(::Type{T}, dims, offset=0) where {T}
     len = prod(dims)
+    @boundscheck if offset+len > dynamic_smem_size()
+        throw(BoundsError())
+    end
     ptr = emit_shmem(T) + offset
-    # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
     CuDeviceArray(dims, ptr)
 end
 
@@ -51,6 +53,8 @@ macro cuDynamicSharedMem(T, dims, offset=0)
         CuDynamicSharedArray($(esc(T)), $(esc(dims)), $(esc(offset)))
     end
 end
+
+dynamic_smem_size() = @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, UInt32, Tuple{})
 
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
 @generated function emit_shmem(::Type{T}, ::Val{len}=Val(0)) where {T,len}
