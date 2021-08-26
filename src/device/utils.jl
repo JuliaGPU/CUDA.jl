@@ -36,3 +36,27 @@ macro device_function(ex)
         @device_override $ex
     end)
 end
+
+macro device_functions(ex)
+    ex = macroexpand(__module__, ex)
+
+    # recursively prepend `@device_function` to all function definitions
+    function rewrite(block)
+        out = Expr(:block)
+        for arg in block.args
+            if Meta.isexpr(arg, :block)
+                # descend in blocks
+                push!(out.args, rewrite(arg))
+            elseif Meta.isexpr(arg, [:function, :(=)])
+                # rewrite function definitions
+                push!(out.args, :(@device_function $arg))
+            else
+                # preserve all the rest
+                push!(out.args, arg)
+            end
+        end
+        out
+    end
+
+    esc(rewrite(ex))
+end

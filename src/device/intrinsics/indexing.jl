@@ -61,6 +61,8 @@ for dim in (:x, :y, :z)
     @eval @inline $fn() = Int(_index($(Val(intr)), $(Val(1:max_grid_size[dim]))))
 end
 
+@device_functions begin
+
 """
     gridDim()::CuDim3
 
@@ -110,5 +112,7 @@ Returns a 32-bit mask indicating which threads in a warp are active with the cur
 executing thread.
 """
 @inline active_mask() = @asmcall("activemask.b32 \$0;", "=r", false, UInt32, Tuple{})
+
+end
 
 const FULL_MASK = 0xffffffff
