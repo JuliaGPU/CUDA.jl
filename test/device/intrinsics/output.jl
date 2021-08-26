@@ -140,8 +140,8 @@ end
 
 @testset "@cushow array pointers" begin
     function kernel()
-        a = @cuStaticSharedMem(Float32, 1)
-        b = @cuStaticSharedMem(Float32, 2)
+        a = CuStaticSharedArray(Float32, 1)
+        b = CuStaticSharedArray(Float32, 2)
         @cushow pointer(a) pointer(b)
         return
     end

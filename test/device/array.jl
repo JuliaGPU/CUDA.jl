@@ -141,7 +141,7 @@ end
 
 
 function kernel_shmem_reinterpet_equal_size!(y)
-  a = @cuDynamicSharedMem(Float32, (blockDim().x,))
+  a = CuDynamicSharedArray(Float32, (blockDim().x,))
   b = reinterpret(UInt32, a)
   a[threadIdx().x] = threadIdx().x
   b[threadIdx().x] += 1
@@ -172,7 +172,7 @@ end
 end
 
 function kernel_shmem_reinterpet_smaller_size!(y)
-  a = @cuDynamicSharedMem(UInt128, (blockDim().x,))
+  a = CuDynamicSharedArray(UInt128, (blockDim().x,))
   i32 = Int32(threadIdx().x)
   p = i32 + i32 * im
   q = i32 - i32 * im
@@ -209,7 +209,7 @@ end
 end
 
 function kernel_shmem_reinterpet_larger_size!(y)
-  a = @cuDynamicSharedMem(Float32, (4 * blockDim().x,))
+  a = CuDynamicSharedArray(Float32, (4 * blockDim().x,))
   b = reinterpret(UInt128, a)
   a[1 + 4 * (threadIdx().x - 1)] = threadIdx().x
   a[2 + 4 * (threadIdx().x - 1)] = threadIdx().x * 2

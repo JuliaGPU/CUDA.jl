@@ -52,7 +52,7 @@ function pairwise_dist_kernel(lat::CuDeviceVector{Float32}, lon::CuDeviceVector{
 
     if i <= n && j <= n
         # store to shared memory
-        shmem = @cuDynamicSharedMem(Float32, 2*blockDim().x + 2*blockDim().y)
+        shmem = CuDynamicSharedArray(Float32, 2*blockDim().x + 2*blockDim().y)
         if threadIdx().y == 1
             shmem[threadIdx().x] = lat[i]
             shmem[blockDim().x + threadIdx().x] = lon[i]

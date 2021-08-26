@@ -2,7 +2,7 @@
 
 @testset "JuliaLang/julia#21121" begin
     function foobar()
-        weight_matrix = @cuStaticSharedMem(Float32, (16, 16))
+        weight_matrix = CuStaticSharedArray(Float32, (16, 16))
         sync_threads()
         weight_matrix[1, 16] *= 2
         sync_threads()
@@ -75,7 +75,7 @@ end
     @inbounds function kernel(input, output, n)
         i = threadIdx().x
 
-        temp = @cuStaticSharedMem(Int, 1)
+        temp = CuStaticSharedArray(Int, 1)
         if i == 1
             1 <= n || throw_some()
             temp[1] = input

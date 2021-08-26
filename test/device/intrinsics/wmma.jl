@@ -33,7 +33,7 @@ using CUDA.WMMA
 
             @eval @inbounds function kernel(input_ptr, result_dev)
                 if $do_shared_test
-                    input_shared = @cuStaticSharedMem($array_ty, 256)
+                    input_shared = CuStaticSharedArray($array_ty, 256)
                     fill!(input_shared, 42)
 
                     data = $func(pointer(input_shared), 16)
@@ -84,7 +84,7 @@ using CUDA.WMMA
 
             @eval function kernel(output_dev, output_ptr)
                 if $do_shared_test
-                    shared_mem = @cuStaticSharedMem($array_ty, 256)
+                    shared_mem = CuStaticSharedArray($array_ty, 256)
                     $func(pointer(shared_mem), $data, 16)
 
                     for i = 1:256
@@ -280,7 +280,7 @@ end
 
     @testset "Shared" begin
         function kernel()
-            shmem = @cuStaticSharedMem(Float32, (16, 16))
+            shmem = CuStaticSharedArray(Float32, (16, 16))
             conf = WMMA.Config{16, 16, 16, Float32}
 
             d_frag = WMMA.fill_c(Float32(0), conf)

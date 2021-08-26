@@ -20,7 +20,7 @@ end
 @inline function reduce_block(op, val::T, neutral, shuffle::Val{true}) where T
     # shared mem for partial sums
     assume(warpsize() == 32)
-    shared = @cuStaticSharedMem(T, 32)
+    shared = CuStaticSharedArray(T, 32)
 
     wid, lane = fldmod1(threadIdx().x, warpsize())
 
@@ -54,7 +54,7 @@ end
     thread = threadIdx().x
 
     # shared mem for a complete reduction
-    shared = @cuDynamicSharedMem(T, (threads,))
+    shared = CuDynamicSharedArray(T, (threads,))
     @inbounds shared[thread] = val
 
     # perform a reduction

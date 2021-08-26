@@ -194,7 +194,7 @@ end
 
 @testset "shared memory" begin
     function kernel()
-        shared = @cuStaticSharedMem(Float32, 1)
+        shared = CuStaticSharedArray(Float32, 1)
         @atomic shared[threadIdx().x] += 0f0
         return
     end
@@ -425,7 +425,7 @@ end
     # https://github.com/JuliaGPU/CUDA.jl/issues/311
 
     function kernel(a)
-        b = CUDA.@cuStaticSharedMem(Int, 1)
+        b = CUDA.CuStaticSharedArray(Int, 1)
 
         if threadIdx().x == 1
             b[] = a[]
@@ -452,7 +452,7 @@ end
 
     function kernel()
         tid = threadIdx().x
-        shared = @cuStaticSharedMem(Float32, 4)
+        shared = CuStaticSharedArray(Float32, 4)
         CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
         sync_threads()
         CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])

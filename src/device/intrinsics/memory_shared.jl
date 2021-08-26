@@ -1,33 +1,32 @@
 # Shared Memory (part of B.2)
 
-export @cuStaticSharedMem, @cuDynamicSharedMem
-
-shmem_id = 0
+export @cuStaticSharedMem, @cuDynamicSharedMem, CuStaticSharedArray, CuDynamicSharedArray
 
 """
-    @cuStaticSharedMem(T::Type, dims) -> CuDeviceArray{T,AS.Shared}
+    CuStaticSharedArray(T::Type, dims) -> CuDeviceArray{T,AS.Shared}
 
 Get an array of type `T` and dimensions `dims` (either an integer length or tuple shape)
 pointing to a statically-allocated piece of shared memory. The type should be statically
 inferable and the dimensions should be constant, or an error will be thrown and the
 generator function will be called dynamically.
 """
-macro cuStaticSharedMem(T, dims)
-    # FIXME: generating a unique id in the macro is incorrect, as multiple parametrically typed
-    #        functions will alias the id (and the size might be a parameter). but incrementing in
-    #        the @generated function doesn't work, as it is supposed to be pure and identical
-    #        invocations will erroneously share (and even cause multiple shmem globals).
-    id = gensym("static_shmem")
+@inline function CuStaticSharedArray(::Type{T}, dims) where {T}
+    len = prod(dims)
+    # NOTE: this relies on const-prop to forward the literal length to the generator.
+    #       maybe we should include the size in the type, like StaticArrays does?
+    ptr = emit_shmem(T, Val(len))
+    CuDeviceArray(dims, ptr)
+end
 
+macro cuStaticSharedMem(T, dims)
+    Base.depwarn("@cuStaticSharedMem is deprecated, please use the CuStaticSharedArray function", :CuStaticSharedArray)
     quote
-        len = prod($(esc(dims)))
-        ptr = emit_shmem(Val($(QuoteNode(id))), $(esc(T)), Val(len))
-        CuDeviceArray($(esc(dims)), ptr)
+        CuStaticSharedArray($(esc(T)), $(esc(dims)))
     end
 end
 
 """
-    @cuDynamicSharedMem(T::Type, dims, offset::Integer=0) -> CuDeviceArray{T,AS.Shared}
+    CuDynamicSharedArray(T::Type, dims, offset::Integer=0) -> CuDeviceArray{T,AS.Shared}
 
 Get an array of type `T` and dimensions `dims` (either an integer length or tuple shape)
 pointing to a dynamically-allocated piece of shared memory. The type should be statically
@@ -39,20 +38,26 @@ Optionally, an offset parameter indicating how many bytes to add to the base sha
 pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
 shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
 """
+@inline function CuDynamicSharedArray(::Type{T}, dims, offset=0) where {T}
+    len = prod(dims)
+    @boundscheck if offset+len > dynamic_smem_size()
+        throw(BoundsError())
+    end
+    ptr = emit_shmem(T) + offset
+    CuDeviceArray(dims, ptr)
+end
+
 macro cuDynamicSharedMem(T, dims, offset=0)
-    id = gensym("dynamic_shmem")
-
-    # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
-
+    Base.depwarn("@cuDynamicSharedMem is deprecated, please use the CuDynamicSharedArray function", :CuStaticSharedArray)
     quote
-        len = prod($(esc(dims)))
-        ptr = emit_shmem(Val($(QuoteNode(id))), $(esc(T))) + $(esc(offset))
-        CuDeviceArray($(esc(dims)), ptr)
+        CuDynamicSharedArray($(esc(T)), $(esc(dims)), $(esc(offset)))
     end
 end
 
+dynamic_smem_size() = @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, UInt32, Tuple{})
+
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
-@generated function emit_shmem(::Val{id}, ::Type{T}, ::Val{len}=Val(0)) where {id,T,len}
+@generated function emit_shmem(::Type{T}, ::Val{len}=Val(0)) where {T,len}
     Context() do ctx
         eltyp = convert(LLVMType, T; ctx)
         T_ptr = convert(LLVMType, LLVMPtr{T,AS.Shared}; ctx)
@@ -63,7 +68,7 @@ end
         # create the global variable
         mod = LLVM.parent(llvm_f)
         gv_typ = LLVM.ArrayType(eltyp, len)
-        gv = GlobalVariable(mod, gv_typ, GPUCompiler.safe_name(string(id)), AS.Shared)
+        gv = GlobalVariable(mod, gv_typ, "shmem", AS.Shared)
         if len > 0
             # static shared memory should be demoted to local variables, whenever possible.
             # this is done by the NVPTX ASM printer:

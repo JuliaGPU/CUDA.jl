@@ -11,28 +11,28 @@ n = 256
 
 @testset "constructors" begin
     # static
-    @on_device @cuStaticSharedMem(Float32, 1)
-    @on_device @cuStaticSharedMem(Float32, (1,2))
-    @on_device @cuStaticSharedMem(Tuple{Float32, Float32}, 1)
-    @on_device @cuStaticSharedMem(Tuple{Float32, Float32}, (1,2))
-    @on_device @cuStaticSharedMem(Tuple{RGB{Float32}, UInt32}, 1)
-    @on_device @cuStaticSharedMem(Tuple{RGB{Float32}, UInt32}, (1,2))
+    @on_device CuStaticSharedArray(Float32, 1)
+    @on_device CuStaticSharedArray(Float32, (1,2))
+    @on_device CuStaticSharedArray(Tuple{Float32, Float32}, 1)
+    @on_device CuStaticSharedArray(Tuple{Float32, Float32}, (1,2))
+    @on_device CuStaticSharedArray(Tuple{RGB{Float32}, UInt32}, 1)
+    @on_device CuStaticSharedArray(Tuple{RGB{Float32}, UInt32}, (1,2))
 
     # dynamic
-    @on_device @cuDynamicSharedMem(Float32, 1)
-    @on_device @cuDynamicSharedMem(Float32, (1, 2))
-    @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, 1)
-    @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, (1,2))
-    @on_device @cuDynamicSharedMem(Tuple{RGB{Float32}, UInt32}, 1)
-    @on_device @cuDynamicSharedMem(Tuple{RGB{Float32}, UInt32}, (1,2))
+    @on_device shmem=sizeof(Float32) CuDynamicSharedArray(Float32, 1)
+    @on_device shmem=sizeof(Float32) CuDynamicSharedArray(Float32, (1, 2))
+    @on_device shmem=sizeof(Tuple{Float32, Float32}) CuDynamicSharedArray(Tuple{Float32, Float32}, 1)
+    @on_device shmem=sizeof(Tuple{Float32, Float32}) CuDynamicSharedArray(Tuple{Float32, Float32}, (1,2))
+    @on_device shmem=sizeof(Tuple{RGB{Float32}, UInt32}) CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, 1)
+    @on_device shmem=sizeof(Tuple{RGB{Float32}, UInt32}) CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, (1,2))
 
     # dynamic with offset
-    @on_device @cuDynamicSharedMem(Float32, 1, 8)
-    @on_device @cuDynamicSharedMem(Float32, (1,2), 8)
-    @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, 1, 8)
-    @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, (1,2), 8)
-    @on_device @cuDynamicSharedMem(Tuple{RGB{Float32}, UInt32}, 1, 8)
-    @on_device @cuDynamicSharedMem(Tuple{RGB{Float32}, UInt32}, (1,2), 8)
+    @on_device shmem=sizeof(Float32)+8 CuDynamicSharedArray(Float32, 1, 8)
+    @on_device shmem=sizeof(Float32)+8 CuDynamicSharedArray(Float32, (1,2), 8)
+    @on_device shmem=sizeof(Tuple{Float32, Float32})+8 CuDynamicSharedArray(Tuple{Float32, Float32}, 1, 8)
+    @on_device shmem=sizeof(Tuple{Float32, Float32})+8 CuDynamicSharedArray(Tuple{Float32, Float32}, (1,2), 8)
+    @on_device shmem=sizeof(Tuple{RGB{Float32}, UInt32})+8 CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, 1, 8)
+    @on_device shmem=sizeof(Tuple{RGB{Float32}, UInt32})+8 CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, (1,2), 8)
 end
 
 
@@ -43,7 +43,7 @@ end
         t = threadIdx().x
         tr = n-t+1
 
-        s = @cuDynamicSharedMem(Float32, n)
+        s = CuDynamicSharedArray(Float32, n)
         s[t] = d[t]
         sync_threads()
         d[t] = s[tr]
@@ -64,7 +64,7 @@ end
             t = threadIdx().x
             tr = n-t+1
 
-            s = @cuDynamicSharedMem(T, n)
+            s = CuDynamicSharedArray(T, n)
             s[t] = d[t]
             sync_threads()
             d[t] = s[tr]
@@ -83,7 +83,7 @@ end
 @testset "alignment" begin
     # bug: used to generate align=12, which is invalid (non pow2)
     function kernel(v0::T, n) where {T}
-        shared = @cuDynamicSharedMem(T, n)
+        shared = CuDynamicSharedArray(T, n)
         @inbounds shared[Cuint(1)] = v0
         return
     end
@@ -103,8 +103,8 @@ end
         t = threadIdx().x
         tr = n-t+1
 
-        s = @cuStaticSharedMem(Float32, 1024)
-        s2 = @cuStaticSharedMem(Float32, 1024)  # catch aliasing
+        s = CuStaticSharedArray(Float32, 1024)
+        s2 = CuStaticSharedArray(Float32, 1024)  # catch aliasing
 
         s[t] = d[t]
         s2[t] = 2*d[t]
@@ -127,8 +127,8 @@ end
             t = threadIdx().x
             tr = n-t+1
 
-            s = @cuStaticSharedMem(T, 1024)
-            s2 = @cuStaticSharedMem(T, 1024)  # catch aliasing
+            s = CuStaticSharedArray(T, 1024)
+            s2 = CuStaticSharedArray(T, 1024)  # catch aliasing
 
             s[t] = d[t]
             s2[t] = d[t]
@@ -149,7 +149,7 @@ end
 @testset "alignment" begin
     # bug: used to generate align=12, which is invalid (non pow2)
     function kernel(v0::T) where {T}
-        shared = CUDA.@cuStaticSharedMem(T, 32)
+        shared = CUDA.CuStaticSharedArray(T, 32)
         @inbounds shared[Cuint(1)] = v0
         return
     end
@@ -169,7 +169,7 @@ end
         t = threadIdx().x
         tr = n-t+1
 
-        s = @cuDynamicSharedMem(eltype(a), 2*n)
+        s = CuDynamicSharedArray(eltype(a), 2*n)
 
         sa = view(s, 1:n)
         sa[t] = a[t]
@@ -202,12 +202,12 @@ end
         t = threadIdx().x
         tr = n-t+1
 
-        sa = @cuDynamicSharedMem(eltype(a), n)
+        sa = CuDynamicSharedArray(eltype(a), n)
         sa[t] = a[t]
         sync_threads()
         a[t] = sa[tr]
 
-        sb = @cuDynamicSharedMem(eltype(b), n, n*sizeof(eltype(a)))
+        sb = CuDynamicSharedArray(eltype(b), n, n*sizeof(eltype(a)))
         sb[t] = b[t]
         sync_threads()
         b[t] = sb[tr]
