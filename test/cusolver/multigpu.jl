@@ -34,7 +34,7 @@ end
     end
 end # elty
 
-if CUDA.toolkit_version() >= v"11.0"
+if CUSOLVER.version() >= v"10.4"
     @testset "mg_potrf!" begin
         @testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
             A = rand(elty, m, m)
@@ -82,7 +82,7 @@ if CUDA.toolkit_version() >= v"11.0"
     end # elty
 end
 
-if CUDA.toolkit_version() >= v"10.2"
+if CUSOLVER.version() >= v"10.3"
     @testset "mg_getrf!" begin
         @testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
             A      = rand(elty,m,m)
