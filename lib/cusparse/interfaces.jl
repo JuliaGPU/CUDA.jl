@@ -80,9 +80,9 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
 end
 
 Base.:(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},
-          B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,B,'O','O','O')
+          B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
 Base.:(-)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},
-          B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,-one(eltype(A)),B,'O','O','O')
+          B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
 
 # triangular
 
