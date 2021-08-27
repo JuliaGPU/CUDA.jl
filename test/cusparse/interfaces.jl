@@ -3,8 +3,8 @@ using LinearAlgebra, SparseArrays
 
 @testset "LinearAlgebra" begin
     @testset "$f(A)+$h(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
-                                     f in (identity, transpose, adjoint),
-                                     h in (identity, transpose, adjoint)
+                                     f in (identity, ),#transpose, adjoint),
+                                     h in (identity, )#transpose, adjoint)
         n = 10
         alpha = rand()
         beta = rand()
@@ -17,6 +17,25 @@ using LinearAlgebra, SparseArrays
         C = f(A) + h(B)
         dC = f(dA) + h(dB)
         @test C ≈ collect(dC)
+    end
+
+    @testset "dense(A)+sparse(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        n = 10
+        A = rand(elty, n, n)
+        B = sprand(elty, n, n, rand())
+
+        dA = CuArray(A)
+        dB = CUSPARSE.CuSparseMatrixCSR(B)
+
+        C = A + B
+
+        dC = dA + dB
+        @test C ≈ collect(dC)
+        @test dC isa CuMatrix{elty}
+        
+        dC = dB + dA
+        @test C ≈ collect(dC)
+        @test dC isa CuMatrix{elty}
     end
 
     @testset "$f(A)*b $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
