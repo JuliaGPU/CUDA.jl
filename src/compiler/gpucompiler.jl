@@ -15,7 +15,7 @@ function device_properties(dev)
             # may result in thread-divergent control flow that older `ptxas` doesn't like.
             # see e.g. JuliaGPU/CUDAnative.jl#4
             unreachable = true
-            if cap < v"7" || toolkit_version() < v"11.3"
+            if cap < v"7" || toolkit_release() < v"11.3"
                 unreachable = false
             end
 

@@ -16,57 +16,68 @@ end
 
 ## generic discovery routines
 
-function library_versioned_names(name::String, version::Union{Nothing,VersionNumber,String}=nothing)
+function library_versioned_names(name::String, versions::Vector=[])
     names = String[]
+
+    # always look for an unversion library first
     if Sys.iswindows()
-        # Windows encodes the version in the filename
-        if version isa VersionNumber
-            append!(names, ["$(name)$(Sys.WORD_SIZE)_$(version.major)$(version.minor).$(Libdl.dlext)",
-                            "$(name)$(Sys.WORD_SIZE)_$(version.major).$(Libdl.dlext)"])
-        elseif version isa String
-            push!(names, "$(name)$(Sys.WORD_SIZE)_$(version).$(Libdl.dlext)")
-        elseif version === nothing
-            push!(names, "$(name)$(Sys.WORD_SIZE).$(Libdl.dlext)")
-        end
+        push!(names, "$(name)$(Sys.WORD_SIZE).$(Libdl.dlext)")
 
         # some libraries (e.g. CUTENSOR) are shipped without the word size-prefix
-        if version isa VersionNumber
-            append!(names, ["$(name)_$(version.major)$(version.minor).$(Libdl.dlext)",
-                            "$(name)_$(version.major).$(Libdl.dlext)"])
-        elseif version isa String
-            push!(names, "$(name)_$(version).$(Libdl.dlext)")
-        elseif version === nothing
-            push!(names, "$(name).$(Libdl.dlext)")
-        end
+        push!(names, "$(name).$(Libdl.dlext)")
     elseif Sys.isapple()
         # macOS puts the version number before the dylib extension
-        if version isa VersionNumber
-            append!(names, ["lib$(name).$(version.major).$(version.minor).$(Libdl.dlext)",
-                            "lib$(name).$(version.major).$(Libdl.dlext)"])
-        elseif version isa String
-            push!(names, "lib$(name).$(version).$(Libdl.dlext)")
-        elseif version === nothing
-            push!(names, "lib$(name).$(Libdl.dlext)")
-        end
+        push!(names, "lib$(name).$(Libdl.dlext)")
     elseif Sys.isunix()
         # most UNIX distributions ship versioned libraries (also see JuliaLang/julia#22828)
-        if version isa VersionNumber
-            append!(names, ["lib$(name).$(Libdl.dlext).$(version.major).$(version.minor).$(version.patch)",
-                            "lib$(name).$(Libdl.dlext).$(version.major).$(version.minor)",
-                            "lib$(name).$(Libdl.dlext).$(version.major)"])
-        elseif version isa String
-            push!(names, "lib$(name).$(Libdl.dlext).$(version)")
-        elseif version === nothing
-            push!(names, "lib$(name).$(Libdl.dlext)")
-        end
-    elseif version === nothing
+        push!(names, "lib$(name).$(Libdl.dlext)")
+    else
         push!(names, "lib$name.$(Libdl.dlext)")
     end
+
+    # then consider versioned libraries
+    for version in versions
+        if Sys.iswindows()
+            # Windows encodes the version in the filename
+            if version isa VersionNumber
+                append!(names, ["$(name)$(Sys.WORD_SIZE)_$(version.major)$(version.minor).$(Libdl.dlext)",
+                                "$(name)$(Sys.WORD_SIZE)_$(version.major).$(Libdl.dlext)"])
+            elseif version isa String
+                push!(names, "$(name)$(Sys.WORD_SIZE)_$(version).$(Libdl.dlext)")
+            end
+
+            # some libraries (e.g. CUTENSOR) are shipped without the word size-prefix
+            if version isa VersionNumber
+                append!(names, ["$(name)_$(version.major)$(version.minor).$(Libdl.dlext)",
+                                "$(name)_$(version.major).$(Libdl.dlext)"])
+            elseif version isa String
+                push!(names, "$(name)_$(version).$(Libdl.dlext)")
+            end
+        elseif Sys.isapple()
+            # macOS puts the version number before the dylib extension
+            if version isa VersionNumber
+                append!(names, ["lib$(name).$(version.major).$(version.minor).$(Libdl.dlext)",
+                                "lib$(name).$(version.major).$(Libdl.dlext)"])
+            elseif version isa String
+                push!(names, "lib$(name).$(version).$(Libdl.dlext)")
+            end
+        elseif Sys.isunix()
+            # most UNIX distributions ship versioned libraries (also see JuliaLang/julia#22828)
+            if version isa VersionNumber
+                append!(names, ["lib$(name).$(Libdl.dlext).$(version.major).$(version.minor).$(version.patch)",
+                                "lib$(name).$(Libdl.dlext).$(version.major).$(version.minor)",
+                                "lib$(name).$(Libdl.dlext).$(version.major)"])
+            elseif version isa String
+                push!(names, "lib$(name).$(Libdl.dlext).$(version)")
+            end
+        end
+    end
+
     return names
 end
 
 """
-    find_library(name, version; locations=String[])
+    find_library(name, versions; locations=String[])
 
 Wrapper for Libdl.find_library, performing a more exhaustive search:
 
@@ -75,12 +86,12 @@ Wrapper for Libdl.find_library, performing a more exhaustive search:
 
 Returns the full path to the library.
 """
-function find_library(name::String, version::Union{Nothing,VersionNumber,String}=nothing;
+function find_library(name::String, versions::Vector=[];
                       locations::Vector{String}=String[])
     @debug "Request to look for library $name $version" locations
 
     # figure out names
-    all_names = library_versioned_names(name, version)
+    all_names = library_versioned_names(name, versions)
 
     # figure out locations
     all_locations = String[]
@@ -270,14 +281,14 @@ const cuda_library_versions = Dict(
     ),
 )
 
-function cuda_library_version(library, toolkit_version)
+# return a list of versions that are supported for the given CUDA toolkit.
+# XXX: shouldn't we ignore the toolkit and just look at the driver version?
+function compatible_library_versions(library, toolkit_release)
     if library == "nvtx"
-        v"1"
-    elseif toolkit_version >= v"11"
+        [v"1"]
+    elseif toolkit_release >= v"11"
         # starting with CUDA 11, libraries are versioned independently
-        if !haskey(cuda_library_versions, toolkit_version)
-            error("CUDA.jl does not yet support CUDA $toolkit_version; please file an issue.")
-        end
+
         # HACK: generalize this?
         if library == "cusolverMg"
             library = "cusolver"
@@ -285,9 +296,17 @@ function cuda_library_version(library, toolkit_version)
         if library == "cublasLt"
             library = "cublas"
         end
-        cuda_library_versions[toolkit_version][library]
+
+        library_versions = []
+        for cuda_version in keys(cuda_library_versions)
+            # XXX: semver?
+            (cuda_version.major == toolkit_release.major &&
+             cuda_version.minor == toolkit_release.minor) || continue
+            push!(library_versions, cuda_library_versions[cuda_version][library])
+        end
+        library_versions
     else
-        toolkit_version
+        [toolkit_release]
     end
 end
 
@@ -295,56 +314,11 @@ const cuda_library_names = Dict(
     "nvtx"      => "nvToolsExt"
 )
 
-# only for nvdisasm, to discover the CUDA toolkit version
-const cuda_binary_versions = Dict(
-    v"11.0.1" => Dict(
-        # NOTE: encountered this version in a Docker container; not sure where it came from.
-        "nvdisasm"  => v"11.0.167"
-    ),
-    v"11.0.2" => Dict(
-        "nvdisasm"  => v"11.0.194"
-    ),
-    v"11.0.3" => Dict(
-        "nvdisasm"  => v"11.0.221"
-    ),
-    v"11.1.0" => Dict(
-        "nvdisasm"  => v"11.1.74"
-    ),
-    v"11.1.1" => Dict(
-        "nvdisasm"  => v"11.1.74"   # ambiguous!
-    ),
-    v"11.2.0" => Dict(
-        "nvdisasm"  => v"11.2.67"
-    ),
-    v"11.2.1" => Dict(
-        "nvdisasm"  => v"11.2.135"
-    ),
-    v"11.2.2" => Dict(
-        "nvdisasm"  => v"11.2.152"
-    ),
-    v"11.3.0" => Dict(
-        "nvdisasm"  => v"11.3.58",
-        "ptxas"     => v"11.3.58"
-    ),
-    v"11.3.1" => Dict(
-        "nvdisasm"  => v"11.3.58",  # ambiguous!
-        "ptxas"     => v"11.3.109"
-    ),
-    v"11.4.0" => Dict(
-        "nvdisasm"  => v"11.4.43"
-    ),
-    v"11.4.1" => Dict(
-        "nvdisasm"  => v"11.4.100"
-    ),
-)
-
 # simplified find_library/find_binary entry-points,
 # looking up name aliases and known version numbers
 # and passing the (optional) toolkit dirs as locations.
 function find_cuda_library(library::String, toolkit_dirs::Vector{String},
-                           toolkit_version::VersionNumber)
-    toolkit_release = VersionNumber(toolkit_version.major, toolkit_version.minor)
-
+                           toolkit_release::VersionNumber)
     # figure out the location
     locations = toolkit_dirs
     ## CUPTI is in the "extras" directory of the toolkit
@@ -366,9 +340,9 @@ function find_cuda_library(library::String, toolkit_dirs::Vector{String},
         isdir(dir) && push!(locations, dir)
     end
 
-    version = cuda_library_version(library, toolkit_version)
+    versions = compatible_library_versions(library, toolkit_release)
     name = get(cuda_library_names, library, library)
-    find_library(name, version; locations=locations)
+    find_library(name, versions; locations=locations)
 end
 find_cuda_binary(name::String, toolkit_dirs::Vector{String}=String[]) =
     find_binary(name; locations=toolkit_dirs)
@@ -456,39 +430,19 @@ function find_toolkit()
     return dirs
 end
 
-# figure out the CUDA toolkit version (by looking at the output of a tool like `nvdisasm`)
-function parse_toolkit_version(tool, tool_path::String)
+# figure out the CUDA toolkit release (by looking at the output of a tool like `ptxas`)
+function parse_toolkit_release(tool, tool_path::String)
     # parse the version string
     verstr = withenv("LANG"=>"C") do
         read(`$tool_path --version`, String)
     end
-    m = match(r"\bV(?<major>\d+).(?<minor>\d+).(?<patch>\d+)\b", verstr)
+    m = match(r"release (?<major>\d+).(?<minor>\d+)\b", verstr)
     if m === nothing
         @error "Could not parse CUDA version info (\"$verstr\"); please file an issue."
         return nothing
     end
 
-    version = VersionNumber(parse(Int, m[:major]),
-                            parse(Int, m[:minor]),
-                            parse(Int, m[:patch]))
-
-    if version >= v"11"
-        # starting with CUDA 11, binaries are versioned independently
-        # NOTE: we can't always tell, e.g. nvdisasm is the same in CUDA 11.1.0 and 11.1.1.
-        #       return the lowest version to ensure compatibility.
-        for toolkit_version in sort(collect(keys(cuda_binary_versions)))
-            if haskey(cuda_binary_versions[toolkit_version], tool) &&
-               cuda_binary_versions[toolkit_version][tool] == version
-                @debug "CUDA toolkit identified as $toolkit_version (providing $tool $version)"
-                return toolkit_version
-            end
-        end
-        @error "CUDA.jl does not yet support CUDA with $tool $version; please file an issue."
-        return nothing
-    else
-        @debug "CUDA toolkit identified as $version"
-        return version
-    end
+    VersionNumber(parse(Int, m[:major]), parse(Int, m[:minor]))
 end
 
 """

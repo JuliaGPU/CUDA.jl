@@ -32,8 +32,8 @@ macro sync(ex...)
 end
 
 function versioninfo(io::IO=stdout)
-    println(io, "CUDA toolkit $(toolkit_version()), $(toolkit_origin()) installation")
-    println(io, "CUDA driver $(release())")
+    println(io, "CUDA toolkit $(toolkit_release().major).$(toolkit_release().minor), $(toolkit_origin()) installation")
+    println(io, "CUDA driver $(release().major).$(release().minor)")
     if has_nvml()
         println(io, "NVIDIA driver $(NVML.driver_version())")
     end
