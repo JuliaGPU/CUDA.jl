@@ -79,10 +79,27 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     end
 end
 
-Base.:(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},
-          B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
-Base.:(-)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},
-          B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
+Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
+Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
+
+# Base.:(+)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = geam(one(T), A, one(T), B, 'O')
+# Base.:(-)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = geam(one(T), A, -one(T), B, 'O')
+# Base.:(+)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = geam(one(T), A, one(T), B, 'O')
+# Base.:(-)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = geam(one(T), A, -one(T), B, 'O')
+# Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSC) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
+# Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSC) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
+
+# Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = geam(one(T), A, one(T), B, 'O')
+# Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = geam(one(T), A, -one(T), B, 'O')
+# Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = geam(one(T), A, one(T), B, 'O')
+# Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = geam(one(T), A, -one(T), B, 'O')
+# Base.:(+)(A::CuSparseMatrixCSC, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
+# Base.:(-)(A::CuSparseMatrixCSC, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
+
+Base.:(+)(A::CuSparseMatrix, B::CuMatrix) = CuArray(A) + B
+Base.:(-)(A::CuSparseMatrix, B::CuMatrix) = CuArray(A) - B
+Base.:(+)(A::CuMatrix, B::CuSparseMatrix) = A + CuArray(B)
+Base.:(-)(A::CuMatrix, B::CuSparseMatrix) = A - CuArray(B)
 
 # triangular
 
