@@ -527,7 +527,8 @@ Returns the cached amount of memory (in bytes) being held on by the CUDA allocat
 """
 function cached_memory()
   state = active_state()
-  if stream_ordered(state.device)
+  if version() >= v"11.3" && stream_ordered(state.device)
+    # we can only query the memory pool's reserved memory on CUDA 11.3 and later
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else

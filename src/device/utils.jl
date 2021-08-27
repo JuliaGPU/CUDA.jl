@@ -12,7 +12,7 @@ const overrides = Expr[]
 
 macro device_override(ex)
     code = quote
-        $GPUCompiler.@override($method_table, $ex)
+        $GPUCompiler.@override(CUDA.method_table, $ex)
     end
     if isdefined(Base.Experimental, Symbol("@overlay"))
         return esc(code)
