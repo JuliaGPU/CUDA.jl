@@ -342,10 +342,20 @@ function find_cuda_library(library::String, toolkit_dirs::Vector{String},
 
     versions = compatible_library_versions(library, toolkit_release)
     name = get(cuda_library_names, library, library)
-    find_library(name, versions; locations=locations)
+    find_library(name, versions; locations)
 end
-find_cuda_binary(name::String, toolkit_dirs::Vector{String}=String[]) =
-    find_binary(name; locations=toolkit_dirs)
+function find_cuda_binary(name::String, toolkit_dirs::Vector{String}=String[])
+    # figure out the location
+    locations = toolkit_dirs
+    ## compute-sanitizer is in the "extras" directory of the toolkit
+    if name == "compute-sanitizer"
+        toolkit_extras_dirs = filter(dir->isdir(joinpath(dir, "extras")), toolkit_dirs)
+        sanitizer_dirs = map(dir->joinpath(dir, "extras", "compute-sanitizer"), toolkit_extras_dirs)
+        append!(locations, sanitizer_dirs)
+    end
+
+    find_binary(name; locations)
+end
 
 """
     find_toolkit()::Vector{String}
