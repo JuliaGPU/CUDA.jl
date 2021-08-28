@@ -82,19 +82,74 @@ end
 Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
 Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
 
-# Base.:(+)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = geam(one(T), A, one(T), B, 'O')
-# Base.:(-)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = geam(one(T), A, -one(T), B, 'O')
-# Base.:(+)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = geam(one(T), A, one(T), B, 'O')
-# Base.:(-)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = geam(one(T), A, -one(T), B, 'O')
-# Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSC) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
-# Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSC) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
+Base.:(+)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} =
+    A + Transpose(conj(B.parent))
+Base.:(-)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} =
+    A - Transpose(conj(B.parent))
+Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} =
+    Transpose(conj(A.parent)) + B
+Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} =
+    Transpose(conj(A.parent)) - B
+Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} =
+    Transpose(conj(A.parent)) + B
+Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} =
+    Transpose(conj(A.parent)) - B
 
-# Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = geam(one(T), A, one(T), B, 'O')
-# Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = geam(one(T), A, -one(T), B, 'O')
-# Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = geam(one(T), A, one(T), B, 'O')
-# Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = geam(one(T), A, -one(T), B, 'O')
-# Base.:(+)(A::CuSparseMatrixCSC, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
-# Base.:(-)(A::CuSparseMatrixCSC, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
+function Base.:(+)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
+    cscB = CuSparseMatrixCSC(B.parent)
+    transB = CuSparseMatrixCSR(cscB.colPtr, cscB.rowVal, cscB.nzVal, size(cscB))
+    return geam(one(T), A, one(T), transB, 'O')
+end
+
+function Base.:(-)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
+    cscB = CuSparseMatrixCSC(B.parent)
+    transB = CuSparseMatrixCSR(cscB.colPtr, cscB.rowVal, cscB.nzVal, size(cscB))
+    return geam(one(T), A, -one(T), transB, 'O')
+end
+
+function Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T}
+    cscA = CuSparseMatrixCSC(A.parent)
+    transA = CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, size(cscA))
+    geam(one(T), transA, one(T), B, 'O')
+end
+
+function Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T}
+    cscA = CuSparseMatrixCSC(A.parent)
+    transA = CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, size(cscA))
+    geam(one(T), transA, -one(T), B, 'O')
+end
+
+function Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
+    C = geam(one(T), A.parent, one(T), B.parent, 'O')
+    cscC = CuSparseMatrixCSC(C)
+    return CuSparseMatrixCSR(cscC.colPtr, cscC.rowVal, cscC.nzVal, size(cscC))
+end
+
+function Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
+    C = geam(one(T), A.parent, -one(T), B.parent, 'O')
+    cscC = CuSparseMatrixCSC(C)
+    return CuSparseMatrixCSR(cscC.colPtr, cscC.rowVal, cscC.nzVal, size(cscC))
+end
+
+function Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSC)
+    csrB = CuSparseMatrixCSR(B)
+    return geam(one(eltype(A)), A, one(eltype(A)), csrB, 'O')
+end
+
+function Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSC)
+    csrB = CuSparseMatrixCSR(B)
+    return geam(one(eltype(A)), A, -one(eltype(A)), csrB, 'O')
+end
+
+function Base.:(+)(A::CuSparseMatrixCSC, B::CuSparseMatrixCSR)
+    csrA = CuSparseMatrixCSR(A)
+    return geam(one(eltype(A)), csrA, one(eltype(A)), B, 'O')
+end
+
+function Base.:(-)(A::CuSparseMatrixCSC, B::CuSparseMatrixCSR)
+    csrA = CuSparseMatrixCSR(A)
+    return geam(one(eltype(A)), csrA, -one(eltype(A)), B, 'O')
+end
 
 Base.:(+)(A::CuSparseMatrix, B::CuMatrix) = CuArray(A) + B
 Base.:(-)(A::CuSparseMatrix, B::CuMatrix) = CuArray(A) - B
