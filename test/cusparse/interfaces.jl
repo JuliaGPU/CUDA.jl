@@ -12,8 +12,8 @@ using LinearAlgebra, SparseArrays
         A = sprand(elty, n, n, rand())
         B = sprand(elty, n, n, rand())
 
-        dA = CUSPARSE.CuSparseMatrixCSR(A)
-        dB = CUSPARSE.CuSparseMatrixCSR(B)
+        dA = CuSparseMatrixCSR(A)
+        dB = CuSparseMatrixCSR(B)
 
         C = f(A) + h(B)
         dC = f(dA) + h(dB)
@@ -24,21 +24,22 @@ using LinearAlgebra, SparseArrays
         @test C ≈ collect(dC)
     end
 
-    @testset "dense(A)+sparse(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "dense(A)$(op)sparse(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
+                                                op in [+, -]
         n = 10
         A = rand(elty, n, n)
         B = sprand(elty, n, n, rand())
 
         dA = CuArray(A)
-        dB = CUSPARSE.CuSparseMatrixCSR(B)
+        dB = CuSparseMatrixCSR(B)
 
-        C = A + B
-
-        dC = dA + dB
+        C = op(A, B)
+        dC = op(dA, dB)
         @test C ≈ collect(dC)
         @test dC isa CuMatrix{elty}
         
-        dC = dB + dA
+        C = op(B, A)
+        dC = op(dB, dA)
         @test C ≈ collect(dC)
         @test dC isa CuMatrix{elty}
     end
