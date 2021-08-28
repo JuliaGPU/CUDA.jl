@@ -2,9 +2,10 @@ using CUDA.CUSPARSE
 using LinearAlgebra, SparseArrays
 
 @testset "LinearAlgebra" begin
-    @testset "$f(A)+$h(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
-                                     f in (identity, ),#transpose, adjoint),
-                                     h in (identity, )#transpose, adjoint)
+    @testset "$f(A)±$h(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
+                                     f in (identity, transpose), #adjoint),
+                                     h in (identity, transpose)#, adjoint)
+        # adjoint need the support of broadcast for `conj()` to work with `CuSparseMatrix`.
         n = 10
         alpha = rand()
         beta = rand()
@@ -16,6 +17,10 @@ using LinearAlgebra, SparseArrays
 
         C = f(A) + h(B)
         dC = f(dA) + h(dB)
+        @test C ≈ collect(dC)
+
+        C = f(A) - h(B)
+        dC = f(dA) - h(dB)
         @test C ≈ collect(dC)
     end
 
