@@ -24,6 +24,34 @@ using LinearAlgebra, SparseArrays
         @test C ≈ collect(dC)
     end
 
+    @testset "A±$f(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
+                                 f in (CuSparseMatrixCSR, CuSparseMatrixCSC, CuSparseMatrixCOO, x->CuSparseMatrixBSR(x,1))
+        n = 10
+        alpha = rand()
+        beta = rand()
+        A = sprand(elty, n, n, rand())
+        B = sprand(elty, n, n, rand())
+
+        dA = CuSparseMatrixCSR(A)
+        dB = CuSparseMatrixCSR(B)
+
+        C = A + B
+        dC = dA + f(dB)
+        @test C ≈ collect(dC)
+
+        C = B + A
+        dC = f(dB) + dA
+        @test C ≈ collect(dC)
+
+        C = A - B
+        dC = dA - f(dB)
+        @test C ≈ collect(dC)
+
+        C = B - A
+        dC = f(dB) - dA
+        @test C ≈ collect(dC)
+    end
+
     @testset "dense(A)$(op)sparse(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
                                                 op in [+, -]
         n = 10

@@ -131,22 +131,22 @@ function Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSpars
     return CuSparseMatrixCSR(cscC.colPtr, cscC.rowVal, cscC.nzVal, size(cscC))
 end
 
-function Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSC)
+function Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrix)
     csrB = CuSparseMatrixCSR(B)
     return geam(one(eltype(A)), A, one(eltype(A)), csrB, 'O')
 end
 
-function Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSC)
+function Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrix)
     csrB = CuSparseMatrixCSR(B)
     return geam(one(eltype(A)), A, -one(eltype(A)), csrB, 'O')
 end
 
-function Base.:(+)(A::CuSparseMatrixCSC, B::CuSparseMatrixCSR)
+function Base.:(+)(A::CuSparseMatrix, B::CuSparseMatrixCSR)
     csrA = CuSparseMatrixCSR(A)
     return geam(one(eltype(A)), csrA, one(eltype(A)), B, 'O')
 end
 
-function Base.:(-)(A::CuSparseMatrixCSC, B::CuSparseMatrixCSR)
+function Base.:(-)(A::CuSparseMatrix, B::CuSparseMatrixCSR)
     csrA = CuSparseMatrixCSR(A)
     return geam(one(eltype(A)), csrA, -one(eltype(A)), B, 'O')
 end

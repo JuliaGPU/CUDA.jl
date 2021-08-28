@@ -45,6 +45,8 @@ mutable struct CuSparseMatrixCSC{Tv} <: AbstractCuSparseMatrix{Tv}
     end
 end
 
+CuSparseMatrixCSC(A::CuSparseMatrixCSC) = A
+
 function CUDA.unsafe_free!(xs::CuSparseMatrixCSC)
     unsafe_free!(xs.colPtr)
     unsafe_free!(rowvals(xs))
@@ -71,6 +73,8 @@ mutable struct CuSparseMatrixCSR{Tv} <: AbstractCuSparseMatrix{Tv}
         new(rowPtr, colVal, nzVal, dims, length(nzVal))
     end
 end
+
+CuSparseMatrixCSR(A::CuSparseMatrixCSR) = A
 
 function CUDA.unsafe_free!(xs::CuSparseMatrixCSR)
     unsafe_free!(xs.rowPtr)
@@ -100,6 +104,8 @@ mutable struct CuSparseMatrixBSR{Tv} <: AbstractCuSparseMatrix{Tv}
     end
 end
 
+CuSparseMatrixBSR(A::CuSparseMatrixBSR) = A
+
 function CUDA.unsafe_free!(xs::CuSparseMatrixBSR)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
@@ -125,6 +131,8 @@ mutable struct CuSparseMatrixCOO{Tv} <: AbstractCuSparseMatrix{Tv}
         new(rowInd,colInd,nzVal,dims,nnz)
     end
 end
+
+CuSparseMatrixCOO(A::CuSparseMatrixCOO) = A
 
 """
 Utility union type of [`CuSparseMatrixCSC`](@ref), [`CuSparseMatrixCSR`](@ref),
