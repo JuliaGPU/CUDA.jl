@@ -137,6 +137,30 @@ using LinearAlgebra, SparseArrays
         @test C ≈ collect(dC)
     end
 
+    @testset "dense(A)*sparse(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        n = 10
+        A = rand(elty, n, n)
+        B = sprand(elty, n, n, rand())
+    
+        dA = CuArray(A)
+        dB = CUSPARSE.CuSparseMatrixCSR(B)
+    
+        C = A * B
+        dC = dA * dB
+        @test C ≈ collect(dC)
+        @test dC isa CuMatrix{elty}
+        
+        C = B * A
+        dC = dB * dA
+        @test C ≈ collect(dC)
+        @test dC isa CuMatrix{elty}
+    
+        C = B * B
+        dC = dB * dB
+        @test C ≈ collect(dC)
+        @test dC isa CuMatrix{elty}
+    end
+
     @testset "issue #1095 ($elty)" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # Test non-square matrices
         n, m, p = 10, 20, 4
