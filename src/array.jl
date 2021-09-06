@@ -196,7 +196,7 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
       # TODO: can we identify whether this pointer was allocated asynchronously?
       Mem.DeviceBuffer(ptr, sz, false)
     elseif typ == CU_MEMORYTYPE_HOST
-      error("Cannot unsafe_wrap a host pointer with a CuArray")
+      Mem.HostBuffer(reinterpret(Ptr{T}, ptr), sz)
     else
       error("Unknown memory type; please file an issue.")
     end

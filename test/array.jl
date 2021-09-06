@@ -47,6 +47,15 @@ import Adapt
     test_eq(Base.unsafe_wrap(CuArray{Int}, ptr, (1,2)),     CuArray{Int,2}(data.storage, (1,2)))
     test_eq(Base.unsafe_wrap(CuArray{Int,2}, ptr, (1,2)),   CuArray{Int,2}(data.storage, (1,2)))
   end
+  let buf = Mem.alloc(Mem.Host, sizeof(Int), Mem.HOSTALLOC_DEVICEMAP)
+    gpu_ptr = convert(CuPtr{Int}, buf)
+    gpu_arr = Base.unsafe_wrap(CuArray, gpu_ptr, 1)
+    gpu_arr .= 42
+
+    cpu_ptr = convert(Ptr{Int}, buf)
+    cpu_arr = Base.unsafe_wrap(Array, cpu_ptr, 1)
+    @test cpu_arr == [42]
+  end
 
   @test collect(CUDA.zeros(2, 2)) == zeros(Float32, 2, 2)
   @test collect(CUDA.ones(2, 2)) == ones(Float32, 2, 2)
