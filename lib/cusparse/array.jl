@@ -390,30 +390,29 @@ Base.copy(Mat::CuSparseMatrixCOO) = copyto!(similar(Mat), Mat)
 
 # input/output
 
-Base.show(io::IOContext, x::CuSparseVector) =
-    show(io, SparseVector(x))
+for (gpu, cpu) in [CuSparseVector => SparseVector,
+                   CuSparseMatrixCSC => SparseMatrixCSC,
+                   CuSparseMatrixCSR => SparseMatrixCSC,
+                   CuSparseMatrixBSR => SparseMatrixCSC,
+                   CuSparseMatrixCOO => SparseMatrixCSC]
+    @eval Base.show(io::IOContext, x::$gpu) =
+        show(io, $cpu(x))
 
-Base.show(io::IOContext, x::CuSparseMatrixCSC) =
-    show(io, SparseMatrixCSC(x))
-
-Base.show(io::IOContext, x::CuSparseMatrixCSR) =
-    show(io, SparseMatrixCSC(x))
-
-Base.show(io::IOContext, x::CuSparseMatrixBSR) =
-    show(io, CuSparseMatrixCSR(x))
-
-Base.show(io::IOContext, x::CuSparseMatrixCOO) =
-    show(io, CuSparseMatrixCSR(x))
-
-Base.show(io::IO, S::AbstractCuSparseMatrix) = Base.show(convert(IOContext, io), S)
-function Base.show(io::IO, ::MIME"text/plain", S::AbstractCuSparseMatrix)
-    xnnz = nnz(S)
-    m, n = size(S)
-    print(io, m, "×", n, " ", typeof(S), " with ", xnnz, " stored ",
-              xnnz == 1 ? "entry" : "entries")
-    if !(m == 0 || n == 0)
-        print(io, ":")
-        show(IOContext(io, :typeinfo => eltype(S)), S)
+    @eval function Base.show(io::IO, mime::MIME"text/plain", S::$gpu)
+        xnnz = nnz(S)
+        m, n = size(S)
+        print(io, m, "×", n, " ", typeof(S), " with ", xnnz, " stored ",
+                  xnnz == 1 ? "entry" : "entries")
+        if !(m == 0 || n == 0)
+            println(io, ":")
+            io = IOContext(io, :typeinfo => eltype(S))
+            if ndims(S) == 1
+                show(io, $cpu(S))
+            else
+                # so that we get the nice Braille pattern
+                Base.print_array(io, $cpu(S))
+            end
+        end
     end
 end
 
