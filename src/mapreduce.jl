@@ -169,7 +169,11 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     length(A) == 0 && return R # isempty(::Broadcasted) iterates
 
     # be conservative about using shuffle instructions
-    shuffle = T <: Union{Bool, Int32, Int64, Float32, Float64, ComplexF32, ComplexF64}
+    shuffle = T <: Union{Bool,
+                         UInt8, UInt16, UInt32, UInt64, UInt128,
+                         Int8, Int16, Int32, Int64, Int128,
+                         Float16, Float32, Float64,
+                         ComplexF16, ComplexF32, ComplexF64}
 
     # add singleton dimensions to the output container, if needed
     if ndims(R) < ndims(A)
