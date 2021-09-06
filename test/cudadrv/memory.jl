@@ -98,11 +98,6 @@ end
 
 # pinned memory
 let
-    # can only get GPU pointer if the pinned buffer is mapped
-    src = Mem.alloc(Mem.Host, nb)
-    @test_throws ArgumentError convert(CuPtr{T}, src)
-    Mem.free(src)
-
     # create a pinned and mapped buffer
     src = Mem.alloc(Mem.Host, nb, Mem.HOSTALLOC_DEVICEMAP)
 
@@ -123,12 +118,6 @@ end
 
 # pinned memory with existing memory
 if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
-    # can only get GPU pointer if the pinned buffer is mapped
-    @test_throws ArgumentError Mem.register(Mem.Host, pointer(data), 0)
-    src = Mem.register(Mem.Host, pointer(data), nb)
-    @test_throws ArgumentError convert(CuPtr{T}, src)
-    Mem.unregister(src)
-
     # register a pinned and mapped buffer
     src = Mem.register(Mem.Host, pointer(data), nb, Mem.HOSTREGISTER_DEVICEMAP)
 
