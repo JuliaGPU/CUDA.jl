@@ -104,7 +104,7 @@ end
 
 ## alias detection
 
-Base.dataids(A::CuArray) = (UInt(pointer(A.storage.buffer)),)
+Base.dataids(A::CuArray) = (UInt(pointer(A)),)
 
 Base.unaliascopy(A::CuArray) = copy(A)
 
@@ -298,7 +298,7 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T} =
   throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
 Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
-  convert(CuPtr{T}, pointer(x.storage.buffer)) + x.offset
+  convert(CuPtr{T}, x.storage.buffer) + x.offset
 
 
 ## interop with device arrays
@@ -313,7 +313,7 @@ end
 
 typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
 typetagdata(a::CuArray, i=1) =
-  convert(CuPtr{UInt8}, pointer(a.storage.buffer) + a.maxsize) + a.offset÷Base.elsize(a) + i - 1
+  convert(CuPtr{UInt8}, a.storage.buffer) + a.maxsize + a.offset÷Base.elsize(a) + i - 1
 
 # We don't convert isbits types in `adapt`, since they are already
 # considered GPU-compatible.
