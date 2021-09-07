@@ -1,18 +1,17 @@
 # Troubleshooting
 
 
-## CUDA toolkit does not contain `XXX`
+## Could not find a suitable CUDA installation
 
-This means that you have an incomplete or missing CUDA toolkit, or that not all required
-parts of the toolkit are discovered. Make sure the missing binary is present on your system,
-and fix your CUDA toolkit installation if it isn't. Else, if you installed CUDA at a
-nonstandard location, use the `CUDA_HOME` environment variable to direct Julia to that
-location.
+This means that CUDA.jl could not find or provide a CUDA toolkit. For more information,
+re-run with the `JULIA_DEBUG` environment variable set to `CUDA`.
 
-Note that this error only occurs when you're not using the automatic, artifact-based
-installation (e.g., because you set `JULIA_CUDA_USE_BINARYBUILDER=false`). This is not a
-recommended set-up, and it is possible that local CUDA discovery will be removed at some
-point in the future.
+If you're encountering this error when disabling artifacts through by setting
+`JULIA_CUDA_USE_BINARYBUILDER=false`, it is your own responsibility to make sure CUDA.jl
+can detect the necessary pieces, e.g., by putting CUDA's binaries and libraries in
+discoverable locations (i.e. on PATH, and on the library search path). Additionally, the
+`CUDA_HOME` environment can be used to point CUDA.jl to where the CUDA toolkit is installed,
+but that will only help if the contents of that directory have not been reorganized.
 
 
 ## UNKNOWN_ERROR(999)
