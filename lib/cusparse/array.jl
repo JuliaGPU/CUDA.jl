@@ -286,8 +286,8 @@ CuSparseMatrixCSC{T}(Mat::SparseMatrixCSC) where {T} =
     CuSparseMatrixCSC{T}(CuVector{Cint}(Mat.colptr), CuVector{Cint}(Mat.rowval),
                          CuVector{T}(Mat.nzval), size(Mat))
 CuSparseMatrixCSR{T}(Mat::Transpose{Tv, <:SparseMatrixCSC}) where {T, Tv} =
-    CuSparseMatrixCSR{T}(CuVector{Cint}(Mat.colptr), CuVector{Cint}(Mat.rowval),
-                         CuVector{T}(Mat.nzval), size(Mat))
+    CuSparseMatrixCSR{T}(CuVector{Cint}(parent(Mat).colptr), CuVector{Cint}(parent(Mat).rowval),
+                         CuVector{T}(parent(Mat).nzval), size(Mat))
 CuSparseMatrixCSR{T}(Mat::SparseMatrixCSC) where {T} = CuSparseMatrixCSR(CuSparseMatrixCSC{T}(Mat))
 CuSparseMatrixBSR{T}(Mat::SparseMatrixCSC, blockdim) where {T} = CuSparseMatrixBSR(CuSparseMatrixCSR{T}(Mat), blockdim)
 CuSparseMatrixCOO{T}(Mat::SparseMatrixCSC) where {T} = CuSparseMatrixCOO(CuSparseMatrixCSR{T}(Mat))
