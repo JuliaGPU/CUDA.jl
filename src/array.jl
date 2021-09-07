@@ -115,6 +115,11 @@ function Base.mightalias(A::CuArray, B::CuArray)
 end
 
 
+function CuDevice(A::CuArray)
+  A.storage === nothing && error("array does not have valid device storage")
+  return CuDevice(A.storage.ctx)
+end
+
 ## convenience constructors
 
 CuVector{T} = CuArray{T,1}
