@@ -51,6 +51,8 @@ import Adapt
     gpu_ptr = convert(CuPtr{Int}, buf)
     gpu_arr = Base.unsafe_wrap(CuArray, gpu_ptr, 1)
     gpu_arr .= 42
+    
+    synchronize()
 
     cpu_ptr = convert(Ptr{Int}, buf)
     cpu_arr = Base.unsafe_wrap(Array, cpu_ptr, 1)
