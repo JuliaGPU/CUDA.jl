@@ -13,13 +13,23 @@ function valid_dirs(dirs)
     filter(isdir, unique(dirs))
 end
 
+function join_versions(versions)
+    isempty(versions) && return "no specific version"
+    "version " * join(versions, " or ")
+end
+
+function join_locations(locations)
+    isempty(locations) && return "in no specific location"
+    "in " * join(locations, " or ")
+end
+
 
 ## generic discovery routines
 
 function library_versioned_names(name::String, versions::Vector=[])
     names = String[]
 
-    # always look for an unversion library first
+    # always look for an unversioned library first
     if Sys.iswindows()
         push!(names, "$(name)$(Sys.WORD_SIZE).$(Libdl.dlext)")
 
@@ -88,8 +98,6 @@ Returns the full path to the library.
 """
 function find_library(name::String, versions::Vector=[];
                       locations::Vector{String}=String[])
-    @debug "Request to look for library $name $version" locations
-
     # figure out names
     all_names = library_versioned_names(name, versions)
 
@@ -108,15 +116,16 @@ function find_library(name::String, versions::Vector=[];
         end
     end
 
-    @debug "Looking for library $(join(all_names, ", "))" locations=all_locations
+    @debug "Looking for library $name, $(join_versions(versions)), $(join_locations(locations))" all_names all_locations
     name_found = Libdl.find_library(all_names, all_locations)
     if isempty(name_found)
+        @debug "Did not find $name"
         return nothing
     end
 
     # find the full path of the library (which Libdl.find_library doesn't guarantee to return)
     path = Libdl.dlpath(name_found)
-    @debug "Found library $(basename(path)) at $(dirname(path))"
+    @debug "Found $(basename(path)) at $(dirname(path))"
     return path
 end
 
@@ -127,8 +136,6 @@ Similar to `find_library`, performs an exhaustive search for a binary in various
 subdirectories of `locations`, and finally PATH by using `Sys.which`.
 """
 function find_binary(name::String; locations::Vector{String}=String[])
-    @debug "Request to look for binary $name" locations
-
     # figure out locations
     all_locations = String[]
     for location in locations
@@ -137,13 +144,13 @@ function find_binary(name::String; locations::Vector{String}=String[])
     end
     # we look in PATH too by using `Sys.which` with unadorned names
 
-    @debug "Looking for binary $name" locations=all_locations
+    @debug "Looking for binary $name $(join_locations(locations))" all_locations
     all_paths = [name; [joinpath(location, name) for location in all_locations]]
     for path in all_paths
         try
             program_path = Sys.which(path)
             if program_path !== nothing
-                @debug "Found binary $path at $program_path"
+                @debug "Found $path at $program_path"
                 return program_path
             end
         catch
@@ -151,6 +158,7 @@ function find_binary(name::String; locations::Vector{String}=String[])
         end
     end
 
+    @debug "Did not find $path"
     return nothing
 end
 

@@ -3,7 +3,7 @@
 const lowest = v"0"
 const highest = v"999"
 
-verlist(vers) = join(map(ver->"$(ver.major).$(ver.minor)", sort(collect(vers))), ", ", " and ")
+join_capabilities(vers) = join(map(ver->"$(ver.major).$(ver.minor)", sort(collect(vers))), ", ", " and ")
 
 
 ## version range
@@ -174,7 +174,7 @@ end
 
 ## high-level functions that return target and isa support
 
-export llvm_compat, cuda_compat, supported_toolchain, supported_capability
+export llvm_compat, cuda_compat, supported_toolchain
 
 function llvm_compat(version=LLVM.version())
     LLVM.InitializeNVPTXTarget()
@@ -207,16 +207,7 @@ function supported_toolchain()
     ptx_support = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
     isempty(ptx_support) && error("Your toolchain does not support any PTX ISA")
 
-    @debug("Toolchain with LLVM $(LLVM.version()), CUDA driver $(CUDA.release().major).$(CUDA.release().minor) and toolkit $(toolkit_release().major).$(toolkit_release().minor) supports devices $(verlist(target_support)); PTX $(verlist(ptx_support))")
+    @debug("Toolchain with LLVM $(LLVM.version()), CUDA driver $(CUDA.release().major).$(CUDA.release().minor) and toolkit $(toolkit_release().major).$(toolkit_release().minor) supports devices $(join_capabilities(target_support)); PTX $(join_capabilities(ptx_support))")
 
     return (cap=target_support, ptx=ptx_support)
-end
-
-# select the highest capability that is supported by both the toolchain and device
-function supported_capability(dev_cap::VersionNumber)
-    compat_caps = filter(cap -> cap <= dev_cap, supported_toolchain().cap)
-    isempty(compat_caps) &&
-        error("Device capability v$dev_cap not supported by available toolchain")
-
-    return maximum(compat_caps)
 end
