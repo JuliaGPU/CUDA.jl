@@ -22,7 +22,7 @@ macro initialize_ref(ref, ex, hook=:())
                     if val === nothing && !(eltype($ref) <: Union{Nothing,<:Any})
                         error($"Could not find a required library")
                     end
-                    $ref[] = $ex
+                    $ref[] = val
                     if val !== nothing
                         $hook
                     end
