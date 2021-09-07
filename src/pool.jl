@@ -301,6 +301,7 @@ end
     end
 end
 @inline _free(buf::Mem.UnifiedBuffer; stream::Union{Nothing,CuStream}) = Mem.free(buf)
+@inline _free(buf::Mem.HostBuffer; stream::Union{Nothing,CuStream}) = nothing
 
 """
     reclaim([sz=typemax(Int)])
