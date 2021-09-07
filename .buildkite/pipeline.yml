@@ -37,10 +37,10 @@ steps:
             - examples
     agents:
       queue: "juliagpu"
-      cuda: "11.3"                    # compute-sanitizer uses a lot of memory, so we need device_reset!
+      cuda: "11.0"
       cap: "recent"                   # test as much as possible
     env:
-      JULIA_CUDA_VERSION: '11.2'      # older versions of CUDA have issues
+      JULIA_CUDA_VERSION: '11.4'
       JULIA_CUDA_DEBUG_INFO: 'false'  # NVIDIA bug #3305774: ptxas segfaults with out debug info
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
