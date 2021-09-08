@@ -43,7 +43,7 @@ mutable struct CuMemoryPool
         handle_ref = Ref{CUmemoryPool}()
         cuDeviceGetMemPool(handle_ref, dev)
 
-        ctx = current_context()::CuContext
+        ctx = current_context()
         new(handle_ref[], ctx)
     end
 end

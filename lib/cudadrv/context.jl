@@ -1,7 +1,7 @@
 # Context management
 
 export
-    CuPrimaryContext, CuContext, current_context, activate,
+    CuPrimaryContext, CuContext, current_context, has_context, activate,
     unsafe_reset!, isactive, flags, setflags!,
     device, device_synchronize
 
@@ -69,20 +69,33 @@ mutable struct CuContext
     """
         current_context()
 
-    Return the current context, or `nothing` if there is no active context.
+    Returns the current context.
+
+    !!! warning
+
+        This is a low-level API, returning the current context as known to the CUDA driver.
+        For most users, it is recommended to use the [`context`](@ref) method instead.
     """
     global function current_context()
         handle_ref = Ref{CUcontext}()
         cuCtxGetCurrent(handle_ref)
-        if handle_ref[] == C_NULL
-            return nothing
-        else
-            new_unique(handle_ref[])
-        end
+        handle_ref[] == C_NULL && throw(UndefRefError())
+        new_unique(handle_ref[])
     end
 
     # for outer constructors
     global _CuContext(handle::CUcontext) = new_unique(handle)
+end
+
+"""
+    has_context()
+
+Returns whether there is an active context.
+"""
+function has_context()
+    handle_ref = Ref{CUcontext}()
+    cuCtxGetCurrent(handle_ref)
+    handle_ref[] != C_NULL
 end
 
 # the `valid` bit serves two purposes: make sure we don't double-free a context (in case we

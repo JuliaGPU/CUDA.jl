@@ -1,7 +1,7 @@
 # Device type and auxiliary functions
 
 export
-    CuDevice, current_device, name, uuid, totalmem, attribute
+    CuDevice, current_device, has_device, name, uuid, totalmem, attribute
 
 struct CuDevice
     handle::CUdevice
@@ -20,21 +20,40 @@ struct CuDevice
     """
         current_device()
 
-    Returns the current device, or `nothing` if there is no active device.
+    Returns the current device.
+
+    !!! warning
+
+        This is a low-level API, returning the current device as known to the CUDA driver.
+        For most users, it is recommended to use the [`device`](@ref) method instead.
     """
     global function current_device()
         device_ref = Ref{CUdevice}()
         res = unsafe_cuCtxGetDevice(device_ref)
-        if res == ERROR_INVALID_CONTEXT
-            return nothing
-        elseif res != SUCCESS
-            throw_api_error(res)
-        end
+        res == ERROR_INVALID_CONTEXT && throw(UndefRefError())
+        res != SUCCESS && throw_api_error(res)
         return _CuDevice(device_ref[])
     end
 
     # for outer constructors
     global _CuDevice(handle::CUdevice) = new(handle)
+end
+
+"""
+    has_device()
+
+Returns whether there is an active device.
+"""
+function has_device()
+    device_ref = Ref{CUdevice}()
+    res = unsafe_cuCtxGetDevice(device_ref)
+    if res == SUCCESS
+        return true
+    elseif res == ERROR_INVALID_CONTEXT
+        return false
+    else
+        throw_api_error(res)
+    end
 end
 
 const DEVICE_CPU = _CuDevice(CUdevice(-1))
