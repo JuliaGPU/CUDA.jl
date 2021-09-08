@@ -183,16 +183,27 @@ macro captured(ex)
         executed = false
 
         # capture
-        graph = capture(throw_error=false) do
-            $(esc(ex))
+        GC.enable(false)    # avoid memory operations during capture
+        graph = try
+            capture(throw_error=false) do
+                $(esc(ex))
+            end
+        finally
+            GC.enable(true)
         end
         if graph === nothing
             # if the capture failed, this may have been due to JIT compilation.
             # execute the body out of capture, and try capturing again.
             $(esc(ex))
-            graph = capture(throw_error=true) do
+
+            GC.enable(false)
+            graph = try
                 # don't tolerate capture failures now so that the user will be informed
-                $(esc(ex))
+                capture(throw_error=true) do
+                    $(esc(ex))
+                end
+            finally
+                GC.enable(true)
             end
             executed = true
         end
