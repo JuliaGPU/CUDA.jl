@@ -1,31 +1,31 @@
 @testset "context" begin
 
-ctx = CuCurrentContext()
-dev = CuCurrentDevice()
+ctx = current_context()
+dev = current_device()
 
 synchronize(ctx)
 
 let ctx2 = CuContext(dev)
-    @test ctx2 == CuCurrentContext()    # ctor implicitly pushes
+    @test ctx2 == current_context()    # ctor implicitly pushes
     activate(ctx)
-    @test ctx == CuCurrentContext()
+    @test ctx == current_context()
 
-    @test CuDevice(ctx2) == dev
+    @test device(ctx2) == dev
 
     CUDA.unsafe_destroy!(ctx2)
 end
 
 let global_ctx2 = nothing
     CuContext(dev) do ctx2
-        @test ctx2 == CuCurrentContext()
+        @test ctx2 == current_context()
         @test ctx != ctx2
         global_ctx2 = ctx2
     end
     @test !CUDA.isvalid(global_ctx2)
-    @test ctx == CuCurrentContext()
+    @test ctx == current_context()
 
-    @test CuDevice(ctx) == dev
-    @test CuCurrentDevice() == dev
+    @test device(ctx) == dev
+    @test current_device() == dev
     device_synchronize()
 end
 
@@ -453,7 +453,7 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     end
 
     # test device with context in which pointer was allocated.
-    @test CuDevice(typed_pointer(src, T)) == device()
+    @test device(typed_pointer(src, T)) == device()
     if !CUDA.has_stream_ordered(device())
         # NVIDIA bug #3319609
         @test CuContext(typed_pointer(src, T)) == context()

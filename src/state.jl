@@ -87,9 +87,9 @@ end
 @inline function prepare_cuda_state()
     state = task_local_state!()
 
-    # NOTE: CuCurrentContext() is too slow to use here (taking a lock, accessing a dict)
+    # NOTE: current_context() is too slow to use here (taking a lock, accessing a dict)
     #       so we use the raw handle. is that safe though, when we reset the device?
-    #ctx = CuCurrentContext()
+    #ctx = current_context()
     ctx = Ref{CUcontext}()
     cuCtxGetCurrent(ctx)
     if ctx[] != state.context.handle
@@ -115,7 +115,7 @@ end
     context()::CuContext
 
 Get or create a CUDA context for the current thread (as opposed to
-`CuCurrentContext` which may return `nothing` if there is no context bound to the
+`current_context` which may return `nothing` if there is no context bound to the
 current thread).
 """
 function context()
@@ -133,7 +133,7 @@ Note that the contexts used with this call should be previously acquired by call
 function context!(ctx::CuContext)
     activate(ctx) # we generally only apply CUDA state lazily, i.e. in `prepare_cuda_state`,
                     # but we need to do so early here to be able to get the context's device.
-    dev = CuCurrentDevice()::CuDevice
+    dev = current_device()::CuDevice
 
     # switch contexts
     state = task_local_state()
@@ -201,7 +201,7 @@ end
     device()::CuDevice
 
 Get the CUDA device for the current thread, similar to how [`context()`](@ref) works
-compared to [`CuCurrentContext()`](@ref).
+compared to [`current_context()`](@ref).
 """
 function device()
     task_local_state!().device

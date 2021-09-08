@@ -3,6 +3,7 @@ import Adapt
 
 @testset "constructors" begin
   xs = CuArray{Int}(undef, 2, 3)
+  @test device(xs) == device()
   @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
   @test collect(cu[1, 2, 3]) == [1, 2, 3]
   @test collect(cu([1, 2, 3])) == [1, 2, 3]
@@ -51,7 +52,7 @@ import Adapt
     gpu_ptr = convert(CuPtr{Int}, buf)
     gpu_arr = Base.unsafe_wrap(CuArray, gpu_ptr, 1)
     gpu_arr .= 42
-    
+
     synchronize()
 
     cpu_ptr = convert(Ptr{Int}, buf)
