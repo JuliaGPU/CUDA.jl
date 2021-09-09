@@ -25,24 +25,18 @@ function precompile_runtime(caps=CUDA.llvm_compat(LLVM.version()).cap)
 end
 
 struct KernelState
-    exception_flag::Ptr{Cvoid}
+    exception_flag::LLVMPtr{Int8, AS.Global}
 end
 
 kernel_state() = unsafe_load(convert(Ptr{KernelState}, GPUCompiler.kernel_state_pointer()))
 
+# exception handling
+
 exception_flag() = kernel_state().exception_flag
 
 function signal_exception()
-    ptr = exception_flag()
-    if ptr !== C_NULL
-        unsafe_store!(convert(Ptr{Int}, ptr), 1)
-        threadfence_system()
-    else
-        @cuprintf("""
-            WARNING: could not signal exception status to the host, execution will continue.
-                     Please file a bug.
-            """)
-    end
+    unsafe_store!(exception_flag(), 1)
+    threadfence_system()
     return
 end
 
