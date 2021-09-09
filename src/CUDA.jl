@@ -58,6 +58,7 @@ include("device/utils.jl")
 include("device/pointer.jl")
 include("device/array.jl")
 include("device/intrinsics.jl")
+include("device/hostcall.jl")
 include("device/runtime.jl")
 include("device/texture.jl")
 include("device/random.jl")
@@ -75,8 +76,9 @@ export CUPTI, NVTX
 
 # compiler implementation
 include("compiler/gpucompiler.jl")
-include("compiler/execution.jl")
 include("compiler/exceptions.jl")
+include("compiler/hostcall.jl")
+include("compiler/execution.jl")
 include("compiler/reflection.jl")
 
 # array implementation
