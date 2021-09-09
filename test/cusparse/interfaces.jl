@@ -25,10 +25,8 @@ using LinearAlgebra, SparseArrays
     end
 
     @testset "A±$f(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
-                                 f in (CuSparseMatrixCSR, CuSparseMatrixCSC, CuSparseMatrixCOO, x->CuSparseMatrixBSR(x,1))
+                                 f in (CuSparseMatrixCSR, CuSparseMatrixCSC, x->CuSparseMatrixBSR(x,1))
         n = 10
-        alpha = rand()
-        beta = rand()
         A = sprand(elty, n, n, rand())
         B = sprand(elty, n, n, rand())
 

@@ -32,9 +32,8 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
                 return out[]
             end
             
-            local C
-            with_workspace(bufferSize) do buffer
-                function get_nnzC()
+            C = with_workspace(bufferSize) do buffer
+                function get_nnzC(buffer)
                     nnzTotalDevHostPtr = Ref{Cint}(1)
                     cusparseXcsrgeam2Nnz(handle(), m, n,
                         descrA, nnz(A), A.rowPtr, A.colVal,
@@ -44,7 +43,7 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
                     return nnzTotalDevHostPtr[]
                 end
             
-                nnzC = get_nnzC()
+                nnzC = get_nnzC(buffer)
                 colValC = CuArray{Int32,1}(undef, Int(nnzC))
                 nzValC = CuArray{$elty,1}(undef, Int(nnzC))
 
@@ -53,7 +52,7 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
                     beta, descrB, nnz(B), nonzeros(B), B.rowPtr, B.colVal,
                     descrC, nzValC, rowPtrC, colValC,
                     buffer)
-                C = CuSparseMatrixCSR(rowPtrC, colValC, nzValC, (m, n))
+                return CuSparseMatrixCSR(rowPtrC, colValC, nzValC, (m, n))
             end
             C
         end
