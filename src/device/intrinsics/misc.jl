@@ -23,7 +23,7 @@ Puts a thread for a given amount `t`(in nanoseconds).
 !!! note
     Requires CUDA >= 10.0 and sm_6.2
 """
-@inline function nanosleep(t::Unsigned)
+@inline function nanosleep(t::Integer)
     @asmcall("nanosleep.u32 \$0;", "r", true,
              Cvoid, Tuple{UInt32}, convert(UInt32, t))
 end
