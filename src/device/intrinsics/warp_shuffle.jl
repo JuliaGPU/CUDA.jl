@@ -5,7 +5,7 @@
 # TODO: does not work on sub-word (ie. Int16) or non-word divisible sized types
 
 # TODO: these functions should dispatch based on the actual warp size
-const ws = Int32(32)
+const ws = UInt32(32)
 
 
 # core intrinsics
@@ -18,7 +18,7 @@ const ws = Int32(32)
 for (name, mode, mask, offset) in (("_up",   :up,   UInt32(0x00), src->src),
                                    ("_down", :down, UInt32(0x1f), src->src),
                                    ("_xor",  :bfly, UInt32(0x1f), src->src),
-                                   ("",      :idx,  UInt32(0x1f), src->:($src-1)))
+                                   ("",      :idx,  UInt32(0x1f), src->:($src-(1%UInt32))))
     fname = Symbol("shfl$(name)_sync")
     @eval export $fname
 
@@ -28,8 +28,8 @@ for (name, mode, mask, offset) in (("_up",   :up,   UInt32(0x00), src->src),
         @eval begin
             @inline $fname(mask, val::$T, src, width=$ws) =
                 ccall($intrinsic, llvmcall, $T,
-                    (UInt32, $T, UInt32, UInt32),
-                    mask, val, $(offset(:src)), pack(width, $mask))
+                      (UInt32, $T, UInt32, UInt32),
+                      mask, val, $(offset(:src)), pack(width, $mask))
         end
     end
 end

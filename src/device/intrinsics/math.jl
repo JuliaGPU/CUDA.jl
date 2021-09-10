@@ -150,25 +150,25 @@ end
 
 
 @device_function clz(x::Union{Int32, UInt32}) =
-    assume(within(UInt32(0), UInt32(32)),
-           ccall("extern __nv_clz", llvmcall, Int32, (UInt32,), x))
+    assume(within(0%UInt32, 32%UInt32),
+           ccall("extern __nv_clz", llvmcall, UInt32, (UInt32,), x))
 @device_function clz(x::Union{Int64, UInt64}) =
-    assume(within(UInt64(0), UInt64(64)),
-           ccall("extern __nv_clzll", llvmcall, Int32, (UInt64,), x))
+    assume(within(0%UInt32, 64%UInt32),
+           ccall("extern __nv_clzll", llvmcall, UInt32, (UInt64,), x))
 
 @device_function ffs(x::Union{Int32, UInt32}) =
-    assume(within(UInt32(0), UInt32(32)),
-           ccall("extern __nv_ffs", llvmcall, Int32, (UInt32,), x))
+    assume(within(0%UInt32, 32%UInt32),
+           ccall("extern __nv_ffs", llvmcall, UInt32, (UInt32,), x))
 @device_function ffs(x::Union{Int64, UInt64}) =
-    assume(within(UInt64(0), UInt64(64)),
-           ccall("extern __nv_ffsll", llvmcall, Int32, (UInt64,), x))
+    assume(within(0%UInt32, 64%UInt32),
+           ccall("extern __nv_ffsll", llvmcall, UInt32, (UInt64,), x))
 
 @device_function popc(x::Union{Int32, UInt32}) =
-    assume(within(UInt32(0), UInt32(32)),
-           ccall("extern __nv_popc", llvmcall, Int32, (UInt32,), x))
+    assume(within(0%UInt32, 32%UInt32),
+           ccall("extern __nv_popc", llvmcall, UInt32, (UInt32,), x))
 @device_function popc(x::Union{Int64, UInt64}) =
-    assume(within(UInt64(0), UInt64(64)),
-           ccall("extern __nv_popcll", llvmcall, Int32, (UInt64,), x))
+    assume(within(0%UInt32, 64%UInt32),
+           ccall("extern __nv_popcll", llvmcall, UInt32, (UInt64,), x))
 
 @device_function byte_perm(x::Union{Int32, UInt32}, y::Union{Int32, UInt32}, z::Union{Int32, UInt32}) =
     ccall("extern __nv_byte_perm", llvmcall, Int32, (UInt32, UInt32, UInt32), x, y, z)

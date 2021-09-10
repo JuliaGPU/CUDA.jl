@@ -103,7 +103,7 @@ Returns the warp size (in threads).
 
 Returns the thread's lane within the warp.
 """
-@inline laneid() = Int(ccall("llvm.nvvm.read.ptx.sreg.laneid", llvmcall, UInt32, ()))+UInt32(1)
+@inline laneid() = Int(ccall("llvm.nvvm.read.ptx.sreg.laneid", llvmcall, UInt32, ())) + 1
 
 """
     active_mask()
