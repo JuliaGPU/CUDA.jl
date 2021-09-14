@@ -16,7 +16,8 @@ description(err::CuDeviceError) = cudaGetErrorString(err)
 
 @noinline function throw_device_cuerror(err::CuDeviceError)
     # the exception won't be rendered on the host, so print some details here already
-    @cuprintln("ERROR: a CUDA error was thrown during kernel execution: $(description(err)) (code $(Int(err.code)), $(name(err)))")
+    @cuprintf("ERROR: a CUDA error was thrown during kernel execution: %s (code %d), %s)",
+              description(err), Int32(err.code), name(err))
     throw(err)
 end
 

@@ -133,6 +133,10 @@ macro grab_output(ex)
 
                     # NOTE: CUDA requires a 'proper' sync to flush its printf buffer
                     device_synchronize()
+
+                    # we also want to give our hostcall watcher the time to execute
+                    # XXX: ensure the watcher executes to avoid spurious CI failures
+                    sleep(0.1)
                 end
             end
             ret, read(fname, String)
