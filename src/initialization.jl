@@ -65,7 +65,7 @@ end
                 try
                     $(ex)
                 finally
-                    $task_local_state() !== nothing && $synchronize()
+                    $task_local_state() !== nothing && $device_synchronize()
                 end
             end
         )
