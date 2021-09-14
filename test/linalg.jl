@@ -12,3 +12,10 @@ using LinearAlgebra
     @test convert(Array, Q) == Array(convert(CuArray, Q))
     @test convert(Array{Float32}, Q) == Array(convert(CuArray{Float32}, Q))
 end
+
+@testset "normalize!" begin
+    x = rand(ComplexF32, 10)
+    dx = CuVector{ComplexF32}(x)
+    @test isreal(norm(dx, 2))
+    @test norm(normalize!(dx)) ≈ 1
+end
