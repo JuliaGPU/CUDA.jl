@@ -371,6 +371,19 @@ try
         end
     end
     @sync begin
+        function recycle_worker(p)
+            if isdefined(CUDA, :to)
+                to = remotecall_fetch(p) do
+                    CUDA.to
+                end
+                push!(timings, to)
+            end
+
+            rmprocs(p, waitfor=30)
+
+            return nothing
+        end
+
         for p in workers()
             @async begin
                 push!(all_tasks, current_task())
@@ -408,10 +421,18 @@ try
 
                         # the worker encountered some failure, recycle it
                         # so future tests get a fresh environment
-                        rmprocs(wrkr, waitfor=30)
-                        p = nothing
+                        p = recycle_worker(p)
                     else
                         print_testworker_stats(test, wrkr, resp)
+
+                        cpu_rss = resp[9]
+                        if CUDA.getenv("CI", false) && cpu_rss > 4*2^30
+                            # XXX: despite resetting the device and collecting garbage
+                            #      after each test, we are leaking CPU memory somewhere.
+                            #      this is a problem on CI, where2 we don't have much RAM.
+                            #      work around this by periodically recycling the worker.
+                            p = recycle_worker(p)
+                        end
                     end
 
                     # aggregate the snooped compiler invocations
@@ -424,17 +445,8 @@ try
                     end
                 end
 
-                # fetch worker timings
-                if isdefined(CUDA, :to)
-                    to = remotecall_fetch(p) do
-                        CUDA.to
-                    end
-                    push!(timings, to)
-                end
-
-                if p != 1
-                    # Free up memory =)
-                    rmprocs(p, waitfor=30)
+                if p !== nothing
+                    recycle_worker(p)
                 end
             end
         end
