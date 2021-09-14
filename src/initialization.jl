@@ -38,6 +38,22 @@ function __init__()
             empty!(overrides)
         end
     end
+
+    # ensure that operations executed by the REPL back-end finish before returning,
+    # because displaying values happens on a different task (CUDA.jl#831)
+    if isdefined(Base, :active_repl_backend)
+        push!(Base.active_repl_backend.ast_transforms, synchronize_cuda_tasks)
+    end
+end
+
+function synchronize_cuda_tasks(ex)
+    quote
+        try
+            $(ex)
+        finally
+            $task_local_state() !== nothing && $device_synchronize()
+        end
+    end
 end
 
 @noinline function __init_driver__()
@@ -56,20 +72,6 @@ end
     haskey(ENV, "JULIA_CUDA_MEMORY_POOL") &&
     ENV["JULIA_CUDA_MEMORY_POOL"] != "none" && ENV["JULIA_CUDA_MEMORY_POOL"] != "cuda" &&
         @warn "Support for memory pools (JULIA_CUDA_MEMORY_POOL) other than 'cuda' and 'none' has been removed."
-
-    # ensure that operations executed by the REPL back-end finish before returning,
-    # because displaying values happens on a different task (CUDA.jl#831)
-    if isdefined(Base, :active_repl_backend)
-        push!(Base.active_repl_backend.ast_transforms, ex->
-            quote
-                try
-                    $(ex)
-                finally
-                    $task_local_state() !== nothing && $device_synchronize()
-                end
-            end
-        )
-    end
 
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("-nvptx-fma-level=1")
