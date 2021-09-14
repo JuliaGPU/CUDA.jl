@@ -2,7 +2,7 @@
 
 export
     CuStream, CuDefaultStream, CuStreamLegacy, CuStreamPerThread,
-    priority, priority_range, synchronize
+    priority, priority_range, synchronize, device_synchronize
 
 
 mutable struct CuStream
@@ -142,6 +142,15 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=true)
     @label(exit)
     check_exceptions()
 end
+
+"""
+    device_synchronize()
+
+Block for the current device's tasks to complete. This is a heavyweight operation, typically
+you only need to call [`synchronize`](@ref) which only synchronizes the stream associated
+with the current task.
+"""
+device_synchronize() = synchronize(CuStreamLegacy())
 
 """
     priority_range()
