@@ -1,10 +1,6 @@
-macro print_and_throw(msg)
-    full_msg = "ERROR: $(msg)."
+macro print_and_throw(args...)
     quote
-        # XXX: use @cuprintln here for rich reporting. this currently does not work,
-        #      because hostcall uses arrays and conversions that in turn rely on
-        #      throw_boundserror and throw_inexacterror, resulting in inference recursion.
-        @cuprintf $full_msg
+        @cuprintln "ERROR: " $(args...) "."
         throw(nothing)
     end
 end
