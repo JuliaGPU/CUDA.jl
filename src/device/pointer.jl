@@ -33,8 +33,9 @@ for T in LDGTypes
     typ = Symbol(class, width)
 
     intr = "llvm.nvvm.ldg.global.$class.$typ.p1$typ"
-    @eval @inline function pointerref_ldg(base_ptr::LLVMPtr{$T,AS.Global}, i::Int, ::Val{align}) where align
-        offset = i-1 # in elements
+    @eval @inline function pointerref_ldg(base_ptr::LLVMPtr{$T,AS.Global}, i::Integer,
+                                          ::Val{align}) where align
+        offset = i-one(i) # in elements
         ptr = base_ptr + offset*sizeof($T)
         @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,AS.Global}, Int32), ptr, align)
     end
@@ -45,7 +46,7 @@ end
 export unsafe_cached_load
 
 unsafe_cached_load(p::LLVMPtr{<:Union{LDGTypes...},AS.Global}, i::Integer=1, align::Val=Val(1)) =
-    pointerref_ldg(p, Int(i), align)
+    pointerref_ldg(p, i, align)
 # NOTE: fall back to normal unsafe_load for unsupported types. we could be smarter here,
 #       e.g. destruct/load/reconstruct, but that's too complicated for what it's worth.
 unsafe_cached_load(p::LLVMPtr, i::Integer=1, align::Val=Val(1)) =
