@@ -73,10 +73,9 @@ function launch(f::CuDeviceFunction, args::Vararg{Any,N}; blocks::CuDim=1, threa
     return
 end
 
-@generated function parameter_buffer(f::CuDeviceFunction, blocks, threads, shmem, args...)
+@inline @generated function parameter_buffer(f::CuDeviceFunction, blocks, threads, shmem, args...)
     # allocate a buffer
     ex = quote
-        Base.@_inline_meta
         buf = cudaGetParameterBufferV2(f, blocks, threads, shmem)
         ptr = Base.unsafe_convert(Ptr{UInt32}, buf)
     end

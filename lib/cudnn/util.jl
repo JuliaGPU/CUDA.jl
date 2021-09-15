@@ -24,8 +24,7 @@ juliaDataType(a)=(a==CUDNN_DATA_HALF ? Float16 :
 tuple_strides(A::Tuple) = _strides((1,), A)
 _strides(out::Tuple{Int}, A::Tuple{}) = ()
 _strides(out::NTuple{N,Int}, A::NTuple{N}) where {N} = out
-function _strides(out::NTuple{M,Int}, A::Tuple) where M
-    Base.@_inline_meta
+@inline function _strides(out::NTuple{M,Int}, A::Tuple) where M
     _strides((out..., out[M]*A[M]), A)
 end
 
