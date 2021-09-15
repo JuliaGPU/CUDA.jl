@@ -79,6 +79,56 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
 
 ## indexing intrinsics
 
+# preserve the specific integer type when indexing device arrays,
+# to avoid extending 32-bit hardware indices to 64-bit.
+Base.to_index(::CuDeviceArray, i::Integer) = i
+
+if VERSION <= v"1.8-"
+    # NOTE: before JuliaLang/julia#42289, `to_index` was required to return an Int index.
+    #       work around that restriction by adding additional methods for ::Integer.
+    for IT in (Int, Integer)    # also (::Int,::CuDevicArray) methods to avoid ambiguities
+        @eval begin
+            # getindex
+            @inline function Base._getindex(::IndexLinear, A::CuDeviceArray,
+                                            I::Vararg{$IT,M}) where M
+                @boundscheck checkbounds(A, I...)
+                @inbounds r = getindex(A, Base._to_linear_index(A, I...))
+                r
+            end
+            @inline function Base._getindex(::IndexCartesian, A::CuDeviceArray,
+                                            I::Vararg{$IT,M}) where M
+                @boundscheck checkbounds(A, I...)
+                @inbounds r = getindex(A, Base._to_subscript_indices(A, I...)...)
+                r
+            end
+            Base.@propagate_inbounds Base._getindex(::IndexCartesian, A::CuDeviceArray{T,N},
+                                                    I::Vararg{$IT, N}) where {T,N} =
+                getindex(A, I...)
+
+            # setindex
+            @inline function Base._setindex!(::IndexLinear, A::CuDeviceArray, v,
+                                            I::Vararg{$IT,M}) where M
+                @boundscheck checkbounds(A, I...)
+                @inbounds r = setindex!(A, v, Base._to_linear_index(A, I...))
+                r
+            end
+            Base.@propagate_inbounds Base._setindex!(::IndexCartesian, A::CuDeviceArray{T,N},
+                                                     v, I::Vararg{$IT, N}) where {T,N} =
+                setindex!(A, v, I...)
+            @inline function Base._setindex!(::IndexCartesian, A::CuDeviceArray, v,
+                                            I::Vararg{$IT,M}) where M
+                @boundscheck checkbounds(A, I...)
+                @inbounds r = setindex!(A, v, Base._to_subscript_indices(A, I...)...)
+                r
+            end
+
+            # helpers
+            Base._to_subscript_indices(A::CuDeviceArray{T,N},
+                                       I::Vararg{$IT,N}) where {T,N} = I
+        end
+    end
+end
+
 # TODO: arrays as allocated by the CUDA APIs are 256-byte aligned. we should keep track of
 #       this information, because it enables optimizations like Load Store Vectorization
 #       (cfr. shared memory and its wider-than-datatype alignment)
