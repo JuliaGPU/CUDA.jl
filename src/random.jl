@@ -41,8 +41,8 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
 
         # grid-stride loop
         threadId = threadIdx().x
-        window = (blockDim().x - 1) * gridDim().x
-        offset = (blockIdx().x - 1) * blockDim().x
+        window = (blockDim().x - 0x1) * gridDim().x
+        offset = (blockIdx().x - 0x1) * blockDim().x
         while offset < length(A)
             i = threadId + offset
             if i <= length(A)
@@ -78,8 +78,8 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:T}) where {T<:Union{AbstractFlo
 
         # grid-stride loop
         threadId = threadIdx().x
-        window = (blockDim().x - 1) * gridDim().x
-        offset = (blockIdx().x - 1) * blockDim().x
+        window = (blockDim().x - 0x1) * gridDim().x
+        offset = (blockIdx().x - 0x1) * blockDim().x
         while offset < length(A)
             i = threadId + offset
             j = threadId + offset + window
