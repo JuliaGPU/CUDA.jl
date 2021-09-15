@@ -624,7 +624,7 @@ end
 
 @testset "unreachable" begin
     function unreachable()
-        @cuprintln("go home ptxas you're drunk")
+        @cuprintf("go home ptxas you're drunk")
         Base.llvmcall("unreachable", Cvoid, Tuple{})
     end
 
