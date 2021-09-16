@@ -1,0 +1,7 @@
+*.jl.*.cov
+*.jl.cov
+*.jl.mem
+/docs/build/
+.vscode
+lcov.info
+build/
