@@ -552,8 +552,6 @@ Base.unsafe_convert(::Type{CuPtr{T}}, A::PermutedDimsArray) where {T} =
 
 ## reshape
 
-# optimize reshape to return a CuArray
-
 function Base.reshape(a::CuArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
   if prod(dims) != length(a)
       throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $(size(a))"))
@@ -563,13 +561,18 @@ function Base.reshape(a::CuArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
       return a
   end
 
+  _derived_array(T, N, a, dims)
+end
+
+# create a derived array (reinterpreted or reshaped) that's still a CuArray
+function _derived_array(::Type{T}, N::Int, a::CuArray, osize::Dims) where {T}
   refcount = a.storage.refcount[]
   @assert refcount != 0
   if refcount > 0
     Threads.atomic_add!(a.storage.refcount, 1)
   end
 
-  b = CuArray{T,N}(a.storage, dims; a.maxsize, a.offset)
+  b = CuArray{T,N}(a.storage, osize; a.maxsize, a.offset)
   if refcount > 0
       finalizer(unsafe_finalize!, b)
   end
@@ -579,7 +582,40 @@ end
 
 ## reinterpret
 
-# optimize reshape to return a CuArray
+function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
+  err = _reinterpret_exception(T, a)
+  err === nothing || throw(err)
+
+  if sizeof(T) == sizeof(S) # for N == 0
+    osize = size(a)
+  else
+    isize = size(a)
+    size1 = div(isize[1]*sizeof(S), sizeof(T))
+    osize = tuple(size1, Base.tail(isize)...)
+  end
+
+  return _derived_array(T, N, a, osize)
+end
+
+function _reinterpret_exception(::Type{T}, a::AbstractArray{S,N}) where {T,S,N}
+  if !isbitstype(T) || !isbitstype(S)
+    return _CuReinterpretBitsTypeError{T,typeof(a)}()
+  end
+  if N == 0 && sizeof(T) != sizeof(S)
+    return _CuReinterpretZeroDimError{T,typeof(a)}()
+  end
+  if N != 0 && sizeof(S) != sizeof(T)
+      ax1 = axes(a)[1]
+      dim = length(ax1)
+      if Base.rem(dim*sizeof(S),sizeof(T)) != 0
+        return _CuReinterpretDivisibilityError{T,typeof(a)}(dim)
+      end
+      if first(ax1) != 1
+        return _CuReinterpretFirstIndexError{T,typeof(a),typeof(ax1)}(ax1)
+      end
+  end
+  return nothing
+end
 
 struct _CuReinterpretBitsTypeError{T,A} <: Exception end
 function Base.showerror(io::IO, ::_CuReinterpretBitsTypeError{T, <:AbstractArray{S}}) where {T, S}
@@ -610,49 +646,51 @@ function Base.showerror(io::IO, err::_CuReinterpretFirstIndexError{T, <:Abstract
   print(io, "cannot reinterpret a `$(S)` array to `$(T)` when the first axis is $ax1. Try reshaping first.")
 end
 
-function _reinterpret_exception(::Type{T}, a::AbstractArray{S,N}) where {T,S,N}
-  if !isbitstype(T) || !isbitstype(S)
-    return _CuReinterpretBitsTypeError{T,typeof(a)}()
-  end
-  if N == 0 && sizeof(T) != sizeof(S)
-    return _CuReinterpretZeroDimError{T,typeof(a)}()
-  end
-  if N != 0 && sizeof(S) != sizeof(T)
-      ax1 = axes(a)[1]
-      dim = length(ax1)
-      if Base.rem(dim*sizeof(S),sizeof(T)) != 0
-        return _CuReinterpretDivisibilityError{T,typeof(a)}(dim)
-      end
-      if first(ax1) != 1
-        return _CuReinterpretFirstIndexError{T,typeof(a),typeof(ax1)}(ax1)
-      end
-  end
-  return nothing
+## reinterpret(reshape)
+
+function Base.reinterpret(::typeof(reshape), ::Type{T}, a::CuArray) where {T}
+  N, osize = _base_check_reshape_reinterpret(T, a)
+  return _derived_array(T, N, a, osize)
 end
 
-function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
-  err = _reinterpret_exception(T, a)
-  err === nothing || throw(err)
-
-  if sizeof(T) == sizeof(S) # for N == 0
-    osize = size(a)
+# taken from reinterpretarray.jl
+# TODO: move these Base definitions out of the ReinterpretArray struct for reuse
+function _base_check_reshape_reinterpret(::Type{T}, a::CuArray{S}) where {T,S}
+  isbitstype(T) || throwbits(S, T, T)
+  isbitstype(S) || throwbits(S, T, S)
+  if sizeof(S) == sizeof(T)
+      N = ndims(a)
+      osize = size(a)
+  elseif sizeof(S) > sizeof(T)
+      d, r = divrem(sizeof(S), sizeof(T))
+      r == 0 || throwintmult(S, T)
+      N = ndims(a) + 1
+      osize = (d, size(a)...)
   else
-    isize = size(a)
-    size1 = div(isize[1]*sizeof(S), sizeof(T))
-    osize = tuple(size1, Base.tail(isize)...)
+      d, r = divrem(sizeof(T), sizeof(S))
+      r == 0 || throwintmult(S, T)
+      N = ndims(a) - 1
+      N > -1 || throwsize0(S, T, "larger")
+      axes(a, 1) == Base.OneTo(sizeof(T) ÷ sizeof(S)) || throwsize1(a, T)
+      osize = size(a)[2:end]
   end
+  return N, osize
+end
 
-  refcount = a.storage.refcount[]
-  @assert refcount != 0
-  if refcount > 0
-    Threads.atomic_add!(a.storage.refcount, 1)
-  end
+@noinline function throwbits(S::Type, T::Type, U::Type)
+  throw(ArgumentError("cannot reinterpret `$(S)` as `$(T)`, type `$(U)` is not a bits type"))
+end
 
-  b = CuArray{T,N}(a.storage, osize; a.maxsize, a.offset)
-  if refcount > 0
-      finalizer(unsafe_finalize!, b)
-  end
-  return b
+@noinline function throwintmult(S::Type, T::Type)
+  throw(ArgumentError("`reinterpret(reshape, T, a)` requires that one of `sizeof(T)` (got $(sizeof(T))) and `sizeof(eltype(a))` (got $(sizeof(S))) be an integer multiple of the other"))
+end
+
+@noinline function throwsize0(S::Type, T::Type, msg)
+  throw(ArgumentError("cannot reinterpret a zero-dimensional `$(S)` array to `$(T)` which is of a $msg size"))
+end
+
+@noinline function throwsize1(a::AbstractArray, T::Type)
+    throw(ArgumentError("`reinterpret(reshape, $T, a)` where `eltype(a)` is $(eltype(a)) requires that `axes(a, 1)` (got $(axes(a, 1))) be equal to 1:$(sizeof(T) ÷ sizeof(eltype(a))) (from the ratio of element sizes)"))
 end
 
 
