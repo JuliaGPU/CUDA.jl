@@ -36,3 +36,13 @@ end
 # trig.jl
 @device_override @noinline Base.Math.sincos_domain_error(x) =
     @print_and_throw "sincos(x) is only defined for finite x."
+
+# multidimensional.jl
+if VERSION >= v"1.7-"
+    # XXX: the boundscheck change in JuliaLang/julia#42119 has exposed additional issues
+    #      with bad code generation by ptxas, so revert that changen for now.
+    @device_override Base.@propagate_inbounds function Base.getindex(iter::CartesianIndices{N,R},
+                                                                     I::Vararg{Int, N}) where {N,R}
+        CartesianIndex(getindex.(iter.indices, I))
+    end
+end
