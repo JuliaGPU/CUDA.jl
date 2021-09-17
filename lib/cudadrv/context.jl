@@ -311,15 +311,23 @@ function CuDevice(ctx::CuContext)
 end
 
 """
-    device_synchronize()
+    synchronize(ctx::Context)
 
-Block for the current device's tasks to complete. This is a heavyweight operation, typically
-you only need to call [`synchronize`](@ref) which only synchronizes the stream associated
-with the current task.
+Synchronize the current context, waiting for all outstanding operations to complete.
+
+!!! warning
+
+    This is an operation that blocks in the driver, and should be avoided if possible.
+    Instead, use [`device_synchronize()`](@ref) to perform synchronization in Julia.
 """
-function device_synchronize()
-    cuCtxSynchronize()
-    check_exceptions()
+function synchronize(ctx::CuContext)
+    push!(CuContext, ctx)
+    try
+        cuCtxSynchronize()
+        check_exceptions()
+    finally
+        pop!(CuContext)
+    end
 end
 
 
