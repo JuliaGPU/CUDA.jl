@@ -31,7 +31,14 @@ function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}}, y::St
     return dotu(n, x, y)
 end
 
-LinearAlgebra.norm(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasFloat}}) = nrm2(x)
+function LinearAlgebra.norm(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasFloat}}, p::Real=2)
+    if p == 2
+        return nrm2(x)
+    else
+        return invoke(norm, Tuple{AbstractGPUArray, Real}, x, p)
+    end
+end
+
 LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x)
 
 function LinearAlgebra.axpy!(alpha::Number, x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:Union{Float16, ComplexF16, CublasFloat}
