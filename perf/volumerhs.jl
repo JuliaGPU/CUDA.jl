@@ -27,8 +27,7 @@ for (jlf, f) in zip((:+, :*, :-), (:add, :mul, :sub))
         """
         @eval begin
             # the @pure is necessary so that we can constant propagate.
-            Base.@pure function $jlf(a::$T, b::$T)
-                Base.@_inline_meta
+            @inline Base.@pure function $jlf(a::$T, b::$T)
                 Base.llvmcall($ir, $T, Tuple{$T, $T}, a, b)
             end
         end
@@ -46,8 +45,7 @@ let (jlf, f) = (:div_arcp, :div)
         """
         @eval begin
             # the @pure is necessary so that we can constant propagate.
-            Base.@pure function $jlf(a::$T, b::$T)
-                @Base._inline_meta
+            @inline Base.@pure function $jlf(a::$T, b::$T)
                 Base.llvmcall($ir, $T, Tuple{$T, $T}, a, b)
             end
         end

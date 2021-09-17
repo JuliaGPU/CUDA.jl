@@ -164,8 +164,9 @@ skip_tests = []
 has_cudnn() || push!(skip_tests, "cudnn")
 has_cusolvermg() || push!(skip_tests, "cusolvermg")
 has_nvml() || push!(skip_tests, "nvml")
-if !has_cutensor() || CUDA.version() < v"10.1" || first(picks).cap < v"7.0"
-    push!(skip_tests, "cutensor")
+if !has_cutensor() || CUDA.version() < v"10.1" || first(picks).cap < v"7.0" || do_sanitize
+    # XXX: some library tests fail under compute-sanitizer
+    append!(skip_tests, ["cutensor", "cusparse"])
 end
 is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
 if first(picks).cap < v"7.0"
@@ -199,6 +200,30 @@ else
     all_tests = copy(tests)
 end
 
+# handle compute-sanitizer
+struct rlimit
+    cur::Culong
+    max::Culong
+end
+const RLIMIT_NOFILE = 7
+if do_sanitize
+    sanitizer = CUDA.compute_sanitizer()
+    @info "Running under $(readchomp(`$sanitizer --version`))"
+
+    # bump the per-process file descriptor limit to work around NVIDIA bug #3273266.
+    # this value will be inherited by child processes.
+    if Sys.islinux()
+        local limit
+        limit = Ref{rlimit}()
+        ret = ccall(:getrlimit, Cint, (Cint, Ptr{rlimit}), RLIMIT_NOFILE, limit)
+        systemerror(:getrlimit, ret != 0)
+        @warn "Bumping file descriptor limit from $(Int(limit[].cur)) to $(Int(limit[].max))"
+        limit[] = rlimit(limit[].max, limit[].max)
+        ret = ccall(:setrlimit, Cint, (Cint, Ptr{rlimit}), RLIMIT_NOFILE, limit)
+        systemerror(:getrlimit, ret != 0)
+    end
+end
+
 # add workers
 const test_exeflags = Base.julia_cmd()
 filter!(test_exeflags.exec) do c
@@ -214,9 +239,7 @@ const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
     exename = if do_sanitize
         sanitizer = CUDA.compute_sanitizer()
-        @info "Running under $(readchomp(`$sanitizer --version`))"
-        # NVIDIA bug 3263616: compute-sanitizer crashes when generating host backtraces
-        `$sanitizer --tool $sanitize_tool --launch-timeout=0 --show-backtrace=no --target-processes=all --report-api-errors=no $test_exename`
+        `$sanitizer --tool $sanitize_tool --launch-timeout=0 --target-processes=all --report-api-errors=no $test_exename`
     else
         test_exename
     end
@@ -348,13 +371,32 @@ try
         end
     end
     @sync begin
+        function recycle_worker(p)
+            if isdefined(CUDA, :to)
+                to = remotecall_fetch(p) do
+                    CUDA.to
+                end
+                push!(timings, to)
+            end
+
+            rmprocs(p, waitfor=30)
+
+            return nothing
+        end
+
         for p in workers()
             @async begin
                 push!(all_tasks, current_task())
                 while length(tests) > 0
                     test = popfirst!(tests)
-                    local resp
+
+                    # sometimes a worker failed, and we need to spawn a new one
+                    if p === nothing
+                        p = addworker(1)[1]
+                    end
                     wrkr = p
+
+                    local resp
                     snoop = do_snoop ? mktemp() : (nothing, nothing)
 
                     # tests that muck with the context should not be timed with CUDA events,
@@ -379,10 +421,18 @@ try
 
                         # the worker encountered some failure, recycle it
                         # so future tests get a fresh environment
-                        rmprocs(wrkr, waitfor=30)
-                        p = addworker(1)[1]
+                        p = recycle_worker(p)
                     else
                         print_testworker_stats(test, wrkr, resp)
+
+                        cpu_rss = resp[9]
+                        if CUDA.getenv("CI", false) && cpu_rss > 4*2^30
+                            # XXX: despite resetting the device and collecting garbage
+                            #      after each test, we are leaking CPU memory somewhere.
+                            #      this is a problem on CI, where2 we don't have much RAM.
+                            #      work around this by periodically recycling the worker.
+                            p = recycle_worker(p)
+                        end
                     end
 
                     # aggregate the snooped compiler invocations
@@ -395,17 +445,8 @@ try
                     end
                 end
 
-                # fetch worker timings
-                if isdefined(CUDA, :to)
-                    to = remotecall_fetch(p) do
-                        CUDA.to
-                    end
-                    push!(timings, to)
-                end
-
-                if p != 1
-                    # Free up memory =)
-                    rmprocs(p, waitfor=30)
+                if p !== nothing
+                    recycle_worker(p)
                 end
             end
         end

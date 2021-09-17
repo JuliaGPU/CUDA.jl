@@ -174,7 +174,7 @@ The following keyword arguments are supported:
 """
 AbstractKernel
 
-@generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
+@inline @generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
     sig = Tuple{F, TT.parameters...}    # Base.signature_type with a function type
     args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
 
@@ -197,8 +197,6 @@ AbstractKernel
     call_tt = Base.to_tuple_type(call_t)
 
     quote
-        Base.@_inline_meta
-
         cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
     end
 end

@@ -6,14 +6,12 @@ export cudacall
 ## device
 
 # pack arguments in a buffer that CUDA expects
-@generated function pack_arguments(f::Function, args...)
+@inline @generated function pack_arguments(f::Function, args...)
     for arg in args
         isbitstype(arg) || throw(ArgumentError("Arguments to kernel should be bitstype."))
     end
 
-    ex = quote
-        Base.@_inline_meta
-    end
+    ex = quote end
 
     # If f has N parameters, then kernelParams needs to be an array of N pointers.
     # Each of kernelParams[0] through kernelParams[N-1] must point to a region of memory
@@ -78,12 +76,10 @@ end
 
 # convert the argument values to match the kernel's signature (specified by the user)
 # (this mimics `lower-ccall` in julia-syntax.scm)
-@generated function convert_arguments(f::Function, ::Type{tt}, args...) where {tt}
+@inline @generated function convert_arguments(f::Function, ::Type{tt}, args...) where {tt}
     types = tt.parameters
 
-    ex = quote
-        Base.@_inline_meta
-    end
+    ex = quote end
 
     converted_args = Vector{Symbol}(undef, length(args))
     arg_ptrs = Vector{Symbol}(undef, length(args))

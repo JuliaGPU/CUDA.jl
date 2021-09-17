@@ -117,7 +117,7 @@ const cuprint_specifiers = Dict(
     Cstring     => "%s",
 )
 
-@generated function _cuprint(parts...)
+@inline @generated function _cuprint(parts...)
     fmt = ""
     args = Expr[]
 
@@ -170,7 +170,6 @@ const cuprint_specifiers = Dict(
     end
 
     quote
-        Base.@_inline_meta
         @cuprintf($fmt, $(args...))
     end
 end

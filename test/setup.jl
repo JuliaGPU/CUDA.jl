@@ -52,6 +52,7 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
         end
 
         ex = quote
+            GC.gc(true)
             Random.seed!(1)
 
             if $(QuoteNode(time_source)) == :cuda
@@ -105,6 +106,7 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
         end
         res = vcat(collect(data), cpu_rss, gpu_rss)
 
+        GC.gc(true)
         CUDA.can_reset_device() && device_reset!()
         res
     finally
