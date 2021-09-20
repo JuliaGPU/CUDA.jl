@@ -33,4 +33,6 @@ end
 
 @testset "memory_status" begin
     CUDA.memory_status(devnull)
+    CUDA.used_memory()
+    CUDA.cached_memory()
 end
