@@ -230,6 +230,11 @@ end
                 gctime += Base.@elapsed GC.gc(true)
             elseif phase == 4
                 device_synchronize()
+
+                # NVIDIA bug #3383169: or non-blocking sync doesn't trigger memory release.
+                # also, synchronizing the legacy stream (as device_synchronize() does)
+                # doesn't seem equivalent to actually synchronizing the device.
+                cuCtxSynchronize()
             end
 
             buf = actual_alloc(sz; async=true, stream=something(stream, state.stream))
