@@ -215,6 +215,7 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 end
 @inline function _alloc(::Type{Mem.DeviceBuffer}, sz; stream::Union{Nothing,CuStream})
     state = active_state()
+    stream = something(stream, state.stream)
 
     gctime = 0.0
     time = Base.@elapsed begin
@@ -223,25 +224,28 @@ end
         # mark the pool as active
         pool_mark(state.device)
 
-        for phase in 1:4
+        for phase in 1:5
             if phase == 2
                 gctime += Base.@elapsed GC.gc(false)
             elseif phase == 3
                 gctime += Base.@elapsed GC.gc(true)
             elseif phase == 4
+                synchronize(stream)
+
+                # NVIDIA bug #3383169: non-blocking sync doesn't trigger memory release.
+                cuStreamSynchronize(stream)
+            elseif phase == 5
                 device_synchronize()
 
-                # NVIDIA bug #3383169: or non-blocking sync doesn't trigger memory release.
-                # also, synchronizing the legacy stream (as device_synchronize() does)
-                # doesn't seem equivalent to actually synchronizing the device.
+                # NVIDIA bug #3383169: synchronizing the legacy stream doesn't trigger memory release.
                 cuCtxSynchronize()
             end
 
-            buf = actual_alloc(sz; async=true, stream=something(stream, state.stream))
+            buf = actual_alloc(sz; async=true, stream)
             buf === nothing || break
         end
       else
-        for phase in 1:4
+        for phase in 1:3
             if phase == 2
                 gctime += Base.@elapsed GC.gc(false)
             elseif phase == 3
