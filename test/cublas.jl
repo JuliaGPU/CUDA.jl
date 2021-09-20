@@ -14,9 +14,6 @@ m = 20
 n = 35
 k = 13
 
-# HACK: remove me when a new version of BFloat16s.jl is released
-Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
-
 ############################################################################################
 
 @testset "level 1" begin
