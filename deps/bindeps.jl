@@ -286,21 +286,30 @@ end
 
 ## libraries
 
+# XXX: we don't correctly model the dependencies of these libraries, and hack around them
+#      by loading libcublasLt before libcublas, or CUDNN's sublibraries before libcudnn.
+#      this is necessary (even if the dependent libraries are in the same directory)
+#      to avoid a local toolkit from messing with our artifacts (JuliaGPU/CUDA.jl#609).
+
 export libcublas, libcusparse, libcufft, libcurand, libcusolver,
        libcusolvermg, has_cusolvermg, libcupti, has_cupti, libnvtx, has_nvtx
+
+const __libcublaslt = Ref{String}()
+function libcublaslt()
+    @initialize_ref __libcublaslt begin
+        if toolkit_release() < v"10.1"
+            nothing
+        else
+            find_library(toolkit(), "cublasLt")
+        end
+    end
+end
 
 const __libcublas = Ref{String}()
 function libcublas()
     @initialize_ref __libcublas begin
-        cuda = toolkit()
-
-        # HACK: eagerly load cublasLt, required by cublas (but with the same version), to
-        #       prevent a local CUDA from messing with our artifacts (JuliaGPU/CUDA.jl#609)
-        if cuda isa ArtifactToolkit && cuda.release >= v"10.1"
-            find_library(cuda, "cublasLt")
-        end
-
-        find_library(cuda, "cublas")
+        libcublaslt()
+        find_library(toolkit(), "cublas")
     end CUDA.CUBLAS.__runtime_init__()
 end
 
