@@ -177,118 +177,6 @@ const cuda_releases = [v"1.0", v"1.1",
                        v"10.0", v"10.1", v"10.2",
                        v"11.0", v"11.1", v"11.2", v"11.3", v"11.4"]
 
-const cuda_library_versions = Dict(
-    v"11.0.1" => Dict(
-        # NOTE: encountered this version in a Docker container; not sure where it came from.
-        "cupti"     => "2020.1.0", # wtf
-        "nvtx"      => v"11.0.167",
-        "cublas"    => v"11.0.0", #.191
-        "cufft"     => v"10.1.3", #.191
-        "curand"    => v"10.2.0", #.191
-        "cusolver"  => v"10.4.0", #.191
-        "cusparse"  => v"11.0.0", #.191
-    ),
-    v"11.0.2" => Dict(
-        "cupti"     => "2020.1.0", # wtf
-        "nvtx"      => v"11.0.167",
-        "cublas"    => v"11.0.0", #.191
-        "cufft"     => v"10.1.3", #.191
-        "curand"    => v"10.2.0", #.191
-        "cusolver"  => v"10.4.0", #.191
-        "cusparse"  => v"11.0.0", #.191
-    ),
-    v"11.0.3" => Dict(
-        "cupti"     => "2020.1.1", # docs mention 11.0.221
-        "nvtx"      => v"11.0.167",
-        "cublas"    => v"11.2.0", #.252
-        "cufft"     => v"10.2.1", #.245
-        "curand"    => v"10.2.1", #.245
-        "cusolver"  => v"10.6.0", #.245
-        "cusparse"  => v"11.1.1", #.245
-    ),
-    v"11.1.0" => Dict(
-        "cupti"     => "2020.2.0", # docs mention 11.1.69
-        "nvtx"      => v"11.1.74",
-        "cublas"    => v"11.2.1", #.74
-        "cufft"     => v"10.3.0", #.74
-        "curand"    => v"10.2.2", #.74
-        "cusolver"  => v"11.0.0", #.74
-        "cusparse"  => v"11.2.0", #.275
-    ),
-    v"11.1.1" => Dict(
-        "cupti"     => "2020.2.1", # docs mention 11.1.105
-        "nvtx"      => v"11.1.74",
-        "cublas"    => v"11.3.0", #.106
-        "cufft"     => v"10.3.0", #.105
-        "curand"    => v"10.2.2", #.105
-        "cusolver"  => v"11.0.1", #.105
-        "cusparse"  => v"11.3.0", #.10
-    ),
-    v"11.2.0" => Dict(
-        "cupti"     => "2020.3.0", # docs mention 11.2.67
-        "nvtx"      => v"11.2.67",
-        "cublas"    => v"11.3.1", #.68
-        "cufft"     => v"10.4.0", #.72
-        "curand"    => v"10.2.3", #.68
-        "cusolver"  => v"11.0.2", #.68
-        "cusparse"  => v"11.3.1", #.68
-    ),
-    v"11.2.1" => Dict(
-        "cupti"     => "2020.3.1", # docs mention 11.2.135
-        "nvtx"      => v"11.2.67",
-        "cublas"    => v"11.4.1", #.1026
-        "cufft"     => v"10.4.0", #.135
-        "curand"    => v"10.2.3", #.135
-        "cusolver"  => v"11.1.0", #.135
-        "cusparse"  => v"11.4.0", #.135
-    ),
-    v"11.2.2" => Dict(
-        "cupti"     => "2020.3.1", # docs mention 11.2.152
-        "nvtx"      => v"11.2.152",
-        "cublas"    => v"11.4.1", #.1043
-        "cufft"     => v"10.4.1", #.152
-        "curand"    => v"10.2.3", #.152
-        "cusolver"  => v"11.1.0", #.152
-        "cusparse"  => v"11.4.1", #.1152
-    ),
-    v"11.3.0" => Dict(
-        "cupti"     => "2021.1.0", # docs mention 11.3.58
-        "nvtx"      => v"11.3.58",
-        "cublas"    => v"11.4.2", #.10064
-        "cufft"     => v"10.4.2", #.58
-        "curand"    => v"10.2.4", #.58
-        "cusolver"  => v"11.1.1", #.58
-        "cusparse"  => v"11.5.0", #.58
-    ),
-    v"11.3.1" => Dict(
-        "cupti"     => "2021.1.1", # docs mention 11.3.111
-        "nvtx"      => v"11.3.109",
-        "cublas"    => v"11.5.1", #.109
-        "cufft"     => v"10.4.2", #.109
-        "curand"    => v"10.2.4", #.109
-        "cusolver"  => v"11.1.2", #.109
-        "cusparse"  => v"11.6.0", #.109
-    ),
-    v"11.4.0" => Dict(
-        "cupti"     => "2021.2.0", # docs mention 11.4.65
-        "nvtx"      => v"11.4.43",
-        "cublas"    => v"11.5.2", #.43
-        "cufft"     => v"10.5.0", #.43
-        "curand"    => v"10.2.5", #.43
-        "cusolver"  => v"11.2.0", #.43
-        "cusparse"  => v"11.6.0", #.43
-    ),
-    v"11.4.1" => Dict(
-        "cupti"     => "2021.2.1", # docs mention 11.4.100
-        "nvtx"      => v"11.4.100",
-        "cublas"    => v"11.5.4", #.8
-        "cufft"     => v"10.5.1", #.100
-        "curand"    => v"10.2.5", #.100
-        "cusolver"  => v"11.2.0", #.100
-        "cusparse"  => v"11.6.0", #.100
-    ),
-)
-
 # return a list of versions that are supported for the given CUDA toolkit.
 # XXX: shouldn't we ignore the toolkit and just look at the driver version?
 function compatible_library_versions(library, toolkit_release)
@@ -325,8 +213,7 @@ const cuda_library_names = Dict(
 # simplified find_library/find_binary entry-points,
 # looking up name aliases and known version numbers
 # and passing the (optional) toolkit dirs as locations.
-function find_cuda_library(library::String, toolkit_dirs::Vector{String},
-                           toolkit_release::VersionNumber)
+function find_cuda_library(library::String, toolkit_dirs::Vector{String})
     # figure out the location
     locations = toolkit_dirs
     ## CUPTI is in the "extras" directory of the toolkit
@@ -348,9 +235,8 @@ function find_cuda_library(library::String, toolkit_dirs::Vector{String},
         isdir(dir) && push!(locations, dir)
     end
 
-    versions = compatible_library_versions(library, toolkit_release)
     name = get(cuda_library_names, library, library)
-    find_library(name, versions; locations)
+    find_library(name; locations)
 end
 function find_cuda_binary(name::String, toolkit_dirs::Vector{String}=String[])
     # figure out the location
