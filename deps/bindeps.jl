@@ -403,6 +403,7 @@ end
 function find_library(cuda::LocalToolkit, name; optional=false)
     path = find_cuda_library(name, cuda.dirs)
     if path !== nothing
+        Libdl.dlopen(path)
         return path
     else
         optional || error("Could not find library '$name' in your local CUDA installation.")
