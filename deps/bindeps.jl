@@ -49,7 +49,7 @@ struct ArtifactToolkit <: AbstractToolkit
 end
 
 struct LocalToolkit <: AbstractToolkit
-    release::VersionNumber  # approximate, from `ptxas --version`
+    release::VersionNumber  # approximate, from the CUDA runtime library
     dirs::Vector{String}
 end
 
@@ -173,19 +173,14 @@ function find_local_cuda()
         __nvdisasm[] = path
     end
 
-    let path = find_cuda_binary("ptxas", dirs)
+    let path = find_cuda_library("cudart", dirs)
         if path === nothing
-            @debug "Could not find ptxas"
+            @debug "Could not find the CUDA runtime library"
             return nothing
         end
-        __ptxas[] = path
+        __libcudart[] = path
     end
-
-    release = parse_toolkit_release("ptxas", __ptxas[])
-    if release === nothing
-        @debug "Could not parse the CUDA release number from the ptxas version output"
-        return nothing
-    end
+    release = CUDA.runtime_version()
 
     @debug "Found local CUDA $(release) at $(join(dirs, ", "))"
     return LocalToolkit(release, dirs)

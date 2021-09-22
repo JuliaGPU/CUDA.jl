@@ -3,7 +3,7 @@
 """
     version()
 
-Returns the CUDA version as reported by the driver.
+Returns the latest version of CUDA supported by the driver.
 """
 function version()
     version_ref = Ref{Cint}()
@@ -19,3 +19,17 @@ end
 Returns the CUDA release part of the version as returned by [`version`](@ref).
 """
 release() = VersionNumber(version().major, version().minor)
+
+"""
+    runtime_version()
+
+    Returns the CUDA Runtime version.
+"""
+function runtime_version()
+    initialize_api()
+    version_ref = Ref{Cint}()
+    @ccall libcudart().cudaRuntimeGetVersion(version_ref::Ptr{Cint})::CUresult
+    major, ver = divrem(version_ref[], 1000)
+    minor, patch = divrem(ver, 10)
+    return VersionNumber(major, minor, patch)
+end
