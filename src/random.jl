@@ -30,7 +30,7 @@ function Random.seed!(rng::RNG, seed::Integer)
     rng.counter = 0
 end
 
-Random.seed!(rng::RNG) = seed!(rng, Random.rand(UInt32))
+Random.seed!(rng::RNG) = Random.seed!(rng, Random.rand(UInt32))
 
 function Random.rand!(rng::RNG, A::AnyCuArray)
     function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32) where {T}
@@ -104,7 +104,7 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:T}) where {T<:Union{AbstractFlo
     kernel = @cuda launch=false name="rand!" kernel(A, rng.seed, rng.counter)
     config = launch_configuration(kernel.fun; max_threads=64)
     threads = max(32, min(config.threads, length(A)÷2))
-    blocks = min(config.blocks, cld(length(A)÷2, threads))
+    blocks = min(config.blocks, cld(cld(length(A), 2), threads))
     kernel(A, rng.seed, rng.counter; threads=threads, blocks=blocks)
 
     new_counter = Int64(rng.counter) + length(A)
@@ -177,23 +177,51 @@ function GPUArrays.default_rng(::Type{<:CuArray})
 end
 
 
-# generic functionality
+# RNG interface
 
-function Random.rand!(rng::Union{RNG,CURAND.RNG,GPUArrays.RNG}, A::AbstractArray{T}) where {T}
+# GPU arrays
+Random.rand(rng::Union{RNG,GPUArrays.RNG}, T::Type, dims::Dims) =
+    rand!(rng, CuArray{T}(undef, dims))
+Random.randn(rng::Union{RNG,GPUArrays.RNG}, T::Type, dims::Dims) =
+    randn!(rng, CuArray{T}(undef, dims))
+
+# specify default types
+Random.rand(rng::Union{RNG,GPUArrays.RNG}, dims::Dims) =
+    Random.rand(rng, Float32, dims)
+Random.randn(rng::Union{RNG,GPUArrays.RNG}, dims::Dims) =
+    Random.randn(rng, Float32, dims)
+
+# support all dimension specifications
+Random.rand(rng::Union{RNG,GPUArrays.RNG}, dim1::Integer, dims::Integer...) =
+    Random.rand(rng, Dims((dim1, dims...)))
+Random.randn(rng::Union{RNG,GPUArrays.RNG}, dim1::Integer, dims::Integer...) =
+    Random.randn(rng, Dims((dim1, dims...)))
+# ... and with a type
+Random.rand(rng::Union{RNG,GPUArrays.RNG}, T::Type, dim1::Integer, dims::Integer...) =
+    Random.rand(rng, T, Dims((dim1, dims...)))
+Random.randn(rng::Union{RNG,GPUArrays.RNG}, T::Type, dim1::Integer, dims::Integer...) =
+    Random.randn(rng, T, Dims((dim1, dims...)))
+
+# CPU arrays
+function Random.rand!(rng::Union{RNG,GPUArrays.RNG}, A::AbstractArray{T}) where {T}
     B = CuArray{T}(undef, size(A))
-    Random.rand!(rng, B)
+    rand!(rng, B)
+    copyto!(A, B)
+end
+function Random.randn!(rng::Union{RNG,GPUArrays.RNG}, A::AbstractArray{T}) where {T}
+    B = CuArray{T}(undef, size(A))
+    randn!(rng, B)
     copyto!(A, B)
 end
 
-function Random.rand(rng::Union{RNG,CURAND.RNG,GPUArrays.RNG}, T::Type)
-    assertscalar("scalar rand")
-    A = CuArray{T}(undef, 1)
-    Random.rand!(rng, A)
-    A[]
-end
+# scalars
+Random.rand(rng::Union{RNG,GPUArrays.RNG}, T::Type=Float32) = Random.rand(rng, T, 1)[]
+Random.randn(rng::Union{RNG,GPUArrays.RNG}, T::Type=Float32) = Random.randn(rng, T, 1)[]
+# resolve ambiguities
+Random.randn(rng::Union{RNG,GPUArrays.RNG}, T::Random.BitFloatType) = Random.randn(rng, T, 1)[]
 
 
-# RNG-less interface
+# RNG-less API
 
 cuda_rng() = default_rng()
 curand_rng() = CURAND.default_rng()
@@ -258,3 +286,9 @@ rand_logn(dim1::Integer, dims::Integer...; kwargs...) =
     CURAND.rand_logn(curand_rng(), Dims((dim1, dims...)); kwargs...)
 rand_poisson(dim1::Integer, dims::Integer...; kwargs...) =
     CURAND.rand_poisson(curand_rng(), Dims((dim1, dims...)); kwargs...)
+
+# scalars
+rand(T::Type=Float32) = rand(T, 1)[]
+randn(T::Type=Float32; kwargs...) = randn(T, 1; kwargs...)[]
+rand_logn(T::Type=Float32; kwargs...) = rand_logn(T, 1; kwargs...)[]
+rand_poisson(T::Type=Cuint; kwargs...) = rand_poisson(T, 1; kwargs...)[]

@@ -62,23 +62,64 @@
     CUDA.seed!(1)
     B = CUDA.rand(Int64, 1)
     @test all(A .== B)
+
+    # scalar number generation
+    CUDA.@allowscalar let
+        CUDA.rand()
+        CUDA.rand(Float32)
+        CUDA.randn()
+        CUDA.randn(Float32)
+
+        CUDA.rand_logn()
+        CUDA.rand_logn(Float32)
+        CUDA.rand_poisson()
+        CUDA.rand_poisson(Cuint)
+    end
 end
 
-# new, native generator
 @testset "native generator" begin
     rng = CUDA.RNG()
+    Random.seed!(rng)
 
+    ## in-place
+
+    # uniform
     for T in (Float16, Float32, Float64,
               ComplexF16, ComplexF32, ComplexF64,
               Int8, Int16, Int32, Int64, Int128,
               UInt8, UInt16, UInt32, UInt64, UInt128)
         A = CuArray{T}(undef, 2048)
         rand!(rng, A)
+
+        B = Array{T}(undef, 2048)
+        CUDA.@allowscalar rand!(rng, B)
     end
 
+    # normal
     for T in (Float16, Float32, Float64,
               ComplexF16, ComplexF32, ComplexF64)
         A = CuArray{T}(undef, 2048)
         randn!(rng, A)
+
+        B = Array{T}(undef, 2048)
+        CUDA.@allowscalar rand!(rng, B)
     end
+
+    ## out-of-place
+
+    # uniform
+    CUDA.@allowscalar begin
+        @test rand(rng) isa Number
+        @test rand(rng, Float32) isa Float32
+    end
+    @test rand(rng, Float32, 1) isa CuArray
+    @test rand(rng, 1) isa CuArray
+
+    # normal
+    CUDA.@allowscalar begin
+        @test randn(rng) isa Number
+        @test randn(rng, Float32) isa Float32
+    end
+    @test randn(rng, Float32, 1) isa CuArray
+    @test randn(rng, 1) isa CuArray
 end
