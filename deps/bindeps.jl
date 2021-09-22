@@ -291,8 +291,15 @@ end
 #      this is necessary (even if the dependent libraries are in the same directory)
 #      to avoid a local toolkit from messing with our artifacts (JuliaGPU/CUDA.jl#609).
 
-export libcublas, libcusparse, libcufft, libcurand, libcusolver,
+export libcudart, libcublas, libcusparse, libcufft, libcurand, libcusolver,
        libcusolvermg, has_cusolvermg, libcupti, has_cupti, libnvtx, has_nvtx
+
+const __libcudart = Ref{String}()
+function libcudart()
+    @initialize_ref __libcudart begin
+        find_library(toolkit(), "cudart")
+    end
+end
 
 const __libcublaslt = Ref{String}()
 function libcublaslt()
