@@ -7,7 +7,7 @@
 # Reduce a value across a warp
 @inline function reduce_warp(op, val)
     assume(warpsize() == 32)
-    offset = UInt32(1)
+    offset = 0x00000001
     while offset < warpsize()
         val = op(val, shfl_down_sync(0xffffffff, val, offset))
         offset <<= 1
@@ -141,7 +141,7 @@ reductions.
 """
 function big_mapreduce_kernel(f, op, neutral, Rreduce, Rother, R, As)
 	val = op(neutral, neutral)
-	grid_idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+	grid_idx = threadIdx().x + (blockIdx().x - 0x1) * blockDim().x
 	if grid_idx > length(Rother)
 		return
 	end

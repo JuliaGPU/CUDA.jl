@@ -47,8 +47,8 @@ end
 # pairwise distance calculation kernel
 function pairwise_dist_kernel(lat::CuDeviceVector{Float32}, lon::CuDeviceVector{Float32},
                               rowresult::CuDeviceMatrix{Float32}, n)
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-    j = (blockIdx().y-1) * blockDim().y + threadIdx().y
+    i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+    j = (blockIdx().y-0x1) * blockDim().y + threadIdx().y
 
     if i <= n && j <= n
         # store to shared memory

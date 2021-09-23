@@ -22,9 +22,9 @@ function partial_scan(op::Function, output::AbstractArray{T}, input::AbstractArr
     temp = CuDynamicSharedArray(T, (2*threads,))
 
     # iterate the main dimension using threads and the first block dimension
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
     # iterate the other dimensions using the remaining block dimensions
-    j = (blockIdx().z-1) * gridDim().y + blockIdx().y
+    j = (blockIdx().z-0x1) * gridDim().y + blockIdx().y
 
     if j > length(Rother)
         return
@@ -105,9 +105,9 @@ function aggregate_partial_scan(op::Function, output::AbstractArray,
     block = blockIdx().x
 
     # iterate the main dimension using threads and the first block dimension
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
     # iterate the other dimensions using the remaining block dimensions
-    j = (blockIdx().z-1) * gridDim().y + blockIdx().y
+    j = (blockIdx().z-0x1) * gridDim().y + blockIdx().y
 
     @inbounds if block > 1 && i <= length(Rdim) && j <= length(Rother)
         I = Rother[j]
