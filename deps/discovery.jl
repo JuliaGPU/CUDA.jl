@@ -165,15 +165,7 @@ end
 
 ## CUDA-specific discovery routines
 
-const cuda_releases = [v"1.0", v"1.1",
-                       v"2.0", v"2.1", v"2.2",
-                       v"3.0", v"3.1", v"3.2",
-                       v"4.0", v"4.1", v"4.2",
-                       v"5.0", v"5.5",
-                       v"6.0", v"6.5",
-                       v"7.0", v"7.5",
-                       v"8.0",
-                       v"9.0", v"9.1", v"9.2",
+const cuda_releases = [v"9.0", v"9.1", v"9.2",
                        v"10.0", v"10.1", v"10.2",
                        v"11.0", v"11.1", v"11.2", v"11.3", v"11.4"]
 
@@ -336,21 +328,6 @@ function find_toolkit()
     dirs = valid_dirs(dirs)
     @debug "Found CUDA toolkit at $(join(dirs, ", "))"
     return dirs
-end
-
-# figure out the CUDA toolkit release (by looking at the output of a tool like `ptxas`)
-function parse_toolkit_release(tool, tool_path::String)
-    # parse the version string
-    verstr = withenv("LANG"=>"C") do
-        read(`$tool_path --version`, String)
-    end
-    m = match(r"release (?<major>\d+).(?<minor>\d+)\b", verstr)
-    if m === nothing
-        @error "Could not parse CUDA version info (\"$verstr\"); please file an issue."
-        return nothing
-    end
-
-    VersionNumber(parse(Int, m[:major]), parse(Int, m[:minor]))
 end
 
 """
