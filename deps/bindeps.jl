@@ -49,7 +49,7 @@ struct ArtifactToolkit <: AbstractToolkit
 end
 
 struct LocalToolkit <: AbstractToolkit
-    release::VersionNumber  # approximate, from `ptxas --version`
+    release::VersionNumber  # approximate, from the CUDA runtime library
     dirs::Vector{String}
 end
 
@@ -151,7 +151,7 @@ function find_artifact_cuda()
             break
         end
     end
-    if artifact == nothing
+    if artifact === nothing
         @debug "Could not find a compatible artifact."
         return nothing
     end
@@ -165,7 +165,7 @@ function find_local_cuda()
 
     dirs = find_toolkit()
 
-    let path = find_cuda_binary("nvdisasm", dirs)
+    let path = find_cuda_binary(dirs, "nvdisasm")
         if path === nothing
             @debug "Could not find nvdisasm"
             return nothing
@@ -173,19 +173,15 @@ function find_local_cuda()
         __nvdisasm[] = path
     end
 
-    let path = find_cuda_binary("ptxas", dirs)
+    cudart_versions = cuda_library_versions("cudart")
+    let path = find_cuda_library(dirs, "cudart", cudart_versions)
         if path === nothing
-            @debug "Could not find ptxas"
+            @debug "Could not find the CUDA runtime library"
             return nothing
         end
-        __ptxas[] = path
+        __libcudart[] = path
     end
-
-    release = parse_toolkit_release("ptxas", __ptxas[])
-    if release === nothing
-        @debug "Could not parse the CUDA release number from the ptxas version output"
-        return nothing
-    end
+    release = CUDA.runtime_version()
 
     @debug "Found local CUDA $(release) at $(join(dirs, ", "))"
     return LocalToolkit(release, dirs)
@@ -243,7 +239,7 @@ end
 
 # compute-santizer: used by the test suite
 const __compute_sanitizer = Ref{Union{Nothing,String}}()
-function compute_sanitizer(throw_error::Bool=true)
+function compute_sanitizer(; throw_error::Bool=true)
     path = @initialize_ref __compute_sanitizer begin
         if toolkit_release() < v"11.0"
             nothing
@@ -274,7 +270,7 @@ function find_binary(cuda::ArtifactToolkit, name; optional=false)
 end
 
 function find_binary(cuda::LocalToolkit, name; optional=false)
-    path = find_cuda_binary(name, cuda.dirs)
+    path = find_cuda_binary(cuda.dirs, name)
     if path !== nothing
         return path
     else
@@ -286,21 +282,37 @@ end
 
 ## libraries
 
-export libcublas, libcusparse, libcufft, libcurand, libcusolver,
+# XXX: we don't correctly model the dependencies of these libraries, and hack around them
+#      by loading libcublasLt before libcublas, or CUDNN's sublibraries before libcudnn.
+#      this is necessary (even if the dependent libraries are in the same directory)
+#      to avoid a local toolkit from messing with our artifacts (JuliaGPU/CUDA.jl#609).
+
+export libcudart, libcublas, libcusparse, libcufft, libcurand, libcusolver,
        libcusolvermg, has_cusolvermg, libcupti, has_cupti, libnvtx, has_nvtx
+
+const __libcudart = Ref{String}()
+function libcudart()
+    @initialize_ref __libcudart begin
+        find_library(toolkit(), "cudart")
+    end
+end
+
+const __libcublaslt = Ref{String}()
+function libcublaslt()
+    @initialize_ref __libcublaslt begin
+        if toolkit_release() < v"10.1"
+            nothing
+        else
+            find_library(toolkit(), "cublasLt")
+        end
+    end
+end
 
 const __libcublas = Ref{String}()
 function libcublas()
     @initialize_ref __libcublas begin
-        cuda = toolkit()
-
-        # HACK: eagerly load cublasLt, required by cublas (but with the same version), to
-        #       prevent a local CUDA from messing with our artifacts (JuliaGPU/CUDA.jl#609)
-        if cuda isa ArtifactToolkit && cuda.release >= v"10.1"
-            find_library(cuda, "cublasLt")
-        end
-
-        find_library(cuda, "cublas")
+        libcublaslt()
+        find_library(toolkit(), "cublas")
     end CUDA.CUBLAS.__runtime_init__()
 end
 
@@ -363,7 +375,7 @@ has_cupti() = libcupti(throw_error=false) !== nothing
 const __libnvtx = Ref{Union{String,Nothing}}()
 function libnvtx(; throw_error::Bool=true)
     path = @initialize_ref __libnvtx begin
-        find_library(toolkit(), "nvtx"; optional=true)
+        find_library(toolkit(), "nvToolsExt"; optional=true)
     end
     if path === nothing && throw_error
         error("This functionality is unavailabe as NVTX is missing.")
@@ -372,11 +384,11 @@ function libnvtx(; throw_error::Bool=true)
 end
 has_nvtx() = libnvtx(throw_error=false) !== nothing
 
-function artifact_library(artifact, name, versions)
+function artifact_library(artifact, name, versions=[])
     # XXX: we don't want to consider multiple library names based on all candidate versions,
     #      since all that is known when building the artifact, but not saved anywhere.
     dir = joinpath(artifact, Sys.iswindows() ? "bin" : "lib")
-    all_names = library_versioned_names(name, versions)
+    all_names = library_names(name, versions)
     for name in all_names
         path = joinpath(dir, name)
         ispath(path) && return path
@@ -388,22 +400,19 @@ function artifact_library(artifact, name, versions)
              If this directory is empty, delete it and try again.""")
 end
 
-function artifact_cuda_library(artifact, library, toolkit_release)
-    versions = compatible_library_versions(library, toolkit_release)
-    name = get(cuda_library_names, library, library)
-    artifact_library(artifact, name, versions)
-end
-
 function find_library(cuda::ArtifactToolkit, name; optional=false)
     # NOTE: optional is ignored, and we'll error if not found
-    path = artifact_cuda_library(cuda.artifact, name, cuda.release)
+    versions = cuda_library_versions(name)
+    path = artifact_library(cuda.artifact, name, versions)
     Libdl.dlopen(path)
     return path
 end
 
 function find_library(cuda::LocalToolkit, name; optional=false)
-    path = find_cuda_library(name, cuda.dirs, cuda.release)
+    versions = cuda_library_versions(name)
+    path = find_cuda_library(cuda.dirs, name, versions)
     if path !== nothing
+        Libdl.dlopen(path)
         return path
     else
         optional || error("Could not find library '$name' in your local CUDA installation.")
@@ -550,8 +559,7 @@ function libcutensor(; throw_error::Bool=true)
         # CUTENSOR depends on CUBLAS and CUBLASlt to be discoverable by the linker
         libcublas()
 
-        version = Sys.iswindows() ? nothing : v"1"  # cutensor.dll is unversioned on Windows
-        find_cutensor(toolkit(), version)
+        find_cutensor(toolkit(), v"1")
     end
     if path === nothing && throw_error
         error("This functionality is unavailabe as CUTENSOR is missing.")
@@ -574,9 +582,6 @@ end
 
 function find_cutensor(cuda::LocalToolkit, version)
     path = find_library("cutensor", [version]; locations=cuda.dirs)
-    if path === nothing
-        path = find_library("cutensor"; locations=cuda.dirs)
-    end
     if path === nothing
         return nothing
     end
