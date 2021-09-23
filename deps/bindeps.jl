@@ -151,7 +151,7 @@ function find_artifact_cuda()
             break
         end
     end
-    if artifact == nothing
+    if artifact === nothing
         @debug "Could not find a compatible artifact."
         return nothing
     end
@@ -165,7 +165,7 @@ function find_local_cuda()
 
     dirs = find_toolkit()
 
-    let path = find_cuda_binary("nvdisasm", dirs)
+    let path = find_cuda_binary(dirs, "nvdisasm")
         if path === nothing
             @debug "Could not find nvdisasm"
             return nothing
@@ -173,7 +173,8 @@ function find_local_cuda()
         __nvdisasm[] = path
     end
 
-    let path = find_cuda_library("cudart", dirs)
+    cudart_versions = cuda_library_versions("cudart")
+    let path = find_cuda_library(dirs, "cudart", cudart_versions)
         if path === nothing
             @debug "Could not find the CUDA runtime library"
             return nothing
@@ -269,7 +270,7 @@ function find_binary(cuda::ArtifactToolkit, name; optional=false)
 end
 
 function find_binary(cuda::LocalToolkit, name; optional=false)
-    path = find_cuda_binary(name, cuda.dirs)
+    path = find_cuda_binary(cuda.dirs, name)
     if path !== nothing
         return path
     else
@@ -374,7 +375,7 @@ has_cupti() = libcupti(throw_error=false) !== nothing
 const __libnvtx = Ref{Union{String,Nothing}}()
 function libnvtx(; throw_error::Bool=true)
     path = @initialize_ref __libnvtx begin
-        find_library(toolkit(), "nvtx"; optional=true)
+        find_library(toolkit(), "nvToolsExt"; optional=true)
     end
     if path === nothing && throw_error
         error("This functionality is unavailabe as NVTX is missing.")
@@ -383,11 +384,11 @@ function libnvtx(; throw_error::Bool=true)
 end
 has_nvtx() = libnvtx(throw_error=false) !== nothing
 
-function artifact_library(artifact, name)
+function artifact_library(artifact, name, versions=[])
     # XXX: we don't want to consider multiple library names based on all candidate versions,
     #      since all that is known when building the artifact, but not saved anywhere.
     dir = joinpath(artifact, Sys.iswindows() ? "bin" : "lib")
-    all_names = library_versioned_names(name)
+    all_names = library_names(name, versions)
     for name in all_names
         path = joinpath(dir, name)
         ispath(path) && return path
@@ -399,20 +400,17 @@ function artifact_library(artifact, name)
              If this directory is empty, delete it and try again.""")
 end
 
-function artifact_cuda_library(artifact, library, toolkit_release)
-    name = get(cuda_library_names, library, library)
-    artifact_library(artifact, name)
-end
-
 function find_library(cuda::ArtifactToolkit, name; optional=false)
     # NOTE: optional is ignored, and we'll error if not found
-    path = artifact_cuda_library(cuda.artifact, name, cuda.release)
+    versions = cuda_library_versions(name)
+    path = artifact_library(cuda.artifact, name, versions)
     Libdl.dlopen(path)
     return path
 end
 
 function find_library(cuda::LocalToolkit, name; optional=false)
-    path = find_cuda_library(name, cuda.dirs)
+    versions = cuda_library_versions(name)
+    path = find_cuda_library(cuda.dirs, name, versions)
     if path !== nothing
         Libdl.dlopen(path)
         return path
@@ -499,8 +497,7 @@ export libcudnn, has_cudnn
 const __libcudnn = Ref{Union{String,Nothing}}()
 function libcudnn(; throw_error::Bool=true)
     path = @initialize_ref __libcudnn begin
-        find_cudnn(toolkit())
-        # TODO: verify v8?
+        find_cudnn(toolkit(), v"8")
     end CUDA.CUDNN.__runtime_init__()
     if path === nothing && throw_error
         error("This functionality is unavailabe as CUDNN is missing.")
@@ -509,18 +506,18 @@ function libcudnn(; throw_error::Bool=true)
 end
 has_cudnn() = libcudnn(throw_error=false) !== nothing
 
-function find_cudnn(cuda::ArtifactToolkit)
+function find_cudnn(cuda::ArtifactToolkit, version)
     artifact_dir = cuda_artifact("CUDNN", cuda.release)
     if artifact_dir === nothing
         return nothing
     end
-    path = artifact_library(artifact_dir, "cudnn")
+    path = artifact_library(artifact_dir, "cudnn", [version])
 
     # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
     for sublibrary in ("ops_infer", "ops_train",
                        "cnn_infer", "cnn_train",
                        "adv_infer", "adv_train")
-        sublibrary_path = artifact_library(artifact_dir, "cudnn_$(sublibrary)")
+        sublibrary_path = artifact_library(artifact_dir, "cudnn_$(sublibrary)", [version])
         Libdl.dlopen(sublibrary_path)
     end
 
@@ -529,8 +526,8 @@ function find_cudnn(cuda::ArtifactToolkit)
     return path
 end
 
-function find_cudnn(cuda::LocalToolkit)
-    path = find_library("cudnn"; locations=cuda.dirs)
+function find_cudnn(cuda::LocalToolkit, version)
+    path = find_library("cudnn", [version]; locations=cuda.dirs)
     if path === nothing
         return nothing
     end
@@ -539,7 +536,7 @@ function find_cudnn(cuda::LocalToolkit)
     for sublibrary in ("ops_infer", "ops_train",
                        "cnn_infer", "cnn_train",
                        "adv_infer", "adv_train")
-        sublibrary_path = find_library("cudnn_$(sublibrary)"; locations=cuda.dirs)
+        sublibrary_path = find_library("cudnn_$(sublibrary)", [version]; locations=cuda.dirs)
         sublibrary_path === nothing && error("Could not find local CUDNN sublibrary $sublibrary")
         Libdl.dlopen(sublibrary_path)
     end
@@ -562,7 +559,7 @@ function libcutensor(; throw_error::Bool=true)
         # CUTENSOR depends on CUBLAS and CUBLASlt to be discoverable by the linker
         libcublas()
 
-        find_cutensor(toolkit())
+        find_cutensor(toolkit(), v"1")
     end
     if path === nothing && throw_error
         error("This functionality is unavailabe as CUTENSOR is missing.")
@@ -571,23 +568,20 @@ function libcutensor(; throw_error::Bool=true)
 end
 has_cutensor() = libcutensor(throw_error=false) !== nothing
 
-function find_cutensor(cuda::ArtifactToolkit)
+function find_cutensor(cuda::ArtifactToolkit, version)
     artifact_dir = cuda_artifact("CUTENSOR", cuda.release)
     if artifact_dir === nothing
         return nothing
     end
-    path = artifact_library(artifact_dir, "cutensor")
+    path = artifact_library(artifact_dir, "cutensor", [version])
 
     @debug "Using CUTENSOR from an artifact at $(artifact_dir)"
     Libdl.dlopen(path)
     return path
 end
 
-function find_cutensor(cuda::LocalToolkit)
-    path = find_library("cutensor"; locations=cuda.dirs)
-    if path === nothing
-        path = find_library("cutensor"; locations=cuda.dirs)
-    end
+function find_cutensor(cuda::LocalToolkit, version)
+    path = find_library("cutensor", [version]; locations=cuda.dirs)
     if path === nothing
         return nothing
     end

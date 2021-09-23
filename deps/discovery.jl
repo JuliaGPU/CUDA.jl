@@ -26,7 +26,7 @@ end
 
 ## generic discovery routines
 
-function library_versioned_names(name::String, versions::Vector=[])
+function library_names(name::String, versions::Vector=[])
     names = String[]
 
     # always look for an unversioned library first
@@ -99,7 +99,7 @@ Returns the full path to the library.
 function find_library(name::String, versions::Vector=[];
                       locations::Vector{String}=String[])
     # figure out names
-    all_names = library_versioned_names(name, versions)
+    all_names = library_names(name, versions)
 
     # figure out locations
     all_locations = String[]
@@ -177,43 +177,48 @@ const cuda_releases = [v"1.0", v"1.1",
                        v"10.0", v"10.1", v"10.2",
                        v"11.0", v"11.1", v"11.2", v"11.3", v"11.4"]
 
-# return a list of versions that are supported for the given CUDA toolkit.
-# XXX: shouldn't we ignore the toolkit and just look at the driver version?
-function compatible_library_versions(library, toolkit_release)
-    if library == "nvtx"
-        [v"1"]
-    elseif toolkit_release >= v"11"
-        # starting with CUDA 11, libraries are versioned independently
+# return possible versions of a CUDA library
+function cuda_library_versions(name::String)
+    if Sys.iswindows()
+        # CUDA libraries on Windows are always versioned, however, we don't
+        # know which version we're looking for (and we don't first want to
+        # figure that out by, say, invoking a versionless binary like ptxas).
 
-        # HACK: generalize this?
-        if library == "cusolverMg"
-            library = "cusolver"
-        end
-        if library == "cublasLt"
-            library = "cublas"
+        # start out with all known CUDA releases
+        versions = Any[cuda_releases...]
+
+        # append some future releases
+        for major in last(versions).major:15, minor in 1:10
+            version = VersionNumber(major, minor)
+            if !in(version, versions)
+                push!(versions, version)
+            end
         end
 
-        library_versions = []
-        for cuda_version in keys(cuda_library_versions)
-            # XXX: semver?
-            (cuda_version.major == toolkit_release.major &&
-             cuda_version.minor == toolkit_release.minor) || continue
-            push!(library_versions, cuda_library_versions[cuda_version][library])
+        # CUPTI is special, and uses a dot-separated, year-based versioning
+        if name == "cupti"
+            for year in 2020:2022, major in 1:5, minor in 0:3
+                version = "$year.$major.$minor"
+                push!(versions, version)
+            end
         end
-        library_versions
+
+        # NVTX is special, and only uses a single digit
+        if name == "nvToolsExt"
+            append!(versions, [v"1", v"2"])
+        end
+
+        versions
     else
-        [toolkit_release]
+        # only consider unversioned libraries on other platforms.
+        []
     end
 end
-
-const cuda_library_names = Dict(
-    "nvtx"      => "nvToolsExt"
-)
 
 # simplified find_library/find_binary entry-points,
 # looking up name aliases and known version numbers
 # and passing the (optional) toolkit dirs as locations.
-function find_cuda_library(library::String, toolkit_dirs::Vector{String})
+function find_cuda_library(toolkit_dirs::Vector{String}, library::String, versions::Vector)
     # figure out the location
     locations = toolkit_dirs
     ## CUPTI is in the "extras" directory of the toolkit
@@ -223,7 +228,7 @@ function find_cuda_library(library::String, toolkit_dirs::Vector{String})
         append!(locations, cupti_dirs)
     end
     ## NVTX is located in an entirely different location on Windows
-    if library == "nvtx" && Sys.iswindows()
+    if library == "nvToolsExt" && Sys.iswindows()
         if haskey(ENV, "NVTOOLSEXT_PATH")
             dir = ENV["NVTOOLSEXT_PATH"]
             @debug "Looking for NVTX library via environment variable" dir
@@ -235,10 +240,9 @@ function find_cuda_library(library::String, toolkit_dirs::Vector{String})
         isdir(dir) && push!(locations, dir)
     end
 
-    name = get(cuda_library_names, library, library)
-    find_library(name; locations)
+    find_library(library, versions; locations)
 end
-function find_cuda_binary(name::String, toolkit_dirs::Vector{String}=String[])
+function find_cuda_binary(toolkit_dirs::Vector{String}, name::String)
     # figure out the location
     locations = toolkit_dirs
     ## compute-sanitizer is in the "extras" directory of the toolkit
