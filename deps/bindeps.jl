@@ -239,7 +239,7 @@ end
 
 # compute-santizer: used by the test suite
 const __compute_sanitizer = Ref{Union{Nothing,String}}()
-function compute_sanitizer(throw_error::Bool=true)
+function compute_sanitizer(; throw_error::Bool=true)
     path = @initialize_ref __compute_sanitizer begin
         if toolkit_release() < v"11.0"
             nothing
