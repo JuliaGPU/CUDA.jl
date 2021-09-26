@@ -463,36 +463,36 @@ end
 
 # interop with device arrays
 
-Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseVector{Tv}) where {Tv} =
-    CuSparseDeviceVector{Tv,Cint}(
+Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseVector{Tv, Ti}) where {Tv, Ti} =
+    CuSparseDeviceVector{Tv, Ti}(
         adapt(to, x.iPtr),
         adapt(to, x.nzVal),
         x.dims, x.nnz)
 
-Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixCSR{Tv}) where {Tv} =
-    CuSparseDeviceMatrixCSR{Tv,Cint}(
+Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixCSR{Tv, Ti}) where {Tv, Ti} =
+    CuSparseDeviceMatrixCSR{Tv, Ti}(
         adapt(to, x.rowPtr),
         adapt(to, x.colVal),
         adapt(to, x.nzVal),
         x.dims, x.nnz)
 
-Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixCSC{Tv}) where {Tv} =
-    CuSparseDeviceMatrixCSC{Tv,Cint}(
+Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixCSC{Tv, Ti}) where {Tv, Ti} =
+    CuSparseDeviceMatrixCSC{Tv,Ti}(
         adapt(to, x.colPtr),
         adapt(to, x.rowVal),
         adapt(to, x.nzVal),
         x.dims, x.nnz)
 
-Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixBSR{Tv}) where {Tv} =
-    CuSparseDeviceMatrixBSR{Tv,Cint}(
+Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixBSR{Tv, Ti}) where {Tv, Ti} =
+    CuSparseDeviceMatrixBSR{Tv, Ti}(
         adapt(to, x.rowPtr),
         adapt(to, x.colVal),
         adapt(to, x.nzVal),
         x.dims, x.blockDim,
         x.dir, x.nnz)
 
-Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixCOO{Tv}) where {Tv} =
-    CuSparseDeviceMatrixCOO{Tv,Cint}(
+Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixCOO{Tv, Ti}) where {Tv, Ti} =
+    CuSparseDeviceMatrixCOO{Tv, Ti}(
         adapt(to, x.rowInd),
         adapt(to, x.colInd),
         adapt(to, x.nzVal),
