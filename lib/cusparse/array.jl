@@ -153,7 +153,7 @@ end
 
 function CuSparseMatrixCSR{Tv}(rowPtr::CuVector{<:Integer}, colVal::CuVector{<:Integer},
                                    nzVal::CuVector, dims::NTuple{2,Int}) where {Tv}
-    CuSparseMatrixCSR{Tv, Cint}(rowPtr, colVal, nzVal, dims, length(nzVal))
+    CuSparseMatrixCSR{Tv, Cint}(rowPtr, colVal, nzVal, dims)
 end
 
 function CuSparseMatrixBSR{Tv}(rowPtr::CuVector{<:Integer}, colVal::CuVector{<:Integer},
