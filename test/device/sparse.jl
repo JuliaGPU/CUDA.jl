@@ -6,7 +6,7 @@ using CUDA: CuSparseDeviceVector, CuSparseDeviceMatrixCSC, CuSparseDeviceMatrixC
     CuSparseDeviceMatrixBSR, CuSparseDeviceMatrixCOO
 
 @testset "cudaconvert" begin
-    @test isbitstype(CuSparseVector{Float32, Cint})
+    @test isbitstype(CuSparseDeviceVector{Float32, Cint})
     @test isbitstype(CuSparseDeviceMatrixCSC{Float32, Cint})
     @test isbitstype(CuSparseDeviceMatrixCSR{Float32, Cint})
     @test isbitstype(CuSparseDeviceMatrixBSR{Float32, Cint})
