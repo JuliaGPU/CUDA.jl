@@ -23,7 +23,7 @@ function Base.getindex(xs::AnyCuArray{T}, bools::AnyCuArray{Bool}) where {T}
 
   if n > 0
     function kernel(ys::CuDeviceArray{T}, xs::CuDeviceArray{T}, bools, indices)
-        i = threadIdx().x + (blockIdx().x - 0x1) * blockDim().x
+        i = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
 
         @inbounds if i <= length(xs) && bools[i]
             b = indices[i]   # new position
@@ -57,7 +57,7 @@ function Base.findall(bools::AnyCuArray{Bool})
 
     if n > 0
         function kernel(ys::CuDeviceArray, bools, indices)
-            i = threadIdx().x + (blockIdx().x - 0x1) * blockDim().x
+            i = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
 
             @inbounds if i <= length(bools) && bools[i]
                 i′ = CartesianIndices(bools)[i]

@@ -48,7 +48,7 @@ end
     len = prod(dims)
 
     function kernel(input::CuDeviceArray{Float32}, output::CuDeviceArray{Float32})
-        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
 
         if i <= length(input)
             output[i] = Float64(input[i])   # force conversion upon setindex!
@@ -105,7 +105,7 @@ end
 
 @testset "views" begin
     function kernel(array)
-        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
 
         _sub = view(array, 2:length(array)-1)
         if i <= length(_sub)
@@ -173,12 +173,12 @@ end
 
 function kernel_shmem_reinterpet_smaller_size!(y)
   a = CuDynamicSharedArray(UInt128, (blockDim().x,))
-  i32 = Int32(threadIdx().x)
-  p = i32 + i32 * im
-  q = i32 - i32 * im
+  i = threadIdx().x
+  p = i + i * im
+  q = i - i * im
   b = reinterpret(typeof(p), a)
-  b[1 + 2 * (threadIdx().x - 0x1)] = p
-  b[2 + 2 * (threadIdx().x - 0x1)] = q
+  b[1 + 2 * (threadIdx().x - 1i32)] = p
+  b[2 + 2 * (threadIdx().x - 1i32)] = q
   y[threadIdx().x] = a[threadIdx().x]
   return
 end
@@ -211,10 +211,10 @@ end
 function kernel_shmem_reinterpet_larger_size!(y)
   a = CuDynamicSharedArray(Float32, (4 * blockDim().x,))
   b = reinterpret(UInt128, a)
-  a[1 + 4 * (threadIdx().x - 0x1)] = threadIdx().x
-  a[2 + 4 * (threadIdx().x - 0x1)] = threadIdx().x * 2
-  a[3 + 4 * (threadIdx().x - 0x1)] = threadIdx().x * 3
-  a[4 + 4 * (threadIdx().x - 0x1)] = threadIdx().x * 4
+  a[1 + 4 * (threadIdx().x - 1i32)] = threadIdx().x
+  a[2 + 4 * (threadIdx().x - 1i32)] = threadIdx().x * 2
+  a[3 + 4 * (threadIdx().x - 1i32)] = threadIdx().x * 3
+  a[4 + 4 * (threadIdx().x - 1i32)] = threadIdx().x * 4
   y[threadIdx().x] = b[threadIdx().x]
   return
 end

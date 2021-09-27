@@ -13,7 +13,7 @@ function _reverse(input::AnyCuArray{T, N}, output::AnyCuArray{T, N};
     numelemsincurrdim = shape[dims]
 
     function kernel(input::AbstractArray{T, N}, output::AbstractArray{T, N}) where {T, N}
-        offset_in = blockDim().x * (blockIdx().x - 0x1)
+        offset_in = blockDim().x * (blockIdx().x - 1i32)
 
         index_in = offset_in + threadIdx().x
 
@@ -47,7 +47,7 @@ function _reverse(data::AnyCuArray{T, N}; dims::Integer=1) where {T, N}
     numelemsincurrdim = shape[dims]
 
     function kernel(data::AbstractArray{T, N}) where {T, N}
-        offset_in = blockDim().x * (blockIdx().x - 0x1)
+        offset_in = blockDim().x * (blockIdx().x - 1i32)
 
         index_in = offset_in + threadIdx().x
 

@@ -62,9 +62,9 @@ end
 @inline Philox2x32() = Philox2x32{7}()
 
 @inline function Base.getproperty(rng::Philox2x32, field::Symbol)
-    threadId = threadIdx().x + (threadIdx().y - 0x1) * blockDim().x +
-                               (threadIdx().z - 0x1) * blockDim().x * blockDim().y
-    warpId = (threadId - 0x1) >> 0x5 + 0x1  # fld1
+    threadId = threadIdx().x + (threadIdx().y - 1i32) * blockDim().x +
+                               (threadIdx().z - 1i32) * blockDim().x * blockDim().y
+    warpId = (threadId - 1i32) >> 0x5 + 1i32  # fld1
 
     if field === :seed
         @inbounds global_random_seed()[1]
@@ -73,17 +73,17 @@ end
     elseif field === :ctr1
         @inbounds global_random_counters()[warpId]
     elseif field === :ctr2
-        blockId = blockIdx().x + (blockIdx().y - 0x1) * gridDim().x +
-                                 (blockIdx().z - 0x1) * gridDim().x * gridDim().y
-        globalId = threadId + (blockId - 0x1) * (blockDim().x * blockDim().y * blockDim().z)
+        blockId = blockIdx().x + (blockIdx().y - 1i32) * gridDim().x +
+                                 (blockIdx().z - 1i32) * gridDim().x * gridDim().y
+        globalId = threadId + (blockId - 1i32) * (blockDim().x * blockDim().y * blockDim().z)
         globalId%UInt32
     end::UInt32
 end
 
 @inline function Base.setproperty!(rng::Philox2x32, field::Symbol, x)
-    threadId = threadIdx().x + (threadIdx().y - 0x1) * blockDim().x +
-                               (threadIdx().z - 0x1) * blockDim().x * blockDim().y
-    warpId = (threadId - 0x1) >> 0x5 + 0x1  # fld1
+    threadId = threadIdx().x + (threadIdx().y - 1i32) * blockDim().x +
+                               (threadIdx().z - 1i32) * blockDim().x * blockDim().y
+    warpId = (threadId - 1i32) >> 0x5 + 1i32  # fld1
 
     if field === :key
         @inbounds global_random_keys()[warpId] = x
@@ -140,7 +140,7 @@ function Random.rand(rng::Philox2x32{R},::Type{UInt64}) where {R}
     # NOTE: this performs the same update on every thread in the warp, but each warp writes
     #       to a unique location so the duplicate writes are innocuous
     # XXX: what if this overflows? we can't increment ctr2. bump the key?
-    rng.ctr1 += 0x1
+    rng.ctr1 += 1i32
 
     # NOTE: it's too expensive to keep both numbers around in case the user only wanted one,
     #       so just make our 2x32 generator return 64-bit numbers by default.

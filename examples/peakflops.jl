@@ -1,10 +1,11 @@
 using CUDA
+using CUDA: i32
 
 using Test
 
 "Dummy kernel doing 100 FMAs."
 function kernel_100fma(a, b, c, out)
-    i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+    i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
     @inbounds if i <= length(out)
         a_val = a[i]
         b_val = b[i]

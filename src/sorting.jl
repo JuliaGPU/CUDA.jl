@@ -26,6 +26,7 @@ module Quicksort
 export quicksort!
 
 using ..CUDA
+using ..CUDA: i32
 
 
 # Comparison
@@ -70,8 +71,8 @@ Uses block y index to decide which values to operate on.
 """
 @inline function batch_partition(values, pivot, swap, sums, lo, hi, parity, lt::F1, by::F2) where {F1,F2}
     sync_threads()
-    blockIdx_yz = (blockIdx().z - 0x1) * gridDim().y + blockIdx().y
-    idx0 = lo + (blockIdx_yz - 0x1) * blockDim().x + threadIdx().x
+    blockIdx_yz = (blockIdx().z - 1i32) * gridDim().y + blockIdx().y
+    idx0 = lo + (blockIdx_yz - 1i32) * blockDim().x + threadIdx().x
     val = idx0 <= hi ? values[idx0] : one(eltype(values))
     comparison = flex_lt(pivot, val, parity, lt, by)
 
@@ -232,7 +233,7 @@ function bitonic_median(vals :: AbstractArray{T}, swap, lo, L, stride, lt::F1, b
         j = k ÷ 2
 
         while j > 0
-            i = threadIdx().x - 0x1
+            i = threadIdx().x - 1i32
             l = xor(i, j)
             to_swap = (i & k) == 0 && bitonic_lt(l, i) || (i & k) != 0 && bitonic_lt(i, l)
             to_swap = to_swap == (i < l)
@@ -267,7 +268,7 @@ elements spaced by `stride`. Good for sampling pivot values as well as short sor
         sync_threads()
         for level in 0:L
             # get left/right neighbor depending on even/odd level
-            buddy = threadIdx().x - 0x1 + 0x2 * (0x00000001 & (threadIdx().x % 0x2 != level % 0x2))
+            buddy = threadIdx().x - 1i32 + 2i32 * (1i32 & (threadIdx().x % 2i32 != level % 2i32))
             buddy_val = if 1 <= buddy <= L && threadIdx().x <= L
                  swap[buddy]
             else

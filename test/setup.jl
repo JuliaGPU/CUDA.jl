@@ -1,4 +1,5 @@
 using Distributed, Test, CUDA
+using CUDA: i32
 
 # GPUArrays has a testsuite that isn't part of the main package.
 # Include it directly.

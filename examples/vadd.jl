@@ -1,9 +1,10 @@
 using Test
 
 using CUDA
+using CUDA: i32
 
 function vadd(a, b, c)
-    i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+    i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
     c[i] = a[i] + b[i]
     return
 end
