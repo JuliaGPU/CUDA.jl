@@ -1,12 +1,13 @@
 module ByVal
 
 using CUDA, BenchmarkTools, Random
+using CUDA: i32
 
 const threads = 256
 
 # simple add matrixes kernel
 function kernel_add_mat(n, x1, x2, y)
-    i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+    i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
     if i <= n
         @inbounds y[i] = x1[i] + x2[i]
     end
@@ -20,7 +21,7 @@ end
 # add arrays of matrixes kernel
 function kernel_add_mat_z_slices(n, vararg...)
     x1, x2, y = get_inputs3(blockIdx().y, vararg...)
-    i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+    i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
     if i <= n
         @inbounds y[i] = x1[i] + x2[i]
     end

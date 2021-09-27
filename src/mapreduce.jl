@@ -141,7 +141,7 @@ reductions.
 """
 function big_mapreduce_kernel(f, op, neutral, Rreduce, Rother, R, As)
 	val = op(neutral, neutral)
-	grid_idx = threadIdx().x + (blockIdx().x - 0x1) * blockDim().x
+	grid_idx = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
 	if grid_idx > length(Rother)
 		return
 	end

@@ -1,6 +1,7 @@
 # calculate pairwise distance between every point in a vector
 
 using CUDA
+using CUDA: i32
 
 
 function haversine_cpu(lat1::Float32, lon1::Float32, lat2::Float32, lon2::Float32, radius::Float32)
@@ -47,8 +48,8 @@ end
 # pairwise distance calculation kernel
 function pairwise_dist_kernel(lat::CuDeviceVector{Float32}, lon::CuDeviceVector{Float32},
                               rowresult::CuDeviceMatrix{Float32}, n)
-    i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
-    j = (blockIdx().y-0x1) * blockDim().y + threadIdx().y
+    i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
+    j = (blockIdx().y-1i32) * blockDim().y + threadIdx().y
 
     if i <= n && j <= n
         # store to shared memory

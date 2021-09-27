@@ -174,7 +174,7 @@ len = prod(dims)
 
 @testset "manually allocated" begin
     function kernel(input, output)
-        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
 
         val = input[i]
         output[i] = val
@@ -195,7 +195,7 @@ end
 
 @testset "scalar through single-value array" begin
     function kernel(a, x)
-        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
         max = gridDim().x * blockDim().x
         if i == max
             _val = a[i]
@@ -218,7 +218,7 @@ end
 @testset "scalar through single-value array, using device function" begin
     @noinline child(a, i) = a[i]
     function parent(a, x)
-        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
         max = gridDim().x * blockDim().x
         if i == max
             _val = child(a, i)
@@ -273,7 +273,7 @@ end
     @eval struct ExecGhost end
 
     function kernel(ghost, a, b, c)
-        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
         c[i] = a[i] + b[i]
         return
     end
@@ -284,7 +284,7 @@ end
     # bug: ghost type function parameters confused aggregate type rewriting
 
     function kernel(ghost, out, aggregate)
-        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
         out[i] = aggregate[1]
         return
     end
@@ -686,23 +686,23 @@ end
         end
 
         # Perform parallel reduction
-        local_index = threadIdx().x - 0x1
-        @inbounds tmp_local[local_index + 1] = acc
+        local_index = threadIdx().x - 1i32
+        @inbounds tmp_local[local_index + 1i32] = acc
         sync_threads()
 
         offset = blockDim().x ÷ 2
         while offset > 0
             @inbounds if local_index < offset
-                other = tmp_local[local_index + offset + 1]
-                mine = tmp_local[local_index + 1]
-                tmp_local[local_index + 1] = op(mine, other)
+                other = tmp_local[local_index + offset + 1i32]
+                mine = tmp_local[local_index + 1i32]
+                tmp_local[local_index + 1i32] = op(mine, other)
             end
             sync_threads()
             offset = offset ÷ 2
         end
 
         if local_index == 0
-            result[blockIdx().x] = @inbounds tmp_local[1]
+            result[blockIdx().x] = @inbounds tmp_local[1i32]
         end
 
         return
@@ -738,7 +738,7 @@ end
         end
 
         # Perform parallel reduction
-        local_index = threadIdx().x - 0x1
+        local_index = threadIdx().x - 1i32
         @inbounds tmp_local[local_index + 1] = acc
         sync_threads()
 
@@ -795,7 +795,7 @@ end
         offset = blockDim().x ÷ 2
         while offset > 0
             @inbounds if threadIdx().x <= offset
-                other = tmp_local[(threadIdx().x - 0x1) + offset + 1]
+                other = tmp_local[(threadIdx().x - 1i32) + offset + 1]
                 mine = tmp_local[threadIdx().x]
                 tmp_local[threadIdx().x] = op(mine, other)
             end
@@ -1030,7 +1030,7 @@ if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_C
 
 @testset "cooperative groups" begin
     function kernel_vadd(a, b, c)
-        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
         grid_handle = this_grid()
         c[i] = a[i] + b[i]
         sync_grid(grid_handle)
