@@ -40,9 +40,17 @@ end
 # multidimensional.jl
 if VERSION >= v"1.7-"
     # XXX: the boundscheck change in JuliaLang/julia#42119 has exposed additional issues
-    #      with bad code generation by ptxas, so revert that changen for now.
+    #      with bad code generation by ptxas on <sm_70, as reported with NVIDIA in #3382020.
     @device_override Base.@propagate_inbounds function Base.getindex(iter::CartesianIndices{N,R},
                                                                      I::Vararg{Int, N}) where {N,R}
-        CartesianIndex(getindex.(iter.indices, I))
+        if compute_capability() < sv"7"
+            CartesianIndex(getindex.(iter.indices, I))
+        else
+            @boundscheck checkbounds(iter, I...)
+            index = map(iter.indices, I) do r, i
+                @inbounds getindex(r, i)
+            end
+            CartesianIndex(index)
+        end
     end
 end
