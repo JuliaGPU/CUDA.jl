@@ -28,7 +28,7 @@ struct KernelState
     exception_flag::Ptr{Cvoid}
 end
 
-kernel_state() = unsafe_load(convert(Ptr{KernelState}, GPUCompiler.kernel_state_pointer()))
+@inline @generated kernel_state() = GPUCompiler.kernel_state_value(KernelState)
 
 exception_flag() = kernel_state().exception_flag
 
