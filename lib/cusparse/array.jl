@@ -58,8 +58,12 @@ end
 Container to hold sparse matrices in compressed sparse row (CSR) format on the
 GPU.
 
-**Note**: Most CUSPARSE operations work with CSR formatted matrices, rather
-than CSC.
+!!! note
+    Most CUSPARSE operations work with CSR formatted matrices, rather
+    than CSC.
+
+!!! compat "CUDA 11"
+    Support of indices type rather than `Cint` (`Int32`) requires at least CUDA 11.
 """
 mutable struct CuSparseMatrixCSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     rowPtr::CuVector{Ti}
