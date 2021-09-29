@@ -26,7 +26,7 @@ end
 
 ## generic discovery routines
 
-function library_versioned_names(name::String, versions::Vector=[])
+function library_names(name::String, versions::Vector=[])
     names = String[]
 
     # always look for an unversioned library first
@@ -99,7 +99,7 @@ Returns the full path to the library.
 function find_library(name::String, versions::Vector=[];
                       locations::Vector{String}=String[])
     # figure out names
-    all_names = library_versioned_names(name, versions)
+    all_names = library_names(name, versions)
 
     # figure out locations
     all_locations = String[]
@@ -165,168 +165,52 @@ end
 
 ## CUDA-specific discovery routines
 
-const cuda_releases = [v"1.0", v"1.1",
-                       v"2.0", v"2.1", v"2.2",
-                       v"3.0", v"3.1", v"3.2",
-                       v"4.0", v"4.1", v"4.2",
-                       v"5.0", v"5.5",
-                       v"6.0", v"6.5",
-                       v"7.0", v"7.5",
-                       v"8.0",
-                       v"9.0", v"9.1", v"9.2",
+const cuda_releases = [v"9.0", v"9.1", v"9.2",
                        v"10.0", v"10.1", v"10.2",
                        v"11.0", v"11.1", v"11.2", v"11.3", v"11.4"]
 
-const cuda_library_versions = Dict(
-    v"11.0.1" => Dict(
-        # NOTE: encountered this version in a Docker container; not sure where it came from.
-        "cupti"     => "2020.1.0", # wtf
-        "nvtx"      => v"11.0.167",
-        "cublas"    => v"11.0.0", #.191
-        "cufft"     => v"10.1.3", #.191
-        "curand"    => v"10.2.0", #.191
-        "cusolver"  => v"10.4.0", #.191
-        "cusparse"  => v"11.0.0", #.191
-    ),
-    v"11.0.2" => Dict(
-        "cupti"     => "2020.1.0", # wtf
-        "nvtx"      => v"11.0.167",
-        "cublas"    => v"11.0.0", #.191
-        "cufft"     => v"10.1.3", #.191
-        "curand"    => v"10.2.0", #.191
-        "cusolver"  => v"10.4.0", #.191
-        "cusparse"  => v"11.0.0", #.191
-    ),
-    v"11.0.3" => Dict(
-        "cupti"     => "2020.1.1", # docs mention 11.0.221
-        "nvtx"      => v"11.0.167",
-        "cublas"    => v"11.2.0", #.252
-        "cufft"     => v"10.2.1", #.245
-        "curand"    => v"10.2.1", #.245
-        "cusolver"  => v"10.6.0", #.245
-        "cusparse"  => v"11.1.1", #.245
-    ),
-    v"11.1.0" => Dict(
-        "cupti"     => "2020.2.0", # docs mention 11.1.69
-        "nvtx"      => v"11.1.74",
-        "cublas"    => v"11.2.1", #.74
-        "cufft"     => v"10.3.0", #.74
-        "curand"    => v"10.2.2", #.74
-        "cusolver"  => v"11.0.0", #.74
-        "cusparse"  => v"11.2.0", #.275
-    ),
-    v"11.1.1" => Dict(
-        "cupti"     => "2020.2.1", # docs mention 11.1.105
-        "nvtx"      => v"11.1.74",
-        "cublas"    => v"11.3.0", #.106
-        "cufft"     => v"10.3.0", #.105
-        "curand"    => v"10.2.2", #.105
-        "cusolver"  => v"11.0.1", #.105
-        "cusparse"  => v"11.3.0", #.10
-    ),
-    v"11.2.0" => Dict(
-        "cupti"     => "2020.3.0", # docs mention 11.2.67
-        "nvtx"      => v"11.2.67",
-        "cublas"    => v"11.3.1", #.68
-        "cufft"     => v"10.4.0", #.72
-        "curand"    => v"10.2.3", #.68
-        "cusolver"  => v"11.0.2", #.68
-        "cusparse"  => v"11.3.1", #.68
-    ),
-    v"11.2.1" => Dict(
-        "cupti"     => "2020.3.1", # docs mention 11.2.135
-        "nvtx"      => v"11.2.67",
-        "cublas"    => v"11.4.1", #.1026
-        "cufft"     => v"10.4.0", #.135
-        "curand"    => v"10.2.3", #.135
-        "cusolver"  => v"11.1.0", #.135
-        "cusparse"  => v"11.4.0", #.135
-    ),
-    v"11.2.2" => Dict(
-        "cupti"     => "2020.3.1", # docs mention 11.2.152
-        "nvtx"      => v"11.2.152",
-        "cublas"    => v"11.4.1", #.1043
-        "cufft"     => v"10.4.1", #.152
-        "curand"    => v"10.2.3", #.152
-        "cusolver"  => v"11.1.0", #.152
-        "cusparse"  => v"11.4.1", #.1152
-    ),
-    v"11.3.0" => Dict(
-        "cupti"     => "2021.1.0", # docs mention 11.3.58
-        "nvtx"      => v"11.3.58",
-        "cublas"    => v"11.4.2", #.10064
-        "cufft"     => v"10.4.2", #.58
-        "curand"    => v"10.2.4", #.58
-        "cusolver"  => v"11.1.1", #.58
-        "cusparse"  => v"11.5.0", #.58
-    ),
-    v"11.3.1" => Dict(
-        "cupti"     => "2021.1.1", # docs mention 11.3.111
-        "nvtx"      => v"11.3.109",
-        "cublas"    => v"11.5.1", #.109
-        "cufft"     => v"10.4.2", #.109
-        "curand"    => v"10.2.4", #.109
-        "cusolver"  => v"11.1.2", #.109
-        "cusparse"  => v"11.6.0", #.109
-    ),
-    v"11.4.0" => Dict(
-        "cupti"     => "2021.2.0", # docs mention 11.4.65
-        "nvtx"      => v"11.4.43",
-        "cublas"    => v"11.5.2", #.43
-        "cufft"     => v"10.5.0", #.43
-        "curand"    => v"10.2.5", #.43
-        "cusolver"  => v"11.2.0", #.43
-        "cusparse"  => v"11.6.0", #.43
-    ),
-    v"11.4.1" => Dict(
-        "cupti"     => "2021.2.1", # docs mention 11.4.100
-        "nvtx"      => v"11.4.100",
-        "cublas"    => v"11.5.4", #.8
-        "cufft"     => v"10.5.1", #.100
-        "curand"    => v"10.2.5", #.100
-        "cusolver"  => v"11.2.0", #.100
-        "cusparse"  => v"11.6.0", #.100
-    ),
-)
+# return possible versions of a CUDA library
+function cuda_library_versions(name::String)
+    if Sys.iswindows()
+        # CUDA libraries on Windows are always versioned, however, we don't
+        # know which version we're looking for (and we don't first want to
+        # figure that out by, say, invoking a versionless binary like ptxas).
 
-# return a list of versions that are supported for the given CUDA toolkit.
-# XXX: shouldn't we ignore the toolkit and just look at the driver version?
-function compatible_library_versions(library, toolkit_release)
-    if library == "nvtx"
-        [v"1"]
-    elseif toolkit_release >= v"11"
-        # starting with CUDA 11, libraries are versioned independently
+        # start out with all known CUDA releases
+        versions = Any[cuda_releases...]
 
-        # HACK: generalize this?
-        if library == "cusolverMg"
-            library = "cusolver"
-        end
-        if library == "cublasLt"
-            library = "cublas"
+        # append some future releases
+        for major in last(versions).major:15, minor in 1:10
+            version = VersionNumber(major, minor)
+            if !in(version, versions)
+                push!(versions, version)
+            end
         end
 
-        library_versions = []
-        for cuda_version in keys(cuda_library_versions)
-            # XXX: semver?
-            (cuda_version.major == toolkit_release.major &&
-             cuda_version.minor == toolkit_release.minor) || continue
-            push!(library_versions, cuda_library_versions[cuda_version][library])
+        # CUPTI is special, and uses a dot-separated, year-based versioning
+        if name == "cupti"
+            for year in 2020:2022, major in 1:5, minor in 0:3
+                version = "$year.$major.$minor"
+                push!(versions, version)
+            end
         end
-        library_versions
+
+        # NVTX is special, and only uses a single digit
+        if name == "nvToolsExt"
+            append!(versions, [v"1", v"2"])
+        end
+
+        versions
     else
-        [toolkit_release]
+        # only consider unversioned libraries on other platforms.
+        []
     end
 end
-
-const cuda_library_names = Dict(
-    "nvtx"      => "nvToolsExt"
-)
 
 # simplified find_library/find_binary entry-points,
 # looking up name aliases and known version numbers
 # and passing the (optional) toolkit dirs as locations.
-function find_cuda_library(library::String, toolkit_dirs::Vector{String},
-                           toolkit_release::VersionNumber)
+function find_cuda_library(toolkit_dirs::Vector{String}, library::String, versions::Vector)
     # figure out the location
     locations = toolkit_dirs
     ## CUPTI is in the "extras" directory of the toolkit
@@ -336,7 +220,7 @@ function find_cuda_library(library::String, toolkit_dirs::Vector{String},
         append!(locations, cupti_dirs)
     end
     ## NVTX is located in an entirely different location on Windows
-    if library == "nvtx" && Sys.iswindows()
+    if library == "nvToolsExt" && Sys.iswindows()
         if haskey(ENV, "NVTOOLSEXT_PATH")
             dir = ENV["NVTOOLSEXT_PATH"]
             @debug "Looking for NVTX library via environment variable" dir
@@ -348,11 +232,9 @@ function find_cuda_library(library::String, toolkit_dirs::Vector{String},
         isdir(dir) && push!(locations, dir)
     end
 
-    versions = compatible_library_versions(library, toolkit_release)
-    name = get(cuda_library_names, library, library)
-    find_library(name, versions; locations)
+    find_library(library, versions; locations)
 end
-function find_cuda_binary(name::String, toolkit_dirs::Vector{String}=String[])
+function find_cuda_binary(toolkit_dirs::Vector{String}, name::String)
     # figure out the location
     locations = toolkit_dirs
     ## compute-sanitizer is in the "extras" directory of the toolkit
@@ -446,21 +328,6 @@ function find_toolkit()
     dirs = valid_dirs(dirs)
     @debug "Found CUDA toolkit at $(join(dirs, ", "))"
     return dirs
-end
-
-# figure out the CUDA toolkit release (by looking at the output of a tool like `ptxas`)
-function parse_toolkit_release(tool, tool_path::String)
-    # parse the version string
-    verstr = withenv("LANG"=>"C") do
-        read(`$tool_path --version`, String)
-    end
-    m = match(r"release (?<major>\d+).(?<minor>\d+)\b", verstr)
-    if m === nothing
-        @error "Could not parse CUDA version info (\"$verstr\"); please file an issue."
-        return nothing
-    end
-
-    VersionNumber(parse(Int, m[:major]), parse(Int, m[:minor]))
 end
 
 """

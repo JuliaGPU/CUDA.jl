@@ -92,5 +92,18 @@ using LinearAlgebra, SparseArrays
         mul!(dB, adjoint(dA), dC, alpha, beta)
         @test B ≈ collect(dB)
     end
+
+    @testset "CuSparseMatrixCSR($f) $elty" for f in [transpose, adjoint], elty in [Float32, ComplexF32]
+        S = f(sprand(elty, 10, 10, 0.1))
+        @test SparseMatrixCSC(CuSparseMatrixCSR(S)) ≈ S
+
+        S = sprand(elty, 10, 10, 0.1)
+        T = f(CuSparseMatrixCSR(S))
+        @test SparseMatrixCSC(CuSparseMatrixCSC(T)) ≈ f(S)
+
+        S = sprand(elty, 10, 10, 0.1)
+        T = f(CuSparseMatrixCSC(S))
+        @test SparseMatrixCSC(CuSparseMatrixCSR(T)) ≈ f(S)
+    end
 end
 

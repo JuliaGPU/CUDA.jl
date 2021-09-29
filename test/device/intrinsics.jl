@@ -121,7 +121,7 @@ end
 
 @testset "llvm ir barrier int" begin
     function kernel_barrier_count(an_array_of_1)
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
         if sync_threads_count(an_array_of_1[i]) == 3
             an_array_of_1[i] += Int32(1)
         end
@@ -136,7 +136,7 @@ end
     @test b_out == b_in .+ 1
 
     function kernel_barrier_and(an_array_of_1)
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
         if sync_threads_and(an_array_of_1[i]) > 0
             an_array_of_1[i] += Int32(1)
         end
@@ -151,7 +151,7 @@ end
     @test a_out == a_in .+ 1
 
     function kernel_barrier_or(an_array_of_1)
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
         if sync_threads_or(an_array_of_1[i]) > 0
             an_array_of_1[i] += Int32(1)
         end
@@ -168,7 +168,7 @@ end
 
 @testset "llvm ir barrier bool" begin
     function kernel_barrier_count(an_array_of_1)
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
         if sync_threads_count(an_array_of_1[i] > 0) == 3
             an_array_of_1[i] += Int32(1)
         end
@@ -183,7 +183,7 @@ end
     @test b_out == b_in .+ 1
 
     function kernel_barrier_and(an_array_of_1)
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
         if sync_threads_and(an_array_of_1[i] > 0)
             an_array_of_1[i] += Int32(1)
         end
@@ -198,7 +198,7 @@ end
     @test a_out == a_in .+ 1
 
     function kernel_barrier_or(an_array_of_1)
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
         if sync_threads_or(an_array_of_1[i] > 0)
             an_array_of_1[i] += Int32(1)
         end

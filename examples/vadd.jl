@@ -3,7 +3,7 @@ using Test
 using CUDA
 
 function vadd(a, b, c)
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    i = (blockIdx().x-0x1) * blockDim().x + threadIdx().x
     c[i] = a[i] + b[i]
     return
 end

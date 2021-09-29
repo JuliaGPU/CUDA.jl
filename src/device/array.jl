@@ -68,7 +68,7 @@ Base.pointer(x::CuDeviceArray{T,<:Any,A}) where {T,A} = Base.unsafe_convert(LLVM
 end
 
 typetagdata(a::CuDeviceArray{<:Any,<:Any,A}, i=1) where {A} =
-  reinterpret(LLVMPtr{UInt8,A}, a.ptr + a.maxsize) + i - 1
+  reinterpret(LLVMPtr{UInt8,A}, a.ptr + a.maxsize) + i - one(i)
 
 
 ## conversions
@@ -105,7 +105,7 @@ function union_types(T::Union)
     return typs
 end
 
-@inline function arrayref(A::CuDeviceArray{T}, index::Int) where {T}
+@inline function arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     if isbitstype(T)
         arrayref_bits(A, index)
@@ -114,12 +114,12 @@ end
     end
 end
 
-@inline function arrayref_bits(A::CuDeviceArray{T}, index::Int) where {T}
+@inline function arrayref_bits(A::CuDeviceArray{T}, index::Integer) where {T}
     align = alignment(A)
     unsafe_load(pointer(A), index, Val(align))
 end
 
-@inline @generated function arrayref_union(A::CuDeviceArray{T,AS}, index::Int) where {T,AS}
+@inline @generated function arrayref_union(A::CuDeviceArray{T,AS}, index::Integer) where {T,AS}
     typs = union_types(T)
 
     # generate code that conditionally loads a value based on the selector value.
@@ -147,7 +147,7 @@ end
     end
 end
 
-@inline function arrayset(A::CuDeviceArray{T}, x::T, index::Int) where {T}
+@inline function arrayset(A::CuDeviceArray{T}, x::T, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     if isbitstype(T)
         arrayset_bits(A, x, index)
@@ -157,12 +157,12 @@ end
     return A
 end
 
-@inline function arrayset_bits(A::CuDeviceArray{T}, x::T, index::Int) where {T}
+@inline function arrayset_bits(A::CuDeviceArray{T}, x::T, index::Integer) where {T}
     align = alignment(A)
     unsafe_store!(pointer(A), x, index, Val(align))
 end
 
-@inline @generated function arrayset_union(A::CuDeviceArray{T,AS}, x::T, index::Int) where {T,AS}
+@inline @generated function arrayset_union(A::CuDeviceArray{T,AS}, x::T, index::Integer) where {T,AS}
     typs = union_types(T)
     sel = findfirst(isequal(x), typs)
 
@@ -178,7 +178,7 @@ end
     end
 end
 
-@inline function const_arrayref(A::CuDeviceArray{T}, index::Int) where {T}
+@inline function const_arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     align = alignment(A)
     unsafe_cached_load(pointer(A), index, Val(align))
@@ -187,12 +187,25 @@ end
 
 ## indexing
 
-Base.@propagate_inbounds Base.getindex(A::CuDeviceArray{T}, i1::Int) where {T} =
+Base.IndexStyle(::Type{<:CuDeviceArray}) = Base.IndexLinear()
+
+Base.@propagate_inbounds Base.getindex(A::CuDeviceArray{T}, i1::Integer) where {T} =
     arrayref(A, i1)
-Base.@propagate_inbounds Base.setindex!(A::CuDeviceArray{T}, x, i1::Int) where {T} =
+Base.@propagate_inbounds Base.setindex!(A::CuDeviceArray{T}, x, i1::Integer) where {T} =
     arrayset(A, convert(T,x)::T, i1)
 
-Base.IndexStyle(::Type{<:CuDeviceArray}) = Base.IndexLinear()
+# preserve the specific integer type when indexing device arrays,
+# to avoid extending 32-bit hardware indices to 64-bit.
+Base.to_index(::CuDeviceArray, i::Integer) = i
+
+# Base doesn't like Integer indices, so we need our own ND get and setindex! routines.
+# See also: https://github.com/JuliaLang/julia/pull/42289
+Base.@propagate_inbounds Base.getindex(A::CuDeviceArray,
+                                       I::Union{Integer, CartesianIndex}...) =
+    A[Base._to_linear_index(A, to_indices(A, I)...)]
+Base.@propagate_inbounds Base.setindex!(A::CuDeviceArray, x,
+                                        I::Union{Integer, CartesianIndex}...) =
+    A[Base._to_linear_index(A, to_indices(A, I)...)] = x
 
 
 ## const indexing
@@ -216,10 +229,10 @@ Base.Experimental.Const(A::CuDeviceArray) = Const(A)
 Base.IndexStyle(::Type{<:Const}) = IndexLinear()
 Base.size(C::Const) = size(C.a)
 Base.axes(C::Const) = axes(C.a)
-Base.@propagate_inbounds Base.getindex(A::Const, i1::Int) = const_arrayref(A.a, i1)
+Base.@propagate_inbounds Base.getindex(A::Const, i1::Integer) = const_arrayref(A.a, i1)
 
 # deprecated
-Base.@propagate_inbounds ldg(A::CuDeviceArray, i1::Integer) = const_arrayref(A, Int(i1))
+Base.@propagate_inbounds ldg(A::CuDeviceArray, i1::Integer) = const_arrayref(A, i1)
 
 
 ## other

@@ -125,6 +125,28 @@ function rand_poisson!(rng::RNG, A::DenseCuArray{Cuint}; lambda=1)
     return A
 end
 
+# CPU arrays
+function Random.rand!(rng::RNG, A::AbstractArray{T}) where {T <: UniformType}
+    B = CuArray{T}(undef, size(A))
+    rand!(rng, B)
+    copyto!(A, B)
+end
+function Random.randn!(rng::RNG, A::AbstractArray{T}) where {T <: NormalType}
+    B = CuArray{T}(undef, size(A))
+    randn!(rng, B)
+    copyto!(A, B)
+end
+function rand_logn!(rng::RNG, A::AbstractArray{T}) where {T <: LognormalType}
+    B = CuArray{T}(undef, size(A))
+    rand_logn!(rng, B)
+    copyto!(A, B)
+end
+function rand_poisson!(rng::RNG, A::AbstractArray{T}) where {T <: PoissonType}
+    B = CuArray{T}(undef, size(A))
+    rand_poisson!(rng, B)
+    copyto!(A, B)
+end
+
 
 ## out of place
 
@@ -143,7 +165,7 @@ function outofplace_pow2(shape, ctor, f)
     end
 end
 
-# arrays
+# GPU arrays
 Random.rand(rng::RNG, T::UniformType, dims::Dims) =
     Random.rand!(rng, CuArray{T}(undef, dims))
 Random.randn(rng::RNG, T::NormalType, dims::Dims; kwargs...) =
@@ -154,12 +176,21 @@ rand_poisson(rng::RNG, T::PoissonType, dims::Dims; kwargs...) =
     rand_poisson!(rng, CuArray{T}(undef, dims); kwargs...)
 
 # specify default types
-Random.rand(rng::RNG, dims::Dims; kwargs...) = Random.rand(rng, Float32, dims; kwargs...)
-Random.randn(rng::RNG, dims::Dims; kwargs...) = Random.randn(rng, Float32, dims; kwargs...)
+Random.rand(rng::RNG, dims::Dims; kwargs...) = rand(rng, Float32, dims; kwargs...)
+Random.randn(rng::RNG, dims::Dims; kwargs...) = randn(rng, Float32, dims; kwargs...)
 rand_logn(rng::RNG, dims::Dims; kwargs...) = rand_logn(rng, Float32, dims; kwargs...)
 rand_poisson(rng::RNG, dims::Dims; kwargs...) = rand_poisson(rng, Cuint, dims; kwargs...)
 
 # support all dimension specifications
+Random.rand(rng::RNG, dim1::Integer, dims::Integer...) =
+    Random.rand(rng, Dims((dim1, dims...)))
+Random.randn(rng::RNG, dim1::Integer, dims::Integer...; kwargs...) =
+    Random.randn(rng, Dims((dim1, dims...)); kwargs...)
+rand_logn(rng::RNG, dim1::Integer, dims::Integer...; kwargs...) =
+    rand_logn(rng, Dims((dim1, dims...)); kwargs...)
+rand_poisson(rng::RNG, dim1::Integer, dims::Integer...; kwargs...) =
+    rand_poisson(rng, Dims((dim1, dims...)); kwargs...)
+# ... and with a type
 Random.rand(rng::RNG, T::UniformType, dim1::Integer, dims::Integer...) =
     Random.rand(rng, T, Dims((dim1, dims...)))
 Random.randn(rng::RNG, T::NormalType, dim1::Integer, dims::Integer...; kwargs...) =
@@ -169,3 +200,8 @@ rand_logn(rng::RNG, T::LognormalType, dim1::Integer, dims::Integer...; kwargs...
 rand_poisson(rng::RNG, T::PoissonType, dim1::Integer, dims::Integer...; kwargs...) =
     rand_poisson(rng, T, Dims((dim1, dims...)); kwargs...)
 
+# scalars
+Random.rand(rng::RNG, T::UniformType=Float32) = rand(rng, T, 1)[]
+Random.randn(rng::RNG, T::NormalType=Float32; kwargs...) = randn(rng, T, 1; kwargs...)[]
+rand_logn(rng::RNG, T::LognormalType=Float32; kwargs...) = rand_logn(rng, T, 1; kwargs...)[]
+rand_poisson(rng::RNG, T::PoissonType=Float32; kwargs...) = rand_poisson(rng, T, 1; kwargs...)[]

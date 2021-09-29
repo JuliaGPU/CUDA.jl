@@ -42,11 +42,16 @@ if do_help
                Remaining arguments filter the tests that will be executed.""")
     exit(0)
 end
-_, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
+set_jobs, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
 do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
 do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
 do_thorough, _ = extract_flag!(ARGS, "--thorough")
 do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
+
+if !set_jobs && jobs == 1
+    @warn """You are running the CUDA.jl test suite with only a single thread; this will take a long time.
+           Consider launching Julia with `--threads auto` to run tests in parallel."""
+end
 
 include("setup.jl")     # make sure everything is precompiled
 _, gpus = extract_flag!(ARGS, "--gpus", ndevices())

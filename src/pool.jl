@@ -215,6 +215,7 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 end
 @inline function _alloc(::Type{Mem.DeviceBuffer}, sz; stream::Union{Nothing,CuStream})
     state = active_state()
+    stream = something(stream, state.stream)
 
     gctime = 0.0
     time = Base.@elapsed begin
@@ -223,20 +224,28 @@ end
         # mark the pool as active
         pool_mark(state.device)
 
-        for phase in 1:4
+        for phase in 1:5
             if phase == 2
                 gctime += Base.@elapsed GC.gc(false)
             elseif phase == 3
                 gctime += Base.@elapsed GC.gc(true)
             elseif phase == 4
+                synchronize(stream)
+
+                # NVIDIA bug #3383169: non-blocking sync doesn't trigger memory release.
+                cuStreamSynchronize(stream)
+            elseif phase == 5
                 device_synchronize()
+
+                # NVIDIA bug #3383169: synchronizing the legacy stream doesn't trigger memory release.
+                cuCtxSynchronize()
             end
 
-            buf = actual_alloc(sz; async=true, stream=something(stream, state.stream))
+            buf = actual_alloc(sz; async=true, stream)
             buf === nothing || break
         end
       else
-        for phase in 1:4
+        for phase in 1:3
             if phase == 2
                 gctime += Base.@elapsed GC.gc(false)
             elseif phase == 3
@@ -381,11 +390,6 @@ end
 
 ## utilities
 
-used_memory(ctx=context()) = @lock allocated_lock begin
-    mapreduce(sizeof∘first, +, values(allocated(ctx)); init=0)
-end
-
-
 """
     @allocated
 
@@ -508,8 +512,8 @@ function memory_status(io::IO=stdout)
   if stream_ordered(state.device)
     pool = memory_pool(state.device)
     if version() >= v"11.3"
-      pool_reserved_bytes = attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT)
-      pool_used_bytes = attribute(UInt64, pool, MEMPOOL_ATTR_USED_MEM_CURRENT)
+      pool_reserved_bytes = cached_memory()
+      pool_used_bytes = used_memory()
       @printf(io, "Memory pool usage: %s (%s reserved)",
                   Base.format_bytes(pool_used_bytes),
                   Base.format_bytes(pool_reserved_bytes))
@@ -522,9 +526,34 @@ function memory_status(io::IO=stdout)
 end
 
 """
+    used_memory()
+
+Returns the amount of memory from the CUDA memory pool that is currently in use by the
+application.
+
+!!! warning
+
+    This function is only available on CUDA driver 11.3 and later.
+"""
+function used_memory()
+  state = active_state()
+  if version() >= v"11.3" && stream_ordered(state.device)
+    # we can only query the memory pool's reserved memory on CUDA 11.3 and later
+    pool = memory_pool(state.device)
+    Int(attribute(UInt64, pool, MEMPOOL_ATTR_USED_MEM_CURRENT))
+  else
+    0
+  end
+end
+
+"""
     cached_memory()
 
-Returns the cached amount of memory (in bytes) being held on by the CUDA allocator.
+Returns the amount of backing memory currently allocated for the CUDA memory pool.
+
+!!! warning
+
+    This function is only available on CUDA driver 11.3 and later.
 """
 function cached_memory()
   state = active_state()
