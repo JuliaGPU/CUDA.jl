@@ -6,11 +6,11 @@ using CUDA: CuSparseDeviceVector, CuSparseDeviceMatrixCSC, CuSparseDeviceMatrixC
     CuSparseDeviceMatrixBSR, CuSparseDeviceMatrixCOO
 
 @testset "cudaconvert" begin
-    @test isbitstype(CuSparseDeviceVector{Float32, Cint})
-    @test isbitstype(CuSparseDeviceMatrixCSC{Float32, Cint})
-    @test isbitstype(CuSparseDeviceMatrixCSR{Float32, Cint})
-    @test isbitstype(CuSparseDeviceMatrixBSR{Float32, Cint})
-    @test isbitstype(CuSparseDeviceMatrixCOO{Float32, Cint})
+    @test isbitstype(CuSparseDeviceVector{Float32, Cint, CUDA.AS.Global})
+    @test isbitstype(CuSparseDeviceMatrixCSC{Float32, Cint, CUDA.AS.Global})
+    @test isbitstype(CuSparseDeviceMatrixCSR{Float32, Cint, CUDA.AS.Global})
+    @test isbitstype(CuSparseDeviceMatrixBSR{Float32, Cint, CUDA.AS.Global})
+    @test isbitstype(CuSparseDeviceMatrixCOO{Float32, Cint, CUDA.AS.Global})
 
     V = sprand(10, 0.5)
     cuV = CuSparseVector(V)

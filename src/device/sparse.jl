@@ -15,7 +15,7 @@ struct CuSparseDeviceVector{Tv,Ti, A} <: AbstractSparseVector{Tv,Ti}
     iPtr::CuDeviceVector{Ti, A}
     nzVal::CuDeviceVector{Tv, A}
     dims::NTuple{2,Int}
-    nnz::Int
+    nnz::Ti
 end
 
 Base.length(g::CuSparseDeviceVector) = prod(g.dims)
@@ -27,7 +27,7 @@ struct CuSparseDeviceMatrixCSC{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
     rowVal::CuDeviceVector{Ti, A}
     nzVal::CuDeviceVector{Tv, A}
     dims::NTuple{2,Int}
-    nnz::Int
+    nnz::Ti
 end
 
 Base.length(g::CuSparseDeviceMatrixCSC) = prod(g.dims)
@@ -39,7 +39,7 @@ struct CuSparseDeviceMatrixCSR{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
     colVal::CuDeviceVector{Ti, A}
     nzVal::CuDeviceVector{Tv, A}
     dims::NTuple{2, Int}
-    nnz::Int
+    nnz::Ti
 end
 
 Base.length(g::CuSparseDeviceMatrixCSR) = prod(g.dims)
@@ -51,9 +51,9 @@ struct CuSparseDeviceMatrixBSR{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
     colVal::CuDeviceVector{Ti, A}
     nzVal::CuDeviceVector{Tv, A}
     dims::NTuple{2,Int}
-    blockDim::Int
+    blockDim::Ti
     dir::Char
-    nnz::Int
+    nnz::Ti
 end
 
 Base.length(g::CuSparseDeviceMatrixBSR) = prod(g.dims)
@@ -65,7 +65,7 @@ struct CuSparseDeviceMatrixCOO{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
     colInd::CuDeviceVector{Ti, A}
     nzVal::CuDeviceVector{Tv, A}
     dims::NTuple{2,Int}
-    nnz::Int
+    nnz::Ti
 end
 
 Base.length(g::CuSparseDeviceMatrixCOO) = prod(g.dims)
