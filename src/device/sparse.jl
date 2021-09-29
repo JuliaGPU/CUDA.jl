@@ -11,9 +11,9 @@ using SparseArrays
 export CuSparseDeviceVector, CuSparseDeviceMatrixCSC, CuSparseDeviceMatrixCSR,
        CuSparseDeviceMatrixBSR, CuSparseDeviceMatrixCOO
 
-struct CuSparseDeviceVector{Tv,Ti} <: AbstractSparseVector{Tv,Ti}
-    iPtr::CuDeviceVector{Ti, AS.Global}
-    nzVal::CuDeviceVector{Tv, AS.Global}
+struct CuSparseDeviceVector{Tv,Ti, A} <: AbstractSparseVector{Tv,Ti}
+    iPtr::CuDeviceVector{Ti, A}
+    nzVal::CuDeviceVector{Tv, A}
     dims::NTuple{2,Int}
     nnz::Int
 end
@@ -22,10 +22,10 @@ Base.length(g::CuSparseDeviceVector) = prod(g.dims)
 Base.size(g::CuSparseDeviceVector) = g.dims
 Base.ndims(g::CuSparseDeviceVector) = 1
 
-struct CuSparseDeviceMatrixCSC{Tv,Ti} <: AbstractSparseMatrix{Tv,Ti}
-    colPtr::CuDeviceVector{Ti, AS.Global}
-    rowVal::CuDeviceVector{Ti, AS.Global}
-    nzVal::CuDeviceVector{Tv, AS.Global}
+struct CuSparseDeviceMatrixCSC{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
+    colPtr::CuDeviceVector{Ti, A}
+    rowVal::CuDeviceVector{Ti, A}
+    nzVal::CuDeviceVector{Tv, A}
     dims::NTuple{2,Int}
     nnz::Int
 end
@@ -34,10 +34,10 @@ Base.length(g::CuSparseDeviceMatrixCSC) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixCSC) = g.dims
 Base.ndims(g::CuSparseDeviceMatrixCSC) = 2
 
-struct CuSparseDeviceMatrixCSR{Tv,Ti} <: AbstractSparseMatrix{Tv,Ti}
-    rowPtr::CuDeviceVector{Ti, AS.Global}
-    colVal::CuDeviceVector{Ti, AS.Global}
-    nzVal::CuDeviceVector{Tv, AS.Global}
+struct CuSparseDeviceMatrixCSR{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
+    rowPtr::CuDeviceVector{Ti, A}
+    colVal::CuDeviceVector{Ti, A}
+    nzVal::CuDeviceVector{Tv, A}
     dims::NTuple{2, Int}
     nnz::Int
 end
@@ -46,10 +46,10 @@ Base.length(g::CuSparseDeviceMatrixCSR) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixCSR) = g.dims
 Base.ndims(g::CuSparseDeviceMatrixCSR) = 2
 
-struct CuSparseDeviceMatrixBSR{Tv,Ti} <: AbstractSparseMatrix{Tv,Ti}
-    rowPtr::CuDeviceVector{Ti, AS.Global}
-    colVal::CuDeviceVector{Ti, AS.Global}
-    nzVal::CuDeviceVector{Tv, AS.Global}
+struct CuSparseDeviceMatrixBSR{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
+    rowPtr::CuDeviceVector{Ti, A}
+    colVal::CuDeviceVector{Ti, A}
+    nzVal::CuDeviceVector{Tv, A}
     dims::NTuple{2,Int}
     blockDim::Int
     dir::Char
@@ -60,10 +60,10 @@ Base.length(g::CuSparseDeviceMatrixBSR) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixBSR) = g.dims
 Base.ndims(g::CuSparseDeviceMatrixBSR) = 2
 
-struct CuSparseDeviceMatrixCOO{Tv,Ti} <: AbstractSparseMatrix{Tv,Ti}
-    rowInd::CuDeviceVector{Ti, AS.Global}
-    colInd::CuDeviceVector{Ti, AS.Global}
-    nzVal::CuDeviceVector{Tv, AS.Global}
+struct CuSparseDeviceMatrixCOO{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
+    rowInd::CuDeviceVector{Ti, A}
+    colInd::CuDeviceVector{Ti, A}
+    nzVal::CuDeviceVector{Tv, A}
     dims::NTuple{2,Int}
     nnz::Int
 end
