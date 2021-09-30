@@ -28,11 +28,15 @@ let group = addgroup!(group, "iteration")
 
     group["logical"] = @benchmarkable $gpu_vec[$gpu_vec_bools]
 
-    group["findall"] = @benchmarkable findall($gpu_vec_bools)
-    group["findall"] = @benchmarkable findall(isodd, $gpu_vec_ints)
+    let group = addgroup!(group, "findall")
+        group["bool"] = @benchmarkable findall($gpu_vec_bools)
+        group["int"] = @benchmarkable findall(isodd, $gpu_vec_ints)
+    end
 
-    group["findfirst"] = @benchmarkable findfirst($gpu_vec_bools)
-    group["findfirst"] = @benchmarkable findfirst(isodd, $gpu_vec_ints)
+    let group = addgroup!(group, "findfirst")
+        group["bool"] = @benchmarkable findfirst($gpu_vec_bools)
+        group["int"] = @benchmarkable findfirst(isodd, $gpu_vec_ints)
+    end
 
     let group = addgroup!(group, "findmin") # findmax
         group["1d"] = @async_benchmarkable findmin($gpu_vec)
