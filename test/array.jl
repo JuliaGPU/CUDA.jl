@@ -722,3 +722,22 @@ end
     end
   end
 end
+
+if length(devices()) > 1
+@testset "multigpu" begin
+  dev = device()
+  other_devs = filter(!isequal(dev), collect(devices()))
+  other_dev = first(other_devs)
+
+  @testset "issue 1176" begin
+    A = [1,2,3]
+    dA = CuArray(A)
+    synchronize()
+    B = fetch(@async begin
+        device!(other_dev)
+        Array(dA)
+    end)
+    @test A == B
+  end
+end
+end
