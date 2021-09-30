@@ -51,7 +51,7 @@ import Adapt
     gpu_ptr = convert(CuPtr{Int}, buf)
     gpu_arr = Base.unsafe_wrap(CuArray, gpu_ptr, 1)
     gpu_arr .= 42
-    
+
     synchronize()
 
     cpu_ptr = convert(Ptr{Int}, buf)
@@ -606,6 +606,23 @@ end
   expected = sum(a, dims=2)
   actual = sum(c, dims=2)
   @test expected == Array(actual)
+
+  @testset "#1169" begin
+    function test_cuda_sum!(Nx, Ny, Nz)
+        A = randn(Nx, Ny, Nz)
+        R = zeros(1, Ny, Nz)
+        dA = CuArray(A)
+        dR = CuArray(R)
+        sum!(dR, dA)
+        sum!(R, A)
+        R ≈ Array(dR)
+    end
+
+    @test test_cuda_sum!(32, 32, 32)
+    @test test_cuda_sum!(256, 256, 256)
+    @test test_cuda_sum!(512, 512, 512)
+    @test test_cuda_sum!(85, 1320, 100)
+  end
 end
 
 @testset "unified memory" begin
