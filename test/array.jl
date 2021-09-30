@@ -4,6 +4,7 @@ import Adapt
 @testset "constructors" begin
   xs = CuArray{Int}(undef, 2, 3)
   @test device(xs) == device()
+  @test context(xs) == context()
   @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
   @test collect(cu[1, 2, 3]) == [1, 2, 3]
   @test collect(cu([1, 2, 3])) == [1, 2, 3]

@@ -225,6 +225,11 @@ Base.elsize(::Type{<:CuArray{T}}) where {T} = sizeof(T)
 Base.size(x::CuArray) = x.dims
 Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 
+function context(A::CuArray)
+  A.storage === nothing && throw(UndefRefError())
+  return A.storage.ctx
+end
+
 function device(A::CuArray)
   A.storage === nothing && throw(UndefRefError())
   return device(A.storage.ctx)
