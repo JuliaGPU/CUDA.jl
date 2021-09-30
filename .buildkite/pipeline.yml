@@ -46,6 +46,8 @@ steps:
     if: build.message !~ /\[skip tests\]/ &&
         !build.pull_request.draft
     timeout_in_minutes: 120
+    soft_fail:  # our current CI machines run out of memory during this job
+      - exit_status: 1
 
   - label: "Julia 1.7"
     plugins:
