@@ -375,16 +375,18 @@ end
 Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
     copyto!(dest, 1, src, 1, length(src))
 
+# device memory
+
 # NOTE: we only switch contexts here to avoid illegal memory accesses. synchronization is
 #       best-effort, since we don't keep track of streams using each array.
 
-function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::Array{T}, soffs, n) where T
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, doffs,
+                             src::Array{T}, soffs, n) where T
   @context! context(dest) begin
-    if !is_pinned(pointer(src))
-      # operations on unpinned memory cannot be executed asynchronously, and synchronize
-      # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
-      synchronize()
-    end
+    # operations on unpinned memory cannot be executed asynchronously, and synchronize
+    # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
+    is_pinned(pointer(src)) || synchronize()
+
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
       if Base.isbitsunion(T)
@@ -395,25 +397,28 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::Array{T}, soffs,
   return dest
 end
 
-function Base.unsafe_copyto!(dest::Array{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
+function Base.unsafe_copyto!(dest::Array{T}, doffs,
+                             src::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, soffs, n) where T
   @context! context(src) begin
-    if !is_pinned(pointer(dest))
-      # operations on unpinned memory cannot be executed asynchronously, and synchronize
-      # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
-      synchronize()
-    end
+    # operations on unpinned memory cannot be executed asynchronously, and synchronize
+    # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
+    is_pinned(pointer(dest)) || synchronize()
+
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
       if Base.isbitsunion(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
     end
-    synchronize() # users expect values to be available after this call
+
+    # users expect values to be available after this call
+    synchronize()
   end
   return dest
 end
 
-function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, doffs,
+                             src::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, soffs, n) where T
   context(dest) == context(src) || throw(ArgumentError("copying between arrays from different contexts"))
   @context! context(dest) begin
     GC.@preserve src dest begin
@@ -425,6 +430,47 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T},
   end
   return dest
 end
+
+# unified memory
+
+# NOTE: synchronization is best-effort, since we don't keep track of the
+#       defices and streams using each array backed by unified memory.
+
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.UnifiedBuffer}, doffs,
+                             src::Array{T}, soffs, n) where T
+  # maintain stream-ordered semantics
+  # XXX: alternative, use an async CUDA memcpy if the stream isn't idle?
+  synchronize()
+
+  GC.@preserve src dest begin
+    cpu_ptr = pointer(src, soffs)
+    unsafe_copyto!(reinterpret(typeof(cpu_ptr), pointer(dest, doffs)), cpu_ptr, n)
+    if Base.isbitsunion(T)
+      cpu_ptr = typetagdata(src, soffs)
+      unsafe_copyto!(reinterpret(typeof(cpu_ptr), typetagdata(dest, doffs)), cpu_ptr, n)
+    end
+  end
+  return dest
+end
+
+function Base.unsafe_copyto!(dest::Array{T}, doffs,
+                             src::DenseCuArray{T,<:Any,Mem.UnifiedBuffer}, soffs, n) where T
+  # maintain stream-ordered semantics
+  synchronize()
+
+  GC.@preserve src dest begin
+    cpu_ptr = pointer(dest, doffs)
+    unsafe_copyto!(cpu_ptr, reinterpret(typeof(cpu_ptr), pointer(src, soffs)), n)
+    if Base.isbitsunion(T)
+      cpu_ptr = typetagdata(dest, doffs)
+      unsafe_copyto!(cpu_ptr, reinterpret(typeof(cpu_ptr), typetagdata(src, soffs)), n)
+    end
+  end
+
+  return dest
+end
+
+# TODO: copying between CUDA arrays (unified<->unified, unified<->device, device<->unified)
 
 
 ## regular gpu array adaptor
