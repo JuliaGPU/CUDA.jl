@@ -178,6 +178,18 @@ end
     @test Array(c) == reinterpret(UInt32, Int32[-2,-3])
   end
 
+  @testset "reinterpret(reshape)" begin
+    a = CuArray(ComplexF32[1.0f0+2.0f0*im, 2.0f0im, 3.0f0im])
+    b = reinterpret(reshape, Float32, a)
+    @test a isa CuArray{ComplexF32, 1}
+    @test b isa CuArray{Float32, 2}
+    @test Array(b) == [1.0 0.0 0.0; 2.0 2.0 3.0]
+
+    a = CuArray(Float32[1.0 0.0 0.0; 2.0 2.0 3.0])
+    b = reinterpret(reshape, ComplexF32, a)
+    @test Array(b) == ComplexF32[1.0f0+2.0f0*im, 2.0f0im, 3.0f0im]
+  end
+
   @testset "exception: non-isbits" begin
     local err
     @test try
