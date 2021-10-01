@@ -288,8 +288,8 @@ actually reclaimed.
 function reclaim(sz::Int=typemax(Int))
   dev = device()
   if stream_ordered(dev)
-      # TODO: respect sz
       device_synchronize()
+      synchronize(context())
       trim(memory_pool(dev))
   else
     0
@@ -309,41 +309,55 @@ CUDA memory pool) and return a specific error code when failing to.
 """
 macro retry_reclaim(isfailed, ex)
   quote
-    ret = nothing
-    phase = 0
-    while true
-      phase += 1
-      ret = $(esc(ex))
-      $(esc(isfailed))(ret) || break
+    ret = $(esc(ex))
 
-      # incrementally more costly reclaim of cached memory
-      if stream_ordered(device())
-        if phase == 1
-          # synchronizing streams forces asynchronous free operations to finish.
-          device_synchronize()
-        elseif phase == 2
-          GC.gc(false)
-          device_synchronize()
-        elseif phase == 3
-          GC.gc(true)
-          device_synchronize()
-        elseif phase == 4
-          # maybe this allocation doesn't use the pool, so trim it.
-          reclaim()
-          device_synchronize()
+    # slow path, incrementally reclaiming more memory until we succeed
+    if $(esc(isfailed))(ret)
+      state = active_state()
+      is_stream_ordered = stream_ordered(state.device)
+
+      phase = 1
+      while true
+        if is_stream_ordered
+          # NOTE: the stream-ordered allocator only releases memory on actual API calls,
+          #       and not when our synchronization routines query the relevant streams.
+          #       we do still call our routines to minimize the time we block in libcuda.
+          if phase == 1
+            synchronize(state.stream)
+            cuStreamSynchronize(state.stream)
+          elseif phase == 2
+            device_synchronize()
+            synchronize(state.context)
+          elseif phase == 3
+            GC.gc(false)
+            device_synchronize()
+            synchronize(state.context)
+          elseif phase == 4
+            GC.gc(true)
+            device_synchronize()
+            synchronize(state.context)
+          elseif phase == 5
+            # in case we had a release threshold configured
+            trim(memory_pool(state.device))
+          else
+            break
+          end
         else
-          break
+          if phase == 1
+            GC.gc(false)
+          elseif phase == 2
+            GC.gc(true)
+          else
+            break
+          end
         end
-      else
-        if phase == 1
-          GC.gc(false)
-        elseif phase == 2
-          GC.gc(true)
-        else
-          break
-        end
+        phase += 1
+
+        ret = $(esc(ex))
+        $(esc(isfailed))(ret) || break
       end
     end
+
     ret
   end
 end
