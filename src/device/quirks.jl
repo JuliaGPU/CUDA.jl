@@ -38,7 +38,7 @@ end
     @print_and_throw "sincos(x) is only defined for finite x."
 
 # multidimensional.jl
-if VERSION >= v"1.7-"
+@static if VERSION >= v"1.7-"
     # XXX: the boundscheck change in JuliaLang/julia#42119 has exposed additional issues
     #      with bad code generation by ptxas on <sm_70, as reported with NVIDIA in #3382020.
     @device_override Base.@propagate_inbounds function Base.getindex(iter::CartesianIndices{N,R},
