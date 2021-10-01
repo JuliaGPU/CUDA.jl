@@ -22,32 +22,31 @@ steps:
 
   - wait  # smoke test: don't kick off a large number of tests if they'd all just fail
 
-  - label: "Julia 1.6 (debug)"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: 1.6
-      - JuliaCI/julia-test#v1:
-          julia_args: "-g2"
-          test_args: "--sanitize --quickfail --jobs=2"
-      - JuliaCI/julia-coverage#v1:
-          codecov: true
-          dirs:
-            - src
-            - lib
-            - examples
-    agents:
-      queue: "juliagpu"
-      cuda: "11.0"
-      cap: "recent"                   # test as much as possible
-    env:
-      JULIA_CUDA_VERSION: '11.4'
-      JULIA_CUDA_DEBUG_INFO: 'false'  # NVIDIA bug #3305774: ptxas segfaults with out debug info
-      JULIA_CUDA_USE_BINARYBUILDER: 'true'
-    if: build.message !~ /\[skip tests\]/ &&
-        !build.pull_request.draft
-    timeout_in_minutes: 120
-    soft_fail:  # our current CI machines run out of memory during this job
-      - exit_status: 1
+  # XXX: disabled due to memory requirements; re-enable on the new CI machines
+  # - label: "Julia 1.6 (debug)"
+  #   plugins:
+  #     - JuliaCI/julia#v1:
+  #         version: 1.6
+  #     - JuliaCI/julia-test#v1:
+  #         julia_args: "-g2"
+  #         test_args: "--sanitize --quickfail --jobs=2"
+  #     - JuliaCI/julia-coverage#v1:
+  #         codecov: true
+  #         dirs:
+  #           - src
+  #           - lib
+  #           - examples
+  #   agents:
+  #     queue: "juliagpu"
+  #     cuda: "11.0"
+  #     cap: "recent"                   # test as much as possible
+  #   env:
+  #     JULIA_CUDA_VERSION: '11.4'
+  #     JULIA_CUDA_DEBUG_INFO: 'false'  # NVIDIA bug #3305774: ptxas segfaults with out debug info
+  #     JULIA_CUDA_USE_BINARYBUILDER: 'true'
+  #   if: build.message !~ /\[skip tests\]/ &&
+  #       !build.pull_request.draft
+  #   timeout_in_minutes: 120
 
   - label: "Julia 1.7"
     plugins:
