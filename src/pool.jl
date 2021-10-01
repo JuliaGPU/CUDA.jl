@@ -81,36 +81,6 @@ function stream_ordered(dev::CuDevice)
   @inbounds flags[deviceid(dev)+1]
 end
 
-function allocatable_memory(dev::CuDevice)
-  # NOTE: this function queries available memory, which obviously changes after we allocate.
-  device!(dev) do
-    available_memory()
-  end
-end
-
-function reserved_memory(dev::CuDevice)
-  # taken from TensorFlow's `MinSystemMemory`
-  #
-  # if the available memory is < 2GiB, we allocate 225MiB to system memory.
-  # otherwise, depending on the capability version assign
-  #  500MiB (for cuda_compute_capability <= 6.x) or
-  # 1050MiB (for cuda_compute_capability <= 7.x) or
-  # 1536MiB (for cuda_compute_capability >= 8.x)
-  available = allocatable_memory(dev)
-  if available <= 1<<31
-    225 * 1024 * 1024
-  else
-    cap = capability(dev)
-    if cap <= v"6"
-      500 * 1024 * 1024
-    elseif cap <= v"7"
-      1050 * 1024 * 1024
-    else
-      1536 * 1024 * 1024
-    end
-  end
-end
-
 # per-device flag indicating the status of a pool
 const _pool_status = PerDevice{Base.RefValue{Union{Nothing,Bool}}}()
 pool_status(dev::CuDevice) = get!(_pool_status, dev) do
@@ -122,11 +92,7 @@ function pool_mark(dev::CuDevice)
   if status[] === nothing
       pool = memory_pool(dev)
 
-      # first time on this context, so configure the pool
-      attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD,
-                 UInt64(reserved_memory(dev)))
-
-      # also launch a task to periodically trim the pool
+      # launch a task to periodically trim the pool
       if isinteractive() && !isassigned(__pool_cleanup)
         __pool_cleanup[] = @async pool_cleanup()
       end
