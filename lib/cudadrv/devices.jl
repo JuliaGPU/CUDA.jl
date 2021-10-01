@@ -1,30 +1,63 @@
 # Device type and auxiliary functions
 
 export
-    CuDevice, name, uuid, totalmem, attribute
+    CuDevice, current_device, has_device, name, uuid, totalmem, attribute
 
-
-"""
-    CuDevice(i::Integer)
-
-Get a handle to a compute device.
-"""
 struct CuDevice
     handle::CUdevice
 
-    # CuDevice is just an integer, but we need (?) to call cuDeviceGet to make sure this
-    # integer is valid. to avoid ambiguity, add a bogus argument (cfr. `checkbounds`)
-    CuDevice(::Type{Bool}, handle::CUdevice) = new(handle)
+    """
+        CuDevice(ordinal::Integer)
+
+    Get a handle to a compute device.
+    """
+    function CuDevice(ordinal::Integer)
+        device_ref = Ref{CUdevice}()
+        cuDeviceGet(device_ref, ordinal)
+        new(device_ref[])
+    end
+
+    """
+        current_device()
+
+    Returns the current device.
+
+    !!! warning
+
+        This is a low-level API, returning the current device as known to the CUDA driver.
+        For most users, it is recommended to use the [`device`](@ref) method instead.
+    """
+    global function current_device()
+        device_ref = Ref{CUdevice}()
+        res = unsafe_cuCtxGetDevice(device_ref)
+        res == ERROR_INVALID_CONTEXT && throw(UndefRefError())
+        res != SUCCESS && throw_api_error(res)
+        return _CuDevice(device_ref[])
+    end
+
+    # for outer constructors
+    global _CuDevice(handle::CUdevice) = new(handle)
 end
 
-const DEVICE_CPU = CuDevice(Bool, CUdevice(-1))
-const DEVICE_INVALID = CuDevice(Bool, CUdevice(-2))
+"""
+    has_device()
 
-function CuDevice(ordinal::Integer)
+Returns whether there is an active device.
+"""
+function has_device()
     device_ref = Ref{CUdevice}()
-    cuDeviceGet(device_ref, ordinal)
-    CuDevice(Bool, device_ref[])
+    res = unsafe_cuCtxGetDevice(device_ref)
+    if res == SUCCESS
+        return true
+    elseif res == ERROR_INVALID_CONTEXT
+        return false
+    else
+        throw_api_error(res)
+    end
 end
+
+const DEVICE_CPU = _CuDevice(CUdevice(-1))
+const DEVICE_INVALID = _CuDevice(CUdevice(-2))
 
 Base.convert(::Type{CUdevice}, dev::CuDevice) = dev.handle
 

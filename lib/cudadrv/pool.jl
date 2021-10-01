@@ -25,7 +25,7 @@ mutable struct CuMemoryPool
         handle_ref = Ref{CUmemoryPool}()
         cuMemPoolCreate(handle_ref, props)
 
-        ctx = CuCurrentContext()
+        ctx = current_context()
         obj = new(handle_ref[], ctx)
         finalizer(unsafe_destroy!, obj)
         return obj
@@ -35,7 +35,7 @@ mutable struct CuMemoryPool
         handle_ref = Ref{CUmemoryPool}()
         cuDeviceGetDefaultMemPool(handle_ref, dev)
 
-        ctx = CuCurrentContext()
+        ctx = current_context()
         new(handle_ref[], ctx)
     end
 
@@ -43,7 +43,7 @@ mutable struct CuMemoryPool
         handle_ref = Ref{CUmemoryPool}()
         cuDeviceGetMemPool(handle_ref, dev)
 
-        ctx = CuCurrentContext()::CuContext
+        ctx = current_context()
         new(handle_ref[], ctx)
     end
 end

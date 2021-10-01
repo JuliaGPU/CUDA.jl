@@ -1,9 +1,9 @@
 # Context management
 
 export
-    CuPrimaryContext, CuContext, CuCurrentContext, activate,
+    CuPrimaryContext, CuContext, current_context, has_context, activate,
     unsafe_reset!, isactive, flags, setflags!,
-    device_synchronize, CuCurrentDevice,
+    device, device_synchronize
 
 
 ## construction and destruction
@@ -67,28 +67,35 @@ mutable struct CuContext
     end
 
     """
-        CuCurrentContext()
+        current_context()
 
-    Return the current context, or `nothing` if there is no active context.
+    Returns the current context.
+
+    !!! warning
+
+        This is a low-level API, returning the current context as known to the CUDA driver.
+        For most users, it is recommended to use the [`context`](@ref) method instead.
     """
-    global function CuCurrentContext()
+    global function current_context()
         handle_ref = Ref{CUcontext}()
         cuCtxGetCurrent(handle_ref)
-        if handle_ref[] == C_NULL
-            return nothing
-        else
-            new_unique(handle_ref[])
-        end
+        handle_ref[] == C_NULL && throw(UndefRefError())
+        new_unique(handle_ref[])
     end
 
-    """
-        CuContext(ptr)
+    # for outer constructors
+    global _CuContext(handle::CUcontext) = new_unique(handle)
+end
 
-    Identify the context a CUDA memory buffer was allocated in.
-    """
-    function CuContext(x::Union{Ptr,CuPtr})
-        new_unique(attribute(CUcontext, x, POINTER_ATTRIBUTE_CONTEXT))
-    end
+"""
+    has_context()
+
+Returns whether there is an active context.
+"""
+function has_context()
+    handle_ref = Ref{CUcontext}()
+    cuCtxGetCurrent(handle_ref)
+    handle_ref[] != C_NULL
 end
 
 # the `valid` bit serves two purposes: make sure we don't double-free a context (in case we
@@ -206,7 +213,7 @@ does not respect any users of the context, and might make other objects unusable
 """
 function unsafe_release!(ctx::CuContext)
     if isvalid(ctx)
-        dev = CuDevice(ctx)
+        dev = device(ctx)
         pctx = CuPrimaryContext(dev)
         if version() >= v"11"
             cuDevicePrimaryCtxRelease_v2(dev)
@@ -283,29 +290,13 @@ end
 ## context properties
 
 """
-    CuCurrentDevice()
-
-Returns the current device, or `nothing` if there is no active device.
-"""
-function CuCurrentDevice()
-    device_ref = Ref{CUdevice}()
-    res = unsafe_cuCtxGetDevice(device_ref)
-    if res == ERROR_INVALID_CONTEXT
-        return nothing
-    elseif res != SUCCESS
-        throw_api_error(res)
-    end
-    return CuDevice(Bool, device_ref[])
-end
-
-"""
-    CuDevice(::CuContext)
+    device(::CuContext)
 
 Returns the device for a context.
 """
-function CuDevice(ctx::CuContext)
+function device(ctx::CuContext)
     push!(CuContext, ctx)
-    dev = CuCurrentDevice()
+    dev = current_device()
     pop!(CuContext)
     return dev
 end

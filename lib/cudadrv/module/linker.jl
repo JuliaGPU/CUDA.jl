@@ -36,7 +36,7 @@ mutable struct CuLink
 
         cuLinkCreate_v2(length(optionKeys), optionKeys, optionVals, handle_ref)
 
-        ctx = CuCurrentContext()
+        ctx = current_context()
         obj = new(handle_ref[], ctx, options, optionKeys, optionVals)
         finalizer(unsafe_destroy!, obj)
         return obj

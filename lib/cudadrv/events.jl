@@ -18,7 +18,7 @@ mutable struct CuEvent
         handle_ref = Ref{CUevent}()
         cuEventCreate(handle_ref, flags)
 
-        ctx = CuCurrentContext()
+        ctx = current_context()
         obj = new(handle_ref[], ctx)
         finalizer(unsafe_destroy!, obj)
         return obj

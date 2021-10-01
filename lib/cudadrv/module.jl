@@ -70,7 +70,7 @@ mutable struct CuModule
             end
         end
 
-        ctx = CuCurrentContext()
+        ctx = current_context()
         obj = new(handle_ref[], ctx)
         finalizer(unsafe_unload!, obj)
         return obj

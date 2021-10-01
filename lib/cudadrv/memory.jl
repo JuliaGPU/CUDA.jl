@@ -738,12 +738,26 @@ end
 
 # some common attributes
 
+"""
+    context(ptr)
+
+Identify the context a CUDA memory buffer was allocated in.
+"""
+context(ptr::Union{Ptr,CuPtr}) =
+    _CuContext(attribute(CUcontext, ptr, POINTER_ATTRIBUTE_CONTEXT))
+
+"""
+    device(ptr)
+
+Identify the device a CUDA memory buffer was allocated on.
+"""
+device(x::Union{Ptr,CuPtr}) =
+    CuDevice(convert(Int, attribute(Cuint, x, POINTER_ATTRIBUTE_DEVICE_ORDINAL)))
+
 @enum_without_prefix CUmemorytype CU_
 memory_type(x) = CUmemorytype(attribute(Cuint, x, POINTER_ATTRIBUTE_MEMORY_TYPE))
 
 is_managed(x) = convert(Bool, attribute(Cuint, x, POINTER_ATTRIBUTE_IS_MANAGED))
-
-CuDevice(x::Union{Ptr,CuPtr}) = CuDevice(convert(Int, attribute(Cuint, x, POINTER_ATTRIBUTE_DEVICE_ORDINAL)))
 
 function is_pinned(ptr::Ptr)
     # unpinned memory makes cuPointerGetAttribute return ERROR_INVALID_VALUE; but instead of

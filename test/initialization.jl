@@ -2,20 +2,22 @@
 @test has_cuda_gpu(true)
 
 # the API shouldn't have been initialized
-@test CuCurrentContext() == nothing
-@test CuCurrentDevice() == nothing
+@test !has_context()
+@test !has_device()
 
 ctx = context()
 dev = device()
 
 # querying Julia's side of things shouldn't cause initialization
-@test CuCurrentContext() == nothing
-@test CuCurrentDevice() == nothing
+@test !has_context()
+@test !has_device()
 
 # now cause initialization
 a = CuArray([42])
-@test CuCurrentContext() == ctx
-@test CuCurrentDevice() == dev
+@test has_context()
+@test current_context() == ctx
+@test has_device()
+@test current_device() == dev
 
 # ... on a different task
 task = @async begin
