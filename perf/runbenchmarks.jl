@@ -22,6 +22,11 @@ macro async_benchmarkable(ex...)
     end
 end
 
+# before anything else, run latency benchmarks. these spawn subprocesses, so we don't want
+# to do so after regular benchmarks have caused the memory allocator to reserve memory.
+@info "Running latency benchmarks"
+latency_results = include("latency.jl")
+
 SUITE = BenchmarkGroup()
 
 # NOTE: don't use spaces in benchmark names (tobami/codespeed#256)
@@ -30,6 +35,7 @@ include("kernel.jl")
 include("array.jl")
 
 if real_run
+    @info "Preparing main benchmarks"
     warmup(SUITE; verbose=false)
     tune!(SUITE)
 
@@ -38,20 +44,21 @@ if real_run
     CUDA.reclaim()
 end
 
-# latency benchmarks spawn external processes and take very long,
-# so don't benefit from warm-up or tuning.
-include("latency.jl")
-
-# integration tests are currently not part of the benchmark suite
+# benchmark groups that aren't part of the suite
 addgroup!(SUITE, "integration")
 
-@info "Running benchmarks"
+@info "Running main benchmarks"
 results = run(SUITE, verbose=true)
 
 # integration tests (that do nasty things, so need to be run last)
-results["integration"]["volumerhs"] = include("volumerhs.jl")
-results["integration"]["byval"] = include("byval.jl")
-results["integration"]["cudadevrt"] = include("cudadevrt.jl")
+@info "Running integration benchmarks"
+integration_results = BenchmarkGroup()
+integration_results["volumerhs"] = include("volumerhs.jl")
+integration_results["byval"] = include("byval.jl")
+integration_results["cudadevrt"] = include("cudadevrt.jl")
+
+results["latency"] = latency_results
+results["integration"] = integration_results
 
 println(results)
 
