@@ -50,7 +50,7 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
   function CuArray{T,N}(storage::ArrayStorage{B}, dims::Dims{N};
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,B}
     Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
-    return new{T,N,B}(storage, maxsize, offset, dims,)
+    return new{T,N,B}(storage, maxsize, offset, dims)
   end
 end
 
@@ -169,6 +169,14 @@ Base.similar(a::CuArray{<:Any,<:Any,B}, ::Type{T}, dims::Base.Dims{N}) where {T,
 function Base.copy(a::CuArray{T,N}) where {T,N}
   b = similar(a)
   @inbounds copyto!(b, a)
+end
+
+# XXX: defining deepcopy_internal, as per the deepcopy documentation, results in a ton
+#      of invalidations, so we redefine deepcopy itself (see JuliaGPU/CUDA.jl#632)
+function Base.deepcopy(x::CuArray)
+  dict = IdDict()
+  haskey(dict, x) && return dict[x]::typeof(x)
+  return dict[x] = copy(x)
 end
 
 
@@ -319,21 +327,11 @@ function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArr
 end
 
 
-## interop with CPU arrays
+## memory copying
 
 typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
 typetagdata(a::CuArray, i=1) =
   convert(CuPtr{UInt8}, a.storage.buffer) + a.maxsize + a.offset÷Base.elsize(a) + i - 1
-
-# We don't convert isbits types in `adapt`, since they are already
-# considered GPU-compatible.
-
-Adapt.adapt_storage(::Type{CuArray}, xs::AT) where {AT<:AbstractArray} =
-  isbitstype(AT) ? xs : convert(CuArray, xs)
-
-# if an element type is specified, convert to it
-Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
-  isbitstype(AT) ? xs : convert(CuArray{T}, xs)
 
 function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
                       n::Integer) where T
@@ -428,13 +426,18 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T},
   return dest
 end
 
-# XXX: defining deepcopy_internal, as per the deepcopy documentation, results in a ton
-#      of invalidations, so we redefine deepcopy itself (see JuliaGPU/CUDA.jl#632)
-function Base.deepcopy(x::CuArray)
-  dict = IdDict()
-  haskey(dict, x) && return dict[x]::typeof(x)
-  return dict[x] = copy(x)
-end
+
+## regular gpu array adaptor
+
+# We don't convert isbits types in `adapt`, since they are already
+# considered GPU-compatible.
+
+Adapt.adapt_storage(::Type{CuArray}, xs::AT) where {AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuArray, xs)
+
+# if an element type is specified, convert to it
+Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuArray{T}, xs)
 
 
 ## opinionated gpu array adaptor
