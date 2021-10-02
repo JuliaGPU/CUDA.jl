@@ -131,19 +131,23 @@ Note that the contexts used with this call should be previously acquired by call
 [`context`](@ref), and not arbitrary contexts created by calling the `CuContext` constructor.
 """
 function context!(ctx::CuContext)
-    activate(ctx)   # we generally only apply CUDA state lazily, i.e. in `prepare_cuda_state`,
-                    # but we need to do so early here to be able to get the context's device.
-    dev = current_device()
-
     # switch contexts
+    # NOTE: if we actually need to switch contexts, we eagerly activate it so that we can
+    #       query its device (we normally only do so lazily in `prepare_cuda_state`)
     state = task_local_state()
     if state === nothing
         old_ctx = nothing
+        activate(ctx)
+        dev = current_device()
         task_local_state!(dev, ctx)
     else
         old_ctx = state.context
-        state.device = dev
-        state.context = ctx
+        if old_ctx != ctx
+            activate(ctx)
+            dev = current_device()
+            state.device = dev
+            state.context = ctx
+        end
     end
 
     return old_ctx

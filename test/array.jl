@@ -4,6 +4,7 @@ import Adapt
 @testset "constructors" begin
   xs = CuArray{Int}(undef, 2, 3)
   @test device(xs) == device()
+  @test context(xs) == context()
   @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
   @test collect(cu[1, 2, 3]) == [1, 2, 3]
   @test collect(cu([1, 2, 3])) == [1, 2, 3]
@@ -720,4 +721,23 @@ end
       @test eltype(a) == Float32
     end
   end
+end
+
+if length(devices()) > 1
+@testset "multigpu" begin
+  dev = device()
+  other_devs = filter(!isequal(dev), collect(devices()))
+  other_dev = first(other_devs)
+
+  @testset "issue 1176" begin
+    A = [1,2,3]
+    dA = CuArray(A)
+    synchronize()
+    B = fetch(@async begin
+        device!(other_dev)
+        Array(dA)
+    end)
+    @test A == B
+  end
+end
 end

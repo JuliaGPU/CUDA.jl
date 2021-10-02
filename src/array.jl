@@ -50,7 +50,7 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
   function CuArray{T,N}(storage::ArrayStorage{B}, dims::Dims{N};
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,B}
     Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
-    return new{T,N,B}(storage, maxsize, offset, dims,)
+    return new{T,N,B}(storage, maxsize, offset, dims)
   end
 end
 
@@ -171,6 +171,14 @@ function Base.copy(a::CuArray{T,N}) where {T,N}
   @inbounds copyto!(b, a)
 end
 
+# XXX: defining deepcopy_internal, as per the deepcopy documentation, results in a ton
+#      of invalidations, so we redefine deepcopy itself (see JuliaGPU/CUDA.jl#632)
+function Base.deepcopy(x::CuArray)
+  dict = IdDict()
+  haskey(dict, x) && return dict[x]::typeof(x)
+  return dict[x] = copy(x)
+end
+
 
 """
   unsafe_wrap(::CuArray, ptr::CuPtr{T}, dims; own=false, ctx=context())
@@ -224,6 +232,11 @@ Base.elsize(::Type{<:CuArray{T}}) where {T} = sizeof(T)
 
 Base.size(x::CuArray) = x.dims
 Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
+
+function context(A::CuArray)
+  A.storage === nothing && throw(UndefRefError())
+  return A.storage.ctx
+end
 
 function device(A::CuArray)
   A.storage === nothing && throw(UndefRefError())
@@ -314,21 +327,11 @@ function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArr
 end
 
 
-## interop with CPU arrays
+## memory copying
 
 typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
 typetagdata(a::CuArray, i=1) =
   convert(CuPtr{UInt8}, a.storage.buffer) + a.maxsize + a.offset÷Base.elsize(a) + i - 1
-
-# We don't convert isbits types in `adapt`, since they are already
-# considered GPU-compatible.
-
-Adapt.adapt_storage(::Type{CuArray}, xs::AT) where {AT<:AbstractArray} =
-  isbitstype(AT) ? xs : convert(CuArray, xs)
-
-# if an element type is specified, convert to it
-Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
-  isbitstype(AT) ? xs : convert(CuArray{T}, xs)
 
 function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
                       n::Integer) where T
@@ -372,54 +375,115 @@ end
 Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
     copyto!(dest, 1, src, 1, length(src))
 
-function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::Array{T}, soffs, n) where T
-  if !is_pinned(pointer(src))
+# device memory
+
+# NOTE: we only switch contexts here to avoid illegal memory accesses. synchronization is
+#       best-effort, since we don't keep track of streams using each array.
+
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, doffs,
+                             src::Array{T}, soffs, n) where T
+  @context! context(dest) begin
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
-    synchronize()
-  end
-  GC.@preserve src dest begin
-    unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-    if Base.isbitsunion(T)
-      unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+    is_pinned(pointer(src)) || synchronize()
+
+    GC.@preserve src dest begin
+      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+      if Base.isbitsunion(T)
+        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+      end
     end
   end
   return dest
 end
 
-function Base.unsafe_copyto!(dest::Array{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
-  if !is_pinned(pointer(dest))
+function Base.unsafe_copyto!(dest::Array{T}, doffs,
+                             src::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, soffs, n) where T
+  @context! context(src) begin
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
+    is_pinned(pointer(dest)) || synchronize()
+
+    GC.@preserve src dest begin
+      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+      if Base.isbitsunion(T)
+        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+      end
+    end
+
+    # users expect values to be available after this call
     synchronize()
   end
-  GC.@preserve src dest begin
-    unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-    if Base.isbitsunion(T)
-      unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
-    end
-  end
-  synchronize() # users expect values to be available after this call
   return dest
 end
 
-function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
-  GC.@preserve src dest begin
-    unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-    if Base.isbitsunion(T)
-      unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, doffs,
+                             src::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, soffs, n) where T
+  context(dest) == context(src) || throw(ArgumentError("copying between arrays from different contexts"))
+  @context! context(dest) begin
+    GC.@preserve src dest begin
+      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+      if Base.isbitsunion(T)
+        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+      end
     end
   end
   return dest
 end
 
-# XXX: defining deepcopy_internal, as per the deepcopy documentation, results in a ton
-#      of invalidations, so we redefine deepcopy itself (see JuliaGPU/CUDA.jl#632)
-function Base.deepcopy(x::CuArray)
-  dict = IdDict()
-  haskey(dict, x) && return dict[x]::typeof(x)
-  return dict[x] = copy(x)
+# unified memory
+
+# NOTE: synchronization is best-effort, since we don't keep track of the
+#       defices and streams using each array backed by unified memory.
+
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.UnifiedBuffer}, doffs,
+                             src::Array{T}, soffs, n) where T
+  # maintain stream-ordered semantics
+  # XXX: alternative, use an async CUDA memcpy if the stream isn't idle?
+  synchronize()
+
+  GC.@preserve src dest begin
+    cpu_ptr = pointer(src, soffs)
+    unsafe_copyto!(reinterpret(typeof(cpu_ptr), pointer(dest, doffs)), cpu_ptr, n)
+    if Base.isbitsunion(T)
+      cpu_ptr = typetagdata(src, soffs)
+      unsafe_copyto!(reinterpret(typeof(cpu_ptr), typetagdata(dest, doffs)), cpu_ptr, n)
+    end
+  end
+  return dest
 end
+
+function Base.unsafe_copyto!(dest::Array{T}, doffs,
+                             src::DenseCuArray{T,<:Any,Mem.UnifiedBuffer}, soffs, n) where T
+  # maintain stream-ordered semantics
+  synchronize()
+
+  GC.@preserve src dest begin
+    cpu_ptr = pointer(dest, doffs)
+    unsafe_copyto!(cpu_ptr, reinterpret(typeof(cpu_ptr), pointer(src, soffs)), n)
+    if Base.isbitsunion(T)
+      cpu_ptr = typetagdata(dest, doffs)
+      unsafe_copyto!(cpu_ptr, reinterpret(typeof(cpu_ptr), typetagdata(src, soffs)), n)
+    end
+  end
+
+  return dest
+end
+
+# TODO: copying between CUDA arrays (unified<->unified, unified<->device, device<->unified)
+
+
+## regular gpu array adaptor
+
+# We don't convert isbits types in `adapt`, since they are already
+# considered GPU-compatible.
+
+Adapt.adapt_storage(::Type{CuArray}, xs::AT) where {AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuArray, xs)
+
+# if an element type is specified, convert to it
+Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuArray{T}, xs)
 
 
 ## opinionated gpu array adaptor
@@ -464,7 +528,9 @@ const MemsetCompatTypes = Union{UInt8, Int8,
 function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
-  Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A))
+  @context! context(A) begin
+    Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A))
+  end
   A
 end
 
