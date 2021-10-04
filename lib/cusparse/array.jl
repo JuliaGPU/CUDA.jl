@@ -214,9 +214,9 @@ function _cusparsesimilar(S::CuSparseMatrixCSR, ::Type{TvNew}, ::Type{TiNew}) wh
 end
 # parent methods for similar that preserves only storage space (for when new and old dims differ)
 _cusparsesimilar(S::CuSparseMatrixCSC, ::Type{TvNew}, ::Type{TiNew}, dims::Dims{2}) where {TvNew,TiNew} =
-    CuSparseMatrixCSC(fill(one(TiNew), last(dims)+1), similar(rowvals(S), TiNew), similar(nonzeros(S), TvNew),dims)
+    CuSparseMatrixCSC(CUDA.fill(one(TiNew), last(dims)+1), similar(rowvals(S), TiNew), similar(nonzeros(S), TvNew),dims)
 _cusparsesimilar(S::CuSparseMatrixCSR, ::Type{TvNew}, ::Type{TiNew}, dims::Dims{2}) where {TvNew,TiNew} =
-    CuSparseMatrixCSR(fill(one(TiNew), last(dims)+1), similar(colvals(S), TiNew), similar(nonzeros(S), TvNew),dims)
+    CuSparseMatrixCSR(CUDA.fill(one(TiNew), last(dims)+1), similar(colvals(S), TiNew), similar(nonzeros(S), TvNew),dims)
 # parent method for similar that allocates an empty sparse vector (when new dims are single)
 _cusparsesimilar(S::CuSparseMatrixCSC, ::Type{TvNew}, ::Type{TiNew}, dims::Dims{1}) where {TvNew,TiNew} =
     CuSparseVector(similar(rowvals(S), TiNew, 0), similar(nonzeros(S), TvNew, 0),dims)
