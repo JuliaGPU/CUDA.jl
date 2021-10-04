@@ -30,29 +30,25 @@ julia&gt; gpu = adapt(CuArray, cpu) # upload to the GPU, keeping the wrapper int
 2×2 Diagonal{Float32,CuArray{Float32,1,Nothing}}:
  1.0   ⋅
   ⋅   2.0</code></pre><div class="admonition is-warning"><header class="admonition-header">Warning</header><div class="admonition-body"><p>The <code>cu</code> function is opinionated and converts input most floating-point scalars to <code>Float32</code>. This is often a good call, as <code>Float64</code> and many other scalar types perform badly on the GPU. If this is unwanted, use <code>adapt</code> directly.</p></div></div><h2 id="Garbage-collection"><a class="docs-heading-anchor" href="#Garbage-collection">Garbage collection</a><a id="Garbage-collection-1"></a><a class="docs-heading-anchor-permalink" href="#Garbage-collection" title="Permalink"></a></h2><p>Instances of the <code>CuArray</code> type are managed by the Julia garbage collector. This means that they will be collected once they are unreachable, and the memory hold by it will be repurposed or freed. There is no need for manual memory management, just make sure your objects are not reachable (i.e., there are no instances or references).</p><h3 id="Memory-pool"><a class="docs-heading-anchor" href="#Memory-pool">Memory pool</a><a id="Memory-pool-1"></a><a class="docs-heading-anchor-permalink" href="#Memory-pool" title="Permalink"></a></h3><p>Behind the scenes, a memory pool will hold on to your objects and cache the underlying memory to speed up future allocations. As a result, your GPU might seem to be running out of memory while it isn&#39;t. When memory pressure is high, the pool will automatically free cached objects:</p><pre><code class="language-julia-repl">julia&gt; CUDA.memory_status()             # initial state
-Effective GPU memory usage: 10.51% (1.654 GiB/15.744 GiB)
-CUDA GPU memory usage: 0 bytes
-BinnedPool usage: 0 bytes (0 bytes allocated, 0 bytes cached)
+Effective GPU memory usage: 16.12% (2.537 GiB/15.744 GiB)
+Memory pool usage: 0 bytes (0 bytes reserved)
 
 julia&gt; a = CuArray{Int}(undef, 1024);   # allocate 8KB
 
 julia&gt; CUDA.memory_status()
-Effective GPU memory usage: 10.52% (1.656 GiB/15.744 GiB)
-CUDA GPU memory usage: 8.000 KiB
-BinnedPool usage: 8.000 KiB (8.000 KiB allocated, 0 bytes cached)
+Effective GPU memory usage: 16.35% (2.575 GiB/15.744 GiB)
+Memory pool usage: 8.000 KiB (32.000 MiB reserved)
 
 julia&gt; a = nothing; GC.gc(true)
 
 julia&gt; CUDA.memory_status()             # 8KB is now cached
-Effective GPU memory usage: 10.52% (1.656 GiB/15.744 GiB)
-CUDA GPU memory usage: 8.000 KiB
-BinnedPool usage: 8.000 KiB (0 bytes allocated, 8.000 KiB cached)</code></pre><p>If for some reason you need all cached memory to be reclaimed, call <code>CUDA.reclaim()</code>:</p><pre><code class="language-julia-repl">julia&gt; CUDA.reclaim()
-8192
+Effective GPU memory usage: 16.34% (2.573 GiB/15.744 GiB)
+Memory pool usage: 0 bytes (32.000 MiB reserved)
+</code></pre><p>If for some reason you need all cached memory to be reclaimed, call <code>CUDA.reclaim()</code>:</p><pre><code class="language-julia-repl">julia&gt; CUDA.reclaim()
 
 julia&gt; CUDA.memory_status()
-Effective GPU memory usage: 10.52% (1.656 GiB/15.744 GiB)
-CUDA GPU memory usage: 0 bytes
-BinnedPool usage: 0 bytes (0 bytes allocated, 0 bytes cached)</code></pre><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>It is should never be required to manually reclaim memory before performing any high-level GPU array operation: Functionality that allocates should itself call into the memory pool and free any cached memory if necessary. It is a bug if that operation runs into an out-of-memory situation only if not manually reclaiming memory beforehand.</p></div></div><h3 id="Avoiding-GC-pressure"><a class="docs-heading-anchor" href="#Avoiding-GC-pressure">Avoiding GC pressure</a><a id="Avoiding-GC-pressure-1"></a><a class="docs-heading-anchor-permalink" href="#Avoiding-GC-pressure" title="Permalink"></a></h3><p>When your application performs a lot of memory operations, the time spent during GC might increase significantly. This happens more often than it does on the CPU because GPUs tend to have smaller memories and more frequently run out of it. When that happens, CUDA invokes the Julia garbage collector, which then needs to scan objects to see if they can be freed to get back some GPU memory.</p><p>To avoid having to depend on the Julia GC to free up memory, you can directly inform CUDA.jl when an allocation can be freed (or reused) by calling the <code>unsafe_free!</code> method. Once you&#39;ve done so, you cannot use that array anymore:</p><pre><code class="language-julia-repl">julia&gt; a = CuArray([1])
+Effective GPU memory usage: 16.17% (2.546 GiB/15.744 GiB)
+Memory pool usage: 0 bytes (0 bytes reserved)</code></pre><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>It is should never be required to manually reclaim memory before performing any high-level GPU array operation: Functionality that allocates should itself call into the memory pool and free any cached memory if necessary. It is a bug if that operation runs into an out-of-memory situation only if not manually reclaiming memory beforehand.</p></div></div><h3 id="Avoiding-GC-pressure"><a class="docs-heading-anchor" href="#Avoiding-GC-pressure">Avoiding GC pressure</a><a id="Avoiding-GC-pressure-1"></a><a class="docs-heading-anchor-permalink" href="#Avoiding-GC-pressure" title="Permalink"></a></h3><p>When your application performs a lot of memory operations, the time spent during GC might increase significantly. This happens more often than it does on the CPU because GPUs tend to have smaller memories and more frequently run out of it. When that happens, CUDA invokes the Julia garbage collector, which then needs to scan objects to see if they can be freed to get back some GPU memory.</p><p>To avoid having to depend on the Julia GC to free up memory, you can directly inform CUDA.jl when an allocation can be freed (or reused) by calling the <code>unsafe_free!</code> method. Once you&#39;ve done so, you cannot use that array anymore:</p><pre><code class="language-julia-repl">julia&gt; a = CuArray([1])
 1-element CuArray{Int64,1,Nothing}:
  1
 
@@ -61,28 +57,10 @@ julia&gt; CUDA.unsafe_free!(a)
 julia&gt; a
 1-element CuArray{Int64,1,Nothing}:
 Error showing value of type CuArray{Int64,1,Nothing}:
-ERROR: AssertionError: Use of freed memory</code></pre><h3 id="Detecting-leaks"><a class="docs-heading-anchor" href="#Detecting-leaks">Detecting leaks</a><a id="Detecting-leaks-1"></a><a class="docs-heading-anchor-permalink" href="#Detecting-leaks" title="Permalink"></a></h3><p>If you think you have a memory leak, or you want to know where your GPU&#39;s RAM has gone, you can ask the memory pool to display all outstanding allocations. Since it is expensive to keep track of that, this feature is only available when running Julia on debug level 2 or higher (i.e., with the <code>-g2</code> argument). When you do so, the <code>memory_status()</code> function from above will display additional information:</p><pre><code class="language-julia-repl">julia&gt; CuArray([1])
-1-element CuArray{Int64,1,Nothing}:
- 1
-
-julia&gt; CUDA.memory_status()
-Effective GPU memory usage: 8.26% (1.301 GiB/15.744 GiB)
-CUDA allocator usage: 8 bytes
-BinnedPool usage: 8 bytes (8 bytes allocated, 0 bytes cached)
-
-Outstanding memory allocation of 8 bytes at 0x00007fe104c00000
-Stacktrace:
- [1] CuArray{Int64,1,P} where P(::UndefInitializer, ::Tuple{Int64}) at CUDA/src/array.jl:107
- [2] CuArray at CUDA/src/array.jl:191 [inlined]
- [3] CuArray(::Array{Int64,1}) at CUDA/src/array.jl:202
- [4] top-level scope at REPL[2]:1
- [5] eval(::Module, ::Any) at ./boot.jl:331
- [6] eval_user_input(::Any, ::REPL.REPLBackend) at julia/stdlib/v1.4/REPL/src/REPL.jl:86
- [7] macro expansion at julia/stdlib/v1.4/REPL/src/REPL.jl:118 [inlined]
- [8] (::REPL.var&quot;#26#27&quot;{REPL.REPLBackend})() at ./task.jl:358</code></pre><h3 id="Environment-variables"><a class="docs-heading-anchor" href="#Environment-variables">Environment variables</a><a id="Environment-variables-1"></a><a class="docs-heading-anchor-permalink" href="#Environment-variables" title="Permalink"></a></h3><p>Several environment variables affect the behavior of the memory allocator:</p><ul><li><code>JULIA_CUDA_MEMORY_POOL</code>: select a different memory pool. Several implementations are available:<ul><li><code>binned</code> (the default): cache memory in pow2-sized bins</li><li><code>split</code>: caching pool that supports splitting allocations, designed to reduce pressure on the Julia garbage collector</li><li><code>simple</code>: very simple caching layer for demonstration purposes</li><li><code>none</code>: no pool at all, directly deferring to the CUDA allocator</li></ul></li><li><code>JULIA_CUDA_MEMORY_LIMIT</code>: cap the amount of allocated GPU memory, in bytes.</li></ul><p>These environment variables should be set before importing packages; changing them at run time does not have any effect.</p><h2 id="Batching-iterator"><a class="docs-heading-anchor" href="#Batching-iterator">Batching iterator</a><a id="Batching-iterator-1"></a><a class="docs-heading-anchor-permalink" href="#Batching-iterator" title="Permalink"></a></h2><p>If you are dealing with data sets that are too large to fit on the GPU all at once, you can use <code>CuIterator</code> to batch operations:</p><pre><code class="language-julia">julia&gt; batches = [([1], [2]), ([3], [4])]
+ERROR: AssertionError: Use of freed memory</code></pre><h2 id="Batching-iterator"><a class="docs-heading-anchor" href="#Batching-iterator">Batching iterator</a><a id="Batching-iterator-1"></a><a class="docs-heading-anchor-permalink" href="#Batching-iterator" title="Permalink"></a></h2><p>If you are dealing with data sets that are too large to fit on the GPU all at once, you can use <code>CuIterator</code> to batch operations:</p><pre><code class="language-julia">julia&gt; batches = [([1], [2]), ([3], [4])]
 
 julia&gt; for (batch, (a,b)) in enumerate(CuIterator(batches))
          println(&quot;Batch $batch: &quot;, a .+ b)
        end
 Batch 1: [3]
-Batch 2: [7]</code></pre><p>For each batch, every argument (assumed to be an array-like) is uploaded to the GPU using the <code>adapt</code> mechanism from above. Afterwards, the memory is eagerly put back in the CUDA memory pool using <code>unsafe_free!</code> to lower GC pressure.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../array/">« Array programming</a><a class="docs-footer-nextpage" href="../multitasking/">Tasks and threads »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Saturday 2 October 2021 19:15">Saturday 2 October 2021</span>. Using Julia version 1.6.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+Batch 2: [7]</code></pre><p>For each batch, every argument (assumed to be an array-like) is uploaded to the GPU using the <code>adapt</code> mechanism from above. Afterwards, the memory is eagerly put back in the CUDA memory pool using <code>unsafe_free!</code> to lower GC pressure.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../array/">« Array programming</a><a class="docs-footer-nextpage" href="../multitasking/">Tasks and threads »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Monday 4 October 2021 08:08">Monday 4 October 2021</span>. Using Julia version 1.6.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
