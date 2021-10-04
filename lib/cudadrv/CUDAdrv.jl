@@ -57,7 +57,7 @@ function libcuda()
                 Libdl.dlclose(library_handle)
             end
         end
-        system_version = get_version(system_driver)
+        _system_version[] = get_version(system_driver)
         _libcuda[] = system_driver
         # XXX: apparently cuDriverGetVersion can be used before cuInit,
         #      despite the docs stating "any function [...] will return
@@ -74,7 +74,7 @@ function libcuda()
             end
             return
         end
-        if system_version < v"11.4"
+        if _system_version[] < v"11.4"
             platform = Base.BinaryPlatforms.HostPlatform()
             platform.tags["cuda"] = "11.4"
 
