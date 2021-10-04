@@ -15,9 +15,9 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
         function geam(alpha::Number, A::CuSparseMatrixCSR{$elty}, beta::Number, B::CuSparseMatrixCSR{$elty}, index::SparseChar)
             m, n = size(A)
             @assert (m, n) == size(B)
-            descrA = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, index)
-            descrB = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, index)
-            descrC = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, index)
+            descrA = CuMatrixDescriptor('G', 'L', 'N', index)
+            descrB = CuMatrixDescriptor('G', 'L', 'N', index)
+            descrC = CuMatrixDescriptor('G', 'L', 'N', index)
 
             cusparseSetPointerMode(handle(), CUSPARSE_POINTER_MODE_HOST)
             rowPtrC = CuArray{Int32,1}(undef, m+1)
@@ -31,7 +31,7 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
                     out)
                 return out[]
             end
-            
+
             C = with_workspace(bufferSize) do buffer
                 function get_nnzC(buffer)
                     nnzTotalDevHostPtr = Ref{Cint}(1)
@@ -42,7 +42,7 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
                         buffer)
                     return nnzTotalDevHostPtr[]
                 end
-            
+
                 nnzC = get_nnzC(buffer)
                 colValC = CuArray{Int32,1}(undef, Int(nnzC))
                 nzValC = CuArray{$elty,1}(undef, Int(nnzC))
