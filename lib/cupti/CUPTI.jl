@@ -3,7 +3,7 @@ module CUPTI
 using ..APIUtils
 
 using ..CUDA
-using ..CUDA: libcupti, @retry_reclaim
+using ..CUDA: libcupti, @retry_reclaim, initialize_context
 using ..CUDA: CUuuid, CUcontext, CUstream, CUdevice, CUdevice_attribute,
               CUgraph, CUgraphNode, CUgraphNodeType, CUgraphExec, CUaccessPolicyWindow
 

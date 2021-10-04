@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cudaDataType
-using ..CUDA: libcutensor,  @retry_reclaim
+using ..CUDA: libcutensor,  @retry_reclaim, initialize_context
 
 using CEnum: @cenum
 

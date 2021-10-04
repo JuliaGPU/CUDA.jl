@@ -10,7 +10,7 @@ using ExprTools: splitdef, combinedef
 
 
 # core library
-initialize_api() = return
+initialize_context() = return
 include("libnvtx_common.jl")
 include("libnvtx.jl")
 
