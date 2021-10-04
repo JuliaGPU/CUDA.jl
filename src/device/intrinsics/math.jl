@@ -170,8 +170,13 @@ end
     assume(within(UInt64(0), UInt64(64)),
            ccall("extern __nv_popcll", llvmcall, Int32, (UInt64,), x))
 
-@device_function byte_perm(x::Union{Int32, UInt32}, y::Union{Int32, UInt32}, z::Union{Int32, UInt32}) =
+@device_function function byte_perm(x::Union{Int32, UInt32}, y::Union{Int32, UInt32}, z::Union{Int32, UInt32})
+    # Reinterpret the input values instead of letting `ccall` convert them with a range check
+    x %= UInt32
+    y %= UInt32
+    z %= UInt32
     ccall("extern __nv_byte_perm", llvmcall, Int32, (UInt32, UInt32, UInt32), x, y, z)
+end
 
 
 ## floating-point handling
