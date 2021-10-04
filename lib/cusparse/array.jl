@@ -200,10 +200,59 @@ Base.similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(
 Base.similar(Mat::CuSparseMatrixCSR) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), Mat.dims)
 Base.similar(Mat::CuSparseMatrixBSR) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), Mat.blockDim, Mat.dir, nnz(Mat), Mat.dims)
 
-Base.similar(a::AbstractCuSparseArray{Tv, <:Any, <:Any}, dims::Base.Dims{N}) where {Tv,N} =
-  CuArray{Tv,N}(undef, dims)
-Base.similar(a::AbstractCuSparseArray{<:Any, <:Any, <:Any}, ::Type{T}, dims::Base.Dims{N}) where {T,N} =
-  CuArray{T,N}(undef, dims)               
+## similar for CSC,CSR with dims, eltype arguments, adapted from SparseArrays.jl. NOTE: calling similar() on a wrapped CuSparseMatrixBSR/COO will result in a CuArray.
+# parent method for similar that preserves stored-entry structure (for when new and old dims match)
+function _cusparsesimilar(S::CuSparseMatrixCSC, ::Type{TvNew}, ::Type{TiNew}) where {TvNew,TiNew}
+    newcolptr = copyto!(similar(getcolptr(S), TiNew), getcolptr(S))
+    newrowval = copyto!(similar(rowvals(S), TiNew), rowvals(S))
+    return CuSparseMatrixCSC(newcolptr, newrowval, similar(nonzeros(S), TvNew), size(S))
+end
+function _cusparsesimilar(S::CuSparseMatrixCSR, ::Type{TvNew}, ::Type{TiNew}) where {TvNew,TiNew}
+    newrowptr = copyto!(similar(getrowptr(S), TiNew), getrowptr(S))
+    newcolval = copyto!(similar(colvals(S), TiNew), colvals(S))
+    return CuSparseMatrixCSR(newrowptr, newcolval, similar(nonzeros(S), TvNew), size(S))
+end
+# parent methods for similar that preserves only storage space (for when new and old dims differ)
+_cusparsesimilar(S::CuSparseMatrixCSC, ::Type{TvNew}, ::Type{TiNew}, dims::Dims{2}) where {TvNew,TiNew} =
+    CuSparseMatrixCSC(fill(one(TiNew), last(dims)+1), similar(rowvals(S), TiNew), similar(nonzeros(S), TvNew),dims)
+_cusparsesimilar(S::CuSparseMatrixCSR, ::Type{TvNew}, ::Type{TiNew}, dims::Dims{2}) where {TvNew,TiNew} =
+    CuSparseMatrixCSR(fill(one(TiNew), last(dims)+1), similar(colvals(S), TiNew), similar(nonzeros(S), TvNew),dims)
+# parent method for similar that allocates an empty sparse vector (when new dims are single)
+_cusparsesimilar(S::CuSparseMatrixCSC, ::Type{TvNew}, ::Type{TiNew}, dims::Dims{1}) where {TvNew,TiNew} =
+    CuSparseVector(similar(rowvals(S), TiNew, 0), similar(nonzeros(S), TvNew, 0),dims)
+_cusparsesimilar(S::CuSparseMatrixCSR, ::Type{TvNew}, ::Type{TiNew}, dims::Dims{1}) where {TvNew,TiNew} =
+    CuSparseVector(similar(colvals(S), TiNew, 0), similar(nonzeros(S), TvNew, 0),dims)
+
+"""
+Utility union type of [`CuSparseMatrixCSC`](@ref), [`CuSparseMatrixCSR`](@ref), for which similar is implemented
+"""
+const CuSparseMatrixCSCR{Tv, Ti} = Union{
+    CuSparseMatrixCSC{Tv, Ti},
+    CuSparseMatrixCSR{Tv, Ti}
+}
+# The following methods hook into the AbstractArray similar hierarchy. The first method
+# covers similar(A[, Tv]) calls, which preserve stored-entry structure, and the latter
+# methods cover similar(A[, Tv], shape...) calls, which preserve storage space when the shape
+# calls for a two-dimensional result.
+similar(S::CuSparseMatrixCSCR{<:Any,Ti}, ::Type{TvNew}) where {Ti,TvNew} = _cusparsesimilar(S, TvNew, Ti)
+similar(S::CuSparseMatrixCSCR{<:Any,Ti}, ::Type{TvNew}, dims::Union{Dims{1},Dims{2}}) where {Ti,TvNew} =
+    _cusparsesimilar(S, TvNew, Ti, dims)
+# The following methods cover similar(A, Tv, Ti[, shape...]) calls, which specify the
+# result's index type in addition to its entry type, and aren't covered by the hooks above.
+# The calls without shape again preserve stored-entry structure, whereas those with shape
+# preserve storage space when the shape calls for a two-dimensional result.
+Base.similar(S::CuSparseMatrixCSCR, ::Type{TvNew}, ::Type{TiNew}) where{TvNew,TiNew} =
+    _cusparsesimilar(S, TvNew, TiNew)
+Base.similar(S::CuSparseMatrixCSCR, ::Type{TvNew}, ::Type{TiNew}, dims::Union{Dims{1},Dims{2}}) where {TvNew,TiNew} =
+    _cusparsesimilar(S, TvNew, TiNew, dims)
+Base.similar(S::CuSparseMatrixCSCR, ::Type{TvNew}, ::Type{TiNew}, m::Integer) where {TvNew,TiNew} =
+    _cusparsesimilar(S, TvNew, TiNew, (m,))
+Base.similar(S::CuSparseMatrixCSCR, ::Type{TvNew}, ::Type{TiNew}, m::Integer, n::Integer) where {TvNew,TiNew} =
+    _cusparsesimilar(S, TvNew, TiNew, (m, n))
+
+# Handles cases where CSC/CSR are reshaped to more than two dimensions, and all cases above for COO/BSR.
+Base.similar(a::AbstractCuSparseArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} =
+CuArray{T,N}(undef, dims)               
 
 ## array interface
 
@@ -242,9 +291,11 @@ Base.eltype(g::CuSparseMatrix{T}) where T = T
 
 SparseArrays.nnz(g::AbstractCuSparseArray) = g.nnz
 SparseArrays.nonzeros(g::AbstractCuSparseArray) = g.nzVal
-
 SparseArrays.nonzeroinds(g::AbstractCuSparseVector) = g.iPtr
-
+                                   
+SparseArrays.getcolptr(g::CuSparseMatrixCSC) = g.colPtr
+SparseArrays.getrowptr(g::CuSparseMatrixCSR) = g.rowPtr
+SparseArrays.colvals(g::CuSparseMatrixCSR) = g.colVal
 SparseArrays.rowvals(g::CuSparseMatrixCSC) = g.rowVal
 
 LinearAlgebra.issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
