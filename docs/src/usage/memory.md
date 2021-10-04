@@ -77,35 +77,31 @@ objects:
 
 ```julia-repl
 julia> CUDA.memory_status()             # initial state
-Effective GPU memory usage: 10.51% (1.654 GiB/15.744 GiB)
-CUDA GPU memory usage: 0 bytes
-BinnedPool usage: 0 bytes (0 bytes allocated, 0 bytes cached)
+Effective GPU memory usage: 16.12% (2.537 GiB/15.744 GiB)
+Memory pool usage: 0 bytes (0 bytes reserved)
 
 julia> a = CuArray{Int}(undef, 1024);   # allocate 8KB
 
 julia> CUDA.memory_status()
-Effective GPU memory usage: 10.52% (1.656 GiB/15.744 GiB)
-CUDA GPU memory usage: 8.000 KiB
-BinnedPool usage: 8.000 KiB (8.000 KiB allocated, 0 bytes cached)
+Effective GPU memory usage: 16.35% (2.575 GiB/15.744 GiB)
+Memory pool usage: 8.000 KiB (32.000 MiB reserved)
 
 julia> a = nothing; GC.gc(true)
 
 julia> CUDA.memory_status()             # 8KB is now cached
-Effective GPU memory usage: 10.52% (1.656 GiB/15.744 GiB)
-CUDA GPU memory usage: 8.000 KiB
-BinnedPool usage: 8.000 KiB (0 bytes allocated, 8.000 KiB cached)
+Effective GPU memory usage: 16.34% (2.573 GiB/15.744 GiB)
+Memory pool usage: 0 bytes (32.000 MiB reserved)
+
 ```
 
 If for some reason you need all cached memory to be reclaimed, call `CUDA.reclaim()`:
 
 ```julia-repl
 julia> CUDA.reclaim()
-8192
 
 julia> CUDA.memory_status()
-Effective GPU memory usage: 10.52% (1.656 GiB/15.744 GiB)
-CUDA GPU memory usage: 0 bytes
-BinnedPool usage: 0 bytes (0 bytes allocated, 0 bytes cached)
+Effective GPU memory usage: 16.17% (2.546 GiB/15.744 GiB)
+Memory pool usage: 0 bytes (0 bytes reserved)
 ```
 
 !!! note
@@ -139,52 +135,6 @@ julia> a
 Error showing value of type CuArray{Int64,1,Nothing}:
 ERROR: AssertionError: Use of freed memory
 ```
-
-### Detecting leaks
-
-If you think you have a memory leak, or you want to know where your GPU's RAM has gone, you
-can ask the memory pool to display all outstanding allocations. Since it is expensive to
-keep track of that, this feature is only available when running Julia on debug level 2 or
-higher (i.e., with the `-g2` argument). When you do so, the `memory_status()` function from
-above will display additional information:
-
-```julia-repl
-julia> CuArray([1])
-1-element CuArray{Int64,1,Nothing}:
- 1
-
-julia> CUDA.memory_status()
-Effective GPU memory usage: 8.26% (1.301 GiB/15.744 GiB)
-CUDA allocator usage: 8 bytes
-BinnedPool usage: 8 bytes (8 bytes allocated, 0 bytes cached)
-
-Outstanding memory allocation of 8 bytes at 0x00007fe104c00000
-Stacktrace:
- [1] CuArray{Int64,1,P} where P(::UndefInitializer, ::Tuple{Int64}) at CUDA/src/array.jl:107
- [2] CuArray at CUDA/src/array.jl:191 [inlined]
- [3] CuArray(::Array{Int64,1}) at CUDA/src/array.jl:202
- [4] top-level scope at REPL[2]:1
- [5] eval(::Module, ::Any) at ./boot.jl:331
- [6] eval_user_input(::Any, ::REPL.REPLBackend) at julia/stdlib/v1.4/REPL/src/REPL.jl:86
- [7] macro expansion at julia/stdlib/v1.4/REPL/src/REPL.jl:118 [inlined]
- [8] (::REPL.var"#26#27"{REPL.REPLBackend})() at ./task.jl:358
-```
-
-### Environment variables
-
-Several environment variables affect the behavior of the memory allocator:
-
-- `JULIA_CUDA_MEMORY_POOL`: select a different memory pool. Several implementations are
-  available:
-  - `binned` (the default): cache memory in pow2-sized bins
-  - `split`: caching pool that supports splitting allocations, designed to reduce pressure
-    on the Julia garbage collector
-  - `simple`: very simple caching layer for demonstration purposes
-  - `none`: no pool at all, directly deferring to the CUDA allocator
-- `JULIA_CUDA_MEMORY_LIMIT`: cap the amount of allocated GPU memory, in bytes.
-
-These environment variables should be set before importing packages; changing them at run
-time does not have any effect.
 
 
 ## Batching iterator
