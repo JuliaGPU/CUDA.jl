@@ -294,9 +294,10 @@ SparseArrays.nonzeros(g::AbstractCuSparseArray) = g.nzVal
 SparseArrays.nonzeroinds(g::AbstractCuSparseVector) = g.iPtr
                                    
 SparseArrays.getcolptr(g::CuSparseMatrixCSC) = g.colPtr
-SparseArrays.getrowptr(g::CuSparseMatrixCSR) = g.rowPtr
-SparseArrays.colvals(g::CuSparseMatrixCSR) = g.colVal
 SparseArrays.rowvals(g::CuSparseMatrixCSC) = g.rowVal
+getrowptr(g::CuSparseMatrixCSR) = g.rowPtr
+colvals(g::CuSparseMatrixCSR) = g.colVal
+
 
 LinearAlgebra.issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
 LinearAlgebra.ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
