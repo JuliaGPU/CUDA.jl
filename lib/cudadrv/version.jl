@@ -26,7 +26,6 @@ release() = VersionNumber(version().major, version().minor)
     Returns the CUDA Runtime version.
 """
 function runtime_version()
-    initialize_api()
     version_ref = Ref{Cint}()
     @ccall libcudart().cudaRuntimeGetVersion(version_ref::Ptr{Cint})::CUresult
     major, ver = divrem(version_ref[], 1000)

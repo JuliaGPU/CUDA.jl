@@ -19,6 +19,8 @@ function libcuda()
                          Typically, that involves an entry in '/etc/ld.so.conf', or setting LD_LIBRARY_PATH.""")
             end
         end
+
+        cuInit(0)
     end
 
     # memoized because otherwise each ccall would perform discovery again
