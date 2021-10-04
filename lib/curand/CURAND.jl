@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, libraryPropertyType, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK
-using ..CUDA: libcurand, @retry_reclaim
+using ..CUDA: libcurand, @retry_reclaim, initialize_context
 
 using CEnum: @cenum
 

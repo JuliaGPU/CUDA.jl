@@ -318,6 +318,43 @@ os = "windows"
     url = "https://github.com/JuliaBinaryWrappers/CUDA_loader_jll.jl/releases/download/CUDA_loader-v0.2.0+2/CUDA_loader.v0.2.0.x86_64-w64-mingw32-cuda+11.4.tar.gz"
 
 
+# CUDA forward compatibility package
+
+[[CUDA_compat]]
+arch = "x86_64"
+cuda = "11.4"
+git-tree-sha1 = "d9b5623143a996f924e7a5eee9d06354cb650d73"
+lazy = true
+libc = "glibc"
+os = "linux"
+
+    [[CUDA_compat.download]]
+    sha256 = "5896f52335e2fe476e9a6aba95f03bd6823a2daf588de9b77fbde9bd705565b5"
+    url = "https://github.com/JuliaBinaryWrappers/CUDA_compat_jll.jl/releases/download/CUDA_compat-v0.0.1+1/CUDA_compat.v0.0.1.x86_64-linux-gnu-cuda+11.4.tar.gz"
+[[CUDA_compat]]
+arch = "powerpc64le"
+cuda = "11.4"
+git-tree-sha1 = "5ca98503d53babfc52c443f89ad987440658abd9"
+lazy = true
+libc = "glibc"
+os = "linux"
+
+    [[CUDA_compat.download]]
+    sha256 = "39abaeb9dc0373fa90a19c7913b78aaa12a02a4a131fe030c588c03f89b3cc62"
+    url = "https://github.com/JuliaBinaryWrappers/CUDA_compat_jll.jl/releases/download/CUDA_compat-v0.0.1+1/CUDA_compat.v0.0.1.powerpc64le-linux-gnu-cuda+11.4.tar.gz"
+[[CUDA_compat]]
+arch = "aarch64"
+cuda = "11.4"
+git-tree-sha1 = "c1df0667b90f795bfd9889c0cd5fbbf79db89ab5"
+lazy = true
+libc = "glibc"
+os = "linux"
+
+    [[CUDA_compat.download]]
+    sha256 = "575fe55e77d98aa711925d7fa85133eef5dfbcf551adef8734ec47bb674c0e1a"
+    url = "https://github.com/JuliaBinaryWrappers/CUDA_compat_jll.jl/releases/download/CUDA_compat-v0.0.1+1/CUDA_compat.v0.0.1.aarch64-linux-gnu-cuda+11.4.tar.gz"
+
+
 # CUDNN
 
 ## v8.0 (old-style artifacts)

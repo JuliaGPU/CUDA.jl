@@ -23,10 +23,6 @@ name(err::CUDNNError) = unsafe_string(cudnnGetErrorString(err))
     end
 end
 
-function initialize_api()
-    CUDA.prepare_cuda_state()
-end
-
 macro check(ex, errs...)
     check = :(isequal(err, CUDNN_STATUS_ALLOC_FAILED))
     for err in errs
