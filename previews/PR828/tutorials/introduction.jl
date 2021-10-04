@@ -107,7 +107,7 @@ parallel_add!(y, x)
 # For most of this tutorial you need to have a computer with a compatible GPU and have
 # installed [CUDA](https://developer.nvidia.com/cuda-downloads). You should also install
 # the following packages using Julia's [package
-# manager](https://docs.julialang.org/en/latest/stdlib/Pkg/):
+# manager](https://docs.julialang.org/en/v1/stdlib/Pkg/):
 
 # ```julia
 # pkg> add CUDA
@@ -363,6 +363,51 @@ end
 #    Start  Duration            Grid Size      Block Size     Regs*    SSMem*    DSMem*           Device   Context    Stream  Name
 # 13.3526s  101.22us           (4096 1 1)       (256 1 1)        32        0B        0B  GeForce GTX TIT         1         7  ptxcall_gpu_add3__1 [34]
 # ```
+
+
+# In the previous example, the number of threads was hard-coded to 256. This is not ideal,
+# as using more threads generally improves performance, but the maximum number of allowed
+# threads to launch depends on your GPU as well as on the kernel. To automatically select an
+# appropriate number of threads, it is recommended to use the launch configuration API. This
+# API takes a compiled (but not launched) kernel, returns a tuple with an upper bound on the
+# number of threads, and the minimum number of blocks that are required to fully saturate
+# the GPU:
+
+kernel = @cuda launch=false gpu_add3!(y_d, x_d)
+config = launch_configuration(kernel.fun)
+threads = min(N, config.threads)
+blocks = cld(N, threads)
+
+# The compiled kernel is callable, and we can pass the computed launch configuration as
+# keyword arguments:
+
+fill!(y_d, 2)
+kernel(y_d, x_d; threads, blocks)
+@test all(Array(y_d) .== 3.0f0)
+
+# Now let's benchmark this:
+
+function bench_gpu4!(y, x)
+    kernel = @cuda launch=false gpu_add3!(y_d, x_d)
+    config = launch_configuration(kernel.fun)
+    threads = min(length(y), config.threads)
+    blocks = cld(length(y), threads)
+
+    CUDA.@sync begin
+        kernel(y, x; threads, blocks)
+    end
+end
+
+# ```julia
+# @btime bench_gpu4!($y_d, $x_d)
+# ```
+
+# ```
+#   70.826 μs (99 allocations: 3.44 KiB)
+# ```
+
+# A comparable performance; slightly slower due to the use of the occupancy API, but that
+# will not matter with more complex kernels.
 
 
 # ### Printing
