@@ -234,8 +234,8 @@ const CuSparseMatrixCSCR{Tv, Ti} = Union{
 # covers similar(A[, Tv]) calls, which preserve stored-entry structure, and the latter
 # methods cover similar(A[, Tv], shape...) calls, which preserve storage space when the shape
 # calls for a two-dimensional result.
-similar(S::CuSparseMatrixCSCR{<:Any,Ti}, ::Type{TvNew}) where {Ti,TvNew} = _cusparsesimilar(S, TvNew, Ti)
-similar(S::CuSparseMatrixCSCR{<:Any,Ti}, ::Type{TvNew}, dims::Union{Dims{1},Dims{2}}) where {Ti,TvNew} =
+Base.similar(S::CuSparseMatrixCSCR{<:Any,Ti}, ::Type{TvNew}) where {Ti,TvNew} = _cusparsesimilar(S, TvNew, Ti)
+Base.similar(S::CuSparseMatrixCSCR{<:Any,Ti}, ::Type{TvNew}, dims::Union{Dims{1},Dims{2}}) where {Ti,TvNew} =
     _cusparsesimilar(S, TvNew, Ti, dims)
 # The following methods cover similar(A, Tv, Ti[, shape...]) calls, which specify the
 # result's index type in addition to its entry type, and aren't covered by the hooks above.
