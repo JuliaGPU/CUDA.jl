@@ -200,6 +200,10 @@ Base.similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(
 Base.similar(Mat::CuSparseMatrixCSR) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), Mat.dims)
 Base.similar(Mat::CuSparseMatrixBSR) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), Mat.blockDim, Mat.dir, nnz(Mat), Mat.dims)
 
+Base.similar(a::AbstractCuSparseArray{Tv, <:Any, <:Any}, dims::Base.Dims{N}) where {Tv,N} =
+  CuArray{Tv,N}(undef, dims)
+Base.similar(a::AbstractCuSparseArray{<:Any, <:Any, <:Any}, ::Type{T}, dims::Base.Dims{N}) where {T,N} =
+  CuArray{T,N}(undef, dims)               
 
 ## array interface
 
