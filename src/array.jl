@@ -260,6 +260,8 @@ DenseCuArray{T,N} = CuArray{T,N}
 DenseCuVector{T} = DenseCuArray{T,1}
 DenseCuMatrix{T} = DenseCuArray{T,2}
 DenseCuVecOrMat{T} = Union{DenseCuVector{T}, DenseCuMatrix{T}}
+# XXX: these dummy aliases (DenseCuArray=CuArray) break alias printing, as
+#      `Base.print_without_params` only handles the case of a single alias.
 
 # strided arrays
 StridedSubCuArray{T,N,I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
