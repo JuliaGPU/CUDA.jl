@@ -14,13 +14,10 @@ has_cuda_gpu
 
 ```@docs
 context
-context!(::CuContext)
-context!(::Function, ::CuContext)
+context!
 device
-device!(::CuDevice)
-device!(::Function, ::CuDevice)
+device!
 device_reset!
 stream
-stream!(::CuStream)
-stream!(::Function, ::CuStream)
+stream!
 ```

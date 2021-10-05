@@ -2,7 +2,7 @@ using Documenter, Literate
 using CUDA
 
 const src = "https://github.com/JuliaGPU/CUDA.jl"
-const dst = "https://juliagpu.github.io/CUDA.jl/stable/"
+const dst = "https://cuda.juliagpu.org/stable/"
 
 function main()
     ci = get(ENV, "CI", "") == "true"

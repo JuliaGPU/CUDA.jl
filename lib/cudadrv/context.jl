@@ -50,32 +50,12 @@ mutable struct CuContext
         new_unique(handle_ref[])
     end
 
-    """
-        CuContext(pctx::CuPrimaryContext)
-
-    Retain the primary context on the GPU, returning a context compatible with the driver API.
-    The primary context will be released when the returned driver context is finalized.
-
-    As these contexts are refcounted by CUDA, you should not call [`CUDA.unsafe_destroy!`](@ref)
-    on them but use [`CUDA.unsafe_release!`](@ref) instead (available with do-block syntax as
-    well).
-    """
     function CuContext(pctx::CuPrimaryContext)
         handle_ref = Ref{CUcontext}()
         cuDevicePrimaryCtxRetain(handle_ref, pctx.dev)
         return new_unique(handle_ref[])
     end
 
-    """
-        current_context()
-
-    Returns the current context.
-
-    !!! warning
-
-        This is a low-level API, returning the current context as known to the CUDA driver.
-        For most users, it is recommended to use the [`context`](@ref) method instead.
-    """
     global function current_context()
         handle_ref = Ref{CUcontext}()
         cuCtxGetCurrent(handle_ref)
@@ -86,6 +66,30 @@ mutable struct CuContext
     # for outer constructors
     global _CuContext(handle::CUcontext) = new_unique(handle)
 end
+
+"""
+    CuContext(pctx::CuPrimaryContext)
+
+Retain the primary context on the GPU, returning a context compatible with the driver API.
+The primary context will be released when the returned driver context is finalized.
+
+As these contexts are refcounted by CUDA, you should not call [`CUDA.unsafe_destroy!`](@ref)
+on them but use [`CUDA.unsafe_release!`](@ref) instead (available with do-block syntax as
+well).
+"""
+CuContext(pctx::CuPrimaryContext)
+
+"""
+    current_context()
+
+Returns the current context.
+
+!!! warning
+
+    This is a low-level API, returning the current context as known to the CUDA driver.
+    For most users, it is recommended to use the [`context`](@ref) method instead.
+"""
+current_context()
 
 """
     has_context()

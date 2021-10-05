@@ -3,30 +3,20 @@
 export
     CuDevice, current_device, has_device, name, uuid, totalmem, attribute
 
+"""
+    CuDevice(ordinal::Integer)
+
+Get a handle to a compute device.
+"""
 struct CuDevice
     handle::CUdevice
 
-    """
-        CuDevice(ordinal::Integer)
-
-    Get a handle to a compute device.
-    """
     function CuDevice(ordinal::Integer)
         device_ref = Ref{CUdevice}()
         cuDeviceGet(device_ref, ordinal)
         new(device_ref[])
     end
 
-    """
-        current_device()
-
-    Returns the current device.
-
-    !!! warning
-
-        This is a low-level API, returning the current device as known to the CUDA driver.
-        For most users, it is recommended to use the [`device`](@ref) method instead.
-    """
     global function current_device()
         device_ref = Ref{CUdevice}()
         res = unsafe_cuCtxGetDevice(device_ref)
@@ -38,6 +28,18 @@ struct CuDevice
     # for outer constructors
     global _CuDevice(handle::CUdevice) = new(handle)
 end
+
+"""
+    current_device()
+
+Returns the current device.
+
+!!! warning
+
+    This is a low-level API, returning the current device as known to the CUDA driver.
+    For most users, it is recommended to use the [`device`](@ref) method instead.
+"""
+current_device()
 
 """
     has_device()
