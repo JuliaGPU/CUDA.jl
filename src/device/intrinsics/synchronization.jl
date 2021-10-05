@@ -16,49 +16,55 @@ threads in the block.
 """
     sync_threads_count(predicate::Int32)
 
-Identical to `__syncthreads()` with the additional feature that it evaluates predicate
-for all threads of the block and returns the number of threads for which `predicate` evaluates
+Identical to `__syncthreads()` with the additional feature that it evaluates predicate for
+all threads of the block and returns the number of threads for which `predicate` evaluates
 to non-zero.
-
-    sync_threads_count(predicate::Bool)
-
-Identical to `__syncthreads()` with the additional feature that it evaluates predicate
-for all threads of the block and returns the number of threads for which `predicate` evaluates
-to `true`.
 """
 @inline sync_threads_count(predicate::Int32) = ccall("llvm.nvvm.barrier0.popc", llvmcall, Int32, (Int32,), predicate)
+
+"""
+    sync_threads_count(predicate::Bool)
+
+Identical to `__syncthreads()` with the additional feature that it evaluates predicate for
+all threads of the block and returns the number of threads for which `predicate` evaluates
+to `true`.
+"""
 @inline sync_threads_count(predicate::Bool) = sync_threads_count(Int32(predicate))
 
 """
     sync_threads_and(predicate::Int32)
 
-Identical to `__syncthreads()` with the additional feature that it evaluates predicate
-for all threads of the block and returns non-zero if and only if `predicate` evaluates to
+Identical to `__syncthreads()` with the additional feature that it evaluates predicate for
+all threads of the block and returns non-zero if and only if `predicate` evaluates to
 non-zero for all of them.
-
-    sync_threads_and(predicate::Bool)
-
-Identical to `__syncthreads()` with the additional feature that it evaluates predicate
-for all threads of the block and returns `true` if and only if `predicate` evaluates to
-`true` for all of them.
 """
 @inline sync_threads_and(predicate::Int32) = ccall("llvm.nvvm.barrier0.and", llvmcall, Int32, (Int32,), predicate)
+
+"""
+    sync_threads_and(predicate::Bool)
+
+Identical to `__syncthreads()` with the additional feature that it evaluates predicate for
+all threads of the block and returns `true` if and only if `predicate` evaluates to `true`
+for all of them.
+"""
 @inline sync_threads_and(predicate::Bool) = ifelse(sync_threads_and(Int32(predicate)) != Int32(0), true, false)
 
 """
     sync_threads_or(predicate::Int32)
 
-Identical to `__syncthreads()` with the additional feature that it evaluates predicate
-for all threads of the block and returns non-zero if and only if `predicate` evaluates to
+Identical to `__syncthreads()` with the additional feature that it evaluates predicate for
+all threads of the block and returns non-zero if and only if `predicate` evaluates to
 non-zero for any of them.
-
-    sync_threads_or(predicate::Int32)
-
-Identical to `__syncthreads()` with the additional feature that it evaluates predicate
-for all threads of the block and returns `true` if and only if `predicate` evaluates to
-`true` for any of them.
 """
 @inline sync_threads_or(predicate::Int32) = ccall("llvm.nvvm.barrier0.or", llvmcall, Int32, (Int32,), predicate)
+
+"""
+    sync_threads_or(predicate::Bool)
+
+Identical to `__syncthreads()` with the additional feature that it evaluates predicate for
+all threads of the block and returns `true` if and only if `predicate` evaluates to `true`
+for any of them.
+"""
 @inline sync_threads_or(predicate::Bool) = ifelse(sync_threads_or(Int32(predicate)) != Int32(0), true, false)
 
 """
