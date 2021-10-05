@@ -29,6 +29,7 @@ CUDA.version()
 ```@docs
 CuDevice
 devices
+current_device
 name(::CuDevice)
 totalmem(::CuDevice)
 attribute
@@ -47,7 +48,7 @@ warpsize(::CuDevice)
 ```@docs
 CuContext
 CUDA.unsafe_destroy!(::CuContext)
-CuCurrentContext
+current_context
 activate(::CuContext)
 device_synchronize
 ```

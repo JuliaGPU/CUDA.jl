@@ -124,8 +124,6 @@ CUDA.atomic_cas!
 CUDA.atomic_xchg!
 CUDA.atomic_add!
 CUDA.atomic_sub!
-CUDA.atomic_mul!
-CUDA.atomic_div!
 CUDA.atomic_and!
 CUDA.atomic_or!
 CUDA.atomic_xor!
