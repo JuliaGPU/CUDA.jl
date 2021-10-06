@@ -8,7 +8,7 @@ steps:
           version: 1.6
       - JuliaCI/julia-test#v1:
           test_args: "dontruntests"
-      - JuliaCI/julia-coverage#499cf0b:
+      - JuliaCI/julia-coverage#ff1bea8:
           codecov: true
           dirs:
             - src
