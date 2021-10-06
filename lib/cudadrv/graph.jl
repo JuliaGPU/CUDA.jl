@@ -82,7 +82,7 @@ mutable struct CuGraphExec
     graph::CuGraph
     ctx::CuContext
 
-    function instantiate(graph::CuGraph)
+    global function instantiate(graph::CuGraph)
         handle_ref = Ref{CUgraphExec}()
         error_node = Ref{CUgraphNode}()
         buflen = 256
