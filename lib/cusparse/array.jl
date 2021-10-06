@@ -219,9 +219,9 @@ _cusparsesimilar(S::CuSparseMatrixCSR, ::Type{TvNew}, ::Type{TiNew}, dims::Dims{
     CuSparseMatrixCSR(CUDA.fill(one(TiNew), first(dims)+1), similar(colvals(S), TiNew), similar(nonzeros(S), TvNew),dims)
 # parent method for similar that allocates an empty sparse vector (when new dims are single)
 _cusparsesimilar(S::CuSparseMatrixCSC, ::Type{TvNew}, ::Type{TiNew}, dims::Dims{1}) where {TvNew,TiNew} =
-    CuSparseVector(similar(rowvals(S), TiNew, 0), similar(nonzeros(S), TvNew, 0),dims)
+    CuSparseVector(similar(rowvals(S), TiNew, 0), similar(nonzeros(S), TvNew, 0),dims...)
 _cusparsesimilar(S::CuSparseMatrixCSR, ::Type{TvNew}, ::Type{TiNew}, dims::Dims{1}) where {TvNew,TiNew} =
-    CuSparseVector(similar(colvals(S), TiNew, 0), similar(nonzeros(S), TvNew, 0),dims)
+    CuSparseVector(similar(colvals(S), TiNew, 0), similar(nonzeros(S), TvNew, 0),dims...)
 
 """
 Utility union type of [`CuSparseMatrixCSC`](@ref), [`CuSparseMatrixCSR`](@ref), for which similar is implemented
