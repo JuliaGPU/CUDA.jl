@@ -98,6 +98,7 @@ checked_types = [
     "cusolverStatus_t",
     "cusparseStatus_t",
     "cutensorStatus_t",
+    "CUfileError_t",
 ]
 function insert_check_pass(x, state)
     if x isa CSTParser.EXPR && x.head == :function
@@ -443,6 +444,10 @@ function main()
     process("cutensor", "$cutensor/cutensor.h";
             wrapped_headers=["cutensor.h", "cutensor/types.h"],
             include_dirs=[cuda, cutensor])
+
+    process("cufile", "../gds/usr/include/cufile.h";
+            wrapped_headers=["cufile.h"],
+            include_dirs=[cuda])
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

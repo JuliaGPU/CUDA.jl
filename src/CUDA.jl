@@ -109,8 +109,9 @@ include("sorting.jl")
 
 # other libraries
 include("../lib/nvml/NVML.jl")
+include("../lib/cufile/CUFILE.jl")
 const has_nvml = NVML.has_nvml
-export NVML, has_nvml
+export NVML, has_nvml, CUFILE
 
 include("deprecated.jl")
 include("precompile.jl")
