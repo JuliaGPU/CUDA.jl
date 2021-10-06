@@ -6,7 +6,7 @@ export CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR, CuSparseMatrixCO
        CuSparseVector
 
 using LinearAlgebra: BlasFloat
-using SparseArrays: nonzeroinds, dimlub
+using SparseArrays: nonzeroinds, dimlub, getcolptr, rowvals
 
 abstract type AbstractCuSparseArray{Tv, Ti, N} <: AbstractSparseArray{Tv, Ti, N} end
 const AbstractCuSparseVector{Tv, Ti} = AbstractCuSparseArray{Tv, Ti, 1}
