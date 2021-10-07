@@ -554,4 +554,17 @@ k = 1
         end
     end
 
+    @testset "ldiv!" begin
+        @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            @test testf(rand(elty, m, m), rand(elty, m)) do A, x
+                ldiv!(qr(A), x)
+                x
+            end
+
+            @test testf(rand(elty, m, m), rand(elty, m), rand(elty, m)) do A, x, y
+                ldiv!(y, qr(A), x)
+                y
+            end
+        end
+    end
 end

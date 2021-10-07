@@ -153,6 +153,20 @@ end
 
 # matrix division
 
+function LinearAlgebra.ldiv!(_qr::CuQR, b::CuArray)
+    _x = UpperTriangular(_qr.R) \ (_qr.Q' * reshape(b,length(b),1))
+    b .= vec(_x)
+    unsafe_free!(_x)
+    return b
+end
+
+function LinearAlgebra.ldiv!(x::CuArray,_qr::CuQR, b::CuArray)
+    _x = UpperTriangular(_qr.R) \ (_qr.Q' * reshape(b,length(b),1))
+    x .= vec(_x)
+    unsafe_free!(_x)
+    return x
+end
+
 function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
     A, B = copy(_A), copy(_B)
     A, ipiv = CUSOLVER.getrf!(A)
