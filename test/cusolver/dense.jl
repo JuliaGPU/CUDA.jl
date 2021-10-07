@@ -64,16 +64,17 @@ k = 1
     end
 
     @testset "getrf!" begin
-        A          = rand(elty,m,n)
-        d_A        = CuArray(A)
-        d_A,d_ipiv = CUSOLVER.getrf!(d_A)
-        h_A        = collect(d_A)
-        h_ipiv     = collect(d_ipiv)
-        alu        = LinearAlgebra.LU(h_A, convert(Vector{BlasInt},h_ipiv), zero(BlasInt))
+        A = rand(elty,m,n)
+        d_A = CuArray(A)
+        d_A,d_ipiv,info = CUSOLVER.getrf!(d_A)
+        LinearAlgebra.checknonsingular(info)
+        h_A = collect(d_A)
+        h_ipiv = collect(d_ipiv)
+        alu = LinearAlgebra.LU(h_A, convert(Vector{BlasInt},h_ipiv), zero(BlasInt))
         @test A ≈ Array(alu)
-        A    = zeros(elty,n,n)
-        d_A  = CuArray(A)
-        @test_throws LinearAlgebra.SingularException CUSOLVER.getrf!(d_A)
+
+        d_A,d_ipiv,info = CUSOLVER.getrf!(CUDA.zeros(elty,n,n))
+        @test_throws LinearAlgebra.SingularException LinearAlgebra.checknonsingular(info)
     end
 
     @testset "getrs!" begin
@@ -171,21 +172,22 @@ k = 1
     end
 
     @testset "sytrf!" begin
-        A          = rand(elty,n,n)
-        A          = A + A' #symmetric
-        d_A        = CuArray(A)
-        d_A,d_ipiv = CUSOLVER.sytrf!('U',d_A)
-        h_A        = collect(d_A)
-        h_ipiv     = collect(d_ipiv)
-        A, ipiv    = LAPACK.sytrf!('U',A)
+        A = rand(elty,n,n)
+        A = A + A' #symmetric
+        d_A = CuArray(A)
+        d_A,d_ipiv,info = CUSOLVER.sytrf!('U',d_A)
+        LinearAlgebra.checknonsingular(info)
+        h_A = collect(d_A)
+        h_ipiv = collect(d_ipiv)
+        A, ipiv = LAPACK.sytrf!('U',A)
         @test ipiv == h_ipiv
         @test A ≈ h_A
         A    = rand(elty,m,n)
         d_A  = CuArray(A)
         @test_throws DimensionMismatch CUSOLVER.sytrf!('U',d_A)
-        A    = zeros(elty,n,n)
-        d_A  = CuArray(A)
-        @test_throws LinearAlgebra.SingularException CUSOLVER.sytrf!('U',d_A)
+
+        d_A,d_ipiv,info = CUSOLVER.sytrf!('U',CUDA.zeros(elty,n,n))
+        @test_throws LinearAlgebra.SingularException LinearAlgebra.checknonsingular(info)
     end
 
     @testset "gebrd!" begin
