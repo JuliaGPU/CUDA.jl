@@ -208,3 +208,31 @@ if VERSION >= v"1.8-"
         return Cholesky(C.data, A.uplo, info)
     end
 end
+
+
+# LU decomposition
+
+function LinearAlgebra.lu!(A::StridedCuMatrix{T}, ::RowMaximum; check::Bool = true) where {T<:CublasFloat}
+    lpt = getrf!(A)
+    check && LinearAlgebra.checknonsingular(lpt[3])
+    return LU{T,typeof(A)}(lpt[1], lpt[2], lpt[3])
+end
+
+# GPU-compatible accessors of the LU decomposition properties
+# TODO: upstream a GPU-compatible (broadcasting) way to set the diagonal
+function Base.getproperty(F::LU{T,<:StridedCuMatrix}, d::Symbol) where T
+    m, n = size(F)
+    if d === :L
+        L = tril!(getfield(F, :factors)[1:m, 1:min(m,n)])
+        L[1:min(m,n)+1:end] .= one(T)   # set the diagonal (linear indexing trick)
+        return L
+    elseif d === :U
+        return triu!(getfield(F, :factors)[1:min(m,n), 1:n])
+    elseif d === :p
+        return LinearAlgebra.ipiv2perm(getfield(F, :ipiv), m)
+    elseif d === :P
+        return Matrix{T}(I, m, m)[:,invperm(F.p)]
+    else
+        getfield(F, d)
+    end
+end

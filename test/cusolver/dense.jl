@@ -569,4 +569,14 @@ k = 1
             end
         end
     end
+
+    @testset "lu" begin
+        @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            A = CuArray(rand(elty, m, m))
+            F = lu(A)
+            @test F.L*F.U ≈ A[F.p, :]
+
+            @test_throws LinearAlgebra.SingularException lu(CUDA.zeros(elty,n,n))
+        end
+    end
 end
