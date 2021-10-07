@@ -60,3 +60,17 @@ CuMatrix{T}(Q::AbstractQ{S}) where {T,S} = convert(CuArray, Matrix{T}(Q))
 CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
 CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
 CuArray(Q::AbstractQ) = CuMatrix(Q)
+
+function LinearAlgebra.ldiv!(_qr::CUDA.CUSOLVER.CuQR,b::CUDA.CuArray)
+  _x = UpperTriangular(_qr.R) \ (_qr.Q' * reshape(b,length(b),1))
+  b .= vec(_x)
+  CUDA.unsafe_free!(_x)
+  return b
+end
+
+function LinearAlgebra.ldiv!(x::CUDA.CuArray,_qr::CUDA.CUSOLVER.CuQR,b::CUDA.CuArray)
+  _x = UpperTriangular(_qr.R) \ (_qr.Q' * reshape(b,length(b),1))
+  x .= vec(_x)
+  CUDA.unsafe_free!(_x)
+  return x
+end

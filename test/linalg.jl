@@ -19,3 +19,21 @@ end
     @test isreal(norm(dx, 2))
     @test norm(normalize!(dx)) ≈ 1
 end
+
+@testset "ldiv!" begin
+    A = rand(Float32, 2, 2)
+    Q = qr(A)
+    _Q = qr(cu(A))
+    x = rand(Float32, 2)
+    _x = cu(x)
+    y = similar(x)
+    _y = similar(_x)
+
+    ldiv!(y,Q,x)
+    ldiv!(_y,_Q,_x)
+    @test y ≈ Array(_y)
+
+    ldiv!(Q,x)
+    ldiv!(_Q,_x)
+    @test x ≈ Array(_x)
+end
