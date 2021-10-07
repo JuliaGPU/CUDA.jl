@@ -83,9 +83,9 @@ version = "8.1.2"
 
 [[GPUCompiler]]
 deps = ["ExprTools", "InteractiveUtils", "LLVM", "Libdl", "Logging", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "b78e49f97fc48ceba77725621c31f6aaf5e5c666"
+git-tree-sha1 = "2c7c032f2940f45ab44df765a7333026927afa00"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.13.4"
+version = "0.13.5"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
