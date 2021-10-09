@@ -34,7 +34,7 @@ function has_nvml()
 
         # JuliaGPU/CUDA.jl#860: initialization can fail on Windows
         try
-            initialize_api()
+            initialize_context()
         catch err
             @error "Cannot use NVML, as it failed to initialize" exception=(err, catch_backtrace())
             return false

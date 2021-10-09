@@ -11,7 +11,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, libraryPropertyType
-using ..CUDA: libcudnn, @retry_reclaim, isdebug, @context!
+using ..CUDA: libcudnn, @retry_reclaim, isdebug, @context!, initialize_context
 
 using CEnum: @cenum
 

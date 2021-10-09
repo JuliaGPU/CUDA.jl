@@ -124,11 +124,14 @@ end
 
 """
     context!(ctx::CuContext)
+    context!(ctx::CuContext) do ... end
 
-Bind the current host thread to the context `ctx`. Returns the previously-bound context.
+Bind the current host thread to the context `ctx`. Returns the previously-bound context. If
+used with do-block syntax, the change is only temporary.
 
 Note that the contexts used with this call should be previously acquired by calling
-[`context`](@ref), and not arbitrary contexts created by calling the `CuContext` constructor.
+[`context`](@ref), and not arbitrary contexts created by calling the `CuContext`
+constructor.
 """
 function context!(ctx::CuContext)
     # switch contexts
@@ -188,11 +191,6 @@ macro context!(ex...)
     end
 end
 
-"""
-    context!(f, ctx; [skip_destroyed=false])
-
-Sets the active context for the duration of `f`.
-"""
 @inline function context!(f::Function, ctx::CuContext; skip_destroyed::Bool=false)
     # @inline so that the kwarg method is inlined too and we can const-prop skip_destroyed
     @context! skip_destroyed=skip_destroyed ctx f()
@@ -253,10 +251,15 @@ end
 """
     device!(dev::Integer)
     device!(dev::CuDevice)
+    device!(dev) do ... end
 
 Sets `dev` as the current active device for the calling host thread. Devices can be
-specified by integer id, or as a `CuDevice` (slightly faster).
+specified by integer id, or as a `CuDevice` (slightly faster). Both functions can be used
+with do-block syntax, in which case the device is only changed temporarily, without changing
+the default device used to initialize new threads or tasks.
 """
+device!
+
 function device!(dev::CuDevice, flags=nothing)
     # configure the primary context flags
     if flags !== nothing
@@ -289,14 +292,6 @@ macro device!(dev, body)
     end
 end
 
-"""
-    device!(f, dev)
-
-Sets the active device for the duration of `f`.
-
-Note that this call is intended for temporarily switching devices, and does not change the
-default device used to initialize new threads or tasks.
-"""
 function device!(f::Function, dev::CuDevice)
     @device! dev f()
 end
@@ -407,6 +402,15 @@ function stream!(f::Function, stream::CuStream)
         state.streams[devidx] = old_stream
     end
 end
+
+"""
+    stream!(::CuStream)
+    stream!(::CuStream) do ... end
+
+Change the default CUDA stream for the currently executing task, temporarily if using the
+do-block version of this function.
+"""
+stream!
 
 
 ## helpers

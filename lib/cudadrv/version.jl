@@ -1,9 +1,23 @@
 # Version management
 
+# NVML.driver_version() wrongly reports the forward compatible version,
+# so we record the system libcuda version when we initialize the library.
+const _system_version = Ref{VersionNumber}()
+
+"""
+    system_version()
+
+Returns the latest version of CUDA supported by the system driver.
+"""
+function system_version()
+    libcuda()   # initializes _system_version
+    _system_version[]
+end
+
 """
     version()
 
-Returns the latest version of CUDA supported by the driver.
+Returns the latest version of CUDA supported by the loaded driver.
 """
 function version()
     version_ref = Ref{Cint}()
@@ -26,7 +40,6 @@ release() = VersionNumber(version().major, version().minor)
     Returns the CUDA Runtime version.
 """
 function runtime_version()
-    initialize_api()
     version_ref = Ref{Cint}()
     @ccall libcudart().cudaRuntimeGetVersion(version_ref::Ptr{Cint})::CUresult
     major, ver = divrem(version_ref[], 1000)

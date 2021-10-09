@@ -15,6 +15,8 @@ blockIdx
 blockDim
 threadIdx
 warpsize
+laneid
+active_mask
 ```
 
 
@@ -50,6 +52,9 @@ CuDeviceTexture
 
 ```@docs
 sync_threads
+sync_threads_count
+sync_threads_and
+sync_threads_or
 sync_warp
 threadfence_block
 threadfence
@@ -78,6 +83,7 @@ return value to each participating thread.
 ```@docs
 vote_all
 vote_any
+vote_uni
 vote_ballot
 ```
 
@@ -124,8 +130,6 @@ CUDA.atomic_cas!
 CUDA.atomic_xchg!
 CUDA.atomic_add!
 CUDA.atomic_sub!
-CUDA.atomic_mul!
-CUDA.atomic_div!
 CUDA.atomic_and!
 CUDA.atomic_or!
 CUDA.atomic_xor!
@@ -154,26 +158,24 @@ Certain parts of the CUDA API are available for use on the GPU, for example to l
 dynamic kernels or set-up cooperative groups. Coverage of this part of the API, provided by
 the `libcudadevrt` library, is under development and contributions are welcome.
 
-Calls to these functions are often ambiguous with their host-side equivalents. To avoid
-confusion, you need to prefix device-side API interactions with the CUDA module, e.g.,
-`CUDA.synchronize`.
-
 ```@docs
-CUDA.synchronize
+device_synchronize
+this_grid
+sync_grid
 ```
 
 
 ## Math
 
 Many mathematical functions are provided by the `libdevice` library, and are wrapped by
-jl. These functions implement interfaces that are similar to existing functions
-in `Base`, albeit often with support for fewer types.
+CUDA.jl. These functions are used to implement well-known functions from the Julia standard
+library and packages like SpecialFunctions.jl, e.g., calling the `cos` function will
+automatically use `__nv_cos` from `libdevice` if possible.
 
-To avoid confusion with existing implementations in `Base`, you need to prefix calls to this
-library with the CUDA module. For example, in kernel code, call `CUDA.sin` instead of plain
-`sin`.
+Some functions do not have a counterpart in the Julia ecosystem, those have to be called
+directly. For example, to call `__nv_logb` or `__nv_logbf` you use `CUDA.logb` in a kernel.
 
-For a list of available functions, look at `src/device/cuda/libdevice.jl`.
+For a list of available functions, look at `src/device/intrinsics/math.jl`.
 
 
 ## WMMA

@@ -12,7 +12,7 @@ end
 const nvmlDeviceAttributesV1_t = nvmlDeviceAttributesV1_st
 
 @checked function nvmlDeviceGetAttributes(device, attributes)
-    initialize_api()
+    initialize_context()
     ccall((:nvmlDeviceGetAttributes, libnvml()), nvmlReturn_t,
                    (nvmlDevice_t, Ptr{nvmlDeviceAttributesV1_t}),
                    device, attributes)
@@ -26,14 +26,14 @@ end
 const nvmlProcessInfoV1_t = nvmlProcessInfoV1_st
 
 @checked function nvmlDeviceGetComputeRunningProcesses(device, infoCount, infos)
-    initialize_api()
+    initialize_context()
     ccall((:nvmlDeviceGetComputeRunningProcesses, libnvml()), nvmlReturn_t,
                    (nvmlDevice_t, Ptr{UInt32}, Ptr{nvmlProcessInfoV1_t}),
                    device, infoCount, infos)
 end
 
 @checked function nvmlDeviceGetGraphicsRunningProcesses(device, infoCount, infos)
-    initialize_api()
+    initialize_context()
     ccall((:nvmlDeviceGetGraphicsRunningProcesses, libnvml()), nvmlReturn_t,
                    (nvmlDevice_t, Ptr{UInt32}, Ptr{nvmlProcessInfoV1_t}),
                    device, infoCount, infos)
@@ -51,7 +51,7 @@ end
 const nvmlComputeInstanceInfoV1_t = nvmlComputeInstanceInfoV1_st
 
 @checked function nvmlComputeInstanceGetInfo(computeInstance, info)
-    initialize_api()
+    initialize_context()
     ccall((:nvmlComputeInstanceGetInfo, libnvml()), nvmlReturn_t,
                    (nvmlComputeInstance_t, Ptr{nvmlComputeInstanceInfoV1_t}),
                    computeInstance, info)

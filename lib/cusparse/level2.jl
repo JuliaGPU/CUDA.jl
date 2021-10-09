@@ -24,7 +24,7 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                      beta::Number,
                      Y::CuVector{$elty},
                      index::SparseChar)
-            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, index)
+            desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = A.dims
             mb = div(m,A.blockDim)
             nb = div(n,A.blockDim)
@@ -65,7 +65,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
                       A::CuSparseMatrixBSR{$elty},
                       X::CuVector{$elty},
                       index::SparseChar)
-            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, uplo, diag, index)
+            desc = CuMatrixDescriptor('G', uplo, diag, index)
             m,n = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -118,7 +118,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                       A::CuSparseMatrixCSR{$elty},
                       X::CuVector{$elty},
                       index::SparseChar)
-            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, uplo, diag, index)
+            desc = CuMatrixDescriptor('G', uplo, diag, index)
             m,n = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -178,7 +178,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             if uplo == 'U'
                 cuplo = 'L'
             end
-            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, cuplo, diag, index)
+            desc = CuMatrixDescriptor('G', cuplo, diag, index)
             n,m = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))

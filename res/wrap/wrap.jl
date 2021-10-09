@@ -118,7 +118,7 @@ function insert_check_pass(x, state)
     end
 end
 
-# insert `initialize_api()` before each function with a `ccall` calling non-whitelisted fns
+# insert `initialize_context()` before each function with a `ccall` calling non-whitelisted fns
 preinit_apicalls = Set{String}([
     # CUDAdrv
     ## error handling
@@ -199,7 +199,7 @@ function insert_init_pass(x, state)
 
         # call the API initializer
         if !in(actual_fun, preinit_apicalls)
-            push!(state.edits, Edit(state.offset, "initialize_api()\n    "))
+            push!(state.edits, Edit(state.offset, "initialize_context()\n    "))
         end
     end
 end

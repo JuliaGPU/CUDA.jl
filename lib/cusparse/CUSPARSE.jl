@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim, @context!
+using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim, @context!, initialize_context
 
 using CEnum: @cenum
 
@@ -34,7 +34,6 @@ include("management.jl")
 include("level1.jl")
 include("level2.jl")
 include("level3.jl")
-include("extra.jl")
 include("preconditioners.jl")
 include("conversions.jl")
 include("generic.jl")
