@@ -316,6 +316,7 @@ Hermitian{T}(Mat::CuSparseMatrix{T}) where T = Hermitian{T,typeof(Mat)}(Mat,'U')
 
 # translations
 Base.getindex(A::AbstractCuSparseVector, ::Colon)          = copy(A)
+Base.getindex(A::AbstractCuSparseMatrix, ::Colon)          = CuSparseVector(A)
 Base.getindex(A::AbstractCuSparseMatrix, ::Colon, ::Colon) = copy(A)
 Base.getindex(A::AbstractCuSparseMatrix, i, ::Colon)       = getindex(A, i, 1:size(A, 2))
 Base.getindex(A::AbstractCuSparseMatrix, ::Colon, i)       = getindex(A, 1:size(A, 1), i)
@@ -502,8 +503,7 @@ Base.copy(Mat::CuSparseMatrixCOO) = copyto!(similar(Mat), Mat)
 
 # input/output
 
-for (gpu, cpu) in [CuSparseVector => SparseVector,
-                   CuSparseMatrixCSC => SparseMatrixCSC,
+for (gpu, cpu) in [CuSparseMatrixCSC => SparseMatrixCSC,
                    CuSparseMatrixCSR => SparseMatrixCSC,
                    CuSparseMatrixBSR => SparseMatrixCSC,
                    CuSparseMatrixCOO => SparseMatrixCSC]
@@ -528,6 +528,26 @@ for (gpu, cpu) in [CuSparseVector => SparseVector,
     end
 end
 
+
+@eval Base.show(io::IOContext, x::CuSparseVector) =
+    show(io, SparseVector(x))
+
+@eval function Base.show(io::IO, mime::MIME"text/plain", S::CuSparseVector)
+    xnnz = nnz(S)
+    n = length(S)
+    print(io, n, "-element ", typeof(S), " with ", xnnz, " stored ", 
+    xnnz == 1 ? "entry" : "entries")
+    if !(n == 0)
+        println(io, ":")
+        io = IOContext(io, :typeinfo => eltype(S))
+        if ndims(S) == 1
+            show(io, SparseVector(S))
+        else
+            # so that we get the nice Braille pattern
+            Base.print_array(io, SparseVector(S))
+        end
+    end
+end
 
 # interop with device arrays
 

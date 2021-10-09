@@ -41,6 +41,8 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
     end
 end
 
+## Matrix to vector, no direct conversion
+CuSparseVector(Mat::AbstractCuSparseMatrix) = CuSparseVector(sparse(reshape(Mat,:)))
 
 ## CSR to CSC
 
