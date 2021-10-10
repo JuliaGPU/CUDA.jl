@@ -302,6 +302,7 @@ end
         @test check_sort!(Float64, 10000, x -> rand(Float64); alg=CUDA.QuickSort)
         @test check_sort!(Float32, 10000, x -> rand(Float32); alg=CUDA.QuickSort)
         @test check_sort!(Float16, 10000, x -> rand(Float16); alg=CUDA.QuickSort)
+        @test check_sort!(Tuple{Int,Int}, 10000, x -> (rand(Int), rand(Int)); alg=CUDA.QuickSort)
 
         # non-uniform distributions
         @test check_sort!(UInt8, 100000, x -> round(255 * rand() ^ 2); alg=CUDA.QuickSort)
@@ -345,6 +346,7 @@ end
         @test check_sort!(Float64, 10000, x -> rand(Float64); alg=CUDA.BitonicSort)
         @test check_sort!(Float32, 10000, x -> rand(Float32); alg=CUDA.BitonicSort)
         @test check_sort!(Float16, 10000, x -> rand(Float16); alg=CUDA.BitonicSort)
+        @test check_sort!(Tuple{Int,Int}, 10000, x -> (rand(Int), rand(Int)); alg=CUDA.BitonicSort)
 
         # test various sizes
         @test check_sort!(Float32, 1, x -> rand(Float32); alg=CUDA.BitonicSort)

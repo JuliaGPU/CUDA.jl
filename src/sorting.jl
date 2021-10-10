@@ -73,8 +73,10 @@ Uses block y index to decide which values to operate on.
     sync_threads()
     blockIdx_yz = (blockIdx().z - 1i32) * gridDim().y + blockIdx().y
     idx0 = lo + (blockIdx_yz - 1i32) * blockDim().x + threadIdx().x
-    val = idx0 <= hi ? values[idx0] : one(eltype(values))
-    comparison = flex_lt(pivot, val, parity, lt, by)
+    if idx0 <= hi
+        val = values[idx0]
+        comparison = flex_lt(pivot, val, parity, lt, by)
+    end
 
     @inbounds if idx0 <= hi
          sums[threadIdx().x] = 1 & comparison
@@ -85,9 +87,11 @@ Uses block y index to decide which values to operate on.
 
     cumsum!(sums)
 
-    dest_idx = @inbounds comparison ? blockDim().x - sums[end] + sums[threadIdx().x] : threadIdx().x - sums[threadIdx().x]
-    @inbounds if idx0 <= hi && dest_idx <= length(swap)
-        swap[dest_idx] = val
+    @inbounds if idx0 <= hi
+        dest_idx = @inbounds comparison ? blockDim().x - sums[end] + sums[threadIdx().x] : threadIdx().x - sums[threadIdx().x]
+        if dest_idx <= length(swap)
+            swap[dest_idx] = val
+        end
     end
     sync_threads()
 
@@ -180,10 +184,8 @@ Must only run on 1 SM.
         c = n_eff() - d
         to_move = min(b, c)
         sync_threads()
-        swap = if threadIdx().x <= to_move
-            vals[lo + a + threadIdx().x]
-        else
-            zero(eltype(vals))  # unused value
+        if threadIdx().x <= to_move
+            swap = vals[lo + a + threadIdx().x]
         end
         sync_threads()
         if threadIdx().x <= to_move
@@ -215,7 +217,6 @@ function bitonic_median(vals :: AbstractArray{T}, swap, lo, L, stride, lt::F1, b
 
     @inbounds swap[threadIdx().x] = vals[lo + threadIdx().x * stride]
     sync_threads()
-    old_val = zero(eltype(swap))
 
     log_blockDim = begin
         out = 0
@@ -269,10 +270,8 @@ elements spaced by `stride`. Good for sampling pivot values as well as short sor
         for level in 0:L
             # get left/right neighbor depending on even/odd level
             buddy = threadIdx().x - 1i32 + 2i32 * (1i32 & (threadIdx().x % 2i32 != level % 2i32))
-            buddy_val = if 1 <= buddy <= L && threadIdx().x <= L
-                 swap[buddy]
-            else
-                zero(eltype(swap)) # unused value
+            if 1 <= buddy <= L && threadIdx().x <= L
+                 buddy_val = swap[buddy]
             end
             sync_threads()
             if 1 <= buddy <= L && threadIdx().x <= L
