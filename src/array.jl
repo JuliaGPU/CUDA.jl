@@ -510,6 +510,22 @@ Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Union
 @inline cu(xs; unified::Bool=false) = adapt(CuArrayAdaptor{unified ? Mem.UnifiedBuffer : Mem.DeviceBuffer}(), xs)
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
+## show
+
+function Base.show(io::IO, A::AnyCuArray{T}) where {T}
+  if T <: Union{Float32, ComplexF32}
+    # then no need to write cu(Float32[1.0])
+    io = IOContext(io, :typeinfo => Vector{Float32})
+    print(io, "cu(")
+  elseif T <: Union{AbstractFloat, Complex{<:AbstractFloat}}
+    # then cu(collect(A)) wouldn't produce A, so print CuArray?
+    print(io, "CuArray(")
+  else
+    print(io, "cu(")
+  end
+  invoke(show, Tuple{IO, AbstractArray}, io, A)
+  print(io, ")")
+end
 
 ## utilities
 

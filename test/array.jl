@@ -741,3 +741,17 @@ if length(devices()) > 1
   end
 end
 end
+
+@testset "show" begin
+  io = IOBuffer()
+  show(io, cu([1f0, 2f0]))  # Float32
+  @test String(take!(io)) == "cu([1.0, 2.0])"
+
+  io = IOBuffer()
+  show(io, CuArray([1.0, 2.0]))  # Float64
+  @test String(take!(io)) == "CuArray([1.0, 2.0])"
+
+  io = IOBuffer()
+  show(io, cu(Int32[1,2])')  # Int32
+  @test String(take!(io)) == "cu(Int32[1 2])"
+end
