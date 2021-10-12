@@ -14,12 +14,11 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
     @eval begin
         function geam(alpha::Number, A::CuSparseMatrixCSR{$elty}, beta::Number, B::CuSparseMatrixCSR{$elty}, index::SparseChar)
             m, n = size(A)
-            @assert (m, n) == size(B)
+            (m, n) == size(B) && DimensionMismatch("dimensions must match: a has dims $(axes(A)), b has dims $(axes(B))")
             descrA = CuMatrixDescriptor('G', 'L', 'N', index)
             descrB = CuMatrixDescriptor('G', 'L', 'N', index)
             descrC = CuMatrixDescriptor('G', 'L', 'N', index)
 
-            cusparseSetPointerMode(handle(), CUSPARSE_POINTER_MODE_HOST)
             rowPtrC = CuArray{Int32,1}(undef, m+1)
 
             function bufferSize()
