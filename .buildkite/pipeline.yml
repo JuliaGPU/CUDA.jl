@@ -39,7 +39,7 @@ steps:
   #   agents:
   #     queue: "juliagpu"
   #     cuda: "11.0"
-  #     cap: "recent"                   # test as much as possible
+  #     cap: "sm_80"                    # test as much as possible
   #   env:
   #     JULIA_CUDA_VERSION: '11.4'
   #     JULIA_CUDA_DEBUG_INFO: 'false'  # NVIDIA bug #3305774: ptxas segfaults with out debug info
@@ -108,7 +108,7 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "11.0"
-      cap: "recent"
+      cap: "sm_80"
     env:
       JULIA_CUDA_VERSION: '11.4'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
@@ -129,6 +129,7 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "11.0"
+      cap: "sm_80"
     env:
       JULIA_CUDA_VERSION: '11.3'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
@@ -149,6 +150,7 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "11.0"
+      cap: "sm_80"
     env:
       JULIA_CUDA_VERSION: '11.2'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
@@ -169,6 +171,7 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "11.0"
+      cap: "sm_80"
     env:
       JULIA_CUDA_VERSION: '11.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
@@ -189,6 +192,7 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "11.0"
+      cap: "sm_80"
     env:
       JULIA_CUDA_VERSION: '11.0'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
@@ -209,6 +213,7 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "10.2"
+      cap: "sm_75"
     env:
       JULIA_CUDA_VERSION: '10.2'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
@@ -229,6 +234,7 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "10.1"
+      cap: "sm_75"
     env:
       JULIA_CUDA_VERSION: '10.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
