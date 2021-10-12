@@ -25,7 +25,6 @@ include("multigpu.jl")
 
 # high-level integrations
 include("linalg.jl")
-include("ordering.jl")
 
 # cache for created, but unused handles
 const idle_dense_handles = HandleCache{CuContext,cusolverDnHandle_t}()

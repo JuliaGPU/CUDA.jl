@@ -9,7 +9,37 @@ n = 10
 l = 13
 k = 1
 
+A = rand(n, n)
+A = SparseMatrixCSC(A)
+
+@testset "symrcm" begin
+    p = symamd(A, 'Z')
+    p = symamd(A, 'O')
+end
+
+@testset "symmdq" begin
+    p = symmdq(A, 'Z')
+    p = symmdq(A, 'O')
+end
+
+@testset "symamd" begin
+    p = symamd(A, 'Z')
+    p = symamd(A, 'O')
+end
+
+@testset "metisnd" begin
+    p = metisnd(A, 'Z')
+    p = metisnd(A, 'O')
+end
+
 @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "zfd" begin
+        A = rand(elty, n, n)
+        A = SparseMatrixCSC(A)
+        p = zfd(A, 'Z')
+        P = zfd(A, 'O')
+    end
+
     @testset "csrlsvlu!" begin
         A = sparse(rand(elty,n,n))
         b = rand(elty,n)
