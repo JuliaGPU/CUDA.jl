@@ -13,22 +13,18 @@ A = rand(n, n)
 A = SparseMatrixCSC(A)
 
 @testset "symrcm" begin
-    p = symamd(A, 'Z')
     p = symamd(A, 'O')
 end
 
 @testset "symmdq" begin
-    p = symmdq(A, 'Z')
     p = symmdq(A, 'O')
 end
 
 @testset "symamd" begin
-    p = symamd(A, 'Z')
     p = symamd(A, 'O')
 end
 
 @testset "metisnd" begin
-    p = metisnd(A, 'Z')
     p = metisnd(A, 'O')
 end
 
@@ -36,7 +32,6 @@ end
     @testset "zfd" begin
         A = rand(elty, n, n)
         A = SparseMatrixCSC(A)
-        p = zfd(A, 'Z')
         P = zfd(A, 'O')
     end
 
