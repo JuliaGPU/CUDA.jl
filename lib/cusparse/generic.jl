@@ -82,8 +82,10 @@ Base.unsafe_convert(::Type{cusparseSpMatDescr_t}, desc::CuSparseMatrixDescriptor
 
 ## API functions
 
-function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},CuSparseMatrixCSR{T}},
-             X::DenseCuVector{T}, beta::Number, Y::DenseCuVector{T}, index::SparseChar) where {T}
+function mv!(transa::SparseChar, alpha::Number,
+        A::Union{CuSparseMatrixBSR{T},CuSparseMatrixCSR{T}},
+        X::DenseCuVector{T}, beta::Number, Y::DenseCuVector{T},
+        index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {T}
     m,n = size(A)
 
     if transa == 'N'
@@ -102,18 +104,21 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},Cu
     function bufferSize()
         out = Ref{Csize_t}()
         cusparseSpMV_bufferSize(handle(), transa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
-                                descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, out)
+                                descY, compute_type, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
         cusparseSpMV(handle(), transa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
-                     descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, buffer)
+                     descY, compute_type, algo, buffer)
     end
     Y
 end
 
-function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::DenseCuVector{T},
-             beta::Number, Y::DenseCuVector{T}, index::SparseChar) where {T}
+function mv!(transa::SparseChar, alpha::Number,
+        A::CuSparseMatrixCSC{T}, X::DenseCuVector{T},
+        beta::Number, Y::DenseCuVector{T},
+        index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {T}
+
     ctransa = 'N'
     if transa == 'N'
         ctransa = 'T'
@@ -140,19 +145,21 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::Dens
     function bufferSize()
         out = Ref{Csize_t}()
         cusparseSpMV_bufferSize(handle(), ctransa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
-                                descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, out)
+                                descY, compute_type, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
         cusparseSpMV(handle(), ctransa, Ref{compute_type}(α), descA, descX, Ref{compute_type}(β),
-                     descY, compute_type, CUSPARSE_MV_ALG_DEFAULT, buffer)
+                     descY, compute_type, algo, buffer)
     end
 
     return Y
 end
 
-function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
-             B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar) where {T}
+function mm!(transa::SparseChar, transb::SparseChar,
+        alpha::Number, A::CuSparseMatrixCSR{T},
+        B::DenseCuMatrix{T}, beta::Number,
+        C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
     m,k = size(A)
     n = size(C)[2]
 
@@ -174,20 +181,22 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
         out = Ref{Csize_t}()
         cusparseSpMM_bufferSize(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, CUSPARSE_MM_ALG_DEFAULT, out)
+            descC, T, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
         cusparseSpMM(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, CUSPARSE_MM_ALG_DEFAULT, buffer)
+            descC, T, algo, buffer)
     end
 
     return C
 end
 
-function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
-             B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar) where {T}
+function mm!(transa::SparseChar, transb::SparseChar,
+        alpha::Number, A::CuSparseMatrixCSC{T},
+        B::DenseCuMatrix{T}, beta::Number,
+        C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
     ctransa = 'N'
     if transa == 'N'
         ctransa = 'T'
@@ -217,13 +226,13 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
         out = Ref{Csize_t}()
         cusparseSpMM_bufferSize(
             handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, CUSPARSE_MM_ALG_DEFAULT, out)
+            descC, T, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
         cusparseSpMM(
             handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, CUSPARSE_MM_ALG_DEFAULT, buffer)
+            descC, T, algo, buffer)
     end
 
     return C
