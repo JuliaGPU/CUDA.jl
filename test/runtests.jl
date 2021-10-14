@@ -126,10 +126,11 @@ end
 candidates = []
 for (index,dev) in enumerate(devices())
     # fetch info that doesn't require a context
-    id=deviceid(dev)
-    uuid=CUDA.uuid(dev)
-    name=CUDA.name(dev)
-    cap=capability(dev)
+    id = deviceid(dev)
+    mig = CUDA.uuid(dev) != CUDA.parent_uuid(dev)
+    uuid = CUDA.uuid(dev)
+    name = CUDA.name(dev)
+    cap = capability(dev)
 
     mem = try
         device!(dev)
@@ -143,7 +144,7 @@ for (index,dev) in enumerate(devices())
         end
     end
 
-    push!(candidates, (; id, uuid, name, cap, mem))
+    push!(candidates, (; id, uuid, mig, name, cap, mem))
 
     # NOTE: we don't use NVML here because it doesn't respect CUDA_VISIBLE_DEVICES
 end
@@ -161,7 +162,7 @@ isempty(candidates) && error("Could not find any suitable device for this config
 sort!(candidates, by=x->x.mem)
 ## apply
 picks = reverse(candidates[end-gpus+1:end])   # best GPU first
-ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"GPU-$(pick.uuid)", picks), ",")
+ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"$(pick.mig ? "MIG" : "GPU")-$(pick.uuid)", picks), ",")
 @info "Testing using $(length(picks)) device(s): " * join(map(pick->"$(pick.id). $(pick.name) (UUID $(pick.uuid))", picks), ", ")
 
 # determine tests to skip

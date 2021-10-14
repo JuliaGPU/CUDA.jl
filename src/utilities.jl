@@ -79,11 +79,13 @@ function versioninfo(io::IO=stdout)
     end
     for (i, dev) in enumerate(devs)
         if has_nvml()
-            dev′ = NVML.Device(uuid(dev))
+            mig = uuid(dev) != parent_uuid(dev)
+            nvml_gpu = NVML.Device(parent_uuid(dev))
+            nvml_dev = NVML.Device(uuid(dev); mig)
 
-            str = NVML.name(dev′)
-            cap = NVML.compute_capability(dev′)
-            mem = NVML.memory_info(dev′)
+            str = NVML.name(nvml_dev)
+            cap = NVML.compute_capability(nvml_gpu)
+            mem = NVML.memory_info(nvml_dev)
         else
             str = name(dev)
             cap = capability(dev)
