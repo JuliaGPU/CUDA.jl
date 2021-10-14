@@ -430,15 +430,6 @@ try
                         p = recycle_worker(p)
                     else
                         print_testworker_stats(test, wrkr, resp)
-
-                        cpu_rss = resp[9]
-                        if CUDA.getenv("CI", false) && cpu_rss > 4*2^30
-                            # XXX: despite resetting the device and collecting garbage
-                            #      after each test, we are leaking CPU memory somewhere.
-                            #      this is a problem on CI, where2 we don't have much RAM.
-                            #      work around this by periodically recycling the worker.
-                            p = recycle_worker(p)
-                        end
                     end
 
                     # aggregate the snooped compiler invocations
