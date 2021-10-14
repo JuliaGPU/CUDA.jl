@@ -5,7 +5,7 @@ macro maybe_unsupported(ex)
         try
             $(esc(ex))
         catch err
-            (isa(err, NVMLError) && err.code == NVML.ERROR_NOT_SUPPORTED) || rethrow()
+            (isa(err, NVML.NVMLError) && err.code == NVML.ERROR_NOT_SUPPORTED) || rethrow()
         end
     end
 end
@@ -17,28 +17,39 @@ end
 end
 
 @testset "devices" begin
-    dev = NVML.Device(0)
-    @test dev == first(NVML.devices())
+    let dev = NVML.Device(0)
+        @test dev == first(NVML.devices())
+    end
 
     cuda_dev = CuDevice(0)
-    nvml_dev = NVML.Device(uuid(cuda_dev))
+    mig = uuid(cuda_dev) != parent_uuid(cuda_dev)
 
-    @test NVML.uuid(nvml_dev) == uuid(cuda_dev)
-    NVML.brand(nvml_dev)
-    @test NVML.name(nvml_dev) == name(cuda_dev)
-    @maybe_unsupported NVML.serial(nvml_dev)
+    # tests for the parent device
+    let dev = NVML.Device(parent_uuid(cuda_dev))
+        @test NVML.uuid(dev) == parent_uuid(cuda_dev)
+        NVML.brand(dev)
+        @test occursin(NVML.name(dev), name(cuda_dev))
+        @maybe_unsupported NVML.serial(dev)
 
-    @maybe_unsupported NVML.power_usage(nvml_dev)
-    @maybe_unsupported NVML.energy_consumption(nvml_dev)
+        @maybe_unsupported NVML.power_usage(dev)
+        @maybe_unsupported NVML.energy_consumption(dev)
 
-    NVML.memory_info(nvml_dev)
+        @maybe_unsupported NVML.utilization_rates(dev)
 
-    @maybe_unsupported NVML.utilization_rates(nvml_dev)
+        NVML.compute_mode(dev)
+        @test NVML.compute_capability(dev) == capability(cuda_dev)
+    end
 
-    NVML.compute_mode(nvml_dev)
-    @test NVML.compute_capability(nvml_dev) == capability(cuda_dev)
-    context()
-    # FIXME: https://github.com/NVIDIA/gpu-monitoring-tools/issues/63
-    #@test getpid() in keys(NVML.compute_processes(dev))
-    NVML.compute_processes(dev)
+    # tests for the compute instance
+    let dev = NVML.Device(uuid(cuda_dev); mig)
+        @test NVML.uuid(dev) == uuid(cuda_dev)
+        @test NVML.name(dev) == name(cuda_dev)
+
+        NVML.memory_info(dev)
+
+        context()
+        # FIXME: https://github.com/NVIDIA/gpu-monitoring-tools/issues/63
+        #@test getpid() in keys(NVML.compute_processes(dev))
+        NVML.compute_processes(dev)
+    end
 end
