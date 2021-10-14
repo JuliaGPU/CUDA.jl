@@ -308,7 +308,7 @@ for (fname, elty) in ((:cusolverSpScsrzfdHost, :Float32),
             valsA = Mat.nzval
             p = zeros(Cint, n)
             numnz = Ref{Cint}(0)
-            $fname(sparse_handle(), n, nnzA, descA, valsA, colsA, valsA, p, numnz)
+            $fname(sparse_handle(), n, nnzA, descA, valsA, rowsA, colsA, p, numnz)
             (numnz[] < n) && throw(SingularException(n - numnz[]))
             return p
         end
