@@ -116,18 +116,18 @@ using CUDA.CUDNN:
                                       qProjSize, kProjSize, vProjSize, oProjSize,
                                       qoMaxSeqLength, kvMaxSeqLength, maxBatchSize,
                                       maxBeamSize, residuals, currIdx, loWinIdx, hiWinIdx)
-        @test y ≈ cudnnMultiHeadAttnForward!(zero(y), weights, queries, keys, values; axes,
-                                             seqLengthsQO, seqLengthsKV, attnMode, nHeads,
-                                             smScaler, mathType, qProjSize, kProjSize,
-                                             vProjSize, oProjSize, qoMaxSeqLength,
-                                             kvMaxSeqLength, maxBatchSize, maxBeamSize,
-                                             residuals, currIdx, loWinIdx, hiWinIdx)
-        @test y ≈ cudnnMultiHeadAttnForward(weights, queries, keys, values, attnDesc;
-                                            axes, seqLengthsQO, seqLengthsKV, residuals,
-                                            currIdx, loWinIdx, hiWinIdx)
-        @test y ≈ cudnnMultiHeadAttnForward!(zero(y), weights, queries, keys, values, attnDesc;
-                                             axes, seqLengthsQO, seqLengthsKV, residuals,
-                                             currIdx, loWinIdx, hiWinIdx)
+        @test Array(y) ≈ cudnnMultiHeadAttnForward!(zero(y), weights, queries, keys, values; axes,
+                                                    seqLengthsQO, seqLengthsKV, attnMode, nHeads,
+                                                    smScaler, mathType, qProjSize, kProjSize,
+                                                    vProjSize, oProjSize, qoMaxSeqLength,
+                                                    kvMaxSeqLength, maxBatchSize, maxBeamSize,
+                                                    residuals, currIdx, loWinIdx, hiWinIdx) |> Array
+        @test Array(y) ≈ cudnnMultiHeadAttnForward(weights, queries, keys, values, attnDesc;
+                                                   axes, seqLengthsQO, seqLengthsKV, residuals,
+                                                   currIdx, loWinIdx, hiWinIdx) |> Array
+        @test Array(y) ≈ cudnnMultiHeadAttnForward!(zero(y), weights, queries, keys, values, attnDesc;
+                                                    axes, seqLengthsQO, seqLengthsKV, residuals,
+                                                    currIdx, loWinIdx, hiWinIdx) |> Array
     end
 
     Q,K,V,B,T,F = 6,6,5,4,3,Float32
