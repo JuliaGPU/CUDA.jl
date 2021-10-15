@@ -171,10 +171,14 @@ has_cudnn() || push!(skip_tests, "cudnn")
 has_cusolvermg() || push!(skip_tests, "cusolvermg")
 has_nvml() || push!(skip_tests, "nvml")
 if !has_cutensor() || CUDA.version() < v"10.1" || first(picks).cap < v"7.0" || do_sanitize
+    push!(skip_tests, "cutensor")
+end
+if do_sanitize
     # XXX: some library tests fail under compute-sanitizer
     append!(skip_tests, ["cutensor", "cusparse"])
+    # XXX: others take absurdly long
+    push!(skip_tests, "cusolver")
 end
-is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
 if first(picks).cap < v"7.0"
     push!(skip_tests, "device/intrinsics/wmma")
 end
