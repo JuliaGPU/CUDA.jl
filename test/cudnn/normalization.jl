@@ -84,15 +84,15 @@ using CUDA.CUDNN:
         y0 = randn!(similar(x))
         y1 = alpha * y
         y2 = y1 + beta * y0
-        @test y1 ≈ cudnnNormalizationForward(x, xmean, xvar, bias, scale; training, z, mode,
-                                             normOps, algo, alpha, epsilon, groupCnt,
-                                             format, exponentialAverageFactor, savedMean,
-                                             savedInvVariance, activationDesc)
-        @test y2 ≈ cudnnNormalizationForward!(copy(y0), x, xmean, xvar, bias, scale;
-                                              training, z, mode, normOps, algo, alpha, beta,
-                                              epsilon, groupCnt, format,
-                                              exponentialAverageFactor, savedMean,
-                                              savedInvVariance, activationDesc)
+        @test Array(y1) ≈ cudnnNormalizationForward(x, xmean, xvar, bias, scale; training, z, mode,
+                                                    normOps, algo, alpha, epsilon, groupCnt,
+                                                    format, exponentialAverageFactor, savedMean,
+                                                    savedInvVariance, activationDesc) |> Array
+        @test Array(y2) ≈ cudnnNormalizationForward!(copy(y0), x, xmean, xvar, bias, scale;
+                                                     training, z, mode, normOps, algo, alpha, beta,
+                                                     epsilon, groupCnt, format,
+                                                     exponentialAverageFactor, savedMean,
+                                                     savedInvVariance, activationDesc) |> Array
     end
 
     x, z, s = (CUDA.randn(x...) for x in ((5,4,3,2),(5,4,3,2),(1,1,3,1)))
