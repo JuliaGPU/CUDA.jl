@@ -26,7 +26,7 @@ steps:
           version: 1.6
       - JuliaCI/julia-test#v1:
           julia_args: "-g2"
-          test_args: "--sanitize --quickfail --jobs=1"
+          test_args: "--sanitize --quickfail"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -36,7 +36,7 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "11.0"
-      cap: "sm_80"
+      cap: "sm_75"                    # these GPUs have more memory
     env:
       JULIA_CUDA_VERSION: '11.4'
       JULIA_CUDA_DEBUG_INFO: 'false'  # NVIDIA bug #3305774: ptxas segfaults with out debug info
