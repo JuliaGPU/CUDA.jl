@@ -112,7 +112,7 @@ Base.size(p::CuFFTPlan) = p.sz
         new_workarea = similar(plan.workarea)
         cufftSetWorkArea(plan, new_workarea)
         CUDA.unsafe_free!(plan.workarea)
-        plan.workarea = plan.workarea
+        plan.workarea = new_workarea
     end
     return
 end
