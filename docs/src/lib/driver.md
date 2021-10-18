@@ -153,9 +153,9 @@ CUDA.@sync
 For specific use cases, special streams are available:
 
 ```@docs
-CuDefaultStream
-CuStreamLegacy
-CuStreamPerThread
+default_stream
+legacy_stream
+per_thread_stream
 ```
 
 ## Event Management

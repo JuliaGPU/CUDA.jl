@@ -1,7 +1,7 @@
 # Stream management
 
 export
-    CuStream, CuDefaultStream, CuStreamLegacy, CuStreamPerThread,
+    CuStream, default_stream, legacy_stream, per_thread_stream,
     priority, priority_range, synchronize, device_synchronize
 
 """
@@ -29,15 +29,15 @@ mutable struct CuStream
         return obj
     end
 
-    global CuDefaultStream() = new(convert(CUstream, C_NULL), nothing)
+    global default_stream() = new(convert(CUstream, C_NULL), nothing)
 
-    global CuStreamLegacy() = new(convert(CUstream, 1), nothing)
+    global legacy_stream() = new(convert(CUstream, 1), nothing)
 
-    global CuStreamPerThread() = new(convert(CUstream, 2), nothing)
+    global per_thread_stream() = new(convert(CUstream, 2), nothing)
 end
 
 """
-    CuDefaultStream()
+    default_stream()
 
 Return the default stream.
 
@@ -46,10 +46,10 @@ Return the default stream.
     It is generally better to use `stream()` to get a stream object that's local to the
     current task. That way, operations scheduled in other tasks can overlap.
 """
-CuDefaultStream()
+default_stream()
 
 """
-    CuStreamLegacy()
+    legacy_stream()
 
 Return a special object to use use an implicit stream with legacy synchronization behavior.
 
@@ -57,10 +57,10 @@ You can use this stream to perform operations that should block on all streams (
 exception of streams created with `STREAM_NON_BLOCKING`). This matches the old pre-CUDA 7
 global stream behavior.
 """
-CuStreamLegacy()
+legacy_stream()
 
 """
-    CuStreamPerThread()
+    per_thread_stream()
 
 Return a special object to use an implicit stream with per-thread synchronization behavior.
 This stream object is normally meant to be used with APIs that do not have per-thread
@@ -72,7 +72,7 @@ versions of their APIs (i.e. without a `ptsz` or `ptds` suffix).
     gets its own non-blocking stream, and multithreading in Julia is typically
     accomplished using tasks.
 """
-CuStreamPerThread()
+per_thread_stream()
 
 Base.unsafe_convert(::Type{CUstream}, s::CuStream) = s.handle
 
@@ -155,7 +155,7 @@ Block for the current device's tasks to complete. This is a heavyweight operatio
 you only need to call [`synchronize`](@ref) which only synchronizes the stream associated
 with the current task.
 """
-device_synchronize() = synchronize(CuStreamLegacy())
+device_synchronize() = synchronize(legacy_stream())
 
 """
     priority_range()

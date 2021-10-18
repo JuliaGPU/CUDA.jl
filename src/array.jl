@@ -63,7 +63,7 @@ earlier to reduce pressure on the memory allocator.
 
 By default, the operation is performed on the task-local stream. During task or process
 finalization however, that stream may be destroyed already, so be sure to specify a safe
-stream (i.e. `CuDefaultStream()`, which will ensure the operation will block on other
+stream (i.e. `default_stream()`, which will ensure the operation will block on other
 streams) when calling this function from a finalizer. For simplicity, the `unsafe_finalize!`
 function does exactly that.
 """
@@ -98,7 +98,7 @@ function unsafe_finalize!(xs::CuArray)
   # stream, it synchronizes "too much". we could do better, e.g., by keeping track of all
   # streams involved, or by refcounting uses and decrementing that refcount after the
   # operation using `cuLaunchHostFunc`. See CUDA.jl#778 and CUDA.jl#780 for details.
-  unsafe_free!(xs, CuDefaultStream())
+  unsafe_free!(xs, default_stream())
 end
 
 
