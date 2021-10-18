@@ -63,9 +63,6 @@ const DEVICE_INVALID = _CuDevice(CUdevice(-2))
 
 Base.convert(::Type{CUdevice}, dev::CuDevice) = dev.handle
 
-Base.:(==)(a::CuDevice, b::CuDevice) = a.handle == b.handle
-Base.hash(dev::CuDevice, h::UInt) = hash(dev.handle, h)
-
 function Base.show(io::IO, ::MIME"text/plain", dev::CuDevice)
   print(io, "CuDevice($(dev.handle)): ")
   if dev == DEVICE_CPU
