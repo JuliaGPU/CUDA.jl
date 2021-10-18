@@ -27,7 +27,7 @@ function CUDA.unsafe_free!(plan::CuFFTPlan, stream::CuStream=stream())
     unsafe_free!(plan.workarea, stream)
 end
 
-unsafe_finalize!(plan::CuFFTPlan) = unsafe_free!(plan, CuDefaultStream())
+unsafe_finalize!(plan::CuFFTPlan) = unsafe_free!(plan, default_stream())
 
 mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     handle::cufftHandle

@@ -50,12 +50,12 @@ Waits for an event to complete.
 synchronize(e::CuEvent) = cuEventSynchronize(e)
 
 """
-    query(e::CuEvent)
+    isdone(e::CuEvent)
 
 Return `false` if there is outstanding work preceding the most recent
 call to `record(e)` and `true` if all captured work has been completed.
 """
-function query(e::CuEvent)
+function isdone(e::CuEvent)
     res = unsafe_cuEventQuery(e)
     if res == ERROR_NOT_READY
         return false

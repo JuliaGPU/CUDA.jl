@@ -23,6 +23,11 @@ end
 
 Base.unsafe_convert(::Type{nvmlDevice_t}, dev::Device) = dev.handle
 
+function Base.show(io::IO, ::MIME"text/plain", dev::Device)
+    print(io, "NVML.Device($(index(dev))): ")
+    print(io, "$(name(dev))")
+end
+
 
 
 # iteration
@@ -73,6 +78,12 @@ function serial(dev::Device)
     buf = Vector{Cchar}(undef, NVML_DEVICE_SERIAL_BUFFER_SIZE)
     nvmlDeviceGetSerial(dev, pointer(buf), length(buf))
     return unsafe_string(pointer(buf))
+end
+
+function index(dev::Device)
+    index = Ref{Cuint}()
+    nvmlDeviceGetIndex(dev, index)
+    return Int(index[])
 end
 
 # watt
