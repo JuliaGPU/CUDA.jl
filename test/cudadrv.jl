@@ -213,8 +213,8 @@ CuEvent(CUDA.EVENT_BLOCKING_SYNC | CUDA.EVENT_DISABLE_TIMING)
 end
 
 @testset "event query" begin
-    event  = CuEvent()
-    @test CUDA.query(event) == true
+    event = CuEvent()
+    @test CUDA.isdone(event)
 end
 
 end
@@ -835,7 +835,7 @@ end
 
 s = CuStream()
 synchronize(s)
-@test CUDA.query(s) == true
+@test CUDA.isdone(s)
 
 let s2 = CuStream()
     @test s != s2

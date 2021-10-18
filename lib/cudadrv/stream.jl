@@ -92,12 +92,12 @@ function Base.show(io::IO, stream::CuStream)
 end
 
 """
-    query(s::CuStream)
+    isdone(s::CuStream)
 
 Return `false` if a stream is busy (has task running or queued)
 and `true` if that stream is free.
 """
-function query(s::CuStream)
+function isdone(s::CuStream)
     res = unsafe_cuStreamQuery(s)
     if res == ERROR_NOT_READY
         return false
@@ -119,7 +119,7 @@ See also: [`device_synchronize`](@ref)
 """
 function synchronize(stream::CuStream=stream(); blocking::Bool=true)
     # fast path
-    query(stream) && @goto(exit)
+    isdone(stream) && @goto(exit)
 
     # minimize latency of short operations by busy-waiting,
     # initially without even yielding to other tasks
@@ -132,7 +132,7 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=true)
         else
             yield()
         end
-        query(stream) && @goto(exit)
+        isdone(stream) && @goto(exit)
         spins += 1
     end
 

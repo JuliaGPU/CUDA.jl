@@ -9,3 +9,5 @@
 @deprecate CuDefaultStream() default_stream()
 @deprecate CuStreamLegacy() legacy_stream()
 @deprecate CuStreamPerThread() per_thread_stream()
+@deprecate query(s::CuStream) isdone(s)
+@deprecate query(e::CuEvent) isdone(e)
