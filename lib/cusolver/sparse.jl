@@ -1,3 +1,4 @@
+export symrcm, symmdq, symamd, metisnd, zfd
 
 using SparseArrays
 
@@ -225,6 +226,91 @@ for (fname, elty, relty) in ((:cusolverSpScsreigsHost, :ComplexF32, :Float32),
                    lbc, ruc, numeigs)
 
             numeigs[]
+        end
+    end
+end
+
+#csrsymrcm
+function symrcm(A::SparseMatrixCSC, index::Char)
+    n, m = size(A)
+    (m ≠ m) && throw(DimensionMismatch("A must be square, but has dimensions ($n,$m)!"))
+    descA = CuMatrixDescriptor('G', 'L', 'N', index)
+    nnzA = nnz(A)
+    Mat = similar(A)
+    transpose!(Mat, A)
+    colsA = convert(Vector{Cint}, Mat.rowval)
+    rowsA = convert(Vector{Cint}, Mat.colptr)
+    p = zeros(Cint, n)
+    cusolverSpXcsrsymrcmHost(sparse_handle(), n, nnzA, descA, rowsA, colsA, p)
+    return p
+end
+
+#csrsymmdq
+function symmdq(A::SparseMatrixCSC, index::Char)
+    n, m = size(A)
+    (m ≠ m) && throw(DimensionMismatch("A must be square, but has dimensions ($n,$m)!"))
+    descA = CuMatrixDescriptor('G', 'L', 'N', index)
+    nnzA = nnz(A)
+    Mat = similar(A)
+    transpose!(Mat, A)
+    colsA = convert(Vector{Cint}, Mat.rowval)
+    rowsA = convert(Vector{Cint}, Mat.colptr)
+    p = zeros(Cint, n)
+    cusolverSpXcsrsymmdqHost(sparse_handle(), n, nnzA, descA, rowsA, colsA, p)
+    return p
+end
+
+#csrsymamd
+function symamd(A::SparseMatrixCSC, index::Char)
+    n, m = size(A)
+    (m ≠ m) && throw(DimensionMismatch("A must be square, but has dimensions ($n,$m)!"))
+    descA = CuMatrixDescriptor('G', 'L', 'N', index)
+    nnzA = nnz(A)
+    Mat = similar(A)
+    transpose!(Mat, A)
+    colsA = convert(Vector{Cint}, Mat.rowval)
+    rowsA = convert(Vector{Cint}, Mat.colptr)
+    p = zeros(Cint, n)
+    cusolverSpXcsrsymamdHost(sparse_handle(), n, nnzA, descA, rowsA, colsA, p)
+    return p
+end
+
+#csrmetisnd
+function metisnd(A::SparseMatrixCSC, index::Char)
+    n, m = size(A)
+    (m ≠ m) && throw(DimensionMismatch("A must be square, but has dimensions ($n,$m)!"))
+    descA = CuMatrixDescriptor('G', 'L', 'N', index)
+    nnzA = nnz(A)
+    Mat = similar(A)
+    transpose!(Mat, A)
+    colsA = convert(Vector{Cint}, Mat.rowval)
+    rowsA = convert(Vector{Cint}, Mat.colptr)
+    p = zeros(Cint, n)
+    cusolverSpXcsrmetisndHost(sparse_handle(), n, nnzA, descA, rowsA, colsA, C_NULL, p)
+    return p
+end
+
+#csrzfd
+for (fname, elty) in ((:cusolverSpScsrzfdHost, :Float32),
+                      (:cusolverSpDcsrzfdHost, :Float64),
+                      (:cusolverSpCcsrzfdHost, :ComplexF32),
+                      (:cusolverSpZcsrzfdHost, :ComplexF64))
+    @eval begin
+        function zfd(A::SparseMatrixCSC{$elty}, index::Char)
+            n, m = size(A)
+            (m ≠ m) && throw(DimensionMismatch("A must be square, but has dimensions ($n,$m)!"))
+            descA = CuMatrixDescriptor('G', 'L', 'N', index)
+            nnzA = nnz(A)
+            Mat = similar(A)
+            transpose!(Mat, A)
+            colsA = convert(Vector{Cint}, Mat.rowval)
+            rowsA = convert(Vector{Cint}, Mat.colptr)
+            valsA = Mat.nzval
+            p = zeros(Cint, n)
+            numnz = Ref{Cint}(0)
+            $fname(sparse_handle(), n, nnzA, descA, valsA, rowsA, colsA, p, numnz)
+            (numnz[] < n) && throw(SingularException(n - numnz[]))
+            return p
         end
     end
 end

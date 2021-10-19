@@ -9,7 +9,56 @@ n = 10
 l = 13
 k = 1
 
+A = rand(n, n)
+A = SparseMatrixCSC(A)
+
+@testset "symrcm" begin
+    p = symrcm(A, 'O')
+    p .+= 1
+    @test minimum(p) == 1
+    @test maximum(p) == n
+    @test isperm(p)
+end
+
+@testset "symmdq" begin
+    p = symmdq(A, 'O')
+    p .+= 1
+    @test minimum(p) == 1
+    @test maximum(p) == n
+    @test isperm(p)
+end
+
+@testset "symamd" begin
+    p = symamd(A, 'O')
+    p .+= 1
+    @test minimum(p) == 1
+    @test maximum(p) == n
+    @test isperm(p)
+end
+
+@testset "metisnd" begin
+    p = metisnd(A, 'O')
+    p .+= 1
+    @test minimum(p) == 1
+    @test maximum(p) == n
+    @test isperm(p)
+end
+
 @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "zfd" begin
+        A = rand(elty, n, n)
+        for i = 1 : n
+            A[i,i] = 0
+        end
+        A = SparseMatrixCSC(A)
+        p = zfd(A, 'O')
+        p .+= 1
+        @test minimum(p) == 1
+        @test maximum(p) == n
+        @test isperm(p)
+        @test 0 ∉ diag(A[p,:])
+    end
+
     @testset "csrlsvlu!" begin
         A = sparse(rand(elty,n,n))
         b = rand(elty,n)
