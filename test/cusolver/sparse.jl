@@ -13,7 +13,7 @@ A = rand(n, n)
 A = SparseMatrixCSC(A)
 
 @testset "symrcm" begin
-    p = symamd(A, 'O')
+    p = symrcm(A, 'O')
     p .+= 1
     @test minimum(p) == 1
     @test maximum(p) == n
