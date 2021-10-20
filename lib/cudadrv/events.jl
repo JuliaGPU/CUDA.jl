@@ -47,7 +47,27 @@ record(e::CuEvent, stream::CuStream=stream()) =
 
 Waits for an event to complete.
 """
-synchronize(e::CuEvent) = cuEventSynchronize(e)
+function synchronize(e::CuEvent)
+    # fast path
+    isdone(e) && @goto(exit)
+
+    # spin (initially without yielding to minimize latency)
+    spins = 0
+    while true
+        if spins < 32
+            ccall(:jl_cpu_pause, Cvoid, ())
+            # Temporary solution before we have gc transition support in codegen.
+            ccall(:jl_gc_safepoint, Cvoid, ())
+        else
+            yield()
+        end
+        isdone(e) && @goto(exit)
+        spins += 1
+    end
+
+    @label(exit)
+    #cuEventSynchronize(e)
+end
 
 """
     isdone(e::CuEvent)
