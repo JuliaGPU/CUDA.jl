@@ -522,7 +522,7 @@ function used_memory()
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_USED_MEM_CURRENT))
   else
-    0
+    missing
   end
 end
 
@@ -542,6 +542,6 @@ function cached_memory()
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else
-    0
+    missing
   end
 end
