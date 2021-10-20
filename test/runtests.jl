@@ -134,7 +134,11 @@ for (index,dev) in enumerate(devices())
 
     mem = try
         device!(dev)
-        CUDA.available_memory()
+        mem = CUDA.available_memory()
+        # immediately reset the device. this helps to reduce memory usage,
+        # and is needed for systems that only provide exclusive access to the GPUs
+        CUDA.device_reset!()
+        mem
     catch err
         if isa(err, OutOfGPUMemoryError)
             # the device doesn't even have enough memory left to instantiate a context...
