@@ -438,7 +438,7 @@ end
 # NOTE: synchronization is best-effort, since we don't keep track of the
 #       defices and streams using each array backed by unified memory.
 
-function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.UnifiedBuffer}, doffs,
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, doffs,
                              src::Array{T}, soffs, n) where T
   # maintain stream-ordered semantics
   # XXX: alternative, use an async CUDA memcpy if the stream isn't idle?
@@ -456,7 +456,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.UnifiedBuffer}, doff
 end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs,
-                             src::DenseCuArray{T,<:Any,Mem.UnifiedBuffer}, soffs, n) where T
+                             src::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, soffs, n) where T
   # maintain stream-ordered semantics
   synchronize()
 
