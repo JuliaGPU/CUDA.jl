@@ -45,6 +45,8 @@ mutable struct CuSparseMatrixCSC{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     end
 end
 
+CuSparseMatrixCSC(A::CuSparseMatrixCSC) = A
+
 function CUDA.unsafe_free!(xs::CuSparseMatrixCSC)
     unsafe_free!(xs.colPtr)
     unsafe_free!(rowvals(xs))
@@ -78,6 +80,8 @@ mutable struct CuSparseMatrixCSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     end
 end
 
+CuSparseMatrixCSR(A::CuSparseMatrixCSR) = A
+
 function CUDA.unsafe_free!(xs::CuSparseMatrixCSR)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
@@ -106,6 +110,8 @@ mutable struct CuSparseMatrixBSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     end
 end
 
+CuSparseMatrixBSR(A::CuSparseMatrixBSR) = A
+
 function CUDA.unsafe_free!(xs::CuSparseMatrixBSR)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
@@ -131,6 +137,8 @@ mutable struct CuSparseMatrixCOO{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
         new{Tv, Ti}(rowInd,colInd,nzVal,dims,nnz)
     end
 end
+
+CuSparseMatrixCOO(A::CuSparseMatrixCOO) = A
 
 """
 Utility union type of [`CuSparseMatrixCSC`](@ref), [`CuSparseMatrixCSR`](@ref),
@@ -314,24 +322,54 @@ Base.getindex(A::AbstractCuSparseMatrix, i, ::Colon)       = getindex(A, i, 1:si
 Base.getindex(A::AbstractCuSparseMatrix, ::Colon, i)       = getindex(A, 1:size(A, 1), i)
 Base.getindex(A::AbstractCuSparseMatrix, I::Tuple{Integer,Integer}) = getindex(A, I[1], I[2])
 
-# column slices
-function Base.getindex(x::CuSparseMatrixCSC, ::Colon, j::Integer)
-    checkbounds(x, :, j)
-    r1 = convert(Int, x.colPtr[j])
-    r2 = convert(Int, x.colPtr[j+1]) - 1
-    CuSparseVector(rowvals(x)[r1:r2], nonzeros(x)[r1:r2], size(x, 1))
+Base.getindex(A::CuSparseMatrixCSC,I::AbstractVector,J::AbstractVector) = CuSparseMatrixCSC(getindex(CuSparseMatrixCSR(getindex(A,:,J)),I,:))
+Base.getindex(A::CuSparseMatrixCSR,I::AbstractVector,J::AbstractVector) = CuSparseMatrixCSR(getindex(CuSparseMatrixCSC(getindex(A,I,:)),:,J))
+
+function Base.getindex(A::CuSparseMatrixCSR,I::AbstractVector,::Colon)
+    m,n = size(A)
+    I_sorted = sort(I);
+    if !(I_sorted[end] <= m && 1 <= I_sorted[1])
+        throw(BoundsError())
+    end
+
+    rowptr = getrowptr(A)
+    vals = nonzeros(A)
+    cols = colvals(A)
+    
+    diffVec = vcat(1,diff(rowptr)[I_sorted])
+    newrowptr = cumsum(diffVec)
+
+    indices = map((x,y)->range(x,stop=y),rowptr[I_sorted],rowptr[I_sorted.+1].-1)
+    @CUDA.allowscalar indices = vcat(indices...) #TODO: figure out how to avoid this step
+    newval = vals[indices]
+    newcol = cols[indices]
+    return CuSparseMatrixCSR(newrowptr,newcol,newval,(length(I_sorted),n))
 end
 
-function Base.getindex(x::CuSparseMatrixCSR, i::Integer, ::Colon)
-    checkbounds(x, i, :)
-    c1 = convert(Int, x.rowPtr[i])
-    c2 = convert(Int, x.rowPtr[i+1]) - 1
-    CuSparseVector(x.colVal[c1:c2], nonzeros(x)[c1:c2], size(x, 2))
+function Base.getindex(A::CuSparseMatrixCSC,::Colon,I::AbstractVector)
+    m,n = size(A)
+    I_sorted = sort(I);
+    if !(I_sorted[end] <= n && 1 <= I_sorted[1])
+        throw(BoundsError())
+    end
+
+    colptr = getcolptr(A)
+    vals = nonzeros(A)
+    rows = rowvals(A)
+    
+    diffVec = vcat(1,diff(colptr)[I_sorted])
+    newcolptr = cumsum(diffVec)
+
+    indices = map((x,y)->range(x,stop=y),colptr[I_sorted],colptr[I_sorted.+1].-1)
+    @CUDA.allowscalar indices = vcat(indices...) #TODO: figure out how to avoid this step
+    newval = vals[indices]
+    newrow = rows[indices]
+    CuSparseMatrixCSC(newcolptr,newrow,newval,(m,length(I)))
+    return CuSparseMatrixCSC(newcolptr,newrow,newval,(m,length(I)))
 end
 
-# row slices
-Base.getindex(A::CuSparseMatrixCSC, i::Integer, ::Colon) = CuSparseVector(sparse(A[i, 1:end]))  # TODO: optimize
-Base.getindex(A::CuSparseMatrixCSR, ::Colon, j::Integer) = CuSparseVector(sparse(A[1:end, j]))  # TODO: optimize
+Base.getindex(x::CuSparseMatrixCSCR, ::Colon, j::Integer) = CuSparseVector(getindex(x,:,[j]))
+Base.getindex(x::CuSparseMatrixCSCR, i::Integer ,::Colon) = CuSparseVector(getindex(x,[i],:))
 
 function Base.getindex(A::CuSparseMatrixCSC{T}, i0::Integer, i1::Integer) where T
     m, n = size(A)
@@ -495,7 +533,6 @@ Base.copy(Mat::CuSparseMatrixCOO) = copyto!(similar(Mat), Mat)
 
 # input/output
 
-
 for (gpu, cpu) in [CuSparseVector => SparseVector]
     @eval function Base.show(io::IO, ::MIME"text/plain", x::$gpu)
         xnnz = length(nonzeros(x))
@@ -532,7 +569,6 @@ for (gpu, cpu) in [CuSparseMatrixCSC => SparseMatrixCSC,
         end
     end
 end
-
 
 # interop with device arrays
 
