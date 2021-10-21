@@ -6,40 +6,47 @@
     end
 
     # outer constructors
-    for I in [Int32,Int64]
-        a = I(1)
-        b = I(2)
+    T = Float32
+    for (I1,I2) in [(Int, Int), (Int32, Int32), (Int32, Int64)]
+        a = I1(1)
+        b = I2(2)
 
-        dp = reinterpret(CUDA.LLVMPtr{I,AS.Generic}, C_NULL)
+        dp = reinterpret(CUDA.LLVMPtr{T,AS.Generic}, C_NULL)
 
         # not parameterized
         CuDeviceArray(b, dp)
+        CuDeviceVector(b, dp)
         CuDeviceArray((b,), dp)
+        CuDeviceVector((b,), dp)
         CuDeviceArray((b,a), dp)
+        CuDeviceMatrix((b,a), dp)
 
         # partially parameterized
-        CuDeviceArray{I}(b, dp)
-        CuDeviceArray{I}((b,), dp)
-        CuDeviceArray{I}((a,b), dp)
-        CuDeviceArray{I,1}(b, dp)
-        CuDeviceArray{I,1}((b,), dp)
-        @test_throws MethodError CuDeviceArray{I,1}((a,b), dp)
-        @test_throws MethodError CuDeviceArray{I,2}(b, dp)
-        @test_throws MethodError CuDeviceArray{I,2}((b,), dp)
-        CuDeviceArray{I,2}((a,b), dp)
+        CuDeviceArray{T}(b, dp)
+        CuDeviceVector{T}(b, dp)
+        CuDeviceArray{T}((b,), dp)
+        CuDeviceVector{T}((b,), dp)
+        CuDeviceArray{T}((a,b), dp)
+        CuDeviceMatrix{T}((a,b), dp)
+        CuDeviceArray{T,1}(b, dp)
+        CuDeviceArray{T,1}((b,), dp)
+        @test_throws MethodError CuDeviceArray{T,1}((a,b), dp)
+        @test_throws MethodError CuDeviceArray{T,2}(b, dp)
+        @test_throws MethodError CuDeviceArray{T,2}((b,), dp)
+        CuDeviceArray{T,2}((a,b), dp)
 
         # fully parameterized
-        CuDeviceArray{I,1,AS.Generic}(b, dp)
-        CuDeviceArray{I,1,AS.Generic}((b,), dp)
-        @test_throws MethodError CuDeviceArray{I,1,AS.Generic}((a,b), dp)
-        @test_throws MethodError CuDeviceArray{I,1,AS.Shared}((a,b), dp)
-        @test_throws MethodError CuDeviceArray{I,2,AS.Generic}(b, dp)
-        @test_throws MethodError CuDeviceArray{I,2,AS.Generic}((b,), dp)
-        CuDeviceArray{I,2,AS.Generic}((a,b), dp)
+        CuDeviceArray{T,1,AS.Generic}(b, dp)
+        CuDeviceArray{T,1,AS.Generic}((b,), dp)
+        @test_throws MethodError CuDeviceArray{T,1,AS.Generic}((a,b), dp)
+        @test_throws MethodError CuDeviceArray{T,1,AS.Shared}((a,b), dp)
+        @test_throws MethodError CuDeviceArray{T,2,AS.Generic}(b, dp)
+        @test_throws MethodError CuDeviceArray{T,2,AS.Generic}((b,), dp)
+        CuDeviceArray{T,2,AS.Generic}((a,b), dp)
 
         # type aliases
-        CuDeviceVector{I}(b, dp)
-        CuDeviceMatrix{I}((a,b), dp)
+        CuDeviceVector{T}(b, dp)
+        CuDeviceMatrix{T}((a,b), dp)
     end
 end
 
