@@ -369,19 +369,22 @@ Get the CUDA stream that should be used as the default one for the currently exe
 @inline function stream(state=task_local_state!())
     # @inline so that it can be DCE'd when unused from active_state
     devidx = deviceid(state.device)+1
-    if state.streams[devidx] === nothing
-        stream = CuStream()
-
-        # register the name of this task
-        t = current_task()
-        tptr = pointer_from_objref(current_task())
-        tptrstr = string(convert(UInt, tptr), base=16, pad=Sys.WORD_SIZE>>2)
-        NVTX.nvtxNameCuStreamA(stream, "Task(0x$tptrstr)")
-
-        state.streams[devidx] = stream
+    @inbounds if state.streams[devidx] === nothing
+        state.streams[devidx] = create_stream()
     else
         state.streams[devidx]::CuStream
     end
+end
+@noinline function create_stream()
+    stream = CuStream()
+
+    # register the name of this task
+    t = current_task()
+    tptr = pointer_from_objref(current_task())
+    tptrstr = string(convert(UInt, tptr), base=16, pad=Sys.WORD_SIZE>>2)
+    NVTX.nvtxNameCuStreamA(stream, "Task(0x$tptrstr)")
+
+    stream
 end
 
 function stream!(stream::CuStream)

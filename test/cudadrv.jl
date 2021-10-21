@@ -457,7 +457,7 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     @test device(typed_pointer(src, T)) == device()
     if !CUDA.has_stream_ordered(device())
         # NVIDIA bug #3319609
-        @test CuContext(typed_pointer(src, T)) == context()
+        @test context(typed_pointer(src, T)) == context()
     end
 
     # test the is-managed attribute
@@ -856,9 +856,7 @@ let s = CuStream(; priority=last(prio))
 end
 
 synchronize()
-synchronize(; blocking=false)
 synchronize(stream())
-synchronize(stream(); blocking=false)
 
 @grab_output show(stdout, stream())
 
