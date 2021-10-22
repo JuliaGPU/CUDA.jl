@@ -1,9 +1,5 @@
-using Test
-using Random
 using CUDA
 using CUDA.CUSPARSE, SparseArrays
-
-Random.seed!(123)
 
 @testset "mm algo=$algo" for algo in [
     CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
