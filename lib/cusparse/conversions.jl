@@ -313,7 +313,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             m,n = csr.dims
             denseA = CUDA.zeros($elty,m,n)
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
-                desc_csr   = CuSparseMatrixDescriptor(csr ,ind)
+                desc_csr   = CuSparseMatrixDescriptor(csr, ind)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
 
                 function bufferSize()
