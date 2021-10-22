@@ -370,6 +370,8 @@ end
 
 Base.getindex(x::CuSparseMatrixCSCR, ::Colon, j::Integer) = CuSparseVector(getindex(x,:,[j]))
 Base.getindex(x::CuSparseMatrixCSCR, i::Integer ,::Colon) = CuSparseVector(getindex(x,[i],:))
+Base.getindex(x::CuSparseMatrixCSCR, I::AbstractVector, j::Integer) = CuSparseVector(getindex(x, I, [j]))
+Base.getindex(x::CuSparseMatrixCSCR, i::Integer, J::AbstractVector) = CuSparseVector(getindex(x, [i], J))
 
 function Base.getindex(A::CuSparseMatrixCSC{T}, i0::Integer, i1::Integer) where T
     m, n = size(A)
