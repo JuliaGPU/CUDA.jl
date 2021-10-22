@@ -26,6 +26,13 @@ mutable struct CuSparseVector{Tv, Ti} <: AbstractCuSparseVector{Tv, Ti}
     end
 end
 
+CuSparseVector{Tv, Ti}(Vec::CuSparseVector{Tv, Ti}) where {Tv, Ti} = Vec
+CuSparseVector(Vec::CuSparseVector{Tv, Ti}) where {Tv, Ti} = CuSparseVector{Tv, Ti}(Vec)
+
+function CuSparseVector{Tv, Ti}(Vec::CuSparseVector) where {Tv, Ti}
+    CuSparseVector{Tv, Ti}(CuVector{Ti}(Vec.iPtr), CuVector{Tv}(Vec.nzVal), Vec.dims)
+end
+
 function CUDA.unsafe_free!(xs::CuSparseVector)
     unsafe_free!(nonzeroinds(xs))
     unsafe_free!(nonzeros(xs))
@@ -45,7 +52,12 @@ mutable struct CuSparseMatrixCSC{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     end
 end
 
-CuSparseMatrixCSC(A::CuSparseMatrixCSC) = A
+CuSparseMatrixCSC{Tv, Ti}(A::CuSparseMatrixCSC{Tv, Ti}) where {Tv, Ti} = A
+function CuSparseMatrixCSC{Tv, Ti}(A::CuSparseMatrixCSC) where {Tv, Ti}
+    CuSparseMatrixCSC{Tv, Ti}(CuVector{Ti}(A.colPtr), CuVector{Ti}(A.rowVal), CuVector{Tv}(A.nzVal), A.dims)
+end
+
+CuSparseMatrixCSC(A::AbstractCuSparseMatrix{Tv, Ti}) where {Tv, Ti} = CuSparseMatrixCSC{Tv, Ti}(A)
 
 function CUDA.unsafe_free!(xs::CuSparseMatrixCSC)
     unsafe_free!(xs.colPtr)
@@ -80,7 +92,12 @@ mutable struct CuSparseMatrixCSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     end
 end
 
-CuSparseMatrixCSR(A::CuSparseMatrixCSR) = A
+CuSparseMatrixCSR{Tv, Ti}(A::CuSparseMatrixCSR{Tv, Ti}) where {Tv, Ti} = A
+function CuSparseMatrixCSR{Tv, Ti}(A::CuSparseMatrixCSR) where {Tv, Ti}
+    CuSparseMatrixCSR{Tv, Ti}(CuVector{Ti}(A.rowPtr), CuVector{Ti}(A.colVal), CuVector{Tv}(A.nzVal), A.dims)
+end
+
+CuSparseMatrixCSR(A::AbstractCuSparseMatrix{Tv, Ti}) where {Tv, Ti} = CuSparseMatrixCSR{Tv, Ti}(A)
 
 function CUDA.unsafe_free!(xs::CuSparseMatrixCSR)
     unsafe_free!(xs.rowPtr)
@@ -110,7 +127,18 @@ mutable struct CuSparseMatrixBSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     end
 end
 
-CuSparseMatrixBSR(A::CuSparseMatrixBSR) = A
+CuSparseMatrixBSR{Tv, Ti}(A::CuSparseMatrixBSR{Tv, Ti}) where {Tv, Ti} = A
+function CuSparseMatrixBSR{Tv, Ti}(A::CuSparseMatrixBSR) where {Tv, Ti}
+    return CuSparseMatrixBSR{Tv, Ti}(
+        CuVector{Ti}(A.rowPtr),
+        CuVector{Ti}(A.colVal),
+        CuVector{Tv}(A.nzVal),
+        A.dims, Ti(A.blockDim),
+        A.dir, A.nnz
+    )
+end
+
+CuSparseMatrixBSR(A::AbstractCuSparseMatrix{Tv, Ti}) where {Tv, Ti} = CuSparseMatrixBSR{Tv, Ti}(A)
 
 function CUDA.unsafe_free!(xs::CuSparseMatrixBSR)
     unsafe_free!(xs.rowPtr)
@@ -136,6 +164,15 @@ mutable struct CuSparseMatrixCOO{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
                                    nnz::Integer=length(nzVal)) where {Tv, Ti}
         new{Tv, Ti}(rowInd,colInd,nzVal,dims,nnz)
     end
+end
+
+function CuSparseMatrixCOO{Tv, Ti}(A::CuSparseMatrixCOO) where {Tv, Ti}
+    return CuSparseMatrixCOO{Tv, Ti}(
+        CuVector{Ti}(A.rowInd),
+        CuVector{Ti}(A.colInd),
+        CuVector{Tv}(A.nzVal),
+        A.dims, A.nnz
+    )
 end
 
 CuSparseMatrixCOO(A::CuSparseMatrixCOO) = A
@@ -314,32 +351,46 @@ function SparseArrays._spgetindex(m::Integer, nzind::CuVector{Ti}, nzval::CuVect
     (ii <= m && nzind[ii] == i) ? nzval[ii] : zero(Tv)
 end
 
-
 ## interop with sparse CPU arrays
 
 # cpu to gpu
-# NOTE: we eagerly convert the indices to Cint here to avoid additional conversion later on
-CuSparseVector{T}(Vec::SparseVector) where {T} =
-    CuSparseVector(CuVector{Cint}(Vec.nzind), CuVector{T}(Vec.nzval), length(Vec))
-CuSparseVector{T}(Mat::SparseMatrixCSC) where {T} =
+CuSparseVector{Tv, Ti}(Vec::SparseVector) where {Tv, Ti} =
+    CuSparseVector(CuVector{Ti}(Vec.nzind), CuVector{Tv}(Vec.nzval), length(Vec))
+CuSparseVector{Tv, Ti}(Mat::SparseMatrixCSC) where {Tv, Ti} =
     size(Mat,2) == 1 ?
-        CuSparseVector(CuVector{Cint}(Mat.rowval), CuVector{T}(Mat.nzval), size(Mat)[1]) :
+        CuSparseVector(CuVector{Ti}(Mat.rowval), CuVector{Tv}(Mat.nzval), size(Mat)[1]) :
         throw(ArgumentError("The input argument must have a single column"))
-CuSparseMatrixCSC{T}(Vec::SparseVector) where {T} =
-    CuSparseMatrixCSC{T}(CuVector{Cint}([1]), CuVector{Cint}(Vec.nzind),
-                         CuVector{T}(Vec.nzval), size(Vec))
-CuSparseMatrixCSC{T}(Mat::SparseMatrixCSC) where {T} =
-    CuSparseMatrixCSC{T}(CuVector{Cint}(Mat.colptr), CuVector{Cint}(Mat.rowval),
-                         CuVector{T}(Mat.nzval), size(Mat))
-CuSparseMatrixCSR{T}(Mat::Transpose{Tv, <:SparseMatrixCSC}) where {T, Tv} =
-    CuSparseMatrixCSR{T}(CuVector{Cint}(parent(Mat).colptr), CuVector{Cint}(parent(Mat).rowval),
-                         CuVector{T}(parent(Mat).nzval), size(Mat))
-CuSparseMatrixCSR{T}(Mat::Adjoint{Tv, <:SparseMatrixCSC}) where {T, Tv} =
-    CuSparseMatrixCSR{T}(CuVector{Cint}(parent(Mat).colptr), CuVector{Cint}(parent(Mat).rowval),
-                         CuVector{T}(conj.(parent(Mat).nzval)), size(Mat))
-CuSparseMatrixCSR{T}(Mat::SparseMatrixCSC) where {T} = CuSparseMatrixCSR(CuSparseMatrixCSC{T}(Mat))
-CuSparseMatrixBSR{T}(Mat::SparseMatrixCSC, blockdim) where {T} = CuSparseMatrixBSR(CuSparseMatrixCSR{T}(Mat), blockdim)
-CuSparseMatrixCOO{T}(Mat::SparseMatrixCSC) where {T} = CuSparseMatrixCOO(CuSparseMatrixCSR{T}(Mat))
+CuSparseMatrixCSC{Tv, Ti}(Vec::SparseVector) where {Tv, Ti} =
+    CuSparseMatrixCSC{Tv, Ti}(CuVector{Ti}([1]), CuVector{Ti}(Vec.nzind),
+                         CuVector{Tv}(Vec.nzval), size(Vec))
+CuSparseMatrixCSC{Tv, Ti}(Mat::SparseMatrixCSC) where {Tv, Ti} =
+    CuSparseMatrixCSC{Tv, Ti}(CuVector{Ti}(Mat.colptr), CuVector{Ti}(Mat.rowval),
+                         CuVector{Tv}(Mat.nzval), size(Mat))
+CuSparseMatrixCSR{Tv, Ti}(Mat::Transpose{T, <:SparseMatrixCSC}) where {T, Tv, Ti} =
+    CuSparseMatrixCSR{Tv, Ti}(CuVector{Ti}(parent(Mat).colptr), CuVector{Ti}(parent(Mat).rowval),
+                         CuVector{Tv}(parent(Mat).nzval), size(Mat))
+CuSparseMatrixCSR{Tv, Ti}(Mat::Adjoint{T, <:SparseMatrixCSC}) where {T, Tv, Ti} =
+    CuSparseMatrixCSR{Tv, Ti}(CuVector{Ti}(parent(Mat).colptr), CuVector{Ti}(parent(Mat).rowval),
+                         CuVector{Tv}(conj.(parent(Mat).nzval)), size(Mat))
+
+# NOTE: this requires generic format conversion
+# CUDA doesn't support generic indices type
+# for format, thus we only support Cint
+CuSparseMatrixCSR{Tv, Cint}(Mat::SparseMatrixCSC) where {Tv} = CuSparseMatrixCSR(CuSparseMatrixCSC{Tv, Cint}(Mat))
+CuSparseMatrixBSR{Tv, Cint}(Mat::SparseMatrixCSC, blockdim) where {Tv} = CuSparseMatrixBSR(CuSparseMatrixCSR{Tv, Cint}(Mat), blockdim)
+CuSparseMatrixCOO{Tv, Cint}(Mat::SparseMatrixCSC) where {Tv} = CuSparseMatrixCOO(CuSparseMatrixCSR{Tv, Cint}(Mat))
+
+
+# NOTE: we eagerly convert the indices to Cint here to avoid additional conversion later on
+CuSparseVector{T}(Vec::SparseVector) where {T} = CuSparseVector{T, Cint}(Vec)
+CuSparseVector{T}(Mat::SparseMatrixCSC) where {T} = CuSparseVector{T, Cint}(Mat)
+CuSparseMatrixCSC{T}(Vec::SparseVector) where {T} = CuSparseMatrixCSC{T, Cint}(Vec)
+CuSparseMatrixCSC{T}(Mat::SparseMatrixCSC) where {T} = CuSparseMatrixCSC{T, Cint}(Mat)
+CuSparseMatrixCSR{T}(Mat::Transpose{Tv, <:SparseMatrixCSC}) where {T, Tv} = CuSparseMatrixCSR{T, Cint}(Mat)
+CuSparseMatrixCSR{T}(Mat::Adjoint{Tv, <:SparseMatrixCSC}) where {T, Tv} = CuSparseMatrixCSR{T, Cint}(Mat)
+CuSparseMatrixCSR{T}(Mat::SparseMatrixCSC) where {T} = CuSparseMatrixCSR{T, Cint}(Mat)
+CuSparseMatrixBSR{T}(Mat::SparseMatrixCSC, blockdim) where {T} = CuSparseMatrixBSR{T, Cint}(Mat, blockdim)
+CuSparseMatrixCOO{T}(Mat::SparseMatrixCSC) where {T} = CuSparseMatrixCOO{T, Cint}(Mat)
 
 # untyped variants
 CuSparseVector(x::AbstractSparseArray{T}) where {T} = CuSparseVector{T}(x)
