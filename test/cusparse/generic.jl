@@ -7,7 +7,7 @@ using CUDA.CUSPARSE, SparseArrays
     CUSPARSE.CUSPARSE_SPMM_CSR_ALG2,
     CUSPARSE.CUSPARSE_SPMM_CSR_ALG3,
 ]
-    @testset "mm $T" T in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "mm $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
         A = sprand(T, 10, 10, 0.1)
         B = rand(T, 10, 2)
         C = rand(T, 10, 2)
