@@ -1,7 +1,7 @@
 # Stream management
 
 export
-    CuStream, CuDefaultStream, CuStreamLegacy, CuStreamPerThread,
+    CuStream, default_stream, legacy_stream, per_thread_stream,
     priority, priority_range, synchronize, device_synchronize
 
 """
@@ -29,15 +29,15 @@ mutable struct CuStream
         return obj
     end
 
-    global CuDefaultStream() = new(convert(CUstream, C_NULL), nothing)
+    global default_stream() = new(convert(CUstream, C_NULL), nothing)
 
-    global CuStreamLegacy() = new(convert(CUstream, 1), nothing)
+    global legacy_stream() = new(convert(CUstream, 1), nothing)
 
-    global CuStreamPerThread() = new(convert(CUstream, 2), nothing)
+    global per_thread_stream() = new(convert(CUstream, 2), nothing)
 end
 
 """
-    CuDefaultStream()
+    default_stream()
 
 Return the default stream.
 
@@ -46,10 +46,10 @@ Return the default stream.
     It is generally better to use `stream()` to get a stream object that's local to the
     current task. That way, operations scheduled in other tasks can overlap.
 """
-CuDefaultStream()
+default_stream()
 
 """
-    CuStreamLegacy()
+    legacy_stream()
 
 Return a special object to use use an implicit stream with legacy synchronization behavior.
 
@@ -57,10 +57,10 @@ You can use this stream to perform operations that should block on all streams (
 exception of streams created with `STREAM_NON_BLOCKING`). This matches the old pre-CUDA 7
 global stream behavior.
 """
-CuStreamLegacy()
+legacy_stream()
 
 """
-    CuStreamPerThread()
+    per_thread_stream()
 
 Return a special object to use an implicit stream with per-thread synchronization behavior.
 This stream object is normally meant to be used with APIs that do not have per-thread
@@ -72,7 +72,7 @@ versions of their APIs (i.e. without a `ptsz` or `ptds` suffix).
     gets its own non-blocking stream, and multithreading in Julia is typically
     accomplished using tasks.
 """
-CuStreamPerThread()
+per_thread_stream()
 
 Base.unsafe_convert(::Type{CUstream}, s::CuStream) = s.handle
 
@@ -92,12 +92,12 @@ function Base.show(io::IO, stream::CuStream)
 end
 
 """
-    query(s::CuStream)
+    isdone(s::CuStream)
 
 Return `false` if a stream is busy (has task running or queued)
 and `true` if that stream is free.
 """
-function query(s::CuStream)
+function isdone(s::CuStream)
     res = unsafe_cuStreamQuery(s)
     if res == ERROR_NOT_READY
         return false
@@ -109,22 +109,37 @@ function query(s::CuStream)
 end
 
 """
-    synchronize([stream::CuStream]; blocking=true)
+    synchronize([stream::CuStream])
 
 Wait until `stream` has finished executing, with `stream` defaulting to the stream
-associated with the current Julia task. If `blocking` is true (the default), the active
-task will block to conserve CPU time. If latency is important, set `blocking` to false.
+associated with the current Julia task.
 
 See also: [`device_synchronize`](@ref)
 """
-function synchronize(stream::CuStream=stream(); blocking::Bool=true)
+function synchronize(stream::CuStream=stream(); blocking=nothing)
+    if blocking !== nothing
+        Base.depwarn("the blocking keyword to synchronize() has been deprecated", :synchronize)
+    end
+
+    # perform as much of the sync as possible without blocking in CUDA.
+    # XXX: remove this using a yield callback, or by synchronizing on a dedicated stream?
+    nonblocking_synchronize(stream)
+
+    # even though the GPU should be idle now, CUDA hooks work to the actual API call.
+    # see NVIDIA bug #3383169 for more details.
+    cuStreamSynchronize(stream)
+
+    check_exceptions()
+end
+
+@inline function nonblocking_synchronize(stream::CuStream)
     # fast path
-    query(stream) && @goto(exit)
+    isdone(stream) && return
 
     # minimize latency of short operations by busy-waiting,
     # initially without even yielding to other tasks
     spins = 0
-    while blocking || spins < 256
+    while spins < 256
         if spins < 32
             ccall(:jl_cpu_pause, Cvoid, ())
             # Temporary solution before we have gc transition support in codegen.
@@ -132,7 +147,7 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=true)
         else
             yield()
         end
-        query(stream) && @goto(exit)
+        isdone(stream) && return
         spins += 1
     end
 
@@ -144,18 +159,8 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=true)
     end
     Base.wait(event)
 
-    @label(exit)
-    check_exceptions()
+    return
 end
-
-"""
-    device_synchronize()
-
-Block for the current device's tasks to complete. This is a heavyweight operation, typically
-you only need to call [`synchronize`](@ref) which only synchronizes the stream associated
-with the current task.
-"""
-device_synchronize() = synchronize(CuStreamLegacy())
 
 """
     priority_range()

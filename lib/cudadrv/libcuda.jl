@@ -2307,4 +2307,12 @@ end
     ccall((:cuGraphExternalSemaphoresSignalNodeSetParams, libcuda()), CUresult, (CUgraphNode, Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS}), hNode, nodeParams)
 end
 
+## Added in CUDA 11.4
+
+@checked function cuDeviceGetUuid_v2(uuid, dev)
+    ccall((:cuDeviceGetUuid_v2, libcuda()), CUresult,
+                   (Ptr{CUuuid}, CUdevice),
+                   uuid, dev)
+end
+
 ##

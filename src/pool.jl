@@ -197,14 +197,8 @@ end
                 gctime += Base.@elapsed GC.gc(true)
             elseif phase == 4
                 synchronize(stream)
-
-                # NVIDIA bug #3383169: non-blocking sync doesn't trigger memory release.
-                cuStreamSynchronize(stream)
             elseif phase == 5
                 device_synchronize()
-
-                # NVIDIA bug #3383169: synchronizing the legacy stream doesn't trigger memory release.
-                cuCtxSynchronize()
             end
 
             buf = actual_alloc(sz; async=true, stream)
@@ -324,18 +318,14 @@ macro retry_reclaim(isfailed, ex)
           #       we do still call our routines to minimize the time we block in libcuda.
           if phase == 1
             synchronize(state.stream)
-            cuStreamSynchronize(state.stream)
           elseif phase == 2
             device_synchronize()
-            synchronize(state.context)
           elseif phase == 3
             GC.gc(false)
             device_synchronize()
-            synchronize(state.context)
           elseif phase == 4
             GC.gc(true)
             device_synchronize()
-            synchronize(state.context)
           elseif phase == 5
             # in case we had a release threshold configured
             trim(memory_pool(state.device))
@@ -456,7 +446,7 @@ macro timed(ex)
         local cpu_time0 = time_ns()
 
         # fine-grained synchronization of the code under analysis
-        local val = @sync blocking=false $(esc(ex))
+        local val = @sync $(esc(ex))
 
         local cpu_time1 = time_ns()
         local cpu_mem_stats1 = Base.gc_num()
@@ -522,7 +512,7 @@ function used_memory()
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_USED_MEM_CURRENT))
   else
-    0
+    missing
   end
 end
 
@@ -542,6 +532,6 @@ function cached_memory()
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else
-    0
+    missing
   end
 end

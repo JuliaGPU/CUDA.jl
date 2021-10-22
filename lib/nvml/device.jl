@@ -7,9 +7,10 @@ struct Device
         return new(handle_ref[])
     end
 
-    function Device(uuid::Base.UUID)
+    function Device(uuid::Base.UUID; mig::Bool=false)
         handle_ref = Ref{nvmlDevice_t}()
-        nvmlDeviceGetHandleByUUID("GPU-$uuid", handle_ref)
+        # XXX: keep the UUID as a string with prefix (GPU or MIG)?
+        nvmlDeviceGetHandleByUUID("$(mig ? "MIG" : "GPU")-$uuid", handle_ref)
         return new(handle_ref[])
     end
 
@@ -21,6 +22,11 @@ struct Device
 end
 
 Base.unsafe_convert(::Type{nvmlDevice_t}, dev::Device) = dev.handle
+
+function Base.show(io::IO, ::MIME"text/plain", dev::Device)
+    print(io, "NVML.Device($(index(dev))): ")
+    print(io, "$(name(dev))")
+end
 
 
 
@@ -49,7 +55,7 @@ Base.IteratorSize(::DeviceIterator) = Base.HasLength()
 # queries
 
 function name(dev::Device)
-    buf = Vector{Cchar}(undef, NVML_DEVICE_NAME_BUFFER_SIZE)
+    buf = Vector{Cchar}(undef, NVML_DEVICE_NAME_V2_BUFFER_SIZE)
     nvmlDeviceGetName(dev, pointer(buf), length(buf))
     return unsafe_string(pointer(buf))
 end
@@ -61,10 +67,10 @@ function brand(dev::Device)
 end
 
 function uuid(dev::Device)
-    buf = Vector{Cchar}(undef, NVML_DEVICE_UUID_BUFFER_SIZE)
+    buf = Vector{Cchar}(undef, NVML_DEVICE_UUID_V2_BUFFER_SIZE)
     nvmlDeviceGetUUID(dev, pointer(buf), length(buf))
     uuid_str = unsafe_string(pointer(buf))
-    @assert startswith(uuid_str, "GPU-")
+    @assert startswith(uuid_str, "GPU-") || startswith(uuid_str, "MIG-")
     return Base.UUID(uuid_str[5:end])
 end
 
@@ -72,6 +78,12 @@ function serial(dev::Device)
     buf = Vector{Cchar}(undef, NVML_DEVICE_SERIAL_BUFFER_SIZE)
     nvmlDeviceGetSerial(dev, pointer(buf), length(buf))
     return unsafe_string(pointer(buf))
+end
+
+function index(dev::Device)
+    index = Ref{Cuint}()
+    nvmlDeviceGetIndex(dev, index)
+    return Int(index[])
 end
 
 # watt

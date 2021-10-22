@@ -298,7 +298,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             m,n = csr.dims
             denseA = CUDA.zeros($elty,m,n)
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
-                desc_csr   = CuSparseMatrixDescriptor(csr)
+                desc_csr   = CuSparseMatrixDescriptor(csr, ind)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
 
                 function bufferSize()
@@ -324,7 +324,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             m,n = csc.dims
             denseA = CUDA.zeros($elty,m,n)
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
-                desc_csc   = CuSparseMatrixDescriptor(csc; convert=false)
+                desc_csc   = CuSparseMatrixDescriptor(csc, ind; convert=false)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
 
                 function bufferSize()
@@ -356,7 +356,7 @@ for (elty, welty) in ((:Float16, :Float32),
             m,n = csr.dims
             denseA = CUDA.zeros($elty,m,n)
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
-                desc_csr   = CuSparseMatrixDescriptor(csr)
+                desc_csr   = CuSparseMatrixDescriptor(csr, ind)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
 
                 function bufferSize()
@@ -381,7 +381,7 @@ for (elty, welty) in ((:Float16, :Float32),
             m,n = csc.dims
             denseA = CUDA.zeros($elty,m,n)
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
-                desc_csc   = CuSparseMatrixDescriptor(csc; convert=false)
+                desc_csc   = CuSparseMatrixDescriptor(csc, ind; convert=false)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
 
                 function bufferSize()

@@ -74,9 +74,10 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
 
         # process results
         cpu_rss = Sys.maxrss()
+        cuda_dev = device()
         gpu_rss = if has_nvml()
-            cuda_dev = device()
-            nvml_dev = NVML.Device(uuid(cuda_dev))
+            mig = uuid(cuda_dev) != parent_uuid(cuda_dev)
+            nvml_dev = NVML.Device(uuid(cuda_dev); mig)
             try
                 gpu_processes = NVML.compute_processes(nvml_dev)
                 if haskey(gpu_processes, getpid())

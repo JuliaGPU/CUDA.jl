@@ -18,7 +18,7 @@ end
 macro async_benchmarkable(ex...)
     quote
         # use non-blocking sync to reduce overhead
-        @benchmarkable CUDA.@sync blocking=false $(ex...)
+        @benchmarkable CUDA.@sync $(ex...)
     end
 end
 

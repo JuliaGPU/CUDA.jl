@@ -23,10 +23,10 @@ using CUDA.CUDNN:
     x = CUDA.rand(N)
     d = cudnnDropoutDescriptor(P)
     cudnnDropoutSeed[] = 1
-    y = cudnnDropoutForward(x; dropout = P)
-    @test isapprox(mean(Array(y).==0), P; atol = 3/sqrt(N))
-    @test y == cudnnDropoutForward(x, d)
-    @test y == cudnnDropoutForward!(similar(x), x; dropout = P)
-    @test y == cudnnDropoutForward!(similar(x), x, d)
+    y = cudnnDropoutForward(x; dropout = P) |> Array
+    @test isapprox(mean(y.==0), P; atol = 3/sqrt(N))
+    @test y == cudnnDropoutForward(x, d) |> Array
+    @test y == cudnnDropoutForward!(similar(x), x; dropout = P) |> Array
+    @test y == cudnnDropoutForward!(similar(x), x, d) |> Array
     cudnnDropoutSeed[] = -1
 end

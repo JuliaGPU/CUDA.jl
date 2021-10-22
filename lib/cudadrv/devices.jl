@@ -1,7 +1,7 @@
 # Device type and auxiliary functions
 
 export
-    CuDevice, current_device, has_device, name, uuid, totalmem, attribute
+    CuDevice, current_device, has_device, name, uuid, parent_uuid, totalmem, attribute
 
 """
     CuDevice(ordinal::Integer)
@@ -63,9 +63,6 @@ const DEVICE_INVALID = _CuDevice(CUdevice(-2))
 
 Base.convert(::Type{CUdevice}, dev::CuDevice) = dev.handle
 
-Base.:(==)(a::CuDevice, b::CuDevice) = a.handle == b.handle
-Base.hash(dev::CuDevice, h::UInt) = hash(dev.handle, h)
-
 function Base.show(io::IO, ::MIME"text/plain", dev::CuDevice)
   print(io, "CuDevice($(dev.handle)): ")
   if dev == DEVICE_CPU
@@ -91,6 +88,15 @@ function name(dev::CuDevice)
 end
 
 function uuid(dev::CuDevice)
+    version() < v"11.4" && return parent_uuid(dev)
+
+    # returns the MIG UUID if this is a compute instance
+    uuid_ref = Ref{CUuuid}()
+    cuDeviceGetUuid_v2(uuid_ref, dev)
+    Base.UUID(reinterpret(UInt128, reverse([uuid_ref[].bytes...]))[])
+end
+
+function parent_uuid(dev::CuDevice)
     uuid_ref = Ref{CUuuid}()
     cuDeviceGetUuid(uuid_ref, dev)
     Base.UUID(reinterpret(UInt128, reverse([uuid_ref[].bytes...]))[])
