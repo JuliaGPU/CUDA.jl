@@ -1,9 +1,7 @@
 """
-    @sync [blocking=true] ex
+    @sync ex
 
-Run expression `ex` and synchronize the GPU afterwards. By default, this is a CPU-friendly
-synchronization, i.e. it performs a blocking synchronization without increasing CPU load
-It is also useful for timing code that executes asynchronously.
+Run expression `ex` and synchronize the GPU afterwards.
 
 See also: [`synchronize`](@ref).
 """
@@ -13,12 +11,11 @@ macro sync(ex...)
     kwargs = ex[1:end-1]
 
     # decode keyword arguments
-    blocking = true
     for kwarg in kwargs
         Meta.isexpr(kwarg, :(=)) || error("Invalid keyword argument $kwarg")
         key, val = kwarg.args
         if key == :blocking
-            blocking = val
+            Base.depwarn("the blocking keyword to @sync has been deprecated", :sync)
         else
             error("Unknown keyword argument $kwarg")
         end
@@ -26,7 +23,7 @@ macro sync(ex...)
 
     quote
         local ret = $(esc(code))
-        synchronize(; blocking=$(esc(blocking)))
+        synchronize()
         ret
     end
 end

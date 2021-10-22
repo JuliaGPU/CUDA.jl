@@ -109,22 +109,37 @@ function isdone(s::CuStream)
 end
 
 """
-    synchronize([stream::CuStream]; blocking=true)
+    synchronize([stream::CuStream])
 
 Wait until `stream` has finished executing, with `stream` defaulting to the stream
-associated with the current Julia task. If `blocking` is true (the default), the active
-task will block to conserve CPU time. If latency is important, set `blocking` to false.
+associated with the current Julia task.
 
 See also: [`device_synchronize`](@ref)
 """
-function synchronize(stream::CuStream=stream(); blocking::Bool=true)
+function synchronize(stream::CuStream=stream(); blocking=nothing)
+    if blocking !== nothing
+        Base.depwarn("the blocking keyword to synchronize() has been deprecated", :synchronize)
+    end
+
+    # perform as much of the sync as possible without blocking in CUDA.
+    # XXX: remove this using a yield callback, or by synchronizing on a dedicated stream?
+    nonblocking_synchronize(stream)
+
+    # even though the GPU should be idle now, CUDA hooks work to the actual API call.
+    # see NVIDIA bug #3383169 for more details.
+    cuStreamSynchronize(stream)
+
+    check_exceptions()
+end
+
+@inline function nonblocking_synchronize(stream::CuStream)
     # fast path
-    isdone(stream) && @goto(exit)
+    isdone(stream) && return
 
     # minimize latency of short operations by busy-waiting,
     # initially without even yielding to other tasks
     spins = 0
-    while blocking || spins < 256
+    while spins < 256
         if spins < 32
             ccall(:jl_cpu_pause, Cvoid, ())
             # Temporary solution before we have gc transition support in codegen.
@@ -132,7 +147,7 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=true)
         else
             yield()
         end
-        isdone(stream) && @goto(exit)
+        isdone(stream) && return
         spins += 1
     end
 
@@ -144,18 +159,8 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=true)
     end
     Base.wait(event)
 
-    @label(exit)
-    check_exceptions()
+    return
 end
-
-"""
-    device_synchronize()
-
-Block for the current device's tasks to complete. This is a heavyweight operation, typically
-you only need to call [`synchronize`](@ref) which only synchronizes the stream associated
-with the current task.
-"""
-device_synchronize() = synchronize(legacy_stream())
 
 """
     priority_range()
