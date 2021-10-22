@@ -150,10 +150,8 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::Dens
     return Y
 end
 
-function mm!(transa::SparseChar, transb::SparseChar,
-        alpha::Number, A::CuSparseMatrixCSR{T},
-        B::DenseCuMatrix{T}, beta::Number,
-        C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
+function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
+             B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
     m,k = size(A)
     n = size(C)[2]
 
@@ -187,10 +185,8 @@ function mm!(transa::SparseChar, transb::SparseChar,
     return C
 end
 
-function mm!(transa::SparseChar, transb::SparseChar,
-        alpha::Number, A::CuSparseMatrixCSC{T},
-        B::DenseCuMatrix{T}, beta::Number,
-        C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
+function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
+             B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
     ctransa = 'N'
     if transa == 'N'
         ctransa = 'T'
