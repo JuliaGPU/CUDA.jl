@@ -59,6 +59,7 @@ end
 # CSR, COO, BSR to vector
 CuSparseVector(Mat::AbstractCuSparseMatrix) = CuSparseVector(CuSparseMatrixCSC(Mat))
 
+
 ## CSR to CSC
 
 function CuSparseMatrixCSC{T}(S::Transpose{T, <:CuSparseMatrixCSR{T}}) where T
