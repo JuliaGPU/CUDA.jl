@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim, @context!
+using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim, @context!, initialize_context
 
 using CEnum: @cenum
 

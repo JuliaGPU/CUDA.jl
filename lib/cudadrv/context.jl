@@ -50,32 +50,12 @@ mutable struct CuContext
         new_unique(handle_ref[])
     end
 
-    """
-        CuContext(pctx::CuPrimaryContext)
-
-    Retain the primary context on the GPU, returning a context compatible with the driver API.
-    The primary context will be released when the returned driver context is finalized.
-
-    As these contexts are refcounted by CUDA, you should not call [`CUDA.unsafe_destroy!`](@ref)
-    on them but use [`CUDA.unsafe_release!`](@ref) instead (available with do-block syntax as
-    well).
-    """
     function CuContext(pctx::CuPrimaryContext)
         handle_ref = Ref{CUcontext}()
         cuDevicePrimaryCtxRetain(handle_ref, pctx.dev)
         return new_unique(handle_ref[])
     end
 
-    """
-        current_context()
-
-    Returns the current context.
-
-    !!! warning
-
-        This is a low-level API, returning the current context as known to the CUDA driver.
-        For most users, it is recommended to use the [`context`](@ref) method instead.
-    """
     global function current_context()
         handle_ref = Ref{CUcontext}()
         cuCtxGetCurrent(handle_ref)
@@ -86,6 +66,30 @@ mutable struct CuContext
     # for outer constructors
     global _CuContext(handle::CUcontext) = new_unique(handle)
 end
+
+"""
+    CuContext(pctx::CuPrimaryContext)
+
+Retain the primary context on the GPU, returning a context compatible with the driver API.
+The primary context will be released when the returned driver context is finalized.
+
+As these contexts are refcounted by CUDA, you should not call [`CUDA.unsafe_destroy!`](@ref)
+on them but use [`CUDA.unsafe_release!`](@ref) instead (available with do-block syntax as
+well).
+"""
+CuContext(pctx::CuPrimaryContext)
+
+"""
+    current_context()
+
+Returns the current context.
+
+!!! warning
+
+    This is a low-level API, returning the current context as known to the CUDA driver.
+    For most users, it is recommended to use the [`context`](@ref) method instead.
+"""
+current_context()
 
 """
     has_context()
@@ -304,21 +308,43 @@ end
 """
     synchronize(ctx::Context)
 
-Synchronize the current context, waiting for all outstanding operations to complete.
-
-!!! warning
-
-    This is an operation that blocks in the driver, and should be avoided if possible.
-    Instead, use [`device_synchronize()`](@ref) to perform synchronization in Julia.
+Block for the all operations on `ctx` to complete. This is a heavyweight operation,
+typically you only need to call [`synchronize`](@ref) which only synchronizes the stream
+associated with the current task.
 """
 function synchronize(ctx::CuContext)
     push!(CuContext, ctx)
     try
-        cuCtxSynchronize()
-        check_exceptions()
+        nonblocking_synchronize()
     finally
         pop!(CuContext)
     end
+end
+
+# same, but without the context switch
+"""
+    device_synchronize()
+
+Block for the all operations on `ctx` to complete. This is a heavyweight operation,
+typically you only need to call [`synchronize`](@ref) which only synchronizes the stream
+associated with the current task.
+
+On the device, `device_synchronize` acts as a synchronization point for child grids in the
+context of dynamic parallelism.
+"""
+device_synchronize() = nonblocking_synchronize()
+# XXX: can we put the device docstring in dynamic_parallelism.jl?
+
+@inline function nonblocking_synchronize()
+    # perform as much of the sync as possible without blocking in CUDA.
+    # XXX: remove this using a yield callback, or by synchronizing on a dedicated thread?
+    nonblocking_synchronize(legacy_stream())
+
+    # even though the GPU should be idle now, CUDA hooks work to the actual API call.
+    # see NVIDIA bug #3383169 for more details.
+    cuCtxSynchronize()
+
+    check_exceptions()
 end
 
 

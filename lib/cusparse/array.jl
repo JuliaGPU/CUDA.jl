@@ -502,8 +502,19 @@ Base.copy(Mat::CuSparseMatrixCOO) = copyto!(similar(Mat), Mat)
 
 # input/output
 
-for (gpu, cpu) in [CuSparseVector => SparseVector,
-                   CuSparseMatrixCSC => SparseMatrixCSC,
+for (gpu, cpu) in [CuSparseVector => SparseVector]
+    @eval function Base.show(io::IO, ::MIME"text/plain", x::$gpu)
+        xnnz = length(nonzeros(x))
+        print(io, length(x), "-element ", typeof(x), " with ", xnnz,
+            " stored ", xnnz == 1 ? "entry" : "entries")
+        if xnnz != 0
+            println(io, ":")
+            show(IOContext(io, :typeinfo => eltype(x)), $cpu(x))
+        end
+    end
+end
+
+for (gpu, cpu) in [CuSparseMatrixCSC => SparseMatrixCSC,
                    CuSparseMatrixCSR => SparseMatrixCSC,
                    CuSparseMatrixBSR => SparseMatrixCSC,
                    CuSparseMatrixCOO => SparseMatrixCSC]

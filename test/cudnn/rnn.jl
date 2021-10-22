@@ -96,17 +96,17 @@ using CUDA.CUDNN:
         _y = copy(y)
         _hy = (hy === nothing ? hy : copy(hy[]))
         _cy = (cy === nothing ? cy : copy(cy[]))
-        @test _y ≈ cudnnRNNForward!(y, w, x; hx, cx, hy, cy, layout, seqLengthArray, fwdMode,
-                                    hiddenSize, algo, cellMode, biasMode, dirMode, inputMode,
-                                    mathPrec, mathType, inputSize, projSize, numLayers, dropout, auxFlags)
-        (_hy === hy === nothing || _hy ≈ hy[])
-        (_cy === cy === nothing || _cy ≈ cy[])
-        @test _y ≈ cudnnRNNForward(w, x, d; hx, cx, hy, cy, layout, seqLengthArray, fwdMode)
-        (_hy === hy === nothing || _hy ≈ hy[])
-        (_cy === cy === nothing || _cy ≈ cy[])
-        @test _y ≈ cudnnRNNForward!(y, w, x, d; hx, cx, hy, cy, layout, seqLengthArray, fwdMode)
-        (_hy === hy === nothing || _hy ≈ hy[])
-        (_cy === cy === nothing || _cy ≈ cy[])
+        @test Array(_y) ≈ cudnnRNNForward!(y, w, x; hx, cx, hy, cy, layout, seqLengthArray, fwdMode,
+                                           hiddenSize, algo, cellMode, biasMode, dirMode, inputMode,
+                                           mathPrec, mathType, inputSize, projSize, numLayers, dropout, auxFlags) |> Array
+        (_hy === hy === nothing || @test Array(_hy) ≈ Array(hy[]))
+        (_cy === cy === nothing || @test Array(_cy) ≈ Array(cy[]))
+        @test Array(_y) ≈ cudnnRNNForward(w, x, d; hx, cx, hy, cy, layout, seqLengthArray, fwdMode) |> Array
+        (_hy === hy === nothing || @test Array(_hy) ≈ Array(hy[]))
+        (_cy === cy === nothing || @test Array(_cy) ≈ Array(cy[]))
+        @test Array(_y) ≈ cudnnRNNForward!(y, w, x, d; hx, cx, hy, cy, layout, seqLengthArray, fwdMode) |> Array
+        (_hy === hy === nothing || @test Array(_hy) ≈ Array(hy[]))
+        (_cy === cy === nothing || @test Array(_cy) ≈ Array(cy[]))
     end
 
     rnntest()

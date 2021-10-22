@@ -117,10 +117,6 @@ end
     end
 end
 
-function initialize_api()
-    CUDA.prepare_cuda_state()
-end
-
 macro check(ex, errs...)
     check = :(isequal(err, CUPTI_ERROR_OUT_OF_MEMORY))
     for err in errs

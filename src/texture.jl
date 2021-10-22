@@ -274,9 +274,9 @@ Base.size(tm::CuTexture) = size(tm.parent)
 Base.sizeof(tm::CuTexture) = Base.elsize(x) * length(x)
 
 Base.show(io::IO, t::CuTexture{T,1}) where {T} =
-    print(io, "$(length(t))-element $(nchans(T))-channel CuTexture(::$(typeof(parent(t)).name)) with eltype $T")
+    print(io, "$(length(t))-element $(nchans(T))-channel CuTexture(::$(typeof(parent(t)).name.name)) with eltype $T")
 Base.show(io::IO, t::CuTexture{T}) where {T} =
-    print(io, "$(join(size(t), '×')) $(nchans(T))-channel CuTexture(::$(typeof(parent(t)).name)) with eltype $T")
+    print(io, "$(join(size(t), '×')) $(nchans(T))-channel CuTexture(::$(typeof(parent(t)).name.name)) with eltype $T")
 
 Base.show(io::IO, mime::MIME"text/plain", t::CuTexture) = show(io, t)
 

@@ -7,6 +7,13 @@ export CuGraph, capture, instantiate, CuGraphExec, launch, update,
 
 @enum_without_prefix CUstreamCaptureMode CU_
 
+"""
+    CuGraph([flags])
+
+Create an empty graph for use with low-level graph operations. If you want to create a graph
+while directly recording operations, use [`capture`](@ref). For a high-level interface that
+also automatically executes the graph, use the [`@captured`](@ref) macro.
+"""
 mutable struct CuGraph
     handle::CUgraph
     ctx::CuContext
@@ -21,21 +28,6 @@ mutable struct CuGraph
         return obj
     end
 
-    """
-        capture([flags], [throw_error::Bool=true]) do
-            ...
-        end
-
-    Capture a graph of CUDA operations. The returned graph can then be instantiated and
-    executed repeatedly for improved performance.
-
-    Note that many operations, like initial kernel compilation or memory allocations,
-    cannot be captured. To work around this, you can set the `throw_error` keyword to false,
-    which will cause this function to return `nothing` if such a failure happens. You can
-    then try to evaluate the function in a regular way, and re-record afterwards.
-
-    See also: [`instantiate`](@ref).
-    """
     global function capture(f::Function; flags=STREAM_CAPTURE_MODE_GLOBAL, throw_error::Bool=true)
         cuStreamBeginCapture_v2(stream(), flags)
 
@@ -59,6 +51,23 @@ mutable struct CuGraph
     end
 end
 
+"""
+    capture([flags], [throw_error::Bool=true]) do
+        ...
+    end
+
+Capture a graph of CUDA operations. The returned graph can then be instantiated and
+executed repeatedly for improved performance.
+
+Note that many operations, like initial kernel compilation or memory allocations,
+cannot be captured. To work around this, you can set the `throw_error` keyword to false,
+which will cause this function to return `nothing` if such a failure happens. You can
+then try to evaluate the function in a regular way, and re-record afterwards.
+
+See also: [`instantiate`](@ref).
+"""
+capture
+
 function unsafe_destroy!(graph::CuGraph)
     @finalize_in_ctx graph.ctx cuGraphDestroy(graph)
 end
@@ -73,14 +82,6 @@ mutable struct CuGraphExec
     graph::CuGraph
     ctx::CuContext
 
-    """
-        instantiate(graph::CuGraph)
-
-    Creates an executable graph from a graph. This graph can then be launched, or updated
-    with an other graph.
-
-    See also: [`launch`](@ref), [`update`](@ref).
-    """
     global function instantiate(graph::CuGraph)
         handle_ref = Ref{CUgraphExec}()
         error_node = Ref{CUgraphNode}()
@@ -99,6 +100,16 @@ mutable struct CuGraphExec
         return obj
     end
 end
+
+"""
+    instantiate(graph::CuGraph)
+
+Creates an executable graph from a graph. This graph can then be launched, or updated
+with an other graph.
+
+See also: [`launch`](@ref), [`update`](@ref).
+"""
+instantiate
 
 function unsafe_destroy!(exec::CuGraphExec)
     @finalize_in_ctx exec.ctx cuGraphDestroy(exec)

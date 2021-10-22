@@ -8,7 +8,7 @@ Returns the value of a per-multiprocessor counter that is incremented every cloc
 clock(::Type{UInt32}) = ccall("llvm.nvvm.read.ptx.sreg.clock", llvmcall, UInt32, ())
 
 """
-    clock(UInt32)
+    clock(UInt64)
 
 Returns the value of a per-multiprocessor counter that is incremented every clock cycle.
 """

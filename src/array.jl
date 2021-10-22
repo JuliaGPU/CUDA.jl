@@ -63,7 +63,7 @@ earlier to reduce pressure on the memory allocator.
 
 By default, the operation is performed on the task-local stream. During task or process
 finalization however, that stream may be destroyed already, so be sure to specify a safe
-stream (i.e. `CuDefaultStream()`, which will ensure the operation will block on other
+stream (i.e. `default_stream()`, which will ensure the operation will block on other
 streams) when calling this function from a finalizer. For simplicity, the `unsafe_finalize!`
 function does exactly that.
 """
@@ -98,7 +98,7 @@ function unsafe_finalize!(xs::CuArray)
   # stream, it synchronizes "too much". we could do better, e.g., by keeping track of all
   # streams involved, or by refcounting uses and decrementing that refcount after the
   # operation using `cuLaunchHostFunc`. See CUDA.jl#778 and CUDA.jl#780 for details.
-  unsafe_free!(xs, CuDefaultStream())
+  unsafe_free!(xs, default_stream())
 end
 
 
@@ -260,6 +260,8 @@ DenseCuArray{T,N} = CuArray{T,N}
 DenseCuVector{T} = DenseCuArray{T,1}
 DenseCuMatrix{T} = DenseCuArray{T,2}
 DenseCuVecOrMat{T} = Union{DenseCuVector{T}, DenseCuMatrix{T}}
+# XXX: these dummy aliases (DenseCuArray=CuArray) break alias printing, as
+#      `Base.print_without_params` only handles the case of a single alias.
 
 # strided arrays
 StridedSubCuArray{T,N,I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
@@ -385,7 +387,8 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, doffs
   @context! context(dest) begin
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
-    is_pinned(pointer(src)) || synchronize()
+    s = stream()
+    is_pinned(pointer(src)) || nonblocking_synchronize(s)
 
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
@@ -402,7 +405,8 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
   @context! context(src) begin
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
-    is_pinned(pointer(dest)) || synchronize()
+    s = stream()
+    is_pinned(pointer(dest)) || nonblocking_synchronize(s)
 
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
@@ -412,7 +416,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
     end
 
     # users expect values to be available after this call
-    synchronize()
+    synchronize(s)
   end
   return dest
 end
@@ -436,7 +440,7 @@ end
 # NOTE: synchronization is best-effort, since we don't keep track of the
 #       defices and streams using each array backed by unified memory.
 
-function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.UnifiedBuffer}, doffs,
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, doffs,
                              src::Array{T}, soffs, n) where T
   # maintain stream-ordered semantics
   # XXX: alternative, use an async CUDA memcpy if the stream isn't idle?
@@ -454,7 +458,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.UnifiedBuffer}, doff
 end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs,
-                             src::DenseCuArray{T,<:Any,Mem.UnifiedBuffer}, soffs, n) where T
+                             src::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, soffs, n) where T
   # maintain stream-ordered semantics
   synchronize()
 

@@ -126,14 +126,19 @@ end
 candidates = []
 for (index,dev) in enumerate(devices())
     # fetch info that doesn't require a context
-    id=deviceid(dev)
-    uuid=CUDA.uuid(dev)
-    name=CUDA.name(dev)
-    cap=capability(dev)
+    id = deviceid(dev)
+    mig = CUDA.uuid(dev) != CUDA.parent_uuid(dev)
+    uuid = CUDA.uuid(dev)
+    name = CUDA.name(dev)
+    cap = capability(dev)
 
     mem = try
         device!(dev)
-        CUDA.available_memory()
+        mem = CUDA.available_memory()
+        # immediately reset the device. this helps to reduce memory usage,
+        # and is needed for systems that only provide exclusive access to the GPUs
+        CUDA.device_reset!()
+        mem
     catch err
         if isa(err, OutOfGPUMemoryError)
             # the device doesn't even have enough memory left to instantiate a context...
@@ -143,7 +148,7 @@ for (index,dev) in enumerate(devices())
         end
     end
 
-    push!(candidates, (; id, uuid, name, cap, mem))
+    push!(candidates, (; id, uuid, mig, name, cap, mem))
 
     # NOTE: we don't use NVML here because it doesn't respect CUDA_VISIBLE_DEVICES
 end
@@ -161,7 +166,7 @@ isempty(candidates) && error("Could not find any suitable device for this config
 sort!(candidates, by=x->x.mem)
 ## apply
 picks = reverse(candidates[end-gpus+1:end])   # best GPU first
-ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"GPU-$(pick.uuid)", picks), ",")
+ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"$(pick.mig ? "MIG" : "GPU")-$(pick.uuid)", picks), ",")
 @info "Testing using $(length(picks)) device(s): " * join(map(pick->"$(pick.id). $(pick.name) (UUID $(pick.uuid))", picks), ", ")
 
 # determine tests to skip
@@ -170,10 +175,14 @@ has_cudnn() || push!(skip_tests, "cudnn")
 has_cusolvermg() || push!(skip_tests, "cusolvermg")
 has_nvml() || push!(skip_tests, "nvml")
 if !has_cutensor() || CUDA.version() < v"10.1" || first(picks).cap < v"7.0" || do_sanitize
+    push!(skip_tests, "cutensor")
+end
+if do_sanitize
     # XXX: some library tests fail under compute-sanitizer
     append!(skip_tests, ["cutensor", "cusparse"])
+    # XXX: others take absurdly long
+    push!(skip_tests, "cusolver")
 end
-is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
 if first(picks).cap < v"7.0"
     push!(skip_tests, "device/intrinsics/wmma")
 end
@@ -429,15 +438,6 @@ try
                         p = recycle_worker(p)
                     else
                         print_testworker_stats(test, wrkr, resp)
-
-                        cpu_rss = resp[9]
-                        if CUDA.getenv("CI", false) && cpu_rss > 4*2^30
-                            # XXX: despite resetting the device and collecting garbage
-                            #      after each test, we are leaking CPU memory somewhere.
-                            #      this is a problem on CI, where2 we don't have much RAM.
-                            #      work around this by periodically recycling the worker.
-                            p = recycle_worker(p)
-                        end
                     end
 
                     # aggregate the snooped compiler invocations

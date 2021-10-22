@@ -79,15 +79,6 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     end
 end
 
-function LinearAlgebra.:(*)(A::Union{CuMatrix, CuSparseMatrix}, B::CuSparseMatrix{T}) where {T}
-    return mul!(similar(CuMatrix{T}, (size(A,1), size(B,2))), A, CuArray(B))
-end
-
-function LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, B::CuSparseMatrix{T}) where {T}
-    mul!(C, B', A', one(T), zero(T))
-    return C'
-end
-
 Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
 Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
 
@@ -155,11 +146,6 @@ function Base.:(-)(A::CuSparseMatrix, B::CuSparseMatrixCSR)
     csrA = CuSparseMatrixCSR(A)
     return geam(one(eltype(A)), csrA, -one(eltype(A)), B, 'O')
 end
-
-Base.:(+)(A::CuSparseMatrix, B::CuMatrix) = CuArray(A) + B
-Base.:(-)(A::CuSparseMatrix, B::CuMatrix) = CuArray(A) - B
-Base.:(+)(A::CuMatrix, B::CuSparseMatrix) = A + CuArray(B)
-Base.:(-)(A::CuMatrix, B::CuSparseMatrix) = A - CuArray(B)
 
 # triangular
 

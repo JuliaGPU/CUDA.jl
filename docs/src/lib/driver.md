@@ -21,6 +21,7 @@ CUDA.description(::CuError)
 
 ```@docs
 CUDA.version()
+CUDA.system_version()
 ```
 
 
@@ -29,6 +30,7 @@ CUDA.version()
 ```@docs
 CuDevice
 devices
+current_device
 name(::CuDevice)
 totalmem(::CuDevice)
 attribute
@@ -47,8 +49,9 @@ warpsize(::CuDevice)
 ```@docs
 CuContext
 CUDA.unsafe_destroy!(::CuContext)
-CuCurrentContext
+current_context
 activate(::CuContext)
+synchronize(::CuContext)
 device_synchronize
 ```
 
@@ -140,8 +143,19 @@ CUDA.total_memory
 
 ```@docs
 CuStream
-CuDefaultStream
+CUDA.isdone(::CuStream)
+priority_range
+priority
 synchronize(::CuStream)
+CUDA.@sync
+```
+
+For specific use cases, special streams are available:
+
+```@docs
+default_stream
+legacy_stream
+per_thread_stream
 ```
 
 ## Event Management
@@ -150,6 +164,8 @@ synchronize(::CuStream)
 CuEvent
 record
 synchronize(::CuEvent)
+CUDA.isdone(::CuEvent)
+CUDA.wait(::CuEvent)
 elapsed
 CUDA.@elapsed
 ```
@@ -185,4 +201,33 @@ You can create `CuTextureArray` objects from both host and device memory:
 ```@docs
 CUDA.CuTextureArray
 CUDA.CuTextureArray(array)
+```
+
+## Occupancy API
+
+The occupancy API can be used to figure out an appropriate launch configuration for a
+compiled kernel (represented as a `CuFunction`) on the current device:
+
+```@docs
+launch_configuration
+active_blocks
+occupancy
+```
+
+## Graph Execution
+
+CUDA graphs can be easily recorded and executed using the high-level `@captured` macro:
+
+```@docs
+CUDA.@captured
+```
+
+Low-level operations are available too:
+
+```@docs
+CuGraph
+capture
+instantiate
+launch(::CUDA.CuGraphExec)
+update
 ```

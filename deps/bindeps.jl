@@ -59,6 +59,11 @@ function toolkit()
     @initialize_ref __toolkit begin
         toolkit = nothing
 
+        # load the driver library before anything else, because we may want to load a
+        # forward-compatible alternative instead, and dlopening libcudart as part of
+        # the discovery process below will irreversibly load the system version.
+        CUDA.libcuda()
+
         # CI runs in a well-defined environment, so prefer a local CUDA installation there
         if getenv("CI", false) && !haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER")
             toolkit = find_local_cuda()

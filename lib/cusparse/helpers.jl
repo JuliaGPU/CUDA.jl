@@ -17,14 +17,14 @@ end
 
 Base.unsafe_convert(::Type{cusparseMatDescr_t}, desc::CuMatrixDescriptor) = desc.handle
 
-function CuMatrixDescriptor(MatrixType, FillMode, DiagType, IndexBase)
+function CuMatrixDescriptor(MatrixType::Char, FillMode::Char, DiagType::Char, IndexBase::Char)
     desc = CuMatrixDescriptor()
-    if MatrixType != CUSPARSE_MATRIX_TYPE_GENERAL
+    if MatrixType != 'G'
         cusparseSetMatType(desc, MatrixType)
     end
     cusparseSetMatFillMode(desc, FillMode)
     cusparseSetMatDiagType(desc, DiagType)
-    if IndexBase != CUSPARSE_INDEX_BASE_ZERO
+    if IndexBase != 'Z'
         cusparseSetMatIndexBase(desc, IndexBase)
     end
     return desc

@@ -25,10 +25,6 @@ description(err::CUSPARSEError) = unsafe_string(cusparseGetErrorString(err))
     end
 end
 
-function initialize_api()
-    CUDA.prepare_cuda_state()
-end
-
 macro check(ex, errs...)
     check = :(isequal(err, CUSPARSE_STATUS_ALLOC_FAILED))
     for err in errs

@@ -110,7 +110,3 @@ end
 ## synchronization
 
 @device_override device_synchronize() = @check_status cudaDeviceSynchronize()
-@doc """
-On the device, `device_synchronize` acts as a synchronization point for child grids in the
-context of dynamic parallelism.
-""" device_synchronize

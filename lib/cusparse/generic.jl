@@ -39,21 +39,20 @@ Base.unsafe_convert(::Type{cusparseDnMatDescr_t}, desc::CuDenseMatrixDescriptor)
 mutable struct CuSparseMatrixDescriptor
     handle::cusparseSpMatDescr_t
 
-    CuSparseMatrixDescriptor(desc_ref::Ref{Ptr{Cvoid}}) = new(desc_ref[])
-    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSR)
+    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSR, IndexBase::Char)
         desc_ref = Ref{cusparseSpMatDescr_t}()
         cusparseCreateCsr(
             desc_ref,
             A.dims..., length(nonzeros(A)),
             A.rowPtr, A.colVal, nonzeros(A),
-            eltype(A.rowPtr), eltype(A.colVal), 'O', eltype(nonzeros(A))
+            eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A))
         )
         obj = new(desc_ref[])
         finalizer(cusparseDestroySpMat, obj)
         return obj
     end
 
-    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSC; convert=true)
+    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSC, IndexBase::Char; convert=true)
         desc_ref = Ref{cusparseSpMatDescr_t}()
         if convert
             # many algorithms, e.g. mv! and mm!, do not support CSC sparse format
@@ -62,14 +61,14 @@ mutable struct CuSparseMatrixDescriptor
                 desc_ref,
                 reverse(A.dims)..., length(nonzeros(A)),
                 A.colPtr, rowvals(A), nonzeros(A),
-                eltype(A.colPtr), eltype(rowvals(A)), 'O', eltype(nonzeros(A))
+                eltype(A.colPtr), eltype(rowvals(A)), IndexBase, eltype(nonzeros(A))
             )
         else
             cusparseCreateCsc(
                 desc_ref,
                 A.dims..., length(nonzeros(A)),
                 A.colPtr, rowvals(A), nonzeros(A),
-                eltype(A.colPtr), eltype(rowvals(A)), 'O', eltype(nonzeros(A))
+                eltype(A.colPtr), eltype(rowvals(A)), IndexBase, eltype(nonzeros(A))
             )
         end
         obj = new(desc_ref[])
@@ -92,7 +91,7 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},Cu
         chkmvdims(X,m,Y,n)
     end
 
-    descA = CuSparseMatrixDescriptor(A)
+    descA = CuSparseMatrixDescriptor(A, index)
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
     compute_type = T == Float16 && version() >= v"11.4.0" ? Float32 : T
@@ -130,7 +129,7 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::Dens
         chkmvdims(X,m,Y,n)
     end
 
-    descA = CuSparseMatrixDescriptor(A)
+    descA = CuSparseMatrixDescriptor(A, index)
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
     compute_type = T == Float16 && version() >= v"11.4.0" ? Float32 : T
@@ -166,7 +165,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
         chkmmdims(B,C,n,m,k,n)
     end
 
-    descA = CuSparseMatrixDescriptor(A)
+    descA = CuSparseMatrixDescriptor(A, index)
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
@@ -209,7 +208,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
         chkmmdims(B,C,n,m,k,n)
     end
 
-    descA = CuSparseMatrixDescriptor(A)
+    descA = CuSparseMatrixDescriptor(A, index)
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 

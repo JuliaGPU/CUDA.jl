@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcublas, unsafe_free!, @retry_reclaim, isdebug, @sync, @context!
+using ..CUDA: libcublas, unsafe_free!, @retry_reclaim, isdebug, @sync, @context!, initialize_context
 
 using GPUArrays
 

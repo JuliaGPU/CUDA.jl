@@ -65,10 +65,6 @@ end
     end
 end
 
-function initialize_api()
-    CUDA.prepare_cuda_state()
-end
-
 macro check(ex, errs...)
     check = :(isequal(err, CUFFT_ALLOC_FAILED))
     for err in errs

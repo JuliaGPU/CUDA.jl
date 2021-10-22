@@ -22,7 +22,7 @@ description(err::NVMLError) = unsafe_string(nvmlErrorString(err))
 end
 
 const initialized = Ref(false)
-function initialize_api()
+function initialize_context()
     if !initialized[]
         res = unsafe_nvmlInitWithFlags(0)
         if res !== NVML_SUCCESS

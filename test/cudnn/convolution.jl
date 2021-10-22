@@ -184,10 +184,10 @@ false && @testset "cudnn/convolution" begin
 
     # Test tensor format
     cx2,cw2,cb2 = (x->permutedims(x,(3,1,2,4))).((cx,cw,cb))
-    whcn = cudnnConvolutionForward(cw,cx)
-    cwhn = cudnnConvolutionForward(cw2,cx2,format=CUDNN_TENSOR_NHWC)
+    whcn = cudnnConvolutionForward(cw,cx) |> Array
+    cwhn = cudnnConvolutionForward(cw2,cx2,format=CUDNN_TENSOR_NHWC) |> Array
     @test cwhn ≈ permutedims(whcn,(3,1,2,4))
-    whcn = cudnnConvolutionForward(cw,cx;bias=cb)
-    cwhn = cudnnConvolutionForward(cw2,cx2;bias=cb2,format=CUDNN_TENSOR_NHWC)
+    whcn = cudnnConvolutionForward(cw,cx;bias=cb) |> Array
+    cwhn = cudnnConvolutionForward(cw2,cx2;bias=cb2,format=CUDNN_TENSOR_NHWC) |> Array
     @test cwhn ≈ permutedims(whcn,(3,1,2,4))
 end

@@ -16,7 +16,7 @@ function cudnnGetErrorString(status)
 end
 
 @checked function cudnnQueryRuntimeError(handle, rstatus, mode, tag)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnQueryRuntimeError, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{cudnnStatus_t}, cudnnErrQueryMode_t,
                     Ptr{cudnnRuntimeTag_t}),
@@ -30,42 +30,42 @@ end
 end
 
 @checked function cudnnCreate(handle)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreate, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnHandle_t},),
                    handle)
 end
 
 @checked function cudnnDestroy(handle)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroy, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t,),
                    handle)
 end
 
 @checked function cudnnSetStream(handle, streamId)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetStream, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, CUstream),
                    handle, streamId)
 end
 
 @checked function cudnnGetStream(handle, streamId)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetStream, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{CUstream}),
                    handle, streamId)
 end
 
 @checked function cudnnCreateTensorDescriptor(tensorDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateTensorDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnTensorDescriptor_t},),
                    tensorDesc)
 end
 
 @checked function cudnnSetTensor4dDescriptor(tensorDesc, format, dataType, n, c, h, w)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetTensor4dDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnTensorDescriptor_t, cudnnTensorFormat_t, cudnnDataType_t, Cint,
                     Cint, Cint, Cint),
@@ -74,7 +74,7 @@ end
 
 @checked function cudnnSetTensor4dDescriptorEx(tensorDesc, dataType, n, c, h, w, nStride,
                                                cStride, hStride, wStride)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetTensor4dDescriptorEx, libcudnn()), cudnnStatus_t,
                    (cudnnTensorDescriptor_t, cudnnDataType_t, Cint, Cint, Cint, Cint,
                     Cint, Cint, Cint, Cint),
@@ -83,7 +83,7 @@ end
 
 @checked function cudnnGetTensor4dDescriptor(tensorDesc, dataType, n, c, h, w, nStride,
                                              cStride, hStride, wStride)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetTensor4dDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnTensorDescriptor_t, Ptr{cudnnDataType_t}, Ptr{Cint}, Ptr{Cint},
                     Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}),
@@ -91,14 +91,14 @@ end
 end
 
 @checked function cudnnSetTensorNdDescriptor(tensorDesc, dataType, nbDims, dimA, strideA)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetTensorNdDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnTensorDescriptor_t, cudnnDataType_t, Cint, Ptr{Cint}, Ptr{Cint}),
                    tensorDesc, dataType, nbDims, dimA, strideA)
 end
 
 @checked function cudnnSetTensorNdDescriptorEx(tensorDesc, format, dataType, nbDims, dimA)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetTensorNdDescriptorEx, libcudnn()), cudnnStatus_t,
                    (cudnnTensorDescriptor_t, cudnnTensorFormat_t, cudnnDataType_t, Cint,
                     Ptr{Cint}),
@@ -107,7 +107,7 @@ end
 
 @checked function cudnnGetTensorNdDescriptor(tensorDesc, nbDimsRequested, dataType, nbDims,
                                              dimA, strideA)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetTensorNdDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnTensorDescriptor_t, Cint, Ptr{cudnnDataType_t}, Ptr{Cint},
                     Ptr{Cint}, Ptr{Cint}),
@@ -115,21 +115,21 @@ end
 end
 
 @checked function cudnnGetTensorSizeInBytes(tensorDesc, size)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetTensorSizeInBytes, libcudnn()), cudnnStatus_t,
                    (cudnnTensorDescriptor_t, Ptr{Csize_t}),
                    tensorDesc, size)
 end
 
 @checked function cudnnDestroyTensorDescriptor(tensorDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyTensorDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnTensorDescriptor_t,),
                    tensorDesc)
 end
 
 @checked function cudnnInitTransformDest(transformDesc, srcDesc, destDesc, destSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnInitTransformDest, libcudnn()), cudnnStatus_t,
                    (cudnnTensorTransformDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnTensorDescriptor_t, Ptr{Csize_t}),
@@ -137,7 +137,7 @@ end
 end
 
 @checked function cudnnCreateTensorTransformDescriptor(transformDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateTensorTransformDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnTensorTransformDescriptor_t},),
                    transformDesc)
@@ -145,7 +145,7 @@ end
 
 @checked function cudnnSetTensorTransformDescriptor(transformDesc, nbDims, destFormat,
                                                     padBeforeA, padAfterA, foldA, direction)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetTensorTransformDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnTensorTransformDescriptor_t, UInt32, cudnnTensorFormat_t,
                     Ptr{Int32}, Ptr{Int32}, Ptr{UInt32}, cudnnFoldingDirection_t),
@@ -156,7 +156,7 @@ end
 @checked function cudnnGetTensorTransformDescriptor(transformDesc, nbDimsRequested,
                                                     destFormat, padBeforeA, padAfterA,
                                                     foldA, direction)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetTensorTransformDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnTensorTransformDescriptor_t, UInt32, Ptr{cudnnTensorFormat_t},
                     Ptr{Int32}, Ptr{Int32}, Ptr{UInt32}, Ptr{cudnnFoldingDirection_t}),
@@ -165,14 +165,14 @@ end
 end
 
 @checked function cudnnDestroyTensorTransformDescriptor(transformDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyTensorTransformDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnTensorTransformDescriptor_t,),
                    transformDesc)
 end
 
 @checked function cudnnTransformTensor(handle, alpha, xDesc, x, beta, yDesc, y)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnTransformTensor, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{Cvoid}, cudnnTensorDescriptor_t, Ptr{Cvoid},
                     Ptr{Cvoid}, cudnnTensorDescriptor_t, Ptr{Cvoid}),
@@ -181,7 +181,7 @@ end
 
 @checked function cudnnTransformTensorEx(handle, transDesc, alpha, srcDesc, srcData, beta,
                                          destDesc, destData)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnTransformTensorEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorTransformDescriptor_t, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid},
@@ -199,7 +199,7 @@ end
                                                             diffPadTransDesc,
                                                             gradFoldTransDesc,
                                                             gradUnfoldTransDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetFoldedConvBackwardDataDescriptors, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnFilterDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t,
@@ -214,7 +214,7 @@ end
 end
 
 @checked function cudnnAddTensor(handle, alpha, aDesc, A, beta, cDesc, C)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnAddTensor, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid},
                     Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}),
@@ -222,7 +222,7 @@ end
 end
 
 @checked function cudnnCreateOpTensorDescriptor(opTensorDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateOpTensorDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnOpTensorDescriptor_t},),
                    opTensorDesc)
@@ -230,7 +230,7 @@ end
 
 @checked function cudnnSetOpTensorDescriptor(opTensorDesc, opTensorOp, opTensorCompType,
                                              opTensorNanOpt)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetOpTensorDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnOpTensorDescriptor_t, cudnnOpTensorOp_t, cudnnDataType_t,
                     cudnnNanPropagation_t),
@@ -239,7 +239,7 @@ end
 
 @checked function cudnnGetOpTensorDescriptor(opTensorDesc, opTensorOp, opTensorCompType,
                                              opTensorNanOpt)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetOpTensorDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnOpTensorDescriptor_t, Ptr{cudnnOpTensorOp_t},
                     Ptr{cudnnDataType_t}, Ptr{cudnnNanPropagation_t}),
@@ -247,7 +247,7 @@ end
 end
 
 @checked function cudnnDestroyOpTensorDescriptor(opTensorDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyOpTensorDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnOpTensorDescriptor_t,),
                    opTensorDesc)
@@ -255,7 +255,7 @@ end
 
 @checked function cudnnOpTensor(handle, opTensorDesc, alpha1, aDesc, A, alpha2, bDesc, B,
                                 beta, cDesc, C)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnOpTensor, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnOpTensorDescriptor_t, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, Ptr{Cvoid},
@@ -266,7 +266,7 @@ end
 end
 
 @checked function cudnnCreateReduceTensorDescriptor(reduceTensorDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateReduceTensorDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnReduceTensorDescriptor_t},),
                    reduceTensorDesc)
@@ -276,7 +276,7 @@ end
                                                  reduceTensorCompType, reduceTensorNanOpt,
                                                  reduceTensorIndices,
                                                  reduceTensorIndicesType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetReduceTensorDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnReduceTensorDescriptor_t, cudnnReduceTensorOp_t, cudnnDataType_t,
                     cudnnNanPropagation_t, cudnnReduceTensorIndices_t, cudnnIndicesType_t),
@@ -288,7 +288,7 @@ end
                                                  reduceTensorCompType, reduceTensorNanOpt,
                                                  reduceTensorIndices,
                                                  reduceTensorIndicesType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetReduceTensorDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnReduceTensorDescriptor_t, Ptr{cudnnReduceTensorOp_t},
                     Ptr{cudnnDataType_t}, Ptr{cudnnNanPropagation_t},
@@ -298,7 +298,7 @@ end
 end
 
 @checked function cudnnDestroyReduceTensorDescriptor(reduceTensorDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyReduceTensorDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnReduceTensorDescriptor_t,),
                    reduceTensorDesc)
@@ -306,7 +306,7 @@ end
 
 @checked function cudnnGetReductionIndicesSize(handle, reduceTensorDesc, aDesc, cDesc,
                                                sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetReductionIndicesSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnReduceTensorDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnTensorDescriptor_t, Ptr{Csize_t}),
@@ -315,7 +315,7 @@ end
 
 @checked function cudnnGetReductionWorkspaceSize(handle, reduceTensorDesc, aDesc, cDesc,
                                                  sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetReductionWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnReduceTensorDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnTensorDescriptor_t, Ref{Csize_t}),
@@ -325,7 +325,7 @@ end
 @checked function cudnnReduceTensor(handle, reduceTensorDesc, indices, indicesSizeInBytes,
                                     workspace, workspaceSizeInBytes, alpha, aDesc, A, beta,
                                     cDesc, C)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnReduceTensor, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnReduceTensorDescriptor_t, Ptr{Cvoid}, Csize_t,
                     CuPtr{Cvoid}, Csize_t, Ptr{Cvoid}, cudnnTensorDescriptor_t,
@@ -335,28 +335,28 @@ end
 end
 
 @checked function cudnnSetTensor(handle, yDesc, y, valuePtr)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetTensor, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, CuPtr{Cvoid}, Ptr{Cvoid}),
                    handle, yDesc, y, valuePtr)
 end
 
 @checked function cudnnScaleTensor(handle, yDesc, y, alpha)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnScaleTensor, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, CuPtr{Cvoid}, Ptr{Cvoid}),
                    handle, yDesc, y, alpha)
 end
 
 @checked function cudnnCreateFilterDescriptor(filterDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateFilterDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnFilterDescriptor_t},),
                    filterDesc)
 end
 
 @checked function cudnnSetFilter4dDescriptor(filterDesc, dataType, format, k, c, h, w)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetFilter4dDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnFilterDescriptor_t, cudnnDataType_t, cudnnTensorFormat_t, Cint,
                     Cint, Cint, Cint),
@@ -364,7 +364,7 @@ end
 end
 
 @checked function cudnnGetFilter4dDescriptor(filterDesc, dataType, format, k, c, h, w)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetFilter4dDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnFilterDescriptor_t, Ptr{cudnnDataType_t},
                     Ptr{cudnnTensorFormat_t}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}),
@@ -373,7 +373,7 @@ end
 
 @checked function cudnnSetFilterNdDescriptor(filterDesc, dataType, format, nbDims,
                                              filterDimA)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetFilterNdDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnFilterDescriptor_t, cudnnDataType_t, cudnnTensorFormat_t, Cint,
                     Ptr{Cint}),
@@ -382,7 +382,7 @@ end
 
 @checked function cudnnGetFilterNdDescriptor(filterDesc, nbDimsRequested, dataType, format,
                                              nbDims, filterDimA)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetFilterNdDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnFilterDescriptor_t, Cint, Ptr{cudnnDataType_t},
                     Ptr{cudnnTensorFormat_t}, Ptr{Cint}, Ptr{Cint}),
@@ -390,7 +390,7 @@ end
 end
 
 @checked function cudnnGetFilterSizeInBytes(filterDesc, size)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetFilterSizeInBytes, libcudnn()), cudnnStatus_t,
                    (cudnnFilterDescriptor_t, Ptr{Csize_t}),
                    filterDesc, size)
@@ -398,7 +398,7 @@ end
 
 @checked function cudnnTransformFilter(handle, transDesc, alpha, srcDesc, srcData, beta,
                                        destDesc, destData)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnTransformFilter, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorTransformDescriptor_t, Ptr{Cvoid},
                     cudnnFilterDescriptor_t, CuPtr{Cvoid}, Ptr{Cvoid},
@@ -407,7 +407,7 @@ end
 end
 
 @checked function cudnnDestroyFilterDescriptor(filterDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyFilterDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnFilterDescriptor_t,),
                    filterDesc)
@@ -416,7 +416,7 @@ end
 @checked function cudnnReorderFilterAndBias(handle, filterDesc, reorderType, filterData,
                                             reorderedFilterData, reorderBias, biasData,
                                             reorderedBiasData)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnReorderFilterAndBias, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnFilterDescriptor_t, cudnnReorderType_t,
                     CuPtr{Cvoid}, CuPtr{Cvoid}, Cint, CuPtr{Cvoid}, CuPtr{Cvoid}),
@@ -425,49 +425,49 @@ end
 end
 
 @checked function cudnnCreateConvolutionDescriptor(convDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateConvolutionDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnConvolutionDescriptor_t},),
                    convDesc)
 end
 
 @checked function cudnnSetConvolutionMathType(convDesc, mathType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetConvolutionMathType, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t, cudnnMathType_t),
                    convDesc, mathType)
 end
 
 @checked function cudnnGetConvolutionMathType(convDesc, mathType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionMathType, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t, Ptr{cudnnMathType_t}),
                    convDesc, mathType)
 end
 
 @checked function cudnnSetConvolutionGroupCount(convDesc, groupCount)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetConvolutionGroupCount, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t, Cint),
                    convDesc, groupCount)
 end
 
 @checked function cudnnGetConvolutionGroupCount(convDesc, groupCount)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionGroupCount, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t, Ptr{Cint}),
                    convDesc, groupCount)
 end
 
 @checked function cudnnSetConvolutionReorderType(convDesc, reorderType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetConvolutionReorderType, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t, cudnnReorderType_t),
                    convDesc, reorderType)
 end
 
 @checked function cudnnGetConvolutionReorderType(convDesc, reorderType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionReorderType, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t, Ptr{cudnnReorderType_t}),
                    convDesc, reorderType)
@@ -475,7 +475,7 @@ end
 
 @checked function cudnnSetConvolution2dDescriptor(convDesc, pad_h, pad_w, u, v, dilation_h,
                                                   dilation_w, mode, computeType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetConvolution2dDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t, Cint, Cint, Cint, Cint, Cint, Cint,
                     cudnnConvolutionMode_t, cudnnDataType_t),
@@ -484,7 +484,7 @@ end
 
 @checked function cudnnGetConvolution2dDescriptor(convDesc, pad_h, pad_w, u, v, dilation_h,
                                                   dilation_w, mode, computeType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolution2dDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t, Ptr{Cint}, Ptr{Cint}, Ptr{Cint},
                     Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{cudnnConvolutionMode_t},
@@ -494,7 +494,7 @@ end
 
 @checked function cudnnGetConvolution2dForwardOutputDim(convDesc, inputTensorDesc,
                                                         filterDesc, n, c, h, w)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolution2dForwardOutputDim, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnFilterDescriptor_t, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}),
@@ -504,7 +504,7 @@ end
 @checked function cudnnSetConvolutionNdDescriptor(convDesc, arrayLength, padA,
                                                   filterStrideA, dilationA, mode,
                                                   computeType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetConvolutionNdDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cint},
                     cudnnConvolutionMode_t, cudnnDataType_t),
@@ -515,7 +515,7 @@ end
 @checked function cudnnGetConvolutionNdDescriptor(convDesc, arrayLengthRequested,
                                                   arrayLength, padA, strideA, dilationA,
                                                   mode, computeType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionNdDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cint},
                     Ptr{Cint}, Ptr{cudnnConvolutionMode_t}, Ptr{cudnnDataType_t}),
@@ -525,7 +525,7 @@ end
 
 @checked function cudnnGetConvolutionNdForwardOutputDim(convDesc, inputTensorDesc,
                                                         filterDesc, nbDims, tensorOuputDimA)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionNdForwardOutputDim, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnFilterDescriptor_t, Cint, Ptr{Cint}),
@@ -533,14 +533,14 @@ end
 end
 
 @checked function cudnnDestroyConvolutionDescriptor(convDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyConvolutionDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnConvolutionDescriptor_t,),
                    convDesc)
 end
 
 @checked function cudnnGetConvolutionForwardAlgorithmMaxCount(handle, count)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionForwardAlgorithmMaxCount, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{Cint}),
                    handle, count)
@@ -549,7 +549,7 @@ end
 @checked function cudnnFindConvolutionForwardAlgorithm(handle, xDesc, wDesc, convDesc,
                                                        yDesc, requestedAlgoCount,
                                                        returnedAlgoCount, perfResults)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnFindConvolutionForwardAlgorithm, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnFilterDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t, Cint, Ptr{Cint},
@@ -563,7 +563,7 @@ end
                                                          requestedAlgoCount,
                                                          returnedAlgoCount, perfResults,
                                                          workSpace, workSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnFindConvolutionForwardAlgorithmEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, CuPtr{Cvoid},
                     cudnnFilterDescriptor_t, CuPtr{Cvoid}, cudnnConvolutionDescriptor_t,
@@ -577,7 +577,7 @@ end
                                                          convDesc, destDesc,
                                                          requestedAlgoCount,
                                                          returnedAlgoCount, perfResults)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionForwardAlgorithm_v7, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnFilterDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t, Cint, Ptr{Cint},
@@ -588,7 +588,7 @@ end
 
 @checked function cudnnGetConvolutionForwardWorkspaceSize(handle, xDesc, wDesc, convDesc,
                                                           yDesc, algo, sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionForwardWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnFilterDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t,
@@ -599,7 +599,7 @@ end
 @checked function cudnnConvolutionForward(handle, alpha, xDesc, x, wDesc, w, convDesc,
                                           algo, workSpace, workSpaceSizeInBytes, beta,
                                           yDesc, y)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnConvolutionForward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid},
                     cudnnFilterDescriptor_t, CuPtr{Cvoid}, cudnnConvolutionDescriptor_t,
@@ -614,7 +614,7 @@ end
                                                         workSpaceSizeInBytes, alpha2,
                                                         zDesc, z, biasDesc, bias,
                                                         activationDesc, yDesc, y)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnConvolutionBiasActivationForward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid},
                     cudnnFilterDescriptor_t, CuPtr{Cvoid}, cudnnConvolutionDescriptor_t,
@@ -628,7 +628,7 @@ end
 end
 
 @checked function cudnnConvolutionBackwardBias(handle, alpha, dyDesc, dy, beta, dbDesc, db)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnConvolutionBackwardBias, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid},
                     Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}),
@@ -636,7 +636,7 @@ end
 end
 
 @checked function cudnnGetConvolutionBackwardFilterAlgorithmMaxCount(handle, count)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionBackwardFilterAlgorithmMaxCount, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{Cint}),
                    handle, count)
@@ -646,7 +646,7 @@ end
                                                               convDesc, dwDesc,
                                                               requestedAlgoCount,
                                                               returnedAlgoCount, perfResults)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnFindConvolutionBackwardFilterAlgorithm, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnFilterDescriptor_t, Cint, Ptr{Cint},
@@ -661,7 +661,7 @@ end
                                                                 returnedAlgoCount,
                                                                 perfResults, workSpace,
                                                                 workSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnFindConvolutionBackwardFilterAlgorithmEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, CuPtr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnConvolutionDescriptor_t,
@@ -676,7 +676,7 @@ end
                                                                 requestedAlgoCount,
                                                                 returnedAlgoCount,
                                                                 perfResults)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionBackwardFilterAlgorithm_v7, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnFilterDescriptor_t, Cint, Ptr{Cint},
@@ -688,7 +688,7 @@ end
 @checked function cudnnGetConvolutionBackwardFilterWorkspaceSize(handle, xDesc, dyDesc,
                                                                  convDesc, gradDesc, algo,
                                                                  sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionBackwardFilterWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnFilterDescriptor_t,
@@ -699,7 +699,7 @@ end
 @checked function cudnnConvolutionBackwardFilter(handle, alpha, xDesc, x, dyDesc, dy,
                                                  convDesc, algo, workSpace,
                                                  workSpaceSizeInBytes, beta, dwDesc, dw)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnConvolutionBackwardFilter, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnConvolutionDescriptor_t,
@@ -710,7 +710,7 @@ end
 end
 
 @checked function cudnnGetConvolutionBackwardDataAlgorithmMaxCount(handle, count)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionBackwardDataAlgorithmMaxCount, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{Cint}),
                    handle, count)
@@ -720,7 +720,7 @@ end
                                                             convDesc, dxDesc,
                                                             requestedAlgoCount,
                                                             returnedAlgoCount, perfResults)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnFindConvolutionBackwardDataAlgorithm, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnFilterDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t, Cint, Ptr{Cint},
@@ -735,7 +735,7 @@ end
                                                               returnedAlgoCount,
                                                               perfResults, workSpace,
                                                               workSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnFindConvolutionBackwardDataAlgorithmEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnFilterDescriptor_t, CuPtr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnConvolutionDescriptor_t,
@@ -749,7 +749,7 @@ end
                                                               convDesc, gradDesc,
                                                               requestedAlgoCount,
                                                               returnedAlgoCount, perfResults)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionBackwardDataAlgorithm_v7, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnFilterDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t, Cint, Ptr{Cint},
@@ -761,7 +761,7 @@ end
 @checked function cudnnGetConvolutionBackwardDataWorkspaceSize(handle, wDesc, dyDesc,
                                                                convDesc, dxDesc, algo,
                                                                sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetConvolutionBackwardDataWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnFilterDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t,
@@ -772,7 +772,7 @@ end
 @checked function cudnnConvolutionBackwardData(handle, alpha, wDesc, w, dyDesc, dy,
                                                convDesc, algo, workSpace,
                                                workSpaceSizeInBytes, beta, dxDesc, dx)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnConvolutionBackwardData, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{Cvoid}, cudnnFilterDescriptor_t, CuPtr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnConvolutionDescriptor_t,
@@ -783,7 +783,7 @@ end
 end
 
 @checked function cudnnIm2Col(handle, xDesc, x, wDesc, convDesc, colBuffer)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnIm2Col, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, CuPtr{Cvoid},
                     cudnnFilterDescriptor_t, cudnnConvolutionDescriptor_t, CuPtr{Cvoid}),
@@ -791,7 +791,7 @@ end
 end
 
 @checked function cudnnSoftmaxForward(handle, algo, mode, alpha, xDesc, x, beta, yDesc, y)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSoftmaxForward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnSoftmaxAlgorithm_t, cudnnSoftmaxMode_t,
                     Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, Ptr{Cvoid},
@@ -801,7 +801,7 @@ end
 
 @checked function cudnnSoftmaxBackward(handle, algo, mode, alpha, yDesc, y, dyDesc, dy,
                                        beta, dxDesc, dx)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSoftmaxBackward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnSoftmaxAlgorithm_t, cudnnSoftmaxMode_t,
                     Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid},
@@ -811,7 +811,7 @@ end
 end
 
 @checked function cudnnCreatePoolingDescriptor(poolingDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreatePoolingDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnPoolingDescriptor_t},),
                    poolingDesc)
@@ -821,7 +821,7 @@ end
                                               windowHeight, windowWidth, verticalPadding,
                                               horizontalPadding, verticalStride,
                                               horizontalStride)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetPooling2dDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnPoolingDescriptor_t, cudnnPoolingMode_t, cudnnNanPropagation_t,
                     Cint, Cint, Cint, Cint, Cint, Cint),
@@ -833,7 +833,7 @@ end
                                               windowHeight, windowWidth, verticalPadding,
                                               horizontalPadding, verticalStride,
                                               horizontalStride)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetPooling2dDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnPoolingDescriptor_t, Ptr{cudnnPoolingMode_t},
                     Ptr{cudnnNanPropagation_t}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint},
@@ -844,7 +844,7 @@ end
 
 @checked function cudnnSetPoolingNdDescriptor(poolingDesc, mode, maxpoolingNanOpt, nbDims,
                                               windowDimA, paddingA, strideA)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetPoolingNdDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnPoolingDescriptor_t, cudnnPoolingMode_t, cudnnNanPropagation_t,
                     Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}),
@@ -855,7 +855,7 @@ end
 @checked function cudnnGetPoolingNdDescriptor(poolingDesc, nbDimsRequested, mode,
                                               maxpoolingNanOpt, nbDims, windowDimA,
                                               paddingA, strideA)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetPoolingNdDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnPoolingDescriptor_t, Cint, Ptr{cudnnPoolingMode_t},
                     Ptr{cudnnNanPropagation_t}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}),
@@ -865,14 +865,14 @@ end
 
 @checked function cudnnGetPoolingNdForwardOutputDim(poolingDesc, inputTensorDesc, nbDims,
                                                     outputTensorDimA)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetPoolingNdForwardOutputDim, libcudnn()), cudnnStatus_t,
                    (cudnnPoolingDescriptor_t, cudnnTensorDescriptor_t, Cint, Ptr{Cint}),
                    poolingDesc, inputTensorDesc, nbDims, outputTensorDimA)
 end
 
 @checked function cudnnGetPooling2dForwardOutputDim(poolingDesc, inputTensorDesc, n, c, h, w)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetPooling2dForwardOutputDim, libcudnn()), cudnnStatus_t,
                    (cudnnPoolingDescriptor_t, cudnnTensorDescriptor_t, Ptr{Cint},
                     Ptr{Cint}, Ptr{Cint}, Ptr{Cint}),
@@ -880,14 +880,14 @@ end
 end
 
 @checked function cudnnDestroyPoolingDescriptor(poolingDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyPoolingDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnPoolingDescriptor_t,),
                    poolingDesc)
 end
 
 @checked function cudnnPoolingForward(handle, poolingDesc, alpha, xDesc, x, beta, yDesc, y)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnPoolingForward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnPoolingDescriptor_t, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, Ptr{Cvoid},
@@ -897,7 +897,7 @@ end
 
 @checked function cudnnPoolingBackward(handle, poolingDesc, alpha, yDesc, y, dyDesc, dy,
                                        xDesc, x, beta, dxDesc, dx)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnPoolingBackward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnPoolingDescriptor_t, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
@@ -908,14 +908,14 @@ end
 end
 
 @checked function cudnnCreateActivationDescriptor(activationDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateActivationDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnActivationDescriptor_t},),
                    activationDesc)
 end
 
 @checked function cudnnSetActivationDescriptor(activationDesc, mode, reluNanOpt, coef)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetActivationDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnActivationDescriptor_t, cudnnActivationMode_t,
                     cudnnNanPropagation_t, Cdouble),
@@ -923,7 +923,7 @@ end
 end
 
 @checked function cudnnGetActivationDescriptor(activationDesc, mode, reluNanOpt, coef)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetActivationDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnActivationDescriptor_t, Ptr{cudnnActivationMode_t},
                     Ptr{cudnnNanPropagation_t}, Ptr{Cdouble}),
@@ -931,7 +931,7 @@ end
 end
 
 @checked function cudnnDestroyActivationDescriptor(activationDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyActivationDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnActivationDescriptor_t,),
                    activationDesc)
@@ -939,7 +939,7 @@ end
 
 @checked function cudnnActivationForward(handle, activationDesc, alpha, xDesc, x, beta,
                                          yDesc, y)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnActivationForward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnActivationDescriptor_t, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, Ptr{Cvoid},
@@ -949,7 +949,7 @@ end
 
 @checked function cudnnActivationBackward(handle, activationDesc, alpha, yDesc, y, dyDesc,
                                           dy, xDesc, x, beta, dxDesc, dx)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnActivationBackward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnActivationDescriptor_t, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
@@ -960,21 +960,21 @@ end
 end
 
 @checked function cudnnCreateLRNDescriptor(normDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateLRNDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnLRNDescriptor_t},),
                    normDesc)
 end
 
 @checked function cudnnSetLRNDescriptor(normDesc, lrnN, lrnAlpha, lrnBeta, lrnK)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetLRNDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnLRNDescriptor_t, UInt32, Cdouble, Cdouble, Cdouble),
                    normDesc, lrnN, lrnAlpha, lrnBeta, lrnK)
 end
 
 @checked function cudnnGetLRNDescriptor(normDesc, lrnN, lrnAlpha, lrnBeta, lrnK)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetLRNDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnLRNDescriptor_t, Ptr{UInt32}, Ptr{Cdouble}, Ptr{Cdouble},
                     Ptr{Cdouble}),
@@ -982,7 +982,7 @@ end
 end
 
 @checked function cudnnDestroyLRNDescriptor(lrnDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyLRNDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnLRNDescriptor_t,),
                    lrnDesc)
@@ -990,7 +990,7 @@ end
 
 @checked function cudnnLRNCrossChannelForward(handle, normDesc, lrnMode, alpha, xDesc, x,
                                               beta, yDesc, y)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnLRNCrossChannelForward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnLRNDescriptor_t, cudnnLRNMode_t, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, Ptr{Cvoid},
@@ -1000,7 +1000,7 @@ end
 
 @checked function cudnnLRNCrossChannelBackward(handle, normDesc, lrnMode, alpha, yDesc, y,
                                                dyDesc, dy, xDesc, x, beta, dxDesc, dx)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnLRNCrossChannelBackward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnLRNDescriptor_t, cudnnLRNMode_t, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
@@ -1012,7 +1012,7 @@ end
 
 @checked function cudnnDivisiveNormalizationForward(handle, normDesc, mode, alpha, xDesc,
                                                     x, means, temp, temp2, beta, yDesc, y)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDivisiveNormalizationForward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnLRNDescriptor_t, cudnnDivNormMode_t, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid},
@@ -1024,7 +1024,7 @@ end
 @checked function cudnnDivisiveNormalizationBackward(handle, normDesc, mode, alpha, xDesc,
                                                      x, means, dy, temp, temp2, beta,
                                                      dXdMeansDesc, dx, dMeans)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDivisiveNormalizationBackward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnLRNDescriptor_t, cudnnDivNormMode_t, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid},
@@ -1035,7 +1035,7 @@ end
 end
 
 @checked function cudnnDeriveBNTensorDescriptor(derivedBnDesc, xDesc, mode)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDeriveBNTensorDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, cudnnBatchNormMode_t),
                    derivedBnDesc, xDesc, mode)
@@ -1047,7 +1047,7 @@ end
                                                                            bnScaleBiasMeanVarDesc,
                                                                            activationDesc,
                                                                            sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetBatchNormalizationForwardTrainingExWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnBatchNormMode_t, cudnnBatchNormOps_t,
                     cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
@@ -1063,7 +1063,7 @@ end
                                                                     dBnScaleBiasDesc,
                                                                     activationDesc,
                                                                     sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetBatchNormalizationBackwardExWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnBatchNormMode_t, cudnnBatchNormOps_t,
                     cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
@@ -1077,7 +1077,7 @@ end
 @checked function cudnnGetBatchNormalizationTrainingExReserveSpaceSize(handle, mode, bnOps,
                                                                        activationDesc,
                                                                        xDesc, sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetBatchNormalizationTrainingExReserveSpaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnBatchNormMode_t, cudnnBatchNormOps_t,
                     cudnnActivationDescriptor_t, cudnnTensorDescriptor_t, Ref{Csize_t}),
@@ -1092,7 +1092,7 @@ end
                                                          resultRunningVariance, epsilon,
                                                          resultSaveMean,
                                                          resultSaveInvVariance)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnBatchNormalizationForwardTraining, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnBatchNormMode_t, Ptr{Cvoid}, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
@@ -1117,7 +1117,7 @@ end
                                                            workSpaceSizeInBytes,
                                                            reserveSpace,
                                                            reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnBatchNormalizationForwardTrainingEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnBatchNormMode_t, cudnnBatchNormOps_t, Ptr{Cvoid},
                     Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid},
@@ -1138,7 +1138,7 @@ end
                                                           bnScaleBiasMeanVarDesc, bnScale,
                                                           bnBias, estimatedMean,
                                                           estimatedVariance, epsilon)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnBatchNormalizationForwardInference, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnBatchNormMode_t, Ptr{Cvoid}, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
@@ -1154,7 +1154,7 @@ end
                                                   dxDesc, dx, dBnScaleBiasDesc, bnScale,
                                                   dBnScaleResult, dBnBiasResult, epsilon,
                                                   savedMean, savedInvVariance)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnBatchNormalizationBackward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnBatchNormMode_t, Ptr{Cvoid}, Ptr{Cvoid},
                     Ptr{Cvoid}, Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid},
@@ -1177,7 +1177,7 @@ end
                                                     savedInvVariance, activationDesc,
                                                     workSpace, workSpaceSizeInBytes,
                                                     reserveSpace, reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnBatchNormalizationBackwardEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnBatchNormMode_t, cudnnBatchNormOps_t, Ptr{Cvoid},
                     Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, cudnnTensorDescriptor_t,
@@ -1197,7 +1197,7 @@ end
 end
 
 @checked function cudnnCreateSpatialTransformerDescriptor(stDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateSpatialTransformerDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnSpatialTransformerDescriptor_t},),
                    stDesc)
@@ -1205,7 +1205,7 @@ end
 
 @checked function cudnnSetSpatialTransformerNdDescriptor(stDesc, samplerType, dataType,
                                                          nbDims, dimA)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetSpatialTransformerNdDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnSpatialTransformerDescriptor_t, cudnnSamplerType_t,
                     cudnnDataType_t, Cint, Ptr{Cint}),
@@ -1213,14 +1213,14 @@ end
 end
 
 @checked function cudnnDestroySpatialTransformerDescriptor(stDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroySpatialTransformerDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnSpatialTransformerDescriptor_t,),
                    stDesc)
 end
 
 @checked function cudnnSpatialTfGridGeneratorForward(handle, stDesc, theta, grid)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSpatialTfGridGeneratorForward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnSpatialTransformerDescriptor_t, CuPtr{Cvoid},
                     CuPtr{Cvoid}),
@@ -1228,7 +1228,7 @@ end
 end
 
 @checked function cudnnSpatialTfGridGeneratorBackward(handle, stDesc, dgrid, dtheta)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSpatialTfGridGeneratorBackward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnSpatialTransformerDescriptor_t, CuPtr{Cvoid},
                     CuPtr{Cvoid}),
@@ -1237,7 +1237,7 @@ end
 
 @checked function cudnnSpatialTfSamplerForward(handle, stDesc, alpha, xDesc, x, grid, beta,
                                                yDesc, y)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSpatialTfSamplerForward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnSpatialTransformerDescriptor_t, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, Ptr{Cvoid},
@@ -1248,7 +1248,7 @@ end
 @checked function cudnnSpatialTfSamplerBackward(handle, stDesc, alpha, xDesc, x, beta,
                                                 dxDesc, dx, alphaDgrid, dyDesc, dy, grid,
                                                 betaDgrid, dgrid)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSpatialTfSamplerBackward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnSpatialTransformerDescriptor_t, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, Ptr{Cvoid},
@@ -1260,28 +1260,28 @@ end
 end
 
 @checked function cudnnCreateDropoutDescriptor(dropoutDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateDropoutDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnDropoutDescriptor_t},),
                    dropoutDesc)
 end
 
 @checked function cudnnDestroyDropoutDescriptor(dropoutDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyDropoutDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnDropoutDescriptor_t,),
                    dropoutDesc)
 end
 
 @checked function cudnnDropoutGetStatesSize(handle, sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDropoutGetStatesSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{Csize_t}),
                    handle, sizeInBytes)
 end
 
 @checked function cudnnDropoutGetReserveSpaceSize(xdesc, sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDropoutGetReserveSpaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnTensorDescriptor_t, Ref{Csize_t}),
                    xdesc, sizeInBytes)
@@ -1289,7 +1289,7 @@ end
 
 @checked function cudnnSetDropoutDescriptor(dropoutDesc, handle, dropout, states,
                                             stateSizeInBytes, seed)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetDropoutDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnDropoutDescriptor_t, cudnnHandle_t, Cfloat, CuPtr{Cvoid},
                     Csize_t, Culonglong),
@@ -1298,7 +1298,7 @@ end
 
 @checked function cudnnRestoreDropoutDescriptor(dropoutDesc, handle, dropout, states,
                                                 stateSizeInBytes, seed)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRestoreDropoutDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnDropoutDescriptor_t, cudnnHandle_t, Cfloat, CuPtr{Cvoid},
                     Csize_t, Culonglong),
@@ -1306,7 +1306,7 @@ end
 end
 
 @checked function cudnnGetDropoutDescriptor(dropoutDesc, handle, dropout, states, seed)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetDropoutDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnDropoutDescriptor_t, cudnnHandle_t, Ptr{Cfloat},
                     Ptr{CuPtr{Cvoid}}, Ptr{Culonglong}),
@@ -1315,7 +1315,7 @@ end
 
 @checked function cudnnDropoutForward(handle, dropoutDesc, xdesc, x, ydesc, y,
                                       reserveSpace, reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDropoutForward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnDropoutDescriptor_t, cudnnTensorDescriptor_t,
                     CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid},
@@ -1326,7 +1326,7 @@ end
 
 @checked function cudnnDropoutBackward(handle, dropoutDesc, dydesc, dy, dxdesc, dx,
                                        reserveSpace, reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDropoutBackward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnDropoutDescriptor_t, cudnnTensorDescriptor_t,
                     CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid},
@@ -1336,49 +1336,49 @@ end
 end
 
 @checked function cudnnCreateRNNDescriptor(rnnDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateRNNDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnRNNDescriptor_t},),
                    rnnDesc)
 end
 
 @checked function cudnnDestroyRNNDescriptor(rnnDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyRNNDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDescriptor_t,),
                    rnnDesc)
 end
 
 @checked function cudnnSetRNNMatrixMathType(rnnDesc, mType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetRNNMatrixMathType, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDescriptor_t, cudnnMathType_t),
                    rnnDesc, mType)
 end
 
 @checked function cudnnGetRNNMatrixMathType(rnnDesc, mType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNMatrixMathType, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDescriptor_t, Ptr{cudnnMathType_t}),
                    rnnDesc, mType)
 end
 
 @checked function cudnnSetRNNBiasMode(rnnDesc, biasMode)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetRNNBiasMode, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDescriptor_t, cudnnRNNBiasMode_t),
                    rnnDesc, biasMode)
 end
 
 @checked function cudnnGetRNNBiasMode(rnnDesc, biasMode)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNBiasMode, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDescriptor_t, Ptr{cudnnRNNBiasMode_t}),
                    rnnDesc, biasMode)
 end
 
 @checked function cudnnRNNSetClip(handle, rnnDesc, clipMode, clipNanOpt, lclip, rclip)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNSetClip, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, cudnnRNNClipMode_t,
                     cudnnNanPropagation_t, Cdouble, Cdouble),
@@ -1386,7 +1386,7 @@ end
 end
 
 @checked function cudnnRNNGetClip(handle, rnnDesc, clipMode, clipNanOpt, lclip, rclip)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNGetClip, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Ptr{cudnnRNNClipMode_t},
                     Ptr{cudnnNanPropagation_t}, Ptr{Cdouble}, Ptr{Cdouble}),
@@ -1394,21 +1394,21 @@ end
 end
 
 @checked function cudnnSetRNNProjectionLayers(handle, rnnDesc, recProjSize, outProjSize)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetRNNProjectionLayers, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint, Cint),
                    handle, rnnDesc, recProjSize, outProjSize)
 end
 
 @checked function cudnnGetRNNProjectionLayers(handle, rnnDesc, recProjSize, outProjSize)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNProjectionLayers, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Ptr{Cint}, Ptr{Cint}),
                    handle, rnnDesc, recProjSize, outProjSize)
 end
 
 @checked function cudnnCreatePersistentRNNPlan(rnnDesc, minibatch, dataType, plan)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreatePersistentRNNPlan, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDescriptor_t, Cint, cudnnDataType_t,
                     Ptr{cudnnPersistentRNNPlan_t}),
@@ -1416,21 +1416,21 @@ end
 end
 
 @checked function cudnnDestroyPersistentRNNPlan(plan)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyPersistentRNNPlan, libcudnn()), cudnnStatus_t,
                    (cudnnPersistentRNNPlan_t,),
                    plan)
 end
 
 @checked function cudnnSetPersistentRNNPlan(rnnDesc, plan)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetPersistentRNNPlan, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDescriptor_t, cudnnPersistentRNNPlan_t),
                    rnnDesc, plan)
 end
 
 @checked function cudnnGetRNNWorkspaceSize(handle, rnnDesc, seqLength, xDesc, sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint,
                     Ptr{cudnnTensorDescriptor_t}, Ref{Csize_t}),
@@ -1439,7 +1439,7 @@ end
 
 @checked function cudnnGetRNNTrainingReserveSize(handle, rnnDesc, seqLength, xDesc,
                                                  sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNTrainingReserveSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint,
                     Ptr{cudnnTensorDescriptor_t}, Ref{Csize_t}),
@@ -1447,7 +1447,7 @@ end
 end
 
 @checked function cudnnGetRNNParamsSize(handle, rnnDesc, xDesc, sizeInBytes, dataType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNParamsSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, cudnnTensorDescriptor_t,
                     Ref{Csize_t}, cudnnDataType_t),
@@ -1457,7 +1457,7 @@ end
 @checked function cudnnGetRNNLinLayerMatrixParams(handle, rnnDesc, pseudoLayer, xDesc,
                                                   wDesc, w, linLayerID, linLayerMatDesc,
                                                   linLayerMat)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNLinLayerMatrixParams, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint, cudnnTensorDescriptor_t,
                     cudnnFilterDescriptor_t, CuPtr{Cvoid}, Cint, cudnnFilterDescriptor_t,
@@ -1469,7 +1469,7 @@ end
 @checked function cudnnGetRNNLinLayerBiasParams(handle, rnnDesc, pseudoLayer, xDesc, wDesc,
                                                 w, linLayerID, linLayerBiasDesc,
                                                 linLayerBias)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNLinLayerBiasParams, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint, cudnnTensorDescriptor_t,
                     cudnnFilterDescriptor_t, CuPtr{Cvoid}, Cint, cudnnFilterDescriptor_t,
@@ -1481,7 +1481,7 @@ end
 @checked function cudnnRNNForwardInference(handle, rnnDesc, seqLength, xDesc, x, hxDesc,
                                            hx, cxDesc, cx, wDesc, w, yDesc, y, hyDesc, hy,
                                            cyDesc, cy, workspace, workSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNForwardInference, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint,
                     Ptr{cudnnTensorDescriptor_t}, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
@@ -1497,7 +1497,7 @@ end
                                           cxDesc, cx, wDesc, w, yDesc, y, hyDesc, hy,
                                           cyDesc, cy, workspace, workSpaceSizeInBytes,
                                           reserveSpace, reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNForwardTraining, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint,
                     Ptr{cudnnTensorDescriptor_t}, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
@@ -1516,7 +1516,7 @@ end
                                        cxDesc, cx, dxDesc, dx, dhxDesc, dhx, dcxDesc, dcx,
                                        workspace, workSpaceSizeInBytes, reserveSpace,
                                        reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNBackwardData, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint,
                     Ptr{cudnnTensorDescriptor_t}, CuPtr{Cvoid},
@@ -1536,7 +1536,7 @@ end
 @checked function cudnnRNNBackwardWeights(handle, rnnDesc, seqLength, xDesc, x, hxDesc, hx,
                                           yDesc, y, workspace, workSpaceSizeInBytes,
                                           dwDesc, dw, reserveSpace, reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNBackwardWeights, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint,
                     Ptr{cudnnTensorDescriptor_t}, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
@@ -1547,28 +1547,28 @@ end
 end
 
 @checked function cudnnSetRNNPaddingMode(rnnDesc, paddingMode)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetRNNPaddingMode, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDescriptor_t, cudnnRNNPaddingMode_t),
                    rnnDesc, paddingMode)
 end
 
 @checked function cudnnGetRNNPaddingMode(rnnDesc, paddingMode)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNPaddingMode, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDescriptor_t, Ptr{cudnnRNNPaddingMode_t}),
                    rnnDesc, paddingMode)
 end
 
 @checked function cudnnCreateRNNDataDescriptor(rnnDataDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateRNNDataDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnRNNDataDescriptor_t},),
                    rnnDataDesc)
 end
 
 @checked function cudnnDestroyRNNDataDescriptor(rnnDataDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyRNNDataDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDataDescriptor_t,),
                    rnnDataDesc)
@@ -1577,7 +1577,7 @@ end
 @checked function cudnnSetRNNDataDescriptor(rnnDataDesc, dataType, layout, maxSeqLength,
                                             batchSize, vectorSize, seqLengthArray,
                                             paddingFill)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetRNNDataDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDataDescriptor_t, cudnnDataType_t, cudnnRNNDataLayout_t, Cint,
                     Cint, Cint, Ptr{Cint}, Ptr{Cvoid}),
@@ -1588,7 +1588,7 @@ end
 @checked function cudnnGetRNNDataDescriptor(rnnDataDesc, dataType, layout, maxSeqLength,
                                             batchSize, vectorSize, arrayLengthRequested,
                                             seqLengthArray, paddingFill)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNDataDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDataDescriptor_t, Ptr{cudnnDataType_t},
                     Ptr{cudnnRNNDataLayout_t}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Cint,
@@ -1602,7 +1602,7 @@ end
                                             kDesc, keys, cDesc, cAttn, iDesc, iAttn, qDesc,
                                             queries, workSpace, workSpaceSizeInBytes,
                                             reserveSpace, reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNForwardTrainingEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, cudnnRNNDataDescriptor_t,
                     CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid},
@@ -1623,7 +1623,7 @@ end
                                              cx, wDesc, w, yDesc, y, hyDesc, hy, cyDesc,
                                              cy, kDesc, keys, cDesc, cAttn, iDesc, iAttn,
                                              qDesc, queries, workSpace, workSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNForwardInferenceEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, cudnnRNNDataDescriptor_t,
                     CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid},
@@ -1645,7 +1645,7 @@ end
                                          dcxDesc, dcx, dkDesc, dkeys, workSpace,
                                          workSpaceSizeInBytes, reserveSpace,
                                          reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNBackwardDataEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, cudnnRNNDataDescriptor_t,
                     CuPtr{Cvoid}, cudnnRNNDataDescriptor_t, CuPtr{Cvoid},
@@ -1666,7 +1666,7 @@ end
 @checked function cudnnRNNBackwardWeightsEx(handle, rnnDesc, xDesc, x, hxDesc, hx, yDesc,
                                             y, workSpace, workSpaceSizeInBytes, dwDesc, dw,
                                             reserveSpace, reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNBackwardWeightsEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, cudnnRNNDataDescriptor_t,
                     CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid},
@@ -1677,14 +1677,14 @@ end
 end
 
 @checked function cudnnSetRNNAlgorithmDescriptor(handle, rnnDesc, algoDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetRNNAlgorithmDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, cudnnAlgorithmDescriptor_t),
                    handle, rnnDesc, algoDesc)
 end
 
 @checked function cudnnGetRNNForwardInferenceAlgorithmMaxCount(handle, rnnDesc, count)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNForwardInferenceAlgorithmMaxCount, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Ptr{Cint}),
                    handle, rnnDesc, count)
@@ -1697,7 +1697,7 @@ end
                                                           requestedAlgoCount,
                                                           returnedAlgoCount, perfResults,
                                                           workspace, workSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnFindRNNForwardInferenceAlgorithmEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint,
                     Ptr{cudnnTensorDescriptor_t}, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
@@ -1712,7 +1712,7 @@ end
 end
 
 @checked function cudnnGetRNNForwardTrainingAlgorithmMaxCount(handle, rnnDesc, count)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNForwardTrainingAlgorithmMaxCount, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Ptr{Cint}),
                    handle, rnnDesc, count)
@@ -1727,7 +1727,7 @@ end
                                                          workspace, workSpaceSizeInBytes,
                                                          reserveSpace,
                                                          reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnFindRNNForwardTrainingAlgorithmEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint,
                     Ptr{cudnnTensorDescriptor_t}, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
@@ -1744,7 +1744,7 @@ end
 end
 
 @checked function cudnnGetRNNBackwardDataAlgorithmMaxCount(handle, rnnDesc, count)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNBackwardDataAlgorithmMaxCount, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Ptr{Cint}),
                    handle, rnnDesc, count)
@@ -1759,7 +1759,7 @@ end
                                                       returnedAlgoCount, perfResults,
                                                       workspace, workSpaceSizeInBytes,
                                                       reserveSpace, reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnFindRNNBackwardDataAlgorithmEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint,
                     Ptr{cudnnTensorDescriptor_t}, CuPtr{Cvoid},
@@ -1779,7 +1779,7 @@ end
 end
 
 @checked function cudnnGetRNNBackwardWeightsAlgorithmMaxCount(handle, rnnDesc, count)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNBackwardWeightsAlgorithmMaxCount, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Ptr{Cint}),
                    handle, rnnDesc, count)
@@ -1792,7 +1792,7 @@ end
                                                          workspace, workSpaceSizeInBytes,
                                                          dwDesc, dw, reserveSpace,
                                                          reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnFindRNNBackwardWeightsAlgorithmEx, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint,
                     Ptr{cudnnTensorDescriptor_t}, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
@@ -1806,14 +1806,14 @@ end
 end
 
 @checked function cudnnCreateSeqDataDescriptor(seqDataDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateSeqDataDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnSeqDataDescriptor_t},),
                    seqDataDesc)
 end
 
 @checked function cudnnDestroySeqDataDescriptor(seqDataDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroySeqDataDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnSeqDataDescriptor_t,),
                    seqDataDesc)
@@ -1821,7 +1821,7 @@ end
 
 @checked function cudnnSetSeqDataDescriptor(seqDataDesc, dataType, nbDims, dimA, axes,
                                             seqLengthArraySize, seqLengthArray, paddingFill)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetSeqDataDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnSeqDataDescriptor_t, cudnnDataType_t, Cint, Ptr{Cint},
                     Ptr{cudnnSeqDataAxis_t}, Csize_t, Ptr{Cint}, Ptr{Cvoid}),
@@ -1833,7 +1833,7 @@ end
                                             dimA, axes, seqLengthArraySize,
                                             seqLengthSizeRequested, seqLengthArray,
                                             paddingFill)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetSeqDataDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnSeqDataDescriptor_t, Ptr{cudnnDataType_t}, Ptr{Cint}, Cint,
                     Ptr{Cint}, Ptr{cudnnSeqDataAxis_t}, Ptr{Csize_t}, Csize_t, Ptr{Cint},
@@ -1843,14 +1843,14 @@ end
 end
 
 @checked function cudnnCreateAttnDescriptor(attnDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateAttnDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnAttnDescriptor_t},),
                    attnDesc)
 end
 
 @checked function cudnnDestroyAttnDescriptor(attnDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyAttnDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnAttnDescriptor_t,),
                    attnDesc)
@@ -1861,7 +1861,7 @@ end
                                          postDropoutDesc, qSize, kSize, vSize, qProjSize,
                                          kProjSize, vProjSize, oProjSize, qoMaxSeqLength,
                                          kvMaxSeqLength, maxBatchSize, maxBeamSize)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetAttnDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnAttnDescriptor_t, UInt32, Cint, Cdouble, cudnnDataType_t,
                     cudnnDataType_t, cudnnMathType_t, cudnnDropoutDescriptor_t,
@@ -1878,7 +1878,7 @@ end
                                          postDropoutDesc, qSize, kSize, vSize, qProjSize,
                                          kProjSize, vProjSize, oProjSize, qoMaxSeqLength,
                                          kvMaxSeqLength, maxBatchSize, maxBeamSize)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetAttnDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnAttnDescriptor_t, Ptr{UInt32}, Ptr{Cint}, Ptr{Cdouble},
                     Ptr{cudnnDataType_t}, Ptr{cudnnDataType_t}, Ptr{cudnnMathType_t},
@@ -1893,7 +1893,7 @@ end
 
 @checked function cudnnGetMultiHeadAttnBuffers(handle, attnDesc, weightSizeInBytes,
                                                workSpaceSizeInBytes, reserveSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetMultiHeadAttnBuffers, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnAttnDescriptor_t, Ptr{Csize_t}, Ptr{Csize_t},
                     Ptr{Csize_t}),
@@ -1903,7 +1903,7 @@ end
 
 @checked function cudnnGetMultiHeadAttnWeights(handle, attnDesc, wKind, weightSizeInBytes,
                                                weights, wDesc, wAddr)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetMultiHeadAttnWeights, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnAttnDescriptor_t, cudnnMultiHeadAttnWeightKind_t,
                     Csize_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Ptr{Cvoid}}),
@@ -1916,7 +1916,7 @@ end
                                             oDesc, out, weightSizeInBytes, weights,
                                             workSpaceSizeInBytes, workSpace,
                                             reserveSpaceSizeInBytes, reserveSpace)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnMultiHeadAttnForward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnAttnDescriptor_t, Cint, Ptr{Cint}, Ptr{Cint},
                     CuPtr{Cint}, CuPtr{Cint}, cudnnSeqDataDescriptor_t, CuPtr{Cvoid},
@@ -1937,7 +1937,7 @@ end
                                                  values, weightSizeInBytes, weights,
                                                  workSpaceSizeInBytes, workSpace,
                                                  reserveSpaceSizeInBytes, reserveSpace)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnMultiHeadAttnBackwardData, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnAttnDescriptor_t, Ptr{Cint}, Ptr{Cint},
                     CuPtr{Cint}, CuPtr{Cint}, cudnnSeqDataDescriptor_t, CuPtr{Cvoid},
@@ -1957,7 +1957,7 @@ end
                                                     weights, dweights,
                                                     workSpaceSizeInBytes, workSpace,
                                                     reserveSpaceSizeInBytes, reserveSpace)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnMultiHeadAttnBackwardWeights, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnAttnDescriptor_t, cudnnWgradMode_t,
                     cudnnSeqDataDescriptor_t, CuPtr{Cvoid}, cudnnSeqDataDescriptor_t,
@@ -1970,21 +1970,21 @@ end
 end
 
 @checked function cudnnCreateCTCLossDescriptor(ctcLossDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateCTCLossDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnCTCLossDescriptor_t},),
                    ctcLossDesc)
 end
 
 @checked function cudnnSetCTCLossDescriptor(ctcLossDesc, compType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetCTCLossDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnCTCLossDescriptor_t, cudnnDataType_t),
                    ctcLossDesc, compType)
 end
 
 @checked function cudnnSetCTCLossDescriptorEx(ctcLossDesc, compType, normMode, gradMode)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetCTCLossDescriptorEx, libcudnn()), cudnnStatus_t,
                    (cudnnCTCLossDescriptor_t, cudnnDataType_t,
                     cudnnLossNormalizationMode_t, cudnnNanPropagation_t),
@@ -1992,14 +1992,14 @@ end
 end
 
 @checked function cudnnGetCTCLossDescriptor(ctcLossDesc, compType)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetCTCLossDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnCTCLossDescriptor_t, Ptr{cudnnDataType_t}),
                    ctcLossDesc, compType)
 end
 
 @checked function cudnnGetCTCLossDescriptorEx(ctcLossDesc, compType, normMode, gradMode)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetCTCLossDescriptorEx, libcudnn()), cudnnStatus_t,
                    (cudnnCTCLossDescriptor_t, Ptr{cudnnDataType_t},
                     Ptr{cudnnLossNormalizationMode_t}, Ptr{cudnnNanPropagation_t}),
@@ -2007,7 +2007,7 @@ end
 end
 
 @checked function cudnnDestroyCTCLossDescriptor(ctcLossDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyCTCLossDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnCTCLossDescriptor_t,),
                    ctcLossDesc)
@@ -2016,7 +2016,7 @@ end
 @checked function cudnnCTCLoss(handle, probsDesc, probs, labels, labelLengths,
                                inputLengths, costs, gradientsDesc, gradients, algo,
                                ctcLossDesc, workspace, workSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCTCLoss, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, CuPtr{Cvoid}, Ptr{Cint},
                     Ptr{Cint}, Ptr{Cint}, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
@@ -2030,7 +2030,7 @@ end
 @checked function cudnnGetCTCLossWorkspaceSize(handle, probsDesc, gradientsDesc, labels,
                                                labelLengths, inputLengths, algo,
                                                ctcLossDesc, sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetCTCLossWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
                     Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, cudnnCTCLossAlgo_t,
@@ -2040,49 +2040,49 @@ end
 end
 
 @checked function cudnnCreateAlgorithmDescriptor(algoDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateAlgorithmDescriptor, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnAlgorithmDescriptor_t},),
                    algoDesc)
 end
 
 @checked function cudnnSetAlgorithmDescriptor(algoDesc, algorithm)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetAlgorithmDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnAlgorithmDescriptor_t, cudnnAlgorithm_t),
                    algoDesc, algorithm)
 end
 
 @checked function cudnnGetAlgorithmDescriptor(algoDesc, algorithm)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetAlgorithmDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnAlgorithmDescriptor_t, Ptr{cudnnAlgorithm_t}),
                    algoDesc, algorithm)
 end
 
 @checked function cudnnCopyAlgorithmDescriptor(src, dest)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCopyAlgorithmDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnAlgorithmDescriptor_t, cudnnAlgorithmDescriptor_t),
                    src, dest)
 end
 
 @checked function cudnnDestroyAlgorithmDescriptor(algoDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyAlgorithmDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnAlgorithmDescriptor_t,),
                    algoDesc)
 end
 
 @checked function cudnnCreateAlgorithmPerformance(algoPerf, numberToCreate)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateAlgorithmPerformance, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnAlgorithmPerformance_t}, Cint),
                    algoPerf, numberToCreate)
 end
 
 @checked function cudnnSetAlgorithmPerformance(algoPerf, algoDesc, status, time, memory)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetAlgorithmPerformance, libcudnn()), cudnnStatus_t,
                    (cudnnAlgorithmPerformance_t, cudnnAlgorithmDescriptor_t,
                     cudnnStatus_t, Cfloat, Csize_t),
@@ -2090,7 +2090,7 @@ end
 end
 
 @checked function cudnnGetAlgorithmPerformance(algoPerf, algoDesc, status, time, memory)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetAlgorithmPerformance, libcudnn()), cudnnStatus_t,
                    (cudnnAlgorithmPerformance_t, Ptr{cudnnAlgorithmDescriptor_t},
                     Ptr{cudnnStatus_t}, Ptr{Cfloat}, Ptr{Csize_t}),
@@ -2098,28 +2098,28 @@ end
 end
 
 @checked function cudnnDestroyAlgorithmPerformance(algoPerf, numberToDestroy)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyAlgorithmPerformance, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnAlgorithmPerformance_t}, Cint),
                    algoPerf, numberToDestroy)
 end
 
 @checked function cudnnGetAlgorithmSpaceSize(handle, algoDesc, algoSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetAlgorithmSpaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnAlgorithmDescriptor_t, Ptr{Csize_t}),
                    handle, algoDesc, algoSpaceSizeInBytes)
 end
 
 @checked function cudnnSaveAlgorithm(handle, algoDesc, algoSpace, algoSpaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSaveAlgorithm, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnAlgorithmDescriptor_t, Ptr{Cvoid}, Csize_t),
                    handle, algoDesc, algoSpace, algoSpaceSizeInBytes)
 end
 
 @checked function cudnnRestoreAlgorithm(handle, algoSpace, algoSpaceSizeInBytes, algoDesc)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRestoreAlgorithm, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, Ptr{Cvoid}, Csize_t, cudnnAlgorithmDescriptor_t),
                    handle, algoSpace, algoSpaceSizeInBytes, algoDesc)
@@ -2138,21 +2138,21 @@ end
 end
 
 @checked function cudnnCreateFusedOpsConstParamPack(constPack, ops)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateFusedOpsConstParamPack, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnFusedOpsConstParamPack_t}, cudnnFusedOps_t),
                    constPack, ops)
 end
 
 @checked function cudnnDestroyFusedOpsConstParamPack(constPack)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyFusedOpsConstParamPack, libcudnn()), cudnnStatus_t,
                    (cudnnFusedOpsConstParamPack_t,),
                    constPack)
 end
 
 @checked function cudnnSetFusedOpsConstParamPackAttribute(constPack, paramLabel, param)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetFusedOpsConstParamPackAttribute, libcudnn()), cudnnStatus_t,
                    (cudnnFusedOpsConstParamPack_t, cudnnFusedOpsConstParamLabel_t,
                     Ptr{Cvoid}),
@@ -2161,7 +2161,7 @@ end
 
 @checked function cudnnGetFusedOpsConstParamPackAttribute(constPack, paramLabel, param,
                                                           isNULL)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetFusedOpsConstParamPackAttribute, libcudnn()), cudnnStatus_t,
                    (cudnnFusedOpsConstParamPack_t, cudnnFusedOpsConstParamLabel_t,
                     Ptr{Cvoid}, Ptr{Cint}),
@@ -2169,21 +2169,21 @@ end
 end
 
 @checked function cudnnCreateFusedOpsVariantParamPack(varPack, ops)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateFusedOpsVariantParamPack, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnFusedOpsVariantParamPack_t}, cudnnFusedOps_t),
                    varPack, ops)
 end
 
 @checked function cudnnDestroyFusedOpsVariantParamPack(varPack)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyFusedOpsVariantParamPack, libcudnn()), cudnnStatus_t,
                    (cudnnFusedOpsVariantParamPack_t,),
                    varPack)
 end
 
 @checked function cudnnSetFusedOpsVariantParamPackAttribute(varPack, paramLabel, ptr)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetFusedOpsVariantParamPackAttribute, libcudnn()), cudnnStatus_t,
                    (cudnnFusedOpsVariantParamPack_t, cudnnFusedOpsVariantParamLabel_t,
                     PtrOrCuPtr{Cvoid}),
@@ -2191,7 +2191,7 @@ end
 end
 
 @checked function cudnnGetFusedOpsVariantParamPackAttribute(varPack, paramLabel, ptr)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetFusedOpsVariantParamPackAttribute, libcudnn()), cudnnStatus_t,
                    (cudnnFusedOpsVariantParamPack_t, cudnnFusedOpsVariantParamLabel_t,
                     PtrOrCuPtr{Cvoid}),
@@ -2199,21 +2199,21 @@ end
 end
 
 @checked function cudnnCreateFusedOpsPlan(plan, ops)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCreateFusedOpsPlan, libcudnn()), cudnnStatus_t,
                    (Ptr{cudnnFusedOpsPlan_t}, cudnnFusedOps_t),
                    plan, ops)
 end
 
 @checked function cudnnDestroyFusedOpsPlan(plan)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDestroyFusedOpsPlan, libcudnn()), cudnnStatus_t,
                    (cudnnFusedOpsPlan_t,),
                    plan)
 end
 
 @checked function cudnnMakeFusedOpsPlan(handle, plan, constPack, workspaceSizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnMakeFusedOpsPlan, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnFusedOpsPlan_t, cudnnFusedOpsConstParamPack_t,
                     Ptr{Csize_t}),
@@ -2221,7 +2221,7 @@ end
 end
 
 @checked function cudnnFusedOpsExecute(handle, plan, varPack)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnFusedOpsExecute, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnFusedOpsPlan_t, cudnnFusedOpsVariantParamPack_t),
                    handle, plan, varPack)
@@ -2230,7 +2230,7 @@ end
 @checked function cudnnSetRNNDescriptor_v6(handle, rnnDesc, hiddenSize, numLayers,
                                            dropoutDesc, inputMode, direction, mode, algo,
                                            mathPrec)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetRNNDescriptor_v6, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint, Cint,
                     cudnnDropoutDescriptor_t, cudnnRNNInputMode_t, cudnnDirectionMode_t,
@@ -2243,159 +2243,159 @@ end
 ## added in CUDNN 8.0
 
 @checked function cudnnDeriveNormTensorDescriptor(derivedNormScaleBiasDesc, derivedNormMeanVarDesc, xDesc, mode, groupCnt)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnDeriveNormTensorDescriptor, libcudnn()), cudnnStatus_t, (cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, cudnnNormMode_t, Cint), derivedNormScaleBiasDesc, derivedNormMeanVarDesc, xDesc, mode, groupCnt)
 end
 
 @checked function cudnnAdvTrainVersionCheck()
-    initialize_api()
+    initialize_context()
     ccall((:cudnnAdvTrainVersionCheck, libcudnn()), cudnnStatus_t, ())
 end
 
 @checked function cudnnOpsTrainVersionCheck()
-    initialize_api()
+    initialize_context()
     ccall((:cudnnOpsTrainVersionCheck, libcudnn()), cudnnStatus_t, ())
 end
 
 @checked function cudnnGetRNNWeightSpaceSize(handle, rnnDesc, weightSpaceSize)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNWeightSpaceSize, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnRNNDescriptor_t, Ref{Csize_t}), handle, rnnDesc, weightSpaceSize)
 end
 
 @checked function cudnnGetRNNDescriptor_v6(handle, rnnDesc, hiddenSize, numLayers, dropoutDesc, inputMode, direction, cellMode, algo, mathPrec)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNDescriptor_v6, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnRNNDescriptor_t, Ref{Cint}, Ref{Cint}, Ref{cudnnDropoutDescriptor_t}, Ref{cudnnRNNInputMode_t}, Ref{cudnnDirectionMode_t}, Ref{cudnnRNNMode_t}, Ref{cudnnRNNAlgo_t}, Ref{cudnnDataType_t}), handle, rnnDesc, hiddenSize, numLayers, dropoutDesc, inputMode, direction, cellMode, algo, mathPrec)
 end
 
 @checked function cudnnGetCTCLossDescriptor_v8(ctcLossDesc, compType, normMode, gradMode, maxLabelLength)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetCTCLossDescriptor_v8, libcudnn()), cudnnStatus_t, (cudnnCTCLossDescriptor_t, Ref{cudnnDataType_t}, Ref{cudnnLossNormalizationMode_t}, Ref{cudnnNanPropagation_t}, Ref{Cint}), ctcLossDesc, compType, normMode, gradMode, maxLabelLength)
 end
 
 @checked function cudnnSetRNNDescriptor_v8(rnnDesc, algo, cellMode, biasMode, dirMode, inputMode, dataType, mathPrec, mathType, inputSize, hiddenSize, projSize, numLayers, dropoutDesc, auxFlags)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetRNNDescriptor_v8, libcudnn()), cudnnStatus_t, (cudnnRNNDescriptor_t, cudnnRNNAlgo_t, cudnnRNNMode_t, cudnnRNNBiasMode_t, cudnnDirectionMode_t, cudnnRNNInputMode_t, cudnnDataType_t, cudnnDataType_t, cudnnMathType_t, Int32, Int32, Int32, Int32, cudnnDropoutDescriptor_t, UInt32), rnnDesc, algo, cellMode, biasMode, dirMode, inputMode, dataType, mathPrec, mathType, inputSize, hiddenSize, projSize, numLayers, dropoutDesc, auxFlags)
 end
 
 @checked function cudnnGetRNNTempSpaceSizes(handle, rnnDesc, fMode, xDesc, workSpaceSize, reserveSpaceSize)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNTempSpaceSizes, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnRNNDescriptor_t, cudnnForwardMode_t, cudnnRNNDataDescriptor_t, Ref{Csize_t}, Ref{Csize_t}), handle, rnnDesc, fMode, xDesc, workSpaceSize, reserveSpaceSize)
 end
 
 @checked function cudnnCTCLoss_v8(handle, algo, ctcLossDesc, probsDesc, probs, labels, labelLengths, inputLengths, costs, gradientsDesc, gradients, workSpaceSizeInBytes, workspace)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCTCLoss_v8, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnCTCLossAlgo_t, cudnnCTCLossDescriptor_t, cudnnTensorDescriptor_t, Ptr{Cvoid}, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cint}, Ptr{Cvoid}, cudnnTensorDescriptor_t, Ptr{Cvoid}, Csize_t, CuPtr{Cvoid}), handle, algo, ctcLossDesc, probsDesc, probs, labels, labelLengths, inputLengths, costs, gradientsDesc, gradients, workSpaceSizeInBytes, workspace)
 end
 
 @checked function cudnnAdvInferVersionCheck()
-    initialize_api()
+    initialize_context()
     ccall((:cudnnAdvInferVersionCheck, libcudnn()), cudnnStatus_t, ())
 end
 
 @checked function cudnnSetCTCLossDescriptor_v8(ctcLossDesc, compType, normMode, gradMode, maxLabelLength)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetCTCLossDescriptor_v8, libcudnn()), cudnnStatus_t, (cudnnCTCLossDescriptor_t, cudnnDataType_t, cudnnLossNormalizationMode_t, cudnnNanPropagation_t, Cint), ctcLossDesc, compType, normMode, gradMode, maxLabelLength)
 end
 
 @checked function cudnnGetNormalizationTrainingReserveSpaceSize(handle, mode, normOps, algo, activationDesc, xDesc, sizeInBytes, groupCnt)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetNormalizationTrainingReserveSpaceSize, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnNormMode_t, cudnnNormOps_t, cudnnNormAlgo_t, cudnnActivationDescriptor_t, cudnnTensorDescriptor_t, Ref{Csize_t}, Cint), handle, mode, normOps, algo, activationDesc, xDesc, sizeInBytes, groupCnt)
 end
 
 @checked function cudnnGetRNNWeightParams(handle, rnnDesc, pseudoLayer, weightSpaceSize, weightSpace, linLayerID, mDesc, mAddr, bDesc, bAddr)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNWeightParams, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnRNNDescriptor_t, Int32, Csize_t, CuPtr{Cvoid}, Int32, cudnnTensorDescriptor_t, Ptr{CuPtr{Cvoid}}, cudnnTensorDescriptor_t, Ptr{CuPtr{Cvoid}}), handle, rnnDesc, pseudoLayer, weightSpaceSize, weightSpace, linLayerID, mDesc, mAddr, bDesc, bAddr)
 end
 
 @checked function cudnnGetNormalizationForwardTrainingWorkspaceSize(handle, mode, normOps, algo, xDesc, zDesc, yDesc, normScaleBiasDesc, activationDesc, normMeanVarDesc, sizeInBytes, groupCnt)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetNormalizationForwardTrainingWorkspaceSize, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnNormMode_t, cudnnNormOps_t, cudnnNormAlgo_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, cudnnActivationDescriptor_t, cudnnTensorDescriptor_t, Ref{Csize_t}, Cint), handle, mode, normOps, algo, xDesc, zDesc, yDesc, normScaleBiasDesc, activationDesc, normMeanVarDesc, sizeInBytes, groupCnt)
 end
 
 @checked function cudnnRNNBackwardWeights_v8(handle, rnnDesc, addGrad, devSeqLengths, xDesc, x, hDesc, hx, yDesc, y, weightSpaceSize, dweightSpace, workSpaceSize, workSpace, reserveSpaceSize, reserveSpace)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNBackwardWeights_v8, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnRNNDescriptor_t, cudnnWgradMode_t, CuPtr{Int32}, cudnnRNNDataDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnRNNDataDescriptor_t, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}), handle, rnnDesc, addGrad, devSeqLengths, xDesc, x, hDesc, hx, yDesc, y, weightSpaceSize, dweightSpace, workSpaceSize, workSpace, reserveSpaceSize, reserveSpace)
 end
 
 @checked function cudnnCnnInferVersionCheck()
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCnnInferVersionCheck, libcudnn()), cudnnStatus_t, ())
 end
 
 @checked function cudnnCnnTrainVersionCheck()
-    initialize_api()
+    initialize_context()
     ccall((:cudnnCnnTrainVersionCheck, libcudnn()), cudnnStatus_t, ())
 end
 
 @checked function cudnnRNNGetClip_v8(rnnDesc, clipMode, clipNanOpt, lclip, rclip)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNGetClip_v8, libcudnn()), cudnnStatus_t, (cudnnRNNDescriptor_t, Ref{cudnnRNNClipMode_t}, Ref{cudnnNanPropagation_t}, Ref{Cdouble}, Ref{Cdouble}), rnnDesc, clipMode, clipNanOpt, lclip, rclip)
 end
 
 @checked function cudnnGetRNNDescriptor_v8(rnnDesc, algo, cellMode, biasMode, dirMode, inputMode, dataType, mathPrec, mathType, inputSize, hiddenSize, projSize, numLayers, dropoutDesc, auxFlags)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetRNNDescriptor_v8, libcudnn()), cudnnStatus_t, (cudnnRNNDescriptor_t, Ref{cudnnRNNAlgo_t}, Ref{cudnnRNNMode_t}, Ref{cudnnRNNBiasMode_t}, Ref{cudnnDirectionMode_t}, Ref{cudnnRNNInputMode_t}, Ref{cudnnDataType_t}, Ref{cudnnDataType_t}, Ref{cudnnMathType_t}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{cudnnDropoutDescriptor_t}, Ref{UInt32}), rnnDesc, algo, cellMode, biasMode, dirMode, inputMode, dataType, mathPrec, mathType, inputSize, hiddenSize, projSize, numLayers, dropoutDesc, auxFlags)
 end
 
 @checked function cudnnGetNormalizationBackwardWorkspaceSize(handle, mode, normOps, algo, xDesc, yDesc, dyDesc, dzDesc, dxDesc, dNormScaleBiasDesc, activationDesc, normMeanVarDesc, sizeInBytes, groupCnt)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetNormalizationBackwardWorkspaceSize, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnNormMode_t, cudnnNormOps_t, cudnnNormAlgo_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, cudnnActivationDescriptor_t, cudnnTensorDescriptor_t, Ref{Csize_t}, Cint), handle, mode, normOps, algo, xDesc, yDesc, dyDesc, dzDesc, dxDesc, dNormScaleBiasDesc, activationDesc, normMeanVarDesc, sizeInBytes, groupCnt)
 end
 
 @checked function cudnnNormalizationForwardInference(handle, mode, normOps, algo, alpha, beta, xDesc, x, normScaleBiasDesc, normScale, normBias, normMeanVarDesc, estimatedMean, estimatedVariance, zDesc, z, activationDesc, yDesc, y, epsilon, groupCnt)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnNormalizationForwardInference, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnNormMode_t, cudnnNormOps_t, cudnnNormAlgo_t, Ptr{Cvoid}, Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnActivationDescriptor_t, cudnnTensorDescriptor_t, CuPtr{Cvoid}, Cdouble, Cint), handle, mode, normOps, algo, alpha, beta, xDesc, x, normScaleBiasDesc, normScale, normBias, normMeanVarDesc, estimatedMean, estimatedVariance, zDesc, z, activationDesc, yDesc, y, epsilon, groupCnt)
 end
 
 @checked function cudnnOpsInferVersionCheck()
-    initialize_api()
+    initialize_context()
     ccall((:cudnnOpsInferVersionCheck, libcudnn()), cudnnStatus_t, ())
 end
 
 @checked function cudnnNormalizationForwardTraining(handle, mode, normOps, algo, alpha, beta, xDesc, xData, normScaleBiasDesc, normScale, normBias, exponentialAverageFactor, normMeanVarDesc, resultRunningMean, resultRunningVariance, epsilon, resultSaveMean, resultSaveInvVariance, activationDesc, zDesc, zData, yDesc, yData, workspace, workSpaceSizeInBytes, reserveSpace, reserveSpaceSizeInBytes, groupCnt)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnNormalizationForwardTraining, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnNormMode_t, cudnnNormOps_t, cudnnNormAlgo_t, Ptr{Cvoid}, Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, Cdouble, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, Cdouble, CuPtr{Cvoid}, CuPtr{Cvoid}, cudnnActivationDescriptor_t, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t, Cint), handle, mode, normOps, algo, alpha, beta, xDesc, xData, normScaleBiasDesc, normScale, normBias, exponentialAverageFactor, normMeanVarDesc, resultRunningMean, resultRunningVariance, epsilon, resultSaveMean, resultSaveInvVariance, activationDesc, zDesc, zData, yDesc, yData, workspace, workSpaceSizeInBytes, reserveSpace, reserveSpaceSizeInBytes, groupCnt)
 end
 
 @checked function cudnnGetCTCLossWorkspaceSize_v8(handle, algo, ctcLossDesc, probsDesc, gradientsDesc, sizeInBytes)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetCTCLossWorkspaceSize_v8, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnCTCLossAlgo_t, cudnnCTCLossDescriptor_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, Ptr{Csize_t}), handle, algo, ctcLossDesc, probsDesc, gradientsDesc, sizeInBytes)
 end
 
 @checked function cudnnRNNSetClip_v8(rnnDesc, clipMode, clipNanOpt, lclip, rclip)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNSetClip_v8, libcudnn()), cudnnStatus_t, (cudnnRNNDescriptor_t, cudnnRNNClipMode_t, cudnnNanPropagation_t, Cdouble, Cdouble), rnnDesc, clipMode, clipNanOpt, lclip, rclip)
 end
 
 @checked function cudnnRNNForward(handle, rnnDesc, fwdMode, devSeqLengths, xDesc, x, yDesc, y, hDesc, hx, hy, cDesc, cx, cy, weightSpaceSize, weightSpace, workSpaceSize, workSpace, reserveSpaceSize, reserveSpace)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNForward, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnRNNDescriptor_t, cudnnForwardMode_t, CuPtr{Int32}, cudnnRNNDataDescriptor_t, CuPtr{Cvoid}, cudnnRNNDataDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}), handle, rnnDesc, fwdMode, devSeqLengths, xDesc, x, yDesc, y, hDesc, hx, hy, cDesc, cx, cy, weightSpaceSize, weightSpace, workSpaceSize, workSpace, reserveSpaceSize, reserveSpace)
 end
 
 @checked function cudnnBuildRNNDynamic(handle, rnnDesc, miniBatch)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnBuildRNNDynamic, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnRNNDescriptor_t, Cint), handle, rnnDesc, miniBatch)
 end
 
 @checked function cudnnRNNBackwardData_v8(handle, rnnDesc, devSeqLengths, yDesc, y, dy, xDesc, dx, hDesc, hx, dhy, dhx, cDesc, cx, dcy, dcx, weightSpaceSize, weightSpace, workSpaceSize, workSpace, reserveSpaceSize, reserveSpace)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnRNNBackwardData_v8, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnRNNDescriptor_t, CuPtr{Int32}, cudnnRNNDataDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, cudnnRNNDataDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}), handle, rnnDesc, devSeqLengths, yDesc, y, dy, xDesc, dx, hDesc, hx, dhy, dhx, cDesc, cx, dcy, dcx, weightSpaceSize, weightSpace, workSpaceSize, workSpace, reserveSpaceSize, reserveSpace)
 end
 
 @checked function cudnnNormalizationBackward(handle, mode, normOps, algo, alphaDataDiff, betaDataDiff, alphaParamDiff, betaParamDiff, xDesc, xData, yDesc, yData, dyDesc, dyData, dzDesc, dzData, dxDesc, dxData, dNormScaleBiasDesc, normScaleData, normBiasData, dNormScaleData, dNormBiasData, epsilon, normMeanVarDesc, savedMean, savedInvVariance, activationDesc, workSpace, workSpaceSizeInBytes, reserveSpace, reserveSpaceSizeInBytes, groupCnt)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnNormalizationBackward, libcudnn()), cudnnStatus_t, (cudnnHandle_t, cudnnNormMode_t, cudnnNormOps_t, cudnnNormAlgo_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid}, Cdouble, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, cudnnActivationDescriptor_t, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t, Cint), handle, mode, normOps, algo, alphaDataDiff, betaDataDiff, alphaParamDiff, betaParamDiff, xDesc, xData, yDesc, yData, dyDesc, dyData, dzDesc, dzData, dxDesc, dxData, dNormScaleBiasDesc, normScaleData, normBiasData, dNormScaleData, dNormBiasData, epsilon, normMeanVarDesc, savedMean, savedInvVariance, activationDesc, workSpace, workSpaceSizeInBytes, reserveSpace, reserveSpaceSizeInBytes, groupCnt)
 end
 
 ## Added in CUDNN 8.2
 
 @checked function cudnnSetActivationDescriptorSwishBeta(activationDesc, swish_beta)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnSetActivationDescriptorSwishBeta, libcudnn), cudnnStatus_t, (cudnnActivationDescriptor_t, Cdouble), activationDesc, swish_beta)
 end
 
 @checked function cudnnGetActivationDescriptorSwishBeta(activationDesc, swish_beta)
-    initialize_api()
+    initialize_context()
     ccall((:cudnnGetActivationDescriptorSwishBeta, libcudnn), cudnnStatus_t, (cudnnActivationDescriptor_t, Ptr{Cdouble}), activationDesc, swish_beta)
 end
 
