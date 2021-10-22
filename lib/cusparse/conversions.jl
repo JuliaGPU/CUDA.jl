@@ -41,6 +41,23 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
     end
 end
 
+# CSC to vector
+function CuSparseVector(Mat::CuSparseMatrixCSC)
+    n,m = size(Mat)
+    dim = n*m
+    I = 1:m
+    nzval = nonzeros(Mat)
+    nzind = rowvals(Mat)
+    colptr = Array(getcolptr(Mat)) #TODO: figure out how to avoid this step
+    indices = map((x,y)->range(x,stop=y),colptr[I],colptr[I.+1].-1)
+    indices = cu.(collect.(indices))
+    nzind_array = map(.+,map(inds->nzind[inds],indices) , n.*(0:m-1)) #Vector of cuArrays with indices that should be vectorised into nzind
+    nzind = vcat(nzind_array...)
+    return CuSparseVector(nzind,nzval,dim)
+end
+
+# CSR, COO, BSR to vector
+CuSparseVector(Mat::AbstractCuSparseMatrix) = CuSparseVector(CuSparseMatrixCSC(Mat))
 
 ## CSR to CSC
 
@@ -296,7 +313,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             m,n = csr.dims
             denseA = CUDA.zeros($elty,m,n)
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
-                desc_csr   = CuSparseMatrixDescriptor(csr, ind)
+                desc_csr   = CuSparseMatrixDescriptor(csr)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
 
                 function bufferSize()
@@ -322,7 +339,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             m,n = csc.dims
             denseA = CUDA.zeros($elty,m,n)
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
-                desc_csc   = CuSparseMatrixDescriptor(csc, ind; convert=false)
+                desc_csc   = CuSparseMatrixDescriptor(csc; convert=false)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
 
                 function bufferSize()
@@ -354,7 +371,7 @@ for (elty, welty) in ((:Float16, :Float32),
             m,n = csr.dims
             denseA = CUDA.zeros($elty,m,n)
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
-                desc_csr   = CuSparseMatrixDescriptor(csr, ind)
+                desc_csr   = CuSparseMatrixDescriptor(csr)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
 
                 function bufferSize()
@@ -379,7 +396,7 @@ for (elty, welty) in ((:Float16, :Float32),
             m,n = csc.dims
             denseA = CUDA.zeros($elty,m,n)
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
-                desc_csc   = CuSparseMatrixDescriptor(csc, ind; convert=false)
+                desc_csc   = CuSparseMatrixDescriptor(csc; convert=false)
                 desc_dense = CuDenseMatrixDescriptor(denseA)
 
                 function bufferSize()
