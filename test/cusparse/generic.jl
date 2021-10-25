@@ -1,7 +1,6 @@
-using CUDA
 using CUDA.CUSPARSE, SparseArrays
 
-if CUDA.version() >= v"11.2" # lower CUDA version doesn't support these algorithms
+if CUSPARSE.version() >= v"11.2" # lower CUDA version doesn't support these algorithms
 
     @testset "mm algo=$algo" for algo in [
         CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
