@@ -1,6 +1,6 @@
 using CUDA.CUSPARSE, SparseArrays
 
-if CUSPARSE.version() >= v"11.2" # lower CUDA version doesn't support these algorithms
+if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these algorithms
 
     @testset "mm algo=$algo" for algo in [
         CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
@@ -42,4 +42,4 @@ if CUSPARSE.version() >= v"11.2" # lower CUDA version doesn't support these algo
             @test alpha * A * B + beta * C ≈ collect(dC)
         end
     end
-end # version >= 11.2
+end # version >= 11.4.1
