@@ -265,11 +265,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
         if init === nothing
             # without an explicit initializer we need to copy from the output container
             sz = prod(size(R))
-            for i in 1:reduce_blocks
-                # TODO: async copies (or async fill!, but then we'd need to load first)
-                #       or maybe just broadcast since that extends singleton dimensions
-                copyto!(partial, (i-1)*sz+1, R, 1, sz)
-            end
+            partial .= R
         end
         # NOTE: we can't use the previously-compiled kernel, since the type of `partial`
         #       might not match the original output container (e.g. if that was a view).
