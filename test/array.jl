@@ -538,6 +538,13 @@ end
   @test vec(Array(sum!(view(CUDA.zeros(1,1,1), 1, :, :), CUDA.ones(1,4096)))) == [4096f0]
 end
 
+@testset "issue 1202" begin
+  # test that deepcopying a struct with a CuArray field gets properly deepcopied
+  a = (x = CUDA.zeros(2),)
+  b = deepcopy(a)
+  a.x .= -1
+  @test b.x != a.x
+end
 
 @testset "isbits unions" begin
   # test that the selector bytes are preserved when up and downloading

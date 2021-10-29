@@ -171,10 +171,7 @@ function Base.copy(a::CuArray{T,N}) where {T,N}
   @inbounds copyto!(b, a)
 end
 
-# XXX: defining deepcopy_internal, as per the deepcopy documentation, results in a ton
-#      of invalidations, so we redefine deepcopy itself (see JuliaGPU/CUDA.jl#632)
-function Base.deepcopy(x::CuArray)
-  dict = IdDict()
+function Base.deepcopy_internal(x::CuArray, dict::IdDict)
   haskey(dict, x) && return dict[x]::typeof(x)
   return dict[x] = copy(x)
 end
