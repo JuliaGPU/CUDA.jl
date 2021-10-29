@@ -84,7 +84,7 @@ dynamic_smem_size() = @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, U
         # by requesting a larger-than-datatype alignment, we might be able to vectorize.
         # we pick 32 bytes here, since WMMA instructions require 32-byte alignment.
         # TODO: Make the alignment configurable
-        alignment!(gv, Base.max(32, Base.datatype_alignment(T)))
+        alignment!(gv, max(32, Base.datatype_alignment(T)))
 
         # generate IR
         Builder(ctx) do builder

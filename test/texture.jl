@@ -31,7 +31,7 @@ function fetch_all(texture)
     config = launch_configuration(kernel.fun)
 
     dim_x, dim_y, dim_z = size(texture, 1), size(texture, 2), size(texture, 3)
-    threads_x = Base.min(dim_x, config.threads)
+    threads_x = min(dim_x, config.threads)
     blocks_x = cld(dim_x, threads_x)
 
     kernel(d_out, texture; threads=threads_x, blocks=(blocks_x, dim_y, dim_z))
