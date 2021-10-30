@@ -791,7 +791,7 @@ function Base.resize!(A::CuVector{T}, n::Int) where T
   new_storage = @context! A.storage.ctx begin
     buf = alloc(typeof(A.storage.buffer), bufsize)
     ptr = convert(CuPtr{T}, buf)
-    m = Base.min(length(A), n)
+    m = min(length(A), n)
     unsafe_copyto!(ptr, pointer(A), m)
     ArrayStorage(buf, A.storage.ctx, 1)
   end

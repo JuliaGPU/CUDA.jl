@@ -150,7 +150,7 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
     if length(Rother) > 1
         dev = device()
         max_other_blocks = attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y)
-        blocks_other = (Base.min(length(Rother), max_other_blocks),
+        blocks_other = (min(length(Rother), max_other_blocks),
                         cld(length(Rother), max_other_blocks))
     else
         blocks_other = (1, 1)

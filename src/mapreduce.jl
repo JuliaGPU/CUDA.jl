@@ -118,7 +118,7 @@ function partial_mapreduce_grid(f, op, neutral, Rreduce, Rother, shuffle, R, As.
         ireduce = threadIdx_reduce + (blockIdx_reduce - 1) * blockDim_reduce
         while ireduce <= length(Rreduce)
             Ireduce = Rreduce[ireduce]
-            J = Base.max(Iother, Ireduce)
+            J = max(Iother, Ireduce)
             val = op(val, f(_map_getindex(As, J)...))
             ireduce += blockDim_reduce * gridDim_reduce
         end
@@ -246,8 +246,8 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     reduce_blocks = if other_blocks >= kernel_config.blocks
         1
     else
-        Base.min(cld(length(Rreduce), reduce_threads),       # how many we need at most
-                 cld(kernel_config.blocks, other_blocks))    # maximize occupancy
+        min(cld(length(Rreduce), reduce_threads),       # how many we need at most
+            cld(kernel_config.blocks, other_blocks))    # maximize occupancy
     end
 
     # determine the launch configuration
