@@ -63,6 +63,23 @@ function libcuda()
         #      despite the docs stating "any function [...] will return
         #      CUDA_ERROR_NOT_INITIALIZED"; is this a recent change?
 
+        # check if this process is hooked by CUDA's injection libraries, which prevents
+        # unloading libcuda after dlopening. this is problematic, because we might want to
+        # after loading a forwards-compatible libcuda and realizing we can't use it. without
+        # being able to unload the library, we'd run into issues (see NVIDIA bug #3418723)
+        hooked = haskey(ENV, "CUDA_INJECTION64_PATH")
+        if hooked
+            @debug "Running under CUDA injection tools; this will prevent use of the forward-compatible package"
+        end
+
+        # check if we managed to unload the system driver.
+        # if we didn't, we can't consider a forward compatible library because that would
+        # risk having multiple copies of libcuda.so loaded (also see NVIDIA bug #3418723)
+        system_driver_loaded = Libdl.dlopen(system_driver, Libdl.RTLD_NOLOAD; throw_error=false) !== nothing
+        if system_driver_loaded
+            @debug "Could not unload the system CUDA library; this will prevent use of the forward-compatible package"
+        end
+
         # if we're using an older driver; consider using forward compatibility
         function do_init(driver)
             library_handle = Libdl.dlopen(driver)
@@ -74,12 +91,9 @@ function libcuda()
             end
             return
         end
-        if _system_version[] < v"11.4"
-            platform = Base.BinaryPlatforms.HostPlatform()
-            platform.tags["cuda"] = "11.4"
-
+        if getenv("JULIA_CUDA_USE_COMPAT", !hooked && !system_driver_loaded) && _system_version[] < v"11.5"
             artifact = try
-                @artifact_str("CUDA_compat", platform)
+                @artifact_str("CUDA_compat")
             catch ex
                 @debug "Could not download forward compatibility package" exception=(ex,catch_backtrace())
                 nothing
@@ -101,6 +115,15 @@ function libcuda()
                     _libcuda[] = compat_driver
                 catch ex
                     @debug "Could not use forward compatibility package" exception=(ex,catch_backtrace())
+
+                    # see comment above about unloading the system driver
+                    compat_driver_loaded = Libdl.dlopen(compat_driver, Libdl.RTLD_NOLOAD; throw_error=false) !== nothing
+                    if compat_driver_loaded
+                        error("""Could not unload the forward compatible CUDA driver library.
+
+                                 This is probably caused by running Julia under a tool that hooks CUDA API calls.
+                                 In that case, prevent CUDA.jl from loading multiple drivers by setting JULIA_CUDA_USE_COMPAT=false in your environment.""")
+                    end
                 end
             end
         end
