@@ -327,12 +327,12 @@ end
 # loop:
 
 function gpu_add3!(y, x)
-    index = threadIdx().x
-    stride = (blockIdx().x - 1) * blockDim().x
+    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    stride = gridDim().x * blockDim().x
     for i = index:stride:length(y)
         @inbounds y[i] += x[i]
     end
-    return nothing
+    return
 end
 
 numblocks = ceil(Int, N/256)
