@@ -294,6 +294,7 @@ end
 @testset "accumulate" begin
   for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
     @test testf(x->accumulate(+, x), rand(n))
+    @test testf((x,y)->accumulate(+, x; init=y), rand(n), rand())
   end
 
   # multidimensional
@@ -307,7 +308,7 @@ end
   for (sizes, dims) in ((2,) => 2,
                         (3,4,5) => 2,
                         (1, 70, 50, 20) => 3)
-    @test testf(x->accumulate(+, x; dims=dims, init=100.), rand(Int, sizes))
+    @test testf((x,y)->accumulate(+, x; dims=dims, init=y), rand(Int, sizes), rand(Int))
   end
 
   # in place

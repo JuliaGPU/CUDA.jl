@@ -109,15 +109,21 @@ function aggregate_partial_scan(op::Function, output::AbstractArray,
     # iterate the other dimensions using the remaining block dimensions
     j = (blockIdx().z-1i32) * gridDim().y + blockIdx().y
 
-    @inbounds if block > 1 && i <= length(Rdim) && j <= length(Rother)
+    @inbounds if i <= length(Rdim) && j <= length(Rother)
         I = Rother[j]
         Ipre = Rpre[I[1]]
         Ipost = Rpost[I[2]]
 
-        val = op(aggregates[Ipre, block-1, Ipost], output[Ipre, i, Ipost])
+        val = if block > 1
+            op(aggregates[Ipre, block-1, Ipost], output[Ipre, i, Ipost])
+        else
+            output[Ipre, i, Ipost]
+        end
+
         if init !== nothing
             val = op(something(init), val)
         end
+
         output[Ipre, i, Ipost] = val
     end
 
@@ -163,10 +169,11 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
               partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true)))
     else
         # perform partial scans across the scanning dimension
+        # NOTE: don't set init here to avoid applying the value multiple times
         partial = prevpow(2, kernel_config.threads)
         blocks_dim = cld(length(Rdim), partial)
         @cuda(threads=partial, blocks=(blocks_dim, blocks_other...), shmem=2*partial*sizeof(T),
-              partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true)))
+              partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, nothing, Val(true)))
 
         # get the total of each thread block (except the first) of the partial scans
         aggregates = fill(neutral, Base.setindex(size(input), blocks_dim, dims))
