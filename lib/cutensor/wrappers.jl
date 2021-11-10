@@ -42,6 +42,7 @@ end
 const scalar_types = Dict(
     (Float16, Float16)          => Float32,
     (Float32, Float16)          => Float32,
+    (Float16, Float32)          => Float32,
     (Float32, Float32)          => Float32,
     (Float64, Float64)          => Float64,
     (Float64, Float32)          => Float64,
