@@ -25,6 +25,8 @@ k = 13
 
         @test testf(rmul!, rand(T, 6, 9, 3), Ref(rand()))
         @test testf(dot, rand(T, m), rand(T, m))
+        @test testf(dot, rand(T, m), rand(Bool, m))
+        @test testf(dot, rand(Bool, m), rand(T, m))
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
