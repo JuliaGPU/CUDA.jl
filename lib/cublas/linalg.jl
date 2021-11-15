@@ -27,7 +27,7 @@ end
 LinearAlgebra.dot(x::StridedCuArray{Bool}, y::StridedCuArray{T}) where {T<:Union{Float16, CublasReal, ComplexF16, CublasComplex}} = LinearAlgebra.dot(y, x)
 LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{Bool}) where {T<:Union{Float16, CublasReal, ComplexF16, CublasComplex}} = sum(view(x, y))
 LinearAlgebra.dot(x::StridedCuArray{<:Integer}, y::StridedCuArray{T}) where {T<:Union{Float16, CublasReal, ComplexF16, CublasComplex}} = LinearAlgebra.dot(y, x)
-LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{Integer}) where {T<:Union{Float16, CublasReal, ComplexF16, CublasComplex}} = dot(x, convert(typeof(x), y))
+LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{<:Integer}) where {T<:Union{Float16, CublasReal, ComplexF16, CublasComplex}} = dot(x, convert(typeof(x), y))
 
 function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}}, y::StridedCuVector{T}) where T<:Union{ComplexF16, CublasComplex}
     x = transx.parent
