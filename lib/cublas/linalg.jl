@@ -30,7 +30,7 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
 
     T = promote_type(T1, T2)
     res = CuArray(T[zero(T)])
-    MAX_THREADS = 512
+    MAX_THREADS = 256
 
     function kernel(x, y, res, T)
         index = threadIdx().x
@@ -39,7 +39,7 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
         start = (blockIdx().x - 1) * block_stride + 1
         stop = blockIdx().x * block_stride
 
-        cache = @cuStaticSharedMem(T, (512#= MAX_THREADS =#,))
+        cache = @cuStaticSharedMem(T, (256#= MAX_THREADS =#,))
 
         for i in start-1+index:thread_stride:stop
             @inbounds cache[index] += x[i] * y[i]
