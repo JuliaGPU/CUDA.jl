@@ -24,10 +24,48 @@ function LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:
     dotc(n, x, y)
 end
 
-LinearAlgebra.dot(x::StridedCuArray{Bool}, y::StridedCuArray{T}) where {T<:Union{Float16, CublasReal, ComplexF16, CublasComplex}} = LinearAlgebra.dot(y, x)
-LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{Bool}) where {T<:Union{Float16, CublasReal, ComplexF16, CublasComplex}} = sum(view(x, y))
-LinearAlgebra.dot(x::StridedCuArray{<:Integer}, y::StridedCuArray{T}) where {T<:Union{Float16, CublasReal, ComplexF16, CublasComplex}} = LinearAlgebra.dot(y, x)
-LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{<:Integer}) where {T<:Union{Float16, CublasReal, ComplexF16, CublasComplex}} = LinearAlgebra.dot(x, convert(typeof(x), y))
+function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {T1,T2}
+    n = length(x)
+    n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
+
+    T = promote_type(T1, T2)
+    res = CuArray(T[zero(T)])
+    MAX_THREADS = 512
+
+    function kernel(x, y, res, T)
+        index = threadIdx().x
+        thread_stride = blockDim().x
+        block_stride = (length(x)-1) ÷ gridDim().x + 1
+        start = (blockIdx().x - 1) * block_stride + 1
+        stop = blockIdx().x * block_stride
+
+        cache = @cuStaticSharedMem(T, (512#= MAX_THREADS =#,))
+
+        for i in start-1+index:thread_stride:stop
+            @inbounds cache[index] += x[i] * y[i]
+        end
+        sync_threads()
+
+        mid = thread_stride
+        while true
+            mid = (mid - 1) ÷ 2 + 1
+            if index <= mid
+                @inbounds cache[index] += cache[index+mid]
+            end
+            sync_threads()
+            mid == 1 && break
+        end
+
+        if index == 1
+            CUDA.atomic_add!(pointer(res), cache[1])
+        end
+        return
+    end
+    k = @cuda launch=false kernel(x, y, res,T)
+    config = launch_configuration(k.fun)
+    k(x, y, res, T; threads=min(length(x), config.threads, MAX_THREADS), blocks=config.blocks)
+    CUDA.@allowscalar res[]
+end
 
 function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}}, y::StridedCuVector{T}) where T<:Union{ComplexF16, CublasComplex}
     x = transx.parent
