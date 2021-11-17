@@ -68,7 +68,7 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
     n = length(x)
     n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
 
-    function kernel(x, y, res::AbstractArray{T}) where T
+    function kernel(x, y, res::AbstractArray{T}, shuffle) where {T}
         index = threadIdx().x
         threads = blockDim().x
         block_stride = (length(x)-1i32) ÷ gridDim().x + 1i32
@@ -81,22 +81,45 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
             @inbounds local_val += x[i] * y[i]
         end
 
-        val = reduce_block(+, local_val, zero(T), #=shuffle=# Val(true))
+        val = reduce_block(+, local_val, zero(T), shuffle)
         if threadIdx().x == 1i32
             @inbounds @atomic res[] += val
         end
+
         return
     end
 
+    dev = device()
     let T = promote_type(T1, T2)
         res = zeros(T, 1)
 
-        k = @cuda launch=false kernel(x, y, res)
-        config = launch_configuration(k.fun; shmem=(threads) -> threads*sizeof(T))
-        threads = min(n, config.threads)
+        # be conservative about using shuffle instructions
+        shuffle = T <: Union{Bool,
+                             UInt8, UInt16, UInt32, UInt64, UInt128,
+                             Int8, Int16, Int32, Int64, Int128,
+                             Float16, Float32, Float64,
+                             ComplexF16, ComplexF32, ComplexF64}
+
+        # how many threads do we want?
+        # reduce_block(shuffle=true) requires the block to consist of full warps.
+        wanted_threads = shuffle ? nextwarp(dev, n) : n
+        function compute_threads(max_threads)
+            if wanted_threads > max_threads
+                shuffle ? prevwarp(dev, max_threads) : max_threads
+            else
+                wanted_threads
+            end
+        end
+
+        # how many threads can we launch?
+        kernel = @cuda launch=false kernel(x, y, res, Val(shuffle))
+        compute_shmem(threads) = shuffle ? 0 : threads*sizeof(T)
+        config = launch_configuration(kernel.fun; shmem=compute_shmem∘compute_threads)
+        threads = compute_threads(config.threads)
         blocks = config.blocks
-        shmem = config.threads*sizeof(T)
-        k(x, y, res; threads, blocks, shmem)
+        shmem = compute_shmem(threads)
+        kernel(x, y, res, Val(shuffle); threads, blocks, shmem)
+
         @allowscalar res[]
     end
 end
