@@ -30,40 +30,33 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
 
     T = promote_type(T1, T2)
     res = CuArray(T[zero(T)])
-    MAX_THREADS = 256
 
     function kernel(x, y, res, T)
         index = threadIdx().x
-        thread_stride = blockDim().x
-        block_stride = (length(x)-1) ÷ gridDim().x + 1
-        start = (blockIdx().x - 1) * block_stride + 1
+        threads = blockDim().x
+        block_stride = (length(x)-1i32) ÷ gridDim().x + 1i32
+        start = (blockIdx().x - 1i32) * block_stride + 1i32
         stop = blockIdx().x * block_stride
 
-        cache = @cuStaticSharedMem(T, (256#= MAX_THREADS =#,))
+        local_val = zero(T)
 
-        for i in start-1+index:thread_stride:stop
-            @inbounds cache[index] += x[i] * y[i]
-        end
-        sync_threads()
-
-        mid = thread_stride
-        while true
-            mid = (mid - 1) ÷ 2 + 1
-            if index <= mid
-                @inbounds cache[index] += cache[index+mid]
-            end
-            sync_threads()
-            mid == 1 && break
+        for i in start-1i32+index:threads:stop
+            @inbounds local_val += x[i] * y[i]
         end
 
-        if index == 1
-            CUDA.atomic_add!(pointer(res), cache[1])
+        val = CUDA.reduce_block(+, local_val, zero(T), #=shuffle=# Val(true))
+        if threadIdx().x == 1i32
+            @inbounds CUDA.@atomic res[] += val
         end
         return
     end
+
+    k(x, y, res, T; threads=min(length(x), config.threads), blocks=config.blocks)
+    CUDA.@allowscalar res[]
+
     k = @cuda launch=false kernel(x, y, res,T)
-    config = launch_configuration(k.fun)
-    k(x, y, res, T; threads=min(length(x), config.threads, MAX_THREADS), blocks=config.blocks)
+    config = launch_configuration(k.fun; shmem=(threads) -> threads*sizeof(T))
+    k(x, y, res, T; threads=min(length(x), config.threads), blocks=config.blocks, shmem=threads*sizeof(T))
     CUDA.@allowscalar res[]
 end
 
