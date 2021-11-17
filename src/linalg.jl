@@ -71,9 +71,11 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
     function kernel(x, y, res::AbstractArray{T}, shuffle) where {T}
         local_val = zero(T)
 
-        i0 = threadIdx().x + (blockIdx().x-1i32)*blockDim().x
-        for i in i0:(blockDim().x*gridDim().x):length(x)
+        # grid-stride loop
+        i = threadIdx().x + (blockIdx().x - 1i32)*blockDim().x
+        while i <= length(x)
             @inbounds local_val += x[i] * y[i]
+            i += blockDim().x * gridDim().x
         end
 
         val = reduce_block(+, local_val, zero(T), shuffle)
