@@ -69,15 +69,10 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
     n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
 
     function kernel(x, y, res::AbstractArray{T}, shuffle) where {T}
-        index = threadIdx().x
-        threads = blockDim().x
-        block_stride = (length(x)-1i32) ÷ gridDim().x + 1i32
-        start = (blockIdx().x - 1i32) * block_stride + 1i32
-        stop = blockIdx().x * block_stride
-
         local_val = zero(T)
 
-        for i in start-1i32+index:threads:stop
+        i0 = threadIdx().x + (blockIdx().x-1i32)*blockDim().x
+        for i in i0:(blockDim().x*gridDim().x):length(x)
             @inbounds local_val += x[i] * y[i]
         end
 
