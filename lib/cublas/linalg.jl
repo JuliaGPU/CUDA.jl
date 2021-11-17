@@ -25,39 +25,6 @@ function LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:
     dotc(n, x, y)
 end
 
-function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {T1,T2}
-    n = length(x)
-    n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
-
-    T = promote_type(T1, T2)
-    res = CuArray(T[zero(T)])
-
-    function kernel(x, y, res, T)
-        index = threadIdx().x
-        threads = blockDim().x
-        block_stride = (length(x)-1i32) ÷ gridDim().x + 1i32
-        start = (blockIdx().x - 1i32) * block_stride + 1i32
-        stop = blockIdx().x * block_stride
-
-        local_val = zero(T)
-
-        for i in start-1i32+index:threads:stop
-            @inbounds local_val += x[i] * y[i]
-        end
-
-        val = CUDA.reduce_block(+, local_val, zero(T), #=shuffle=# Val(true))
-        if threadIdx().x == 1i32
-            @inbounds CUDA.@atomic res[] += val
-        end
-        return
-    end
-
-    k = @cuda launch=false kernel(x, y, res,T)
-    config = launch_configuration(k.fun; shmem=(threads) -> threads*sizeof(T))
-    k(x, y, res, T; threads=min(length(x), config.threads), blocks=config.blocks, shmem=config.threads*sizeof(T))
-    CUDA.@allowscalar res[]
-end
-
 function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}}, y::StridedCuVector{T}) where T<:Union{ComplexF16, CublasComplex}
     x = transx.parent
     n = length(x)
