@@ -36,7 +36,7 @@ macro checked(ex)
 end
 
 """
-    with_workspace([eltyp=UInt8], size, [eltyp=UInt8]) do workspace
+    with_workspace([eltyp=UInt8], size, [fallback::Int]; keep::Bool=false) do workspace
         ...
     end
 
@@ -44,17 +44,17 @@ Create a GPU workspace vector with element type `eltyp` and size in number of el
 the default case of an UInt8 element type this equals to the amount of bytes) specified by
 `size`, and pass it to the do block. A fallback workspace size `fallback` can be specified
 if the regular size would lead to OOM. Afterwards, the buffer is put back into the memory
-pool for reuse.
+pool for reuse (unless `keep` is set to `true`).
 
 This helper protects against the rare but real issue of the workspace size getter returning
 different results based on the GPU device memory pressure, which might change _after_
 initial allocation of the workspace (which can cause a GC collection).
 """
-@inline with_workspace(f, size::Union{Integer,Function}, fallback=nothing) =
-    with_workspace(f, UInt8, isa(size, Integer) ? ()->size : size, fallback)
+@inline with_workspace(f, size::Union{Integer,Function}, fallback=nothing; kwargs...) =
+    with_workspace(f, UInt8, isa(size, Integer) ? ()->size : size, fallback; kwargs...)
 
 function with_workspace(f::Function, eltyp::Type{T}, size::Union{Integer,Function},
-                        fallback::Union{Nothing,Integer}=nothing) where {T}
+                        fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) where {T}
     get_size() = Int(isa(size, Integer) ? size : size()::Integer)
 
     # allocate
@@ -76,7 +76,7 @@ function with_workspace(f::Function, eltyp::Type{T}, size::Union{Integer,Functio
     try
         f(workspace)
     finally
-        CUDA.unsafe_free!(workspace)
+        keep || CUDA.unsafe_free!(workspace)
     end
 end
 
