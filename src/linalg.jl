@@ -68,10 +68,7 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
     n = length(x)
     n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
 
-    T = promote_type(T1, T2)
-    res = CuArray(T[zero(T)])
-
-    function kernel(x, y, res, T)
+    function kernel(x, y, res::AbstractArray{T}) where T
         index = threadIdx().x
         threads = blockDim().x
         block_stride = (length(x)-1i32) ÷ gridDim().x + 1i32
@@ -84,15 +81,22 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
             @inbounds local_val += x[i] * y[i]
         end
 
-        val = CUDA.reduce_block(+, local_val, zero(T), #=shuffle=# Val(true))
+        val = reduce_block(+, local_val, zero(T), #=shuffle=# Val(true))
         if threadIdx().x == 1i32
-            @inbounds CUDA.@atomic res[] += val
+            @inbounds @atomic res[] += val
         end
         return
     end
 
-    k = @cuda launch=false kernel(x, y, res,T)
-    config = launch_configuration(k.fun; shmem=(threads) -> threads*sizeof(T))
-    k(x, y, res, T; threads=min(length(x), config.threads), blocks=config.blocks, shmem=config.threads*sizeof(T))
-    CUDA.@allowscalar res[]
+    let T = promote_type(T1, T2)
+        res = zeros(T, 1)
+
+        k = @cuda launch=false kernel(x, y, res)
+        config = launch_configuration(k.fun; shmem=(threads) -> threads*sizeof(T))
+        threads = min(n, config.threads)
+        blocks = config.blocks
+        shmem = config.threads*sizeof(T)
+        k(x, y, res; threads, blocks, shmem)
+        @allowscalar res[]
+    end
 end
