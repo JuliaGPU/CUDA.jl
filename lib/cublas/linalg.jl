@@ -1,6 +1,5 @@
 # interfacing with LinearAlgebra standard library
 
-using ..CUDA:i32
 
 #
 # BLAS 1
