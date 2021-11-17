@@ -116,7 +116,7 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
         compute_shmem(threads) = shuffle ? 0 : threads*sizeof(T)
         config = launch_configuration(kernel.fun; shmem=compute_shmem∘compute_threads)
         threads = compute_threads(config.threads)
-        blocks = config.blocks
+        blocks = min(config.blocks, cld(n, config.blocks))
         shmem = compute_shmem(threads)
         kernel(x, y, res, Val(shuffle); threads, blocks, shmem)
 
