@@ -1,5 +1,6 @@
 # interfacing with LinearAlgebra standard library
 
+using ..CUDA:i32
 
 #
 # BLAS 1
@@ -51,12 +52,9 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
         return
     end
 
-    k(x, y, res, T; threads=min(length(x), config.threads), blocks=config.blocks)
-    CUDA.@allowscalar res[]
-
     k = @cuda launch=false kernel(x, y, res,T)
     config = launch_configuration(k.fun; shmem=(threads) -> threads*sizeof(T))
-    k(x, y, res, T; threads=min(length(x), config.threads), blocks=config.blocks, shmem=threads*sizeof(T))
+    k(x, y, res, T; threads=min(length(x), config.threads), blocks=config.blocks, shmem=config.threads*sizeof(T))
     CUDA.@allowscalar res[]
 end
 
