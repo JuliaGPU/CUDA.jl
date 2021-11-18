@@ -76,7 +76,7 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
         # grid-stride loop
         i = threadIdx().x + (blockIdx().x - 1i32)*blockDim().x
         while i <= length(x)
-            @inbounds local_val += x[i] * y[i]
+            @inbounds local_val += dot(x[i], y[i])
             i += blockDim().x * gridDim().x
         end
 
@@ -95,7 +95,7 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
         # and if atomic operations are supported on these inputs
         atomic = T <: Union{Int16, Int32, Int64, Float16, Float32, Float64}
         if math_mode() == PEDANTIC_MATH || !atomic
-            return mapreduce((x,y)->x*y, +, x, y)
+            return mapreduce((x,y)->dot(x, y), +, x, y)
         end
 
         res = zeros(T, 1)
