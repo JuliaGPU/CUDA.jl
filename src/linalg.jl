@@ -64,10 +64,12 @@ CuArray(Q::AbstractQ) = CuMatrix(Q)
 
 # dot
 
-function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {T1,T2}
+function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
     n = length(x)
     n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
 
+    # custom kernel using simple linear indexing and atomic additions,
+    # resulting in about 10% speed-up compared to a simple mapreduce.
     function kernel(x, y, res::AbstractArray{T}, shuffle) where {T}
         local_val = zero(T)
 
@@ -80,6 +82,7 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
 
         val = reduce_block(+, local_val, zero(T), shuffle)
         if threadIdx().x == 1i32
+            # NOTE: introduces nondeterminism
             @inbounds @atomic res[] += val
         end
 
@@ -88,6 +91,13 @@ function LinearAlgebra.dot(x::StridedCuArray{T1}, y::StridedCuArray{T2}) where {
 
     dev = device()
     let T = promote_type(T1, T2)
+        # only use the above kernel if we don't care about determinism
+        # and if atomic operations are supported on these inputs
+        atomic = T <: Union{Int16, Int32, Int64, Float16, Float32, Float64}
+        if math_mode() == PEDANTIC_MATH || !atomic
+            return mapreduce((x,y)->x*y, +, x, y)
+        end
+
         res = zeros(T, 1)
 
         # be conservative about using shuffle instructions
