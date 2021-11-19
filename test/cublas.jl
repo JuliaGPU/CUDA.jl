@@ -1556,29 +1556,8 @@ end
             for i in 1:length(A)
                 push!(d_A,CuArray(A[i]))
             end
-            pivot, info = CUBLAS.getrf_batched!(d_A, false)
-            h_info = Array(info)
-            for As in 1:length(d_A)
-                pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
-                C   = lu!(copy(A[As]), pivot) # lu(A[As],pivot=false)
-                h_A = Array(d_A[As])
-                #reconstruct L,U
-                dL = Matrix(one(elty)*I, m, m)
-                dU = zeros(elty,(m,m))
-                k = h_info[As]
-                if( k >= 0 )
-                    dL += tril(h_A,-k-1)
-                    dU += triu(h_A,k)
-                end
-                #compare
-                @test C.L ≈ dL rtol=1e-1
-                @test C.U ≈ dU rtol=1e-1
-                # XXX: implement these as direct comparisons (L*U≈...)
-                #      instead if comparing against the CPU BLAS
-            end
-            for i in 1:length(A)
-                d_A[ i ] = CuArray(A[i])
-            end
+            # testing without pivoting quickly results in inaccuracies along the diagonal
+            # test with pivoting
             pivot, info = CUBLAS.getrf_batched!(d_A, true)
             h_info = Array(info)
             h_pivot = Array(pivot)
@@ -1615,25 +1594,32 @@ end
             for i in 1:length(A)
                 push!(d_A,CuArray(A[i]))
             end
-            pivot, info, d_B = CUBLAS.getrf_batched(d_A, false)
+            # testing without pivoting quickly results in inaccuracies along the diagonal
+            # test with pivoting
+            pivot, info, d_B = CUBLAS.getrf_batched(d_A, true)
             h_info = Array(info)
+            h_pivot = Array(pivot)
             for Bs in 1:length(d_B)
-                pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
-                C   = lu!(copy(A[Bs]),pivot) # lu(A[Bs],pivot=false)
-                h_B = Array(d_B[Bs])
+                C   = lu(A[Bs])
+                h_A = Array(d_B[Bs])
                 #reconstruct L,U
                 dL = Matrix(one(elty)*I, m, m)
                 dU = zeros(elty,(m,m))
                 k = h_info[Bs]
-                if( h_info[Bs] >= 0 )
-                    dU += triu(h_B,k)
-                    dL += tril(h_B,-k-1)
+                if( k >= 0 )
+                    dL += tril(h_A,-k-1)
+                    dU += triu(h_A,k)
                 end
-                #compare
-                @test C.L ≈ dL rtol=1e-1
-                @test C.U ≈ dU rtol=1e-1
-                # XXX: implement these as direct comparisons (L*U≈...)
-                #      instead if comparing against the CPU BLAS
+                #compare pivots
+                @test length(setdiff(h_pivot[:,Bs],C.p)) == 0
+                #make device pivot matrix
+                P = Matrix(1.0*I, m, m)
+                for row in 1:m
+                    temp = copy(P[row,:])
+                    P[row,:] = P[h_pivot[row,Bs],:]
+                    P[h_pivot[row,Bs],:] = temp
+                end
+                @test inv(P)*dL*dU ≈ inv(C.P) * C.L * C.U
             end
         end
 
@@ -1644,25 +1630,8 @@ end
             A = rand(elty,m,m,10)
             # move to device
             d_A = CuArray(A)
-            pivot, info = CUBLAS.getrf_strided_batched!(d_A, false)
-            h_info = Array(info)
-            for As in 1:size(d_A, 3)
-                pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
-                C   = lu!(copy(A[:,:,As]), pivot) # lu(A[As],pivot=false)
-                h_A = Array(d_A[:,:,As])
-                #reconstruct L,U
-                dL = Matrix(one(elty)*I, m, m)
-                dU = zeros(elty,(m,m))
-                k = h_info[As]
-                if( k >= 0 )
-                    dL += tril(h_A,-k-1)
-                    dU += triu(h_A,k)
-                end
-                #compare
-                @test C.L ≈ dL rtol=1e-2
-                @test C.U ≈ dU rtol=1e-2
-            end
-            d_A = CuArray(A)
+            # testing without pivoting quickly results in inaccuracies along the diagonal
+            # test with pivoting
             pivot, info = CUBLAS.getrf_strided_batched!(d_A, true)
             h_info = Array(info)
             h_pivot = Array(pivot)
@@ -1696,28 +1665,32 @@ end
             A = rand(elty,m,m,10)
             # move to device
             d_A = CuArray(A)
-            pivot, info, d_B = CUBLAS.getrf_strided_batched(d_A, false)
+            # testing without pivoting quickly results in inaccuracies along the diagonal
+            # test with pivoting
+            pivot, info, d_B = CUBLAS.getrf_strided_batched(d_A, true)
             h_info = Array(info)
-
-            for Cs in 1:length(h_info)
-                @test h_info[Cs] == 0
-            end
-
+            h_pivot = Array(pivot)
             for Bs in 1:size(d_B, 3)
-                pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
-                C   = lu!(copy(A[:,:,Bs]),pivot) # lu(A[Bs],pivot=false)
-                h_B = Array(d_B[:,:,Bs])
+                C   = lu(A[:,:,Bs])
+                h_A = Array(d_B[:,:,Bs])
                 #reconstruct L,U
                 dL = Matrix(one(elty)*I, m, m)
                 dU = zeros(elty,(m,m))
                 k = h_info[Bs]
-                if( h_info[Bs] >= 0 )
-                    dU += triu(h_B,k)
-                    dL += tril(h_B,-k-1)
+                if( k >= 0 )
+                    dL += tril(h_A,-k-1)
+                    dU += triu(h_A,k)
                 end
-                #compare
-                @test C.L ≈ dL rtol=1e-2
-                @test C.U ≈ dU rtol=1e-2
+                #compare pivots
+                @test length(setdiff(h_pivot[:,Bs],C.p)) == 0
+                #make device pivot matrix
+                P = Matrix(1.0*I, m, m)
+                for row in 1:m
+                    temp = copy(P[row,:])
+                    P[row,:] = P[h_pivot[row,Bs],:]
+                    P[h_pivot[row,Bs],:] = temp
+                end
+                @test inv(P)*dL*dU ≈ inv(C.P) * C.L * C.U
             end
         end
 
