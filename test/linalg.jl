@@ -23,10 +23,7 @@ end
 @testset "dot" begin
     @testset for T in [Int16, Int32, Int64,
                        Float16, Float32, Float64,
-                       #=ComplexF16, ComplexF32, ComplexF64=#]
-        # TODO: complex types aren't supported by @atomic
-        # - ComplexF16/ComplexF32 can't be bitcasted to integers (JuliaLang/julia#43065)
-        # - 128-bit datatypes are not supported by a single atomic (can we split the operation?)
+                       ComplexF16, ComplexF32, ComplexF64]
         @test testf(dot, rand(T, 256), rand(Bool, 256))
         @test testf(dot, rand(Bool, 256), rand(T, 256))
     end
