@@ -122,9 +122,9 @@ version = "4.6.0"
 
 [[LLVMExtra_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "6a2af408fe809c4f1a54d2b3f188fdd3698549d6"
+git-tree-sha1 = "9436f02a0c9f726d914cc6539f87850701be18fc"
 uuid = "dad2f222-ce93-54a1-a47d-0025e8a3acab"
-version = "0.0.11+0"
+version = "0.0.12+0"
 
 [[LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
