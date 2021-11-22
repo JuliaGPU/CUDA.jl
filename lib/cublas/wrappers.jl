@@ -415,6 +415,32 @@ for (fname, elty) in ((:cublasDgbmv_v2,:Float64),
     end
 end
 
+### spmv
+for (fname, elty) in ((:cublasDspmv_v2,:Float64),
+                      (:cublasSspmv_v2,:Float32))
+    @eval begin
+        function spmv!(uplo::Char,
+                       alpha::Number,
+                       AP::StridedCuVector{$elty},
+                       x::StridedCuVector{$elty},
+                       beta::Number,
+                       y::StridedCuVector{$elty})
+            n = round(Int, (sqrt(8*length(AP))-1)/2)
+            if n != length(x) || n != length(y) throw(DimensionMismatch("")) end
+            incx = stride(x,1)
+            incy = stride(y,1)
+            $fname(handle(), uplo, n, alpha, AP, x, incx, beta, y, incy)
+            y
+        end
+        function spmv(uplo::Char, alpha::Number, AP::StridedCuVector{$elty}, x::StridedCuVector{$elty})
+                spmv!(uplo, alpha, AP, x, zero($elty), similar(x))
+        end
+        function spmv(uplo::Char, AP::StridedCuVector{$elty}, x::StridedCuVector{$elty})
+            spmv(uplo, one($elty), AP, x)
+        end
+    end
+end
+
 ### symv
 for (fname, elty) in ((:cublasDsymv_v2,:Float64),
                       (:cublasSsymv_v2,:Float32),
@@ -691,6 +717,23 @@ for (fname, elty) in ((:cublasDger_v2,:Float64),
             lda = max(1,stride(A,2))
             $fname(handle(), m, n, alpha, x, incx, y, incy, A, lda)
             A
+        end
+    end
+end
+
+### spr
+for (fname, elty) in ((:cublasDspr_v2,:Float64),
+                      (:cublasSspr_v2,:Float32))
+    @eval begin
+        function spr!(uplo::Char,
+                      alpha::Number,
+                      x::StridedCuVector{$elty},
+                      AP::StridedCuVector{$elty})
+            n = round(Int, (sqrt(8*length(AP))-1)/2)
+            length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
+            incx = stride(x,1)
+            $fname(handle(), uplo, n, alpha, x, incx, AP)
+            AP
         end
     end
 end
