@@ -156,7 +156,7 @@ end
 # a hacky method of exposing constant tables as constant GPU memory
 function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
     Context() do ctx
-        T_val = convert(LLVMType, T)
+        T_val = convert(LLVMType, T; ctx)
         T_ptr = convert(LLVMType, LLVMPtr{T,AS.Constant}; ctx)
 
         # define function and get LLVM module
