@@ -593,6 +593,27 @@ end
     @cuda threads=length(b) kernel(b)
     @test Array(b) == [2, nothing, 4]
   end
+
+  # test that we can create and use arrays with all singleton objects
+  let a = [nothing, missing, missing, nothing]
+    b = CuArray(a)
+    errors = CuArray([0])
+    function kernel()
+      i = threadIdx().x
+      if i == 1 || i == 4
+        if b[i] !==  nothing
+          errors[] += 1
+        end
+      else
+        if b[i] !== missing
+          errors[] += 1
+        end
+      end
+      return
+    end
+    @cuda threads=length(b) kernel()
+    @test Array(errors) == [0]
+  end
 end
 
 @testset "large map reduce" begin

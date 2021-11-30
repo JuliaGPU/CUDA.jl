@@ -28,7 +28,7 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
   storage::Union{Nothing,ArrayStorage{B}}
 
   maxsize::Int  # maximum data size; excluding any selector bytes
-  offset::Int
+  offset::Int   # offset of the data in the buffer, in number of elements
 
   dims::Dims{N}
 
@@ -315,14 +315,14 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T} =
   throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
 Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
-  convert(CuPtr{T}, x.storage.buffer) + x.offset
+  convert(CuPtr{T}, x.storage.buffer) + x.offset*Base.elsize(x)
 
 
 ## interop with device arrays
 
 function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArray{T,N}) where {T,N}
   CuDeviceArray{T,N,AS.Global}(size(a), reinterpret(LLVMPtr{T,AS.Global}, pointer(a)),
-                               a.maxsize - a.offset)
+                               a.maxsize - a.offset*Base.elsize(a))
 end
 
 
@@ -330,7 +330,7 @@ end
 
 typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
 typetagdata(a::CuArray, i=1) =
-  convert(CuPtr{UInt8}, a.storage.buffer) + a.maxsize + a.offset÷Base.elsize(a) + i - 1
+  convert(CuPtr{UInt8}, a.storage.buffer) + a.maxsize + a.offset + i - 1
 
 function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
                       n::Integer) where T
@@ -584,7 +584,7 @@ end
     unsafe_contiguous_view(Base._maybe_reshape_parent(A, Base.index_ndims(I...)), I, cuviewlength(I...))
 end
 @inline function unsafe_contiguous_view(a::CuArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
-    offset = Base.compute_offset1(a, 1, I) * sizeof(T)
+    offset = Base.compute_offset1(a, 1, I)
 
     refcount = a.storage.refcount[]
     @assert refcount != 0
@@ -644,7 +644,9 @@ end
     Threads.atomic_add!(a.storage.refcount, 1)
   end
 
-  b = CuArray{T,N}(a.storage, osize; a.maxsize, a.offset)
+  offset = (a.offset * Base.elsize(a)) ÷ sizeof(T)
+
+  b = CuArray{T,N}(a.storage, osize; a.maxsize, offset)
   if refcount > 0
       finalizer(unsafe_finalize!, b)
   end
