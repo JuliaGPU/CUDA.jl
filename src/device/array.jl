@@ -102,19 +102,6 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
     end
 end
 
-# enumerate the union types in the order that the selector indexes them
-# XXX: where does Base determine this order?
-function union_types(T::Union)
-    typs = DataType[T.a]
-    tail = T.b
-    while tail isa Union
-        push!(typs, tail.a)
-        tail = tail.b
-    end
-    push!(typs, tail)
-    return typs
-end
-
 @inline function arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     if isbitstype(T)
@@ -130,7 +117,7 @@ end
 end
 
 @inline @generated function arrayref_union(A::CuDeviceArray{T,AS}, index::Integer) where {T,AS}
-    typs = union_types(T)
+    typs = Base.uniontypes(T)
 
     # generate code that conditionally loads a value based on the selector value.
     # lacking noreturn, we return T to avoid inference thinking this can return Nothing.
@@ -173,7 +160,7 @@ end
 end
 
 @inline @generated function arrayset_union(A::CuDeviceArray{T,AS}, x::T, index::Integer) where {T,AS}
-    typs = union_types(T)
+    typs = Base.uniontypes(T)
     sel = findfirst(isequal(x), typs)
 
     quote

@@ -614,6 +614,20 @@ end
     @cuda threads=length(b) kernel()
     @test Array(errors) == [0]
   end
+
+  # arrays with union{union{...}, ...}
+  let a = CuArray{Union{Union{Missing,Nothing},Int}}([0])
+    function kernel(x)
+      i = threadIdx().x
+      val = x[i]
+      if val !== nothing && val !== missing
+        x[i] = val + 1
+      end
+      return
+    end
+    @cuda threads=length(a) kernel(a)
+    @test Array(a) == [1]
+  end
 end
 
 @testset "large map reduce" begin
