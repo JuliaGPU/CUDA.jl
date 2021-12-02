@@ -49,7 +49,7 @@ steps:
   - label: "Julia 1.7"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.7-nightly
+          version: 1.7
       - JuliaCI/julia-test#v1: ~
       - JuliaCI/julia-coverage#v1:
           codecov: true
@@ -309,7 +309,7 @@ steps:
 
   # if we will submit results, use the benchmark queue so that we will
   # be running on the same system each time
-  - label: "Benchmarks"
+  - label: "Benchmarks on 1.6"
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
@@ -319,6 +319,37 @@ steps:
       CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
       CODESPEED_COMMIT: "$BUILDKITE_COMMIT"
       CODESPEED_EXECUTABLE: "Julia 1.6"
+    command: |
+      julia --project -e '
+        ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
+
+        println("--- :julia: Instantiating project")
+        using Pkg
+        Pkg.instantiate()
+        Pkg.activate("perf")
+        Pkg.instantiate()
+        push!(LOAD_PATH, @__DIR__)
+
+        println("+++ :julia: Benchmarking")
+        include("perf/runbenchmarks.jl")'
+    agents:
+      queue: "benchmark"
+      cuda: "*"
+    if: build.message !~ /\[skip benchmarks\]/ &&
+        build.branch =~ /^master$$/ &&
+        !build.pull_request.draft
+    timeout_in_minutes: 30
+
+  - label: "Benchmarks on 1.7"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: 1.7
+    env:
+      BENCHMARKS: "true"
+      CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
+      CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
+      CODESPEED_COMMIT: "$BUILDKITE_COMMIT"
+      CODESPEED_EXECUTABLE: "Julia 1.7"
     command: |
       julia --project -e '
         ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
