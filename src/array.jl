@@ -117,9 +117,9 @@ end
 
 ## convenience constructors
 
-CuVector{T} = CuArray{T,1}
-CuMatrix{T} = CuArray{T,2}
-CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
+const CuVector{T} = CuArray{T,1}
+const CuMatrix{T} = CuArray{T,2}
+const CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
 # default to non-unified memory
 CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N} =
@@ -253,21 +253,21 @@ export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,
 # this simplifies common use cases, and greatly improves load time.
 # CUDA.jl 2.0 experimented with using ReshapedArray/ReinterpretArray/SubArray,
 # but that proved much too costly. TODO: revisit when we have better Base support.
-DenseCuArray{T,N} = CuArray{T,N}
-DenseCuVector{T} = DenseCuArray{T,1}
-DenseCuMatrix{T} = DenseCuArray{T,2}
-DenseCuVecOrMat{T} = Union{DenseCuVector{T}, DenseCuMatrix{T}}
+const DenseCuArray{T,N} = CuArray{T,N}
+const DenseCuVector{T} = DenseCuArray{T,1}
+const DenseCuMatrix{T} = DenseCuArray{T,2}
+const DenseCuVecOrMat{T} = Union{DenseCuVector{T}, DenseCuMatrix{T}}
 # XXX: these dummy aliases (DenseCuArray=CuArray) break alias printing, as
 #      `Base.print_without_params` only handles the case of a single alias.
 
 # strided arrays
-StridedSubCuArray{T,N,I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
+const StridedSubCuArray{T,N,I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
                                             Base.AbstractCartesianIndex}}}} =
   SubArray{T,N,<:CuArray,I}
-StridedCuArray{T,N} = Union{CuArray{T,N}, StridedSubCuArray{T,N}}
-StridedCuVector{T} = StridedCuArray{T,1}
-StridedCuMatrix{T} = StridedCuArray{T,2}
-StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
+const StridedCuArray{T,N} = Union{CuArray{T,N}, StridedSubCuArray{T,N}}
+const StridedCuVector{T} = StridedCuArray{T,1}
+const StridedCuMatrix{T} = StridedCuArray{T,2}
+const StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
 
 Base.pointer(x::StridedCuArray{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
 @inline function Base.pointer(x::StridedCuArray{T}, i::Integer) where T
@@ -275,10 +275,10 @@ Base.pointer(x::StridedCuArray{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
 end
 
 # anything that's (secretly) backed by a CuArray
-AnyCuArray{T,N} = Union{CuArray{T,N}, WrappedArray{T,N,CuArray,CuArray{T,N}}}
-AnyCuVector{T} = AnyCuArray{T,1}
-AnyCuMatrix{T} = AnyCuArray{T,2}
-AnyCuVecOrMat{T} = Union{AnyCuVector{T}, AnyCuMatrix{T}}
+const AnyCuArray{T,N} = Union{CuArray{T,N}, WrappedArray{T,N,CuArray,CuArray{T,N}}}
+const AnyCuVector{T} = AnyCuArray{T,1}
+const AnyCuMatrix{T} = AnyCuArray{T,2}
+const AnyCuVecOrMat{T} = Union{AnyCuVector{T}, AnyCuMatrix{T}}
 
 
 ## interop with other arrays
