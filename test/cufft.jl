@@ -303,3 +303,20 @@ end
 end
 
 end
+
+
+## other
+
+@testset "CUDA.jl#1268" begin
+    N=2^20
+    v0 = CuArray(ones(N)+im*ones(N))
+
+    v = CuArray(ones(N)+im*ones(N))
+    plan = CUFFT.plan_fft!(v,1)
+    @test fetch(
+        Threads.@spawn begin
+            inv(plan)*(plan*v)
+            isapprox(v,v0)
+        end
+    )
+end

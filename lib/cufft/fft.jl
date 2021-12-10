@@ -449,6 +449,7 @@ end
 function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,true,N},
                          x::DenseCuArray{cufftDoubleComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_Z2Z
+    update_stream(plan)
     cufftExecZ2Z(plan, x, x, K)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,true,N},
