@@ -338,6 +338,7 @@ end
 
     @testset "bitonic sort" begin
         # test various types
+        @test check_sort(Int, 10000, x -> rand(Int); alg=CUDA.BitonicSort)
         @test check_sort!(Int, 10000, x -> rand(Int); alg=CUDA.BitonicSort)
         @test check_sort!(Int32, 10000, x -> rand(Int32); alg=CUDA.BitonicSort)
         @test check_sort!(Int8, 10000, x -> rand(Int8); alg=CUDA.BitonicSort)
