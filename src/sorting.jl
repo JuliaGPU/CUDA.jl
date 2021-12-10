@@ -73,7 +73,7 @@ Uses block y index to decide which values to operate on.
     sync_threads()
     blockIdx_yz = (blockIdx().z - 1i32) * gridDim().y + blockIdx().y
     idx0 = lo + (blockIdx_yz - 1i32) * blockDim().x + threadIdx().x
-    if idx0 <= hi
+    @inbounds if idx0 <= hi
         val = values[idx0]
         comparison = flex_lt(pivot, val, parity, lt, by)
     end
@@ -737,7 +737,7 @@ Each view is indexed along block x dim: one view per pseudo-block
         @inbounds swap[threadIdx().x, threadIdx().y] = vals[index+one(I)]
     end
     sync_threads()
-    return @view swap[:, threadIdx().y]
+    return @inbounds @view swap[:, threadIdx().y]
 end
 
 """
