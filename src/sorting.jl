@@ -884,6 +884,8 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false) where {T}
             end
         end
     end
+
+    return c
 end
 end
 
