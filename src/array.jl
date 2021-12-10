@@ -374,12 +374,12 @@ end
 Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
     copyto!(dest, 1, src, 1, length(src))
 
-# device memory
+# general case: use CUDA APIs
 
 # NOTE: we only switch contexts here to avoid illegal memory accesses. synchronization is
 #       best-effort, since we don't keep track of streams using each array.
 
-function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, doffs,
+function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::Array{T}, soffs, n) where T
   @context! context(dest) begin
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
@@ -398,7 +398,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, doffs
 end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs,
-                             src::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, soffs, n) where T
+                             src::DenseCuArray{T}, soffs, n) where T
   @context! context(src) begin
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
@@ -418,8 +418,8 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
   return dest
 end
 
-function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, doffs,
-                             src::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, soffs, n) where T
+function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
+                             src::DenseCuArray{T}, soffs, n) where T
   context(dest) == context(src) || throw(ArgumentError("copying between arrays from different contexts"))
   @context! context(dest) begin
     GC.@preserve src dest begin
@@ -432,10 +432,10 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,Mem.DeviceBuffer}, doffs
   return dest
 end
 
-# unified memory
+# optimization: memcpy on the CPU for Array <-> unified or host arrays
 
 # NOTE: synchronization is best-effort, since we don't keep track of the
-#       defices and streams using each array backed by unified memory.
+#       dependencies and streams using each array backed by unified memory.
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, doffs,
                              src::Array{T}, soffs, n) where T
@@ -471,7 +471,8 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
   return dest
 end
 
-# TODO: copying between CUDA arrays (unified<->unified, unified<->device, device<->unified)
+# optimization: memcpy on the CPU for unified or host <-> unified or host
+# TODO
 
 
 ## regular gpu array adaptor
