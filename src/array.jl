@@ -471,8 +471,44 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
   return dest
 end
 
-# optimization: memcpy on the CPU for unified or host <-> unified or host
-# TODO
+# optimization: memcpy between host or unified arrays without context switching
+
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, doffs,
+                             src::DenseCuArray{T}, soffs, n) where T
+  @context! context(src) begin
+    GC.@preserve src dest begin
+      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+      if Base.isbitsunion(T)
+        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+      end
+    end
+  end
+  return dest
+end
+
+function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
+                             src::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, soffs, n) where T
+  @context! context(dest) begin
+    GC.@preserve src dest begin
+      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+      if Base.isbitsunion(T)
+        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+      end
+    end
+  end
+  return dest
+end
+
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, doffs,
+                             src::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, soffs, n) where T
+  GC.@preserve src dest begin
+    unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+    if Base.isbitsunion(T)
+      unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+    end
+  end
+  return dest
+end
 
 
 ## regular gpu array adaptor

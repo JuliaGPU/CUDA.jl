@@ -782,5 +782,56 @@ if length(devices()) > 1
     end)
     @test A == B
   end
+
+  @testset "issue 1263" begin
+    function unified_cuarray(::Type{T}, dims::NTuple{N}) where {T, N}
+        buf = Mem.alloc(Mem.Unified, prod(dims) * sizeof(T))
+        array = unsafe_wrap(CuArray{T, N}, convert(CuPtr{T}, buf), dims)
+        finalizer(_ -> Mem.free(buf), array)
+        return array
+    end
+
+    A = rand(5, 5)
+    B = rand(5, 5)
+
+    # should be able to copy to/from unified memory regardless of the context
+    device!(dev)
+    dA = CuArray(A)
+    device!(other_dev)
+    dB = unified_cuarray(eltype(A), size(A))
+    device!(dev)
+    copyto!(dB, dA)
+    @test Array(dB) == A
+
+    device!(other_dev)
+    copyto!(dB, B)
+    synchronize()
+    device!(dev)
+    copyto!(dA, dB)
+    @test Array(dA) == B
+
+    function host_cuarray(::Type{T}, dims::NTuple{N}) where {T, N}
+        buf = Mem.alloc(Mem.Unified, prod(dims) * sizeof(T))
+        array = unsafe_wrap(CuArray{T, N}, convert(CuPtr{T}, buf), dims)
+        finalizer(_ -> Mem.free(buf), array)
+        return array
+    end
+
+    # same for host memory
+    device!(dev)
+    dA = CuArray(A)
+    device!(other_dev)
+    dB = host_cuarray(eltype(A), size(A))
+    device!(dev)
+    copyto!(dB, dA)
+    @test Array(dB) == A
+
+    device!(other_dev)
+    copyto!(dB, B)
+    synchronize()
+    device!(dev)
+    copyto!(dA, dB)
+    @test Array(dA) == B
+  end
 end
 end
