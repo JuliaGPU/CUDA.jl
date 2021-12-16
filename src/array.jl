@@ -549,8 +549,8 @@ Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
 ## utilities
 
-zeros(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 0)
-ones(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 1)
+zeros(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), zero(T))
+ones(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), one(T))
 zeros(dims...) = zeros(Float32, dims...)
 ones(dims...) = ones(Float32, dims...)
 fill(v, dims...) = fill!(CuArray{typeof(v)}(undef, dims...), v)

@@ -66,6 +66,20 @@ import Adapt
 
   @test collect(CUDA.fill(0, 2, 2)) == zeros(Float32, 2, 2)
   @test collect(CUDA.fill(1, 2, 2)) == ones(Float32, 2, 2)
+  
+  let
+    @gensym typnam
+    typ = @eval begin
+      struct $typnam
+        content::Int
+      end
+      Base.zero(::Type{$typnam}) = $typnam(1)
+      Base.one(::Type{$typnam}) = $typnam(2)
+      $typnam
+    end
+    @test collect(CUDA.zeros(typ, 2, 2)) == zeros(typ, 2, 2)
+    @test collect(CUDA.ones(typ, 2, 2)) == ones(typ, 2, 2)
+  end
 end
 
 @testset "adapt" begin
