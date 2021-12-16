@@ -88,7 +88,8 @@ function stop()
     CUDA.cuProfilerStop()
     if nsight() !== nothing
         run(`$(nsight()) stop`)
-        @info "Profiling has finished, open the report listed above with `nsight-sys`"
+        @info """Profiling has finished, open the report listed above with `nsight-sys`
+                 If no report was generated, try launching `nsys` with `--trace=cuda`"""
     end
 end
 
