@@ -64,6 +64,14 @@ import Adapt
   @test collect(CUDA.zeros(2, 2)) == zeros(Float32, 2, 2)
   @test collect(CUDA.ones(2, 2)) == ones(Float32, 2, 2)
 
+  struct A
+    content::Int
+  end
+  Base.zero(::Type{A}) = A(1)
+  Base.one(::Type{A}) = A(2)
+  @test collect(CUDA.zeros(A, 2, 2)) == zeros(A, 2, 2)
+  @test collect(CUDA.ones(A, 2, 2)) == ones(A, 2, 2)
+
   @test collect(CUDA.fill(0, 2, 2)) == zeros(Float32, 2, 2)
   @test collect(CUDA.fill(1, 2, 2)) == ones(Float32, 2, 2)
 end
