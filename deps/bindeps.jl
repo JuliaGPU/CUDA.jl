@@ -503,6 +503,9 @@ export libcudnn, has_cudnn
 const __libcudnn = Ref{Union{String,Nothing}}()
 function libcudnn(; throw_error::Bool=true)
     path = @initialize_ref __libcudnn begin
+        # CUDNN depends on CUBLAS
+        libcublas()
+
         find_cudnn(toolkit(), v"8")
     end CUDA.CUDNN.__runtime_init__()
     if path === nothing && throw_error
@@ -562,7 +565,7 @@ export libcutensor, has_cutensor
 const __libcutensor = Ref{Union{String,Nothing}}()
 function libcutensor(; throw_error::Bool=true)
     path = @initialize_ref __libcutensor begin
-        # CUTENSOR depends on CUBLAS and CUBLASlt to be discoverable by the linker
+        # CUTENSOR depends on CUBLAS
         libcublas()
 
         find_cutensor(toolkit(), v"1")
