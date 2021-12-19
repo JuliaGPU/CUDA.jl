@@ -17,6 +17,21 @@ end
 
 Base.unsafe_convert(::Type{cusparseMatDescr_t}, desc::CuMatrixDescriptor) = desc.handle
 
+mutable struct CuSpGEMMDescriptor
+    handle::cusparseSpGEMMDescr_t
+
+    function CuSpGEMMDescriptor()
+        descr_ref = Ref{cusparseSpGEMMDescr_t}()
+        cusparseSpGEMM_createDescr(descr_ref)
+        obj = new(descr_ref[])
+        finalizer(cusparseSpGEMM_destroyDescr, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{cusparseSpGEMMDescr_t}, desc::CuSpGEMMDescriptor) = desc.handle
+
+
 function CuMatrixDescriptor(MatrixType::Char, FillMode::Char, DiagType::Char, IndexBase::Char)
     desc = CuMatrixDescriptor()
     if MatrixType != 'G'

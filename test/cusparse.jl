@@ -987,6 +987,30 @@ end
             @test D ≈ h_D
         end
     end
+    if CUSPARSE.version() >= v"11.1.1"
+        @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+            @testset for (pA, pB, pC) in [(0.1, 0.1, 0.8), (0.8, 0.8, 0.1), (0.4, 0.8, 0.5)]
+                A = sprand(elty,m,k, pA)
+                B = sprand(elty,k,n, pB)
+                C = sprand(elty,m,n, pC)
+                alpha = rand(elty)
+                beta  = rand(elty)
+                @testset "$(typeof(d_A))" for (d_A, d_B, d_C) in [(CuSparseMatrixCSR(A),
+                                                                   CuSparseMatrixCSR(B),
+                                                                   CuSparseMatrixCSR(C))] # for now only supports CSR
+                    mm! = CUSPARSE.mm!
+                    @test_throws ArgumentError mm!('N','T',alpha,d_A,d_B,beta,d_C,'O')
+                    @test_throws ArgumentError mm!('T','N',alpha,d_A,d_B,beta,d_C,'O')
+                    @test_throws ArgumentError mm!('T','T',alpha,d_A,d_B,beta,d_C,'O')
+                    @test_throws DimensionMismatch mm!('N','N',alpha,d_A,d_B,beta,d_B,'O')
+                    D = alpha * A * B + beta * C
+                    d_C = mm!('N','N',alpha,d_A,d_B,beta,d_C,'O')
+                    h_C = SparseMatrixCSC(d_C)
+                    @test D ≈ h_C
+                end
+            end
+        end
+    end
 
     @testset "issue 493" begin
         x = cu(rand(20))
