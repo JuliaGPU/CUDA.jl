@@ -57,6 +57,11 @@ function synchronize_cuda_tasks(ex)
 end
 
 @noinline function __init_driver__()
+    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
+        @error("Running under rr, which is incompatible with CUDA")
+        return
+    end
+
     if version() < v"10.1"
         @warn "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.1 or higher (yours is for CUDA $(version()))"
     end
@@ -75,6 +80,8 @@ end
 
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("-nvptx-fma-level=1")
+
+    cuInit(0)
 
     return
 end

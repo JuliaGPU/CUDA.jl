@@ -131,7 +131,7 @@ function libcuda()
             end
         end
 
-        cuInit(0)
+        __init_driver__()
     end
 
     # memoized because otherwise each ccall would perform discovery again
