@@ -39,9 +39,15 @@ pointer can be specified. This is useful when dealing with a heterogeneous buffe
 shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
 """
 @inline function CuDynamicSharedArray(::Type{T}, dims, offset) where {T}
-    len = prod(dims)
-    @boundscheck if offset+len > dynamic_smem_size()
-        throw(BoundsError())
+    @boundscheck begin
+        len = prod(dims)
+        sz = len*sizeof(T)
+        if Base.isbitsunion(T)
+            sz += len
+        end
+        if offset+sz > dynamic_smem_size()
+            throw(BoundsError())
+        end
     end
     ptr = emit_shmem(T) + offset
     CuDeviceArray(dims, ptr)
@@ -57,7 +63,8 @@ macro cuDynamicSharedMem(T, dims, offset=0)
     end
 end
 
-dynamic_smem_size() = @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, UInt32, Tuple{})
+dynamic_smem_size() =
+    @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, UInt32, Tuple{})
 
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
 @generated function emit_shmem(::Type{T}, ::Val{len}=Val(0)) where {T,len}
