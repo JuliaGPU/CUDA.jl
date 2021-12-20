@@ -38,7 +38,7 @@ Optionally, an offset parameter indicating how many bytes to add to the base sha
 pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
 shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
 """
-@inline function CuDynamicSharedArray(::Type{T}, dims, offset=0) where {T}
+@inline function CuDynamicSharedArray(::Type{T}, dims, offset) where {T}
     len = prod(dims)
     @boundscheck if offset+len > dynamic_smem_size()
         throw(BoundsError())
@@ -46,6 +46,9 @@ shared memory; in the case of a homogeneous multi-part buffer it is preferred to
     ptr = emit_shmem(T) + offset
     CuDeviceArray(dims, ptr)
 end
+# XXX: default argument-generated methods do not propagate inboundsness
+Base.@propagate_inbounds CuDynamicSharedArray(::Type{T}, dims) where {T} =
+    CuDynamicSharedArray(T, dims, 0)
 
 macro cuDynamicSharedMem(T, dims, offset=0)
     Base.depwarn("@cuDynamicSharedMem is deprecated, please use the CuDynamicSharedArray function", :CuStaticSharedArray)
