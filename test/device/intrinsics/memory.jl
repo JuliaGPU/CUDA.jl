@@ -33,6 +33,10 @@ n = 256
     @on_device shmem=sizeof(Tuple{Float32, Float32})+8 CuDynamicSharedArray(Tuple{Float32, Float32}, (1,2), 8)
     @on_device shmem=sizeof(Tuple{RGB{Float32}, UInt32})+8 CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, 1, 8)
     @on_device shmem=sizeof(Tuple{RGB{Float32}, UInt32})+8 CuDynamicSharedArray(Tuple{RGB{Float32}, UInt32}, (1,2), 8)
+
+    # isbits union arrays
+    @on_device CuStaticSharedArray(Union{Missing,Int}, 1)
+    @on_device shmem=sizeof(Int)+1 CuDynamicSharedArray(Union{Missing,Int}, 1)
 end
 
 

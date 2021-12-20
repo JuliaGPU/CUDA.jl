@@ -62,15 +62,24 @@ dynamic_smem_size() = @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, U
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
 @generated function emit_shmem(::Type{T}, ::Val{len}=Val(0)) where {T,len}
     Context() do ctx
-        eltyp = convert(LLVMType, T; ctx)
+        T_int8 = LLVM.Int8Type(ctx)
         T_ptr = convert(LLVMType, LLVMPtr{T,AS.Shared}; ctx)
 
         # create a function
         llvm_f, _ = create_function(T_ptr)
 
+        # determine the array size
+        # TODO: assert that T isbitstype || isbitsunion (or it won't have a layout)
+        sz = len*sizeof(T)
+        if Base.isbitsunion(T)
+            sz += len
+        end
+
         # create the global variable
+        # NOTE: this variable can't have T as element type, because it may be a boxed type
+        #       when we're dealing with a union isbits array (e.g. `Union{Missing,Int}`)
         mod = LLVM.parent(llvm_f)
-        gv_typ = LLVM.ArrayType(eltyp, len)
+        gv_typ = LLVM.ArrayType(T_int8, sz)
         gv = GlobalVariable(mod, gv_typ, "shmem", AS.Shared)
         if len > 0
             # static shared memory should be demoted to local variables, whenever possible.
@@ -87,7 +96,17 @@ dynamic_smem_size() = @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, U
         # by requesting a larger-than-datatype alignment, we might be able to vectorize.
         # we pick 32 bytes here, since WMMA instructions require 32-byte alignment.
         # TODO: Make the alignment configurable
-        alignment!(gv, max(32, Base.datatype_alignment(T)))
+        align = 32
+        if isbitstype(T)
+            align = max(align, Base.datatype_alignment(T))
+        else # if isbitsunion(T)
+            for typ in Base.uniontypes(T)
+                if typ.layout != C_NULL
+                    align = max(align, Base.datatype_alignment(typ))
+                end
+            end
+        end
+        alignment!(gv, align)
 
         # generate IR
         Builder(ctx) do builder
