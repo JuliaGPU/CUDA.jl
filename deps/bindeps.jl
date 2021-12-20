@@ -12,25 +12,25 @@ const dependency_lock = ReentrantLock()
 # hook to be executed after successfully discovering the library and setting the ref.
 macro initialize_ref(ref, ex, hook=:())
     quote
-        ref = $ref
+        ref = $(esc(ref))
 
         # test and test-and-set
         if !isassigned(ref)
             Base.@lock dependency_lock begin
                 if !isassigned(ref)
-                    val = $ex
-                    if val === nothing && !(eltype($ref) <: Union{Nothing,<:Any})
+                    val = $(esc(ex))
+                    if val === nothing && !(eltype(ref) <: Union{Nothing,<:Any})
                         error($"Could not find a required library")
                     end
-                    $ref[] = val
+                    ref[] = val
                     if val !== nothing
-                        $hook
+                        $(esc(hook))
                     end
                 end
             end
         end
 
-        $ref[]
+        ref[]
     end
 end
 
