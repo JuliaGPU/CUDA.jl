@@ -3,7 +3,7 @@
 export @cuStaticSharedMem, @cuDynamicSharedMem, CuStaticSharedArray, CuDynamicSharedArray
 
 """
-    CuStaticSharedArray(T::Type, dims) -> CuDeviceArray{T,AS.Shared}
+    CuStaticSharedArray(T::Type, dims) -> CuDeviceArray{T,N,AS.Shared}
 
 Get an array of type `T` and dimensions `dims` (either an integer length or tuple shape)
 pointing to a statically-allocated piece of shared memory. The type should be statically
@@ -26,7 +26,7 @@ macro cuStaticSharedMem(T, dims)
 end
 
 """
-    CuDynamicSharedArray(T::Type, dims, offset::Integer=0) -> CuDeviceArray{T,AS.Shared}
+    CuDynamicSharedArray(T::Type, dims, offset::Integer=0) -> CuDeviceArray{T,N,AS.Shared}
 
 Get an array of type `T` and dimensions `dims` (either an integer length or tuple shape)
 pointing to a dynamically-allocated piece of shared memory. The type should be statically

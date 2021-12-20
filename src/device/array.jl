@@ -116,7 +116,7 @@ end
     unsafe_load(pointer(A), index, Val(align))
 end
 
-@inline @generated function arrayref_union(A::CuDeviceArray{T,AS}, index::Integer) where {T,AS}
+@inline @generated function arrayref_union(A::CuDeviceArray{T,<:Any,AS}, index::Integer) where {T,AS}
     typs = Base.uniontypes(T)
 
     # generate code that conditionally loads a value based on the selector value.
@@ -159,7 +159,7 @@ end
     unsafe_store!(pointer(A), x, index, Val(align))
 end
 
-@inline @generated function arrayset_union(A::CuDeviceArray{T,AS}, x::T, index::Integer) where {T,AS}
+@inline @generated function arrayset_union(A::CuDeviceArray{T,<:Any,AS}, x::T, index::Integer) where {T,AS}
     typs = Base.uniontypes(T)
     sel = findfirst(isequal(x), typs)
 
