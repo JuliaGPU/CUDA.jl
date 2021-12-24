@@ -232,6 +232,6 @@ end
 
 # Allocate the maximum reasonable amount of memory for algorithm discovery
 function cudnnFindConvolutionAlgorithmWorkspaceSize(x)
-    gpufree = CUDA.available_memory() + CUDA.cached_memory()
+    gpufree = CUDA.available_memory() + coalesce(CUDA.cached_memory(), 0)
     min(gpufree ÷ 10, sizeof(x) * 100)
 end
