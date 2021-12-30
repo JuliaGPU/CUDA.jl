@@ -409,11 +409,11 @@ end
 
         a = CuArray([0f0])
         @cuda kernel(a)
-        @test a[1] ≈ 84
+        @test Array(a)[1] ≈ 84
             
         a = CuArray([NaN32])
         @cuda kernel(a)
-        @test isnan(a[1])
+        @test isnan(Array(a)[1])
     end
             
     using CUDA: AtomicError
