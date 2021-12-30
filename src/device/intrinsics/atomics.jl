@@ -225,7 +225,7 @@ end
         cmp = old
         new = convert(T, op(old, val))
         old = atomic_cas!(ptr, cmp, new)
-        (old == cmp) && return new
+        (old === cmp) && return new
     end
 end
 
