@@ -95,7 +95,7 @@ function cuda_artifact(id, cuda::VersionNumber)
     dir = try
         @artifact_str(id, platform)
     catch ex
-        @debug "Could not load artifact '$id' for CUDA $(cuda.release)" exception=(ex,catch_backtrace())
+        @debug "Could not load artifact '$id' for CUDA $(cuda)" exception=(ex,catch_backtrace())
         return nothing
     end
 
