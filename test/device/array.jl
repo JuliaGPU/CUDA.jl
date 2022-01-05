@@ -69,6 +69,9 @@ end
     input_dev = CuArray(input)
     output_dev = CuArray(input)
 
+    @test cudaconvert(input_dev) isa CuDeviceArray
+    @test_throws ErrorException cudaconvert(input_dev)[]
+
     @cuda threads=len kernel(input_dev, output_dev)
     output = Array(output_dev)
     @test input ≈ output
@@ -135,15 +138,14 @@ end
 end
 
 @testset "non-Int index to unsafe_load" begin
-    function load_index(a)
-        return a[UInt64(1)]
+    function kernel(a)
+        a[UInt64(1)] = 1
+        return
     end
 
-    a = [1]
-    p = pointer(a)
-    dp = reinterpret(Core.LLVMPtr{eltype(p), AS.Generic}, p)
-    da = CUDA.CuDeviceArray(1, dp)
-    load_index(da)
+    array = CUDA.zeros(1)
+    @cuda kernel(array)
+    @test Array(array) == [1]
 end
 
 
