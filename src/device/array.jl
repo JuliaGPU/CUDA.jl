@@ -105,7 +105,7 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
     end
 end
 
-@inline function arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
+@device_function @inline function arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     if isbitstype(T)
         arrayref_bits(A, index)
@@ -147,7 +147,7 @@ end
     end
 end
 
-@inline function arrayset(A::CuDeviceArray{T}, x::T, index::Integer) where {T}
+@device_function @inline function arrayset(A::CuDeviceArray{T}, x::T, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     if isbitstype(T)
         arrayset_bits(A, x, index)
@@ -178,7 +178,7 @@ end
     end
 end
 
-@inline function const_arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
+@device_function @inline function const_arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     align = alignment(A)
     unsafe_cached_load(pointer(A), index, Val(align))
