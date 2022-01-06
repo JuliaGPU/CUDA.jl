@@ -334,17 +334,20 @@ end
 end
 
 @testset "logical indexing" begin
-  @test CuArray{Int}(undef, 2)[CuArray{Bool}(undef, 2)] isa CuArray
-  @test CuArray{Int}(undef, 2, 2)[CuArray{Bool}(undef, 2, 2)] isa CuArray
-  @test CuArray{Int}(undef, 2, 2, 2)[CuArray{Bool}(undef, 2, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2)[CUDA.ones(Bool, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2)[CUDA.ones(Bool, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2, 2)[CUDA.ones(Bool, 2, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2)[CUDA.ones(Bool, 2), CUDA.ones(Bool, 2)] isa CuArray
 
-  @test CuArray{Int}(undef, 2)[Array{Bool}(undef, 2)] isa CuArray
-  @test CuArray{Int}(undef, 2, 2)[Array{Bool}(undef, 2, 2)] isa CuArray
-  @test CuArray{Int}(undef, 2, 2, 2)[Array{Bool}(undef, 2, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2)[ones(Bool, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2)[ones(Bool, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2, 2)[ones(Bool, 2, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2)[ones(Bool, 2), ones(Bool, 2)] isa CuArray
 
-  @test testf((x,y)->x[y], rand(2), rand(Bool, 2))
-  @test testf((x,y)->x[y], rand(2, 2), rand(Bool, 2, 2))
-  @test testf((x,y)->x[y], rand(2, 2, 2), rand(Bool, 2, 2, 2))
+  @test testf((x,y)->x[y], rand(2), ones(Bool, 2))
+  @test testf((x,y)->x[y], rand(2, 2), ones(Bool, 2, 2))
+  @test testf((x,y)->x[y], rand(2, 2, 2), ones(Bool, 2, 2, 2))
+  @test testf((x,y)->x[y,y], rand(2, 2), ones(Bool, 2))
 
   @test testf(x -> x[x .> 0.5], rand(2))
   @test testf(x -> x[x .> 0.5], rand(2,2))
