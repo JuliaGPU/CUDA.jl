@@ -8,42 +8,14 @@ using Base.Cartesian
 
 ## logical indexing
 
-# TODO: A more performant solution is to remove this specialization and write a custom
-# kernel in GPUArrays.jl for `setindex!` when the indices are `::LogicalIndex`.
-Base.to_index(I::AnyCuArray{Bool}) = findall(I)
-
-Base.getindex(xs::AnyCuArray, bools::AbstractArray{Bool}) = getindex(xs, CuArray(bools))
-
-function Base.getindex(xs::AnyCuArray{T}, bools::AnyCuArray{Bool}) where {T}
-  bools = reshape(bools, prod(size(bools)))
-  indices = cumsum(bools)  # unique indices for elements that are true
-
-  n = @allowscalar indices[end]  # number that are true
-  ys = CuArray{T}(undef, n)
-
-  if n > 0
-    function kernel(ys::CuDeviceArray{T}, xs::CuDeviceArray{T}, bools, indices)
-        i = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
-
-        @inbounds if i <= length(xs) && bools[i]
-            b = indices[i]   # new position
-            ys[b] = xs[i]
-        end
-
-        return
-    end
-
-    kernel = @cuda name="logical_getindex" launch=false kernel(ys, xs, bools, indices)
-    config = launch_configuration(kernel.fun)
-    threads = Base.min(length(indices), config.threads)
-    blocks = cld(length(indices), threads)
-    kernel(ys, xs, bools, indices; threads=threads, blocks=blocks)
-  end
-
-  unsafe_free!(indices)
-
-  return ys
-end
+# we cannot use Base.LogicalIndex, which does not support indexing but requires iteration.
+# TODO: it should still be possible to use the same technique;
+#       Base.LogicalIndex basically contains the same as our `findall` here does.
+Base.to_index(::AbstractGPUArray, I::AbstractArray{Bool}) = findall(I)
+## same for the trailing Array{Bool} optimization (see `_maybe_linear_logical_index` in Base)
+Base.to_indices(A::AbstractGPUArray, inds,
+                I::Tuple{Union{Array{Bool,N}, BitArray{N}}}) where {N} =
+    (Base.to_index(A, I[1]),)
 
 
 ## find*
