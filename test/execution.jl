@@ -1040,7 +1040,7 @@ if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_C
 
     # cooperative kernels are additionally limited in the number of blocks that can be launched
     maxBlocks = attribute(device(), CUDA.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
-    kernel = cufunction(kernel_vadd, NTuple{3, CuDeviceArray{Float32,2,AS.Global}})
+    kernel = cufunction(kernel_vadd, NTuple{3, DenseCuDeviceArray{Float32,2,AS.Global}})
     maxThreads = CUDA.maxthreads(kernel)
 
     a = rand(Float32, maxBlocks, maxThreads)

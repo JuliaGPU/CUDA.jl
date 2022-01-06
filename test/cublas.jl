@@ -602,7 +602,7 @@ end
 
     @testset "gemv! with strided inputs" begin  # JuliaGPU/CUDA.jl#445
         testf(rand(16), rand(4)) do p, b
-            W = @view p[reshape(1:(16),4,4)]
+            W = @view p[reshape(1:16,4,4)]
             W*b
         end
     end

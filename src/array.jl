@@ -24,13 +24,20 @@ ArrayStorage(buf::B, ctx, state::Int) where {B} =
 
 ## array type
 
-mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
+"""
+    CuArray{T,N,B,D} <: AbstractGPUArray{T,N}
+
+`N`-dimensional GPU array with elements of type `T`, backed by a buffer of type `B`.
+The array is strided if `S` is true, otherwise it is dense and `strides` will be `nothing`.
+"""
+mutable struct CuArray{T,N,B,S} <: AbstractGPUArray{T,N}
   storage::Union{Nothing,ArrayStorage{B}}
 
   maxsize::Int  # maximum data size; excluding any selector bytes
   offset::Int   # offset of the data in the buffer, in number of elements
 
   dims::Dims{N}
+  strides::Union{Nothing,Dims{N}}
 
   function CuArray{T,N,B}(::UndefInitializer, dims::Dims{N}) where {T,N,B}
     Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
@@ -43,14 +50,15 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
     end
     buf = alloc(B, bufsize)
     storage = ArrayStorage(buf, context(), 1)
-    obj = new{T,N,B}(storage, maxsize, 0, dims)
+    obj = new{T,N,B,false}(storage, maxsize, 0, dims, nothing)
     finalizer(unsafe_finalize!, obj)
   end
 
-  function CuArray{T,N}(storage::ArrayStorage{B}, dims::Dims{N};
+  function CuArray{T,N}(storage::ArrayStorage{B}, dims::Dims{N}, strides::Union{Nothing,Dims{N}}=nothing;
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,B}
     Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
-    return new{T,N,B}(storage, maxsize, offset, dims)
+    S = strides !== nothing
+    return new{T,N,B,S}(storage, maxsize, offset, dims, strides)
   end
 end
 
@@ -117,9 +125,9 @@ end
 
 ## convenience constructors
 
-const CuVector{T} = CuArray{T,1}
-const CuMatrix{T} = CuArray{T,2}
-const CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
+const CuVector{T,B,S} = CuArray{T,1,B,S}
+const CuMatrix{T,B,S} = CuArray{T,2,B,S}
+const CuVecOrMat{T,B,S} = Union{CuVector{T,B,S},CuMatrix{T,B,S}}
 
 # default to non-unified memory
 CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N} =
@@ -223,12 +231,65 @@ Base.unsafe_wrap(T::Type{<:CuArray}, ::Ptr, dims::NTuple{N,Int}; kwargs...) wher
   throw(ArgumentError("cannot wrap a CPU pointer with a $T"))
 
 
+## derived types
+
+# most common derived array types (strided, reshaped, reinterpreted) are represented by
+# the CuArray type, and not by resp. SubArray, ReshapedArray or ReinterpretedArray.
+# although reusing the Base types sounds nice, and CUDA.jl 2.0 tried to do so,
+# but precompilation times went through the roof and ambiguities popped up everywhere.
+
+export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,
+       StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat,
+       AnyCuArray, AnyCuVector, AnyCuMatrix, AnyCuVecOrMat
+
+# dense arrays: stored contiguously in memory
+const DenseCuArray{T,N,B} = CuArray{T,N,B,false}
+const DenseCuVector{T,B} = DenseCuArray{T,1,B}
+const DenseCuMatrix{T,B} = DenseCuArray{T,2,B}
+const DenseCuVecOrMat{T,B} = Union{DenseCuVector{T,B}, DenseCuMatrix{T,B}}
+
+# strided arrays
+# XXX: these dummy aliases (StridedCuArray=CuArray) break alias printing, as
+#      `Base.print_without_params` only handles the case of a single alias.
+const StridedCuArray{T,N,B} = CuArray{T,N,B}
+const StridedCuVector{T,B} = StridedCuArray{T,1,B}
+const StridedCuMatrix{T,B} = StridedCuArray{T,2,B}
+const StridedCuVecOrMat{T,B} = Union{StridedCuVector{T,B}, StridedCuMatrix{T,B}}
+
+# anything that's (secretly) backed by a CuArray
+const AnyCuArray{T,N} = Union{CuArray{T,N}, WrappedArray{T,N,CuArray,CuArray{T,N}}}
+const AnyCuVector{T} = AnyCuArray{T,1}
+const AnyCuMatrix{T} = AnyCuArray{T,2}
+const AnyCuVecOrMat{T} = Union{AnyCuVector{T}, AnyCuMatrix{T}}
+
+
 ## array interface
 
 Base.elsize(::Type{<:CuArray{T}}) where {T} = sizeof(T)
 
 Base.size(x::CuArray) = x.dims
 Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
+
+Base.strides(x::DenseCuArray) = Base.size_to_strides(1, size(x)...)
+Base.strides(x::StridedCuArray{<:Any,N}) where {N} = x.strides::Dims{N}
+
+function Base.stride(a::DenseCuArray, i::Int)
+    if i > ndims(a)
+        return length(a)
+    end
+    s = 1
+    for n = 1:(i-1)
+        s *= size(a, n)
+    end
+    return s
+end
+function Base.stride(a::StridedCuArray, i::Int)
+    if i > ndims(a)
+        i = ndims(a)
+        return size(a,i) * @inbounds strides(a)[i]
+    end
+    @inbounds strides(a)[i]
+end
 
 function context(A::CuArray)
   A.storage === nothing && throw(UndefRefError())
@@ -239,46 +300,6 @@ function device(A::CuArray)
   A.storage === nothing && throw(UndefRefError())
   return device(A.storage.ctx)
 end
-
-
-## derived types
-
-export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,
-       StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat,
-       AnyCuArray, AnyCuVector, AnyCuMatrix, AnyCuVecOrMat
-
-# dense arrays: stored contiguously in memory
-#
-# all common dense wrappers are currently represented as CuArray objects.
-# this simplifies common use cases, and greatly improves load time.
-# CUDA.jl 2.0 experimented with using ReshapedArray/ReinterpretArray/SubArray,
-# but that proved much too costly. TODO: revisit when we have better Base support.
-const DenseCuArray{T,N} = CuArray{T,N}
-const DenseCuVector{T} = DenseCuArray{T,1}
-const DenseCuMatrix{T} = DenseCuArray{T,2}
-const DenseCuVecOrMat{T} = Union{DenseCuVector{T}, DenseCuMatrix{T}}
-# XXX: these dummy aliases (DenseCuArray=CuArray) break alias printing, as
-#      `Base.print_without_params` only handles the case of a single alias.
-
-# strided arrays
-const StridedSubCuArray{T,N,I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
-                                            Base.AbstractCartesianIndex}}}} =
-  SubArray{T,N,<:CuArray,I}
-const StridedCuArray{T,N} = Union{CuArray{T,N}, StridedSubCuArray{T,N}}
-const StridedCuVector{T} = StridedCuArray{T,1}
-const StridedCuMatrix{T} = StridedCuArray{T,2}
-const StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
-
-Base.pointer(x::StridedCuArray{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
-@inline function Base.pointer(x::StridedCuArray{T}, i::Integer) where T
-    Base.unsafe_convert(CuPtr{T}, x) + Base._memory_offset(x, i)
-end
-
-# anything that's (secretly) backed by a CuArray
-const AnyCuArray{T,N} = Union{CuArray{T,N}, WrappedArray{T,N,CuArray,CuArray{T,N}}}
-const AnyCuVector{T} = AnyCuArray{T,1}
-const AnyCuMatrix{T} = AnyCuArray{T,2}
-const AnyCuVecOrMat{T} = Union{AnyCuVector{T}, AnyCuMatrix{T}}
 
 
 ## interop with other arrays
@@ -317,23 +338,45 @@ Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T} =
 Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
   convert(CuPtr{T}, x.storage.buffer) + x.offset*Base.elsize(x)
 
+Base.pointer(x::CuArray{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
+typetagdata(a::CuArray) =
+  convert(CuPtr{UInt8}, a.storage.buffer) + a.maxsize + a.offset
+
+Base.pointer(x::StridedCuArray{T}, i::Integer) where T =
+    pointer(x) + Base._memory_offset(x, i)
+typetagdata(a::StridedCuArray, i::Integer) =
+  typetagdata(a) + Base._memory_offset(x, i) ÷ Base.elsize(a)
+
+# memory_offset on CuArray (which isn't <:DenseArray) is slow, so optimize it
+Base.pointer(x::DenseCuArray{T}, i::Integer) where T =
+    pointer(x) + (i - one(i)) * Base.elsize(x)
+typetagdata(a::DenseCuArray, i::Integer) =
+  typetagdata(a) + i - one(i)
+
+# for memory copies
+typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
+
 
 ## interop with device arrays
 
-function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArray{T,N}) where {T,N}
+function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}},
+                             a::DenseCuArray{T,N}) where {T,N}
   CuDeviceArray{T,N,AS.Global}(size(a), reinterpret(LLVMPtr{T,AS.Global}, pointer(a)),
+                               a.maxsize - a.offset*Base.elsize(a))
+end
+
+function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}},
+                             a::StridedCuArray{T,N}) where {T,N}
+  CuDeviceArray{T,N,AS.Global}(size(a), strides(a),
+                               reinterpret(LLVMPtr{T,AS.Global}, pointer(a)),
                                a.maxsize - a.offset*Base.elsize(a))
 end
 
 
 ## memory copying
 
-typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
-typetagdata(a::CuArray, i=1) =
-  convert(CuPtr{UInt8}, a.storage.buffer) + a.maxsize + a.offset + i - 1
-
-function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
-                      n::Integer) where T
+function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T},
+                      soffs::Integer, n::Integer) where T
   n==0 && return dest
   @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
@@ -346,8 +389,8 @@ end
 Base.copyto!(dest::DenseCuArray{T}, src::Array{T}) where {T} =
     copyto!(dest, 1, src, 1, length(src))
 
-function Base.copyto!(dest::Array{T}, doffs::Integer, src::DenseCuArray{T}, soffs::Integer,
-                      n::Integer) where T
+function Base.copyto!(dest::Array{T}, doffs::Integer, src::DenseCuArray{T},
+                      soffs::Integer, n::Integer) where T
   n==0 && return dest
   @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
@@ -360,8 +403,8 @@ end
 Base.copyto!(dest::Array{T}, src::DenseCuArray{T}) where {T} =
     copyto!(dest, 1, src, 1, length(src))
 
-function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::DenseCuArray{T}, soffs::Integer,
-                      n::Integer) where T
+function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::DenseCuArray{T},
+                      soffs::Integer, n::Integer) where T
   n==0 && return dest
   @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
@@ -372,6 +415,35 @@ function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::DenseCuArray{T
 end
 
 Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
+    copyto!(dest, 1, src, 1, length(src))
+
+# strided: materialize to a contiguous array first.
+# this relies on a copy kernel from GPUArrays.jl
+
+function Base.copyto!(dest::StridedCuArray{T}, doffs::Integer, src::Array{T},
+                      soffs::Integer, n::Integer) where {T,U}
+  n==0 && return dest
+  temp = similar(dest, n)
+  copyto!(temp, 1, src, soffs, n)
+  copyto!(dest, doffs, temp, 1, n)
+  unsafe_free!(temp)
+  return dest
+end
+
+Base.copyto!(dest::StridedCuArray{T}, src::Array{T}) where {T} =
+    copyto!(dest, 1, src, 1, length(src))
+
+function Base.copyto!(dest::Array{T}, doffs::Integer, src::StridedCuArray{U},
+                      soffs::Integer, n::Integer) where {T,U}
+  n==0 && return dest
+  temp = similar(src, T, n)
+  copyto!(temp, 1, src, soffs, n)
+  copyto!(dest, doffs, temp, 1, n)
+  unsafe_free!(temp)
+  return dest
+end
+
+Base.copyto!(dest::Array{T}, src::StridedCuArray{T}) where {T} =
     copyto!(dest, 1, src, 1, length(src))
 
 # general case: use CUDA APIs
@@ -431,6 +503,8 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
   end
   return dest
 end
+
+
 
 # optimization: memcpy on the CPU for Array <-> unified or host arrays
 
@@ -575,29 +649,41 @@ end
 
 ## views
 
-# optimize view to return a CuArray when contiguous
+# optimize view to return a CuArray when contiguous or strided
 
-struct Contiguous end
-struct NonContiguous end
+abstract type CuIndexStyle end
+
+struct CuIndexDense <: CuIndexStyle end
+struct CuIndexStrided <: CuIndexStyle end
+struct CuIndexCartesian <: CuIndexStyle end
+
+ViewStyle(I...) = CuIndexCartesian()
+ViewStyle(i1::Colon, I...) = ViewStyle(I...)
 
 # NOTE: this covers more cases than the I<:... in Base.FastContiguousSubArray
-CuIndexStyle() = Contiguous()
-CuIndexStyle(I...) = NonContiguous()
-CuIndexStyle(::Union{Base.ScalarIndex, CartesianIndex}...) = Contiguous()
-CuIndexStyle(i1::Colon, ::Union{Base.ScalarIndex, CartesianIndex}...) = Contiguous()
-CuIndexStyle(i1::AbstractUnitRange, ::Union{Base.ScalarIndex, CartesianIndex}...) = Contiguous()
-CuIndexStyle(i1::Colon, I...) = CuIndexStyle(I...)
+ViewStyle() = CuIndexDense()
+ViewStyle(::Union{Base.ScalarIndex, CartesianIndex}...) = CuIndexDense()
+ViewStyle(i1::Union{AbstractUnitRange, Base.ReshapedUnitRange},
+          ::Union{Base.ScalarIndex, CartesianIndex}...) =
+    CuIndexDense()
+
+# views for which we can get a valid substrides
+# XXX: shouldn't this also work with reshaped ranges (e.g. `reshape(1:4:16,2,2)`)?
+#      `substrides` doesn't seem to support it
+ViewStyle(::Union{AbstractRange, Colon, Base.ScalarIndex, CartesianIndex}...) =
+    CuIndexStrided()
+
+# for ambiguities
+ViewStyle(i1::Colon, I::Union{AbstractRange, Colon, Base.ScalarIndex, CartesianIndex}...) =
+    ViewStyle(I...)
 
 cuviewlength() = ()
 @inline cuviewlength(::Real, I...) = cuviewlength(I...) # skip scalar
 
-if VERSION >= v"1.8.0-DEV.120"
-@inline cuviewlength(i1::AbstractUnitRange, I...) = (Base.length(i1), cuviewlength(I...)...)
-@inline cuviewlength(i1::AbstractUnitRange, ::Base.ScalarIndex...) = (Base.length(i1),)
-else
-@inline cuviewlength(i1::AbstractUnitRange, I...) = (length(i1), cuviewlength(I...)...)
-@inline cuviewlength(i1::AbstractUnitRange, ::Base.ScalarIndex...) = (length(i1),)
-end
+@inline cuviewlength(i1::Union{AbstractRange,Base.ReshapedRange}, I...) =
+    (size(i1)..., cuviewlength(I...)...)
+@inline cuviewlength(i1::Union{AbstractRange,Base.ReshapedRange}, ::Base.ScalarIndex...) =
+    (size(i1)...,)
 
 # we don't really want an array, so don't call `adapt(Array, ...)`,
 # but just want CuArray indices to get downloaded back to the CPU.
@@ -614,13 +700,15 @@ Adapt.adapt_storage(::BackToCPU, xs::CuArray) = convert(Array, xs)
         checkbounds(A, J_cpu...)
     end
     J_gpu = map(j->adapt(CuArray, j), J)
-    unsafe_view(A, J_gpu, CuIndexStyle(I...))
+    unsafe_view(A, J_gpu, ViewStyle(I...))
 end
 
-@inline function unsafe_view(A, I, ::Contiguous)
-    unsafe_contiguous_view(Base._maybe_reshape_parent(A, Base.index_ndims(I...)), I, cuviewlength(I...))
+@inline function unsafe_view(A, I, ::CuIndexDense)
+    unsafe_contiguous_view(Base._maybe_reshape_parent(A, Base.index_ndims(I...)), I,
+                           cuviewlength(I...))
 end
-@inline function unsafe_contiguous_view(a::CuArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
+@inline function unsafe_contiguous_view(a::CuArray{T}, I::NTuple{N,Base.ViewIndex},
+                                        dims::NTuple{M,Integer}) where {T,N,M}
     offset = Base.compute_offset1(a, 1, I)
 
     refcount = a.storage.refcount[]
@@ -636,7 +724,29 @@ end
     return b
 end
 
-@inline function unsafe_view(A, I, ::NonContiguous)
+@inline function unsafe_view(A, I, ::CuIndexStrided)
+    unsafe_strided_view(Base._maybe_reshape_parent(A, Base.index_ndims(I...)), I,
+                        cuviewlength(I...))
+end
+@inline function unsafe_strided_view(a::CuArray{T}, I::NTuple{N,Base.ViewIndex},
+                                        dims::NTuple{M,Integer}) where {T,N,M}
+    offset = Base.compute_offset1(a, 1, I)
+    s = Base.substrides(strides(a), I)
+
+    refcount = a.storage.refcount[]
+    @assert refcount != 0
+    if refcount > 0
+      Threads.atomic_add!(a.storage.refcount, 1)
+    end
+
+    b = CuArray{T,M}(a.storage, dims, s; a.maxsize, offset=a.offset+offset)
+    if refcount > 0
+        finalizer(unsafe_finalize!, b)
+    end
+    return b
+end
+
+@inline function unsafe_view(A, I, ::CuIndexCartesian)
     Base.unsafe_view(Base._maybe_reshape_parent(A, Base.index_ndims(I...)), I...)
 end
 

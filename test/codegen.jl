@@ -126,7 +126,7 @@ end
         return
     end
 
-    asm = sprint(io->CUDA.code_ptx(io, kernel, NTuple{2,CuDeviceArray{Float32,1,AS.Global}}))
+    asm = sprint(io->CUDA.code_ptx(io, kernel, NTuple{2,DenseCuDeviceArray{Float32,1,AS.Global}}))
     @test !occursin(".local", asm)
 end
 
