@@ -257,6 +257,9 @@ Sets `dev` as the current active device for the calling host thread. Devices can
 specified by integer id, or as a `CuDevice` (slightly faster). Both functions can be used
 with do-block syntax, in which case the device is only changed temporarily, without changing
 the default device used to initialize new threads or tasks.
+
+Calling this function at the start of a session will make sure CUDA is initialized (i.e.,
+a primary context will be created and activated).
 """
 device!
 
@@ -274,13 +277,15 @@ function device!(dev::CuDevice, flags=nothing)
     default_device[] = dev
 
     # switch contexts
+    ctx = context(dev)
     state = task_local_state()
     if state === nothing
         task_local_state!(dev)
     else
         state.device = dev
-        state.context = context(dev)
+        state.context = ctx
     end
+    activate(ctx)
 
     dev
 end
