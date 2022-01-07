@@ -6,15 +6,15 @@
 
         dp = reinterpret(CUDA.LLVMPtr{T,AS.Generic}, C_NULL)
 
-        CuDeviceArray{T,1,AS.Generic}((b,), dp)
-        @test_throws MethodError CuDeviceArray{T,1,AS.Generic}((a,b), dp)
-        @test_throws MethodError CuDeviceArray{T,1,AS.Shared}((a,b), dp)
-        @test_throws MethodError CuDeviceArray{T,2,AS.Generic}((b,), dp)
-        CuDeviceArray{T,2,AS.Generic}((a,b), dp)
+        CuDeviceArray{T,1,AS.Generic}(dp, (b,))
+        @test_throws MethodError CuDeviceArray{T,1,AS.Generic}(dp, (a,b))
+        @test_throws MethodError CuDeviceArray{T,1,AS.Shared}(dp, (a,b))
+        @test_throws MethodError CuDeviceArray{T,2,AS.Generic}(dp, (b,))
+        CuDeviceArray{T,2,AS.Generic}(dp, (a,b))
 
         # type aliases
-        CuDeviceVector{T,AS.Generic}((b,), dp)
-        CuDeviceMatrix{T,AS.Generic}((a,b), dp)
+        CuDeviceVector{T,AS.Generic}(dp, (b,))
+        CuDeviceMatrix{T,AS.Generic}(dp, (a,b))
     end
 end
 

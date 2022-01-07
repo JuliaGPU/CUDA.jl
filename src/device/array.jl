@@ -6,7 +6,7 @@ export CuDeviceArray, CuDeviceVector, CuDeviceMatrix, ldg
 ## construction
 
 """
-    CuDeviceArray{T,N,A}(dims, ptr)
+    CuDeviceArray{T,N,A}(ptr, dims, [maxsize])
 
 Construct an `N`-dimensional dense CUDA device array with element type `T` wrapping a
 pointer, where `N` is determined from the length of `dims` and `T` is determined from the
@@ -28,8 +28,7 @@ struct CuDeviceArray{T,N,A} <: DenseArray{T,N}
     len::Int
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
-    # TODO: deprecate; put `ptr` first like CuArray
-    CuDeviceArray{T,N,A}(dims::Tuple, ptr::LLVMPtr{T,A},
+    CuDeviceArray{T,N,A}(ptr::LLVMPtr{T,A}, dims::Tuple,
                          maxsize::Int=prod(dims)*sizeof(T)) where {T,A,N} =
         new(ptr, maxsize, dims, prod(dims))
 end
@@ -230,13 +229,13 @@ function Base.reinterpret(::Type{T}, a::CuDeviceArray{S,N,A}) where {T,S,N,A}
   err === nothing || throw(err)
 
   if sizeof(T) == sizeof(S) # fast case
-    return CuDeviceArray{T,N,A}(size(a), reinterpret(LLVMPtr{T,A}, a.ptr), a.maxsize)
+    return CuDeviceArray{T,N,A}(reinterpret(LLVMPtr{T,A}, a.ptr), size(a), a.maxsize)
   end
 
   isize = size(a)
   size1 = div(isize[1]*sizeof(S), sizeof(T))
   osize = tuple(size1, Base.tail(isize)...)
-  return CuDeviceArray{T,N,A}(osize, reinterpret(LLVMPtr{T,A}, a.ptr), a.maxsize)
+  return CuDeviceArray{T,N,A}(reinterpret(LLVMPtr{T,A}, a.ptr), osize, a.maxsize)
 end
 
 
