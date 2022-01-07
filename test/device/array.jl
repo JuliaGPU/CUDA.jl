@@ -1,11 +1,4 @@
 @testset "constructors" begin
-    # inner constructors
-    let
-        dp = reinterpret(Core.LLVMPtr{Int,AS.Generic}, C_NULL)
-        CuDeviceArray{Int,1,AS.Generic}((1,), dp)
-    end
-
-    # outer constructors
     T = Float32
     for (I1,I2) in [(Int, Int), (Int32, Int32), (Int32, Int64)]
         a = I1(1)
@@ -13,40 +6,15 @@
 
         dp = reinterpret(CUDA.LLVMPtr{T,AS.Generic}, C_NULL)
 
-        # not parameterized
-        CuDeviceArray(b, dp)
-        CuDeviceVector(b, dp)
-        CuDeviceArray((b,), dp)
-        CuDeviceVector((b,), dp)
-        CuDeviceArray((b,a), dp)
-        CuDeviceMatrix((b,a), dp)
-
-        # partially parameterized
-        CuDeviceArray{T}(b, dp)
-        CuDeviceVector{T}(b, dp)
-        CuDeviceArray{T}((b,), dp)
-        CuDeviceVector{T}((b,), dp)
-        CuDeviceArray{T}((a,b), dp)
-        CuDeviceMatrix{T}((a,b), dp)
-        CuDeviceArray{T,1}(b, dp)
-        CuDeviceArray{T,1}((b,), dp)
-        @test_throws MethodError CuDeviceArray{T,1}((a,b), dp)
-        @test_throws MethodError CuDeviceArray{T,2}(b, dp)
-        @test_throws MethodError CuDeviceArray{T,2}((b,), dp)
-        CuDeviceArray{T,2}((a,b), dp)
-
-        # fully parameterized
-        CuDeviceArray{T,1,AS.Generic}(b, dp)
         CuDeviceArray{T,1,AS.Generic}((b,), dp)
         @test_throws MethodError CuDeviceArray{T,1,AS.Generic}((a,b), dp)
         @test_throws MethodError CuDeviceArray{T,1,AS.Shared}((a,b), dp)
-        @test_throws MethodError CuDeviceArray{T,2,AS.Generic}(b, dp)
         @test_throws MethodError CuDeviceArray{T,2,AS.Generic}((b,), dp)
         CuDeviceArray{T,2,AS.Generic}((a,b), dp)
 
         # type aliases
-        CuDeviceVector{T}(b, dp)
-        CuDeviceMatrix{T}((a,b), dp)
+        CuDeviceVector{T,AS.Generic}((b,), dp)
+        CuDeviceMatrix{T,AS.Generic}((a,b), dp)
     end
 end
 

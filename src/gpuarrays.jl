@@ -45,7 +45,8 @@ GPUArrays.griddim(ctx::CuKernelContext) = gridDim().x
 @inline function GPUArrays.LocalMemory(::CuKernelContext, ::Type{T}, ::Val{dims}, ::Val{id}
                                       ) where {T, dims, id}
     ptr = CUDA._shmem(Val(id), T, Val(prod(dims)))
-    CuDeviceArray(dims, reinterpret(LLVMPtr{T, AS.Shared}, ptr))
+    ptr = reinterpret(LLVMPtr{T, AS.Shared}, ptr)
+    CuDeviceArray{T,length(dims),AS.Shared}(dims, ptr)
 end
 
 # synchronization

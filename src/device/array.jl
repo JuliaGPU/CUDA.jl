@@ -6,9 +6,6 @@ export CuDeviceArray, CuDeviceVector, CuDeviceMatrix, ldg
 ## construction
 
 """
-    CuDeviceArray(dims, ptr)
-    CuDeviceArray{T}(dims, ptr)
-    CuDeviceArray{T,N}(dims, ptr)
     CuDeviceArray{T,N,A}(dims, ptr)
 
 Construct an `N`-dimensional dense CUDA device array with element type `T` wrapping a
@@ -32,37 +29,13 @@ struct CuDeviceArray{T,N,A} <: DenseArray{T,N}
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
     # TODO: deprecate; put `ptr` first like CuArray
-    CuDeviceArray{T,N,A}(dims::Dims{N}, ptr::LLVMPtr{T,A},
+    CuDeviceArray{T,N,A}(dims::Tuple, ptr::LLVMPtr{T,A},
                          maxsize::Int=prod(dims)*sizeof(T)) where {T,A,N} =
         new(ptr, maxsize, dims, prod(dims))
 end
 
 const CuDeviceVector = CuDeviceArray{T,1,A} where {T,A}
 const CuDeviceMatrix = CuDeviceArray{T,2,A} where {T,A}
-
-# outer constructors, non-parameterized
-CuDeviceArray(dims::NTuple{N,Integer}, p::LLVMPtr{T,A})        where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
-CuDeviceVector(dims::NTuple{1,Integer}, p::LLVMPtr{T,A})       where {T,A}   = CuDeviceVector{T,A}(dims, p)
-CuDeviceMatrix(dims::NTuple{2,Integer}, p::LLVMPtr{T,A})       where {T,A}   = CuDeviceMatrix{T,A}(dims, p)
-CuDeviceArray(len::Integer,            p::LLVMPtr{T,A})        where {T,A}   = CuDeviceVector{T,A}((len,), p)
-CuDeviceArray(m::Integer, n::Integer,  p::LLVMPtr{T,A})        where {T,A}   = CuDeviceMatrix{T,A}((m,n), p)
-CuDeviceVector(len::Integer,           p::LLVMPtr{T,A})        where {T,A}   = CuDeviceVector{T,A}((len,), p)
-CuDeviceMatrix(m::Integer, n::Integer, p::LLVMPtr{T,A})        where {T,A}   = CuDeviceMatrix{T,A}((m,n), p)
-
-# outer constructors, partially parameterized
-CuDeviceArray{T}(dims::NTuple{N,Integer},     p::LLVMPtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
-CuDeviceVector{T}(dims::NTuple{1,Integer},    p::LLVMPtr{T,A}) where {T,A}   = CuDeviceVector{T,A}(dims, p)
-CuDeviceMatrix{T}(dims::NTuple{2,Integer},    p::LLVMPtr{T,A}) where {T,A}   = CuDeviceMatrix{T,A}(dims, p)
-CuDeviceArray{T}(len::Integer,                p::LLVMPtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
-CuDeviceArray{T}(m::Integer, n::Integer,      p::LLVMPtr{T,A}) where {T,A}   = CuDeviceMatrix{T,A}((m,n), p)
-CuDeviceArray{T,N}(dims::NTuple{N,Integer},   p::LLVMPtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
-CuDeviceVector{T}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
-CuDeviceMatrix{T}(m::Integer, n::Integer,     p::LLVMPtr{T,A}) where {T,A}   = CuDeviceMatrix{T,A}((m,n), p)
-
-# outer constructors, fully parameterized
-CuDeviceArray{T,N,A}(dims::NTuple{N,Integer}, p::LLVMPtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(convert(Tuple{Vararg{Int}}, dims), p)
-CuDeviceVector{T,A}(len::Integer,             p::LLVMPtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
-CuDeviceMatrix{T,A}(m::Integer, n::Integer,   p::LLVMPtr{T,A}) where {T,A}   = CuDeviceMatrix{T,A}((m,n), p)
 
 
 ## array interface

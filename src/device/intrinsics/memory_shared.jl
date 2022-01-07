@@ -10,13 +10,14 @@ pointing to a statically-allocated piece of shared memory. The type should be st
 inferable and the dimensions should be constant, or an error will be thrown and the
 generator function will be called dynamically.
 """
-@inline function CuStaticSharedArray(::Type{T}, dims) where {T}
+@inline function CuStaticSharedArray(::Type{T}, dims::NTuple{N,<:Integer}) where {T,N}
     len = prod(dims)
     # NOTE: this relies on const-prop to forward the literal length to the generator.
     #       maybe we should include the size in the type, like StaticArrays does?
     ptr = emit_shmem(T, Val(len))
-    CuDeviceArray(dims, ptr)
+    CuDeviceArray{T,N,AS.Shared}(dims, ptr)
 end
+CuStaticSharedArray(::Type{T}, len::Integer) where {T} = CuStaticSharedArray(T, (len,))
 
 macro cuStaticSharedMem(T, dims)
     Base.depwarn("@cuStaticSharedMem is deprecated, please use the CuStaticSharedArray function", :CuStaticSharedArray)
@@ -38,7 +39,7 @@ Optionally, an offset parameter indicating how many bytes to add to the base sha
 pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
 shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
 """
-@inline function CuDynamicSharedArray(::Type{T}, dims, offset) where {T}
+@inline function CuDynamicSharedArray(::Type{T}, dims::NTuple{N,<:Integer}, offset) where {T,N}
     @boundscheck begin
         len = prod(dims)
         sz = len*sizeof(T)
@@ -50,8 +51,10 @@ shared memory; in the case of a homogeneous multi-part buffer it is preferred to
         end
     end
     ptr = emit_shmem(T) + offset
-    CuDeviceArray(dims, ptr)
+    CuDeviceArray{T,N,AS.Shared}(dims, ptr)
 end
+Base.@propagate_inbounds CuDynamicSharedArray(::Type{T}, len::Integer, offset) where {T} =
+    CuDynamicSharedArray(T, (len,), offset)
 # XXX: default argument-generated methods do not propagate inboundsness
 Base.@propagate_inbounds CuDynamicSharedArray(::Type{T}, dims) where {T} =
     CuDynamicSharedArray(T, dims, 0)
