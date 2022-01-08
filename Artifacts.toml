@@ -365,7 +365,7 @@ os = "windows"
 
 [[CUDA_compat]]
 arch = "x86_64"
-git-tree-sha1 = "d9b5623143a996f924e7a5eee9d06354cb650d73"
+git-tree-sha1 = "b618eadab05abb3bef21da981a51b6f4f0183b27"
 lazy = true
 libc = "glibc"
 os = "linux"
@@ -375,7 +375,7 @@ os = "linux"
     url = "https://github.com/JuliaBinaryWrappers/CUDA_compat_jll.jl/releases/download/CUDA_compat-v11.5.50+0/CUDA_compat.v11.5.50.x86_64-linux-gnu.tar.gz"
 [[CUDA_compat]]
 arch = "powerpc64le"
-git-tree-sha1 = "5ca98503d53babfc52c443f89ad987440658abd9"
+git-tree-sha1 = "b4afa017a38ea78a8b1ffee77f1fc0f309938fa3"
 lazy = true
 libc = "glibc"
 os = "linux"
@@ -385,7 +385,7 @@ os = "linux"
     url = "https://github.com/JuliaBinaryWrappers/CUDA_compat_jll.jl/releases/download/CUDA_compat-v11.5.50+0/CUDA_compat.v11.5.50.powerpc64le-linux-gnu.tar.gz"
 [[CUDA_compat]]
 arch = "aarch64"
-git-tree-sha1 = "c1df0667b90f795bfd9889c0cd5fbbf79db89ab5"
+git-tree-sha1 = "50e213a96d99f9d91fade62d8918f8c4b1273e84"
 lazy = true
 libc = "glibc"
 os = "linux"
