@@ -59,7 +59,7 @@ function batched(X::AbstractArray{T,N},region) where {T <: Complex,N}
     p = plan_fft(d_X,region)
     d_Y = p * d_X
     Y = collect(d_Y)
-    @test_maybe_broken isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
+    @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
 
     pinv = plan_ifft(d_Y,region)
     d_Z = pinv * d_Y
@@ -139,7 +139,7 @@ end
     @test_throws ArgumentError batched(X,(3,1))
 end
 
-@testset "Batch 2D (in 4D)" begin
+CUFFT.version() >= v"10.2" && @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
     for region in [(1,2),(1,4),(3,4)]
         X = rand(T, dims)
@@ -173,14 +173,12 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Real,N}
     pinv2 = inv(p)
     d_Z = pinv2 * d_Y
     Z = collect(d_Z)
-    @test_maybe_broken isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
-    # JuliaGPU/CUDA.jl#345, NVIDIA/cuFFT#2714102
+    @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 
     pinv3 = inv(pinv)
     d_W = pinv3 * d_X
     W = collect(d_W)
     @test isapprox(W, Y, rtol = MYRTOL, atol = MYATOL)
-    # JuliaGPU/CUDA.jl#345, NVIDIA/cuFFT#2714102
 end
 
 function batched(X::AbstractArray{T,N},region) where {T <: Real,N}
