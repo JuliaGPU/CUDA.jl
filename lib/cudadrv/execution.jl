@@ -154,7 +154,7 @@ function launch(f::Base.Callable; stream::CuStream=stream())
     # and https://github.com/JuliaLang/julia/issues/43748
     # TL;DR We are not allowed to cache `async_send` in the sysimage
     # so instead let's just pull out the function pointer and pass it instead.
-    callback = cglobal(:async_send)
+    callback = cglobal(:uv_async_send)
     cuLaunchHostFunc(stream, callback, cond)
 end
 
