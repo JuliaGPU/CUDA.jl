@@ -149,7 +149,12 @@ function launch(f::Base.Callable; stream::CuStream=stream())
     end
     # FIXME: protect this from GC
 
-    callback = @cfunction(async_send, Cint, (Ptr{Cvoid},))
+    # callback = @cfunction(async_send, Cint, (Ptr{Cvoid},))
+    # See https://github.com/JuliaGPU/CUDA.jl/issues/1314.
+    # and https://github.com/JuliaLang/julia/issues/43748
+    # TL;DR We are not allowed to cache `async_send` in the sysimage
+    # so instead let's just pull out the function pointer and pass it instead.
+    callback = cglobal(:async_send)
     cuLaunchHostFunc(stream, callback, cond)
 end
 
