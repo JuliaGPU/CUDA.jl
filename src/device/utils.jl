@@ -17,6 +17,18 @@ end
 const overrides = Expr[]
 
 macro device_override(ex)
+    if Meta.isexpr(ex, :quote)
+        # TODO: support @device_override @eval ...
+        ex = Base.eval(__module__, ex)
+        # we only support single-expression blocks; strip the line number info
+        @assert Meta.isexpr(ex, :block) && length(ex.args) == 2
+        ex = ex.args[end]
+    end
+    ex = macroexpand(__module__, ex)
+    if Meta.isexpr(ex, :call)
+        @show ex = eval(ex)
+        error()
+    end
     code = quote
         $GPUCompiler.@override(CUDA.method_table, $ex)
     end

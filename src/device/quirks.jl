@@ -18,12 +18,19 @@ end
     @print_and_throw "Cannot raise an integer to a negative power"
 @device_override @noinline Base.throw_domerr_powbysq(::AbstractMatrix, p) =
     @print_and_throw "Cannot raise an integer to a negative power"
+@device_override @noinline Base.__throw_gcd_overflow(a, b) =
+    @print_and_throw "gcd overflow"
 
 # checked.jl
 @device_override @noinline Base.Checked.throw_overflowerr_binaryop(op, x, y) =
     @print_and_throw "Binary operation overflowed"
 @device_override @noinline Base.Checked.throw_overflowerr_negation(op, x, y) =
     @print_and_throw "Negation overflowed"
+@device_override function Base.Checked.checked_abs(x::Base.Checked.SignedInt)
+    r = ifelse(x<0, -x, x)
+    r<0 && @print_and_throw("checked arithmetic: cannot compute |x|")
+    r
+end
 
 # boot.jl
 @device_override @noinline Core.throw_inexacterror(f::Symbol, ::Type{T}, val) where {T} =
@@ -51,6 +58,38 @@ end
                 @inbounds getindex(r, i)
             end
             CartesianIndex(index)
+        end
+    end
+end
+
+# range.jl
+@static if VERSION >= v"1.7-"
+    @device_override quote
+            function Base.StepRangeLen{T,R,S,L}(ref::R, step::S, len::Integer,
+                                                offset::Integer=1) where {T,R,S,L}
+                if T <: Integer && !isinteger(ref + step)
+                    @print_and_throw("StepRangeLen{<:Integer} cannot have non-integer step")
+                end
+                len = convert(L, len)
+                len >= zero(len) || @print_and_throw("StepRangeLen length cannot be negative")
+                offset = convert(L, offset)
+                L1 = oneunit(typeof(len))
+                L1 <= offset <= max(L1, len) || @print_and_throw("StepRangeLen: offset must be in [1,...]")
+                $(
+                    Expr(:new, :(StepRangeLen{T,R,S,L}), :ref, :step, :len, :offset)
+                )
+        end
+    end
+else
+    @device_override quote
+        function Base.StepRangeLen{T,R,S}(ref::R, step::S, len::Integer,
+                                          offset::Integer=1) where {T,R,S}
+            if T <: Integer && !isinteger(ref + step)
+                @print_and_throw("StepRangeLen{<:Integer} cannot have non-integer step")
+            end
+            len >= 0 || @print_and_throw("StepRangeLen length cannot be negative")
+            1 <= offset <= max(1,len) || @print_and_throw("StepRangeLen: offset must be in [1,...]")
+            new(ref, step, len, offset)
         end
     end
 end
