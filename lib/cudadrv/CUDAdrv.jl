@@ -91,7 +91,7 @@ function libcuda()
             end
             return
         end
-        if getenv("JULIA_CUDA_USE_COMPAT", !hooked && !system_driver_loaded) && _system_version[] < v"11.5"
+        if getenv("JULIA_CUDA_USE_COMPAT", !hooked && !system_driver_loaded) && _system_version[] < v"11.6"
             artifact = try
                 # work around @artifact_str eagerness on unsupported platforms
                 # by passing a variable
