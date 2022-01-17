@@ -88,9 +88,6 @@ steps:
     # NOTE: we support those CUDA versions for which the latest cuDNN is available
     #       https://developer.nvidia.com/rdp/cudnn-archive
 
-    # NOTE: only the latest version of CUDA that has CUDNN & CUTENSOR is tested thoroughly.
-    #       once we have sufficient CI resources, expand this to all CUDA versions again.
-
   - label: "CUDA 11.6"
     plugins:
       - JuliaCI/julia#v1:
@@ -115,7 +112,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -157,7 +155,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -178,7 +177,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -199,7 +199,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -220,7 +221,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -241,7 +243,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
