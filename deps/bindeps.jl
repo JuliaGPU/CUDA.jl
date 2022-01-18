@@ -1,5 +1,7 @@
 # discovering binary CUDA dependencies
 
+import ..CUDA
+
 using CompilerSupportLibraries_jll
 using LazyArtifacts
 import Libdl
@@ -561,7 +563,7 @@ end
 # CUTENSOR
 #
 
-export libcutensor, has_cutensor
+export libcutensor, libcutensormg, has_cutensor, has_cutensormg
 
 const __libcutensor = Ref{Union{String,Nothing}}()
 function libcutensor(; throw_error::Bool=true)
@@ -569,7 +571,7 @@ function libcutensor(; throw_error::Bool=true)
         # CUTENSOR depends on CUBLAS
         libcublas()
 
-        find_cutensor(toolkit(), v"1")
+        find_cutensor(toolkit(), "cutensor", v"1")
     end
     if path === nothing && throw_error
         error("This functionality is unavailabe as CUTENSOR is missing.")
@@ -578,25 +580,44 @@ function libcutensor(; throw_error::Bool=true)
 end
 has_cutensor() = libcutensor(throw_error=false) !== nothing
 
-function find_cutensor(cuda::ArtifactToolkit, version)
+const __libcutensormg = Ref{Union{String,Nothing}}()
+function libcutensormg(; throw_error::Bool=true)
+    path = @initialize_ref __libcutensor begin
+        # CUTENSORMg additionally depends on CUDARt
+        libcudart()
+
+        if CUDA.CUTENSOR.version() < v"1.4"
+            nothing
+        else
+            find_cutensor(toolkit(), "cutensorMg", v"1")
+        end
+    end
+    if path === nothing && throw_error
+        error("This functionality is unavailabe as CUTENSORMg is missing.")
+    end
+    path
+end
+has_cutensormg() = libcutensormg(throw_error=false) !== nothing
+
+function find_cutensor(cuda::ArtifactToolkit, name, version)
     artifact_dir = cuda_artifact("CUTENSOR", cuda.release)
     if artifact_dir === nothing
         return nothing
     end
-    path = artifact_library(artifact_dir, "cutensor", [version])
+    path = artifact_library(artifact_dir, name, [version])
 
-    @debug "Using CUTENSOR from an artifact at $(artifact_dir)"
+    @debug "Using CUTENSOR library $name from an artifact at $(artifact_dir)"
     Libdl.dlopen(path)
     return path
 end
 
-function find_cutensor(cuda::LocalToolkit, version)
-    path = find_library("cutensor", [version]; locations=cuda.dirs)
+function find_cutensor(cuda::LocalToolkit, name, version)
+    path = find_library(name, [version]; locations=cuda.dirs)
     if path === nothing
         return nothing
     end
 
-    @debug "Using local CUTENSOR at $(path)"
+    @debug "Using local CUTENSOR library $name at $(path)"
     Libdl.dlopen(path)
     return path
 end
