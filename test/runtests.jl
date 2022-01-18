@@ -182,6 +182,8 @@ if do_sanitize
     append!(skip_tests, ["cutensor", "cusparse"])
     # XXX: others take absurdly long
     push!(skip_tests, "cusolver")
+    # XXX: these hang for some reason
+    push!(skip_tests, "sorting")
 end
 if first(picks).cap < v"7.0"
     push!(skip_tests, "device/intrinsics/wmma")

@@ -38,8 +38,7 @@ steps:
       cuda: "11.0"
       cap: "sm_80"
     env:
-      JULIA_CUDA_VERSION: '11.5'
-      JULIA_CUDA_DEBUG_INFO: 'false'  # NVIDIA bug #3305774: ptxas segfaults with out debug info
+      JULIA_CUDA_VERSION: '11.6'
       JULIA_CUDA_USE_COMPAT: 'false'  # NVIDIA bug #3418723: injection tools prevent probing libcuda
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/ &&
@@ -88,14 +87,32 @@ steps:
     # NOTE: we support those CUDA versions for which the latest cuDNN is available
     #       https://developer.nvidia.com/rdp/cudnn-archive
 
-    # NOTE: only the latest version of CUDA that has CUDNN & CUTENSOR is tested thoroughly.
-    #       once we have sufficient CI resources, expand this to all CUDA versions again.
+  - label: "CUDA 11.6"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: 1.6
+      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "11.0"
+    env:
+      JULIA_CUDA_VERSION: '11.6'
+      JULIA_CUDA_USE_BINARYBUILDER: 'true'
+    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+    timeout_in_minutes: 120
 
   - label: "CUDA 11.5"
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -137,7 +154,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -158,7 +176,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -179,7 +198,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -200,7 +220,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -221,7 +242,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
