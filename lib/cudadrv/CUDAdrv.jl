@@ -47,7 +47,12 @@ function libcuda()
         function get_version(driver)
             library_handle = Libdl.dlopen(driver)
             try
-                function_handle = Libdl.dlsym(library_handle, "cuDriverGetVersion")
+                function_handle = Libdl.dlsym(library_handle, "cuDriverGetVersion";
+                                              throw_error=false)
+                if function_handle === nothing
+                    error("""Could not find the 'cuDriverGetVersion' function in the CUDA driver library '$driver'.
+                             This is probably a bug in the library, please report it.""")
+                end
                 version_ref = Ref{Cint}()
                 @check ccall(function_handle, CUresult, (Ptr{Cint},), version_ref)
                 major, ver = divrem(version_ref[], 1000)
