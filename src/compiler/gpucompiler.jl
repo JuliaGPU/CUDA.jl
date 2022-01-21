@@ -36,7 +36,8 @@ function device_properties(dev)
                 exitable = false
             end
 
-            debuginfo = getenv("JULIA_CUDA_DEBUG_INFO", true)
+            # NVIDIA bug #3305774: ptxas segfaults with our debug info, fixed in 11.5.1
+            debuginfo = toolkit_release() >= v"11.5" # we don't track patch versions...
 
             val[deviceid(dev)+1] =
                 (; cap, ptx, exitable, debuginfo, unreachable)

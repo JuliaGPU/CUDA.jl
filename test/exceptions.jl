@@ -47,8 +47,7 @@ let (code, out, err) = julia_script(script, `-g1`)
     @test occursin("Run Julia on debug level 2 for device stack traces", out)
 end
 
-let (code, out, err) = julia_script(script, `-g2`,
-                                    "JULIA_CUDA_DEBUG_INFO"=>false) # NVIDIA#3305774
+let (code, out, err) = julia_script(script, `-g2`)
     @test code == 1
     @test occursin(host_error_re, err)
     @test occursin(device_error_re, out)
@@ -70,8 +69,7 @@ script = """
     CUDA.@sync @cuda bar(arr)
 """
 
-let (code, out, err) = julia_script(script, `-g2`,
-                                    "JULIA_CUDA_DEBUG_INFO"=>false) # NVIDIA#3305774
+let (code, out, err) = julia_script(script, `-g2`)
     @test code == 1
     @test occursin(host_error_re, err)
     @test occursin(device_error_re, out)
