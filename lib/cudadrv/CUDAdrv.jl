@@ -29,7 +29,7 @@ include("libcuda_deprecated.jl")
     else
         Libdl.find_library(["libcuda.so.1", "libcuda.so"])
     end
-    if name == ""
+    if system_driver == ""
         if Sys.iswindows()
             error("""Could not find the CUDA driver library. Please make sure you have installed the NVIDIA driver for your GPU.
                         If you're sure it's installed, look for `libcuda.so` in your system and make sure it's discoverable by the linker.
@@ -45,12 +45,7 @@ include("libcuda_deprecated.jl")
     function get_version(driver)
         library_handle = Libdl.dlopen(driver)
         try
-            function_handle = Libdl.dlsym(library_handle, "cuDriverGetVersion";
-                                            throw_error=false)
-            if function_handle === nothing
-                error("""Could not find the 'cuDriverGetVersion' function in the CUDA driver library '$driver'.
-                            This is probably a bug in the library, please report it.""")
-            end
+            function_handle = Libdl.dlsym(library_handle, "cuDriverGetVersion")
             version_ref = Ref{Cint}()
             @check ccall(function_handle, CUresult, (Ptr{Cint},), version_ref)
             major, ver = divrem(version_ref[], 1000)
