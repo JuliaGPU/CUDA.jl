@@ -306,7 +306,7 @@ function libcudart()
     end
 end
 
-const __libcublaslt = Ref{String}()
+const __libcublaslt = Ref{Union{String,Nothing}}()
 function libcublaslt()
     @initialize_ref __libcublaslt begin
         if toolkit_release() < v"10.1"
