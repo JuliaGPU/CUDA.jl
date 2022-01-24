@@ -13,7 +13,7 @@ fail to check whether CUDA is functional, actual use of functionality might warn
 """
 function functional(show_reason::Bool=false)
     try
-        version()
+        libcuda()
         toolkit()
         return true
     catch
