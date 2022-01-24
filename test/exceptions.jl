@@ -1,7 +1,3 @@
-# NVIDIA bug 3263616: compute-sanitizer crashes when generating host backtraces,
-#                     but --show-backtrace=no does not survive execve.
-@not_if_sanitize begin
-
 # these tests spawn subprocesses, so reset the current context to conserve memory
 CUDA.can_reset_device() && device_reset!()
 
@@ -75,8 +71,6 @@ let (code, out, err) = julia_script(script, `-g2`)
     @test occursin(device_error_re, out)
     @test occursin("foo at $(joinpath(".", "none")):4", out)
     @test occursin("bar at $(joinpath(".", "none")):5", out)
-end
-
 end
 
 end
