@@ -1,7 +1,3 @@
-# NVIDIA bug 3263616: compute-sanitizer crashes when generating host backtraces,
-#                     but --show-backtrace=no does not survive execve.
-@not_if_sanitize begin
-
 function find_sources(path::String, sources=String[])
     if isdir(path)
         for entry in readdir(path)
@@ -25,6 +21,4 @@ cd(examples_dir) do
         isempty(err) || println(err)
         @test success(proc)
     end
-end
-
 end
