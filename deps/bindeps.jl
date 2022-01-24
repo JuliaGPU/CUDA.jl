@@ -544,14 +544,8 @@ function find_cudnn(cuda::LocalToolkit, version)
         return nothing
     end
 
-    # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
-    for sublibrary in ("ops_infer", "ops_train",
-                       "cnn_infer", "cnn_train",
-                       "adv_infer", "adv_train")
-        sublibrary_path = find_library("cudnn_$(sublibrary)", [version]; locations=cuda.dirs)
-        sublibrary_path === nothing && error("Could not find local CUDNN sublibrary $sublibrary")
-        Libdl.dlopen(sublibrary_path)
-    end
+    # with a local CUDNN version, we shouldn't need to eagerly open sublibraries,
+    # as they are expected to be globally discoverable next to libcudnn.so
 
     @debug "Using local CUDNN at $(path)"
     Libdl.dlopen(path)
