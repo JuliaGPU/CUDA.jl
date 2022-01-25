@@ -93,3 +93,16 @@ else
         end
     end
 end
+
+# LinearAlgebra
+@static if VERSION >= v"1.8-"
+    function Base.setindex!(D::LinearAlgebra.Diagonal, v, i::Int, j::Int)
+        @boundscheck checkbounds(D, i, j)
+        if i == j
+            @inbounds D.diag[i] = v
+        elseif !iszero(v)
+            @print_and_throw("cannot set off-diagonal entry to a nonzero value")
+        end
+        return v
+    end
+end
