@@ -25,7 +25,9 @@ abstract type CuFFTPlan{T<:cufftNumber, K, inplace} <: Plan{T} end
 Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = p.handle
 
 function CUDA.unsafe_free!(plan::CuFFTPlan, stream::CuStream=stream())
-    @context! skip_destroyed=true plan.ctx cufftDestroy(plan)
+    context!(plan.ctx; skip_destroyed=true) do
+        cufftDestroy(plan)
+    end
     unsafe_free!(plan.workarea, stream)
 end
 

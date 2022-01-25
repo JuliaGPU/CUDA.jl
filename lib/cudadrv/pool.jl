@@ -49,7 +49,9 @@ mutable struct CuMemoryPool
 end
 
 function unsafe_destroy!(pool::CuMemoryPool)
-    @context! skip_destroyed=true pool.ctx cuMemPoolDestroy(pool)
+    context!(pool.ctx; skip_destroyed=true) do
+        cuMemPoolDestroy(pool)
+    end
 end
 
 Base.unsafe_convert(::Type{CUmemoryPool}, pool::CuMemoryPool) = pool.handle

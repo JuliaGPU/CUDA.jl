@@ -21,7 +21,9 @@ mutable struct RNG <: Random.AbstractRNG
 end
 
 function unsafe_destroy!(rng::RNG)
-    CUDA.@context! skip_destroyed=true rng.ctx curandDestroyGenerator(rng)
+    context!(rng.ctx; skip_destroyed=true) do
+        curandDestroyGenerator(rng)
+    end
 end
 
 Base.unsafe_convert(::Type{curandGenerator_t}, rng::RNG) = rng.handle

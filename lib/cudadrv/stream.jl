@@ -82,7 +82,9 @@ Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 @enum_without_prefix CUstream_flags_enum CU_
 
 function unsafe_destroy!(s::CuStream)
-    @context! skip_destroyed=true s.ctx cuStreamDestroy_v2(s)
+    context!(s.ctx; skip_destroyed=true) do
+        cuStreamDestroy_v2(s)
+    end
 end
 
 function Base.show(io::IO, stream::CuStream)

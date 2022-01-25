@@ -156,8 +156,6 @@ function libcuda()
     _libcuda[]::String
 end
 
-include("state_macros.jl")
-
 # high-level wrappers
 include("types.jl")
 include("version.jl")
