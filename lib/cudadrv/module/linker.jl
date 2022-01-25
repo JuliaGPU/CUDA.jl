@@ -44,7 +44,7 @@ mutable struct CuLink
 end
 
 function unsafe_destroy!(link::CuLink)
-    @finalize_in_ctx link.ctx cuLinkDestroy(link)
+    @context! skip_destroyed=true link.ctx cuLinkDestroy(link)
 end
 
 Base.unsafe_convert(::Type{CUlinkState}, link::CuLink) = link.handle

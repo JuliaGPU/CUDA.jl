@@ -26,7 +26,7 @@ mutable struct CuEvent
 end
 
 function unsafe_destroy!(e::CuEvent)
-    @finalize_in_ctx e.ctx cuEventDestroy_v2(e)
+    @context! skip_destroyed=true e.ctx cuEventDestroy_v2(e)
 end
 
 Base.unsafe_convert(::Type{CUevent}, e::CuEvent) = e.handle
