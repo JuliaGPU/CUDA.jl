@@ -98,6 +98,11 @@ end
         k = cufunction(dummy, name="mykernel")
         k()
     end)))
+
+    @test CUDA.return_type(identity, Tuple{Int}) === Int
+    @test CUDA.return_type(CUDA.sin, Tuple{Float32}) === Float32
+    @test CUDA.return_type(getindex, Tuple{CuDeviceArray{Float32,1,1},Int32}) === Float32
+    @test CUDA.return_type(getindex, Tuple{Base.RefValue{Integer}}) === Integer
 end
 
 
