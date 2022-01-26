@@ -201,7 +201,7 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
       # TODO: can we identify whether this pointer was allocated asynchronously?
       Mem.DeviceBuffer(ptr, sz, false)
     elseif typ == CU_MEMORYTYPE_HOST
-      Mem.HostBuffer(reinterpret(Ptr{T}, ptr), sz)
+      Mem.HostBuffer(host_pointer(ptr), sz)
     else
       error("Unknown memory type; please file an issue.")
     end
@@ -445,10 +445,10 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffe
 
   GC.@preserve src dest begin
     cpu_ptr = pointer(src, soffs)
-    unsafe_copyto!(reinterpret(typeof(cpu_ptr), pointer(dest, doffs)), cpu_ptr, n)
+    unsafe_copyto!(host_pointer(pointer(dest, doffs)), cpu_ptr, n)
     if Base.isbitsunion(T)
       cpu_ptr = typetagdata(src, soffs)
-      unsafe_copyto!(reinterpret(typeof(cpu_ptr), typetagdata(dest, doffs)), cpu_ptr, n)
+      unsafe_copyto!(host_pointer(typetagdata(dest, doffs)), cpu_ptr, n)
     end
   end
   return dest
@@ -461,10 +461,10 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
 
   GC.@preserve src dest begin
     cpu_ptr = pointer(dest, doffs)
-    unsafe_copyto!(cpu_ptr, reinterpret(typeof(cpu_ptr), pointer(src, soffs)), n)
+    unsafe_copyto!(cpu_ptr, host_pointer(pointer(src, soffs)), n)
     if Base.isbitsunion(T)
       cpu_ptr = typetagdata(dest, doffs)
-      unsafe_copyto!(cpu_ptr, reinterpret(typeof(cpu_ptr), typetagdata(src, soffs)), n)
+      unsafe_copyto!(cpu_ptr, host_pointer(typetagdata(src, soffs)), n)
     end
   end
 
