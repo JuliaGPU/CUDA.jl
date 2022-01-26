@@ -50,7 +50,6 @@ include("../lib/cudadrv/CUDAdrv.jl")
 
 # essential stuff
 include("initialization.jl")
-include("state.jl")
 include("debug.jl")
 
 # device functionality (needs to be loaded first, because of generated functions)

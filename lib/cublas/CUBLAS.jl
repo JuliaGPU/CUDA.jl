@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcublas, unsafe_free!, @retry_reclaim, isdebug, @sync, @context!, initialize_context
+using ..CUDA: libcublas, unsafe_free!, @retry_reclaim, isdebug, @sync, initialize_context
 
 using GPUArrays
 
@@ -88,7 +88,9 @@ function handle()
 
         finalizer(current_task()) do task
             push!(idle_handles, cuda.context, new_handle) do
-                @context! skip_destroyed=true cuda.context cublasDestroy_v2(new_handle)
+                context!(cuda.context; skip_destroyed=true) do
+                    cublasDestroy_v2(new_handle)
+                end
             end
         end
 

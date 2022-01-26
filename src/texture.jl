@@ -45,7 +45,9 @@ mutable struct CuTextureArray{T,N}
 end
 
 function unsafe_destroy!(t::CuTextureArray)
-    @context! skip_destroyed=true t.ctx Mem.free(t.buf)
+    context!(t.ctx; skip_destroyed=true) do
+        Mem.free(t.buf)
+    end
 end
 
 Base.unsafe_convert(T::Type{CUarray}, t::CuTextureArray) = Base.unsafe_convert(T, t.buf)
@@ -260,7 +262,9 @@ Base.unsafe_convert(::Type{Ptr{CUDA_RESOURCE_DESC}}, ref::Base.RefValue{T}) wher
     convert(Ptr{CUDA_RESOURCE_DESC}, Base.unsafe_convert(Ptr{T}, ref))
 
 function unsafe_destroy!(t::CuTexture)
-    @context! skip_destroyed=true t.ctx cuTexObjectDestroy(t)
+    context!(t.ctx; skip_destroyed=true) do
+        cuTexObjectDestroy(t)
+    end
 end
 
 Base.convert(::Type{CUtexObject}, t::CuTexture) = t.handle

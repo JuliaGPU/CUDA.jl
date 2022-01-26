@@ -77,7 +77,7 @@ function unsafe_free!(xs::CuArray, stream::CuStream=stream())
 
   refcount = Threads.atomic_add!(xs.storage.refcount, -1)
   if refcount == 1
-    @context! skip_destroyed=true xs.storage.ctx begin
+    context!(xs.storage.ctx; skip_destroyed=true) do
       free(xs.storage.buffer; stream)
     end
   end
@@ -381,7 +381,7 @@ Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::Array{T}, soffs, n) where T
-  @context! context(dest) begin
+  context!(context(dest)) do
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
     s = stream()
@@ -399,7 +399,7 @@ end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
-  @context! context(src) begin
+  context!(context(src)) do
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
     s = stream()
@@ -421,7 +421,7 @@ end
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
   context(dest) == context(src) || throw(ArgumentError("copying between arrays from different contexts"))
-  @context! context(dest) begin
+  context!(context(dest)) do
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
       if Base.isbitsunion(T)
@@ -475,7 +475,7 @@ end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
-  @context! context(src) begin
+  context!(context(src)) do
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
       if Base.isbitsunion(T)
@@ -488,7 +488,7 @@ end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, soffs, n) where T
-  @context! context(dest) begin
+  context!(context(dest)) do
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
       if Base.isbitsunion(T)
@@ -566,7 +566,7 @@ const MemsetCompatTypes = Union{UInt8, Int8,
 function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
-  @context! context(A) begin
+  context!(context(A)) do
     Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A))
   end
   A
@@ -827,7 +827,7 @@ function Base.resize!(A::CuVector{T}, n::Int) where T
     maxsize
   end
 
-  new_storage = @context! A.storage.ctx begin
+  new_storage = context!(A.storage.ctx) do
     buf = alloc(typeof(A.storage.buffer), bufsize)
     ptr = convert(CuPtr{T}, buf)
     m = min(length(A), n)
