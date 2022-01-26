@@ -4,6 +4,8 @@ using CUDA
 
 import FFTW
 
+using LinearAlgebra
+
 @test CUFFT.version() isa VersionNumber
 
 # notes:
@@ -317,4 +319,18 @@ end
             isapprox(v,v0)
         end
     )
+end
+
+@testset "CUDA.jl#1311" begin
+    x = ones(8, 9)
+    p = plan_rfft(x)
+    y = similar(p * x)
+    mul!(y, p, x)
+
+    dx = CuArray(x)
+    dp = plan_rfft(dx)
+    dy = similar(dp * dx)
+    mul!(dy, dp, dx)
+
+    @test Array(dy) ≈ y
 end
