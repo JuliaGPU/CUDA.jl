@@ -216,30 +216,6 @@ else
     all_tests = copy(tests)
 end
 
-# handle compute-sanitizer
-struct rlimit
-    cur::Culong
-    max::Culong
-end
-const RLIMIT_NOFILE = 7
-if do_sanitize
-    sanitizer = CUDA.compute_sanitizer()
-    @info "Running under $(readchomp(`$sanitizer --version`))"
-
-    # bump the per-process file descriptor limit to work around NVIDIA bug #3273266.
-    # this value will be inherited by child processes.
-    if Sys.islinux()
-        local limit
-        limit = Ref{rlimit}()
-        ret = ccall(:getrlimit, Cint, (Cint, Ptr{rlimit}), RLIMIT_NOFILE, limit)
-        systemerror(:getrlimit, ret != 0)
-        @warn "Bumping file descriptor limit from $(Int(limit[].cur)) to $(Int(limit[].max))"
-        limit[] = rlimit(limit[].max, limit[].max)
-        ret = ccall(:setrlimit, Cint, (Cint, Ptr{rlimit}), RLIMIT_NOFILE, limit)
-        systemerror(:getrlimit, ret != 0)
-    end
-end
-
 # add workers
 const test_exeflags = Base.julia_cmd()
 filter!(test_exeflags.exec) do c
@@ -254,8 +230,7 @@ end
 const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
     exename = if do_sanitize
-        sanitizer = CUDA.compute_sanitizer()
-        `$sanitizer --tool $sanitize_tool --launch-timeout=0 --target-processes=all --report-api-errors=no $test_exename`
+        `$(CUDA.compute_sanitizer_cmd(sanitize_tool)) $test_exename`
     else
         test_exename
     end
