@@ -131,6 +131,21 @@ end
 
 const code_ptx = code_native
 
+"""
+    CUDA.return_type(f, tt) -> r::Type
+
+Return a type `r` such that `f(args...)::r` where `args::tt`.
+"""
+function return_type(@nospecialize(func), @nospecialize(tt); kernel::Bool=false,
+                     minthreads=nothing, maxthreads=nothing, blocks_per_sm=nothing,
+                     maxregs=nothing)
+    source = FunctionSpec(func, tt, kernel)
+    target = CUDACompilerTarget(device(); minthreads, maxthreads, blocks_per_sm, maxregs)
+    params = CUDACompilerParams()
+    job = CompilerJob(target, source, params)
+    interp = GPUCompiler.get_interpreter(job)
+    return Core.Compiler.return_type(interp, job.source.f, job.source.tt)
+end
 
 
 #
