@@ -841,7 +841,11 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false) where {T}
     end
     k0 = c_len |> log2 |> ceil |> Int
 
-    blocks_per_mp = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_BLOCKS_PER_MULTIPROCESSOR)
+    blocks_per_mp = if CUDA.version() >= v"11.0"
+        CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_BLOCKS_PER_MULTIPROCESSOR)
+    else
+        16
+    end
 
     # These two outer loops are the same as the serial version outlined here:
     # https://en.wikipedia.org/wiki/Bitonic_sorter#Example_code
