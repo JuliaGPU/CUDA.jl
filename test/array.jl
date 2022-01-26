@@ -783,6 +783,15 @@ end
   end
 end
 
+@testset "issue: invalid handling of device pointers" begin
+  # failed when DEVICE_ATTRIBUTE_CAN_USE_HOST_POINTER_FOR_REGISTERED_MEM == 0
+  cpu = rand(2,2)
+  buf = Mem.register(Mem.Host, pointer(cpu), sizeof(cpu), Mem.HOSTREGISTER_DEVICEMAP)
+  gpu_ptr = convert(CuPtr{eltype(cpu)}, buf)
+  gpu = unsafe_wrap(CuArray, gpu_ptr, size(cpu))
+  @test Array(gpu) == cpu
+end
+
 if length(devices()) > 1
 @testset "multigpu" begin
   dev = device()
