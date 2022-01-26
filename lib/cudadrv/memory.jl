@@ -759,6 +759,24 @@ memory_type(x) = CUmemorytype(attribute(Cuint, x, POINTER_ATTRIBUTE_MEMORY_TYPE)
 
 is_managed(x) = convert(Bool, attribute(Cuint, x, POINTER_ATTRIBUTE_IS_MANAGED))
 
+"""
+    host_pointer(ptr::CuPtr)
+
+Returns the host pointer value through which `ptr`` may be accessed by by the
+host program.
+"""
+host_pointer(x::CuPtr{T}) where {T} =
+    attribute(Ptr{T}, x, POINTER_ATTRIBUTE_HOST_POINTER)
+
+"""
+    device_pointer(ptr::Ptr)
+
+Returns the device pointer value through which `ptr` may be accessed by kernels
+running in the current context.
+"""
+device_pointer(x::Ptr{T}) where {T} =
+    attribute(CuPtr{T}, x, POINTER_ATTRIBUTE_HOST_POINTER)
+
 function is_pinned(ptr::Ptr)
     # unpinned memory makes cuPointerGetAttribute return ERROR_INVALID_VALUE; but instead of
     # calling `memory_type` with an expensive try/catch we perform low-level API calls.
