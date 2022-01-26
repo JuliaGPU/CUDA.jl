@@ -377,3 +377,13 @@ function limit(lim::CUlimit)
 end
 
 limit!(lim::CUlimit, val) = cuCtxSetLimit(lim, val)
+
+
+## p2p
+
+export enable_peer_access, disable_peer_access
+
+enable_peer_access(peer::CuContext, flags=0) =
+    cuCtxEnablePeerAccess(peer, flags)
+
+disable_peer_access(peer::CuContext) = cuCtxDisablePeerAccess(peer)
