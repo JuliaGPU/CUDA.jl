@@ -393,7 +393,8 @@ function assert_applicable(p::CuFFTPlan{T}, X::DenseCuArray{T}) where {T}
         throw(ArgumentError("CuFFT plan applied to wrong-size input"))
 end
 
-function assert_applicable(p::CuFFTPlan{T,K,inplace}, X::DenseCuArray{T}, Y::DenseCuArray{T}) where {T,K,inplace}
+function assert_applicable(p::CuFFTPlan{T,K,inplace}, X::DenseCuArray{T},
+                           Y::DenseCuArray) where {T,K,inplace}
     assert_applicable(p, X)
     if size(Y) != p.osz
         throw(ArgumentError("CuFFT plan applied to wrong-size output"))
@@ -475,8 +476,8 @@ end
 
 ## high-level integrations
 
-function LinearAlgebra.mul!(y::DenseCuArray{T}, p::CuFFTPlan{T}, x::DenseCuArray{T}
-                           ) where {T}
+function LinearAlgebra.mul!(y::DenseCuArray{Ty}, p::CuFFTPlan{T}, x::DenseCuArray{T}
+                           ) where {Ty, T}
     assert_applicable(p,x,y)
     unsafe_execute!(p,x,y)
     return y
