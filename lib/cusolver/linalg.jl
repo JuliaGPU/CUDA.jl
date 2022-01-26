@@ -53,7 +53,7 @@ LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where
 LinearAlgebra.lmul!(trA::Transpose{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:Number, S<:CuMatrix} =
     ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
 
-function Base.getindex(A::CuQRPackedQ{T, S}, i::Integer, j::Integer) where {T, S}
+function Base.getindex(A::CuQRPackedQ{T, S}, i::Int, j::Int) where {T, S}
     assertscalar("CuQRPackedQ getindex")
     x = CUDA.zeros(T, size(A, 2))
     x[j] = 1
