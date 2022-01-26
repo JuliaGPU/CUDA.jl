@@ -386,7 +386,6 @@ end
 
 for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", CuPtr, Ptr),
                                  ("cuMemcpyHtoDAsync_v2", Ptr,   CuPtr),
-                                 ("cuMemcpyDtoDAsync_v2", CuPtr, CuPtr),
                                  )
     @eval function Base.unsafe_copyto!(dst::$dstPtrTy{T}, src::$srcPtrTy{T}, N::Integer;
                                        stream::CuStream=stream(),
@@ -395,6 +394,23 @@ for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", CuPtr, Ptr),
         async || synchronize(stream)
         return dst
     end
+end
+
+function Base.unsafe_copyto!(dst::CuPtr{T}, src::CuPtr{T}, N::Integer;
+                             stream::CuStream=stream(),
+                             async::Bool=false) where T
+    dst_dev = device(dst)
+    src_dev = device(src)
+    if dst_dev == src_dev
+        CUDA.cuMemcpyDtoDAsync_v2(dst, src, N*sizeof(T), stream)
+    else
+        maybe_enable_peer_access(src_dev, dst_dev)
+        CUDA.cuMemcpyPeerAsync(dst, context(dst_dev),
+                               src, context(src_dev),
+                               N*sizeof(T), stream)
+    end
+    async || synchronize(stream)
+    return dst
 end
 
 function Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::Ptr{T}, N::Integer;
@@ -682,6 +698,44 @@ function __unpin(ptr::Ptr{Nothing}, ctx::CuContext)
     end
 
     return
+end
+
+## p2p handling
+
+# matrix of set-up peer accesses:
+# - -1: unsupported
+# -  0: not set-up yet
+# -  1: supported
+const peer_access = Ref{Matrix{Int}}()
+function maybe_enable_peer_access(src::CuDevice, dst::CuDevice)
+    global peer_access
+
+    src_idx = deviceid(src)+1
+    dst_idx = deviceid(dst)+1
+
+    if !isassigned(peer_access)
+        peer_access[] = Base.zeros(Int8, ndevices(), ndevices())
+    end
+
+    # we need to take care only to enable P2P access when it is supported,
+    # as well as not to call this function multiple times, to avoid errors.
+    if peer_access[][src_idx, dst_idx] == 0
+        if can_access_peer(src, dst)
+            device!(src) do
+                try
+                    enable_peer_access(context(dst))
+                    peer_access[][src_idx, dst_idx] = 1
+                catch err
+                    @warn "Enabling peer-to-peer access between $src and $dst failed; please file an issue." exception=(err,catch_backtrace())
+                    peer_access[][src_idx, dst_idx] = -1
+                end
+            end
+        else
+            peer_access[][src_idx, dst_idx] = -1
+        end
+    end
+
+    return peer_access[][src_idx, dst_idx]
 end
 
 ## memory info

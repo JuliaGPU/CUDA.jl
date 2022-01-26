@@ -850,5 +850,35 @@ if length(devices()) > 1
     copyto!(dA, dB)
     @test Array(dA) == B
   end
+
+  @testset "issue 1136: copies between devices" begin
+    device!(dev)
+    data = rand(5, 5)
+    a = CuArray(data)
+
+    device!(other_dev)
+    b = similar(a)
+    @test device(b) == other_dev
+    copyto!(b, a)
+
+    synchronize()
+    @test Array(a) == Array(b) == data
+
+    device!(dev)
+    @test Array(a) == Array(b) == data
+
+    # now do the same, but with the other context active when copying
+    device!(dev)
+    data = rand(5, 5)
+    a = CuArray(data)
+
+    copyto!(b, a)
+
+    synchronize()
+    @test Array(a) == Array(b) == data
+
+    device!(other_dev)
+    @test Array(a) == Array(b) == data
+  end
 end
 end

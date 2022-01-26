@@ -420,8 +420,7 @@ end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
-  context(dest) == context(src) || throw(ArgumentError("copying between arrays from different contexts"))
-  context!(context(dest)) do
+  context!(context(src)) do
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
       if Base.isbitsunion(T)
