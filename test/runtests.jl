@@ -230,8 +230,7 @@ end
 const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
     exename = if do_sanitize
-        sanitizer = CUDA.compute_sanitizer()
-        `$sanitizer --tool $sanitize_tool --launch-timeout=0 --target-processes=all --report-api-errors=no $test_exename`
+        `$(CUDA.compute_sanitizer_cmd(sanitize_tool)) $test_exename`
     else
         test_exename
     end

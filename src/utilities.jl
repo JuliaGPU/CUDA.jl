@@ -94,3 +94,27 @@ function versioninfo(io::IO=stdout)
         println(io, "  $(i-1): $str (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(mem.free)) / $(Base.format_bytes(mem.total)) available)")
     end
 end
+
+# this helper function encodes options for compute-sanitizer useful with Julia applications
+function compute_sanitizer_cmd(tool::String="memcheck")
+    sanitizer = CUDA.compute_sanitizer()
+    `$sanitizer --tool $tool --launch-timeout=0 --target-processes=all --report-api-errors=no`
+end
+
+"""
+    run_compute_sanitizer([julia_args=``]; [tool="memcheck", sanitizer_args=``])
+
+Run a new Julia session under the CUDA compute-sanitizer tool `tool`. This is useful to
+detect various GPU-related issues, like memory errors or race conditions.
+"""
+function run_compute_sanitizer(julia_args=``; tool::String="memcheck", sanitizer_args=``)
+    cmd = Base.julia_cmd()
+
+    # propagate --project
+    if Base.JLOptions().project != C_NULL
+        push!(test_exeflags.exec, "--project=$(unsafe_string(Base.JLOptions().project))")
+    end
+
+    println("Re-starting your active Julia session...")
+    run(`$(CUDA.compute_sanitizer_cmd(tool)) $sanitizer_args $cmd $julia_args`)
+end
