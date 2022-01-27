@@ -21,12 +21,9 @@ cd(examples_dir) do
     global examples
     examples = relpath.(examples, Ref(examples_dir))
     @testset for example in examples
-        cmd = Base.julia_cmd()
-        if Base.JLOptions().project != C_NULL
-            cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project))`
-        end
-
-        @test success(pipeline(`$cmd $example`, stderr=stderr))
+        proc, out, err = julia_exec(`$example`)
+        isempty(err) || println(err)
+        @test success(proc)
     end
 end
 

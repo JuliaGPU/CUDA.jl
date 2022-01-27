@@ -11,6 +11,8 @@ device_error_re = r"ERROR: a \w+ was thrown during kernel execution"
 @testset "stack traces at different debug levels" begin
 
 script = """
+    using CUDA
+
     function kernel(arr, val)
         arr[1] = val
         return
@@ -33,26 +35,26 @@ script = """
 #       on older devices, we emit a `trap` which causes a CUDA error...
 #
 
-let (code, out, err) = julia_script(script, `-g0`)
-    @test code == 1
+let (proc, out, err) = julia_exec(`-g0 -e $script`)
+    @test !success(proc)
     @test  occursin(host_error_re, err)
     @test !occursin(device_error_re, out)
     # NOTE: stdout sometimes contain a failure to free the CuArray with ILLEGAL_ACCESS
 end
 
-let (code, out, err) = julia_script(script, `-g1`)
-    @test code == 1
+let (proc, out, err) = julia_exec(`-g1 -e $script`)
+    @test !success(proc)
     @test occursin(host_error_re, err)
     @test occursin(device_error_re, out)
     @test occursin("Run Julia on debug level 2 for device stack traces", out)
 end
 
-let (code, out, err) = julia_script(script, `-g2`)
-    @test code == 1
+let (proc, out, err) = julia_exec(`-g2 -e $script`)
+    @test !success(proc)
     @test occursin(host_error_re, err)
     @test occursin(device_error_re, out)
     @test occursin("[1] Int64 at $(joinpath(".", "float.jl"))", out)
-    @test occursin("[4] kernel at $(joinpath(".", "none")):5", out)
+    @test occursin("[4] kernel at $(joinpath(".", "none"))", out)
 end
 
 end
@@ -60,6 +62,8 @@ end
 @testset "#329" begin
 
 script = """
+    using CUDA
+
     @noinline foo(a, i) = a[1] = i
     bar(a) = (foo(a, 42); nothing)
 
@@ -69,12 +73,12 @@ script = """
     CUDA.@sync @cuda bar(arr)
 """
 
-let (code, out, err) = julia_script(script, `-g2`)
-    @test code == 1
+let (proc, out, err) = julia_exec(`-g2 -e $script`)
+    @test !success(proc)
     @test occursin(host_error_re, err)
     @test occursin(device_error_re, out)
-    @test occursin("foo at $(joinpath(".", "none")):4", out)
-    @test occursin("bar at $(joinpath(".", "none")):5", out)
+    @test occursin("foo at $(joinpath(".", "none"))", out)
+    @test occursin("bar at $(joinpath(".", "none"))", out)
 end
 
 end

@@ -89,7 +89,11 @@ mutable struct CuGraphExec
         buf = Vector{UInt8}(undef, buflen)
 
         GC.@preserve buf begin
-            cuGraphInstantiate_v2(handle_ref, graph, error_node, pointer(buf), buflen)
+            if version() >= v"11.0"
+                cuGraphInstantiate_v2(handle_ref, graph, error_node, pointer(buf), buflen)
+            else
+                cuGraphInstantiate(handle_ref, graph, error_node, pointer(buf), buflen)
+            end
             diag = String(buf)
             # TODO: how to use these?
         end

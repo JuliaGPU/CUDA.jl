@@ -93,7 +93,11 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
     let T = promote_type(T1, T2)
         # only use the above kernel if we don't care about determinism
         # and if atomic operations are supported on these inputs
-        atomic = T <: Union{Int16, Int32, Int64, Float16, Float32, Float64}
+        atomic = if capability(device()) >= v"7.0"
+            T <: Union{Int16, Int32, Int64, Float16, Float32, Float64}
+        else
+            T <: Union{Int32, Int64, Float32, Float64}
+        end
         if math_mode() == PEDANTIC_MATH || !atomic
             return mapreduce((x,y)->dot(x, y), +, x, y)
         end

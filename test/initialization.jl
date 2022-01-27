@@ -149,3 +149,14 @@ task = @async begin
 end
 @test fetch(task) == s
 @test stream() == default_s
+
+@testset "issue 1331: repeated initialization failure should stick" begin
+    script = """
+        using CUDA, Test
+        @test !CUDA.functional()
+        @test !CUDA.functional()
+    """
+
+    proc, out, err = julia_exec(`-e $script`, "CUDA_VISIBLE_DEVICES"=>"-1")
+    @test success(proc)
+end
