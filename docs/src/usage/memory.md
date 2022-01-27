@@ -111,6 +111,14 @@ Memory pool usage: 0 bytes (0 bytes reserved)
     memory pool and free any cached memory if necessary. It is a bug if that operation
     runs into an out-of-memory situation only if not manually reclaiming memory beforehand.
 
+
+!!! note
+
+    If you need to disable the memory pool, e.g. because of incompatibility with certain
+    CUDA APIs, set the environment variable `JULIA_CUDA_MEMORY_POOL` to `none` before
+    importing CUDA.jl.
+
+
 ### Avoiding GC pressure
 
 When your application performs a lot of memory operations, the time spent during GC might
