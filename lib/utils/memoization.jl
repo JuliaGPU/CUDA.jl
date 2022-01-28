@@ -1,15 +1,18 @@
 export @memoize
 
 """
-    @memoize [arg::T]... begin
+    @memoize [key::T] [maxlen=...] begin
         # expensive computation
     end::T
 
-Low-level, no-frills memoization macro that stores values in a thread-local, typed Dict. The
-types of the dictionary are derived from the syntactical type assertions.
+Low-level, no-frills memoization macro that stores values in a thread-local, typed cache.
+The types of the caches are derived from the syntactical type assertions.
 
-When there are no arguments to key the cache with, instead of a dictionary a simple array
-with per-thread elements is used. This further improves performance to 2ns per access.
+The cache consists of two levels, the outer one indexed with the thread index. If no `key`
+is specified, the second level of the cache is dropped.
+
+If the the `maxlen` option is specified, the `key` is assumed to be an  integer, and the
+secondary cache will be a vector with length `maxlen`. Otherwise, a dictionary is used.
 """
 macro memoize(ex...)
     code = ex[end]
@@ -21,12 +24,16 @@ macro memoize(ex...)
     code = code.args[1]
 
     # decode the arguments
-    argtyps = []
-    argvars = []
-    for arg in args
+    key = nothing
+    if length(args) >= 1
+        arg = args[1]
         @assert Meta.isexpr(arg, :(::))
-        push!(argvars, arg.args[1])
-        push!(argtyps, arg.args[2])
+        key = (val=arg.args[1], typ=arg.args[2])
+    end
+    options = Dict()
+    for arg in args[2:end]
+        @assert Meta.isexpr(arg, :(=))
+        options[arg.args[1]] = arg.args[2]
     end
 
     # the global cache is an array with one entry per thread. if we don't have to key on
@@ -35,7 +42,7 @@ macro memoize(ex...)
 
     # generate code to access memoized values
     # (assuming the global_cache can be indexed with the thread ID)
-    if isempty(args)
+    if key === nothing
         # if we don't have to key on anything, use the global cache directly
         global_cache_eltyp = :(Union{Nothing,$rettyp})
         ex = quote
@@ -51,27 +58,47 @@ macro memoize(ex...)
                 new_value
             end
         end
-    else
-        if length(args) == 1
-            global_cache_eltyp = :(Dict{$(argtyps[1]),$rettyp})
-            global_init = :(Dict{$(argtyps[1]),$rettyp}())
-            key = :($(esc(argvars[1])))
-        else
-            global_cache_eltyp = :(Dict{Tuple{$(argtyps...)},$rettyp})
-            global_init = :(Dict{Tuple{$(argtyps...)},$rettyp}())
-            key = :(tuple($(map(esc, argvars)...)))
-        end
+    elseif haskey(options, :maxlen)
+        # if we know the length of the cache, use a fixed-size array
+        global_cache_eltyp = :(Vector{Union{Nothing,$rettyp}})
+        global_init = :(Union{Nothing,$rettyp}[nothing for _ in 1:$(esc(options[:maxlen]))])
         ex = quote
             cache = get!($(esc(global_cache))) do
                 [$global_init for _ in 1:Threads.nthreads()]
             end
-            local_cache = @inbounds cache[Threads.threadid()]
-            cached_value = get(local_cache, $key, nothing)
+            local_cache = @inbounds begin
+                tid = Threads.threadid()
+                assume(isassigned(cache, tid))
+                cache[tid]
+            end
+            cached_value = @inbounds local_cache[$(esc(key.val))]
             if cached_value !== nothing
                 cached_value
             else
                 new_value = $(esc(code))::$rettyp
-                local_cache[$key] = new_value
+                @inbounds local_cache[$(esc(key.val))] = new_value
+                new_value
+            end
+        end
+    else
+        # otherwise, fall back to a dictionary
+        global_cache_eltyp = :(Dict{$(key.typ),$rettyp})
+        global_init = :(Dict{$(key.typ),$rettyp}())
+        ex = quote
+            cache = get!($(esc(global_cache))) do
+                [$global_init for _ in 1:Threads.nthreads()]
+            end
+            local_cache = @inbounds begin
+                tid = Threads.threadid()
+                assume(isassigned(cache, tid))
+                cache[tid]
+            end
+            cached_value = get(local_cache, $(esc(key.val)), nothing)
+            if cached_value !== nothing
+                cached_value
+            else
+                new_value = $(esc(code))::$rettyp
+                local_cache[$(esc(key.val))] = new_value
                 new_value
             end
         end

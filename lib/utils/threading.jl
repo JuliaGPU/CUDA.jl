@@ -42,7 +42,7 @@ struct LazyInitialized{T}
         new(Threads.Atomic{Int}(0), Ref{T}())
 end
 
-function Base.get!(constructor, x::LazyInitialized; hook=nothing)
+@inline function Base.get!(constructor, x::LazyInitialized; hook=nothing)
     while x.guard[] != 2
         initialize!(x, constructor, hook)
     end
