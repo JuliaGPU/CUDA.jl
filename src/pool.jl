@@ -64,14 +64,13 @@ end
 
 ## stream-ordered memory pool
 
-const __stream_ordered = LazyInitialized{Vector{Bool}}()
+# TODO: extract this into a @device_memoize macro, or teach @memoize about CuDevice?
+#       this is a common pattern that could be applied to many more functions.
 function stream_ordered(dev::CuDevice)
-  # TODO: improve @memoize to use the device ID to index a know-length vector cache.
-  flags = get!(__stream_ordered) do
-    [memory_pools_supported(dev) && get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
-     for dev in devices()]
-  end
-  @inbounds flags[deviceid(dev)+1]
+  devidx = deviceid(dev) + 1
+  @memoize devidx::Int maxlen=ndevices() begin
+    memory_pools_supported(dev) && get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
+  end::Bool
 end
 
 # per-device flag indicating the status of a pool
