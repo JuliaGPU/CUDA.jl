@@ -68,7 +68,7 @@ GPU, and requires explicit calls to `unsafe_copyto!`, which wraps `cuMemcpy`,
 for access on the CPU.
 """
 function alloc(::Type{DeviceBuffer}, bytesize::Integer;
-               async::Bool=CUDA.has_stream_ordered(device()),
+               async::Bool=memory_pools_supported(device()),
                stream::Union{Nothing,CuStream}=nothing,
                pool::Union{Nothing,CuMemoryPool}=nothing)
     bytesize == 0 && return DeviceBuffer()

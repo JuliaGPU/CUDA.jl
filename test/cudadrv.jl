@@ -455,7 +455,7 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
 
     # test device with context in which pointer was allocated.
     @test device(typed_pointer(src, T)) == device()
-    if !CUDA.has_stream_ordered(device())
+    if !memory_pools_supported(device())
         # NVIDIA bug #3319609
         @test context(typed_pointer(src, T)) == context()
     end

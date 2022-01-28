@@ -66,16 +66,10 @@ end
 
 const __stream_ordered = LazyInitialized{Vector{Bool}}()
 function stream_ordered(dev::CuDevice)
+  # TODO: improve @memoize to use the device ID to index a know-length vector cache.
   flags = get!(__stream_ordered) do
-    val = Vector{Bool}(undef, ndevices())
-    if version() < v"11.2" || get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "none"
-      fill!(val, false)
-    else
-      for dev in devices()
-        val[deviceid(dev)+1] = attribute(dev, DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
-      end
-    end
-    val
+    [memory_pools_supported(dev) && get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
+     for dev in devices()]
   end
   @inbounds flags[deviceid(dev)+1]
 end
