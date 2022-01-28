@@ -68,8 +68,7 @@ const __stream_ordered = LazyInitialized{Vector{Bool}}()
 function stream_ordered(dev::CuDevice)
   flags = get!(__stream_ordered) do
     val = Vector{Bool}(undef, ndevices())
-    if version() < v"11.2" || haskey(ENV, "CUDA_MEMCHECK") ||
-       get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "none"
+    if version() < v"11.2" || get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "none"
       fill!(val, false)
     else
       for dev in devices()
