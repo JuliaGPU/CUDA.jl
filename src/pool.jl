@@ -91,6 +91,9 @@ function pool_mark(dev::CuDevice)
   if status[] === nothing
       pool = memory_pool(dev)
 
+      # allow the pool to use up all memory of this device
+      attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD, typemax(UInt64))
+
       # launch a task to periodically trim the pool
       if isinteractive() && !isassigned(__pool_cleanup)
         __pool_cleanup[] = @async pool_cleanup()
