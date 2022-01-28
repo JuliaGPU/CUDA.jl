@@ -163,7 +163,7 @@ end
 
 ## attributes
 
-export attribute, warpsize, capability, unified_addressing
+export attribute, warpsize, capability, memory_pools_supported, unified_addressing
 
 """
     attribute(dev::CuDevice, code)
@@ -195,11 +195,10 @@ function capability(dev::CuDevice)
                          attribute(dev, DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR))
 end
 
-has_stream_ordered(dev::CuDevice) =
-    @memoize dev::CuDevice begin
-        CUDA.version() >= v"11.2" && !haskey(ENV, "CUDA_MEMCHECK") &&
-        attribute(dev, DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
-    end::Bool
+memory_pools_supported(dev::CuDevice) =
+    CUDA.version() >= v"11.2" &&
+    attribute(dev, DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+@deprecate has_stream_ordered(dev::CuDevice) memory_pools_supported(dev)
 
 unified_addressing(dev::CuDevice) =
     attribute(dev, DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING) == 1
