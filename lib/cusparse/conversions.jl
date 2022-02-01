@@ -81,7 +81,8 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                      (:cusparseCcsr2csc, :ComplexF32),
                      (:cusparseZcsr2csc, :ComplexF64))
     @eval begin
-        function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O')
+        function CuSparseMatrixCSC{$elty, Cint}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O')
+            csr = CuSparseMatrixCSR{$elty, Cint}(csr) # convert indices type
             m,n = csr.dims
             colPtr = CUDA.zeros(Cint, n+1)
             rowVal = CUDA.zeros(Cint, nnz(csr))
@@ -110,7 +111,8 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
             CuSparseMatrixCSC(colPtr,rowVal,nzVal,csr.dims)
         end
 
-        function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O')
+        function CuSparseMatrixCSR{$elty, Cint}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O')
+            csc = CuSparseMatrixCSC{$elty, Cint}(csc) # convert indices type
             m,n    = csc.dims
             rowPtr = CUDA.zeros(Cint,m+1)
             colVal = CUDA.zeros(Cint,nnz(csc))
@@ -144,7 +146,8 @@ end
 for (elty, welty) in ((:Float16, :Float32),
                       (:ComplexF16, :ComplexF32))
     @eval begin
-        function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O')
+        function CuSparseMatrixCSC{$elty, Cint}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O')
+            csr = CuSparseMatrixCSR{$elty, Cint}(csr) # convert indices type
             m,n = csr.dims
             colPtr = CUDA.zeros(Cint, n+1)
             rowVal = CUDA.zeros(Cint, nnz(csr))
@@ -173,7 +176,8 @@ for (elty, welty) in ((:Float16, :Float32),
             end
         end
 
-        function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O')
+        function CuSparseMatrixCSR{$elty, Cint}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O')
+            csr = CuSparseMatrixCSC{$elty, Cint}(csr) # convert indices type
             m,n    = csc.dims
             rowPtr = CUDA.zeros(Cint,m+1)
             colVal = CUDA.zeros(Cint,nnz(csc))
@@ -211,9 +215,10 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
                      (:cusparseCcsr2bsr, :ComplexF32),
                      (:cusparseZcsr2bsr, :ComplexF64))
     @eval begin
-        function CuSparseMatrixBSR{$elty}(csr::CuSparseMatrixCSR{$elty}, blockDim::Integer;
+        function CuSparseMatrixBSR{$elty, Cint}(csr::CuSparseMatrixCSR{$elty}, blockDim::Integer;
                                           dir::SparseChar='R', inda::SparseChar='O',
                                           indc::SparseChar='O')
+            csr = CuSparseMatrixCSR{$elty, Cint}(csr) # convert indices type
             m,n = csr.dims
             nnz_ref = Ref{Cint}(1)
             mb = div((m + blockDim - 1),blockDim)
@@ -239,8 +244,9 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
                      (:cusparseCbsr2csr, :ComplexF32),
                      (:cusparseZbsr2csr, :ComplexF64))
     @eval begin
-        function CuSparseMatrixCSR{$elty}(bsr::CuSparseMatrixBSR{$elty};
+        function CuSparseMatrixCSR{$elty, Cint}(bsr::CuSparseMatrixBSR{$elty};
                                           inda::SparseChar='O', indc::SparseChar='O')
+            bsr = CuSparseMatrixBSR{$elty, Cint}(bsr) # convert indices type
             m,n = bsr.dims
             mb = div(m,bsr.blockDim)
             nb = div(n,bsr.blockDim)
@@ -262,6 +268,7 @@ end
 ## CSR to COO and vice-versa
 
 function CuSparseMatrixCSR(coo::CuSparseMatrixCOO{Tv}, ind::SparseChar='O') where {Tv}
+    coo = CuSparseMatrixCOO{Tv, Cint}(coo) # convert indices type
     m,n = coo.dims
     nnz = coo.nnz
     csrRowPtr = CUDA.zeros(Cint, nnz)
@@ -270,6 +277,7 @@ function CuSparseMatrixCSR(coo::CuSparseMatrixCOO{Tv}, ind::SparseChar='O') wher
 end
 
 function CuSparseMatrixCOO(csr::CuSparseMatrixCSR{Tv}, ind::SparseChar='O') where {Tv}
+    csr = CuSparseMatrixCSR{Tv, Cint}(csr) # convert indices type
     m,n = csr.dims
     nnz = csr.nnz
     cooRowInd = CUDA.zeros(Cint, nnz)
@@ -311,6 +319,8 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
                 end
                 return denseA
             else
+                # csr2dense doesn't support int64
+                csr = CuSparseMatrixCSR{$elty, Cint}(csr)
                 cudesc = CuMatrixDescriptor('G', 'L', 'N', ind)
                 lda = max(1,stride(denseA,2))
                 $rname(handle(), m, n, cudesc, nonzeros(csr),
@@ -337,6 +347,8 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
                 end
                 return denseA
             else
+                # csr2dense doesn't support int64
+                csc = CuSparseMatrixCSC{$elty, Cint}(csc)
                 lda = max(1,stride(denseA,2))
                 cudesc = CuMatrixDescriptor('G', 'L', 'N', ind)
                 $cname(handle(), m, n, cudesc, nonzeros(csc),
