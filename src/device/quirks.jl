@@ -106,3 +106,15 @@ end
         return v
     end
 end
+
+# fastmath.jl
+@static if VERSION <= v"1.7-"
+## prevent fallbacks to libm
+for f in (:acosh, :asinh, :atanh, :cbrt, :cosh, :exp2, :expm1, :log1p, :sinh, :tanh)
+    f_fast = Base.FastMath.fast_op[f]
+    @eval begin
+        @device_override Base.FastMath.$f_fast(x::Float32) = $f(x)
+        @device_override Base.FastMath.$f_fast(x::Float64) = $f(x)
+    end
+end
+end
