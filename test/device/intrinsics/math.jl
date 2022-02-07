@@ -94,4 +94,16 @@ using SpecialFunctions
         # JuliaGPU/CUDA.jl#1085: exp uses Base.sincos performing a global CPU load
         @test testf(x->exp.(x), [1e7im])
     end
+
+    @testset "fastmath" begin
+        # libdevice provides some fast math functions
+        a(x) = cos(x)
+        b(x) = @fastmath cos(x)
+        @test Array(map(a, cu([0.1,0.2]))) ≈ Array(map(b, cu([0.1,0.2])))
+
+        # JuliaGPU/CUDA.jl#1352: some functions used to fall back to libm
+        f(x) = log1p(x)
+        g(x) = @fastmath log1p(x)
+        @test Array(map(f, cu([0.1,0.2]))) ≈ Array(map(g, cu([0.1,0.2])))
+    end
 end

@@ -64,33 +64,31 @@ end
 
 # range.jl
 @static if VERSION >= v"1.7-"
-    @device_override quote
-            function Base.StepRangeLen{T,R,S,L}(ref::R, step::S, len::Integer,
-                                                offset::Integer=1) where {T,R,S,L}
-                if T <: Integer && !isinteger(ref + step)
-                    @print_and_throw("StepRangeLen{<:Integer} cannot have non-integer step")
-                end
-                len = convert(L, len)
-                len >= zero(len) || @print_and_throw("StepRangeLen length cannot be negative")
-                offset = convert(L, offset)
-                L1 = oneunit(typeof(len))
-                L1 <= offset <= max(L1, len) || @print_and_throw("StepRangeLen: offset must be in [1,...]")
-                $(
-                    Expr(:new, :(StepRangeLen{T,R,S,L}), :ref, :step, :len, :offset)
-                )
-        end
-    end
-else
-    @device_override quote
-        function Base.StepRangeLen{T,R,S}(ref::R, step::S, len::Integer,
-                                          offset::Integer=1) where {T,R,S}
+    @eval begin
+        @device_override function Base.StepRangeLen{T,R,S,L}(ref::R, step::S, len::Integer,
+                                                             offset::Integer=1) where {T,R,S,L}
             if T <: Integer && !isinteger(ref + step)
                 @print_and_throw("StepRangeLen{<:Integer} cannot have non-integer step")
             end
-            len >= 0 || @print_and_throw("StepRangeLen length cannot be negative")
-            1 <= offset <= max(1,len) || @print_and_throw("StepRangeLen: offset must be in [1,...]")
-            new(ref, step, len, offset)
+            len = convert(L, len)
+            len >= zero(len) || @print_and_throw("StepRangeLen length cannot be negative")
+            offset = convert(L, offset)
+            L1 = oneunit(typeof(len))
+            L1 <= offset <= max(L1, len) || @print_and_throw("StepRangeLen: offset must be in [1,...]")
+            $(
+                Expr(:new, :(StepRangeLen{T,R,S,L}), :ref, :step, :len, :offset)
+            )
         end
+    end
+else
+    @device_override function Base.StepRangeLen{T,R,S}(ref::R, step::S, len::Integer,
+                                                       offset::Integer=1) where {T,R,S}
+        if T <: Integer && !isinteger(ref + step)
+            @print_and_throw("StepRangeLen{<:Integer} cannot have non-integer step")
+        end
+        len >= 0 || @print_and_throw("StepRangeLen length cannot be negative")
+        1 <= offset <= max(1,len) || @print_and_throw("StepRangeLen: offset must be in [1,...]")
+        new(ref, step, len, offset)
     end
 end
 
@@ -105,4 +103,16 @@ end
         end
         return v
     end
+end
+
+# fastmath.jl
+@static if VERSION <= v"1.7-"
+## prevent fallbacks to libm
+for f in (:acosh, :asinh, :atanh, :cbrt, :cosh, :exp2, :expm1, :log1p, :sinh, :tanh)
+    f_fast = Base.FastMath.fast_op[f]
+    @eval begin
+        @device_override Base.FastMath.$f_fast(x::Float32) = $f(x)
+        @device_override Base.FastMath.$f_fast(x::Float64) = $f(x)
+    end
+end
 end
