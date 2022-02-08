@@ -724,6 +724,10 @@ function maybe_enable_peer_access(src::CuDevice, dst::CuDevice)
             device!(src) do
                 try
                     enable_peer_access(context(dst))
+                    if memory_pools_supported(src)
+                        src_pool = default_memory_pool(src)
+                        access!(src_pool, dst, CUDA.ACCESS_FLAGS_PROT_READWRITE)
+                    end
                     peer_access[][src_idx, dst_idx] = 1
                 catch err
                     @warn "Enabling peer-to-peer access between $src and $dst failed; please file an issue." exception=(err,catch_backtrace())
