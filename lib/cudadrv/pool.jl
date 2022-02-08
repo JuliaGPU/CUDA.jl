@@ -1,9 +1,11 @@
 # Stream-orderdered memory allocator
 
-export CuMemoryPool, default_memory_pool, memory_pool, memory_pool!, trim, attribute, attribute!
+export CuMemoryPool, default_memory_pool, memory_pool, memory_pool!, trim,
+       attribute, attribute!, access!
 
 @enum_without_prefix CUmemAllocationType CU_MEM_
 @enum_without_prefix CUmemAllocationHandleType CU_MEM_
+@enum_without_prefix CUmemAccess_flags_enum CU_MEM_
 
 mutable struct CuMemoryPool
     handle::CUmemoryPool
@@ -88,4 +90,20 @@ Sets attribute` attr` on a pointer `ptr` to `val`.
 function attribute!(pool::CuMemoryPool, attr::CUmemPool_attribute, value) where {T}
     cuMemPoolSetAttribute(pool, attr, Ref(value))
     return
+end
+
+
+## pool access
+
+@enum_without_prefix CUmemAccess_flags_enum CU_MEM_
+
+"""
+    access!(pool::CuMemoryPool, dev::CuDevice, flags::CUmemAccess_flags)
+
+Control the visibility of memory pool `pool` on device `dev`.
+"""
+function access!(pool::CuMemoryPool, dev::CuDevice, flags::CUmemAccess_flags)
+    location = CUmemLocation(CU_MEM_LOCATION_TYPE_DEVICE, dev.handle)
+    access = CUmemAccessDesc(location, flags)
+    cuMemPoolSetAccess(pool, Ref(access), 1)
 end
