@@ -66,7 +66,7 @@ import Adapt
 
   @test collect(CUDA.fill(0, 2, 2)) == zeros(Float32, 2, 2)
   @test collect(CUDA.fill(1, 2, 2)) == ones(Float32, 2, 2)
-  
+
   let
     @gensym typnam
     typ = @eval begin
@@ -529,6 +529,11 @@ end
       b = unsafe_wrap(CuArray{Int}, pointer(a), 2)
       @test_throws ArgumentError resize!(b, 3)
     end
+
+    b = CuArray{Int}(undef, 0)
+    @test length(b) == 0
+    resize!(b, 1)
+    @test length(b) == 1
 end
 
 @testset "aliasing" begin
