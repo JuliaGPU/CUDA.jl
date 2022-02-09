@@ -27,6 +27,8 @@
 @device_function tgamma(x::Float64) = ccall("extern __nv_tgamma", llvmcall, Cdouble, (Cdouble,), x)
 @device_function tgamma(x::Float32) = ccall("extern __nv_tgammaf", llvmcall, Cfloat, (Cfloat,), x)
 
+@device_override SpecialFunctions.gamma(x::Float64) = tgamma(x)
+@device_override SpecialFunctions.gamma(x::Float32) = tgamma(x)
 
 ## Bessel
 
