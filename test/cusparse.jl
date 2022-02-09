@@ -109,28 +109,44 @@ end
 
 @testset "construction" begin
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "vector" begin
+            x = sprand(elty,m, 0.2)
+            d_x = CuSparseVector(x)
+            @test collect(d_x) == collect(x)
+            @test similar(d_x) isa CuSparseVector{elty}
+            @test similar(d_x, Float32) isa CuSparseVector{Float32}
+        end
+
         @testset "CSC" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             @test collect(d_x) == collect(x)
+            @test similar(d_x) isa CuSparseMatrixCSC{elty}
+            @test similar(d_x, Float32) isa CuSparseMatrixCSC{Float32}
         end
 
         @testset "CSR" begin
             x = sprand(elty,m,n, 0.2)
             d_x  = CuSparseMatrixCSR(x)
             @test collect(d_x) == collect(x)
+            @test similar(d_x) isa CuSparseMatrixCSR{elty}
+            @test similar(d_x, Float32) isa CuSparseMatrixCSR{Float32}
         end
 
         @testset "BSR" begin
             x = sprand(elty,m,n, 0.2)
             d_x  = CuSparseMatrixBSR(x, blockdim)
             @test collect(d_x) == collect(x)
+            @test similar(d_x) isa CuSparseMatrixBSR{elty}
+            @test similar(d_x, Float32) isa CuSparseMatrixBSR{Float32}
         end
 
         @testset "BSR" begin
             x = sprand(elty,m,n, 0.2)
             d_x  = CuSparseMatrixCOO(x)
             @test collect(d_x) == collect(x)
+            @test similar(d_x) isa CuSparseMatrixCOO{elty}
+            @test similar(d_x, Float32) isa CuSparseMatrixCOO{Float32}
         end
     end
 end
