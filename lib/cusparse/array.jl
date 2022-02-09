@@ -159,24 +159,24 @@ function CuSparseVector{Tv}(iPtr::CuVector{<:Integer}, nzVal::CuVector, dims::In
 end
 
 function CuSparseMatrixCSC{Tv}(colPtr::CuVector{<:Integer}, rowVal::CuVector{<:Integer},
-                                   nzVal::CuVector, dims::NTuple{2,<:Integer}) where {Tv}
+                               nzVal::CuVector, dims::NTuple{2,<:Integer}) where {Tv}
     CuSparseMatrixCSC{Tv, Cint}(colPtr, rowVal, nzVal, dims)
 end
 
 function CuSparseMatrixCSR{Tv}(rowPtr::CuVector{<:Integer}, colVal::CuVector{<:Integer},
-                                   nzVal::CuVector, dims::NTuple{2,Int}) where {Tv}
+                               nzVal::CuVector, dims::NTuple{2,Int}) where {Tv}
     CuSparseMatrixCSR{Tv, Cint}(rowPtr, colVal, nzVal, dims)
 end
 
 function CuSparseMatrixBSR{Tv}(rowPtr::CuVector{<:Integer}, colVal::CuVector{<:Integer},
-                                   nzVal::CuVector, dims::NTuple{2,<:Integer},
-                                   blockDim::Integer, dir::SparseChar, nnz::Integer) where {Tv}
+                               nzVal::CuVector, dims::NTuple{2,<:Integer},
+                               blockDim::Integer, dir::SparseChar, nnz::Integer) where {Tv}
     CuSparseMatrixBSR{Tv, Cint}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
 end
 
 function CuSparseMatrixCOO{Tv}(rowInd::CuVector{<:Integer}, colInd::CuVector{<:Integer},
-                                   nzVal::CuVector, dims::NTuple{2,Int}=(dimlub(rowInd),dimlub(colInd)),
-                                   nnz::Integer=length(nzVal)) where {Tv}
+                               nzVal::CuVector, dims::NTuple{2,Int}=(dimlub(rowInd),dimlub(colInd)),
+                               nnz::Integer=length(nzVal)) where {Tv}
     CuSparseMatrixCOO{Tv, Cint}(rowInd,colInd,nzVal,dims,nnz)
 end
 
@@ -195,10 +195,20 @@ CuSparseMatrixBSR(rowPtr::DenseCuArray, colVal::DenseCuArray, nzVal::DenseCuArra
                   dims::NTuple{2,Int}) where T =
     CuSparseMatrixBSR{T}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
 
+CuSparseMatrixCOO(rowInd::DenseCuArray, colInd::DenseCuArray, nzVal::DenseCuArray{T}, dims::NTuple{2,Int}, nnz) where T =
+    CuSparseMatrixCOO{T}(rowInd, colInd, nzVal, dims, nnz)
+
 Base.similar(Vec::CuSparseVector) = CuSparseVector(copy(nonzeroinds(Vec)), similar(nonzeros(Vec)), Vec.dims[1])
 Base.similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(rowvals(Mat)), similar(nonzeros(Mat)), Mat.dims)
 Base.similar(Mat::CuSparseMatrixCSR) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), Mat.dims)
 Base.similar(Mat::CuSparseMatrixBSR) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), Mat.blockDim, Mat.dir, nnz(Mat), Mat.dims)
+Base.similar(Mat::CuSparseMatrixCOO) = CuSparseMatrixCOO(copy(Mat.rowInd), copy(Mat.colInd), similar(nonzeros(Mat)), Mat.dims, nnz(Mat))
+
+Base.similar(Vec::CuSparseVector, T::Type) = CuSparseVector(copy(nonzeroinds(Vec)), similar(nonzeros(Vec), T), Vec.dims[1])
+Base.similar(Mat::CuSparseMatrixCSC, T::Type) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(rowvals(Mat)), similar(nonzeros(Mat), T), Mat.dims)
+Base.similar(Mat::CuSparseMatrixCSR, T::Type) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), Mat.dims)
+Base.similar(Mat::CuSparseMatrixBSR, T::Type) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), Mat.blockDim, Mat.dir, nnz(Mat), Mat.dims)
+Base.similar(Mat::CuSparseMatrixCOO, T::Type) = CuSparseMatrixCOO(copy(Mat.rowInd), copy(Mat.colInd), similar(nonzeros(Mat), T), Mat.dims, nnz(Mat))
 
 
 ## array interface
