@@ -42,7 +42,7 @@ function Base.findall(bools::AnyCuArray{Bool})
 
         kernel = @cuda name="findall" launch=false kernel(ys, bools, indices)
         config = launch_configuration(kernel.fun)
-        threads = Base.min(length(indices), config.threads)
+        threads = min(length(indices), config.threads)
         blocks = cld(length(indices), threads)
         kernel(ys, bools, indices; threads=threads, blocks=blocks)
     end
@@ -99,7 +99,7 @@ function findminmax(minmax, binop, a::AnyCuArray; init, dims)
         (x, i), (y, j) = t1, t2
 
         binop(x, y) && return t1
-        x == y && return (x, Base.min(i, j))
+        x == y && return (x, min(i, j))
         return t2
     end
 
