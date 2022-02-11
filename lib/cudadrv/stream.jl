@@ -153,13 +153,37 @@ end
         spins += 1
     end
 
-    # minimize CPU usage of long-running kernels
-    # by waiting for an event signalled by CUDA
-    event = Threads.Event()
+    # minimize CPU usage of long-running kernels by waiting for an event signalled by CUDA
+    event = Base.Event()
     launch(; stream) do
         notify(event)
     end
-    Base.wait(event)
+    # if an error occurs, the callback may never fire, so use a timer to detect such cases
+    dev = device()
+    timer = Timer(0; interval=1)
+    Base.@sync begin
+        @async try
+            device!(dev)
+            while true
+                try
+                    Base.wait(timer)
+                catch err
+                    err isa EOFError && break
+                    rethrow()
+                end
+                if unsafe_cuStreamQuery(stream) != ERROR_NOT_READY
+                    break
+                end
+            end
+        finally
+            notify(event)
+        end
+
+        @async begin
+            Base.wait(event)
+            close(timer)
+        end
+    end
 
     return
 end
