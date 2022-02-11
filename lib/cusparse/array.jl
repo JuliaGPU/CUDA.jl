@@ -102,7 +102,7 @@ mutable struct CuSparseMatrixBSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     dims::NTuple{2,Int}
     blockDim::Ti
     dir::SparseChar
-    nnz::Ti
+    nnzb::Ti
 
     function CuSparseMatrixBSR{Tv, Ti}(rowPtr::CuVector{<:Integer}, colVal::CuVector{<:Integer},
                                    nzVal::CuVector, dims::NTuple{2,<:Integer},
@@ -268,6 +268,8 @@ LinearAlgebra.istril(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCu
 
 Hermitian{T}(Mat::CuSparseMatrix{T}) where T = Hermitian{T,typeof(Mat)}(Mat,'U')
 
+SparseArrays.nnz(g::CuSparseMatrixBSR) = g.nnzb * g.blockDim * g.blockDim
+
 
 ## indexing
 
@@ -421,7 +423,7 @@ function Base.copyto!(dst::CuSparseVector, src::CuSparseVector)
     end
     copyto!(nonzeroinds(dst), nonzeroinds(src))
     copyto!(nonzeros(dst), nonzeros(src))
-    dst.nnz = nnz(src)
+    dst.nnz = src.nnz
     dst
 end
 
@@ -432,7 +434,7 @@ function Base.copyto!(dst::CuSparseMatrixCSC, src::CuSparseMatrixCSC)
     copyto!(dst.colPtr, src.colPtr)
     copyto!(rowvals(dst), rowvals(src))
     copyto!(nonzeros(dst), nonzeros(src))
-    dst.nnz = nnz(src)
+    dst.nnz = src.nnz
     dst
 end
 
@@ -443,7 +445,7 @@ function Base.copyto!(dst::CuSparseMatrixCSR, src::CuSparseMatrixCSR)
     copyto!(dst.rowPtr, src.rowPtr)
     copyto!(dst.colVal, src.colVal)
     copyto!(nonzeros(dst), nonzeros(src))
-    dst.nnz = nnz(src)
+    dst.nnz = src.nnz
     dst
 end
 
@@ -455,7 +457,7 @@ function Base.copyto!(dst::CuSparseMatrixBSR, src::CuSparseMatrixBSR)
     copyto!(dst.colVal, src.colVal)
     copyto!(nonzeros(dst), nonzeros(src))
     dst.dir = src.dir
-    dst.nnz = nnz(src)
+    dst.nnzb = src.nnzb
     dst
 end
 
@@ -466,7 +468,7 @@ function Base.copyto!(dst::CuSparseMatrixCOO, src::CuSparseMatrixCOO)
     copyto!(dst.rowInd, src.rowInd)
     copyto!(dst.colInd, src.colInd)
     copyto!(nonzeros(dst), nonzeros(src))
-    dst.nnz = nnz(src)
+    dst.nnz = src.nnz
     dst
 end
 
@@ -551,7 +553,7 @@ function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixBSR)
         adapt(to, x.colVal),
         adapt(to, x.nzVal),
         size(x), x.blockDim,
-        x.dir, x.nnz
+        x.dir, x.nnzb
     )
 end
 

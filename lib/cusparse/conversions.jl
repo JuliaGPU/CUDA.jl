@@ -244,12 +244,11 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
             m,n = size(bsr)
             mb = div(m,bsr.blockDim)
             nb = div(n,bsr.blockDim)
-            nnzVal = nnz(bsr) * bsr.blockDim * bsr.blockDim
             cudesca = CuMatrixDescriptor('G', 'L', 'N', inda)
             cudescc = CuMatrixDescriptor('G', 'L', 'N', indc)
             csrRowPtr = CUDA.zeros(Cint, m + 1)
-            csrColInd = CUDA.zeros(Cint, nnzVal)
-            csrNzVal  = CUDA.zeros($elty, nnzVal)
+            csrColInd = CUDA.zeros(Cint, nnz(bsr))
+            csrNzVal  = CUDA.zeros($elty, nnz(bsr))
             $fname(handle(), bsr.dir, mb, nb,
                    cudesca, nonzeros(bsr), bsr.rowPtr, bsr.colVal,
                    bsr.blockDim, cudescc, csrNzVal, csrRowPtr,

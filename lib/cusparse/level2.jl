@@ -80,13 +80,13 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
 
             function bufferSize()
                 out = Ref{Cint}(1)
-                $bname(handle(), A.dir, transa, mb, nnz(A),
+                $bname(handle(), A.dir, transa, mb, A.nnzb,
                        desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
                        info[1], out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
-                $aname(handle(), A.dir, transa, mb, nnz(A),
+                $aname(handle(), A.dir, transa, mb, A.nnzb,
                         desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
                         info[1], CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
@@ -94,7 +94,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
                 if posit[] >= 0
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
-                $sname(handle(), A.dir, transa, mb, nnz(A),
+                $sname(handle(), A.dir, transa, mb, A.nnzb,
                         alpha, desc, nonzeros(A), A.rowPtr, A.colVal,
                         A.blockDim, info[1], X, X,
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
