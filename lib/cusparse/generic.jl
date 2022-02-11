@@ -43,7 +43,7 @@ mutable struct CuSparseMatrixDescriptor
         desc_ref = Ref{cusparseSpMatDescr_t}()
         cusparseCreateCsr(
             desc_ref,
-            A.dims..., length(nonzeros(A)),
+            size(A)..., length(nonzeros(A)),
             A.rowPtr, A.colVal, nonzeros(A),
             eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A))
         )
@@ -59,14 +59,14 @@ mutable struct CuSparseMatrixDescriptor
             # so we eagerly convert this to a CSR matrix.
             cusparseCreateCsr(
                 desc_ref,
-                reverse(A.dims)..., length(nonzeros(A)),
+                reverse(size(A))..., length(nonzeros(A)),
                 A.colPtr, rowvals(A), nonzeros(A),
                 eltype(A.colPtr), eltype(rowvals(A)), IndexBase, eltype(nonzeros(A))
             )
         else
             cusparseCreateCsc(
                 desc_ref,
-                A.dims..., length(nonzeros(A)),
+                size(A)..., length(nonzeros(A)),
                 A.colPtr, rowvals(A), nonzeros(A),
                 eltype(A.colPtr), eltype(rowvals(A)), IndexBase, eltype(nonzeros(A))
             )

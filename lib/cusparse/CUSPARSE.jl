@@ -42,6 +42,9 @@ include("generic.jl")
 # high-level integrations
 include("interfaces.jl")
 
+# native functionality
+include("device.jl")
+
 # cache for created, but unused handles
 const idle_handles = HandleCache{CuContext,cusparseHandle_t}()
 

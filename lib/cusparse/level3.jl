@@ -27,7 +27,7 @@ for (fname,elty) in ((:cusparseSbsrmm, :Float32),
                      C::StridedCuMatrix{$elty},
                      index::SparseChar)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
-            m,k = A.dims
+            m,k = size(A)
             mb = div(m,A.blockDim)
             kb = div(k,A.blockDim)
             n = size(C)[2]
@@ -70,7 +70,7 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
                 throw(ArgumentError("When using B^T, A can be neither transposed nor adjointed"))
             end
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
-            m,k = A.dims
+            m,k = size(A)
             n = size(C)[2]
             if transa == 'N' && transb == 'N'
                 chkmmdims(B,C,k,n,m,n)
@@ -106,7 +106,7 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
                 ctransa = 'T'
             end
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
-            k,m = A.dims
+            k,m = size(A)
             n = size(C)[2]
             if ctransa == 'N' && transb == 'N'
                 chkmmdims(B,C,k,n,m,n)
@@ -152,7 +152,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
                       X::StridedCuMatrix{$elty},
                       index::SparseChar)
             desc = CuMatrixDescriptor('G', uplo, diag, index)
-            m,n = A.dims
+            m,n = size(A)
             if m != n
                  throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
@@ -212,7 +212,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                       X::StridedCuMatrix{$elty},
                       index::SparseChar)
             desc = CuMatrixDescriptor('G', uplo, diag, index)
-            m,n = A.dims
+            m,n = size(A)
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
@@ -280,7 +280,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                 cuplo = 'L'
             end
             desc = CuMatrixDescriptor('G', cuplo, diag, index)
-            n,m = A.dims
+            n,m = size(A)
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($n,$m)!"))
             end

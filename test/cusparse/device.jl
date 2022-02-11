@@ -1,9 +1,7 @@
-using Test
-using CUDA
 using CUDA.CUSPARSE
 using SparseArrays
-using CUDA: CuSparseDeviceVector, CuSparseDeviceMatrixCSC, CuSparseDeviceMatrixCSR,
-    CuSparseDeviceMatrixBSR, CuSparseDeviceMatrixCOO
+using CUDA.CUSPARSE: CuSparseDeviceVector, CuSparseDeviceMatrixCSC, CuSparseDeviceMatrixCSR,
+                     CuSparseDeviceMatrixBSR, CuSparseDeviceMatrixCOO
 
 @testset "cudaconvert" begin
     @test isbitstype(CuSparseDeviceVector{Float32, Cint, CUDA.AS.Global})
