@@ -70,7 +70,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
-            mb = div(m,A.blockDim)
+            mb = cld(m, A.blockDim)
             mX = length(X)
             if mX != m
                 throw(DimensionMismatch("X must have length $m, but has length $mX"))

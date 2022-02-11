@@ -28,8 +28,8 @@ for (fname,elty) in ((:cusparseSbsrmm, :Float32),
                      index::SparseChar)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,k = size(A)
-            mb = div(m,A.blockDim)
-            kb = div(k,A.blockDim)
+            mb = cld(m, A.blockDim)
+            kb = cld(k, A.blockDim)
             n = size(C)[2]
             if transa == 'N' && transb == 'N'
                 chkmmdims(B,C,k,n,m,n)
@@ -156,7 +156,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
             if m != n
                  throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
-            mb = div(m,A.blockDim)
+            mb = cld(m, A.blockDim)
             mX,nX = size(X)
             if transxy == 'N' && (mX != m)
                 throw(DimensionMismatch(""))

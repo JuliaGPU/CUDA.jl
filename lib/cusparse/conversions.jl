@@ -216,8 +216,8 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
                                           indc::SparseChar='O')
             m,n = size(csr)
             nnz_ref = Ref{Cint}(1)
-            mb = div((m + blockDim - 1),blockDim)
-            nb = div((n + blockDim - 1),blockDim)
+            mb = cld(m, blockDim)
+            nb = cld(n, blockDim)
             bsrRowPtr = CUDA.zeros(Cint,mb + 1)
             cudesca = CuMatrixDescriptor('G', 'L', 'N', inda)
             cudescc = CuMatrixDescriptor('G', 'L', 'N', indc)
@@ -242,8 +242,8 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
         function CuSparseMatrixCSR{$elty}(bsr::CuSparseMatrixBSR{$elty};
                                           inda::SparseChar='O', indc::SparseChar='O')
             m,n = size(bsr)
-            mb = div(m,bsr.blockDim)
-            nb = div(n,bsr.blockDim)
+            mb = cld(m, bsr.blockDim)
+            nb = cld(n, bsr.blockDim)
             cudesca = CuMatrixDescriptor('G', 'L', 'N', inda)
             cudescc = CuMatrixDescriptor('G', 'L', 'N', indc)
             csrRowPtr = CUDA.zeros(Cint, m + 1)
@@ -253,7 +253,9 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
                    cudesca, nonzeros(bsr), bsr.rowPtr, bsr.colVal,
                    bsr.blockDim, cudescc, csrNzVal, csrRowPtr,
                    csrColInd)
-            CuSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, size(bsr))
+            # XXX: the size here may not match the expected size, when the matrix dimension
+            #      is not a multiple of the block dimension!
+            CuSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, (mb*bsr.blockDim, nb*bsr.blockDim))
         end
     end
 end
