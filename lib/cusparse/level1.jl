@@ -131,7 +131,7 @@ for (fname,elty) in ((:cusparseSsctr, :Float32),
         end
         function sctr(X::CuSparseVector{$elty},
                       index::SparseChar)
-            sctr!(X, CUDA.zeros($elty, X.dims[1]),index)
+            sctr!(X, CUDA.zeros($elty, size(X)[1]),index)
         end
     end
 end

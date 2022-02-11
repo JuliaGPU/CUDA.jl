@@ -15,7 +15,7 @@ blockdim = 5
     x = sprand(m,0.2)
     d_x = CuSparseVector(x)
     @test length(d_x) == m
-    @test size(d_x)   == (m, 1)
+    @test size(d_x)   == (m,)
     @test size(d_x,1) == m
     @test size(d_x,2) == 1
     @test ndims(d_x)  == 1
