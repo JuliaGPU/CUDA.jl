@@ -297,27 +297,33 @@ Base.getindex(A::CuSparseMatrixCSC, i::Integer, ::Colon) = CuSparseVector(sparse
 Base.getindex(A::CuSparseMatrixCSR, ::Colon, j::Integer) = CuSparseVector(sparse(A[1:end, j]))  # TODO: optimize
 
 function Base.getindex(A::CuSparseMatrixCSC{T}, i0::Integer, i1::Integer) where T
-    m, n = size(A)
-    if !(1 <= i0 <= m && 1 <= i1 <= n)
-        throw(BoundsError())
-    end
+    @boundscheck checkbounds(A, i0, i1)
     r1 = Int(A.colPtr[i1])
     r2 = Int(A.colPtr[i1+1]-1)
     (r1 > r2) && return zero(T)
     r1 = searchsortedfirst(rowvals(A), i0, r1, r2, Base.Order.Forward)
-    ((r1 > r2) || (rowvals(A)[r1] != i0)) ? zero(T) : nonzeros(A)[r1]
+    (r1 > r2 || rowvals(A)[r1] != i0) && return zero(T)
+    nonzeros(A)[r1]
 end
 
 function Base.getindex(A::CuSparseMatrixCSR{T}, i0::Integer, i1::Integer) where T
-    m, n = size(A)
-    if !(1 <= i0 <= m && 1 <= i1 <= n)
-        throw(BoundsError())
-    end
+    @boundscheck checkbounds(A, i0, i1)
     c1 = Int(A.rowPtr[i0])
     c2 = Int(A.rowPtr[i0+1]-1)
     (c1 > c2) && return zero(T)
     c1 = searchsortedfirst(A.colVal, i1, c1, c2, Base.Order.Forward)
-    ((c1 > c2) || (A.colVal[c1] != i1)) ? zero(T) : nonzeros(A)[c1]
+    (c1 > c2 || A.colVal[c1] != i1) && return zero(T)
+    nonzeros(A)[c1]
+end
+
+function Base.getindex(A::CuSparseMatrixCOO{T}, i0::Integer, i1::Integer) where T
+    @boundscheck checkbounds(A, i0, i1)
+    r1 = searchsortedfirst(A.rowInd, i0, Base.Order.Forward)
+    (r1 > length(A.rowInd) || A.rowInd[r1] > i0) && return zero(T)
+    r2 = searchsortedfirst(A.rowInd, i0+1, Base.Order.Forward)
+    c1 = searchsortedfirst(A.colInd, i1, r1, r2, Base.Order.Forward)
+    (c1 > r2 || A.colInd[c1] > i1) && return zero(T)
+    nonzeros(A)[c1]
 end
 
 function SparseArrays._spgetindex(m::Integer, nzind::CuVector{Ti}, nzval::CuVector{Tv},
