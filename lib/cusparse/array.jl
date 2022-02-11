@@ -3,7 +3,8 @@
 
 export CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR, CuSparseMatrixCOO,
        CuSparseMatrix, AbstractCuSparseMatrix,
-       CuSparseVector
+       CuSparseVector,
+       CuSparseVecOrMat
 
 using LinearAlgebra: BlasFloat
 using SparseArrays: nonzeroinds, dimlub
