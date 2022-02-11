@@ -162,7 +162,7 @@ end
     dev = device()
     timer = Timer(0; interval=1)
     Base.@sync begin
-        @async try
+        Threads.@spawn try
             device!(dev)
             while true
                 try
@@ -179,7 +179,7 @@ end
             notify(event)
         end
 
-        @async begin
+        Threads.@spawn begin
             Base.wait(event)
             close(timer)
         end
