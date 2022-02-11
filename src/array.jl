@@ -807,7 +807,7 @@ end
 ## resizing
 
 """
-  resize!(a::CuVector, n::Int)
+  resize!(a::CuVector, n::Integer)
 
 Resize `a` to contain `n` elements. If `n` is smaller than the current collection length,
 the first `n` elements will be retained. If `n` is larger, the new elements are not
@@ -816,7 +816,7 @@ guaranteed to be initialized.
 Note that this operation is only supported on managed buffers, i.e., not on arrays that are
 created by `unsafe_wrap` with `own=false`.
 """
-function Base.resize!(A::CuVector{T}, n::Int) where T
+function Base.resize!(A::CuVector{T}, n::Integer) where T
   # TODO: add additional space to allow for quicker resizing
   maxsize = n * sizeof(T)
   bufsize = if Base.isbitsunion(T)
