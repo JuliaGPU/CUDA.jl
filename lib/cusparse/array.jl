@@ -297,6 +297,13 @@ end
 Base.getindex(A::CuSparseMatrixCSC, i::Integer, ::Colon) = CuSparseVector(sparse(A[i, 1:end]))  # TODO: optimize
 Base.getindex(A::CuSparseMatrixCSR, ::Colon, j::Integer) = CuSparseVector(sparse(A[1:end, j]))  # TODO: optimize
 
+function Base.getindex(A::CuSparseVector{Tv, Ti}, i::Integer) where {Tv, Ti}
+    @boundscheck checkbounds(A, i)
+    ii = searchsortedfirst(A.iPtr, convert(Ti, i))
+    (ii > nnz(A) || A.iPtr[ii] != i) && return zero(Tv)
+    A.nzVal[ii]
+end
+
 function Base.getindex(A::CuSparseMatrixCSC{T}, i0::Integer, i1::Integer) where T
     @boundscheck checkbounds(A, i0, i1)
     r1 = Int(A.colPtr[i1])
@@ -327,10 +334,17 @@ function Base.getindex(A::CuSparseMatrixCOO{T}, i0::Integer, i1::Integer) where 
     nonzeros(A)[c1]
 end
 
-function SparseArrays._spgetindex(m::Integer, nzind::CuVector{Ti}, nzval::CuVector{Tv},
-                                  i::Integer) where {Tv,Ti}
-    ii = searchsortedfirst(nzind, convert(Ti, i))
-    (ii <= m && nzind[ii] == i) ? nzval[ii] : zero(Tv)
+function Base.getindex(A::CuSparseMatrixBSR{T}, i0::Integer, i1::Integer) where T
+    @boundscheck checkbounds(A, i0, i1)
+    i0_block, i0_idx = fldmod1(i0, A.blockDim)
+    i1_block, i1_idx = fldmod1(i1, A.blockDim)
+    block_idx = (i0_idx - 1) * A.blockDim + i1_idx - 1
+    c1 = Int(A.rowPtr[i0_block])
+    c2 = Int(A.rowPtr[i0_block+1]-1)
+    (c1 > c2) && return zero(T)
+    c1 = searchsortedfirst(A.colVal, i1_block, c1, c2, Base.Order.Forward)
+    (c1 > c2 || A.colVal[c1] != i1_block) && return zero(T)
+    nonzeros(A)[c1+block_idx]
 end
 
 

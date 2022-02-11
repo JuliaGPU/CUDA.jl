@@ -24,7 +24,6 @@ using CUDA.CUSPARSE: CuSparseDeviceVector, CuSparseDeviceMatrixCSC, CuSparseDevi
     cuA = CuSparseMatrixCOO(A)
     @test cudaconvert(cuA) isa CuSparseDeviceMatrixCOO{Float64, Cint, 1}
 
-    # Roger-Luo: I'm not sure how to create a BSR matrix
-    # cuA = CuSparseMatrixBSR(A)
-    # @test cudaconvert(cuA) isa CuSparseDeviceMatrixBSR
+    cuA = CuSparseMatrixBSR(A, 2)
+    @test cudaconvert(cuA) isa CuSparseDeviceMatrixBSR
 end
