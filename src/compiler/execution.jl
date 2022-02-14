@@ -311,7 +311,7 @@ function run_and_collect(cmd)
     proc = run(pipeline(ignorestatus(cmd); stdout, stderr=stdout), wait=false)
     close(stdout.in)
 
-    reader = @async String(read(stdout))
+    reader = Threads.@spawn String(read(stdout))
     Base.wait(proc)
     log = strip(fetch(reader))
 
