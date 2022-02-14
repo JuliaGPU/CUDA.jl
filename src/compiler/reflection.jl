@@ -142,7 +142,12 @@ function return_type(@nospecialize(func), @nospecialize(tt))
     params = CUDACompilerParams()
     job = CompilerJob(target, source, params)
     interp = GPUCompiler.get_interpreter(job)
-    return Core.Compiler.return_type(interp, job.source.f, job.source.tt)
+    if VERSION >= v"1.8-"
+        sig = Base.signature_type(job.source.f, job.source.tt)
+        Core.Compiler.return_type(interp, sig)
+    else
+        Core.Compiler.return_type(interp, job.source.f, job.source.tt)
+    end
 end
 
 
