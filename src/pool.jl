@@ -89,7 +89,7 @@ function pool_mark(dev::CuDevice)
 
       # launch a task to periodically trim the pool
       if isinteractive() && !isassigned(__pool_cleanup)
-        __pool_cleanup[] = @async pool_cleanup()
+        __pool_cleanup[] = errormonitor(Threads.@spawn pool_cleanup())
       end
   end
   status[] = true
