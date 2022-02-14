@@ -94,7 +94,7 @@ end
 
 # LinearAlgebra
 @static if VERSION >= v"1.8-"
-    function Base.setindex!(D::LinearAlgebra.Diagonal, v, i::Int, j::Int)
+    @device_override function Base.setindex!(D::LinearAlgebra.Diagonal, v, i::Int, j::Int)
         @boundscheck checkbounds(D, i, j)
         if i == j
             @inbounds D.diag[i] = v
