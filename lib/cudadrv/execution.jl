@@ -147,7 +147,8 @@ function launch(f::Base.Callable; stream::CuStream=stream())
         f()
         close(async_cond)
     end
-    # FIXME: protect this from GC
+
+    # the condition object is embedded in a task, so the Julia scheduler keeps it alive
 
     # callback = @cfunction(async_send, Cint, (Ptr{Cvoid},))
     # See https://github.com/JuliaGPU/CUDA.jl/issues/1314.
