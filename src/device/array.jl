@@ -1,6 +1,9 @@
 # Contiguous on-device arrays
 
-export CuDeviceArray, CuDeviceVector, CuDeviceMatrix, ldg
+export CuDeviceArray, CuDeviceVector, CuDeviceMatrix,
+       DenseCuDeviceArray, DenseCuDeviceVector, DenseCuDeviceMatrix,
+       StridedCuDeviceArray, StridedCuDeviceVector, StridedCuDeviceMatrix,
+       ldg
 
 
 ## construction
@@ -23,18 +26,25 @@ CuDeviceArray
 # NOTE: we can't support the typical `tuple or series of integer` style construction,
 #       because we're currently requiring a trailing pointer argument.
 
-struct CuDeviceArray{T,N,A} <: DenseArray{T,N}
+struct CuDeviceArray{T,N,A,S} <: AbstractArray{T,N}
     ptr::LLVMPtr{T,A}
     maxsize::Int
 
     dims::Dims{N}
     len::Int
 
+    # S here is the actual stride type, as opposed to a boolean as with the CuArray type,
+    # to reduce the size of the device array object when using contiguous memory.
+    strides::S
+
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
     # TODO: deprecate; put `ptr` first like CuArray
     CuDeviceArray{T,N,A}(dims::Dims{N}, ptr::LLVMPtr{T,A},
                          maxsize::Int=prod(dims)*sizeof(T)) where {T,A,N} =
-        new(ptr, maxsize, dims, prod(dims))
+        new{T,N,A,Nothing}(ptr, maxsize, dims, prod(dims), nothing)
+    CuDeviceArray{T,N,A}(dims::Dims{N}, strides::Dims{N}, ptr::LLVMPtr{T,A},
+                         maxsize::Int=prod(dims)*sizeof(T)) where {T,A,N} =
+        new{T,N,A,Dims{N}}(ptr, maxsize, dims, prod(dims), strides)
 end
 
 const CuDeviceVector = CuDeviceArray{T,1,A} where {T,A}
@@ -65,6 +75,16 @@ CuDeviceVector{T,A}(len::Integer,             p::LLVMPtr{T,A}) where {T,A}   = C
 CuDeviceMatrix{T,A}(m::Integer, n::Integer,   p::LLVMPtr{T,A}) where {T,A}   = CuDeviceMatrix{T,A}((m,n), p)
 
 
+const DenseCuDeviceArray{T,N,A} = CuDeviceArray{T,N,A,Nothing}
+const DenseCuDeviceVector{T,N,A} = CuDeviceArray{T,1,A,Nothing}
+const DenseCuDeviceMatrix{T,N,A} = CuDeviceArray{T,2,A,Nothing}
+
+# XXX: as opposed to StridedArray, strided does not include dense.
+const StridedCuDeviceArray{T,N,A} = CuDeviceArray{T,N,A,Dims{N}}
+const StridedCuDeviceVector{T,N,A} = CuDeviceArray{T,1,A,Dims{N}}
+const StridedCuDeviceMatrix{T,N,A} = CuDeviceArray{T,2,A,Dims{N}}
+
+
 ## array interface
 
 Base.elsize(::Type{<:CuDeviceArray{T}}) where {T} = sizeof(T)
@@ -75,13 +95,41 @@ Base.sizeof(x::CuDeviceArray) = Base.elsize(x) * length(x)
 # we store the array length too; computing prod(size) is expensive
 Base.length(g::CuDeviceArray) = g.len
 
-Base.pointer(x::CuDeviceArray{T,<:Any,A}) where {T,A} = Base.unsafe_convert(LLVMPtr{T,A}, x)
-@inline function Base.pointer(x::CuDeviceArray{T,<:Any,A}, i::Integer) where {T,A}
-    Base.unsafe_convert(LLVMPtr{T,A}, x) + Base._memory_offset(x, i)
+Base.strides(x::DenseCuDeviceArray) = Base.size_to_strides(1, size(x)...)
+Base.strides(x::StridedCuDeviceArray) = x.strides
+
+function Base.stride(a::DenseCuDeviceArray, i::Int)
+    if i > ndims(a)
+        return length(a)
+    end
+    s = 1
+    for n = 1:(i-1)
+        s *= size(a, n)
+    end
+    return s
+end
+function Base.stride(a::StridedCuDeviceArray, i::Int)
+    if i > ndims(a)
+        i = ndims(a)
+        return size(a,i) * @inbounds strides(a)[i]
+    end
+    @inbounds strides(a)[i]
 end
 
-typetagdata(a::CuDeviceArray{<:Any,<:Any,A}, i=1) where {A} =
-  reinterpret(LLVMPtr{UInt8,A}, a.ptr + a.maxsize) + i - one(i)
+Base.pointer(x::CuDeviceArray{T,<:Any,A}) where {T,A} = Base.unsafe_convert(LLVMPtr{T,A}, x)
+typetagdata(a::CuDeviceArray{<:Any,<:Any,A}) where {A} =
+  reinterpret(LLVMPtr{UInt8,A}, a.ptr + a.maxsize)
+
+Base.pointer(x::CuDeviceArray{<:Any,<:Any,<:Any,Nothing}, i::Integer) =
+    pointer(x) + (i - one(i)) * Base.elsize(x)
+typetagdata(a::CuDeviceArray{<:Any,<:Any,<:Any,Nothing}, i::Integer) =
+  typetagdata(a) + Base._memory_offset(x, i) ÷ Base.elsize(a)
+
+# memory_offset on CuDeviceArray (which isn't <:DenseArray) is slow, so optimize it
+Base.pointer(x::StridedCuDeviceArray, i::Integer) =
+    pointer(x) + Base._memory_offset(x, i)
+typetagdata(a::StridedCuDeviceArray, i::Integer) =
+  typetagdata(a) + Base._memory_offset(x, i) ÷ Base.elsize(a)
 
 
 ## conversions
@@ -91,6 +139,20 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
 
 
 ## indexing intrinsics
+
+# for strided arrays, these should be invoked with a set of integer indices.
+# in the case of contiguous arrays, a single linear index should be passed.
+# this matches what Base passes to get/setindex with resp. IndexLinear and IndexCartesian.
+
+# from Strided.jl
+@inline _computeind(indices::Tuple{}, strides::Tuple{}) = 1
+@inline function _computeind(indices::NTuple{N,Integer}, strides::NTuple{N,Integer}) where {N}
+    (indices[1]-1)*strides[1] + _computeind(Base.tail(indices), Base.tail(strides))
+end
+
+convert_indices(A::DenseCuDeviceArray, i::Integer) = i
+convert_indices(A::StridedCuDeviceArray{<:Any,N}, I::Vararg{Int,N}) where {N} =
+    _computeind(I, strides(A))
 
 # TODO: arrays as allocated by the CUDA APIs are 256-byte aligned. we should keep track of
 #       this information, because it enables optimizations like Load Store Vectorization
@@ -105,8 +167,8 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
     end
 end
 
-@device_function @inline function arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
-    @boundscheck checkbounds(A, index)
+@device_function @inline function arrayref(A::CuDeviceArray{T}, I...) where {T}
+    index = convert_indices(A, I...)
     if isbitstype(T)
         arrayref_bits(A, index)
     else #if isbitsunion(T)
@@ -129,7 +191,7 @@ end
         ex = quote
             if selector == $(sel-1)
                 ptr = reinterpret(LLVMPtr{$typ,AS}, data_ptr)
-                unsafe_load(ptr, 1, Val(align))
+                unsafe_load(ptr, index, Val(align))
             else
                 $ex
             end
@@ -137,18 +199,18 @@ end
     end
 
     quote
-        selector_ptr = typetagdata(A, index)
-        selector = unsafe_load(selector_ptr)
+        selector_ptr = typetagdata(A)
+        selector = unsafe_load(selector_ptr, index)
 
         align = alignment(A)
-        data_ptr = pointer(A, index)
+        data_ptr = pointer(A)
 
         return $ex
     end
 end
 
-@device_function @inline function arrayset(A::CuDeviceArray{T}, x::T, index::Integer) where {T}
-    @boundscheck checkbounds(A, index)
+@device_function @inline function arrayset(A::CuDeviceArray{T}, x::T, I...) where {T}
+    index = convert_indices(A, I...)
     if isbitstype(T)
         arrayset_bits(A, x, index)
     else #if isbitsunion(T)
@@ -167,19 +229,19 @@ end
     sel = findfirst(isequal(x), typs)
 
     quote
-        selector_ptr = typetagdata(A, index)
-        unsafe_store!(selector_ptr, $(UInt8(sel-1)))
+        selector_ptr = typetagdata(A)
+        unsafe_store!(selector_ptr, $(UInt8(sel-1)), index)
 
         align = alignment(A)
-        data_ptr = pointer(A, index)
+        data_ptr = pointer(A)
 
-        unsafe_store!(reinterpret(LLVMPtr{$x,AS}, data_ptr), x, 1, Val(align))
+        unsafe_store!(reinterpret(LLVMPtr{$x,AS}, data_ptr), x, index, Val(align))
         return
     end
 end
 
-@device_function @inline function const_arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
-    @boundscheck checkbounds(A, index)
+@device_function @inline function const_arrayref(A::CuDeviceArray{T}, I...) where {T}
+    index = convert_indices(A, I...)
     align = alignment(A)
     unsafe_cached_load(pointer(A), index, Val(align))
 end
@@ -187,12 +249,39 @@ end
 
 ## indexing
 
-Base.IndexStyle(::Type{<:CuDeviceArray}) = Base.IndexLinear()
+Base.IndexStyle(::Type{<:DenseCuDeviceArray}) = Base.IndexLinear()
 
-Base.@propagate_inbounds Base.getindex(A::CuDeviceArray{T}, i1::Integer) where {T} =
+function Base.getindex(A::DenseCuDeviceArray{T}, i1::Integer) where {T}
+    @boundscheck checkbounds(A, i1)
     arrayref(A, i1)
-Base.@propagate_inbounds Base.setindex!(A::CuDeviceArray{T}, x, i1::Integer) where {T} =
+end
+function Base.setindex!(A::DenseCuDeviceArray{T}, x, i1::Integer) where {T}
+    @boundscheck checkbounds(A, i1)
     arrayset(A, convert(T,x)::T, i1)
+end
+
+Base.IndexStyle(::Type{<:StridedCuDeviceArray}) = Base.IndexCartesian()
+
+function Base.getindex(A::StridedCuDeviceArray{T,N},I::Vararg{Int,N}) where {T,N}
+    @boundscheck checkbounds(A, I...)
+    arrayref(A, I...)
+end
+function Base.setindex!(A::StridedCuDeviceArray{T,N}, x, I::Vararg{Int,N}) where {T,N}
+    @boundscheck checkbounds(A, I...)
+    arrayset(A, convert(T,x)::T, I...)
+end
+
+# when we need cartesian indices, optimize the conversion from a linear index
+function Base.getindex(A::StridedCuDeviceArray{T}, i::Int) where {T}
+    @boundscheck checkbounds(A, i)
+    assume.(size(A) .> 0)   # avoids checked conversion
+    arrayref(A, Base._to_subscript_indices(A, i)...)
+end
+function Base.setindex!(A::StridedCuDeviceArray{T}, x, i::Int) where {T}
+    @boundscheck checkbounds(A, i)
+    assume.(size(A) .> 0)   # avoids checked conversion
+    arrayset(A, convert(T,x)::T, Base._to_subscript_indices(A, i)...)
+end
 
 # preserve the specific integer type when indexing device arrays,
 # to avoid extending 32-bit hardware indices to 64-bit.
@@ -221,18 +310,24 @@ This API can only be used on devices with compute capability 3.5 or higher.
 !!! warning
     Experimental API. Subject to change without deprecation.
 """
-struct Const{T,N,AS} <: DenseArray{T,N}
-    a::CuDeviceArray{T,N,AS}
+struct Const{T,N,A,S} <: DenseArray{T,N}
+    a::CuDeviceArray{T,N,A,S}
 end
 Base.Experimental.Const(A::CuDeviceArray) = Const(A)
 
 Base.IndexStyle(::Type{<:Const}) = IndexLinear()
 Base.size(C::Const) = size(C.a)
 Base.axes(C::Const) = axes(C.a)
-Base.@propagate_inbounds Base.getindex(A::Const, i1::Integer) = const_arrayref(A.a, i1)
+function Base.getindex(A::Const, i1::Integer)
+    @boundscheck checkbounds(A, i1)
+    const_arrayref(A.a, i1)
+end
 
 # deprecated
-Base.@propagate_inbounds ldg(A::CuDeviceArray, i1::Integer) = const_arrayref(A, i1)
+function ldg(A::CuDeviceArray, i1::Integer)
+    @boundscheck checkbounds(A, i1)
+    const_arrayref(A, i1)
+end
 
 
 ## other
