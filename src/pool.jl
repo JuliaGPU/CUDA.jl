@@ -73,6 +73,18 @@ function stream_ordered(dev::CuDevice)
   end::Bool
 end
 
+if VERSION < v"1.7-"
+  function errormonitor(task)
+    Base.Threads.@spawn try
+      wait(task)
+    catch err
+      bt = catch_backtrace()
+      showerror(stderr, err, bt)
+      rethrow()
+    end
+  end
+end
+
 # per-device flag indicating the status of a pool
 const _pool_status = PerDevice{Base.RefValue{Union{Nothing,Bool}}}()
 pool_status(dev::CuDevice) = get!(_pool_status, dev) do
