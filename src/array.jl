@@ -97,6 +97,8 @@ function unsafe_finalize!(xs::CuArray)
   # streams involved, or by refcounting uses and decrementing that refcount after the
   # operation using `cuLaunchHostFunc`. See CUDA.jl#778 and CUDA.jl#780 for details.
   unsafe_free!(xs, default_stream())
+  # NOTE: we don't switch contexts here, but in unsafe_free!, as arrays are refcounted
+  #       and we may not have to free the memory yet.
 end
 
 
