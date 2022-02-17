@@ -120,7 +120,14 @@ struct CSRRowIterator{Ti,N,ATs}
 end
 
 function CSRRowIterator{Ti}(row, args::Vararg{<:Any, N}) where {Ti,N}
-    # row is assumed to be in bounds
+    # check that `row` is valid for all arguments
+    @boundscheck begin
+        ntuple(Val(N)) do i
+            arg = @inbounds args[i]
+            arg isa CuSparseDeviceMatrixCSR && checkbounds(arg, row, 1)
+        end
+    end
+
     col_ends = ntuple(Val(N)) do i
         arg = @inbounds args[i]
         if arg isa CuSparseDeviceMatrixCSR
@@ -129,6 +136,7 @@ function CSRRowIterator{Ti}(row, args::Vararg{<:Any, N}) where {Ti,N}
             zero(Ti)
         end
     end
+
     CSRRowIterator{Ti, N, typeof(args)}(row, col_ends, args)
 end
 
@@ -217,9 +225,9 @@ function compute_csr_row_offsets_kernel(row_offsets::AbstractVector{Ti},
     if row > length(row_offsets)-1
         return
     end
+    iter = @inbounds CSRRowIterator{Ti}(row, args...)
 
     # count the nonzero columns of all inputs
-    iter = CSRRowIterator{Ti}(row, args...)
     accum = zero(Ti)
     for (col, vals) in iter
         accum += one(Ti)
@@ -246,6 +254,7 @@ function sparse_to_sparse_broadcast_kernel(f, output::CuSparseDeviceMatrixCSR{Tv
     if row > size(output, 1)
         return
     end
+    iter = @inbounds CSRRowIterator{Ti}(row, args...)
 
     # fetch the row offset, and write it to the output
     @inbounds begin
@@ -256,7 +265,6 @@ function sparse_to_sparse_broadcast_kernel(f, output::CuSparseDeviceMatrixCSR{Tv
     end
 
     # set the values for this row
-    iter = CSRRowIterator{Ti}(row, args...)
     for (col, ptrs) in iter
         I = CartesianIndex(row, col)
         vals = ntuple(Val(length(args))) do i
@@ -279,9 +287,9 @@ function sparse_to_dense_broadcast_kernel(f, output::CuDeviceArray{Tv},
     if row > size(output, 1)
         return
     end
+    iter = @inbounds CSRRowIterator{Int}(row, args...)
 
     # set the values for this row
-    iter = CSRRowIterator{Int}(row, args...)
     for (col, ptrs) in iter
         I = CartesianIndex(row, col)
         vals = ntuple(Val(length(args))) do i
