@@ -141,20 +141,16 @@ function CSRRowIterator{Ti}(row, args::Vararg{<:Any, N}) where {Ti,N}
 end
 
 @inline function Base.iterate(iter::CSRRowIterator{Ti,N}, state=nothing) where {Ti,N}
-    # helper function to get the column of a sparse array at a specific pointer,
-    # or one past the maximum column if that argument does not have values anymore.
+    # helper function to get the column of a sparse array at a specific pointer
     @inline function get_col(i, ptr)
         arg = @inbounds iter.args[i]
         if arg isa CuSparseDeviceMatrixCSR
             col_end = @inbounds iter.col_ends[i]
             if ptr < col_end
-                @inbounds arg.colVal[ptr] % Ti
-            else
-                typemax(Ti)
+                return @inbounds arg.colVal[ptr] % Ti
             end
-        else
-            typemax(Ti)
         end
+        typemax(Ti)
     end
 
     # initialize the state
@@ -177,9 +173,7 @@ end
     # determine the column we're currently processing
     cols = ntuple(i -> @inbounds(state[i].col), Val(N))
     cur_col = min(cols...)
-    if cur_col == typemax(Ti)
-        return nothing
-    end
+    cur_col == typemax(Ti) && return
 
     # fetch the pointers (we don't look up the values, as the caller might want to index
     # the sparse array directly, e.g., to mutate it). we don't return `ptrs` from the state
@@ -222,9 +216,7 @@ function compute_csr_row_offsets_kernel(row_offsets::AbstractVector{Ti},
                                         args...) where Ti
     # every thread processes an entire row
     row = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
-    if row > length(row_offsets)-1
-        return
-    end
+    row > length(row_offsets)-1 && return
     iter = @inbounds CSRRowIterator{Ti}(row, args...)
 
     # count the nonzero columns of all inputs
@@ -246,14 +238,12 @@ function compute_csr_row_offsets_kernel(row_offsets::AbstractVector{Ti},
 end
 
 # broadcast kernels that iterate the elements of sparse arrays
-function sparse_to_sparse_broadcast_kernel(f, output::CuSparseDeviceMatrixCSR{Tv,Ti},
+function sparse_to_sparse_broadcast_kernel(f, output::CuSparseDeviceMatrixCSR{<:Any,Ti},
                                            row_offsets::Union{AbstractVector,Nothing},
-                                           args...) where {Tv,Ti}
+                                           args...) where {Ti}
     # every thread processes an entire row
     row = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
-    if row > size(output, 1)
-        return
-    end
+    row > size(output, 1) && return
     iter = @inbounds CSRRowIterator{Ti}(row, args...)
 
     # fetch the row offset, and write it to the output
@@ -280,13 +270,10 @@ function sparse_to_sparse_broadcast_kernel(f, output::CuSparseDeviceMatrixCSR{Tv
 
     return
 end
-function sparse_to_dense_broadcast_kernel(f, output::CuDeviceArray{Tv},
-                                          args...) where {Tv}
+function sparse_to_dense_broadcast_kernel(f, output::CuDeviceArray, args...)
     # every thread processes an entire row
     row = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
-    if row > size(output, 1)
-        return
-    end
+    row > size(output, 1) && return
     iter = @inbounds CSRRowIterator{Int}(row, args...)
 
     # set the values for this row
@@ -334,14 +321,22 @@ function Broadcast.copy(bc::Broadcasted{<:Union{CuSparseVecStyle,CuSparseMatStyl
         fpreszeros = false
     end
 
+    # the kernels below parallelize across rows, so we're unlikely to be able to spawn many
+    # threads. to maximize use of the GPU, prefer to launch additional blocks first.
+    rows = size(bc)[1]
+    function compute_launch_config(kernel)
+        config = launch_configuration(kernel.fun)
+        threads = min(rows, config.threads)
+        blocks = max(cld(rows, threads), config.blocks)
+        threads = cld(rows, blocks)
+        (; threads, blocks)
+    end
+
     # allocate the output container
-    rows, cols = size(bc)
     if !fpreszeros
         # either we have dense inputs, or the function isn't preserving zeros,
         # so use a dense output to broadcast into.
         output = CuArray{Tv}(undef, size(bc))
-
-        row_offsets = nothing
 
         # since we'll be iterating the sparse inputs, we need to pre-fill the dense output
         # with appropriate values (while setting the sparse inputs to zero). we do this by
@@ -366,7 +361,7 @@ function Broadcast.copy(bc::Broadcasted{<:Union{CuSparseVecStyle,CuSparseMatStyl
         rowPtr = similar(sparse_arg.rowPtr)
         colVal = similar(sparse_arg.colVal)
         nzVal = similar(sparse_arg.nzVal)
-        output = CuSparseMatrixCSR(row_offsets, colVal, nzVal, (rows,cols))
+        output = CuSparseMatrixCSR(row_offsets, colVal, nzVal, size(bc))
     else
         # determine the number of non-zero elements per row so that we can create an
         # appropriately-structured output container
@@ -374,45 +369,31 @@ function Broadcast.copy(bc::Broadcasted{<:Union{CuSparseVecStyle,CuSparseMatStyl
         let
             args = (row_offsets, bc.args...)
             kernel = @cuda launch=false compute_csr_row_offsets_kernel(args...)
-            # it's unlikely we'll be able to spawn many threads,
-            # so parallelize across blocks first
-            config = launch_configuration(kernel.fun)
-            threads = min(rows, config.threads)
-            blocks = max(cld(rows, threads), config.blocks)
-            threads = cld(rows, blocks)
+            threads, blocks = compute_launch_config(kernel)
             kernel(args...; threads, blocks)
         end
 
-        # accumulate these values so that we can use them directly as row pointer offsets
+        # accumulate these values so that we can use them directly as row pointer offsets,
+        # as well as to get the total nnz count to allocate the sparse output array.
+        # cusparseXcsrgeam2Nnz computes this in one go, but it doesn't seem worth the effort
         accumulate!(Base.add_sum, row_offsets, row_offsets)
+        total_nnz = @allowscalar last(row_offsets[end]) - 1
 
-        # we need the total nnz count to allocate the other sparse array components. either we
-        # fetch that value, or we use an estimation. the former is synchronizing while the
-        # latter may greatly inflate memory usage. we'll need the exact nnz count anyway,
-        # to set the nnz field correctly (needed for other interactions with CUSPARSE).
-        #total_nnz = sum(arg->nnz(arg), args)
-        total_nnz = CUDA.@allowscalar last(row_offsets[end]) - 1
         colVal = CuArray{Ti}(undef, total_nnz)
         nzVal = CuArray{Tv}(undef, total_nnz)
-        output = CuSparseMatrixCSR(row_offsets, colVal, nzVal, (rows,cols))
+        output = CuSparseMatrixCSR(row_offsets, colVal, nzVal, size(bc))
     end
 
     # perform the actual broadcast
     if output isa AbstractCuSparseArray
         args = (bc.f, output, row_offsets, bc.args...)
         kernel = @cuda launch=false sparse_to_sparse_broadcast_kernel(args...)
-        config = launch_configuration(kernel.fun)
-        threads = min(rows, config.threads)
-        blocks = max(cld(rows, threads), config.blocks)
-        threads = cld(rows, blocks)
+        threads, blocks = compute_launch_config(kernel)
         kernel(args...; threads, blocks)
     else
         args = (bc.f, output, bc.args...)
         kernel = @cuda launch=false sparse_to_dense_broadcast_kernel(args...)
-        config = launch_configuration(kernel.fun)
-        threads = min(rows, config.threads)
-        blocks = max(cld(rows, threads), config.blocks)
-        threads = cld(rows, blocks)
+        threads, blocks = compute_launch_config(kernel)
         kernel(args...; threads, blocks)
     end
 
