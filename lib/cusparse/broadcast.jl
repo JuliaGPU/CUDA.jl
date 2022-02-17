@@ -363,8 +363,8 @@ function Broadcast.copy(bc::Broadcasted{<:Union{CuSparseVecStyle,CuSparseMatStyl
 
         # NOTE: we don't use CUSPARSE's similar, because that copies the structure arrays,
         #       while we do that in our kernel (for consistency with other code paths)
-        colVal = similar(sparse_arg.rowPtr)
-        rowPtr = similar(sparse_arg.colVal)
+        rowPtr = similar(sparse_arg.rowPtr)
+        colVal = similar(sparse_arg.colVal)
         nzVal = similar(sparse_arg.nzVal)
         output = CuSparseMatrixCSR(row_offsets, colVal, nzVal, (rows,cols))
     else
