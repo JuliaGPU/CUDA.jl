@@ -157,139 +157,6 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
 end
 
 """
-    alloc([::BufferType], sz; [stream::CuStream])
-
-Allocate a number of bytes `sz` from the memory pool. Returns a buffer object; may throw
-an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
-"""
-@inline @timeit_ci alloc(sz::Integer; kwargs...) = alloc(Mem.DeviceBuffer, sz; kwargs...)
-@inline @timeit_ci function alloc(::Type{B}, sz; stream::Union{Nothing,CuStream}=nothing) where {B<:Mem.AbstractBuffer}
-  # 0-byte allocations shouldn't hit the pool
-  sz == 0 && return B()
-
-  # _alloc reports its own time measurement, since it may spend time in garbage collection
-  # (and using Base.@timed/gc_num to exclude that time is too expensive)
-  buf, time = _alloc(B, sz; stream)
-
-  alloc_stats.alloc_count += 1
-  alloc_stats.alloc_bytes += sz
-  alloc_stats.total_time += time
-  # NOTE: total_time might be an over-estimation if we trigger GC somewhere else
-
-  return buf
-end
-@inline function _alloc(::Type{Mem.DeviceBuffer}, sz; stream::Union{Nothing,CuStream})
-    state = active_state()
-    stream = something(stream, state.stream)
-
-    gctime = 0.0
-    time = Base.@elapsed begin
-      buf = nothing
-      if stream_ordered(state.device)
-        # mark the pool as active
-        pool_mark(state.device)
-
-        for phase in 1:5
-            if phase == 2
-                gctime += Base.@elapsed GC.gc(false)
-            elseif phase == 3
-                gctime += Base.@elapsed GC.gc(true)
-            elseif phase == 4
-                synchronize(stream)
-            elseif phase == 5
-                device_synchronize()
-            end
-
-            buf = actual_alloc(sz; async=true, stream)
-            buf === nothing || break
-        end
-      else
-        for phase in 1:3
-            if phase == 2
-                gctime += Base.@elapsed GC.gc(false)
-            elseif phase == 3
-                gctime += Base.@elapsed GC.gc(true)
-            end
-
-            buf = actual_alloc(sz; async=false)
-            buf === nothing || break
-        end
-      end
-      buf === nothing && throw(OutOfGPUMemoryError(sz))
-    end
-
-    buf, time - gctime
-end
-@inline function _alloc(::Type{Mem.UnifiedBuffer}, sz; stream::Union{Nothing,CuStream})
-  time = Base.@elapsed begin
-    buf = Mem.alloc(Mem.Unified, sz)
-  end
-  buf, time
-end
-
-"""
-    free(buf)
-
-Releases a buffer `buf` to the memory pool.
-"""
-@inline @timeit_ci function free(buf::Mem.AbstractBuffer;
-                                 stream::Union{Nothing,CuStream}=nothing)
-  # XXX: have @timeit use the root timer, since we may be called from a finalizer
-
-  # 0-byte allocations shouldn't hit the pool
-  sizeof(buf) == 0 && return
-
-  # this function is typically called from a finalizer, where we can't switch tasks,
-  # so perform our own error handling.
-  try
-    time = Base.@elapsed begin
-      _free(buf; stream)
-    end
-
-    alloc_stats.free_count += 1
-    alloc_stats.free_bytes += sizeof(buf)
-    alloc_stats.total_time += time
-  catch ex
-    Base.showerror_nostdio(ex, "WARNING: Error while freeing $buf")
-    Base.show_backtrace(Core.stdout, catch_backtrace())
-    Core.println()
-  end
-
-  return
-end
-@inline function _free(buf::Mem.DeviceBuffer; stream::Union{Nothing,CuStream})
-    state = active_state()
-    if stream_ordered(state.device)
-      # mark the pool as active
-      pool_mark(state.device)
-
-      actual_free(buf; stream=something(stream, state.stream))
-    else
-      actual_free(buf)
-    end
-end
-@inline _free(buf::Mem.UnifiedBuffer; stream::Union{Nothing,CuStream}) = Mem.free(buf)
-@inline _free(buf::Mem.HostBuffer; stream::Union{Nothing,CuStream}) = nothing
-
-"""
-    reclaim([sz=typemax(Int)])
-
-Reclaims `sz` bytes of cached memory. Use this to free GPU memory before calling into
-functionality that does not use the CUDA memory pool. Returns the number of bytes
-actually reclaimed.
-"""
-function reclaim(sz::Int=typemax(Int))
-  dev = device()
-  if stream_ordered(dev)
-      device_synchronize()
-      synchronize(context())
-      trim(memory_pool(dev))
-  else
-    0
-  end
-end
-
-"""
     @retry_reclaim isfailed(ret) ex
 
 Run a block of code `ex` repeatedly until it successfully allocates the memory it needs.
@@ -354,6 +221,129 @@ end
 # XXX: function version for use in CUDAdrv where we haven't loaded pool.jl yet
 function retry_reclaim(f, check)
   @retry_reclaim check f()
+end
+
+"""
+    alloc([::BufferType], sz; [stream::CuStream])
+
+Allocate a number of bytes `sz` from the memory pool. Returns a buffer object; may throw
+an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
+"""
+@inline @timeit_ci alloc(sz::Integer; kwargs...) = alloc(Mem.DeviceBuffer, sz; kwargs...)
+@inline @timeit_ci function alloc(::Type{B}, sz; stream::Union{Nothing,CuStream}=nothing) where {B<:Mem.AbstractBuffer}
+  # 0-byte allocations shouldn't hit the pool
+  sz == 0 && return B()
+
+  # _alloc reports its own time measurement, since it may spend time in garbage collection
+  # (and using Base.@timed/gc_num to exclude that time is too expensive)
+  buf, time = _alloc(B, sz; stream)
+
+  alloc_stats.alloc_count += 1
+  alloc_stats.alloc_bytes += sz
+  alloc_stats.total_time += time
+  # NOTE: total_time might be an over-estimation if we trigger GC somewhere else
+
+  return buf
+end
+@inline function _alloc(::Type{Mem.DeviceBuffer}, sz; stream::Union{Nothing,CuStream})
+    state = active_state()
+    stream = something(stream, state.stream)
+
+    gctime = 0.0
+    time = Base.@elapsed begin
+      buf = if stream_ordered(state.device)
+        pool_mark(state.device) # mark the pool as active
+        @retry_reclaim isnothing actual_alloc(sz; async=true, stream)
+      else
+        @retry_reclaim isnothing actual_alloc(sz; async=true, stream)
+      end
+      buf === nothing && throw(OutOfGPUMemoryError(sz))
+    end
+
+    buf, time - gctime
+end
+@inline function _alloc(::Type{Mem.UnifiedBuffer}, sz; stream::Union{Nothing,CuStream})
+  time = Base.@elapsed begin
+    buf = Mem.alloc(Mem.Unified, sz)
+  end
+  buf, time
+end
+
+"""
+    free(buf)
+
+Releases a buffer `buf` to the memory pool.
+"""
+@inline @timeit_ci function free(buf::Mem.AbstractBuffer;
+                                 stream::Union{Nothing,CuStream}=nothing)
+  # XXX: have @timeit use the root timer, since we may be called from a finalizer
+
+  # 0-byte allocations shouldn't hit the pool
+  sizeof(buf) == 0 && return
+
+  # this function is typically called from a finalizer, where we can't switch tasks,
+  # so perform our own error handling.
+  try
+    time = Base.@elapsed begin
+      _free(buf; stream)
+    end
+
+    alloc_stats.free_count += 1
+    alloc_stats.free_bytes += sizeof(buf)
+    alloc_stats.total_time += time
+  catch ex
+    Base.showerror_nostdio(ex, "WARNING: Error while freeing $buf")
+    Base.show_backtrace(Core.stdout, catch_backtrace())
+    Core.println()
+  end
+
+  return
+end
+@inline function _free(buf::Mem.DeviceBuffer; stream::Union{Nothing,CuStream})
+    # NOTE: this function is often called from finalizers, from which we can't switch tasks,
+    #       so we need to take care not to call managed functions (i.e. functions that may
+    #       initialize the CUDA context) because querying the active context using
+    #       `current_context()` takes a lock
+
+    # verify that the caller has called `context!` already, which eagerly activates the
+    # context (i.e. doesn't only set it in the state, but configures the CUDA APIs).
+    handle_ref = Ref{CUcontext}()
+    cuCtxGetCurrent(handle_ref)
+    if buf.ctx.handle != handle_ref[]
+      error("Trying to free $buf from a different context than the one it was allocated from ($(handle_ref[]))")
+    end
+
+    dev = current_device()
+    if stream_ordered(dev)
+      # mark the pool as active
+      pool_mark(dev)
+
+      # for safety, we default to the default stream and force this operation to be ordered
+      # against all other streams. to opt out of this, pass a specific stream instead.
+      actual_free(buf; stream=something(stream, default_stream()))
+    else
+      actual_free(buf)
+    end
+end
+@inline _free(buf::Mem.UnifiedBuffer; stream::Union{Nothing,CuStream}) = Mem.free(buf)
+@inline _free(buf::Mem.HostBuffer; stream::Union{Nothing,CuStream}) = nothing
+
+"""
+    reclaim([sz=typemax(Int)])
+
+Reclaims `sz` bytes of cached memory. Use this to free GPU memory before calling into
+functionality that does not use the CUDA memory pool. Returns the number of bytes
+actually reclaimed.
+"""
+function reclaim(sz::Int=typemax(Int))
+  dev = device()
+  if stream_ordered(dev)
+      device_synchronize()
+      synchronize(context())
+      trim(memory_pool(dev))
+  else
+    0
+  end
 end
 
 
