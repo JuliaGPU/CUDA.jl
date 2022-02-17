@@ -4,8 +4,6 @@ m,n = 2,3
 p = 0.5
 
 for elty in [Float32]
-    # TODO: CuSparseVector
-
     @testset "$typ" for typ in [CuSparseMatrixCSR]
         x = sprand(elty, m, n, p)
         dx = typ(x)

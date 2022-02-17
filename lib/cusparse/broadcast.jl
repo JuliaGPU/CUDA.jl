@@ -2,6 +2,8 @@ using Base.Broadcast: Broadcasted
 
 using CUDA: CuArrayStyle
 
+# TODO: support more types (SparseVector, SparseMatrixCSC, COO, BSR)
+
 
 ## sparse broadcast style
 
