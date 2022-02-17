@@ -25,13 +25,15 @@ abstract type CuFFTPlan{T<:cufftNumber, K, inplace} <: Plan{T} end
 Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = p.handle
 
 function CUDA.unsafe_free!(plan::CuFFTPlan, stream::CuStream=stream())
-    context!(plan.ctx; skip_destroyed=true) do
-        cufftDestroy(plan)
-    end
+    cufftDestroy(plan)
     unsafe_free!(plan.workarea, stream)
 end
 
-unsafe_finalize!(plan::CuFFTPlan) = unsafe_free!(plan, default_stream())
+function unsafe_finalize!(plan::CuFFTPlan)
+    context!(plan.ctx; skip_destroyed=true) do
+        unsafe_free!(plan, default_stream())
+    end
+end
 
 mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     handle::cufftHandle
