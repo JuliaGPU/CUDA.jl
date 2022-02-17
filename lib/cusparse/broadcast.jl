@@ -102,30 +102,24 @@ end
 ## iteration helpers
 
 """
-    CSRRowIterator{Ti}(dims, row, args...)
+    CSRRowIterator{Ti}(row, args...)
 
-A GPU-compatible iterator for accessing the nonzero columns of a single row `row` of several
-CSR matrices `args` in one go. The size of the arguments should be identical, and provided
-as `dims`, but their structure can vary. Each iteration returns a 2-element tuple: The
-current column, and each arguments' pointer index (or 0 if that input didn't have an element
-at that column). The pointers can then be used to access the elements themselves.
+A GPU-compatible iterator for accessing the elements of a single row `row` of several CSR
+matrices `args` in one go. The row should be in-bounds for every sparse argument. Each
+iteration returns a 2-element tuple: The current column, and each arguments' pointer index
+(or 0 if that input didn't have an element at that column). The pointers can then be used to
+access the elements themselves.
 
 For convenience, this iterator can be passed non-sparse arguments as well, which will be
 ignored (with the returned `col`/`ptr` values set to 0).
 """
 struct CSRRowIterator{Ti,N,ATs}
-    dims::NTuple{2, Ti}
     row::Ti
     col_ends::NTuple{N, Ti}
     args::ATs
 end
 
-Base.size(iter::CSRRowIterator) = iter.dims
-Base.size(iter::CSRRowIterator, i) = iter.dims[i]
-
-# dims is the shape of all arguments
-# row is the row this iterator is processing
-function CSRRowIterator{Ti}(dims, row, args::Vararg{<:Any, N}) where {Ti,N}
+function CSRRowIterator{Ti}(row, args::Vararg{<:Any, N}) where {Ti,N}
     # row is assumed to be in bounds
     col_ends = ntuple(Val(N)) do i
         arg = @inbounds args[i]
@@ -135,9 +129,7 @@ function CSRRowIterator{Ti}(dims, row, args::Vararg{<:Any, N}) where {Ti,N}
             zero(Ti)
         end
     end
-    # Julia dims are often Int, but we know the actual maximal index type
-    typed_dims = map(dim->dim%Ti, dims)
-    CSRRowIterator{Ti, N, typeof(args)}(typed_dims, row, col_ends, args)
+    CSRRowIterator{Ti, N, typeof(args)}(row, col_ends, args)
 end
 
 @inline function Base.iterate(iter::CSRRowIterator{Ti,N}, state=nothing) where {Ti,N}
@@ -218,7 +210,7 @@ _getindex(arg, I, ptr) = Broadcast._broadcast_getindex(arg, I)
 ## sparse broadcast implementation
 
 # kernel to count the number of non-zeros in a row, to determine the row offsets
-function compute_csr_row_offsets_kernel(row_offsets::AbstractVector{Ti}, cols::Integer,
+function compute_csr_row_offsets_kernel(row_offsets::AbstractVector{Ti},
                                         args...) where Ti
     # every thread processes an entire row
     row = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
@@ -227,7 +219,7 @@ function compute_csr_row_offsets_kernel(row_offsets::AbstractVector{Ti}, cols::I
     end
 
     # count the nonzero columns of all inputs
-    iter = CSRRowIterator{Ti}((length(row_offsets)-1, cols), row, args...)
+    iter = CSRRowIterator{Ti}(row, args...)
     accum = zero(Ti)
     for (col, vals) in iter
         accum += one(Ti)
@@ -264,7 +256,7 @@ function sparse_to_sparse_broadcast_kernel(f, output::CuSparseDeviceMatrixCSR{Tv
     end
 
     # set the values for this row
-    iter = CSRRowIterator{Ti}(size(output), row, args...)
+    iter = CSRRowIterator{Ti}(row, args...)
     for (col, ptrs) in iter
         I = CartesianIndex(row, col)
         vals = ntuple(Val(length(args))) do i
@@ -289,7 +281,7 @@ function sparse_to_dense_broadcast_kernel(f, output::CuDeviceArray{Tv},
     end
 
     # set the values for this row
-    iter = CSRRowIterator{Int}(size(output), row, args...)
+    iter = CSRRowIterator{Int}(row, args...)
     for (col, ptrs) in iter
         I = CartesianIndex(row, col)
         vals = ntuple(Val(length(args))) do i
@@ -372,7 +364,7 @@ function Broadcast.copy(bc::Broadcasted{<:Union{CuSparseVecStyle,CuSparseMatStyl
         # appropriately-structured output container
         row_offsets = CuArray{Ti}(undef, rows+1)
         let
-            args = (row_offsets, cols%Ti, bc.args...)
+            args = (row_offsets, bc.args...)
             kernel = @cuda launch=false compute_csr_row_offsets_kernel(args...)
             # it's unlikely we'll be able to spawn many threads,
             # so parallelize across blocks first
