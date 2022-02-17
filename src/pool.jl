@@ -73,18 +73,6 @@ function stream_ordered(dev::CuDevice)
   end::Bool
 end
 
-if VERSION < v"1.7-"
-  function errormonitor(task)
-    Base.Threads.@spawn try
-      wait(task)
-    catch err
-      bt = catch_backtrace()
-      showerror(stderr, err, bt)
-      rethrow()
-    end
-  end
-end
-
 # per-device flag indicating the status of a pool
 const _pool_status = PerDevice{Base.RefValue{Union{Nothing,Bool}}}()
 pool_status(dev::CuDevice) = get!(_pool_status, dev) do
@@ -101,7 +89,11 @@ function pool_mark(dev::CuDevice)
 
       # launch a task to periodically trim the pool
       if isinteractive() && !isassigned(__pool_cleanup)
-        __pool_cleanup[] = errormonitor(Threads.@spawn pool_cleanup())
+        __pool_cleanup[] = if VERSION < v"1.7"
+          Threads.@spawn pool_cleanup()
+        else
+          errormonitor(Threads.@spawn pool_cleanup())
+        end
       end
   end
   status[] = true
