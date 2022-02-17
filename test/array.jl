@@ -36,7 +36,7 @@ import Adapt
       @test eltype(a) == eltype(b)
       @test ndims(a) == ndims(b)
       @test a.storage.buffer.ptr == b.storage.buffer.ptr
-      @test a.storage.ctx == b.storage.ctx
+      @test a.storage.buffer.ctx == b.storage.buffer.ctx
       @test a.maxsize == b.maxsize
       @test a.offset == b.offset
       @test a.dims == b.dims
