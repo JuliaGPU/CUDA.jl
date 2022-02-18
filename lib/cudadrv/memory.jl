@@ -42,13 +42,14 @@ Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, buf::AbstractBuffer)
 A buffer of device memory residing on the GPU.
 """
 struct DeviceBuffer <: AbstractBuffer
+    ctx::CuContext
     ptr::CuPtr{Cvoid}
     bytesize::Int
 
     async::Bool
 end
 
-DeviceBuffer() = DeviceBuffer(CU_NULL, 0, false)
+DeviceBuffer() = DeviceBuffer(context(), CU_NULL, 0, false)
 
 Base.pointer(buf::DeviceBuffer) = buf.ptr
 Base.sizeof(buf::DeviceBuffer) = buf.bytesize
@@ -85,7 +86,7 @@ function alloc(::Type{DeviceBuffer}, bytesize::Integer;
         CUDA.cuMemAlloc_v2(ptr_ref, bytesize)
     end
 
-    return DeviceBuffer(reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, async)
+    return DeviceBuffer(context(), reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, async)
 end
 
 function free(buf::DeviceBuffer; stream::Union{Nothing,CuStream}=nothing)
@@ -109,11 +110,12 @@ end
 A buffer of pinned memory on the CPU, possibly accessible on the GPU.
 """
 struct HostBuffer <: AbstractBuffer
+    ctx::CuContext
     ptr::Ptr{Cvoid}
     bytesize::Int
 end
 
-HostBuffer() = HostBuffer(C_NULL, 0)
+HostBuffer() = HostBuffer(context(), C_NULL, 0)
 
 Base.pointer(buf::HostBuffer) = buf.ptr
 Base.sizeof(buf::HostBuffer) = buf.bytesize
@@ -157,7 +159,7 @@ function alloc(::Type{HostBuffer}, bytesize::Integer, flags=0)
     ptr_ref = Ref{Ptr{Cvoid}}()
     CUDA.cuMemHostAlloc(ptr_ref, bytesize, flags)
 
-    return HostBuffer(ptr_ref[], bytesize)
+    return HostBuffer(context(), ptr_ref[], bytesize)
 end
 
 
@@ -179,7 +181,7 @@ function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer, flags=0)
 
     CUDA.cuMemHostRegister_v2(ptr, bytesize, flags)
 
-    return HostBuffer(ptr, bytesize)
+    return HostBuffer(context(), ptr, bytesize)
 end
 
 """
@@ -208,11 +210,12 @@ end
 A managed buffer that is accessible on both the CPU and GPU.
 """
 struct UnifiedBuffer <: AbstractBuffer
+    ctx::CuContext
     ptr::CuPtr{Cvoid}
     bytesize::Int
 end
 
-UnifiedBuffer() = UnifiedBuffer(CU_NULL, 0)
+UnifiedBuffer() = UnifiedBuffer(context(), CU_NULL, 0)
 
 Base.pointer(buf::UnifiedBuffer) = buf.ptr
 Base.sizeof(buf::UnifiedBuffer) = buf.bytesize
@@ -241,7 +244,7 @@ function alloc(::Type{UnifiedBuffer}, bytesize::Integer,
     ptr_ref = Ref{CuPtr{Cvoid}}()
     CUDA.cuMemAllocManaged(ptr_ref, bytesize, flags)
 
-    return UnifiedBuffer(ptr_ref[], bytesize)
+    return UnifiedBuffer(context(), ptr_ref[], bytesize)
 end
 
 
@@ -281,6 +284,7 @@ end
 ## array buffer
 
 mutable struct ArrayBuffer{T,N} <: AbstractBuffer
+    ctx::CuContext
     ptr::CuArrayPtr{T}
     dims::Dims{N}
 end
@@ -342,7 +346,7 @@ function alloc(::Type{<:ArrayBuffer{T}}, dims::Dims{N}) where {T,N}
     CUDA.cuArray3DCreate_v2(handle_ref, allocateArray_ref)
     ptr = reinterpret(CuArrayPtr{T}, handle_ref[])
 
-    return ArrayBuffer{T,N}(ptr, dims)
+    return ArrayBuffer{T,N}(context(), ptr, dims)
 end
 
 function free(buf::ArrayBuffer)

@@ -9,8 +9,6 @@ export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, is_unified
 struct ArrayStorage{B}
   buffer::B
 
-  ctx::CuContext
-
   # the refcount also encodes the state of the array:
   # < 0: unmanaged
   # = 0: freed
@@ -18,8 +16,8 @@ struct ArrayStorage{B}
   refcount::Threads.Atomic{Int}
 end
 
-ArrayStorage(buf::B, ctx, state::Int) where {B} =
-  ArrayStorage{B}(buf, ctx, Threads.Atomic{Int}(state))
+ArrayStorage(buf::B, state::Int) where {B} =
+  ArrayStorage{B}(buf, Threads.Atomic{Int}(state))
 
 
 ## array type
@@ -42,7 +40,7 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
       maxsize
     end
     buf = alloc(B, bufsize)
-    storage = ArrayStorage(buf, context(), 1)
+    storage = ArrayStorage(buf, 1)
     obj = new{T,N,B}(storage, maxsize, 0, dims)
     finalizer(unsafe_finalize!, obj)
   end
@@ -77,7 +75,7 @@ function unsafe_free!(xs::CuArray, stream::CuStream=stream())
 
   refcount = Threads.atomic_add!(xs.storage.refcount, -1)
   if refcount == 1
-    context!(xs.storage.ctx; skip_destroyed=true) do
+    context!(context(xs); skip_destroyed=true) do
       free(xs.storage.buffer; stream)
     end
   end
@@ -99,6 +97,8 @@ function unsafe_finalize!(xs::CuArray)
   # streams involved, or by refcounting uses and decrementing that refcount after the
   # operation using `cuLaunchHostFunc`. See CUDA.jl#778 and CUDA.jl#780 for details.
   unsafe_free!(xs, default_stream())
+  # NOTE: we don't switch contexts here, but in unsafe_free!, as arrays are refcounted
+  #       and we may not have to free the memory yet.
 end
 
 
@@ -196,12 +196,12 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
   buf = try
     typ = memory_type(ptr)
     if is_managed(ptr)
-      Mem.UnifiedBuffer(ptr, sz)
+      Mem.UnifiedBuffer(ctx, ptr, sz)
     elseif typ == CU_MEMORYTYPE_DEVICE
       # TODO: can we identify whether this pointer was allocated asynchronously?
-      Mem.DeviceBuffer(ptr, sz, false)
+      Mem.DeviceBuffer(ctx, ptr, sz, false)
     elseif typ == CU_MEMORYTYPE_HOST
-      Mem.HostBuffer(host_pointer(ptr), sz)
+      Mem.HostBuffer(ctx, host_pointer(ptr), sz)
     else
       error("Unknown memory type; please file an issue.")
     end
@@ -209,7 +209,7 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
       error("Could not identify the buffer type; are you passing a valid CUDA pointer to unsafe_wrap?")
   end
 
-  storage = ArrayStorage(buf, ctx, own ? 1 : -1)
+  storage = ArrayStorage(buf, own ? 1 : -1)
   CuArray{T, length(dims)}(storage, dims)
 end
 
@@ -232,12 +232,12 @@ Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 
 function context(A::CuArray)
   A.storage === nothing && throw(UndefRefError())
-  return A.storage.ctx
+  return A.storage.buffer.ctx
 end
 
 function device(A::CuArray)
   A.storage === nothing && throw(UndefRefError())
-  return device(A.storage.ctx)
+  return device(A.storage.buffer.ctx)
 end
 
 
@@ -826,14 +826,14 @@ function Base.resize!(A::CuVector{T}, n::Int) where T
     maxsize
   end
 
-  new_storage = context!(A.storage.ctx) do
+  new_storage = context!(context(A)) do
     buf = alloc(typeof(A.storage.buffer), bufsize)
     ptr = convert(CuPtr{T}, buf)
     m = min(length(A), n)
     if m > 0
       unsafe_copyto!(ptr, pointer(A), m)
     end
-    ArrayStorage(buf, A.storage.ctx, 1)
+    ArrayStorage(buf, 1)
   end
 
   unsafe_free!(A)

@@ -39,6 +39,8 @@ mutable struct CuContext
     valid::Bool
 
     function new_unique(handle)
+        # XXX: this makes it dangerous to call this function from finalizers.
+        #      can we do without the lock?
         Base.@lock context_lock get!(valid_contexts, handle) do
             new(handle, true)
         end
