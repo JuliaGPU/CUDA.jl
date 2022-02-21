@@ -303,6 +303,8 @@ function Broadcast.copy(bc::Broadcasted{<:Union{CuSparseVecStyle,CuSparseMatStyl
     if length(sparse_types) > 1
         error("broadcast with multiple types of sparse arrays ($(join(sparse_types, ", "))) is not supported")
     end
+    bc.args[first(sparse_args)] isa CuSparseMatrixCSR ||
+        error("broadcast with sparse arrays is currently only implemented for CSR matrices")
     Ti = reduce(promote_type, map(i->eltype(bc.args[i].rowPtr), sparse_args))
 
     # determine the output type
