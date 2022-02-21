@@ -153,5 +153,16 @@ using LinearAlgebra, SparseArrays
         T = f(CuSparseMatrixCSC(S))
         @test SparseMatrixCSC(CuSparseMatrixCSR(T)) ≈ f(S)
     end
+
+    @testset "UniformScaling with CSR($dims)" for dims in [(10, 10), (5, 10), (10, 5)]
+        S = sprand(Float32, dims..., 0.1)
+        dA = CuSparseMatrixCSR(S)
+
+        @test Array(dA + I) == S + I
+        @test Array(I + dA) == I + S
+
+        @test Array(dA - I) == S - I
+        @test Array(I - dA) == I - S
+    end
 end
 

@@ -174,3 +174,25 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
             sm2!('C', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
     end
 end
+
+
+## uniform scaling
+
+# these operations materialize the identity matrix and re-use broadcast
+# TODO: can we do without this, and just use the broadcast implementation
+#       with a singleton argument it knows how to index?
+
+function _sparse_identity(::Type{<:CuSparseMatrixCSR{<:Any,Ti}},
+                          I::UniformScaling{Tv}, dims::Dims) where {Tv,Ti}
+    len = min(dims[1], dims[2])
+    rowPtr = CuVector{Ti}(vcat(1:len, fill(len+1, dims[1]-len+1)))
+    colVal = CuVector{Ti}(1:len)
+    nzVal = CUDA.fill(I.λ, len)
+    CuSparseMatrixCSR{Tv,Ti}(rowPtr, colVal, nzVal, dims)
+end
+
+Base.:(+)(A::CuSparseMatrixCSR, J::UniformScaling) =
+    A .+ _sparse_identity(typeof(A), J, size(A))
+
+Base.:(-)(J::UniformScaling, A::CuSparseMatrixCSR) =
+    _sparse_identity(typeof(A), J, size(A)) .- A
