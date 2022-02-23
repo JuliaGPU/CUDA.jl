@@ -323,7 +323,7 @@ function math_mode!(mode::MathMode; precision=nothing)
     default_math_mode[] = mode
 
     if precision !== nothing
-        state.math_precision = math_precision
+        state.math_precision = precision
         default_math_precision[] = precision
     end
 
