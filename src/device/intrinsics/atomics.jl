@@ -16,6 +16,32 @@ const atomic_acquire = LLVM.API.LLVMAtomicOrderingAcquire
 const atomic_release = LLVM.API.LLVMAtomicOrderingRelease
 const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
 
+const _llvm_from_julia_ordering = (
+    not_atomic = LLVM.API.LLVMAtomicOrderingNotAtomic,
+    unordered = LLVM.API.LLVMAtomicOrderingUnordered,
+    monotonic = LLVM.API.LLVMAtomicOrderingMonotonic,
+    acquire = LLVM.API.LLVMAtomicOrderingAcquire,
+    release = LLVM.API.LLVMAtomicOrderingRelease,
+    acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease,
+    sequentially_consistent = LLVM.API.LLVMAtomicOrderingSequentiallyConsistent,
+)
+
+function llvm_from_julia_ordering(order)
+    llvm_ordering = if order isa Symbol
+        get(_llvm_from_julia_ordering, order, nothing)
+    else
+        nothing
+    end
+    if llvm_ordering === nothing
+        msg = "invalid atomic ordering: $order"
+        :(throw(ConcurrencyViolationError($msg)))
+    end
+    return llvm_ordering
+end
+
+const PublicOrdering =
+    Union{(Val{o} for o in keys(_llvm_from_julia_ordering) if o != :unordered)...}
+
 # common arithmetic operations on integers using LLVM instructions
 #
 # > 8.6.6. atomicrmw Instruction
@@ -25,7 +51,10 @@ const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
 # >
 # > - The pointer must be either a global pointer, a shared pointer, or a generic pointer
 # >   that points to either the global address space or the shared address space.
-@generated function llvm_atomic_op(::Val{binop}, ptr::LLVMPtr{T,A}, val::T) where {binop, T, A}
+@generated function llvm_atomic_op(::Val{binop}, ptr::LLVMPtr{T,A}, val::T,
+                                   ::Val{order}) where {binop,T,A,order}
+    llvm_ordering = llvm_from_julia_ordering(order)
+    llvm_ordering isa Expr && return llvm_ordering
     Context() do ctx
         T_val = convert(LLVMType, T; ctx)
         T_ptr = convert(LLVMType, ptr; ctx)
@@ -42,7 +71,7 @@ const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
 
             rv = atomic_rmw!(builder, binop,
                             typed_ptr, parameters(llvm_f)[2],
-                            atomic_acquire_release, #=single_threaded=# false)
+                            llvm_ordering, #=single_threaded=# false)
 
             ret!(builder, rv)
         end
@@ -80,8 +109,12 @@ for T in (Int32, Int64, UInt32, UInt64)
         fn = Symbol("atomic_$(op)!")
         @eval @inline $fn(ptr::Union{LLVMPtr{$T,AS.Generic},
                                      LLVMPtr{$T,AS.Global},
-                                     LLVMPtr{$T,AS.Shared}}, val::$T) =
-            llvm_atomic_op($(Val(binops[rmw])), ptr, val)
+                                     LLVMPtr{$T,AS.Shared}},
+                          val::$T,
+                          # TODO: default ordering of `Base.@atomic` is
+                          # `:sequentially_consistent`.  Should we change it?
+                          order::PublicOrdering = Val(:acquire_release)) =
+            llvm_atomic_op($(Val(binops[rmw])), ptr, val, order)
     end
 end
 
@@ -96,18 +129,29 @@ for T in (Float32, Float64)
         # XXX: cannot select
         @eval @inline $fn(ptr::Union{LLVMPtr{$T,AS.Generic},
                                      LLVMPtr{$T,AS.Global},
-                                     LLVMPtr{$T,AS.Shared}}, val::$T) =
-           llvm_atomic_op($(Val(binops[rmw])), ptr, val)
+                                     LLVMPtr{$T,AS.Shared}},
+                          val::$T,
+                          # TODO:sequentially_consistent?
+                          order::PublicOrdering = Val(:acquire_release)) =
+           llvm_atomic_op($(Val(binops[rmw])), ptr, val, order)
     end
 
     # there's no specific NNVM intrinsic for fsub, resulting in a selection error.
     @eval @inline atomic_sub!(ptr::Union{LLVMPtr{$T,AS.Generic},
                                          LLVMPtr{$T,AS.Global},
-                                         LLVMPtr{$T,AS.Shared}}, val::$T) =
-        atomic_add!(ptr, -val)
+                                         LLVMPtr{$T,AS.Shared}},
+                              val::$T,
+                              # TODO:sequentially_consistent?
+                              order::PublicOrdering = Val(:acquire_release)) =
+        atomic_add!(ptr, -val, order)
 end
 
-@generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T) where {T, A}
+@generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T, ::Val{success_order},
+                                    ::Val{fail_order}) where {T,A,success_order,fail_order}
+    llvm_success = llvm_from_julia_ordering(success_order)
+    llvm_success isa Expr && return llvm_success
+    llvm_fail = llvm_from_julia_ordering(fail_order)
+    llvm_fail isa Expr && return llvm_fail
     Context() do ctx
         T_val = convert(LLVMType, T; ctx)
         T_ptr = convert(LLVMType, ptr,;ctx)
@@ -123,7 +167,7 @@ end
             typed_ptr = bitcast!(builder, parameters(llvm_f)[1], T_typed_ptr)
 
             res = atomic_cmpxchg!(builder, typed_ptr, parameters(llvm_f)[2],
-                                parameters(llvm_f)[3], atomic_acquire_release, atomic_acquire,
+                                parameters(llvm_f)[3], llvm_success, llvm_fail,
                                 #=single threaded=# false)
 
             rv = extract_value!(builder, res, 0)
@@ -136,8 +180,11 @@ end
 end
 
 for T in (Int32, Int64, UInt32, UInt64)
-    @eval @inline atomic_cas!(ptr::LLVMPtr{$T}, cmp::$T, val::$T) =
-        llvm_atomic_cas(ptr, cmp, val)
+    @eval @inline atomic_cas!(ptr::LLVMPtr{$T}, cmp::$T, val::$T,
+                              # TODO: sequentially_consistent?
+                              success_order::PublicOrdering = Val(:acquire_release),
+                              fail_order::PublicOrdering = success_order) =
+        llvm_atomic_cas(ptr, cmp, val, success_order, fail_order)
 end
 
 # NVPTX doesn't support cmpxchg with i16 yet
@@ -207,11 +254,15 @@ inttype(::Type{Float32}) = Int32
 inttype(::Type{Float64}) = Int64
 
 for T in [Float16, Float32, Float64]
-    @eval @inline function atomic_cas!(ptr::LLVMPtr{$T,A}, cmp::$T, new::$T) where {A}
+    @eval @inline function atomic_cas!(ptr::LLVMPtr{$T,A}, cmp::$T, new::$T,
+                                       # TODO: sequentially_consistent?
+                                       success_order::PublicOrdering = Val(:acquire_release),
+                                       fail_order::PublicOrdering = success_order) where {A}
         IT = inttype($T)
         cmp_i = reinterpret(IT, cmp)
         new_i = reinterpret(IT, new)
-        old_i = atomic_cas!(reinterpret(LLVMPtr{IT,A}, ptr), cmp_i, new_i)
+        old_i = atomic_cas!(reinterpret(LLVMPtr{IT,A}, ptr), cmp_i, new_i, success_order,
+                            fail_order)
         return reinterpret($T, old_i)
     end
 end
