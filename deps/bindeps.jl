@@ -68,20 +68,36 @@ function toolkit()
 
         # CI runs in a well-defined environment, so prefer a local CUDA installation there
         if getenv("CI", false) && !haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER")
-            toolkit = find_local_cuda()
+            try
+                toolkit = find_local_cuda()
+            catch err
+                isa(err, ErrorException) || rethrow()
+                # no need to report here, we'll do so below
+            end
         end
 
         if toolkit === nothing && getenv("JULIA_CUDA_USE_BINARYBUILDER", true)
-            toolkit = find_artifact_cuda()
+            try
+                toolkit = find_artifact_cuda()
+            catch err
+                isa(err, ErrorException) || rethrow()
+                @warn "Unable to use CUDA from artifacts: $(err.msg)"
+            end
         end
 
         # if the user didn't specifically request an artifact version, look for a local installation
         if toolkit === nothing && !haskey(ENV, "JULIA_CUDA_VERSION")
-            toolkit = find_local_cuda()
+            try
+                toolkit = find_local_cuda()
+            catch err
+                isa(err, ErrorException) || rethrow()
+                @warn "Unable to use a local CUDA installation: $(err.msg)"
+            end
         end
 
         if toolkit === nothing
-            error("Could not find a suitable CUDA installation")
+            error("""No suitable CUDA installation available.
+                     Please look at the warnings above for possible reasons.""")
         end
 
         toolkit
@@ -130,14 +146,16 @@ const cuda_toolkits = [
 function find_artifact_cuda()
     @debug "Trying to use artifacts..."
 
-    # select compatible artifacts
+    # select artifacts based on CUDA compatibility
     if haskey(ENV, "JULIA_CUDA_VERSION")
         wanted = VersionNumber(ENV["JULIA_CUDA_VERSION"])   # misnomer: actually the release
         @debug "Selecting artifacts based on requested $wanted"
         candidate_toolkits = filter(cuda_toolkits) do toolkit
             toolkit.release == wanted
         end
-        isempty(candidate_toolkits) && @debug "Requested CUDA release $wanted is not provided by any artifact"
+        isempty(candidate_toolkits) &&
+            error("""None of the available CUDA artifacts matches the requested release $wanted.
+                     Please try again without setting the JULIA_CUDA_VERSION environment variable.""")
     else
         driver_release = CUDA.release()
         @debug "Selecting artifacts based on driver compatibility $driver_release"
@@ -148,7 +166,9 @@ function find_artifact_cuda()
                  (driver_release >= v"11" &&
                   toolkit.release.major <= driver_release.major))
         end
-        isempty(candidate_toolkits) && @debug "CUDA driver compatibility $driver_release is not compatible with any artifact"
+        isempty(candidate_toolkits) &&
+            error("""None of the available CUDA artifacts is compatible with your driver (for CUDA $driver_release).
+                     Please try upgrading your NVIDIA driver.""")
     end
 
     # download and install
@@ -161,8 +181,8 @@ function find_artifact_cuda()
         end
     end
     if artifact === nothing
-        @debug "Could not find a compatible artifact."
-        return nothing
+        error("""Could not find or download a compatible artifact for your platform ($(Base.BinaryPlatforms.host_triplet())).
+                 If you think this is in error, please file an issue.""")
     end
 
     @debug "Using CUDA $(artifact.release) from an artifact at $(artifact.dir)"
@@ -176,8 +196,8 @@ function find_local_cuda()
 
     let path = find_cuda_binary(dirs, "nvdisasm")
         if path === nothing
-            @debug "Could not find nvdisasm"
-            return nothing
+            error("""Could not find the nvdisasm binary.
+                     If CUDA is installed, please make sure this binary is in your PATH.""")
         end
         __nvdisasm[] = path
     end
@@ -185,8 +205,8 @@ function find_local_cuda()
     cudart_versions = cuda_library_versions("cudart")
     let path = find_cuda_library(dirs, "cudart", cudart_versions)
         if path === nothing
-            @debug "Could not find the CUDA runtime library"
-            return nothing
+            error("""Could not find the cudart library.
+                     If CUDA is installed, please make sure this library is discoverable.""")
         end
         __libcudart[] = path
     end
