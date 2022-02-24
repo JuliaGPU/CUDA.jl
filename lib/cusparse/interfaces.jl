@@ -191,8 +191,17 @@ function _sparse_identity(::Type{<:CuSparseMatrixCSR{<:Any,Ti}},
     CuSparseMatrixCSR{Tv,Ti}(rowPtr, colVal, nzVal, dims)
 end
 
-Base.:(+)(A::CuSparseMatrixCSR, J::UniformScaling) =
+function _sparse_identity(::Type{<:CuSparseMatrixCSC{<:Any,Ti}},
+                          I::UniformScaling{Tv}, dims::Dims) where {Tv,Ti}
+    len = min(dims[1], dims[2])
+    colPtr = CuVector{Ti}(vcat(1:len, fill(len+1, dims[2]-len+1)))
+    rowVal = CuVector{Ti}(1:len)
+    nzVal = CUDA.fill(I.λ, len)
+    CuSparseMatrixCSC{Tv,Ti}(colPtr, rowVal, nzVal, dims)
+end
+
+Base.:(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}, J::UniformScaling) =
     A .+ _sparse_identity(typeof(A), J, size(A))
 
-Base.:(-)(J::UniformScaling, A::CuSparseMatrixCSR) =
+Base.:(-)(J::UniformScaling, A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) =
     _sparse_identity(typeof(A), J, size(A)) .- A
