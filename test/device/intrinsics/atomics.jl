@@ -1,5 +1,6 @@
 # TODO: unify with Base.@atomic
 using CUDA: @atomic
+using BFloat16s: BFloat16
 
 @testset "atomics (low-level)" begin
 
@@ -142,7 +143,7 @@ end
 end
 
 @testset "atomic_cas" begin
-    types = [Int32, Int64, UInt32, UInt64]
+    types = [Int32, Int64, UInt32, UInt64, BFloat16]
     capability(device()) >= v"7.0" && push!(types, UInt16)
 
     @testset for T in types
