@@ -32,12 +32,12 @@ include("libcuda_deprecated.jl")
     if system_driver == ""
         if Sys.iswindows()
             error("""Could not find the CUDA driver library. Please make sure you have installed the NVIDIA driver for your GPU.
-                     If you're sure it's installed, look for `libcuda.so` in your system and make sure it's discoverable by the linker.
-                     Typically, that involves an entry in '/etc/ld.so.conf', or setting LD_LIBRARY_PATH.""")
-        else
-            error("""Could not find the CUDA driver library. Please make sure you have installed the NVIDIA driver for your GPU.
                      If you're sure it's installed, look for `nvcuda.dll` in your system and make sure it's discoverable by the linker.
                      Typically, that involves adding an entry to PATH.""")
+        else
+            error("""Could not find the CUDA driver library. Please make sure you have installed the NVIDIA driver for your GPU.
+                     If you're sure it's installed, look for `libcuda.so` in your system and make sure it's discoverable by the linker.
+                     Typically, that involves an entry in '/etc/ld.so.conf', or setting LD_LIBRARY_PATH.""")
         end
     end
 
