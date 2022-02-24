@@ -358,6 +358,9 @@ function libcusolvermg(; throw_error::Bool=true)
      path = @initialize_ref __libcusolverMg begin
         if toolkit_release() < v"10.1"
             nothing
+        elseif toolkit_release() == v"10.2" && Sys.ARCH == :aarch64
+            # special case: we don't have a libcusolvermg for 10.2 on aarch64
+            nothing
         else
             find_library(toolkit(), "cusolverMg"; optional=true)
         end
