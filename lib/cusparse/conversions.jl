@@ -74,6 +74,7 @@ function sort_rows(coo::CuSparseMatrixCOO{Tv,Ti}) where {Tv <: BlasFloat,Ti}
         end
     end
 
+    CUDA.unsafe_free!(perm)
     CuSparseMatrixCOO{Tv}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(coo))
 end
 function sort_rows(coo::CuSparseMatrixCOO{Tv,Ti}) where {Tv,Ti}
@@ -81,6 +82,7 @@ function sort_rows(coo::CuSparseMatrixCOO{Tv,Ti}) where {Tv,Ti}
     sorted_rowInd = coo.rowInd[perm]
     sorted_colInd = coo.colInd[perm]
     sorted_nzVal = coo.nzVal[perm]
+    CUDA.unsafe_free!(perm)
 
     CuSparseMatrixCOO{Tv}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(coo))
 end
