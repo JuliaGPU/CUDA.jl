@@ -3,7 +3,8 @@ using CUDA.CUSPARSE, SparseArrays
 m,n = 2,3
 p = 0.5
 
-for elty in [Float32]
+# we rely on CUSPARSE conversions, so only test supported types
+for elty in [Float32, Float64]
     @testset "$typ" for typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
         x = sprand(elty, m, n, p)
         dx = typ(x)
@@ -34,4 +35,10 @@ for elty in [Float32]
         @test dz isa typ{elty}
         @test z == SparseMatrixCSC(dz)
     end
+end
+
+@testset "bug: type conversions" begin
+    x = CuSparseMatrixCSR(sparse([1, 2], [2, 1], [5.0, 5.0]))
+    y = Int.(x)
+    @test eltype(y) == Int
 end

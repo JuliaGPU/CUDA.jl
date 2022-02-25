@@ -541,12 +541,12 @@ function Broadcast.copy(bc::Broadcasted{<:Union{CuSparseVecStyle,CuSparseMatStyl
         if sparse_typ <: CuSparseMatrixCSR
             offsets = rowPtr = sparse_arg.rowPtr
             colVal = similar(sparse_arg.colVal)
-            nzVal = similar(sparse_arg.nzVal)
+            nzVal = similar(sparse_arg.nzVal, Tv)
             output = CuSparseMatrixCSR(rowPtr, colVal, nzVal, size(bc))
         elseif sparse_typ <: CuSparseMatrixCSC
             offsets = colPtr = sparse_arg.colPtr
             rowVal = similar(sparse_arg.rowVal)
-            nzVal = similar(sparse_arg.nzVal)
+            nzVal = similar(sparse_arg.nzVal, Tv)
             output = CuSparseMatrixCSC(colPtr, rowVal, nzVal, size(bc))
         end
         # NOTE: we don't use CUSPARSE's similar, because that copies the structure arrays,
