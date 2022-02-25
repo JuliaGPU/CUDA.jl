@@ -179,7 +179,7 @@ if !has_cutensor() || first(picks).cap < v"6.0"
 end
 if do_sanitize
     # XXX: some library tests fail under compute-sanitizer
-    append!(skip_tests, ["cutensor", "cusparse"])
+    append!(skip_tests, ["cutensor"])
     # XXX: others take absurdly long
     push!(skip_tests, "cusolver")
     # XXX: these hang for some reason
