@@ -62,8 +62,8 @@ end
         return
     end
 
-    if version() < v"10.1"
-        @warn "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.1 or higher (yours is for CUDA $(version()))"
+    if version() < v"10.2"
+        @warn "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.2 or higher (yours is for CUDA $(version()))"
     end
 
     if version() < v"11.2"
