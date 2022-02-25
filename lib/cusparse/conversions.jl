@@ -67,7 +67,7 @@ function sort_rows(coo::CuSparseMatrixCOO{Tv,Ti}) where {Tv <: BlasFloat,Ti}
 
     sorted_nzVal = similar(coo.nzVal)
     let spvec = CuSparseVector(perm, sorted_nzVal, nnz(coo))
-        if version() >= v"11.0"
+        if version() >= v"11.1.1"
             gather!(spvec, nonzeros(coo), 'Z')
         else
             gthr!(spvec, nonzeros(coo), 'Z')
