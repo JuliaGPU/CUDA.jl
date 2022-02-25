@@ -17,6 +17,24 @@ end
 Base.unsafe_convert(::Type{cusparseDnVecDescr_t}, desc::CuDenseVectorDescriptor) = desc.handle
 
 
+## sparse vector descriptor
+
+mutable struct CuSparseVectorDescriptor
+    handle::cusparseSpVecDescr_t
+
+    function CuSparseVectorDescriptor(x::CuSparseVector, IndexBase::Char)
+        desc_ref = Ref{cusparseSpVecDescr_t}()
+        cusparseCreateSpVec(desc_ref, length(x), nnz(x), nonzeroinds(x), nonzeros(x),
+                            eltype(nonzeroinds(x)), IndexBase, eltype(x))
+        obj = new(desc_ref[])
+        finalizer(cusparseDestroySpVec, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{cusparseSpVecDescr_t}, desc::CuSparseVectorDescriptor) = desc.handle
+
+
 ## dense matrix descriptor
 
 mutable struct CuDenseMatrixDescriptor
@@ -79,7 +97,17 @@ end
 
 Base.unsafe_convert(::Type{cusparseSpMatDescr_t}, desc::CuSparseMatrixDescriptor) = desc.handle
 
+
 ## API functions
+
+function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
+    descX = CuSparseVectorDescriptor(X, index)
+    descY = CuDenseVectorDescriptor(Y)
+
+    cusparseGather(handle(), descY, descX)
+
+    X
+end
 
 function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},CuSparseMatrixCSR{T}},
              X::DenseCuVector{T}, beta::Number, Y::DenseCuVector{T}, index::SparseChar) where {T}
