@@ -108,7 +108,7 @@ blockdim = 5
 end
 
 @testset "construction" begin
-    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset for elty in [Int32, Int64, Float32, Float64, ComplexF32, ComplexF64]
         @testset "vector" begin
             x = sprand(elty,m, 0.2)
             d_x = CuSparseVector(x)

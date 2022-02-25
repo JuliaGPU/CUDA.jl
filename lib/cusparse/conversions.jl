@@ -74,7 +74,6 @@ function CuSparseMatrixCSR{T}(S::Adjoint{T, <:CuSparseMatrixCSC{T}}) where {T <:
     return CuSparseMatrixCSR{T}(csc.colPtr, csc.rowVal, conj.(csc.nzVal), size(csc))
 end
 
-
 # by flipping rows and columns, we can use that to get CSC to CSR too
 for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                      (:cusparseDcsr2csc, :Float64),
@@ -141,6 +140,8 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
     end
 end
 
+# implement Float16 conversions using wider types
+# TODO: Float16 is sometimes natively supported
 for (elty, welty) in ((:Float16, :Float32),
                       (:ComplexF16, :ComplexF32))
     @eval begin
@@ -204,6 +205,46 @@ for (elty, welty) in ((:Float16, :Float32),
     end
 end
 
+# implement Int conversions using reinterpreted Float
+for (elty, felty) in ((:Int16, :Float16),
+                      (:Int32, :Float32),
+                      (:Int64, :Float64),
+                      (:Int128, :ComplexF64))
+    @eval begin
+        function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty})
+            csc_compat = CuSparseMatrixCSC(
+                csc.colPtr,
+                csc.rowVal,
+                reinterpret($felty, csc.nzVal),
+                size(csc)
+            )
+            csr_compat = CuSparseMatrixCSR(csc_compat)
+            CuSparseMatrixCSR(
+                csr_compat.rowPtr,
+                csr_compat.colVal,
+                reinterpret($elty, csr_compat.nzVal),
+                size(csr_compat)
+            )
+        end
+
+        function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty})
+            csr_compat = CuSparseMatrixCSR(
+                csr.rowPtr,
+                csr.colVal,
+                reinterpret($felty, csr.nzVal),
+                size(csr)
+            )
+            csc_compat = CuSparseMatrixCSC(csr_compat)
+            CuSparseMatrixCSC(
+                csc_compat.colPtr,
+                csc_compat.rowVal,
+                reinterpret($elty, csc_compat.nzVal),
+                size(csc_compat)
+            )
+        end
+    end
+end
+
 ## CSR to BSR and vice-versa
 
 for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
@@ -256,6 +297,52 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
             # XXX: the size here may not match the expected size, when the matrix dimension
             #      is not a multiple of the block dimension!
             CuSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, (mb*bsr.blockDim, nb*bsr.blockDim))
+        end
+    end
+end
+
+# implement Int conversions using reinterpreted Float
+for (elty, felty) in ((:Int16, :Float16),
+                      (:Int32, :Float32),
+                      (:Int64, :Float64),
+                      (:Int128, :ComplexF64))
+    @eval begin
+        function CuSparseMatrixCSR{$elty}(bsr::CuSparseMatrixBSR{$elty})
+            bsr_compat = CuSparseMatrixBSR(
+                bsr.rowPtr,
+                bsr.colVal,
+                reinterpret($felty, bsr.nzVal),
+                bsr.blockDim,
+                bsr.dir,
+                bsr.nnzb,
+                size(bsr)
+            )
+            csr_compat = CuSparseMatrixCSR(bsr_compat)
+            CuSparseMatrixCSR(
+                csr_compat.rowPtr,
+                csr_compat.colVal,
+                reinterpret($elty, csr_compat.nzVal),
+                size(csr_compat)
+            )
+        end
+
+        function CuSparseMatrixBSR{$elty}(csr::CuSparseMatrixCSR{$elty}, blockDim)
+            csr_compat = CuSparseMatrixCSR(
+                csr.rowPtr,
+                csr.colVal,
+                reinterpret($felty, csr.nzVal),
+                size(csr)
+            )
+            bsr_compat = CuSparseMatrixBSR(csr_compat, blockDim)
+            CuSparseMatrixBSR(
+                bsr_compat.rowPtr,
+                bsr_compat.colVal,
+                reinterpret($elty, bsr_compat.nzVal),
+                bsr_compat.blockDim,
+                bsr_compat.dir,
+                bsr_compat.nnzb,
+                size(bsr_compat)
+            )
         end
     end
 end
