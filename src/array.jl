@@ -128,9 +128,9 @@ is_unified(a::CuArray) = isa(a.storage.buffer, Mem.UnifiedBuffer)
 
 # type and dimensionality specified, accepting dims as series of Ints
 CuArray{T,N,B}(::UndefInitializer, dims::Integer...) where {T,N,B} =
-  CuArray{T,N,B}(undef, dims)
+  CuArray{T,N,B}(undef, convert(Tuple{Vararg{Int}}, dims))
 CuArray{T,N}(::UndefInitializer, dims::Integer...) where {T,N} =
-  CuArray{T,N}(undef, dims)
+  CuArray{T,N}(undef, convert(Tuple{Vararg{Int}}, dims))
 
 # type but not dimensionality specified
 CuArray{T}(::UndefInitializer, dims::Dims{N}) where {T,N} =
