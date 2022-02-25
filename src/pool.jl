@@ -256,7 +256,7 @@ end
         pool_mark(state.device) # mark the pool as active
         @retry_reclaim isnothing actual_alloc(sz; async=true, stream)
       else
-        @retry_reclaim isnothing actual_alloc(sz; async=true, stream)
+        @retry_reclaim isnothing actual_alloc(sz; async=false, stream)
       end
       buf === nothing && throw(OutOfGPUMemoryError(sz))
     end
