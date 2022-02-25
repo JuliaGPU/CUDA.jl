@@ -440,7 +440,7 @@ for (elty, welty) in ((:Float16, :Float32),
                 end
                 return denseA
             else
-                wide_csc = CuSparseMatrixCSR(csc.rowPtr, csc.colVal, convert(CuVector{$welty}, nonzeros(csc)), size(csc))
+                wide_csc = CuSparseMatrixCSC(csc.colPtr, csc.rowVal, convert(CuVector{$welty}, nonzeros(csc)), size(csc))
                 wide_dense = CuArray{$welty}(wide_csc)
                 denseA = convert(CuArray{$elty}, wide_dense)
                 return denseA
