@@ -349,23 +349,23 @@ end
 
 ## CSR to COO and vice-versa
 
+# TODO: we can do similar for CSC conversions, but that requires the columns to be sorted
+
 function CuSparseMatrixCSR(coo::CuSparseMatrixCOO{Tv}, ind::SparseChar='O') where {Tv}
     m,n = size(coo)
-    nnz = coo.nnz
-    csrRowPtr = CUDA.zeros(Cint, nnz)
-    cusparseXcoo2csr(handle(), coo.rowInd, nnz, m, csrRowPtr, ind)
-    CuSparseMatrixCSR{Tv}(csrRowPtr, coo.colInd, coo.nzVal, size(coo))
+    csrRowPtr = CuVector{Cint}(undef, m+1)
+    cusparseXcoo2csr(handle(), coo.rowInd, nnz(coo), m, csrRowPtr, ind)
+    CuSparseMatrixCSR{Tv}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
 end
 
 function CuSparseMatrixCOO(csr::CuSparseMatrixCSR{Tv}, ind::SparseChar='O') where {Tv}
     m,n = size(csr)
-    nnz = csr.nnz
-    cooRowInd = CUDA.zeros(Cint, nnz)
-    cusparseXcsr2coo(handle(), csr.rowPtr, nnz, m, cooRowInd, ind)
-    CuSparseMatrixCOO{Tv}(cooRowInd, csr.colVal, csr.nzVal, size(csr), nnz)
+    cooRowInd = CuVector{Cint}(undef, nnz(csr))
+    cusparseXcsr2coo(handle(), csr.rowPtr, nnz(csr), m, cooRowInd, ind)
+    CuSparseMatrixCOO{Tv}(cooRowInd, csr.colVal, nonzeros(csr), size(csr), nnz(csr))
 end
 
-### CSC/BST to COO and viceversa
+### CSC/BSR to COO and viceversa
 
 CuSparseMatrixCSC(coo::CuSparseMatrixCOO) = CuSparseMatrixCSC(CuSparseMatrixCSR(coo)) # no direct conversion
 CuSparseMatrixCOO(csc::CuSparseMatrixCSC) = CuSparseMatrixCOO(CuSparseMatrixCSR(csc)) # no direct conversion
