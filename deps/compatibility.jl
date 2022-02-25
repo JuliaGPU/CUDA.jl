@@ -50,6 +50,7 @@ const cuda_cap_db = Dict(
     v"7.5" => v"10.0":highest,
     v"8.0" => v"11.0":highest,
     v"8.6" => v"11.1":highest,
+    v"8.7" => v"11.4":highest,
 )
 
 function cuda_cap_support(ver::VersionNumber)
@@ -95,6 +96,10 @@ const cuda_ptx_db = Dict(
     v"7.0" => v"11.0":highest,
     v"7.1" => v"11.1":highest,
     v"7.2" => v"11.2":highest,
+    v"7.3" => v"11.3":highest,
+    v"7.4" => v"11.4":highest,
+    v"7.5" => v"11.5":highest,
+    v"7.6" => v"11.6":highest,
 )
 
 function cuda_ptx_support(ver::VersionNumber)
@@ -128,6 +133,7 @@ const llvm_cap_db = Dict(
     v"7.2" => v"7.0":highest,
     v"7.5" => v"8.0":highest,
     v"8.0" => v"11.0":highest,
+    v"8.6" => v"13.0":highest,
 )
 
 function llvm_cap_support(ver::VersionNumber)
@@ -159,6 +165,11 @@ const llvm_ptx_db = Dict(
     v"6.4" => v"9.0":highest,
     v"6.5" => v"11.0":highest,
     v"7.0" => v"11.0":highest,
+    v"7.1" => v"13.0":highest,
+    v"7.2" => v"13.0":highest,
+    v"7.3" => v"14.0":highest,
+    v"7.4" => v"14.0":highest,
+    v"7.5" => v"14.0":highest,
 )
 
 function llvm_ptx_support(ver::VersionNumber)

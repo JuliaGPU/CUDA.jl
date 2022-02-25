@@ -103,17 +103,9 @@ for (fname, elty) in ((:cublasDscal_v2,:Float64),
     end
 end
 function scal!(n::Integer, alpha::Number, x::StridedCuArray{Float16})
-    if version() > v"10.1"
-        α = convert(Float32, alpha)
-        cublasScalEx(handle(), n, Ref{Float32}(α), Float32, x, Float16, stride(x, 1), Float32)
-        return x
-    else
-        wide_x = widen.(x)
-        scal!(n, alpha, wide_x)
-        thin_x = convert(typeof(x), wide_x)
-        copyto!(x, thin_x)
-        return x
-    end
+    α = convert(Float32, alpha)
+    cublasScalEx(handle(), n, Ref{Float32}(α), Float32, x, Float16, stride(x, 1), Float32)
+    return x
 end
 # specific variants in case x is complex and alpha is real
 for (fname, elty, celty) in ((:cublasCsscal_v2, :Float32, :ComplexF32),
@@ -153,13 +145,9 @@ for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
     end
 end
 function dot(n::Integer, x::StridedCuArray{Float16}, y::StridedCuArray{Float16})
-    if version() > v"10.1"
-        result = Ref{Float16}()
-        cublasDotEx(handle(), n, x, Float16, stride(x, 1), y, Float16, stride(y, 1), result, Float16, Float32)
-        return result[]
-    else
-        return convert(Float16, dot(n, convert(CuArray{Float32}, x), convert(CuArray{Float32}, y)))
-    end
+    result = Ref{Float16}()
+    cublasDotEx(handle(), n, x, Float16, stride(x, 1), y, Float16, stride(y, 1), result, Float16, Float32)
+    return result[]
 end
 function dotc(n::Integer, x::StridedCuArray{ComplexF16}, y::StridedCuArray{ComplexF16})
     return convert(ComplexF16, dotc(n, convert(CuArray{ComplexF32}, x), convert(CuArray{ComplexF32}, y)))
@@ -185,15 +173,9 @@ end
 nrm2(x::StridedCuArray) = nrm2(length(x), x)
 
 function nrm2(n::Integer, x::StridedCuArray{Float16})
-    if version() > v"10.1"
-        result = Ref{Float16}()
-        cublasNrm2Ex(handle(), n, x, Float16, stride(x, 1), result, Float16, Float32)
-        return result[]
-    else
-        wide_x = widen.(x)
-        nrm    = nrm2(n, wide_x)
-        return convert(Float16, nrm)
-    end
+    result = Ref{Float16}()
+    cublasNrm2Ex(handle(), n, x, Float16, stride(x, 1), result, Float16, Float32)
+    return result[]
 end
 function nrm2(n::Integer, x::StridedCuArray{ComplexF16})
     wide_x = widen.(x)
@@ -233,18 +215,9 @@ for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
 end
 
 function axpy!(n::Integer, alpha::Number, dx::StridedCuArray{Float16}, dy::StridedCuArray{Float16})
-    if version() >= v"10.1"
-        α = convert(Float32, alpha)
-        cublasAxpyEx(handle(), n, Ref{Float32}(α), Float32, dx, Float16, stride(dx, 1), dy, Float16, stride(dy, 1), Float32)
-        return dy
-    else
-        wide_x = widen.(dx)
-        wide_y = widen.(dy)
-        axpy!(n, alpha, wide_x, wide_y)
-        thin_y = convert(typeof(dy), wide_y)
-        copyto!(dy, thin_y)
-        return dy
-    end
+    α = convert(Float32, alpha)
+    cublasAxpyEx(handle(), n, Ref{Float32}(α), Float32, dx, Float16, stride(dx, 1), dy, Float16, stride(dy, 1), Float32)
+    return dy
 end
 function axpy!(n::Integer, alpha::Number, dx::StridedCuArray{ComplexF16}, dy::StridedCuArray{ComplexF16})
     wide_x = widen.(dx)
