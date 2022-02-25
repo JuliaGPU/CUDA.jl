@@ -28,17 +28,63 @@ SparseArrays.sparse(I::CuVector, J::CuVector, V::CuVector, m, n; kws...) =
     sparse(Cint.(I), Cint.(J), V, m, n; kws...)
 
 function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{Tv}, m, n;
-            fmt=:csc) where Tv
-    spcoo = CuSparseMatrixCOO{Tv}(I, J, V, (m, n))
+                             fmt=:csc, sorted::Bool=false) where Tv
+    coo = CuSparseMatrixCOO{Tv}(I, J, V, (m, n))
+
+    # The COO format is assumed to be sorted by row.
+    if !sorted
+        coo = sort_rows(coo)
+    end
+
     if fmt == :csc
-        return CuSparseMatrixCSC(spcoo)
+        return CuSparseMatrixCSC(coo)
     elseif fmt == :csr
-        return CuSparseMatrixCSR(spcoo)
+        return CuSparseMatrixCSR(coo)
     elseif fmt == :coo
-        return spcoo
+        return coo
     else
         error("Format :$fmt not available, use :csc, :csr, or :coo.")
     end
+end
+
+function sort_rows(coo::CuSparseMatrixCOO{Tv,Ti}) where {Tv <: BlasFloat,Ti}
+    m,n = size(coo)
+
+    perm = CuArray{Ti}(undef, nnz(coo))
+    cusparseCreateIdentityPermutation(handle(), nnz(coo), perm)
+
+    sorted_rowInd = copy(coo.rowInd)
+    sorted_colInd = copy(coo.colInd)
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cusparseXcoosort_bufferSizeExt(handle(), m, n, nnz(coo), coo.rowInd,
+            coo.colInd, out)
+        return out[]
+    end
+    with_workspace(bufferSize) do buffer
+        cusparseXcoosortByRow(handle(), m, n, nnz(coo), sorted_rowInd, sorted_colInd, perm, buffer)
+    end
+
+    sorted_nzVal = similar(coo.nzVal)
+    let spvec = CuSparseVector(perm, sorted_nzVal, nnz(coo))
+        if version() >= v"11.1.1"
+            gather!(spvec, nonzeros(coo), 'Z')
+        else
+            gthr!(spvec, nonzeros(coo), 'Z')
+        end
+    end
+
+    CUDA.unsafe_free!(perm)
+    CuSparseMatrixCOO{Tv}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(coo))
+end
+function sort_rows(coo::CuSparseMatrixCOO{Tv,Ti}) where {Tv,Ti}
+    perm = sortperm(coo.rowInd)
+    sorted_rowInd = coo.rowInd[perm]
+    sorted_colInd = coo.colInd[perm]
+    sorted_nzVal = coo.nzVal[perm]
+    CUDA.unsafe_free!(perm)
+
+    CuSparseMatrixCOO{Tv}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(coo))
 end
 
 
@@ -482,7 +528,7 @@ for (elty, welty) in ((:Float16, :Float32),
                 end
                 return denseA
             else
-                wide_csc = CuSparseMatrixCSR(csc.rowPtr, csc.colVal, convert(CuVector{$welty}, nonzeros(csc)), size(csc))
+                wide_csc = CuSparseMatrixCSC(csc.colPtr, csc.rowVal, convert(CuVector{$welty}, nonzeros(csc)), size(csc))
                 wide_dense = CuArray{$welty}(wide_csc)
                 denseA = convert(CuArray{$elty}, wide_dense)
                 return denseA
