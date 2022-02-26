@@ -272,6 +272,9 @@ function mm!(transa::SparseChar, transb::SparseChar, α::Number, A::CuSparseMatr
     Cn   = Ref{Int64}()
     Cnnz1 = Ref{Int64}()
     cusparseSpMatGetSize(descC, Cm, Cn, Cnnz1)
+    # SpGEMM_copy assumes A*B and C have the same sparsity pattern if
+    # beta is not zero. If that isn't the case, we must use broadcasted
+    # add to get the correct result.
     if beta == zero(beta)
         unsafe_free!(C.rowPtr)
         unsafe_free!(C.colVal)
