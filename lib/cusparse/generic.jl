@@ -251,3 +251,77 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
 
     return C
 end
+
+function mm!(transa::SparseChar, transb::SparseChar, α::Number, A::CuSparseMatrixCSR{T},
+             B::CuSparseMatrixCSR{T}, β::Number, C::CuSparseMatrixCSR{T}, index::SparseChar) where {T}
+    m,k = size(A)
+    n = size(C)[2]
+    alpha = convert(T, α)
+    beta  = convert(T, β)
+
+    if transa == 'N' && transb == 'N'
+        chkmmdims(B,C,k,n,m,n)
+    else
+        throw(ArgumentError("Sparse mm! only supports transa ($transa) = 'N' and transb ($transb) = 'N'"))
+    end
+
+    descA = CuSparseMatrixDescriptor(A, index)
+    descB = CuSparseMatrixDescriptor(B, index)
+    descC = CuSparseMatrixDescriptor(C, index)
+
+    spgemm_Desc = CuSpGEMMDescriptor()
+    function buffer1Size()
+        out = Ref{Csize_t}(0)
+        cusparseSpGEMM_workEstimation(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, CUSPARSE_SPGEMM_DEFAULT, spgemm_Desc, out, CU_NULL)
+        return out[]
+    end
+    with_workspace(buffer1Size; keep=true) do buffer
+        out = Ref{Csize_t}(sizeof(buffer))
+        cusparseSpGEMM_workEstimation(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, CUSPARSE_SPGEMM_DEFAULT, spgemm_Desc, out, buffer)
+    end
+    function buffer2Size()
+        out = Ref{Csize_t}(0)
+        cusparseSpGEMM_compute(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, CUSPARSE_SPGEMM_DEFAULT, spgemm_Desc, out, CU_NULL)
+        return out[]
+    end
+    with_workspace(buffer2Size; keep=true) do buffer
+        out = Ref{Csize_t}(sizeof(buffer))
+        cusparseSpGEMM_compute(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, CUSPARSE_SPGEMM_DEFAULT, spgemm_Desc, out, buffer)
+    end
+    Cm   = Ref{Int64}()
+    Cn   = Ref{Int64}()
+    Cnnz1 = Ref{Int64}()
+    cusparseSpMatGetSize(descC, Cm, Cn, Cnnz1)
+    # SpGEMM_copy assumes A*B and C have the same sparsity pattern if
+    # beta is not zero. If that isn't the case, we must use broadcasted
+    # add to get the correct result.
+    if beta == zero(beta)
+        unsafe_free!(C.rowPtr)
+        unsafe_free!(C.colVal)
+        unsafe_free!(C.nzVal)
+        C.rowPtr = CuVector{Cint}(undef, Cm[] + 1)
+        C.colVal = CuVector{Cint}(undef, Cnnz1[])
+        C.nzVal  = CuVector{T}(undef, Cnnz1[])
+        C.nnz    = Cnnz1[]
+        cusparseCsrSetPointers(descC, C.rowPtr, C.colVal, C.nzVal)
+        cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB,
+                            Ref{T}(beta), descC, T, CUSPARSE_SPGEMM_DEFAULT, spgemm_Desc)
+        return C
+    else
+        newC = CuSparseMatrixCSR(CUDA.zeros(Cint, Cm[] + 1), CUDA.zeros(Cint, Cnnz1[]), CUDA.zeros(T, Cnnz1[]), (Cm[], Cn[]))
+        descnewC = CuSparseMatrixDescriptor(newC, index)
+        cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB,
+                            Ref{T}(beta), descnewC, T, CUSPARSE_SPGEMM_DEFAULT, spgemm_Desc)
+        D = beta.*C .+ newC
+        return D 
+    end
+end
+
