@@ -324,7 +324,7 @@ for ops in all_wmma_ops,
 
     # Name of the LLVM intrinsic
     # If integer/sub-byte/bit A/B types, name is determined by A/B types
-    if d_elem_type == "s32"
+    if d_elem_type == "s32" || a_elem_type == "tf32"
         llvm_intr = "llvm.nvvm.wmma.$shape.mma.$a_layout.$b_layout.$a_elem_type"
         # Name of the Julia wrapper function
         func_name = Symbol(join(filter(!isempty, ["llvm", "wmma", "mma", a_layout, b_layout, shape, a_elem_type]), "_"))
