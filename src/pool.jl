@@ -135,6 +135,56 @@ end
 
 export OutOfGPUMemoryError
 
+struct MemoryInfo
+  free_bytes::Int
+  total_bytes::Int
+  pool_reserved_bytes::Union{Int,Missing,Nothing}
+  pool_used_bytes::Union{Int,Missing,Nothing}
+
+  function MemoryInfo()
+    free_bytes, total_bytes = Mem.info()
+
+    pool_reserved_bytes, pool_used_bytes = if stream_ordered(device())
+      if version() >= v"11.3"
+        cached_memory(), used_memory()
+      else
+        missing
+      end
+    else
+      nothing
+    end
+
+    new(free_bytes, total_bytes, pool_reserved_bytes, pool_used_bytes)
+  end
+end
+
+"""
+    memory_status([io=stdout])
+
+Report to `io` on the memory status of the current GPU and the active memory pool.
+"""
+function memory_status(io::IO=stdout, info::MemoryInfo=MemoryInfo())
+  state = active_state()
+  ctx = context()
+
+  used_bytes = info.total_bytes - info.free_bytes
+  used_ratio = used_bytes / info.total_bytes
+  @printf(io, "Effective GPU memory usage: %.2f%% (%s/%s)\n",
+              100*used_ratio, Base.format_bytes(used_bytes),
+              Base.format_bytes(info.total_bytes))
+
+  if info.pool_reserved_bytes === nothing
+    @printf(io, "No memory pool is in use.")
+  elseif info.pool_reserved_bytes === missing
+    @printf(io, "Memory pool statistics require CUDA 11.3.")
+  else
+    @printf(io, "Memory pool usage: %s (%s reserved)",
+                Base.format_bytes(info.pool_used_bytes),
+                Base.format_bytes(info.pool_reserved_bytes))
+
+  end
+end
+
 """
     OutOfGPUMemoryError()
 
@@ -143,8 +193,9 @@ handle properly.
 """
 struct OutOfGPUMemoryError <: Exception
   sz::Int
+  info::MemoryInfo
 
-  OutOfGPUMemoryError(sz::Integer=0) = new(sz)
+  OutOfGPUMemoryError(sz::Integer=0) = new(sz, MemoryInfo())
 end
 
 function Base.showerror(io::IO, err::OutOfGPUMemoryError)
@@ -153,7 +204,7 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
       print(io, " trying to allocate $(Base.format_bytes(err.sz))")
     end
     println(io)
-    memory_status(io)
+    memory_status(io, err.info)
 end
 
 """
@@ -450,38 +501,6 @@ macro timed(ex)
          cpu_bytes=cpu_mem_stats.allocd, cpu_gctime=cpu_mem_stats.total_time / 1e9, cpu_gcstats=cpu_mem_stats,
          gpu_bytes=gpu_mem_stats.alloc_bytes, gpu_memtime=gpu_mem_stats.total_time, gpu_memstats=gpu_mem_stats)
     end
-end
-
-"""
-    memory_status([io=stdout])
-
-Report to `io` on the memory status of the current GPU and the active memory pool.
-"""
-function memory_status(io::IO=stdout)
-  state = active_state()
-  ctx = context()
-
-  free_bytes, total_bytes = Mem.info()
-  used_bytes = total_bytes - free_bytes
-  used_ratio = used_bytes / total_bytes
-  @printf(io, "Effective GPU memory usage: %.2f%% (%s/%s)\n",
-              100*used_ratio, Base.format_bytes(used_bytes),
-              Base.format_bytes(total_bytes))
-
-  if stream_ordered(state.device)
-    pool = memory_pool(state.device)
-    if version() >= v"11.3"
-      pool_reserved_bytes = cached_memory()
-      pool_used_bytes = used_memory()
-      @printf(io, "Memory pool usage: %s (%s reserved)",
-                  Base.format_bytes(pool_used_bytes),
-                  Base.format_bytes(pool_reserved_bytes))
-    else
-      @printf(io, "Memory pool statistics require CUDA 11.3.")
-    end
-  else
-    @printf(io, "No memory pool is in use.")
-  end
 end
 
 """
