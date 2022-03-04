@@ -24,7 +24,7 @@ const map_ptx_to_jl_frag = Dict(
                                 "s8"  => UInt32,
                                 "s32" => Int32,
                                 "f16" => NTuple{2, VecElement{Float16}},
-                                "bf16" => BFloat16,
+                                "bf16" => Float32,
                                 "f32" => Float32
                                )
 
@@ -43,7 +43,9 @@ const map_frag_sizes = Dict(
                             "a.f16.m8n32k16"  => 8,
                             "a.f16.m32n8k16"  => 8,
 
-                            "a.bf16.m16n16k16" => 8,
+                            "a.bf16.m16n16k16" => 4,
+                            "a.bf16.m8n32k16" => 2,
+                            "a.bf16.m32n8k16" => 8,
                             # B
                             "b.u8.m16n16k16"  => 2,
                             "b.u8.m8n32k16"   => 4,
@@ -57,8 +59,10 @@ const map_frag_sizes = Dict(
                             "b.f16.m8n32k16"  => 8,
                             "b.f16.m32n8k16"  => 8,
 
-                            "b.bf16.m16n16k16" => 8,
-                            # C                            
+                            "b.bf16.m16n16k16" => 4,
+                            "b.bf16.m8n32k16" => 8,
+                            "b.bf16.m32n8k16" => 2,
+                            # C
                             "c.s32.m16n16k16" => 8,
                             "c.s32.m8n32k16"  => 8,
                             "c.s32.m32n8k16"  => 8,
@@ -102,8 +106,8 @@ const ldst_int_ab_ops = [(16,16,16), (32,8,16), (8,32,16)], ["a", "b"], ["u8", "
 const ldst_int_cd_ops = [(16,16,16), (32,8,16), (8,32,16)], ["c", "d"], ["s32"]
 const wmma_int_ops    = [(16,16,16), (32,8,16), (8,32,16)], ["s8", "u8"], ["s32"], ["s32"]
 # BFloat16
-const ldst_bf16_ab_ops = [(16,16,16)], ["a", "b"], ["bf16"]
-const wmma_bf16_ops    = [(16,16,16)], ["bf16"], ["f32"], ["f32"]
+const ldst_bf16_ab_ops = [(16,16,16), (32,8,16), (8,32,16)], ["a", "b"], ["bf16"]
+const wmma_bf16_ops    = [(16,16,16), (32,8,16), (8,32,16)], ["bf16"], ["f32"], ["f32"]
 
 const all_ldst_ops = vcat(ldst_half_ab_ops, ldst_half_cd_ops,
                           ldst_int_ab_ops,  ldst_int_cd_ops,
