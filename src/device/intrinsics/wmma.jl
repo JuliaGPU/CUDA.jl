@@ -43,7 +43,7 @@ const map_frag_sizes = Dict(
                             "a.f16.m8n32k16"  => 8,
                             "a.f16.m32n8k16"  => 8,
                             
-                            "a.tf32.m16n16k8" => 8,
+                            "a.tf32.m16n16k8" => 4,
                             # B
                             "b.u8.m16n16k16"  => 2,
                             "b.u8.m8n32k16"   => 4,
@@ -57,7 +57,7 @@ const map_frag_sizes = Dict(
                             "b.f16.m8n32k16"  => 8,
                             "b.f16.m32n8k16"  => 8,
 
-                            "b.tf32.m16n16k8" => 8,
+                            "b.tf32.m16n16k8" => 4,
                             # C                            
                             "c.s32.m16n16k16" => 8,
                             "c.s32.m8n32k16"  => 8,
