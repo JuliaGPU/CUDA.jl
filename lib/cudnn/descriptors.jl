@@ -18,6 +18,7 @@ macro cudnnDescriptor(x, set = Symbol("cudnnSet$(x)Descriptor"))
     sname = Symbol("cudnn$(x)Descriptor")
     tname = Symbol("cudnn$(x)Descriptor_t")
     cache = Symbol("cudnn$(x)DescriptorCache")
+    cache_lock = Symbol("cudnn$(x)DescriptorCacheLock")
     create = Symbol("cudnnCreate$(x)Descriptor")
     destroy = Symbol("cudnnDestroy$(x)Descriptor")
     return quote
@@ -27,14 +28,17 @@ macro cudnnDescriptor(x, set = Symbol("cudnnSet$(x)Descriptor"))
         end
         Base.unsafe_convert(::Type{<:Ptr}, d::$sname)=d.ptr # needed for ccalls
         const $cache = Dict{Tuple,$sname}()                 # Dict is 3x faster than IdDict!
+        const $cache_lock = ReentrantLock()
         function $sname(args...)
-            get!($cache, args) do
-                ptr = $tname[C_NULL]
-                $create(ptr)
-                $set(ptr[1], args...)
-                d = $sname(ptr[1])
-                finalizer(x->$destroy(x.ptr), d)
-                return d
+            lock($cache_lock) do
+                get!($cache, args) do
+                    ptr = $tname[C_NULL]
+                    $create(ptr)
+                    $set(ptr[1], args...)
+                    d = $sname(ptr[1])
+                    finalizer(x->$destroy(x.ptr), d)
+                    return d
+                end
             end
         end
     end |> esc
