@@ -116,15 +116,15 @@ version = "1.4.1"
 
 [[LLVM]]
 deps = ["CEnum", "LLVMExtra_jll", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "761c362ede582d358026e22d08695231dd25242e"
+git-tree-sha1 = "302e6cfb8d83ba7a9658d7d51725620fa9db8702"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "4.8.0"
+version = "4.9.0"
 
 [[LLVMExtra_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "67cc5406b15bd04ff72a45f628bec61d36078908"
+deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
+git-tree-sha1 = "5558ad3c8972d602451efe9d81c78ec14ef4f5ef"
 uuid = "dad2f222-ce93-54a1-a47d-0025e8a3acab"
-version = "0.0.13+3"
+version = "0.0.14+2"
 
 [[LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
@@ -212,10 +212,10 @@ deps = ["Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [[Random123]]
-deps = ["Libdl", "Random", "RandomNumbers"]
-git-tree-sha1 = "0e8b146557ad1c6deb1367655e052276690e71a3"
+deps = ["Random", "RandomNumbers"]
+git-tree-sha1 = "afeacaecf4ed1649555a19cb2cad3c141bbc9474"
 uuid = "74087812-796a-5b5d-8853-05524746bad3"
-version = "1.4.2"
+version = "1.5.0"
 
 [[RandomNumbers]]
 deps = ["Random", "Requires"]
