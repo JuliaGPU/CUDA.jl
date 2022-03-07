@@ -680,3 +680,32 @@ function find_nccl(cuda::LocalToolkit, name, version)
     Libdl.dlopen(path)
     return path
 end
+
+export libcutensornet, has_cutensornet, libcustatevec, has_custatevec
+
+const __libcutensornet = Ref{Union{String,Nothing}}()
+function libcutensornet(; throw_error::Bool=true)
+    path = @initialize_ref __libcutensornet begin
+        # CUTENSORNET depends on CUTENSOR
+        libcutensor()
+
+        find_library("cutensornet", locations=[joinpath(ENV["HOME"],"cuquantum")])
+    end
+    if path === nothing && throw_error
+        error("This functionality is unavailabe as CUTENSORNET is missing.")
+    end
+    return path
+end
+has_cutensornet() = libcutensornet(throw_error=false) !== nothing
+
+const __libcustatevec = Ref{Union{String,Nothing}}()
+function libcustatevec(; throw_error::Bool=true)
+    path = @initialize_ref __libcustatevec begin
+        find_library("custatevec", locations=[joinpath(ENV["HOME"],"cuquantum")])
+    end
+    if path === nothing && throw_error
+        error("This functionality is unavailabe as CUSTATEVEC is missing.")
+    end
+    return path
+end
+has_custatevec() = libcustatevec(throw_error=false) !== nothing
