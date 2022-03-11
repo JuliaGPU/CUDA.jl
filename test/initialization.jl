@@ -88,11 +88,12 @@ if length(devices()) > 1
 
     # math_mode
     old_mm = CUDA.math_mode()
+    old_prec = CUDA.math_precision()
     CUDA.math_mode!(CUDA.PEDANTIC_MATH)
     @test CUDA.math_mode() == CUDA.PEDANTIC_MATH
     CUDA.math_mode!(CUDA.PEDANTIC_MATH; precision=:Float16)
     @test CUDA.math_precision() == :Float16
-    CUDA.math_mode!(old_mm)
+    CUDA.math_mode!(old_mm; precision=old_prec)
     # ensure the values we tested here aren't the defaults
     @test CUDA.math_mode() != CUDA.PEDANTIC_MATH
     @test CUDA.math_precision() != :Float16
