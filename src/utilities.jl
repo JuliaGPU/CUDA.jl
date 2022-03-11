@@ -112,7 +112,7 @@ function run_compute_sanitizer(julia_args=``; tool::String="memcheck", sanitizer
 
     # propagate --project
     if Base.JLOptions().project != C_NULL
-        push!(test_exeflags.exec, "--project=$(unsafe_string(Base.JLOptions().project))")
+        push!(cmd.exec, "--project=$(unsafe_string(Base.JLOptions().project))")
     end
 
     println("Re-starting your active Julia session...")
