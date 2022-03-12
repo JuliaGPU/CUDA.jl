@@ -1,8 +1,8 @@
 module CUTENSORNET
 
-using ..CUDA
-using ..CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace
-using ..CUDA: libcutensornet, @retry_reclaim, initialize_context
+using CUDA
+using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace
+using CUDA: libcutensornet, @retry_reclaim, initialize_context
 
 using CEnum: @cenum
 

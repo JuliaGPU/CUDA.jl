@@ -1,8 +1,8 @@
 module CUSTATEVEC
 
-using ..CUDA
-using ..CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace, libraryPropertyType
-using ..CUDA: libcustatevec, unsafe_free!, @retry_reclaim, initialize_context
+using CUDA
+using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace, libraryPropertyType
+using CUDA: libcustatevec, unsafe_free!, @retry_reclaim, initialize_context
 
 using CEnum: @cenum
 

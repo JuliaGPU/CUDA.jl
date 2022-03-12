@@ -1,5 +1,7 @@
-using CUDA.CUTENSORNET
-import CUDA.CUTENSORNET: CuTensorNetwork, rehearse_contraction, perform_contraction!, AutoTune, NoAutoTune
+using Test
+using CUDA
+using CUTENSORNET
+import CUTENSORNET: CuTensorNetwork, rehearse_contraction, perform_contraction!, AutoTune, NoAutoTune
 
 @testset "CUTENSORNET" begin
     n = 8

@@ -1,5 +1,6 @@
-using CUDA.CUSTATEVEC
-import CUDA.CUSTATEVEC: CuStateVec, applyMatrix!, expectation, sample
+using Test
+using CUSTATEVEC
+import CUSTATEVEC: CuStateVec, applyMatrix!, expectation, sample
 
 @testset "CUSTATEVEC" begin
     # build a simple state and compute expectations
@@ -13,7 +14,7 @@ import CUDA.CUSTATEVEC: CuStateVec, applyMatrix!, expectation, sample
         exp, res = expectation(sv, Z, Int32[0])
         @test exp ≈ 0.0 atol=1e-6
         exp, res = expectation(sv, X, Int32[0])
-        @test exp ≈ 1.0 atol=1e-6
+        @test exp ≈ 0.0 atol=1e-6
     end
     # build a simple state with controls and compute expectations
     n_q = 2
