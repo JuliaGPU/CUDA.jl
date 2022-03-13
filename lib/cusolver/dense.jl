@@ -117,7 +117,7 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
                             (:cusolverDnCgetrf_bufferSize, :cusolverDnCgetrf, :ComplexF32),
                             (:cusolverDnZgetrf_bufferSize, :cusolverDnZgetrf, :ComplexF64))
     @eval begin
-        function getrf!(A::StridedCuMatrix{$elty})
+        function LAPACK.getrf!(A::StridedCuMatrix{$elty})
             m,n     = size(A)
             lda     = max(1, stride(A, 2))
 
@@ -141,7 +141,7 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
                 throw(LinearAlgebra.SingularException(info))
             end
 
-            A, devipiv
+            A, devipiv, info
         end
     end
 end
