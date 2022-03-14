@@ -148,10 +148,10 @@ struct MemoryInfo
       if version() >= v"11.3"
         cached_memory(), used_memory()
       else
-        missing
+        missing, missing
       end
     else
-      nothing
+      nothing, nothing
     end
 
     new(free_bytes, total_bytes, pool_reserved_bytes, pool_used_bytes)
