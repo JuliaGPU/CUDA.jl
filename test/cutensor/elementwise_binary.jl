@@ -130,16 +130,16 @@ eltypes = ((Float16, Float16),
         @test hD ≈ permutedims(A, p) .- C
 
         α = rand(eltyD)
-        ctD = CuTensor(copy(ctC.data), copy(ctC.inds))
-        ctE = LinearAlgebra.axpy!(α, ctA, ctD)
-        @test ctE == ctD
+        ctC_copy = copy(ctC)
+        ctD = LinearAlgebra.axpy!(α, ctA, ctC_copy)
+        @test ctD == ctC_copy
         hD = collect(ctD.data)
         @test hD ≈ α.*permutedims(A, p) .+ C
 
         γ = rand(eltyD)
-        ctD = CuTensor(copy(ctC.data), copy(ctC.inds))
-        ctE = LinearAlgebra.axpby!(α, ctA, γ, ctD)
-        @test ctE == ctD
+        ctC_copy = copy(ctC)
+        ctD = LinearAlgebra.axpby!(α, ctA, γ, ctC_copy)
+        @test ctD == ctC_copy
         hD = collect(ctD.data)
         @test hD ≈ α.*permutedims(A, p) .+ γ.*C
     end
