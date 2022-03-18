@@ -180,7 +180,7 @@ end
 function nrm2(n::Integer, x::StridedCuArray{ComplexF16})
     wide_x = widen.(x)
     nrm    = nrm2(n, wide_x)
-    return convert(ComplexF16, nrm)
+    return convert(Float16, nrm)
 end
 
 ## asum
