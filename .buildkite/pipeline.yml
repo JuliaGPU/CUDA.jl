@@ -40,6 +40,25 @@ steps:
   - label: "Julia 1.8"
     plugins:
       - JuliaCI/julia#v1:
+          version: 1.8
+      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "*"
+    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+    timeout_in_minutes: 120
+    soft_fail:
+      - exit_status: 1
+
+  - label: "Julia nightly"
+    plugins:
+      - JuliaCI/julia#v1:
           version: nightly
       - JuliaCI/julia-test#v1: ~
       - JuliaCI/julia-coverage#v1:
@@ -62,7 +81,7 @@ steps:
     # NOTE: we support those CUDA versions for which the latest cuDNN is available
     #       https://developer.nvidia.com/rdp/cudnn-archive
 
-  - label: "CUDA 11.6"
+  - label: "CUDA {{matrix}}"
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
@@ -76,142 +95,20 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "11.0"
-    env:
-      JULIA_CUDA_VERSION: '11.6'
-      JULIA_CUDA_USE_BINARYBUILDER: 'true'
-    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
-    timeout_in_minutes: 120
-
-  - label: "CUDA 11.5"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: 1.6
-      - JuliaCI/julia-test#v1:
-          test_args: "--thorough"
-      - JuliaCI/julia-coverage#v1:
-          codecov: true
-          dirs:
-            - src
-            - lib
-            - examples
-    agents:
-      queue: "juliagpu"
-      cuda: "11.0"
-    env:
-      JULIA_CUDA_VERSION: '11.5'
-      JULIA_CUDA_USE_BINARYBUILDER: 'true'
-    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
-    timeout_in_minutes: 120
-
-  - label: "CUDA 11.4"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: 1.6
-      - JuliaCI/julia-test#v1:
-          test_args: "--thorough"
-      - JuliaCI/julia-coverage#v1:
-          codecov: true
-          dirs:
-            - src
-            - lib
-            - examples
-    agents:
-      queue: "juliagpu"
-      cuda: "11.0"
       cap: "sm_80"
     env:
-      JULIA_CUDA_VERSION: '11.4'
+      JULIA_CUDA_VERSION: "{{matrix}}"
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
     timeout_in_minutes: 120
-
-  - label: "CUDA 11.3"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: 1.6
-      - JuliaCI/julia-test#v1:
-          test_args: "--thorough"
-      - JuliaCI/julia-coverage#v1:
-          codecov: true
-          dirs:
-            - src
-            - lib
-            - examples
-    agents:
-      queue: "juliagpu"
-      cuda: "11.0"
-      cap: "sm_80"
-    env:
-      JULIA_CUDA_VERSION: '11.3'
-      JULIA_CUDA_USE_BINARYBUILDER: 'true'
-    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
-    timeout_in_minutes: 120
-
-  - label: "CUDA 11.2"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: 1.6
-      - JuliaCI/julia-test#v1:
-          test_args: "--thorough"
-      - JuliaCI/julia-coverage#v1:
-          codecov: true
-          dirs:
-            - src
-            - lib
-            - examples
-    agents:
-      queue: "juliagpu"
-      cuda: "11.0"
-      cap: "sm_80"
-    env:
-      JULIA_CUDA_VERSION: '11.2'
-      JULIA_CUDA_USE_BINARYBUILDER: 'true'
-    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
-    timeout_in_minutes: 120
-
-  - label: "CUDA 11.1"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: 1.6
-      - JuliaCI/julia-test#v1:
-          test_args: "--thorough"
-      - JuliaCI/julia-coverage#v1:
-          codecov: true
-          dirs:
-            - src
-            - lib
-            - examples
-    agents:
-      queue: "juliagpu"
-      cuda: "11.0"
-      cap: "sm_80"
-    env:
-      JULIA_CUDA_VERSION: '11.1'
-      JULIA_CUDA_USE_BINARYBUILDER: 'true'
-    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
-    timeout_in_minutes: 120
-
-  - label: "CUDA 11.0"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: 1.6
-      - JuliaCI/julia-test#v1:
-          test_args: "--thorough"
-      - JuliaCI/julia-coverage#v1:
-          codecov: true
-          dirs:
-            - src
-            - lib
-            - examples
-    agents:
-      queue: "juliagpu"
-      cuda: "11.0"
-      cap: "sm_80"
-    env:
-      JULIA_CUDA_VERSION: '11.0'
-      JULIA_CUDA_USE_BINARYBUILDER: 'true'
-    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
-    timeout_in_minutes: 120
+    matrix:
+      - "11.6"
+      - "11.5"
+      - "11.4"
+      - "11.3"
+      - "11.2"
+      - "11.1"
+      - "11.0"
 
   - label: "CUDA 10.2"
     plugins:
@@ -323,14 +220,12 @@ steps:
     command: |
       julia --project -e '
         ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
-
         println("--- :julia: Instantiating project")
         using Pkg
         Pkg.instantiate()
         Pkg.activate("perf")
         Pkg.instantiate()
         push!(LOAD_PATH, @__DIR__)
-
         println("+++ :julia: Benchmarking")
         include("perf/runbenchmarks.jl")'
     agents:
@@ -353,14 +248,12 @@ steps:
     command: |
       julia --project -e '
         ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
-
         println("--- :julia: Instantiating project")
         using Pkg
         Pkg.instantiate()
         Pkg.activate("perf")
         Pkg.instantiate()
         push!(LOAD_PATH, @__DIR__)
-
         println("+++ :julia: Benchmarking")
         include("perf/runbenchmarks.jl")'
     agents:
