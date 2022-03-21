@@ -95,6 +95,11 @@ using SpecialFunctions
         @test testf(x->exp.(x), [1e7im])
     end
 
+    @testset "sind/cosd" begin
+        @test testf(a->sind.(a), Float32[0.4])
+        @test testf(a->cosd.(a), Float32[0.4])
+    end
+
     @testset "fastmath" begin
         # libdevice provides some fast math functions
         a(x) = cos(x)
