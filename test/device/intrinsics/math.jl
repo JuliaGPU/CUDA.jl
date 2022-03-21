@@ -96,6 +96,8 @@ using SpecialFunctions
     end
 
     @testset "sind/cosd" begin
+        @test testf(a->sind.(a), 0.4)
+        @test testf(a->cosd.(a), 0.4)
         @test testf(a->sind.(a), Float32[0.4])
         @test testf(a->cosd.(a), Float32[0.4])
     end
