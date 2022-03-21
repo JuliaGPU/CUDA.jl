@@ -638,3 +638,45 @@ function find_cutensor(cuda::LocalToolkit, name, version)
     Libdl.dlopen(path)
     return path
 end
+
+
+#
+# NCCL
+#
+
+export libnccl, has_cnccl
+
+const __libnccl = Ref{Union{String,Nothing}}()
+function libnccl(; throw_error::Bool=true)
+    path = @initialize_ref __libnccl begin
+        find_nccl(toolkit(), "nccl", v"1")
+    end
+    if path === nothing && throw_error
+        error("This functionality is unavailabe as CUTENSOR is missing.")
+    end
+    path
+end
+has_nccl() = libnccl(throw_error=false) !== nothing
+
+function find_nccl(cuda::ArtifactToolkit, name, version)
+    artifact_dir = cuda_artifact("NCCL", cuda.release)
+    if artifact_dir === nothing
+        return nothing
+    end
+    path = artifact_library(artifact_dir, name, [version])
+
+    @debug "Using NCCL library $name from an artifact at $(artifact_dir)"
+    Libdl.dlopen(path)
+    return path
+end
+
+function find_nccl(cuda::LocalToolkit, name, version)
+    path = find_library(name, [version]; locations=cuda.dirs)
+    if path === nothing
+        return nothing
+    end
+
+    @debug "Using local NCCL library $name at $(path)"
+    Libdl.dlopen(path)
+    return path
+end
