@@ -28,11 +28,8 @@ within(lower, upper) = (val) -> lower <= val <= upper
 @device_override Base.tan(x::Float32) = ccall("extern __nv_tanf", llvmcall, Cfloat, (Cfloat,), x)
 @device_override FastMath.tan_fast(x::Float32) = ccall("extern __nv_fast_tanf", llvmcall, Cfloat, (Cfloat,), x)
 
-@device_override Base.cosd(x::Float64) = ccall("extern __nv_cosd", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.cosd(x::Float32) = ccall("extern __nv_cosdf", llvmcall, Cfloat, (Cfloat,), x)
-
-@device_override Base.sind(x::Float64) = ccall("extern __nv_sind", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.sind(x::Float32) = ccall("extern __nv_sindf", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.sind(φ::Union{Float32, Float64}) = sin(π * φ / 180)
+@device_override Base.cosd(φ::Union{Float32, Float64}) = cos(π * φ / 180)
 
 @device_override function Base.sincos(x::Float64)
     s = Ref{Cdouble}()
