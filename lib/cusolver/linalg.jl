@@ -57,11 +57,65 @@ end
 
 # factorizations
 
-using LinearAlgebra: Factorization
+using LinearAlgebra: Factorization, AbstractQ
 
 ## QR
 
-using LinearAlgebra: AbstractQ
+if VERSION >= v"1.8-"
+
+LinearAlgebra.qr!(A::CuMatrix{T}) where T = QR(geqrf!(A::CuMatrix{T})...)
+
+# conversions
+CuMatrix(F::Union{QR,QRCompactWY}) = CuArray(AbstractArray(F))
+CuArray(F::Union{QR,QRCompactWY}) = CuMatrix(F)
+CuMatrix(F::QRPivoted) = CuArray(AbstractArray(F))
+CuArray(F::QRPivoted) = CuMatrix(F)
+
+function LinearAlgebra.ldiv!(_qr::QR, b::CuArray)
+    _x = UpperTriangular(_qr.R) \ (_qr.Q' * reshape(b,length(b),1))
+    b .= vec(_x)
+    unsafe_free!(_x)
+    return b
+end
+
+function LinearAlgebra.ldiv!(x::CuArray, _qr::QR, b::CuArray)
+    _x = UpperTriangular(_qr.R) \ (_qr.Q' * reshape(b,length(b),1))
+    x .= vec(_x)
+    unsafe_free!(_x)
+    return x
+end
+
+# conversions of factorizations
+CuArray(Q::AbstractQ) = CuMatrix(Q)
+CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
+CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
+CuMatrix{T}(Q::AbstractQ{S}) where {T,S} =
+    CuMatrix{T}(lmul!(Q, CuMatrix{S}(I, size(Q, 1), min(size(Q.factors)...))))
+# avoid the CPU array in the above mul!
+Matrix{T}(Q::QRPackedQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
+Matrix{T}(Q::QRCompactWYQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
+
+function Base.getindex(Q::QRPackedQ{<:Any, <:CuArray}, ::Colon, j::Int)
+    y = CUDA.zeros(eltype(Q), size(Q, 2))
+    y[j] = 1
+    lmul!(Q, y)
+end
+
+# multiplication by Q
+LinearAlgebra.lmul!(A::QRPackedQ{T,<:CuArray,<:CuArray},
+                    B::CuVecOrMat{T}) where {T<:Number} =
+    ormqr!('L', 'N', A.factors, A.τ, B)
+LinearAlgebra.lmul!(adjA::Adjoint{T,<:QRPackedQ{T,<:CuArray,<:CuArray}},
+                    B::CuVecOrMat{T}) where {T<:Real} =
+    ormqr!('L', 'T', parent(adjA).factors, parent(adjA).τ, B)
+LinearAlgebra.lmul!(adjA::Adjoint{T,<:QRPackedQ{T,<:CuArray,<:CuArray}},
+                    B::CuVecOrMat{T}) where {T<:Complex} =
+    ormqr!('L', 'C', parent(adjA).factors, parent(adjA).τ, B)
+LinearAlgebra.lmul!(trA::Transpose{T,<:QRPackedQ{T,<:CuArray,<:CuArray}},
+                    B::CuVecOrMat{T}) where {T<:Number} =
+    ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
+
+else
 
 struct CuQR{T,S<:AbstractMatrix} <: Factorization{T}
     factors::S
@@ -152,6 +206,8 @@ function LinearAlgebra.ldiv!(x::CuArray,_qr::CuQR, b::CuArray)
     x .= vec(_x)
     unsafe_free!(_x)
     return x
+end
+
 end
 
 ## SVD

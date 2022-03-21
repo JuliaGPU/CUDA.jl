@@ -402,8 +402,12 @@ k = 1
         CUDA.@allowscalar begin
             qval = d_F.Q[1, 1]
             @test qval ≈ qra.Q[1, 1]
-            qrstr = sprint(show, d_F)
-            @test qrstr == "$(typeof(d_F)) with factors Q and R:\n$(sprint(show, d_F.Q))\n$(sprint(show, d_F.R))"
+            qrstr = sprint(show, MIME"text/plain"(), d_F)
+            if VERSION >= v"1.8-"
+                @test qrstr == "$(typeof(d_F))\nQ factor:\n$(sprint(show, MIME"text/plain"(), d_F.Q))\nR factor:\n$(sprint(show, MIME"text/plain"(), d_F.R))"
+            else
+                @test qrstr == "$(typeof(d_F)) with factors Q and R:\n$(sprint(show, d_F.Q))\n$(sprint(show, d_F.R))"
+            end
         end
         dQ, dR = d_F
         @test collect(dQ*dR) ≈ A
