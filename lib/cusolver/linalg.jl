@@ -212,7 +212,33 @@ end
 
 ## SVD
 
-struct CuSVD{T,Tr,A<:AbstractMatrix{T}} <: Factorization{T}
+abstract type SVDAlgorithm end
+struct QRAlgorithm <: SVDAlgorithm end
+struct JacobiAlgorithm <: SVDAlgorithm end
+
+if VERSION >= v"1.8-"
+
+LinearAlgebra.svd!(A::CuMatrix{T}; full::Bool=false,
+                   alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
+    _svd!(A, full, alg)
+LinearAlgebra.svd(A::CuMatrix; full=false, alg::SVDAlgorithm=JacobiAlgorithm()) =
+    _svd!(copy(A), full, alg)
+
+_svd!(A::CuMatrix{T}, full::Bool, alg::SVDAlgorithm) where T =
+    throw(ArgumentError("Unsupported value for `alg` keyword."))
+function _svd!(A::CuMatrix{T}, full::Bool, alg::QRAlgorithm) where T
+    U, S, Vt = gesvd!(full ? 'A' : 'S', full ? 'A' : 'S', A)
+    return SVD(U, S, Vt)
+end
+function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
+    U, S, V = gesvdj!('V', Int(!full), A)
+    return SVD(U, S, V')
+end
+
+else
+
+
+struct CuSVD{T,Tr,A<:AbstractMatrix{T}} <: LinearAlgebra.Factorization{T}
     U::CuMatrix{T}
     S::CuVector{Tr}
     V::A
@@ -232,10 +258,6 @@ Base.iterate(S::CuSVD, ::Val{:done}) = nothing
     end
 end
 
-abstract type SVDAlgorithm end
-struct QRAlgorithm <: SVDAlgorithm end
-struct JacobiAlgorithm <: SVDAlgorithm end
-
 LinearAlgebra.svd!(A::CuMatrix{T}; full::Bool=false,
                    alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
     _svd!(A, full, alg)
@@ -252,6 +274,8 @@ function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
     return CuSVD(gesvdj!('V', Int(!full), A::CuMatrix{T})...)
 end
 
+end
+
 LinearAlgebra.svdvals!(A::CuMatrix{T}; alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
     _svdvals!(A, alg)
 LinearAlgebra.svdvals(A::CuMatrix; alg::SVDAlgorithm=JacobiAlgorithm()) =
@@ -261,6 +285,8 @@ _svdvals!(A::CuMatrix{T}, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
 _svdvals!(A::CuMatrix{T}, alg::QRAlgorithm) where T = gesvd!('N', 'N', A::CuMatrix{T})[2]
 _svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T = gesvdj!('N', 1, A::CuMatrix{T})[2]
+
+## cholesky
 
 if VERSION >= v"1.8-"
     function LinearAlgebra.cholesky(A::LinearAlgebra.RealHermSymComplexHerm{<:Real,<:CuMatrix},
