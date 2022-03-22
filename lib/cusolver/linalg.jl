@@ -286,6 +286,35 @@ _svdvals!(A::CuMatrix{T}, alg::SVDAlgorithm) where T =
 _svdvals!(A::CuMatrix{T}, alg::QRAlgorithm) where T = gesvd!('N', 'N', A::CuMatrix{T})[2]
 _svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T = gesvdj!('N', 1, A::CuMatrix{T})[2]
 
+## LU
+
+if VERSION >= v"1.8-"
+
+function LinearAlgebra.lu!(A::StridedCuMatrix{T}, ::RowMaximum; check::Bool = true) where {T}
+    lpt = getrf!(A)
+    check && LinearAlgebra.checknonsingular(lpt[3])
+    return LU(lpt[1], lpt[2], Int(lpt[3]))
+end
+
+# GPU-compatible accessors of the LU decomposition properties
+function Base.getproperty(F::LU{T,<:StridedCuMatrix}, d::Symbol) where T
+    m, n = size(F)
+    if d === :L
+        L = tril!(getfield(F, :factors)[1:m, 1:min(m,n)])
+        L[1:min(m,n)+1:end] .= one(T)   # set the diagonal (linear indexing trick)
+        return L
+    else
+        invoke(getproperty, Tuple{LU{T,<:StridedMatrix}, Symbol}, F, d)
+    end
+end
+
+# LAPACK's pivoting sequence needs to be iterated sequentially...
+# TODO: figure out a GPU-compatible way to get the permutation matrix
+LinearAlgebra.ipiv2perm(v::CuVector{T}, maxi::Integer) where T =
+    LinearAlgebra.ipiv2perm(Array(v), maxi)
+
+end
+
 ## cholesky
 
 if VERSION >= v"1.8-"
