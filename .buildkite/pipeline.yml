@@ -202,7 +202,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          package: "CUTENSORNET.jl"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -213,7 +214,6 @@ steps:
       queue: "juliagpu"
       cuda: "11.0"
       cap: "sm_80"
-    package: "CUSTATEVEC.jl"
     env:
       JULIA_CUDA_VERSION: '11.6'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
@@ -224,7 +224,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
-      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-test#v1:
+          package: "CUSTATEVEC.jl"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
@@ -235,7 +236,6 @@ steps:
       queue: "juliagpu"
       cuda: "11.0"
       cap: "sm_80"
-    package: "CUTENSORNET.jl"
     env:
       JULIA_CUDA_VERSION: '11.6'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
