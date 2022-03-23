@@ -3,7 +3,7 @@ module CUBLAS
 using ..APIUtils
 
 using ..CUDA
-using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
+using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, i32
 using ..CUDA: libcublas, unsafe_free!, @retry_reclaim, isdebug, @sync, initialize_context
 
 using GPUArrays

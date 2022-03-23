@@ -127,9 +127,7 @@ function mg_syevd!(jobz::Char, uplo::Char, A; dev_rows=1, dev_cols=ndevices()) #
     GC.@preserve A_arr workspace begin
         cusolverMgSyevd(mg_handle(), jobz, uplo, n, pointer.(A_arr), IA, JA, desc, W, real(eltype(A)), eltype(A), pointer.(workspace), lwork[], info)
     end
-    if info[] < 0
-        throw(ArgumentError("The $(info[])th parameter is wrong"))
-    end
+    chkargsok(BlasInt(info[]))
     A = returnBuffers(dev_rows, dev_cols, div(size(A, 1), dev_rows), div(size(A, 2), dev_cols), A_arr, A)
     if jobz == 'N'
         return W
@@ -165,11 +163,9 @@ function mg_potrf!(uplo::Char, A; dev_rows=1, dev_cols=ndevices()) # one host-si
     GC.@preserve A_arr workspace begin
         cusolverMgPotrf(mg_handle(), uplo, n, pointer.(A_arr), IA, JA, desc, eltype(A), pointer.(workspace), lwork[], info)
     end
-    if info[] < 0
-        throw(ArgumentError("The $(info[])th parameter is wrong"))
-    end
-    A = returnBuffers(dev_rows, dev_cols, div(size(A, 1), dev_rows), div(size(A, 2), dev_cols), A_arr, A)
-    return A
+    chkargsok(BlasInt(info[]))
+
+    returnBuffers(dev_rows, dev_cols, div(size(A, 1), dev_rows), div(size(A, 2), dev_cols), A_arr, A)
 end
 
 function mg_potri!(uplo::Char, A; dev_rows=1, dev_cols=ndevices()) # one host-side array A
@@ -199,11 +195,9 @@ function mg_potri!(uplo::Char, A; dev_rows=1, dev_cols=ndevices()) # one host-si
     GC.@preserve A_arr workspace begin
         cusolverMgPotri(mg_handle(), uplo, n, pointer.(A_arr), IA, JA, desc, eltype(A), pointer.(workspace), lwork[], info)
     end
-    if info[] < 0
-        throw(ArgumentError("The $(info[])th parameter is wrong"))
-    end
-    A = returnBuffers(dev_rows, dev_cols, div(size(A, 1), dev_rows), div(size(A, 2), dev_cols), A_arr, A)
-    return A
+    chkargsok(BlasInt(info[]))
+
+    returnBuffers(dev_rows, dev_cols, div(size(A, 1), dev_rows), div(size(A, 2), dev_cols), A_arr, A)
 end
 
 function mg_potrs!(uplo::Char, A, B; dev_rows=1, dev_cols=ndevices()) # one host-side array A
@@ -239,11 +233,9 @@ function mg_potrs!(uplo::Char, A, B; dev_rows=1, dev_cols=ndevices()) # one host
     GC.@preserve A_arr B_arr workspace begin
         cusolverMgPotrs(mg_handle(), uplo, na, nb, pointer.(A_arr), IA, JA, descA, pointer.(B_arr), IB, JB, descB, eltype(A), pointer.(workspace), lwork[], info)
     end
-    if info[] < 0
-        throw(ArgumentError("The $(info[])th parameter is wrong"))
-    end
-    B = returnBuffers(dev_rows, dev_cols, div(size(B, 1), dev_rows), div(size(B, 2), dev_cols), B_arr, B)
-    return B
+    chkargsok(BlasInt(info[]))
+
+    returnBuffers(dev_rows, dev_cols, div(size(B, 1), dev_rows), div(size(B, 2), dev_cols), B_arr, B)
 end
 
 function mg_getrf!(A; dev_rows=1, dev_cols=ndevices()) # one host-side array A
@@ -279,9 +271,8 @@ function mg_getrf!(A; dev_rows=1, dev_cols=ndevices()) # one host-side array A
         cusolverMgGetrf(mg_handle(), m, n, pointer.(A_arr), IA, JA, desc, pointer.(ipivs), eltype(A), pointer.(workspace), lwork[], info)
     end
     device_synchronize()
-    if info[] < 0
-        throw(ArgumentError("The $(info[])th parameter is wrong"))
-    end
+    chkargsok(BlasInt(info[]))
+
     A = returnBuffers(dev_rows, dev_cols, div(size(A, 1), dev_rows), div(size(A, 2), dev_cols), A_arr, A)
     ipiv = Vector{Int}(undef, n)
     for (di, dev) in enumerate(devices())
@@ -330,9 +321,7 @@ function mg_getrs!(trans, A, ipiv, B; dev_rows=1, dev_cols=ndevices()) # one hos
     GC.@preserve A_arr B_arr ipivs workspace begin
         cusolverMgGetrs(mg_handle(), trans, na, nb, pointer.(A_arr), IA, JA, descA, pointer.(ipivs), pointer.(B_arr), IB, JB, descB, eltype(A), pointer.(workspace), lwork[], info)
     end
-    if info[] < 0
-        throw(ArgumentError("The $(info[])th parameter is wrong"))
-    end
-    B = returnBuffers(dev_rows, dev_cols, div(size(B, 1), dev_rows), div(size(B, 2), dev_cols), B_arr, B)
-    return B
+    chkargsok(BlasInt(info[]))
+
+    returnBuffers(dev_rows, dev_cols, div(size(B, 1), dev_rows), div(size(B, 2), dev_cols), B_arr, B)
 end

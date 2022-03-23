@@ -88,7 +88,6 @@ include("broadcast.jl")
 include("mapreduce.jl")
 include("accumulate.jl")
 include("reverse.jl")
-include("linalg.jl")
 include("iterator.jl")
 include("sorting.jl")
 
