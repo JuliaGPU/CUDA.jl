@@ -687,7 +687,7 @@ const __libcutensornet = Ref{Union{String,Nothing}}()
 function libcutensornet(; throw_error::Bool=true)
     path = @initialize_ref __libcutensornet begin
         # CUTENSORNET depends on CUTENSOR
-        libcutensor()
+        libcutensor(throw_error=throw_error)
 
         find_cutensornet(toolkit(), "cutensornet", v"1")
     end
