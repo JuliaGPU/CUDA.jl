@@ -197,6 +197,50 @@ steps:
     if: build.message !~ /\[skip benchmarks\]/ &&
         build.branch =~ /^master$$/
     timeout_in_minutes: 240
+  
+  - label: "CUSTATEVEC"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: 1.6
+      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "11.0"
+      cap: "sm_80"
+    package: "CUSTATEVEC.jl"
+    env:
+      JULIA_CUDA_VERSION: '11.6'
+      JULIA_CUDA_USE_BINARYBUILDER: 'true'
+    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+    timeout_in_minutes: 120
+  
+  - label: "CUTENSORNET"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: 1.6
+      - JuliaCI/julia-test#v1: ~
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "11.0"
+      cap: "sm_80"
+    package: "CUTENSORNET.jl"
+    env:
+      JULIA_CUDA_VERSION: '11.6'
+      JULIA_CUDA_USE_BINARYBUILDER: 'true'
+    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+    timeout_in_minutes: 120
 
 
   # other tasks

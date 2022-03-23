@@ -423,7 +423,7 @@ function main()
     cupti = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
     cudnn = joinpath(CUDNN_jll.artifact_dir, "include")
     cutensor = joinpath(CUTENSOR_jll.artifact_dir, "include")
-    cuquantum = joinpath(ENV["HOME"], "cuquantum", "include")
+    cuquantum = joinpath(CUQUANTUM_jll.artifact_dir, "include")
 
     process("cudadrv", "$cuda/cuda.h","$cuda/cudaGL.h", "$cuda/cudaProfiler.h";
             include_dirs=[cuda], libname="cuda")

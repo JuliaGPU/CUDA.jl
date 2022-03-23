@@ -1366,7 +1366,6 @@ os = "linux"
     sha256 = "19a7aaa8eeaddfb0b31d0f60bcb72ee5cc15056f7ce54ee9d843ae6fe3c66157"
     url = "https://github.com/JuliaBinaryWrappers/CUTENSOR_jll.jl/releases/download/CUTENSOR-v1.4.0+0/CUTENSOR.v1.4.0.aarch64-linux-gnu-cuda+11.6.tar.gz"
 
-
 # NCCL
 
 [[NCCL]]
@@ -1457,3 +1456,32 @@ os = "linux"
     [[NCCL.download]]
     sha256 = "98195c8f287476c254310e38ba4fe117ab85ba03b470c8d2370be19d9cf6544c"
     url = "https://github.com/JuliaBinaryWrappers/NCCL_jll.jl/releases/download/NCCL-v2.12.7+0/NCCL.v2.12.7.aarch64-linux-gnu-cuda+11.6.tar.gz"
+
+# cuQuantum
+[[cuQuantum]]
+arch = "aarch64"
+git-tree-sha1 = "336529964c830b84d5b77e75e0e364476fb8fbde"
+libc = "glibc"
+os = "linux"
+
+    [[cuQuantum.download]]
+    sha256 = "d6ffdaa9f5d1eaaa01e26bcde23d730c9f0219f8f296ae73f8817f8ef30f764b"
+    url = "https://github.com/JuliaBinaryWrappers/cuQuantum_jll.jl/releases/download/cuQuantum-v0.1.30+0/cuQuantum.v0.1.30.aarch64-linux-gnu.tar.gz"
+[[cuQuantum]]
+arch = "powerpc64le"
+git-tree-sha1 = "230108fb2804397bf411cc625de0217a1fc81851"
+libc = "glibc"
+os = "linux"
+
+    [[cuQuantum.download]]
+    sha256 = "4ee24c91aeeafcd4244c4c792227aade1c5aab06b455012789663e29990e942d"
+    url = "https://github.com/JuliaBinaryWrappers/cuQuantum_jll.jl/releases/download/cuQuantum-v0.1.30+0/cuQuantum.v0.1.30.powerpc64le-linux-gnu.tar.gz"
+[[cuQuantum]]
+arch = "x86_64"
+git-tree-sha1 = "a15ee0481a41eb937f5deb01829a1a9b78010949"
+libc = "glibc"
+os = "linux"
+
+    [[cuQuantum.download]]
+    sha256 = "ba2d35f70dbc7efc660fec57dbc61bfb33354d71d6b9b74876341ecba618df8c"
+    url = "https://github.com/JuliaBinaryWrappers/cuQuantum_jll.jl/releases/download/cuQuantum-v0.1.30+0/cuQuantum.v0.1.30.x86_64-linux-gnu.tar.gz"

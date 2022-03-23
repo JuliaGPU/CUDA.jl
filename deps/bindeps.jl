@@ -689,7 +689,7 @@ function libcutensornet(; throw_error::Bool=true)
         # CUTENSORNET depends on CUTENSOR
         libcutensor()
 
-        find_library("cutensornet", locations=[joinpath(ENV["HOME"],"cuquantum")])
+        find_cutensornet(toolkit(), "cutensornet", v"1")
     end
     if path === nothing && throw_error
         error("This functionality is unavailabe as CUTENSORNET is missing.")
@@ -701,7 +701,7 @@ has_cutensornet() = libcutensornet(throw_error=false) !== nothing
 const __libcustatevec = Ref{Union{String,Nothing}}()
 function libcustatevec(; throw_error::Bool=true)
     path = @initialize_ref __libcustatevec begin
-        find_library("custatevec", locations=[joinpath(ENV["HOME"],"cuquantum")])
+        find_custatevec(toolkit(), "custatevec", v"1")
     end
     if path === nothing && throw_error
         error("This functionality is unavailabe as CUSTATEVEC is missing.")
@@ -709,3 +709,50 @@ function libcustatevec(; throw_error::Bool=true)
     return path
 end
 has_custatevec() = libcustatevec(throw_error=false) !== nothing
+
+function find_cutensornet(cuda::ArtifactToolkit, name, version)
+    artifact_dir = cuda_artifact("CUQUANTUM", cuda.release)
+    if artifact_dir === nothing
+        return nothing
+    end
+    path = artifact_library(artifact_dir, name, [version])
+
+    @debug "Using CUTENSORNET library $name from an artifact at $(artifact_dir)"
+    Libdl.dlopen(path)
+    return path
+end
+
+function find_cutensornet(cuda::LocalToolkit, name, version)
+    path = find_library(name, [version]; locations=cuda.dirs)
+    if path === nothing
+        return nothing
+    end
+
+    @debug "Using local CUTENSORNET library $name at $(path)"
+    Libdl.dlopen(path)
+    return path
+end
+
+function find_custatevec(cuda::ArtifactToolkit, name, version)
+    artifact_dir = cuda_artifact("CUQUANTUM", cuda.release)
+    if artifact_dir === nothing
+        return nothing
+    end
+    path = artifact_library(artifact_dir, name, [version])
+
+    @debug "Using CUSTATEVEC library $name from an artifact at $(artifact_dir)"
+    Libdl.dlopen(path)
+    return path
+end
+
+function find_custatevec(cuda::LocalToolkit, name, version)
+    path = find_library(name, [version]; locations=cuda.dirs)
+    if path === nothing
+        return nothing
+    end
+
+    @debug "Using local CUSTATEVEC library $name at $(path)"
+    Libdl.dlopen(path)
+    return path
+end
+
