@@ -584,3 +584,32 @@ k = 1
         end
     end
 end
+
+@testset "elty = $elty" for elty in [Float16, ComplexF16, Int32, Int64, Complex{Int32}, Complex{Int64}]
+
+    @testset "Matrix division" begin
+        d_A = CuArray(rand(elty,n,n))
+        d_B = CuArray(rand(elty,n,n))
+        blasfloat = promote_type(Float32, elty)
+        d_Af = blasfloat.(d_A)
+        d_Bf = blasfloat.(d_B)
+        @test (d_A \ d_B) == (d_Af \ d_Bf)
+    end
+
+    @testset "svd with $alg algorithm" for
+        alg in (CUSOLVER.QRAlgorithm(), CUSOLVER.JacobiAlgorithm()),
+        (_m, _n) in ((m, n), (n, m))
+
+        d_A = CuArray(rand(elty, _m, _n))
+        d_Af = promote_type(Float32, elty).(d_A)
+
+        if _m > _n || alg == CUSOLVER.JacobiAlgorithm()
+            @test svd(d_A; alg=alg) == svd(d_Af; alg=alg)
+            @test svdvals(d_A; alg=alg) == svdvals(d_Af; alg=alg)
+        else
+            @test_throws ArgumentError svd(d_A; alg=alg)
+            @test_throws ArgumentError svdvals(d_A; alg=alg)
+        end
+    end
+
+end

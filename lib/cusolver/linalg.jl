@@ -1,7 +1,15 @@
 # implementation of LinearAlgebra interfaces
 
 using LinearAlgebra
+using ..CUBLAS: CublasFloat
 
+function copy_cublasfloat(A::CuMatrix{T}) where {T}
+    cublasfloat = promote_type(Float32, T)
+    if !(cublasfloat <: CublasFloat)
+        throw(ArgumentError("cannot promote eltype $T to a CUBLAS float"))
+    end
+    return copyto!(similar(A, cublasfloat), A)
+end
 
 # matrix division
 
@@ -13,7 +21,7 @@ const CuOrAdj{T} = Union{CuVecOrMat,
                          LinearAlgebra.Transpose{T, <:CuVecOrMat{T}}}
 
 function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
-    A, B = copy(_A), copy(_B)
+    A, B = copy_cublasfloat(_A), copy_cublasfloat(_B)
     A, ipiv = CUSOLVER.getrf!(A)
     return CUSOLVER.getrs!('N', A, ipiv, B)
 end
@@ -222,7 +230,7 @@ LinearAlgebra.svd!(A::CuMatrix{T}; full::Bool=false,
                    alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
     _svd!(A, full, alg)
 LinearAlgebra.svd(A::CuMatrix; full=false, alg::SVDAlgorithm=JacobiAlgorithm()) =
-    _svd!(copy(A), full, alg)
+    _svd!(copy_cublasfloat(A), full, alg)
 
 _svd!(A::CuMatrix{T}, full::Bool, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
@@ -262,7 +270,7 @@ LinearAlgebra.svd!(A::CuMatrix{T}; full::Bool=false,
                    alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
     _svd!(A, full, alg)
 LinearAlgebra.svd(A::CuMatrix; full=false, alg::SVDAlgorithm=JacobiAlgorithm()) =
-    _svd!(copy(A), full, alg)
+    _svd!(copy_cublasfloat(A), full, alg)
 
 _svd!(A::CuMatrix{T}, full::Bool, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
@@ -279,7 +287,7 @@ end
 LinearAlgebra.svdvals!(A::CuMatrix{T}; alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
     _svdvals!(A, alg)
 LinearAlgebra.svdvals(A::CuMatrix; alg::SVDAlgorithm=JacobiAlgorithm()) =
-    _svdvals!(copy(A), alg)
+    _svdvals!(copy_cublasfloat(A), alg)
 
 _svdvals!(A::CuMatrix{T}, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
