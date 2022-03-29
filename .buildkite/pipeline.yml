@@ -225,7 +225,7 @@ steps:
       - JuliaCI/julia#v1:
           version: 1.6
       - JuliaCI/julia-test#v1:
-          package: "CUSTATEVEC.jl"
+          package: "CUTENSORNET.jl"
       - JuliaCI/julia-coverage#v1:
           codecov: true
           dirs:
