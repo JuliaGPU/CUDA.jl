@@ -241,7 +241,6 @@ steps:
     timeout_in_minutes: 120
     commands: |
       export JULIA_PROJECT="CUTENSORNET"
-      export JULIA_LOAD_PATH="@"
       julia -e 'import Pkg; Pkg.instantiate()'
       julia -e 'import Pkg; Pkg.precompile()'
       julia -e 'import Pkg; Pkg.test()'
