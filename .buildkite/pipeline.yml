@@ -215,14 +215,15 @@ steps:
     env:
       JULIA_CUDA_VERSION: '11.6'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
+      PACKAGE: 'CUSTATEVEC'
     if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
     timeout_in_minutes: 120
     commands: |
-      export JULIA_PROJECT="CUSTATEVEC"
-      julia -e 'import Pkg; Pkg.instantiate()'
+      julia -e 'import Pkg; Pkg.develop(; path = pwd())' # CUDA
+      julia -e 'import Pkg; Pkg.develop(; path = joinpath(pwd(), ENV["PACKAGE"]))' # CUSTATEVEC
       julia -e 'import Pkg; Pkg.precompile()'
-      julia -e 'import Pkg; Pkg.test()'
-  
+      julia -e 'import Pkg; Pkg.test(ENV["PACKAGE"])'
+
   - label: "CUTENSORNET"
     plugins:
       - JuliaCI/julia#v1:
@@ -240,13 +241,14 @@ steps:
     env:
       JULIA_CUDA_VERSION: '11.6'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
+      PACKAGE: 'CUTENSORNET'
     if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
     timeout_in_minutes: 120
     commands: |
-      export JULIA_PROJECT="CUTENSORNET"
-      julia -e 'import Pkg; Pkg.instantiate()'
+      julia -e 'import Pkg; Pkg.develop(; path = pwd())' # CUDA
+      julia -e 'import Pkg; Pkg.develop(; path = joinpath(pwd(), ENV["PACKAGE"]))' # CUSTATEVEC
       julia -e 'import Pkg; Pkg.precompile()'
-      julia -e 'import Pkg; Pkg.test()'
+      julia -e 'import Pkg; Pkg.test(ENV["PACKAGE"])'
 
 
   # other tasks
