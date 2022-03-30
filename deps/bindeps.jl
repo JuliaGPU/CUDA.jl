@@ -689,7 +689,7 @@ function libcutensornet(; throw_error::Bool=true)
         # CUTENSORNET depends on CUTENSOR
         libcutensor(throw_error=throw_error)
 
-        find_cutensornet(toolkit(), "cutensornet", v"1")
+        find_cutensornet(toolkit(), "cutensornet", v"0.1.0")
     end
     if path === nothing && throw_error
         error("This functionality is unavailabe as CUTENSORNET is missing.")
@@ -701,7 +701,7 @@ has_cutensornet() = libcutensornet(throw_error=false) !== nothing
 const __libcustatevec = Ref{Union{String,Nothing}}()
 function libcustatevec(; throw_error::Bool=true)
     path = @initialize_ref __libcustatevec begin
-        find_custatevec(toolkit(), "custatevec", v"1")
+        find_custatevec(toolkit(), "custatevec", v"0.1.0")
     end
     if path === nothing && throw_error
         error("This functionality is unavailabe as CUSTATEVEC is missing.")
@@ -711,7 +711,7 @@ end
 has_custatevec() = libcustatevec(throw_error=false) !== nothing
 
 function find_cutensornet(cuda::ArtifactToolkit, name, version)
-    artifact_dir = cuda_artifact("CUQUANTUM", cuda.release)
+    artifact_dir = cuda_artifact("cuQuantum", v"0.1.3")
     if artifact_dir === nothing
         return nothing
     end
@@ -734,7 +734,7 @@ function find_cutensornet(cuda::LocalToolkit, name, version)
 end
 
 function find_custatevec(cuda::ArtifactToolkit, name, version)
-    artifact_dir = cuda_artifact("CUQUANTUM", cuda.release)
+    artifact_dir = cuda_artifact("cuQuantum", v"0.1.3")
     if artifact_dir === nothing
         return nothing
     end
