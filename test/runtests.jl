@@ -177,6 +177,8 @@ has_nvml() || push!(skip_tests, "nvml")
 if !has_cutensor() || first(picks).cap < v"6.0"
     push!(skip_tests, "cutensor")
 end
+has_cutensornet() || push!(skip_tests, "cutensornet")
+has_custatevec() || push!(skip_tests, "custatevec")
 if do_sanitize
     # XXX: some library tests fail under compute-sanitizer
     append!(skip_tests, ["cutensor"])
