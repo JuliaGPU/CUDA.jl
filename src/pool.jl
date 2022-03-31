@@ -351,17 +351,9 @@ Releases a buffer `buf` to the memory pool.
   return
 end
 @inline function _free(buf::Mem.DeviceBuffer; stream::Union{Nothing,CuStream})
-    # NOTE: this function is often called from finalizers, from which we can't switch tasks,
-    #       so we need to take care not to call managed functions (i.e. functions that may
-    #       initialize the CUDA context) because querying the active context using
-    #       `current_context()` takes a lock
-
-    # verify that the caller has called `context!` already, which eagerly activates the
-    # context (i.e. doesn't only set it in the state, but configures the CUDA APIs).
-    handle_ref = Ref{CUcontext}()
-    cuCtxGetCurrent(handle_ref)
-    if buf.ctx.handle != handle_ref[]
-      error("Trying to free $buf from a different context than the one it was allocated from ($(handle_ref[]))")
+    # verify that the caller has switched contexts
+    if buf.ctx != context()
+      error("Trying to free $buf from an unrelated context")
     end
 
     dev = current_device()

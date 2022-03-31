@@ -135,8 +135,11 @@ constructor.
 """
 function context!(ctx::CuContext)
     # switch contexts
-    # NOTE: if we actually need to switch contexts, we eagerly activate it so that we can
-    #       query its device (we normally only do so lazily in `prepare_cuda_state`)
+    #
+    # NOTE: we should only trust that the task-local context has been switched.
+    # we do also switch the thread-bound contexts in order to check the device,
+    # but due to task migration that may not be trusted later on. that's why
+    # we also lazily update the thread-bound state in `prepare_cuda_state`.
     state = task_local_state()
     if state === nothing
         old_ctx = nothing
