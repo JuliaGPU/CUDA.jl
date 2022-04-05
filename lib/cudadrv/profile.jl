@@ -25,26 +25,37 @@ module Profile
 
 using ..CUDA
 
+function find_nsys()
+    if haskey(ENV, "JULIA_CUDA_NSYS")
+        return ENV["JULIA_CUDA_NSYS"]
+    elseif haskey(ENV, "_") && contains(ENV["_"], r"nsys"i)
+        # NOTE: if running as e.g. Jupyter -> nsys -> Julia, _ is `jupyter`
+        return ENV["_"]
+    else
+        # look at a couple of environment variables that may point to NSight
+        nsight = nothing
+        for var in ("LD_PRELOAD", "CUDA_INJECTION64_PATH", "NVTX_INJECTION64_PATH")
+            haskey(ENV, var) || continue
+            for val in split(ENV[var], Sys.iswindows() ? ';' : ':')
+                isfile(val) || continue
+                candidate = if Sys.iswindows()
+                    joinpath(dirname(val), "nsys.exe")
+                else
+                    joinpath(dirname(val), "nsys")
+                end
+                isfile(candidate) && return candidate
+            end
+        end
+    end
+    error("Running under Nsight Systems, but could not find the `nsys` binary to start the profiler. Please specify using JULIA_CUDA_NSYS=path/to/nsys, and file an issue with the contents of ENV.")
+end
+
 const __nsight = Ref{Union{Nothing,String}}()
 function nsight()
     if !isassigned(__nsight)
         # find the active Nsight Systems profiler
         if haskey(ENV, "NSYS_PROFILING_SESSION_ID") && ccall(:jl_generating_output, Cint, ()) == 0
-            __nsight[] = if haskey(ENV, "JULIA_CUDA_NSYS")
-                ENV["JULIA_CUDA_NSYS"]
-            elseif haskey(ENV, "_")
-                ENV["_"]
-            elseif haskey(ENV, "LD_PRELOAD")
-                libraries = split(ENV["LD_PRELOAD"], ':')
-                filter!(isfile, libraries)
-                directories = map(dirname, libraries)
-                candidates = map(dir->joinpath(dir, "nsys"), directories)
-                filter!(isfile, candidates)
-                isempty(candidates) && error("Could not find nsys relative to LD_PRELOAD=$(ENV["LD_PRELOAD"])")
-                first(candidates)
-            else
-                error("Running under Nsight Systems, but could not find the `nsys` binary to start the profiler. Please specify using JULIA_CUDA_NSYS=path/to/nsys, and file an issue with the contents of ENV.")
-            end
+            __nsight[] = find_nsys()
             @assert isfile(__nsight[])
             @info "Running under Nsight Systems, CUDA.@profile will automatically start the profiler"
         else
