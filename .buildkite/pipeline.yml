@@ -53,8 +53,6 @@ steps:
       cuda: "*"
     if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
     timeout_in_minutes: 120
-    soft_fail:
-      - exit_status: 1
 
   - label: "Julia nightly"
     plugins:
@@ -197,7 +195,7 @@ steps:
     if: build.message !~ /\[skip benchmarks\]/ &&
         build.branch =~ /^master$$/
     timeout_in_minutes: 240
-  
+
   - label: "CUSTATEVEC"
     plugins:
       - JuliaCI/julia#v1:
