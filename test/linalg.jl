@@ -1,6 +1,6 @@
 using LinearAlgebra
 
-@testset "qr size mismatch" begin
+VERSION <= v"1.8-" && @testset "qr size mismatch" begin
     X = rand(Float32, 2, 1)
     Q,R = qr(X)
 
