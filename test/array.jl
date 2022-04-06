@@ -29,7 +29,7 @@ import Adapt
     data = CuArray{Int}(undef, 2)
     ptr = pointer(data)
 
-    @test Base.unsafe_wrap(CuArray, ptr, 1; own=false).storage.refcount[] == -1
+    @test unsafe_wrap(CuArray, ptr, 1; own=false).storage.refcount[] == -1
 
     ## compare the fields we care about: the buffer, size, offset, and context
     function test_eq(a, b)
@@ -42,22 +42,22 @@ import Adapt
       @test a.dims == b.dims
     end
 
-    test_eq(Base.unsafe_wrap(CuArray, ptr, 2),              CuArray{Int,1}(data.storage, (2,)))
-    test_eq(Base.unsafe_wrap(CuArray{Int}, ptr, 2),         CuArray{Int,1}(data.storage, (2,)))
-    test_eq(Base.unsafe_wrap(CuArray{Int,1}, ptr, 2),       CuArray{Int,1}(data.storage, (2,)))
-    test_eq(Base.unsafe_wrap(CuArray, ptr, (1,2)),          CuArray{Int,2}(data.storage, (1,2)))
-    test_eq(Base.unsafe_wrap(CuArray{Int}, ptr, (1,2)),     CuArray{Int,2}(data.storage, (1,2)))
-    test_eq(Base.unsafe_wrap(CuArray{Int,2}, ptr, (1,2)),   CuArray{Int,2}(data.storage, (1,2)))
+    test_eq(unsafe_wrap(CuArray, ptr, 2),              CuArray{Int,1}(data.storage, (2,)))
+    test_eq(unsafe_wrap(CuArray{Int}, ptr, 2),         CuArray{Int,1}(data.storage, (2,)))
+    test_eq(unsafe_wrap(CuArray{Int,1}, ptr, 2),       CuArray{Int,1}(data.storage, (2,)))
+    test_eq(unsafe_wrap(CuArray, ptr, (1,2)),          CuArray{Int,2}(data.storage, (1,2)))
+    test_eq(unsafe_wrap(CuArray{Int}, ptr, (1,2)),     CuArray{Int,2}(data.storage, (1,2)))
+    test_eq(unsafe_wrap(CuArray{Int,2}, ptr, (1,2)),   CuArray{Int,2}(data.storage, (1,2)))
   end
   let buf = Mem.alloc(Mem.Host, sizeof(Int), Mem.HOSTALLOC_DEVICEMAP)
     gpu_ptr = convert(CuPtr{Int}, buf)
-    gpu_arr = Base.unsafe_wrap(CuArray, gpu_ptr, 1)
+    gpu_arr = unsafe_wrap(CuArray, gpu_ptr, 1)
     gpu_arr .= 42
 
     synchronize()
 
     cpu_ptr = convert(Ptr{Int}, buf)
-    cpu_arr = Base.unsafe_wrap(Array, cpu_ptr, 1)
+    cpu_arr = unsafe_wrap(Array, cpu_ptr, 1)
     @test cpu_arr == [42]
   end
 
