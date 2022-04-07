@@ -14,7 +14,11 @@ function sum_dim1(A::CuSparseMatrixCSR)
 
     m, n = size(A)
     rowsum = CUDA.CuArray{eltype(A)}(undef, m)
-    @cuda threads=n kernel(rowsum, A)
+    kernel_f = @cuda launch=false kernel(rowsum, A)
+    
+    threads = min(n, CUDA.maxthreads(kernel_f))
+    blocks = cld(n, threads)
+    kernel_f(rowsum, A; threads, blocks)
     return rowsum
 end
 
