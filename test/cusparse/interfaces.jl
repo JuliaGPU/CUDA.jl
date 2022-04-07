@@ -1,3 +1,4 @@
+using CUDA
 using CUDA.CUSPARSE
 using LinearAlgebra, SparseArrays
 
@@ -165,6 +166,20 @@ using LinearAlgebra, SparseArrays
 
         @test Array(dA - I) == S - I
         @test Array(I - dA) == I - S
+    end
+
+    @testset "error on unsupported operation" begin
+        A = cu(sprand(Float32, 10, 10, 0.1))
+        x = CUDA.rand(Float64, 10)
+        y = CUDA.zeros(Float64, 10)
+        X = CUDA.rand(Float64, 10, 10)
+        Y = CUDA.zeros(Float64, 10, 10)
+
+        @test_throws ErrorException mul!(y, A, x, 1.0, 1.0)
+        @test_throws ErrorException mul!(y, A', x, 1.0, 1.0)
+
+        @test_throws ErrorException mul!(Y, A, X, 1.0, 1.0)
+        @test_throws ErrorException mul!(Y, A', X, 1.0, 1.0)
     end
 end
 

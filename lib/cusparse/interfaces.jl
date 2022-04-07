@@ -54,6 +54,35 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     end
 end
 
+# generic fallback error
+tag_wrappers = ((identity, identity),
+                (T -> :(HermOrSym{<:Any, <:$T}), A -> :(parent($A))))
+op_wrappers = (
+    (identity, T -> 'N', identity),
+    (T -> :(Transpose{<:Any, <:$T}), T -> 'T', A -> :(parent($A))),
+    (T -> :(Adjoint{<:Any, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A)))
+)
+for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
+    TypeA = wrapa(taga(:(CuSparseMatrix)))
+
+    @eval begin
+        function LinearAlgebra.mul!(C::CuVector, A::$TypeA, B::DenseCuVector, alpha::Number, beta::Number)
+            error("mixed precision sparse multiplication is not supported!")
+        end
+    end
+
+    for (tagb, untagb) in tag_wrappers, (wrapb, transb, unwrapb) in op_wrappers
+        TypeB = wrapb(tagb(:(DenseCuMatrix)))
+
+        @eval begin
+            function LinearAlgebra.mul!(C::CuMatrix, A::$TypeA, B::$TypeB, alpha::Number, beta::Number)
+                error("mixed precision sparse multiplication is not supported!")
+            end
+        end
+    end
+end
+
+
 Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
 Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
 
