@@ -64,16 +64,17 @@ k = 1
     end
 
     @testset "getrf!" begin
-        A          = rand(elty,m,n)
-        d_A        = CuArray(A)
-        d_A,d_ipiv = CUSOLVER.getrf!(d_A)
-        h_A        = collect(d_A)
-        h_ipiv     = collect(d_ipiv)
-        alu        = LinearAlgebra.LU(h_A, convert(Vector{BlasInt},h_ipiv), zero(BlasInt))
+        A = rand(elty,m,n)
+        d_A = CuArray(A)
+        d_A,d_ipiv,info = CUSOLVER.getrf!(d_A)
+        LinearAlgebra.checknonsingular(info)
+        h_A = collect(d_A)
+        h_ipiv = collect(d_ipiv)
+        alu = LinearAlgebra.LU(h_A, convert(Vector{BlasInt},h_ipiv), zero(BlasInt))
         @test A ≈ Array(alu)
-        A    = zeros(elty,n,n)
-        d_A  = CuArray(A)
-        @test_throws LinearAlgebra.SingularException CUSOLVER.getrf!(d_A)
+
+        d_A,d_ipiv,info = CUSOLVER.getrf!(CUDA.zeros(elty,n,n))
+        @test_throws LinearAlgebra.SingularException LinearAlgebra.checknonsingular(info)
     end
 
     @testset "getrs!" begin
@@ -171,21 +172,22 @@ k = 1
     end
 
     @testset "sytrf!" begin
-        A          = rand(elty,n,n)
-        A          = A + A' #symmetric
-        d_A        = CuArray(A)
-        d_A,d_ipiv = CUSOLVER.sytrf!('U',d_A)
-        h_A        = collect(d_A)
-        h_ipiv     = collect(d_ipiv)
-        A, ipiv    = LAPACK.sytrf!('U',A)
+        A = rand(elty,n,n)
+        A = A + A' #symmetric
+        d_A = CuArray(A)
+        d_A,d_ipiv,info = CUSOLVER.sytrf!('U',d_A)
+        LinearAlgebra.checknonsingular(info)
+        h_A = collect(d_A)
+        h_ipiv = collect(d_ipiv)
+        A, ipiv = LAPACK.sytrf!('U',A)
         @test ipiv == h_ipiv
         @test A ≈ h_A
         A    = rand(elty,m,n)
         d_A  = CuArray(A)
         @test_throws DimensionMismatch CUSOLVER.sytrf!('U',d_A)
-        A    = zeros(elty,n,n)
-        d_A  = CuArray(A)
-        @test_throws LinearAlgebra.SingularException CUSOLVER.sytrf!('U',d_A)
+
+        d_A,d_ipiv,info = CUSOLVER.sytrf!('U',CUDA.zeros(elty,n,n))
+        @test_throws LinearAlgebra.SingularException LinearAlgebra.checknonsingular(info)
     end
 
     @testset "gebrd!" begin
@@ -400,8 +402,12 @@ k = 1
         CUDA.@allowscalar begin
             qval = d_F.Q[1, 1]
             @test qval ≈ qra.Q[1, 1]
-            qrstr = sprint(show, d_F)
-            @test qrstr == "$(typeof(d_F)) with factors Q and R:\n$(sprint(show, d_F.Q))\n$(sprint(show, d_F.R))"
+            qrstr = sprint(show, MIME"text/plain"(), d_F)
+            if VERSION >= v"1.8-"
+                @test qrstr == "$(typeof(d_F))\nQ factor:\n$(sprint(show, MIME"text/plain"(), d_F.Q))\nR factor:\n$(sprint(show, MIME"text/plain"(), d_F.R))"
+            else
+                @test qrstr == "$(typeof(d_F)) with factors Q and R:\n$(sprint(show, d_F.Q))\n$(sprint(show, d_F.R))"
+            end
         end
         dQ, dR = d_F
         @test collect(dQ*dR) ≈ A
@@ -551,6 +557,58 @@ k = 1
                 # cuSOLVER seems to return symmetric/hermitian matrix when using 'U'
                 @test Hermitian(bA[i]) ≈ bh_A[i]
             end
+        end
+    end
+
+    @testset "ldiv!" begin
+        @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            @test testf(rand(elty, m, m), rand(elty, m)) do A, x
+                ldiv!(qr(A), x)
+                x
+            end
+
+            @test testf(rand(elty, m, m), rand(elty, m), rand(elty, m)) do A, x, y
+                ldiv!(y, qr(A), x)
+                y
+            end
+        end
+    end
+
+    VERSION >= v"1.8-" && @testset "lu" begin
+        @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            A = CuArray(rand(elty, m, m))
+            F = lu(A)
+            @test F.L*F.U ≈ A[F.p, :]
+
+            @test_throws LinearAlgebra.SingularException lu(CUDA.zeros(elty,n,n))
+        end
+    end
+end
+
+@testset "elty = $elty" for elty in [Float16, ComplexF16, Int32, Int64, Complex{Int32}, Complex{Int64}]
+
+    @testset "Matrix division" begin
+        d_A = CuArray(rand(elty,n,n))
+        d_B = CuArray(rand(elty,n,n))
+        blasfloat = promote_type(Float32, elty)
+        d_Af = blasfloat.(d_A)
+        d_Bf = blasfloat.(d_B)
+        @test (d_A \ d_B) == (d_Af \ d_Bf)
+    end
+
+    @testset "svd with $alg algorithm" for
+        alg in (CUSOLVER.QRAlgorithm(), CUSOLVER.JacobiAlgorithm()),
+        (_m, _n) in ((m, n), (n, m))
+
+        d_A = CuArray(rand(elty, _m, _n))
+        d_Af = promote_type(Float32, elty).(d_A)
+
+        if _m > _n || alg == CUSOLVER.JacobiAlgorithm()
+            @test svd(d_A; alg=alg) == svd(d_Af; alg=alg)
+            @test svdvals(d_A; alg=alg) == svdvals(d_Af; alg=alg)
+        else
+            @test_throws ArgumentError svd(d_A; alg=alg)
+            @test_throws ArgumentError svdvals(d_A; alg=alg)
         end
     end
 

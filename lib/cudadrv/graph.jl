@@ -69,7 +69,9 @@ See also: [`instantiate`](@ref).
 capture
 
 function unsafe_destroy!(graph::CuGraph)
-    @finalize_in_ctx graph.ctx cuGraphDestroy(graph)
+    context!(graph.ctx; skip_destroyed=true) do
+        cuGraphDestroy(graph)
+    end
 end
 
 Base.unsafe_convert(::Type{CUgraph}, graph::CuGraph) = graph.handle
@@ -89,7 +91,11 @@ mutable struct CuGraphExec
         buf = Vector{UInt8}(undef, buflen)
 
         GC.@preserve buf begin
-            cuGraphInstantiate_v2(handle_ref, graph, error_node, pointer(buf), buflen)
+            if version() >= v"11.0"
+                cuGraphInstantiate_v2(handle_ref, graph, error_node, pointer(buf), buflen)
+            else
+                cuGraphInstantiate(handle_ref, graph, error_node, pointer(buf), buflen)
+            end
             diag = String(buf)
             # TODO: how to use these?
         end
@@ -112,7 +118,9 @@ See also: [`launch`](@ref), [`update`](@ref).
 instantiate
 
 function unsafe_destroy!(exec::CuGraphExec)
-    @finalize_in_ctx exec.ctx cuGraphDestroy(exec)
+    context!(exec.ctx; skip_destroyed=true) do
+        cuGraphDestroy(exec)
+    end
 end
 
 Base.unsafe_convert(::Type{CUgraphExec}, exec::CuGraphExec) = exec.handle

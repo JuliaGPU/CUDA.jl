@@ -13,7 +13,7 @@ fail to check whether CUDA is functional, actual use of functionality might warn
 """
 function functional(show_reason::Bool=false)
     try
-        version()
+        libcuda()
         toolkit()
         return true
     catch
@@ -57,8 +57,13 @@ function synchronize_cuda_tasks(ex)
 end
 
 @noinline function __init_driver__()
-    if version() < v"10.1"
-        @warn "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.1 or higher (yours is for CUDA $(version()))"
+    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
+        @error("Running under rr, which is incompatible with CUDA")
+        return
+    end
+
+    if version() < v"10.2"
+        @warn "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.2 or higher (yours is for CUDA $(version()))"
     end
 
     if version() < v"11.2"
@@ -75,6 +80,8 @@ end
 
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("-nvptx-fma-level=1")
+
+    cuInit(0)
 
     return
 end
@@ -101,7 +108,7 @@ end
 export has_cuda, has_cuda_gpu
 
 # backwards compatibility
-export has_cusolvermg, has_cudnn, has_cutensor, has_cupti, has_nvtx
+export has_cusolvermg, has_cudnn, has_cutensor, has_cutensornet, has_custatevec, has_cupti, has_nvtx
 
 """
     has_cuda()::Bool

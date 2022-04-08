@@ -78,7 +78,9 @@ mutable struct CuModule
 end
 
 function unsafe_unload!(mod::CuModule)
-    @finalize_in_ctx mod.ctx cuModuleUnload(mod)
+    context!(mod.ctx; skip_destroyed=true) do
+        cuModuleUnload(mod)
+    end
 end
 
 Base.unsafe_convert(::Type{CUmodule}, mod::CuModule) = mod.handle

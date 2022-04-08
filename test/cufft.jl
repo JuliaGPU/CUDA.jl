@@ -4,6 +4,8 @@ using CUDA
 
 import FFTW
 
+using LinearAlgebra
+
 @test CUFFT.version() isa VersionNumber
 
 # notes:
@@ -59,7 +61,7 @@ function batched(X::AbstractArray{T,N},region) where {T <: Complex,N}
     p = plan_fft(d_X,region)
     d_Y = p * d_X
     Y = collect(d_Y)
-    @test_maybe_broken isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
+    @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
 
     pinv = plan_ifft(d_Y,region)
     d_Z = pinv * d_Y
@@ -139,7 +141,7 @@ end
     @test_throws ArgumentError batched(X,(3,1))
 end
 
-@testset "Batch 2D (in 4D)" begin
+CUFFT.version() >= v"10.2" && @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
     for region in [(1,2),(1,4),(3,4)]
         X = rand(T, dims)
@@ -173,14 +175,12 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Real,N}
     pinv2 = inv(p)
     d_Z = pinv2 * d_Y
     Z = collect(d_Z)
-    @test_maybe_broken isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
-    # JuliaGPU/CUDA.jl#345, NVIDIA/cuFFT#2714102
+    @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 
     pinv3 = inv(pinv)
     d_W = pinv3 * d_X
     W = collect(d_W)
     @test isapprox(W, Y, rtol = MYRTOL, atol = MYATOL)
-    # JuliaGPU/CUDA.jl#345, NVIDIA/cuFFT#2714102
 end
 
 function batched(X::AbstractArray{T,N},region) where {T <: Real,N}
@@ -302,4 +302,35 @@ end
     out_of_place(X)
 end
 
+end
+
+
+## other
+
+@testset "CUDA.jl#1268" begin
+    N=2^20
+    v0 = CuArray(ones(N)+im*ones(N))
+
+    v = CuArray(ones(N)+im*ones(N))
+    plan = CUFFT.plan_fft!(v,1)
+    @test fetch(
+        Threads.@spawn begin
+            inv(plan)*(plan*v)
+            isapprox(v,v0)
+        end
+    )
+end
+
+@testset "CUDA.jl#1311" begin
+    x = ones(8, 9)
+    p = plan_rfft(x)
+    y = similar(p * x)
+    mul!(y, p, x)
+
+    dx = CuArray(x)
+    dp = plan_rfft(dx)
+    dy = similar(dp * dx)
+    mul!(dy, dp, dx)
+
+    @test Array(dy) ≈ y
 end

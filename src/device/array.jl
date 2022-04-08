@@ -28,12 +28,13 @@ struct CuDeviceArray{T,N,A} <: DenseArray{T,N}
     maxsize::Int
 
     dims::Dims{N}
+    len::Int
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
     # TODO: deprecate; put `ptr` first like CuArray
     CuDeviceArray{T,N,A}(dims::Dims{N}, ptr::LLVMPtr{T,A},
                          maxsize::Int=prod(dims)*sizeof(T)) where {T,A,N} =
-        new(ptr, maxsize, dims)
+        new(ptr, maxsize, dims, prod(dims))
 end
 
 const CuDeviceVector = CuDeviceArray{T,1,A} where {T,A}
@@ -67,10 +68,12 @@ CuDeviceMatrix{T,A}(m::Integer, n::Integer,   p::LLVMPtr{T,A}) where {T,A}   = C
 ## array interface
 
 Base.elsize(::Type{<:CuDeviceArray{T}}) where {T} = sizeof(T)
-Base.size(g::CuDeviceArray) = g.dims
-Base.length(g::CuDeviceArray) = prod(g.dims)
 
+Base.size(g::CuDeviceArray) = g.dims
 Base.sizeof(x::CuDeviceArray) = Base.elsize(x) * length(x)
+
+# we store the array length too; computing prod(size) is expensive
+Base.length(g::CuDeviceArray) = g.len
 
 Base.pointer(x::CuDeviceArray{T,<:Any,A}) where {T,A} = Base.unsafe_convert(LLVMPtr{T,A}, x)
 @inline function Base.pointer(x::CuDeviceArray{T,<:Any,A}, i::Integer) where {T,A}
@@ -102,20 +105,7 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
     end
 end
 
-# enumerate the union types in the order that the selector indexes them
-# XXX: where does Base determine this order?
-function union_types(T::Union)
-    typs = DataType[T.a]
-    tail = T.b
-    while tail isa Union
-        push!(typs, tail.a)
-        tail = tail.b
-    end
-    push!(typs, tail)
-    return typs
-end
-
-@inline function arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
+@device_function @inline function arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     if isbitstype(T)
         arrayref_bits(A, index)
@@ -129,8 +119,8 @@ end
     unsafe_load(pointer(A), index, Val(align))
 end
 
-@inline @generated function arrayref_union(A::CuDeviceArray{T,AS}, index::Integer) where {T,AS}
-    typs = union_types(T)
+@inline @generated function arrayref_union(A::CuDeviceArray{T,<:Any,AS}, index::Integer) where {T,AS}
+    typs = Base.uniontypes(T)
 
     # generate code that conditionally loads a value based on the selector value.
     # lacking noreturn, we return T to avoid inference thinking this can return Nothing.
@@ -157,7 +147,7 @@ end
     end
 end
 
-@inline function arrayset(A::CuDeviceArray{T}, x::T, index::Integer) where {T}
+@device_function @inline function arrayset(A::CuDeviceArray{T}, x::T, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     if isbitstype(T)
         arrayset_bits(A, x, index)
@@ -172,8 +162,8 @@ end
     unsafe_store!(pointer(A), x, index, Val(align))
 end
 
-@inline @generated function arrayset_union(A::CuDeviceArray{T,AS}, x::T, index::Integer) where {T,AS}
-    typs = union_types(T)
+@inline @generated function arrayset_union(A::CuDeviceArray{T,<:Any,AS}, x::T, index::Integer) where {T,AS}
+    typs = Base.uniontypes(T)
     sel = findfirst(isequal(x), typs)
 
     quote
@@ -188,7 +178,7 @@ end
     end
 end
 
-@inline function const_arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
+@device_function @inline function const_arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     align = alignment(A)
     unsafe_cached_load(pointer(A), index, Val(align))

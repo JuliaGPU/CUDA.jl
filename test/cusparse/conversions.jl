@@ -34,3 +34,15 @@ using CUDA.CUSPARSE, SparseArrays
         end
     end
 end
+
+@testset "unsorted sparse (CUDA.jl#1407)" begin
+    I = [1, 1, 2, 3, 3, 4, 5, 4, 6, 4, 5, 6, 6, 6]
+    J = [4, 6, 4, 5, 6, 6, 6, 1, 1, 2, 3, 3, 4, 5]
+
+    # ensure we cover both the CUSPARSE-based and native COO row sort
+    for typ in (Float16, Float32)
+        A = sparse(I, J, ones(typ, length(I)), 6, 6)
+        Agpu = sparse(I |> cu, J |> cu, ones(typ, length(I)) |> cu, 6, 6)
+        @test Array(Agpu) == A
+    end
+end

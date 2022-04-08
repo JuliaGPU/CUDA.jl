@@ -93,17 +93,16 @@ end
         @test occursin("Body::Union{}", err)
     end
 
-    let
-        range_kernel() = (0.0:0.1:100.0; nothing)
-
-        @test_throws CUDA.InvalidIRError @cuda range_kernel()
-    end
-
     # set name of kernel
     @test occursin("julia_mykernel", sprint(io->(@device_code_llvm io=io begin
         k = cufunction(dummy, name="mykernel")
         k()
     end)))
+
+    @test CUDA.return_type(identity, Tuple{Int}) === Int
+    @test CUDA.return_type(CUDA.sin, Tuple{Float32}) === Float32
+    @test CUDA.return_type(getindex, Tuple{CuDeviceArray{Float32,1,1},Int32}) === Float32
+    @test CUDA.return_type(getindex, Tuple{Base.RefValue{Integer}}) === Integer
 end
 
 

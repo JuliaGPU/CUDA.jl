@@ -127,6 +127,11 @@ julia> exit()
                     0.01%     725ns         3     241ns     196ns     301ns  cuCtxGetCurrent
 ```
 
+!!! info
+
+    If `nvprof` crashes, reporting that the application returned non-zero code 12,
+    try starting `nvprof` with `--openacc-profiling off`.
+
 For a visual overview of these results, you can use the NVIDIA Visual Profiler (`nvvp`):
 
 !["NVIDIA Visual Profiler"](nvvp.png)
@@ -178,11 +183,16 @@ stop executed
     Even with a warm-up iteration, the first kernel or API call might seem to take
     significantly longer in the profiler. If you are analyzing short executions, instead
     of whole applications, repeat the operation twice (optionally separated by a call to
-    `CUDA.synchronize()` or wrapping in `CUDA.@sync`)
+    `synchronize()` or wrapping in `CUDA.@sync`)
 
 You can open the resulting `.qdrep` file with `nsight-sys`:
 
 !["NVIDIA Nsight Systems"](nsight_systems.png)
+
+!!! info
+
+    If NSight Systems does not capture any kernel launch, even though you have used
+    `CUDA.@profile`, try starting `nsys` with `--trace cuda`.
 
 ### NVIDIA Nsight Compute
 
@@ -194,7 +204,7 @@ that are marked with `CUDA.@profile`.
 Start with launching Julia under the Nsight Compute CLI tool:
 
 ```
-$ nv-nsight-cu-cli --mode=launch julia
+$ ncu --mode=launch julia
 ```
 
 You will get an interactive REPL, where you can execute whatever code you want:

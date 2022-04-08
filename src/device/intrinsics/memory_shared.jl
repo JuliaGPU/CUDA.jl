@@ -3,7 +3,7 @@
 export @cuStaticSharedMem, @cuDynamicSharedMem, CuStaticSharedArray, CuDynamicSharedArray
 
 """
-    CuStaticSharedArray(T::Type, dims) -> CuDeviceArray{T,AS.Shared}
+    CuStaticSharedArray(T::Type, dims) -> CuDeviceArray{T,N,AS.Shared}
 
 Get an array of type `T` and dimensions `dims` (either an integer length or tuple shape)
 pointing to a statically-allocated piece of shared memory. The type should be statically
@@ -26,7 +26,7 @@ macro cuStaticSharedMem(T, dims)
 end
 
 """
-    CuDynamicSharedArray(T::Type, dims, offset::Integer=0) -> CuDeviceArray{T,AS.Shared}
+    CuDynamicSharedArray(T::Type, dims, offset::Integer=0) -> CuDeviceArray{T,N,AS.Shared}
 
 Get an array of type `T` and dimensions `dims` (either an integer length or tuple shape)
 pointing to a dynamically-allocated piece of shared memory. The type should be statically
@@ -38,14 +38,23 @@ Optionally, an offset parameter indicating how many bytes to add to the base sha
 pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
 shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
 """
-@inline function CuDynamicSharedArray(::Type{T}, dims, offset=0) where {T}
-    len = prod(dims)
-    @boundscheck if offset+len > dynamic_smem_size()
-        throw(BoundsError())
+@inline function CuDynamicSharedArray(::Type{T}, dims, offset) where {T}
+    @boundscheck begin
+        len = prod(dims)
+        sz = len*sizeof(T)
+        if Base.isbitsunion(T)
+            sz += len
+        end
+        if offset+sz > dynamic_smem_size()
+            throw(BoundsError())
+        end
     end
     ptr = emit_shmem(T) + offset
     CuDeviceArray(dims, ptr)
 end
+# XXX: default argument-generated methods do not propagate inboundsness
+Base.@propagate_inbounds CuDynamicSharedArray(::Type{T}, dims) where {T} =
+    CuDynamicSharedArray(T, dims, 0)
 
 macro cuDynamicSharedMem(T, dims, offset=0)
     Base.depwarn("@cuDynamicSharedMem is deprecated, please use the CuDynamicSharedArray function", :CuStaticSharedArray)
@@ -54,20 +63,30 @@ macro cuDynamicSharedMem(T, dims, offset=0)
     end
 end
 
-dynamic_smem_size() = @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, UInt32, Tuple{})
+dynamic_smem_size() =
+    @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, UInt32, Tuple{})
 
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
 @generated function emit_shmem(::Type{T}, ::Val{len}=Val(0)) where {T,len}
     Context() do ctx
-        eltyp = convert(LLVMType, T; ctx)
+        T_int8 = LLVM.Int8Type(ctx)
         T_ptr = convert(LLVMType, LLVMPtr{T,AS.Shared}; ctx)
 
         # create a function
         llvm_f, _ = create_function(T_ptr)
 
+        # determine the array size
+        # TODO: assert that T isbitstype || isbitsunion (or it won't have a layout)
+        sz = len*sizeof(T)
+        if Base.isbitsunion(T)
+            sz += len
+        end
+
         # create the global variable
+        # NOTE: this variable can't have T as element type, because it may be a boxed type
+        #       when we're dealing with a union isbits array (e.g. `Union{Missing,Int}`)
         mod = LLVM.parent(llvm_f)
-        gv_typ = LLVM.ArrayType(eltyp, len)
+        gv_typ = LLVM.ArrayType(T_int8, sz)
         gv = GlobalVariable(mod, gv_typ, "shmem", AS.Shared)
         if len > 0
             # static shared memory should be demoted to local variables, whenever possible.
@@ -84,7 +103,17 @@ dynamic_smem_size() = @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, U
         # by requesting a larger-than-datatype alignment, we might be able to vectorize.
         # we pick 32 bytes here, since WMMA instructions require 32-byte alignment.
         # TODO: Make the alignment configurable
-        alignment!(gv, Base.max(32, Base.datatype_alignment(T)))
+        align = 32
+        if isbitstype(T)
+            align = max(align, Base.datatype_alignment(T))
+        else # if isbitsunion(T)
+            for typ in Base.uniontypes(T)
+                if typ.layout != C_NULL
+                    align = max(align, Base.datatype_alignment(typ))
+                end
+            end
+        end
+        alignment!(gv, align)
 
         # generate IR
         Builder(ctx) do builder

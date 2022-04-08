@@ -7,6 +7,8 @@ export rand_logn!, rand_poisson!
 
 # native RNG
 
+# TODO: move this into CUSPARSE.jl (like CUSPARSE.jl's native broadcast)
+
 """
     CUDA.RNG()
 

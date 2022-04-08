@@ -10,24 +10,72 @@ using Core: LLVMPtr
 
 # Maps PTX types to Julia array types
 const map_ptx_to_jl_array = Dict(
+                                 "u8"  => UInt8,
+                                 "s8"  => Int8,
+                                 "s32" => Int32,
                                  "f16" => Float16,
                                  "f32" => Float32
                                 )
 
 # Maps PTX types to Julia fragment types
 const map_ptx_to_jl_frag = Dict(
+                                "u8"  => UInt32,
+                                "s8"  => UInt32,
+                                "s32" => Int32,
                                 "f16" => NTuple{2, VecElement{Float16}},
                                 "f32" => Float32
                                )
 
 # Maps matrix & PTX types to fragment sizes
 const map_frag_sizes = Dict(
-                            "a.f16" => 8,
-                            "b.f16" => 8,
-                            "c.f16" => 4,
-                            "c.f32" => 8,
-                            "d.f16" => 4,
-                            "d.f32" => 8
+                            # A
+                            "a.u8.m16n16k16"  => 2,
+                            "a.u8.m8n32k16"   => 1,
+                            "a.u8.m32n8k16"   => 4,
+
+                            "a.s8.m16n16k16"  => 2,
+                            "a.s8.m8n32k16"   => 1,
+                            "a.s8.m32n8k16"   => 4,
+                            
+                            "a.f16.m16n16k16" => 8,
+                            "a.f16.m8n32k16"  => 8,
+                            "a.f16.m32n8k16"  => 8,
+                            # B
+                            "b.u8.m16n16k16"  => 2,
+                            "b.u8.m8n32k16"   => 4,
+                            "b.u8.m32n8k16"   => 1,
+
+                            "b.s8.m16n16k16"  => 2,
+                            "b.s8.m8n32k16"   => 4,
+                            "b.s8.m32n8k16"   => 1,
+
+                            "b.f16.m16n16k16" => 8,
+                            "b.f16.m8n32k16"  => 8,
+                            "b.f16.m32n8k16"  => 8,
+                            # C                            
+                            "c.s32.m16n16k16" => 8,
+                            "c.s32.m8n32k16"  => 8,
+                            "c.s32.m32n8k16"  => 8,
+
+                            "c.f16.m16n16k16" => 4,
+                            "c.f16.m8n32k16"  => 4,
+                            "c.f16.m32n8k16"  => 4,
+
+                            "c.f32.m16n16k16" => 8,
+                            "c.f32.m8n32k16"  => 8,
+                            "c.f32.m32n8k16"  => 8,
+                            # D
+                            "d.s32.m16n16k16" => 8,
+                            "d.s32.m8n32k16"  => 8,
+                            "d.s32.m32n8k16"  => 8,
+
+                            "d.f16.m16n16k16" => 4,
+                            "d.f16.m8n32k16"  => 4,
+                            "d.f16.m32n8k16"  => 4,
+
+                            "d.f32.m16n16k16" => 8,
+                            "d.f32.m8n32k16"  => 8,
+                            "d.f32.m32n8k16"  => 8,
                            )
 
 # Maps PTX AS to CUDA.AS
@@ -37,15 +85,41 @@ const map_ptx_as_to_as_ty = Dict(
                                  "global" => AS.Global
                                 )
 
+# Valid WMMA Operation configurations: Shape (M,N,K), Matrix, Element Type
+
+# Half-Precision Floating Point
+const ldst_half_ab_ops = [(16,16,16), (32,8,16), (8,32,16)], ["a", "b"], ["f16"]
+const ldst_half_cd_ops = [(16,16,16), (32,8,16), (8,32,16)], ["c", "d"], ["f16", "f32"]
+const wmma_half_ops    = [(16,16,16), (32,8,16), (8,32,16)], ["f16"], ["f16", "f32"], ["f16", "f32"]
+# Integer
+const ldst_int_ab_ops = [(16,16,16), (32,8,16), (8,32,16)], ["a", "b"], ["u8", "s8"]
+const ldst_int_cd_ops = [(16,16,16), (32,8,16), (8,32,16)], ["c", "d"], ["s32"]
+const wmma_int_ops    = [(16,16,16), (32,8,16), (8,32,16)], ["s8", "u8"], ["s32"], ["s32"]
+
+const all_ldst_ops = vcat(ldst_half_ab_ops, ldst_half_cd_ops,
+                          ldst_int_ab_ops,  ldst_int_cd_ops)
+const all_wmma_ops = vcat(wmma_half_ops, wmma_int_ops)
+
+# Valid WMMA operation shapes
+const valid_shapes = [(16, 16, 16), (32, 8, 16), (8, 32, 16)]
+
 ################################################################################
 # HELPER FUNCTIONS
 ################################################################################
 
+# Returns shape information as a string
+function get_hl_shape(M, N, K)
+    if (M, N, K) in valid_shapes
+        return "m$(M)n$(N)k$(K)"
+    end
+    error("Invalid shape for WMMA: (M, N, K) = ($M, $N, $K)")
+end
+
 # Returns (Julia array type, Julia fragment type, fragment size)
-get_frag_info(matrix, ptx_el_type) = (
+get_frag_info(matrix, ptx_el_type, shape) = (
         map_ptx_to_jl_array[ptx_el_type],
         map_ptx_to_jl_frag[ptx_el_type],
-        map_frag_sizes["$matrix.$ptx_el_type"]
+        map_frag_sizes["$matrix.$ptx_el_type.$shape"]
         )
 
 get_addrspace_info(addr_space) = convert(Int, map_ptx_as_to_as_ty[addr_space])
@@ -86,26 +160,25 @@ Wrapper around the LLVM intrinsic `@llvm.nvvm.wmma.load.{matrix}.sync.{layout}.{
 # Placeholders
 - `{matrix}`: The matrix to load. Can be `a`, `b` or `c`.
 - `{layout}`: The storage layout for the matrix. Can be `row` or `col`, for row major (C style) or column major (Julia style), respectively.
-- `{shape}`: The overall shape of the MAC operation. The only valid value is `m16n16k16`.
+- `{shape}`: The overall shape of the MAC operation. Valid values are `m16n16k16`, `m32n8k16`, and `m8n32k16`.
 - `{addr_space}`: The address space of `src_addr`. Can be empty (generic addressing), `shared` or `global`.
-- `{elem_type}`: The type of each element in the matrix. Can be `f16` (half precision floating point) or `f32` (full precision floating point). Note that `f32` is only valid for the matrix ``C``.
+- `{elem_type}`: The type of each element in the matrix. For `a` and `b` matrices, valid values are `u8` (byte unsigned integer),
+                `s8` (byte signed integer), and `f16` (half precision floating point). For `c` and `d` matrices, valid values are 
+                `s32` (32-bit signed integer), `f16` (half precision floating point), and `f32` (full precision floating point).
 """
 llvm_wmma_load() = error("Cannot call llvm_wmma_load without values for placeholders!")
 export llvm_wmma_load
 
-for mat in ["a", "b", "c"],
+for ops in all_ldst_ops,
+    mnk in ops[1],
+    mat in ops[2],
+    elem_type in ops[3],
     layout in ["col", "row"],
-    shape in ["m16n16k16"],
     addr_space in ["", "shared", "global"],
-    stride in ["stride"],
-    elem_type in ["f16", "f32"]
+    stride in ["stride"]
 
+    shape = get_hl_shape(mnk[1], mnk[2], mnk[3])
     # TODO: Non-stride versions?
-
-    # Float32 is only supported for C
-    if (elem_type == "f32") && (mat != "c")
-        continue
-    end
 
     addr_space_int = get_addrspace_info(addr_space)
 
@@ -116,7 +189,7 @@ for mat in ["a", "b", "c"],
     llvm_intr = "llvm.nvvm.wmma.$shape.load.$mat.$layout.stride.$elem_type.p$(addr_space_int)i8"
 
     # Determine types + size for this (matrix, elem_type) combination
-    arr_ty, frag_ty, sz = get_frag_info(mat, elem_type)
+    arr_ty, frag_ty, sz = get_frag_info(mat, elem_type, shape)
 
     ccall_name = "extern $llvm_intr"
 
@@ -144,19 +217,28 @@ Wrapper around the LLVM intrinsic `@llvm.nvvm.wmma.store.d.sync.{layout}.{shape}
 
 # Placeholders
 - `{layout}`: The storage layout for the matrix. Can be `row` or `col`, for row major (C style) or column major (Julia style), respectively.
-- `{shape}`: The overall shape of the MAC operation. The only valid value is `m16n16k16`.
+- `{shape}`: The overall shape of the MAC operation. Valid values are `m16n16k16`, `m32n8k16`, and `m8n32k16`.
 - `{addr_space}`: The address space of `src_addr`. Can be empty (generic addressing), `shared` or `global`.
-- `{elem_type}`: The type of each element in the matrix. Can be `f16` (half precision floating point) or `f32` (full precision floating point).
+- `{elem_type}`: The type of each element in the matrix. For `a` and `b` matrices, valid values are `u8` (byte unsigned integer),
+                `s8` (byte signed integer), and `f16` (half precision floating point). For `c` and `d` matrices, valid values are 
+                `s32` (32-bit signed integer), `f16` (half precision floating point), and `f32` (full precision floating point).
 """
 llvm_wmma_store() = error("Cannot call llvm_wmma_store without values for placeholders!")
 export llvm_wmma_store
 
-for mat in ["d"],
-    layout in ["col", "row"],
-    shape in ["m16n16k16"],
-    addr_space in ["", "shared", "global"],
-    stride in ["stride"],
-    elem_type in ["f16", "f32"]
+    for ops in all_ldst_ops,
+        mnk in ops[1],
+        mat in ops[2],
+        elem_type in ops[3],
+        layout in ["col", "row"],
+        addr_space in ["", "shared", "global"],
+        stride in ["stride"]
+
+    if mat != "d"
+        continue
+    end
+
+    shape = get_hl_shape(mnk[1], mnk[2], mnk[3])
 
     # TODO: Non-stride versions?
 
@@ -169,7 +251,7 @@ for mat in ["d"],
     llvm_intr = "llvm.nvvm.wmma.$shape.store.$mat.$layout.stride.$elem_type.p$(addr_space_int)i8"
 
     # Determine types + size for this (matrix, elem_type) combination
-    arr_ty, frag_ty, sz = get_frag_info(mat, elem_type)
+    arr_ty, frag_ty, sz = get_frag_info(mat, elem_type, shape)
 
     ccall_name = "extern $llvm_intr"
     frag_types = ntuple(i -> frag_ty, sz)
@@ -187,9 +269,11 @@ end
 # --------------------------
 
 @doc """
-    WMMA.llvm_wmma_mma_{a_layout}_{b_layout}_{shape}_{d_elem_type}_{c_elem_type}(a, b, c)
+    WMMA.llvm_wmma_mma_{a_layout}_{b_layout}_{shape}_{d_elem_type}_{c_elem_type}(a, b, c) or
+    WMMA.llvm_wmma_mma_{a_layout}_{b_layout}_{shape}_{a_elem_type}(a, b, c)
 
-Wrapper around the LLVM intrinsic `@llvm.nvvm.wmma.mma.sync.{a_layout}.{b_layout}.{shape}.{d_elem_type}.{c_elem_type}`.
+For floating point operations: wrapper around the LLVM intrinsic `@llvm.nvvm.wmma.mma.sync.{a_layout}.{b_layout}.{shape}.{d_elem_type}.{c_elem_type}`
+For all other operations: wrapper around the LLVM intrinsic `@llvm.nvvm.wmma.mma.sync.{a_layout}.{b_layout}.{shape}.{a_elem_type}`
 
 # Arguments
 - `a`: The WMMA fragment corresponding to the matrix ``A``.
@@ -199,9 +283,10 @@ Wrapper around the LLVM intrinsic `@llvm.nvvm.wmma.mma.sync.{a_layout}.{b_layout
 # Placeholders
 - `{a_layout}`: The storage layout for matrix ``A``. Can be `row` or `col`, for row major (C style) or column major (Julia style), respectively. Note that this must match the layout used in the load operation.
 - `{b_layout}`: The storage layout for matrix ``B``. Can be `row` or `col`, for row major (C style) or column major (Julia style), respectively. Note that this must match the layout used in the load operation.
-- `{shape}`: The overall shape of the MAC operation. The only valid value is `m16n16k16`.
-- `{d_elem_type}`: The type of each element in the resultant ``D`` matrix. Can be `f16` (half precision floating point) or `f32` (full precision floating point).
-- `{c_elem_type}`: The type of each element in the ``C`` matrix. Can be `f16` (half precision floating point) or `f32` (full precision floating point).
+- `{shape}`: The overall shape of the MAC operation. Valid values are `m16n16k16`, `m32n8k16`, and `m8n32k16`.
+- `{a_elem_type}`: The type of each element in the ``A`` matrix. Valid values are `u8` (byte unsigned integer), `s8` (byte signed integer), and `f16` (half precision floating point).
+- `{d_elem_type}`: The type of each element in the resultant ``D`` matrix. Valid values are `s32` (32-bit signed integer), `f16` (half precision floating point), and `f32` (full precision floating point).
+- `{c_elem_type}`: The type of each element in the ``C`` matrix. Valid values are `s32` (32-bit signed integer), `f16` (half precision floating point), and `f32` (full precision floating point).
 
 !!! warning
 
@@ -211,25 +296,34 @@ Wrapper around the LLVM intrinsic `@llvm.nvvm.wmma.mma.sync.{a_layout}.{b_layout
 llvm_wmma_mma() = error("Cannot call llvm_wmma_mma without values for placeholders!")
 export llvm_wmma_mma
 
-for a_layout in ["col", "row"],
+for ops in all_wmma_ops,
+    a_layout in ["col", "row"],
     b_layout in ["col", "row"],
-    shape in ["m16n16k16"],
-    d_elem_type in ["f16", "f32"],
-    c_elem_type in ["f16", "f32"],
-    b_elem_type in ["f16"],
-    a_elem_type in ["f16"]
+    mnk in ops[1],
+    d_elem_type in ops[4],
+    c_elem_type in ops[3],
+    b_elem_type in ops[2]
 
-    # Name of the Julia wrapper function
-    func_name = Symbol(join(filter(!isempty, ["llvm", "wmma", "mma", a_layout, b_layout, shape, d_elem_type, c_elem_type]), "_"))
+    a_elem_type = b_elem_type
+    shape = get_hl_shape(mnk[1], mnk[2], mnk[3])
 
     # Name of the LLVM intrinsic
-    llvm_intr = "llvm.nvvm.wmma.$shape.mma.$a_layout.$b_layout.$d_elem_type.$c_elem_type"
+    # If integer/sub-byte/bit A/B types, name is determined by A/B types
+    if d_elem_type == "s32"
+        llvm_intr = "llvm.nvvm.wmma.$shape.mma.$a_layout.$b_layout.$a_elem_type"
+        # Name of the Julia wrapper function
+        func_name = Symbol(join(filter(!isempty, ["llvm", "wmma", "mma", a_layout, b_layout, shape, a_elem_type]), "_"))
+    else # Name defined by D/C types
+        llvm_intr = "llvm.nvvm.wmma.$shape.mma.$a_layout.$b_layout.$d_elem_type.$c_elem_type"
+        # Name of the Julia wrapper function
+        func_name = Symbol(join(filter(!isempty, ["llvm", "wmma", "mma", a_layout, b_layout, shape, d_elem_type, c_elem_type]), "_"))
+    end
 
     # Determine types + size for the (matrix, elem_type) combinations for matrix A, B, C and D
-    a_arr_ty, a_frag_ty, a_sz = get_frag_info("a", a_elem_type)
-    b_arr_ty, b_frag_ty, b_sz = get_frag_info("b", b_elem_type)
-    c_arr_ty, c_frag_ty, c_sz = get_frag_info("c", c_elem_type)
-    d_arr_ty, d_frag_ty, d_sz = get_frag_info("d", d_elem_type)
+    a_arr_ty, a_frag_ty, a_sz = get_frag_info("a", a_elem_type, shape)
+    b_arr_ty, b_frag_ty, b_sz = get_frag_info("b", b_elem_type, shape)
+    c_arr_ty, c_frag_ty, c_sz = get_frag_info("c", c_elem_type, shape)
+    d_arr_ty, d_frag_ty, d_sz = get_frag_info("d", d_elem_type, shape)
 
     ccall_name = "extern $llvm_intr"
 
@@ -439,17 +533,9 @@ function get_hl_layout(L)
     end
 end
 
-function get_hl_shape(M, N, K)
-    if (M, N, K) != (16, 16, 16)
-        error("Invalid shape for WMMA: (M, N, K) = ($M, $N, $K)")
-    end
-
-    return "m$(M)n$(N)k$(K)"
-end
-
 get_hl_mat_use(mat) = map_matrix_to_use[mat]
 
-function get_hl_frag_info(matrix, T)
+function get_hl_frag_info(matrix, T, shape)
     ptx_ty = nothing
 
     try
@@ -460,7 +546,7 @@ function get_hl_frag_info(matrix, T)
 
     try
         return (map_num_elems[(matrix, T)],
-                map_frag_sizes["$matrix.$ptx_ty"],
+                map_frag_sizes["$matrix.$ptx_ty.$shape"],
                 map_ptx_to_jl_frag[ptx_ty],
                 ptx_ty)
     catch
@@ -507,7 +593,7 @@ for mat in ["a", "b", "c"]
         as_str                 = get_hl_as_info(AS)
         layout                 = get_hl_layout(L)
         shape                  = get_hl_shape(M, N, K)
-        num_els, _, _, arr_str = get_hl_frag_info($mat, T)
+        num_els, _, _, arr_str = get_hl_frag_info($mat, T, shape)
         U                      = get_hl_mat_use($mat)
         L_ret                  = ($mat == "c") ? Unspecified : L
 
@@ -552,14 +638,16 @@ mma
                         c::Fragment{M, N, K, C_SZ, C_T, Unspecified, Accumulator},
                         config::Type{Config{M, N, K, D_T}}) where {M, N, K, A_SZ, A_T, A_L, B_SZ, B_T, B_L, C_SZ, C_T, D_T}
 
-    _, a_frag_sz, a_frag_ty, _         = get_hl_frag_info("a", A_T)
-    _, b_frag_sz, b_frag_ty, _         = get_hl_frag_info("b", B_T)
-    _, c_frag_sz, c_frag_ty, c_arr_str = get_hl_frag_info("c", C_T)
-    d_num_els, _, _, d_arr_str         = get_hl_frag_info("d", D_T)
-
     a_layout = get_hl_layout(A_L)
     b_layout = get_hl_layout(B_L)
     shape = get_hl_shape(M, N, K)
+
+    _, a_frag_sz, a_frag_ty, _         = get_hl_frag_info("a", A_T, shape)
+    _, b_frag_sz, b_frag_ty, _         = get_hl_frag_info("b", B_T, shape)
+    _, c_frag_sz, c_frag_ty, c_arr_str = get_hl_frag_info("c", C_T, shape)
+    d_num_els, _, _, d_arr_str         = get_hl_frag_info("d", D_T, shape)
+
+    
 
     # Name of the Julia wrapper
     wrapper = Symbol(join(filter(!isempty, ["llvm", "wmma", "mma", a_layout, b_layout, shape, d_arr_str, c_arr_str]), "_"))
@@ -611,7 +699,7 @@ store_d
     as_str                             = get_hl_as_info(AS)
     layout                             = get_hl_layout(L)
     shape                              = get_hl_shape(M, N, K)
-    num_els, frag_sz, frag_ty, arr_str = get_hl_frag_info("d", T)
+    num_els, frag_sz, frag_ty, arr_str = get_hl_frag_info("d", T, shape)
 
     # Name of the Julia wrapper
     wrapper = Symbol(join(filter(!isempty, ["llvm", "wmma", "store", "d", layout, shape, as_str, "stride", arr_str]), "_"))
@@ -648,7 +736,8 @@ fill_c
 
     # We can't use closures in @generated functions, so we'll have to do it this way instead of
     # ntuple(i -> val, $num_els)
-    num_els, _, _ = get_hl_frag_info("c", T)
+    shape = get_hl_shape(M, N, K)
+    num_els, _, _ = get_hl_frag_info("c", T, shape)
 
     args = [:value for i=1:num_els]
     expr = :(tuple($(args...)))

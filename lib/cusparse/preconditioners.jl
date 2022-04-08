@@ -17,7 +17,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
         function ic02!(A::CuSparseMatrixCSR{$elty},
                        index::SparseChar)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
-            m,n = A.dims
+            m,n = size(A)
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
@@ -58,7 +58,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
         function ic02!(A::CuSparseMatrixCSC{$elty},
                        index::SparseChar)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
-            m,n = A.dims
+            m,n = size(A)
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
@@ -105,7 +105,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
         function ilu02!(A::CuSparseMatrixCSR{$elty},
                         index::SparseChar)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
-            m,n = A.dims
+            m,n = size(A)
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
@@ -147,7 +147,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
         function ilu02!(A::CuSparseMatrixCSC{$elty},
                         index::SparseChar)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
-            m,n = A.dims
+            m,n = size(A)
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
@@ -189,7 +189,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
         function ic02!(A::CuSparseMatrixBSR{$elty},
                        index::SparseChar)
             desc = CuMatrixDescriptor('G', 'U', 'N', index)
-            m,n = A.dims
+            m,n = size(A)
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
@@ -232,7 +232,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
         function ilu02!(A::CuSparseMatrixBSR{$elty},
                         index::SparseChar)
             desc = CuMatrixDescriptor('G', 'U', 'N', index)
-            m,n = A.dims
+            m,n = size(A)
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end

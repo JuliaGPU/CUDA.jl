@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim, @context!, initialize_context
+using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim, initialize_context, i32, @allowscalar
 
 using CEnum: @cenum
 
@@ -43,6 +43,10 @@ include("generic.jl")
 # high-level integrations
 include("interfaces.jl")
 
+# native functionality
+include("device.jl")
+include("broadcast.jl")
+
 # cache for created, but unused handles
 const idle_handles = HandleCache{CuContext,cusparseHandle_t}()
 
@@ -63,7 +67,9 @@ function handle()
 
         finalizer(current_task()) do task
             push!(idle_handles, cuda.context, new_handle) do
-                @context! skip_destroyed=true cuda.context cusparseDestroy(new_handle)
+                context!(cuda.context; skip_destroyed=true) do
+                    cusparseDestroy(new_handle)
+                end
             end
         end
 

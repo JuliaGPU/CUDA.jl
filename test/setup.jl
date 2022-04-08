@@ -229,17 +229,13 @@ end
                      %value = load volatile i64, i64* %slot
                      ret i64 %value""", Int64, Tuple{Int64}, i)
 
-function julia_script(code, args=``, env...)
+function julia_exec(args::Cmd, env...)
     # FIXME: this doesn't work when the compute mode is set to exclusive
-    script = """using CUDA
-                device!($(device()))
-
-                $code"""
     cmd = Base.julia_cmd()
     if Base.JLOptions().project != C_NULL
         cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project))`
     end
-    cmd = `$cmd --color=no --eval $script $args`
+    cmd = `$cmd --color=no $args`
 
     out = Pipe()
     err = Pipe()
@@ -247,7 +243,7 @@ function julia_script(code, args=``, env...)
     close(out.in)
     close(err.in)
     wait(proc)
-    proc.exitcode, read(out, String), read(err, String)
+    proc, read(out, String), read(err, String)
 end
 
 # tests that are conditionall broken

@@ -170,44 +170,53 @@ end
 ## Utilities to find a fast algorithm
 
 const cudnnConvolutionFwdAlgoPerfCache = Dict{Tuple,cudnnConvolutionFwdAlgoPerf_t}()
+const cudnnConvolutionFwdAlgoPerfCacheLock = ReentrantLock()
 function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation)
-    get!(cudnnConvolutionFwdAlgoPerfCache, (xDesc, wDesc, convDesc, biasDesc, activation)) do
-        requestedAlgoCount = Int(CUDNN_CONVOLUTION_FWD_ALGO_COUNT)
-        returnedAlgoCount = Cint[0]
-        perfResults = Array{cudnnConvolutionFwdAlgoPerf_t}(undef,requestedAlgoCount)
-        workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
-        with_workspace(workspaceSize) do workspace
-            cudnnFindConvolutionForwardAlgorithmEx(handle(),xDesc,x,wDesc,w,convDesc,yDesc,y,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
+    lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
+        get!(cudnnConvolutionFwdAlgoPerfCache, (xDesc, wDesc, convDesc, biasDesc, activation)) do
+            requestedAlgoCount = Int(CUDNN_CONVOLUTION_FWD_ALGO_COUNT)
+            returnedAlgoCount = Cint[0]
+            perfResults = Array{cudnnConvolutionFwdAlgoPerf_t}(undef,requestedAlgoCount)
+            workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
+            with_workspace(workspaceSize) do workspace
+                cudnnFindConvolutionForwardAlgorithmEx(handle(),xDesc,x,wDesc,w,convDesc,yDesc,y,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
+            end
+            cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
         end
-        cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
     end
 end
 
 const cudnnConvolutionBwdDataAlgoPerfCache = Dict{Tuple,cudnnConvolutionBwdDataAlgoPerf_t}()
+const cudnnConvolutionBwdDataAlgoPerfCacheLock = ReentrantLock()
 function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc, dx)
-    get!(cudnnConvolutionBwdDataAlgoPerfCache, (wDesc, dyDesc, convDesc)) do
-        requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT)
-        returnedAlgoCount = Cint[0]
-        perfResults = Array{cudnnConvolutionBwdDataAlgoPerf_t}(undef,requestedAlgoCount)
-        workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(dx)
-        with_workspace(workspaceSize) do workspace
-            cudnnFindConvolutionBackwardDataAlgorithmEx(handle(),wDesc,w,dyDesc,dy,convDesc,dxDesc,dx,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
+    lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
+        get!(cudnnConvolutionBwdDataAlgoPerfCache, (wDesc, dyDesc, convDesc)) do
+            requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT)
+            returnedAlgoCount = Cint[0]
+            perfResults = Array{cudnnConvolutionBwdDataAlgoPerf_t}(undef,requestedAlgoCount)
+            workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(dx)
+            with_workspace(workspaceSize) do workspace
+                cudnnFindConvolutionBackwardDataAlgorithmEx(handle(),wDesc,w,dyDesc,dy,convDesc,dxDesc,dx,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
+            end
+            cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
         end
-        cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
     end
 end
 
 const cudnnConvolutionBwdFilterAlgoPerfCache = Dict{Tuple,cudnnConvolutionBwdFilterAlgoPerf_t}()
+const cudnnConvolutionBwdFilterAlgoPerfCacheLock = ReentrantLock()
 function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDesc, dw)
-    get!(cudnnConvolutionBwdFilterAlgoPerfCache, (xDesc, dyDesc, convDesc)) do
-        requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT)
-        returnedAlgoCount = Cint[0]
-        perfResults = Array{cudnnConvolutionBwdFilterAlgoPerf_t}(undef,requestedAlgoCount)
-        workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
-        with_workspace(workspaceSize) do workspace
-            cudnnFindConvolutionBackwardFilterAlgorithmEx(handle(),xDesc,x,dyDesc,dy,convDesc,dwDesc,dw,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
+    lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
+        get!(cudnnConvolutionBwdFilterAlgoPerfCache, (xDesc, dyDesc, convDesc)) do
+            requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT)
+            returnedAlgoCount = Cint[0]
+            perfResults = Array{cudnnConvolutionBwdFilterAlgoPerf_t}(undef,requestedAlgoCount)
+            workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
+            with_workspace(workspaceSize) do workspace
+                cudnnFindConvolutionBackwardFilterAlgorithmEx(handle(),xDesc,x,dyDesc,dy,convDesc,dwDesc,dw,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
+            end
+            cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
         end
-        cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
     end
 end
 
@@ -232,6 +241,6 @@ end
 
 # Allocate the maximum reasonable amount of memory for algorithm discovery
 function cudnnFindConvolutionAlgorithmWorkspaceSize(x)
-    gpufree = CUDA.available_memory() + CUDA.cached_memory()
+    gpufree = CUDA.available_memory() + coalesce(CUDA.cached_memory(), 0)
     min(gpufree ÷ 10, sizeof(x) * 100)
 end

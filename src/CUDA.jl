@@ -50,7 +50,6 @@ include("../lib/cudadrv/CUDAdrv.jl")
 
 # essential stuff
 include("initialization.jl")
-include("state.jl")
 include("debug.jl")
 
 # device functionality (needs to be loaded first, because of generated functions)
@@ -61,7 +60,6 @@ include("device/intrinsics.jl")
 include("device/runtime.jl")
 include("device/texture.jl")
 include("device/random.jl")
-include("device/sparse.jl")
 include("device/quirks.jl")
 
 # array essentials
@@ -84,6 +82,15 @@ include("gpuarrays.jl")
 include("utilities.jl")
 include("texture.jl")
 
+# integrations and specialized functionality
+include("indexing.jl")
+include("broadcast.jl")
+include("mapreduce.jl")
+include("accumulate.jl")
+include("reverse.jl")
+include("iterator.jl")
+include("sorting.jl")
+
 # array libraries
 include("../lib/complex.jl")
 include("../lib/library_types.jl")
@@ -94,18 +101,11 @@ include("../lib/cufft/CUFFT.jl")
 include("../lib/curand/CURAND.jl")
 include("../lib/cudnn/CUDNN.jl")
 include("../lib/cutensor/CUTENSOR.jl")
+
 export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND, CUDNN, CUTENSOR
 
-# integrations and specialized functionality
-include("indexing.jl")
-include("broadcast.jl")
-include("mapreduce.jl")
-include("accumulate.jl")
-include("reverse.jl")
-include("linalg.jl")
-include("iterator.jl")
+# random depends on CURAND
 include("random.jl")
-include("sorting.jl")
 
 # other libraries
 include("../lib/nvml/NVML.jl")

@@ -156,44 +156,20 @@ function context!(ctx::CuContext)
     return old_ctx
 end
 
-macro context!(ex...)
-    body = ex[end]
-    ctx = ex[end-1]
-    kwargs = ex[1:end-2]
-
-    skip_destroyed = false
-    for kwarg in kwargs
-        Meta.isexpr(kwarg, :(=)) || throw(ArgumentError("non-keyword argument like option '$kwarg'"))
-        key, val = kwarg.args
-        isa(key, Symbol) || throw(ArgumentError("non-symbolic keyword '$key'"))
-
-        if key == :skip_destroyed
-            skip_destroyed = val
-        else
-            throw(ArgumentError("unrecognized keyword argument '$kwarg'"))
-        end
-    end
-
-    quote
-        ctx = $(esc(ctx))
-        if isvalid(ctx)
-            old_ctx = context!(ctx)
-            try
-                $(esc(body))
-            finally
-                if old_ctx !== nothing && old_ctx != ctx && isvalid(old_ctx)
-                    context!(old_ctx)
-                end
-            end
-        elseif !$(esc(skip_destroyed))
-            error("Cannot switch to an invalidated context.")
-        end
-    end
-end
-
 @inline function context!(f::Function, ctx::CuContext; skip_destroyed::Bool=false)
     # @inline so that the kwarg method is inlined too and we can const-prop skip_destroyed
-    @context! skip_destroyed=skip_destroyed ctx f()
+    if isvalid(ctx)
+        old_ctx = context!(ctx)
+        try
+            f()
+        finally
+            if old_ctx !== nothing && old_ctx != ctx && isvalid(old_ctx)
+                context!(old_ctx)
+            end
+        end
+    elseif !skip_destroyed
+        error("Cannot switch to an invalidated context.")
+    end
 end
 
 
@@ -257,6 +233,9 @@ Sets `dev` as the current active device for the calling host thread. Devices can
 specified by integer id, or as a `CuDevice` (slightly faster). Both functions can be used
 with do-block syntax, in which case the device is only changed temporarily, without changing
 the default device used to initialize new threads or tasks.
+
+Calling this function at the start of a session will make sure CUDA is initialized (i.e.,
+a primary context will be created and activated).
 """
 device!
 
@@ -274,26 +253,22 @@ function device!(dev::CuDevice, flags=nothing)
     default_device[] = dev
 
     # switch contexts
+    ctx = context(dev)
     state = task_local_state()
     if state === nothing
         task_local_state!(dev)
     else
         state.device = dev
-        state.context = context(dev)
+        state.context = ctx
     end
+    activate(ctx)
 
     dev
 end
 
-macro device!(dev, body)
-    quote
-        ctx = context($(esc(dev)))
-        @context! ctx $(esc(body))
-    end
-end
-
 function device!(f::Function, dev::CuDevice)
-    @device! dev f()
+    ctx = context(dev)
+    context!(f, ctx)
 end
 
 # NVIDIA bug #3240770
@@ -348,7 +323,7 @@ function math_mode!(mode::MathMode; precision=nothing)
     default_math_mode[] = mode
 
     if precision !== nothing
-        state.math_precision = math_precision
+        state.math_precision = precision
         default_math_precision[] = precision
     end
 

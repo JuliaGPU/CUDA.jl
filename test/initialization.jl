@@ -88,8 +88,15 @@ if length(devices()) > 1
 
     # math_mode
     old_mm = CUDA.math_mode()
+    old_prec = CUDA.math_precision()
     CUDA.math_mode!(CUDA.PEDANTIC_MATH)
-    CUDA.math_mode!(old_mm)
+    @test CUDA.math_mode() == CUDA.PEDANTIC_MATH
+    CUDA.math_mode!(CUDA.PEDANTIC_MATH; precision=:Float16)
+    @test CUDA.math_precision() == :Float16
+    CUDA.math_mode!(old_mm; precision=old_prec)
+    # ensure the values we tested here aren't the defaults
+    @test CUDA.math_mode() != CUDA.PEDANTIC_MATH
+    @test CUDA.math_precision() != :Float16
 
     # tasks on multiple threads
     Threads.@threads for d in 0:1
@@ -149,3 +156,14 @@ task = @async begin
 end
 @test fetch(task) == s
 @test stream() == default_s
+
+@testset "issue 1331: repeated initialization failure should stick" begin
+    script = """
+        using CUDA, Test
+        @test !CUDA.functional()
+        @test !CUDA.functional()
+    """
+
+    proc, out, err = julia_exec(`-e $script`, "CUDA_VISIBLE_DEVICES"=>"-1")
+    @test success(proc)
+end

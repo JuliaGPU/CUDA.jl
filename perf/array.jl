@@ -7,6 +7,8 @@ const n = 1000
 cpu_mat = rand(rng, Float32, m, n)
 gpu_mat = CuArray{Float32}(undef, size(cpu_mat))
 gpu_vec = reshape(gpu_mat, length(gpu_mat))
+gpu_arr_3d = reshape(gpu_mat, (m, 40, 25))
+gpu_arr_4d = reshape(gpu_mat, (m, 10, 10, 10))
 gpu_mat_ints = CuArray(rand(rng, Int, m, n))
 gpu_vec_ints = reshape(gpu_mat_ints, length(gpu_mat_ints))
 gpu_mat_bools = CuArray(rand(rng, Bool, m, n))
@@ -99,4 +101,10 @@ let group = addgroup!(group, "sorting")
     group["1d"] = @async_benchmarkable sort($gpu_vec)
     group["2d"] = @async_benchmarkable sort($gpu_mat; dims=1)
     group["by"] = @async_benchmarkable sort($gpu_vec; by=sin)
+end
+
+let group = addgroup!(group, "permutedims")
+    group["2d"] = @async_benchmarkable permutedims($gpu_mat, (2,1))
+    group["3d"] = @async_benchmarkable permutedims($gpu_arr_3d, (3,1,2))
+    group["4d"] = @async_benchmarkable permutedims($gpu_arr_4d, (2,1,4,3))
 end

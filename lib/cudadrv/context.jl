@@ -39,6 +39,8 @@ mutable struct CuContext
     valid::Bool
 
     function new_unique(handle)
+        # XXX: this makes it dangerous to call this function from finalizers.
+        #      can we do without the lock?
         Base.@lock context_lock get!(valid_contexts, handle) do
             new(handle, true)
         end
@@ -169,24 +171,6 @@ function Base.pop!(::Type{CuContext})
     cuCtxPopCurrent_v2(handle_ref)
     # we don't return the context here, because it may be unused
     # (and constructing the unique object is expensive)
-end
-
-# perform some finalizer actions in a context
-macro finalize_in_ctx(ctx, body)
-    # XXX: should this not integrate with the high-level context management from state.jl?
-    #      it might be good that the driver API wrappers don't need that runtime-esque
-    #      state management, but it might be confusing that `context()` doesn't work here.
-    quote
-        ctx = $(esc(ctx))
-        if isvalid(ctx)
-            push!(CuContext, ctx)
-            try
-                $(esc(body))
-            finally
-                pop!(CuContext)
-            end
-        end
-    end
 end
 
 """
@@ -395,3 +379,13 @@ function limit(lim::CUlimit)
 end
 
 limit!(lim::CUlimit, val) = cuCtxSetLimit(lim, val)
+
+
+## p2p
+
+export enable_peer_access, disable_peer_access
+
+enable_peer_access(peer::CuContext, flags=0) =
+    cuCtxEnablePeerAccess(peer, flags)
+
+disable_peer_access(peer::CuContext) = cuCtxDisablePeerAccess(peer)

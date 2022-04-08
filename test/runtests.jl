@@ -159,7 +159,7 @@ cuda_support = CUDA.cuda_compat()
 filter!(x->x.cap in cuda_support.cap, candidates)
 ## only consider recent devices if we want testing to be thorough
 if do_thorough
-    filter!(x->x.cap >= v"7.0", candidates)
+    filter!(x->x.cap >= v"6.0", candidates)
 end
 isempty(candidates) && error("Could not find any suitable device for this configuration")
 ## order by available memory, but also by capability if testing needs to be thorough
@@ -172,16 +172,20 @@ ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"$(pick.mig ? "MIG" : "GPU")-$(pick
 # determine tests to skip
 skip_tests = []
 has_cudnn() || push!(skip_tests, "cudnn")
-has_cusolvermg() || push!(skip_tests, "cusolvermg")
+has_cusolvermg() || push!(skip_tests, "cusolver/multigpu")
 has_nvml() || push!(skip_tests, "nvml")
-if !has_cutensor() || CUDA.version() < v"10.1" || first(picks).cap < v"7.0" || do_sanitize
+if !has_cutensor() || first(picks).cap < v"6.0"
     push!(skip_tests, "cutensor")
 end
+has_cutensornet() || push!(skip_tests, "cutensornet")
+has_custatevec() || push!(skip_tests, "custatevec")
 if do_sanitize
     # XXX: some library tests fail under compute-sanitizer
-    append!(skip_tests, ["cutensor", "cusparse"])
+    append!(skip_tests, ["cutensor"])
     # XXX: others take absurdly long
     push!(skip_tests, "cusolver")
+    # XXX: these hang for some reason
+    push!(skip_tests, "sorting")
 end
 if first(picks).cap < v"7.0"
     push!(skip_tests, "device/intrinsics/wmma")
@@ -214,30 +218,6 @@ else
     all_tests = copy(tests)
 end
 
-# handle compute-sanitizer
-struct rlimit
-    cur::Culong
-    max::Culong
-end
-const RLIMIT_NOFILE = 7
-if do_sanitize
-    sanitizer = CUDA.compute_sanitizer()
-    @info "Running under $(readchomp(`$sanitizer --version`))"
-
-    # bump the per-process file descriptor limit to work around NVIDIA bug #3273266.
-    # this value will be inherited by child processes.
-    if Sys.islinux()
-        local limit
-        limit = Ref{rlimit}()
-        ret = ccall(:getrlimit, Cint, (Cint, Ptr{rlimit}), RLIMIT_NOFILE, limit)
-        systemerror(:getrlimit, ret != 0)
-        @warn "Bumping file descriptor limit from $(Int(limit[].cur)) to $(Int(limit[].max))"
-        limit[] = rlimit(limit[].max, limit[].max)
-        ret = ccall(:setrlimit, Cint, (Cint, Ptr{rlimit}), RLIMIT_NOFILE, limit)
-        systemerror(:getrlimit, ret != 0)
-    end
-end
-
 # add workers
 const test_exeflags = Base.julia_cmd()
 filter!(test_exeflags.exec) do c
@@ -252,8 +232,7 @@ end
 const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
     exename = if do_sanitize
-        sanitizer = CUDA.compute_sanitizer()
-        `$sanitizer --tool $sanitize_tool --launch-timeout=0 --target-processes=all --report-api-errors=no $test_exename`
+        `$(CUDA.compute_sanitizer_cmd(sanitize_tool)) $test_exename`
     else
         test_exename
     end

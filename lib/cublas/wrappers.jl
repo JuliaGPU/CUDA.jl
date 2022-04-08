@@ -103,17 +103,9 @@ for (fname, elty) in ((:cublasDscal_v2,:Float64),
     end
 end
 function scal!(n::Integer, alpha::Number, x::StridedCuArray{Float16})
-    if version() > v"10.1"
-        α = convert(Float32, alpha)
-        cublasScalEx(handle(), n, Ref{Float32}(α), Float32, x, Float16, stride(x, 1), Float32)
-        return x
-    else
-        wide_x = widen.(x)
-        scal!(n, alpha, wide_x)
-        thin_x = convert(typeof(x), wide_x)
-        copyto!(x, thin_x)
-        return x
-    end
+    α = convert(Float32, alpha)
+    cublasScalEx(handle(), n, Ref{Float32}(α), Float32, x, Float16, stride(x, 1), Float32)
+    return x
 end
 # specific variants in case x is complex and alpha is real
 for (fname, elty, celty) in ((:cublasCsscal_v2, :Float32, :ComplexF32),
@@ -153,13 +145,9 @@ for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
     end
 end
 function dot(n::Integer, x::StridedCuArray{Float16}, y::StridedCuArray{Float16})
-    if version() > v"10.1"
-        result = Ref{Float16}()
-        cublasDotEx(handle(), n, x, Float16, stride(x, 1), y, Float16, stride(y, 1), result, Float16, Float32)
-        return result[]
-    else
-        return convert(Float16, dot(n, convert(CuArray{Float32}, x), convert(CuArray{Float32}, y)))
-    end
+    result = Ref{Float16}()
+    cublasDotEx(handle(), n, x, Float16, stride(x, 1), y, Float16, stride(y, 1), result, Float16, Float32)
+    return result[]
 end
 function dotc(n::Integer, x::StridedCuArray{ComplexF16}, y::StridedCuArray{ComplexF16})
     return convert(ComplexF16, dotc(n, convert(CuArray{ComplexF32}, x), convert(CuArray{ComplexF32}, y)))
@@ -185,20 +173,14 @@ end
 nrm2(x::StridedCuArray) = nrm2(length(x), x)
 
 function nrm2(n::Integer, x::StridedCuArray{Float16})
-    if version() > v"10.1"
-        result = Ref{Float16}()
-        cublasNrm2Ex(handle(), n, x, Float16, stride(x, 1), result, Float16, Float32)
-        return result[]
-    else
-        wide_x = widen.(x)
-        nrm    = nrm2(n, wide_x)
-        return convert(Float16, nrm)
-    end
+    result = Ref{Float16}()
+    cublasNrm2Ex(handle(), n, x, Float16, stride(x, 1), result, Float16, Float32)
+    return result[]
 end
 function nrm2(n::Integer, x::StridedCuArray{ComplexF16})
     wide_x = widen.(x)
     nrm    = nrm2(n, wide_x)
-    return convert(ComplexF16, nrm)
+    return convert(Float16, nrm)
 end
 
 ## asum
@@ -233,18 +215,9 @@ for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
 end
 
 function axpy!(n::Integer, alpha::Number, dx::StridedCuArray{Float16}, dy::StridedCuArray{Float16})
-    if version() >= v"10.1"
-        α = convert(Float32, alpha)
-        cublasAxpyEx(handle(), n, Ref{Float32}(α), Float32, dx, Float16, stride(dx, 1), dy, Float16, stride(dy, 1), Float32)
-        return dy
-    else
-        wide_x = widen.(dx)
-        wide_y = widen.(dy)
-        axpy!(n, alpha, wide_x, wide_y)
-        thin_y = convert(typeof(dy), wide_y)
-        copyto!(dy, thin_y)
-        return dy
-    end
+    α = convert(Float32, alpha)
+    cublasAxpyEx(handle(), n, Ref{Float32}(α), Float32, dx, Float16, stride(dx, 1), dy, Float16, stride(dy, 1), Float32)
+    return dy
 end
 function axpy!(n::Integer, alpha::Number, dx::StridedCuArray{ComplexF16}, dy::StridedCuArray{ComplexF16})
     wide_x = widen.(dx)
@@ -411,6 +384,32 @@ for (fname, elty) in ((:cublasDgbmv_v2,:Float64),
                       A::StridedCuMatrix{$elty},
                       x::StridedCuVector{$elty})
             gbmv(trans, m, kl, ku, one($elty), A, x)
+        end
+    end
+end
+
+### spmv
+for (fname, elty) in ((:cublasDspmv_v2,:Float64),
+                      (:cublasSspmv_v2,:Float32))
+    @eval begin
+        function spmv!(uplo::Char,
+                       alpha::Number,
+                       AP::StridedCuVector{$elty},
+                       x::StridedCuVector{$elty},
+                       beta::Number,
+                       y::StridedCuVector{$elty})
+            n = round(Int, (sqrt(8*length(AP))-1)/2)
+            if n != length(x) || n != length(y) throw(DimensionMismatch("")) end
+            incx = stride(x,1)
+            incy = stride(y,1)
+            $fname(handle(), uplo, n, alpha, AP, x, incx, beta, y, incy)
+            y
+        end
+        function spmv(uplo::Char, alpha::Number, AP::StridedCuVector{$elty}, x::StridedCuVector{$elty})
+                spmv!(uplo, alpha, AP, x, zero($elty), similar(x))
+        end
+        function spmv(uplo::Char, AP::StridedCuVector{$elty}, x::StridedCuVector{$elty})
+            spmv(uplo, one($elty), AP, x)
         end
     end
 end
@@ -691,6 +690,23 @@ for (fname, elty) in ((:cublasDger_v2,:Float64),
             lda = max(1,stride(A,2))
             $fname(handle(), m, n, alpha, x, incx, y, incy, A, lda)
             A
+        end
+    end
+end
+
+### spr
+for (fname, elty) in ((:cublasDspr_v2,:Float64),
+                      (:cublasSspr_v2,:Float32))
+    @eval begin
+        function spr!(uplo::Char,
+                      alpha::Number,
+                      x::StridedCuVector{$elty},
+                      AP::StridedCuVector{$elty})
+            n = round(Int, (sqrt(8*length(AP))-1)/2)
+            length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
+            incx = stride(x,1)
+            $fname(handle(), uplo, n, alpha, x, incx, AP)
+            AP
         end
     end
 end

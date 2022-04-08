@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcusolver, libcusolvermg, @allowscalar, assertscalar, unsafe_free!, @retry_reclaim, @context!, initialize_context
+using ..CUDA: libcusolver, libcusolvermg, @allowscalar, assertscalar, unsafe_free!, @retry_reclaim, initialize_context
 
 using ..CUBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
 using ..CUSPARSE: cusparseMatDescr_t
@@ -47,7 +47,9 @@ function dense_handle()
 
         finalizer(current_task()) do task
             push!(idle_dense_handles, cuda.context, new_handle) do
-                @context! skip_destroyed=true cuda.context cusolverDnDestroy(new_handle)
+                context!(cuda.context; skip_destroyed=true) do
+                    cusolverDnDestroy(new_handle)
+                end
             end
         end
 
@@ -87,7 +89,9 @@ function sparse_handle()
 
         finalizer(current_task()) do task
             push!(idle_sparse_handles, cuda.context, new_handle) do
-                @context! skip_destroyed=true cuda.context cusolverSpDestroy(new_handle)
+                context!(cuda.context; skip_destroyed=true) do
+                    cusolverSpDestroy(new_handle)
+                end
             end
         end
 
@@ -132,7 +136,9 @@ function mg_handle()
         new_handle = cusolverMgCreate()
 
         finalizer(current_task()) do task
-            @context! skip_destroyed=true cuda.context cusolverMgDestroy(new_handle)
+            context!(cuda.context; skip_destroyed=true) do
+                cusolverMgDestroy(new_handle)
+            end
         end
 
         devs = convert.(Cint, devices())

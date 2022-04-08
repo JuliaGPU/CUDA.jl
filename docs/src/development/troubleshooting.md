@@ -1,7 +1,7 @@
 # Troubleshooting
 
-To increase logging verbosity of the CUDA.jl compiler, launch Julia with the `JULIA_DEBUG`
-environment variable set to `CUDA`.
+This section deals with common errors you might run into while writing GPU code, preventing
+the code to compile.
 
 
 ## InvalidIRError: compiling ... resulted in invalid LLVM IR
@@ -102,74 +102,3 @@ There's no method of `CUDA.sin` that accepts an Int64, and thus the function was
 to unconditionally throw a method error. For now, we disallow these situations and refuse to
 compile, but in the spirit of dynamic languages we might change this behavior to just throw
 an error at run time.
-
-
-## Debug info and line-number information
-
-On Julia debug level 1, which is the default setting if unspecified, CUDA.jl emits line
-number information corresponding to `nvcc -lineinfo`. This information does not hurt
-performance, and is used by a variety of tools to improve the debugging experience.
-
-To emit actual debug info as `nvcc -G` does, you need to start Julia on debug level 2 by
-passing the flag `-g2`. Support for emitting PTX-compatible debug info is a recent addition
-to the NVPTX LLVM back-end, so it's possible this information is incorrect or otherwise
-affects compilation.
-
-!!! warning
-
-    Due to bugs in LLVM and/or CUDA, the debug info as emitted by LLVM 8.0 or higher
-    results in crashed when loading the compiled code. As a result, all types of debug info
-    are disabled by CUDA.jl on Julia 1.4 or above. If you need line number information, you
-    need to revert to using Julia 1.3 which uses LLVM 6.0 (note that actual debug info is
-    not supported by LLVM 6.0).
-
-To disable all debug info emission, start Julia with the flag `-g0`.
-
-
-## Stack trace information
-
-The Julia debug level is also used to emit determine how much backtrace information to embed
-in the module. This information is used when displaying exceptions on the device, e.g., when
-going out of bounds:
-
-```julia
-julia> function kernel(a)
-         a[threadIdx().x] = 0
-         return
-       end
-kernel (generic function with 1 method)
-
-julia> @cuda threads=2 kernel(CuArray([1]))
-```
-
-On the default debug level of 1, an simple error message will be displayed:
-
-```
-ERROR: a exception was thrown during kernel execution.
-Run Julia on debug level 2 for device stack traces.
-```
-
-If we set the debug level to 2, by passing `-g2` to `julia`, we see:
-
-```
-ERROR: a exception was thrown during kernel execution.
-Stacktrace:
- [1] throw_boundserror at abstractarray.jl:541
- [2] checkbounds at abstractarray.jl:506
- [3] arrayset at /home/tim/Julia/pkg/CUDA/src/device/array.jl:84
- [4] setindex! at /home/tim/Julia/pkg/CUDA/src/device/array.jl:101
- [5] kernel at REPL[4]:2
-```
-
-Note that these messages are embedded in the module (CUDA does not support stack unwinding),
-and thus bloat its size. To avoid any overhead, you can disable these messages by setting
-the debug level to 0 (passing `-g0` to `julia`). This disabled any device-side message, but
-retains the host-side detection:
-
-```
-julia> @cuda threads=2 kernel(CuArray([1]))
-# no device-side error message!
-
-julia> synchronize()
-ERROR: KernelException: exception thrown during kernel execution
-```

@@ -135,13 +135,9 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            elseif info > 0
-                throw(LinearAlgebra.SingularException(info))
-            end
+            chkargsok(BlasInt(info))
 
-            A, devipiv
+            A, devipiv, info
         end
     end
 end
@@ -170,9 +166,7 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            end
+            chkargsok(BlasInt(info))
 
             A, tau
         end
@@ -204,13 +198,9 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            elseif info > 0
-                throw(LinearAlgebra.SingularException(info))
-            end
+            chkargsok(BlasInt(info))
 
-            A, devipiv
+            A, devipiv, info
         end
     end
 end
@@ -241,9 +231,7 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            end
+            chkargsok(BlasInt(info))
             B
         end
     end
@@ -292,9 +280,7 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            end
+            chkargsok(BlasInt(info))
 
             side == 'L' ? C : C[:, 1:minimum(size(A))]
         end
@@ -326,9 +312,7 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            end
+            chkargsok(BlasInt(info))
 
             if n < size(A, 2)
                 A[:, 1:n]
@@ -368,9 +352,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            end
+            chkargsok(BlasInt(info))
 
             A, D, E, TAUQ, TAUP
         end
@@ -427,9 +409,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            end
+            chkargsok(BlasInt(info))
 
             return U, S, Vt
         end
@@ -487,9 +467,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            end
+            chkargsok(BlasInt(info))
 
             cusolverDnDestroyGesvdjInfo(params[])
 
@@ -524,9 +502,7 @@ for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSiz
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            end
+            chkargsok(BlasInt(info))
 
             if jobz == 'N'
                 return W
@@ -570,9 +546,7 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            end
+            chkargsok(BlasInt(info))
 
             if jobz == 'N'
                 return W
@@ -623,9 +597,7 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
 
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            end
+            chkargsok(BlasInt(info))
 
             cusolverDnDestroySyevjInfo(params[])
 
@@ -682,9 +654,7 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
 
             # Double check the solver's exit status
             for i = 1:batchSize
-                if info[i] < 0
-                    throw(ArgumentError("The $(info)th parameter of the $(i)th solver is wrong"))
-                end
+                chkargsok(BlasInt(info[i]))
             end
 
             # Return eigenvalues (in W) and possibly eigenvectors (in A)
@@ -765,9 +735,7 @@ for (jname, fname, elty) in ((:potrfBatched!, :cusolverDnSpotrfBatched, :Float32
 
             # Double check the solver's exit status
             for i = 1:batchSize
-                if info[i] < 0
-                    throw(ArgumentError("The $(info)th parameter of the $(i)th solver is wrong"))
-                end
+                chkargsok(BlasInt(info[i]))
             end
 
             # info[i] > 0 means the leading minor of order info[i] is not positive definite

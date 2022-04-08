@@ -1,7 +1,8 @@
 # Device type and auxiliary functions
 
 export
-    CuDevice, current_device, has_device, name, uuid, parent_uuid, totalmem, attribute
+    CuDevice, current_device, has_device,
+    name, uuid, parent_uuid, totalmem, can_access_peer
 
 """
     CuDevice(ordinal::Integer)
@@ -113,19 +114,11 @@ function totalmem(dev::CuDevice)
     return mem_ref[]
 end
 
-
-"""
-    attribute(dev::CuDevice, code)
-
-Returns information about the device.
-"""
-function attribute(dev::CuDevice, code::CUdevice_attribute)
-    value_ref = Ref{Cint}()
-    cuDeviceGetAttribute(value_ref, code, dev)
-    return value_ref[]
+function can_access_peer(dev::CuDevice, peer::CuDevice)
+    val_ref = Ref{Cint}()
+    cuDeviceCanAccessPeer(val_ref, dev, peer)
+    return val_ref[] == 1
 end
-
-@enum_without_prefix CUdevice_attribute CU_
 
 
 ## device iteration
@@ -168,9 +161,22 @@ function ndevices()
 end
 
 
-## convenience attribute getters
+## attributes
 
-export warpsize, capability
+export attribute, warpsize, capability, memory_pools_supported, unified_addressing
+
+"""
+    attribute(dev::CuDevice, code)
+
+Returns information about the device.
+"""
+function attribute(dev::CuDevice, code::CUdevice_attribute)
+    value_ref = Ref{Cint}()
+    cuDeviceGetAttribute(value_ref, code, dev)
+    return value_ref[]
+end
+
+@enum_without_prefix CUdevice_attribute CU_
 
 """
     warpsize(dev::CuDevice)
@@ -189,8 +195,28 @@ function capability(dev::CuDevice)
                          attribute(dev, DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR))
 end
 
-has_stream_ordered(dev::CuDevice) =
-    @memoize dev::CuDevice begin
-        CUDA.version() >= v"11.2" && !haskey(ENV, "CUDA_MEMCHECK") &&
-        attribute(dev, DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
-    end::Bool
+memory_pools_supported(dev::CuDevice) =
+    CUDA.version() >= v"11.2" &&
+    attribute(dev, DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+@deprecate has_stream_ordered(dev::CuDevice) memory_pools_supported(dev)
+
+unified_addressing(dev::CuDevice) =
+    attribute(dev, DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING) == 1
+
+
+## p2p attributes
+
+export p2p_attribute
+
+"""
+    p2p_attribute(src::CuDevice, dst::CuDevice, code)
+
+Returns information about the P2P relationship between a pair of devices.
+"""
+function p2p_attribute(src::CuDevice, dst::CuDevice, code::CUdevice_P2PAttribute)
+    value_ref = Ref{Cint}()
+    cuDeviceGetP2PAttribute(value_ref, code, src, dst)
+    return value_ref[]
+end
+
+@enum_without_prefix CUdevice_P2PAttribute CU_
