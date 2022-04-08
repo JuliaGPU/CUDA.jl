@@ -120,6 +120,19 @@ function CuSparseMatrixCSR{T}(S::Adjoint{T, <:CuSparseMatrixCSC{T}}) where {T <:
     return CuSparseMatrixCSR{T}(csc.colPtr, csc.rowVal, conj.(csc.nzVal), size(csc))
 end
 
+for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
+    @eval begin
+        $SparseMatrixType(S::Diagonal) = $SparseMatrixType(cu(S))
+        $SparseMatrixType(S::Diagonal{T, <:CuArray}) where T = $SparseMatrixType{T}(S)
+        $SparseMatrixType{Tv}(S::Diagonal{T, <:CuArray}) where {Tv, T} = $SparseMatrixType{Tv, Cint}(S)
+        function $SparseMatrixType{Tv, Ti}(S::Diagonal{T, <:CuArray}) where {Tv, Ti, T}
+            m = size(S, 1)
+            return $SparseMatrixType{Tv, Ti}(CuVector(1:(m+1)), CuVector(1:m), Tv.(S.diag), (m, m))
+        end
+    end
+end
+
+
 # by flipping rows and columns, we can use that to get CSC to CSR too
 for elty in (Float32, Float64, ComplexF32, ComplexF64)
     @eval begin
