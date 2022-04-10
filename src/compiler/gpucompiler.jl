@@ -36,8 +36,8 @@ function device_properties(dev)
                 exitable = false
             end
 
-            # NVIDIA bug #3305774: ptxas segfaults with our debug info, fixed in 11.5.1
-            debuginfo = toolkit_release() >= v"11.5" # we don't track patch versions...
+            # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
+            debuginfo = toolkit_release() >= v"11.7"
 
             val[deviceid(dev)+1] =
                 (; cap, ptx, exitable, debuginfo, unreachable)
