@@ -109,7 +109,7 @@ function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
     X
 end
 
-function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},CuSparseMatrixCSR{T}},
+function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR,CuSparseMatrixCSR},
              X::DenseCuVector{T}, beta::Number, Y::DenseCuVector{T}, index::SparseChar) where {T}
     m,n = size(A)
 
@@ -137,7 +137,7 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},Cu
     Y
 end
 
-function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::DenseCuVector{T},
+function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC, X::DenseCuVector{T},
              beta::Number, Y::DenseCuVector{T}, index::SparseChar) where {T}
     ctransa = 'N'
     if transa == 'N'
