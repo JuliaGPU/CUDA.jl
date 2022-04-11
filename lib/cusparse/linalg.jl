@@ -1,24 +1,26 @@
 using LinearAlgebra
 
 function sum_dim1(A::CuSparseMatrixCSR)
-    function kernel(out, dA)
-        idx = threadIdx().x
+    function kernel(Tnorm, out, dA)
+        idx = (blockIdx().x-1) * blockDim().x + threadIdx().x
         idx < length(dA.rowPtr) || return
-        s = zero(eltype(dA))
+        s = zero(Tnorm)
         for k in dA.rowPtr[idx]:dA.rowPtr[idx+1]-1
-            s += dA.nzVal[k]
+            s += abs(dA.nzVal[k])
         end
         out[idx] = s
         return
     end
 
     m, n = size(A)
-    rowsum = CUDA.CuArray{eltype(A)}(undef, m)
-    kernel_f = @cuda launch=false kernel(rowsum, A)
+    Tnorm = typeof(float(real(zero(eltype(A)))))
+    Tsum = promote_type(Float64,Tnorm)
+    rowsum = CUDA.CuArray{Tsum}(undef, m)
+    kernel_f = @cuda launch=false kernel(Tnorm, rowsum, A)
     
     threads = min(n, CUDA.maxthreads(kernel_f))
     blocks = cld(n, threads)
-    kernel_f(rowsum, A; threads, blocks)
+    kernel_f(Tnorm, rowsum, A; threads, blocks)
     return rowsum
 end
 
