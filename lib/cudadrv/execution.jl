@@ -76,9 +76,13 @@ end
 
 # convert the argument values to match the kernel's signature (specified by the user)
 # (this mimics `lower-ccall` in julia-syntax.scm)
-@inline @generated function convert_arguments(f::Function, ::Type{tt}, args...) where {tt}
-    types = tt.parameters
+@inline @generated function convert_arguments(f::F, ::Type{T}, args...) where {F,T}
+    types = T.parameters
+    convert_argument_exprs(types, args, :f)
+end
 
+# version without a closure for use in generated functions
+function convert_argument_exprs(types, args, f, extra_args...)
     ex = quote end
 
     converted_args = Vector{Symbol}(undef, length(args))
@@ -92,11 +96,11 @@ end
 
     append!(ex.args, (quote
         GC.@preserve $(converted_args...) begin
-            f($(arg_ptrs...))
+            $f($(extra_args...), $(arg_ptrs...))
         end
     end).args)
 
-    return ex
+    ex
 end
 
 """

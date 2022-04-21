@@ -25,24 +25,21 @@ function precompile_runtime(caps=CUDA.llvm_compat(LLVM.version()).cap)
 end
 
 struct KernelState
-    exception_flag::Ptr{Cvoid}
+    exception_flag::LLVMPtr{Int8, AS.Global}
+
+    hostcall_pointers::LLVMPtr{UInt32, AS.Global}
+    hostcalls::LLVMPtr{Hostcall, AS.Global}
 end
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(KernelState)
 
+# exception handling
+
 exception_flag() = kernel_state().exception_flag
 
 function signal_exception()
-    ptr = exception_flag()
-    if ptr !== C_NULL
-        unsafe_store!(convert(Ptr{Int}, ptr), 1)
-        threadfence_system()
-    else
-        @cuprintf("""
-            WARNING: could not signal exception status to the host, execution will continue.
-                     Please file a bug.
-            """)
-    end
+    unsafe_store!(exception_flag(), 1)
+    threadfence_system()
     return
 end
 
@@ -70,6 +67,31 @@ end
 function report_exception_frame(idx, func, file, line)
     @cuprintf(" [%i] %s at %s:%i\n", idx, func, file, line)
     return
+end
+
+# hostcall
+
+hostcall_pointers() = CuDeviceArray(2, kernel_state().hostcall_pointers)
+
+hostcalls() = CuDeviceArray(HOSTCALL_POOL_SIZE, kernel_state().hostcalls)
+
+# generate accessors for individual fields
+for i in 1:fieldcount(Hostcall)
+    local typ = fieldtype(Hostcall, i)
+    local name = fieldname(Hostcall, i)
+    local offset = fieldoffset(Hostcall, i)
+
+    local align = Base.datatype_alignment(typ)
+
+    ptr = Symbol("hostcall_$(name)_ptr")
+    getter = Symbol("hostcall_$(name)")
+    setter = Symbol("hostcall_$(name)!")
+    @eval begin
+        $(ptr)(i=1) =
+            reinterpret(LLVMPtr{$typ,AS.Global}, pointer(hostcalls(), i)) + $offset
+        $(getter)(i=1) = unsafe_load($(ptr)(i), 1, Val($align))
+        $(setter)(x::$typ, i=1) = unsafe_store!($(ptr)(i), x, 1, Val($align))
+    end
 end
 
 

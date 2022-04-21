@@ -407,7 +407,7 @@ array element should be used in the left and right hand side of the assignment, 
 in-place application of a known operator. In both cases, the array reference should be pure
 and not induce any side-effects.
 
-!!! warn
+!!! warning
     This interface is experimental, and might change without warning.  Use the lower-level
     `atomic_...!` functions for a stable API, albeit one limited to natively-supported ops.
 """

@@ -459,7 +459,10 @@ end
 
     # create the kernel state object
     exception_ptr = create_exceptions!(mod)
-    state = KernelState(exception_ptr)
+    pool = hostcall_pool(ctx)
+    state = KernelState(exception_ptr,
+                        reinterpret(LLVMPtr{UInt32, AS.Global}, pointer(pool.pointers)),
+                        reinterpret(LLVMPtr{Hostcall, AS.Global}, pointer(pool.calls)))
 
     return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun, state)
 end
