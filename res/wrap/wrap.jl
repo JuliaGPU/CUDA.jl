@@ -98,6 +98,7 @@ checked_types = [
     "cusolverStatus_t",
     "cusparseStatus_t",
     "cutensorStatus_t",
+    "cutensornetStatus_t",
 ]
 function insert_check_pass(x, state)
     if x isa CSTParser.EXPR && x.head == :function
@@ -191,6 +192,26 @@ preinit_apicalls = Set{String}([
     "cutensorGetVersion",
     "cutensorGetCudartVersion",
     "cutensorGetErrorString",
+    # CUSTATEVEC
+    "custatevecGetVersion",
+    "custatevecGetCudartVersion",
+    "custatevecGetErrorString",
+    "custatevecLoggerSetCallback",
+    "custatevecLoggerGetCallback",
+    "custatevecLoggerSetFile",
+    "custatevecLoggerOpenFile",
+    "custatevecLoggerSetMask",
+    "custatevecLoggerForceDisable",
+    # CUTENSORNET
+    "cutensornetGetVersion",
+    "cutensornetGetCudartVersion",
+    "cutensornetGetErrorString",
+    "cutensornetLoggerSetCallback",
+    "cutensornetLoggerGetCallback",
+    "cutensornetLoggerSetFile",
+    "cutensornetLoggerOpenFile",
+    "cutensornetLoggerSetMask",
+    "cutensornetLoggerForceDisable",
 ])
 function insert_init_pass(x, state)
     if x isa CSTParser.EXPR && x.head == :call && x.args[1].val == "ccall"
@@ -345,6 +366,7 @@ function process(name, headers...; libname=name, kwargs...)
     new_output_text = read(new_output_file, String)
 
     existing_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", name, basename(new_output_file))
+    @show existing_output_file
     @assert isfile(existing_output_file)
     existing_output_text = read(existing_output_file, String)
 
@@ -401,6 +423,7 @@ function main()
     cupti = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
     cudnn = joinpath(CUDNN_jll.artifact_dir, "include")
     cutensor = joinpath(CUTENSOR_jll.artifact_dir, "include")
+    cuquantum = joinpath(CUQUANTUM_jll.artifact_dir, "include")
 
     process("cudadrv", "$cuda/cuda.h","$cuda/cudaGL.h", "$cuda/cudaProfiler.h";
             include_dirs=[cuda], libname="cuda")
@@ -443,6 +466,12 @@ function main()
     process("cutensor", "$cutensor/cutensor.h";
             wrapped_headers=["cutensor.h", "cutensor/types.h"],
             include_dirs=[cuda, cutensor])
+    process("cutensornet", "$cuquantum/cutensornet.h";
+            wrapped_headers=["cutensornet.h", "cutensornet/types.h"],
+            include_dirs=[cuda, cuquantum])
+    process("custatevec", "$cuquantum/custatevec.h";
+            wrapped_headers=["custatevec.h", "custatevec/types.h"],
+            include_dirs=[cuda, cuquantum])
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

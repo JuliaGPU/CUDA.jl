@@ -108,7 +108,7 @@ end
 export has_cuda, has_cuda_gpu
 
 # backwards compatibility
-export has_cusolvermg, has_cudnn, has_cutensor, has_cupti, has_nvtx
+export has_cusolvermg, has_cudnn, has_cutensor, has_cutensornet, has_custatevec, has_cupti, has_nvtx
 
 """
     has_cuda()::Bool

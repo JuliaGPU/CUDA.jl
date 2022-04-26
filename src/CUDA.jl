@@ -88,7 +88,6 @@ include("broadcast.jl")
 include("mapreduce.jl")
 include("accumulate.jl")
 include("reverse.jl")
-include("linalg.jl")
 include("iterator.jl")
 include("sorting.jl")
 
@@ -102,6 +101,7 @@ include("../lib/cufft/CUFFT.jl")
 include("../lib/curand/CURAND.jl")
 include("../lib/cudnn/CUDNN.jl")
 include("../lib/cutensor/CUTENSOR.jl")
+
 export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND, CUDNN, CUTENSOR
 
 # random depends on CURAND

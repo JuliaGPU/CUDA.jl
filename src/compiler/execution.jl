@@ -319,10 +319,16 @@ function run_and_collect(cmd)
 end
 
 # compile to executable machine code
-@timeit_ci "compile" function cufunction_compile(@nospecialize(job::CompilerJob))
+function cufunction_compile(@nospecialize(job::CompilerJob))
+    # TODO: on 1.9, this actually creates a context. cache those.
+    JuliaContext() do ctx
+        cufunction_compile(job, ctx)
+    end
+end
+@timeit_ci "compile" function cufunction_compile(@nospecialize(job::CompilerJob), ctx::Context)
     # lower to PTX
     mi, mi_meta = @timeit_ci "emit_julia" GPUCompiler.emit_julia(job)
-    ir, ir_meta = @timeit_ci "emit_llvm" GPUCompiler.emit_llvm(job, mi)
+    ir, ir_meta = @timeit_ci "emit_llvm" GPUCompiler.emit_llvm(job, mi; ctx)
     asm, asm_meta = @timeit_ci "emit_asm" GPUCompiler.emit_asm(job, ir; format=LLVM.API.LLVMAssemblyFile)
 
     # remove extraneous debug info on lower debug levels

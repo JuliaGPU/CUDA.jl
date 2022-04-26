@@ -1,4 +1,6 @@
+using LinearAlgebra
 using CUDA.CUSPARSE, SparseArrays
+using CUDA
 
 @testset "sparse" begin
     n, m = 4, 4
@@ -45,4 +47,13 @@ end
         Agpu = sparse(I |> cu, J |> cu, ones(typ, length(I)) |> cu, 6, 6)
         @test Array(Agpu) == A
     end
+end
+
+@testset "CuSparseMatrix(::Diagonal)" begin
+    X = Diagonal(rand(10))
+    dX = cu(X)
+    dY = CuSparseMatrixCSC{Float64, Int32}(dX)
+    dZ = CuSparseMatrixCSR{Float64, Int32}(dX)
+    @test SparseMatrixCSC(dY) ≈ SparseMatrixCSC(dZ)
+    @test SparseMatrixCSC(CuSparseMatrixCSC(X)) ≈ SparseMatrixCSC(CuSparseMatrixCSR(X))
 end
