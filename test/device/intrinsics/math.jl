@@ -116,11 +116,11 @@ using SpecialFunctions
         r = bytes[sel[4]+1]<<24 | bytes[sel[3]+1]<<16 | bytes[sel[2]+1]<<8 | bytes[sel[1]+1]<<0
 
         function kernel1(a)
-            a[3] = byte_perm(a[1], a[2], code % Int32)
+            a[3] = CUDA.byte_perm(a[1], a[2], code % Int32)
             return
         end
         function kernel2(a)
-            a[3] = byte_perm(a[1], a[2], code % UInt16)
+            a[3] = CUDA.byte_perm(a[1], a[2], code % UInt16)
             return
         end
 
