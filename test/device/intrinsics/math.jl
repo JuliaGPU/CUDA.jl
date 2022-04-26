@@ -106,4 +106,17 @@ using SpecialFunctions
         g(x) = @fastmath log1p(x)
         @test Array(map(f, cu([0.1,0.2]))) ≈ Array(map(g, cu([0.1,0.2])))
     end
+
+    @testset "byte_perm" begin
+        bytes = Uint32[i for i in 1:8]
+        x = bytes[3]<<24 | bytes[2]<<16 | bytes[1]<<8 | bytes[0]<<0
+        y = bytes[7]<<24 | bytes[6]<<16 | bytes[5]<<8 | bytes[4]<<0
+        sel = UInt32[4, 2, 4, 2]
+        code = sel[4]<<12 | sel[3]<<8 | sel[2]<<4 | sel[1]<<0
+        r = bytes[sel[4]]<<24 | bytes[sel[3]]<<16 | bytes[sel[2]]<<8 | bytes[sel[1]]<<0
+        @test byte_perm(x, y, code) == r
+        @test byte_perm(x % Int32, y % Int32, code % Int32) == r
+        @test byte_perm(x, y, code % UInt16) == r
+        @test byte_perm(x % Int32, y % Int32, code % UInt16) == r
+    end
 end
