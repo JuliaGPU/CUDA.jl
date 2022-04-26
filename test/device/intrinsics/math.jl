@@ -114,9 +114,9 @@ using SpecialFunctions
         sel = UInt32[4, 2, 4, 2]
         code = sel[4]<<12 | sel[3]<<8 | sel[2]<<4 | sel[1]<<0
         r = bytes[sel[4]+1]<<24 | bytes[sel[3]+1]<<16 | bytes[sel[2]+1]<<8 | bytes[sel[1]+1]<<0
-        @test byte_perm(x, y, code) == r
-        @test byte_perm(x % Int32, y % Int32, code % Int32) == r
-        @test byte_perm(x, y, code % UInt16) == r
-        @test byte_perm(x % Int32, y % Int32, code % UInt16) == r
+        @test CUDA.byte_perm(x, y, code) == r
+        @test CUDA.byte_perm(x % Int32, y % Int32, code % Int32) == r
+        @test CUDA.byte_perm(x, y, code % UInt16) == r
+        @test CUDA.byte_perm(x % Int32, y % Int32, code % UInt16) == r
     end
 end
