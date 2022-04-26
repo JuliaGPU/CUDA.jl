@@ -108,7 +108,7 @@ using SpecialFunctions
     end
 
     @testset "byte_perm" begin
-        bytes = Uint32[i for i in 1:8]
+        bytes = UInt32[i for i in 1:8]
         x = bytes[3]<<24 | bytes[2]<<16 | bytes[1]<<8 | bytes[0]<<0
         y = bytes[7]<<24 | bytes[6]<<16 | bytes[5]<<8 | bytes[4]<<0
         sel = UInt32[4, 2, 4, 2]
