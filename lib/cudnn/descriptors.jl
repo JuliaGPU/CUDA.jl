@@ -30,23 +30,27 @@ macro cudnnDescriptor(x, set = Symbol("cudnnSet$(x)Descriptor"))
         const $cache = Dict{Tuple,$sname}()                 # Dict is 3x faster than IdDict!
         const $cache_lock = ReentrantLock()
         function $sname(args...)
-            lock($cache_lock) do
-                get!($cache, args) do
-                    ptr = $tname[C_NULL]
-                    $create(ptr)
-                    $set(ptr[1], args...)
-                    d = $sname(ptr[1])
-                    finalizer(x->$destroy(x.ptr), d)
-                    return d
+            d = lock($cache_lock) do
+                get($cache, args, nothing)
+            end
+            if d === nothing
+                ptr = $tname[C_NULL]
+                $create(ptr)
+                $set(ptr[1], args...)
+                d = $sname(ptr[1])
+                finalizer(x->$destroy(x.ptr), d)
+                lock($cache_lock) do
+                    $cache[args] = d
                 end
             end
+            return d
         end
     end |> esc
 end
 
 
 """
-    cudnnActivationDescriptor(mode::cudnnActivationMode_t, 
+    cudnnActivationDescriptor(mode::cudnnActivationMode_t,
                               reluNanOpt::cudnnNanPropagation_t,
                               coef::Cfloat)
 """
@@ -116,8 +120,8 @@ cudnnConvolutionDescriptor(pad::Vector{Cint},
 
 """
     cudnnLRNDescriptor(lrnN::Cuint,
-                       lrnAlpha::Cdouble, 
-                       lrnBeta::Cdouble, 
+                       lrnAlpha::Cdouble,
+                       lrnBeta::Cdouble,
                        lrnK::Cdouble)
 """
 @cudnnDescriptor(LRN)
