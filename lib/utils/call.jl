@@ -97,12 +97,12 @@ macro debug_ccall(target, rettyp, argtyps, args...)
             i > 1 && print(io, ", ")
             render_arg(io, arg)
         end
-        print(io, ')')
+        Core.print(io, ')')
         rv = ccall($(esc(target)), $(esc(rettyp)), $(esc(argtyps)), $(map(esc, args)...))
-        println(io, " = ", rv)
+        Core.println(io, " = ", rv)
         for (i, arg) in enumerate(($(map(esc, args)...),))
             if arg isa Base.RefValue
-                println(io, " $i: ", arg[])
+                Core.println(io, " $i: ", arg[])
             end
         end
         rv
