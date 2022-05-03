@@ -41,7 +41,7 @@ release() = VersionNumber(version().major, version().minor)
 """
 function runtime_version()
     version_ref = Ref{Cint}()
-    @ccall libcudart().cudaRuntimeGetVersion(version_ref::Ptr{Cint})::CUresult
+    @check @ccall libcudart().cudaRuntimeGetVersion(version_ref::Ptr{Cint})::CUresult
     major, ver = divrem(version_ref[], 1000)
     minor, patch = divrem(ver, 10)
     return VersionNumber(major, minor, patch)

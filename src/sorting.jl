@@ -21,7 +21,7 @@ depending on the relevant `parity`
 
 Originally developed by @xaellison (Alex Ellison).
 """
-module Quicksort
+module QuickSortImpl
 
 export quicksort!
 
@@ -73,8 +73,10 @@ Uses block y index to decide which values to operate on.
     sync_threads()
     blockIdx_yz = (blockIdx().z - 1i32) * gridDim().y + blockIdx().y
     idx0 = lo + (blockIdx_yz - 1i32) * blockDim().x + threadIdx().x
-    val = idx0 <= hi ? values[idx0] : one(eltype(values))
-    comparison = flex_lt(pivot, val, parity, lt, by)
+    @inbounds if idx0 <= hi
+        val = values[idx0]
+        comparison = flex_lt(pivot, val, parity, lt, by)
+    end
 
     @inbounds if idx0 <= hi
          sums[threadIdx().x] = 1 & comparison
@@ -85,9 +87,11 @@ Uses block y index to decide which values to operate on.
 
     cumsum!(sums)
 
-    dest_idx = @inbounds comparison ? blockDim().x - sums[end] + sums[threadIdx().x] : threadIdx().x - sums[threadIdx().x]
-    @inbounds if idx0 <= hi && dest_idx <= length(swap)
-        swap[dest_idx] = val
+    @inbounds if idx0 <= hi
+        dest_idx = @inbounds comparison ? blockDim().x - sums[end] + sums[threadIdx().x] : threadIdx().x - sums[threadIdx().x]
+        if dest_idx <= length(swap)
+            swap[dest_idx] = val
+        end
     end
     sync_threads()
 
@@ -180,10 +184,8 @@ Must only run on 1 SM.
         c = n_eff() - d
         to_move = min(b, c)
         sync_threads()
-        swap = if threadIdx().x <= to_move
-            vals[lo + a + threadIdx().x]
-        else
-            zero(eltype(vals))  # unused value
+        if threadIdx().x <= to_move
+            swap = vals[lo + a + threadIdx().x]
         end
         sync_threads()
         if threadIdx().x <= to_move
@@ -215,7 +217,6 @@ function bitonic_median(vals :: AbstractArray{T}, swap, lo, L, stride, lt::F1, b
 
     @inbounds swap[threadIdx().x] = vals[lo + threadIdx().x * stride]
     sync_threads()
-    old_val = zero(eltype(swap))
 
     log_blockDim = begin
         out = 0
@@ -269,10 +270,8 @@ elements spaced by `stride`. Good for sampling pivot values as well as short sor
         for level in 0:L
             # get left/right neighbor depending on even/odd level
             buddy = threadIdx().x - 1i32 + 2i32 * (1i32 & (threadIdx().x % 2i32 != level % 2i32))
-            buddy_val = if 1 <= buddy <= L && threadIdx().x <= L
-                 swap[buddy]
-            else
-                zero(eltype(swap)) # unused value
+            if 1 <= buddy <= L && threadIdx().x <= L
+                 buddy_val = swap[buddy]
             end
             sync_threads()
             if 1 <= buddy <= L && threadIdx().x <= L
@@ -485,28 +484,454 @@ end
 
 end
 
+"""
+This is an iterative bitonic sort that mimics a recursive version to support
+non-power2 lengths.
+
+Credit for the recursive form of this algorithm goes to:
+https://www.inf.hs-flensburg.de/lang/algorithmen/sortieren/bitonic/oddn.htm
+
+CUDA.jl implementation originally by @xaellison
+
+Overview: `comparator_kernel` implements a layer of sorting network comparators
+generally. The sort could run just by looping over `comparator`, but
+`comparator_small_kernel` copies values into shmem and loops over several
+comparators that don't need to access any values outside the range held in
+shared memory. It provides a moderate speedup.
+
+Notation:
+`k`, `j` denote the level of the sorting network (equivalently, recursion depth).
+`vals` is the array of values of type `T` that is either being `sort`-ed or `sortperm`-ed.
+`inds` is an array of indices of type `J` that gets permuted in `sortperm!` (standard 1-indexed)
+`i1`, `i2` index either `vals` or `inds` depending on the operation.
+`lo`, `n`, and `m` are integers of type `I` used to denote/calculate ranges as
+    described in the recursive algorithm link above. Note these follow the 0-indexing
+    convention from the above source.
+"""
+module BitonicSortImpl
+
+export bitonic_sort!
+
+using ..CUDA
+using ..CUDA: i32
+
+
+# General functions
+
+@inline two(::Type{Int}) = 2
+@inline two(::Type{Int32}) = 2i32
+
+@inline function gp2lt(x::Int)::Int
+    x -= 1
+    x |= x >> 1
+    x |= x >> 2
+    x |= x >> 4
+    x |= x >> 8
+    x |= x >> 16
+    x |= x >> 32
+    xor(x, x >> 1)
+end
+
+@inline function gp2lt(x::Int32)::Int32
+    x -= 1i32
+    x |= x >> 1i32
+    x |= x >> 2i32
+    x |= x >> 4i32
+    x |= x >> 8i32
+    x |= x >> 16i32
+    xor(x, x >> 1i32)
+end
+
+@inline function bisect_range(index::I, lo::I, n::I) where {I}
+    if n <= one(I)
+        return -one(I), -one(I)
+    end
+    m = gp2lt(n)
+    if index < lo + m
+        n = m
+    else
+        lo = lo + m
+        n = n - m
+    end
+    return lo, n
+end
+
+@inline function rev_lt(a::T, b::T, lt, rev::Val{R}) where {T,R}
+    if R
+        return lt(b, a)
+    else
+        return lt(a, b)
+    end
+end
+
+@inline function rev_lt(a::Tuple{T,J}, b::Tuple{T,J}, lt, rev::Val{R}) where {T,J,R}
+    if R
+        if a[1] == b[1]
+            return a[2] < b[2]
+        else
+            return lt(b[1], a[1])
+        end
+    else
+        return lt(a, b)
+    end
+end
+
+# Functions specifically for "large" bitonic steps (those that cannot use shmem)
+
+@inline function compare!(vals::AbstractArray{T}, i1::I, i2::I, dir::Bool, by, lt, rev) where {T,I}
+    i1′, i2′ = i1 + one(I), i2 + one(I)
+    @inbounds if dir != rev_lt(by(vals[i1′]), by(vals[i2′]), lt, rev)
+        vals[i1′], vals[i2′] = vals[i2′], vals[i1′]
+    end
+end
+
+@inline function compare!(vals_inds::Tuple, i1::I, i2::I, dir::Bool, by, lt, rev) where {I}
+    i1′, i2′ = i1 + one(I), i2 + one(I)
+    vals, inds = vals_inds
+    # comparing tuples of (value, index) guarantees stability of sort
+    @inbounds if dir != rev_lt((by(vals[inds[i1′]]), inds[i1′]), (by(vals[inds[i2′]]), inds[i2′]), lt, rev)
+        inds[i1′], inds[i2′] = inds[i2′], inds[i1′]
+    end
+end
+
+
+@inline function get_range_part1(n::I, index::I, k::I)::Tuple{I,I,Bool} where {I}
+    lo = zero(I)
+    dir = true
+    for iter = one(I):k-one(I)
+        if n <= one(I)
+            return -one(I), -one(I), false
+        end
+
+        if index < lo + n ÷ two(I)
+            n = n ÷ two(I)
+            dir = !dir
+        else
+            lo = lo + n ÷ two(I)
+            n = n - n ÷ two(I)
+        end
+    end
+    return lo, n, dir
+end
+
+@inline function get_range_part2(lo::I, n::I, index::I, j::I)::Tuple{I,I} where {I}
+    for iter = one(I):j-one(I)
+        lo, n = bisect_range(index, lo, n)
+    end
+    return lo, n
+end
+
+"""
+Determines parameters for swapping when the grid index directly maps to an
+Array index for swapping
+"""
+@inline function get_range(n, index, k, j)
+    lo, n, dir = get_range_part1(n, index, k)
+    lo, n = get_range_part2(lo, n, index, j)
+    return lo, n, dir
+end
+
+"""
+Performs a step of bitonic sort requiring swaps between indices further apart
+than the size of block allows (eg, 1 <--> 10000)
+
+The grid index directly maps to the index of `c` that will be used in the swap.
+
+Note that to avoid synchronization issues, only one thread from each pair of
+indices being swapped will actually move data. This does mean half of the threads
+do nothing, but it works for non-power2 arrays while allowing direct indexing.
+"""
+function comparator_kernel(vals, length_vals::I, k::I, j::I, by::F1, lt::F2, rev) where {I,F1,F2}
+    index = (blockDim().x * (blockIdx().x - one(I))) + threadIdx().x - one(I)
+
+    lo, n, dir = get_range(length_vals, index, k, j)
+
+    if !(lo < zero(I) || n < zero(I)) && !(index >= length_vals)
+        m = gp2lt(n)
+        if lo <= index < lo + n - m
+            i1, i2 = index, index + m
+            @inbounds compare!(vals, i1, i2, dir, by, lt, rev)
+        end
+    end
+    return
+end
+
+
+# Functions for "small" bitonic steps (those that can use shmem)
+
+@inline function compare_small!(vals::AbstractArray{T}, i1::I, i2::I, dir::Bool, by, lt, rev) where {T,I}
+    i1′, i2′ = i1 + one(I), i2 + one(I)
+    @inbounds if dir != rev_lt(by(vals[i1′]), by(vals[i2′]), lt, rev)
+        vals[i1′], vals[i2′] = vals[i2′], vals[i1′]
+    end
+end
+
+@inline function compare_small!(vals_inds::Tuple, i1::I, i2::I, dir::Bool, by, lt, rev) where {I}
+    i1′, i2′ = i1 + one(I), i2 + one(I)
+    vals, inds = vals_inds
+    # comparing tuples of (value, index) guarantees stability of sort
+    @inbounds if dir != rev_lt((by(vals[i1′]), inds[i1′]), (by(vals[i2′]), inds[i2′]), lt, rev)
+        vals[i1′], vals[i2′] = vals[i2′], vals[i1′]
+        inds[i1′], inds[i2′] = inds[i2′], inds[i1′]
+    end
+end
+
+"""
+For each thread in the block, "re-compute" the range which would have been
+passed in recursively. This range only depends on the block, and guarantees
+all threads perform swaps accessible using shmem.
+
+Various negative exit values just for debugging.
+"""
+@inline function block_range(n::I, block_index::I, k::I, j::I)::Tuple{I,I,Bool} where {I}
+    lo = zero(I)
+    dir = true
+    tmp = block_index * two(I)
+
+    # analogous to `get_range_part1`
+    for iter = one(I):(k-one(I))
+        tmp ÷= two(I)
+        if n <= one(I)
+            return -one(I), -one(I), false
+        end
+
+        if tmp % two(I) == zero(I)
+            n = n ÷ two(I)
+            dir = !dir
+        else
+            lo = lo + n ÷ two(I)
+            n = n - n ÷ two(I)
+        end
+    end
+
+    # analogous to `get_range_part2`
+    for iter = one(I):(j-one(I))
+        tmp ÷= two(I)
+        if n <= one(I)
+            return -one(I), -one(I), false
+        end
+
+        m = gp2lt(n)
+        if tmp % two(I) == zero(I)
+            n = m
+        else
+            lo = lo + m
+            n = n - m
+        end
+
+    end
+    if zero(I) <= n <= one(I)
+        return -one(I), -one(I), false
+    end
+    return lo, n, dir
+end
+
+"""
+For sort/sort! `c`, allocate and return shared memory view of `c`
+Each view is indexed along block x dim: one view per pseudo-block
+`index` is expected to be from a 0-indexing context
+"""
+@inline function initialize_shmem!(vals::AbstractArray{T}, index::I, in_range, offset = zero(I)) where {T,I}
+    swap = CuDynamicSharedArray(T, (blockDim().x, blockDim().y), offset)
+    if in_range
+        @inbounds swap[threadIdx().x, threadIdx().y] = vals[index+one(I)]
+    end
+    sync_threads()
+    return @inbounds @view swap[:, threadIdx().y]
+end
+
+"""
+For sortperm/sortperm!, allocate and return shared memory views of `c` and index
+array. Each view is indexed along block x dim: one view per pseudo-block.
+`index` is expected to be from a 0-indexing context, but the indices stored in
+`val_inds` are expected to be 1-indexed
+"""
+@inline function initialize_shmem!(vals_inds::Tuple{AbstractArray{T},AbstractArray{J}}, index, in_range) where {T,J}
+    offset = prod(blockDim()) * sizeof(J)
+    vals, inds = vals_inds
+    inds_view = initialize_shmem!(inds, index, in_range)
+    vals_view = initialize_shmem!(vals, inds_view[threadIdx().x] - one(J), in_range, offset)
+    return vals_view, inds_view
+end
+
+"""
+For sort/sort!, copy shmem view `swap` back into global array `c`
+`index` is expected to be from a 0-indexing context
+"""
+@inline function finalize_shmem!(vals::AbstractArray, swap::AbstractArray, index::I, in_range::Bool) where {I}
+    if in_range
+        @inbounds vals[index+one(I)] = swap[threadIdx().x]
+    end
+end
+
+"""
+For sortperm/sortperm!, copy shmem view `swap` back to global index array
+`index` is expected to be from a 0-indexing context, but the indices stored in
+`val_inds` are expected to be 1-indexed
+"""
+@inline function finalize_shmem!(vals_inds::Tuple, swap::Tuple, index, in_range::Bool)
+    vals, inds = vals_inds
+    swap_vals, swap_inds = swap
+    finalize_shmem!(inds, swap_inds, index, in_range)
+end
+
+"""
+Performs consecutive steps of bitonic sort requiring swaps between indices no
+further apart than the size of block allows. This effectively moves part of the
+inner loop (over j, below) inside of a kernel to minimize launches and do
+swaps in shared mem.
+
+Note that the x dimension of a thread block is treated as a comparator,
+so when the maximum size of a comparator in this kernel is small, multiple
+may be executed along the block y dimension, allowing for higher occupancy.
+This is captured by `pseudo_block_idx`.
+
+Note that this moves the array values copied within shmem, but doesn't copy them
+back to global the way it does for indices.
+"""
+function comparator_small_kernel(c, length_c::I, k::I, j_0::I, j_f::I, by::F1, lt::F2, rev) where {I,F1,F2}
+    pseudo_block_idx = (blockIdx().x - one(I)) * blockDim().y + threadIdx().y - one(I)
+    # immutable info about the range used by this kernel
+    _lo, _n, dir = block_range(length_c, pseudo_block_idx, k, j_0)
+    index = _lo + threadIdx().x - one(I)
+    in_range = (threadIdx().x <= _n && _lo >= zero(I))
+
+    swap = initialize_shmem!(c, index, in_range)
+
+    # mutable copies for pseudo-recursion
+    lo, n = _lo, _n
+
+    for j = j_0:j_f
+        if !(lo < zero(I) || n < zero(I)) && in_range
+            m = gp2lt(n)
+            if lo <= index < lo + n - m
+                i1, i2 = index - _lo, index - _lo + m
+                compare_small!(swap, i1, i2, dir, by, lt, rev)
+            end
+        end
+        lo, n = bisect_range(index, lo, n)
+        sync_threads()
+    end
+
+    finalize_shmem!(c, swap, index, in_range)
+    return
+end
+
+
+# Host side code
+function bitonic_shmem(c::AbstractArray{T}, threads) where {T}
+    return prod(threads) * sizeof(T)
+end
+
+function bitonic_shmem(c, threads)
+    return prod(threads) * sum(map(a -> sizeof(eltype(a)), c))
+end
+
+"""
+Call bitonic sort on `c` which can be a CuArray of values to `sort!` or a tuple
+of values and an index array for doing `sortperm!`. Cannot provide a stable
+`sort!` although `sortperm!` is properly stable. To reverse, set `rev=true`
+rather than `lt=!isless` (otherwise stability of sortperm breaks down).
+"""
+function bitonic_sort!(c; by = identity, lt = isless, rev = false) where {T}
+    c_len = if typeof(c) <: Tuple
+        length(c[1])
+    else
+        length(c)
+    end
+    k0 = c_len |> log2 |> ceil |> Int
+
+    blocks_per_mp = if CUDA.version() >= v"11.0"
+        CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_BLOCKS_PER_MULTIPROCESSOR)
+    else
+        16
+    end
+
+    # These two outer loops are the same as the serial version outlined here:
+    # https://en.wikipedia.org/wiki/Bitonic_sorter#Example_code
+    # Notation: our k/j are the base2 logs of k/j in Wikipedia example
+
+    for k = k0:-1:1
+        j_final = (1 + k0 - k)
+        for j = 1:j_final
+
+            # use Int32 args for indexing when possible --> ~10% faster kernels
+            I = c_len <= typemax(Int32) ? Int32 : Int
+            args1 = (c, map(I, (c_len, k, j, j_final))..., by, lt, Val(rev))
+            kernel1 = @cuda launch=false comparator_small_kernel(args1...)
+            config1 = launch_configuration(kernel1.fun, shmem = threads -> bitonic_shmem(c, threads))
+            threads1 = prevpow(2, config1.threads)
+
+            args2 = (c, map(I, (c_len, k, j))..., by, lt, Val(rev))
+            kernel2 = @cuda launch=false comparator_kernel(args2...)
+            config2 = launch_configuration(kernel2.fun, shmem = threads -> bitonic_shmem(c, threads))
+            threads2 = prevpow(2, config2.threads)
+
+            threads = min(threads1, threads2)
+            min_pseudo_block = threads ÷ blocks_per_mp
+            log_threads = threads |> log2 |> Int
+
+            if k0 - k - j + 2 <= log_threads
+                pseudo_block_size = 1 << abs(j_final + 1 - j)
+                _block_size = if pseudo_block_size <= min_pseudo_block
+                    (pseudo_block_size, min_pseudo_block ÷ pseudo_block_size)
+                else
+                    (pseudo_block_size, 1)
+                end
+                b = nextpow(2, cld(c_len, prod(_block_size)))
+                kernel1(args1...; blocks = b, threads = _block_size, shmem = bitonic_shmem(c, _block_size))
+                break
+            else
+                b = nextpow(2, cld(c_len, threads))
+                kernel2(args2...; blocks = b, threads = threads)
+            end
+        end
+    end
+
+    return c
+end
+end
+
 
 # Base interface implementation
 
-using .Quicksort
+using .BitonicSortImpl
+using .QuickSortImpl
 
-function Base.sort!(c::AnyCuArray; dims::Integer, lt=isless, by=identity, rev=false)
-    # for reverse sorting, invert the less-than function
-    if rev
-        lt = !lt
-    end
 
-    quicksort!(c; lt, by, dims)
-    return c
-end
+abstract type SortingAlgorithm end
+struct QuickSortAlg <: SortingAlgorithm end
+struct BitonicSortAlg <: SortingAlgorithm end
 
-function Base.sort!(c::AnyCuVector; lt=isless, by=identity, rev=false)
+const QuickSort = QuickSortAlg()
+const BitonicSort = BitonicSortAlg()
+
+
+function Base.sort!(c::AnyCuVector, alg::QuickSortAlg; lt=isless, by=identity, rev=false)
     # for reverse sorting, invert the less-than function
     if rev
         lt = !lt
     end
 
     quicksort!(c; lt, by, dims=1)
+    return c
+end
+
+function Base.sort!(c::AnyCuVector, alg::BitonicSortAlg; kwargs...)
+    return bitonic_sort!(c; kwargs...)
+end
+
+function Base.sort!(c::AnyCuVector; alg :: SortingAlgorithm = BitonicSort, kwargs...)
+    return sort!(c, alg; kwargs...)
+end
+
+function Base.sort!(c::AnyCuArray; dims::Integer, lt=isless, by=identity, rev=false)
+    # for multi dim sorting, only quicksort is supported so no alg keyword
+    if rev
+        lt = !lt
+    end
+
+    quicksort!(c; lt, by, dims)
     return c
 end
 
@@ -535,4 +960,19 @@ end
 
 function Base.partialsort(c::AnyCuArray, k::Union{Integer, OrdinalRange}; kwargs...)
     return partialsort!(copy(c), k; kwargs...)
+end
+
+function Base.sortperm!(I::AnyCuArray{T}, c::AnyCuArray; initialized=false, kwargs...) where T
+    if length(I) != length(c)
+        throw(ArgumentError("index vector must have the same length/indices as the source vector"))
+    end
+    if !initialized
+        I .= one(T):T(length(I))
+    end
+    bitonic_sort!((c, I); kwargs...)
+    return I
+end
+
+function Base.sortperm(c::AnyCuArray; kwargs...)
+    sortperm!(CuArray(1:length(c)), c; initialized=true, kwargs...)
 end

@@ -205,8 +205,9 @@ inttype(::Type{T}) where {T<:Integer} = T
 inttype(::Type{Float16}) = Int16
 inttype(::Type{Float32}) = Int32
 inttype(::Type{Float64}) = Int64
+inttype(::Type{BFloat16}) = Int16
 
-for T in [Float16, Float32, Float64]
+for T in [Float16, Float32, Float64, BFloat16]
     @eval @inline function atomic_cas!(ptr::LLVMPtr{$T,A}, cmp::$T, new::$T) where {A}
         IT = inttype($T)
         cmp_i = reinterpret(IT, cmp)
@@ -225,7 +226,7 @@ end
         cmp = old
         new = convert(T, op(old, val))
         old = atomic_cas!(ptr, cmp, new)
-        (old == cmp) && return new
+        isequal(old, cmp) && return new
     end
 end
 

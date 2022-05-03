@@ -1,9 +1,7 @@
-using Test
-using CUDA
 using CUDA.CUSPARSE
 using SparseArrays
-using CUDA: CuSparseDeviceVector, CuSparseDeviceMatrixCSC, CuSparseDeviceMatrixCSR,
-    CuSparseDeviceMatrixBSR, CuSparseDeviceMatrixCOO
+using CUDA.CUSPARSE: CuSparseDeviceVector, CuSparseDeviceMatrixCSC, CuSparseDeviceMatrixCSR,
+                     CuSparseDeviceMatrixBSR, CuSparseDeviceMatrixCOO
 
 @testset "cudaconvert" begin
     @test isbitstype(CuSparseDeviceVector{Float32, Cint, CUDA.AS.Global})
@@ -26,7 +24,6 @@ using CUDA: CuSparseDeviceVector, CuSparseDeviceMatrixCSC, CuSparseDeviceMatrixC
     cuA = CuSparseMatrixCOO(A)
     @test cudaconvert(cuA) isa CuSparseDeviceMatrixCOO{Float64, Cint, 1}
 
-    # Roger-Luo: I'm not sure how to create a BSR matrix
-    # cuA = CuSparseMatrixBSR(A)
-    # @test cudaconvert(cuA) isa CuSparseDeviceMatrixBSR
+    cuA = CuSparseMatrixBSR(A, 2)
+    @test cudaconvert(cuA) isa CuSparseDeviceMatrixBSR
 end

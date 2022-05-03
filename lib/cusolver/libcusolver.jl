@@ -4003,7 +4003,7 @@ end
     initialize_context()
     ccall((:cusolverSpDcsrzfdHost, libcusolver()), cusolverStatus_t,
                    (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble},
-                    CuPtr{Cint}, CuPtr{Cint}, Ptr{Cint}, Ptr{Cint}),
+                    Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}),
                    handle, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, P, numnz)
 end
 

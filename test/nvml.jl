@@ -19,6 +19,10 @@ end
 @testset "devices" begin
     let dev = NVML.Device(0)
         @test dev == first(NVML.devices())
+        @test NVML.index(dev) == 0
+
+        str = sprint(io->show(io, "text/plain", dev))
+        @test occursin("NVML.Device(0)", str)
     end
 
     cuda_dev = CuDevice(0)

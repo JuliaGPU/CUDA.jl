@@ -4,6 +4,7 @@ using LinearAlgebra
 
 eltypes = ( (Float32, Float32, Float32, Float32),
             (Float32, Float32, Float32, Float16),
+            (Float16, Float16, Float16, Float32),
             (ComplexF32, ComplexF32, ComplexF32, ComplexF32),
             (Float64, Float64, Float64, Float64),
             (Float64, Float64, Float64, Float32),

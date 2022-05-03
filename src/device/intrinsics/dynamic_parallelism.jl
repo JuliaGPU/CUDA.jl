@@ -94,7 +94,7 @@ end
     for i in 1:length(args)
         T = args[i]
         align = Base.datatype_alignment(T)
-        offset = Base.cld(last_offset, align) * align
+        offset = cld(last_offset, align) * align
         push!(ex.args, :(
             Base.pointerset(convert(Ptr{$T}, ptr+$offset), args[$i], 1, $align)
         ))
@@ -110,7 +110,3 @@ end
 ## synchronization
 
 @device_override device_synchronize() = @check_status cudaDeviceSynchronize()
-@doc """
-On the device, `device_synchronize` acts as a synchronization point for child grids in the
-context of dynamic parallelism.
-""" device_synchronize

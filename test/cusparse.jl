@@ -15,7 +15,7 @@ blockdim = 5
     x = sprand(m,0.2)
     d_x = CuSparseVector(x)
     @test length(d_x) == m
-    @test size(d_x)   == (m, 1)
+    @test size(d_x)   == (m,)
     @test size(d_x,1) == m
     @test size(d_x,2) == 1
     @test ndims(d_x)  == 1
@@ -108,29 +108,45 @@ blockdim = 5
 end
 
 @testset "construction" begin
-    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset for elty in [Int32, Int64, Float32, Float64, ComplexF32, ComplexF64]
+        @testset "vector" begin
+            x = sprand(elty,m, 0.2)
+            d_x = CuSparseVector(x)
+            @test collect(d_x) == collect(x)
+            @test similar(d_x) isa CuSparseVector{elty}
+            @test similar(d_x, Float32) isa CuSparseVector{Float32}
+        end
+
         @testset "CSC" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             @test collect(d_x) == collect(x)
+            @test similar(d_x) isa CuSparseMatrixCSC{elty}
+            @test similar(d_x, Float32) isa CuSparseMatrixCSC{Float32}
         end
 
         @testset "CSR" begin
             x = sprand(elty,m,n, 0.2)
             d_x  = CuSparseMatrixCSR(x)
             @test collect(d_x) == collect(x)
+            @test similar(d_x) isa CuSparseMatrixCSR{elty}
+            @test similar(d_x, Float32) isa CuSparseMatrixCSR{Float32}
         end
 
         @testset "BSR" begin
             x = sprand(elty,m,n, 0.2)
             d_x  = CuSparseMatrixBSR(x, blockdim)
             @test collect(d_x) == collect(x)
+            @test similar(d_x) isa CuSparseMatrixBSR{elty}
+            @test similar(d_x, Float32) isa CuSparseMatrixBSR{Float32}
         end
 
         @testset "BSR" begin
             x = sprand(elty,m,n, 0.2)
             d_x  = CuSparseMatrixCOO(x)
             @test collect(d_x) == collect(x)
+            @test similar(d_x) isa CuSparseMatrixCOO{elty}
+            @test similar(d_x, Float32) isa CuSparseMatrixCOO{Float32}
         end
     end
 end
@@ -969,6 +985,30 @@ end
             h_D = collect(d_C)
             D = alpha * A * B + beta * C
             @test D ≈ h_D
+        end
+    end
+    if CUSPARSE.version() >= v"11.1.1"
+        @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+            @testset for (pA, pB, pC) in [(0.1, 0.1, 0.8), (0.8, 0.8, 0.1), (0.4, 0.8, 0.5)]
+                A = sprand(elty,m,k, pA)
+                B = sprand(elty,k,n, pB)
+                C = sprand(elty,m,n, pC)
+                alpha = rand(elty)
+                beta  = rand(elty)
+                @testset "$(typeof(d_A))" for (d_A, d_B, d_C) in [(CuSparseMatrixCSR(A),
+                                                                   CuSparseMatrixCSR(B),
+                                                                   CuSparseMatrixCSR(C))] # for now only supports CSR
+                    mm! = CUSPARSE.mm!
+                    @test_throws ArgumentError mm!('N','T',alpha,d_A,d_B,beta,d_C,'O')
+                    @test_throws ArgumentError mm!('T','N',alpha,d_A,d_B,beta,d_C,'O')
+                    @test_throws ArgumentError mm!('T','T',alpha,d_A,d_B,beta,d_C,'O')
+                    @test_throws DimensionMismatch mm!('N','N',alpha,d_A,d_B,beta,d_B,'O')
+                    D = alpha * A * B + beta * C
+                    d_C = mm!('N','N',alpha,d_A,d_B,beta,d_C,'O')
+                    h_C = SparseMatrixCSC(d_C)
+                    @test D ≈ h_C
+                end
+            end
         end
     end
 

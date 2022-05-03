@@ -1,9 +1,7 @@
 """
-    @sync [blocking=true] ex
+    @sync ex
 
-Run expression `ex` and synchronize the GPU afterwards. By default, this is a CPU-friendly
-synchronization, i.e. it performs a blocking synchronization without increasing CPU load
-It is also useful for timing code that executes asynchronously.
+Run expression `ex` and synchronize the GPU afterwards.
 
 See also: [`synchronize`](@ref).
 """
@@ -13,12 +11,11 @@ macro sync(ex...)
     kwargs = ex[1:end-1]
 
     # decode keyword arguments
-    blocking = true
     for kwarg in kwargs
         Meta.isexpr(kwarg, :(=)) || error("Invalid keyword argument $kwarg")
         key, val = kwarg.args
         if key == :blocking
-            blocking = val
+            Base.depwarn("the blocking keyword to @sync has been deprecated", :sync)
         else
             error("Unknown keyword argument $kwarg")
         end
@@ -26,7 +23,7 @@ macro sync(ex...)
 
     quote
         local ret = $(esc(code))
-        synchronize(; blocking=$(esc(blocking)))
+        synchronize()
         ret
     end
 end
@@ -96,4 +93,28 @@ function versioninfo(io::IO=stdout)
         end
         println(io, "  $(i-1): $str (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(mem.free)) / $(Base.format_bytes(mem.total)) available)")
     end
+end
+
+# this helper function encodes options for compute-sanitizer useful with Julia applications
+function compute_sanitizer_cmd(tool::String="memcheck")
+    sanitizer = CUDA.compute_sanitizer()
+    `$sanitizer --tool $tool --launch-timeout=0 --target-processes=all --report-api-errors=no`
+end
+
+"""
+    run_compute_sanitizer([julia_args=``]; [tool="memcheck", sanitizer_args=``])
+
+Run a new Julia session under the CUDA compute-sanitizer tool `tool`. This is useful to
+detect various GPU-related issues, like memory errors or race conditions.
+"""
+function run_compute_sanitizer(julia_args=``; tool::String="memcheck", sanitizer_args=``)
+    cmd = Base.julia_cmd()
+
+    # propagate --project
+    if Base.JLOptions().project != C_NULL
+        push!(cmd.exec, "--project=$(unsafe_string(Base.JLOptions().project))")
+    end
+
+    println("Re-starting your active Julia session...")
+    run(`$(CUDA.compute_sanitizer_cmd(tool)) $sanitizer_args $cmd $julia_args`)
 end

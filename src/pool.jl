@@ -64,21 +64,13 @@ end
 
 ## stream-ordered memory pool
 
-const __stream_ordered = LazyInitialized{Vector{Bool}}()
+# TODO: extract this into a @device_memoize macro, or teach @memoize about CuDevice?
+#       this is a common pattern that could be applied to many more functions.
 function stream_ordered(dev::CuDevice)
-  flags = get!(__stream_ordered) do
-    val = Vector{Bool}(undef, ndevices())
-    if version() < v"11.2" || haskey(ENV, "CUDA_MEMCHECK") ||
-       get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "none"
-      fill!(val, false)
-    else
-      for dev in devices()
-        val[deviceid(dev)+1] = attribute(dev, DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
-      end
-    end
-    val
-  end
-  @inbounds flags[deviceid(dev)+1]
+  devidx = deviceid(dev) + 1
+  @memoize devidx::Int maxlen=ndevices() begin
+    memory_pools_supported(dev) && get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
+  end::Bool
 end
 
 # per-device flag indicating the status of a pool
@@ -92,9 +84,16 @@ function pool_mark(dev::CuDevice)
   if status[] === nothing
       pool = memory_pool(dev)
 
+      # allow the pool to use up all memory of this device
+      attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD, typemax(UInt64))
+
       # launch a task to periodically trim the pool
       if isinteractive() && !isassigned(__pool_cleanup)
-        __pool_cleanup[] = @async pool_cleanup()
+        __pool_cleanup[] = if VERSION < v"1.7"
+          Threads.@spawn pool_cleanup()
+        else
+          errormonitor(Threads.@spawn pool_cleanup())
+        end
       end
   end
   status[] = true
@@ -136,6 +135,56 @@ end
 
 export OutOfGPUMemoryError
 
+struct MemoryInfo
+  free_bytes::Int
+  total_bytes::Int
+  pool_reserved_bytes::Union{Int,Missing,Nothing}
+  pool_used_bytes::Union{Int,Missing,Nothing}
+
+  function MemoryInfo()
+    free_bytes, total_bytes = Mem.info()
+
+    pool_reserved_bytes, pool_used_bytes = if stream_ordered(device())
+      if version() >= v"11.3"
+        cached_memory(), used_memory()
+      else
+        missing, missing
+      end
+    else
+      nothing, nothing
+    end
+
+    new(free_bytes, total_bytes, pool_reserved_bytes, pool_used_bytes)
+  end
+end
+
+"""
+    memory_status([io=stdout])
+
+Report to `io` on the memory status of the current GPU and the active memory pool.
+"""
+function memory_status(io::IO=stdout, info::MemoryInfo=MemoryInfo())
+  state = active_state()
+  ctx = context()
+
+  used_bytes = info.total_bytes - info.free_bytes
+  used_ratio = used_bytes / info.total_bytes
+  @printf(io, "Effective GPU memory usage: %.2f%% (%s/%s)\n",
+              100*used_ratio, Base.format_bytes(used_bytes),
+              Base.format_bytes(info.total_bytes))
+
+  if info.pool_reserved_bytes === nothing
+    @printf(io, "No memory pool is in use.")
+  elseif info.pool_reserved_bytes === missing
+    @printf(io, "Memory pool statistics require CUDA 11.3.")
+  else
+    @printf(io, "Memory pool usage: %s (%s reserved)",
+                Base.format_bytes(info.pool_used_bytes),
+                Base.format_bytes(info.pool_reserved_bytes))
+
+  end
+end
+
 """
     OutOfGPUMemoryError()
 
@@ -144,8 +193,9 @@ handle properly.
 """
 struct OutOfGPUMemoryError <: Exception
   sz::Int
+  info::MemoryInfo
 
-  OutOfGPUMemoryError(sz::Integer=0) = new(sz)
+  OutOfGPUMemoryError(sz::Integer=0) = new(sz, MemoryInfo())
 end
 
 function Base.showerror(io::IO, err::OutOfGPUMemoryError)
@@ -154,7 +204,74 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
       print(io, " trying to allocate $(Base.format_bytes(err.sz))")
     end
     println(io)
-    memory_status(io)
+    memory_status(io, err.info)
+end
+
+"""
+    @retry_reclaim isfailed(ret) ex
+
+Run a block of code `ex` repeatedly until it successfully allocates the memory it needs.
+Retries are only attempted when calling `isfailed` with the current return value is true.
+At each try, more and more memory is freed from the CUDA memory pool. When that is not
+possible anymore, the latest returned value will be returned.
+
+This macro is intended for use with CUDA APIs, which sometimes allocate (outside of the
+CUDA memory pool) and return a specific error code when failing to.
+"""
+macro retry_reclaim(isfailed, ex)
+  quote
+    ret = $(esc(ex))
+
+    # slow path, incrementally reclaiming more memory until we succeed
+    if $(esc(isfailed))(ret)
+      state = active_state()
+      is_stream_ordered = stream_ordered(state.device)
+
+      phase = 1
+      while true
+        if is_stream_ordered
+          # NOTE: the stream-ordered allocator only releases memory on actual API calls,
+          #       and not when our synchronization routines query the relevant streams.
+          #       we do still call our routines to minimize the time we block in libcuda.
+          if phase == 1
+            synchronize(state.stream)
+          elseif phase == 2
+            device_synchronize()
+          elseif phase == 3
+            GC.gc(false)
+            device_synchronize()
+          elseif phase == 4
+            GC.gc(true)
+            device_synchronize()
+          elseif phase == 5
+            # in case we had a release threshold configured
+            trim(memory_pool(state.device))
+          else
+            break
+          end
+        else
+          if phase == 1
+            GC.gc(false)
+          elseif phase == 2
+            GC.gc(true)
+          else
+            break
+          end
+        end
+        phase += 1
+
+        ret = $(esc(ex))
+        $(esc(isfailed))(ret) || break
+      end
+    end
+
+    ret
+  end
+end
+
+# XXX: function version for use in CUDAdrv where we haven't loaded pool.jl yet
+function retry_reclaim(f, check)
+  @retry_reclaim check f()
 end
 
 """
@@ -185,42 +302,11 @@ end
 
     gctime = 0.0
     time = Base.@elapsed begin
-      buf = nothing
-      if stream_ordered(state.device)
-        # mark the pool as active
-        pool_mark(state.device)
-
-        for phase in 1:5
-            if phase == 2
-                gctime += Base.@elapsed GC.gc(false)
-            elseif phase == 3
-                gctime += Base.@elapsed GC.gc(true)
-            elseif phase == 4
-                synchronize(stream)
-
-                # NVIDIA bug #3383169: non-blocking sync doesn't trigger memory release.
-                cuStreamSynchronize(stream)
-            elseif phase == 5
-                device_synchronize()
-
-                # NVIDIA bug #3383169: synchronizing the legacy stream doesn't trigger memory release.
-                cuCtxSynchronize()
-            end
-
-            buf = actual_alloc(sz; async=true, stream)
-            buf === nothing || break
-        end
+      buf = if stream_ordered(state.device)
+        pool_mark(state.device) # mark the pool as active
+        @retry_reclaim isnothing actual_alloc(sz; async=true, stream)
       else
-        for phase in 1:3
-            if phase == 2
-                gctime += Base.@elapsed GC.gc(false)
-            elseif phase == 3
-                gctime += Base.@elapsed GC.gc(true)
-            end
-
-            buf = actual_alloc(sz; async=false)
-            buf === nothing || break
-        end
+        @retry_reclaim isnothing actual_alloc(sz; async=false, stream)
       end
       buf === nothing && throw(OutOfGPUMemoryError(sz))
     end
@@ -265,12 +351,27 @@ Releases a buffer `buf` to the memory pool.
   return
 end
 @inline function _free(buf::Mem.DeviceBuffer; stream::Union{Nothing,CuStream})
-    state = active_state()
-    if stream_ordered(state.device)
-      # mark the pool as active
-      pool_mark(state.device)
+    # NOTE: this function is often called from finalizers, from which we can't switch tasks,
+    #       so we need to take care not to call managed functions (i.e. functions that may
+    #       initialize the CUDA context) because querying the active context using
+    #       `current_context()` takes a lock
 
-      actual_free(buf; stream=something(stream, state.stream))
+    # verify that the caller has called `context!` already, which eagerly activates the
+    # context (i.e. doesn't only set it in the state, but configures the CUDA APIs).
+    handle_ref = Ref{CUcontext}()
+    cuCtxGetCurrent(handle_ref)
+    if buf.ctx.handle != handle_ref[]
+      error("Trying to free $buf from a different context than the one it was allocated from ($(handle_ref[]))")
+    end
+
+    dev = current_device()
+    if stream_ordered(dev)
+      # mark the pool as active
+      pool_mark(dev)
+
+      # for safety, we default to the default stream and force this operation to be ordered
+      # against all other streams. to opt out of this, pass a specific stream instead.
+      actual_free(buf; stream=something(stream, default_stream()))
     else
       actual_free(buf)
     end
@@ -294,77 +395,6 @@ function reclaim(sz::Int=typemax(Int))
   else
     0
   end
-end
-
-"""
-    @retry_reclaim isfailed(ret) ex
-
-Run a block of code `ex` repeatedly until it successfully allocates the memory it needs.
-Retries are only attempted when calling `isfailed` with the current return value is true.
-At each try, more and more memory is freed from the CUDA memory pool. When that is not
-possible anymore, the latest returned value will be returned.
-
-This macro is intended for use with CUDA APIs, which sometimes allocate (outside of the
-CUDA memory pool) and return a specific error code when failing to.
-"""
-macro retry_reclaim(isfailed, ex)
-  quote
-    ret = $(esc(ex))
-
-    # slow path, incrementally reclaiming more memory until we succeed
-    if $(esc(isfailed))(ret)
-      state = active_state()
-      is_stream_ordered = stream_ordered(state.device)
-
-      phase = 1
-      while true
-        if is_stream_ordered
-          # NOTE: the stream-ordered allocator only releases memory on actual API calls,
-          #       and not when our synchronization routines query the relevant streams.
-          #       we do still call our routines to minimize the time we block in libcuda.
-          if phase == 1
-            synchronize(state.stream)
-            cuStreamSynchronize(state.stream)
-          elseif phase == 2
-            device_synchronize()
-            synchronize(state.context)
-          elseif phase == 3
-            GC.gc(false)
-            device_synchronize()
-            synchronize(state.context)
-          elseif phase == 4
-            GC.gc(true)
-            device_synchronize()
-            synchronize(state.context)
-          elseif phase == 5
-            # in case we had a release threshold configured
-            trim(memory_pool(state.device))
-          else
-            break
-          end
-        else
-          if phase == 1
-            GC.gc(false)
-          elseif phase == 2
-            GC.gc(true)
-          else
-            break
-          end
-        end
-        phase += 1
-
-        ret = $(esc(ex))
-        $(esc(isfailed))(ret) || break
-      end
-    end
-
-    ret
-  end
-end
-
-# XXX: function version for use in CUDAdrv where we haven't loaded pool.jl yet
-function retry_reclaim(f, check)
-  @retry_reclaim check f()
 end
 
 
@@ -456,7 +486,7 @@ macro timed(ex)
         local cpu_time0 = time_ns()
 
         # fine-grained synchronization of the code under analysis
-        local val = @sync blocking=false $(esc(ex))
+        local val = @sync $(esc(ex))
 
         local cpu_time1 = time_ns()
         local cpu_mem_stats1 = Base.gc_num()
@@ -471,38 +501,6 @@ macro timed(ex)
          cpu_bytes=cpu_mem_stats.allocd, cpu_gctime=cpu_mem_stats.total_time / 1e9, cpu_gcstats=cpu_mem_stats,
          gpu_bytes=gpu_mem_stats.alloc_bytes, gpu_memtime=gpu_mem_stats.total_time, gpu_memstats=gpu_mem_stats)
     end
-end
-
-"""
-    memory_status([io=stdout])
-
-Report to `io` on the memory status of the current GPU and the active memory pool.
-"""
-function memory_status(io::IO=stdout)
-  state = active_state()
-  ctx = context()
-
-  free_bytes, total_bytes = Mem.info()
-  used_bytes = total_bytes - free_bytes
-  used_ratio = used_bytes / total_bytes
-  @printf(io, "Effective GPU memory usage: %.2f%% (%s/%s)\n",
-              100*used_ratio, Base.format_bytes(used_bytes),
-              Base.format_bytes(total_bytes))
-
-  if stream_ordered(state.device)
-    pool = memory_pool(state.device)
-    if version() >= v"11.3"
-      pool_reserved_bytes = cached_memory()
-      pool_used_bytes = used_memory()
-      @printf(io, "Memory pool usage: %s (%s reserved)",
-                  Base.format_bytes(pool_used_bytes),
-                  Base.format_bytes(pool_reserved_bytes))
-    else
-      @printf(io, "Memory pool statistics require CUDA 11.3.")
-    end
-  else
-    @printf(io, "No memory pool is in use.")
-  end
 end
 
 """
@@ -522,7 +520,7 @@ function used_memory()
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_USED_MEM_CURRENT))
   else
-    0
+    missing
   end
 end
 
@@ -542,6 +540,6 @@ function cached_memory()
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else
-    0
+    missing
   end
 end

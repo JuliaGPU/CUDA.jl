@@ -94,4 +94,43 @@ using SpecialFunctions
         # JuliaGPU/CUDA.jl#1085: exp uses Base.sincos performing a global CPU load
         @test testf(x->exp.(x), [1e7im])
     end
+
+    @testset "fastmath" begin
+        # libdevice provides some fast math functions
+        a(x) = cos(x)
+        b(x) = @fastmath cos(x)
+        @test Array(map(a, cu([0.1,0.2]))) ≈ Array(map(b, cu([0.1,0.2])))
+
+        # JuliaGPU/CUDA.jl#1352: some functions used to fall back to libm
+        f(x) = log1p(x)
+        g(x) = @fastmath log1p(x)
+        @test Array(map(f, cu([0.1,0.2]))) ≈ Array(map(g, cu([0.1,0.2])))
+    end
+
+    @testset "byte_perm" begin
+        bytes = UInt32[i for i in 1:8]
+        x = bytes[4]<<24 | bytes[3]<<16 | bytes[2]<<8 | bytes[1]<<0
+        y = bytes[8]<<24 | bytes[7]<<16 | bytes[6]<<8 | bytes[5]<<0
+        sel = UInt32[4, 2, 4, 2]
+        code = sel[4]<<12 | sel[3]<<8 | sel[2]<<4 | sel[1]<<0
+        r = bytes[sel[4]+1]<<24 | bytes[sel[3]+1]<<16 | bytes[sel[2]+1]<<8 | bytes[sel[1]+1]<<0
+
+        function kernel1(a)
+            a[3] = CUDA.byte_perm(a[1], a[2], code % Int32)
+            return
+        end
+        function kernel2(a)
+            a[3] = CUDA.byte_perm(a[1], a[2], code % UInt16)
+            return
+        end
+
+        for T in [UInt32, Int32]
+            a = CuArray{T}([x, y, 0])
+            @cuda kernel1(a)
+            @test Array(a)[3] == r
+            a = CuArray{T}([x, y, 0])
+            @cuda kernel2(a)
+            @test Array(a)[3] == r
+        end
+    end
 end

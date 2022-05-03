@@ -143,7 +143,7 @@ CUDA.total_memory
 
 ```@docs
 CuStream
-CUDA.query(::CuStream)
+CUDA.isdone(::CuStream)
 priority_range
 priority
 synchronize(::CuStream)
@@ -153,9 +153,9 @@ CUDA.@sync
 For specific use cases, special streams are available:
 
 ```@docs
-CuDefaultStream
-CuStreamLegacy
-CuStreamPerThread
+default_stream
+legacy_stream
+per_thread_stream
 ```
 
 ## Event Management
@@ -164,7 +164,7 @@ CuStreamPerThread
 CuEvent
 record
 synchronize(::CuEvent)
-CUDA.query(::CuEvent)
+CUDA.isdone(::CuEvent)
 CUDA.wait(::CuEvent)
 elapsed
 CUDA.@elapsed

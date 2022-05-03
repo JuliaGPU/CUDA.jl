@@ -3,14 +3,17 @@ module CUBLAS
 using ..APIUtils
 
 using ..CUDA
-using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcublas, unsafe_free!, @retry_reclaim, isdebug, @sync, @context!, initialize_context
+using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, i32
+using ..CUDA: libcublas, unsafe_free!, @retry_reclaim, isdebug, @sync, initialize_context
 
 using GPUArrays
 
 using LinearAlgebra
 
 using BFloat16s: BFloat16
+
+import LLVM
+using LLVM.Interop: assume
 
 using CEnum: @cenum
 
@@ -85,7 +88,9 @@ function handle()
 
         finalizer(current_task()) do task
             push!(idle_handles, cuda.context, new_handle) do
-                @context! skip_destroyed=true cuda.context cublasDestroy_v2(new_handle)
+                context!(cuda.context; skip_destroyed=true) do
+                    cublasDestroy_v2(new_handle)
+                end
             end
         end
 
@@ -195,7 +200,10 @@ function log_message(ptr)
     @ccall memmove((pointer(log_buffer)+old_cursor)::Ptr{Nothing},
                    pointer(ptr)::Ptr{Nothing}, (len+1)::Csize_t)::Nothing
     log_cursor[] = new_cursor   # the consumer handles CAS'ing this value
-    @ccall uv_async_send(log_cond[]::Ptr{Nothing})::Cint
+
+    # avoid code that depends on the runtime (even the unsafe_convert from ccall does?!)
+    assume(isassigned(log_cond))
+    @ccall uv_async_send(log_cond[].handle::Ptr{Nothing})::Cint
 
     return
 end

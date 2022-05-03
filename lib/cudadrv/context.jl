@@ -39,6 +39,8 @@ mutable struct CuContext
     valid::Bool
 
     function new_unique(handle)
+        # XXX: this makes it dangerous to call this function from finalizers.
+        #      can we do without the lock?
         Base.@lock context_lock get!(valid_contexts, handle) do
             new(handle, true)
         end
@@ -171,24 +173,6 @@ function Base.pop!(::Type{CuContext})
     # (and constructing the unique object is expensive)
 end
 
-# perform some finalizer actions in a context
-macro finalize_in_ctx(ctx, body)
-    # XXX: should this not integrate with the high-level context management from state.jl?
-    #      it might be good that the driver API wrappers don't need that runtime-esque
-    #      state management, but it might be confusing that `context()` doesn't work here.
-    quote
-        ctx = $(esc(ctx))
-        if isvalid(ctx)
-            push!(CuContext, ctx)
-            try
-                $(esc(body))
-            finally
-                pop!(CuContext)
-            end
-        end
-    end
-end
-
 """
     activate(ctx::CuContext)
 
@@ -308,21 +292,43 @@ end
 """
     synchronize(ctx::Context)
 
-Synchronize the current context, waiting for all outstanding operations to complete.
-
-!!! warning
-
-    This is an operation that blocks in the driver, and should be avoided if possible.
-    Instead, use [`device_synchronize()`](@ref) to perform synchronization in Julia.
+Block for the all operations on `ctx` to complete. This is a heavyweight operation,
+typically you only need to call [`synchronize`](@ref) which only synchronizes the stream
+associated with the current task.
 """
 function synchronize(ctx::CuContext)
     push!(CuContext, ctx)
     try
-        cuCtxSynchronize()
-        check_exceptions()
+        nonblocking_synchronize()
     finally
         pop!(CuContext)
     end
+end
+
+# same, but without the context switch
+"""
+    device_synchronize()
+
+Block for the all operations on `ctx` to complete. This is a heavyweight operation,
+typically you only need to call [`synchronize`](@ref) which only synchronizes the stream
+associated with the current task.
+
+On the device, `device_synchronize` acts as a synchronization point for child grids in the
+context of dynamic parallelism.
+"""
+device_synchronize() = nonblocking_synchronize()
+# XXX: can we put the device docstring in dynamic_parallelism.jl?
+
+@inline function nonblocking_synchronize()
+    # perform as much of the sync as possible without blocking in CUDA.
+    # XXX: remove this using a yield callback, or by synchronizing on a dedicated thread?
+    nonblocking_synchronize(legacy_stream())
+
+    # even though the GPU should be idle now, CUDA hooks work to the actual API call.
+    # see NVIDIA bug #3383169 for more details.
+    cuCtxSynchronize()
+
+    check_exceptions()
 end
 
 
@@ -373,3 +379,13 @@ function limit(lim::CUlimit)
 end
 
 limit!(lim::CUlimit, val) = cuCtxSetLimit(lim, val)
+
+
+## p2p
+
+export enable_peer_access, disable_peer_access
+
+enable_peer_access(peer::CuContext, flags=0) =
+    cuCtxEnablePeerAccess(peer, flags)
+
+disable_peer_access(peer::CuContext) = cuCtxDisablePeerAccess(peer)

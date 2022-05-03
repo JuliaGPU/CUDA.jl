@@ -28,36 +28,42 @@ import Adapt
   let
     data = CuArray{Int}(undef, 2)
     ptr = pointer(data)
+    B = Mem.DeviceBuffer
 
-    @test Base.unsafe_wrap(CuArray, ptr, 1; own=false).storage.refcount[] == -1
+    @test unsafe_wrap(CuArray, ptr, 1; own=false).storage.refcount[] == -1
 
     ## compare the fields we care about: the buffer, size, offset, and context
     function test_eq(a, b)
       @test eltype(a) == eltype(b)
       @test ndims(a) == ndims(b)
       @test a.storage.buffer.ptr == b.storage.buffer.ptr
-      @test a.storage.ctx == b.storage.ctx
+      @test a.storage.buffer.ctx == b.storage.buffer.ctx
       @test a.maxsize == b.maxsize
       @test a.offset == b.offset
       @test a.dims == b.dims
     end
 
-    test_eq(Base.unsafe_wrap(CuArray, ptr, 2),              CuArray{Int,1}(data.storage, (2,)))
-    test_eq(Base.unsafe_wrap(CuArray{Int}, ptr, 2),         CuArray{Int,1}(data.storage, (2,)))
-    test_eq(Base.unsafe_wrap(CuArray{Int,1}, ptr, 2),       CuArray{Int,1}(data.storage, (2,)))
-    test_eq(Base.unsafe_wrap(CuArray, ptr, (1,2)),          CuArray{Int,2}(data.storage, (1,2)))
-    test_eq(Base.unsafe_wrap(CuArray{Int}, ptr, (1,2)),     CuArray{Int,2}(data.storage, (1,2)))
-    test_eq(Base.unsafe_wrap(CuArray{Int,2}, ptr, (1,2)),   CuArray{Int,2}(data.storage, (1,2)))
+    test_eq(unsafe_wrap(CuArray, ptr, 2),                CuArray{Int,1}(data.storage, (2,)))
+    test_eq(unsafe_wrap(CuArray{Int}, ptr, 2),           CuArray{Int,1}(data.storage, (2,)))
+    test_eq(unsafe_wrap(CuArray{Int,1}, ptr, 2),         CuArray{Int,1}(data.storage, (2,)))
+    test_eq(unsafe_wrap(CuArray{Int,1,B}, ptr, 2),       CuArray{Int,1}(data.storage, (2,)))
+    test_eq(unsafe_wrap(CuArray, ptr, (1,2)),            CuArray{Int,2}(data.storage, (1,2)))
+    test_eq(unsafe_wrap(CuArray{Int}, ptr, (1,2)),       CuArray{Int,2}(data.storage, (1,2)))
+    test_eq(unsafe_wrap(CuArray{Int,2}, ptr, (1,2)),     CuArray{Int,2}(data.storage, (1,2)))
+    test_eq(unsafe_wrap(CuArray{Int,2,B}, ptr, (1,2)),   CuArray{Int,2}(data.storage, (1,2)))
+
+    @test_throws ErrorException unsafe_wrap(CuArray{Int,1,Mem.HostBuffer}, ptr, 2)
+    @test_throws ErrorException unsafe_wrap(CuArray{Int,2,Mem.HostBuffer}, ptr, (1,2))
   end
   let buf = Mem.alloc(Mem.Host, sizeof(Int), Mem.HOSTALLOC_DEVICEMAP)
     gpu_ptr = convert(CuPtr{Int}, buf)
-    gpu_arr = Base.unsafe_wrap(CuArray, gpu_ptr, 1)
+    gpu_arr = unsafe_wrap(CuArray, gpu_ptr, 1)
     gpu_arr .= 42
 
     synchronize()
 
     cpu_ptr = convert(Ptr{Int}, buf)
-    cpu_arr = Base.unsafe_wrap(Array, cpu_ptr, 1)
+    cpu_arr = unsafe_wrap(Array, cpu_ptr, 1)
     @test cpu_arr == [42]
   end
 
@@ -66,6 +72,20 @@ import Adapt
 
   @test collect(CUDA.fill(0, 2, 2)) == zeros(Float32, 2, 2)
   @test collect(CUDA.fill(1, 2, 2)) == ones(Float32, 2, 2)
+
+  let
+    @gensym typnam
+    typ = @eval begin
+      struct $typnam
+        content::Int
+      end
+      Base.zero(::Type{$typnam}) = $typnam(1)
+      Base.one(::Type{$typnam}) = $typnam(2)
+      $typnam
+    end
+    @test collect(CUDA.zeros(typ, 2, 2)) == zeros(typ, 2, 2)
+    @test collect(CUDA.ones(typ, 2, 2)) == ones(typ, 2, 2)
+  end
 end
 
 @testset "adapt" begin
@@ -294,6 +314,7 @@ end
 @testset "accumulate" begin
   for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
     @test testf(x->accumulate(+, x), rand(n))
+    @test testf((x,y)->accumulate(+, x; init=y), rand(n), rand())
   end
 
   # multidimensional
@@ -307,7 +328,7 @@ end
   for (sizes, dims) in ((2,) => 2,
                         (3,4,5) => 2,
                         (1, 70, 50, 20) => 3)
-    @test testf(x->accumulate(+, x; dims=dims, init=100.), rand(Int, sizes))
+    @test testf((x,y)->accumulate(+, x; dims=dims, init=y), rand(Int, sizes), rand(Int))
   end
 
   # in place
@@ -319,17 +340,20 @@ end
 end
 
 @testset "logical indexing" begin
-  @test CuArray{Int}(undef, 2)[CuArray{Bool}(undef, 2)] isa CuArray
-  @test CuArray{Int}(undef, 2, 2)[CuArray{Bool}(undef, 2, 2)] isa CuArray
-  @test CuArray{Int}(undef, 2, 2, 2)[CuArray{Bool}(undef, 2, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2)[CUDA.ones(Bool, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2)[CUDA.ones(Bool, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2, 2)[CUDA.ones(Bool, 2, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2)[CUDA.ones(Bool, 2), CUDA.ones(Bool, 2)] isa CuArray
 
-  @test CuArray{Int}(undef, 2)[Array{Bool}(undef, 2)] isa CuArray
-  @test CuArray{Int}(undef, 2, 2)[Array{Bool}(undef, 2, 2)] isa CuArray
-  @test CuArray{Int}(undef, 2, 2, 2)[Array{Bool}(undef, 2, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2)[ones(Bool, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2)[ones(Bool, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2, 2)[ones(Bool, 2, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2)[ones(Bool, 2), ones(Bool, 2)] isa CuArray
 
-  @test testf((x,y)->x[y], rand(2), rand(Bool, 2))
-  @test testf((x,y)->x[y], rand(2, 2), rand(Bool, 2, 2))
-  @test testf((x,y)->x[y], rand(2, 2, 2), rand(Bool, 2, 2, 2))
+  @test testf((x,y)->x[y], rand(2), ones(Bool, 2))
+  @test testf((x,y)->x[y], rand(2, 2), ones(Bool, 2, 2))
+  @test testf((x,y)->x[y], rand(2, 2, 2), ones(Bool, 2, 2, 2))
+  @test testf((x,y)->x[y,y], rand(2, 2), ones(Bool, 2))
 
   @test testf(x -> x[x .> 0.5], rand(2))
   @test testf(x -> x[x .> 0.5], rand(2,2))
@@ -511,6 +535,11 @@ end
       b = unsafe_wrap(CuArray{Int}, pointer(a), 2)
       @test_throws ArgumentError resize!(b, 3)
     end
+
+    b = CuArray{Int}(undef, 0)
+    @test length(b) == 0
+    resize!(b, 1)
+    @test length(b) == 1
 end
 
 @testset "aliasing" begin
@@ -538,6 +567,13 @@ end
   @test vec(Array(sum!(view(CUDA.zeros(1,1,1), 1, :, :), CUDA.ones(1,4096)))) == [4096f0]
 end
 
+@testset "issue 1202" begin
+  # test that deepcopying a struct with a CuArray field gets properly deepcopied
+  a = (x = CUDA.zeros(2),)
+  b = deepcopy(a)
+  a.x .= -1
+  @test b.x != a.x
+end
 
 @testset "isbits unions" begin
   # test that the selector bytes are preserved when up and downloading
@@ -584,6 +620,41 @@ end
     end
     @cuda threads=length(b) kernel(b)
     @test Array(b) == [2, nothing, 4]
+  end
+
+  # test that we can create and use arrays with all singleton objects
+  let a = [nothing, missing, missing, nothing]
+    b = CuArray(a)
+    errors = CuArray([0])
+    function kernel()
+      i = threadIdx().x
+      if i == 1 || i == 4
+        if b[i] !==  nothing
+          errors[] += 1
+        end
+      else
+        if b[i] !== missing
+          errors[] += 1
+        end
+      end
+      return
+    end
+    @cuda threads=length(b) kernel()
+    @test Array(errors) == [0]
+  end
+
+  # arrays with union{union{...}, ...}
+  let a = CuArray{Union{Union{Missing,Nothing},Int}}([0])
+    function kernel(x)
+      i = threadIdx().x
+      val = x[i]
+      if val !== nothing && val !== missing
+        x[i] = val + 1
+      end
+      return
+    end
+    @cuda threads=length(a) kernel(a)
+    @test Array(a) == [1]
   end
 end
 
@@ -723,6 +794,15 @@ end
   end
 end
 
+@testset "issue: invalid handling of device pointers" begin
+  # failed when DEVICE_ATTRIBUTE_CAN_USE_HOST_POINTER_FOR_REGISTERED_MEM == 0
+  cpu = rand(2,2)
+  buf = Mem.register(Mem.Host, pointer(cpu), sizeof(cpu), Mem.HOSTREGISTER_DEVICEMAP)
+  gpu_ptr = convert(CuPtr{eltype(cpu)}, buf)
+  gpu = unsafe_wrap(CuArray, gpu_ptr, size(cpu))
+  @test Array(gpu) == cpu
+end
+
 if length(devices()) > 1
 @testset "multigpu" begin
   dev = device()
@@ -738,6 +818,87 @@ if length(devices()) > 1
         Array(dA)
     end)
     @test A == B
+  end
+
+  @testset "issue 1263" begin
+    function unified_cuarray(::Type{T}, dims::NTuple{N}) where {T, N}
+        buf = Mem.alloc(Mem.Unified, prod(dims) * sizeof(T))
+        array = unsafe_wrap(CuArray{T, N}, convert(CuPtr{T}, buf), dims)
+        finalizer(_ -> Mem.free(buf), array)
+        return array
+    end
+
+    A = rand(5, 5)
+    B = rand(5, 5)
+
+    # should be able to copy to/from unified memory regardless of the context
+    device!(dev)
+    dA = CuArray(A)
+    device!(other_dev)
+    dB = unified_cuarray(eltype(A), size(A))
+    device!(dev)
+    copyto!(dB, dA)
+    @test Array(dB) == A
+
+    device!(other_dev)
+    copyto!(dB, B)
+    synchronize()
+    device!(dev)
+    copyto!(dA, dB)
+    @test Array(dA) == B
+
+    function host_cuarray(::Type{T}, dims::NTuple{N}) where {T, N}
+        buf = Mem.alloc(Mem.Unified, prod(dims) * sizeof(T))
+        array = unsafe_wrap(CuArray{T, N}, convert(CuPtr{T}, buf), dims)
+        finalizer(_ -> Mem.free(buf), array)
+        return array
+    end
+
+    # same for host memory
+    device!(dev)
+    dA = CuArray(A)
+    device!(other_dev)
+    dB = host_cuarray(eltype(A), size(A))
+    device!(dev)
+    copyto!(dB, dA)
+    @test Array(dB) == A
+
+    device!(other_dev)
+    copyto!(dB, B)
+    synchronize()
+    device!(dev)
+    copyto!(dA, dB)
+    @test Array(dA) == B
+  end
+
+  @testset "issue 1136: copies between devices" begin
+    device!(dev)
+    data = rand(5, 5)
+    a = CuArray(data)
+
+    device!(other_dev)
+    b = similar(a)
+    @test device(b) == other_dev
+    copyto!(b, a)
+
+    synchronize()
+    @test Array(a) == Array(b) == data
+
+    device!(dev)
+    @test Array(a) == Array(b) == data
+
+    # now do the same, but with the other context active when copying
+    device!(dev)
+    data = rand(5, 5)
+    a = CuArray(data)
+
+    copyto!(b, a)
+
+    synchronize()
+    @test Array(a) == Array(b) == data
+
+    device!(other_dev)
+    @test Array(a) == Array(b) == data
   end
 end
 end

@@ -28,9 +28,9 @@ end
 tag_wrappers = ((identity, identity),
                 (T -> :(HermOrSym{T, <:$T}), A -> :(parent($A))))
 op_wrappers = (
-    (identity, 'N', identity),
-    (T -> :(Transpose{<:T, <:$T}), 'T', A -> :(parent($A))),
-    (T -> :(Adjoint{<:T, <:$T}), 'C', A -> :(parent($A)))
+    (identity, T -> 'N', identity),
+    (T -> :(Transpose{<:T, <:$T}), T -> 'T', A -> :(parent($A))),
+    (T -> :(Adjoint{<:T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A)))
 )
 for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     TypeA = wrapa(taga(:(CuSparseMatrix{T})))
@@ -38,51 +38,89 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     @eval begin
         function LinearAlgebra.mul!(C::CuVector{T}, A::$TypeA, B::DenseCuVector{T},
                                     alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-            mv_wrapper($transa, alpha, $(untaga(unwrapa(:A))), B, beta, C)
+            mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), B, beta, C)
         end
     end
 
     for (tagb, untagb) in tag_wrappers, (wrapb, transb, unwrapb) in op_wrappers
         TypeB = wrapb(tagb(:(DenseCuMatrix{T})))
 
-        isadjoint(expr) = expr.head == :curly && expr.args[1] == :Adjoint
-        if isadjoint(TypeA) || isadjoint(TypeB)
-            # CUSPARSE defines adjoints only for complex inputs. For real inputs we run
-            # adjoints as tranposes so that we can still support the whole API surface of
-            # LinearAlgebra.
-            @eval begin
-                function LinearAlgebra.mul!(C::CuMatrix{T}, A::$TypeA, B::$TypeB,
-                                            alpha::Number, beta::Number) where {T <: Union{ComplexF16, BlasComplex}}
-                    mm_wrapper($transa, $transb, alpha, $(untaga(unwrapa(:A))),
-                               $(untagb(unwrapb(:B))), beta, C)
-                end
-            end
-
-            transa_real = transa == 'C' ? 'T' : transa
-            transb_real = transb == 'C' ? 'T' : transb
-            @eval begin
-                function LinearAlgebra.mul!(C::CuMatrix{T}, A::$TypeA, B::$TypeB,
-                                            alpha::Number, beta::Number) where {T <: Union{Float16, BlasReal}}
-                    mm_wrapper($transa_real, $transb_real, alpha, $(untaga(unwrapa(:A))),
-                               $(untagb(unwrapb(:B))), beta, C)
-                end
-            end
-        else
-            @eval begin
-                function LinearAlgebra.mul!(C::CuMatrix{T}, A::$TypeA, B::$TypeB,
-                                            alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-                    mm_wrapper($transa, $transb, alpha, $(untaga(unwrapa(:A))),
-                               $(untagb(unwrapb(:B))), beta, C)
-                end
+        @eval begin
+            function LinearAlgebra.mul!(C::CuMatrix{T}, A::$TypeA, B::$TypeB,
+                                        alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+                mm_wrapper($transa(T), $transb(T), alpha, $(untaga(unwrapa(:A))), $(untagb(unwrapb(:B))), beta, C)
             end
         end
     end
 end
 
-Base.:(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},
-          B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,B,'O','O','O')
-Base.:(-)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},
-          B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,-one(eltype(A)),B,'O','O','O')
+Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
+Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
+
+Base.:(+)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = A + Transpose(conj(B.parent))
+Base.:(-)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = A - Transpose(conj(B.parent))
+Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = Transpose(conj(A.parent)) + B
+Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = Transpose(conj(A.parent)) - B
+Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} =
+    Transpose(conj(A.parent)) + B
+Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} =
+    Transpose(conj(A.parent)) - B
+
+function Base.:(+)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
+    cscB = CuSparseMatrixCSC(B.parent)
+    transB = CuSparseMatrixCSR(cscB.colPtr, cscB.rowVal, cscB.nzVal, size(cscB))
+    return geam(one(T), A, one(T), transB, 'O')
+end
+
+function Base.:(-)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
+    cscB = CuSparseMatrixCSC(B.parent)
+    transB = CuSparseMatrixCSR(cscB.colPtr, cscB.rowVal, cscB.nzVal, size(cscB))
+    return geam(one(T), A, -one(T), transB, 'O')
+end
+
+function Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T}
+    cscA = CuSparseMatrixCSC(A.parent)
+    transA = CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, size(cscA))
+    geam(one(T), transA, one(T), B, 'O')
+end
+
+function Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T}
+    cscA = CuSparseMatrixCSC(A.parent)
+    transA = CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, size(cscA))
+    geam(one(T), transA, -one(T), B, 'O')
+end
+
+function Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
+    C = geam(one(T), A.parent, one(T), B.parent, 'O')
+    cscC = CuSparseMatrixCSC(C)
+    return CuSparseMatrixCSR(cscC.colPtr, cscC.rowVal, cscC.nzVal, size(cscC))
+end
+
+function Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
+    C = geam(one(T), A.parent, -one(T), B.parent, 'O')
+    cscC = CuSparseMatrixCSC(C)
+    return CuSparseMatrixCSR(cscC.colPtr, cscC.rowVal, cscC.nzVal, size(cscC))
+end
+
+function Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrix)
+    csrB = CuSparseMatrixCSR(B)
+    return geam(one(eltype(A)), A, one(eltype(A)), csrB, 'O')
+end
+
+function Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrix)
+    csrB = CuSparseMatrixCSR(B)
+    return geam(one(eltype(A)), A, -one(eltype(A)), csrB, 'O')
+end
+
+function Base.:(+)(A::CuSparseMatrix, B::CuSparseMatrixCSR)
+    csrA = CuSparseMatrixCSR(A)
+    return geam(one(eltype(A)), csrA, one(eltype(A)), B, 'O')
+end
+
+function Base.:(-)(A::CuSparseMatrix, B::CuSparseMatrixCSR)
+    csrA = CuSparseMatrixCSR(A)
+    return geam(one(eltype(A)), csrA, -one(eltype(A)), B, 'O')
+end
 
 # triangular
 
@@ -136,3 +174,34 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
             sm2!('C', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
     end
 end
+
+
+## uniform scaling
+
+# these operations materialize the identity matrix and re-use broadcast
+# TODO: can we do without this, and just use the broadcast implementation
+#       with a singleton argument it knows how to index?
+
+function _sparse_identity(::Type{<:CuSparseMatrixCSR{<:Any,Ti}},
+                          I::UniformScaling{Tv}, dims::Dims) where {Tv,Ti}
+    len = min(dims[1], dims[2])
+    rowPtr = CuVector{Ti}(vcat(1:len, fill(len+1, dims[1]-len+1)))
+    colVal = CuVector{Ti}(1:len)
+    nzVal = CUDA.fill(I.λ, len)
+    CuSparseMatrixCSR{Tv,Ti}(rowPtr, colVal, nzVal, dims)
+end
+
+function _sparse_identity(::Type{<:CuSparseMatrixCSC{<:Any,Ti}},
+                          I::UniformScaling{Tv}, dims::Dims) where {Tv,Ti}
+    len = min(dims[1], dims[2])
+    colPtr = CuVector{Ti}(vcat(1:len, fill(len+1, dims[2]-len+1)))
+    rowVal = CuVector{Ti}(1:len)
+    nzVal = CUDA.fill(I.λ, len)
+    CuSparseMatrixCSC{Tv,Ti}(colPtr, rowVal, nzVal, dims)
+end
+
+Base.:(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}, J::UniformScaling) =
+    A .+ _sparse_identity(typeof(A), J, size(A))
+
+Base.:(-)(J::UniformScaling, A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) =
+    _sparse_identity(typeof(A), J, size(A)) .- A

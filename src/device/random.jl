@@ -146,3 +146,109 @@ function Random.rand(rng::Philox2x32{R},::Type{UInt64}) where {R}
     #       so just make our 2x32 generator return 64-bit numbers by default.
     return (ctr1 % UInt64) << 32 | (ctr2 % UInt64)
 end
+
+
+
+# normally distributed random numbers using Ziggurat algorithm
+#
+# copied from Base because we don't support its global tables
+
+# a hacky method of exposing constant tables as constant GPU memory
+function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
+    Context() do ctx
+        T_val = convert(LLVMType, T; ctx)
+        T_ptr = convert(LLVMType, LLVMPtr{T,AS.Constant}; ctx)
+
+        # define function and get LLVM module
+        llvm_f, _ = create_function(T_ptr)
+        mod = LLVM.parent(llvm_f)
+
+        # create a global memory global variable
+        # TODO: global_var alignment?
+        T_global = LLVM.ArrayType(T_val, length(data))
+        # XXX: why can't we use a single name like emit_shmem
+        gv = GlobalVariable(mod, T_global, "gpu_$(name)_data", AS.Constant)
+        linkage!(gv, LLVM.API.LLVMInternalLinkage)
+        initializer!(gv, ConstantArray(data; ctx))
+
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry"; ctx)
+            position!(builder, entry)
+
+            ptr = gep!(builder, gv, [ConstantInt(0; ctx), ConstantInt(0; ctx)])
+
+            untyped_ptr = bitcast!(builder, ptr, T_ptr)
+
+            ret!(builder, untyped_ptr)
+        end
+
+        call_function(llvm_f, LLVMPtr{T,AS.Constant})
+    end
+end
+
+for var in [:ki, :wi, :fi, :ke, :we, :fe]
+    val = getfield(Random, var)
+    gpu_var = Symbol("gpu_$var")
+    @eval @inline @generated function $gpu_var()
+        ptr = emit_constant_array($(QuoteNode(var)), $val)
+        Expr(:call, :CuDeviceArray, $(size(val)), ptr)
+    end
+end
+
+## randn
+
+@device_override Random.randn(rng::AbstractRNG) =
+    _randn(rng, Random.rand(rng, Random.UInt52Raw()))
+
+@inline function _randn(rng::AbstractRNG, r::UInt64)
+    @inbounds begin
+        r &= 0x000fffffffffffff
+        rabs = Int64(r>>1) # One bit for the sign
+        idx = rabs & 0xFF
+        x = ifelse(r % Bool, -rabs, rabs)*gpu_wi()[idx+1]
+        rabs < gpu_ki()[idx+1] && return x # 99.3% of the time we return here 1st try
+        return randn_unlikely(rng, idx, rabs, x)
+    end
+end
+
+# this unlikely branch is put in a separate function for better efficiency
+@noinline function randn_unlikely(rng, idx, rabs, x)
+    @inbounds if idx == 0
+        while true
+            xx = -Random.ziggurat_nor_inv_r*log(Random.rand(rng))
+            yy = -log(Random.rand(rng))
+            yy+yy > xx*xx &&
+                return (rabs >> 8) % Bool ? -Random.ziggurat_nor_r-xx : Random.ziggurat_nor_r+xx
+        end
+    elseif (gpu_fi()[idx] - gpu_fi()[idx+1])*Random.rand(rng) + gpu_fi()[idx+1] < exp(-0.5*x*x)
+        return x # return from the triangular area
+    else
+        return Random.randn(rng)
+    end
+end
+
+## randexp
+
+@device_override Random.randexp(rng::AbstractRNG) =
+    _randexp(rng, Random.rand(rng, Random.UInt52Raw()))
+
+function _randexp(rng::AbstractRNG, ri::UInt64)
+    @inbounds begin
+        ri &= 0x000fffffffffffff
+        idx = ri & 0xFF
+        x = ri*gpu_we()[idx+1]
+        ri < gpu_ke()[idx+1] && return x # 98.9% of the time we return here 1st try
+        return randexp_unlikely(rng, idx, x)
+    end
+end
+
+@noinline function randexp_unlikely(rng, idx, x)
+    @inbounds if idx == 0
+        return Random.ziggurat_exp_r - log(Random.rand(rng))
+    elseif (gpu_fe()[idx] - gpu_fe()[idx+1])*Random.rand(rng) + gpu_fe()[idx+1] < exp(-x)
+        return x # return from the triangular area
+    else
+        return Random.randexp(rng)
+    end
+end

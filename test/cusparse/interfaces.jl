@@ -2,6 +2,54 @@ using CUDA.CUSPARSE
 using LinearAlgebra, SparseArrays
 
 @testset "LinearAlgebra" begin
+    @testset "$f(A)±$h(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
+                                     f in (identity, transpose), #adjoint),
+                                     h in (identity, transpose)#, adjoint)
+        # adjoint need the support of broadcast for `conj()` to work with `CuSparseMatrix`.
+        n = 10
+        alpha = rand()
+        beta = rand()
+        A = sprand(elty, n, n, rand())
+        B = sprand(elty, n, n, rand())
+
+        dA = CuSparseMatrixCSR(A)
+        dB = CuSparseMatrixCSR(B)
+
+        C = f(A) + h(B)
+        dC = f(dA) + h(dB)
+        @test C ≈ collect(dC)
+
+        C = f(A) - h(B)
+        dC = f(dA) - h(dB)
+        @test C ≈ collect(dC)
+    end
+
+    @testset "A±$f(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
+                                 f in (CuSparseMatrixCSR, CuSparseMatrixCSC, x->CuSparseMatrixBSR(x,1))
+        n = 10
+        A = sprand(elty, n, n, rand())
+        B = sprand(elty, n, n, rand())
+
+        dA = CuSparseMatrixCSR(A)
+        dB = CuSparseMatrixCSR(B)
+
+        C = A + B
+        dC = dA + f(dB)
+        @test C ≈ collect(dC)
+
+        C = B + A
+        dC = f(dB) + dA
+        @test C ≈ collect(dC)
+
+        C = A - B
+        dC = dA - f(dB)
+        @test C ≈ collect(dC)
+
+        C = B - A
+        dC = f(dB) - dA
+        @test C ≈ collect(dC)
+    end
+
     @testset "$f(A)*b $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
                                  f in (identity, transpose, adjoint)
         n = 10
@@ -104,6 +152,19 @@ using LinearAlgebra, SparseArrays
         S = sprand(elty, 10, 10, 0.1)
         T = f(CuSparseMatrixCSC(S))
         @test SparseMatrixCSC(CuSparseMatrixCSR(T)) ≈ f(S)
+    end
+
+    VERSION >= v"1.7" && @testset "UniformScaling with $typ($dims)" for
+            typ in [CuSparseMatrixCSR, CuSparseMatrixCSC],
+            dims in [(10, 10), (5, 10), (10, 5)]
+        S = sprand(Float32, dims..., 0.1)
+        dA = typ(S)
+
+        @test Array(dA + I) == S + I
+        @test Array(I + dA) == I + S
+
+        @test Array(dA - I) == S - I
+        @test Array(I - dA) == I - S
     end
 end
 

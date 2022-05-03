@@ -1,4 +1,6 @@
+using LinearAlgebra
 using CUDA.CUSPARSE, SparseArrays
+using CUDA
 
 @testset "sparse" begin
     n, m = 4, 4
@@ -33,4 +35,25 @@ using CUDA.CUSPARSE, SparseArrays
             @test collect(x) == collect(dense)
         end
     end
+end
+
+@testset "unsorted sparse (CUDA.jl#1407)" begin
+    I = [1, 1, 2, 3, 3, 4, 5, 4, 6, 4, 5, 6, 6, 6]
+    J = [4, 6, 4, 5, 6, 6, 6, 1, 1, 2, 3, 3, 4, 5]
+
+    # ensure we cover both the CUSPARSE-based and native COO row sort
+    for typ in (Float16, Float32)
+        A = sparse(I, J, ones(typ, length(I)), 6, 6)
+        Agpu = sparse(I |> cu, J |> cu, ones(typ, length(I)) |> cu, 6, 6)
+        @test Array(Agpu) == A
+    end
+end
+
+@testset "CuSparseMatrix(::Diagonal)" begin
+    X = Diagonal(rand(10))
+    dX = cu(X)
+    dY = CuSparseMatrixCSC{Float64, Int32}(dX)
+    dZ = CuSparseMatrixCSR{Float64, Int32}(dX)
+    @test SparseMatrixCSC(dY) ≈ SparseMatrixCSC(dZ)
+    @test SparseMatrixCSC(CuSparseMatrixCSC(X)) ≈ SparseMatrixCSC(CuSparseMatrixCSR(X))
 end

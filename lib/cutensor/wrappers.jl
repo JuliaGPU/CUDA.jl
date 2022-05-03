@@ -16,6 +16,16 @@ function cuda_version()
   VersionNumber(major, minor, patch)
 end
 
+
+abstract type CuTensorPlan end
+
+function CUDA.unsafe_free!(plan::CuTensorPlan, stream::CuStream=stream())
+    CUDA.unsafe_free!(plan.workspace, stream)
+end
+
+unsafe_finalize!(plan::CuTensorPlan) = CUDA.unsafe_free!(plan, default_stream())
+
+
 const ModeType = AbstractVector{<:Union{Char, Integer}}
 
 is_unary(op::cutensorOperator_t) =
@@ -42,6 +52,7 @@ end
 const scalar_types = Dict(
     (Float16, Float16)          => Float32,
     (Float32, Float16)          => Float32,
+    (Float16, Float32)          => Float32,
     (Float32, Float32)          => Float32,
     (Float64, Float64)          => Float64,
     (Float64, Float32)          => Float64,
@@ -227,6 +238,17 @@ function permutation!(
     return B
 end
 
+mutable struct CuTensorContractionPlan <: CuTensorPlan
+    ctx::CuContext
+    handle::Base.RefValue{cutensorContractionPlan_t}
+    workspace::CuVector{UInt8,Mem.DeviceBuffer}
+
+    function CuTensorContractionPlan(handle, workspace)
+        plan = new(context(), handle, workspace)
+        finalizer(unsafe_finalize!, plan)
+    end
+end
+
 function contraction!(
         @nospecialize(alpha::Number),
         @nospecialize(A::Union{Array, CuArray}), Ainds::ModeType, opA::cutensorOperator_t,
@@ -236,58 +258,27 @@ function contraction!(
         opOut::cutensorOperator_t;
         pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT,
-        compute_type::Type=eltype(C), plan::Union{cutensorContractionPlan_t, Nothing}=nothing)
-    !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
-    !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
-    !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
-    !is_unary(opOut)  && throw(ArgumentError("opOut must be a unary op!"))
-    descA = CuTensorDescriptor(A; op = opA)
-    descB = CuTensorDescriptor(B; op = opB)
-    descC = CuTensorDescriptor(C; op = opC)
-    # for now, D must be identical to C (and thus, descD must be identical to descC)
+        compute_type::Type=eltype(C), plan::Union{CuTensorContractionPlan, Nothing}=nothing)
+
+    # XXX: save these as parameters of the plan?
     output_type = eltype(C)
     scalar_type = scalar_types[(output_type, compute_type)]
-    computeType = cutensorComputeType(compute_type)
-    modeA = collect(Cint, Ainds)
-    modeB = collect(Cint, Binds)
-    modeC = collect(Cint, Cinds)
 
-    alignmentRequirementA = Ref{UInt32}(C_NULL)
-    cutensorGetAlignmentRequirement(handle(), A, descA, alignmentRequirementA)
-    alignmentRequirementB = Ref{UInt32}(C_NULL)
-    cutensorGetAlignmentRequirement(handle(), B, descB, alignmentRequirementB)
-    alignmentRequirementC = Ref{UInt32}(C_NULL)
-    cutensorGetAlignmentRequirement(handle(), C, descC, alignmentRequirementC)
-    desc = Ref{cutensorContractionDescriptor_t}()
-    cutensorInitContractionDescriptor(handle(),
-                                      desc,
-                   descA, modeA, alignmentRequirementA[],
-                   descB, modeB, alignmentRequirementB[],
-                   descC, modeC, alignmentRequirementC[],
-                   descC, modeC, alignmentRequirementC[],
-                   computeType)
-    find = Ref{cutensorContractionFind_t}()
-    cutensorInitContractionFind(handle(), find, algo)
+    actual_plan = if plan === nothing
+        plan_contraction(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, opOut; pref, algo, compute_type)
+    else
+        plan
+    end
 
-        function workspaceSize()
-            @nospecialize
-            out = Ref{UInt64}(C_NULL)
-            cutensorContractionGetWorkspace(handle(), desc, find, pref, out)
-            return out[]
-        end
-        with_workspace(workspaceSize, 1<<27) do workspace
-            @nospecialize
-            plan_ref = Ref{cutensorContractionPlan_t}()
-            if isnothing(plan)
-                cutensorInitContractionPlan(handle(), plan_ref, desc, find, sizeof(workspace))
-            else
-                plan_ref = Ref(plan)
-            end
-            cutensorContraction(handle(), plan_ref,
-                                Ref{scalar_type}(alpha), A, B,
-                                Ref{scalar_type}(beta),  C, C,
-                                workspace, sizeof(workspace), stream())
-        end
+    cutensorContraction(handle(), actual_plan.handle,
+                        Ref{scalar_type}(alpha), A, B,
+                        Ref{scalar_type}(beta),  C, C,
+                        actual_plan.workspace, sizeof(actual_plan.workspace), stream())
+
+    if plan === nothing
+        CUDA.unsafe_free!(actual_plan)
+    end
+
     return C
 end
 
@@ -330,11 +321,20 @@ function plan_contraction(
 
     find = Ref{cutensorContractionFind_t}()
     cutensorInitContractionFind(handle(), find, algo)
-    plan = Ref{cutensorContractionPlan_t}()
-    workspace_size = Ref{UInt64}(C_NULL)
-    cutensorContractionGetWorkspace(handle(), desc, find, pref, workspace_size)
-    cutensorInitContractionPlan(handle(), plan, desc, find, workspace_size[])
-    return plan[]
+
+    function workspaceSize()
+        @nospecialize
+        out = Ref{UInt64}(C_NULL)
+        cutensorContractionGetWorkspace(handle(), desc, find, pref, out)
+        return out[]
+    end
+    with_workspace(workspaceSize, 1<<27; keep=true) do workspace
+        @nospecialize
+        plan_ref = Ref{cutensorContractionPlan_t}()
+        cutensorInitContractionPlan(handle(), plan_ref, desc, find, sizeof(workspace))
+
+        CuTensorContractionPlan(plan_ref, workspace)
+    end
 end
 
 function reduction!(

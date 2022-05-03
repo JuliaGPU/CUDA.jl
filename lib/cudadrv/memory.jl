@@ -5,7 +5,7 @@ export Mem, attribute, attribute!, memory_type, is_managed
 module Mem
 
 using ..CUDA
-using ..CUDA: @enum_without_prefix, CUstream, CUdevice, CuDim3, CUarray, CUarray_format, @finalize_in_ctx
+using ..CUDA: @enum_without_prefix, CUstream, CUdevice, CuDim3, CUarray, CUarray_format
 using ..CUDA.APIUtils
 
 using Base: @deprecate_binding
@@ -42,13 +42,14 @@ Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, buf::AbstractBuffer)
 A buffer of device memory residing on the GPU.
 """
 struct DeviceBuffer <: AbstractBuffer
+    ctx::CuContext
     ptr::CuPtr{Cvoid}
     bytesize::Int
 
     async::Bool
 end
 
-DeviceBuffer() = DeviceBuffer(CU_NULL, 0, false)
+DeviceBuffer() = DeviceBuffer(context(), CU_NULL, 0, false)
 
 Base.pointer(buf::DeviceBuffer) = buf.ptr
 Base.sizeof(buf::DeviceBuffer) = buf.bytesize
@@ -68,7 +69,7 @@ GPU, and requires explicit calls to `unsafe_copyto!`, which wraps `cuMemcpy`,
 for access on the CPU.
 """
 function alloc(::Type{DeviceBuffer}, bytesize::Integer;
-               async::Bool=CUDA.has_stream_ordered(device()),
+               async::Bool=memory_pools_supported(device()),
                stream::Union{Nothing,CuStream}=nothing,
                pool::Union{Nothing,CuMemoryPool}=nothing)
     bytesize == 0 && return DeviceBuffer()
@@ -85,7 +86,7 @@ function alloc(::Type{DeviceBuffer}, bytesize::Integer;
         CUDA.cuMemAlloc_v2(ptr_ref, bytesize)
     end
 
-    return DeviceBuffer(reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, async)
+    return DeviceBuffer(context(), reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, async)
 end
 
 function free(buf::DeviceBuffer; stream::Union{Nothing,CuStream}=nothing)
@@ -109,11 +110,12 @@ end
 A buffer of pinned memory on the CPU, possibly accessible on the GPU.
 """
 struct HostBuffer <: AbstractBuffer
+    ctx::CuContext
     ptr::Ptr{Cvoid}
     bytesize::Int
 end
 
-HostBuffer() = HostBuffer(C_NULL, 0)
+HostBuffer() = HostBuffer(context(), C_NULL, 0)
 
 Base.pointer(buf::HostBuffer) = buf.ptr
 Base.sizeof(buf::HostBuffer) = buf.bytesize
@@ -157,7 +159,7 @@ function alloc(::Type{HostBuffer}, bytesize::Integer, flags=0)
     ptr_ref = Ref{Ptr{Cvoid}}()
     CUDA.cuMemHostAlloc(ptr_ref, bytesize, flags)
 
-    return HostBuffer(ptr_ref[], bytesize)
+    return HostBuffer(context(), ptr_ref[], bytesize)
 end
 
 
@@ -179,7 +181,7 @@ function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer, flags=0)
 
     CUDA.cuMemHostRegister_v2(ptr, bytesize, flags)
 
-    return HostBuffer(ptr, bytesize)
+    return HostBuffer(context(), ptr, bytesize)
 end
 
 """
@@ -208,11 +210,12 @@ end
 A managed buffer that is accessible on both the CPU and GPU.
 """
 struct UnifiedBuffer <: AbstractBuffer
+    ctx::CuContext
     ptr::CuPtr{Cvoid}
     bytesize::Int
 end
 
-UnifiedBuffer() = UnifiedBuffer(CU_NULL, 0)
+UnifiedBuffer() = UnifiedBuffer(context(), CU_NULL, 0)
 
 Base.pointer(buf::UnifiedBuffer) = buf.ptr
 Base.sizeof(buf::UnifiedBuffer) = buf.bytesize
@@ -241,7 +244,7 @@ function alloc(::Type{UnifiedBuffer}, bytesize::Integer,
     ptr_ref = Ref{CuPtr{Cvoid}}()
     CUDA.cuMemAllocManaged(ptr_ref, bytesize, flags)
 
-    return UnifiedBuffer(ptr_ref[], bytesize)
+    return UnifiedBuffer(context(), ptr_ref[], bytesize)
 end
 
 
@@ -281,6 +284,7 @@ end
 ## array buffer
 
 mutable struct ArrayBuffer{T,N} <: AbstractBuffer
+    ctx::CuContext
     ptr::CuArrayPtr{T}
     dims::Dims{N}
 end
@@ -342,7 +346,7 @@ function alloc(::Type{<:ArrayBuffer{T}}, dims::Dims{N}) where {T,N}
     CUDA.cuArray3DCreate_v2(handle_ref, allocateArray_ref)
     ptr = reinterpret(CuArrayPtr{T}, handle_ref[])
 
-    return ArrayBuffer{T,N}(ptr, dims)
+    return ArrayBuffer{T,N}(context(), ptr, dims)
 end
 
 function free(buf::ArrayBuffer)
@@ -386,7 +390,6 @@ end
 
 for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", CuPtr, Ptr),
                                  ("cuMemcpyHtoDAsync_v2", Ptr,   CuPtr),
-                                 ("cuMemcpyDtoDAsync_v2", CuPtr, CuPtr),
                                  )
     @eval function Base.unsafe_copyto!(dst::$dstPtrTy{T}, src::$srcPtrTy{T}, N::Integer;
                                        stream::CuStream=stream(),
@@ -395,6 +398,23 @@ for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", CuPtr, Ptr),
         async || synchronize(stream)
         return dst
     end
+end
+
+function Base.unsafe_copyto!(dst::CuPtr{T}, src::CuPtr{T}, N::Integer;
+                             stream::CuStream=stream(),
+                             async::Bool=false) where T
+    dst_dev = device(dst)
+    src_dev = device(src)
+    if dst_dev == src_dev
+        CUDA.cuMemcpyDtoDAsync_v2(dst, src, N*sizeof(T), stream)
+    else
+        maybe_enable_peer_access(src_dev, dst_dev)
+        CUDA.cuMemcpyPeerAsync(dst, context(dst_dev),
+                               src, context(src_dev),
+                               N*sizeof(T), stream)
+    end
+    async || synchronize(stream)
+    return dst
 end
 
 function Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::Ptr{T}, N::Integer;
@@ -674,12 +694,56 @@ function __unpin(ptr::Ptr{Nothing}, ctx::CuContext)
 
         if pin_count == 0
             buf = @inbounds __pins[key]
-            @finalize_in_ctx ctx Mem.unregister(buf)
+            context!(ctx; skip_destroyed=true) do
+                Mem.unregister(buf)
+            end
             delete!(__pins, key)
         end
     end
 
     return
+end
+
+## p2p handling
+
+# matrix of set-up peer accesses:
+# - -1: unsupported
+# -  0: not set-up yet
+# -  1: supported
+const peer_access = Ref{Matrix{Int}}()
+function maybe_enable_peer_access(src::CuDevice, dst::CuDevice)
+    global peer_access
+
+    src_idx = deviceid(src)+1
+    dst_idx = deviceid(dst)+1
+
+    if !isassigned(peer_access)
+        peer_access[] = Base.zeros(Int8, ndevices(), ndevices())
+    end
+
+    # we need to take care only to enable P2P access when it is supported,
+    # as well as not to call this function multiple times, to avoid errors.
+    if peer_access[][src_idx, dst_idx] == 0
+        if can_access_peer(src, dst)
+            device!(src) do
+                try
+                    enable_peer_access(context(dst))
+                    if memory_pools_supported(src)
+                        src_pool = default_memory_pool(src)
+                        access!(src_pool, dst, CUDA.ACCESS_FLAGS_PROT_READWRITE)
+                    end
+                    peer_access[][src_idx, dst_idx] = 1
+                catch err
+                    @warn "Enabling peer-to-peer access between $src and $dst failed; please file an issue." exception=(err,catch_backtrace())
+                    peer_access[][src_idx, dst_idx] = -1
+                end
+            end
+        else
+            peer_access[][src_idx, dst_idx] = -1
+        end
+    end
+
+    return peer_access[][src_idx, dst_idx]
 end
 
 ## memory info
@@ -758,6 +822,24 @@ device(x::Union{Ptr,CuPtr}) =
 memory_type(x) = CUmemorytype(attribute(Cuint, x, POINTER_ATTRIBUTE_MEMORY_TYPE))
 
 is_managed(x) = convert(Bool, attribute(Cuint, x, POINTER_ATTRIBUTE_IS_MANAGED))
+
+"""
+    host_pointer(ptr::CuPtr)
+
+Returns the host pointer value through which `ptr`` may be accessed by by the
+host program.
+"""
+host_pointer(x::CuPtr{T}) where {T} =
+    attribute(Ptr{T}, x, POINTER_ATTRIBUTE_HOST_POINTER)
+
+"""
+    device_pointer(ptr::Ptr)
+
+Returns the device pointer value through which `ptr` may be accessed by kernels
+running in the current context.
+"""
+device_pointer(x::Ptr{T}) where {T} =
+    attribute(CuPtr{T}, x, POINTER_ATTRIBUTE_HOST_POINTER)
 
 function is_pinned(ptr::Ptr)
     # unpinned memory makes cuPointerGetAttribute return ERROR_INVALID_VALUE; but instead of

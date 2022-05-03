@@ -1,5 +1,6 @@
 # TODO: unify with Base.@atomic
 using CUDA: @atomic
+using BFloat16s: BFloat16
 
 @testset "atomics (low-level)" begin
 
@@ -143,7 +144,7 @@ end
 
 @testset "atomic_cas" begin
     types = [Int32, Int64, UInt32, UInt64]
-    capability(device()) >= v"7.0" && push!(types, UInt16)
+    capability(device()) >= v"7.0" && append!(types, [UInt16, BFloat16])
 
     @testset for T in types
         a = CuArray(T[0])
@@ -398,6 +399,24 @@ end
 end
 
 @testset "macro" begin
+
+    @testset "NaN" begin
+        f(x,y) = 3x + 2y
+
+        function kernel(x)
+            CUDA.@atomic x[1] = f(x[1],42f0)
+            nothing
+        end
+
+        a = CuArray([0f0])
+        @cuda kernel(a)
+        @test Array(a)[1] ≈ 84
+
+        a = CuArray([NaN32])
+        @cuda kernel(a)
+        @test isnan(Array(a)[1])
+    end
+
     using CUDA: AtomicError
 
     @test_throws_macro AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin

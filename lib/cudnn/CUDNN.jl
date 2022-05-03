@@ -11,7 +11,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, libraryPropertyType
-using ..CUDA: libcudnn, @retry_reclaim, isdebug, @context!, initialize_context
+using ..CUDA: libcudnn, @retry_reclaim, isdebug, initialize_context
 
 using CEnum: @cenum
 
@@ -74,7 +74,9 @@ function handle()
 
         finalizer(current_task()) do task
             push!(idle_handles, cuda.context, new_handle) do
-                @context! skip_destroyed=true cuda.context cudnnDestroy(new_handle)
+                context!(cuda.context; skip_destroyed=true) do
+                    cudnnDestroy(new_handle)
+                end
             end
         end
 
