@@ -18,7 +18,7 @@ function sum_dim1(A::CuSparseMatrixCSR)
     rowsum = CUDA.CuArray{Tsum}(undef, m)
     kernel_f = @cuda launch=false kernel(Tnorm, rowsum, A)
     
-    config = CUDA.launch_configuration(kernel_f.fun)
+    config = launch_configuration(kernel_f.fun)
     threads = min(n, config.threads)
     blocks = cld(n, threads)
     kernel_f(Tnorm, rowsum, A; threads, blocks)
