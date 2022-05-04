@@ -126,12 +126,12 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},Cu
 
     function bufferSize()
         out = Ref{Csize_t}()
-        cusparseSpMV_bufferSize(handle(), transa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(β),
+        cusparseSpMV_bufferSize(handle(), transa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
                                 descY, compute_type, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        cusparseSpMV(handle(), transa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(β),
+        cusparseSpMV(handle(), transa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
                      descY, compute_type, algo, buffer)
     end
     Y
@@ -162,12 +162,12 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::Dens
 
     function bufferSize()
         out = Ref{Csize_t}()
-        cusparseSpMV_bufferSize(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(β),
+        cusparseSpMV_bufferSize(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
                                 descY, compute_type, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        cusparseSpMV(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(β),
+        cusparseSpMV(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
                      descY, compute_type, algo, buffer)
     end
 
