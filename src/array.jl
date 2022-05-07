@@ -547,9 +547,9 @@ Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Union
   isbits(xs) ? xs : CuArray{T,N,B}(xs)
 
 """
-    cu(A::AbstractArray{T}; unified=false)
+    cu(A; unified=false)
 
-Opinionated GPU array adaptor, which may alter the element type:
+Opinionated GPU array adaptor, which may alter the element type `T` of arrays:
 * For `T<:AbstractFloat`, it makes a `CuArray{Float32}` for performance reasons.
   (Except that `Float16` and `BFloat16` element types are not changed.)
 * For `T<:Complex{<:AbstractFloat}` it makes a `CuArray{ComplexF32}`.
@@ -557,8 +557,7 @@ Opinionated GPU array adaptor, which may alter the element type:
 
 By contrast, `CuArray(A)` never changes the element type.
 
-Uses `adapt(CuArrayAdaptor(), A)`, which works through some wrapper structs
-to convert the underlying array.
+Uses Adapt.jl to act inside some wrapper structs.
 
 # Examples
 
@@ -578,7 +577,7 @@ julia> CuArray(ones(3)')  # ignores Adjoint, preserves Float64
 1×3 CuArray{Float64, 2, CUDA.Mem.DeviceBuffer}:
  1.0  1.0  1.0
 
-julia> adapt(CuArray, ones(3)')  # restores Adjoint wrapper
+julia> adapt(CuArray, ones(3)')  # this restores Adjoint wrapper
 1×3 adjoint(::CuArray{Float64, 1, CUDA.Mem.DeviceBuffer}) with eltype Float64:
  1.0  1.0  1.0
 
@@ -591,20 +590,6 @@ julia> CuArray(1:3)
 """
 @inline cu(xs; unified::Bool=false) = adapt(CuArrayAdaptor{unified ? Mem.UnifiedBuffer : Mem.DeviceBuffer}(), xs)
 
-"""
-    cu[x...]
-
-Syntax for literal `CuArray`. 
-
-# Examples
-```
-julia> cu[1.0, 2.0]
-2-element CuArray{Float64, 1, CUDA.Mem.DeviceBuffer}:
- 1.0
- 2.0
-```
-"""
-cu
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
 
