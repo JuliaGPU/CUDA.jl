@@ -3,7 +3,8 @@
 using LinearAlgebra
 using ..CUBLAS: CublasFloat
 
-function copy_cublasfloat(A::CuMatrix{T}) where {T}
+function copy_cublasfloat(A)
+    T = eltype(A)
     cublasfloat = promote_type(Float32, T)
     if !(cublasfloat <: CublasFloat)
         throw(ArgumentError("cannot promote eltype $T to a CUBLAS float"))
