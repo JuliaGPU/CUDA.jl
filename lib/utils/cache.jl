@@ -46,8 +46,7 @@ end
 
 # put a handle in the cache, or destroy it if it doesn't fit
 function Base.push!(f::Function, cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
-    # XXX: take this lock in a normal way once we have JuliaLang/julia#35689
-    @spinlock cache.lock begin
+    lock(cache.lock) do
         delete!(cache.active_handles, key=>handle)
 
         if haskey(cache.idle_handles, key)
