@@ -663,7 +663,7 @@ function __pin(ptr::Ptr{Nothing}, sz::Int)
     ctx = context()
     key = (ctx,ptr)
 
-    @lock __pin_lock begin
+    Base.@lock __pin_lock begin
         pin_count = if haskey(__pin_count, key)
             __pin_count[key] += 1
         else
@@ -687,7 +687,7 @@ end
 function __unpin(ptr::Ptr{Nothing}, ctx::CuContext)
     key = (ctx,ptr)
 
-    @spinlock __pin_lock begin
+    Base.@lock __pin_lock begin
         @assert haskey(__pin_count, key) "Cannot unpin unmanaged pointer $ptr."
         pin_count = __pin_count[key] -= 1
         @assert pin_count >= 0 "Double unpin for $ptr"
