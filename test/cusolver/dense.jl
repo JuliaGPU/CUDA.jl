@@ -590,10 +590,13 @@ end
     @testset "Matrix division" begin
         d_A = CuArray(rand(elty,n,n))
         d_B = CuArray(rand(elty,n,n))
+        d_b = CuArray(rand(elty,n))
         blasfloat = promote_type(Float32, elty)
         d_Af = blasfloat.(d_A)
         d_Bf = blasfloat.(d_B)
+        d_bf = blasfloat.(d_b)
         @test (d_A \ d_B) == (d_Af \ d_Bf)
+        @test (d_A \ d_b) == (d_Af \ d_bf)
     end
 
     @testset "svd with $alg algorithm" for

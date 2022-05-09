@@ -196,7 +196,10 @@ steps:
         build.branch =~ /^master$$/
     timeout_in_minutes: 240
 
-  - label: "CUSTATEVEC"
+  - label: "SubPackage -- {{matrix}}"
+    matrix:
+      - "CUSTATEVEC"
+      - "CUTENSORNET"
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
@@ -213,41 +216,14 @@ steps:
     env:
       JULIA_CUDA_VERSION: '11.6'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
-      PACKAGE: 'CUSTATEVEC'
+      PACKAGE: '{{matrix}}'
     if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
     timeout_in_minutes: 120
     commands: |
       julia -e 'import Pkg; Pkg.develop(; path = pwd())' # CUDA
-      julia -e 'import Pkg; Pkg.develop(; path = joinpath(pwd(), ENV["PACKAGE"]))' # CUSTATEVEC
+      julia -e 'import Pkg; Pkg.develop(; path = joinpath(pwd(), "lib", ENV["PACKAGE"]))'
       julia -e 'import Pkg; Pkg.precompile()'
       julia -e 'import Pkg; Pkg.test(ENV["PACKAGE"])'
-
-  - label: "CUTENSORNET"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: 1.6
-      - JuliaCI/julia-coverage#v1:
-          codecov: true
-          dirs:
-            - src
-            - lib
-            - examples
-    agents:
-      queue: "juliagpu"
-      cuda: "11.0"
-      cap: "sm_80"
-    env:
-      JULIA_CUDA_VERSION: '11.6'
-      JULIA_CUDA_USE_BINARYBUILDER: 'true'
-      PACKAGE: 'CUTENSORNET'
-    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
-    timeout_in_minutes: 120
-    commands: |
-      julia -e 'import Pkg; Pkg.develop(; path = pwd())' # CUDA
-      julia -e 'import Pkg; Pkg.develop(; path = joinpath(pwd(), ENV["PACKAGE"]))' # CUSTATEVEC
-      julia -e 'import Pkg; Pkg.precompile()'
-      julia -e 'import Pkg; Pkg.test(ENV["PACKAGE"])'
-
 
   # other tasks
 

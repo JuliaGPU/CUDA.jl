@@ -178,7 +178,7 @@ end
 
 
 """
-  unsafe_wrap(::CuArray, ptr::CuPtr{T}, dims; own=false, ctx=context())
+  unsafe_wrap(CuArray, ptr::CuPtr{T}, dims; own=false, ctx=context())
 
 Wrap a `CuArray` object around the data at the address given by `ptr`. The pointer
 element type `T` determines the array element type. `dims` is either an integer (for a 1d
@@ -186,9 +186,9 @@ array) or a tuple of the array dimensions. `own` optionally specified whether Ju
 take ownership of the memory, calling `cudaFree` when the array is no longer referenced. The
 `ctx` argument determines the CUDA context where the data is allocated in.
 """
-function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
+function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}},Type{CuArray{T,N,B}}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
-                          own::Bool=false, ctx::CuContext=context()) where {T,N}
+                          own::Bool=false, ctx::CuContext=context()) where {T,N,B}
   Base.isbitstype(T) || error("Can only unsafe_wrap a pointer to a bits type")
   sz = prod(dims) * sizeof(T)
 
@@ -209,13 +209,17 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
       error("Could not identify the buffer type; are you passing a valid CUDA pointer to unsafe_wrap?")
   end
 
+  if @isdefined(B) && typeof(buf) !== B
+    error("Declared buffer type does not match inferred buffer type.")
+  end
+
   storage = ArrayStorage(buf, own ? 1 : -1)
   CuArray{T, length(dims)}(storage, dims)
 end
 
-function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
+function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}},Type{CuArray{T,1,B}}},
                           p::CuPtr{T}, dim::Integer;
-                          own::Bool=false, ctx::CuContext=context()) where {T}
+                          own::Bool=false, ctx::CuContext=context()) where {T,B}
   unsafe_wrap(Atype, p, (dim,); own, ctx)
 end
 
@@ -542,7 +546,50 @@ Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Compl
 Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Union{Float16,BFloat16},N,B} =
   isbits(xs) ? xs : CuArray{T,N,B}(xs)
 
+"""
+    cu(A; unified=false)
+
+Opinionated GPU array adaptor, which may alter the element type `T` of arrays:
+* For `T<:AbstractFloat`, it makes a `CuArray{Float32}` for performance reasons.
+  (Except that `Float16` and `BFloat16` element types are not changed.)
+* For `T<:Complex{<:AbstractFloat}` it makes a `CuArray{ComplexF32}`.
+* For other `isbitstype(T)`, it makes a `CuArray{T}`.
+
+By contrast, `CuArray(A)` never changes the element type.
+
+Uses Adapt.jl to act inside some wrapper structs.
+
+# Examples
+
+```
+julia> cu(ones(3)')
+1×3 adjoint(::CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}) with eltype Float32:
+ 1.0  1.0  1.0
+
+julia> cu(zeros(1, 3); unified=true)
+1×3 CuArray{Float32, 2, CUDA.Mem.UnifiedBuffer}:
+ 0.0  0.0  0.0
+
+julia> cu(1:3)
+1:3
+
+julia> CuArray(ones(3)')  # ignores Adjoint, preserves Float64
+1×3 CuArray{Float64, 2, CUDA.Mem.DeviceBuffer}:
+ 1.0  1.0  1.0
+
+julia> adapt(CuArray, ones(3)')  # this restores Adjoint wrapper
+1×3 adjoint(::CuArray{Float64, 1, CUDA.Mem.DeviceBuffer}) with eltype Float64:
+ 1.0  1.0  1.0
+
+julia> CuArray(1:3)
+3-element CuArray{Int64, 1, CUDA.Mem.DeviceBuffer}:
+ 1
+ 2
+ 3
+```
+"""
 @inline cu(xs; unified::Bool=false) = adapt(CuArrayAdaptor{unified ? Mem.UnifiedBuffer : Mem.DeviceBuffer}(), xs)
+
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
 
