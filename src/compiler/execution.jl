@@ -208,6 +208,10 @@ end
 
 ## host-side kernels
 
+# XXX: storing the function instance, but not the arguments, is inconsistent.
+#      either store the instance and args, making this object directly callable,
+#      or store neither and cache it when getting it directly from GPUCompiler.
+
 struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     f::F
     ctx::CuContext
@@ -294,9 +298,10 @@ when function changes, or when different types or keyword arguments are provided
     target = CUDACompilerTarget(cuda.device; kwargs...)
     params = CUDACompilerParams()
     job = CompilerJob(target, source, params)
-    return GPUCompiler.cached_compilation(cache, job,
-                                          cufunction_compile,
-                                          cufunction_link)::HostKernel{F,tt}
+    res = GPUCompiler.cached_compilation(cache, job,
+                                         cufunction_compile,
+                                         cufunction_link)
+    HostKernel{F,tt}(f, cuda.context, res.mod, res.fun, res.state)
 end
 
 # XXX: does this need a lock? we'll only write to it when we have the typeinf lock.
@@ -461,7 +466,7 @@ end
     exception_ptr = create_exceptions!(mod)
     state = KernelState(exception_ptr)
 
-    return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun, state)
+    return (; mod, fun, state)
 end
 
 function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
