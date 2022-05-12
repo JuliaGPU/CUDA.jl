@@ -3,7 +3,7 @@ using Adapt
 using CUDA.CUSPARSE
 using SparseArrays
 
-if CUSPARSE.version() >= v"11.3"
+if CUSPARSE.version() >= v"11.4.1"
     @testset "generic mv!" for T in [Float32, Float64]
         A = sprand(T, 10, 10, 0.1)
         x = rand(Complex{T}, 10)
