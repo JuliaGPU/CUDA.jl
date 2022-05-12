@@ -126,7 +126,16 @@ function pool_cleanup()
       end
     end
 
-    sleep(60)
+    try
+      sleep(60)
+    catch ex
+      if ex isa EOFError
+        # If we get EOF here, it's because Julia is shutting down, so we should just exit the loop
+        break
+      else
+        rethrow()
+      end
+    end
   end
 end
 
