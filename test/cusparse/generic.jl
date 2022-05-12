@@ -12,11 +12,11 @@ if CUSPARSE.version() >= v"11.3"
         dy = adapt(CuArray, y)
 
         dA = adapt(CuArray, A)
-        mv!('N', 1.0, dA, dx, 0.0, dy, 'O')
+        mv!('N', T(1.0), dA, dx, T(0.0), dy, 'O')
         @test Array(dy) ≈ A * x
 
         dA = CuSparseMatrixCSR(dA)
-        mv!('N', 1.0, dA, dx, 0.0, dy, 'O')
+        mv!('N', T(1.0), dA, dx, T(0.0), dy, 'O')
         @test Array(dy) ≈ A * x
     end
 end
