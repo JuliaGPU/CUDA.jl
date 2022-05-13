@@ -697,7 +697,7 @@ function libcutensornet(; throw_error::Bool=true)
     end
     return path
 end
-has_cutensornet() = libcutensornet(throw_error=false) !== nothing
+has_cutensornet() = has_cutensor() && libcutensornet(throw_error=false) !== nothing
 
 const __libcustatevec = Ref{Union{String,Nothing}}()
 function libcustatevec(; throw_error::Bool=true)
