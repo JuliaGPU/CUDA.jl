@@ -48,12 +48,10 @@ threads](@ref).
 
     ```julia
     @sync begin
-        @async begin
-            device!(0)
+        @async device!(0) do
             # do work on GPU 0 here
         end
-        @async begin
-            device!(1)
+        @async device!(1) do
             # do work on GPU 1 here
         end
     end
