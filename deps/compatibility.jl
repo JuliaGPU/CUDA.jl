@@ -100,6 +100,7 @@ const cuda_ptx_db = Dict(
     v"7.4" => v"11.4":highest,
     v"7.5" => v"11.5":highest,
     v"7.6" => v"11.6":highest,
+    v"7.7" => v"11.7":highest,
 )
 
 function cuda_ptx_support(ver::VersionNumber)
