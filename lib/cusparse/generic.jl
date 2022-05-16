@@ -133,6 +133,7 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{TA},C
     else
         T
     end
+    @show compute_type
 
     function bufferSize()
         out = Ref{Csize_t}()

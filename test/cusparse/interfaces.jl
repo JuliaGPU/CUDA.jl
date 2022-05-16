@@ -86,7 +86,7 @@ using LinearAlgebra, SparseArrays
         n = 10
         alpha = rand()
         beta = rand()
-        A = sprand(elty, n, n, rand())
+        A = sprand(Complex{elty}, n, n, rand())
         b = rand(Complex{elty}, n)
         c = rand(Complex{elty}, n)
         alpha = beta = 1.0
