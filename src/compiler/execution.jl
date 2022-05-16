@@ -208,10 +208,12 @@ end
 
 ## host-side kernels
 
+# XXX: storing the function instance, but not the arguments, is inconsistent.
+#      either store the instance and args, making this object directly callable,
+#      or store neither and cache it when getting it directly from GPUCompiler.
+
 struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     f::F
-    ctx::CuContext
-    mod::CuModule
     fun::CuFunction
     state::KernelState
 end
@@ -294,16 +296,36 @@ when function changes, or when different types or keyword arguments are provided
     target = CUDACompilerTarget(cuda.device; kwargs...)
     params = CUDACompilerParams()
     job = CompilerJob(target, source, params)
-    return GPUCompiler.cached_compilation(cache, job,
-                                          cufunction_compile,
-                                          cufunction_link)::HostKernel{F,tt}
+    fun = GPUCompiler.cached_compilation(cache, job,
+                                         cufunction_compile,
+                                         cufunction_link)
+    # compilation is cached on the function type, so we can only create a kernel object here
+    # (as it captures the function _instance_). this allocates, so use another cache level.
+    h = hash(fun, hash(f, hash(tt)))
+    kernel = get(_cufunction_kernel_cache, h, nothing)
+    if kernel === nothing
+        # create the kernel state object
+        exception_ptr = create_exceptions!(fun.mod)
+        state = KernelState(exception_ptr)
+
+        kernel = HostKernel{F,tt}(f, fun, state)
+        _cufunction_kernel_cache[h] = kernel
+    end
+    return kernel::HostKernel{F,tt}
 end
 
 # XXX: does this need a lock? we'll only write to it when we have the typeinf lock.
 const _cufunction_cache = Dict{CuContext, Dict{UInt, Any}}();
-cufunction_cache(ctx::CuContext) = get!(_cufunction_cache, ctx) do
-    Dict{UInt, Any}()
+function cufunction_cache(ctx::CuContext)
+    subcache = get(_cufunction_cache, ctx, nothing)
+    if subcache === nothing
+        subcache = Dict{UInt, Any}()
+        _cufunction_cache[ctx] = subcache
+    end
+    return subcache
 end
+
+const _cufunction_kernel_cache = Dict{UInt, Any}();
 
 # helper to run a binary and collect all relevant output
 function run_and_collect(cmd)
@@ -455,13 +477,7 @@ end
     # load as an executable kernel object
     ctx = context()
     mod = @timeit_ci "CuModule" CuModule(compiled.image)
-    fun = CuFunction(mod, compiled.entry)
-
-    # create the kernel state object
-    exception_ptr = create_exceptions!(mod)
-    state = KernelState(exception_ptr)
-
-    return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun, state)
+    CuFunction(mod, compiled.entry)
 end
 
 function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)

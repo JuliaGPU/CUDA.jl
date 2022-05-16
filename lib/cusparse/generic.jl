@@ -122,7 +122,17 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{TA},C
     descA = CuSparseMatrixDescriptor(A, index)
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
-    compute_type = T == Float16 && version() >= v"11.4.0" ? Float32 : T
+
+    # operations with 16-bit numbers always imply mixed-precision computation
+    # TODO: we should better model the supported combinations here,
+    #       and error if using an unsupported one (like with gemmEx!)
+    compute_type = if version() >= v"11.4" && T == Float16
+        Float32
+    elseif version() >= v"11.7.2" && T == ComplexF16
+        ComplexF32
+    else
+        T
+    end
 
     function bufferSize()
         out = Ref{Csize_t}()
@@ -158,7 +168,17 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{TA}, X::Den
     descA = CuSparseMatrixDescriptor(A, index)
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
-    compute_type = T == Float16 && version() >= v"11.4.0" ? Float32 : T
+
+    # operations with 16-bit numbers always imply mixed-precision computation
+    # TODO: we should better model the supported combinations here,
+    #       and error if using an unsupported one (like with gemmEx!)
+    compute_type = if version() >= v"11.4" && T == Float16
+        Float32
+    elseif version() >= v"11.7.2" && T == ComplexF16
+        ComplexF32
+    else
+        T
+    end
 
     function bufferSize()
         out = Ref{Csize_t}()
@@ -321,7 +341,7 @@ function mm!(transa::SparseChar, transb::SparseChar, α::Number, A::CuSparseMatr
         cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB,
                             Ref{T}(beta), descnewC, T, CUSPARSE_SPGEMM_DEFAULT, spgemm_Desc)
         D = beta.*C .+ newC
-        return D 
+        return D
     end
 end
 
