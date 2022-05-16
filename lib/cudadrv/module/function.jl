@@ -24,4 +24,4 @@ end
 Base.unsafe_convert(::Type{CUfunction}, fun::CuFunction) = fun.handle
 
 Base.:(==)(a::CuFunction, b::CuFunction) = a.handle == b.handle
-Base.hash(fun::CuFunction, h::UInt) = hash(mod.handle, h)
+Base.hash(fun::CuFunction, h::UInt) = hash(fun.handle, h)
