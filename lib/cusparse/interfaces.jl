@@ -3,7 +3,7 @@
 using LinearAlgebra
 using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
 
-function mv_wrapper(transa::SparseChar, alpha::Number, A::CuSparseMatrix{T}, X::DenseCuVector{T},
+function mv_wrapper(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::DenseCuVector{T},
                     beta::Number, Y::CuVector{T}) where {T}
     mv!(transa, alpha, A, X, beta, Y, 'O')
 end
@@ -38,6 +38,11 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     @eval begin
         function LinearAlgebra.mul!(C::CuVector{T}, A::$TypeA, B::DenseCuVector{T},
                                     alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+            mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), B, beta, C)
+        end
+
+        function LinearAlgebra.mul!(C::CuVector{Complex{T}}, A::$TypeA, B::DenseCuVector{Complex{T}},
+                                    alpha::Number, beta::Number) where {T <: Union{Float16, BlasFloat}}
             mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), B, beta, C)
         end
     end

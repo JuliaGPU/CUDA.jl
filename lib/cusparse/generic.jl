@@ -109,8 +109,8 @@ function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
     X
 end
 
-function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},CuSparseMatrixCSR{T}},
-             X::DenseCuVector{T}, beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {T}
+function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{TA},CuSparseMatrixCSR{TA}},
+             X::DenseCuVector{T}, beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
     m,n = size(A)
 
     if transa == 'N'
@@ -133,6 +133,7 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},Cu
     else
         T
     end
+    @show compute_type
 
     function bufferSize()
         out = Ref{Csize_t}()
@@ -147,12 +148,12 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},Cu
     Y
 end
 
-function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::DenseCuVector{T},
-             beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {T}
+function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{TA}, X::DenseCuVector{T},
+             beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
     ctransa = 'N'
     if transa == 'N'
         ctransa = 'T'
-    elseif transa == 'C' && T <: Complex
+    elseif transa == 'C' && TA <: Complex
         throw(ArgumentError("Matrix-vector multiplication with the adjoint of a CSC matrix" *
                             " is not supported. Use a CSR matrix instead."))
     end
