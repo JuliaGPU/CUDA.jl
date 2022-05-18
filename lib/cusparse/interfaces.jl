@@ -210,3 +210,15 @@ Base.:(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}, J::UniformScaling) =
 
 Base.:(-)(J::UniformScaling, A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) =
     _sparse_identity(typeof(A), J, size(A)) .- A
+
+
+for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR], op in [:(+), :(-)]
+    @eval begin
+        function Base.$op(lhs::Diagonal{T,<:CuArray}, rhs::$SparseMatrixType{T}) where {T}
+            return $op($SparseMatrixType(lhs), rhs)
+        end
+        function Base.$op(lhs::$SparseMatrixType{T}, rhs::Diagonal{T,<:CuArray}) where {T}
+            return $op(lhs, $SparseMatrixType(rhs))
+        end
+    end
+end
