@@ -122,4 +122,5 @@ end
     end
     @test randn(rng, Float32, 1) isa CuArray
     @test randn(rng, 1) isa CuArray
+    @test maximum(randn(rng, Float32, 2^26)) != Inf
 end
