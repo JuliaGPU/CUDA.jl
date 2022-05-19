@@ -3,14 +3,19 @@
 using LinearAlgebra
 using ..CUBLAS: CublasFloat
 
-function copy_cublasfloat(A)
-    T = eltype(A)
-    cublasfloat = promote_type(Float32, T)
+function copy_cublasfloat(As...)
+    eltypes = eltype.(As)
+    promoted_eltype = reduce(promote_type, eltypes)
+    cublasfloat = promote_type(Float32, promoted_eltype)
     if !(cublasfloat <: CublasFloat)
-        throw(ArgumentError("cannot promote eltype $T to a CUBLAS float"))
+        throw(ArgumentError("cannot promote eltypes $eltypes to a CUBLAS float type"))
     end
-    return copyto!(similar(A, cublasfloat), A)
+    out = _copywitheltype(cublasfloat, As...)
+    length(out) == 1 && return first(out)
+    return out
 end
+
+_copywitheltype(::Type{T}, As...) where {T} = map(A -> copyto!(similar(A, T), A), As)
 
 # matrix division
 
@@ -22,7 +27,7 @@ const CuOrAdj{T} = Union{CuVecOrMat,
                          LinearAlgebra.Transpose{T, <:CuVecOrMat{T}}}
 
 function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
-    A, B = copy_cublasfloat(_A), copy_cublasfloat(_B)
+    A, B = copy_cublasfloat(_A, _B)
     A, ipiv = CUSOLVER.getrf!(A)
     return CUSOLVER.getrs!('N', A, ipiv, B)
 end

@@ -96,15 +96,6 @@ k = 1
         @test_throws DimensionMismatch CUSOLVER.getrs!('N',d_A,d_ipiv,d_B)
     end
 
-    @testset "Matrix division" begin
-        A = rand(elty,n,n)
-        B = rand(elty,n,n)
-        C = A \ B
-        d_A = CuArray(A)
-        d_B = CuArray(B)
-        @test C ≈ Array(d_A \ d_B)
-    end
-
     @testset "geqrf!" begin
         A         = rand(elty,m,n)
         d_A       = CuArray(A)
@@ -591,19 +582,7 @@ k = 1
     end
 end
 
-@testset "elty = $elty" for elty in [Float16, ComplexF16, Int32, Int64, Complex{Int32}, Complex{Int64}]
-
-    @testset "Matrix division" begin
-        d_A = CuArray(rand(elty,n,n))
-        d_B = CuArray(rand(elty,n,n))
-        d_b = CuArray(rand(elty,n))
-        blasfloat = promote_type(Float32, elty)
-        d_Af = blasfloat.(d_A)
-        d_Bf = blasfloat.(d_B)
-        d_bf = blasfloat.(d_b)
-        @test (d_A \ d_B) == (d_Af \ d_Bf)
-        @test (d_A \ d_b) == (d_Af \ d_bf)
-    end
+@testset "Promotion from elty = $elty" for elty in [Float16, ComplexF16, Int32, Int64, Complex{Int32}, Complex{Int64}]
 
     @testset "svd with $alg algorithm" for
         alg in (CUSOLVER.QRAlgorithm(), CUSOLVER.JacobiAlgorithm()),
@@ -621,4 +600,25 @@ end
         end
     end
 
+end
+
+@testset "Matrix division $elty1 \\ $elty2" for elty1 in [
+    Float16, Float32, Float64, ComplexF16, ComplexF32, ComplexF64, Int32, Int64, Complex{Int32}, Complex{Int64}
+], elty2 in [
+    Float16, Float32, Float64, ComplexF16, ComplexF32, ComplexF64, Int32, Int64, Complex{Int32}, Complex{Int64}
+]
+    A = rand(elty1,n,n)
+    B = rand(elty2,n,n)
+    b = rand(elty2,n)
+    d_A = CuArray(A)
+    d_B = CuArray(B)
+    d_b = CuArray(b)
+    cublasfloat = promote_type(Float32, promote_type(elty1, elty2))
+    Af = cublasfloat.(A)
+    Bf = cublasfloat.(B)
+    bf = cublasfloat.(b)
+    @test Array(d_A \ d_B) ≈ (Af \ Bf)
+    @test Array(d_A \ d_b) ≈ (Af \ bf)
+    @inferred d_A \ d_B
+    @inferred d_A \ d_b
 end
