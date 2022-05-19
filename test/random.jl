@@ -123,6 +123,12 @@ end
     @test randn(rng, Float32, 1) isa CuArray
     @test randn(rng, 1) isa CuArray
 
+    # #1464: Check that the Box-Muller transform doesn't produce infinities (stemming from
+    # zeros in the radial sample). Virtually deterministic for the typical 23-24 bits of
+    # entropy; a larger sample would be needed for a higher-entropy algorithm like the one
+    # used by CURAND.
+    @test isfinite(maximum(randn(rng, Float32, 2^26)))
+
     # #1515: A quick way to check if the Box-Muller transform is correctly implemented for
     # complex numbers is to check that the real part never gets too large. The largest
     # possible value for ComplexF32 is sqrt(-log(u)) where u is the smallest nonzero Float32

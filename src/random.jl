@@ -88,6 +88,9 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:Union{AbstractFloat,Complex{<:A
             if i <= length(A)
                 # Box–Muller transform
                 U1 = Random.rand(device_rng, T)
+                while U1 == zero(T)
+                    U1 = Random.rand(device_rng, T)
+                end
                 U2 = Random.rand(device_rng, T)
                 Z0 = sqrt(T(-2.0)*log(U1))*cos(T(2pi)*U2)
                 Z1 = sqrt(T(-2.0)*log(U1))*sin(T(2pi)*U2)
@@ -117,6 +120,9 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:Union{AbstractFloat,Complex{<:A
             if i <= length(A)
                 # Complex Box–Muller transform
                 U1 = Random.rand(device_rng, T)
+                while U1 == zero(T)
+                    U1 = Random.rand(device_rng, T)
+                end
                 U2 = Random.rand(device_rng, T)
                 Z0 = sqrt(-log(U1))*cos(T(2pi)*U2)
                 Z1 = sqrt(-log(U1))*sin(T(2pi)*U2)
