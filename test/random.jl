@@ -122,4 +122,13 @@ end
     end
     @test randn(rng, Float32, 1) isa CuArray
     @test randn(rng, 1) isa CuArray
+
+    # #1515: A quick way to check if the Box-Muller transform is correctly implemented for
+    # complex numbers is to check that the real part never gets too large. The largest
+    # possible value for ComplexF32 is sqrt(-log(u)) where u is the smallest nonzero Float32
+    # that can be produced by rand. Typically u = 2f0^(-23) or u = 2f0^(-24) giving an upper
+    # bound of around 4 or 4.1, while CURAND.rand gets down to u = 2f0^(-33) giving an upper
+    # bound of around 4.8. In contrast, incorrectly reusing the real Box-Muller transform
+    # gives typical real parts in the hundreds.
+    @test maximum(real(randn(rng, ComplexF32, 32))) <= sqrt(-log(2f0^(-33)))
 end
