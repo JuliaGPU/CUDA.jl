@@ -296,6 +296,14 @@ _svdvals!(A::CuMatrix{T}, alg::SVDAlgorithm) where T =
 _svdvals!(A::CuMatrix{T}, alg::QRAlgorithm) where T = gesvd!('N', 'N', A::CuMatrix{T})[2]
 _svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T = gesvdj!('N', 1, A::CuMatrix{T})[2]
 
+### opnorm2, enabled by svdvals
+
+function LinearAlgebra.opnorm2(A::CuMatrix{T}) where {T}
+    # The implementation in Base.LinearAlgebra can be reused verbatim, but it uses a scalar
+    # index to access the larges singular value, so must be wrapped in @allowscalar
+    return @allowscalar invoke(LinearAlgebra.opnorm2, Tuple{AbstractMatrix{T}}, A)
+end
+
 ## LU
 
 if VERSION >= v"1.8-"
