@@ -385,6 +385,12 @@ k = 1
     _svd(A) = svd(A; alg=CUSOLVER.QRAlgorithm())
     @inferred _svd(CUDA.rand(Float32, 4, 4))
 
+    @testset "2-opnorm($sz x $elty)" for sz in [(2, 0), (2, 3)]
+        A = rand(elty, sz)
+        d_A = CuArray(A)
+        @test opnorm(A, 2) ≈ opnorm(d_A, 2)
+    end
+
 
     @testset "qr" begin
         tol = min(m, n)*eps(real(elty))*(1 + (elty <: Complex))
