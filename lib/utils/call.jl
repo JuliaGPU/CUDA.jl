@@ -94,7 +94,7 @@ macro debug_ccall(target, rettyp, argtyps, args...)
 
         print(io, $f, '(')
         for (i, arg) in enumerate(($(map(esc, args)...),))
-            i > 1 && print(io, ", ")
+            i > 1 && Core.print(io, ", ")
             render_arg(io, arg)
         end
         Core.print(io, ')')
@@ -109,5 +109,5 @@ macro debug_ccall(target, rettyp, argtyps, args...)
     end
 end
 
-render_arg(io, arg) = print(io, arg)
+render_arg(io, arg) = Core.print(io, arg)
 render_arg(io, arg::Union{<:Base.RefValue, AbstractArray}) = summary(io, arg)
