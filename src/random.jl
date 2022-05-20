@@ -71,8 +71,8 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
     A
 end
 
-function Random.randn!(rng::RNG, A::AnyCuArray{<:T}) where {T<:Union{AbstractFloat,Complex{<:AbstractFloat}}}
-    function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32)
+function Random.randn!(rng::RNG, A::AnyCuArray{<:Union{AbstractFloat,Complex{<:AbstractFloat}}})
+    function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32) where {T<:Real}
         device_rng = Random.default_rng()
 
         # initialize the state
@@ -88,6 +88,9 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:T}) where {T<:Union{AbstractFlo
             if i <= length(A)
                 # Box–Muller transform
                 U1 = Random.rand(device_rng, T)
+                while U1 == zero(T)
+                    U1 = Random.rand(device_rng, T)
+                end
                 U2 = Random.rand(device_rng, T)
                 Z0 = sqrt(T(-2.0)*log(U1))*cos(T(2pi)*U2)
                 Z1 = sqrt(T(-2.0)*log(U1))*sin(T(2pi)*U2)
@@ -99,7 +102,35 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:T}) where {T<:Union{AbstractFlo
 
             offset += 2*window
         end
+        return
+    end
 
+    function kernel(A::AbstractArray{Complex{T}}, seed::UInt32, counter::UInt32) where {T<:Real}
+        device_rng = Random.default_rng()
+
+        # initialize the state
+        @inbounds Random.seed!(device_rng, seed, counter)
+
+        # grid-stride loop
+        threadId = threadIdx().x
+        window = (blockDim().x - 1i32) * gridDim().x
+        offset = (blockIdx().x - 1i32) * blockDim().x
+        while offset < length(A)
+            i = threadId + offset
+            if i <= length(A)
+                # Complex Box–Muller transform
+                U1 = Random.rand(device_rng, T)
+                while U1 == zero(T)
+                    U1 = Random.rand(device_rng, T)
+                end
+                U2 = Random.rand(device_rng, T)
+                Z0 = sqrt(-log(U1))*cos(T(2pi)*U2)
+                Z1 = sqrt(-log(U1))*sin(T(2pi)*U2)
+                @inbounds A[i] = complex(Z0, Z1)
+            end
+
+            offset += window
+        end
         return
     end
 
