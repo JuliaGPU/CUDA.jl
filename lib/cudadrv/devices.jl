@@ -9,7 +9,7 @@ export
 
 Get a handle to a compute device.
 """
-struct CuDevice
+struct CuDevice <: AbstractGPUDevice
     handle::CUdevice
 
     function CuDevice(ordinal::Integer)

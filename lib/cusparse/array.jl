@@ -15,6 +15,9 @@ const AbstractCuSparseMatrix{Tv, Ti} = AbstractCuSparseArray{Tv, Ti, 2}
 
 Base.convert(T::Type{<:AbstractCuSparseArray}, m::AbstractArray) = m isa T ? m : T(m)
 
+Adapt.get_computing_device(A::AbstractCuSparseArray) = get_computing_device(A.nzVal)
+
+
 mutable struct CuSparseVector{Tv, Ti} <: AbstractCuSparseVector{Tv, Ti}
     iPtr::CuVector{Ti}
     nzVal::CuVector{Tv}

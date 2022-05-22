@@ -133,3 +133,6 @@ macro elapsed(ex)
         elapsed(t0, t1)
     end
 end
+
+
+Adapt.get_computing_device(e::CuEvent) = device(e.ctx)

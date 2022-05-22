@@ -245,6 +245,14 @@ function device(A::CuArray)
 end
 
 
+Adapt.get_computing_device(A::CuArray) = device(A)
+
+Adapt.adapt_storage(dev::CuDevice, x) = device!(() -> Adapt.adapt_storage(CuArray, x), dev)
+
+Sys.total_memory(dev::CuDevice) = CUDA.totalmem(dev)
+Sys.free_memory(dev::CuDevice) = unsigned(CUDA.device!(CUDA.available_memory, dev))
+
+
 ## derived types
 
 export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,

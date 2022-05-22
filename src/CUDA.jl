@@ -8,7 +8,7 @@ using LLVM
 using LLVM.Interop
 using Core: LLVMPtr
 
-using Adapt: Adapt, adapt, WrappedArray
+using Adapt: Adapt, adapt, WrappedArray, AbstractGPUDevice, get_computing_device
 
 using Requires: @require
 
