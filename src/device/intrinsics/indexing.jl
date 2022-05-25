@@ -4,7 +4,7 @@ export
     threadIdx, blockDim, blockIdx, gridDim, laneid, warpsize, active_mask, FULL_MASK
 
 @generated function _index(::Val{name}, ::Val{range}) where {name, range}
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_int32 = LLVM.Int32Type(ctx)
 
         # create function
@@ -12,7 +12,7 @@ export
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        Builder(ctx) do builder
+        @dispose builder=Builder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 

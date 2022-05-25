@@ -26,7 +26,7 @@ const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
 # > - The pointer must be either a global pointer, a shared pointer, or a generic pointer
 # >   that points to either the global address space or the shared address space.
 @generated function llvm_atomic_op(::Val{binop}, ptr::LLVMPtr{T,A}, val::T) where {binop, T, A}
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_val = convert(LLVMType, T; ctx)
         T_ptr = convert(LLVMType, ptr; ctx)
 
@@ -34,7 +34,7 @@ const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
 
         llvm_f, _ = create_function(T_val, [T_ptr, T_val])
 
-        Builder(ctx) do builder
+        @dispose builder=Builder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
@@ -108,7 +108,7 @@ for T in (Float32, Float64)
 end
 
 @generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T) where {T, A}
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_val = convert(LLVMType, T; ctx)
         T_ptr = convert(LLVMType, ptr,;ctx)
 
@@ -116,7 +116,7 @@ end
 
         llvm_f, _ = create_function(T_val, [T_ptr, T_val, T_val])
 
-        Builder(ctx) do builder
+        @dispose builder=Builder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 

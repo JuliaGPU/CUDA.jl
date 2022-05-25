@@ -3,7 +3,7 @@
 export malloc
 
 @generated function malloc(sz::Csize_t)
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx))
         T_size = convert(LLVMType, Csize_t; ctx)
         T_ptr = convert(LLVMType, Ptr{Cvoid}; ctx)
@@ -27,7 +27,7 @@ export malloc
         #end
 
         # generate IR
-        Builder(ctx) do builder
+        @dispose builder=Builder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 

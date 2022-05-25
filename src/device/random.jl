@@ -155,7 +155,7 @@ end
 
 # a hacky method of exposing constant tables as constant GPU memory
 function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_val = convert(LLVMType, T; ctx)
         T_ptr = convert(LLVMType, LLVMPtr{T,AS.Constant}; ctx)
 
@@ -172,7 +172,7 @@ function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
         initializer!(gv, ConstantArray(data; ctx))
 
         # generate IR
-        Builder(ctx) do builder
+        @dispose builder=Builder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
