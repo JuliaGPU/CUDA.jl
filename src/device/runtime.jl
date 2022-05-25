@@ -95,7 +95,7 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)
 
     GPUCompiler.link_library!(mod, lib)
 
-    ModulePassManager() do pm
+    @dispose pm=ModulePassManager() begin
         push!(metadata(mod)["nvvm-reflect-ftz"],
               MDNode([ConstantInt(Int32(1); ctx)]; ctx))
         run!(pm, mod)

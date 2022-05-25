@@ -39,7 +39,7 @@ assert_counter = 0
 
 @generated function cuassert_fail(::Val{msg}, ::Val{file}, ::Val{line}) where
                                  {msg, file, line}
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_void = LLVM.VoidType(ctx)
         T_int32 = LLVM.Int32Type(ctx)
         T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx))
@@ -49,7 +49,7 @@ assert_counter = 0
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        Builder(ctx) do builder
+        @dispose builder=Builder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 

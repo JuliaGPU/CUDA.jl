@@ -36,7 +36,7 @@ macro cuprintf(fmt::String, args...)
 end
 
 @generated function _cuprintf(::Val{fmt}, argspec...) where {fmt}
-    Context() do ctx
+    @dispose ctx=Context() begin
         arg_exprs = [:( argspec[$i] ) for i in 1:length(argspec)]
         arg_types = [argspec...]
 
@@ -50,7 +50,7 @@ end
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        Builder(ctx) do builder
+        @dispose builder=Builder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
