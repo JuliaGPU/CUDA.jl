@@ -11,7 +11,8 @@ using CEnum: @cenum
 using LinearAlgebra
 using LinearAlgebra: HermOrSym
 
-using Adapt: Adapt, adapt, AbstractGPUDevice, get_computing_device
+import Adapt
+using Adapt: Adapt, adapt, AbstractGPUDevice
 
 using SparseArrays
 

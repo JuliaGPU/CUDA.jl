@@ -244,8 +244,7 @@ function device(A::CuArray)
   return device(A.storage.buffer.ctx)
 end
 
-
-Adapt.get_computing_device(A::CuArray) = device(A)
+Adapt.get_compute_unit_impl(@nospecialize(TypeHistory::Type), A::CuArray) = device(A)
 
 Adapt.adapt_storage(dev::CuDevice, x) = device!(() -> Adapt.adapt_storage(CuArray, x), dev)
 

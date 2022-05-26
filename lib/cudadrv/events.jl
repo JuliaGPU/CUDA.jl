@@ -135,4 +135,4 @@ macro elapsed(ex)
 end
 
 
-Adapt.get_computing_device(e::CuEvent) = device(e.ctx)
+Adapt.get_compute_unit_impl(@nospecialize(TypeHistory::Type), e::CuEvent) = device(e.ctx)
