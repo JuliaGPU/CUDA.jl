@@ -89,6 +89,9 @@ using SpecialFunctions
     @testset "erf" begin
         @test testf(a->SpecialFunctions.erf.(a), Float32[1.0])
     end
+    @testset "loggamma" begin
+        @test testf(a->SpecialFunctions.loggamma.(a), Float32[1.0])
+    end
 
     @testset "exp" begin
         # JuliaGPU/CUDA.jl#1085: exp uses Base.sincos performing a global CPU load
