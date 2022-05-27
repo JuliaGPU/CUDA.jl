@@ -43,7 +43,9 @@ end
 
 ## seeding
 
-function Random.seed!(rng::RNG, seed=Base.rand(UInt64), offset=0)
+make_seed() = Base.rand(RandomDevice(), UInt64)
+
+function Random.seed!(rng::RNG, seed=make_seed(), offset=0)
     update_stream(rng)
     curandSetPseudoRandomGeneratorSeed(rng, seed)
     curandSetGeneratorOffset(rng, offset)

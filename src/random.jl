@@ -25,14 +25,16 @@ mutable struct RNG <: AbstractRNG
     end
 end
 
-RNG() = RNG(Random.rand(UInt32))
+make_seed() = Base.rand(RandomDevice(), UInt32)
+
+RNG() = RNG(make_seed())
 
 function Random.seed!(rng::RNG, seed::Integer)
     rng.seed = seed % UInt32
     rng.counter = 0
 end
 
-Random.seed!(rng::RNG) = Random.seed!(rng, Random.rand(UInt32))
+Random.seed!(rng::RNG) = Random.seed!(rng, make_seed())
 
 function Random.rand!(rng::RNG, A::AnyCuArray)
     function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32) where {T}

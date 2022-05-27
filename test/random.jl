@@ -138,3 +138,18 @@ end
     # gives typical real parts in the hundreds.
     @test maximum(real(randn(rng, ComplexF32, 32))) <= sqrt(-log(2f0^(-33)))
 end
+
+@testset "seeding idempotency" begin
+    t = @async begin
+        Random.seed!(1)
+        CUDA.seed!(1)
+        x = rand()
+
+        Random.seed!(1)
+        CUDA.seed!(1)
+        y = rand()
+
+        x == y
+    end
+    @test fetch(t)
+end
