@@ -579,6 +579,17 @@ k = 1
 
             @test_throws LinearAlgebra.SingularException lu(CUDA.zeros(elty,n,n))
         end
+        @testset "lu ldiv! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            A = rand(elty, m, m)
+            B = rand(elty, m, m)
+            A_d = CuArray(A)
+            B_d = CuArray(B)
+
+            lu_cpu = lu(A)
+            lu_gpu = lu(A_d)
+            @test ldiv!(lu_cpu, B) ≈ collect(ldiv!(lu_gpu, B_d))
+
+        end
     end
 end
 
