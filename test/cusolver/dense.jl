@@ -584,11 +584,9 @@ k = 1
             B = rand(elty, m, m)
             A_d = CuArray(A)
             B_d = CuArray(B)
-
             lu_cpu = lu(A)
             lu_gpu = lu(A_d)
             @test ldiv!(lu_cpu, B) ≈ collect(ldiv!(lu_gpu, B_d))
-
         end
     end
 end
