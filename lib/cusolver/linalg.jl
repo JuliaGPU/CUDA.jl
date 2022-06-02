@@ -339,15 +339,13 @@ LinearAlgebra.ipiv2perm(v::CuVector{T}, maxi::Integer) where T =
 end
 
 function LinearAlgebra.ldiv!(F::LU{T,<:StridedCuMatrix{T}}, B::CuVecOrMat{T}) where {T}
-    return CUSOLVER.getrs!('N', F.factors, F.ipiv, B)
+    return getrs!('N', F.factors, F.ipiv, B)
 end
 
 # LinearAlgebra.jl defines a comparable method with these restrictions on T, so we need
 #   to define with the same type parameters to resolve method ambiguity for these cases
-function LinearAlgebra.ldiv!(
-    F::LU{T,<:StridedCuMatrix{T}}, B::CuVecOrMat{T}
-    ) where {T <: Union{Float32, Float64, ComplexF32, ComplexF64}}
-    return CUSOLVER.getrs!('N', F.factors, F.ipiv, B)
+function LinearAlgebra.ldiv!(F::LU{T,<:StridedCuMatrix{T}}, B::CuVecOrMat{T}) where {T <: Union{Float32, Float64, ComplexF32, ComplexF64}}
+    return getrs!('N', F.factors, F.ipiv, B)
 end
 
 ## cholesky
