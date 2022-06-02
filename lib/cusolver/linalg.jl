@@ -336,20 +336,19 @@ end
 LinearAlgebra.ipiv2perm(v::CuVector{T}, maxi::Integer) where T =
     LinearAlgebra.ipiv2perm(Array(v), maxi)
 
-function LinearAlgebra.LAPACK.getrs!(trans::AbstractChar, A::StridedCuMatrix{T}, ipiv::CuVector{<:Integer}, B::CuVecOrMat{T}) where {T} 
-    LinearAlgebra.LAPACK.require_one_based_indexing(A, ipiv, B)
-    LinearAlgebra.LAPACK.chktrans(trans)
-    LinearAlgebra.LAPACK.chkstride1(A, B, ipiv)
-    n = LinearAlgebra.LAPACK.checksquare(A)
-    if n != size(B, 1)
-        throw(DimensionMismatch("B has leading dimension $(size(B,1)), but needs $n"))
-    end
-    getrs!(trans, A, ipiv, B)
-    return B
 end
 
+function LinearAlgebra.ldiv!(F::LU{T,<:StridedCuMatrix{T}}, B::CuVecOrMat{T}) where {T}
+    return CUSOLVER.getrs!('N', F.factors, F.ipiv, B)
 end
 
+# LinearAlgebra.jl defines a comparable method with these restrictions on T, so we need
+#   to define with the same type parameters to resolve method ambiguity for these cases
+function LinearAlgebra.ldiv!(
+    F::LU{T,<:StridedCuMatrix{T}}, B::CuVecOrMat{T}
+    ) where {T <: Union{Float32, Float64, ComplexF32, ComplexF64}}
+    return CUSOLVER.getrs!('N', F.factors, F.ipiv, B)
+end
 
 ## cholesky
 
