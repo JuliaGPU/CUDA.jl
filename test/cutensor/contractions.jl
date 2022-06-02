@@ -18,7 +18,7 @@ can_pin = !Sys.iswindows()
 @testset for NoA=1:3, NoB=1:3, Nc=1:3
     @testset for (eltyA, eltyB, eltyC, eltyCompute) in eltypes
         # setup
-        dmax = 2^div(18, max(NoA+Nc, NoB+Nc, NoA+NoB))
+        dmax = 2^div(12, max(NoA+Nc, NoB+Nc, NoA+NoB))
         dimsoA = rand(2:dmax, NoA)
         loA = prod(dimsoA)
         dimsoB = rand(2:dmax, NoB)
