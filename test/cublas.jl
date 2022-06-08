@@ -1019,7 +1019,7 @@ end
             end
         end
 
-        @testset "triangular mul!" begin
+        @testset "triangular-dense mul!" begin
             A = triu(rand(elty, m, m))
             B = rand(elty,m,n)
             C = zeros(elty,m,n)
@@ -1049,6 +1049,44 @@ end
                 @test D_L ≈ Array(dD_L)
                 @test C_R ≈ Array(dC_R)
                 @test D_R ≈ Array(dD_R)
+            end
+        end
+
+        @testset "triangular-triangular mul!" begin
+            A  = triu(rand(elty, m, m))
+            B  = triu(rand(elty, m, m))
+            C0 = zeros(elty,m,m)
+
+            sA = rand(elty,m,m)
+            sA = sA + transpose(sA)
+            sB = rand(elty,m,m)
+            sB = sB + transpose(sB)
+
+            for (TRa, ta, TRb, tb, TRc) in (
+                (UpperTriangular, identity,  LowerTriangular, identity,  Matrix),
+                (LowerTriangular, identity,  UpperTriangular, identity,  Matrix),
+                (UpperTriangular, identity,  UpperTriangular, transpose, Matrix),
+                (UpperTriangular, transpose, UpperTriangular, identity,  Matrix),
+                (LowerTriangular, identity,  LowerTriangular, transpose, Matrix),
+                (LowerTriangular, transpose, LowerTriangular, identity,  Matrix),
+                )
+
+                A = copy(sA) |> TRa
+                B = copy(sB) |> TRb
+                C = copy(C0) |> TRc
+                dA = CuArray(parent(sA)) |> TRa
+                dB = CuArray(parent(sB)) |> TRb
+                dC = if TRc == Matrix
+                    CuArray(C0) |> DenseCuMatrix
+                else
+                    CuArray(C0) |> TRc
+                end
+
+                D = mul!(C, ta(A), tb(B))
+                dD = mul!(dC, ta(dA), tb(dB))
+
+                @test C ≈ Array(dC)
+                @test D ≈ Array(dD)
             end
         end
 

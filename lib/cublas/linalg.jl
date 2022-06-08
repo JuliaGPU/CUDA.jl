@@ -443,6 +443,68 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
     end
 end
 
+function LinearAlgebra.mul!(X::DenseCuMatrix{T},
+                            A::LowerTriangular{T,<:DenseCuMatrix},
+                            B::UpperTriangular{T,<:DenseCuMatrix},
+                            ) where {T<:CublasFloat}
+    triu!(parent(B))
+    trmm!('L', 'L', 'N', 'N', one(T), parent(A), parent(B), parent(X))
+    X
+end
+
+function LinearAlgebra.mul!(X::DenseCuMatrix{T},
+                            A::UpperTriangular{T,<:DenseCuMatrix},
+                            B::LowerTriangular{T,<:DenseCuMatrix},
+                            ) where {T<:CublasFloat}
+    tril!(parent(B))
+    trmm!('L', 'U', 'N', 'N', one(T), parent(A), parent(B), parent(X))
+    X
+end
+
+for (trtype, valtype) in ((:Transpose, :CublasFloat),
+                          (:Adjoint,   :CublasReal),
+                          (:Adjoint,   :CublasComplex))
+    @eval begin
+        function LinearAlgebra.mul!(X::DenseCuMatrix{T},
+                                    A::UpperTriangular{T,<:DenseCuMatrix},
+                                    B::LowerTriangular{<:Any,<:$trtype{T,<:DenseCuMatrix}},
+                                    ) where {T<:$valtype}
+            # operation is reversed to avoid executing the tranpose
+            triu!(parent(A))
+            CUBLAS.trmm!('R', 'U', 'T', 'N', one(T), parent(parent(B)), parent(A), parent(X))
+            X
+        end
+
+        function LinearAlgebra.mul!(X::DenseCuMatrix{T},
+                                    A::UpperTriangular{<:Any,<:$trtype{T,<:DenseCuMatrix}},
+                                    B::LowerTriangular{T,<:DenseCuMatrix},
+                                    ) where {T<:$valtype}
+            tril!(parent(B))
+            CUBLAS.trmm!('L', 'L', 'T', 'N', one(T), parent(parent(A)), parent(B), parent(X))
+            X
+        end
+
+        function LinearAlgebra.mul!(X::DenseCuMatrix{T},
+                                    A::LowerTriangular{<:Any,<:$trtype{T,<:DenseCuMatrix}},
+                                    B::UpperTriangular{T,<:DenseCuMatrix},
+                                    ) where {T<:$valtype}
+            triu!(parent(B))
+            CUBLAS.trmm!('L', 'U', 'T', 'N', one(T), parent(parent(A)), parent(B), parent(X))
+            X
+        end
+
+        function LinearAlgebra.mul!(X::DenseCuMatrix{T},
+                                    A::LowerTriangular{T,<:DenseCuMatrix},
+                                    B::UpperTriangular{<:Any,<:$trtype{T,<:DenseCuMatrix}},
+                                    ) where {T<:$valtype}
+            # operation is reversed to avoid executing the tranpose
+            tril!(parent(A))
+            CUBLAS.trmm!('R', 'L', 'T', 'N', one(T), parent(parent(B)), parent(A), parent(X))
+            X
+        end
+    end
+end
+
 # symmetric mul!
 # level 2
 @inline function LinearAlgebra.mul!(y::CuVector{T}, A::Hermitian{T,<:CuMatrix}, x::CuVector{T},
