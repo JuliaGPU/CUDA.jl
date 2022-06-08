@@ -448,7 +448,7 @@ function LinearAlgebra.mul!(X::DenseCuMatrix{T},
                             B::UpperTriangular{T,<:DenseCuMatrix},
                             ) where {T<:CublasFloat}
     triu!(parent(B))
-    CUBLAS.trmm!('L', 'L', 'N', 'N', one(T), parent(A), parent(B), parent(X))
+    trmm!('L', 'L', 'N', 'N', one(T), parent(A), parent(B), parent(X))
     X
 end
 
@@ -457,7 +457,7 @@ function LinearAlgebra.mul!(X::DenseCuMatrix{T},
                             B::LowerTriangular{T,<:DenseCuMatrix},
                             ) where {T<:CublasFloat}
     tril!(parent(B))
-    CUBLAS.trmm!('L', 'U', 'N', 'N', one(T), parent(A), parent(B), parent(X))
+    trmm!('L', 'U', 'N', 'N', one(T), parent(A), parent(B), parent(X))
     X
 end
 
