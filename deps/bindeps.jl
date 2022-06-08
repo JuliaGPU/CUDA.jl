@@ -106,6 +106,22 @@ function toolkit()
 end
 
 # workaround @artifact_str eagerness on unsupported platforms by passing a variable
+function generic_artifact(id)
+    dir = try
+        @artifact_str(id)
+    catch ex
+        @debug "Could not load artifact '$id'" exception=(ex,catch_backtrace())
+        return nothing
+    end
+
+    # sometimes artifact downloads fail (e.g. JuliaGPU/CUDA.jl#1003)
+    if isempty(readdir(dir))
+        error("""The artifact at $dir is empty.
+                 This is probably caused by a failed download. Remove the directory and try again.""")
+    end
+
+    return dir
+end
 function cuda_artifact(id, cuda::VersionNumber)
     platform = Base.BinaryPlatforms.HostPlatform()
     platform.tags["cuda"] = "$(cuda.major).$(cuda.minor)"
@@ -604,7 +620,7 @@ function libcutensormg(; throw_error::Bool=true)
         # CUTENSORMg additionally depends on CUDARt
         libcudart()
 
-        if CUDA.CUTENSOR.version() < v"1.4"
+        if CUTENSOR.version() < v"1.4"
             nothing
         else
             find_cutensor(toolkit(), "cutensorMg", v"1")
@@ -682,6 +698,11 @@ function find_nccl(cuda::LocalToolkit, name, version)
     return path
 end
 
+
+#
+# CUQUANTUM
+#
+
 export libcutensornet, has_cutensornet, libcustatevec, has_custatevec
 
 const __libcutensornet = Ref{Union{String,Nothing}}()
@@ -712,7 +733,7 @@ end
 has_custatevec() = libcustatevec(throw_error=false) !== nothing
 
 function find_cutensornet(cuda::ArtifactToolkit, name, version)
-    artifact_dir = cuda_artifact("cuQuantum", v"0.1.3")
+    artifact_dir = generic_artifact("cuQuantum")
     if artifact_dir === nothing
         return nothing
     end
@@ -757,3 +778,36 @@ function find_custatevec(cuda::LocalToolkit, name, version)
     return path
 end
 
+
+#
+# Utilities
+#
+
+export download_artifacts
+
+"""
+    download_artifacts()
+
+Downloads the artifacts you will need to run CUDA.jl. This can be used to pre-populate the
+artifacts directory from, e.g., a container build script.
+
+If you want this function to not require a CUDA driver (which wouldn't be available from
+said container build environment) be sure to set the `JULIA_CUDA_VERSION` environment
+variable to an appropriate CUDA release number. This environment variable should then also
+be set at run-time, and should be compatible with the NVIDIA driver that will be available
+in that environment.
+
+!!! warning
+
+    This function is a temporary hack, and will be removed once CUDA.jl uses JLLs for
+    downloading and installing artifacts.
+"""
+function download_artifacts()
+    toolkit = find_artifact_cuda()
+    @assert nothing !== cuda_artifact("CUDNN", toolkit.release)
+    @assert nothing !== cuda_artifact("CUTENSOR", toolkit.release)
+    @assert nothing !== cuda_artifact("NCCL", toolkit.release)
+
+    @assert nothing !== generic_artifact("CUDA_compat")
+    @assert nothing !== generic_artifact("cuQuantum")
+end

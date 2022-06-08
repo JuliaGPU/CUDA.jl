@@ -63,7 +63,7 @@ function Base.showerror(io::IO, err::CuError)
         print(io, "CUDA error (code $(reinterpret(Int32, err.code)), $(err.code))")
     end
 
-    if err.meta != nothing
+    if err.meta !== nothing
         print(io, "\n")
         print(io, err.meta)
     end
@@ -82,8 +82,6 @@ Base.show(io::IO, ::MIME"text/plain", err::CuError) = print(io, "CuError($(err.c
 end
 
 # outlined functionality to avoid GC frame allocation
-@noinline throw_stub_error() =
-    error("Cannot use the CUDA stub libraries. You either don't have the NVIDIA driver installed, or it is not properly discoverable.")
 @noinline function throw_api_error(res)
     if res == ERROR_OUT_OF_MEMORY
         throw(OutOfGPUMemoryError())
@@ -95,9 +93,7 @@ end
 macro check(ex)
     quote
         res = $(esc(ex))
-        if res == 0xffffffff
-            throw_stub_error()
-        elseif res != SUCCESS
+        if res != SUCCESS
             throw_api_error(res)
         end
 

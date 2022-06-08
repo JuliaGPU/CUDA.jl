@@ -146,6 +146,31 @@ steps:
   #   if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
   #   timeout_in_minutes: 120
 
+  - label: "GPU-less environment"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: 1.6
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+      - JuliaCI/julia-test#v1:
+          run_tests: false
+    command: |
+      julia --project -e 'using CUDA;
+                          @assert !CUDA.functional();
+                          CUDA.download_artifacts()'
+    env:
+      CUDA_VISIBLE_DEVICES: ''
+      JULIA_CUDA_VERSION: '11.6'
+    agents:
+      queue: "juliagpu"
+      cuda: "*"
+    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+    timeout_in_minutes: 60
+
   - label: "NNlibCUDA.jl"
     plugins:
       - JuliaCI/julia#v1:
