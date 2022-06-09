@@ -804,10 +804,10 @@ in that environment.
 """
 function download_artifacts()
     toolkit = find_artifact_cuda()
-    @assert nothing !== cuda_artifact("CUDNN", toolkit.release)
-    @assert nothing !== cuda_artifact("CUTENSOR", toolkit.release)
-    @assert nothing !== cuda_artifact("NCCL", toolkit.release)
+    cuda_artifact("CUDNN", toolkit.release)
+    cuda_artifact("CUTENSOR", toolkit.release)
+    cuda_artifact("NCCL", toolkit.release)
 
-    @assert nothing !== generic_artifact("CUDA_compat")
-    @assert nothing !== generic_artifact("cuQuantum")
+    generic_artifact("CUDA_compat")
+    generic_artifact("cuQuantum")
 end
