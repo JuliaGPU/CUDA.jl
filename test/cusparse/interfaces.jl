@@ -1,3 +1,4 @@
+using Adapt
 using CUDA.CUSPARSE
 using LinearAlgebra, SparseArrays
 
@@ -197,5 +198,24 @@ using LinearAlgebra, SparseArrays
         @test Array(dA - I) == S - I
         @test Array(I - dA) == I - S
     end
-end
 
+    @testset "Diagonal with $typ(10, 10)" for
+        typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
+        
+        S = sprand(Float32, 10, 10, 0.8)
+        D = Diagonal(rand(Float32, 10))
+        dA = typ(S)
+        dD = adapt(CuArray, D)
+
+        @test Array(dA + dD) == S + D
+        @test Array(dD + dA) == D + S
+
+        @test Array(dA - dD) == S - D
+        @test Array(dD - dA) == D - S
+
+        @test dA + dD isa typ
+        @test dD + dA isa typ
+        @test dA - dD isa typ
+        @test dD - dA isa typ
+    end
+end
