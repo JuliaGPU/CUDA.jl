@@ -211,7 +211,7 @@ Base.:(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}, J::UniformScaling) =
 Base.:(-)(J::UniformScaling, A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) =
     _sparse_identity(typeof(A), J, size(A)) .- A
 
-
+# TODO: let Broadcast handle this automatically (a la SparseArrays.PromoteToSparse)
 for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR], op in [:(+), :(-)]
     @eval begin
         function Base.$op(lhs::Diagonal{T,<:CuArray}, rhs::$SparseMatrixType{T}) where {T}
