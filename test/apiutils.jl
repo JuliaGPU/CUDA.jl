@@ -23,7 +23,7 @@ end
         end
 
         @checked function foo()
-            ccall(:jl_getpid, Cint, ())
+            ccall(:uv_os_getpid, Cint, ())
         end
     end
 
