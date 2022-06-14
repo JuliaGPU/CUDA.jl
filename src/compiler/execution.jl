@@ -347,7 +347,7 @@ function cufunction_compile(@nospecialize(job::CompilerJob))
         cufunction_compile(job, ctx)
     end
 end
-@timeit_ci "compile" function cufunction_compile(@nospecialize(job::CompilerJob), ctx::Context)
+@timeit_ci "compile" function cufunction_compile(@nospecialize(job::CompilerJob), ctx)
     # lower to PTX
     mi, mi_meta = @timeit_ci "emit_julia" GPUCompiler.emit_julia(job)
     ir, ir_meta = @timeit_ci "emit_llvm" GPUCompiler.emit_llvm(job, mi; ctx)
