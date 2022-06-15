@@ -99,7 +99,7 @@ end
 
 # AD method
 function cudnnConvolutionForwardAD(w, x, bias, z; y, activation, convDesc, wDesc, xDesc, yDesc, zDesc, biasDesc, alpha, beta, dw, dx, dz, dbias, dready)
-    p = cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation)
+    p = cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation, beta!=0)
     with_workspace(p.memory) do workspace
         if bias === nothing && activation === CUDNN_ACTIVATION_IDENTITY && (z === y || beta[] == 0)
             cudnnConvolutionForward(handle(), alpha, xDesc, x, wDesc, w, convDesc, p.algo, workspace, sizeof(workspace), beta, yDesc, y)
@@ -171,7 +171,14 @@ end
 
 const cudnnConvolutionFwdAlgoPerfCache = Dict{Tuple,cudnnConvolutionFwdAlgoPerf_t}()
 const cudnnConvolutionFwdAlgoPerfCacheLock = ReentrantLock()
-function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation)
+
+"""
+    cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation, allocateTmpBuf=true)
+
+`allocateTmpBuf` controls whether a temporary buffer is allocated for the output y.
+It can be set to false when beta is zero to save an allocation and must otherwise be set to true.
+"""
+function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation, allocateTmpBuf=true)
     key = (xDesc, wDesc, convDesc, biasDesc, activation)
     val = lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
          get(cudnnConvolutionFwdAlgoPerfCache, key, nothing)
@@ -181,8 +188,9 @@ function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, bia
         returnedAlgoCount = Cint[0]
         perfResults = Array{cudnnConvolutionFwdAlgoPerf_t}(undef,requestedAlgoCount)
         workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
+        yTmp = allocateTmpBuf ? similar(y) : y  # if beta is zero we can avoid the allocation
         with_workspace(workspaceSize) do workspace
-            cudnnFindConvolutionForwardAlgorithmEx(handle(),xDesc,x,wDesc,w,convDesc,yDesc,y,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
+            cudnnFindConvolutionForwardAlgorithmEx(handle(),xDesc,x,wDesc,w,convDesc,yDesc,yTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
         val = cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
         lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
@@ -194,7 +202,14 @@ end
 
 const cudnnConvolutionBwdDataAlgoPerfCache = Dict{Tuple,cudnnConvolutionBwdDataAlgoPerf_t}()
 const cudnnConvolutionBwdDataAlgoPerfCacheLock = ReentrantLock()
-function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc, dx)
+
+"""
+    cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc, dx, allocateTmpBuf=true)
+
+`allocateTmpBuf` controls whether a temporary buffer is allocated for the input gradient dx.
+It can be set to false when beta is zero to save an allocation and must otherwise be set to true.
+"""
+function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc, dx, allocateTmpBuf=true)
     key = (wDesc, dyDesc, convDesc)
     val = lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
         get(cudnnConvolutionBwdDataAlgoPerfCache, key, nothing)
@@ -204,8 +219,9 @@ function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc,
         returnedAlgoCount = Cint[0]
         perfResults = Array{cudnnConvolutionBwdDataAlgoPerf_t}(undef,requestedAlgoCount)
         workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(dx)
+        dxTmp = allocateTmpBuf ? similar(dx) : dx
         with_workspace(workspaceSize) do workspace
-            cudnnFindConvolutionBackwardDataAlgorithmEx(handle(),wDesc,w,dyDesc,dy,convDesc,dxDesc,dx,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
+            cudnnFindConvolutionBackwardDataAlgorithmEx(handle(),wDesc,w,dyDesc,dy,convDesc,dxDesc,dxTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
         val = cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
         lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
@@ -217,7 +233,14 @@ end
 
 const cudnnConvolutionBwdFilterAlgoPerfCache = Dict{Tuple,cudnnConvolutionBwdFilterAlgoPerf_t}()
 const cudnnConvolutionBwdFilterAlgoPerfCacheLock = ReentrantLock()
-function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDesc, dw)
+
+"""
+    cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDesc, dw, allocateTmpBuf=true)
+
+`allocateTmpBuf` controls whether a temporary buffer is allocated for the weight gradient dw.
+It can be set to false when beta is zero to save an allocation and must otherwise be set to true.
+"""
+function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDesc, dw, allocateTmpBuf=true)
     key = (xDesc, dyDesc, convDesc)
     val = lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
         get(cudnnConvolutionBwdFilterAlgoPerfCache, (xDesc, dyDesc, convDesc), nothing)
@@ -227,8 +250,9 @@ function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDes
         returnedAlgoCount = Cint[0]
         perfResults = Array{cudnnConvolutionBwdFilterAlgoPerf_t}(undef,requestedAlgoCount)
         workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
+        dwTmp = allocateTmpBuf ? similar(dw) : dw
         with_workspace(workspaceSize) do workspace
-            cudnnFindConvolutionBackwardFilterAlgorithmEx(handle(),xDesc,x,dyDesc,dy,convDesc,dwDesc,dw,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
+            cudnnFindConvolutionBackwardFilterAlgorithmEx(handle(),xDesc,x,dyDesc,dy,convDesc,dwDesc,dwTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
         val = cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
         lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
