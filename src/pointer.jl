@@ -1,6 +1,6 @@
 # CUDA pointer types
 
-export CuPtr, CU_NULL, PtrOrCuPtr, CuArrayPtr, CUA_NULL, CuRef, RefOrCuRef
+export CuPtr, CU_NULL, PtrOrCuPtr, CuArrayPtr, CuRef, RefOrCuRef
 
 
 #
