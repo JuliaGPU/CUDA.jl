@@ -4246,12 +4246,12 @@ end
 
 @checked function cusolverDnXgesvdr(handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, d_info)
     initialize_context()
-    ccall((:cusolverDnXgesvdr, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, Int64, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, CuPtr{Cint}), handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, d_info)
+    ccall((:cusolverDnXgesvdr, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, Int64, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, CuPtr{Cint}), handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, d_info)
 end
 
 @checked function cusolverDnXgesvdr_bufferSize(handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
     initialize_context()
-    ccall((:cusolverDnXgesvdr_bufferSize, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, Int64, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Csize_t}, Ptr{Csize_t}), handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+    ccall((:cusolverDnXgesvdr_bufferSize, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, Int64, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Csize_t}, Ptr{Csize_t}), handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
 end
 
 ## from cusolverMg.h
@@ -4439,4 +4439,691 @@ end
                     Ptr{Cint}),
                    handle, uplo, N, array_d_A, IA, JA, descrA, computeType, array_d_work,
                    lwork, h_info)
+end
+
+# Julia wrapper for header: cusolverSp_LOWLEVEL_PREVIEW.h
+# Automatically generated using Clang.jl
+
+@checked function cusolverSpCreateCsrluInfoHost(info)
+    initialize_context()
+    ccall((:cusolverSpCreateCsrluInfoHost, libcusolver()), cusolverStatus_t, (Ptr{csrluInfoHost_t},), info)
+end
+
+@checked function cusolverSpDestroyCsrluInfoHost(info)
+    initialize_context()
+    ccall((:cusolverSpDestroyCsrluInfoHost, libcusolver()), cusolverStatus_t, (csrluInfoHost_t,), info)
+end
+
+@checked function cusolverSpXcsrluAnalysisHost(handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+    initialize_context()
+    ccall((:cusolverSpXcsrluAnalysisHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t), handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+end
+
+@checked function cusolverSpScsrluBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpScsrluBufferInfoHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpDcsrluBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpDcsrluBufferInfoHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpCcsrluBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpCcsrluBufferInfoHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpZcsrluBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpZcsrluBufferInfoHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpScsrluFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpScsrluFactorHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Cfloat, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+end
+
+@checked function cusolverSpDcsrluFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpDcsrluFactorHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Cdouble, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+end
+
+@checked function cusolverSpCcsrluFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpCcsrluFactorHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Cfloat, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+end
+
+@checked function cusolverSpZcsrluFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpZcsrluFactorHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Cdouble, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+end
+
+@checked function cusolverSpScsrluZeroPivotHost(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpScsrluZeroPivotHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrluInfoHost_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpDcsrluZeroPivotHost(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpDcsrluZeroPivotHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrluInfoHost_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpCcsrluZeroPivotHost(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpCcsrluZeroPivotHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrluInfoHost_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpZcsrluZeroPivotHost(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpZcsrluZeroPivotHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrluInfoHost_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpScsrluSolveHost(handle, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpScsrluSolveHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrluInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpDcsrluSolveHost(handle, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpDcsrluSolveHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrluInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpCcsrluSolveHost(handle, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpCcsrluSolveHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrluInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpZcsrluSolveHost(handle, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpZcsrluSolveHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrluInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpXcsrluNnzHost(handle, nnzLRef, nnzURef, info)
+    initialize_context()
+    ccall((:cusolverSpXcsrluNnzHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t), handle, nnzLRef, nnzURef, info)
+end
+
+@checked function cusolverSpScsrluExtractHost(handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpScsrluExtractHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cvoid}), handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+end
+
+@checked function cusolverSpDcsrluExtractHost(handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpDcsrluExtractHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cvoid}), handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+end
+
+@checked function cusolverSpCcsrluExtractHost(handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpCcsrluExtractHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cvoid}), handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+end
+
+@checked function cusolverSpZcsrluExtractHost(handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpZcsrluExtractHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cvoid}), handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+end
+
+@checked function cusolverSpCreateCsrqrInfoHost(info)
+    initialize_context()
+    ccall((:cusolverSpCreateCsrqrInfoHost, libcusolver()), cusolverStatus_t, (Ptr{csrqrInfoHost_t},), info)
+end
+
+@checked function cusolverSpDestroyCsrqrInfoHost(info)
+    initialize_context()
+    ccall((:cusolverSpDestroyCsrqrInfoHost, libcusolver()), cusolverStatus_t, (csrqrInfoHost_t,), info)
+end
+
+@checked function cusolverSpXcsrqrAnalysisHost(handle, m, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+    initialize_context()
+    ccall((:cusolverSpXcsrqrAnalysisHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cint}, Ptr{Cint}, csrqrInfoHost_t), handle, m, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+end
+
+@checked function cusolverSpScsrqrBufferInfoHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpScsrqrBufferInfoHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrqrInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpDcsrqrBufferInfoHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpDcsrqrBufferInfoHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrqrInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpCcsrqrBufferInfoHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpCcsrqrBufferInfoHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrqrInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpZcsrqrBufferInfoHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpZcsrqrBufferInfoHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrqrInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpScsrqrSetupHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    initialize_context()
+    ccall((:cusolverSpScsrqrSetupHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, Cfloat, csrqrInfoHost_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+end
+
+@checked function cusolverSpDcsrqrSetupHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    initialize_context()
+    ccall((:cusolverSpDcsrqrSetupHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Cdouble, csrqrInfoHost_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+end
+
+@checked function cusolverSpCcsrqrSetupHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    initialize_context()
+    ccall((:cusolverSpCcsrqrSetupHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, cuComplex, csrqrInfoHost_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+end
+
+@checked function cusolverSpZcsrqrSetupHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    initialize_context()
+    ccall((:cusolverSpZcsrqrSetupHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, cuDoubleComplex, csrqrInfoHost_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+end
+
+@checked function cusolverSpScsrqrFactorHost(handle, m, n, nnzA, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpScsrqrFactorHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpDcsrqrFactorHost(handle, m, n, nnzA, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpDcsrqrFactorHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpCcsrqrFactorHost(handle, m, n, nnzA, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpCcsrqrFactorHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpZcsrqrFactorHost(handle, m, n, nnzA, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpZcsrqrFactorHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpScsrqrZeroPivotHost(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpScsrqrZeroPivotHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfoHost_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpDcsrqrZeroPivotHost(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpDcsrqrZeroPivotHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfoHost_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpCcsrqrZeroPivotHost(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpCcsrqrZeroPivotHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfoHost_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpZcsrqrZeroPivotHost(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpZcsrqrZeroPivotHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfoHost_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpScsrqrSolveHost(handle, m, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpScsrqrSolveHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpDcsrqrSolveHost(handle, m, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpDcsrqrSolveHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpCcsrqrSolveHost(handle, m, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpCcsrqrSolveHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpZcsrqrSolveHost(handle, m, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpZcsrqrSolveHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpXcsrqrAnalysis(handle, m, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+    initialize_context()
+    ccall((:cusolverSpXcsrqrAnalysis, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cint}, Ptr{Cint}, csrqrInfo_t), handle, m, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+end
+
+@checked function cusolverSpScsrqrBufferInfo(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpScsrqrBufferInfo, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrqrInfo_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpDcsrqrBufferInfo(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpDcsrqrBufferInfo, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrqrInfo_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpCcsrqrBufferInfo(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpCcsrqrBufferInfo, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrqrInfo_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpZcsrqrBufferInfo(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpZcsrqrBufferInfo, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrqrInfo_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpScsrqrSetup(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    initialize_context()
+    ccall((:cusolverSpScsrqrSetup, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, Cfloat, csrqrInfo_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+end
+
+@checked function cusolverSpDcsrqrSetup(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    initialize_context()
+    ccall((:cusolverSpDcsrqrSetup, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Cdouble, csrqrInfo_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+end
+
+@checked function cusolverSpCcsrqrSetup(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    initialize_context()
+    ccall((:cusolverSpCcsrqrSetup, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, cuComplex, csrqrInfo_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+end
+
+@checked function cusolverSpZcsrqrSetup(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    initialize_context()
+    ccall((:cusolverSpZcsrqrSetup, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, cuDoubleComplex, csrqrInfo_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+end
+
+@checked function cusolverSpScsrqrFactor(handle, m, n, nnzA, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpScsrqrFactor, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpDcsrqrFactor(handle, m, n, nnzA, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpDcsrqrFactor, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpCcsrqrFactor(handle, m, n, nnzA, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpCcsrqrFactor, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpZcsrqrFactor(handle, m, n, nnzA, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpZcsrqrFactor, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpScsrqrZeroPivot(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpScsrqrZeroPivot, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfo_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpDcsrqrZeroPivot(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpDcsrqrZeroPivot, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfo_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpCcsrqrZeroPivot(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpCcsrqrZeroPivot, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfo_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpZcsrqrZeroPivot(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpZcsrqrZeroPivot, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfo_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpScsrqrSolve(handle, m, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpScsrqrSolve, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpDcsrqrSolve(handle, m, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpDcsrqrSolve, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpCcsrqrSolve(handle, m, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpCcsrqrSolve, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpZcsrqrSolve(handle, m, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpZcsrqrSolve, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpCreateCsrcholInfoHost(info)
+    initialize_context()
+    ccall((:cusolverSpCreateCsrcholInfoHost, libcusolver()), cusolverStatus_t, (Ptr{csrcholInfoHost_t},), info)
+end
+
+@checked function cusolverSpDestroyCsrcholInfoHost(info)
+    initialize_context()
+    ccall((:cusolverSpDestroyCsrcholInfoHost, libcusolver()), cusolverStatus_t, (csrcholInfoHost_t,), info)
+end
+
+@checked function cusolverSpXcsrcholAnalysisHost(handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+    initialize_context()
+    ccall((:cusolverSpXcsrcholAnalysisHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t), handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+end
+
+@checked function cusolverSpScsrcholBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpScsrcholBufferInfoHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpDcsrcholBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpDcsrcholBufferInfoHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpCcsrcholBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpCcsrcholBufferInfoHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpZcsrcholBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpZcsrcholBufferInfoHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpScsrcholFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpScsrcholFactorHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+end
+
+@checked function cusolverSpDcsrcholFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpDcsrcholFactorHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+end
+
+@checked function cusolverSpCcsrcholFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpCcsrcholFactorHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+end
+
+@checked function cusolverSpZcsrcholFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpZcsrcholFactorHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+end
+
+@checked function cusolverSpScsrcholZeroPivotHost(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpScsrcholZeroPivotHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfoHost_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpDcsrcholZeroPivotHost(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpDcsrcholZeroPivotHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfoHost_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpCcsrcholZeroPivotHost(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpCcsrcholZeroPivotHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfoHost_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpZcsrcholZeroPivotHost(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpZcsrcholZeroPivotHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfoHost_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpScsrcholSolveHost(handle, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpScsrcholSolveHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpDcsrcholSolveHost(handle, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpDcsrcholSolveHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpCcsrcholSolveHost(handle, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpCcsrcholSolveHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpZcsrcholSolveHost(handle, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpZcsrcholSolveHost, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpCreateCsrcholInfo(info)
+    initialize_context()
+    ccall((:cusolverSpCreateCsrcholInfo, libcusolver()), cusolverStatus_t, (Ptr{csrcholInfo_t},), info)
+end
+
+@checked function cusolverSpDestroyCsrcholInfo(info)
+    initialize_context()
+    ccall((:cusolverSpDestroyCsrcholInfo, libcusolver()), cusolverStatus_t, (csrcholInfo_t,), info)
+end
+
+@checked function cusolverSpXcsrcholAnalysis(handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+    initialize_context()
+    ccall((:cusolverSpXcsrcholAnalysis, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t), handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+end
+
+@checked function cusolverSpScsrcholBufferInfo(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpScsrcholBufferInfo, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpDcsrcholBufferInfo(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpDcsrcholBufferInfo, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpCcsrcholBufferInfo(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpCcsrcholBufferInfo, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpZcsrcholBufferInfo(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    initialize_context()
+    ccall((:cusolverSpZcsrcholBufferInfo, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+end
+
+@checked function cusolverSpScsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpScsrcholFactor, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+end
+
+@checked function cusolverSpDcsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpDcsrcholFactor, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+end
+
+@checked function cusolverSpCcsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpCcsrcholFactor, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+end
+
+@checked function cusolverSpZcsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpZcsrcholFactor, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+end
+
+@checked function cusolverSpScsrcholZeroPivot(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpScsrcholZeroPivot, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpDcsrcholZeroPivot(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpDcsrcholZeroPivot, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpCcsrcholZeroPivot(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpCcsrcholZeroPivot, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpZcsrcholZeroPivot(handle, info, tol, position)
+    initialize_context()
+    ccall((:cusolverSpZcsrcholZeroPivot, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+end
+
+@checked function cusolverSpScsrcholSolve(handle, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpScsrcholSolve, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrcholInfo_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpDcsrcholSolve(handle, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpDcsrcholSolve, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrcholInfo_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpCcsrcholSolve(handle, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpCcsrcholSolve, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrcholInfo_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpZcsrcholSolve(handle, n, b, x, info, pBuffer)
+    initialize_context()
+    ccall((:cusolverSpZcsrcholSolve, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrcholInfo_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+end
+
+@checked function cusolverSpScsrcholDiag(handle, info, diag)
+    initialize_context()
+    ccall((:cusolverSpScsrcholDiag, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Ptr{Cfloat}), handle, info, diag)
+end
+
+@checked function cusolverSpDcsrcholDiag(handle, info, diag)
+    initialize_context()
+    ccall((:cusolverSpDcsrcholDiag, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Ptr{Cdouble}), handle, info, diag)
+end
+
+@checked function cusolverSpCcsrcholDiag(handle, info, diag)
+    initialize_context()
+    ccall((:cusolverSpCcsrcholDiag, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Ptr{Cfloat}), handle, info, diag)
+end
+
+@checked function cusolverSpZcsrcholDiag(handle, info, diag)
+    initialize_context()
+    ccall((:cusolverSpZcsrcholDiag, libcusolver()), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Ptr{Cdouble}), handle, info, diag)
+end
+
+# Julia wrapper for header: cusolverRf.h
+# Automatically generated using Clang.jl
+
+
+@checked function cusolverRfBatchResetValues(batchSize, n, nnzA, csrRowPtrA, csrColIndA, csrValA_array, P, Q, handle)
+    initialize_context()
+    ccall((:cusolverRfBatchResetValues, libcusolver()), cusolverStatus_t, (Cint, Cint, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Ptr{Cdouble}}, CuPtr{Cint}, CuPtr{Cint}, cusolverRfHandle_t), batchSize, n, nnzA, csrRowPtrA, csrColIndA, csrValA_array, P, Q, handle)
+end
+
+@checked function cusolverRfCreate(handle)
+    initialize_context()
+    ccall((:cusolverRfCreate, libcusolver()), cusolverStatus_t, (Ptr{cusolverRfHandle_t},), handle)
+end
+
+@checked function cusolverRfBatchAnalyze(handle)
+    initialize_context()
+    ccall((:cusolverRfBatchAnalyze, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t,), handle)
+end
+
+@checked function cusolverRfSetNumericProperties(handle, zero, boost)
+    initialize_context()
+    ccall((:cusolverRfSetNumericProperties, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, Cdouble, Cdouble), handle, zero, boost)
+end
+
+@checked function cusolverRfSetMatrixFormat(handle, format, diag)
+    initialize_context()
+    ccall((:cusolverRfSetMatrixFormat, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, cusolverRfMatrixFormat_t, cusolverRfUnitDiagonal_t), handle, format, diag)
+end
+
+@checked function cusolverRfAccessBundledFactorsDevice(handle, nnzM, Mp, Mi, Mx)
+    initialize_context()
+    ccall((:cusolverRfAccessBundledFactorsDevice, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, Ptr{Cint}, CuPtr{Ptr{Cint}}, CuPtr{Ptr{Cint}}, CuPtr{Ptr{Cdouble}}), handle, nnzM, Mp, Mi, Mx)
+end
+
+@checked function cusolverRfGetMatrixFormat(handle, format, diag)
+    initialize_context()
+    ccall((:cusolverRfGetMatrixFormat, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, Ptr{cusolverRfMatrixFormat_t}, Ptr{cusolverRfUnitDiagonal_t}), handle, format, diag)
+end
+
+@checked function cusolverRfResetValues(n, nnzA, csrRowPtrA, csrColIndA, csrValA, P, Q, handle)
+    initialize_context()
+    ccall((:cusolverRfResetValues, libcusolver()), cusolverStatus_t, (Cint, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, CuPtr{Cint}, CuPtr{Cint}, cusolverRfHandle_t), n, nnzA, csrRowPtrA, csrColIndA, csrValA, P, Q, handle)
+end
+
+@checked function cusolverRfBatchSetupHost(batchSize, n, nnzA, h_csrRowPtrA, h_csrColIndA, h_csrValA_array, nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, nnzU, h_csrRowPtrU, h_csrColIndU, h_csrValU, h_P, h_Q, handle)
+    initialize_context()
+    ccall((:cusolverRfBatchSetupHost, libcusolver()), cusolverStatus_t, (Cint, Cint, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Ptr{Cdouble}}, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, cusolverRfHandle_t), batchSize, n, nnzA, h_csrRowPtrA, h_csrColIndA, h_csrValA_array, nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, nnzU, h_csrRowPtrU, h_csrColIndU, h_csrValU, h_P, h_Q, handle)
+end
+
+@checked function cusolverRfExtractBundledFactorsHost(handle, h_nnzM, h_Mp, h_Mi, h_Mx)
+    initialize_context()
+    ccall((:cusolverRfExtractBundledFactorsHost, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, Ptr{Cint}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cdouble}}), handle, h_nnzM, h_Mp, h_Mi, h_Mx)
+end
+
+@checked function cusolverRfGetAlgs(handle, factAlg, solveAlg)
+    initialize_context()
+    ccall((:cusolverRfGetAlgs, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, Ptr{cusolverRfFactorization_t}, Ptr{cusolverRfTriangularSolve_t}), handle, factAlg, solveAlg)
+end
+
+@checked function cusolverRfAnalyze(handle)
+    initialize_context()
+    ccall((:cusolverRfAnalyze, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t,), handle)
+end
+
+@checked function cusolverRfSetResetValuesFastMode(handle, fastMode)
+    initialize_context()
+    ccall((:cusolverRfSetResetValuesFastMode, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, cusolverRfResetValuesFastMode_t), handle, fastMode)
+end
+
+@checked function cusolverRfGetNumericProperties(handle, zero, boost)
+    initialize_context()
+    ccall((:cusolverRfGetNumericProperties, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, Ptr{Cdouble}, Ptr{Cdouble}), handle, zero, boost)
+end
+
+@checked function cusolverRfGetNumericBoostReport(handle, report)
+    initialize_context()
+    ccall((:cusolverRfGetNumericBoostReport, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, Ptr{cusolverRfNumericBoostReport_t}), handle, report)
+end
+
+@checked function cusolverRfSetupDevice(n, nnzA, csrRowPtrA, csrColIndA, csrValA, nnzL, csrRowPtrL, csrColIndL, csrValL, nnzU, csrRowPtrU, csrColIndU, csrValU, P, Q, handle)
+    initialize_context()
+    ccall((:cusolverRfSetupDevice, libcusolver()), cusolverStatus_t, (Cint, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, CuPtr{Cint}, CuPtr{Cint}, cusolverRfHandle_t), n, nnzA, csrRowCuPtrA, csrColIndA, csrValA, nnzL, csrRowCuPtrL, csrColIndL, csrValL, nnzU, csrRowCuPtrU, csrColIndU, csrValU, P, Q, handle)
+end
+
+@checked function cusolverRfSetupHost(n, nnzA, h_csrRowPtrA, h_csrColIndA, h_csrValA, nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, nnzU, h_csrRowPtrU, h_csrColIndU, h_csrValU, h_P, h_Q, handle)
+    initialize_context()
+    ccall((:cusolverRfSetupHost, libcusolver()), cusolverStatus_t, (Cint, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, cusolverRfHandle_t), n, nnzA, h_csrRowPtrA, h_csrColIndA, h_csrValA, nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, nnzU, h_csrRowPtrU, h_csrColIndU, h_csrValU, h_P, h_Q, handle)
+end
+
+@checked function cusolverRfDestroy(handle)
+    initialize_context()
+    ccall((:cusolverRfDestroy, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t,), handle)
+end
+
+@checked function cusolverRfSetAlgs(handle, factAlg, solveAlg)
+    initialize_context()
+    ccall((:cusolverRfSetAlgs, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, cusolverRfFactorization_t, cusolverRfTriangularSolve_t), handle, factAlg, solveAlg)
+end
+
+@checked function cusolverRfBatchZeroPivot(handle, position)
+    initialize_context()
+    ccall((:cusolverRfBatchZeroPivot, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, CuPtr{Cint}), handle, position)
+end
+
+@checked function cusolverRfSolve(handle, P, Q, nrhs, Temp, ldt, XF, ldxf)
+    initialize_context()
+    ccall((:cusolverRfSolve, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, CuPtr{Cint}, CuPtr{Cint}, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint), handle, P, Q, nrhs, Temp, ldt, XF, ldxf)
+end
+
+@checked function cusolverRfBatchSolve(handle, P, Q, nrhs, Temp, ldt, XF_array, ldxf)
+    initialize_context()
+    ccall((:cusolverRfBatchSolve, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, CuPtr{Cint}, CuPtr{Cint}, Cint, CuPtr{Cdouble}, Cint, CuPtr{Ptr{Cdouble}}, Cint), handle, P, Q, nrhs, Temp, ldt, XF_array, ldxf)
+end
+
+@checked function cusolverRfBatchRefactor(handle)
+    initialize_context()
+    ccall((:cusolverRfBatchRefactor, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t,), handle)
+end
+
+@checked function cusolverRfRefactor(handle)
+    initialize_context()
+    ccall((:cusolverRfRefactor, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t,), handle)
+end
+
+@checked function cusolverRfGetResetValuesFastMode(handle, fastMode)
+    initialize_context()
+    ccall((:cusolverRfGetResetValuesFastMode, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, Ptr{cusolverRfResetValuesFastMode_t}), handle, fastMode)
+end
+
+@checked function cusolverRfExtractSplitFactorsHost(handle, h_nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, h_nnzU, h_csrRowPtrU, h_csrColIndU, h_csrValU)
+    initialize_context()
+    ccall((:cusolverRfExtractSplitFactorsHost, libcusolver()), cusolverStatus_t, (cusolverRfHandle_t, Ptr{Cint}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cdouble}}, Ptr{Cint}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cdouble}}), handle, h_nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, h_nnzU, h_csrRowPtrU, h_csrColIndU, h_csrValU)
 end
