@@ -8,7 +8,7 @@ end
 # math.jl
 @device_override @noinline Base.Math.throw_complex_domainerror(f::Symbol, x) =
     @print_and_throw "This operation requires a complex input to return a complex result"
-@device_override @noinline Base.Math.throw_exp_domainerror(f::Symbol, x) =
+@device_override @noinline Base.Math.throw_exp_domainerror(x) =
     @print_and_throw "Exponentiation yielding a complex result requires a complex argument"
 
 # intfuncs.jl
