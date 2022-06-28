@@ -218,7 +218,7 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
 end
 
 function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}},Type{CuArray{T,1,B}}},
-                          p::CuPtr{T}, dim::Integer;
+                          p::CuPtr{T}, dim::Int;
                           own::Bool=false, ctx::CuContext=context()) where {T,B}
   unsafe_wrap(Atype, p, (dim,); own, ctx)
 end
