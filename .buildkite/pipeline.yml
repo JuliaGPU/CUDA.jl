@@ -218,7 +218,7 @@ steps:
       JULIA_CUDA_VERSION: '11.6'
       JULIA_CUDA_USE_COMPAT: 'false'  # NVIDIA bug #3418723: injection tools prevent probing libcuda
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
-    if: build.message !~ /\[skip benchmarks\]/ &&
+    if: build.message !~ /\[skip tests\]/ &&
         build.branch =~ /^master$$/
     timeout_in_minutes: 240
 
