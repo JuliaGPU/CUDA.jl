@@ -711,7 +711,12 @@ function libcutensornet(; throw_error::Bool=true)
         # CUTENSORNET depends on CUTENSOR
         libcutensor(throw_error=throw_error)
 
-        find_cutensornet(toolkit(), "cutensornet", v"0.1.0")
+        if CUDA.runtime_version() < v"11"
+            # XXX: bound this using tags in the Artifact.toml?
+            nothing
+        else
+            find_cutensornet(toolkit(), "cutensornet", v"0.1.0")
+        end
     end
     if path === nothing && throw_error
         error("This functionality is unavailabe as CUTENSORNET is missing.")
@@ -723,7 +728,13 @@ has_cutensornet() = has_cutensor() && libcutensornet(throw_error=false) !== noth
 const __libcustatevec = Ref{Union{String,Nothing}}()
 function libcustatevec(; throw_error::Bool=true)
     path = @initialize_ref __libcustatevec begin
-        find_custatevec(toolkit(), "custatevec", v"0.1.0")
+
+        if CUDA.runtime_version() < v"11"
+            # XXX: bound this using tags in the Artifact.toml?
+            nothing
+        else
+           find_custatevec(toolkit(), "custatevec", v"0.1.0")
+        end
     end
     if path === nothing && throw_error
         error("This functionality is unavailabe as CUSTATEVEC is missing.")
