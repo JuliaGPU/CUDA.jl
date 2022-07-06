@@ -71,7 +71,7 @@ end
 
 # factorizations
 
-using LinearAlgebra: Factorization, AbstractQ, QRCompactWY
+using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPackedQ
 
 ## QR
 
