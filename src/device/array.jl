@@ -265,3 +265,22 @@ function Base.reinterpret(::Type{T}, a::CuDeviceArray{S,N,A}) where {T,S,N,A}
   osize = tuple(size1, Base.tail(isize)...)
   return CuDeviceArray{T,N,A}(osize, reinterpret(LLVMPtr{T,A}, a.ptr), a.maxsize)
 end
+
+
+## reshape
+
+function Base.reshape(a::CuDeviceArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
+  if prod(dims) != length(a)
+      throw(DimensionMismatch("new dimensions (argument `dims`) must be consistent with array size (`size(a)`)"))
+  end
+  if N == M && dims == size(a)
+      return a
+  end
+  _derived_array(T, N, a, dims)
+end
+
+# create a derived device array (reinterpreted or reshaped) that's still a CuDeviceArray
+@inline function _derived_array(::Type{T}, N::Int, a::CuDeviceArray{T,M,A}, osize::Dims) where {T, M, A}
+  return CuDeviceArray{T,N,A}(osize, a.ptr, a.maxsize)
+end
+
