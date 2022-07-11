@@ -137,6 +137,29 @@ end
     @test array == Array(array_dev)
 end
 
+@testset "reshape" begin
+    function kernel(array)
+        i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
+        j = (blockIdx().y-1i32) * blockDim().y + threadIdx().y
+
+        _array2d = reshape(array, 10, 10)
+        _array2d[i,j] = i + (j-1)*size(_array2d,1)
+
+        return
+    end
+
+    array = zeros(Int64, 100)
+    array_dev = CuArray(array)
+
+    array2d = reshape(array, 10, 10)
+    for i in 1:size(array2d,1), j in 1:size(array2d,2)
+        array2d[i,j] = i + (j-1)*size(array2d,1)
+    end
+
+    @cuda threads=(10, 10) kernel(array_dev)
+    @test array == Array(array_dev)
+end
+
 @testset "non-Int index to unsafe_load" begin
     function kernel(a)
         a[UInt64(1)] = 1
