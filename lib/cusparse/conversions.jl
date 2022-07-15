@@ -136,7 +136,7 @@ end
 # by flipping rows and columns, we can use that to get CSC to CSR too
 for elty in (Float32, Float64, ComplexF32, ComplexF64)
     @eval begin
-        function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O')
+        function CuSparseMatrixCSC{$elty, Cint}(csr::CuSparseMatrixCSR{$elty, Cint}; inda::SparseChar='O')
             m,n = size(csr)
             colPtr = CUDA.zeros(Cint, n+1)
             rowVal = CUDA.zeros(Cint, nnz(csr))
@@ -156,10 +156,10 @@ for elty in (Float32, Float64, ComplexF32, ComplexF64)
                     $elty, CUSPARSE_ACTION_NUMERIC, inda,
                     CUSPARSE_CSR2CSC_ALG1, buffer)
             end
-            CuSparseMatrixCSC(colPtr,rowVal,nzVal,size(csr))
+            CuSparseMatrixCSC{$elty, Cint}(colPtr,rowVal,nzVal,size(csr))
         end
 
-        function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O')
+        function CuSparseMatrixCSR{$elty, Cint}(csc::CuSparseMatrixCSC{$elty, Cint}; inda::SparseChar='O')
             m,n    = size(csc)
             rowPtr = CUDA.zeros(Cint,m+1)
             colVal = CUDA.zeros(Cint,nnz(csc))
@@ -179,7 +179,7 @@ for elty in (Float32, Float64, ComplexF32, ComplexF64)
                     $elty, CUSPARSE_ACTION_NUMERIC, inda,
                     CUSPARSE_CSR2CSC_ALG1, buffer)
             end
-            CuSparseMatrixCSR(rowPtr,colVal,nzVal,size(csc))
+            CuSparseMatrixCSR{$elty, Cint}(rowPtr,colVal,nzVal,size(csc))
         end
     end
 end
