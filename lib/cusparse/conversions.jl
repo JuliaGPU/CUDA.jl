@@ -270,7 +270,7 @@ for (elty, felty) in ((:Int16, :Float16),
         CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty, Cint}) =
             CuSparseMatrixCSC{$elty, Cint}(csr)
         function CuSparseMatrixCSR{$elty, Cint}(csc::CuSparseMatrixCSC{$elty, Cint})
-            csc_compat = CuSparseMatrixCSC{$elty, Cint}(
+            csc_compat = CuSparseMatrixCSC{$felty, Cint}(
                 csc.colPtr,
                 csc.rowVal,
                 reinterpret($felty, csc.nzVal),
@@ -286,7 +286,7 @@ for (elty, felty) in ((:Int16, :Float16),
         end
 
         function CuSparseMatrixCSC{$elty, Cint}(csr::CuSparseMatrixCSR{$elty, Cint})
-            csr_compat = CuSparseMatrixCSR{$elty, Cint}(
+            csr_compat = CuSparseMatrixCSR{$felty, Cint}(
                 csr.rowPtr,
                 csr.colVal,
                 reinterpret($felty, csr.nzVal),
