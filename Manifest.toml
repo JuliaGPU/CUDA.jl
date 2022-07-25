@@ -34,9 +34,9 @@ version = "0.4.2"
 
 [[ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
-git-tree-sha1 = "ff38036fb7edc903de4e79f32067d8497508616b"
+git-tree-sha1 = "80ca332f6dcb2508adba68f22f551adb2d00a624"
 uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-version = "1.15.2"
+version = "1.15.3"
 
 [[ChangesOfVariables]]
 deps = ["ChainRulesCore", "LinearAlgebra", "Test"]
@@ -60,9 +60,9 @@ uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 
 [[DocStringExtensions]]
 deps = ["LibGit2"]
-git-tree-sha1 = "b19534d1895d702889b219c382a6e18010797f0b"
+git-tree-sha1 = "c5544d8abb854e306b7b2f799ab31cdba527ccae"
 uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
-version = "0.8.6"
+version = "0.9.0"
 
 [[Downloads]]
 deps = ["ArgTools", "LibCURL", "NetworkOptions"]
@@ -87,9 +87,9 @@ version = "0.1.0"
 
 [[GPUCompiler]]
 deps = ["ExprTools", "InteractiveUtils", "LLVM", "Libdl", "Logging", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "47f63159f7cb5d0e5e0cfd2f20454adea429bec9"
+git-tree-sha1 = "1067cd05184719ba86f19cf1d49d57f0bcbabbf6"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.16.1"
+version = "0.16.2"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
@@ -153,9 +153,9 @@ uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [[LogExpFunctions]]
 deps = ["ChainRulesCore", "ChangesOfVariables", "DocStringExtensions", "InverseFunctions", "IrrationalConstants", "LinearAlgebra"]
-git-tree-sha1 = "09e4b894ce6a976c354a69041a04748180d43637"
+git-tree-sha1 = "7c88f63f9f0eb5929f15695af9a4d7d3ed278a91"
 uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
-version = "0.3.15"
+version = "0.3.16"
 
 [[Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
