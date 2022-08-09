@@ -226,9 +226,7 @@ end
 push!(test_exeflags.exec, "--check-bounds=yes")
 push!(test_exeflags.exec, "--startup-file=no")
 push!(test_exeflags.exec, "--depwarn=yes")
-if Base.JLOptions().project != C_NULL
-    push!(test_exeflags.exec, "--project=$(unsafe_string(Base.JLOptions().project))")
-end
+push!(test_exeflags.exec, "--project=$(Base.active_project())")
 const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
     exename = if do_sanitize
