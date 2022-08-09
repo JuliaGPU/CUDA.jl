@@ -45,7 +45,7 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
 
         # grid-stride loop
         threadId = threadIdx().x
-        window = (blockDim().x - 1i32) * gridDim().x
+        window = blockDim().x * gridDim().x
         offset = (blockIdx().x - 1i32) * blockDim().x
         while offset < length(A)
             i = threadId + offset
