@@ -108,12 +108,7 @@ Run a new Julia session under the CUDA compute-sanitizer tool `tool`. This is us
 detect various GPU-related issues, like memory errors or race conditions.
 """
 function run_compute_sanitizer(julia_args=``; tool::String="memcheck", sanitizer_args=``)
-    cmd = Base.julia_cmd()
-
-    # propagate --project
-    if Base.JLOptions().project != C_NULL
-        push!(cmd.exec, "--project=$(unsafe_string(Base.JLOptions().project))")
-    end
+    cmd = `$(Base.julia_cmd()) --project=$(Base.active_project())`
 
     println("Re-starting your active Julia session...")
     run(`$(CUDA.compute_sanitizer_cmd(tool)) $sanitizer_args $cmd $julia_args`)

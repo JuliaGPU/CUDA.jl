@@ -232,10 +232,7 @@ end
 function julia_exec(args::Cmd, env...)
     # FIXME: this doesn't work when the compute mode is set to exclusive
     cmd = Base.julia_cmd()
-    if Base.JLOptions().project != C_NULL
-        cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project))`
-    end
-    cmd = `$cmd --color=no $args`
+    cmd = `$cmd --project=$(Base.active_project()) --color=no $args`
 
     out = Pipe()
     err = Pipe()

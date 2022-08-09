@@ -6,10 +6,7 @@ using BenchmarkTools
 function main()
     results = BenchmarkGroup()
 
-    base_cmd = Base.julia_cmd()
-    if Base.JLOptions().project != C_NULL
-        base_cmd = `$base_cmd --project=$(unsafe_string(Base.JLOptions().project))`
-    end
+    base_cmd = `$(Base.julia_cmd()) --project=$(Base.active_project())`
 
     # make sure all artifacts are downloaded
     CUDA.version()
