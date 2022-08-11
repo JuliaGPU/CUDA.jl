@@ -36,13 +36,9 @@ AllocStats(b::AllocStats, a::AllocStats) =
                                  stream::Union{CuStream,Nothing}=nothing)
   # try the actual allocation
   buf = try
-    time = Base.@elapsed begin
-      buf = @timeit_ci "Mem.alloc" begin
-        Mem.alloc(Mem.Device, bytes; async, stream)
-      end
+    @timeit_ci "Mem.alloc" begin
+      Mem.alloc(Mem.Device, bytes; async, stream)
     end
-
-    buf
   catch err
     isa(err, OutOfGPUMemoryError) || rethrow()
     return nothing
@@ -54,9 +50,7 @@ end
 @timeit_ci function actual_free(buf::Mem.DeviceBuffer;
                                 stream::Union{CuStream,Nothing}=nothing)
   # free the memory
-  time = Base.@elapsed begin
-    @timeit_ci "Mem.free" Mem.free(buf; stream)
-  end
+  @timeit_ci "Mem.free" Mem.free(buf; stream)
 
   return
 end
@@ -82,8 +76,6 @@ end
 function pool_mark(dev::CuDevice)
   status = pool_status(dev)
   if status[] === nothing
-      pool = memory_pool(dev)
-
       # allow the pool to use up all memory of this device
       attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD, typemax(UInt64))
 
@@ -111,7 +103,7 @@ function pool_cleanup()
       status = pool_status(dev)
       status[] === nothing && continue
 
-      if status[]
+      if status[]::Bool
         idle_counters[i] = 0
       else
         idle_counters[i] += 1

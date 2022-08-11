@@ -11,7 +11,7 @@ Create a CUDA stream.
 """
 mutable struct CuStream
     handle::CUstream
-    ctx::Union{CuContext,Nothing}
+    ctx::CuContext
 
     function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
                         priority::Union{Nothing,Integer}=nothing)
@@ -29,11 +29,11 @@ mutable struct CuStream
         return obj
     end
 
-    global default_stream() = new(convert(CUstream, C_NULL), nothing)
+    global default_stream() = new(convert(CUstream, C_NULL))
 
-    global legacy_stream() = new(convert(CUstream, 1), nothing)
+    global legacy_stream() = new(convert(CUstream, 1))
 
-    global per_thread_stream() = new(convert(CUstream, 2), nothing)
+    global per_thread_stream() = new(convert(CUstream, 2))
 end
 
 """

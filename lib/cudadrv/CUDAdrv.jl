@@ -43,7 +43,8 @@ include("libcuda_deprecated.jl")
 
     # query the system driver version
     function get_version(driver)
-        library_handle = Libdl.dlopen(driver)
+        library_handle = Libdl.dlopen(driver; throw_error=true)
+        library_handle = library_handle::Ptr{Nothing} # doesn't const-propthrow_error
         try
             function_handle = Libdl.dlsym(library_handle, "cuDriverGetVersion")
             version_ref = Ref{Cint}()
@@ -82,7 +83,8 @@ include("libcuda_deprecated.jl")
 
     # if we're using an older driver; consider using forward compatibility
     function do_init(driver)
-        library_handle = Libdl.dlopen(driver)
+        library_handle = Libdl.dlopen(driver; throw_error=true)
+        library_handle = library_handle::Ptr{Nothing} # doesn't const-propthrow_error
         try
             function_handle = Libdl.dlsym(library_handle, "cuInit")
             @check ccall(function_handle, CUresult, (UInt32,), 0)

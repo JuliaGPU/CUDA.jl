@@ -51,11 +51,11 @@ macro cuda(ex...)
     dynamic = false
     launch = true
     for kwarg in macro_kwargs
-        key,val = kwarg.args
-        if key == :dynamic
+        key::Symbol, val = kwarg.args
+        if key === :dynamic
             isa(val, Bool) || throw(ArgumentError("`dynamic` keyword argument to @cuda should be a constant value"))
             dynamic = val::Bool
-        elseif key == :launch
+        elseif key === :launch
             isa(val, Bool) || throw(ArgumentError("`launch` keyword argument to @cuda should be a constant value"))
             launch = val::Bool
         else

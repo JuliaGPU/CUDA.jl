@@ -69,14 +69,14 @@ function unsafe_free!(xs::CuArray, stream::CuStream=stream())
   # this call should only have an effect once, because both the user and the GC can call it
   if xs.storage === nothing
     return
-  elseif xs.storage.refcount[] < 0
+  elseif (xs.storage::ArrayStorage).refcount[] < 0
     throw(ArgumentError("Cannot free an unmanaged buffer."))
   end
 
-  refcount = Threads.atomic_add!(xs.storage.refcount, -1)
+  refcount = Threads.atomic_add!((xs.storage::ArrayStorage).refcount, -1)
   if refcount == 1
     context!(context(xs); skip_destroyed=true) do
-      free(xs.storage.buffer; stream)
+      free((xs.storage::ArrayStorage).buffer; stream)
     end
   end
 
@@ -236,7 +236,7 @@ Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 
 function context(A::CuArray)
   A.storage === nothing && throw(UndefRefError())
-  return A.storage.buffer.ctx
+  return (A.storage::ArrayStorage).buffer.ctx
 end
 
 function device(A::CuArray)
@@ -318,8 +318,10 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
 Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T} =
   throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
-Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
-  convert(CuPtr{T}, x.storage.buffer) + x.offset*Base.elsize(x)
+function Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T}
+  x.storage === nothing && throw(UndefRefError())
+  convert(CuPtr{T}, (x.storage::ArrayStorage).buffer) + x.offset*Base.elsize(x)
+end
 
 
 ## interop with device arrays
