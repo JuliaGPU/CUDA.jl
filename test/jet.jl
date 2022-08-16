@@ -1,6 +1,6 @@
-if VERSION >= v"1.7"
-
 using JET
+
+@static if VERSION >= v"1.7"
 
 # XXX: JET's test failures only render during record
 #      https://github.com/aviatesk/JET.jl/blob/c2c42e03994fe80dc03a4568c42e43311b581b15/src/JET.jl#L1564
