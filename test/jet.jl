@@ -1,3 +1,5 @@
+if VERSION >= v"1.7"
+
 using JET
 
 # XXX: JET's test failures only render during record
@@ -16,3 +18,5 @@ Test.TESTSET_PRINT_ENABLE[] = true
 @test_call target_modules=(CUDA,) cu([1]) * 2
 
 Test.TESTSET_PRINT_ENABLE[] = old_print_setting
+
+end
