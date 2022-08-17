@@ -42,6 +42,11 @@ end
                 continue
             end
 
+            if mnk == (16,16,8) && VERSION <= v"1.7"
+                # TensorFlow32 tests require at least Julia 1.8
+                continue
+            end
+
             shape = CUDA.WMMA.get_hl_shape(mnk[1], mnk[2], mnk[3])
 
             # Type-dependent variables
@@ -103,6 +108,11 @@ end
                 continue
             end
 
+            if mnk == (16,16,8) && VERSION <= v"1.7"
+                # TensorFlow32 tests require at least Julia 1.8
+                continue
+            end
+
             shape = CUDA.WMMA.get_hl_shape(mnk[1], mnk[2], mnk[3])
 
             # Type-dependent variables
@@ -156,6 +166,11 @@ end
             ab_elem_type in ops[2],
             d_elem_type in ops[4],
             c_elem_type in ops[3]
+
+            if mnk == (16,16,8) && VERSION <= v"1.7"
+                # TensorFlow32 tests require at least Julia 1.8
+                continue
+            end
 
             # Type-dependent variables
             d_ty  = CUDA.WMMA.map_ptx_to_jl_array[d_elem_type]
