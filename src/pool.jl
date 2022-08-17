@@ -32,17 +32,11 @@ AllocStats(b::AllocStats, a::AllocStats) =
 
 ## CUDA allocator
 
-@timeit_ci function actual_alloc(bytes::Integer; async::Bool=false,
-                                 stream::Union{CuStream,Nothing}=nothing)
+function actual_alloc(bytes::Integer; async::Bool=false,
+                      stream::Union{CuStream,Nothing}=nothing)
   # try the actual allocation
   buf = try
-    time = Base.@elapsed begin
-      buf = @timeit_ci "Mem.alloc" begin
-        Mem.alloc(Mem.Device, bytes; async, stream)
-      end
-    end
-
-    buf
+    Mem.alloc(Mem.Device, bytes; async, stream)
   catch err
     isa(err, OutOfGPUMemoryError) || rethrow()
     return nothing
@@ -51,12 +45,10 @@ AllocStats(b::AllocStats, a::AllocStats) =
   return buf
 end
 
-@timeit_ci function actual_free(buf::Mem.DeviceBuffer;
-                                stream::Union{CuStream,Nothing}=nothing)
+function actual_free(buf::Mem.DeviceBuffer;
+                     stream::Union{CuStream,Nothing}=nothing)
   # free the memory
-  time = Base.@elapsed begin
-    @timeit_ci "Mem.free" Mem.free(buf; stream)
-  end
+  Mem.free(buf; stream)
 
   return
 end
@@ -82,8 +74,6 @@ end
 function pool_mark(dev::CuDevice)
   status = pool_status(dev)
   if status[] === nothing
-      pool = memory_pool(dev)
-
       # allow the pool to use up all memory of this device
       attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD, typemax(UInt64))
 
@@ -111,7 +101,7 @@ function pool_cleanup()
       status = pool_status(dev)
       status[] === nothing && continue
 
-      if status[]
+      if status[]::Bool
         idle_counters[i] = 0
       else
         idle_counters[i] += 1
@@ -289,8 +279,8 @@ end
 Allocate a number of bytes `sz` from the memory pool. Returns a buffer object; may throw
 an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 """
-@inline @timeit_ci alloc(sz::Integer; kwargs...) = alloc(Mem.DeviceBuffer, sz; kwargs...)
-@inline @timeit_ci function alloc(::Type{B}, sz; stream::Union{Nothing,CuStream}=nothing) where {B<:Mem.AbstractBuffer}
+@inline alloc(sz::Integer; kwargs...) = alloc(Mem.DeviceBuffer, sz; kwargs...)
+@inline function alloc(::Type{B}, sz; stream::Union{Nothing,CuStream}=nothing) where {B<:Mem.AbstractBuffer}
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return B()
 
@@ -334,8 +324,8 @@ end
 
 Releases a buffer `buf` to the memory pool.
 """
-@inline @timeit_ci function free(buf::Mem.AbstractBuffer;
-                                 stream::Union{Nothing,CuStream}=nothing)
+@inline function free(buf::Mem.AbstractBuffer;
+                      stream::Union{Nothing,CuStream}=nothing)
   # XXX: have @timeit use the root timer, since we may be called from a finalizer
 
   # 0-byte allocations shouldn't hit the pool

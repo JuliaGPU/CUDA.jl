@@ -29,11 +29,11 @@ end
     x.value[]
 end
 
-@noinline function initialize!(x::LazyInitialized, constructor::F1, hook::F2) where {F1, F2}
+@noinline function initialize!(x::LazyInitialized{T}, constructor::F1, hook::F2) where {T, F1, F2}
     status = Threads.atomic_cas!(x.guard, 0, 1)
     if status == 0
         try
-          x.value[] = constructor()
+          x.value[] = constructor()::T
           x.guard[] = 2
         catch
           x.guard[] = 0

@@ -24,12 +24,6 @@ end
 # precompile the runtime library
 CUDA.precompile_runtime()
 
-# enable debug timers
-using TimerOutputs
-if isdefined(CUDA, :to)
-    reset_timer!(CUDA.to)
-end
-
 
 ## entry point
 

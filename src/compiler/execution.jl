@@ -51,11 +51,11 @@ macro cuda(ex...)
     dynamic = false
     launch = true
     for kwarg in macro_kwargs
-        key,val = kwarg.args
-        if key == :dynamic
+        key::Symbol, val = kwarg.args
+        if key === :dynamic
             isa(val, Bool) || throw(ArgumentError("`dynamic` keyword argument to @cuda should be a constant value"))
             dynamic = val::Bool
-        elseif key == :launch
+        elseif key === :launch
             isa(val, Bool) || throw(ArgumentError("`launch` keyword argument to @cuda should be a constant value"))
             launch = val::Bool
         else
@@ -289,7 +289,7 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-@timeit_ci function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
+function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
     cuda = active_state()
     cache = cufunction_cache(cuda.context)
     source = FunctionSpec(f, tt, true, name)
@@ -347,11 +347,11 @@ function cufunction_compile(@nospecialize(job::CompilerJob))
         cufunction_compile(job, ctx)
     end
 end
-@timeit_ci "compile" function cufunction_compile(@nospecialize(job::CompilerJob), ctx)
+function cufunction_compile(@nospecialize(job::CompilerJob), ctx)
     # lower to PTX
-    mi, mi_meta = @timeit_ci "emit_julia" GPUCompiler.emit_julia(job)
-    ir, ir_meta = @timeit_ci "emit_llvm" GPUCompiler.emit_llvm(job, mi; ctx)
-    asm, asm_meta = @timeit_ci "emit_asm" GPUCompiler.emit_asm(job, ir; format=LLVM.API.LLVMAssemblyFile)
+    mi, mi_meta = GPUCompiler.emit_julia(job)
+    ir, ir_meta = GPUCompiler.emit_llvm(job, mi; ctx)
+    asm, asm_meta = GPUCompiler.emit_asm(job, ir; format=LLVM.API.LLVMAssemblyFile)
 
     # remove extraneous debug info on lower debug levels
     if Base.JLOptions().debug_level < 2
@@ -414,7 +414,7 @@ end
         "--output-file", ptxas_output,
         ptx_input
     ])
-    proc, log = @timeit_ci "ptxas" run_and_collect(`$(ptxas()) $ptxas_opts`)
+    proc, log = run_and_collect(`$(ptxas()) $ptxas_opts`)
     log = strip(log)
     if !success(proc)
         reason = proc.termsignal > 0 ? "ptxas received signal $(proc.termsignal)" :
@@ -446,7 +446,7 @@ end
             "--output-file", nvlink_output,
             ptxas_output
         ])
-        proc, log = @timeit_ci "nvlink" run_and_collect(`$(nvlink()) $nvlink_opts`)
+        proc, log = run_and_collect(`$(nvlink()) $nvlink_opts`)
         log = strip(log)
         if !success(proc)
             reason = proc.termsignal > 0 ? "nvlink received signal $(proc.termsignal)" :
@@ -473,10 +473,10 @@ end
 end
 
 # link into an executable kernel
-@timeit_ci "link" function cufunction_link(@nospecialize(job::CompilerJob), compiled)
+function cufunction_link(@nospecialize(job::CompilerJob), compiled)
     # load as an executable kernel object
     ctx = context()
-    mod = @timeit_ci "CuModule" CuModule(compiled.image)
+    mod = CuModule(compiled.image)
     CuFunction(mod, compiled.entry)
 end
 

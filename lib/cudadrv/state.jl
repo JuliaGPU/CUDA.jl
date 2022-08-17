@@ -50,7 +50,8 @@ mutable struct TaskLocalState
         math_mode = something(default_math_mode[],
                               Base.JLOptions().fast_math==1 ? FAST_MATH : DEFAULT_MATH)
         math_precision = something(default_math_precision[], :TensorFloat32)
-        new(dev, ctx, Base.fill(nothing, ndevices()), math_mode, math_precision)
+        new(dev, ctx, Union{Nothing,CuStream}[nothing for _ in 1:ndevices()],
+            math_mode, math_precision)
     end
 end
 
@@ -159,7 +160,7 @@ end
 @inline function context!(f::Function, ctx::CuContext; skip_destroyed::Bool=false)
     # @inline so that the kwarg method is inlined too and we can const-prop skip_destroyed
     if isvalid(ctx)
-        old_ctx = context!(ctx)
+        old_ctx = context!(ctx)::Union{CuContext,Nothing}
         try
             f()
         finally
@@ -187,7 +188,7 @@ end
 
 const __device_contexts = LazyInitialized{Vector{Union{Nothing,CuContext}}}()
 device_contexts() = get!(__device_contexts) do
-    [nothing for _ in 1:ndevices()]
+    Union{Nothing,CuContext}[nothing for _ in 1:ndevices()]
 end
 function device_context(i::Int)
     contexts = device_contexts()
@@ -419,8 +420,8 @@ function PerDevice{T}() where {T}
     PerDevice{T}(ReentrantLock(), values)
 end
 
-get_values(x::PerDevice) = get!(x.values) do
-    Base.fill(nothing, ndevices())
+get_values(x::PerDevice{T}) where {T} = get!(x.values) do
+    Union{Nothing,Tuple{CuContext,T}}[nothing for _ in 1:ndevices()]
 end
 
 function Base.get(x::PerDevice, dev::CuDevice, val)
@@ -437,20 +438,20 @@ function Base.get(x::PerDevice, dev::CuDevice, val)
     end
 end
 
-function Base.get!(constructor::F, x::PerDevice, dev::CuDevice) where {F}
+function Base.get!(constructor::F, x::PerDevice{T}, dev::CuDevice) where {F, T}
     y = get_values(x)
     id = deviceid(dev)+1
     ctx = device_context(id)    # may be nothing
     @inbounds begin
         # test-lock-test
-        if y[id] === nothing || y[id][1] !== ctx
+        if y[id] === nothing || (y[id]::Tuple)[1] !== ctx
             Base.@lock x.lock begin
-                if y[id] === nothing || y[id][1] !== ctx
+                if y[id] === nothing || (y[id]::Tuple)[1] !== ctx
                     y[id] = (context(), constructor())
                 end
             end
         end
-        y[id][2]
+        (y[id]::Tuple)[2]
     end
 end
 

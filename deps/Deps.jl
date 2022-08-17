@@ -1,6 +1,6 @@
 module Deps
 
-Base.Experimental.@compiler_options compile=min optimize=0 infer=false
+Base.Experimental.@compiler_options compile=min optimize=0
 
 import ..CUDA
 import ..LLVM

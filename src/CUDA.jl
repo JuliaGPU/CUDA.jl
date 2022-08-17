@@ -24,21 +24,6 @@ using ExprTools: splitdef, combinedef
 include("../deps/Deps.jl")
 using .Deps
 
-# only use TimerOutputs on non latency-critical CI, in part because
-# @timeit_debug isn't truely zero-cost (KristofferC/TimerOutputs.jl#120)
-if getenv("CI", false) && !getenv("BENCHMARKS", false)
-    using TimerOutputs
-    const to = TimerOutput()
-
-    macro timeit_ci(args...)
-        TimerOutputs.timer_expr(CUDA, false, :($CUDA.to), args...)
-    end
-else
-    macro timeit_ci(args...)
-        esc(args[end])
-    end
-end
-
 
 ## source code includes
 
