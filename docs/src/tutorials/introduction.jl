@@ -391,7 +391,7 @@ kernel(y_d, x_d; threads, blocks)
 # Now let's benchmark this:
 
 function bench_gpu4!(y, x)
-    kernel = @cuda launch=false gpu_add3!(y_d, x_d)
+    kernel = @cuda launch=false gpu_add3!(y, x)
     config = launch_configuration(kernel.fun)
     threads = min(length(y), config.threads)
     blocks = cld(length(y), threads)
