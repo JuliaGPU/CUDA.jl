@@ -1,5 +1,3 @@
-const ci_cache = GPUCompiler.CodeCache()
-
 const DeviceProperties = @NamedTuple{cap::VersionNumber, ptx::VersionNumber,
                                      exitable::Bool, debuginfo::Bool, unreachable::Bool}
 const __device_properties = LazyInitialized{Vector{DeviceProperties}}()
@@ -71,8 +69,6 @@ function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::L
            job, mod, undefined_fns)
     link_libdevice!(mod, job.target.cap, undefined_fns)
 end
-
-GPUCompiler.ci_cache(@nospecialize(job::CUDACompilerJob)) = ci_cache
 
 GPUCompiler.method_table(@nospecialize(job::CUDACompilerJob)) = method_table
 

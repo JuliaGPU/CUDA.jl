@@ -117,9 +117,10 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
     @eval begin
         function $method(io::IO, @nospecialize(func), @nospecialize(types);
                          kernel::Bool=false, minthreads=nothing, maxthreads=nothing,
-                         blocks_per_sm=nothing, maxregs=nothing, kwargs...)
+                         blocks_per_sm=nothing, maxregs=nothing, always_inline=false,
+                         kwargs...)
             source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
-            target = CUDACompilerTarget(device(); minthreads, maxthreads, blocks_per_sm, maxregs)
+            target = CUDACompilerTarget(device(); minthreads, maxthreads, blocks_per_sm, maxregs, always_inline)
             params = CUDACompilerParams()
             job = CompilerJob(target, source, params)
             GPUCompiler.$method($(args...); kwargs...)
