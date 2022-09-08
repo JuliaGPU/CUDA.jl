@@ -76,7 +76,7 @@ trim(pool::CuMemoryPool, bytes_to_keep::Integer=0) = cuMemPoolTrimTo(pool, bytes
 Returns attribute `attr` about `pool`. The type of the returned value depends on the
 attribute, and as such must be passed as the `X` parameter.
 """
-function attribute(X::Type, pool::CuMemoryPool, attr::CUmemPool_attribute) where {T}
+function attribute(X::Type, pool::CuMemoryPool, attr::CUmemPool_attribute)
     value = Ref{X}()
     cuMemPoolGetAttribute(pool, attr, value)
     return value[]
@@ -87,7 +87,7 @@ end
 
 Sets attribute` attr` on a pointer `ptr` to `val`.
 """
-function attribute!(pool::CuMemoryPool, attr::CUmemPool_attribute, value) where {T}
+function attribute!(pool::CuMemoryPool, attr::CUmemPool_attribute, value)
     cuMemPoolSetAttribute(pool, attr, Ref(value))
     return
 end

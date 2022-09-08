@@ -833,7 +833,7 @@ of values and an index array for doing `sortperm!`. Cannot provide a stable
 `sort!` although `sortperm!` is properly stable. To reverse, set `rev=true`
 rather than `lt=!isless` (otherwise stability of sortperm breaks down).
 """
-function bitonic_sort!(c; by = identity, lt = isless, rev = false) where {T}
+function bitonic_sort!(c; by = identity, lt = isless, rev = false)
     c_len = if typeof(c) <: Tuple
         length(c[1])
     else

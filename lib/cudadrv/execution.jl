@@ -128,7 +128,7 @@ being slightly faster.
 cudacall
 
 # FIXME: can we make this infer properly?
-cudacall(f, types::Tuple, args...; kwargs...) where {N} =
+cudacall(f, types::Tuple, args...; kwargs...) =
     cudacall(f, Base.to_tuple_type(types), args...; kwargs...)
 
 function cudacall(f, types::Type, args...; kwargs...)
