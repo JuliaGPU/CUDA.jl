@@ -118,6 +118,33 @@ end
 
 @testset "PTX" begin
 
+@testset "always_inline" begin
+    function f_expensive(x)
+        Base.Cartesian.@nexprs 30 i -> x = sin(x)+i
+    end
+
+    function g(x)
+        f_expensive(x)
+        return
+    end
+    function h(x)
+        f_expensive(x)
+        return
+    end
+
+    asm = sprint(io->CUDA.code_ptx(io, g, Tuple{Float64}))
+    @test occursin(r"\.func .*julia_f_expensive", asm)
+
+    asm = sprint(io->CUDA.code_ptx(io, g, Tuple{Float64}; always_inline=true))
+    @test !occursin(r"\.func .*julia_f_expensive", asm)
+
+    asm = sprint(io->CUDA.code_ptx(io, h, Tuple{Float64}; always_inline=true))
+    @test !occursin(r"\.func .*julia_f_expensive", asm)
+
+    asm = sprint(io->CUDA.code_ptx(io, h, Tuple{Float64}))
+    @test occursin(r"\.func .*julia_f_expensive", asm)
+end
+
 @testset "local memory stores due to byval" begin
     # JuliaGPU/GPUCompiler.jl#92
     function kernel(y1, y2)
