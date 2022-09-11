@@ -219,7 +219,7 @@ end
 # On Unix systems, launch Julia this way:
 #
 # ```sh
-# $ nvprof --profile-from-start off /path/to/julia
+# $ nvprof --profile-from-start off -openacc-profiling off /path/to/julia
 # ```
 #
 # replacing the `/path/to/julia` with the path to your Julia binary. Note that we don't
@@ -254,7 +254,7 @@ CUDA.@profile bench_gpu1!(y_d, x_d)
 # (including a call to `CUDA.@profile`):
 #
 # ```sh
-# $ nvprof --profile-from-start off --print-gpu-trace /path/to/julia /path/to/script.jl
+# $ nvprof --profile-from-start off --openacc-profiling off --print-gpu-trace /path/to/julia /path/to/script.jl
 #      Start  Duration   Grid Size   Block Size     Regs*    SSMem*    DSMem*           Device   Context    Stream  Name
 #   13.3134s  245.04ms     (1 1 1)      (1 1 1)        20        0B        0B  GeForce GTX TIT         1         7  ptxcall_gpu_add1__1 [34]
 # ```
