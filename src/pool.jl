@@ -177,7 +177,7 @@ function memory_status(io::IO=stdout, info::MemoryInfo=MemoryInfo())
   elseif info.pool_reserved_bytes === missing
     @printf(io, "Memory pool statistics require CUDA 11.3.")
   else
-    @printf(io, "Memory pool usage: %s (%s reserved)",
+    @printf(io, "Memory pool usage: %s (%s reserved)\n",
                 Base.format_bytes(info.pool_used_bytes),
                 Base.format_bytes(info.pool_reserved_bytes))
 
