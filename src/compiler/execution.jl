@@ -79,9 +79,9 @@ macro cuda(ex...)
         push!(code.args,
             quote
                 # we're in kernel land already, so no need to cudaconvert arguments
-                local $kernel_args = ($(var_exprs...),)
-                local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                local $kernel = $dynamic_cufunction($f, $kernel_tt)
+                $kernel_args = ($(var_exprs...),)
+                $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
+                $kernel = $dynamic_cufunction($f, $kernel_tt)
                 if $launch
                     $kernel($kernel_args...; $(call_kwargs...))
                 end
@@ -96,10 +96,10 @@ macro cuda(ex...)
             quote
                 $f_var = $f
                 GC.@preserve $(vars...) $f_var begin
-                    local $kernel_f = $cudaconvert($f_var)
-                    local $kernel_args = map($cudaconvert, ($(var_exprs...),))
-                    local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                    local $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
+                    $kernel_f = $cudaconvert($f_var)
+                    $kernel_args = map($cudaconvert, ($(var_exprs...),))
+                    $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
+                    $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
                     if $launch
                         $kernel($(var_exprs...); $(call_kwargs...))
                     end
@@ -107,7 +107,13 @@ macro cuda(ex...)
                 end
              end)
     end
-    return esc(code)
+
+    # wrap everything in a let block so that temporary variables don't leak in the REPL
+    return esc(quote
+        let
+            $code
+        end
+    end)
 end
 
 
