@@ -85,15 +85,24 @@ CuArray(F::Union{QR,QRCompactWY}) = CuMatrix(F)
 CuMatrix(F::QRPivoted) = CuArray(AbstractArray(F))
 CuArray(F::QRPivoted) = CuMatrix(F)
 
-function LinearAlgebra.ldiv!(_qr::QR, b::CuArray)
-    _x = UpperTriangular(_qr.R) \ (_qr.Q' * reshape(b,length(b),1))
-    b .= vec(_x)
+function LinearAlgebra.ldiv!(_qr::QR, b::CuVector)
+    m,n = size(_qr)
+    _x = UpperTriangular(_qr.R[1:min(m,n), 1:n]) \ ((_qr.Q' * b)[1:n])
+    b[1:n] .= _x
     unsafe_free!(_x)
-    return b
+    return b[1:n]
+end
+
+function LinearAlgebra.ldiv!(_qr::QR, B::CuMatrix)
+    m,n = size(_qr)
+    _x = UpperTriangular(_qr.R[1:min(m,n), 1:n]) \ ((_qr.Q' * B)[1:n, 1:size(B, 2)])
+    B[1:n, 1:size(B, 2)] .= _x
+    unsafe_free!(_x)
+    return B[1:n, 1:size(B, 2)]
 end
 
 function LinearAlgebra.ldiv!(x::CuArray, _qr::QR, b::CuArray)
-    _x = UpperTriangular(_qr.R) \ (_qr.Q' * reshape(b,length(b),1))
+    _x = ldiv!(_qr, b)
     x .= vec(_x)
     unsafe_free!(_x)
     return x
@@ -209,15 +218,24 @@ end
 LinearAlgebra.det(Q::CuQRPackedQ{<:Real}) = isodd(count(!iszero, Q.τ)) ? -1 : 1
 LinearAlgebra.det(Q::CuQRPackedQ) = prod(τ -> iszero(τ) ? one(τ) : -sign(τ)^2, Q.τ)
 
-function LinearAlgebra.ldiv!(_qr::CuQR, b::CuArray)
-    _x = UpperTriangular(_qr.R) \ (_qr.Q' * reshape(b,length(b),1))
-    b .= vec(_x)
+function LinearAlgebra.ldiv!(_qr::CuQR, b::CuVector)
+    m,n = size(_qr)
+    _x = UpperTriangular(_qr.R[1:min(m,n), 1:n]) \ ((_qr.Q' * b)[1:n])
+    b[1:n] .= _x
     unsafe_free!(_x)
-    return b
+    return b[1:n]
+end
+
+function LinearAlgebra.ldiv!(_qr::CuQR, B::CuMatrix)
+    m,n = size(_qr)
+    _x = UpperTriangular(_qr.R[1:min(m,n), 1:n]) \ ((_qr.Q' * B)[1:n, 1:size(B, 2)])
+    B[1:n, 1:size(B, 2)] .= _x
+    unsafe_free!(_x)
+    return B[1:n, 1:size(B, 2)]
 end
 
 function LinearAlgebra.ldiv!(x::CuArray,_qr::CuQR, b::CuArray)
-    _x = UpperTriangular(_qr.R) \ (_qr.Q' * reshape(b,length(b),1))
+    _x = ldiv!(_qr, b)
     x .= vec(_x)
     unsafe_free!(_x)
     return x

@@ -426,6 +426,27 @@ k = 1
         q, r           = qr(A)
         @test Array(h_q) ≈ Array(q)
         @test Array(h_r) ≈ Array(r)
+        A              = rand(elty, n)  # A and B are vectors
+        d_A            = CuArray(A)
+        M              = qr(A)
+        h_M            = qr(d_A)
+        B              = rand(elty, n)
+        d_B            = CuArray(B)
+        @test Array(M \ B) ≈ Array(h_M \ d_B)
+        A              = rand(elty, m, n)  # A is a matrix and B is a vector
+        d_A            = CuArray(A)
+        M              = qr(A)
+        h_M            = qr(d_A)
+        B              = rand(elty, m)
+        d_B            = CuArray(B)
+        @test Array(M \ B) ≈ Array(h_M \ d_B)
+        A              = rand(elty, m, n)  # A and B are matrices
+        d_A            = CuArray(A)
+        M              = qr(A)
+        h_M            = qr(d_A)
+        B              = rand(elty, m, n)
+        d_B            = CuArray(B)
+        @test Array(M \ B) ≈ Array(h_M \ d_B)
     end
 
     @testset "potrsBatched!" begin
