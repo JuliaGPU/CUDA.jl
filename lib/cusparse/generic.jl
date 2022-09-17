@@ -164,8 +164,8 @@ end
 function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{TA}, X::DenseCuVector{T},
              beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
 
-    # cusparseSpMV supports CSC format if version() ≥ v"11.6.1"
-    if version() < v"11.6.1"
+    # cusparseSpMV supports CSC format if CUSPARSE.version() ≥ v"11.6.1"
+    if CUSPARSE.version() < v"11.6.1"
         n,m = size(A)
         ctransa = 'N'
         if transa == 'N'
@@ -186,7 +186,7 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{TA}, X::Den
         chkmvdims(X,m,Y,n)
     end
 
-    descA = CuSparseMatrixDescriptor(A, index, convert=version() < v"11.6.1")
+    descA = CuSparseMatrixDescriptor(A, index, convert=CUSPARSE.version() < v"11.6.1")
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
 
@@ -253,8 +253,8 @@ end
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
              B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
 
-    # cusparseSpMM supports CSC format if version() ≥ v"11.6.1"
-    if version() < v"11.6.1"
+    # cusparseSpMM supports CSC format if CUSPARSE.version() ≥ v"11.6.1"
+    if CUSPARSE.version() < v"11.6.1"
         k,m = size(A)
         ctransa = 'N'
         if transa == 'N'
@@ -281,7 +281,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
         chkmmdims(B,C,n,m,k,n)
     end
 
-    descA = CuSparseMatrixDescriptor(A, index, convert=version() < v"11.6.1")
+    descA = CuSparseMatrixDescriptor(A, index, convert=CUSPARSE.version() < v"11.6.1")
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
