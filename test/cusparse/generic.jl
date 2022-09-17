@@ -122,6 +122,7 @@ if CUSPARSE.version() >= v"11.5.1"
                                 @test opa(A) \ (alpha * opb(B)) ≈ collect(dB)
                             end
                         end
+                    end
                 end
             end
         end
