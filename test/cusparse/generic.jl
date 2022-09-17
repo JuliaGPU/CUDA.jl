@@ -64,3 +64,66 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
         end
     end
 end # version >= 11.4.1
+
+if CUSPARSE.version() >= v"11.5.1"
+    for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO]
+        @testset "$SparseMatrixType -- sv! algo=$algo" for algo in [
+            CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT,
+        ]
+            @testset "sv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+                for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                    SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                    for uplo in ('L', 'U')
+                        for diag in ('U', 'N')
+                            T <: Real && transa == 'C' && continue
+                            A = rand(T, 10, 10)
+                            A = uplo == 'L' ? tril(A) : triu(A)
+                            A = diag == 'U' ? A - Diagonal(A) + I : A 
+                            A = sparse(A)
+                            B = rand(T, 10)
+                            C = rand(T, 10)
+                            dA = SparseMatrixType(A)
+                            dB = CuArray(B)
+                            dC = CuArray(C)
+                            alpha = rand(T)
+                            sv!(transa, uplo, diag, alpha, dA, dB, dC, 'O', algo)
+                            @test opa(A) \ (alpha * B) ≈ collect(dC)
+                            sv!(transa, uplo, diag, alpha, dA, dB, dB, 'O', algo)
+                            @test opa(A) \ (alpha * B) ≈ collect(dB)
+                        end
+                    end
+                end
+            end
+        end
+
+        @testset "$SparseMatrixType -- mv! algo=$algo" for algo in [
+            CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
+        ]
+            @testset "sv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+                for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                    SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                    for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                        for uplo in ('L', 'U')
+                            for diag in ('U', 'N')
+                                T <: Real && transa == 'C' && continue
+                                A = rand(T, 10, 10)
+                                A = uplo == 'L' ? tril(A) : triu(A)
+                                A = diag == 'U' ? A - Diagonal(A) + I : A 
+                                A = sparse(A)
+                                B = transb == 'N' ? rand(T, 10, 2) : rand(T, 2, 10)
+                                C = rand(T, 10, 2)
+                                dA = SparseMatrixType(A)
+                                dB = CuArray(B)
+                                dC = CuArray(C)
+                                alpha = rand(T)
+                                sm!(transa, transb, uplo, diag, alpha, dA, dB, dC, 'O', algo)
+                                @test opa(A) \ (alpha * opb(B)) ≈ collect(dC)
+                                sm!(transa, transb, uplo, diag, alpha, dA, dB, dB, 'O', algo)
+                                @test opa(A) \ (alpha * opb(B)) ≈ collect(dB)
+                            end
+                        end
+                end
+            end
+        end
+    end
+end # version >= 11.5.1
