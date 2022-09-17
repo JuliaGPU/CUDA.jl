@@ -23,46 +23,170 @@ end
 
 if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these algorithms
 
-    @testset "mm algo=$algo" for algo in [
+    @testset "mm! algo=$algo" for algo in [
         CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
         CUSPARSE.CUSPARSE_SPMM_CSR_ALG1,
         CUSPARSE.CUSPARSE_SPMM_CSR_ALG2,
         CUSPARSE.CUSPARSE_SPMM_CSR_ALG3,
     ]
-        @testset "mm $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-            A = sprand(T, 10, 10, 0.1)
-            B = rand(T, 10, 2)
-            C = rand(T, 10, 2)
-            dA = CuSparseMatrixCSR(A)
-            dB = CuArray(B)
-            dC = CuArray(C)
+        @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            for transa in ('N', 'T', 'C')
+                for transb in ('N', 'T', 'C')
+                    A = sprand(T, 10, 10, 0.1)
+                    B = rand(T, 10, 2)
+                    C = rand(T, 10, 2)
+                    dA = CuSparseMatrixCSR(A)
+                    dB = CuArray(B)
+                    dC = CuArray(C)
 
-            alpha = 1.2
-            beta = 1.3
-            mm!('N', 'N', alpha, dA, dB, beta, dC, 'O', algo)
-            @test alpha * A * B + beta * C ≈ collect(dC)
+                    alpha = 1.2
+                    beta = 1.3
+                    mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                    @test alpha * A * B + beta * C ≈ collect(dC)
+                end
+            end
         end
     end
 
-    @testset "mv algo=$algo" for algo in [
+    @testset "CuSparseMatrixCSR -- mm! algo=$algo" for algo in [
+        CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
+        CUSPARSE.CUSPARSE_SPMM_CSR_ALG1,
+        CUSPARSE.CUSPARSE_SPMM_CSR_ALG2,
+        CUSPARSE.CUSPARSE_SPMM_CSR_ALG3,
+    ]
+        @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            for transa in ('N', 'T', 'C')
+                for transb in ('N', 'T', 'C')
+                    A = sprand(T, 10, 10, 0.1)
+                    B = rand(T, 10, 2)
+                    C = rand(T, 10, 2)
+                    dA = CuSparseMatrixCSR(A)
+                    dB = CuArray(B)
+                    dC = CuArray(C)
+
+                    alpha = 1.2
+                    beta = 1.3
+                    mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                    @test alpha * A * B + beta * C ≈ collect(dC)
+                end
+            end
+        end
+    end
+
+    @testset "CuSparseMatrixCSC -- mm! algo=$algo" for algo in [
+        CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
+    ]
+        @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            for transa in ('N', 'T', 'C')
+                for transb in ('N', 'T', 'C')
+                    A = sprand(T, 10, 10, 0.1)
+                    B = rand(T, 10, 2)
+                    C = rand(T, 10, 2)
+                    dA = CuSparseMatrixCSC(A)
+                    dB = CuArray(B)
+                    dC = CuArray(C)
+
+                    alpha = 1.2
+                    beta = 1.3
+                    mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                    @test alpha * A * B + beta * C ≈ collect(dC)
+                end
+            end
+        end
+    end
+
+    @testset "CuSparseMatrixCOO -- mm! algo=$algo" for algo in [
+        CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
+        CUSPARSE.CUSPARSE_SPMM_COO_ALG1,
+        CUSPARSE.CUSPARSE_SPMM_COO_ALG2,
+        CUSPARSE.CUSPARSE_SPMM_COO_ALG3,
+        CUSPARSE.CUSPARSE_SPMM_COO_ALG4,
+    ]
+        @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            for transa in ('N', 'T', 'C')
+                for transb in ('N', 'T', 'C')
+                    T <: Complex && transa == 'C' && CUSPARSE.version() < v"11.6.1" && continue
+                    A = sprand(T, 10, 10, 0.1)
+                    B = rand(T, 10, 2)
+                    C = rand(T, 10, 2)
+                    dA = CuSparseMatrixCOO(A)
+                    dB = CuArray(B)
+                    dC = CuArray(C)
+
+                    alpha = 1.2
+                    beta = 1.3
+                    mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                    @test alpha * A * B + beta * C ≈ collect(dC)
+                end
+            end
+        end
+    end
+
+    @testset "CuSparseMatrixCSR -- mv! algo=$algo" for algo in [
         CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
         CUSPARSE.CUSPARSE_SPMV_CSR_ALG1,
         CUSPARSE.CUSPARSE_SPMV_CSR_ALG2,
     ]
-        @testset "mv $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-            A = sprand(T, 10, 10, 0.1)
-            B = rand(T, 10)
-            C = rand(T, 10)
-            dA = CuSparseMatrixCSR(A)
-            dB = CuArray(B)
-            dC = CuArray(C)
+        @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            for transa in ('N', 'T', 'C')
+                A = sprand(T, 10, 10, 0.1)
+                B = rand(T, 10)
+                C = rand(T, 10)
+                dA = CuSparseMatrixCSR(A)
+                dB = CuArray(B)
+                dC = CuArray(C)
 
-            alpha = 1.2
-            beta = 1.3
-            mv!('N', alpha, dA, dB, beta, dC, 'O', algo)
-            @test alpha * A * B + beta * C ≈ collect(dC)
+                alpha = 1.2
+                beta = 1.3
+                mv!(transa, alpha, dA, dB, beta, dC, 'O', algo)
+                @test alpha * A * B + beta * C ≈ collect(dC)
+            end
         end
     end
+
+    @testset "CuSparseMatrixCSC -- mv! algo=$algo" for algo in [
+        CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
+    ]
+        @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            for transa in ('N', 'T', 'C')
+                T <: Complex && transa == 'C' && CUSPARSE.version() < v"11.6.1" && continue
+                A = sprand(T, 10, 10, 0.1)
+                B = rand(T, 10)
+                C = rand(T, 10)
+                dA = CuSparseMatrixCSC(A)
+                dB = CuArray(B)
+                dC = CuArray(C)
+
+                alpha = 1.2
+                beta = 1.3
+                mv!(transa, alpha, dA, dB, beta, dC, 'O', algo)
+                @test alpha * A * B + beta * C ≈ collect(dC)
+            end
+        end
+    end
+
+    @testset "CuSparseMatrixCOO -- mv! algo=$algo" for algo in [
+        CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
+        CUSPARSE.CUSPARSE_SPMV_COO_ALG1,
+        CUSPARSE.CUSPARSE_SPMV_COO_ALG2,
+    ]
+        @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            for transa in ('N', 'T', 'C')
+                A = sprand(T, 10, 10, 0.1)
+                B = rand(T, 10)
+                C = rand(T, 10)
+                dA = CuSparseMatrixCOO(A)
+                dB = CuArray(B)
+                dC = CuArray(C)
+
+                alpha = 1.2
+                beta = 1.3
+                mv!(transa, alpha, dA, dB, beta, dC, 'O', algo)
+                @test alpha * A * B + beta * C ≈ collect(dC)
+            end
+        end
+    end
+
 end # version >= 11.4.1
 
 if CUSPARSE.version() >= v"11.7.0"

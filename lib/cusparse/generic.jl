@@ -123,8 +123,8 @@ function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
     X
 end
 
-function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{TA},CuSparseMatrixCSR{TA}},
-             X::DenseCuVector{T}, beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
+function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCOO{TA},CuSparseMatrixCSR{TA}}, X::DenseCuVector{T},
+             beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
     m,n = size(A)
 
     if transa == 'N'
@@ -163,15 +163,21 @@ end
 
 function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{TA}, X::DenseCuVector{T},
              beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
-    ctransa = 'N'
-    if transa == 'N'
-        ctransa = 'T'
-    elseif transa == 'C' && TA <: Complex
-        throw(ArgumentError("Matrix-vector multiplication with the adjoint of a CSC matrix" *
-                            " is not supported. Use a CSR matrix instead."))
-    end
 
-    n,m = size(A)
+    # cusparseSpMV supports CSC format if version() ≥ v"11.6.1"
+    if version() < v"11.6.1"
+        n,m = size(A)
+        ctransa = 'N'
+        if transa == 'N'
+            ctransa = 'T'
+        elseif transa == 'C' && TA <: Complex
+            throw(ArgumentError("Matrix-vector multiplication with the adjoint of a CSC matrix" *
+                                " is not supported. Use a CSR matrix instead."))
+        end
+    else
+        m,n = size(A)
+        ctransa = transa
+    end
 
     if ctransa == 'N'
         chkmvdims(X,n,Y,m)
@@ -179,7 +185,7 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{TA}, X::Den
         chkmvdims(X,m,Y,n)
     end
 
-    descA = CuSparseMatrixDescriptor(A, index)
+    descA = CuSparseMatrixDescriptor(A, index, convert=version() < v"11.6.1")
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
 
@@ -208,7 +214,7 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{TA}, X::Den
     return Y
 end
 
-function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
+function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuSparseMatrixCOO{TA},CuSparseMatrixCSR{TA}},
              B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
     m,k = size(A)
     n = size(C)[2]
@@ -245,15 +251,22 @@ end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
              B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
-    ctransa = 'N'
-    if transa == 'N'
-        ctransa = 'T'
-    elseif transa == 'C' && T <: Complex
-        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a CSC matrix" *
-                            " is not supported. Use a CSR matrix instead."))
+
+    # cusparseSpMM supports CSC format if version() ≥ v"11.6.1"
+    if version() < v"11.6.1"
+        k,m = size(A)
+        ctransa = 'N'
+        if transa == 'N'
+            ctransa = 'T'
+        elseif transa == 'C' && T <: Complex
+            throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a CSC matrix" *
+                                " is not supported. Use a CSR matrix instead."))
+        end
+    else
+        m,k = size(A)
+        ctransa = transa
     end
 
-    k,m = size(A)
     n = size(C)[2]
 
     if ctransa == 'N' && transb == 'N'
@@ -266,7 +279,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
         chkmmdims(B,C,n,m,k,n)
     end
 
-    descA = CuSparseMatrixDescriptor(A, index)
+    descA = CuSparseMatrixDescriptor(A, index, convert=version() < v"11.6.1")
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 

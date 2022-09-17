@@ -4,13 +4,13 @@
 export mm!, mm2!, sm2!, sm2
 
 """
-    mm!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
+    mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix, B::CuMatrix, beta::Number, C::CuMatrix, index::SparseChar)
 
 Performs `C = alpha * op(A) * op(B) + beta * C`, where `op` can be nothing (`transa = N`),
 tranpose (`transa = T`) or conjugate transpose (`transa = C`).
-`A` is a sparse matrix defined in BSR storage format. `B` and `C` are dense matrices.
+`B` and `C` are dense matrices.
 """
-mm!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
+mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix, B::CuMatrix, beta::Number, C::CuMatrix, index::SparseChar)
 
 # bsrmm
 for (fname,elty) in ((:cusparseSbsrmm, :Float32),
