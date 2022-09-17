@@ -175,7 +175,7 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{TA}, X::Den
         m,n = size(A)
         ctransa = transa
     end
-    if transa == 'C' && TA <: Complex
+    if ctransa == 'C' && TA <: Complex
         throw(ArgumentError("Matrix-vector multiplication with the adjoint of a CSC matrix" *
                             " is not supported. Use a CSR matrix instead."))
     end
@@ -264,7 +264,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
         m,k = size(A)
         ctransa = transa
     end
-    if transa == 'C' && TA <: Complex
+    if ctransa == 'C' && TA <: Complex
         throw(ArgumentError("Matrix-vector multiplication with the adjoint of a CSC matrix" *
                             " is not supported. Use a CSR matrix instead."))
     end
