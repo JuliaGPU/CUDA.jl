@@ -85,7 +85,7 @@ mutable struct CuSparseMatrixDescriptor
         return obj
     end
 
-    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSC, IndexBase::Char; convert=true)
+    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSC, IndexBase::Char; convert=false)
         desc_ref = Ref{cusparseSpMatDescr_t}()
         if convert
             # many algorithms, e.g. mv! and mm!, do not support CSC sparse format
@@ -125,32 +125,29 @@ end
 
 function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},CuSparseMatrixCSR{TA},CuSparseMatrixCOO{TA}}, X::DenseCuVector{T},
              beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
-    m,n = size(A)
 
-    # cusparseSpMV supports CSC format if CUSPARSE.version() ≥ v"11.6.1"
-    if CUSPARSE.version() < v"11.6.1"
-        n,m = size(A)
-        ctransa = 'N'
-        if transa == 'N'
-            ctransa = 'T'
-        end
-    else
-        descA = CuSparseMatrixDescriptor(A, index)
-        m,n = size(A)
-        ctransa = transa
-    end
-    if ctransa == 'C' && TA <: Complex
+    if isa(A, CuSparseMatrixCSC) && transa == 'C' && TA <: Complex
         throw(ArgumentError("Matrix-vector multiplication with the adjoint of a CSC matrix" *
                             " is not supported. Use a CSR matrix instead."))
     end
 
-    if transa == 'N'
+    if !(isa(A, CuSparseMatrixCSC) && (CUSPARSE.version() < v"11.6.1"))
+        descA = CuSparseMatrixDescriptor(A, index)
+        m,n = size(A)
+        transa2 = transa
+    else
+        # cusparseSpMV doesn't supports CSC format if CUSPARSE.version() < v"11.6.1"
+        descA = CuSparseMatrixDescriptor(A, index, convert=true)
+        n,m = size(A)
+        transa2 = transa == 'N' ? 'T' : 'N'
+    end
+
+    if transa2 == 'N'
         chkmvdims(X,n,Y,m)
-    elseif transa == 'T' || transa == 'C'
+    elseif transa2 == 'T' || transa2 == 'C'
         chkmvdims(X,m,Y,n)
     end
 
-    
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
 
@@ -167,140 +164,62 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
 
     function bufferSize()
         out = Ref{Csize_t}()
-        cusparseSpMV_bufferSize(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
+        cusparseSpMV_bufferSize(handle(), transa2, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
                                 descY, compute_type, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        cusparseSpMV(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
+        cusparseSpMV(handle(), transa2, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
                      descY, compute_type, algo, buffer)
     end
-    Y
-end
-
-function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{TA}, X::DenseCuVector{T},
-             beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
-
-
-
-    if ctransa == 'N'
-        chkmvdims(X,n,Y,m)
-    elseif ctransa == 'T' || ctransa == 'C'
-        chkmvdims(X,m,Y,n)
-    end
-
-    descA = CuSparseMatrixDescriptor(A, index, convert=CUSPARSE.version() < v"11.6.1")
-    descX = CuDenseVectorDescriptor(X)
-    descY = CuDenseVectorDescriptor(Y)
-
-    # operations with 16-bit numbers always imply mixed-precision computation
-    # TODO: we should better model the supported combinations here,
-    #       and error if using an unsupported one (like with gemmEx!)
-    compute_type = if version() >= v"11.4" && T == Float16
-        Float32
-    elseif version() >= v"11.7.2" && T == ComplexF16
-        ComplexF32
-    else
-        T
-    end
-
-    function bufferSize()
-        out = Ref{Csize_t}()
-        cusparseSpMV_bufferSize(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
-                                descY, compute_type, algo, out)
-        return out[]
-    end
-    with_workspace(bufferSize) do buffer
-        cusparseSpMV(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
-                     descY, compute_type, algo, buffer)
-    end
-
     return Y
 end
 
-function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuSparseMatrixCOO{T},CuSparseMatrixCSR{T}},
-             B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
-    m,k = size(A)
-    n = size(C)[2]
-
-    if transa == 'N' && transb == 'N'
-        chkmmdims(B,C,k,n,m,n)
-    elseif transa == 'N' && transb != 'N'
-        chkmmdims(B,C,n,k,m,n)
-    elseif transa != 'N' && transb == 'N'
-        chkmmdims(B,C,m,n,k,n)
-    elseif transa != 'N' && transb != 'N'
-        chkmmdims(B,C,n,m,k,n)
-    end
-
-    descA = CuSparseMatrixDescriptor(A, index)
-    descB = CuDenseMatrixDescriptor(B)
-    descC = CuDenseMatrixDescriptor(C)
-
-    function bufferSize()
-        out = Ref{Csize_t}()
-        cusparseSpMM_bufferSize(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, out)
-        return out[]
-    end
-    with_workspace(bufferSize) do buffer
-        cusparseSpMM(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, buffer)
-    end
-
-    return C
-end
-
-function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
+function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}},
              B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
 
-    # cusparseSpMM supports CSC format if CUSPARSE.version() ≥ v"11.6.1"
-    if CUSPARSE.version() < v"11.6.1"
-        k,m = size(A)
-        ctransa = 'N'
-        if transa == 'N'
-            ctransa = 'T'
-        end
-    else
-        m,k = size(A)
-        ctransa = transa
-    end
-    if ctransa == 'C' && TA <: Complex
-        throw(ArgumentError("Matrix-vector multiplication with the adjoint of a CSC matrix" *
+    if isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
+        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a CSC matrix" *
                             " is not supported. Use a CSR matrix instead."))
     end
 
+    if !(isa(A, CuSparseMatrixCSC) && (CUSPARSE.version() < v"11.6.1"))
+        descA = CuSparseMatrixDescriptor(A, index)
+        m,k = size(A)
+        transa2 = transa
+    else
+        # cusparseSpMM doesn't supports CSC format if CUSPARSE.version() < v"11.6.1"
+        descA = CuSparseMatrixDescriptor(A, index, convert=true)
+        k,m = size(A)
+        transa2 = transa == 'N' ? 'T' : 'N'
+    end
     n = size(C)[2]
 
-    if ctransa == 'N' && transb == 'N'
+    if transa2 == 'N' && transb == 'N'
         chkmmdims(B,C,k,n,m,n)
-    elseif ctransa == 'N' && transb != 'N'
+    elseif transa2 == 'N' && transb != 'N'
         chkmmdims(B,C,n,k,m,n)
-    elseif ctransa != 'N' && transb == 'N'
+    elseif transa2 != 'N' && transb == 'N'
         chkmmdims(B,C,m,n,k,n)
-    elseif ctransa != 'N' && transb != 'N'
+    elseif transa2 != 'N' && transb != 'N'
         chkmmdims(B,C,n,m,k,n)
     end
 
-    descA = CuSparseMatrixDescriptor(A, index, convert=CUSPARSE.version() < v"11.6.1")
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
     function bufferSize()
         out = Ref{Csize_t}()
         cusparseSpMM_bufferSize(
-            handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            handle(), transa2, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
         cusparseSpMM(
-            handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            handle(), transa2, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, buffer)
     end
-
     return C
 end
 
