@@ -99,7 +99,7 @@ if CUSPARSE.version() >= v"11.5.1"
         @testset "$SparseMatrixType -- mv! algo=$algo" for algo in [
             CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
         ]
-            @testset "sv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
                     for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
