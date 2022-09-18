@@ -383,14 +383,13 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
 
+    spsv_desc = Ref{cusparseSpSVDescr_t}()
+    cusparseSpSV_createDescr(spsv_desc)
     function bufferSize()
         out = Ref{Csize_t}()
         cusparseSpSV_bufferSize(handle(), transa, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc, out)
         return out[]
     end
-
-    spsv_desc = Ref{cusparseSpSVDescr_t}()
-    cusparseSpSV_createDescr(spsv_desc)
     with_workspace(bufferSize) do buffer
         cusparseSpSV_analysis(handle(), transa, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc, buffer)
         cusparseSpSV_solve(handle(), transa, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc)
@@ -435,14 +434,13 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
 
+    spsv_desc = Ref{cusparseSpSVDescr_t}()
+    cusparseSpSV_createDescr(spsv_desc)
     function bufferSize()
         out = Ref{Csize_t}()
         cusparseSpSV_bufferSize(handle(), ctransa, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc, out)
         return out[]
     end
-
-    spsv_desc = Ref{cusparseSpSVDescr_t}()
-    cusparseSpSV_createDescr(spsv_desc)
     with_workspace(bufferSize) do buffer
         cusparseSpSV_analysis(handle(), ctransa, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc, buffer)
         cusparseSpSV_solve(handle(), ctransa, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc)
@@ -478,14 +476,13 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
+    spsm_desc = Ref{cusparseSpSMDescr_t}()
+    cusparseSpSM_createDescr(spsm_desc)
     function bufferSize()
         out = Ref{Csize_t}()
         cusparseSpMV_bufferSize(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, out)
         return out[]
     end
-
-    spsm_desc = Ref{cusparseSpSMDescr_t}()
-    cusparseSpSM_createDescr(spsm_desc)
     with_workspace(bufferSize) do buffer
         cusparseSpMV_analysis(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, buffer)
         cusparseSpMV_solve(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc)
@@ -533,14 +530,13 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
+    spsm_desc = Ref{cusparseSpSMDescr_t}()
+    cusparseSpSM_createDescr(spsm_desc)
     function bufferSize()
         out = Ref{Csize_t}()
         cusparseSpMV_bufferSize(handle(), ctransa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, out)
         return out[]
     end
-
-    spsm_desc = Ref{cusparseSpSMDescr_t}()
-    cusparseSpSM_createDescr(spsm_desc)
     with_workspace(bufferSize) do buffer
         cusparseSpMV_analysis(handle(), ctransa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, buffer)
         cusparseSpMV_solve(handle(), ctransa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc)
