@@ -360,73 +360,29 @@ function mm!(transa::SparseChar, transb::SparseChar, α::Number, A::CuSparseMatr
 end
 
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
-             alpha::Number, A::Union{CuSparseMatrixCOO{T},CuSparseMatrixCSR{T}}, X::DenseCuVector{T},
+             alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, X::DenseCuVector{T},
              Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpSVAlg_t=CUSPARSE_SPSV_ALG_DEFAULT) where {T}
 
     mA,nA = size(A)
     mX,nX = size(X)
     mY,nY = size(Y)
 
-    if mA != nA
-        throw(DimensionMismatch("A must be square, but has dimensions ($mA,$nA)!"))
-    end
-    if mX != mA
-        throw(DimensionMismatch("X must have length $mA, but has length $mX"))
-    end
-    if mY != mA
-        throw(DimensionMismatch("Y must have length $mA, but has length $mY"))
-    end
+    (mA != nA) && throw(DimensionMismatch("A must be square, but has dimensions ($mA,$nA)!"))
+    (mX != mA) && throw(DimensionMismatch("X must have length $mA, but has length $mX"))
+    (mY != mA) && throw(DimensionMismatch("Y must have length $mA, but has length $mY"))
 
-    descA = CuSparseMatrixDescriptor(A, index)
-    cusparseSpMatSetAttribute(descA, 'F', Ref{UInt32}(uplo), Csize_t(sizeof(uplo)))
-    cusparseSpMatSetAttribute(descA, 'D', Ref{UInt32}(diag), Csize_t(sizeof(diag)))
-    descX = CuDenseVectorDescriptor(X)
-    descY = CuDenseVectorDescriptor(Y)
-
-    spsv_desc = CuSparseSpSVDescriptor()
-    function bufferSize()
-        out = Ref{Csize_t}()
-        cusparseSpSV_bufferSize(handle(), transa, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc, out)
-        return out[]
+    if !isa(A, CuSparseMatrixCSC{T})
+        descA = CuSparseMatrixDescriptor(A, index)
+        ctransa = transa
+        cuplo = uplo
+    else
+        descA = CuSparseMatrixDescriptor(A, index, convert=true)
+        cuplo = uplo == 'U' ? 'L' : 'U'
+        ctransa = transa == 'N' ? 'T' : 'N'
+        if transa == 'C' && T <: Complex
+            throw(ArgumentError("Backward and forward sweeps with the adjoint of a CSC matrix is not supported. Use a CSR or COO matrix instead."))
+        end
     end
-    with_workspace(bufferSize) do buffer
-        cusparseSpSV_analysis(handle(), transa, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc, buffer)
-        cusparseSpSV_solve(handle(), transa, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc)
-    end
-    return Y
-end
-
-function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
-             alpha::Number, A::CuSparseMatrixCSC{T}, X::DenseCuVector{T},
-             Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpSVAlg_t=CUSPARSE_SPSV_ALG_DEFAULT) where {T}
-
-    ctransa = 'N'
-    cuplo = 'U'
-    if transa == 'N'
-        ctransa = 'T'
-    elseif transa == 'C' && T <: Complex
-        throw(ArgumentError("Backward and forward sweeps with the adjoint of a CSC matrix" *
-                            " is not supported. Use a CSR or COO matrix instead."))
-    end
-    if uplo == 'U'
-        cuplo = 'L'
-    end
-
-    nA,mA = size(A)
-    mX,nX = size(X)
-    mY,nY = size(Y)
-
-    if mA != nA
-        throw(DimensionMismatch("A must be square, but has dimensions ($nA,$mA)!"))
-    end
-    if mX != mA
-        throw(DimensionMismatch("X must have length $nA, but has length $mX"))
-    end
-    if mY != mA
-        throw(DimensionMismatch("Y must have length $nA, but has length $mY"))
-    end
-
-    descA = CuSparseMatrixDescriptor(A, index, convert=true)
     cusparseSpMatSetAttribute(descA, 'F', Ref{UInt32}(cuplo), Csize_t(sizeof(cuplo)))
     cusparseSpMatSetAttribute(descA, 'D', Ref{UInt32}(diag), Csize_t(sizeof(diag)))
     descX = CuDenseVectorDescriptor(X)
@@ -446,79 +402,32 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
 end
 
 function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::SparseChar,
-             alpha::Number, A::Union{CuSparseMatrixCOO{T},CuSparseMatrixCSR{T}}, B::DenseCuMatrix{T},
+             alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, B::DenseCuMatrix{T},
              C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpSMAlg_t=CUSPARSE_SPSM_ALG_DEFAULT) where {T}
 
     mA,nA = size(A)
     mB,nB = size(B)
     mC,nC = size(C)
 
-    if mA != nA
-        throw(DimensionMismatch("A must be square, but has dimensions ($mA,$nA)!"))
-    end
-    if mB != mA
-        throw(DimensionMismatch("B must have $mA rows, but has $mB rows"))
-    end
-    if mC != mA
-        throw(DimensionMismatch("C must have $mA rows, but has $mC rows"))
-    end
-    if nB != nC
-        throw(DimensionMismatch("B and C must have the same number of columns, but B has $nB columns and C has $nC columns"))
-    end
+    (mA != nA) && throw(DimensionMismatch("A must be square, but has dimensions ($mA,$nA)!"))
+    (mC != mA) && throw(DimensionMismatch("C must have $mA rows, but has $mC rows"))
+    (mB != mA) && (transb == 'N') && throw(DimensionMismatch("B must have $mA rows, but has $mB rows"))
+    (nB != mA) && (transb != 'N') && throw(DimensionMismatch("B must have $mA columns, but has $nB columns"))
+    (nB != nC) && (transb == 'N') && throw(DimensionMismatch("B and C must have the same number of columns, but B has $nB columns and C has $nC columns"))
+    (mB != nC) && (transb != 'N') && throw(DimensionMismatch("B must have the same the number of rows that C has as columns, but B has $mB rows and C has $nC columns"))
 
-    descA = CuSparseMatrixDescriptor(A, index)
-    cusparseSpMatSetAttribute(descA, 'F', Ref{UInt32}(uplo), Csize_t(sizeof(uplo)))
-    cusparseSpMatSetAttribute(descA, 'D', Ref{UInt32}(diag), Csize_t(sizeof(diag)))
-    descB = CuDenseMatrixDescriptor(B)
-    descC = CuDenseMatrixDescriptor(C)
-
-    spsm_desc = CuSparseSpSMDescriptor()
-    function bufferSize()
-        out = Ref{Csize_t}()
-        cusparseSpMV_bufferSize(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, out)
-        return out[]
+    if !isa(A, CuSparseMatrixCSC{T})
+        descA = CuSparseMatrixDescriptor(A, index)
+        ctransa = transa
+        cuplo = uplo
+    else
+        descA = CuSparseMatrixDescriptor(A, index, convert=true)
+        cuplo = uplo == 'U' ? 'L' : 'U'
+        ctransa = transa == 'N' ? 'T' : 'N'
+        if transa == 'C' && T <: Complex
+            throw(ArgumentError("Backward and forward sweeps with the adjoint of a CSC matrix is not supported. Use a CSR or COO matrix instead."))
+        end
     end
-    with_workspace(bufferSize) do buffer
-        cusparseSpMV_analysis(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, buffer)
-        cusparseSpMV_solve(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc)
-    end
-    return C
-end
-
-function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::SparseChar,
-             alpha::Number, A::CuSparseMatrixCSC{T}, B::DenseCuMatrix{T},
-             C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpSMAlg_t=CUSPARSE_SPSM_ALG_DEFAULT) where {T}
-
-    ctransa = 'N'
-    cuplo = 'U'
-    if transa == 'N'
-        ctransa = 'T'
-    elseif transa == 'C' && T <: Complex
-        throw(ArgumentError("Backward and forward sweeps with the adjoint of a CSC matrix" *
-                            " is not supported. Use a CSR or COO matrix instead."))
-    end
-    if uplo == 'U'
-        cuplo = 'L'
-    end
-
-    nA,mA = size(A)
-    mB,nB = size(B)
-    mC,nC = size(C)
-
-    if mA != nA
-        throw(DimensionMismatch("A must be square, but has dimensions ($nA,$mA)!"))
-    end
-    if mB != mA
-        throw(DimensionMismatch("B must have $nA rows, but has $mB rows"))
-    end
-    if mC != mA
-        throw(DimensionMismatch("C must have $nA rows, but has $mC rows"))
-    end
-    if nB != nC
-        throw(DimensionMismatch("B and C must have the same number of columns, but B has $nB columns and C has $nC columns"))
-    end
-
-    descA = CuSparseMatrixDescriptor(A, index, convert=true)
     cusparseSpMatSetAttribute(descA, 'F', Ref{UInt32}(cuplo), Csize_t(sizeof(cuplo)))
     cusparseSpMatSetAttribute(descA, 'D', Ref{UInt32}(diag), Csize_t(sizeof(diag)))
     descB = CuDenseMatrixDescriptor(B)
