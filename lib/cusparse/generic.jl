@@ -360,7 +360,7 @@ function mm!(transa::SparseChar, transb::SparseChar, α::Number, A::CuSparseMatr
 end
 
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
-             alpha::Number, A::Union{CuSparseMatrixCOO{T},CuSparseMatrixCSR{T}},  X::DenseCuVector{T},
+             alpha::Number, A::Union{CuSparseMatrixCOO{T},CuSparseMatrixCSR{T}}, X::DenseCuVector{T},
              Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpSVAlg_t=CUSPARSE_SPSV_ALG_DEFAULT) where {T}
 
     mA,nA = size(A)
@@ -378,8 +378,8 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     end
 
     descA = CuSparseMatrixDescriptor(A, index)
-    cusparseSpMatSetAttribute(descA, 'F', uplo, Csize_t(sizeof(uplo)))
-    cusparseSpMatSetAttribute(descA, 'D', diag, Csize_t(sizeof(diag)))
+    cusparseSpMatSetAttribute(descA, 'F', Ref{UInt32}(uplo), Csize_t(sizeof(uplo)))
+    cusparseSpMatSetAttribute(descA, 'D', Ref{UInt32}(diag), Csize_t(sizeof(diag)))
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
 
@@ -397,7 +397,7 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
 end
 
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
-             alpha::Number, A::CuSparseMatrixCSC{T},  X::DenseCuVector{T},
+             alpha::Number, A::CuSparseMatrixCSC{T}, X::DenseCuVector{T},
              Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpSVAlg_t=CUSPARSE_SPSV_ALG_DEFAULT) where {T}
 
     ctransa = 'N'
@@ -427,8 +427,8 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     end
 
     descA = CuSparseMatrixDescriptor(A, index, convert=true)
-    cusparseSpMatSetAttribute(descA, 'F', cuplo, Csize_t(sizeof(cuplo)))
-    cusparseSpMatSetAttribute(descA, 'D', diag, Csize_t(sizeof(diag)))
+    cusparseSpMatSetAttribute(descA, 'F', Ref{UInt32}(cuplo), Csize_t(sizeof(cuplo)))
+    cusparseSpMatSetAttribute(descA, 'D', Ref{UInt32}(diag), Csize_t(sizeof(diag)))
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
 
@@ -467,8 +467,8 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     end
 
     descA = CuSparseMatrixDescriptor(A, index)
-    cusparseSpMatSetAttribute(descA, 'F', uplo, Csize_t(sizeof(uplo)))
-    cusparseSpMatSetAttribute(descA, 'D', diag, Csize_t(sizeof(diag)))
+    cusparseSpMatSetAttribute(descA, 'F', Ref{UInt32}(uplo), Csize_t(sizeof(uplo)))
+    cusparseSpMatSetAttribute(descA, 'D', Ref{UInt32}(diag), Csize_t(sizeof(diag)))
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
@@ -519,8 +519,8 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     end
 
     descA = CuSparseMatrixDescriptor(A, index, convert=true)
-    cusparseSpMatSetAttribute(descA, 'F', cuplo, Csize_t(sizeof(cuplo)))
-    cusparseSpMatSetAttribute(descA, 'D', diag, Csize_t(sizeof(diag)))
+    cusparseSpMatSetAttribute(descA, 'F', Ref{UInt32}(cuplo), Csize_t(sizeof(cuplo)))
+    cusparseSpMatSetAttribute(descA, 'D', Ref{UInt32}(diag), Csize_t(sizeof(diag)))
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
