@@ -123,9 +123,26 @@ function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
     X
 end
 
-function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCOO{TA},CuSparseMatrixCSR{TA}}, X::DenseCuVector{T},
+function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},CuSparseMatrixCSR{TA},CuSparseMatrixCOO{TA}}, X::DenseCuVector{T},
              beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
     m,n = size(A)
+
+    # cusparseSpMV supports CSC format if CUSPARSE.version() ≥ v"11.6.1"
+    if CUSPARSE.version() < v"11.6.1"
+        n,m = size(A)
+        ctransa = 'N'
+        if transa == 'N'
+            ctransa = 'T'
+        end
+    else
+        descA = CuSparseMatrixDescriptor(A, index)
+        m,n = size(A)
+        ctransa = transa
+    end
+    if ctransa == 'C' && TA <: Complex
+        throw(ArgumentError("Matrix-vector multiplication with the adjoint of a CSC matrix" *
+                            " is not supported. Use a CSR matrix instead."))
+    end
 
     if transa == 'N'
         chkmvdims(X,n,Y,m)
@@ -133,7 +150,7 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCOO{TA},C
         chkmvdims(X,m,Y,n)
     end
 
-    descA = CuSparseMatrixDescriptor(A, index)
+    
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
 
@@ -150,12 +167,12 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCOO{TA},C
 
     function bufferSize()
         out = Ref{Csize_t}()
-        cusparseSpMV_bufferSize(handle(), transa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
+        cusparseSpMV_bufferSize(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
                                 descY, compute_type, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        cusparseSpMV(handle(), transa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
+        cusparseSpMV(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
                      descY, compute_type, algo, buffer)
     end
     Y
@@ -164,21 +181,7 @@ end
 function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{TA}, X::DenseCuVector{T},
              beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
 
-    # cusparseSpMV supports CSC format if CUSPARSE.version() ≥ v"11.6.1"
-    if CUSPARSE.version() < v"11.6.1"
-        n,m = size(A)
-        ctransa = 'N'
-        if transa == 'N'
-            ctransa = 'T'
-        end
-    else
-        m,n = size(A)
-        ctransa = transa
-    end
-    if ctransa == 'C' && TA <: Complex
-        throw(ArgumentError("Matrix-vector multiplication with the adjoint of a CSC matrix" *
-                            " is not supported. Use a CSR matrix instead."))
-    end
+
 
     if ctransa == 'N'
         chkmvdims(X,n,Y,m)
