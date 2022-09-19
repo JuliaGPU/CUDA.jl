@@ -368,7 +368,7 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     end
 
     mA,nA = size(A)
-    mX = lenght(X)
+    mX = length(X)
     mY = length(Y)
 
     (mA != nA) && throw(DimensionMismatch("A must be square, but has dimensions ($mA,$nA)!"))
@@ -440,12 +440,12 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     spsm_desc = CuSparseSpSMDescriptor()
     function bufferSize()
         out = Ref{Csize_t}()
-        cusparseSpMV_bufferSize(handle(), transa2, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, out)
+        cusparseSpSM_bufferSize(handle(), transa2, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        cusparseSpMV_analysis(handle(), transa2, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, buffer)
-        cusparseSpMV_solve(handle(), transa2, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc)
+        cusparseSpSM_analysis(handle(), transa2, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, buffer)
+        cusparseSpSM_solve(handle(), transa2, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc)
     end
     return C
 end
