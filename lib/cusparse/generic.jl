@@ -368,8 +368,8 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     end
 
     mA,nA = size(A)
-    mX,nX = size(X)
-    mY,nY = size(Y)
+    mX = lenght(X)
+    mY = length(Y)
 
     (mA != nA) && throw(DimensionMismatch("A must be square, but has dimensions ($mA,$nA)!"))
     (mX != mA) && throw(DimensionMismatch("X must have length $mA, but has length $mX"))
