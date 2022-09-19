@@ -195,21 +195,6 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
                 sv!('C', $uploc, $isunitc, one(T), parent(parent(A)), B, B, 'O')
             end
 
-        LinearAlgebra.ldiv!(C::DenseCuVector{T},
-                            A::$t{<:Any,<:Transpose{T,<:AbstractCuSparseMatrix}},
-                            B::DenseCuVector{T}) where {T<:BlasFloat} =
-            sv!('T', $uploc, $isunitc, one(T), parent(parent(A)), B, C, 'O')
-
-        LinearAlgebra.ldiv!(C::DenseCuVector{T},
-                            A::$t{<:Any,<:Adjoint{T,<:AbstractCuSparseMatrix}},
-                            B::DenseCuVector{T}) where {T<:BlasReal} =
-            sv!('T', $uploc, $isunitc, one(T), parent(parent(A)), B, C, 'O')
-
-        LinearAlgebra.ldiv!(C::DenseCuVector{T},
-                            A::$t{<:Any,<:Adjoint{T,<:AbstractCuSparseMatrix}},
-                            B::DenseCuVector{T}) where {T<:BlasComplex} =
-            sv!('C', $uploc, $isunitc, one(T), parent(parent(A)), B, C, 'O')
-
         # Left division with matrices
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:AbstractCuSparseMatrix}},
                             B::DenseCuMatrix{T}) where {T<:BlasFloat} =
@@ -234,21 +219,6 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
             else
                 sm!('C', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, B, 'O')
             end
-
-        LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
-                            A::$t{<:Any,<:Transpose{T,<:AbstractCuSparseMatrix}},
-                            B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-            sm!('T', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, C, 'O')
-
-        LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
-                            A::$t{<:Any,<:Adjoint{T,<:AbstractCuSparseMatrix}},
-                            B::DenseCuMatrix{T}) where {T<:BlasReal} =
-            sm!('T', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, C, 'O')
-
-        LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
-                            A::$t{<:Any,<:Adjoint{T,<:AbstractCuSparseMatrix}},
-                            B::DenseCuMatrix{T}) where {T<:BlasComplex} =
-            sm!('C', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, C, 'O')
     end
 end
 

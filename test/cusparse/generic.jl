@@ -83,9 +83,10 @@ if CUSPARSE.version() >= v"11.5.1"
                     for uplo in ('L', 'U')
                         for diag in ('U', 'N')
                             T <: Real && transa == 'C' && continue
+                            println(transa, " ", uplo, " ", diag)
                             A = rand(T, 10, 10)
                             A = uplo == 'L' ? tril(A) : triu(A)
-                            A = diag == 'U' ? A - Diagonal(A) + I : A 
+                            A = diag == 'U' ? A - Diagonal(A) + I : A
                             A = sparse(A)
                             B = rand(T, 10)
                             C = rand(T, 10)
@@ -95,8 +96,6 @@ if CUSPARSE.version() >= v"11.5.1"
                             alpha = rand(T)
                             sv!(transa, uplo, diag, alpha, dA, dB, dC, 'O', algo)
                             @test opa(A) \ (alpha * B) ≈ collect(dC)
-                            sv!(transa, uplo, diag, alpha, dA, dB, dB, 'O', algo)
-                            @test opa(A) \ (alpha * B) ≈ collect(dB)
                         end
                     end
                 end
@@ -123,8 +122,6 @@ if CUSPARSE.version() >= v"11.5.1"
                                 alpha = rand(T)
                                 sm!(transa, transb, uplo, diag, alpha, dA, dB, dC, 'O', algo)
                                 @test opa(A) \ (alpha * opb(B)) ≈ collect(dC)
-                                sm!(transa, transb, uplo, diag, alpha, dA, dB, dB, 'O', algo)
-                                @test opa(A) \ (alpha * opb(B)) ≈ collect(dB)
                             end
                         end
                     end

@@ -375,18 +375,18 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     (mX != mA) && throw(DimensionMismatch("X must have length $mA, but has length $mX"))
     (mY != mA) && throw(DimensionMismatch("Y must have length $mA, but has length $mY"))
 
-    if !isa(A, CuSparseMatrixCSC)
-        descA = CuSparseMatrixDescriptor(A, index)
-        transa2 = transa
-        uplo2 = uplo
-    else
+    if isa(A, CuSparseMatrixCSC)
         # cusparseSpSV doesn't supports CSC format
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
         transa2 = transa == 'N' ? 'T' : 'N'
         uplo2 = uplo == 'U' ? 'L' : 'U'
+    else
+        descA = CuSparseMatrixDescriptor(A, index)
+        transa2 = transa
+        uplo2 = uplo
     end
-    cusparseSpMatSetAttribute(descA, 'F', Ref{UInt32}(uplo2), Csize_t(sizeof(uplo2)))
-    cusparseSpMatSetAttribute(descA, 'D', Ref{UInt32}(diag), Csize_t(sizeof(diag)))
+    cusparseSpMatSetAttribute(descA, 'F', Ref{SparseChar}(uplo2), Csize_t(sizeof(uplo2)))
+    cusparseSpMatSetAttribute(descA, 'D', Ref{SparseChar}(diag), Csize_t(sizeof(diag)))
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
 
@@ -422,18 +422,18 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     (nB != nC) && (transb == 'N') && throw(DimensionMismatch("B and C must have the same number of columns, but B has $nB columns and C has $nC columns"))
     (mB != nC) && (transb != 'N') && throw(DimensionMismatch("B must have the same the number of rows that C has as columns, but B has $mB rows and C has $nC columns"))
 
-    if !isa(A, CuSparseMatrixCSC)
-        descA = CuSparseMatrixDescriptor(A, index)
-        transa2 = transa
-        uplo2 = uplo
-    else
+    if isa(A, CuSparseMatrixCSC)
         # cusparseSpSM doesn't supports CSC format
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
         transa2 = transa == 'N' ? 'T' : 'N'
         uplo2 = uplo == 'U' ? 'L' : 'U'
+    else
+        descA = CuSparseMatrixDescriptor(A, index)
+        transa2 = transa
+        uplo2 = uplo
     end
-    cusparseSpMatSetAttribute(descA, 'F', Ref{UInt32}(uplo2), Csize_t(sizeof(uplo2)))
-    cusparseSpMatSetAttribute(descA, 'D', Ref{UInt32}(diag), Csize_t(sizeof(diag)))
+    cusparseSpMatSetAttribute(descA, 'F', Ref{SparseChar}(uplo2), Csize_t(sizeof(uplo2)))
+    cusparseSpMatSetAttribute(descA, 'D', Ref{SparseChar}(diag), Csize_t(sizeof(diag)))
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
