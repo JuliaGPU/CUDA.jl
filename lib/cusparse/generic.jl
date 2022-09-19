@@ -132,7 +132,7 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
     end
 
     if isa(A, CuSparseMatrixCSC)
-        # cusparseSpMV doesn't supports CSC format with CUSPARSE.version() < v"11.6.1"
+        # cusparseSpMV doesn't support CSC format with CUSPARSE.version() < v"11.6.1"
         # cusparseSpMV supports the CSC format with CUSPARSE.version() ≥ v"11.6.1"
         # but it doesn't work for complex numbers when transa == 'C'
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
@@ -186,7 +186,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
     end
 
     if isa(A, CuSparseMatrixCSC)
-        # cusparseSpMM doesn't supports CSC format with CUSPARSE.version() < v"11.6.1"
+        # cusparseSpMM doesn't support CSC format with CUSPARSE.version() < v"11.6.1"
         # cusparseSpMM supports the CSC format with CUSPARSE.version() ≥ v"11.6.1"
         # but it doesn't work for complex numbers when transa == 'C'
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
