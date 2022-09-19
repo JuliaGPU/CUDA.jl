@@ -31,6 +31,17 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
                                             # CUSPARSE.CUSPARSE_SPMV_COO_ALG2,
                                             CUSPARSE.CUSPARSE_SPMV_COO_ALG1])
 
+    SPMM_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],
+                      CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
+                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG1,
+                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG2,
+                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG3],
+                      CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
+                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG1,
+                                            # CUSPARSE.CUSPARSE_SPMM_COO_ALG2,
+                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG3,
+                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG4])
+
     for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO]
         @testset "$SparseMatrixType -- mv! algo=$algo" for algo in SPMV_ALGOS[SparseMatrixType]
             @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
@@ -51,17 +62,6 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
                 end
             end
         end
-
-    SPMM_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],
-                      CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
-                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG1,
-                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG2,
-                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG3],
-                      CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
-                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG1,
-                                            # CUSPARSE.CUSPARSE_SPMM_COO_ALG2,
-                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG3,
-                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG4])
 
         @testset "$SparseMatrixType -- mm! algo=$algo" for algo in SPMM_ALGOS[SparseMatrixType]
             @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]

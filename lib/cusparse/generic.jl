@@ -131,12 +131,12 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
                             " is not supported. Use a CSR matrix instead."))
     end
 
-    if !(isa(A, CuSparseMatrixCSC) && (CUSPARSE.version() < v"11.6.1"))
+    if !(isa(A, CuSparseMatrixCSC) && (version() <= v"11.5"))
         descA = CuSparseMatrixDescriptor(A, index)
         m,n = size(A)
         transa2 = transa
     else
-        # cusparseSpMV doesn't supports CSC format if CUSPARSE.version() < v"11.6.1"
+        # cusparseSpMV doesn't supports CSC format if version() ≤ v"11.5"
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
         n,m = size(A)
         transa2 = transa == 'N' ? 'T' : 'N'
@@ -183,12 +183,12 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
                             " is not supported. Use a CSR matrix instead."))
     end
 
-    if !(isa(A, CuSparseMatrixCSC) && (CUSPARSE.version() < v"11.6.1"))
+    if !(isa(A, CuSparseMatrixCSC) && (version() <= v"11.5"))
         descA = CuSparseMatrixDescriptor(A, index)
         m,k = size(A)
         transa2 = transa
     else
-        # cusparseSpMM doesn't supports CSC format if CUSPARSE.version() < v"11.6.1"
+        # cusparseSpMM doesn't supports CSC format if version() ≤ v"11.5"
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
         k,m = size(A)
         transa2 = transa == 'N' ? 'T' : 'N'
