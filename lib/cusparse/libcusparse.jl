@@ -5311,7 +5311,7 @@ end
 
 @checked function cusparseSpGEMMreuse_nnz(handle, opA, opB, matA, matB, matC, alg, spgemmDescr, bufferSize2, externalBuffer2, bufferSize3, externalBuffer3, bufferSize4, externalBuffer4)
     initialize_context()
-    ccall((:cusparseSpGEMMreuse_nnz, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, cusparseSpMatDescr_t, cusparseSpMatDescr_t, cusparseSpMatDescr_t, cusparseSpGEMMAlg_t, cusparseSpGEMMDescr_t, Ptr{Csize_t}, Ptr{Cvoid}, Ptr{Csize_t}, Ptr{Cvoid}, Ptr{Csize_t}, Ptr{Cvoid}), handle, opA, opB, matA, matB, matC, alg, spgemmDescr, bufferSize2, externalBuffer2, bufferSize3, externalBuffer3, bufferSize4, externalBuffer4)
+    ccall((:cusparseSpGEMMreuse_nnz, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, cusparseSpMatDescr_t, cusparseSpMatDescr_t, cusparseSpMatDescr_t, cusparseSpGEMMAlg_t, cusparseSpGEMMDescr_t, Ptr{Csize_t}, CuPtr{Cvoid}, Ptr{Csize_t}, CuPtr{Cvoid}, Ptr{Csize_t}, CuPtr{Cvoid}), handle, opA, opB, matA, matB, matC, alg, spgemmDescr, bufferSize2, externalBuffer2, bufferSize3, externalBuffer3, bufferSize4, externalBuffer4)
 end
 
 @checked function cusparseSpMMOp_createPlan(handle, plan, opA, opB, matA, matB, matC, computeType, alg, addOperationNvvmBuffer, addOperationBufferSize, mulOperationNvvmBuffer, mulOperationBufferSize, epilogueNvvmBuffer, epilogueBufferSize, SpMMWorkspaceSize)
@@ -5336,7 +5336,7 @@ end
 
 @checked function cusparseSpGEMMreuse_copy(handle, opA, opB, matA, matB, matC, alg, spgemmDescr, bufferSize5, externalBuffer5)
     initialize_context()
-    ccall((:cusparseSpGEMMreuse_copy, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, cusparseSpMatDescr_t, cusparseSpMatDescr_t, cusparseSpMatDescr_t, cusparseSpGEMMAlg_t, cusparseSpGEMMDescr_t, Ptr{Csize_t}, Ptr{Cvoid}), handle, opA, opB, matA, matB, matC, alg, spgemmDescr, bufferSize5, externalBuffer5)
+    ccall((:cusparseSpGEMMreuse_copy, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, cusparseSpMatDescr_t, cusparseSpMatDescr_t, cusparseSpMatDescr_t, cusparseSpGEMMAlg_t, cusparseSpGEMMDescr_t, Ptr{Csize_t}, CuPtr{Cvoid}), handle, opA, opB, matA, matB, matC, alg, spgemmDescr, bufferSize5, externalBuffer5)
 end
 
 @checked function cusparseSpSM_bufferSize(handle, opA, opB, alpha, matA, matB, matC, computeType, alg, spsmDescr, bufferSize)
@@ -5351,12 +5351,12 @@ end
 
 @checked function cusparseSpSM_analysis(handle, opA, opB, alpha, matA, matB, matC, computeType, alg, spsmDescr, externalBuffer)
     initialize_context()
-    ccall((:cusparseSpSM_analysis, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, Ptr{Cvoid}, cusparseSpMatDescr_t, cusparseDnMatDescr_t, cusparseDnMatDescr_t, cudaDataType, cusparseSpSMAlg_t, cusparseSpSMDescr_t, Ptr{Cvoid}), handle, opA, opB, alpha, matA, matB, matC, computeType, alg, spsmDescr, externalBuffer)
+    ccall((:cusparseSpSM_analysis, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, Ptr{Cvoid}, cusparseSpMatDescr_t, cusparseDnMatDescr_t, cusparseDnMatDescr_t, cudaDataType, cusparseSpSMAlg_t, cusparseSpSMDescr_t, CuPtr{Cvoid}), handle, opA, opB, alpha, matA, matB, matC, computeType, alg, spsmDescr, externalBuffer)
 end
 
 @checked function cusparseSpSV_analysis(handle, opA, alpha, matA, vecX, vecY, computeType, alg, spsvDescr, externalBuffer)
     initialize_context()
-    ccall((:cusparseSpSV_analysis, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, Ptr{Cvoid}, cusparseSpMatDescr_t, cusparseDnVecDescr_t, cusparseDnVecDescr_t, cudaDataType, cusparseSpSVAlg_t, cusparseSpSVDescr_t, Ptr{Cvoid}), handle, opA, alpha, matA, vecX, vecY, computeType, alg, spsvDescr, externalBuffer)
+    ccall((:cusparseSpSV_analysis, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, Ptr{Cvoid}, cusparseSpMatDescr_t, cusparseDnVecDescr_t, cusparseDnVecDescr_t, cudaDataType, cusparseSpSVAlg_t, cusparseSpSVDescr_t, CuPtr{Cvoid}), handle, opA, alpha, matA, vecX, vecY, computeType, alg, spsvDescr, externalBuffer)
 end
 
 @checked function cusparseSpGEMMreuse_compute(handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, spgemmDescr)
@@ -5381,7 +5381,7 @@ end
 
 @checked function cusparseSpGEMMreuse_workEstimation(handle, opA, opB, matA, matB, matC, alg, spgemmDescr, bufferSize1, externalBuffer1)
     initialize_context()
-    ccall((:cusparseSpGEMMreuse_workEstimation, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, cusparseSpMatDescr_t, cusparseSpMatDescr_t, cusparseSpMatDescr_t, cusparseSpGEMMAlg_t, cusparseSpGEMMDescr_t, Ptr{Csize_t}, Ptr{Cvoid}), handle, opA, opB, matA, matB, matC, alg, spgemmDescr, bufferSize1, externalBuffer1)
+    ccall((:cusparseSpGEMMreuse_workEstimation, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, cusparseSpMatDescr_t, cusparseSpMatDescr_t, cusparseSpMatDescr_t, cusparseSpGEMMAlg_t, cusparseSpGEMMDescr_t, Ptr{Csize_t}, CuPtr{Cvoid}), handle, opA, opB, matA, matB, matC, alg, spgemmDescr, bufferSize1, externalBuffer1)
 end
 
 @checked function cusparseLoggerForceDisable()
@@ -5406,7 +5406,7 @@ end
 
 @checked function cusparseSpMMOp(plan, externalBuffer)
     initialize_context()
-    ccall((:cusparseSpMMOp, libcusparse()), cusparseStatus_t, (cusparseSpMMOpPlan_t, Ptr{Cvoid}), plan, externalBuffer)
+    ccall((:cusparseSpMMOp, libcusparse()), cusparseStatus_t, (cusparseSpMMOpPlan_t, CuPtr{Cvoid}), plan, externalBuffer)
 end
 
 @checked function cusparseCscGet(spMatDescr, rows, cols, nnz, cscColOffsets, cscRowInd, cscValues, cscColOffsetsType, cscRowIndType, idxBase, valueType)

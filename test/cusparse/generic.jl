@@ -132,4 +132,4 @@ if CUSPARSE.version() >= v"11.5.1"
             end
         end
     end
-end # version >= 11.5.1
+end # CUSPARSE.version >= 11.5.1

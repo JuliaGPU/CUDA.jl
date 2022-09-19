@@ -173,7 +173,7 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
         # Left division with vectors
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:AbstractCuSparseMatrix}},
                             B::DenseCuVector{T}) where {T<:BlasFloat} =
-            if CUSPARSE.version() < v"11.5.1"
+            if version() <= v"11.3"
                 sv2!('T', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
             else
                 sv!('T', $uploc, $isunitc, one(T), parent(parent(A)), B, B, 'O')
@@ -181,7 +181,7 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
 
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractCuSparseMatrix}},
                             B::DenseCuVector{T}) where {T<:BlasReal} =
-            if CUSPARSE.version() < v"11.5.1"
+            if version() <= v"11.3"
                 sv2!('T', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
             else
                 sv!('T', $uploc, $isunitc, one(T), parent(parent(A)), B, B, 'O')
@@ -189,7 +189,7 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
 
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractCuSparseMatrix}},
                             B::DenseCuVector{T}) where {T<:BlasComplex} =
-            if CUSPARSE.version() < v"11.5.1"
+            if version() <= v"11.3"
                 sv2!('C', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
             else
                 sv!('C', $uploc, $isunitc, one(T), parent(parent(A)), B, B, 'O')
@@ -213,7 +213,7 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
         # Left division with matrices
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:AbstractCuSparseMatrix}},
                             B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-            if CUSPARSE.version() < v"11.5.1"
+            if version() <= v"11.3"
                 sm2!('T', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
             else
                 sm!('T', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, B, 'O')
@@ -221,7 +221,7 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
 
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractCuSparseMatrix}},
                             B::DenseCuMatrix{T}) where {T<:BlasReal} =
-            if CUSPARSE.version() < v"11.5.1"
+            if version() <= v"11.3"
                 sm2!('T', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
             else
                 sm!('T', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, B, 'O')
@@ -229,7 +229,7 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
 
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractCuSparseMatrix}},
                             B::DenseCuMatrix{T}) where {T<:BlasComplex} =
-            if CUSPARSE.version() < v"11.5.1"
+            if version() <= v"11.3"
                 sm2!('C', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
             else
                 sm!('C', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, B, 'O')
