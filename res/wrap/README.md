@@ -16,6 +16,10 @@ Either run `wrap.jl` directly, or include it using Revise.jl and call the `main(
 Be sure to activate the project environment in this folder, which will download CUDA from
 artifacts (if you want to upgrade the headers, be sure to update the relevant JLLs in the
 project environment).
+You can also call `main(name=library)` if you want to generate the wrapper for a specific `library`.
+The possible values for `library` are `"all"` (default), `"cudadrv"`, `"nvtx"`, `"nvml"`,
+`"cupti"`, `"cublas"`, `"cufft"`, `"curand"`, `"cusparse"`, `"cusolver"`, `"cudnn"`, `"cutensor"`,
+`"cutensornet"` or `"custatevec"`.
 
 For each library, the script performs the following steps:
 

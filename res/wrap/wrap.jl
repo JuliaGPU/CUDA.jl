@@ -300,7 +300,7 @@ end
 # Main application
 #
 
-using CUDA_full_jll, CUDNN_jll, CUTENSOR_jll
+using CUDA_full_jll, CUDNN_jll, CUTENSOR_jll, cuQuantum_jll
 
 function process(name, headers...; libname=name, kwargs...)
     new_output_file, new_common_file = wrap(libname, headers...; kwargs...)
@@ -355,7 +355,10 @@ function process(name, headers...; libname=name, kwargs...)
         for entry in readdir(patchdir)
             if endswith(entry, ".patch")
                 path = joinpath(patchdir, entry)
-                run(`patch -p1 -i $path`)
+                try
+                    run(`patch -p1 -i $path`)
+                catch e
+                end
             end
         end
     end
@@ -365,7 +368,13 @@ function process(name, headers...; libname=name, kwargs...)
 
     new_output_text = read(new_output_file, String)
 
-    existing_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", name, basename(new_output_file))
+    if name == "custatevec"
+        existing_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", "CUSTATEVEC", "src", basename(new_output_file))
+    elseif name == "cutensornet"
+        existing_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", "CUTENSORNET", "src", basename(new_output_file))
+    else
+        existing_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", name, basename(new_output_file))
+    end
     @show existing_output_file
     @assert isfile(existing_output_file)
     existing_output_text = read(existing_output_file, String)
@@ -376,7 +385,13 @@ function process(name, headers...; libname=name, kwargs...)
     # move removed methods to the 'deprecated' file and remove them from header
     removed = setdiff(keys(existing_defs), keys(new_defs))
     if !isempty(removed)
-        deprecated_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", name, "lib$(libname)_deprecated.jl")
+        if name == "custatevec"
+            deprecated_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", "CUSTATEVEC", "src", "lib$(libname)_deprecated.jl")
+        elseif name == "cutensornet"
+            deprecated_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", "CUTENSORNET", "src", "lib$(libname)_deprecated.jl")
+        else
+            deprecated_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", name, "lib$(libname)_deprecated.jl")
+        end
         open(deprecated_output_file, "a") do io
             state = State(0, Edit[])
             for fn in removed
@@ -413,27 +428,33 @@ function process(name, headers...; libname=name, kwargs...)
     end
 
     # apply the common file
-    cp(new_common_file, joinpath(dirname(dirname(@__DIR__)) , "lib", name, basename(new_common_file)); force=true)
+    if name == "custatevec"
+        cp(new_common_file, joinpath(dirname(dirname(@__DIR__)) , "lib", "CUSTATEVEC", "src", basename(new_common_file)); force=true)
+    elseif name == "cutensornet"
+        cp(new_common_file, joinpath(dirname(dirname(@__DIR__)) , "lib", "CUTENSORNET", "src", basename(new_common_file)); force=true)
+    else
+        cp(new_common_file, joinpath(dirname(dirname(@__DIR__)) , "lib", name, basename(new_common_file)); force=true)
+    end
 
     return
 end
 
-function main()
+function main(; name="all")
     cuda = joinpath(CUDA_full_jll.artifact_dir, "cuda", "include")
     cupti = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
     cudnn = joinpath(CUDNN_jll.artifact_dir, "include")
     cutensor = joinpath(CUTENSOR_jll.artifact_dir, "include")
-    cuquantum = joinpath(CUQUANTUM_jll.artifact_dir, "include")
+    cuquantum = joinpath(cuQuantum_jll.artifact_dir, "include")
 
-    process("cudadrv", "$cuda/cuda.h","$cuda/cudaGL.h", "$cuda/cudaProfiler.h";
+    (name == "all" || name == "cudadrv") && process("cudadrv", "$cuda/cuda.h","$cuda/cudaGL.h","$cuda/cudaProfiler.h";
             include_dirs=[cuda], libname="cuda")
 
-    process("nvtx", "$cuda/nvtx3/nvToolsExt.h", "$cuda/nvtx3/nvToolsExtCuda.h";
+    (name == "all" || name == "nvtx") && process("nvtx", "$cuda/nvtx3/nvToolsExt.h", "$cuda/nvtx3/nvToolsExtCuda.h";
             include_dirs=[cuda])
 
-    process("nvml", "$cuda/nvml.h"; include_dirs=[cuda])
+    (name == "all" || name == "nvml") && process("nvml", "$cuda/nvml.h"; include_dirs=[cuda])
 
-    process("cupti", "$cupti/cupti.h", "$cupti/cupti_profiler_target.h";
+    (name == "all" || name == "cupti") && process("cupti", "$cupti/cupti.h", "$cupti/cupti_profiler_target.h";
             include_dirs=[cuda, cupti],
             wrapped_headers=["cupti_result.h", "cupti_version.h", "cupti_activity.h",
                              "cupti_callbacks.h", "cupti_events.h",
@@ -443,18 +464,18 @@ function main()
     # NOTE: libclang (the C API) doesn't support/expose the __packed__/aligned attributes,
     #       so disable them (Julia doesn't support packed structs anyway)
 
-    process("cublas", "$cuda/cublas_v2.h", "$cuda/cublasXt.h";
+    (name == "all" || name == "cublas") && process("cublas", "$cuda/cublas_v2.h", "$cuda/cublasXt.h";
             wrapped_headers=["cublas_v2.h", "cublas_api.h", "cublasXt.h"],
             include_dirs=[cuda])
 
 
-    process("cufft", "$cuda/cufft.h"; include_dirs=[cuda])
+    (name == "all" || name == "cufft") && process("cufft", "$cuda/cufft.h"; include_dirs=[cuda])
 
-    process("curand", "$cuda/curand.h"; include_dirs=[cuda])
+    (name == "all" || name == "curand") && process("curand", "$cuda/curand.h"; include_dirs=[cuda])
 
-    process("cusparse", "$cuda/cusparse.h"; include_dirs=[cuda])
+    (name == "all" || name == "cusparse") && process("cusparse", "$cuda/cusparse.h"; include_dirs=[cuda])
 
-    process("cusolver", "$cuda/cusolverDn.h",
+    (name == "all" || name == "cusolver") && process("cusolver", "$cuda/cusolverDn.h",
             "$cuda/cusolverSp.h", "$cuda/cusolverSp_LOWLEVEL_PREVIEW.h",
             "$cuda/cusolverMg.h", "$cuda/cusolverRf.h";
             wrapped_headers=["cusolver_common.h", "cusolverDn.h",
@@ -462,18 +483,20 @@ function main()
                              "cusolverMg.h", "cusolverRf.h"],
             include_dirs=[cuda])
 
-    process("cudnn", "$cudnn/cudnn_version.h", "$cudnn/cudnn_ops_infer.h",
+    (name == "all" || name == "cudnn") && process("cudnn", "$cudnn/cudnn_version.h", "$cudnn/cudnn_ops_infer.h",
                      "$cudnn/cudnn_ops_train.h", "$cudnn/cudnn_adv_infer.h",
                      "$cudnn/cudnn_adv_train.h", "$cudnn/cudnn_cnn_infer.h",
                      "$cudnn/cudnn_cnn_train.h"; include_dirs=[cuda, cudnn])
 
-    process("cutensor", "$cutensor/cutensor.h";
+    (name == "all" || name == "cutensor") && process("cutensor", "$cutensor/cutensor.h";
             wrapped_headers=["cutensor.h", "cutensor/types.h"],
             include_dirs=[cuda, cutensor])
-    process("cutensornet", "$cuquantum/cutensornet.h";
+
+    (name == "all" || name == "cutensornet") && process("cutensornet", "$cuquantum/cutensornet.h";
             wrapped_headers=["cutensornet.h", "cutensornet/types.h"],
             include_dirs=[cuda, cuquantum])
-    process("custatevec", "$cuquantum/custatevec.h";
+
+    (name == "all" || name == "custatevec") && process("custatevec", "$cuquantum/custatevec.h";
             wrapped_headers=["custatevec.h", "custatevec/types.h"],
             include_dirs=[cuda, cuquantum])
 end
