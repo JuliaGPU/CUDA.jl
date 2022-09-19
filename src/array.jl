@@ -22,6 +22,25 @@ ArrayStorage(buf::B, state::Int) where {B} =
 
 ## array type
 
+function check_eltype(T)
+  if !isbitstype(T) && !Base.isbitsunion(T)
+    if T isa Union
+      explanation = "Element type $T is a union with not all components being bitstypes"
+      for U in Base.uniontypes(T)
+        if !isbitstype(U)
+          explanation *= "\n  Union component $U is not a bitstype\n" * GPUCompiler.explain_nonisbits(U, 2)
+        end
+      end
+    else
+      explanation = "Element type $T is not a bitstype\n" * GPUCompiler.explain_nonisbits(T)
+    end
+
+    error("""
+      CuArray only supports element types that bitstypes or unions of bitstypes.
+      $explanation""")
+  end
+end
+
 mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
   storage::Union{Nothing,ArrayStorage{B}}
 
@@ -31,7 +50,7 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
   dims::Dims{N}
 
   function CuArray{T,N,B}(::UndefInitializer, dims::Dims{N}) where {T,N,B}
-    Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
+    check_eltype(T)
     maxsize = prod(dims) * sizeof(T)
     bufsize = if Base.isbitsunion(T)
       # type tag array past the data
@@ -47,7 +66,7 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
 
   function CuArray{T,N}(storage::ArrayStorage{B}, dims::Dims{N};
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,B}
-    Base.allocatedinline(T) || error("CuArray only supports element types that are stored inline")
+    check_eltype(T)
     return new{T,N,B}(storage, maxsize, offset, dims)
   end
 end
