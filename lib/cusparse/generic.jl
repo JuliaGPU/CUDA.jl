@@ -131,15 +131,17 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
                             " is not supported. Use a CSR matrix instead."))
     end
 
-    if !(isa(A, CuSparseMatrixCSC) && (version() <= v"11.5"))
-        descA = CuSparseMatrixDescriptor(A, index)
-        m,n = size(A)
-        transa2 = transa
-    else
-        # cusparseSpMV doesn't supports CSC format if version() ≤ v"11.5"
+    if isa(A, CuSparseMatrixCSC)
+        # cusparseSpMV doesn't supports CSC format with CUSPARSE.version() < v"11.6.1"
+        # cusparseSpMV supports the CSC format with CUSPARSE.version() ≥ v"11.6.1"
+        # but it doesn't work for complex numbers when transa == 'C'
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
         n,m = size(A)
         transa2 = transa == 'N' ? 'T' : 'N'
+    else
+        descA = CuSparseMatrixDescriptor(A, index)
+        m,n = size(A)
+        transa2 = transa
     end
 
     if transa2 == 'N'
@@ -183,15 +185,17 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
                             " is not supported. Use a CSR matrix instead."))
     end
 
-    if !(isa(A, CuSparseMatrixCSC) && (version() <= v"11.5"))
-        descA = CuSparseMatrixDescriptor(A, index)
-        m,k = size(A)
-        transa2 = transa
-    else
-        # cusparseSpMM doesn't supports CSC format if version() ≤ v"11.5"
+    if isa(A, CuSparseMatrixCSC)
+        # cusparseSpMM doesn't supports CSC format with CUSPARSE.version() < v"11.6.1"
+        # cusparseSpMM supports the CSC format with CUSPARSE.version() ≥ v"11.6.1"
+        # but it doesn't work for complex numbers when transa == 'C'
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
         k,m = size(A)
         transa2 = transa == 'N' ? 'T' : 'N'
+    else
+        descA = CuSparseMatrixDescriptor(A, index)
+        m,k = size(A)
+        transa2 = transa
     end
     n = size(C)[2]
 
