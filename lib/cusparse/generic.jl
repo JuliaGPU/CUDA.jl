@@ -386,8 +386,8 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
         uplo2 = uplo
     end
 
-    cusparse_uplo = convert(cusparseFillMode_t, uplo2)
-    cusparse_diag = convert(cusparseDiagType_t, diag)
+    cusparse_uplo = Ref{cusparseFillMode_t}(uplo2)
+    cusparse_diag = Ref{cusparseDiagType_t}(diag)
 
     cusparseSpMatSetAttribute(descA, 'F', cusparse_uplo, Csize_t(sizeof(cusparse_uplo)))
     cusparseSpMatSetAttribute(descA, 'D', cusparse_diag, Csize_t(sizeof(cusparse_diag)))
@@ -438,8 +438,8 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
         uplo2 = uplo
     end
 
-    cusparse_uplo = convert(cusparseFillMode_t, uplo2)
-    cusparse_diag = convert(cusparseDiagType_t, diag)
+    cusparse_uplo = Ref{cusparseFillMode_t}(uplo2)
+    cusparse_diag = Ref{cusparseDiagType_t}(diag)
 
     cusparseSpMatSetAttribute(descA, 'F', cusparse_uplo, Csize_t(sizeof(cusparse_uplo)))
     cusparseSpMatSetAttribute(descA, 'D', cusparse_diag, Csize_t(sizeof(cusparse_diag)))

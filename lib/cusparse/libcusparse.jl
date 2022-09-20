@@ -5424,7 +5424,7 @@ end
     ccall((:cusparseSpSV_solve, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, Ptr{Cvoid}, cusparseSpMatDescr_t, cusparseDnVecDescr_t, cusparseDnVecDescr_t, cudaDataType, cusparseSpSVAlg_t, cusparseSpSVDescr_t), handle, opA, alpha, matA, vecX, vecY, computeType, alg, spsvDescr)
 end
 
-# @checked function cusparseLoggerSetFile(file)
-#     initialize_context()
-#     ccall((:cusparseLoggerSetFile, libcusparse()), cusparseStatus_t, (Ptr{FILE},), file)
-# end
+@checked function cusparseLoggerSetFile(file)
+    initialize_context()
+    ccall((:cusparseLoggerSetFile, libcusparse()), cusparseStatus_t, (Ptr{Base.Libc.FILE},), file)
+end
