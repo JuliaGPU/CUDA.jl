@@ -385,8 +385,13 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
         transa2 = transa
         uplo2 = uplo
     end
-    cusparseSpMatSetAttribute(descA, 'F', Ref{SparseChar}(uplo2), Csize_t(sizeof(uplo2)))
-    cusparseSpMatSetAttribute(descA, 'D', Ref{SparseChar}(diag), Csize_t(sizeof(diag)))
+
+    cusparse_uplo = convert(cusparseFillMode_t, uplo2)
+    cusparse_diag = convert(cusparseDiagType_t, diag)
+
+    cusparseSpMatSetAttribute(descA, 'F', cusparse_uplo, Csize_t(sizeof(cusparse_uplo)))
+    cusparseSpMatSetAttribute(descA, 'D', cusparse_diag, Csize_t(sizeof(cusparse_diag)))
+
     descX = CuDenseVectorDescriptor(X)
     descY = CuDenseVectorDescriptor(Y)
 
@@ -432,8 +437,13 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
         transa2 = transa
         uplo2 = uplo
     end
-    cusparseSpMatSetAttribute(descA, 'F', Ref{SparseChar}(uplo2), Csize_t(sizeof(uplo2)))
-    cusparseSpMatSetAttribute(descA, 'D', Ref{SparseChar}(diag), Csize_t(sizeof(diag)))
+
+    cusparse_uplo = convert(cusparseFillMode_t, uplo2)
+    cusparse_diag = convert(cusparseDiagType_t, diag)
+
+    cusparseSpMatSetAttribute(descA, 'F', cusparse_uplo, Csize_t(sizeof(cusparse_uplo)))
+    cusparseSpMatSetAttribute(descA, 'D', cusparse_diag, Csize_t(sizeof(cusparse_diag)))
+
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
