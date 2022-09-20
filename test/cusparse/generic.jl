@@ -83,7 +83,7 @@ if CUSPARSE.version() >= v"11.5.1"
                     for uplo in ('L', 'U')
                         for diag in ('U', 'N')
                             T <: Real && transa == 'C' && continue
-                            println(transa, " ", uplo, " ", diag)
+                            T <: Complex && transa == 'C' && diag == 'N' && continue
                             A = rand(T, 10, 10)
                             A = uplo == 'L' ? tril(A) : triu(A)
                             A = diag == 'U' ? A - Diagonal(A) + I : A
@@ -106,10 +106,11 @@ if CUSPARSE.version() >= v"11.5.1"
             @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
-                    for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                    for (transb, opb) in [('N', identity), ('T', transpose)]
                         for uplo in ('L', 'U')
                             for diag in ('U', 'N')
                                 T <: Real && transa == 'C' && continue
+                                T <: Complex && transa == 'C' && diag == 'N' && continue
                                 A = rand(T, 10, 10)
                                 A = uplo == 'L' ? tril(A) : triu(A)
                                 A = diag == 'U' ? A - Diagonal(A) + I : A
