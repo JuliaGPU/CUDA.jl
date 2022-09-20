@@ -20,9 +20,9 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[BFloat16s]]
 deps = ["LinearAlgebra", "Printf", "Random", "Test"]
-git-tree-sha1 = "eb4802b444c7f0fe165e54da854298c4bba0c73e"
+git-tree-sha1 = "e6cc81f8cabcd2c252f4325491cf40288309bef6"
 uuid = "ab4f0b2a-ad5b-11e8-123f-65d77653426b"
-version = "0.3.0"
+version = "0.4.0"
 
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
