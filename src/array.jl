@@ -22,21 +22,45 @@ ArrayStorage(buf::B, state::Int) where {B} =
 
 ## array type
 
-function check_eltype(T)
-  if !isbitstype(T) && !Base.isbitsunion(T)
+function hasfieldcount(@nospecialize(dt))
+    try
+        fieldcount(dt)
+    catch
+        return false
+    end
+    return true
+end
+
+function explain_eltype(@nospecialize(T), depth=0; maxdepth=10)
+    depth > maxdepth && return ""
+
     if T isa Union
-      explanation = "Element type $T is a union with not all components being bitstypes"
+      msg = "  "^depth * "$T is a union that's not allocated inline\n"
       for U in Base.uniontypes(T)
-        if !isbitstype(U)
-          explanation *= "\n  Union component $U is not a bitstype\n" * GPUCompiler.explain_nonisbits(U, 2)
+        if !Base.allocatedinline(U)
+          msg *= explain_eltype(U, depth+1)
         end
       end
+    elseif Base.ismutabletype(T)
+      msg = "  "^depth * "$T is a mutable type\n"
+    elseif hasfieldcount(T)
+      msg = "  "^depth * "$T is a struct that's not allocated inline\n"
+      for U in fieldtypes(dt)
+          if !Base.allocatedinline(U)
+              msg *= explain_nonisbits(U, depth+1)
+          end
+      end
     else
-      explanation = "Element type $T is not a bitstype\n" * GPUCompiler.explain_nonisbits(T)
+      msg = "  "^depth * "$T is not allocated inline\n"
     end
+    return msg
+end
 
+function check_eltype(T)
+  if !Base.allocatedinline(T)
+    explanation = explain_eltype(T)
     error("""
-      CuArray only supports element types that bitstypes or unions of bitstypes.
+      CuArray only supports element types that are allocated inline.
       $explanation""")
   end
 end

@@ -656,6 +656,29 @@ end
     @cuda threads=length(a) kernel(a)
     @test Array(a) == [1]
   end
+
+  # struct with unions are not isbits but are allocatedinline
+  let
+    @gensym typnam
+    typ = @eval begin
+      struct $typnam
+        foo::Union{Int,Float32}
+      end
+      $typnam
+    end
+    a = CuArray{typ}(undef, 2)
+    function kernel(x::AbstractArray{T}) where {T}
+      i = threadIdx().x
+      x[i] = if i == 1
+        T(Int(i))
+      else
+        T(Float32(i))
+      end
+      return
+    end
+    @cuda threads=length(a) kernel(a)
+    @test Array(a) == [typ(1), typ(2f0)]
+  end
 end
 
 @testset "large map reduce" begin
