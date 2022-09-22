@@ -1605,7 +1605,7 @@ end
 
 @checked function nvmlDeviceCreateGpuInstanceWithPlacement(device, profileId, placement, gpuInstance)
     initialize_context()
-    ccall((:nvmlDeviceCreateGpuInstanceWithPlacement, libnvml), nvmlReturn_t, (nvmlDevice_t, UInt32, Ptr{nvmlGpuInstancePlacement_t}, Ptr{nvmlGpuInstance_t}), device, profileId, placement, gpuInstance)
+    ccall((:nvmlDeviceCreateGpuInstanceWithPlacement, libnvml()), nvmlReturn_t, (nvmlDevice_t, UInt32, Ptr{nvmlGpuInstancePlacement_t}, Ptr{nvmlGpuInstance_t}), device, profileId, placement, gpuInstance)
 end
 
 ##

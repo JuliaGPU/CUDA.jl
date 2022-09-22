@@ -5269,32 +5269,32 @@ end
 
 @checked function cusparseCreateBlockedEll(spMatDescr, rows, cols, ellBlockSize, ellCols, ellColInd, ellValue, ellIdxType, idxBase, valueType)
     initialize_context()
-    ccall((:cusparseCreateBlockedEll, libcusparse), cusparseStatus_t, (Ptr{cusparseSpMatDescr_t}, Int64, Int64, Int64, Int64, CuPtr{Cvoid}, CuPtr{Cvoid}, cusparseIndexType_t, cusparseIndexBase_t, cudaDataType), spMatDescr, rows, cols, ellBlockSize, ellCols, ellColInd, ellValue, ellIdxType, idxBase, valueType)
+    ccall((:cusparseCreateBlockedEll, libcusparse()), cusparseStatus_t, (Ptr{cusparseSpMatDescr_t}, Int64, Int64, Int64, Int64, CuPtr{Cvoid}, CuPtr{Cvoid}, cusparseIndexType_t, cusparseIndexBase_t, cudaDataType), spMatDescr, rows, cols, ellBlockSize, ellCols, ellColInd, ellValue, ellIdxType, idxBase, valueType)
 end
 
 @checked function cusparseSDDMM_bufferSize(handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, bufferSize)
     initialize_context()
-    ccall((:cusparseSDDMM_bufferSize, libcusparse), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, PtrOrCuPtr{Cvoid}, cusparseDnMatDescr_t, cusparseDnMatDescr_t, PtrOrCuPtr{Cvoid}, cusparseSpMatDescr_t, cudaDataType, cusparseSDDMMAlg_t, Ptr{Csize_t}), handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, bufferSize)
+    ccall((:cusparseSDDMM_bufferSize, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, PtrOrCuPtr{Cvoid}, cusparseDnMatDescr_t, cusparseDnMatDescr_t, PtrOrCuPtr{Cvoid}, cusparseSpMatDescr_t, cudaDataType, cusparseSDDMMAlg_t, Ptr{Csize_t}), handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, bufferSize)
 end
 
 @checked function cusparseBlockedEllGet(spMatDescr, rows, cols, ellBlockSize, ellCols, ellColInd, ellValue, ellIdxType, idxBase, valueType)
     initialize_context()
-    ccall((:cusparseBlockedEllGet, libcusparse), cusparseStatus_t, (cusparseSpMatDescr_t, Ptr{Int64}, Ptr{Int64}, Ptr{Int64}, Ptr{Int64}, CuPtr{Ptr{Cvoid}}, CuPtr{Ptr{Cvoid}}, Ptr{cusparseIndexType_t}, Ptr{cusparseIndexBase_t}, Ptr{cudaDataType}), spMatDescr, rows, cols, ellBlockSize, ellCols, ellColInd, ellValue, ellIdxType, idxBase, valueType)
+    ccall((:cusparseBlockedEllGet, libcusparse()), cusparseStatus_t, (cusparseSpMatDescr_t, Ptr{Int64}, Ptr{Int64}, Ptr{Int64}, Ptr{Int64}, CuPtr{Ptr{Cvoid}}, CuPtr{Ptr{Cvoid}}, Ptr{cusparseIndexType_t}, Ptr{cusparseIndexBase_t}, Ptr{cudaDataType}), spMatDescr, rows, cols, ellBlockSize, ellCols, ellColInd, ellValue, ellIdxType, idxBase, valueType)
 end
 
 @checked function cusparseSpMM_preprocess(handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, externalBuffer)
     initialize_context()
-    ccall((:cusparseSpMM_preprocess, libcusparse), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, PtrOrCuPtr{Cvoid}, cusparseSpMatDescr_t, cusparseDnMatDescr_t, PtrOrCuPtr{Cvoid}, cusparseDnMatDescr_t, cudaDataType, cusparseSpMMAlg_t, CuPtr{Cvoid}), handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, externalBuffer)
+    ccall((:cusparseSpMM_preprocess, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, PtrOrCuPtr{Cvoid}, cusparseSpMatDescr_t, cusparseDnMatDescr_t, PtrOrCuPtr{Cvoid}, cusparseDnMatDescr_t, cudaDataType, cusparseSpMMAlg_t, CuPtr{Cvoid}), handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, externalBuffer)
 end
 
 @checked function cusparseSDDMM_preprocess(handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, externalBuffer)
     initialize_context()
-    ccall((:cusparseSDDMM_preprocess, libcusparse), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, PtrOrCuPtr{Cvoid}, cusparseDnMatDescr_t, cusparseDnMatDescr_t, PtrOrCuPtr{Cvoid}, cusparseSpMatDescr_t, cudaDataType, cusparseSDDMMAlg_t, CuPtr{Cvoid}), handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, externalBuffer)
+    ccall((:cusparseSDDMM_preprocess, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, PtrOrCuPtr{Cvoid}, cusparseDnMatDescr_t, cusparseDnMatDescr_t, PtrOrCuPtr{Cvoid}, cusparseSpMatDescr_t, cudaDataType, cusparseSDDMMAlg_t, CuPtr{Cvoid}), handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, externalBuffer)
 end
 
 @checked function cusparseSDDMM(handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, externalBuffer)
     initialize_context()
-    ccall((:cusparseSDDMM, libcusparse), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, PtrOrCuPtr{Cvoid}, cusparseDnMatDescr_t, cusparseDnMatDescr_t, PtrOrCuPtr{Cvoid}, cusparseSpMatDescr_t, cudaDataType, cusparseSDDMMAlg_t, CuPtr{Cvoid}), handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, externalBuffer)
+    ccall((:cusparseSDDMM, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, PtrOrCuPtr{Cvoid}, cusparseDnMatDescr_t, cusparseDnMatDescr_t, PtrOrCuPtr{Cvoid}, cusparseSpMatDescr_t, cudaDataType, cusparseSDDMMAlg_t, CuPtr{Cvoid}), handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg, externalBuffer)
 end
 
 ##
