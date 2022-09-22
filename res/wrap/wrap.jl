@@ -348,6 +348,13 @@ function process(name, headers...; libname=name, kwargs...)
     end
 
 
+    ## Add "()" at the end of the library name in all ccall
+
+    text = read(new_output_file, String)
+    updated_text = replace(text, "lib$(libname))"=>"lib$(libname)())")
+    write(new_output_file, updated_text)
+
+
     ## manual patches
 
     patchdir = joinpath(@__DIR__, "patches", name)

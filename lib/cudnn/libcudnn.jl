@@ -2391,12 +2391,12 @@ end
 
 @checked function cudnnSetActivationDescriptorSwishBeta(activationDesc, swish_beta)
     initialize_context()
-    ccall((:cudnnSetActivationDescriptorSwishBeta, libcudnn), cudnnStatus_t, (cudnnActivationDescriptor_t, Cdouble), activationDesc, swish_beta)
+    ccall((:cudnnSetActivationDescriptorSwishBeta, libcudnn()), cudnnStatus_t, (cudnnActivationDescriptor_t, Cdouble), activationDesc, swish_beta)
 end
 
 @checked function cudnnGetActivationDescriptorSwishBeta(activationDesc, swish_beta)
     initialize_context()
-    ccall((:cudnnGetActivationDescriptorSwishBeta, libcudnn), cudnnStatus_t, (cudnnActivationDescriptor_t, Ptr{Cdouble}), activationDesc, swish_beta)
+    ccall((:cudnnGetActivationDescriptorSwishBeta, libcudnn()), cudnnStatus_t, (cudnnActivationDescriptor_t, Ptr{Cdouble}), activationDesc, swish_beta)
 end
 
 ##
