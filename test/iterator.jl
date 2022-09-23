@@ -16,3 +16,12 @@ for (batch, cubatch) in zip(batches, cubatches)
     @test all(x -> x isa CuArray, cubatch)
     previous_cubatch = cubatch
 end
+
+@test Base.IteratorSize(typeof(cubatches)) isa Base.HasShape{1}
+@test length(cubatches) == length(batch for batch in batches)
+@test axes(cubatches) == axes(batch for batch in batches)
+
+@test Base.IteratorEltype(typeof(cubatches)) isa Base.EltypeUnknown
+@test eltype(cubatches) == eltype(batch for batch in batches) == Any
+@test Base.IteratorEltype(typeof(CuIterator(batches))) isa Base.HasEltype
+@test eltype(CuIterator(batches)) == eltype(batches)  # Vector
