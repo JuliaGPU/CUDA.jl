@@ -27,3 +27,11 @@ function Base.iterate(c::CuIterator, state...)
     c.previous = cubatch
     return cubatch, next_state
 end
+
+Base.IteratorSize(::Type{CuIterator{B}}) where {B} = Base.IteratorSize(B)
+Base.length(c::CuIterator) = length(c.batches)  # required for HasLength
+Base.axes(c::CuIterator) = axes(c.batches)  # required for HasShape{N}
+
+Base.IteratorEltype(::Type{CuIterator{B}}) where {B} = Base.IteratorEltype(B)
+Base.eltype(c::CuIterator) = eltype(c.batches)  # required for HasEltype
+
