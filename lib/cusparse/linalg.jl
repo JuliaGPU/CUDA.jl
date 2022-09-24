@@ -25,9 +25,37 @@ function sum_dim1(A::CuSparseMatrixCSR)
     return rowsum
 end
 
+function sum_dim2(A::CuSparseMatrixCSR)
+    function kernel(Tnorm, out, dA)
+        idx = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        idx < length(dA.colPtr) || return
+        s = zero(Tnorm)
+        for k in dA.colPtr[idx]:dA.colPtr[idx+1]-1
+            s += abs(dA.nzVal[k])
+        end
+        out[idx] = s
+        return
+    end
+
+    A = CuSparseMatrixCSC(A)
+    m, n = size(A)
+    Tnorm = typeof(float(real(zero(eltype(A)))))
+    Tsum = promote_type(Float64,Tnorm)
+    colsum = CUDA.CuArray{Tsum}(undef, n)
+    kernel_f = @cuda launch=false kernel(Tnorm, colsum, A)
+    
+    config = launch_configuration(kernel_f.fun)
+    threads = min(m, config.threads)
+    blocks = cld(m, threads)
+    kernel_f(Tnorm, colsum, A; threads, blocks)
+    return colsum
+end
+
 function LinearAlgebra.opnorm(A::CuSparseMatrixCSR, p::Real=2)
     if p == Inf
         return maximum(sum_dim1(A))
+    elseif p == 1
+        return maximum(sum_dim2(A))
     else
         error("p=$p is not supported")
     end
