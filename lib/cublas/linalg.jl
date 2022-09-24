@@ -123,14 +123,14 @@ function LinearAlgebra.axpby!(alpha::Number, x::StridedCuArray{T}, beta::Number,
     axpby!(length(x), alpha, x, beta, y)
 end
 
-function LinearAlgebra.rotate!(x::StridedCuArray{T}, y::StridedCuArray{T}, c, s) where T<:CublasFloat
+function LinearAlgebra.rotate!(x::StridedCuArray{T}, y::StridedCuArray{T}, c::Number, s::Number) where T<:CublasFloat
     nx = length(x)
     ny = length(y)
     nx==ny || throw(DimensionMismatch("rotate arguments have lengths $nx and $ny"))
     rot!(nx, x, y, c, s)
 end
 
-function LinearAlgebra.reflect!(x::StridedCuArray{T}, y::StridedCuArray{T}, c, s) where T<:CublasFloat
+function LinearAlgebra.reflect!(x::StridedCuArray{T}, y::StridedCuArray{T}, c::Number, s::Number) where T<:CublasFloat
     nx = length(x)
     ny = length(y)
     nx==ny || throw(DimensionMismatch("reflect arguments have lengths $nx and $ny"))
