@@ -131,7 +131,11 @@ function Base.reshape(A::CuSparseMatrixCOO{T,M}, dims::NTuple{N,Int}) where {T,N
     nrows, ncols = size(A)
     flat_indices = nrows * (A.colInd .- 1) + A.rowInd .- 1
     new_col, new_row = div.(flat_indices, dims[1]) .+ 1, rem.(flat_indices, dims[1]) .+ 1
-    CuSparseMatrixCOO(sparse(new_row, new_col, A.nzVal, dims[1], dims[2]))
+    if length(dims) == 1
+        CuSparseMatrixCOO(sparse(new_row, new_col, A.nzVal, dims[1], 1))
+    else
+        CuSparseMatrixCOO(sparse(new_row, new_col, A.nzVal, dims[1], dims[2]))
+    end
 end
 function LinearAlgebra.triu(A::CuSparseMatrixCOO{T,M}, k::Integer) where {T,M}
     mask = A.rowInd .+ k .<= A.colInd
@@ -195,14 +199,14 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR, CuSparseMatrixB
             end
         end
 
-        if $SparseMatrixType in [CuSparseMatrixCSR] # Is it possible to put also CuSparseMatrixCSC?
+        if $SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
             function LinearAlgebra.adjoint(A::$SparseMatrixType{T}) where {T}
                 cscA = CuSparseMatrixCSC(conj(A))
-                $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, size(cscA)) )
+                $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA))) )
             end
             function LinearAlgebra.transpose(A::$SparseMatrixType{T}) where {T}
                 cscA = CuSparseMatrixCSC(A)
-                $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, size(cscA)) )
+                $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA))) )
             end
         end
         
