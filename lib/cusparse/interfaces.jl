@@ -127,6 +127,98 @@ function Base.:(-)(A::CuSparseMatrix, B::CuSparseMatrixCSR)
     return geam(one(eltype(A)), csrA, -one(eltype(A)), B, 'O')
 end
 
+function Base.reshape(A::CuSparseMatrixCOO{T,M}, dims::NTuple{N,Int}) where {T,N,M}
+    nrows, ncols = size(A)
+    flat_indices = nrows * (A.colInd .- 1) + A.rowInd .- 1
+    new_col, new_row = div.(flat_indices, dims[1]) .+ 1, rem.(flat_indices, dims[1]) .+ 1
+    CuSparseMatrixCOO(sparse(new_row, new_col, A.nzVal, dims[1], dims[2]))
+end
+function LinearAlgebra.triu(A::CuSparseMatrixCOO{T,M}, k::Integer) where {T,M}
+    mask = A.rowInd .+ k .<= A.colInd
+    rows = A.rowInd[mask]
+    cols = A.colInd[mask]
+    datas = A.nzVal[mask]
+    CuSparseMatrixCOO(sparse(rows, cols, datas, size(A, 1), size(A, 2)))
+end
+function LinearAlgebra.tril(A::CuSparseMatrixCOO{T,M}, k::Integer) where {T,M}
+    mask = A.rowInd .+ k .>= A.colInd
+    rows = A.rowInd[mask]
+    cols = A.colInd[mask]
+    datas = A.nzVal[mask]
+    CuSparseMatrixCOO(sparse(rows, cols, datas, size(A, 1), size(A, 2)))
+end
+function LinearAlgebra.kron(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
+    out_shape = (size(A, 1) * size(B, 1), size(A, 2) * size(B, 2))
+    Annz = Int64(A.nnz)
+    Bnnz = Int64(B.nnz)
+
+    if A.nnz == 0 || B.nnz == 0
+        return CuSparseMatrixCOO(spzeros(T, out_shape))
+    end
+
+    row = (A.rowInd .- 1) .* size(B, 1)
+    row = repeat(row, inner = Bnnz)
+    col = (A.colInd .- 1) .* size(B, 2)
+    col = repeat(col, inner = Bnnz)
+    data = repeat(A.nzVal, inner = Bnnz)
+
+    row, col = reshape(row, Annz, Bnnz), reshape(col, Annz, Bnnz)
+    row .+= reshape(repeat(reverse(B.rowInd) .- 1, outer = Annz), Annz, Bnnz)
+    col .+= reshape(repeat(reverse(B.colInd) .- 1, outer = Annz), Annz, Bnnz)
+    row, col = reshape(row, Annz * Bnnz) .+ 1, reshape(col, Annz * Bnnz) .+ 1
+
+    data = reshape(data, Annz, Bnnz) .* reshape(repeat(reverse(B.nzVal), outer = Annz), Annz, Bnnz)
+    data = reshape(data, Annz * Bnnz)
+    CuSparseMatrixCOO(sparse(row, col, data, out_shape[1], out_shape[2]))
+end
+
+for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR, CuSparseMatrixBSR, CuSparseMatrixCOO]
+    @eval begin
+        if $SparseMatrixType in [CuSparseMatrixCSR, CuSparseMatrixBSR]
+            function LinearAlgebra.mul!(Y::$SparseMatrixType{T}, A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
+                mm!('N', 'N', one(T), A, B, zero(T), Y, 'O')
+            end
+            function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
+                Y = $SparseMatrixType(spzeros(T, size(A, 1), size(B, 2)))
+                mul!(Y, A, B)
+            end
+        else
+            function LinearAlgebra.mul!(Y::$SparseMatrixType{T}, A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
+                Y2 = CuSparseMatrixCSR(Y)
+                A2 = CuSparseMatrixCSR(A)
+                B2 = CuSparseMatrixCSR(B)
+                Y = $SparseMatrixType( mm!('N', 'N', one(T), A2, B2, zero(T), Y2, 'O') )
+            end
+            function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
+                Y = $SparseMatrixType(spzeros(T, size(A, 1), size(B, 2)))
+                mul!(Y, A, B)
+            end
+        end
+
+        if $SparseMatrixType in [CuSparseMatrixCSR] # Is it possible to put also CuSparseMatrixCSC?
+            function LinearAlgebra.adjoint(A::$SparseMatrixType{T}) where {T}
+                cscA = CuSparseMatrixCSC(conj(A))
+                $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, size(cscA)) )
+            end
+            function LinearAlgebra.transpose(A::$SparseMatrixType{T}) where {T}
+                cscA = CuSparseMatrixCSC(A)
+                $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, size(cscA)) )
+            end
+        end
+        
+        if $SparseMatrixType != CuSparseMatrixCOO
+            Base.reshape(A::$SparseMatrixType{T,M}, dims::NTuple{N,Int}) where {T,N,M} = $SparseMatrixType( reshape(CuSparseMatrixCOO(A), dims) )
+            
+            LinearAlgebra.triu(A::$SparseMatrixType{T,M}, k::Integer) where {T,M} = $SparseMatrixType( triu(CuSparseMatrixCOO(A), k) )
+            LinearAlgebra.tril(A::$SparseMatrixType{T,M}, k::Integer) where {T,M} = $SparseMatrixType( tril(CuSparseMatrixCOO(A), k) )
+
+            LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::$SparseMatrixType{T,M}) where {T,M} = $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(B)) )
+        end
+        LinearAlgebra.triu(A::$SparseMatrixType{T,M}) where {T,M} = triu(A, 0)
+        LinearAlgebra.tril(A::$SparseMatrixType{T,M}) where {T,M} = tril(A, 0)
+    end
+end
+
 # triangular
 
 ## direct
