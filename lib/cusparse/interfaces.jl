@@ -137,99 +137,64 @@ function Base.reshape(A::CuSparseMatrixCOO{T,M}, dims::NTuple{N,Int}) where {T,N
         CuSparseMatrixCOO(sparse(new_row, new_col, A.nzVal, dims[1], dims[2]))
     end
 end
-function LinearAlgebra.triu(A::CuSparseMatrixCOO{T,M}, k::Integer) where {T,M}
-    mask = A.rowInd .+ k .<= A.colInd
-    rows = A.rowInd[mask]
-    cols = A.colInd[mask]
-    datas = A.nzVal[mask]
-    CuSparseMatrixCOO(sparse(rows, cols, datas, size(A, 1), size(A, 2)))
-end
-function LinearAlgebra.tril(A::CuSparseMatrixCOO{T,M}, k::Integer) where {T,M}
-    mask = A.rowInd .+ k .>= A.colInd
-    rows = A.rowInd[mask]
-    cols = A.colInd[mask]
-    datas = A.nzVal[mask]
-    CuSparseMatrixCOO(sparse(rows, cols, datas, size(A, 1), size(A, 2)))
-end
-function LinearAlgebra.kron(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
-    out_shape = (size(A, 1) * size(B, 1), size(A, 2) * size(B, 2))
-    Annz = Int64(A.nnz)
-    Bnnz = Int64(B.nnz)
 
-    if A.nnz == 0 || B.nnz == 0
-        return CuSparseMatrixCOO(spzeros(T, out_shape))
+function LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T}, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T}) where {T}
+    if CUSPARSE.version() < v"11.5.1"
+        mm2!('N', 'N', one(T), A, B, zero(T), Y, 'O')
+    else
+        mm!('N', 'N', one(T), A, B, zero(T), Y, 'O')
     end
-
-    row = (A.rowInd .- 1) .* size(B, 1)
-    row = repeat(row, inner = Bnnz)
-    col = (A.colInd .- 1) .* size(B, 2)
-    col = repeat(col, inner = Bnnz)
-    data = repeat(A.nzVal, inner = Bnnz)
-
-    row, col = reshape(row, Annz, Bnnz), reshape(col, Annz, Bnnz)
-    row .+= reshape(repeat(reverse(B.rowInd) .- 1, outer = Annz), Annz, Bnnz)
-    col .+= reshape(repeat(reverse(B.colInd) .- 1, outer = Annz), Annz, Bnnz)
-    row, col = reshape(row, Annz * Bnnz) .+ 1, reshape(col, Annz * Bnnz) .+ 1
-
-    data = reshape(data, Annz, Bnnz) .* reshape(repeat(reverse(B.nzVal), outer = Annz), Annz, Bnnz)
-    data = reshape(data, Annz * Bnnz)
-    CuSparseMatrixCOO(sparse(row, col, data, out_shape[1], out_shape[2]))
+end
+function LinearAlgebra.mul!(Y::CuSparseMatrixCOO{T}, A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}) where {T}
+    Y2 = copy(CuSparseMatrixCSR(Y))
+    A2 = copy(CuSparseMatrixCSR(A))
+    B2 = copy(CuSparseMatrixCSR(B))
+    mul!(Y2, A2, B2)
+    copyto!(Y, CuSparseMatrixCOO(Y2))
+end
+function LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T}, A::CuSparseMatrixCSC{T}, B::CuSparseMatrixCSC{T}) where {T}
+    Y2 = copy(CuSparseMatrixCSR(Y))
+    A2 = copy(CuSparseMatrixCSR(A))
+    B2 = copy(CuSparseMatrixCSR(B))
+    mul!(Y2, A2, B2)
+    copyto!(Y, CuSparseMatrixCSC(Y2))
+end
+function LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}) where {T}
+    Y = CuSparseMatrixCOO(spzeros(T, size(A, 1), size(B, 2)))
+    mul!(Y, A, B)
 end
 
-for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR, CuSparseMatrixBSR, CuSparseMatrixCOO]
+function SparseArrays.droptol!(A::CuSparseMatrixCOO{T,M}, tol::Real) where {T,M}
+    mask = abs.(A.nzVal) .> tol
+    rows = A.rowInd[mask]
+    cols = A.colInd[mask]
+    datas = A.nzVal[mask]
+    copyto!(A, CuSparseMatrixCOO(sparse(rows, cols, datas, size(A, 1), size(A, 2))))
+end
+
+for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
     @eval begin
-        if $SparseMatrixType in [CuSparseMatrixCSR, CuSparseMatrixBSR]
-            function LinearAlgebra.mul!(Y::$SparseMatrixType{T}, A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
-                if CUSPARSE.version() < v"11.5.1"
-                    mm2!('N', 'N', one(T), A, B, zero(T), Y, 'O')
-                else
-                    mm!('N', 'N', one(T), A, B, zero(T), Y, 'O')
-                end
-            end
-            function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
-                Y = $SparseMatrixType(spzeros(T, size(A, 1), size(B, 2)))
-                mul!(Y, A, B)
-            end
-        else
-            function LinearAlgebra.mul!(Y::$SparseMatrixType{T}, A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
-                Y2 = copy(CuSparseMatrixCSR(Y))
-                A2 = copy(CuSparseMatrixCSR(A))
-                B2 = copy(CuSparseMatrixCSR(B))
-                if CUSPARSE.version() < v"11.5.1"
-                    copyto!(Y, $SparseMatrixType( mm2!('N', 'N', one(T), A2, B2, zero(T), Y2, 'O') ))
-                else
-                    copyto!(Y, $SparseMatrixType( mm!('N', 'N', one(T), A2, B2, zero(T), Y2, 'O') ))
-                end
-            end
-            function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
-                Y = $SparseMatrixType(spzeros(T, size(A, 1), size(B, 2)))
-                mul!(Y, A, B)
-            end
+        Base.reshape(A::$SparseMatrixType{T,M}, dims::NTuple{N,Int}) where {T,N,M} = $SparseMatrixType( reshape(CuSparseMatrixCOO(A), dims) )
+
+        function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
+            Y = $SparseMatrixType(spzeros(T, size(A, 1), size(B, 2)))
+            mul!(Y, A, B)
         end
 
-        if $SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
-            function LinearAlgebra.adjoint(A::$SparseMatrixType{T}) where {T}
-                cscA = CuSparseMatrixCSC(conj(A))
-                $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA))) )
-            end
-            function LinearAlgebra.transpose(A::$SparseMatrixType{T}) where {T}
-                cscA = CuSparseMatrixCSC(A)
-                $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA))) )
-            end
+        function LinearAlgebra.adjoint(A::$SparseMatrixType{T}) where {T}
+            cscA = CuSparseMatrixCSC(conj(A))
+            $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA))) )
         end
-        
-        if $SparseMatrixType != CuSparseMatrixCOO
-            Base.reshape(A::$SparseMatrixType{T,M}, dims::NTuple{N,Int}) where {T,N,M} = $SparseMatrixType( reshape(CuSparseMatrixCOO(A), dims) )
-            
-            LinearAlgebra.triu(A::$SparseMatrixType{T,M}, k::Integer) where {T,M} = $SparseMatrixType( triu(CuSparseMatrixCOO(A), k) )
-            LinearAlgebra.tril(A::$SparseMatrixType{T,M}, k::Integer) where {T,M} = $SparseMatrixType( tril(CuSparseMatrixCOO(A), k) )
 
-            LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::$SparseMatrixType{T,M}) where {T,M} = $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(B)) )
+        function LinearAlgebra.transpose(A::$SparseMatrixType{T}) where {T}
+            cscA = CuSparseMatrixCSC(A)
+            $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA))) )
         end
-        LinearAlgebra.triu(A::$SparseMatrixType{T,M}) where {T,M} = triu(A, 0)
-        LinearAlgebra.tril(A::$SparseMatrixType{T,M}) where {T,M} = tril(A, 0)
+
+        SparseArrays.droptol!(A::$SparseMatrixType{T,M}, tol::Real) where {T,M} = $SparseMatrixType(droptol!(CuSparseMatrixCOO(A), tol))
     end
 end
+
 
 # triangular
 

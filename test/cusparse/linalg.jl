@@ -1,7 +1,7 @@
 using CUDA.CUSPARSE
 using LinearAlgebra, SparseArrays
 
-@testsetitem "opnorm and norm" for T in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "opnorm and norm" for T in [Float32, Float64, ComplexF32, ComplexF64]
     S = sprand(T, 10, 10, 0.1)
     dS_csc = CuSparseMatrixCSC(S)
     dS_csr = CuSparseMatrixCSR(S)
@@ -19,4 +19,15 @@ using LinearAlgebra, SparseArrays
     @test norm(S, Inf) ≈ norm(dS_csr, Inf)
     @test norm(S, -Inf) ≈ norm(dS_csc, -Inf)
     @test norm(S, -Inf) ≈ norm(dS_csr, -Inf)
+end
+
+@testset "triu and tril $typ" for
+    typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
+
+    a = sprand(ComplexF32, 100, 100, 0.1)
+    A = typ(a)
+    @test Array(triu(A)) ≈ triu(a)
+    @test Array(triu(A, 1)) ≈ triu(a, 1)
+    @test Array(tril(A)) ≈ tril(a)
+    @test Array(tril(A, 1)) ≈ tril(a, 1)
 end

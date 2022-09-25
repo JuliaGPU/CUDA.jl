@@ -230,23 +230,16 @@ using LinearAlgebra, SparseArrays
         @test Array(kron(A, B)) ≈ kron(a, b)
     end
 
-    @testset "Reshape $typ (100,100) -> (20, 500)" for
+    @testset "Reshape $typ (100,100) -> (20, 500) and droptol" for
         typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
 
         a = sprand(ComplexF32, 100, 100, 0.1)
         dims = (20, 500)
         A = typ(a)
         @test Array(reshape(A, dims)) ≈ reshape(a, dims)
+        droptol!(a, 0.4)
+        droptol!(A, 0.4)
+        @test Array(A) ≈ a
     end
 
-    @testset "triu and tril $typ" for
-        typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
-
-        a = sprand(ComplexF32, 100, 100, 0.1)
-        A = typ(a)
-        @test Array(triu(A)) ≈ triu(a)
-        @test Array(triu(A, 1)) ≈ triu(a, 1)
-        @test Array(tril(A)) ≈ tril(a)
-        @test Array(tril(A, 1)) ≈ tril(a, 1)
-    end
 end
