@@ -1,10 +1,22 @@
 using CUDA.CUSPARSE
 using LinearAlgebra, SparseArrays
 
-@testset "opnorm" for T in [Float32, Float64, ComplexF32, ComplexF64]
+@testsetitem "opnorm and norm" for T in [Float32, Float64, ComplexF32, ComplexF64]
     S = sprand(T, 10, 10, 0.1)
     dS_csc = CuSparseMatrixCSC(S)
     dS_csr = CuSparseMatrixCSR(S)
     @test opnorm(S, Inf) ≈ opnorm(dS_csc, Inf)
     @test opnorm(S, Inf) ≈ opnorm(dS_csr, Inf)
+    @test opnorm(S, 1) ≈ opnorm(dS_csc, 1)
+    @test opnorm(S, 1) ≈ opnorm(dS_csr, 1)
+    @test norm(S, 0) ≈ norm(dS_csc, 0)
+    @test norm(S, 0) ≈ norm(dS_csr, 0)
+    @test norm(S, 1) ≈ norm(dS_csc, 1)
+    @test norm(S, 1) ≈ norm(dS_csr, 1)
+    @test norm(S, 2) ≈ norm(dS_csc, 2)
+    @test norm(S, 2) ≈ norm(dS_csr, 2)
+    @test norm(S, Inf) ≈ norm(dS_csc, Inf)
+    @test norm(S, Inf) ≈ norm(dS_csr, Inf)
+    @test norm(S, -Inf) ≈ norm(dS_csc, -Inf)
+    @test norm(S, -Inf) ≈ norm(dS_csr, -Inf)
 end

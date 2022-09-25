@@ -180,7 +180,11 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR, CuSparseMatrixB
     @eval begin
         if $SparseMatrixType in [CuSparseMatrixCSR, CuSparseMatrixBSR]
             function LinearAlgebra.mul!(Y::$SparseMatrixType{T}, A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
-                mm!('N', 'N', one(T), A, B, zero(T), Y, 'O')
+                if CUSPARSE.version() < v"11.5.1"
+                    mm2!('N', 'N', one(T), A, B, zero(T), Y, 'O')
+                else
+                    mm!('N', 'N', one(T), A, B, zero(T), Y, 'O')
+                end
             end
             function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
                 Y = $SparseMatrixType(spzeros(T, size(A, 1), size(B, 2)))
@@ -188,10 +192,14 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR, CuSparseMatrixB
             end
         else
             function LinearAlgebra.mul!(Y::$SparseMatrixType{T}, A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
-                Y2 = CuSparseMatrixCSR(Y)
-                A2 = CuSparseMatrixCSR(A)
-                B2 = CuSparseMatrixCSR(B)
-                Y = $SparseMatrixType( mm!('N', 'N', one(T), A2, B2, zero(T), Y2, 'O') )
+                Y2 = copy(CuSparseMatrixCSR(Y))
+                A2 = copy(CuSparseMatrixCSR(A))
+                B2 = copy(CuSparseMatrixCSR(B))
+                if CUSPARSE.version() < v"11.5.1"
+                    copyto!(Y, $SparseMatrixType( mm2!('N', 'N', one(T), A2, B2, zero(T), Y2, 'O') ))
+                else
+                    copyto!(Y, $SparseMatrixType( mm!('N', 'N', one(T), A2, B2, zero(T), Y2, 'O') ))
+                end
             end
             function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
                 Y = $SparseMatrixType(spzeros(T, size(A, 1), size(B, 2)))

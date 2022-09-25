@@ -62,3 +62,15 @@ function LinearAlgebra.opnorm(A::CuSparseMatrixCSR, p::Real=2)
 end
 
 LinearAlgebra.opnorm(A::CuSparseMatrixCSC, p::Real=2) = opnorm(CuSparseMatrixCSR(A), p)
+
+function LinearAlgebra.norm(A::AbstractCuSparseMatrix{T,M}, p::Real=2) where {T,M}
+    if p == Inf
+        return maximum(abs.(A.nzVal))
+    elseif p == -Inf
+        return minimum(abs.(A.nzVal))
+    elseif p == 0
+        return Float64(A.nnz)
+    else
+        return sum(abs.(A.nzVal).^p)^(1/p)
+    end
+end
