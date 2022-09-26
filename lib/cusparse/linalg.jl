@@ -129,5 +129,34 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
         LinearAlgebra.tril(A::$SparseMatrixType{T,M}) where {T,M} = $SparseMatrixType( tril(CuSparseMatrixCOO(A), 0) )
 
         LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::$SparseMatrixType{T,M}) where {T,M} = $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(B)) )
+    
+        function LinearAlgebra.exp(A::$SparseMatrixType{T,M}; threshold = 1e-7, nonzero_tol = 1e-14) where {T,M}
+            rows = LinearAlgebra.checksquare(A) # Throws exception if not square
+        
+            mat_norm = norm(A, Inf)
+            scaling_factor = nextpow(2, mat_norm) # Native routine, faster
+            A = A ./ scaling_factor
+            delta = 1
+        
+            P = $SparseMatrixType(spdiagm(0 => ones(eltype(A), rows)))
+            next_term = P
+            n = 1
+        
+            while delta > threshold
+                next_term = (1 / n) * A * next_term
+                droptol!(next_term, nonzero_tol)
+                delta = norm(next_term, Inf)
+                copyto!(P, P + next_term)
+                n = n + 1
+            end
+            for n = 1:log2(scaling_factor)
+                P = P * P;
+                if nnz(P) / length(P) < 0.25
+                    droptol!(P, nonzero_tol)
+                end
+            end
+            P
+        end
+        
     end
 end

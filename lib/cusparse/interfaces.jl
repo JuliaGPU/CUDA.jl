@@ -169,7 +169,8 @@ function SparseArrays.droptol!(A::CuSparseMatrixCOO{T,M}, tol::Real) where {T,M}
     rows = A.rowInd[mask]
     cols = A.colInd[mask]
     datas = A.nzVal[mask]
-    copyto!(A, CuSparseMatrixCOO(sparse(rows, cols, datas, size(A, 1), size(A, 2))))
+    B = CuSparseMatrixCOO(sparse(rows, cols, datas, size(A, 1), size(A, 2)))
+    copyto!(A, B)
 end
 
 for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
@@ -191,7 +192,11 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
             $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA))) )
         end
 
-        SparseArrays.droptol!(A::$SparseMatrixType{T,M}, tol::Real) where {T,M} = $SparseMatrixType(droptol!(CuSparseMatrixCOO(A), tol))
+        function SparseArrays.droptol!(A::$SparseMatrixType{T,M}, tol::Real) where {T,M}
+            B = copy(CuSparseMatrixCOO(A))
+            droptol!(B, tol)
+            copyto!(A, $SparseMatrixType(B))
+        end
     end
 end
 

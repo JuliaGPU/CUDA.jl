@@ -21,7 +21,7 @@ using LinearAlgebra, SparseArrays
     @test norm(S, -Inf) ≈ norm(dS_csr, -Inf)
 end
 
-@testset "triu and tril $typ" for
+@testset "triu tril exp $typ" for
     typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
 
     a = sprand(ComplexF32, 100, 100, 0.1)
@@ -30,4 +30,5 @@ end
     @test Array(triu(A, 1)) ≈ triu(a, 1)
     @test Array(tril(A)) ≈ tril(a)
     @test Array(tril(A, 1)) ≈ tril(a, 1)
+    @test Array(exp(A)) ≈ exp(collect(a))
 end
