@@ -24,7 +24,7 @@ end
 @testset "triu tril exp $typ" for
     typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
 
-    a = sprand(ComplexF32, 100, 100, 0.1)
+    a = sprand(ComplexF32, 100, 100, 0.02)
     A = typ(a)
     @test Array(triu(A)) ≈ triu(a)
     @test Array(triu(A, 1)) ≈ triu(a, 1)

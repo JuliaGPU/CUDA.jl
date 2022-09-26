@@ -132,6 +132,7 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
     
         function LinearAlgebra.exp(A::$SparseMatrixType{T,M}; threshold = 1e-7, nonzero_tol = 1e-14) where {T,M}
             rows = LinearAlgebra.checksquare(A) # Throws exception if not square
+            typeA = eltype(A)
         
             mat_norm = norm(A, Inf)
             scaling_factor = nextpow(2, mat_norm) # Native routine, faster
@@ -143,7 +144,7 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
             n = 1
         
             while delta > threshold
-                next_term = (1 / n) * A * next_term
+                next_term = typeA(1 / n) * A * next_term
                 droptol!(next_term, nonzero_tol)
                 delta = norm(next_term, Inf)
                 copyto!(P, P + next_term)

@@ -138,28 +138,28 @@ function Base.reshape(A::CuSparseMatrixCOO{T,M}, dims::NTuple{N,Int}) where {T,N
     end
 end
 
-function LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T}, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T}) where {T}
+function LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::CuSparseMatrixCSR{T,M}, B::CuSparseMatrixCSR{T,M}) where {T,M}
     if CUSPARSE.version() < v"11.5.1"
         mm2!('N', 'N', one(T), A, B, zero(T), Y, 'O')
     else
         mm!('N', 'N', one(T), A, B, zero(T), Y, 'O')
     end
 end
-function LinearAlgebra.mul!(Y::CuSparseMatrixCOO{T}, A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}) where {T}
+function LinearAlgebra.mul!(Y::CuSparseMatrixCOO{T,M}, A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
     Y2 = copy(CuSparseMatrixCSR(Y))
     A2 = copy(CuSparseMatrixCSR(A))
     B2 = copy(CuSparseMatrixCSR(B))
     mul!(Y2, A2, B2)
     copyto!(Y, CuSparseMatrixCOO(Y2))
 end
-function LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T}, A::CuSparseMatrixCSC{T}, B::CuSparseMatrixCSC{T}) where {T}
+function LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T,M}, A::CuSparseMatrixCSC{T,M}, B::CuSparseMatrixCSC{T,M}) where {T,M}
     Y2 = copy(CuSparseMatrixCSR(Y))
     A2 = copy(CuSparseMatrixCSR(A))
     B2 = copy(CuSparseMatrixCSR(B))
     mul!(Y2, A2, B2)
     copyto!(Y, CuSparseMatrixCSC(Y2))
 end
-function LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}) where {T}
+function LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
     Y = CuSparseMatrixCOO(spzeros(T, size(A, 1), size(B, 2)))
     mul!(Y, A, B)
 end
@@ -177,17 +177,17 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
     @eval begin
         Base.reshape(A::$SparseMatrixType{T,M}, dims::NTuple{N,Int}) where {T,N,M} = $SparseMatrixType( reshape(CuSparseMatrixCOO(A), dims) )
 
-        function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T}
+        function LinearAlgebra.:(*)(A::$SparseMatrixType{T,M}, B::$SparseMatrixType{T,M}) where {T,M}
             Y = $SparseMatrixType(spzeros(T, size(A, 1), size(B, 2)))
             mul!(Y, A, B)
         end
 
-        function LinearAlgebra.adjoint(A::$SparseMatrixType{T}) where {T}
+        function LinearAlgebra.adjoint(A::$SparseMatrixType{T,M}) where {T,M}
             cscA = CuSparseMatrixCSC(conj(A))
             $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA))) )
         end
 
-        function LinearAlgebra.transpose(A::$SparseMatrixType{T}) where {T}
+        function LinearAlgebra.transpose(A::$SparseMatrixType{T,M}) where {T,M}
             cscA = CuSparseMatrixCSC(A)
             $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA))) )
         end
