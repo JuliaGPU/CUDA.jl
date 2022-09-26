@@ -230,7 +230,7 @@ using LinearAlgebra, SparseArrays
         if CUSPARSE.version() > v"11.4.1"
             @test Array(A * B) ≈ a * b
         else
-            @test_throws CUSPARSEError Array(A * B) ≈ a * b
+            @test_throws ErrorException Array(A * B) ≈ a * b
         end
         @test Array(kron(A, B)) ≈ kron(a, b)
     end

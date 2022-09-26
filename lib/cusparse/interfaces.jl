@@ -139,11 +139,11 @@ function Base.reshape(A::CuSparseMatrixCOO{T,M}, dims::NTuple{N,Int}) where {T,N
 end
 
 function LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::CuSparseMatrixCSR{T,M}, B::CuSparseMatrixCSR{T,M}) where {T,M}
-    CUSPARSE.version() < v"11.5.1" && throw(CUSPARSEError("This operation is not supported by the current CUDA version."))
+    CUSPARSE.version() < v"11.5.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     mm!('N', 'N', one(T), A, B, zero(T), Y, 'O')
 end
 function LinearAlgebra.mul!(Y::CuSparseMatrixCOO{T,M}, A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
-    CUSPARSE.version() < v"11.5.1" && throw(CUSPARSEError("This operation is not supported by the current CUDA version."))
+    CUSPARSE.version() < v"11.5.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     Y2 = copy(CuSparseMatrixCSR(Y))
     A2 = copy(CuSparseMatrixCSR(A))
     B2 = copy(CuSparseMatrixCSR(B))
@@ -151,7 +151,7 @@ function LinearAlgebra.mul!(Y::CuSparseMatrixCOO{T,M}, A::CuSparseMatrixCOO{T,M}
     copyto!(Y, CuSparseMatrixCOO(Y2))
 end
 function LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T,M}, A::CuSparseMatrixCSC{T,M}, B::CuSparseMatrixCSC{T,M}) where {T,M}
-    CUSPARSE.version() < v"11.5.1" && throw(CUSPARSEError("This operation is not supported by the current CUDA version."))
+    CUSPARSE.version() < v"11.5.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     Y2 = copy(CuSparseMatrixCSR(Y))
     A2 = copy(CuSparseMatrixCSR(A))
     B2 = copy(CuSparseMatrixCSR(B))
@@ -159,7 +159,7 @@ function LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T,M}, A::CuSparseMatrixCSC{T,M}
     copyto!(Y, CuSparseMatrixCSC(Y2))
 end
 function LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
-    CUSPARSE.version() < v"11.5.1" && throw(CUSPARSEError("This operation is not supported by the current CUDA version."))
+    CUSPARSE.version() < v"11.5.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     Y = CuSparseMatrixCOO(spzeros(T, size(A, 1), size(B, 2)))
     mul!(Y, A, B)
 end
@@ -178,7 +178,7 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
         Base.reshape(A::$SparseMatrixType{T,M}, dims::NTuple{N,Int}) where {T,N,M} = $SparseMatrixType( reshape(CuSparseMatrixCOO(A), dims) )
 
         function LinearAlgebra.:(*)(A::$SparseMatrixType{T,M}, B::$SparseMatrixType{T,M}) where {T,M}
-            CUSPARSE.version() < v"11.5.1" && throw(CUSPARSEError("This operation is not supported by the current CUDA version."))
+            CUSPARSE.version() < v"11.5.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
             Y = $SparseMatrixType(spzeros(T, size(A, 1), size(B, 2)))
             mul!(Y, A, B)
         end

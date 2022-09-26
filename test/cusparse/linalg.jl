@@ -33,6 +33,6 @@ end
     if CUSPARSE.version() > v"11.4.1"
         @test Array(exp(A)) ≈ exp(collect(a))
     else
-        @test_throws CUSPARSEError Array(exp(A)) ≈ exp(collect(a))
+        @test_throws ErrorException Array(exp(A)) ≈ exp(collect(a))
     end
 end
