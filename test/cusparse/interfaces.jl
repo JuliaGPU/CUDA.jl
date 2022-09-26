@@ -219,15 +219,17 @@ using LinearAlgebra, SparseArrays
         @test dD - dA isa typ
     end
 
-    @testset "Sparse-Sparse $typ multiplication and kronecker product" for
-        typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
+    if CUSPARSE.version() > v"11.4.1"
+        @testset "Sparse-Sparse $typ multiplication and kronecker product" for
+            typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
 
-        a = sprand(ComplexF32, 100, 100, 0.1)
-        b = sprand(ComplexF32, 100, 100, 0.1)
-        A = typ(a)
-        B = typ(b)
-        @test Array(A * B) ≈ a * b
-        @test Array(kron(A, B)) ≈ kron(a, b)
+            a = sprand(ComplexF32, 100, 100, 0.1)
+            b = sprand(ComplexF32, 100, 100, 0.1)
+            A = typ(a)
+            B = typ(b)
+            @test Array(A * B) ≈ a * b
+            @test Array(kron(A, B)) ≈ kron(a, b)
+        end
     end
 
     @testset "Reshape $typ (100,100) -> (20, 500) and droptol" for

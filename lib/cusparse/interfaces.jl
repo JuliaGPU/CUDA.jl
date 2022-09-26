@@ -139,11 +139,8 @@ function Base.reshape(A::CuSparseMatrixCOO{T,M}, dims::NTuple{N,Int}) where {T,N
 end
 
 function LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::CuSparseMatrixCSR{T,M}, B::CuSparseMatrixCSR{T,M}) where {T,M}
-    if CUSPARSE.version() < v"11.5.1"
-        mm2!('N', 'N', one(T), A, B, zero(T), Y, 'O')
-    else
-        mm!('N', 'N', one(T), A, B, zero(T), Y, 'O')
-    end
+    CUSPARSE.version() < v"11.5.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    mm!('N', 'N', one(T), A, B, zero(T), Y, 'O')
 end
 function LinearAlgebra.mul!(Y::CuSparseMatrixCOO{T,M}, A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
     Y2 = copy(CuSparseMatrixCSR(Y))
