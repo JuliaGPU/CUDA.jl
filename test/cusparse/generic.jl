@@ -65,7 +65,7 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
     end
 end # version >= 11.4.1
 
-if CUSPARSE.version() >= v"11.5.1"
+if CUSPARSE.version() >= v"11.7.0"
 
     SPSV_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT],
                       CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT],
@@ -146,4 +146,4 @@ if CUSPARSE.version() >= v"11.5.1"
             end
         end
     end
-end # CUSPARSE.version >= 11.5.1
+end # CUSPARSE.version >= 11.7.0
