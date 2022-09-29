@@ -367,10 +367,6 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
         throw(ArgumentError("Backward and forward sweeps with the adjoint of a CSC matrix is not supported. Use a CSR or COO matrix instead."))
     end
 
-    if diag == 'N' && transa == 'C' && T <: Complex
-        throw(ArgumentError("Backward and forward sweeps with complex triangular matrices that have non-unit diagonal return wrong result."))
-    end
-
     mA,nA = size(A)
     mX = length(X)
     mY = length(Y)
@@ -418,10 +414,6 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
 
     if isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
         throw(ArgumentError("Backward and forward sweeps with the adjoint of a CSC matrix is not supported. Use a CSR or COO matrix instead."))
-    end
-
-    if diag == 'N' && transa == 'C' && T <: Complex
-        throw(ArgumentError("Backward and forward sweeps with complex triangular matrices that have non-unit diagonal return wrong result."))
     end
 
     mA,nA = size(A)

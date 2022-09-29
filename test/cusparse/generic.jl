@@ -83,14 +83,22 @@ if CUSPARSE.version() >= v"11.5.1"
                     for uplo in ('L', 'U')
                         for diag in ('U', 'N')
                             T <: Real && transa == 'C' && continue
-                            T <: Complex && transa == 'C' && diag == 'N' && continue
                             A = rand(T, 10, 10)
                             A = uplo == 'L' ? tril(A) : triu(A)
                             A = diag == 'U' ? A - Diagonal(A) + I : A
+
+                            # They forgot to conjugate the diagonal of A
+                            if transa == 'C' && CUSPARSE.version() ≤ v"11.7.3"
+                                Afixed = A - Diagonal(A) + conj(Diagonal(A))
+                            else
+                                Afixed = A
+                            end
+                            Afixed = sparse(Afixed)
+                            dA = SparseMatrixType(Afixed)
+
                             A = sparse(A)
                             B = rand(T, 10)
                             C = rand(T, 10)
-                            dA = SparseMatrixType(A)
                             dB = CuArray(B)
                             dC = CuArray(C)
                             alpha = rand(T)
@@ -110,14 +118,22 @@ if CUSPARSE.version() >= v"11.5.1"
                         for uplo in ('L', 'U')
                             for diag in ('U', 'N')
                                 T <: Real && transa == 'C' && continue
-                                T <: Complex && transa == 'C' && diag == 'N' && continue
                                 A = rand(T, 10, 10)
                                 A = uplo == 'L' ? tril(A) : triu(A)
                                 A = diag == 'U' ? A - Diagonal(A) + I : A
+
+                                # They forgot to conjugate the diagonal of A
+                                if transa == 'C' && CUSPARSE.version() ≤ v"11.7.3"
+                                    Afixed = A - Diagonal(A) + conj(Diagonal(A))
+                                else
+                                    Afixed = A
+                                end
+                                Afixed = sparse(Afixed)
+                                dA = SparseMatrixType(Afixed)
+
                                 A = sparse(A)
                                 B = transb == 'N' ? rand(T, 10, 2) : rand(T, 2, 10)
                                 C = rand(T, 10, 2)
-                                dA = SparseMatrixType(A)
                                 dB = CuArray(B)
                                 dC = CuArray(C)
                                 alpha = rand(T)
