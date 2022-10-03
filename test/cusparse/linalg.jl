@@ -32,7 +32,5 @@ end
     @test Array(tril(A, 1)) ≈ tril(a, 1)
     if CUSPARSE.version() > v"11.4.1"
         @test Array(exp(A)) ≈ exp(collect(a))
-    else
-        @test_throws ErrorException Array(exp(A)) ≈ exp(collect(a))
     end
 end

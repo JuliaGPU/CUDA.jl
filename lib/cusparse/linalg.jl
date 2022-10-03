@@ -121,8 +121,6 @@ end
 
 for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
     @eval begin
-        Base.reshape(A::$SparseMatrixType{T,M}, dims::NTuple{N,Int}) where {T,N,M} = $SparseMatrixType( reshape(CuSparseMatrixCOO(A), dims) )
-        
         LinearAlgebra.triu(A::$SparseMatrixType{T,M}, k::Integer) where {T,M} = $SparseMatrixType( triu(CuSparseMatrixCOO(A), k) )
         LinearAlgebra.tril(A::$SparseMatrixType{T,M}, k::Integer) where {T,M} = $SparseMatrixType( tril(CuSparseMatrixCOO(A), k) )
         LinearAlgebra.triu(A::$SparseMatrixType{T,M}) where {T,M} = $SparseMatrixType( triu(CuSparseMatrixCOO(A), 0) )

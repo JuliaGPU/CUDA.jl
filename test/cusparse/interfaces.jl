@@ -229,8 +229,6 @@ using LinearAlgebra, SparseArrays
         B = typ(b)
         if CUSPARSE.version() > v"11.4.1"
             @test Array(A * B) ≈ a * b
-        else
-            @test_throws ErrorException Array(A * B) ≈ a * b
         end
         @test Array(kron(A, B)) ≈ kron(a, b)
     end
