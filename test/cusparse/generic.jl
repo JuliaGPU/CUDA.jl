@@ -26,21 +26,25 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
     SPMV_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT],
                       CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
                                             CUSPARSE.CUSPARSE_SPMV_CSR_ALG1,
-                                            CUSPARSE.CUSPARSE_SPMV_CSR_ALG2],
-                      CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
-                                            # CUSPARSE.CUSPARSE_SPMV_COO_ALG2,
-                                            CUSPARSE.CUSPARSE_SPMV_COO_ALG1])
+                                            CUSPARSE.CUSPARSE_SPMV_CSR_ALG2])
 
     SPMM_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],
                       CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
                                             CUSPARSE.CUSPARSE_SPMM_CSR_ALG1,
                                             CUSPARSE.CUSPARSE_SPMM_CSR_ALG2,
-                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG3],
-                      CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
-                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG1,
-                                            # CUSPARSE.CUSPARSE_SPMM_COO_ALG2,
-                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG3,
-                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG4])
+                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG3])
+
+    if CUSPARSE.version() >= v"11.7.2"
+        SPMV_ALGOS[CuSparseMatrixCOO] = [CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
+                                         # CUSPARSE.CUSPARSE_SPMV_COO_ALG2,
+                                         CUSPARSE.CUSPARSE_SPMV_COO_ALG1]
+
+        SPMM_ALGOS[CuSparseMatrixCOO] = [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
+                                         CUSPARSE.CUSPARSE_SPMM_COO_ALG1,
+                                         # CUSPARSE.CUSPARSE_SPMM_COO_ALG2,
+                                         CUSPARSE.CUSPARSE_SPMM_COO_ALG3,
+                                         CUSPARSE.CUSPARSE_SPMM_COO_ALG4]
+    end
 
     for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO]
         @testset "$SparseMatrixType -- mv! algo=$algo" for algo in SPMV_ALGOS[SparseMatrixType]
@@ -55,8 +59,8 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
                     dB = CuArray(B)
                     dC = CuArray(C)
 
-                    alpha = 1.2
-                    beta = 1.3
+                    alpha = rand(T)
+                    beta = rand(T)
                     mv!(transa, alpha, dA, dB, beta, dC, 'O', algo)
                     @test alpha * opa(A) * B + beta * C ≈ collect(dC)
                 end
@@ -67,8 +71,7 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
             @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                        T <: Real && transa == 'C' && continue
-                        T <: Real && transb == 'C' && continue
+                        T <: Real && (transa == 'C' || transb == 'C') && continue
                         SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
                         algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 && (transa != 'N' || transb != 'N') && continue
                         A = sprand(T, 10, 10, 0.1)
@@ -78,8 +81,8 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
                         dB = CuArray(B)
                         dC = CuArray(C)
 
-                        alpha = 1.2
-                        beta = 1.3
+                        alpha = rand(T)
+                        beta = rand(T)
                         mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
                         @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
                     end
