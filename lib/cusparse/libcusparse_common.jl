@@ -1,9 +1,9 @@
 # Automatically generated using Clang.jl
 
 const CUSPARSE_VER_MAJOR = 11
-const CUSPARSE_VER_MINOR = 4
-const CUSPARSE_VER_PATCH = 1
-const CUSPARSE_VER_BUILD = 1152
+const CUSPARSE_VER_MINOR = 7
+const CUSPARSE_VER_PATCH = 3
+const CUSPARSE_VER_BUILD = 50
 const CUSPARSE_VERSION = CUSPARSE_VER_MAJOR * 1000 + CUSPARSE_VER_MINOR * 100 + CUSPARSE_VER_PATCH
 
 # Skipping MacroDefinition: CUSPARSE_DEPRECATED ( new_func ) __attribute__ ( ( deprecated ( "please use " # new_func " instead" ) ) )
@@ -101,11 +101,6 @@ end
     CUSPARSE_SOLVE_POLICY_USE_LEVEL = 1
 end
 
-@cenum cusparseSideMode_t::UInt32 begin
-    CUSPARSE_SIDE_LEFT = 0
-    CUSPARSE_SIDE_RIGHT = 1
-end
-
 @cenum cusparseColorAlg_t::UInt32 begin
     CUSPARSE_COLOR_ALG0 = 0
     CUSPARSE_COLOR_ALG1 = 1
@@ -114,6 +109,8 @@ end
 @cenum cusparseAlgMode_t::UInt32 begin
     CUSPARSE_ALG_MERGE_PATH = 0
 end
+
+const cusparseLoggerCallback_t = Ptr{Cvoid}
 
 @cenum cusparseCsr2CscAlg_t::UInt32 begin
     CUSPARSE_CSR2CSC_ALG1 = 1
@@ -148,6 +145,11 @@ const cusparseDnVecDescr_t = Ptr{cusparseDnVecDescr}
 const cusparseSpMatDescr_t = Ptr{cusparseSpMatDescr}
 const cusparseDnMatDescr_t = Ptr{cusparseDnMatDescr}
 
+@cenum cusparseSpMatAttribute_t::UInt32 begin
+    CUSPARSE_SPMAT_FILL_MODE = 0
+    CUSPARSE_SPMAT_DIAG_TYPE = 1
+end
+
 @cenum cusparseSparseToDenseAlg_t::UInt32 begin
     CUSPARSE_SPARSETODENSE_ALG_DEFAULT = 0
 end
@@ -168,6 +170,20 @@ end
     CUSPARSE_SPMV_COO_ALG2 = 4
 end
 
+@cenum cusparseSpSVAlg_t::UInt32 begin
+    CUSPARSE_SPSV_ALG_DEFAULT = 0
+end
+
+const cusparseSpSVDescr = Cvoid
+const cusparseSpSVDescr_t = Ptr{cusparseSpSVDescr}
+
+@cenum cusparseSpSMAlg_t::UInt32 begin
+    CUSPARSE_SPSM_ALG_DEFAULT = 0
+end
+
+const cusparseSpSMDescr = Cvoid
+const cusparseSpSMDescr_t = Ptr{cusparseSpSMDescr}
+
 @cenum cusparseSpMMAlg_t::UInt32 begin
     CUSPARSE_MM_ALG_DEFAULT = 0
     CUSPARSE_COOMM_ALG1 = 1
@@ -187,6 +203,8 @@ end
 
 @cenum cusparseSpGEMMAlg_t::UInt32 begin
     CUSPARSE_SPGEMM_DEFAULT = 0
+    CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC = 1
+    CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC = 2
 end
 
 const cusparseSpGEMMDescr = Cvoid
@@ -194,5 +212,12 @@ const cusparseSpGEMMDescr_t = Ptr{cusparseSpGEMMDescr}
 
 @cenum cusparseSDDMMAlg_t::UInt32 begin
     CUSPARSE_SDDMM_ALG_DEFAULT = 0
+end
+
+const cusparseSpMMOpPlan = Cvoid
+const cusparseSpMMOpPlan_t = Ptr{cusparseSpMMOpPlan}
+
+@cenum cusparseSpMMOpAlg_t::UInt32 begin
+    CUSPARSE_SPMM_OP_ALG_DEFAULT = 0
 end
 

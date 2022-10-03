@@ -64,3 +64,78 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
         end
     end
 end # version >= 11.4.1
+
+if CUSPARSE.version() >= v"11.7.0"
+
+    SPSV_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT],
+                      CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT],
+                      CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT])
+
+    SPSM_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPSM_ALG_DEFAULT],
+                      CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPSM_ALG_DEFAULT],
+                      CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPSM_ALG_DEFAULT])
+
+    for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO]
+        @testset "$SparseMatrixType -- sv! algo=$algo" for algo in SPSV_ALGOS[SparseMatrixType]
+            @testset "sv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+                for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                    SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                    for uplo in ('L', 'U')
+                        for diag in ('U', 'N')
+                            # They forgot to conjugate the diagonal of A.
+                            # It should be fixed with versions > v"11.7.3".
+                            T <: Complex && transa == 'C' && diag == 'N' && continue
+                            T <: Real && transa == 'C' && continue
+
+                            A = rand(T, 10, 10)
+                            A = uplo == 'L' ? tril(A) : triu(A)
+                            A = diag == 'U' ? A - Diagonal(A) + I : A
+                            A = sparse(A)
+                            dA = SparseMatrixType(A)
+
+                            B = rand(T, 10)
+                            C = rand(T, 10)
+                            dB = CuArray(B)
+                            dC = CuArray(C)
+                            alpha = rand(T)
+                            sv!(transa, uplo, diag, alpha, dA, dB, dC, 'O', algo)
+                            @test opa(A) \ (alpha * B) ≈ collect(dC)
+                        end
+                    end
+                end
+            end
+        end
+
+        @testset "$SparseMatrixType -- mv! algo=$algo" for algo in SPSM_ALGOS[SparseMatrixType]
+            @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+                for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                    SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                    for (transb, opb) in [('N', identity), ('T', transpose)]
+                        for uplo in ('L', 'U')
+                            for diag in ('U', 'N')
+                                # They forgot to conjugate the diagonal of A.
+                                # It should be fixed with versions > v"11.7.3".
+                                T <: Complex && transa == 'C' && diag == 'N' && continue
+                                T <: Real && transa == 'C' && continue
+
+                                A = rand(T, 10, 10)
+                                A = uplo == 'L' ? tril(A) : triu(A)
+                                A = diag == 'U' ? A - Diagonal(A) + I : A
+                                A = sparse(A)
+                                dA = SparseMatrixType(A)
+
+                                B = transb == 'N' ? rand(T, 10, 2) : rand(T, 2, 10)
+                                C = rand(T, 10, 2)
+                                dB = CuArray(B)
+                                dC = CuArray(C)
+                                alpha = rand(T)
+                                sm!(transa, transb, uplo, diag, alpha, dA, dB, dC, 'O', algo)
+                                @test opa(A) \ (alpha * opb(B)) ≈ collect(dC)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end # CUSPARSE.version >= 11.7.0

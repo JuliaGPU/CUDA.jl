@@ -174,6 +174,8 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             cuplo = 'U'
             if transa == 'N'
                 ctransa = 'T'
+            elseif transa == 'C' && eltype(A) <: Complex
+                throw(ArgumentError("Backward and forward sweeps with the adjoint of a CSC matrix is not supported. Use a CSR matrix instead."))
             end
             if uplo == 'U'
                 cuplo = 'L'

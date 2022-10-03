@@ -78,6 +78,16 @@ function Base.convert(::Type{cusparseMatrixType_t}, mattype::SparseChar)
     end
 end
 
+function Base.convert(::Type{cusparseSpMatAttribute_t}, attribute::SparseChar)
+    if attribute == 'F'
+        CUSPARSE_SPMAT_FILL_MODE
+    elseif attribute == 'D'
+        CUSPARSE_SPMAT_DIAG_TYPE
+    else
+        throw(ArgumentError("Unknown attribute $attribute"))
+    end
+end
+
 function Base.convert(::Type{cusparseFillMode_t}, uplo::SparseChar)
     if uplo == 'U'
         CUSPARSE_FILL_MODE_UPPER
@@ -94,7 +104,7 @@ function Base.convert(::Type{cusparseDiagType_t}, diag::SparseChar)
     elseif diag == 'N'
         CUSPARSE_DIAG_TYPE_NON_UNIT
     else
-        throw(ArgumentError("Unknown diag mode $diag"))
+        throw(ArgumentError("Unknown diag type $diag"))
     end
 end
 
