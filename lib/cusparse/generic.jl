@@ -376,7 +376,7 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     (mY != mA) && throw(DimensionMismatch("Y must have length $mA, but has length $mY"))
 
     if isa(A, CuSparseMatrixCSC)
-        # cusparseSpSV doesn't supports CSC format
+        # cusparseSpSV doesn't support CSC format
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
         transa2 = transa == 'N' ? 'T' : 'N'
         uplo2 = uplo == 'U' ? 'L' : 'U'
