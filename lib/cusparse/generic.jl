@@ -428,7 +428,7 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     (mB != nC) && (transb != 'N') && throw(DimensionMismatch("B must have the same the number of rows that C has as columns, but B has $mB rows and C has $nC columns"))
 
     if isa(A, CuSparseMatrixCSC)
-        # cusparseSpSM doesn't supports CSC format
+        # cusparseSpSM doesn't support CSC format
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
         transa2 = transa == 'N' ? 'T' : 'N'
         uplo2 = uplo == 'U' ? 'L' : 'U'
