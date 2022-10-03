@@ -68,6 +68,17 @@ function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
 end
 end
 
+# eigenvalues
+
+function LinearAlgebra.eigen(A::CuMatrix{T, M}) where {T<:Real,M}
+    A2 = copy(A)
+    issymmetric(A) ? CUSOLVER.syevd!('V', 'U', A2) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
+end
+function LinearAlgebra.eigen(A::CuMatrix{T, M}) where {T<:Complex,M}
+    A2 = copy(A)
+    ishermitian(A) ? CUSOLVER.heevd!('V', 'U', A2) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
+end
+
 
 # factorizations
 

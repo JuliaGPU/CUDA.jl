@@ -256,8 +256,8 @@ SparseArrays.nonzeroinds(g::AbstractCuSparseVector) = g.iPtr
 
 SparseArrays.rowvals(g::CuSparseMatrixCSC) = g.rowVal
 
-LinearAlgebra.issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = eltype(M) <: Real ? norm(M - M', Inf) < 1e-8 : false
-LinearAlgebra.ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = norm(M - M', Inf) < 1e-8
+LinearAlgebra.issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = size(M, 1) == size(M, 2) ? norm(M - transpose(M), Inf) < 1e-8 : false
+LinearAlgebra.ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = size(M, 1) == size(M, 2) ? norm(M - M', Inf) < 1e-8 : false
 LinearAlgebra.issymmetric(M::Symmetric{CuSparseMatrixCSC}) = true
 LinearAlgebra.ishermitian(M::Hermitian{CuSparseMatrixCSC}) = true
 
