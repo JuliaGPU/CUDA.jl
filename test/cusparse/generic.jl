@@ -82,21 +82,17 @@ if CUSPARSE.version() >= v"11.7.0"
                     SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
                     for uplo in ('L', 'U')
                         for diag in ('U', 'N')
+                            # They forgot to conjugate the diagonal of A.
+                            # It should be fixed with versions > v"11.7.3".
+                            T <: Complex && transa == 'C' && diag == 'N' && continue
                             T <: Real && transa == 'C' && continue
+
                             A = rand(T, 10, 10)
                             A = uplo == 'L' ? tril(A) : triu(A)
                             A = diag == 'U' ? A - Diagonal(A) + I : A
-
-                            # They forgot to conjugate the diagonal of A
-                            if transa == 'C' && CUSPARSE.version() ≤ v"11.7.3"
-                                Afixed = A - Diagonal(A) + conj(Diagonal(A))
-                            else
-                                Afixed = A
-                            end
-                            Afixed = sparse(Afixed)
-                            dA = SparseMatrixType(Afixed)
-
                             A = sparse(A)
+                            dA = SparseMatrixType(A)
+
                             B = rand(T, 10)
                             C = rand(T, 10)
                             dB = CuArray(B)
@@ -117,21 +113,17 @@ if CUSPARSE.version() >= v"11.7.0"
                     for (transb, opb) in [('N', identity), ('T', transpose)]
                         for uplo in ('L', 'U')
                             for diag in ('U', 'N')
+                                # They forgot to conjugate the diagonal of A.
+                                # It should be fixed with versions > v"11.7.3".
+                                T <: Complex && transa == 'C' && diag == 'N' && continue
                                 T <: Real && transa == 'C' && continue
+
                                 A = rand(T, 10, 10)
                                 A = uplo == 'L' ? tril(A) : triu(A)
                                 A = diag == 'U' ? A - Diagonal(A) + I : A
-
-                                # They forgot to conjugate the diagonal of A
-                                if transa == 'C' && CUSPARSE.version() ≤ v"11.7.3"
-                                    Afixed = A - Diagonal(A) + conj(Diagonal(A))
-                                else
-                                    Afixed = A
-                                end
-                                Afixed = sparse(Afixed)
-                                dA = SparseMatrixType(Afixed)
-
                                 A = sparse(A)
+                                dA = SparseMatrixType(A)
+
                                 B = transb == 'N' ? rand(T, 10, 2) : rand(T, 2, 10)
                                 C = rand(T, 10, 2)
                                 dB = CuArray(B)
