@@ -46,7 +46,7 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
                                          CUSPARSE.CUSPARSE_SPMM_COO_ALG4]
     end
 
-    for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO]
+    for SparseMatrixType in keys(SPMV_ALGOS)
         @testset "$SparseMatrixType -- mv! algo=$algo" for algo in SPMV_ALGOS[SparseMatrixType]
             @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
@@ -66,7 +66,9 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
                 end
             end
         end
+    end
 
+    for SparseMatrixType in keys(SPMM_ALGOS)
         @testset "$SparseMatrixType -- mm! algo=$algo" for algo in SPMM_ALGOS[SparseMatrixType]
             @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
