@@ -23,7 +23,7 @@ end
 
 function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cusparseDenseToSparseAlg_t=CUSPARSE_DENSETOSPARSE_ALG_DEFAULT) where {T}
     m,n = size(A)
-    # local rowPtr, colPtr, B
+    local rowPtr, colPtr, desc_sparse, B
     if fmt == :coo
         desc_sparse = CuSparseMatrixDescriptor(CuSparseMatrixCOO, T, Cint, m, n, index)
     elseif fmt == :csr
