@@ -440,7 +440,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
         end
         function CUDA.CuMatrix{$elty}(csc::CuSparseMatrixCSC{$elty}; ind::SparseChar='O')
             if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
-                denseA = sparsetodense(csr, ind)
+                denseA = sparsetodense(csc, ind)
             else
                 m,n = size(csc)
                 denseA = CUDA.zeros($elty,m,n)
