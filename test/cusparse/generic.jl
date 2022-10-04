@@ -50,7 +50,6 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
         @testset "$SparseMatrixType -- mv! algo=$algo" for algo in SPMV_ALGOS[SparseMatrixType]
             @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                    T <: Real && transa == 'C' && continue
                     SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
                     A = sprand(T, 10, 10, 0.1)
                     B = rand(T, 10)
@@ -73,7 +72,6 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
             @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                        T <: Real && (transa == 'C' || transb == 'C') && continue
                         SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
                         algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 && (transa != 'N' || transb != 'N') && continue
                         A = sprand(T, 10, 10, 0.1)
@@ -114,7 +112,6 @@ if CUSPARSE.version() >= v"11.7.0"
                             # They forgot to conjugate the diagonal of A.
                             # It should be fixed with versions > v"11.7.3".
                             T <: Complex && transa == 'C' && diag == 'N' && continue
-                            T <: Real && transa == 'C' && continue
 
                             A = rand(T, 10, 10)
                             A = uplo == 'L' ? tril(A) : triu(A)
@@ -145,7 +142,6 @@ if CUSPARSE.version() >= v"11.7.0"
                                 # They forgot to conjugate the diagonal of A.
                                 # It should be fixed with versions > v"11.7.3".
                                 T <: Complex && transa == 'C' && diag == 'N' && continue
-                                T <: Real && transa == 'C' && continue
 
                                 A = rand(T, 10, 10)
                                 A = uplo == 'L' ? tril(A) : triu(A)

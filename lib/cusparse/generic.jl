@@ -126,9 +126,12 @@ end
 function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},CuSparseMatrixCSR{TA},CuSparseMatrixCOO{TA}}, X::DenseCuVector{T},
              beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
 
+    # Support transa = 'C' for real matrices
+    transa = T <: Real && transa == 'C' ? 'T' : transa
+
     if isa(A, CuSparseMatrixCSC) && transa == 'C' && TA <: Complex
-        throw(ArgumentError("Matrix-vector multiplication with the adjoint of a CSC matrix" *
-                            " is not supported. Use a CSR matrix instead."))
+        throw(ArgumentError("Matrix-vector multiplication with the adjoint of a complex CSC matrix" *
+                            " is not supported. Use a CSR or COO matrix instead."))
     end
 
     if isa(A, CuSparseMatrixCSC)
@@ -137,16 +140,15 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
         # but it doesn't work for complex numbers when transa == 'C'
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
         n,m = size(A)
-        transa2 = transa == 'N' ? 'T' : 'N'
+        transa = transa == 'N' ? 'T' : 'N'
     else
         descA = CuSparseMatrixDescriptor(A, index)
         m,n = size(A)
-        transa2 = transa
     end
 
-    if transa2 == 'N'
+    if transa == 'N'
         chkmvdims(X,n,Y,m)
-    elseif transa2 == 'T' || transa2 == 'C'
+    elseif transa == 'T' || transa == 'C'
         chkmvdims(X,m,Y,n)
     end
 
@@ -166,12 +168,12 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
 
     function bufferSize()
         out = Ref{Csize_t}()
-        cusparseSpMV_bufferSize(handle(), transa2, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
+        cusparseSpMV_bufferSize(handle(), transa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
                                 descY, compute_type, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        cusparseSpMV(handle(), transa2, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
+        cusparseSpMV(handle(), transa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
                      descY, compute_type, algo, buffer)
     end
     return Y
@@ -180,9 +182,13 @@ end
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}},
              B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
 
+    # Support transa = 'C' and `transb = 'C' for real matrices
+    transa = T <: Real && transa == 'C' ? 'T' : transa
+    transb = T <: Real && transb == 'C' ? 'T' : transb
+
     if isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
-        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a CSC matrix" *
-                            " is not supported. Use a CSR matrix instead."))
+        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSC matrix" *
+                            " is not supported. Use a CSR and COO matrix instead."))
     end
 
     if isa(A, CuSparseMatrixCSC)
@@ -191,21 +197,20 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
         # but it doesn't work for complex numbers when transa == 'C'
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
         k,m = size(A)
-        transa2 = transa == 'N' ? 'T' : 'N'
+        transa = transa == 'N' ? 'T' : 'N'
     else
         descA = CuSparseMatrixDescriptor(A, index)
         m,k = size(A)
-        transa2 = transa
     end
     n = size(C)[2]
 
-    if transa2 == 'N' && transb == 'N'
+    if transa == 'N' && transb == 'N'
         chkmmdims(B,C,k,n,m,n)
-    elseif transa2 == 'N' && transb != 'N'
+    elseif transa == 'N' && transb != 'N'
         chkmmdims(B,C,n,k,m,n)
-    elseif transa2 != 'N' && transb == 'N'
+    elseif transa != 'N' && transb == 'N'
         chkmmdims(B,C,m,n,k,n)
-    elseif transa2 != 'N' && transb != 'N'
+    elseif transa != 'N' && transb != 'N'
         chkmmdims(B,C,n,m,k,n)
     end
 
@@ -215,13 +220,13 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
     function bufferSize()
         out = Ref{Csize_t}()
         cusparseSpMM_bufferSize(
-            handle(), transa2, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
         cusparseSpMM(
-            handle(), transa2, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, buffer)
     end
     return C
@@ -304,8 +309,11 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, X::DenseCuVector{T},
              Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpSVAlg_t=CUSPARSE_SPSV_ALG_DEFAULT) where {T}
 
+    # Support transa = 'C' for real matrices
+    transa = T <: Real && transa == 'C' ? 'T' : transa
+
     if isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
-        throw(ArgumentError("Backward and forward sweeps with the adjoint of a CSC matrix is not supported. Use a CSR or COO matrix instead."))
+        throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR or COO matrix instead."))
     end
 
     mA,nA = size(A)
@@ -319,15 +327,13 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     if isa(A, CuSparseMatrixCSC)
         # cusparseSpSV doesn't support CSC format
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
-        transa2 = transa == 'N' ? 'T' : 'N'
-        uplo2 = uplo == 'U' ? 'L' : 'U'
+        transa = transa == 'N' ? 'T' : 'N'
+        uplo = uplo == 'U' ? 'L' : 'U'
     else
         descA = CuSparseMatrixDescriptor(A, index)
-        transa2 = transa
-        uplo2 = uplo
     end
 
-    cusparse_uplo = Ref{cusparseFillMode_t}(uplo2)
+    cusparse_uplo = Ref{cusparseFillMode_t}(uplo)
     cusparse_diag = Ref{cusparseDiagType_t}(diag)
 
     cusparseSpMatSetAttribute(descA, 'F', cusparse_uplo, Csize_t(sizeof(cusparse_uplo)))
@@ -339,12 +345,12 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     spsv_desc = CuSparseSpSVDescriptor()
     function bufferSize()
         out = Ref{Csize_t}()
-        cusparseSpSV_bufferSize(handle(), transa2, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc, out)
+        cusparseSpSV_bufferSize(handle(), transa, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        cusparseSpSV_analysis(handle(), transa2, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc, buffer)
-        cusparseSpSV_solve(handle(), transa2, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc)
+        cusparseSpSV_analysis(handle(), transa, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc, buffer)
+        cusparseSpSV_solve(handle(), transa, Ref{T}(alpha), descA, descX, descY, T, algo, spsv_desc)
     end
     return Y
 end
@@ -353,8 +359,12 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
              alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, B::DenseCuMatrix{T},
              C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpSMAlg_t=CUSPARSE_SPSM_ALG_DEFAULT) where {T}
 
+    # Support transa = 'C' and `transb = 'C' for real matrices
+    transa = T <: Real && transa == 'C' ? 'T' : transa
+    transb = T <: Real && transb == 'C' ? 'T' : transb
+
     if isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
-        throw(ArgumentError("Backward and forward sweeps with the adjoint of a CSC matrix is not supported. Use a CSR or COO matrix instead."))
+        throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR or COO matrix instead."))
     end
 
     mA,nA = size(A)
@@ -371,15 +381,13 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     if isa(A, CuSparseMatrixCSC)
         # cusparseSpSM doesn't support CSC format
         descA = CuSparseMatrixDescriptor(A, index, convert=true)
-        transa2 = transa == 'N' ? 'T' : 'N'
-        uplo2 = uplo == 'U' ? 'L' : 'U'
+        transa = transa == 'N' ? 'T' : 'N'
+        uplo = uplo == 'U' ? 'L' : 'U'
     else
         descA = CuSparseMatrixDescriptor(A, index)
-        transa2 = transa
-        uplo2 = uplo
     end
 
-    cusparse_uplo = Ref{cusparseFillMode_t}(uplo2)
+    cusparse_uplo = Ref{cusparseFillMode_t}(uplo)
     cusparse_diag = Ref{cusparseDiagType_t}(diag)
 
     cusparseSpMatSetAttribute(descA, 'F', cusparse_uplo, Csize_t(sizeof(cusparse_uplo)))
@@ -391,12 +399,12 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     spsm_desc = CuSparseSpSMDescriptor()
     function bufferSize()
         out = Ref{Csize_t}()
-        cusparseSpSM_bufferSize(handle(), transa2, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, out)
+        cusparseSpSM_bufferSize(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        cusparseSpSM_analysis(handle(), transa2, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, buffer)
-        cusparseSpSM_solve(handle(), transa2, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc)
+        cusparseSpSM_analysis(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, buffer)
+        cusparseSpSM_solve(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc)
     end
     return C
 end
