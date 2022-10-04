@@ -1,7 +1,0 @@
-name = "test_env"
-uuid = "54ad3eb2-8add-4b6e-88cb-388ceea1061b"
-authors = ["Alberto Mercurio <alberto.mercurio96@gmail.com>"]
-version = "0.1.0"
-
-[deps]
-ExponentialUtilities = "d4d017d3-3776-5f7e-afef-a10c40355c18"

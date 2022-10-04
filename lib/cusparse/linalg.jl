@@ -99,7 +99,7 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}
     Annz = Int64(A.nnz)
     Bnnz = Int64(B.nnz)
 
-    if A.nnz == 0 || B.nnz == 0
+    if Annz == 0 || Bnnz == 0
         return CuSparseMatrixCOO(spzeros(T, out_shape))
     end
 
@@ -109,14 +109,12 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}
     col = repeat(col, inner = Bnnz)
     data = repeat(A.nzVal, inner = Bnnz)
 
-    row, col = reshape(row, Annz, Bnnz), reshape(col, Annz, Bnnz)
-    row .+= reshape(repeat(reverse(B.rowInd) .- 1, outer = Annz), Annz, Bnnz)
-    col .+= reshape(repeat(reverse(B.colInd) .- 1, outer = Annz), Annz, Bnnz)
-    row, col = reshape(row, Annz * Bnnz) .+ 1, reshape(col, Annz * Bnnz) .+ 1
+    row .+= repeat(reverse(B.rowInd) .- 1, outer = Annz) .+ 1
+    col .+= repeat(reverse(B.colInd) .- 1, outer = Annz) .+ 1
 
-    data = reshape(data, Annz, Bnnz) .* reshape(repeat(reverse(B.nzVal), outer = Annz), Annz, Bnnz)
-    data = reshape(data, Annz * Bnnz)
-    CuSparseMatrixCOO(sparse(row, col, data, out_shape[1], out_shape[2]))
+    data .*= repeat(reverse(B.nzVal), outer = Annz)
+    
+    sparse(row, col, data, out_shape[1], out_shape[2], fmt = :coo)
 end
 
 for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]

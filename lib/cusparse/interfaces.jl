@@ -131,11 +131,7 @@ function Base.reshape(A::CuSparseMatrixCOO{T,M}, dims::NTuple{N,Int}) where {T,N
     nrows, ncols = size(A)
     flat_indices = nrows * (A.colInd .- 1) + A.rowInd .- 1
     new_col, new_row = div.(flat_indices, dims[1]) .+ 1, rem.(flat_indices, dims[1]) .+ 1
-    if length(dims) == 1
-        CuSparseMatrixCOO(sparse(new_row, new_col, A.nzVal, dims[1], 1))
-    else
-        CuSparseMatrixCOO(sparse(new_row, new_col, A.nzVal, dims[1], dims[2]))
-    end
+    sparse(new_row, new_col, A.nzVal, dims[1], length(dims) == 1 ? 1 : dims[2], fmt = :coo)
 end
 
 function LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::CuSparseMatrixCSR{T,M}, B::CuSparseMatrixCSR{T,M}) where {T,M}
@@ -166,7 +162,7 @@ function SparseArrays.droptol!(A::CuSparseMatrixCOO{T,M}, tol::Real) where {T,M}
     rows = A.rowInd[mask]
     cols = A.colInd[mask]
     datas = A.nzVal[mask]
-    B = CuSparseMatrixCOO(sparse(rows, cols, datas, size(A, 1), size(A, 2)))
+    B = sparse(rows, cols, datas, size(A, 1), size(A, 2), fmt = :coo)
     copyto!(A, B)
 end
 
