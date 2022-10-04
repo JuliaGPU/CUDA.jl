@@ -5232,7 +5232,7 @@ end
 
 @checked function cusparseCscSetPointers(spMatDescr, cscColOffsets, cscRowInd, cscValues)
     initialize_context()
-    ccall((:cusparseCscSetPointers, libcusparse()), cusparseStatus_t, (cusparseSpMatDescr_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), spMatDescr, cscColOffsets, cscRowInd, cscValues)
+    ccall((:cusparseCscSetPointers, libcusparse()), cusparseStatus_t, (cusparseSpMatDescr_t, CuPtr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid}), spMatDescr, cscColOffsets, cscRowInd, cscValues)
 end
 
 @checked function cusparseCreateCsc(spMatDescr, rows, cols, nnz, csrColOffsets, csrRowInd, csrValues, csrColOffsetsType, csrRowIndType, idxBase, valueType)
@@ -5247,7 +5247,7 @@ end
 
 @checked function cusparseDenseToSparse_convert(handle, matA, matB, alg, buffer)
     initialize_context()
-    ccall((:cusparseDenseToSparse_convert, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseDnMatDescr_t, cusparseSpMatDescr_t, cusparseDenseToSparseAlg_t, Ptr{Cvoid}), handle, matA, matB, alg, buffer)
+    ccall((:cusparseDenseToSparse_convert, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseDnMatDescr_t, cusparseSpMatDescr_t, cusparseDenseToSparseAlg_t, CuPtr{Cvoid}), handle, matA, matB, alg, buffer)
 end
 
 @checked function cusparseSparseToDense_bufferSize(handle, matA, matB, alg, bufferSize)
@@ -5257,12 +5257,12 @@ end
 
 @checked function cusparseDenseToSparse_analysis(handle, matA, matB, alg, buffer)
     initialize_context()
-    ccall((:cusparseDenseToSparse_analysis, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseDnMatDescr_t, cusparseSpMatDescr_t, cusparseDenseToSparseAlg_t, Ptr{Cvoid}), handle, matA, matB, alg, buffer)
+    ccall((:cusparseDenseToSparse_analysis, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseDnMatDescr_t, cusparseSpMatDescr_t, cusparseDenseToSparseAlg_t, CuPtr{Cvoid}), handle, matA, matB, alg, buffer)
 end
 
 @checked function cusparseCooSetPointers(spMatDescr, cooRows, cooColumns, cooValues)
     initialize_context()
-    ccall((:cusparseCooSetPointers, libcusparse()), cusparseStatus_t, (cusparseSpMatDescr_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), spMatDescr, cooRows, cooColumns, cooValues)
+    ccall((:cusparseCooSetPointers, libcusparse()), cusparseStatus_t, (cusparseSpMatDescr_t, CuPtr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid}), spMatDescr, cooRows, cooColumns, cooValues)
 end
 
 ## Added in CUDA 11.2

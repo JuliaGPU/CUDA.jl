@@ -1,126 +1,117 @@
 # generic APIs
 
-export sv!, sm!
-
-## dense vector descriptor
-
-mutable struct CuDenseVectorDescriptor
-    handle::cusparseDnVecDescr_t
-
-    function CuDenseVectorDescriptor(x::DenseCuVector)
-        desc_ref = Ref{cusparseDnVecDescr_t}()
-        cusparseCreateDnVec(desc_ref, length(x), x, eltype(x))
-        obj = new(desc_ref[])
-        finalizer(cusparseDestroyDnVec, obj)
-        obj
-    end
-end
-
-Base.unsafe_convert(::Type{cusparseDnVecDescr_t}, desc::CuDenseVectorDescriptor) = desc.handle
-
-
-## sparse vector descriptor
-
-mutable struct CuSparseVectorDescriptor
-    handle::cusparseSpVecDescr_t
-
-    function CuSparseVectorDescriptor(x::CuSparseVector, IndexBase::Char)
-        desc_ref = Ref{cusparseSpVecDescr_t}()
-        cusparseCreateSpVec(desc_ref, length(x), nnz(x), nonzeroinds(x), nonzeros(x),
-                            eltype(nonzeroinds(x)), IndexBase, eltype(x))
-        obj = new(desc_ref[])
-        finalizer(cusparseDestroySpVec, obj)
-        obj
-    end
-end
-
-Base.unsafe_convert(::Type{cusparseSpVecDescr_t}, desc::CuSparseVectorDescriptor) = desc.handle
-
-
-## dense matrix descriptor
-
-mutable struct CuDenseMatrixDescriptor
-    handle::cusparseDnMatDescr_t
-
-    function CuDenseMatrixDescriptor(x::DenseCuMatrix)
-        desc_ref = Ref{cusparseDnMatDescr_t}()
-        cusparseCreateDnMat(desc_ref, size(x)..., stride(x,2), x, eltype(x), CUSPARSE_ORDER_COL)
-        obj = new(desc_ref[])
-        finalizer(cusparseDestroyDnMat, obj)
-        obj
-    end
-end
-
-Base.unsafe_convert(::Type{cusparseDnMatDescr_t}, desc::CuDenseMatrixDescriptor) = desc.handle
-
-
-## sparse matrix descriptor
-
-mutable struct CuSparseMatrixDescriptor
-    handle::cusparseSpMatDescr_t
-
-    function CuSparseMatrixDescriptor(A::CuSparseMatrixCOO, IndexBase::Char)
-        desc_ref = Ref{cusparseSpMatDescr_t}()
-        cusparseCreateCoo(
-            desc_ref,
-            size(A)..., nnz(A),
-            A.rowInd, A.colInd, nonzeros(A),
-            eltype(A.rowInd), IndexBase, eltype(nonzeros(A))
-        )
-        obj = new(desc_ref[])
-        finalizer(cusparseDestroySpMat, obj)
-        return obj
-    end
-
-    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSR, IndexBase::Char)
-        desc_ref = Ref{cusparseSpMatDescr_t}()
-        cusparseCreateCsr(
-            desc_ref,
-            size(A)..., nnz(A),
-            A.rowPtr, A.colVal, nonzeros(A),
-            eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A))
-        )
-        obj = new(desc_ref[])
-        finalizer(cusparseDestroySpMat, obj)
-        return obj
-    end
-
-    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSC, IndexBase::Char; convert=false)
-        desc_ref = Ref{cusparseSpMatDescr_t}()
-        if convert
-            # many algorithms, e.g. mv! and mm!, do not support CSC sparse format
-            # so we eagerly convert this to a CSR matrix.
-            cusparseCreateCsr(
-                desc_ref,
-                reverse(size(A))..., nnz(A),
-                A.colPtr, rowvals(A), nonzeros(A),
-                eltype(A.colPtr), eltype(rowvals(A)), IndexBase, eltype(nonzeros(A))
-            )
-        else
-            cusparseCreateCsc(
-                desc_ref,
-                size(A)..., nnz(A),
-                A.colPtr, rowvals(A), nonzeros(A),
-                eltype(A.colPtr), eltype(rowvals(A)), IndexBase, eltype(nonzeros(A))
-            )
-        end
-        obj = new(desc_ref[])
-        finalizer(cusparseDestroySpMat, obj)
-        return obj
-    end
-end
-
-Base.unsafe_convert(::Type{cusparseSpMatDescr_t}, desc::CuSparseMatrixDescriptor) = desc.handle
+export vv!, sv!, sm!
 
 ## API functions
+
+function sparsetodense(A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT) where {T}
+    m,n = size(A)
+    B = CUDA.zeros(T,m,n)
+    desc_sparse = CuSparseMatrixDescriptor(A, index)
+    desc_dense = CuDenseMatrixDescriptor(B)
+
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cusparseSparseToDense_bufferSize(handle(), desc_sparse, desc_dense, algo, out)
+        return out[]
+    end
+    with_workspace(bufferSize) do buffer
+        cusparseSparseToDense(handle(), desc_sparse, desc_dense, algo, buffer)
+    end
+    return B
+end
+
+function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cusparseDenseToSparseAlg_t=CUSPARSE_DENSETOSPARSE_ALG_DEFAULT) where {T}
+    m,n = size(A)
+    local rowPtr, colPtr, B
+    if fmt == :coo
+        desc_sparse = CuSparseMatrixDescriptor(CuSparseMatrixCOO, T, Cint, m, n, index)
+    elseif fmt == :csr
+        rowPtr = CuVector{Cint}(undef, m+1)
+        desc_sparse = CuSparseMatrixDescriptor(CuSparseMatrixCSR, rowPtr, T, Cint, m, n, index)
+    elseif fmt == :csc
+        colPtr = CuVector{Cint}(undef, n+1)
+        desc_sparse = CuSparseMatrixDescriptor(CuSparseMatrixCSC, colPtr, T, Cint, m, n, index)
+    else
+        error("Format :$fmt not available, use :csc, :csr or :coo.")
+    end
+    desc_dense = CuDenseMatrixDescriptor(A)
+
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cusparseDenseToSparse_bufferSize(handle(), desc_dense, desc_sparse, algo, out)
+        return out[]
+    end
+    with_workspace(bufferSize) do buffer
+        cusparseDenseToSparse_analysis(handle(), desc_dense, desc_sparse, algo, buffer)
+        nnzB = Ref{Int64}()
+        cusparseSpMatGetSize(desc_sparse, Ref{Int64}(), Ref{Int64}(), nnzB)
+        if fmt == :coo
+            rowInd = CuVector{Cint}(undef, nnzB[])
+            colInd = CuVector{Cint}(undef, nnzB[])
+            nzVal = CuVector{T}(undef, nnzB[])
+            B = CuSparseMatrixCOO{T, Cint}(rowInd, colInd, nzVal, (m,n))
+            cusparseCooSetPointers(desc_sparse, B.rowInd, B.colInd, B.nzVal)
+        elseif fmt == :csr
+            colVal = CuVector{Cint}(undef, nnzB[])
+            nzVal = CuVector{T}(undef, nnzB[])
+            B = CuSparseMatrixCSR{T, Cint}(rowPtr, colVal, nzVal, (m,n))
+            cusparseCsrSetPointers(desc_sparse, B.rowPtr, B.colVal, B.nzVal)
+        elseif fmt == :csc
+            rowVal = CuVector{Cint}(undef, nnzB[])
+            nzVal = CuVector{T}(undef, nnzB[])
+            B = CuSparseMatrixCSC{T, Cint}(colPtr, rowVal, nzVal, (m,n))
+            cusparseCscSetPointers(desc_sparse, B.colPtr, B.rowVal, B.nzVal)
+        else
+            error("Format :$fmt not available, use :csc, :csr or :coo.")
+        end
+        cusparseDenseToSparse_convert(handle(), desc_dense, desc_sparse, algo, buffer)
+    end
+    return B
+end
 
 function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
-
     cusparseGather(handle(), descY, descX)
+    return X
+end
 
-    X
+function scatter!(Y::CuVector, X::CuSparseVector, index::SparseChar)
+    descX = CuSparseVectorDescriptor(X, index)
+    descY = CuDenseVectorDescriptor(Y)
+    cusparseScatter(handle(), descX, descY)
+    return Y
+end
+
+function axpby!(alpha::Number, X::CuSparseVector{T}, beta::Number, Y::CuVector{T}, index::SparseChar) where {T}
+    descX = CuSparseVectorDescriptor(X, index)
+    descY = CuDenseVectorDescriptor(Y)
+    cusparseAxpby(handle(), Ref{T}(alpha), descX, Ref{T}(beta), descY)
+    return Y
+end
+
+function rot!(X::CuSparseVector{T}, Y::CuVector{T}, c::Number, s::Number, index::SparseChar) where {T}
+    descX = CuSparseVectorDescriptor(X, index)
+    descY = CuDenseVectorDescriptor(Y)
+    cusparseRot(handle(), Ref{T}(c), Ref{T}(s), descX, descY)
+    return X, Y
+end
+
+function vv!(transx::SparseChar, X::CuSparseVector{T}, Y::DenseCuVector{T}, index::SparseChar) where {T}
+    descX = CuSparseVectorDescriptor(X, index)
+    descY = CuDenseVectorDescriptor(Y)
+    result = Ref{T}()
+
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cusparseSpVV_bufferSize(handle(), transx, descX, descY, result, T, out)
+        return out[]
+    end
+    with_workspace(bufferSize) do buffer
+        cusparseSpVV(handle(), transx, descX, descY, result, T, buffer)
+    end
+    return result[]
 end
 
 function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},CuSparseMatrixCSR{TA},CuSparseMatrixCOO{TA}}, X::DenseCuVector{T},

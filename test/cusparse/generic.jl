@@ -164,3 +164,98 @@ if CUSPARSE.version() >= v"11.7.0"
         end
     end
 end # CUSPARSE.version >= 11.7.0
+
+if CUSPARSE.version() >= v"11.3.0"
+
+    fmt = Dict(CuSparseMatrixCSC => :csc,
+               CuSparseMatrixCSR => :csr,
+               CuSparseMatrixCOO => :coo)
+
+    for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO]
+        @testset "$SparseMatrixType -- densetosparse algo=$algo" for algo in [CUSPARSE.CUSPARSE_DENSETOSPARSE_ALG_DEFAULT]
+            @testset "densetosparse $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+                A_sparse = sprand(T, 10, 20, 0.5)
+                A_dense = Matrix{T}(A_sparse)
+                dA_dense = CuMatrix{T}(A_dense)
+                dA_sparse = CUSPARSE.densetosparse(dA_dense, fmt[SparseMatrixType], 'O', algo)
+                @test A_sparse ≈ collect(dA_dense)
+            end
+        end
+        @testset "$SparseMatrixType -- sparsetodense algo=$algo" for algo in [CUSPARSE.CUSPARSE_SPARSETODENSE_ALG_DEFAULT]
+            @testset "sparsetodense $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+                A_dense = rand(T, 10, 20)
+                A_sparse = sparse(A_dense)
+                dA_sparse = SparseMatrixType(A_sparse)
+                dA_dense = CUSPARSE.sparsetodense(dA_sparse, 'O', algo)
+                @test A_dense ≈ collect(dA_dense)
+            end
+        end
+    end
+
+    @testset "vv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        for (transx, opx) in [('N', identity), ('C', conj)]
+            T <: Real && transx == 'C' && continue
+            X = sprand(T, 20, 0.5)
+            dX = CuSparseVector{T}(X)
+            Y = rand(T, 20)
+            dY = CuVector{T}(Y)
+            result = vv!(transx, dX, dY, 'O')
+            @test sum(opx(X[i]) * Y[i] for i=1:20) ≈ result
+        end
+    end
+
+    @testset "gather! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        X = sprand(T, 20, 0.5)
+        dX = CuSparseVector{T}(X)
+        Y = rand(T, 20)
+        dY = CuVector{T}(Y)
+        CUSPARSE.gather!(dX, dY, 'O')
+        Z = copy(X)
+        for i = 1:nnz(X)
+            Z[X.nzind[i]] = Y[X.nzind[i]]
+        end
+        @test Z ≈ sparse(collect(dX))
+    end
+
+    @testset "scatter! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        X = sprand(T, 20, 0.5)
+        dX = CuSparseVector{T}(X)
+        Y = rand(T, 20)
+        dY = CuVector{T}(Y)
+        CUSPARSE.scatter!(dY, dX, 'O')
+        Z = copy(Y)
+        for i = 1:nnz(X)
+            Z[X.nzind[i]] = X.nzval[i]
+        end
+        @test Z ≈ collect(dY)
+    end
+
+    @testset "axpby! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        X = sprand(T, 20, 0.5)
+        dX = CuSparseVector{T}(X)
+        Y = rand(T, 20)
+        dY = CuVector{T}(Y)
+        alpha = rand(T)
+        beta = rand(T)
+        CUSPARSE.axpby!(alpha, dX, beta, dY, 'O')
+        @test alpha * X + beta * Y ≈ collect(dY)
+    end
+
+    @testset "rot! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        X = sprand(T, 20, 0.5)
+        dX = CuSparseVector{T}(X)
+        Y = rand(T, 20)
+        dY = CuVector{T}(Y)
+        c = rand(T)
+        s = rand(T)
+        CUSPARSE.rot!(dX, dY, c, s, 'O')
+        W = copy(X)
+        Z = copy(Y)
+        for i = 1:nnz(X)
+            W[X.nzind[i]] =  c * X.nzval[i] + s * Y[X.nzind[i]]
+            Z[X.nzind[i]] = -s * X.nzval[i] + c * Y[X.nzind[i]]
+        end
+        @test W ≈ collect(dX)
+        @test Z ≈ collect(dY)
+    end
+end # CUSPARSE.version >= 11.3.0
