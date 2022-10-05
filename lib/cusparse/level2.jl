@@ -4,13 +4,13 @@
 export sv2!, sv2, mv!
 
 """
-    mv!(transa::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, beta::BlasFloat, Y::CuVector, index::SparseChar)
+    mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::CuVector, beta::Number, Y::CuVector, index::SparseChar)
 
 Performs `Y = alpha * op(A) * X + beta * Y`, where `op` can be nothing (`transa = N`),
-tranpose (`transa = T`) or conjugate transpose (`transa = C`). `X` is a sparse vector, and
-`Y` is dense.
+tranpose (`transa = T`) or conjugate transpose (`transa = C`).
+`X` and `Y` are dense vectors.
 """
-mv!(transa::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, beta::BlasFloat, Y::CuVector, index::SparseChar)
+mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::CuVector, beta::Number, Y::CuVector, index::SparseChar)
 
 for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                      (:cusparseDbsrmv, :Float64),
@@ -175,7 +175,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             if transa == 'N'
                 ctransa = 'T'
             elseif transa == 'C' && eltype(A) <: Complex
-                throw(ArgumentError("Backward and forward sweeps with the adjoint of a CSC matrix is not supported. Use a CSR matrix instead."))
+                throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR matrix instead."))
             end
             if uplo == 'U'
                 cuplo = 'L'

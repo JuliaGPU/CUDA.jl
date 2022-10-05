@@ -4,13 +4,13 @@
 export mm!, mm2!, sm2!, sm2
 
 """
-    mm!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
+    mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix, B::CuMatrix, beta::Number, C::CuMatrix, index::SparseChar)
 
 Performs `C = alpha * op(A) * op(B) + beta * C`, where `op` can be nothing (`transa = N`),
 tranpose (`transa = T`) or conjugate transpose (`transa = C`).
-`A` is a sparse matrix defined in BSR storage format. `B` and `C` are dense matrices.
+`B` and `C` are dense matrices.
 """
-mm!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
+mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix, B::CuMatrix, beta::Number, C::CuMatrix, index::SparseChar)
 
 # bsrmm
 for (fname,elty) in ((:cusparseSbsrmm, :Float32),
@@ -276,7 +276,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
             if transa == 'N'
                 ctransa = 'T'
             elseif transa == 'C' && eltype(A) <: Complex
-                throw(ArgumentError("Backward and forward sweeps with the adjoint of a CSC matrix is not supported. Use a CSR matrix instead."))
+                throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR matrix instead."))
             end
             if uplo == 'U'
                 cuplo = 'L'
