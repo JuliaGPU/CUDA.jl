@@ -178,7 +178,7 @@ if CUSPARSE.version() >= v"11.3.0"
                 A_dense = Matrix{T}(A_sparse)
                 dA_dense = CuMatrix{T}(A_dense)
                 dA_sparse = CUSPARSE.densetosparse(dA_dense, fmt[SparseMatrixType], 'O', algo)
-                @test A_sparse ≈ collect(dA_dense)
+                @test A_sparse ≈ collect(dA_sparse)
             end
         end
         @testset "$SparseMatrixType -- sparsetodense algo=$algo" for algo in [CUSPARSE.CUSPARSE_SPARSETODENSE_ALG_DEFAULT]
