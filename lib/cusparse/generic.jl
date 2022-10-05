@@ -225,6 +225,11 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
         return out[]
     end
     with_workspace(bufferSize) do buffer
+        if (algo == CUSPARSE_SPMM_CSR_ALG1) || (algo == CUSPARSE_SPMM_CSR_ALG3)
+            cusparseSpMM_preprocess(
+                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+                descC, T, algo, buffer)
+        end
         cusparseSpMM(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, buffer)
