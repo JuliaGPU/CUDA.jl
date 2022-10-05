@@ -6,7 +6,7 @@ export vv!, sv!, sm!
 
 function sparsetodense(A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT) where {T}
     m,n = size(A)
-    B = CUDA.zeros(T,m,n)
+    B = CuMatrix{T}(undef, m, n)
     desc_sparse = CuSparseMatrixDescriptor(A, index)
     desc_dense = CuDenseMatrixDescriptor(B)
 

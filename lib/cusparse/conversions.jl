@@ -425,7 +425,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
                            (:cusparseZcsc2dense, :cusparseZcsr2dense, :ComplexF64))
     @eval begin
         function CUDA.CuMatrix{$elty}(csr::CuSparseMatrixCSR{$elty}; ind::SparseChar='O')
-            if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
+            if version() >= v"11.1.1" # CUSPARSE version from CUDA release notes
                 denseA = sparsetodense(csr, ind)
             else
                 m,n = size(csr)
@@ -439,7 +439,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             return denseA
         end
         function CUDA.CuMatrix{$elty}(csc::CuSparseMatrixCSC{$elty}; ind::SparseChar='O')
-            if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
+            if version() >= v"11.1.1" # CUSPARSE version from CUDA release notes
                 denseA = sparsetodense(csc, ind)
             else
                 m,n = size(csc)
@@ -458,7 +458,7 @@ for (elty, welty) in ((:Float16, :Float32),
                       (:ComplexF16, :ComplexF32))
     @eval begin
         function CUDA.CuMatrix{$elty}(csr::CuSparseMatrixCSR{$elty}; ind::SparseChar='O')
-            if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
+            if version() >= v"11.1.1" # CUSPARSE version from CUDA release notes
                 denseA = sparsetodense(csr, ind)
             else
                 m,n = size(csr)
@@ -470,7 +470,7 @@ for (elty, welty) in ((:Float16, :Float32),
             return denseA
         end
         function CUDA.CuMatrix{$elty}(csc::CuSparseMatrixCSC{$elty}; ind::SparseChar='O')
-            if version() >= v"11.3.0" # CUSPARSE version from CUDA release notes
+            if version() >= v"11.1.1" # CUSPARSE version from CUDA release notes
                 denseA = sparsetodense(csc, ind)
             else
                 m,n = size(csc)
@@ -492,58 +492,73 @@ for (nname,cname,rname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseS
                                  (:cusparseZnnz, :cusparseZdense2csc, :cusparseZdense2csr, :ComplexF64))
     @eval begin
         function CuSparseMatrixCSR(A::CuMatrix{$elty}; ind::SparseChar='O')
-            m,n = size(A)
-            lda = max(1, stride(A,2))
-            cudesc = CuMatrixDescriptor('G',
-                                        'L',
-                                        'N', ind)
-            nnzRowCol = CUDA.zeros(Cint, m)
-            nnzTotal = Ref{Cint}(1)
-            $nname(handle(),
-                   'R', m, n, cudesc, A, lda, nnzRowCol,
-                   nnzTotal)
-            nzVal = CUDA.zeros($elty,nnzTotal[])
+            if version() >= v"11.1.1" # CUSPARSE version from CUDA release notes
+                return densetosparse(A, :csr, ind)
+            else
+                m,n = size(A)
+                lda = max(1, stride(A,2))
+                cudesc = CuMatrixDescriptor('G',
+                                            'L',
+                                            'N', ind)
+                nnzRowCol = CUDA.zeros(Cint, m)
+                nnzTotal = Ref{Cint}(1)
+                $nname(handle(),
+                       'R', m, n, cudesc, A, lda, nnzRowCol,
+                       nnzTotal)
+                nzVal = CUDA.zeros($elty,nnzTotal[])
 
-            rowPtr = CUDA.zeros(Cint,m+1)
-            colInd = CUDA.zeros(Cint,nnzTotal[])
-            $rname(handle(), m, n, cudesc, A,
-                    lda, nnzRowCol, nzVal, rowPtr, colInd)
-            return CuSparseMatrixCSR(rowPtr,colInd,nzVal,size(A))
+                rowPtr = CUDA.zeros(Cint,m+1)
+                colInd = CUDA.zeros(Cint,nnzTotal[])
+                $rname(handle(), m, n, cudesc, A,
+                        lda, nnzRowCol, nzVal, rowPtr, colInd)
+                return CuSparseMatrixCSR(rowPtr,colInd,nzVal,size(A))
+            end
         end
 
         function CuSparseMatrixCSC(A::CuMatrix{$elty}; ind::SparseChar='O')
-            m,n = size(A)
-            lda = max(1, stride(A,2))
-            cudesc = CuMatrixDescriptor('G',
-                                        'L',
-                                        'N', ind)
-            nnzRowCol = CUDA.zeros(Cint, n)
-            nnzTotal = Ref{Cint}(1)
-            $nname(handle(),
-                   'C', m, n, cudesc, A, lda, nnzRowCol,
-                   nnzTotal)
-            nzVal = CUDA.zeros($elty,nnzTotal[])
+            if version() >= v"11.1.1" # CUSPARSE version from CUDA release notes
+                return densetosparse(A, :csc, ind)
+            else
+                m,n = size(A)
+                lda = max(1, stride(A,2))
+                cudesc = CuMatrixDescriptor('G',
+                                            'L',
+                                            'N', ind)
+                nnzRowCol = CUDA.zeros(Cint, n)
+                nnzTotal = Ref{Cint}(1)
+                $nname(handle(),
+                       'C', m, n, cudesc, A, lda, nnzRowCol,
+                       nnzTotal)
+                nzVal = CUDA.zeros($elty,nnzTotal[])
 
-            colPtr = CUDA.zeros(Cint,n+1)
-            rowInd = CUDA.zeros(Cint,nnzTotal[])
-            $cname(handle(), m, n, cudesc, A,
-                    lda, nnzRowCol, nzVal, rowInd, colPtr)
-            return CuSparseMatrixCSC(colPtr,rowInd,nzVal,size(A))
+                colPtr = CUDA.zeros(Cint,n+1)
+                rowInd = CUDA.zeros(Cint,nnzTotal[])
+                $cname(handle(), m, n, cudesc, A,
+                        lda, nnzRowCol, nzVal, rowInd, colPtr)
+                return CuSparseMatrixCSC(colPtr,rowInd,nzVal,size(A))
+            end
         end
     end
 end
 
-# to do: use cusparseDenseToSparse_convert here
 for (elty, welty) in ((:Float16, :Float32),
                       (:ComplexF16, :ComplexF32))
     @eval begin
         function CuSparseMatrixCSR(A::CuMatrix{$elty}; ind::SparseChar='O')
-            wide_csr = CuSparseMatrixCSR(convert(CuMatrix{$welty}, A))
-            return CuSparseMatrixCSR(wide_csr.rowPtr, wide_csr.colVal, convert(CuVector{$elty}, nonzeros(wide_csr)), size(wide_csr))
+            if version() >= v"11.1.1" # CUSPARSE version from CUDA release notes
+                return densetosparse(A, :csr, ind)
+            else
+                wide_csr = CuSparseMatrixCSR(convert(CuMatrix{$welty}, A))
+                return CuSparseMatrixCSR(wide_csr.rowPtr, wide_csr.colVal, convert(CuVector{$elty}, nonzeros(wide_csr)), size(wide_csr))
+            end
         end
         function CuSparseMatrixCSC(A::CuMatrix{$elty}; ind::SparseChar='O')
-            wide_csc = CuSparseMatrixCSC(convert(CuMatrix{$welty}, A))
-            return CuSparseMatrixCSC(wide_csc.colPtr, wide_csc.rowVal, convert(CuVector{$elty}, nonzeros(wide_csc)), size(wide_csc))
+            if version() >= v"11.1.1" # CUSPARSE version from CUDA release notes
+                return densetosparse(A, :csc, ind)
+            else
+                wide_csc = CuSparseMatrixCSC(convert(CuMatrix{$welty}, A))
+                return CuSparseMatrixCSC(wide_csc.colPtr, wide_csc.rowVal, convert(CuVector{$elty}, nonzeros(wide_csc)), size(wide_csc))
+            end
         end
     end
 end

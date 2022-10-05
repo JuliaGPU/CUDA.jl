@@ -165,7 +165,7 @@ if CUSPARSE.version() >= v"11.7.0"
     end
 end # CUSPARSE.version >= 11.7.0
 
-if CUSPARSE.version() >= v"11.3.0"
+if CUSPARSE.version() >= v"11.1.1" # lower CUDA version doesn't support these algorithms
 
     fmt = Dict(CuSparseMatrixCSC => :csc,
                CuSparseMatrixCSR => :csr,
@@ -191,7 +191,9 @@ if CUSPARSE.version() >= v"11.3.0"
             end
         end
     end
+end # CUSPARSE.version >= 11.1.1
 
+if CUSPARSE.version() >= v"11.0" # lower CUDA version doesn't support these algorithms
     @testset "vv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
         for (transx, opx) in [('N', identity), ('C', conj)]
             T <: Real && transx == 'C' && continue
@@ -258,4 +260,4 @@ if CUSPARSE.version() >= v"11.3.0"
         @test W ≈ collect(dX)
         @test Z ≈ collect(dY)
     end
-end # CUSPARSE.version >= 11.3.0
+end # CUSPARSE.version >= 11.0
