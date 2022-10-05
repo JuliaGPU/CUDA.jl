@@ -308,6 +308,7 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
             cudescc = CuMatrixDescriptor('G', 'L', 'N', indc)
             cusparseXcsr2bsrNnz(handle(), dir, m, n, cudesca, csr.rowPtr,
                                 csr.colVal, blockDim, cudescc, bsrRowPtr, nnz_ref)
+            (nnz_ref[] > mb * nb) && error("The number of nonzero blocks of the BSR matrix is incorrect.")
             bsrNzVal = CUDA.zeros($elty, nnz_ref[] * blockDim * blockDim )
             bsrColInd = CUDA.zeros(Cint, nnz_ref[])
             $fname(handle(), dir, m, n,
@@ -568,9 +569,9 @@ function CUDA.CuMatrix{T}(bsr::CuSparseMatrixBSR{T}; inda::SparseChar='O',
     CuMatrix{T}(CuSparseMatrixCSR{T}(bsr; inda, indc))
 end
 
-function CuSparseMatrixBSR(A::CuMatrix; ind::SparseChar='O')
-    m,n = size(A)   # TODO: always let the user choose, or provide defaults for other methods too
-    CuSparseMatrixBSR(CuSparseMatrixCSR(A; ind), gcd(m,n))
+function CuSparseMatrixBSR(A::CuMatrix, blockDim::Integer=gcd(size(A)...); ind::SparseChar='O')
+    m,n = size(A)
+    CuSparseMatrixBSR(CuSparseMatrixCSR(A; ind), blockDim)
 end
 
 function CUDA.CuMatrix{T}(coo::CuSparseMatrixCOO{T}; ind::SparseChar='O') where {T}

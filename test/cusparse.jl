@@ -196,7 +196,7 @@ end
         @testset "BSR(::Dense)" begin
             x = rand(elty,m,n)
             d_x = CuArray(x)
-            d_x = CuSparseMatrixBSR(d_x)
+            d_x = CuSparseMatrixBSR(d_x, blockdim)
             @test collect(d_x) ≈ x
         end
 
