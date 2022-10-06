@@ -13,9 +13,8 @@ function sum_dim1(A::CuSparseMatrixCSR)
     end
 
     m, n = size(A)
-    Tnorm = typeof(float(real(zero(eltype(A)))))
-    Tsum = promote_type(Float64,Tnorm)
-    rowsum = CUDA.CuArray{Tsum}(undef, m)
+    Tnorm = eltype(A)
+    rowsum = CUDA.CuArray{Float64}(undef, m)
     kernel_f = @cuda launch=false kernel(Tnorm, rowsum, A)
     
     config = launch_configuration(kernel_f.fun)
@@ -39,9 +38,8 @@ function sum_dim2(A::CuSparseMatrixCSR)
 
     A = CuSparseMatrixCSC(A)
     m, n = size(A)
-    Tnorm = typeof(float(real(zero(eltype(A)))))
-    Tsum = promote_type(Float64,Tnorm)
-    colsum = CUDA.CuArray{Tsum}(undef, n)
+    Tnorm = eltype(A)
+    colsum = CUDA.CuArray{Float64}(undef, n)
     kernel_f = @cuda launch=false kernel(Tnorm, colsum, A)
     
     config = launch_configuration(kernel_f.fun)

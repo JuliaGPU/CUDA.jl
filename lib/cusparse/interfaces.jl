@@ -129,7 +129,7 @@ end
 
 function Base.reshape(A::CuSparseMatrixCOO{T,M}, dims::NTuple{N,Int}) where {T,N,M}
     nrows, ncols = size(A)
-    flat_indices = nrows * (A.colInd .- 1) + A.rowInd .- 1
+    flat_indices = nrows .* (A.colInd .- 1) .+ A.rowInd .- 1
     new_col, new_row = div.(flat_indices, dims[1]) .+ 1, rem.(flat_indices, dims[1]) .+ 1
     sparse(new_row, new_col, A.nzVal, dims[1], length(dims) == 1 ? 1 : dims[2], fmt = :coo)
 end
@@ -139,16 +139,16 @@ function LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::CuSparseMatrixCSR{T,M}
     mm!('N', 'N', one(T), A, B, zero(T), Y, 'O')
 end
 function LinearAlgebra.mul!(Y::CuSparseMatrixCOO{T,M}, A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
-    Y2 = copy(CuSparseMatrixCSR(Y))
-    A2 = copy(CuSparseMatrixCSR(A))
-    B2 = copy(CuSparseMatrixCSR(B))
+    Y2 = CuSparseMatrixCSR(spzeros(T, size(A, 1), size(B, 2)))
+    A2 = CuSparseMatrixCSR(A)
+    B2 = CuSparseMatrixCSR(B)
     mul!(Y2, A2, B2)
     copyto!(Y, CuSparseMatrixCOO(Y2))
 end
 function LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T,M}, A::CuSparseMatrixCSC{T,M}, B::CuSparseMatrixCSC{T,M}) where {T,M}
-    Y2 = copy(CuSparseMatrixCSR(Y))
-    A2 = copy(CuSparseMatrixCSR(A))
-    B2 = copy(CuSparseMatrixCSR(B))
+    Y2 = CuSparseMatrixCSR(spzeros(T, size(A, 1), size(B, 2)))
+    A2 = CuSparseMatrixCSR(A)
+    B2 = CuSparseMatrixCSR(B)
     mul!(Y2, A2, B2)
     copyto!(Y, CuSparseMatrixCSC(Y2))
 end
