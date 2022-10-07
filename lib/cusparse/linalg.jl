@@ -105,7 +105,7 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}
 
     row = (A.rowInd .- 1) .* mB
     row = repeat(row, inner = Bnnz)
-    col = (A.colInd .- 1) .* size(B, 2)
+    col = (A.colInd .- 1) .* nB
     col = repeat(col, inner = Bnnz)
     data = repeat(A.nzVal, inner = Bnnz)
 
