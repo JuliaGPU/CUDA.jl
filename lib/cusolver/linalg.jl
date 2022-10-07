@@ -76,7 +76,7 @@ function LinearAlgebra.eigen(A::Symmetric{T1,<:CuMatrix{T2,M}}) where {T1<:Real,
 end
 function LinearAlgebra.eigen(A::Hermitian{T1,<:CuMatrix{T2,M}}) where {T1<:Real,T2<:Real,M}
     A2 = copy(A)
-    CUSOLVER.heevd!('V', 'U', A2) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
+    CUSOLVER.heevd!('V', 'U', A2)
 end
 function LinearAlgebra.eigen(A::CuMatrix{T, M}) where {T<:Real,M}
     A2 = copy(A)
