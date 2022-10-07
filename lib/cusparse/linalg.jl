@@ -103,7 +103,7 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}
         return CuSparseMatrixCOO(spzeros(T, out_shape))
     end
 
-    row = (A.rowInd .- 1) .* size(B, 1)
+    row = (A.rowInd .- 1) .* mB
     row = repeat(row, inner = Bnnz)
     col = (A.colInd .- 1) .* size(B, 2)
     col = repeat(col, inner = Bnnz)
