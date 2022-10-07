@@ -93,7 +93,9 @@ LinearAlgebra.triu(A::CuSparseMatrixCOO{T,M}) where {T,M} = triu(A, 0)
 LinearAlgebra.tril(A::CuSparseMatrixCOO{T,M}) where {T,M} = tril(A, 0)
 
 function LinearAlgebra.kron(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
-    out_shape = (size(A, 1) * size(B, 1), size(A, 2) * size(B, 2))
+    mA,nA = size(A)
+    mB,nB = size(B)
+    out_shape = (mA * mB, nA * nB)
     Annz = Int64(A.nnz)
     Bnnz = Int64(B.nnz)
 
