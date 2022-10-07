@@ -259,3 +259,44 @@ if CUSPARSE.version() >= v"11.3.0" # lower CUDA version doesn't support these al
         @test Z ≈ collect(dY)
     end
 end # CUSPARSE.version >= 11.3.0
+
+if CUSPARSE.version() >= v"11.1.1"
+
+    SPGEMM_ALGOS = Dict(CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPGEMM_DEFAULT,
+                                              CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC,
+                                              CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC])
+    for SparseMatrixType in keys(SPGEMM_ALGOS)
+        @testset "$SparseMatrixType -- gemm algo=$algo" for algo in SPGEMM_ALGOS[SparseMatrixType]
+            @testset "gemm $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+                for (transa, opa) in [('N', identity)]
+                    for (transb, opb) in [('N', identity)]
+                        A = sprand(T,25,10,0.2)
+                        B = sprand(T,10,35,0.3)
+                        dA = SparseMatrixType(A)
+                        dB = SparseMatrixType(B)
+                        alpha = rand(T)
+                        C = alpha * opa(A) * opb(B)
+                        dC = gemm(transa, transb, alpha, dA, dB, 'O', algo)
+                        @test C ≈ SparseMatrixCSC(dC)
+
+                        beta = rand(T)
+                        gamma = rand(T)
+                        D = gamma * opa(A) * opa(B) + beta * C
+
+                        dD = gemm(transa, transb, gamma, dA, dB, beta, dC, 'O', algo, same_pattern=true)
+                        @test D ≈ SparseMatrixCSC(dD)
+
+                        gemm!(transa, transb, gamma, dA, dB, beta, dC, 'O', algo)
+                        @test D ≈ SparseMatrixCSC(dC)
+
+                        E = sprand(T,25,35,0.1)
+                        dE = SparseMatrixType(E)
+                        F = alpha * opa(A) * opb(B) + beta * E
+                        dF = gemm(transa, transb, alpha, dA, dB, beta, dE, 'O', algo, same_pattern=false)
+                        @test F ≈ SparseMatrixCSC(dF)
+                    end
+                end
+            end
+        end
+    end
+end
