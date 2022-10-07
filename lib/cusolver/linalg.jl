@@ -74,7 +74,7 @@ function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
     A2 = copy(A)
     CUSOLVER.syevd!('V', 'U', A2)
 end
-function LinearAlgebra.eigen(A::Hermitian{T1,<:CuMatrix{T2,M}}) where {T1<:Real,T2<:Real,M}
+function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasFloat}
     A2 = copy(A)
     CUSOLVER.heevd!('V', 'U', A2)
 end
