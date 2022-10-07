@@ -14,7 +14,7 @@ function sum_dim1(A::CuSparseMatrixCSR)
 
     m, n = size(A)
     Tnorm = eltype(A)
-    rowsum = CUDA.CuArray{Float64}(undef, m)
+    rowsum = CuVector{Float64}(undef, m)
     kernel_f = @cuda launch=false kernel(Tnorm, rowsum, A)
     
     config = launch_configuration(kernel_f.fun)
