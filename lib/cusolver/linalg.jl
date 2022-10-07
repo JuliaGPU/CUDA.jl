@@ -1,6 +1,7 @@
 # implementation of LinearAlgebra interfaces
 
 using LinearAlgebra
+using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
 using ..CUBLAS: CublasFloat
 
 function copy_cublasfloat(As...)

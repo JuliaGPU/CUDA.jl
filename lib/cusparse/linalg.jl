@@ -1,4 +1,5 @@
 using LinearAlgebra
+using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
 
 function sum_dim1(A::CuSparseMatrixCSR)
     function kernel(Tnorm, out, dA)
