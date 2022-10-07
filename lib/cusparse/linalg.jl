@@ -114,7 +114,7 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}
 
     data .*= repeat(reverse(B.nzVal), outer = Annz)
     
-    sparse(row, col, data, out_shape[1], out_shape[2], fmt = :coo)
+    sparse(row, col, data, out_shape..., fmt = :coo)
 end
 
 for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
