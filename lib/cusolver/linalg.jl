@@ -70,7 +70,7 @@ end
 
 # eigenvalues
 
-function LinearAlgebra.eigen(A::Symmetric{T1,<:CuMatrix{T2,M}}) where {T1<:Real,T2<:Real,M}
+function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
     A2 = copy(A)
     CUSOLVER.syevd!('V', 'U', A2)
 end
