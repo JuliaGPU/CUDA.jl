@@ -162,7 +162,7 @@ function SparseArrays.droptol!(A::CuSparseMatrixCOO{T,M}, tol::Real) where {T,M}
     rows = A.rowInd[mask]
     cols = A.colInd[mask]
     datas = A.nzVal[mask]
-    B = sparse(rows, cols, datas, size(A, 1), size(A, 2), fmt = :coo)
+    B = sparse(rows, cols, datas, size(A)..., fmt = :coo)
     copyto!(A, B)
 end
 
