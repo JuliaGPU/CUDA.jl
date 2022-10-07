@@ -262,9 +262,12 @@ end # CUSPARSE.version >= 11.3.0
 
 if CUSPARSE.version() >= v"11.1.1"
 
-    SPGEMM_ALGOS = Dict(CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPGEMM_DEFAULT,
-                                              CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC,
-                                              CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC])
+    SPGEMM_ALGOS = Dict(CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPGEMM_DEFAULT])
+    if CUSPARSE.version() >= v"11.6.0"
+        push!(SPGEMM_ALGOS[CuSparseMatrixCSR], CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC,
+                                               CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC)
+    end
+
     for SparseMatrixType in keys(SPGEMM_ALGOS)
         @testset "$SparseMatrixType -- gemm algo=$algo" for algo in SPGEMM_ALGOS[SparseMatrixType]
             @testset "gemm $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
