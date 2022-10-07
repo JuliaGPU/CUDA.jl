@@ -86,7 +86,7 @@ function LinearAlgebra.tril(A::CuSparseMatrixCOO{T,M}, k::Integer) where {T,M}
     rows = A.rowInd[mask]
     cols = A.colInd[mask]
     datas = A.nzVal[mask]
-    CuSparseMatrixCOO(sparse(rows, cols, datas, size(A, 1), size(A, 2)))
+    CuSparseMatrixCOO(sparse(rows, cols, datas, size(A)...))
 end
 
 LinearAlgebra.triu(A::CuSparseMatrixCOO{T,M}) where {T,M} = triu(A, 0)
