@@ -154,10 +154,6 @@ const cuda_toolkits = [
     (release=v"11.1", preferred=true),
     (release=v"11.0", preferred=true),
     (release=v"10.2", preferred=true),
-    (release=v"10.1", preferred=true),
-    (release=v"10.0", preferred=true),
-    (release=v"9.0",  preferred=true),
-    (release=v"9.2",  preferred=true),
 ]
 
 function find_artifact_cuda()
