@@ -97,11 +97,11 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
 #       (cfr. shared memory and its wider-than-datatype alignment)
 
 @generated function alignment(::CuDeviceArray{T}) where {T}
-    if Base.isbitsunion(T)
+    if isbitstype(T)
+        Base.datatype_alignment(T)
+    else # isbitsunion etc
         _, sz, al = Base.uniontype_layout(T)
         al
-    else
-        Base.datatype_alignment(T)
     end
 end
 
@@ -109,7 +109,7 @@ end
     @boundscheck checkbounds(A, index)
     if isbitstype(T)
         arrayref_bits(A, index)
-    else #if isbitsunion(T)
+    else # isbitsunion etc
         arrayref_union(A, index)
     end
 end
@@ -151,7 +151,7 @@ end
     @boundscheck checkbounds(A, index)
     if isbitstype(T)
         arrayset_bits(A, x, index)
-    else #if isbitsunion(T)
+    else # isbitsunion etc
         arrayset_union(A, x, index)
     end
     return A
