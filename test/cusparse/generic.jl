@@ -304,7 +304,7 @@ if CUSPARSE.version() >= v"11.1.1"
     end
 end
 
-if CUSPARSE.version() >= v"11.2.1"
+if CUSPARSE.version() >= v"11.4.1"
 
     SDDMM_ALGOS = Dict(CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SDDMM_ALG_DEFAULT])
 

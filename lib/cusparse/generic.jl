@@ -1,6 +1,6 @@
 # generic APIs
 
-export sparsetodense, densetosparse, gather!, scatter!, axpby!, rot!
+export gather!, scatter!, axpby!, rot!
 export vv!, sv!, sm!, gemm, gemm!, sddmm!
 
 ## API functions
@@ -217,7 +217,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        # Uncomment is we find a way to reuse the buffer
+        # Uncomment if we find a way to reuse the buffer (issue #1362)
         # cusparseSpMM_preprocess(
         #     handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
         #     descC, T, algo, buffer)
@@ -488,7 +488,7 @@ function sddmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseC
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        # Uncomment is we find a way to reuse the buffer
+        # Uncomment if we find a way to reuse the buffer (issue #1362)
         # cusparseSDDMM_preprocess(handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta), descC, T, algo, buffer)
         cusparseSDDMM(handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta), descC, T, algo, buffer)
     end
