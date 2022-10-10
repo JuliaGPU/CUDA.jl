@@ -93,7 +93,7 @@ include("libcuda_deprecated.jl")
         end
         return
     end
-    if getenv("JULIA_CUDA_USE_COMPAT", !hooked && !system_driver_loaded) && _system_version[] < v"11.7"
+    if getenv("JULIA_CUDA_USE_COMPAT", !hooked && !system_driver_loaded) && _system_version[] < v"11.8"
         artifact = try
             # work around artifact"" eagerness on unsupported platforms by passing a variable
             f = id -> @artifact_str(id)
