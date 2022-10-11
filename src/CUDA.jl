@@ -84,10 +84,9 @@ include("../lib/cusparse/CUSPARSE.jl")
 include("../lib/cusolver/CUSOLVER.jl")
 include("../lib/cufft/CUFFT.jl")
 include("../lib/curand/CURAND.jl")
-include("../lib/cudnn/CUDNN.jl")
 include("../lib/cutensor/CUTENSOR.jl")
 
-export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND, CUDNN, CUTENSOR
+export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND, CUTENSOR
 
 # random depends on CURAND
 include("random.jl")

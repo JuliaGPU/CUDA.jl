@@ -1,20 +1,20 @@
 """
-    CUDA.CUDNN
+    CUDNN
 
 High level interface to cuDNN functions. See
-https://github.com/JuliaGPU/CUDA.jl/blob/master/lib/state/README.md
-for a design overview.
+[README.md](https://github.com/JuliaGPU/CUDA.jl/blob/master/lib/cudnn/README.md) for a
+design overview.
 """
 module CUDNN
 
-using ..APIUtils
-
-using ..CUDA
-using ..CUDA: CUstream, libraryPropertyType
-using ..CUDA: libcudnn, @retry_reclaim, isdebug, initialize_context
+using CUDA
+using CUDA.APIUtils
+using CUDA: CUstream, libraryPropertyType
+using CUDA: @retry_reclaim, isdebug, initialize_context
 
 using CEnum: @cenum
 
+include("bindeps.jl")
 
 # core library
 include("libcudnn_common.jl")
