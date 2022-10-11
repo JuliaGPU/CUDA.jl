@@ -269,8 +269,8 @@ if CUSPARSE.version() >= v"11.1.1"
     end
 
     for SparseMatrixType in keys(SPGEMM_ALGOS)
-        @testset "$SparseMatrixType -- gemm algo=$algo" for algo in SPGEMM_ALGOS[SparseMatrixType]
-            @testset "gemm $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "$SparseMatrixType -- gemm -- gemm! algo=$algo" for algo in SPGEMM_ALGOS[SparseMatrixType]
+            @testset "gemm -- gemm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity)]
                     for (transb, opb) in [('N', identity)]
                         A = sprand(T,25,10,0.2)
@@ -297,6 +297,45 @@ if CUSPARSE.version() >= v"11.1.1"
                         F = alpha * opa(A) * opb(B) + beta * E
                         dF = gemm(transa, transb, alpha, dA, dB, beta, dE, 'O', algo, same_pattern=false)
                         @test F ≈ SparseMatrixCSC(dF)
+                    end
+                end
+            end
+        end
+    end
+end
+
+if CUSPARSE.version() >= v"11.4.1"
+
+    SDDMM_ALGOS = Dict(CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SDDMM_ALG_DEFAULT])
+
+    for SparseMatrixType in keys(SDDMM_ALGOS)
+        @testset "$SparseMatrixType -- sddmm! algo=$algo" for algo in SDDMM_ALGOS[SparseMatrixType]
+            @testset "sddmm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+                for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                    for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                        T <: Complex && (transa == 'C' || transb == 'C') && continue
+                        mA = transa == 'N' ? 25 : 10
+                        nA = transa == 'N' ? 10 : 25
+                        mB = transb == 'N' ? 10 : 35
+                        nB = transb == 'N' ? 35 : 10
+
+                        A = rand(T,mA,nA)
+                        B = rand(T,mB,nB)
+                        C = sprand(T,25,35,0.3)
+
+                        spyC = copy(C)
+                        spyC.nzval .= one(T)
+
+                        dA = CuArray(A)
+                        dB = CuArray(B)
+                        dC = SparseMatrixType(C)
+
+                        alpha = rand(T)
+                        beta = rand(T)
+
+                        D = alpha * (opa(A) * opb(B)) .* spyC + beta * C
+                        sddmm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                        @test collect(dC) ≈ D
                     end
                 end
             end

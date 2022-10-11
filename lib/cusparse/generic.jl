@@ -1,6 +1,7 @@
 # generic APIs
 
-export vv!, sv!, sm!, gemm, gemm!
+export gather!, scatter!, axpby!, rot!
+export vv!, sv!, sm!, gemm, gemm!, sddmm!
 
 ## API functions
 
@@ -216,6 +217,11 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
         return out[]
     end
     with_workspace(bufferSize) do buffer
+        # Uncomment if we find a way to reuse the buffer (issue #1362)
+        # cusparseSpMM_preprocess(
+        #     handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+        #     descC, T, algo, buffer)
+        # end
         cusparseSpMM(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, buffer)
@@ -448,6 +454,43 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     with_workspace(bufferSize) do buffer
         cusparseSpSM_analysis(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, buffer)
         cusparseSpSM_solve(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc)
+    end
+    return C
+end
+
+function sddmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::DenseCuMatrix{T},
+                beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSDDMMAlg_t=CUSPARSE_SDDMM_ALG_DEFAULT) where {T}
+
+    # Support transa = 'C' and `transb = 'C' for real matrices
+    transa = T <: Real && transa == 'C' ? 'T' : transa
+    transb = T <: Real && transb == 'C' ? 'T' : transb
+
+    m,k = size(A)
+    n = size(C)[2]
+
+    if transa == 'N' && transb == 'N'
+        chkmmdims(B,C,k,n,m,n)
+    elseif transa == 'N' && transb != 'N'
+        chkmmdims(B,C,n,k,m,n)
+    elseif transa != 'N' && transb == 'N'
+        chkmmdims(B,C,m,n,k,n)
+    elseif transa != 'N' && transb != 'N'
+        chkmmdims(B,C,n,m,k,n)
+    end
+
+    descA = CuDenseMatrixDescriptor(A)
+    descB = CuDenseMatrixDescriptor(B)
+    descC = CuSparseMatrixDescriptor(C, index)
+
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cusparseSDDMM_bufferSize(handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta), descC, T, algo, out)
+        return out[]
+    end
+    with_workspace(bufferSize) do buffer
+        # Uncomment if we find a way to reuse the buffer (issue #1362)
+        # cusparseSDDMM_preprocess(handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta), descC, T, algo, buffer)
+        cusparseSDDMM(handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta), descC, T, algo, buffer)
     end
     return C
 end

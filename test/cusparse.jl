@@ -1052,3 +1052,22 @@ end
         end
     end
 end
+
+@testset "gemvi!" begin
+    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+            elty <: Complex && transa == 'C' && continue
+            A = transa == 'N' ? rand(elty,m,n) : rand(elty,n,m)
+            x = sparsevec(rand(1:n,k), rand(elty,k), n)
+            y = rand(elty,m)
+            dA = CuArray(A)
+            dx = CuSparseVector(x)
+            dy = CuArray(y)
+            alpha = rand(elty)
+            beta = rand(elty)
+            gemvi!(transa,alpha,dA,dx,beta,dy,'O')
+            z = alpha * opa(A) * x + beta * y
+            @test z ≈ collect(dy)
+        end
+    end
+end

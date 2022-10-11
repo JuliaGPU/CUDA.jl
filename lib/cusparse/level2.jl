@@ -1,7 +1,7 @@
 # sparse linear algebra functions that perform operations between sparse matrices and dense
 # vectors
 
-export sv2!, sv2, mv!
+export sv2!, sv2, mv!, gemvi!
 
 """
     mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::CuVector, beta::Number, Y::CuVector, index::SparseChar)
@@ -24,6 +24,10 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                      beta::Number,
                      Y::CuVector{$elty},
                      index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             mb = div(m,A.blockDim)
@@ -65,6 +69,10 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
                       A::CuSparseMatrixBSR{$elty},
                       X::CuVector{$elty},
                       index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
             desc = CuMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
             if m != n
@@ -118,6 +126,10 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                       A::CuSparseMatrixCSR{$elty},
                       X::CuVector{$elty},
                       index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
             desc = CuMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
             if m != n
@@ -170,11 +182,15 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                       A::CuSparseMatrixCSC{$elty},
                       X::CuVector{$elty},
                       index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
             ctransa = 'N'
             cuplo = 'U'
             if transa == 'N'
                 ctransa = 'T'
-            elseif transa == 'C' && eltype(A) <: Complex
+            elseif transa == 'C' && $elty <: Complex
                 throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR matrix instead."))
             end
             if uplo == 'U'
@@ -244,6 +260,40 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
                      X::CuVector{$elty},
                      index::SparseChar)
             sv2!(transa,uplo,'N',one($elty),A,copy(X),index)
+        end
+    end
+end
+
+# gemvi!
+for (bname,fname,elty) in ((:cusparseSgemvi_bufferSize, :cusparseSgemvi, :Float32),
+                           (:cusparseDgemvi_bufferSize, :cusparseDgemvi, :Float64),
+                           (:cusparseCgemvi_bufferSize, :cusparseCgemvi, :ComplexF32),
+                           (:cusparseZgemvi_bufferSize, :cusparseZgemvi, :ComplexF64))
+    @eval begin
+        function gemvi!(transa::SparseChar,
+                        alpha::Number,
+                        A::CuMatrix{$elty},
+                        X::CuSparseVector{$elty},
+                        beta::Number,
+                        Y::CuVector{$elty},
+                        index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
+            m,n = size(A)
+            lda = max(1,stride(A,2))
+            nnzX = nnz(X)
+
+            function bufferSize()
+                out = Ref{Cint}()
+                $bname(handle(), transa, m, n, nnzX, out)
+                return out[]
+            end
+            with_workspace(bufferSize) do buffer
+                $fname(handle(), transa, m, n, alpha, A, lda, nnzX, nonzeros(X), nonzeroinds(X), beta, Y, index, buffer)
+            end
+            Y
         end
     end
 end
