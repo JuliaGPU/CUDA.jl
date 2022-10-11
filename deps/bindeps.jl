@@ -729,7 +729,7 @@ function libcustatevec(; throw_error::Bool=true)
             # XXX: bound this using tags in the Artifact.toml?
             nothing
         else
-           find_custatevec(toolkit(), "custatevec", v"1.1")
+           find_custatevec(toolkit(), "custatevec", v"1")
         end
     end
     if path === nothing && throw_error
