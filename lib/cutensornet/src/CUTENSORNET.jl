@@ -2,11 +2,15 @@ module CUTENSORNET
 
 using CUDA
 using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace
-using CUDA: libcutensornet, @retry_reclaim, initialize_context
+using CUDA: @retry_reclaim, initialize_context
+
+using CUTENSOR
 
 using CEnum: @cenum
 
 const cudaDataType_t = cudaDataType
+
+include("bindeps.jl")
 
 # core library
 include("libcutensornet_common.jl")

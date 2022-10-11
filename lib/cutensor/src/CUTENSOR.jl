@@ -2,13 +2,15 @@ module CUTENSOR
 
 using CUDA
 using CUDA.APIUtils
-using CUDA: libcutensor, CUstream, cudaDataType
+using CUDA: CUstream, cudaDataType
 using CUDA: @retry_reclaim, initialize_context
 
 using CEnum: @cenum
 
 
 const cudaDataType_t = cudaDataType
+
+include("bindeps.jl")
 
 # core library
 include("libcutensor_common.jl")

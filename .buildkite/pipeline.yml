@@ -140,6 +140,7 @@ steps:
   - group: ":nesting_dolls: Subpackages"
     depends_on: "cuda"
     steps:
+      # NOTE: we Pkg.develop all subpackages so that they can depend on each other
       - label: "{{matrix}} on CUDA 10.2"
         matrix:
             - "CUDNN"
@@ -166,9 +167,12 @@ steps:
           julia -e '
             using Pkg
 
-            println("--- :julia: Instantiating project");
-            Pkg.develop(; path = pwd())
-            Pkg.develop(; path = joinpath(pwd(), "lib", lowercase("{{matrix}}")))
+            println("--- :julia: Instantiating projects");
+            Pkg.develop([PackageSpec(path=pwd()), # CUDA
+                         PackageSpec(path=joinpath(pwd(), "lib", "cudnn")),
+                         PackageSpec(path=joinpath(pwd(), "lib", "cutensor")),
+                         PackageSpec(path=joinpath(pwd(), "lib", "cutensornet")),
+                         PackageSpec(path=joinpath(pwd(), "lib", "custatevec"))])
 
             println("+++ :julia: Running tests");
             Pkg.test("{{matrix}}")'
@@ -201,9 +205,12 @@ steps:
           julia -e '
             using Pkg
 
-            println("--- :julia: Instantiating project");
-            Pkg.develop(; path = pwd())
-            Pkg.develop(; path = joinpath(pwd(), "lib", lowercase("{{matrix}}")))
+            println("--- :julia: Instantiating projects");
+            Pkg.develop([PackageSpec(path=pwd()), # CUDA
+                         PackageSpec(path=joinpath(pwd(), "lib", "cudnn")),
+                         PackageSpec(path=joinpath(pwd(), "lib", "cutensor")),
+                         PackageSpec(path=joinpath(pwd(), "lib", "cutensornet")),
+                         PackageSpec(path=joinpath(pwd(), "lib", "custatevec"))])
 
             println("+++ :julia: Running tests");
             Pkg.test("{{matrix}}")'

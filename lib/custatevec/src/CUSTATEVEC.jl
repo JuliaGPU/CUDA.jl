@@ -2,11 +2,13 @@ module CUSTATEVEC
 
 using CUDA
 using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace, libraryPropertyType
-using CUDA: libcustatevec, unsafe_free!, @retry_reclaim, initialize_context
+using CUDA: unsafe_free!, @retry_reclaim, initialize_context
 
 using CEnum: @cenum
 
 const cudaDataType_t = cudaDataType
+
+include("bindeps.jl")
 
 # core library
 include("libcustatevec_common.jl")
