@@ -711,7 +711,7 @@ function libcutensornet(; throw_error::Bool=true)
             # XXX: bound this using tags in the Artifact.toml?
             nothing
         else
-            find_cutensornet(toolkit(), "cutensornet", v"0.1.0")
+            find_cutensornet(toolkit(), "cutensornet", v"1.1")
         end
     end
     if path === nothing && throw_error
@@ -729,7 +729,7 @@ function libcustatevec(; throw_error::Bool=true)
             # XXX: bound this using tags in the Artifact.toml?
             nothing
         else
-           find_custatevec(toolkit(), "custatevec", v"0.1.0")
+           find_custatevec(toolkit(), "custatevec", v"1.1")
         end
     end
     if path === nothing && throw_error
@@ -763,7 +763,7 @@ function find_cutensornet(cuda::LocalToolkit, name, version)
 end
 
 function find_custatevec(cuda::ArtifactToolkit, name, version)
-    artifact_dir = cuda_artifact("cuQuantum", v"0.1.3")
+    artifact_dir = generic_artifact("cuQuantum")
     if artifact_dir === nothing
         return nothing
     end
