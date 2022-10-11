@@ -29,27 +29,27 @@ version = "3.3.6"
 
 [[CUDA_full_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "e5d7c7eba0175f6fe12c681c099c547416b1f50e"
+git-tree-sha1 = "c2474fbf3f1999bcdec2e897728c92333c1df6e0"
 uuid = "4f82f1eb-248c-5f56-a42e-99106d144614"
-version = "11.7.0+0"
+version = "11.8.0+0"
 
 [[CUDA_loader_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
-git-tree-sha1 = "b8f6b5fb3dd0cd7ebc4171f2a770bbdd6402908b"
+git-tree-sha1 = "d40ab95f220a994390f64e3157fd2ff41286c8b7"
 uuid = "46276fb2-733a-55e8-a436-109f48337aca"
-version = "0.2.1+5"
+version = "0.2.2+0"
 
 [[CUDNN_jll]]
 deps = ["Artifacts", "CUDA_loader_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
-git-tree-sha1 = "d6aabd69b771f1e25efeb55be5141a8abf34675f"
+git-tree-sha1 = "0243bc2f90e0e5d8f9b16e313e90ae48786664cc"
 uuid = "62b44479-cb7b-5706-934f-f13b2eb2e645"
-version = "8.3.2+0"
+version = "8.6.0+0"
 
 [[CUTENSOR_jll]]
 deps = ["Artifacts", "CUDA_loader_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
-git-tree-sha1 = "89b3758897f6f600584a230823d68fa87898a34d"
+git-tree-sha1 = "6cf90aea7eebd9c0898669adb0aec2f912d11073"
 uuid = "35b6c64b-1ee1-5834-92a3-3f624899209a"
-version = "1.4.0+0"
+version = "1.6.1+0"
 
 [[Clang]]
 deps = ["BinaryProvider", "CEnum", "DataStructures", "Libdl"]
@@ -182,7 +182,7 @@ version = "1.0.0"
 [[Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.0"
+version = "1.10.1"
 
 [[Tokenize]]
 git-tree-sha1 = "2b3af135d85d7e70b863540160208fa612e736b9"
@@ -202,10 +202,10 @@ uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
 version = "1.2.12+3"
 
 [[cuQuantum_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "7b4b0ba7f4260a129507c9543ea655d5b23fd59b"
+deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
+git-tree-sha1 = "8dd74a6542d7e66ac70f599347372c32155206eb"
 uuid = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
-version = "0.1.30+0"
+version = "22.7.114+0"
 
 [[nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
