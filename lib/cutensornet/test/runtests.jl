@@ -3,6 +3,7 @@ import CUTENSORNET: CuTensorNetwork, rehearse_contraction, perform_contraction!,
 
 @info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
 
+@test CUTENSORNET.has_cutensornet()
 @info "CUTENSORNET version: $(CUTENSORNET.version()) (built for CUDA $(CUTENSORNET.cuda_version()))"
 
 @testset "CUTENSORNET" begin

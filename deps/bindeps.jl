@@ -577,6 +577,126 @@ end
 
 
 #
+# CUDNN
+#
+
+export libcudnn, has_cudnn
+
+const __libcudnn = Ref{Union{String,Nothing}}()
+function libcudnn(; throw_error::Bool=true)
+    path = @initialize_ref __libcudnn begin
+        # CUDNN depends on CUBLAS
+        libcublas()
+
+        find_cudnn(toolkit(), v"8")
+    end __runtime_init__()
+    if path === nothing && throw_error
+        error("This functionality is unavailabe as CUDNN is missing.")
+    end
+    path
+end
+has_cudnn() = libcudnn(throw_error=false) !== nothing
+
+function find_cudnn(cuda::ArtifactToolkit, version)
+    artifact_dir = cuda_artifact("CUDNN", cuda.release)
+    if artifact_dir === nothing
+        return nothing
+    end
+    path = artifact_library(artifact_dir, "cudnn", [version])
+
+    # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
+    for sublibrary in ("ops_infer", "ops_train",
+                       "cnn_infer", "cnn_train",
+                       "adv_infer", "adv_train")
+        sublibrary_path = artifact_library(artifact_dir, "cudnn_$(sublibrary)", [version])
+        Libdl.dlopen(sublibrary_path)
+    end
+
+    @debug "Using CUDNN from an artifact at $(artifact_dir)"
+    Libdl.dlopen(path)
+    return path
+end
+
+function find_cudnn(cuda::LocalToolkit, version)
+    path = find_library("cudnn", [version]; locations=cuda.dirs)
+    if path === nothing
+        return nothing
+    end
+
+    # with a local CUDNN version, we shouldn't need to eagerly open sublibraries,
+    # as they are expected to be globally discoverable next to libcudnn.so
+
+    @debug "Using local CUDNN at $(path)"
+    Libdl.dlopen(path)
+    return path
+end
+
+
+#
+# CUTENSOR
+#
+
+export libcutensor, libcutensormg, has_cutensor, has_cutensormg
+
+const __libcutensor = Ref{Union{String,Nothing}}()
+function libcutensor(; throw_error::Bool=true)
+    path = @initialize_ref __libcutensor begin
+        # CUTENSOR depends on CUBLAS
+        libcublas()
+
+        find_cutensor(toolkit(), "cutensor", v"1")
+    end
+    if path === nothing && throw_error
+        error("This functionality is unavailabe as CUTENSOR is missing.")
+    end
+    path
+end
+has_cutensor() = libcutensor(throw_error=false) !== nothing
+
+const __libcutensormg = Ref{Union{String,Nothing}}()
+function libcutensormg(; throw_error::Bool=true)
+    path = @initialize_ref __libcutensor begin
+        # CUTENSORMg additionally depends on CUDARt
+        libcudart()
+
+        if CUTENSOR.version() < v"1.4"
+            nothing
+        else
+            find_cutensor(toolkit(), "cutensorMg", v"1")
+        end
+    end
+    if path === nothing && throw_error
+        error("This functionality is unavailabe as CUTENSORMg is missing.")
+    end
+    path
+end
+has_cutensormg() = libcutensormg(throw_error=false) !== nothing
+
+function find_cutensor(cuda::ArtifactToolkit, name, version)
+    artifact_dir = cuda_artifact("CUTENSOR", cuda.release)
+    if artifact_dir === nothing
+        return nothing
+    end
+    path = artifact_library(artifact_dir, name, [version])
+
+    @debug "Using CUTENSOR library $name from an artifact at $(artifact_dir)"
+    Libdl.dlopen(path)
+    return path
+end
+
+function find_cutensor(cuda::LocalToolkit, name, version)
+    path = find_library(name, [version]; locations=cuda.dirs)
+    if path === nothing
+        return nothing
+    end
+
+    @debug "Using local CUTENSOR library $name at $(path)"
+    Libdl.dlopen(path)
+    return path
+end
+
+
+#
 # CUQUANTUM
 #
 

@@ -3,6 +3,7 @@ import CUSTATEVEC: CuStateVec, applyMatrix!, expectation, sample
 
 @info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
 
+@test CUSTATEVEC.has_custatevec()
 @info "CUSTATEVEC version: $(CUSTATEVEC.version())"
 
 @testset "CUSTATEVEC" begin
