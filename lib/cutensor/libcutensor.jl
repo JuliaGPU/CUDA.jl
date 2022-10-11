@@ -200,3 +200,55 @@ end
     initialize_context()
     ccall((:cutensorHandleAttachPlanCachelines, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{cutensorPlanCacheline_t}, UInt32), handle, cachelines, numCachelines)
 end
+
+
+## added in CUTENSOR 1.6
+
+@checked function cutensorLoggerSetFile(file)
+    initialize_context()
+    ccall((:cutensorLoggerSetFile, libcutensor()), cutensorStatus_t, (Ptr{Nothing},), file)
+end
+
+@checked function cutensorLoggerSetLevel(level)
+    initialize_context()
+    ccall((:cutensorLoggerSetLevel, libcutensor()), cutensorStatus_t, (Int32,), level)
+end
+
+@checked function cutensorLoggerForceDisable()
+    initialize_context()
+    ccall((:cutensorLoggerForceDisable, libcutensor()), cutensorStatus_t, ())
+end
+
+@checked function cutensorLoggerOpenFile(logFile)
+    initialize_context()
+    ccall((:cutensorLoggerOpenFile, libcutensor()), cutensorStatus_t, (Cstring,), logFile)
+end
+
+@checked function cutensorLoggerSetMask(mask)
+    initialize_context()
+    ccall((:cutensorLoggerSetMask, libcutensor()), cutensorStatus_t, (Int32,), mask)
+end
+
+@checked function cutensorReductionGetWorkspaceSize(handle, A, descA, modeA, C, descC, modeC, D, descD, modeD, opReduce, typeCompute, workspaceSize)
+    initialize_context()
+    ccall((:cutensorReductionGetWorkspaceSize, libcutensor()), cutensorStatus_t,
+          (Ptr{cutensorHandle_t}, PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t},
+           Ptr{Int32}, PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t}, Ptr{Int32},
+           PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t}, Ptr{Int32},
+           cutensorOperator_t, cutensorComputeType_t, Ptr{UInt64}),
+          handle, A, descA, modeA, C, descC, modeC, D, descD, modeD, opReduce, typeCompute,
+          workspaceSize)
+end
+
+@checked function cutensorLoggerSetCallback(callback)
+    initialize_context()
+    ccall((:cutensorLoggerSetCallback, libcutensor()), cutensorStatus_t, (cutensorLoggerCallback_t,), callback)
+end
+
+@checked function cutensorContractionGetWorkspaceSize(handle, desc, find, pref, workspaceSize)
+    initialize_context()
+    ccall((:cutensorContractionGetWorkspaceSize, libcutensor()), cutensorStatus_t,
+          (Ptr{cutensorHandle_t}, Ptr{cutensorContractionDescriptor_t},
+           Ptr{cutensorContractionFind_t}, cutensorWorksizePreference_t, Ptr{UInt64}),
+          handle, desc, find, pref, workspaceSize)
+end
