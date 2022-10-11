@@ -376,9 +376,9 @@ function process(name, headers...; libname=name, kwargs...)
     new_output_text = read(new_output_file, String)
 
     if name == "custatevec"
-        existing_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", "CUSTATEVEC", "src", basename(new_output_file))
+        existing_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", "custatevec", "src", basename(new_output_file))
     elseif name == "cutensornet"
-        existing_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", "CUTENSORNET", "src", basename(new_output_file))
+        existing_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", "cutensornet", "src", basename(new_output_file))
     else
         existing_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", name, basename(new_output_file))
     end
@@ -393,9 +393,9 @@ function process(name, headers...; libname=name, kwargs...)
     removed = setdiff(keys(existing_defs), keys(new_defs))
     if !isempty(removed)
         if name == "custatevec"
-            deprecated_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", "CUSTATEVEC", "src", "lib$(libname)_deprecated.jl")
+            deprecated_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", "custatevec", "src", "lib$(libname)_deprecated.jl")
         elseif name == "cutensornet"
-            deprecated_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", "CUTENSORNET", "src", "lib$(libname)_deprecated.jl")
+            deprecated_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", "cutensornet", "src", "lib$(libname)_deprecated.jl")
         else
             deprecated_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", name, "lib$(libname)_deprecated.jl")
         end
@@ -436,9 +436,9 @@ function process(name, headers...; libname=name, kwargs...)
 
     # apply the common file
     if name == "custatevec"
-        cp(new_common_file, joinpath(dirname(dirname(@__DIR__)) , "lib", "CUSTATEVEC", "src", basename(new_common_file)); force=true)
+        cp(new_common_file, joinpath(dirname(dirname(@__DIR__)) , "lib", "custatevec", "src", basename(new_common_file)); force=true)
     elseif name == "cutensornet"
-        cp(new_common_file, joinpath(dirname(dirname(@__DIR__)) , "lib", "CUTENSORNET", "src", basename(new_common_file)); force=true)
+        cp(new_common_file, joinpath(dirname(dirname(@__DIR__)) , "lib", "cutensornet", "src", basename(new_common_file)); force=true)
     else
         cp(new_common_file, joinpath(dirname(dirname(@__DIR__)) , "lib", name, basename(new_common_file)); force=true)
     end

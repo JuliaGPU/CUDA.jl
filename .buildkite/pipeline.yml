@@ -225,8 +225,8 @@ steps:
 
   - label: "SubPackage -- {{matrix}}"
     matrix:
-      - "CUSTATEVEC"
-      - "CUTENSORNET"
+      - "custatevec"
+      - "cutensornet"
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
