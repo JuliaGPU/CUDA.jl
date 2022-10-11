@@ -186,6 +186,7 @@ if do_sanitize
     push!(skip_tests, "cusolver")
     # XXX: these hang for some reason
     push!(skip_tests, "sorting")
+    push!(skip_tests, "cusparse/generic")
 end
 if first(picks).cap < v"7.0"
     push!(skip_tests, "device/intrinsics/wmma")
