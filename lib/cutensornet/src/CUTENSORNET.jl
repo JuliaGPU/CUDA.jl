@@ -12,6 +12,7 @@ const cudaDataType_t = cudaDataType
 include("libcutensornet_common.jl")
 include("error.jl")
 include("libcutensornet.jl")
+include("libcutensornet_deprecated.jl")
 
 include("types.jl")
 include("tensornet.jl")

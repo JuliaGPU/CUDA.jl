@@ -711,7 +711,7 @@ function libcutensornet(; throw_error::Bool=true)
             # XXX: bound this using tags in the Artifact.toml?
             nothing
         else
-            find_cutensornet(toolkit(), "cutensornet", v"1.1")
+            find_cutensornet(toolkit(), "cutensornet", v"1")
         end
     end
     if path === nothing && throw_error

@@ -40,8 +40,12 @@ function description(err::CUTENSORNETError)
         "the driver version is insufficient."
     elseif err.code == CUTENSORNET_STATUS_IO_ERROR
         "an error occurred related to file IO."
-    elseif err.code == CUTENSORNET_STATUS_VERSION_MISMATCH
+    elseif err.code == CUTENSORNET_STATUS_CUTENSOR_VERSION_MISMATCH
         "the dynamically linked cuTENSOR library is incompatible."
+    elseif err.code == CUTENSORNET_STATUS_NO_DEVICE_ALLOCATOR
+        "drawing device memory from a mempool is requested, but the mempool is not set."
+    elseif err.code == CUTENSORNET_STATUS_ALL_HYPER_SAMPLES_FAILED
+        "all hyper samples failed for one or more errors (enable LOGs via export CUTENSORNET_LOG_LEVEL= > 1 for details)."
     else
         "no description for this error"
     end

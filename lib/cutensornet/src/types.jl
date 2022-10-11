@@ -5,17 +5,17 @@
 function Base.convert(::Type{cutensornetComputeType_t}, T::DataType)
     if T == Float16
         return CUTENSORNET_COMPUTE_16F
-    elseif T == Float32 
+    elseif T == Float32
         return CUTENSORNET_COMPUTE_32F
     elseif T == Float64
         return CUTENSORNET_COMPUTE_64F
-    elseif T == UInt8 
+    elseif T == UInt8
         return CUTENSORNET_COMPUTE_8U
-    elseif T == Int8 
+    elseif T == Int8
         return CUTENSORNET_COMPUTE_8I
-    elseif T == UInt32 
+    elseif T == UInt32
         return CUTENSORNET_COMPUTE_32U
-    elseif T == Int32 
+    elseif T == Int32
         return CUTENSORNET_COMPUTE_32I
     else
         throw(ArgumentError("CUTENSORNET type equivalent for compute type $T does not exist!"))
@@ -24,17 +24,17 @@ end
 
 function Base.convert(::Type{Type}, T::cutensornetComputeType_t)
     if T == CUTENSORNET_COMPUTE_16F
-        return Float16 
+        return Float16
     elseif T == CUTENSORNET_COMPUTE_32F
         return Float32
     elseif T == CUTENSORNET_COMPUTE_64F
         return Float64
     elseif T == CUTENSORNET_COMPUTE_8U
-        return UInt8 
+        return UInt8
     elseif T == CUTENSORNET_COMPUTE_32U
         return UInt32
     elseif T == CUTENSORNET_COMPUTE_8I
-        return Int8 
+        return Int8
     elseif T == CUTENSORNET_COMPUTE_32I
         return Int32
     else
@@ -65,7 +65,7 @@ function compute_type(T::DataType)
         return Float16
     elseif T == Float64
         return Float64
-    end 
+    end
 end
 
 mutable struct CuTensorNetwork{T}
@@ -83,7 +83,7 @@ mutable struct CuTensorNetwork{T}
 end
 function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides, input_alignment_reqs, output_modes, output_extents, output_strides, output_alignment_reqs)
     desc = CuTensorNetworkDescriptor(Int32(length(input_modes)), Int32.(length.(input_modes)), input_extents, input_strides, input_modes, input_alignment_reqs, Int32(length(output_modes)), output_extents, output_strides, output_modes, output_alignment_reqs, T, compute_type(real(T)))
-    
+
     return CuTensorNetwork{T}(desc, input_modes, input_extents, input_strides, input_alignment_reqs, Vector{CuArray{T}}(undef, 0), output_modes, output_extents, output_strides, output_alignment_reqs, CUDA.zeros(T, 0))
 end
 
@@ -120,14 +120,14 @@ struct AutoTune   <: UseAutotuning end
 Base.@kwdef struct OptimizerConfig
     num_graph_partitions::Int32=8
     graph_cutoff_size::Int32=8
-    graph_algorithm::cutensornetGraphAlgo_t=CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_GRAPH_ALGORITHM_KWAY
+    graph_algorithm::cutensornetGraphAlgo_t=CUTENSORNET_GRAPH_ALGO_KWAY
     graph_imbalance_factor::Int32=200
     graph_num_iterations::Int32=60
     graph_num_cuts::Int32=10
     reconfig_num_iterations::Int32=500
     reconfig_num_leaves::Int32=500
     slicer_disable_slicing::Int32=0
-    slicer_memory_model::cutensornetMemoryModel_t=CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SLICER_MEMORY_MODEL_CUTENSOR
+    slicer_memory_model::cutensornetMemoryModel_t=CUTENSORNET_MEMORY_MODEL_CUTENSOR
     slicer_memory_factor::Int32=2
     slicer_min_slices::Int32=1
     slicer_slice_factor::Int32=2
@@ -171,7 +171,7 @@ end
 
 Base.unsafe_convert(::Type{cutensornetContractionOptimizerConfig_t}, desc::CuTensorNetworkContractionOptimizerConfig) = desc.handle
 
-Base.@kwdef struct AutotunePreferences 
+Base.@kwdef struct AutotunePreferences
     max_iterations::Int32=3
 end
 
