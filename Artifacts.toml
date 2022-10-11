@@ -332,7 +332,49 @@ os = "windows"
     [[CUDA.download]]
     sha256 = "e5d11545d9d93d33625c05a2139b982d55cebf90ac01ab2580d80ec4cfb85a91"
     url = "https://github.com/JuliaBinaryWrappers/CUDA_loader_jll.jl/releases/download/CUDA_loader-v0.2.2+0/CUDA_loader.v0.2.2.x86_64-w64-mingw32-cuda+11.7.tar.gz"
+[[CUDA]]
+arch = "aarch64"
+cuda = "11.8"
+git-tree-sha1 = "44b0a045d405d46dc9f5ad7af5f7bdad3d137875"
+lazy = true
+libc = "glibc"
+os = "linux"
 
+    [[CUDA.download]]
+    sha256 = "cec0f6c321dd2cb00ff82ddbb65fc8e6d21d15f277872fe67356dc299a5680e6"
+    url = "https://github.com/JuliaBinaryWrappers/CUDA_loader_jll.jl/releases/download/CUDA_loader-v0.2.2+0/CUDA_loader.v0.2.2.aarch64-linux-gnu-cuda+11.8.tar.gz"
+[[CUDA]]
+arch = "powerpc64le"
+cuda = "11.8"
+git-tree-sha1 = "c44d0f3c874bb8f4650e1621537c79dd0fa1edb5"
+lazy = true
+libc = "glibc"
+os = "linux"
+
+    [[CUDA.download]]
+    sha256 = "85affa0c4b2ce039f45601428c3c4d432a5c5e8487ceea93eaf713bc24d1bb72"
+    url = "https://github.com/JuliaBinaryWrappers/CUDA_loader_jll.jl/releases/download/CUDA_loader-v0.2.2+0/CUDA_loader.v0.2.2.powerpc64le-linux-gnu-cuda+11.8.tar.gz"
+[[CUDA]]
+arch = "x86_64"
+cuda = "11.8"
+git-tree-sha1 = "b16cd92510f6afd31e7fc2a7614fb883419ae396"
+lazy = true
+libc = "glibc"
+os = "linux"
+
+    [[CUDA.download]]
+    sha256 = "1ded0cd43e8029ee2c253e506e2df21da8c1a0a4f341b25de1fe933823b36759"
+    url = "https://github.com/JuliaBinaryWrappers/CUDA_loader_jll.jl/releases/download/CUDA_loader-v0.2.2+0/CUDA_loader.v0.2.2.x86_64-linux-gnu-cuda+11.8.tar.gz"
+[[CUDA]]
+arch = "x86_64"
+cuda = "11.8"
+git-tree-sha1 = "5c0bc670b541bf96e910b493e136787d85137d33"
+lazy = true
+os = "windows"
+
+    [[CUDA.download]]
+    sha256 = "15e8cf8bf27daeb0eeba5b4781b79e94e15a55c15a6c6a9ff629be6bbbb3781e"
+    url = "https://github.com/JuliaBinaryWrappers/CUDA_loader_jll.jl/releases/download/CUDA_loader-v0.2.2+0/CUDA_loader.v0.2.2.x86_64-w64-mingw32-cuda+11.8.tar.gz"
 
 
 # CUDA forwards compatibility package
