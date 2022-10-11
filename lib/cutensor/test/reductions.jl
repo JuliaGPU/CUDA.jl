@@ -1,6 +1,7 @@
-using CUDA.CUTENSOR
-using CUDA
+using CUDA, CUTENSOR
 using LinearAlgebra
+using Test
+using Random
 
 # using host memory with CUTENSOR doesn't work on Windows
 can_pin = !Sys.iswindows()
@@ -11,6 +12,7 @@ eltypes = (#(Float16, Float16), #(Float16, Float32),
                         #(ComplexF16, ComplexF16), (ComplexF16, ComplexF32),
                         (ComplexF32, ComplexF32), #(ComplexF32, ComplexF64),
                         (ComplexF64, ComplexF64))
+
 @testset for NA=2:5, NC = 1:NA-1
     @testset for (eltyA, eltyC) in eltypes
         # setup

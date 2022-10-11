@@ -228,9 +228,10 @@ steps:
     matrix:
       setup:
         package:
+          - "CUDNN"
+          - "CUTENSOR"
           - "CUSTATEVEC"
           - "CUTENSORNET"
-          - "CUDNN"
         cuda:
           - "10.2"
           - "11.8"

@@ -1,11 +1,10 @@
-using CUDA.CUTENSOR
-using CUDA
-using LinearAlgebra
+using CUDA, CUTENSOR
+using LinearAlgebra, Random
 
 @test has_cutensor()
 @test CUTENSOR.version() isa VersionNumber
 
-@testset "CuTensor type basics" begin
+@testset "type basics" begin
     N = 2
     dmax = 2^div(18,N)
     dims = rand(2:dmax, N)

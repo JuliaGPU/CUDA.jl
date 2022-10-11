@@ -1,6 +1,5 @@
-using CUDA.CUTENSOR
-using CUDA
-using LinearAlgebra
+using CUDA, CUTENSOR
+using LinearAlgebra, Random
 
 # using host memory with CUTENSOR doesn't work on Windows
 can_pin = !Sys.iswindows()

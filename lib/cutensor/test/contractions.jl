@@ -1,5 +1,4 @@
-using CUDA.CUTENSOR
-using CUDA
+using CUDA, CUTENSOR
 using LinearAlgebra
 
 eltypes = ( (Float32, Float32, Float32, Float32),
@@ -60,7 +59,7 @@ can_pin = !Sys.iswindows()
         C = collect(dC)
         mC = reshape(permutedims(C, ipC), (loA, loB))
         @test mC ≈ mA * mB rtol=compute_rtol
-        
+
         # simple case with plan storage
         opA = CUTENSOR.CUTENSOR_OP_IDENTITY
         opB = CUTENSOR.CUTENSOR_OP_IDENTITY
@@ -117,7 +116,7 @@ can_pin = !Sys.iswindows()
             mC = reshape(permutedims(C2, invperm(pC2)), (loA, loB))
             @test mC ≈ mA * mB
         end
-        
+
         # with conjugation flag for complex arguments
         if !((NoA, NoB, Nc) in ((1,1,3), (1,2,3), (3,1,2)))
         # not supported for these specific cases for unknown reason
@@ -168,7 +167,7 @@ can_pin = !Sys.iswindows()
             @test !any(isnan.(B))
             @test !any(isnan.(mC))
             @test mC ≈ mA * mB rtol=compute_rtol
-            
+
             # simple case with non-zero α host side
             α = rand(eltyCompute)
             C .= zero(eltyC)
@@ -177,7 +176,7 @@ can_pin = !Sys.iswindows()
             mC = reshape(permutedims(collect(C), ipC), (loA, loB))
             @test !any(isnan.(mC))
             @test mC ≈ α * mA * mB rtol=compute_rtol
-            
+
             # simple case with plan storage host-side
             opA = CUTENSOR.CUTENSOR_OP_IDENTITY
             opB = CUTENSOR.CUTENSOR_OP_IDENTITY
