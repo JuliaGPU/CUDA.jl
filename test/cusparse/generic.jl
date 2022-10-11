@@ -2,6 +2,7 @@ using CUDA
 using Adapt
 using CUDA.CUSPARSE
 using SparseArrays
+using LinearAlgebra
 
 if CUSPARSE.version() >= v"11.4.1"
     @testset "generic mv!" for T in [Float32, Float64]
