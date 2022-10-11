@@ -224,17 +224,41 @@ steps:
         build.branch =~ /^master$$/
     timeout_in_minutes: 240
 
-  - label: "{{matrix.package}} on CUDA {{matrix.cuda}}"
+  - label: "{{matrix}} on CUDA 10.2"
     matrix:
-      setup:
-        package:
-          - "CUDNN"
-          - "CUTENSOR"
-          - "CUSTATEVEC"
-          - "CUTENSORNET"
-        cuda:
-          - "10.2"
-          - "11.8"
+        - "CUDNN"
+        - "CUTENSOR"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: 1.6
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "10.2"
+      cap: "sm_75"
+    env:
+      JULIA_CUDA_VERSION: "10.2"
+      JULIA_CUDA_USE_BINARYBUILDER: 'true'
+      PACKAGE: '{{matrix}}'
+    if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+    timeout_in_minutes: 120
+    commands: |
+      julia -e 'import Pkg; Pkg.develop(; path = pwd())' # CUDA
+      julia -e 'import Pkg; Pkg.develop(; path = joinpath(pwd(), "lib", lowercase(ENV["PACKAGE"])))'
+      julia -e 'import Pkg; Pkg.precompile()'
+      julia -e 'import Pkg; Pkg.test(ENV["PACKAGE"])'
+
+  - label: "{{matrix}} on CUDA 11.8"
+    matrix:
+        - "CUDNN"
+        - "CUTENSOR"
+        - "CUSTATEVEC"
+        - "CUTENSORNET"
     plugins:
       - JuliaCI/julia#v1:
           version: 1.6
@@ -249,9 +273,9 @@ steps:
       cuda: "11.0"
       cap: "sm_80"
     env:
-      JULIA_CUDA_VERSION: "{{matrix.cuda}}"
+      JULIA_CUDA_VERSION: "11.8"
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
-      PACKAGE: '{{matrix.package}}'
+      PACKAGE: '{{matrix}}'
     if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
     timeout_in_minutes: 120
     commands: |
