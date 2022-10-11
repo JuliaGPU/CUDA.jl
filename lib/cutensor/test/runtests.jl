@@ -1,21 +1,19 @@
-using Distributed, ReTest
+using CUTENSOR, CUDA, Test
 
-# add workers (passing along crucial command-line flags)
-const exeflags = Base.julia_cmd()
-filter!(exeflags.exec) do c
-    return !(startswith(c, "--depwarn") || startswith(c, "--check-bounds"))
-end
-push!(exeflags.exec, "--check-bounds=yes")
-push!(exeflags.exec, "--startup-file=no")
-push!(exeflags.exec, "--depwarn=yes")
-push!(exeflags.exec, "--project=$(Base.active_project())")
-const exename = popfirst!(exeflags.exec)
-function addworker(X; kwargs...)
-    withenv("JULIA_NUM_THREADS" => 1, "OPENBLAS_NUM_THREADS" => 1) do
-        addprocs(X; exename, exeflags, kwargs...)
-    end
-end
-addworker(Threads.nthreads())
+@testset "CUTENSOR" begin
 
 # include all tests
-include("tests.jl")
+for entry in readdir(@__DIR__)
+    endswith(entry, ".jl") || continue
+    entry in ["runtests.jl"] && continue
+
+    # generate a testset
+    name = splitext(entry)[1]
+    @eval begin
+        @testset $name begin
+            include($entry)
+        end
+    end
+end
+
+end
