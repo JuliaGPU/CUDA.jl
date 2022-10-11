@@ -9,11 +9,12 @@ module CUDNN
 
 using CUDA
 using CUDA.APIUtils
-using CUDA: libcudnn, CUstream, libraryPropertyType
+using CUDA: CUstream, libraryPropertyType
 using CUDA: @retry_reclaim, isdebug, initialize_context
 
 using CEnum: @cenum
 
+include("bindeps.jl")
 
 # core library
 include("libcudnn_common.jl")
