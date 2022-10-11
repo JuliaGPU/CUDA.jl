@@ -72,33 +72,6 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
             y = CuVector{T}(undef, m)
             mul!(y, A, x)
         end
-
-        for (tagb, untagb) in tag_wrappers, (wrapb, transb, unwrapb) in op_wrappers
-            TypeB = wrapb(tagb(:(CuSparseMatrix{T})))
-
-            @eval begin
-                # Use the relations AB = (BᵀAᵀ)ᵀ and AB = (BᴴAᴴ)ᴴ to support dense matrix - sparse matrix products
-                function LinearAlgebra.:(*)(A::$TypeA, B::$TypeB) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-                    mA, nA = size(A)
-                    mB, nB = size(B)
-                    C = CuMatrix{T}(undef, nB, mA)
-                    transa = $transa(T)
-                    transb = $transb(T)
-                    (transa == 'N' && transb == 'N') && (transa2 = 'T' ; transb2 = 'T')
-                    (transa == 'T' && transb == 'N') && (transa2 = 'N' ; transb2 = 'T')
-                    (transa == 'C' && transb == 'N') && (transa2 = 'N' ; transb2 = 'C')
-                    (transa == 'N' && transb == 'T') && (transa2 = 'T' ; transb2 = 'N')
-                    (transa == 'N' && transb == 'C') && (transa2 = 'C' ; transb2 = 'N')
-                    (transa == 'T' && transb == 'T') && (transa2 = 'N' ; transb2 = 'N')
-                    (transa == 'C' && transb == 'C') && (transa2 = 'N' ; transb2 = 'N')
-                    (transa == 'T' && transb == 'C') && error("dense matrix - sparse matrix product is not supported with transa == 'T' and transb == 'C'")
-                    (transa == 'C' && transb == 'T') && error("dense matrix - sparse matrix product is not supported with transa == 'C' and transb == 'T'")
-                    mm_wrapper(transb2, transa2, one(T), $(untagb(unwrapb(:B))), $(untaga(unwrapa(:A))), zero(T), C)
-                    (transa == 'C' || transa == 'C') && (conj!(C))
-                    permutedims(C)
-                end
-            end
-        end
     end
 end
 
