@@ -46,8 +46,6 @@ function versioninfo(io::IO=stdout)
     end
     println(io, "- CUPTI: ", has_cupti() ? CUPTI.version() : "missing")
     println(io, "- NVML: ", has_nvml() ? NVML.version() : "missing")
-    println(io, "- CUDNN: ", has_cudnn() ? "$(CUDNN.version())" : "missing")
-    println(io, "- CUTENSOR: ", has_cutensor() ? "$(CUTENSOR.version())" : "missing")
     println(io)
 
     println(io, "Toolchain:")

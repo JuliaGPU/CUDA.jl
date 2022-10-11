@@ -63,4 +63,12 @@ function handle()
     return state.handle
 end
 
+function version()
+  ver = custatevecGetVersion()
+  major, ver = divrem(ver, 1000)
+  minor, patch = divrem(ver, 10)
+
+  VersionNumber(major, minor, patch)
+end
+
 end

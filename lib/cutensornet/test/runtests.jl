@@ -1,7 +1,9 @@
-using Test
-using CUDA
-using CUTENSORNET
+using Test, CUDA, CUTENSORNET
 import CUTENSORNET: CuTensorNetwork, rehearse_contraction, perform_contraction!, AutoTune, NoAutoTune
+
+@info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
+
+@info "CUTENSORNET version: $(CUTENSORNET.version()) (built for CUDA $(CUTENSORNET.cuda_version()))"
 
 @testset "CUTENSORNET" begin
     n = 8

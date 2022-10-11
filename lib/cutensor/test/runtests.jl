@@ -1,5 +1,10 @@
 using CUTENSOR, CUDA, Test
 
+@info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
+
+@test CUTENSOR.has_cutensor()
+@info "CUTENSOR version: $(CUTENSOR.version()) (built for CUDA $(CUTENSOR.cuda_version()))"
+
 @testset "CUTENSOR" begin
 
 # include all tests

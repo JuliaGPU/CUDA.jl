@@ -1,6 +1,9 @@
-using Test
-using CUSTATEVEC
+using Test, CUDA, CUSTATEVEC
 import CUSTATEVEC: CuStateVec, applyMatrix!, expectation, sample
+
+@info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
+
+@info "CUSTATEVEC version: $(CUSTATEVEC.version())"
 
 @testset "CUSTATEVEC" begin
     # build a simple state and compute expectations

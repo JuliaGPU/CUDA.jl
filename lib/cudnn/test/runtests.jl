@@ -1,5 +1,10 @@
 using CUDNN, CUDA, Test
 
+@info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
+
+@test CUDNN.has_cudnn()
+@info "CUDNN version: $(CUDNN.version()) (built for CUDA $(CUDNN.cuda_version()))"
+
 @testset "CUDNN" begin
 
 # include all tests

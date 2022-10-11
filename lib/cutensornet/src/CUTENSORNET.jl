@@ -53,4 +53,20 @@ function handle()
     return state.handle
 end
 
+function version()
+  ver = cutensornetGetVersion()
+  major, ver = divrem(ver, 1000)
+  minor, patch = divrem(ver, 10)
+
+  VersionNumber(major, minor, patch)
+end
+
+function cuda_version()
+  ver = cutensornetGetCudartVersion()
+  major, ver = divrem(ver, 1000)
+  minor, patch = divrem(ver, 10)
+
+  VersionNumber(major, minor, patch)
+end
+
 end
