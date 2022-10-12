@@ -40,6 +40,9 @@ end
     ccall("extern __nv_sincosf", llvmcall, Cvoid, (Cfloat, Ptr{Cfloat}, Ptr{Cfloat}), x, s, c)
     return (s[], c[])
 end
+# Base has sincos_fast fall back to the native implementation which is presumed faster,
+# but that is not the case compared to CUDA's intrinsics
+@device_override FastMath.sincos_fast(x::Union{Float64,Float32}) = (FastMath.sin_fast(x), FastMath.cos_fast(x))
 
 @device_override function Base.sincospi(x::Float64)
     s = Ref{Cdouble}()
