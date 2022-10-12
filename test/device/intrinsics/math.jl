@@ -136,4 +136,16 @@ using SpecialFunctions
             @test Array(a)[3] == r
         end
     end
+
+    @testset "@fastmath sincos" begin
+        # JuliaGPU/CUDA.jl#1606: FastMath.sincos fell back to regular sin/cos
+        function kernel(a, b, c)
+            @inbounds b[], c[] = @fastmath sincos(a[])
+            return
+        end
+        asm = sprint(io->CUDA.code_ptx(io, kernel, NTuple{3,CuDeviceArray{Float32,1,AS.Global}}))
+        @assert contains(asm, "sin.approx.f32")
+        @assert contains(asm, "cos.approx.f32")
+        @assert !contains(asm, "__nv")  # from libdevice
+    end
 end
