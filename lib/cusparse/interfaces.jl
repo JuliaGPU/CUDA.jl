@@ -165,10 +165,10 @@ function LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T,M}, A::Union{CuSparseMatrixCS
 end
 
 LinearAlgebra.mul!(Y::CuSparseMatrixCOO{T,M}, A::Union{CuSparseMatrixCOO{T,M}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}, B::Union{CuSparseMatrixCOO{T,M}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}) where {T,M} = mul!(Y, A, B, one(T), zero(T))
-LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T,M}, A::Union{CuSparseMatrixCSC{T,M}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}, B::Union{CuSparseMatrixCSC{T,M}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}, alpha::Number, beta::Number) where {T,M} = mul!(Y, A, B, one(T), zero(T))
+LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T,M}, A::Union{CuSparseMatrixCSC{T,M}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}, B::Union{CuSparseMatrixCSC{T,M}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}) where {T,M} = mul!(Y, A, B, one(T), zero(T))
 
 function LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
-    Y = CuSparseMatrixCOO(Y)
+    Y = CuSparseMatrixCOO(spzeros(T, size(A, 1), size(B, 2)))
     mul!(Y, A, B, one(T), zero(T))
 end
 
