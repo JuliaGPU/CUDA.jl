@@ -213,6 +213,8 @@ Base.similar(Mat::CuSparseMatrixCSR, T::Type) = CuSparseMatrixCSR(copy(Mat.rowPt
 Base.similar(Mat::CuSparseMatrixBSR, T::Type) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), Mat.blockDim, Mat.dir, nnz(Mat), size(Mat))
 Base.similar(Mat::CuSparseMatrixCOO, T::Type) = CuSparseMatrixCOO(copy(Mat.rowInd), copy(Mat.colInd), similar(nonzeros(Mat), T), size(Mat), nnz(Mat))
 
+Base.similar(Mat::CuSparseMatrixCSC, T::Type, N::Int, M::Int) =  CuSparseMatrixCSC(CUDA.ones(Int32, M+1), CuArray{Int32}([]), CuArray{T}([]), (N,M))
+Base.similar(Mat::CuSparseMatrixCSR, T::Type, N::Int, M::Int) =  CuSparseMatrixCSR(CUDA.ones(Int32, N+1), CuArray{Int32}([]), CuArray{T}([]), (N,M))
 
 ## array interface
 
@@ -257,7 +259,7 @@ SparseArrays.nonzeroinds(g::AbstractCuSparseVector) = g.iPtr
 SparseArrays.rowvals(g::CuSparseMatrixCSC) = g.rowVal
 
 LinearAlgebra.issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = size(M, 1) == size(M, 2) ? norm(M - transpose(M), Inf) < 1e-8 : false
-LinearAlgebra.ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = size(M, 1) == size(M, 2) ? norm(M - M', Inf) < 1e-8 : false
+LinearAlgebra.ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = size(M, 1) == size(M, 2) ? norm(M - adjoint(M), Inf) < 1e-8 : false
 LinearAlgebra.issymmetric(M::Symmetric{CuSparseMatrixCSC}) = true
 LinearAlgebra.ishermitian(M::Hermitian{CuSparseMatrixCSC}) = true
 
@@ -382,10 +384,10 @@ CuSparseMatrixCSC(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCSC{T}(x)
 CuSparseMatrixCSR(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCSR{T}(x)
 CuSparseMatrixBSR(x::AbstractSparseArray{T}, blockdim) where {T} = CuSparseMatrixBSR{T}(x, blockdim)
 CuSparseMatrixCOO(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCOO{T}(x)
-CuSparseMatrixCSR(x::Transpose{T}) where {T} = CuSparseMatrixCSR{T}(x)
-CuSparseMatrixCSR(x::Adjoint{T}) where {T} = CuSparseMatrixCSR{T}(x)
-CuSparseMatrixCSC(x::Transpose{T}) where {T} = CuSparseMatrixCSC{T}(x)
-CuSparseMatrixCSC(x::Adjoint{T}) where {T} = CuSparseMatrixCSC{T}(x)
+CuSparseMatrixCSR(x::Transpose{T}) where {T} = CuSparseMatrixCSR(_sptranspose(parent(x)))
+CuSparseMatrixCSR(x::Adjoint{T}) where {T} = CuSparseMatrixCSR(_spadjoint(parent(x)))
+CuSparseMatrixCSC(x::Transpose{T}) where {T} = CuSparseMatrixCSC(_sptranspose(parent(x)))
+CuSparseMatrixCSC(x::Adjoint{T}) where {T} = CuSparseMatrixCSC(_spadjoint(parent(x)))
 
 # gpu to cpu
 SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
