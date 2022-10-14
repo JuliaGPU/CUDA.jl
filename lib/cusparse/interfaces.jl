@@ -153,7 +153,7 @@ end
 
 function LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::CuSparseMatrixCSR{T,M}, B::CuSparseMatrixCSR{T,M}, alpha::Number, beta::Number) where {T,M}
     CUSPARSE.version() < v"11.5.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
-    mm!('N', 'N', alpha, A, B, beta, Y, 'O')
+    gemm!('N', 'N', alpha, A, B, beta, Y, 'O')
 end
 LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::CuSparseMatrixCSR{T,M}, B::CuSparseMatrixCSR{T,M}) where {T,M} = mul!(Y, A, B, one(T), zero(T))
 
@@ -183,10 +183,41 @@ end
 LinearAlgebra.mul!(Y::CuSparseMatrixCOO{T,M}, A::Union{CuSparseMatrixCOO{T,M}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}, B::Union{CuSparseMatrixCOO{T,M}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}) where {T,M} = mul!(Y, A, B, one(T), zero(T))
 LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T,M}, A::Union{CuSparseMatrixCSC{T,M}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}, B::Union{CuSparseMatrixCSC{T,M}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}) where {T,M} = mul!(Y, A, B, one(T), zero(T))
 
-function LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
-    Y = CuSparseMatrixCOO(spzeros(T, size(A, 1), size(B, 2)))
-    mul!(Y, A, B, one(T), zero(T))
+function LinearAlgebra.:(*)(A::CuSparseMatrixCSR{T,M}, B::CuSparseMatrixCSR{T,M}) where {T,M}
+    CUSPARSE.version() < v"11.5.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    gemm('N', 'N', one(T), A, B, 'O')
 end
+function LinearAlgebra.:(*)(A::CuSparseMatrixCSC{T,M}, B::CuSparseMatrixCSC{T,M}) where {T,M}
+    A2 = CuSparseMatrixCSR(A)
+    B2 = CuSparseMatrixCSR(B)
+    CuSparseMatrixCSC(gemm('N', 'N', one(T), A2, B2, 'O'))
+end
+function LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
+    A2 = CuSparseMatrixCSR(A)
+    B2 = CuSparseMatrixCSR(B)
+    CuSparseMatrixCOO(gemm('N', 'N', one(T), A2, B2, 'O'))
+end
+
+LinearAlgebra.:(*)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR{T,M}) where {T,M} = _sptranspose(parent(A)) * B
+LinearAlgebra.:(*)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = _sptranspose(parent(A)) * _sptranspose(parent(B))
+LinearAlgebra.:(*)(A::CuSparseMatrixCSR{T,M}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T,M} = A * _sptranspose(parent(B))
+LinearAlgebra.:(*)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR{T,M}) where {T,M} = _spadjoint(parent(A)) * B
+LinearAlgebra.:(*)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = _spadjoint(parent(A)) * _spadjoint(parent(B))
+LinearAlgebra.:(*)(A::CuSparseMatrixCSR{T,M}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T,M} = A * _spadjoint(parent(B))
+
+LinearAlgebra.:(*)(A::Transpose{T,<:CuSparseMatrixCSC}, B::CuSparseMatrixCSC{T,M}) where {T,M} = _sptranspose(parent(A)) * B
+LinearAlgebra.:(*)(A::Transpose{T,<:CuSparseMatrixCSC}, B::Transpose{T,<:CuSparseMatrixCSC}) where {T} = _sptranspose(parent(A)) * _sptranspose(parent(B))
+LinearAlgebra.:(*)(A::CuSparseMatrixCSC{T,M}, B::Transpose{T,<:CuSparseMatrixCSC}) where {T,M} = A * _sptranspose(parent(B))
+LinearAlgebra.:(*)(A::Adjoint{T,<:CuSparseMatrixCSC}, B::CuSparseMatrixCSC{T,M}) where {T,M} = _spadjoint(parent(A)) * B
+LinearAlgebra.:(*)(A::Adjoint{T,<:CuSparseMatrixCSC}, B::Adjoint{T,<:CuSparseMatrixCSC}) where {T} = _spadjoint(parent(A)) * _spadjoint(parent(B))
+LinearAlgebra.:(*)(A::CuSparseMatrixCSC{T,M}, B::Adjoint{T,<:CuSparseMatrixCSC}) where {T,M} = A * _spadjoint(parent(B))
+
+LinearAlgebra.:(*)(A::Transpose{T,<:CuSparseMatrixCOO}, B::CuSparseMatrixCOO{T,M}) where {T,M} = _sptranspose(parent(A)) * B
+LinearAlgebra.:(*)(A::Transpose{T,<:CuSparseMatrixCOO}, B::Transpose{T,<:CuSparseMatrixCOO}) where {T} = _sptranspose(parent(A)) * _sptranspose(parent(B))
+LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T,M}, B::Transpose{T,<:CuSparseMatrixCOO}) where {T,M} = A * _sptranspose(parent(B))
+LinearAlgebra.:(*)(A::Adjoint{T,<:CuSparseMatrixCOO}, B::CuSparseMatrixCOO{T,M}) where {T,M} = _spadjoint(parent(A)) * B
+LinearAlgebra.:(*)(A::Adjoint{T,<:CuSparseMatrixCOO}, B::Adjoint{T,<:CuSparseMatrixCOO}) where {T} = _spadjoint(parent(A)) * _spadjoint(parent(B))
+LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T,M}, B::Adjoint{T,<:CuSparseMatrixCOO}) where {T,M} = A * _spadjoint(parent(B))
 
 function SparseArrays.droptol!(A::CuSparseMatrixCOO{T,M}, tol::Real) where {T,M}
     mask = abs.(A.nzVal) .> tol
@@ -197,13 +228,18 @@ function SparseArrays.droptol!(A::CuSparseMatrixCOO{T,M}, tol::Real) where {T,M}
     copyto!(A, B)
 end
 
-for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
+for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR, :CuSparseMatrixCOO]
     @eval begin
-        Base.reshape(A::$SparseMatrixType{T,M}, dims::NTuple{N,Int}) where {T,N,M} = $SparseMatrixType( reshape(CuSparseMatrixCOO(A), dims) )
+        if $SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
 
-        function LinearAlgebra.:(*)(A::Union{$SparseMatrixType{T,M}, Transpose{T,<:$SparseMatrixType}, Adjoint{T,<:$SparseMatrixType}}, B::Union{$SparseMatrixType{T,M}, Transpose{T,<:$SparseMatrixType}, Adjoint{T,<:$SparseMatrixType}}) where {T,M}
-            Y = $SparseMatrixType(spzeros(T, size(A, 1), size(B, 2)))
-            mul!(Y, A, B)
+            Base.reshape(A::$SparseMatrixType{T,M}, dims::NTuple{N,Int}) where {T,N,M} = $SparseMatrixType( reshape(CuSparseMatrixCOO(A), dims) )
+
+            function SparseArrays.droptol!(A::$SparseMatrixType{T,M}, tol::Real) where {T,M}
+                B = copy(CuSparseMatrixCOO(A))
+                droptol!(B, tol)
+                copyto!(A, $SparseMatrixType(B))
+            end
+            
         end
 
         function _spadjoint(A::$SparseMatrixType{T,M}) where {T,M}
@@ -214,12 +250,6 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
         function _sptranspose(A::$SparseMatrixType{T,M}) where {T,M}
             cscA = CuSparseMatrixCSC(A)
             $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA))) )
-        end
-
-        function SparseArrays.droptol!(A::$SparseMatrixType{T,M}, tol::Real) where {T,M}
-            B = copy(CuSparseMatrixCOO(A))
-            droptol!(B, tol)
-            copyto!(A, $SparseMatrixType(B))
         end
     end
 end
