@@ -42,7 +42,7 @@ shared memory; in the case of a homogeneous multi-part buffer it is preferred to
     @boundscheck begin
         len = prod(dims)
         sz = len*sizeof(T)
-        if Base.isbitsunion(T)
+        if !isbitstype(T)
             sz += len
         end
         if offset+sz > dynamic_smem_size()
@@ -76,9 +76,9 @@ dynamic_smem_size() =
         llvm_f, _ = create_function(T_ptr)
 
         # determine the array size
-        # TODO: assert that T isbitstype || isbitsunion (or it won't have a layout)
+        # TODO: assert that allocatedinline(T) (or it won't have a layout)
         sz = len*sizeof(T)
-        if Base.isbitsunion(T)
+        if !isbitstype(T)
             sz += len
         end
 
@@ -106,7 +106,7 @@ dynamic_smem_size() =
         align = 32
         if isbitstype(T)
             align = max(align, Base.datatype_alignment(T))
-        else # if isbitsunion(T)
+        else # isbitsunion etc
             for typ in Base.uniontypes(T)
                 if typ.layout != C_NULL
                     align = max(align, Base.datatype_alignment(typ))

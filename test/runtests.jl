@@ -171,14 +171,8 @@ ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"$(pick.mig ? "MIG" : "GPU")-$(pick
 
 # determine tests to skip
 skip_tests = []
-has_cudnn() || push!(skip_tests, "cudnn")
 has_cusolvermg() || push!(skip_tests, "cusolver/multigpu")
 has_nvml() || push!(skip_tests, "nvml")
-if !has_cutensor() || first(picks).cap < v"6.0"
-    push!(skip_tests, "cutensor")
-end
-has_cutensornet() || push!(skip_tests, "cutensornet")
-has_custatevec() || push!(skip_tests, "custatevec")
 if do_sanitize
     # XXX: some library tests fail under compute-sanitizer
     append!(skip_tests, ["cutensor"])
@@ -186,6 +180,7 @@ if do_sanitize
     push!(skip_tests, "cusolver")
     # XXX: these hang for some reason
     push!(skip_tests, "sorting")
+    push!(skip_tests, "cusparse/generic")
 end
 if first(picks).cap < v"7.0"
     push!(skip_tests, "device/intrinsics/wmma")

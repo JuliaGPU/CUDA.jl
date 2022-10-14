@@ -12,9 +12,9 @@ function chkmvdims(X, n, Y, m)
 end
 
 """
-check that the dimensions of matrices `X` and `Y` make sense for a multiplication
+check that the dimensions of matrices `B` and `C` make sense for a multiplication
 """
-function chkmmdims( B, C, k, l, m, n )
+function chkmmdims(B, C, k, l, m, n)
     if size(B) != (k,l)
         throw(DimensionMismatch("B has dimensions $(size(B)) but needs ($k,$l)"))
     elseif size(C) != (m,n)

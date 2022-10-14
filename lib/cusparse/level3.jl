@@ -4,13 +4,13 @@
 export mm!, mm2!, sm2!, sm2
 
 """
-    mm!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
+    mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix, B::CuMatrix, beta::Number, C::CuMatrix, index::SparseChar)
 
 Performs `C = alpha * op(A) * op(B) + beta * C`, where `op` can be nothing (`transa = N`),
 tranpose (`transa = T`) or conjugate transpose (`transa = C`).
-`A` is a sparse matrix defined in BSR storage format. `B` and `C` are dense matrices.
+`B` and `C` are dense matrices.
 """
-mm!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
+mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix, B::CuMatrix, beta::Number, C::CuMatrix, index::SparseChar)
 
 # bsrmm
 for (fname,elty) in ((:cusparseSbsrmm, :Float32),
@@ -26,6 +26,11 @@ for (fname,elty) in ((:cusparseSbsrmm, :Float32),
                      beta::Number,
                      C::StridedCuMatrix{$elty},
                      index::SparseChar)
+
+            # Support transa = 'C' and `transb = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            transb = $elty <: Real && transb == 'C' ? 'T' : transb
+
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,k = size(A)
             mb = cld(m, A.blockDim)
@@ -64,6 +69,11 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
                       beta::Number,
                       C::StridedCuMatrix{$elty},
                       index::SparseChar)
+
+            # Support transa = 'C' and `transb = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            transb = $elty <: Real && transb == 'C' ? 'T' : transb
+
             if transb == 'C'
                 throw(ArgumentError("B^H is not supported"))
             elseif transb == 'T' && transa != 'N'
@@ -96,6 +106,11 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
                       beta::Number,
                       C::StridedCuMatrix{$elty},
                       index::SparseChar)
+
+            # Support transa = 'C' and `transb = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            transb = $elty <: Real && transb == 'C' ? 'T' : transb
+
             if transb == 'C'
                 throw(ArgumentError("B^H is not supported"))
             elseif transb == 'T' && transa != 'N'
@@ -151,6 +166,11 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
                       A::CuSparseMatrixBSR{$elty},
                       X::StridedCuMatrix{$elty},
                       index::SparseChar)
+
+            # Support transa = 'C' and transxy = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            transxy = $elty <: Real && transxy == 'C' ? 'T' : transxy
+
             desc = CuMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
             if m != n
@@ -211,6 +231,11 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                       A::CuSparseMatrixCSR{$elty},
                       X::StridedCuMatrix{$elty},
                       index::SparseChar)
+
+            # Support transa = 'C' and transxy = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            transxy = $elty <: Real && transxy == 'C' ? 'T' : transxy
+
             desc = CuMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
             if m != n
@@ -271,10 +296,17 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                       A::CuSparseMatrixCSC{$elty},
                       X::StridedCuMatrix{$elty},
                       index::SparseChar)
+
+            # Support transa = 'C' and transxy = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            transxy = $elty <: Real && transxy == 'C' ? 'T' : transxy
+
             ctransa = 'N'
             cuplo = 'U'
             if transa == 'N'
                 ctransa = 'T'
+            elseif transa == 'C' && $elty <: Complex
+                throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR matrix instead."))
             end
             if uplo == 'U'
                 cuplo = 'L'

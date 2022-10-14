@@ -196,7 +196,7 @@ end
         @testset "BSR(::Dense)" begin
             x = rand(elty,m,n)
             d_x = CuArray(x)
-            d_x = CuSparseMatrixBSR(d_x)
+            d_x = CuSparseMatrixBSR(d_x, blockdim)
             @test collect(d_x) ≈ x
         end
 
@@ -987,30 +987,6 @@ end
             @test D ≈ h_D
         end
     end
-    if CUSPARSE.version() >= v"11.1.1"
-        @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-            @testset for (pA, pB, pC) in [(0.1, 0.1, 0.8), (0.8, 0.8, 0.1), (0.4, 0.8, 0.5)]
-                A = sprand(elty,m,k, pA)
-                B = sprand(elty,k,n, pB)
-                C = sprand(elty,m,n, pC)
-                alpha = rand(elty)
-                beta  = rand(elty)
-                @testset "$(typeof(d_A))" for (d_A, d_B, d_C) in [(CuSparseMatrixCSR(A),
-                                                                   CuSparseMatrixCSR(B),
-                                                                   CuSparseMatrixCSR(C))] # for now only supports CSR
-                    mm! = CUSPARSE.mm!
-                    @test_throws ArgumentError mm!('N','T',alpha,d_A,d_B,beta,d_C,'O')
-                    @test_throws ArgumentError mm!('T','N',alpha,d_A,d_B,beta,d_C,'O')
-                    @test_throws ArgumentError mm!('T','T',alpha,d_A,d_B,beta,d_C,'O')
-                    @test_throws DimensionMismatch mm!('N','N',alpha,d_A,d_B,beta,d_B,'O')
-                    D = alpha * A * B + beta * C
-                    d_C = mm!('N','N',alpha,d_A,d_B,beta,d_C,'O')
-                    h_C = SparseMatrixCSC(d_C)
-                    @test D ≈ h_C
-                end
-            end
-        end
-    end
 
     @testset "issue 493" begin
         x = cu(rand(20))
@@ -1073,6 +1049,25 @@ end
             w[nonzeroinds(z)] = cos(angle)*y[nonzeroinds(x)] - sin(angle)*nonzeros(x)
             @test h_z ≈ SparseVector(m,nonzeroinds(z), cos(angle)*nonzeros(x) + sin(angle)*y[nonzeroinds(x)])
             @test h_w ≈ w
+        end
+    end
+end
+
+@testset "gemvi!" begin
+    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+            elty <: Complex && transa == 'C' && continue
+            A = transa == 'N' ? rand(elty,m,n) : rand(elty,n,m)
+            x = sparsevec(rand(1:n,k), rand(elty,k), n)
+            y = rand(elty,m)
+            dA = CuArray(A)
+            dx = CuSparseVector(x)
+            dy = CuArray(y)
+            alpha = rand(elty)
+            beta = rand(elty)
+            gemvi!(transa,alpha,dA,dx,beta,dy,'O')
+            z = alpha * opa(A) * x + beta * y
+            @test z ≈ collect(dy)
         end
     end
 end

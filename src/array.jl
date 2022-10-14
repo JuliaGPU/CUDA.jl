@@ -76,11 +76,11 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
   function CuArray{T,N,B}(::UndefInitializer, dims::Dims{N}) where {T,N,B}
     check_eltype(T)
     maxsize = prod(dims) * sizeof(T)
-    bufsize = if Base.isbitsunion(T)
+    bufsize = if isbitstype(T)
+      maxsize
+    else # isbitsunion etc
       # type tag array past the data
       maxsize + prod(dims)
-    else
-      maxsize
     end
     buf = alloc(B, bufsize)
     storage = ArrayStorage(buf, 1)
@@ -232,7 +232,7 @@ take ownership of the memory, calling `cudaFree` when the array is no longer ref
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}},Type{CuArray{T,N,B}}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N,B}
-  Base.isbitstype(T) || error("Can only unsafe_wrap a pointer to a bits type")
+  isbitstype(T) || error("Can only unsafe_wrap a pointer to a bits type")
   sz = prod(dims) * sizeof(T)
 
   # identify the buffer
@@ -438,7 +438,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
 
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if Base.isbitsunion(T)
+      if !isbitstype(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
     end
@@ -456,7 +456,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
 
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if Base.isbitsunion(T)
+      if !isbitstype(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
     end
@@ -472,7 +472,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
   context!(context(src)) do
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if Base.isbitsunion(T)
+      if !isbitstype(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
     end
@@ -494,7 +494,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffe
   GC.@preserve src dest begin
     cpu_ptr = pointer(src, soffs)
     unsafe_copyto!(host_pointer(pointer(dest, doffs)), cpu_ptr, n)
-    if Base.isbitsunion(T)
+    if !isbitstype(T)
       cpu_ptr = typetagdata(src, soffs)
       unsafe_copyto!(host_pointer(typetagdata(dest, doffs)), cpu_ptr, n)
     end
@@ -510,7 +510,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
   GC.@preserve src dest begin
     cpu_ptr = pointer(dest, doffs)
     unsafe_copyto!(cpu_ptr, host_pointer(pointer(src, soffs)), n)
-    if Base.isbitsunion(T)
+    if !isbitstype(T)
       cpu_ptr = typetagdata(dest, doffs)
       unsafe_copyto!(cpu_ptr, host_pointer(typetagdata(src, soffs)), n)
     end
@@ -526,7 +526,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffe
   context!(context(src)) do
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if Base.isbitsunion(T)
+      if !isbitstype(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
     end
@@ -539,7 +539,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
   context!(context(dest)) do
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if Base.isbitsunion(T)
+      if !isbitstype(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
     end
@@ -551,7 +551,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffe
                              src::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, soffs, n) where T
   GC.@preserve src dest begin
     unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-    if Base.isbitsunion(T)
+    if !isbitstype(T)
       unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
     end
   end
@@ -911,11 +911,11 @@ created by `unsafe_wrap` with `own=false`.
 function Base.resize!(A::CuVector{T}, n::Integer) where T
   # TODO: add additional space to allow for quicker resizing
   maxsize = n * sizeof(T)
-  bufsize = if Base.isbitsunion(T)
+  bufsize = if isbitstype(T)
+    maxsize
+  else
     # type tag array past the data
     maxsize + n
-  else
-    maxsize
   end
 
   new_storage = context!(context(A)) do

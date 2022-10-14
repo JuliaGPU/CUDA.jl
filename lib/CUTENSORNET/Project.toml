@@ -1,8 +1,0 @@
-name = "CUTENSORNET"
-uuid = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
-authors = ["Katharine Hyatt <kshyatt@gmail.com>"]
-version = "0.1.0"
-
-[deps]
-CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"

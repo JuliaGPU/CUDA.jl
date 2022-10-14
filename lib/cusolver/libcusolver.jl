@@ -4251,7 +4251,7 @@ end
 
 @checked function cusolverDnXgesvdr_bufferSize(handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
     initialize_context()
-    ccall((:cusolverDnXgesvdr_bufferSize, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, Int64, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Csize_t}, Ptr{Csize_t}), handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+    ccall((:cusolverDnXgesvdr_bufferSize, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, Int64, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
 end
 
 ## from cusolverMg.h
