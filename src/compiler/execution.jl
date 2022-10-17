@@ -448,7 +448,7 @@ function cufunction_compile(@nospecialize(job::CompilerJob), ctx)
         append!(nvlink_opts, [
             "--verbose", "--extra-warnings",
             "--arch", arch,
-            "--library-path", dirname(libcudadevrt()),
+            "--library-path", dirname(libcudadevrt),
             "--library", "cudadevrt",
             "--output-file", nvlink_output,
             ptxas_output

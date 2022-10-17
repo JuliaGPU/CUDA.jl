@@ -29,14 +29,25 @@ macro sync(ex...)
 end
 
 function versioninfo(io::IO=stdout)
-    println(io, "CUDA toolkit $(runtime_version().major).$(runtime_version().minor), $(toolkit_origin()) installation")
+    @assert functional(true)
+
+    print(io, "CUDA runtime $(runtime_version().major).$(runtime_version().minor), ")
+    if CUDA_Runtime == CUDA_Runtime_jll
+        println(io, "artifact installation")
+    else
+        println(io, "local installation")
+    end
+    println(io, "CUDA driver $(driver_version().major).$(driver_version().minor)")
     if has_nvml()
         print(io, "NVIDIA driver $(NVML.driver_version())")
     else
         print(io, "Unknown NVIDIA driver")
     end
-    println(io, ", for CUDA $(system_version().major).$(system_version().minor)")
-    println(io, "CUDA driver $(version().major).$(version().minor)")
+    if system_driver_version() !== nothing
+        println(io, ", originally for CUDA $(system_driver_version().major).$(system_driver_version().minor)")
+    else
+        println(io)
+    end
     println(io)
 
     println(io, "Libraries: ")
@@ -44,7 +55,7 @@ function versioninfo(io::IO=stdout)
         mod = getfield(CUDA, lib)
         println(io, "- $lib: ", mod.version())
     end
-    println(io, "- CUPTI: ", has_cupti() ? CUPTI.version() : "missing")
+    println(io, "- CUPTI: ", CUPTI.version())
     println(io, "- NVML: ", has_nvml() ? NVML.version() : "missing")
     println(io)
 

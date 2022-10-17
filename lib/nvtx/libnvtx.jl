@@ -3,208 +3,208 @@
 
 function nvtxInitialize(reserved)
     initialize_context()
-    ccall((:nvtxInitialize, libnvtx()), Cvoid,
+    ccall((:nvtxInitialize, libnvtoolsext), Cvoid,
                    (Ptr{Cvoid},),
                    reserved)
 end
 
 function nvtxDomainMarkEx(domain, eventAttrib)
     initialize_context()
-    ccall((:nvtxDomainMarkEx, libnvtx()), Cvoid,
+    ccall((:nvtxDomainMarkEx, libnvtoolsext), Cvoid,
                    (nvtxDomainHandle_t, Ptr{nvtxEventAttributes_t}),
                    domain, eventAttrib)
 end
 
 function nvtxMarkEx(eventAttrib)
     initialize_context()
-    ccall((:nvtxMarkEx, libnvtx()), Cvoid,
+    ccall((:nvtxMarkEx, libnvtoolsext), Cvoid,
                    (Ptr{nvtxEventAttributes_t},),
                    eventAttrib)
 end
 
 function nvtxMarkA(message)
     initialize_context()
-    ccall((:nvtxMarkA, libnvtx()), Cvoid,
+    ccall((:nvtxMarkA, libnvtoolsext), Cvoid,
                    (Cstring,),
                    message)
 end
 
 function nvtxMarkW(message)
     initialize_context()
-    ccall((:nvtxMarkW, libnvtx()), Cvoid,
+    ccall((:nvtxMarkW, libnvtoolsext), Cvoid,
                    (Ptr{Cwchar_t},),
                    message)
 end
 
 function nvtxDomainRangeStartEx(domain, eventAttrib)
     initialize_context()
-    ccall((:nvtxDomainRangeStartEx, libnvtx()), nvtxRangeId_t,
+    ccall((:nvtxDomainRangeStartEx, libnvtoolsext), nvtxRangeId_t,
                    (nvtxDomainHandle_t, Ptr{nvtxEventAttributes_t}),
                    domain, eventAttrib)
 end
 
 function nvtxRangeStartEx(eventAttrib)
     initialize_context()
-    ccall((:nvtxRangeStartEx, libnvtx()), nvtxRangeId_t,
+    ccall((:nvtxRangeStartEx, libnvtoolsext), nvtxRangeId_t,
                    (Ptr{nvtxEventAttributes_t},),
                    eventAttrib)
 end
 
 function nvtxRangeStartA(message)
     initialize_context()
-    ccall((:nvtxRangeStartA, libnvtx()), nvtxRangeId_t,
+    ccall((:nvtxRangeStartA, libnvtoolsext), nvtxRangeId_t,
                    (Cstring,),
                    message)
 end
 
 function nvtxRangeStartW(message)
     initialize_context()
-    ccall((:nvtxRangeStartW, libnvtx()), nvtxRangeId_t,
+    ccall((:nvtxRangeStartW, libnvtoolsext), nvtxRangeId_t,
                    (Ptr{Cwchar_t},),
                    message)
 end
 
 function nvtxDomainRangeEnd(domain, id)
     initialize_context()
-    ccall((:nvtxDomainRangeEnd, libnvtx()), Cvoid,
+    ccall((:nvtxDomainRangeEnd, libnvtoolsext), Cvoid,
                    (nvtxDomainHandle_t, nvtxRangeId_t),
                    domain, id)
 end
 
 function nvtxRangeEnd(id)
     initialize_context()
-    ccall((:nvtxRangeEnd, libnvtx()), Cvoid,
+    ccall((:nvtxRangeEnd, libnvtoolsext), Cvoid,
                    (nvtxRangeId_t,),
                    id)
 end
 
 function nvtxDomainRangePushEx(domain, eventAttrib)
     initialize_context()
-    ccall((:nvtxDomainRangePushEx, libnvtx()), Cint,
+    ccall((:nvtxDomainRangePushEx, libnvtoolsext), Cint,
                    (nvtxDomainHandle_t, Ptr{nvtxEventAttributes_t}),
                    domain, eventAttrib)
 end
 
 function nvtxRangePushEx(eventAttrib)
     initialize_context()
-    ccall((:nvtxRangePushEx, libnvtx()), Cint,
+    ccall((:nvtxRangePushEx, libnvtoolsext), Cint,
                    (Ptr{nvtxEventAttributes_t},),
                    eventAttrib)
 end
 
 function nvtxRangePushA(message)
     initialize_context()
-    ccall((:nvtxRangePushA, libnvtx()), Cint,
+    ccall((:nvtxRangePushA, libnvtoolsext), Cint,
                    (Cstring,),
                    message)
 end
 
 function nvtxRangePushW(message)
     initialize_context()
-    ccall((:nvtxRangePushW, libnvtx()), Cint,
+    ccall((:nvtxRangePushW, libnvtoolsext), Cint,
                    (Ptr{Cwchar_t},),
                    message)
 end
 
 function nvtxDomainRangePop(domain)
     initialize_context()
-    ccall((:nvtxDomainRangePop, libnvtx()), Cint,
+    ccall((:nvtxDomainRangePop, libnvtoolsext), Cint,
                    (nvtxDomainHandle_t,),
                    domain)
 end
 
 function nvtxRangePop()
     initialize_context()
-    ccall((:nvtxRangePop, libnvtx()), Cint, ())
+    ccall((:nvtxRangePop, libnvtoolsext), Cint, ())
 end
 
 function nvtxDomainResourceCreate(domain, attribs)
     initialize_context()
-    ccall((:nvtxDomainResourceCreate, libnvtx()), nvtxResourceHandle_t,
+    ccall((:nvtxDomainResourceCreate, libnvtoolsext), nvtxResourceHandle_t,
                    (nvtxDomainHandle_t, Ptr{nvtxResourceAttributes_t}),
                    domain, attribs)
 end
 
 function nvtxDomainResourceDestroy(resource)
     initialize_context()
-    ccall((:nvtxDomainResourceDestroy, libnvtx()), Cvoid,
+    ccall((:nvtxDomainResourceDestroy, libnvtoolsext), Cvoid,
                    (nvtxResourceHandle_t,),
                    resource)
 end
 
 function nvtxDomainNameCategoryA(domain, category, name)
     initialize_context()
-    ccall((:nvtxDomainNameCategoryA, libnvtx()), Cvoid,
+    ccall((:nvtxDomainNameCategoryA, libnvtoolsext), Cvoid,
                    (nvtxDomainHandle_t, UInt32, Cstring),
                    domain, category, name)
 end
 
 function nvtxDomainNameCategoryW(domain, category, name)
     initialize_context()
-    ccall((:nvtxDomainNameCategoryW, libnvtx()), Cvoid,
+    ccall((:nvtxDomainNameCategoryW, libnvtoolsext), Cvoid,
                    (nvtxDomainHandle_t, UInt32, Ptr{Cwchar_t}),
                    domain, category, name)
 end
 
 function nvtxNameCategoryA(category, name)
     initialize_context()
-    ccall((:nvtxNameCategoryA, libnvtx()), Cvoid,
+    ccall((:nvtxNameCategoryA, libnvtoolsext), Cvoid,
                    (UInt32, Cstring),
                    category, name)
 end
 
 function nvtxNameCategoryW(category, name)
     initialize_context()
-    ccall((:nvtxNameCategoryW, libnvtx()), Cvoid,
+    ccall((:nvtxNameCategoryW, libnvtoolsext), Cvoid,
                    (UInt32, Ptr{Cwchar_t}),
                    category, name)
 end
 
 function nvtxNameOsThreadA(threadId, name)
     initialize_context()
-    ccall((:nvtxNameOsThreadA, libnvtx()), Cvoid,
+    ccall((:nvtxNameOsThreadA, libnvtoolsext), Cvoid,
                    (UInt32, Cstring),
                    threadId, name)
 end
 
 function nvtxNameOsThreadW(threadId, name)
     initialize_context()
-    ccall((:nvtxNameOsThreadW, libnvtx()), Cvoid,
+    ccall((:nvtxNameOsThreadW, libnvtoolsext), Cvoid,
                    (UInt32, Ptr{Cwchar_t}),
                    threadId, name)
 end
 
 function nvtxDomainRegisterStringA(domain, string)
     initialize_context()
-    ccall((:nvtxDomainRegisterStringA, libnvtx()), nvtxStringHandle_t,
+    ccall((:nvtxDomainRegisterStringA, libnvtoolsext), nvtxStringHandle_t,
                    (nvtxDomainHandle_t, Cstring),
                    domain, string)
 end
 
 function nvtxDomainRegisterStringW(domain, string)
     initialize_context()
-    ccall((:nvtxDomainRegisterStringW, libnvtx()), nvtxStringHandle_t,
+    ccall((:nvtxDomainRegisterStringW, libnvtoolsext), nvtxStringHandle_t,
                    (nvtxDomainHandle_t, Ptr{Cwchar_t}),
                    domain, string)
 end
 
 function nvtxDomainCreateA(name)
     initialize_context()
-    ccall((:nvtxDomainCreateA, libnvtx()), nvtxDomainHandle_t,
+    ccall((:nvtxDomainCreateA, libnvtoolsext), nvtxDomainHandle_t,
                    (Cstring,),
                    name)
 end
 
 function nvtxDomainCreateW(name)
     initialize_context()
-    ccall((:nvtxDomainCreateW, libnvtx()), nvtxDomainHandle_t,
+    ccall((:nvtxDomainCreateW, libnvtoolsext), nvtxDomainHandle_t,
                    (Ptr{Cwchar_t},),
                    name)
 end
 
 function nvtxDomainDestroy(domain)
     initialize_context()
-    ccall((:nvtxDomainDestroy, libnvtx()), Cvoid,
+    ccall((:nvtxDomainDestroy, libnvtoolsext), Cvoid,
                    (nvtxDomainHandle_t,),
                    domain)
 end
@@ -213,56 +213,56 @@ end
 
 function nvtxNameCuDeviceA(device, name)
     initialize_context()
-    ccall((:nvtxNameCuDeviceA, libnvtx()), Cvoid,
+    ccall((:nvtxNameCuDeviceA, libnvtoolsext), Cvoid,
                    (CUdevice, Cstring),
                    device, name)
 end
 
 function nvtxNameCuDeviceW(device, name)
     initialize_context()
-    ccall((:nvtxNameCuDeviceW, libnvtx()), Cvoid,
+    ccall((:nvtxNameCuDeviceW, libnvtoolsext), Cvoid,
                    (CUdevice, Ptr{Cwchar_t}),
                    device, name)
 end
 
 function nvtxNameCuContextA(context, name)
     initialize_context()
-    ccall((:nvtxNameCuContextA, libnvtx()), Cvoid,
+    ccall((:nvtxNameCuContextA, libnvtoolsext), Cvoid,
                    (CUcontext, Cstring),
                    context, name)
 end
 
 function nvtxNameCuContextW(context, name)
     initialize_context()
-    ccall((:nvtxNameCuContextW, libnvtx()), Cvoid,
+    ccall((:nvtxNameCuContextW, libnvtoolsext), Cvoid,
                    (CUcontext, Ptr{Cwchar_t}),
                    context, name)
 end
 
 function nvtxNameCuStreamA(stream, name)
     initialize_context()
-    ccall((:nvtxNameCuStreamA, libnvtx()), Cvoid,
+    ccall((:nvtxNameCuStreamA, libnvtoolsext), Cvoid,
                    (CUstream, Cstring),
                    stream, name)
 end
 
 function nvtxNameCuStreamW(stream, name)
     initialize_context()
-    ccall((:nvtxNameCuStreamW, libnvtx()), Cvoid,
+    ccall((:nvtxNameCuStreamW, libnvtoolsext), Cvoid,
                    (CUstream, Ptr{Cwchar_t}),
                    stream, name)
 end
 
 function nvtxNameCuEventA(event, name)
     initialize_context()
-    ccall((:nvtxNameCuEventA, libnvtx()), Cvoid,
+    ccall((:nvtxNameCuEventA, libnvtoolsext), Cvoid,
                    (CUevent, Cstring),
                    event, name)
 end
 
 function nvtxNameCuEventW(event, name)
     initialize_context()
-    ccall((:nvtxNameCuEventW, libnvtx()), Cvoid,
+    ccall((:nvtxNameCuEventW, libnvtoolsext), Cvoid,
                    (CUevent, Ptr{Cwchar_t}),
                    event, name)
 end

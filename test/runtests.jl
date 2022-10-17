@@ -4,6 +4,16 @@ import REPL
 using Printf: @sprintf
 using TimerOutputs
 
+# work around JuliaLang/Pkg.jl#2500
+if VERSION < v"1.8"
+    test_project = first(Base.load_path())
+    preferences_file = joinpath(dirname(@__DIR__), "LocalPreferences.toml")
+    test_preferences_file = joinpath(dirname(test_project), "LocalPreferences.toml")
+    if isfile(preferences_file) && !isfile(test_preferences_file)
+        cp(preferences_file, test_preferences_file)
+    end
+end
+
 # parse some command-line arguments
 function extract_flag!(args, flag, default=nothing)
     for f in args
@@ -116,9 +126,10 @@ if !isempty(ARGS)
 end
 
 # check that CI is using the requested toolkit
-toolkit_release = CUDA.toolkit_release() # ensure artifacts are downloaded
-if CUDA.getenv("CI", false) && haskey(ENV, "JULIA_CUDA_VERSION")
-  @test toolkit_release == VersionNumber(ENV["JULIA_CUDA_VERSION"])
+toolkit_release = Base.thisminor(CUDA.runtime_version())
+label_match = match(r"^CUDA ([\d.]+)$", get(ENV, "BUILDKITE_LABEL", ""))
+if label_match !== nothing
+  @test toolkit_release == VersionNumber(label_match.captures[1])
 end
 
 # find suitable devices
@@ -177,10 +188,9 @@ if do_sanitize
     # XXX: some library tests fail under compute-sanitizer
     append!(skip_tests, ["cutensor"])
     # XXX: others take absurdly long
-    push!(skip_tests, "cusolver")
+    append!(skip_tests, ["cusolver"])
     # XXX: these hang for some reason
-    push!(skip_tests, "sorting")
-    push!(skip_tests, "cusparse/generic")
+    append!(skip_tests, ["sorting", "cusparse/generic"])
 end
 if first(picks).cap < v"7.0"
     push!(skip_tests, "device/intrinsics/wmma")

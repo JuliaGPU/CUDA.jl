@@ -186,8 +186,6 @@ end
 
 ## high-level functions that return target and isa support
 
-export llvm_compat, cuda_compat, supported_toolchain
-
 function llvm_compat(version=LLVM.version())
     LLVM.InitializeNVPTXTarget()
 
@@ -197,13 +195,13 @@ function llvm_compat(version=LLVM.version())
     return (cap=cap_support, ptx=ptx_support)
 end
 
-function cuda_compat(driver_release=CUDA.release(), toolkit_release=toolkit_release())
-    driver_cap_support = cuda_cap_support(driver_release)
-    toolkit_cap_support = cuda_cap_support(toolkit_release)
+function cuda_compat(driver=driver_version(), runtime=runtime_version())
+    driver_cap_support = cuda_cap_support(driver)
+    toolkit_cap_support = cuda_cap_support(runtime)
     cap_support = sort(collect(driver_cap_support ∩ toolkit_cap_support))
 
-    driver_ptx_support = cuda_ptx_support(driver_release)
-    toolkit_ptx_support = cuda_ptx_support(toolkit_release)
+    driver_ptx_support = cuda_ptx_support(driver)
+    toolkit_ptx_support = cuda_ptx_support(runtime)
     ptx_support = sort(collect(driver_ptx_support ∩ toolkit_ptx_support))
 
     return (cap=cap_support, ptx=ptx_support)
@@ -218,8 +216,6 @@ function supported_toolchain()
 
     ptx_support = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
     isempty(ptx_support) && error("Your toolchain does not support any PTX ISA")
-
-    @debug("Toolchain with LLVM $(LLVM.version()), CUDA driver $(CUDA.release().major).$(CUDA.release().minor) and toolkit $(toolkit_release().major).$(toolkit_release().minor) supports devices $(join_capabilities(target_support)); PTX $(join_capabilities(ptx_support))")
 
     return (cap=target_support, ptx=ptx_support)
 end

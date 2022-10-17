@@ -76,8 +76,7 @@ end
 ## CUDA device library
 
 function load_libdevice(cap; ctx)
-    path = libdevice()
-    parse(LLVM.Module, read(path); ctx)
+    parse(LLVM.Module, read(libdevice); ctx)
 end
 
 function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)
