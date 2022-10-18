@@ -127,3 +127,13 @@ function Base.convert(::Type{cusparseDirection_t}, dir::SparseChar)
         throw(ArgumentError("Unknown direction $dir"))
     end
 end
+
+function Base.convert(::Type{cusparseOrder_t}, order::SparseChar)
+    if order == 'R'
+        CUSPARSE_ORDER_ROW
+    elseif order == 'C'
+        CUSPARSE_ORDER_COL
+    else
+        throw(ArgumentError("Unknown order $order"))
+    end
+end

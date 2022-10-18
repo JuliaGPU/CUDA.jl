@@ -61,6 +61,7 @@ end
 
 for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     TypeA = wrapa(taga(:(DenseCuMatrix{T})))
+
     @eval begin
         function LinearAlgebra.mul!(C::CuVector{T}, A::$TypeA, B::CuSparseVector{T}, alpha::Number, beta::Number) where {T <: BlasFloat}
             gemvi!($transa(T), alpha, $(untaga(unwrapa(:A))), B, beta, C, 'O')
@@ -71,6 +72,27 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
             length(x) == n || throw(DimensionMismatch())
             y = CuVector{T}(undef, m)
             mul!(y, A, x)
+        end
+    end
+
+    for (tagb, untagb) in tag_wrappers, (wrapb, transb, unwrapb) in op_wrappers
+        for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
+            TypeB = wrapb(tagb(SparseMatrixType))
+
+            @eval begin
+                function LinearAlgebra.mul!(C::CuMatrix{T}, A::$TypeA, B::$TypeB,
+                                        alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+                    mm!($transa(T), $transb(T), alpha, $(untaga(unwrapa(:A))), $(untagb(unwrapb(:B))), beta, C, 'O')
+                end
+
+                function LinearAlgebra.:(*)(A::$TypeA, B::$TypeB) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+                    m, n = size(A)
+                    k, p = size(B)
+                    n == k || throw(DimensionMismatch())
+                    C = CuMatrix{T}(undef, m, p)
+                    mul!(C, A, B)
+                end
+            end
         end
     end
 end

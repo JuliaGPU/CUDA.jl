@@ -121,16 +121,19 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
 
+    # Issue # 1610
     if isa(A, CuSparseMatrixCSC) && transa == 'C' && TA <: Complex
         throw(ArgumentError("Matrix-vector multiplication with the adjoint of a complex CSC matrix" *
                             " is not supported. Use a CSR or COO matrix instead."))
     end
 
     if isa(A, CuSparseMatrixCSC)
-        # cusparseSpMV doesn't support CSC format with CUSPARSE.version() < v"11.6.1"
-        # cusparseSpMV supports the CSC format with CUSPARSE.version() ≥ v"11.6.1"
-        # but it doesn't work for complex numbers when transa == 'C'
-        descA = CuSparseMatrixDescriptor(A, index, convert=true)
+        # cusparseSpMV doesn't support CSC matrices with CUSPARSE.version() < v"11.6.1".
+        # cusparseSpMV supports the CSC matrices with CUSPARSE.version() ≥ v"11.6.1"
+        # but it doesn't work for complex numbers when transa == 'C'.
+        # We use Aᵀ to model them as CSR matrices for now.
+        # It should be fixed with CUDA toolkit v"12.0".
+        descA = CuSparseMatrixDescriptor(A, index, transposed=true)
         n,m = size(A)
         transa = transa == 'N' ? 'T' : 'N'
     else
@@ -178,16 +181,19 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
 
+    # Issue # 1610
     if isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
         throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSC matrix" *
-                            " is not supported. Use a CSR and COO matrix instead."))
+                            " is not supported. Use a CSR or COO matrix instead."))
     end
 
     if isa(A, CuSparseMatrixCSC)
-        # cusparseSpMM doesn't support CSC format with CUSPARSE.version() < v"11.6.1"
-        # cusparseSpMM supports the CSC format with CUSPARSE.version() ≥ v"11.6.1"
-        # but it doesn't work for complex numbers when transa == 'C'
-        descA = CuSparseMatrixDescriptor(A, index, convert=true)
+        # cusparseSpMM doesn't support CSC matrices with CUSPARSE.version() < v"11.6.1".
+        # cusparseSpMM supports the CSC matrices with CUSPARSE.version() ≥ v"11.6.1"
+        # but it doesn't work for complex numbers when transa == 'C'.
+        # We use Aᵀ to model them as CSR matrices for now.
+        # It should be fixed with CUDA toolkit v"12.0".
+        descA = CuSparseMatrixDescriptor(A, index, transposed=true)
         k,m = size(A)
         transa = transa == 'N' ? 'T' : 'N'
     else
@@ -226,7 +232,64 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, buffer)
     end
+    return C
+end
 
+function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T},
+             B::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}},
+             beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
+
+    CUSPARSE.version() < v"11.7.4" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+
+    # Support transa = 'C' and `transb = 'C' for real matrices
+    transa = T <: Real && transa == 'C' ? 'T' : transa
+    transb = T <: Real && transb == 'C' ? 'T' : transb
+
+    # cusparseSpMM can be also used to perform the multiplication of a dense matrix and a sparse matrix by switching the dense matrices layout:
+    # Cc = α * Ac * B  + β * Cc → α * Bᵀ * Ar + β * Cr
+    # Cc = α * Ac * Bᵀ + β * Cc → α * B  * Ar + β * Cr
+    # Cc = α * Ac * Bᴴ + β * Cc → α * B̅  * Ar + β * Cr
+    # where B is a sparse matrix, Ac and Cc indicate column-major layout, while Ar and Cr refer to row-major layout.
+
+    # Issue # 1610
+    if isa(B, CuSparseMatrixCSR) && transb == 'C' && T <: Complex
+        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSR matrix is not supported. Use a CSC or COO matrix instead."))
+    end
+
+    m,k = size(A)
+    n = size(C)[2]
+
+    if transa == 'N' && transb == 'N'
+        chkmmdims(B,C,k,n,m,n)
+    elseif transa == 'N' && transb != 'N'
+        chkmmdims(B,C,n,k,m,n)
+    elseif transa != 'N' && transb == 'N'
+        chkmmdims(B,C,m,n,k,n)
+    elseif transa != 'N' && transb != 'N'
+        chkmmdims(B,C,n,m,k,n)
+    end
+
+    descA = CuDenseMatrixDescriptor(A, transposed=true)
+    descB = CuSparseMatrixDescriptor(B, index, transposed=true)
+    descC = CuDenseMatrixDescriptor(C, transposed=true)
+
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cusparseSpMM_bufferSize(
+            handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
+            descC, T, algo, out)
+        return out[]
+    end
+    with_workspace(bufferSize) do buffer
+        # Uncomment if we find a way to reuse the buffer (issue #1362)
+        # cusparseSpMM_preprocess(
+        #     handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
+        #     descC, T, algo, buffer)
+        # end
+        cusparseSpMM(
+            handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
+            descC, T, algo, buffer)
+    end
     return C
 end
 
@@ -374,8 +437,8 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     (mY != mA) && throw(DimensionMismatch("Y must have length $mA, but has length $mY"))
 
     if isa(A, CuSparseMatrixCSC)
-        # cusparseSpSV doesn't support CSC format
-        descA = CuSparseMatrixDescriptor(A, index, convert=true)
+        # cusparseSpSV doesn't support CSC matrices so we use Aᵀ to model them as CSR matrices.
+        descA = CuSparseMatrixDescriptor(A, index, transposed=true)
         transa = transa == 'N' ? 'T' : 'N'
         uplo = uplo == 'U' ? 'L' : 'U'
     else
@@ -428,8 +491,8 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     (mB != nC) && (transb != 'N') && throw(DimensionMismatch("B must have the same the number of rows that C has as columns, but B has $mB rows and C has $nC columns"))
 
     if isa(A, CuSparseMatrixCSC)
-        # cusparseSpSM doesn't support CSC format
-        descA = CuSparseMatrixDescriptor(A, index, convert=true)
+        # cusparseSpSM doesn't support CSC matrices so we use Aᵀ to model them as CSR matrices.
+        descA = CuSparseMatrixDescriptor(A, index, transposed=true)
         transa = transa == 'N' ? 'T' : 'N'
         uplo = uplo == 'U' ? 'L' : 'U'
     else

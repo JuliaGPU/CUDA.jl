@@ -69,7 +69,7 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
     end
 
     for SparseMatrixType in keys(SPMM_ALGOS)
-        @testset "$SparseMatrixType -- mm! algo=$algo" for algo in SPMM_ALGOS[SparseMatrixType]
+        @testset "$SparseMatrixType * CuMatrix -- mm! algo=$algo" for algo in SPMM_ALGOS[SparseMatrixType]
             @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
@@ -86,6 +86,34 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
                         beta = rand(T)
                         mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
                         @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
+                    end
+                end
+            end
+        end
+    end
+
+    if CUSPARSE.version() >= v"11.7.4"
+        for SparseMatrixType in keys(SPMM_ALGOS)
+            @testset "CuMatrix * $SparseMatrixType -- mm! algo=$algo" for algo in SPMM_ALGOS[SparseMatrixType]
+                @testset "$T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+                    for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                        for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                            SparseMatrixType == CuSparseMatrixCSR && T <: Complex && transb == 'C' && continue
+                            algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 && continue
+                            algo == CUSPARSE.CUSPARSE_SPMM_COO_ALG1 && continue
+                            algo == CUSPARSE.CUSPARSE_SPMM_COO_ALG3 && continue
+                            A = rand(T, 10, 10)
+                            B = transb == 'N' ? sprand(T, 10, 2, 0.5) : sprand(T, 2, 10, 0.5)
+                            C = rand(T, 10, 2)
+                            dA = CuArray(A)
+                            dB = SparseMatrixType(B)
+                            dC = CuArray(C)
+
+                            alpha = rand(T)
+                            beta = rand(T)
+                            mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                            @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
+                        end
                     end
                 end
             end
