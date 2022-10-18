@@ -3,7 +3,7 @@
 
 @checked function cutensorInit(handle)
     initialize_context()
-    ccall((:cutensorInit, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorInit, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t},),
                    handle)
 end
@@ -11,7 +11,7 @@ end
 @checked function cutensorInitTensorDescriptor(handle, desc, numModes, extent, stride,
                                                dataType, unaryOp)
     initialize_context()
-    ccall((:cutensorInitTensorDescriptor, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorInitTensorDescriptor, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, Ptr{cutensorTensorDescriptor_t}, UInt32,
                     Ptr{Int64}, Ptr{Int64}, cudaDataType_t, cutensorOperator_t),
                    handle, desc, numModes, extent, stride, dataType, unaryOp)
@@ -21,7 +21,7 @@ end
                                              descB, modeB, gamma, C, descC, modeC, D,
                                              descD, modeD, opAB, opABC, typeScalar, stream)
     initialize_context()
-    ccall((:cutensorElementwiseTrinary, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorElementwiseTrinary, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, Ptr{Cvoid},
                     PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t}, Ptr{Int32},
@@ -37,7 +37,7 @@ end
                                             descC, modeC, D, descD, modeD, opAC,
                                             typeScalar, stream)
     initialize_context()
-    ccall((:cutensorElementwiseBinary, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorElementwiseBinary, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, Ptr{Cvoid},
                     PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t}, Ptr{Int32},
@@ -50,7 +50,7 @@ end
 @checked function cutensorPermutation(handle, alpha, A, descA, modeA, B, descB, modeB,
                                       typeScalar, stream)
     initialize_context()
-    ccall((:cutensorPermutation, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorPermutation, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, PtrOrCuPtr{Cvoid},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, cudaDataType_t, CUstream),
@@ -63,7 +63,7 @@ end
                                                     alignmentRequirementC, descD, modeD,
                                                     alignmentRequirementD, computeType)
     initialize_context()
-    ccall((:cutensorInitContractionDescriptor, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorInitContractionDescriptor, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, Ptr{cutensorContractionDescriptor_t},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, UInt32,
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, UInt32,
@@ -77,14 +77,14 @@ end
 
 @checked function cutensorInitContractionFind(handle, find, algo)
     initialize_context()
-    ccall((:cutensorInitContractionFind, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorInitContractionFind, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, Ptr{cutensorContractionFind_t}, cutensorAlgo_t),
                    handle, find, algo)
 end
 
 @checked function cutensorContractionGetWorkspace(handle, desc, find, pref, workspaceSize)
     initialize_context()
-    ccall((:cutensorContractionGetWorkspace, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorContractionGetWorkspace, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, Ptr{cutensorContractionDescriptor_t},
                     Ptr{cutensorContractionFind_t}, cutensorWorksizePreference_t,
                     Ptr{UInt64}),
@@ -93,7 +93,7 @@ end
 
 @checked function cutensorInitContractionPlan(handle, plan, desc, find, workspaceSize)
     initialize_context()
-    ccall((:cutensorInitContractionPlan, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorInitContractionPlan, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, Ptr{cutensorContractionPlan_t},
                     Ptr{cutensorContractionDescriptor_t}, Ptr{cutensorContractionFind_t},
                     UInt64),
@@ -103,7 +103,7 @@ end
 @checked function cutensorContraction(handle, plan, alpha, A, B, beta, C, D, workspace,
                                       workspaceSize, stream)
     initialize_context()
-    ccall((:cutensorContraction, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorContraction, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, Ptr{cutensorContractionPlan_t}, Ptr{Cvoid},
                     PtrOrCuPtr{Cvoid}, PtrOrCuPtr{Cvoid}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
                     PtrOrCuPtr{Cvoid}, CuPtr{Cvoid}, UInt64, CUstream),
@@ -112,7 +112,7 @@ end
 
 @checked function cutensorContractionMaxAlgos(maxNumAlgos)
     initialize_context()
-    ccall((:cutensorContractionMaxAlgos, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorContractionMaxAlgos, libcutensor), cutensorStatus_t,
                    (Ptr{Int32},),
                    maxNumAlgos)
 end
@@ -121,7 +121,7 @@ end
                                     D, descD, modeD, opReduce, minTypeCompute, workspace,
                                     workspaceSize, stream)
     initialize_context()
-    ccall((:cutensorReduction, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorReduction, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, Ptr{Cvoid},
                     PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t}, Ptr{Int32},
@@ -136,7 +136,7 @@ end
                                                 D, descD_, modeD, opReduce, typeCompute,
                                                 workspaceSize)
     initialize_context()
-    ccall((:cutensorReductionGetWorkspace, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorReductionGetWorkspace, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, PtrOrCuPtr{Cvoid},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, PtrOrCuPtr{Cvoid},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, PtrOrCuPtr{Cvoid},
@@ -148,24 +148,24 @@ end
 
 @checked function cutensorGetAlignmentRequirement(handle, ptr, desc, alignmentRequirement)
     initialize_context()
-    ccall((:cutensorGetAlignmentRequirement, libcutensor()), cutensorStatus_t,
+    ccall((:cutensorGetAlignmentRequirement, libcutensor), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, PtrOrCuPtr{Cvoid},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{UInt32}),
                    handle, ptr, desc, alignmentRequirement)
 end
 
 function cutensorGetErrorString(error)
-    ccall((:cutensorGetErrorString, libcutensor()), Cstring,
+    ccall((:cutensorGetErrorString, libcutensor), Cstring,
                    (cutensorStatus_t,),
                    error)
 end
 
 function cutensorGetVersion()
-    ccall((:cutensorGetVersion, libcutensor()), Csize_t, ())
+    ccall((:cutensorGetVersion, libcutensor), Csize_t, ())
 end
 
 function cutensorGetCudartVersion()
-    ccall((:cutensorGetCudartVersion, libcutensor()), Csize_t, ())
+    ccall((:cutensorGetCudartVersion, libcutensor), Csize_t, ())
 end
 
 
@@ -173,30 +173,30 @@ end
 
 @checked function cutensorHandleWriteCacheToFile(handle, filename)
     initialize_context()
-    ccall((:cutensorHandleWriteCacheToFile, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{UInt8}), handle, filename)
+    ccall((:cutensorHandleWriteCacheToFile, libcutensor), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{UInt8}), handle, filename)
 end
 
 @checked function cutensorContractionFindSetAttribute(handle, find, attr, buf, sizeInBytes)
     initialize_context()
-    ccall((:cutensorContractionFindSetAttribute, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{cutensorContractionFind_t}, cutensorContractionFindAttributes_t, Ptr{Cvoid}, Csize_t), handle, find, attr, buf, sizeInBytes)
+    ccall((:cutensorContractionFindSetAttribute, libcutensor), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{cutensorContractionFind_t}, cutensorContractionFindAttributes_t, Ptr{Cvoid}, Csize_t), handle, find, attr, buf, sizeInBytes)
 end
 
 @checked function cutensorHandleReadCacheFromFile(handle, filename, numCachelinesRead)
     initialize_context()
-    ccall((:cutensorHandleReadCacheFromFile, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{UInt8}, Ref{UInt32}), handle, filename, numCachelinesRead)
+    ccall((:cutensorHandleReadCacheFromFile, libcutensor), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{UInt8}, Ref{UInt32}), handle, filename, numCachelinesRead)
 end
 
 @checked function cutensorContractionDescriptorSetAttribute(handle, desc, attr, buf, sizeInBytes)
     initialize_context()
-    ccall((:cutensorContractionDescriptorSetAttribute, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{cutensorContractionDescriptor_t}, cutensorContractionDescriptorAttributes_t, Ptr{Cvoid}, Csize_t), handle, desc, attr, buf, sizeInBytes)
+    ccall((:cutensorContractionDescriptorSetAttribute, libcutensor), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{cutensorContractionDescriptor_t}, cutensorContractionDescriptorAttributes_t, Ptr{Cvoid}, Csize_t), handle, desc, attr, buf, sizeInBytes)
 end
 
 @checked function cutensorHandleDetachPlanCachelines(handle)
     initialize_context()
-    ccall((:cutensorHandleDetachPlanCachelines, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t},), handle)
+    ccall((:cutensorHandleDetachPlanCachelines, libcutensor), cutensorStatus_t, (Ptr{cutensorHandle_t},), handle)
 end
 
 @checked function cutensorHandleAttachPlanCachelines(handle, cachelines, numCachelines)
     initialize_context()
-    ccall((:cutensorHandleAttachPlanCachelines, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{cutensorPlanCacheline_t}, UInt32), handle, cachelines, numCachelines)
+    ccall((:cutensorHandleAttachPlanCachelines, libcutensor), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{cutensorPlanCacheline_t}, UInt32), handle, cachelines, numCachelines)
 end
