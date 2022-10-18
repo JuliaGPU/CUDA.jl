@@ -76,73 +76,45 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     end
 end
 
-Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
-Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
+Base.:(+)(A::CuSparseMatrixCSR{T,M}, B::CuSparseMatrixCSR{T,M}) where {T,M} = geam(one(T), A, one(T), B, 'O')
+Base.:(-)(A::CuSparseMatrixCSR{T,M}, B::CuSparseMatrixCSR{T,M}) where {T,M} = geam(one(T), A, -one(T), B, 'O')
 
-Base.:(+)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = A + Transpose(conj(B.parent))
-Base.:(-)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = A - Transpose(conj(B.parent))
-Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = Transpose(conj(A.parent)) + B
-Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = Transpose(conj(A.parent)) - B
+Base.:(+)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = A + _spadjoint(parent(B))
+Base.:(-)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = A - _spadjoint(parent(B))
+Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = _spadjoint(parent(A)) + B
+Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = _spadjoint(parent(A)) - B
 Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} =
-    Transpose(conj(A.parent)) + B
+    _spadjoint(parent(A)) + _spadjoint(parent(B))
 Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} =
-    Transpose(conj(A.parent)) - B
+    _spadjoint(parent(A)) - _spadjoint(parent(B))
 
-function Base.:(+)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
-    cscB = CuSparseMatrixCSC(B.parent)
-    transB = CuSparseMatrixCSR(cscB.colPtr, cscB.rowVal, cscB.nzVal, size(cscB))
-    return geam(one(T), A, one(T), transB, 'O')
-end
+Base.:(+)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = A + _sptranspose(parent(B))
+Base.:(-)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = A - _sptranspose(parent(B))
+Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = _sptranspose(parent(A)) + B
+Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = _sptranspose(parent(A)) - B
+Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = 
+    _sptranspose(parent(A)) + _sptranspose(parent(B))
+Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = 
+    _sptranspose(parent(A)) - _sptranspose(parent(B))
 
-function Base.:(-)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
-    cscB = CuSparseMatrixCSC(B.parent)
-    transB = CuSparseMatrixCSR(cscB.colPtr, cscB.rowVal, cscB.nzVal, size(cscB))
-    return geam(one(T), A, -one(T), transB, 'O')
-end
+Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrix) = A + CuSparseMatrixCSR(B)
+Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrix) = A - CuSparseMatrixCSR(B)
+Base.:(+)(A::CuSparseMatrix, B::CuSparseMatrixCSR) = CuSparseMatrixCSR(A) + B
+Base.:(-)(A::CuSparseMatrix, B::CuSparseMatrixCSR) = CuSparseMatrixCSR(A) - B
 
-function Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T}
-    cscA = CuSparseMatrixCSC(A.parent)
-    transA = CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, size(cscA))
-    geam(one(T), transA, one(T), B, 'O')
-end
+Base.:(+)(A::Union{CuSparseMatrixCSC{T}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}, 
+          B::Union{CuSparseMatrixCSC{T}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}) where {T} =
+    CuSparseMatrixCSC(CuSparseMatrixCSR(A) + CuSparseMatrixCSR(B))
+Base.:(-)(A::Union{CuSparseMatrixCSC{T}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}, 
+          B::Union{CuSparseMatrixCSC{T}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}) where {T} =
+    CuSparseMatrixCSC(CuSparseMatrixCSR(A) - CuSparseMatrixCSR(B))
 
-function Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T}
-    cscA = CuSparseMatrixCSC(A.parent)
-    transA = CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, size(cscA))
-    geam(one(T), transA, -one(T), B, 'O')
-end
-
-function Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
-    C = geam(one(T), A.parent, one(T), B.parent, 'O')
-    cscC = CuSparseMatrixCSC(C)
-    return CuSparseMatrixCSR(cscC.colPtr, cscC.rowVal, cscC.nzVal, size(cscC))
-end
-
-function Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
-    C = geam(one(T), A.parent, -one(T), B.parent, 'O')
-    cscC = CuSparseMatrixCSC(C)
-    return CuSparseMatrixCSR(cscC.colPtr, cscC.rowVal, cscC.nzVal, size(cscC))
-end
-
-function Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrix)
-    csrB = CuSparseMatrixCSR(B)
-    return geam(one(eltype(A)), A, one(eltype(A)), csrB, 'O')
-end
-
-function Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrix)
-    csrB = CuSparseMatrixCSR(B)
-    return geam(one(eltype(A)), A, -one(eltype(A)), csrB, 'O')
-end
-
-function Base.:(+)(A::CuSparseMatrix, B::CuSparseMatrixCSR)
-    csrA = CuSparseMatrixCSR(A)
-    return geam(one(eltype(A)), csrA, one(eltype(A)), B, 'O')
-end
-
-function Base.:(-)(A::CuSparseMatrix, B::CuSparseMatrixCSR)
-    csrA = CuSparseMatrixCSR(A)
-    return geam(one(eltype(A)), csrA, -one(eltype(A)), B, 'O')
-end
+Base.:(+)(A::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}, 
+          B::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}) where {T} =
+    CuSparseMatrixCOO(CuSparseMatrixCSR(A) + CuSparseMatrixCSR(B))
+Base.:(-)(A::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}, 
+          B::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}) where {T} =
+    CuSparseMatrixCOO(CuSparseMatrixCSR(A) - CuSparseMatrixCSR(B))
 
 function Base.reshape(A::CuSparseMatrixCOO{T,M}, dims::NTuple{N,Int}) where {T,N,M}
     nrows, ncols = size(A)
@@ -198,27 +170,6 @@ function LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}
     CuSparseMatrixCOO(gemm('N', 'N', one(T), A2, B2, 'O'))
 end
 
-LinearAlgebra.:(*)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR{T,M}) where {T,M} = _sptranspose(parent(A)) * B
-LinearAlgebra.:(*)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = _sptranspose(parent(A)) * _sptranspose(parent(B))
-LinearAlgebra.:(*)(A::CuSparseMatrixCSR{T,M}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T,M} = A * _sptranspose(parent(B))
-LinearAlgebra.:(*)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR{T,M}) where {T,M} = _spadjoint(parent(A)) * B
-LinearAlgebra.:(*)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = _spadjoint(parent(A)) * _spadjoint(parent(B))
-LinearAlgebra.:(*)(A::CuSparseMatrixCSR{T,M}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T,M} = A * _spadjoint(parent(B))
-
-LinearAlgebra.:(*)(A::Transpose{T,<:CuSparseMatrixCSC}, B::CuSparseMatrixCSC{T,M}) where {T,M} = _sptranspose(parent(A)) * B
-LinearAlgebra.:(*)(A::Transpose{T,<:CuSparseMatrixCSC}, B::Transpose{T,<:CuSparseMatrixCSC}) where {T} = _sptranspose(parent(A)) * _sptranspose(parent(B))
-LinearAlgebra.:(*)(A::CuSparseMatrixCSC{T,M}, B::Transpose{T,<:CuSparseMatrixCSC}) where {T,M} = A * _sptranspose(parent(B))
-LinearAlgebra.:(*)(A::Adjoint{T,<:CuSparseMatrixCSC}, B::CuSparseMatrixCSC{T,M}) where {T,M} = _spadjoint(parent(A)) * B
-LinearAlgebra.:(*)(A::Adjoint{T,<:CuSparseMatrixCSC}, B::Adjoint{T,<:CuSparseMatrixCSC}) where {T} = _spadjoint(parent(A)) * _spadjoint(parent(B))
-LinearAlgebra.:(*)(A::CuSparseMatrixCSC{T,M}, B::Adjoint{T,<:CuSparseMatrixCSC}) where {T,M} = A * _spadjoint(parent(B))
-
-LinearAlgebra.:(*)(A::Transpose{T,<:CuSparseMatrixCOO}, B::CuSparseMatrixCOO{T,M}) where {T,M} = _sptranspose(parent(A)) * B
-LinearAlgebra.:(*)(A::Transpose{T,<:CuSparseMatrixCOO}, B::Transpose{T,<:CuSparseMatrixCOO}) where {T} = _sptranspose(parent(A)) * _sptranspose(parent(B))
-LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T,M}, B::Transpose{T,<:CuSparseMatrixCOO}) where {T,M} = A * _sptranspose(parent(B))
-LinearAlgebra.:(*)(A::Adjoint{T,<:CuSparseMatrixCOO}, B::CuSparseMatrixCOO{T,M}) where {T,M} = _spadjoint(parent(A)) * B
-LinearAlgebra.:(*)(A::Adjoint{T,<:CuSparseMatrixCOO}, B::Adjoint{T,<:CuSparseMatrixCOO}) where {T} = _spadjoint(parent(A)) * _spadjoint(parent(B))
-LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T,M}, B::Adjoint{T,<:CuSparseMatrixCOO}) where {T,M} = A * _spadjoint(parent(B))
-
 function SparseArrays.droptol!(A::CuSparseMatrixCOO{T,M}, tol::Real) where {T,M}
     mask = abs.(A.nzVal) .> tol
     rows = A.rowInd[mask]
@@ -251,6 +202,13 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR, :CuSparseMatrix
             cscA = CuSparseMatrixCSC(A)
             $SparseMatrixType( CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA))) )
         end
+
+        LinearAlgebra.:(*)(A::Transpose{T,<:$SparseMatrixType}, B::$SparseMatrixType{T,M}) where {T,M} = _sptranspose(parent(A)) * B
+        LinearAlgebra.:(*)(A::Transpose{T,<:$SparseMatrixType}, B::Transpose{T,<:$SparseMatrixType}) where {T} = _sptranspose(parent(A)) * _sptranspose(parent(B))
+        LinearAlgebra.:(*)(A::$SparseMatrixType{T,M}, B::Transpose{T,<:$SparseMatrixType}) where {T,M} = A * _sptranspose(parent(B))
+        LinearAlgebra.:(*)(A::Adjoint{T,<:$SparseMatrixType}, B::$SparseMatrixType{T,M}) where {T,M} = _spadjoint(parent(A)) * B
+        LinearAlgebra.:(*)(A::Adjoint{T,<:$SparseMatrixType}, B::Adjoint{T,<:$SparseMatrixType}) where {T} = _spadjoint(parent(A)) * _spadjoint(parent(B))
+        LinearAlgebra.:(*)(A::$SparseMatrixType{T,M}, B::Adjoint{T,<:$SparseMatrixType}) where {T,M} = A * _spadjoint(parent(B))
     end
 end
 
