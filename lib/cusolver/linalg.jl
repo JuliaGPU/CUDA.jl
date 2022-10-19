@@ -73,19 +73,19 @@ end
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
     A2 = copy(A)
-    CUSOLVER.syevd!('V', 'U', A2)
+    syevd!('V', 'U', A2)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasFloat}
     A2 = copy(A)
-    CUSOLVER.heevd!('V', 'U', A2)
+    heevd!('V', 'U', A2)
 end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
     A2 = copy(A)
-    issymmetric(A) ? CUSOLVER.syevd!('V', 'U', A2) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
+    issymmetric(A) ? syevd!('V', 'U', A2) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
 end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasComplex}
     A2 = copy(A)
-    ishermitian(A) ? CUSOLVER.heevd!('V', 'U', A2) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
+    ishermitian(A) ? heevd!('V', 'U', A2) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
 end
 
 

@@ -1,11 +1,11 @@
 using LinearAlgebra
 using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
 
-function sum_dim1(A::CuSparseMatrixCSR)
-    function kernel(Tnorm, out, dA)
+function sum_dim1(A::CuSparseMatrixCSR{T,N}) where {T,N}
+    function kernel(T, out, dA)
         idx = (blockIdx().x-1) * blockDim().x + threadIdx().x
         idx < length(dA.rowPtr) || return
-        s = zero(Tnorm)
+        s = zero(T)
         for k in dA.rowPtr[idx]:dA.rowPtr[idx+1]-1
             s += abs(dA.nzVal[k])
         end
@@ -14,22 +14,21 @@ function sum_dim1(A::CuSparseMatrixCSR)
     end
 
     m, n = size(A)
-    Tnorm = eltype(A)
     rowsum = CuVector{Float64}(undef, m)
-    kernel_f = @cuda launch=false kernel(Tnorm, rowsum, A)
+    kernel_f = @cuda launch=false kernel(T, rowsum, A)
     
     config = launch_configuration(kernel_f.fun)
     threads = min(n, config.threads)
     blocks = cld(n, threads)
-    kernel_f(Tnorm, rowsum, A; threads, blocks)
+    kernel_f(T, rowsum, A; threads, blocks)
     return rowsum
 end
 
-function sum_dim2(A::CuSparseMatrixCSR)
-    function kernel(Tnorm, out, dA)
+function sum_dim2(A::CuSparseMatrixCSR{T,N}) where {T,N}
+    function kernel(T, out, dA)
         idx = (blockIdx().x-1) * blockDim().x + threadIdx().x
         idx < length(dA.colPtr) || return
-        s = zero(Tnorm)
+        s = zero(T)
         for k in dA.colPtr[idx]:dA.colPtr[idx+1]-1
             s += abs(dA.nzVal[k])
         end
@@ -39,14 +38,13 @@ function sum_dim2(A::CuSparseMatrixCSR)
 
     A = CuSparseMatrixCSC(A)
     m, n = size(A)
-    Tnorm = eltype(A)
-    colsum = CUDA.CuArray{Float64}(undef, n)
-    kernel_f = @cuda launch=false kernel(Tnorm, colsum, A)
+    colsum = CuArray{Float64}(undef, n)
+    kernel_f = @cuda launch=false kernel(T, colsum, A)
     
     config = launch_configuration(kernel_f.fun)
     threads = min(m, config.threads)
     blocks = cld(m, threads)
-    kernel_f(Tnorm, colsum, A; threads, blocks)
+    kernel_f(T, colsum, A; threads, blocks)
     return colsum
 end
 
@@ -120,26 +118,41 @@ end
 
 for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
     @eval begin
-        LinearAlgebra.triu(A::$SparseMatrixType{T,M}, k::Integer) where {T,M} = $SparseMatrixType( triu(CuSparseMatrixCOO(A), k) )
-        LinearAlgebra.triu(A::Transpose{T,<:$SparseMatrixType}, k::Integer) where {T} = $SparseMatrixType( triu(CuSparseMatrixCOO(_sptranspose(parent(A))), k) )
-        LinearAlgebra.triu(A::Adjoint{T,<:$SparseMatrixType}, k::Integer) where {T} = $SparseMatrixType( triu(CuSparseMatrixCOO(_spadjoint(parent(A))), k) )
+        LinearAlgebra.triu(A::$SparseMatrixType{T,M}, k::Integer) where {T,M} = 
+            $SparseMatrixType( triu(CuSparseMatrixCOO(A), k) )
+        LinearAlgebra.triu(A::Transpose{T,<:$SparseMatrixType}, k::Integer) where {T} = 
+            $SparseMatrixType( triu(CuSparseMatrixCOO(_sptranspose(parent(A))), k) )
+        LinearAlgebra.triu(A::Adjoint{T,<:$SparseMatrixType}, k::Integer) where {T} = 
+            $SparseMatrixType( triu(CuSparseMatrixCOO(_spadjoint(parent(A))), k) )
         
-        LinearAlgebra.tril(A::$SparseMatrixType{T,M}, k::Integer) where {T,M} = $SparseMatrixType( tril(CuSparseMatrixCOO(A), k) )
-        LinearAlgebra.tril(A::Transpose{T,<:$SparseMatrixType}, k::Integer) where {T} = $SparseMatrixType( tril(CuSparseMatrixCOO(_sptranspose(parent(A))), k) )
-        LinearAlgebra.tril(A::Adjoint{T,<:$SparseMatrixType}, k::Integer) where {T} = $SparseMatrixType( tril(CuSparseMatrixCOO(_spadjoint(parent(A))), k) )
+        LinearAlgebra.tril(A::$SparseMatrixType{T,M}, k::Integer) where {T,M} = 
+            $SparseMatrixType( tril(CuSparseMatrixCOO(A), k) )
+        LinearAlgebra.tril(A::Transpose{T,<:$SparseMatrixType}, k::Integer) where {T} = 
+            $SparseMatrixType( tril(CuSparseMatrixCOO(_sptranspose(parent(A))), k) )
+        LinearAlgebra.tril(A::Adjoint{T,<:$SparseMatrixType}, k::Integer) where {T} = 
+            $SparseMatrixType( tril(CuSparseMatrixCOO(_spadjoint(parent(A))), k) )
         
-        LinearAlgebra.triu(A::Union{$SparseMatrixType{T,M}, Transpose{T,<:$SparseMatrixType}, Adjoint{T,<:$SparseMatrixType}}) where {T,M} = $SparseMatrixType( triu(CuSparseMatrixCOO(A), 0) )
-        LinearAlgebra.tril(A::Union{$SparseMatrixType{T,M}, Transpose{T,<:$SparseMatrixType}, Adjoint{T,<:$SparseMatrixType}}) where {T,M} = $SparseMatrixType( tril(CuSparseMatrixCOO(A), 0) )
+        LinearAlgebra.triu(A::Union{$SparseMatrixType{T,M}, Transpose{T,<:$SparseMatrixType}, Adjoint{T,<:$SparseMatrixType}}) where {T,M} = 
+            $SparseMatrixType( triu(CuSparseMatrixCOO(A), 0) )
+        LinearAlgebra.tril(A::Union{$SparseMatrixType{T,M}, Transpose{T,<:$SparseMatrixType}, Adjoint{T,<:$SparseMatrixType}}) where {T,M} = 
+            $SparseMatrixType( tril(CuSparseMatrixCOO(A), 0) )
 
-        LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::$SparseMatrixType{T,M}) where {T,M} = $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(B)) )
+        LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::$SparseMatrixType{T,M}) where {T,M} = 
+            $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(B)) )
         
-        LinearAlgebra.kron(A::Transpose{T,<:$SparseMatrixType}, B::$SparseMatrixType{T,M}) where {T,M} = $SparseMatrixType( kron(CuSparseMatrixCOO(_sptranspose(parent(A))), CuSparseMatrixCOO(B)) )
-        LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::Transpose{T,<:$SparseMatrixType}) where {T,M} = $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(_sptranspose(parent(B)))) )
-        LinearAlgebra.kron(A::Transpose{T,<:$SparseMatrixType}, B::Transpose{T,<:$SparseMatrixType}) where {T} = $SparseMatrixType( kron(CuSparseMatrixCOO(_sptranspose(parent(A))), CuSparseMatrixCOO(_sptranspose(parent(B)))) )
+        LinearAlgebra.kron(A::Transpose{T,<:$SparseMatrixType}, B::$SparseMatrixType{T,M}) where {T,M} = 
+            $SparseMatrixType( kron(CuSparseMatrixCOO(_sptranspose(parent(A))), CuSparseMatrixCOO(B)) )
+        LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::Transpose{T,<:$SparseMatrixType}) where {T,M} = 
+            $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(_sptranspose(parent(B)))) )
+        LinearAlgebra.kron(A::Transpose{T,<:$SparseMatrixType}, B::Transpose{T,<:$SparseMatrixType}) where {T} = 
+            $SparseMatrixType( kron(CuSparseMatrixCOO(_sptranspose(parent(A))), CuSparseMatrixCOO(_sptranspose(parent(B)))) )
         
-        LinearAlgebra.kron(A::Adjoint{T,<:$SparseMatrixType}, B::$SparseMatrixType{T,M}) where {T,M} = $SparseMatrixType( kron(CuSparseMatrixCOO(_spadjoint(parent(A))), CuSparseMatrixCOO(B)) )
-        LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::Adjoint{T,<:$SparseMatrixType}) where {T,M} = $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(_spadjoint(parent(B)))) )
-        LinearAlgebra.kron(A::Adjoint{T,<:$SparseMatrixType}, B::Adjoint{T,<:$SparseMatrixType}) where {T} = $SparseMatrixType( kron(CuSparseMatrixCOO(_spadjoint(parent(A))), CuSparseMatrixCOO(_spadjoint(parent(B)))) )
+        LinearAlgebra.kron(A::Adjoint{T,<:$SparseMatrixType}, B::$SparseMatrixType{T,M}) where {T,M} = 
+            $SparseMatrixType( kron(CuSparseMatrixCOO(_spadjoint(parent(A))), CuSparseMatrixCOO(B)) )
+        LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::Adjoint{T,<:$SparseMatrixType}) where {T,M} = 
+            $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(_spadjoint(parent(B)))) )
+        LinearAlgebra.kron(A::Adjoint{T,<:$SparseMatrixType}, B::Adjoint{T,<:$SparseMatrixType}) where {T} = 
+            $SparseMatrixType( kron(CuSparseMatrixCOO(_spadjoint(parent(A))), CuSparseMatrixCOO(_spadjoint(parent(B)))) )
 
         function LinearAlgebra.exp(A::$SparseMatrixType{T,M}; threshold = 1e-7, nonzero_tol = 1e-14) where {T,M}
             rows = LinearAlgebra.checksquare(A) # Throws exception if not square
