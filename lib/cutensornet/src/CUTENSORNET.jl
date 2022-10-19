@@ -4,13 +4,23 @@ using CUDA
 using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace
 using CUDA: @retry_reclaim, initialize_context
 
-using CUTENSOR
-
 using CEnum: @cenum
 
-const cudaDataType_t = cudaDataType
+using cuQuantum_jll
 
-include("bindeps.jl")
+
+export has_cutensornet
+
+function has_cutensornet(show_reason::Bool=false)
+    if !isdefined(cuQuantum_jll, :libcutensornet)
+        show_reason && error("cuTensorNet library not found")
+        return false
+    end
+    return true
+end
+
+
+const cudaDataType_t = cudaDataType
 
 # core library
 include("libcutensornet_common.jl")
