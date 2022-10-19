@@ -280,7 +280,7 @@ steps:
       - label: "Documentation"
         plugins:
           - JuliaCI/julia#v1:
-              version: 1.6
+              version: 1.8
         command: |
           julia --project -e '
             println("--- :julia: Instantiating project")

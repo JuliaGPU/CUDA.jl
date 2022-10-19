@@ -2,9 +2,10 @@
 
 *CUDA programming in Julia*
 
-| **Documentation**                                                         | **Build Status**                                                    | **Performance**                     |
-|:-------------------------------------------------------------------------:|:-------------------------------------------------------------------:|:-----------------------------------:|
-| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][buildkite-img]][buildkite-url] [![][codecov-img]][codecov-url] | [![][codespeed-trend-img]][codespeed-trend-url] [![][codespeed-chart-img]][codespeed-chart-url] |
+[![][doi-img]][doi-url] [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] [![][buildkite-img]][buildkite-url] [![][codecov-img]][codecov-url] [![][codespeed-trend-img]][codespeed-trend-url] [![][codespeed-chart-img]][codespeed-chart-url]
+
+[doi-img]: https://zenodo.org/badge/doi/10.1109/TPDS.2018.2872064.svg
+[doi-url]: https://ieeexplore.ieee.org/abstract/document/8471188
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-stable-url]: https://cuda.juliagpu.org/stable/
@@ -18,10 +19,10 @@
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CUDA.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDA.jl
 
-[codespeed-chart-img]: https://img.shields.io/badge/benchmarks-Chart-informational
+[codespeed-chart-img]: https://img.shields.io/badge/benchmarks-Chart-yellowgreen
 [codespeed-chart-url]: https://speed.juliagpu.org/timeline/#/?exe=6&env=1&base=none&ben=grid&revs=50
 
-[codespeed-trend-img]: https://img.shields.io/badge/benchmarks-Trend-informational
+[codespeed-trend-img]: https://img.shields.io/badge/benchmarks-Trend-yellowgreen
 [codespeed-trend-url]: https://speed.juliagpu.org/changes/?exe=6&env=1&tre=50
 
 The CUDA.jl package is the main programming interface for working with NVIDIA CUDA GPUs
@@ -32,11 +33,11 @@ kernels in Julia, and wrappers for various CUDA libraries.
 ## Requirements
 
 The latest development version of CUDA.jl requires **Julia 1.6** or higher. If you are using
-an older version of Julia, you need to use a released version of CUDA.jl. This will happen
+an older version of Julia, you need to use a previous version of CUDA.jl. This will happen
 automatically when you install the package using Julia's package manager.
 
 CUDA.jl currently also requires a CUDA-capable GPU with **compute capability 3.5** (Kepler)
-or higher, and an accompanying NVIDIA driver with support for **CUDA 10.1** or newer. These
+or higher, and an accompanying NVIDIA driver with support for **CUDA 10.2** or newer. These
 requirements are not enforced by the Julia package manager when installing CUDA.jl.
 Depending on your system and GPU, you may need to install an older version of the package.
 
@@ -70,18 +71,8 @@ julia> CUDA.versioninfo()
 ```
 
 This may take a while, as it will precompile the package and download a suitable version of
-the CUDA toolkit. If you prefer to use your own (not recommended), set the
-`JULIA_CUDA_USE_BINARYBUILDER` environment variable to `false` before importing the package.
-
-If your GPU is not fully supported, the above command (or any other command that initializes
-the toolkit) will issue a warning. Your devices' compute capability will be listed as part of
-the `versioninfo()` output, but you can always query it explicitly:
-
-```julia
-julia> [CUDA.capability(dev) for dev in CUDA.devices()]
-1-element Vector{VersionNumber}:
- v"5.0.0"
-```
+the CUDA toolkit. If your GPU is not fully supported, the above command (or any other
+command that initializes the toolkit) will issue a warning.
 
 For more usage instructions and other information, please refer to [the
 documentation](https://juliagpu.github.io/CUDA.jl/stable/).
@@ -99,9 +90,9 @@ root of this repository lists the relevant papers.
 
 ## Project Status
 
-The package is tested against, and being developed for, Julia 1.3 and above. Main
-development and testing happens on Linux, but the package is expected to work on macOS and
-Windows as well.
+The package is tested against, and being developed for, Julia 1.6 and above. Main
+development and testing happens on x86 Linux, but the package is expected to work on
+Windows, and on ARM and PowerPC as well.
 
 
 ## Questions and Contributions
@@ -112,4 +103,3 @@ channel of the [Julia Slack](https://julialang.org/community/).
 
 Contributions are very welcome, as are feature requests and suggestions. Please open an
 [issue](https://github.com/JuliaGPU/CUDA.jl/issues) if you encounter any problems.
-
