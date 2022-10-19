@@ -71,9 +71,13 @@ Base.unsafe_convert(::Type{cusparseSpVecDescr_t}, desc::CuSparseVectorDescriptor
 mutable struct CuDenseMatrixDescriptor
     handle::cusparseDnMatDescr_t
 
-    function CuDenseMatrixDescriptor(x::DenseCuMatrix)
+    function CuDenseMatrixDescriptor(A::DenseCuMatrix; transposed::Bool=false)
         desc_ref = Ref{cusparseDnMatDescr_t}()
-        cusparseCreateDnMat(desc_ref, size(x)..., stride(x,2), x, eltype(x), CUSPARSE_ORDER_COL)
+        if transposed
+            cusparseCreateDnMat(desc_ref, reverse(size(A))..., stride(A,2), A, eltype(A), 'R')
+        else
+            cusparseCreateDnMat(desc_ref, size(A)..., stride(A,2), A, eltype(A), 'C')
+        end
         obj = new(desc_ref[])
         finalizer(cusparseDestroyDnMat, obj)
         obj
@@ -88,14 +92,23 @@ Base.unsafe_convert(::Type{cusparseDnMatDescr_t}, desc::CuDenseMatrixDescriptor)
 mutable struct CuSparseMatrixDescriptor
     handle::cusparseSpMatDescr_t
 
-    function CuSparseMatrixDescriptor(A::CuSparseMatrixCOO, IndexBase::Char)
+    function CuSparseMatrixDescriptor(A::CuSparseMatrixCOO, IndexBase::Char; transposed::Bool=false)
         desc_ref = Ref{cusparseSpMatDescr_t}()
-        cusparseCreateCoo(
-            desc_ref,
-            size(A)..., nnz(A),
-            A.rowInd, A.colInd, nonzeros(A),
-            eltype(A.rowInd), IndexBase, eltype(nonzeros(A))
-        )
+        if transposed
+            cusparseCreateCoo(
+                desc_ref,
+                reverse(size(A))..., nnz(A),
+                A.colInd, A.rowInd, nonzeros(A),
+                eltype(A.colInd), IndexBase, eltype(nonzeros(A))
+            )
+        else
+            cusparseCreateCoo(
+                desc_ref,
+                size(A)..., nnz(A),
+                A.rowInd, A.colInd, nonzeros(A),
+                eltype(A.rowInd), IndexBase, eltype(nonzeros(A))
+            )
+        end
         obj = new(desc_ref[])
         finalizer(cusparseDestroySpMat, obj)
         return obj
@@ -109,14 +122,23 @@ mutable struct CuSparseMatrixDescriptor
         return obj
     end
 
-    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSR, IndexBase::Char)
+    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSR, IndexBase::Char; transposed::Bool=false)
         desc_ref = Ref{cusparseSpMatDescr_t}()
-        cusparseCreateCsr(
-            desc_ref,
-            size(A)..., nnz(A),
-            A.rowPtr, A.colVal, nonzeros(A),
-            eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A))
-        )
+        if transposed
+            cusparseCreateCsc(
+                desc_ref,
+                reverse(size(A))..., nnz(A),
+                A.rowPtr, A.colVal, nonzeros(A),
+                eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A))
+            )
+        else
+            cusparseCreateCsr(
+                desc_ref,
+                size(A)..., nnz(A),
+                A.rowPtr, A.colVal, nonzeros(A),
+                eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A))
+            )
+        end
         obj = new(desc_ref[])
         finalizer(cusparseDestroySpMat, obj)
         return obj
@@ -130,11 +152,10 @@ mutable struct CuSparseMatrixDescriptor
         return obj
     end
 
-    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSC, IndexBase::Char; convert=false)
+    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSC, IndexBase::Char; transposed::Bool=false)
         desc_ref = Ref{cusparseSpMatDescr_t}()
-        if convert
-            # many algorithms, e.g. mv! and mm!, do not support CSC sparse format
-            # so we eagerly convert this to a CSR matrix.
+        if transposed
+            # many algorithms, e.g. mv!, mm!, sv! and sm! do not support CSC matrices but we can use CSR matrices that model their transposed.
             cusparseCreateCsr(
                 desc_ref,
                 reverse(size(A))..., nnz(A),
