@@ -213,8 +213,8 @@ Base.similar(Mat::CuSparseMatrixCSR, T::Type) = CuSparseMatrixCSR(copy(Mat.rowPt
 Base.similar(Mat::CuSparseMatrixBSR, T::Type) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), Mat.blockDim, Mat.dir, nnz(Mat), size(Mat))
 Base.similar(Mat::CuSparseMatrixCOO, T::Type) = CuSparseMatrixCOO(copy(Mat.rowInd), copy(Mat.colInd), similar(nonzeros(Mat), T), size(Mat), nnz(Mat))
 
-Base.similar(Mat::CuSparseMatrixCSC, T::Type, N::Int, M::Int) =  CuSparseMatrixCSC(CUDA.ones(Int32, M+1), CuArray{Int32}([]), CuArray{T}([]), (N,M))
-Base.similar(Mat::CuSparseMatrixCSR, T::Type, N::Int, M::Int) =  CuSparseMatrixCSR(CUDA.ones(Int32, N+1), CuArray{Int32}([]), CuArray{T}([]), (N,M))
+Base.similar(Mat::CuSparseMatrixCSC, T::Type, N::Int, M::Int) =  CuSparseMatrixCSC(CuVector{Int32}(undef, M+1), CuVector{Int32}(undef, 0), CuVector{T}(undef, 0), (N,M))
+Base.similar(Mat::CuSparseMatrixCSR, T::Type, N::Int, M::Int) =  CuSparseMatrixCSR(CuVector{Int32}(undef, N+1), CuVector{Int32}(undef, 0), CuVector{T}(undef, 0), (N,M))
 
 ## array interface
 
