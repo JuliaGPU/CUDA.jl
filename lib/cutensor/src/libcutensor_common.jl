@@ -1,8 +1,11 @@
 # Automatically generated using Clang.jl
 
 const CUTENSOR_MAJOR = 1
-const CUTENSOR_MINOR = 3
-const CUTENSOR_PATCH = 0
+const CUTENSOR_MINOR = 6
+const CUTENSOR_PATCH = 1
+const CUTENSOR_VERSION = CUTENSOR_MAJOR * 10000 + CUTENSOR_MINOR * 100 + CUTENSOR_PATCH
+
+# Skipping MacroDefinition: CUTENSOR_DEPRECATED ( new_func ) __attribute__ ( ( deprecated ( "please use " # new_func " instead." ) ) )
 
 @cenum cutensorOperator_t::UInt32 begin
     CUTENSOR_OP_IDENTITY = 1
@@ -55,6 +58,7 @@ end
 end
 
 @cenum cutensorAlgo_t::Int32 begin
+    CUTENSOR_ALGO_DEFAULT_PATIENT = -6
     CUTENSOR_ALGO_GETT = -4
     CUTENSOR_ALGO_TGETT = -3
     CUTENSOR_ALGO_TTGT = -2
@@ -139,3 +143,5 @@ end
 struct cutensorContractionFind_t
     fields::NTuple{64, Int64}
 end
+
+const cutensorLoggerCallback_t = Ptr{Cvoid}
