@@ -121,7 +121,7 @@ struct CSRIterator{Ti,N,ATs}
     args::ATs
 end
 
-function CSRIterator{Ti}(row, args::Vararg{<:Any, N}) where {Ti,N}
+function CSRIterator{Ti}(row, args::Vararg{Any, N}) where {Ti,N}
     # check that `row` is valid for all arguments
     @boundscheck begin
         ntuple(Val(N)) do i
@@ -206,7 +206,7 @@ struct CSCIterator{Ti,N,ATs}
     args::ATs
 end
 
-function CSCIterator{Ti}(col, args::Vararg{<:Any, N}) where {Ti,N}
+function CSCIterator{Ti}(col, args::Vararg{Any, N}) where {Ti,N}
     # check that `col` is valid for all arguments
     @boundscheck begin
         ntuple(Val(N)) do i
