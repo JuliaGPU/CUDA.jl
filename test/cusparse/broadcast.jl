@@ -1,5 +1,7 @@
 using CUDA.CUSPARSE, SparseArrays
 
+if VERSION >= v"1.7"
+
 m,n = 2,3
 p = 0.5
 
@@ -40,4 +42,6 @@ end
     x = CuSparseMatrixCSR(sparse([1, 2], [2, 1], [5.0, 5.0]))
     y = Int.(x)
     @test eltype(y) == Int
+end
+
 end

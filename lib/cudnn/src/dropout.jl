@@ -36,8 +36,6 @@ function cudnnDropoutForwardWithDefaults(
     reserveSpace::CuArray = cudnnDropoutReserveSpace(xDesc)
 )
     if cudnnDropoutSeed[] >= 0
-        # This is a very expensive call (40x dropout), so only use for debugging
-        @warn "CUDA.CUDNN.cudnnDropoutSeed[] >= 0: dropout operations will be deterministic but 40x more expensive" maxlog=1
         dropout, states, seed = cudnnGetDropoutDescriptor(dropoutDesc)
         hstate = cudnnDropoutState[handle()]
         @assert states == pointer(hstate)

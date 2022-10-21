@@ -16,13 +16,14 @@ k = 1
         d_A  = CuArray(A)
         d_B  = CuArray(B)
 
-        d_F  = cholesky(d_A, Val(false))
-        F    = cholesky(A, Val(false))
+        pivot = VERSION >= v"1.8" ? NoPivot() : Val(false)
+        d_F  = cholesky(d_A, pivot)
+        F    = cholesky(A, pivot)
         @test F.U   ≈ collect(d_F.U)
         @test F\(A'B) ≈ collect(d_F\(d_A'd_B))
 
-        d_F  = cholesky(Hermitian(d_A, :L), Val(false))
-        F    = cholesky(Hermitian(A, :L), Val(false))
+        d_F  = cholesky(Hermitian(d_A, :L), pivot)
+        F    = cholesky(Hermitian(A, :L), pivot)
         @test F.L   ≈ collect(d_F.L)
         @test F\(A'B) ≈ collect(d_F\(d_A'd_B))
 
