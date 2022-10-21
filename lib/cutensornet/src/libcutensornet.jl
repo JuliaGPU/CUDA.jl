@@ -3,11 +3,6 @@ function cutensornetGetCudartVersion()
     ccall((:cutensornetGetCudartVersion, libcutensornet), Csize_t, ())
 end
 
-@checked function cutensornetContraction(handle, plan, rawDataIn, rawDataOut, workspace, workspaceSize, sliceId, stream)
-    initialize_context()
-    ccall((:cutensornetContraction, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionPlan_t, Ptr{CuPtr{Cvoid}}, CuPtr{Cvoid}, CuPtr{Cvoid}, UInt64, Int64, CUstream), handle, plan, rawDataIn, rawDataOut, workspace, workspaceSize, sliceId, stream)
-end
-
 @checked function cutensornetCreateContractionOptimizerConfig(handle, optimizerConfig)
     initialize_context()
     ccall((:cutensornetCreateContractionOptimizerConfig, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, Ptr{cutensornetContractionOptimizerConfig_t}), handle, optimizerConfig)
@@ -18,11 +13,6 @@ end
     ccall((:cutensornetCreate, libcutensornet), cutensornetStatus_t, (Ptr{cutensornetHandle_t},), handle)
 end
 
-@checked function cutensornetContractionGetWorkspaceSize(handle, descNet, optimizerInfo, workspaceSize)
-    initialize_context()
-    ccall((:cutensornetContractionGetWorkspaceSize, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetNetworkDescriptor_t, cutensornetContractionOptimizerInfo_t, Ptr{UInt64}), handle, descNet, optimizerInfo, workspaceSize)
-end
-
 @checked function cutensornetDestroyContractionOptimizerInfo(optimizerInfo)
     initialize_context()
     ccall((:cutensornetDestroyContractionOptimizerInfo, libcutensornet), cutensornetStatus_t, (cutensornetContractionOptimizerInfo_t,), optimizerInfo)
@@ -30,11 +20,6 @@ end
 
 @checked function cutensornetLoggerOpenFile(logFile)
     ccall((:cutensornetLoggerOpenFile, libcutensornet), cutensornetStatus_t, (Cstring,), logFile)
-end
-
-@checked function cutensornetContractionAutotunePreferenceSetAttribute(handle, autotunePreference, attr, buf, sizeInBytes)
-    initialize_context()
-    ccall((:cutensornetContractionAutotunePreferenceSetAttribute, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionAutotunePreference_t, cutensornetContractionAutotunePreferenceAttributes_t, Ptr{Cvoid}, Csize_t), handle, autotunePreference, attr, buf, sizeInBytes)
 end
 
 @checked function cutensornetLoggerSetCallback(callback)
@@ -99,11 +84,6 @@ end
     ccall((:cutensornetDestroyNetworkDescriptor, libcutensornet), cutensornetStatus_t, (cutensornetNetworkDescriptor_t,), desc)
 end
 
-@checked function cutensornetContractionAutotune(handle, plan, rawDataIn, rawDataOut, workspace, workspaceSize, pref, stream)
-    initialize_context()
-    ccall((:cutensornetContractionAutotune, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionPlan_t, Ptr{CuPtr{Cvoid}}, CuPtr{Cvoid}, CuPtr{Cvoid}, UInt64, cutensornetContractionAutotunePreference_t, CUstream), handle, plan, rawDataIn, rawDataOut, workspace, workspaceSize, pref, stream)
-end
-
 @checked function cutensornetDestroyContractionAutotunePreference(autotunePreference)
     initialize_context()
     ccall((:cutensornetDestroyContractionAutotunePreference, libcutensornet), cutensornetStatus_t, (cutensornetContractionAutotunePreference_t,), autotunePreference)
@@ -141,7 +121,111 @@ end
     ccall((:cutensornetContractionAutotunePreferenceGetAttribute, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionAutotunePreference_t, cutensornetContractionAutotunePreferenceAttributes_t, Ptr{Cvoid}, Csize_t), handle, autotunePreference, attr, buf, sizeInBytes)
 end
 
-@checked function cutensornetCreateContractionPlan(handle, descNet, optimizerInfo, workspaceSize, plan)
+@checked function cutensornetContractionOptimizerInfoPackData(handle, optimizerInfo, buffer, sizeInBytes)
     initialize_context()
-    ccall((:cutensornetCreateContractionPlan, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetNetworkDescriptor_t, cutensornetContractionOptimizerInfo_t, UInt64, Ptr{cutensornetContractionPlan_t}), handle, descNet, optimizerInfo, workspaceSize, plan)
+    ccall((:cutensornetContractionOptimizerInfoPackData, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionOptimizerInfo_t, Ptr{Cvoid}, Csize_t), handle, optimizerInfo, buffer, sizeInBytes)
+end
+
+@checked function cutensornetWorkspaceComputeSizes(handle, descNet, optimizerInfo, workDesc)
+    initialize_context()
+    ccall((:cutensornetWorkspaceComputeSizes, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetNetworkDescriptor_t, cutensornetContractionOptimizerInfo_t, cutensornetWorkspaceDescriptor_t), handle, descNet, optimizerInfo, workDesc)
+end
+
+@checked function cutensornetDestroyWorkspaceDescriptor(desc)
+    initialize_context()
+    ccall((:cutensornetDestroyWorkspaceDescriptor, libcutensornet), cutensornetStatus_t, (cutensornetWorkspaceDescriptor_t,), desc)
+end
+
+@checked function cutensornetWorkspaceSet(handle, workDesc, memSpace, workspacePtr, workspaceSize)
+    initialize_context()
+    ccall((:cutensornetWorkspaceSet, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetWorkspaceDescriptor_t, cutensornetMemspace_t, Ptr{Cvoid}, UInt64), handle, workDesc, memSpace, workspacePtr, workspaceSize)
+end
+
+@checked function cutensornetDestroySliceGroup(sliceGroup)
+    initialize_context()
+    ccall((:cutensornetDestroySliceGroup, libcutensornet), cutensornetStatus_t, (cutensornetSliceGroup_t,), sliceGroup)
+end
+
+@checked function cutensornetContractionOptimizerInfoGetPackedSize(handle, optimizerInfo, sizeInBytes)
+    initialize_context()
+    ccall((:cutensornetContractionOptimizerInfoGetPackedSize, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionOptimizerInfo_t, Ptr{Csize_t}), handle, optimizerInfo, sizeInBytes)
+end
+
+@checked function cutensornetCreateSliceGroupFromIDRange(handle, sliceIdStart, sliceIdStop, sliceIdStep, sliceGroup)
+    initialize_context()
+    ccall((:cutensornetCreateSliceGroupFromIDRange, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, Int64, Int64, Int64, Ptr{cutensornetSliceGroup_t}), handle, sliceIdStart, sliceIdStop, sliceIdStep, sliceGroup)
+end
+
+@checked function cutensornetWorkspaceGet(handle, workDesc, memSpace, workspacePtr, workspaceSize)
+    initialize_context()
+    ccall((:cutensornetWorkspaceGet, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetWorkspaceDescriptor_t, cutensornetMemspace_t, Ptr{Ptr{Cvoid}}, Ptr{UInt64}), handle, workDesc, memSpace, workspacePtr, workspaceSize)
+end
+
+@checked function cutensornetUpdateContractionOptimizerInfoFromPackedData(handle, buffer, sizeInBytes, optimizerInfo)
+    initialize_context()
+    ccall((:cutensornetUpdateContractionOptimizerInfoFromPackedData, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, Ptr{Cvoid}, Csize_t, cutensornetContractionOptimizerInfo_t), handle, buffer, sizeInBytes, optimizerInfo)
+end
+
+@checked function cutensornetLoggerSetCallbackData(callback, userData)
+    initialize_context()
+    ccall((:cutensornetLoggerSetCallbackData, libcutensornet), cutensornetStatus_t, (cutensornetLoggerCallbackData_t, Ptr{Cvoid}), callback, userData)
+end
+
+@checked function cutensornetGetDeviceMemHandler(handle, devMemHandler)
+    initialize_context()
+    ccall((:cutensornetGetDeviceMemHandler, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, Ptr{cutensornetDeviceMemHandler_t}), handle, devMemHandler)
+end
+
+@checked function cutensornetCreateWorkspaceDescriptor(handle, workDesc)
+    initialize_context()
+    ccall((:cutensornetCreateWorkspaceDescriptor, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, Ptr{cutensornetWorkspaceDescriptor_t}), handle, workDesc)
+end
+
+@checked function cutensornetGetOutputTensorDetails(handle, descNet, numModesOut, dataSizeOut, modeLabelsOut, extentsOut, stridesOut)
+    initialize_context()
+    ccall((:cutensornetGetOutputTensorDetails, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetNetworkDescriptor_t, Ptr{Int32}, Ptr{Csize_t}, Ptr{Int32}, Ptr{Int64}, Ptr{Int64}), handle, descNet, numModesOut, dataSizeOut, modeLabelsOut, extentsOut, stridesOut)
+end
+
+@checked function cutensornetContractSlices(handle, plan, rawDataIn, rawDataOut, accumulateOutput, workDesc, sliceGroup, stream)
+    initialize_context()
+    ccall((:cutensornetContractSlices, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionPlan_t, Ptr{Ptr{Cvoid}}, Ptr{Cvoid}, Int32, cutensornetWorkspaceDescriptor_t, cutensornetSliceGroup_t, CUstream), handle, plan, rawDataIn, rawDataOut, accumulateOutput, workDesc, sliceGroup, stream)
+end
+
+@checked function cutensornetWorkspaceGetSize(handle, workDesc, workPref, memSpace, workspaceSize)
+    initialize_context()
+    ccall((:cutensornetWorkspaceGetSize, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetWorkspaceDescriptor_t, cutensornetWorksizePref_t, cutensornetMemspace_t, Ptr{UInt64}), handle, workDesc, workPref, memSpace, workspaceSize)
+end
+
+@checked function cutensornetCreateSliceGroupFromIDs(handle, beginIDSequence, endIDSequence, sliceGroup)
+    initialize_context()
+    ccall((:cutensornetCreateSliceGroupFromIDs, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, Ptr{Int64}, Ptr{Int64}, Ptr{cutensornetSliceGroup_t}), handle, beginIDSequence, endIDSequence, sliceGroup)
+end
+
+@checked function cutensornetSetDeviceMemHandler(handle, devMemHandler)
+    initialize_context()
+    ccall((:cutensornetSetDeviceMemHandler, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, Ptr{cutensornetDeviceMemHandler_t}), handle, devMemHandler)
+end
+
+@checked function cutensornetCreateContractionOptimizerInfoFromPackedData(handle, descNet, buffer, sizeInBytes, optimizerInfo)
+    initialize_context()
+    ccall((:cutensornetCreateContractionOptimizerInfoFromPackedData, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetNetworkDescriptor_t, Ptr{Cvoid}, Csize_t, Ptr{cutensornetContractionOptimizerInfo_t}), handle, descNet, buffer, sizeInBytes, optimizerInfo)
+end
+
+@checked function cutensornetContractionAutotunePreferenceSetAttribute(handle, autotunePreference, attr, buf, sizeInBytes)
+    initialize_context()
+    ccall((:cutensornetContractionAutotunePreferenceSetAttribute, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionAutotunePreference_t, cutensornetContractionAutotunePreferenceAttributes_t, Ptr{Cvoid}, Csize_t), handle, autotunePreference, attr, buf, sizeInBytes)
+end
+
+@checked function cutensornetContractionAutotune(handle, plan, rawDataIn, rawDataOut, workDesc, pref, stream)
+    initialize_context()
+    ccall((:cutensornetContractionAutotune, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionPlan_t, Ptr{Ptr{Cvoid}}, Ptr{Cvoid}, cutensornetWorkspaceDescriptor_t, cutensornetContractionAutotunePreference_t, CUstream), handle, plan, rawDataIn, rawDataOut, workDesc, pref, stream)
+end
+
+@checked function cutensornetCreateContractionPlan(handle, descNet, optimizerInfo, workDesc, plan)
+    initialize_context()
+    ccall((:cutensornetCreateContractionPlan, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetNetworkDescriptor_t, cutensornetContractionOptimizerInfo_t, cutensornetWorkspaceDescriptor_t, Ptr{cutensornetContractionPlan_t}), handle, descNet, optimizerInfo, workDesc, plan)
+end
+@checked function cutensornetContraction(handle, plan, rawDataIn, rawDataOut, workDesc, sliceId, stream)
+    initialize_context()
+    ccall((:cutensornetContraction, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionPlan_t, Ptr{Ptr{Cvoid}}, Ptr{Cvoid}, cutensornetWorkspaceDescriptor_t, Int64, CUstream), handle, plan, rawDataIn, rawDataOut, workDesc, sliceId, stream)
 end

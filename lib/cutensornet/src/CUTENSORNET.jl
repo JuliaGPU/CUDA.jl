@@ -69,8 +69,8 @@ end
 
 function version()
   ver = cutensornetGetVersion()
-  major, ver = divrem(ver, 1000)
-  minor, patch = divrem(ver, 10)
+  major, ver = divrem(ver, 10000)
+  minor, patch = divrem(ver, 100)
 
   VersionNumber(major, minor, patch)
 end

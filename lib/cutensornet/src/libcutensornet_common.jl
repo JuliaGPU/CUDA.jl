@@ -1,9 +1,12 @@
 # Automatically generated using Clang.jl
 
-const CUTENSORNET_MAJOR = 0
-const CUTENSORNET_MINOR = 0
+const CUTENSORNET_MAJOR = 1
+const CUTENSORNET_MINOR = 1
 const CUTENSORNET_PATCH = 1
 const CUTENSORNET_VERSION = CUTENSORNET_MAJOR * 10000 + CUTENSORNET_MINOR * 100 + CUTENSORNET_PATCH
+const CUTENSORNET_ALLOCATOR_NAME_LEN = 64
+
+# Skipping MacroDefinition: CUTENSORNET_DEPRECATED ( new_func ) __attribute__ ( ( deprecated ( "please use " # new_func " instead" ) ) )
 
 @cenum cutensornetStatus_t::UInt32 begin
     CUTENSORNET_STATUS_SUCCESS = 0
@@ -22,6 +25,8 @@ const CUTENSORNET_VERSION = CUTENSORNET_MAJOR * 10000 + CUTENSORNET_MINOR * 100 
     CUTENSORNET_STATUS_INSUFFICIENT_DRIVER = 20
     CUTENSORNET_STATUS_IO_ERROR = 21
     CUTENSORNET_STATUS_CUTENSOR_VERSION_MISMATCH = 22
+    CUTENSORNET_STATUS_NO_DEVICE_ALLOCATOR = 23
+    CUTENSORNET_STATUS_ALL_HYPER_SAMPLES_FAILED = 24
 end
 
 @cenum cutensornetComputeType_t::UInt32 begin
@@ -37,13 +42,19 @@ end
 end
 
 @cenum cutensornetGraphAlgo_t::UInt32 begin
-    CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_GRAPH_ALGORITHM_RB = 0
-    CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_GRAPH_ALGORITHM_KWAY = 1
+    CUTENSORNET_GRAPH_ALGO_RB = 0
+    CUTENSORNET_GRAPH_ALGO_KWAY = 1
 end
 
 @cenum cutensornetMemoryModel_t::UInt32 begin
-    CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SLICER_MEMORY_MODEL_HEURISTIC = 0
-    CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SLICER_MEMORY_MODEL_CUTENSOR = 1
+    CUTENSORNET_MEMORY_MODEL_HEURISTIC = 0
+    CUTENSORNET_MEMORY_MODEL_CUTENSOR = 1
+end
+
+@cenum cutensornetOptimizerCost_t::UInt32 begin
+    CUTENSORNET_OPTIMIZER_COST_FLOPS = 0
+    CUTENSORNET_OPTIMIZER_COST_TIME = 1
+    CUTENSORNET_OPTIMIZER_COST_TIME_TUNED = 2
 end
 
 @cenum cutensornetContractionOptimizerConfigAttributes_t::UInt32 begin
@@ -61,8 +72,10 @@ end
     CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SLICER_MIN_SLICES = 11
     CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SLICER_SLICE_FACTOR = 12
     CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_HYPER_NUM_SAMPLES = 13
+    CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_HYPER_NUM_THREADS = 16
     CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SIMPLIFICATION_DISABLE_DR = 14
     CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SEED = 15
+    CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_COST_FUNCTION_OBJECTIVE = 18
 end
 
 @cenum cutensornetContractionOptimizerInfoAttributes_t::UInt32 begin
@@ -75,25 +88,48 @@ end
     CUTENSORNET_CONTRACTION_OPTIMIZER_INFO_FLOP_COUNT = 6
     CUTENSORNET_CONTRACTION_OPTIMIZER_INFO_LARGEST_TENSOR = 7
     CUTENSORNET_CONTRACTION_OPTIMIZER_INFO_SLICING_OVERHEAD = 8
+    CUTENSORNET_CONTRACTION_OPTIMIZER_INFO_INTERMEDIATE_MODES = 9
+    CUTENSORNET_CONTRACTION_OPTIMIZER_INFO_NUM_INTERMEDIATE_MODES = 10
+    CUTENSORNET_CONTRACTION_OPTIMIZER_INFO_EFFECTIVE_FLOPS_EST = 11
+    CUTENSORNET_CONTRACTION_OPTIMIZER_INFO_RUNTIME_EST = 12
 end
 
 @cenum cutensornetContractionAutotunePreferenceAttributes_t::UInt32 begin
     CUTENSORNET_CONTRACTION_AUTOTUNE_MAX_ITERATIONS = 0
+    CUTENSORNET_CONTRACTION_AUTOTUNE_INTERMEDIATE_MODES = 1
 end
 
 const cutensornetNetworkDescriptor_t = Ptr{Cvoid}
 const cutensornetContractionPlan_t = Ptr{Cvoid}
 const cutensornetHandle_t = Ptr{Cvoid}
-const cutensornetNodePair = Ptr{Cvoid}
-const cutensornetNodePair_t = cutensornetNodePair
+const cutensornetWorkspaceDescriptor_t = Ptr{Cvoid}
 
-struct cutensornetContractionPath
-    numContractions::Int32
-    data::Ptr{cutensornetNodePair_t}
+@cenum cutensornetWorksizePref_t::UInt32 begin
+    CUTENSORNET_WORKSIZE_PREF_MIN = 0
+    CUTENSORNET_WORKSIZE_PREF_RECOMMENDED = 1
+    CUTENSORNET_WORKSIZE_PREF_MAX = 2
 end
 
-const cutensornetContractionPath_t = cutensornetContractionPath
+@cenum cutensornetMemspace_t::UInt32 begin
+    CUTENSORNET_MEMSPACE_DEVICE = 0
+end
+
+struct cutensornetContractionPath_t
+    numContractions::Int32
+    data::Ptr{Tuple{Int32,Int32}}
+end
+
 const cutensornetContractionOptimizerConfig_t = Ptr{Cvoid}
 const cutensornetContractionOptimizerInfo_t = Ptr{Cvoid}
 const cutensornetContractionAutotunePreference_t = Ptr{Cvoid}
+const cutensornetSliceGroup_t = Ptr{Cvoid}
+
+struct cutensornetDeviceMemHandler_t
+    ctx::Ptr{Cvoid}
+    device_alloc::Ptr{Cvoid}
+    device_free::Ptr{Cvoid}
+    name::NTuple{64, UInt8}
+end
+
 const cutensornetLoggerCallback_t = Ptr{Cvoid}
+const cutensornetLoggerCallbackData_t = Ptr{Cvoid}
