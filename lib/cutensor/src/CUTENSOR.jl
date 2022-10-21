@@ -3,7 +3,7 @@ module CUTENSOR
 using CUDA
 using CUDA.APIUtils
 using CUDA: CUstream, cudaDataType
-using CUDA: @retry_reclaim, initialize_context
+using CUDA: @retry_reclaim, initialize_context, isdebug
 
 using CEnum: @cenum
 
@@ -68,6 +68,36 @@ function handle()
     end
 
     return state.handle
+end
+
+
+## logging
+
+function log_message(log_level, function_name, message)
+    function_name = unsafe_string(function_name)
+    message = unsafe_string(message)
+    output = if isempty(message)
+        "$function_name(...)"
+    else
+        "$function_name: $message"
+    end
+    if log_level <= 1
+        @error output
+    else
+        # the other log levels are different levels of tracing and hints
+        @debug output
+    end
+    return
+end
+
+function __init__()
+    # register a log callback
+    if isdebug(:init, CUTENSOR) || Base.JLOptions().debug_level >= 2
+        callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
+        cutensorLoggerSetCallback(callback)
+        cutensorLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")
+        cutensorLoggerSetLevel(5)
+    end
 end
 
 end
