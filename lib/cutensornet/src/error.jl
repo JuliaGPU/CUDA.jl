@@ -45,7 +45,7 @@ function description(err::CUTENSORNETError)
     elseif err.code == CUTENSORNET_STATUS_NO_DEVICE_ALLOCATOR
         "drawing device memory from a mempool is requested, but the mempool is not set."
     elseif err.code == CUTENSORNET_STATUS_ALL_HYPER_SAMPLES_FAILED
-        "all hyper samples failed for one or more errors (enable LOGs via export CUTENSORNET_LOG_LEVEL= > 1 for details)."
+        "all hyper samples failed for one or more errors."
     else
         "no description for this error"
     end
