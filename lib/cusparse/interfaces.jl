@@ -104,6 +104,9 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     end
 end
 
+Base.:(+)(A::CuSparseVector{T}, B::CuSparseVector{T}) where T = geam(one(T), A, one(T), B, 'O')
+Base.:(-)(A::CuSparseVector{T}, B::CuSparseVector{T}) where T = geam(one(T), A, -one(T), B, 'O')
+
 Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
 Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrixCSR) = geam(one(eltype(A)), A, -one(eltype(A)), B, 'O')
 
