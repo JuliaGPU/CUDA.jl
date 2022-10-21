@@ -89,7 +89,7 @@ function name(dev::CuDevice)
 end
 
 function uuid(dev::CuDevice)
-    version() < v"11.4" && return parent_uuid(dev)
+    driver_version() < v"11.4" && return parent_uuid(dev)
 
     # returns the MIG UUID if this is a compute instance
     uuid_ref = Ref{CUuuid}()
@@ -196,7 +196,7 @@ function capability(dev::CuDevice)
 end
 
 memory_pools_supported(dev::CuDevice) =
-    CUDA.version() >= v"11.2" &&
+    CUDA.driver_version() >= v"11.2" &&
     attribute(dev, DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
 @deprecate has_stream_ordered(dev::CuDevice) memory_pools_supported(dev)
 

@@ -144,7 +144,7 @@ struct MemoryInfo
     free_bytes, total_bytes = Mem.info()
 
     pool_reserved_bytes, pool_used_bytes = if stream_ordered(device())
-      if version() >= v"11.3"
+      if driver_version() >= v"11.3"
         cached_memory(), used_memory()
       else
         missing, missing
@@ -506,7 +506,7 @@ application.
 """
 function used_memory()
   state = active_state()
-  if version() >= v"11.3" && stream_ordered(state.device)
+  if driver_version() >= v"11.3" && stream_ordered(state.device)
     # we can only query the memory pool's reserved memory on CUDA 11.3 and later
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_USED_MEM_CURRENT))
@@ -526,7 +526,7 @@ Returns the amount of backing memory currently allocated for the CUDA memory poo
 """
 function cached_memory()
   state = active_state()
-  if version() >= v"11.3" && stream_ordered(state.device)
+  if driver_version() >= v"11.3" && stream_ordered(state.device)
     # we can only query the memory pool's reserved memory on CUDA 11.3 and later
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))

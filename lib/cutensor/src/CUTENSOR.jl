@@ -7,10 +7,21 @@ using CUDA: @retry_reclaim, initialize_context
 
 using CEnum: @cenum
 
+using CUTENSOR_jll
+
+
+export has_cutensor
+
+function has_cutensor(show_reason::Bool=false)
+    if !isdefined(CUTENSOR_jll, :libcutensor)
+        show_reason && error("CUTENSOR library not found")
+        return false
+    end
+    return true
+end
+
 
 const cudaDataType_t = cudaDataType
-
-include("bindeps.jl")
 
 # core library
 include("libcutensor_common.jl")

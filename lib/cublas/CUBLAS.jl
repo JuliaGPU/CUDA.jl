@@ -2,9 +2,11 @@ module CUBLAS
 
 using ..APIUtils
 
+using ..CUDA_Runtime
+
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, i32
-using ..CUDA: libcublas, unsafe_free!, @retry_reclaim, isdebug, @sync, initialize_context
+using ..CUDA: unsafe_free!, @retry_reclaim, isdebug, @sync, initialize_context
 
 using GPUArrays
 
@@ -233,7 +235,7 @@ function _log_message(blob)
     return
 end
 
-function __runtime_init__()
+function __init__()
     # register a log callback
     log_cond[] = Base.AsyncCondition() do async_cond
         blob = ""

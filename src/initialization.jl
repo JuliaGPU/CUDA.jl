@@ -1,7 +1,13 @@
 # initialization
 
-# CUDA packages require complex initialization (discover CUDA, download artifacts, etc)
-# that can't happen at module load time, so defer that to run time upon actual use.
+# XXX: we currently allow loading CUDA.jl even if the package is not functional, because
+#      downstream packages can only unconditionally depend on CUDA.jl. that's why we have
+#      the errors be non-fatal, sometimes even silencing them, and why we have the
+#      `functional()` API that allows checking for successfull initialization.
+# TODO: once we have conditional dependencies, remove this complexity and have __init__ fail
+
+const _initialized = Ref{Bool}(false)
+const _initialization_error = Ref{String}()
 
 """
     functional(show_reason=false)
@@ -12,31 +18,93 @@ This call is intended for packages that support conditionally using an available
 fail to check whether CUDA is functional, actual use of functionality might warn and error.
 """
 function functional(show_reason::Bool=false)
-    try
-        libcuda()
-        toolkit()
-        return true
-    catch
-        show_reason && rethrow()
-        return false
+    _initialized[] && return true
+
+    if show_reason && isassigned(_initialization_error)
+        error(_initialization_error[])
+    elseif show_reason
+        error("unknown initialization error")
     end
+    return false
 end
 
-
-## deferred initialization API
-
 function __init__()
-    # register device overrides
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    if !precompiling
+    precompiling && return
+
+    # TODO: make most of these errors fatal, and remove functional(),
+    #       once we have conditional dependencies
+
+    # check that we have a driver
+    if !isdefined(CUDA_Driver_jll, :libcuda)
+        _initialization_error[] = "CUDA driver not found"
+        return
+    end
+    global libcuda = CUDA_Driver_jll.libcuda
+    driver = driver_version()
+
+    if driver < v"10.2"
+        @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.2 or higher (yours is for CUDA $driver)"
+        _initialization_error[] = "CUDA driver too old"
+        return
+    end
+
+    if driver < v"11.2"
+        @warn """The NVIDIA driver on this system only supports up to CUDA $driver.
+                 For performance reasons, it is recommended to upgrade to a driver that supports CUDA 11.2 or higher."""
+    end
+
+    # check that we have a runtime
+    if !CUDA_Runtime.is_available()
+        @error """No CUDA Runtime library found. This can have several reasons:
+                  * you are using an unsupported platform: CUDA.jl only supports Linux (x86_64, aarch64, ppc64le), and Windows (x86_64).
+                    refer to the documentation for instructions on how to use a custom CUDA runtime.
+                  * you precompiled CUDA.jl in an environment where the CUDA driver was not available.
+                    in that case, you need to specify (during pre compilation) which version of CUDA to use.
+                    refer to the documentation for instructions on how to use `CUDA.set_runtime_version!`.
+                  * you requested use of a local CUDA toolkit, but not all components were discovered.
+                    try running with JULIA_DEBUG=CUDA_Runtime_Discovery for more information."""
+        _initialization_error[] = "CUDA runtime not found"
+        return
+    end
+    runtime = try
+        runtime_version()
+    catch err
+        if err isa CuError && err.code == ERROR_NO_DEVICE
+            @error "No CUDA-capable device found"
+            _initialization_error[] = "No CUDA-capable device found"
+            return
+        end
+        rethrow()
+    end
+
+    if runtime < v"10.2"
+        @error "This version of CUDA.jl only supports CUDA 11 or higher (your toolkit provides CUDA $runtime)"
+        _initialization_error[] = "CUDA runtime too old"
+        return
+    end
+
+    if runtime.major > driver.major
+        @warn """You are using CUDA $runtime with a driver that only supports up to $(driver.major).x.
+                 It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
+    end
+
+    # finally, initialize CUDA
+    try
+        cuInit(0)
+    catch err
+        @error "Failed to initialize CUDA" exception=(err,catch_backtrace())
+        _initialization_error[] = "CUDA initialization failed"
+        return
+    end
+
+    # register device overrides
+    eval(Expr(:block, overrides...))
+    empty!(overrides)
+    @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" begin
+        include("device/intrinsics/special_math.jl")
         eval(Expr(:block, overrides...))
         empty!(overrides)
-
-        @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" begin
-            include("device/intrinsics/special_math.jl")
-            eval(Expr(:block, overrides...))
-            empty!(overrides)
-        end
     end
 
     # ensure that operations executed by the REPL back-end finish before returning,
@@ -44,6 +112,19 @@ function __init__()
     if isdefined(Base, :active_repl_backend)
         push!(Base.active_repl_backend.ast_transforms, synchronize_cuda_tasks)
     end
+
+    # enable generation of FMA instructions to mimic behavior of nvcc
+    LLVM.clopts("-nvptx-fma-level=1")
+
+    # warn about old, deprecated environment variables
+    haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER") &&
+        @error """JULIA_CUDA_USE_BINARYBUILDER is deprecated, and CUDA.jl always uses artifacts now.
+                  To use a local installation, use overrides or preferences to customize the artifact.
+                  Please check the CUDA.jl or Pkg.jl documentation for more details."""
+    haskey(ENV, "JULIA_CUDA_VERSION") &&
+        @error """JULIA_CUDA_VERSION is deprecated. Call `CUDA.jl.set_runtime_version!` to use a different version instead."""
+
+    _initialized[] = true
 end
 
 function synchronize_cuda_tasks(ex)
@@ -56,50 +137,6 @@ function synchronize_cuda_tasks(ex)
     end
 end
 
-@noinline function __init_driver__()
-    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-        @error("Running under rr, which is incompatible with CUDA")
-        return
-    end
-
-    if version() < v"10.2"
-        @warn "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.2 or higher (yours is for CUDA $(version()))"
-    end
-
-    if version() < v"11.2"
-        @warn """The NVIDIA driver on this system only supports up to CUDA $(version()).
-                 For performance reasons, it is recommended to upgrade to a driver that supports CUDA 11.2 or higher."""
-    end
-
-    haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT") &&
-        @warn "Support for GPU memory limits (JULIA_CUDA_MEMORY_LIMIT) has been removed."
-
-    haskey(ENV, "JULIA_CUDA_MEMORY_POOL") &&
-    ENV["JULIA_CUDA_MEMORY_POOL"] != "none" && ENV["JULIA_CUDA_MEMORY_POOL"] != "cuda" &&
-        @warn "Support for memory pools (JULIA_CUDA_MEMORY_POOL) other than 'cuda' and 'none' has been removed."
-
-    # enable generation of FMA instructions to mimic behavior of nvcc
-    LLVM.clopts("-nvptx-fma-level=1")
-
-    cuInit(0)
-
-    return
-end
-
-function __init_toolkit__()
-    if toolkit_release() < v"10.1"
-        @warn "This version of CUDA.jl only supports CUDA 10.1 or higher (your toolkit provides CUDA $(toolkit_release()))"
-    elseif release() < v"11" && toolkit_release() > release()
-        @warn """You are using CUDA toolkit $(toolkit_release()) with a driver that only supports up to $(release()).
-                 It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
-    elseif release() >= v"11" && toolkit_release().major > release().major
-        @warn """You are using CUDA toolkit $(toolkit_release()) with a driver that only supports up to $(release().major).x.
-                 It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
-    end
-
-    return
-end
-
 
 ## convenience functions
 
@@ -107,27 +144,11 @@ end
 
 export has_cuda, has_cuda_gpu
 
-# backwards compatibility
-export has_cusolvermg, has_cudnn, has_cutensor, has_cutensornet, has_custatevec, has_cupti, has_nvtx
-
 """
     has_cuda()::Bool
 
-Check whether the local system provides an installation of the CUDA driver and toolkit.
+Check whether the local system provides an installation of the CUDA driver and runtime.
 Use this function if your code loads packages that require CUDA.jl.
-
-Note that CUDA-dependent packages might still fail to load if the installation is broken,
-so it's recommended to guard against that and print a warning to inform the user:
-
-```
-using CUDA
-if has_cuda()
-    try
-        using CuArrays
-    catch ex
-        @warn "CUDA is installed, but CuArrays.jl fails to load" exception=(ex,catch_backtrace())
-    end
-end
 ```
 """
 has_cuda(show_reason::Bool=false) = functional(show_reason)
@@ -135,7 +156,7 @@ has_cuda(show_reason::Bool=false) = functional(show_reason)
 """
     has_cuda_gpu()::Bool
 
-Check whether the local system provides an installation of the CUDA driver and toolkit, and
+Check whether the local system provides an installation of the CUDA driver and runtime, and
 if it contains a CUDA-capable GPU. See [`has_cuda`](@ref) for more details.
 
 Note that this function initializes the CUDA API in order to check for the number of GPUs.

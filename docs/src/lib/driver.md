@@ -20,8 +20,10 @@ CUDA.description(::CuError)
 ## Version Management
 
 ```@docs
-CUDA.version()
-CUDA.system_version()
+CUDA.driver_version()
+CUDA.system_driver_version()
+CUDA.runtime_version()
+CUDA.set_runtime_version!
 ```
 
 

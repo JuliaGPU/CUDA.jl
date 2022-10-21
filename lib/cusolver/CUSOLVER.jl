@@ -2,14 +2,27 @@ module CUSOLVER
 
 using ..APIUtils
 
+using ..CUDA_Runtime
+
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcusolver, libcusolvermg, @allowscalar, assertscalar, unsafe_free!, @retry_reclaim, initialize_context
+using ..CUDA: @allowscalar, assertscalar, unsafe_free!, @retry_reclaim, initialize_context
 
 using ..CUBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
 using ..CUSPARSE: cusparseMatDescr_t
 
 using CEnum: @cenum
+
+
+export has_cusolvermg
+
+function has_cusolvermg(show_reason::Bool=false)
+    if !@isdefined(libcusolverMg)
+        show_reason && error("CUDA toolkit does not contain cuSolverMG")
+        return false
+    end
+    return true
+end
 
 
 # core library

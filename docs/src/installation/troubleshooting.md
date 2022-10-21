@@ -1,17 +1,10 @@
 # Troubleshooting
 
 
-## Could not find a suitable CUDA installation
+## UndefVarError: libcuda not defined
 
-This means that CUDA.jl could not find or provide a CUDA toolkit. For more information,
-re-run with the `JULIA_DEBUG` environment variable set to `CUDA`.
-
-If you're encountering this error when disabling artifacts through by setting
-`JULIA_CUDA_USE_BINARYBUILDER=false`, it is your own responsibility to make sure CUDA.jl
-can detect the necessary pieces, e.g., by putting CUDA's binaries and libraries in
-discoverable locations (i.e. on PATH, and on the library search path). Additionally, the
-`CUDA_HOME` environment can be used to point CUDA.jl to where the CUDA toolkit is installed,
-but that will only help if the contents of that directory have not been reorganized.
+This means that CUDA.jl could not find a suitable CUDA driver. For more information,
+re-run with the `JULIA_DEBUG` environment variable set to `CUDA_Driver_jll`.
 
 
 ## UNKNOWN_ERROR(999)

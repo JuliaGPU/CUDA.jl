@@ -22,7 +22,7 @@ function device_properties(dev)
             # may result in thread-divergent control flow that older `ptxas` doesn't like.
             # see e.g. JuliaGPU/CUDAnative.jl#4
             unreachable = true
-            if cap < v"7" || toolkit_release() < v"11.3"
+            if cap < v"7" || runtime_version() < v"11.3"
                 unreachable = false
             end
 
@@ -35,7 +35,7 @@ function device_properties(dev)
             end
 
             # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
-            debuginfo = toolkit_release() >= v"11.7"
+            debuginfo = runtime_version() >= v"11.7"
 
             val[deviceid(dev)+1] =
                 (; cap, ptx, exitable, debuginfo, unreachable)

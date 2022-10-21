@@ -13,9 +13,6 @@ function main()
     # NOTE: we don't ust Base.active_project() here because of how CI launches this script,
     #       starting with --project in the main CUDA.jl project.
 
-    # make sure all artifacts are downloaded
-    CUDA.version()
-
     # time to precompile the package and its dependencies
     precompile_cmd =
         `$base_cmd -e "uuid = Base.UUID(\"052768ef-5323-5732-b1bb-66c8b64840ba\")
@@ -31,7 +28,7 @@ function main()
     # time to initialize CUDA and all other libraries
     initialize_time =
         `$base_cmd -e "using CUDA
-                    CUDA.version()"`
+                       CUDA.driver_version()"`
     results["initialize"] = @benchmark run($initialize_time) evals=1 seconds=30
 
     # time to actually compile a kernel

@@ -845,11 +845,16 @@ function gemmExComputeType(TA, TB, TC, m, k, n)
         return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_16F_PEDANTIC : CUBLAS_COMPUTE_16F
     end
 
-    if m%4 == 0 && n%4 == 0 && k%4 == 0 && sig === (Int8, Int32)
-        CUDA.version() >= v"11.2" && return nothing # NVIDIA bug #3221266
+    if sig === (Int8, Int32)
+        # starting with CUDA 11.2, this is unsupported (NVIDIA bug #3221266)
+        # TODO: might be fixed in a later version?
+        version() >= v"11.3.1" && return nothing
+
         # Int32=Int8*Int8 requires m,n,k to be multiples of 4
         # https://forums.developer.nvidia.com/t/cublasgemmex-cant-use-cuda-r-8i-compute-type-on-gtx1080/58100/2
-        return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
+        if m%4 == 0 && n%4 == 0 && k%4 == 0
+            return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
+        end
     end
 
     if math_mode == CUDA.FAST_MATH

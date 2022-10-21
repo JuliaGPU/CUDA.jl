@@ -14,7 +14,19 @@ using CUDA: @retry_reclaim, isdebug, initialize_context
 
 using CEnum: @cenum
 
-include("bindeps.jl")
+using CUDNN_jll
+
+
+export has_cudnn
+
+function has_cudnn(show_reason::Bool=false)
+    if !isdefined(CUDNN_jll, :libcudnn)
+        show_reason && error("CUDNN library not found")
+        return false
+    end
+    return true
+end
+
 
 # core library
 include("libcudnn_common.jl")
@@ -144,7 +156,7 @@ function _log_message(sev, dbg, str)
     return
 end
 
-function __runtime_init__()
+function __init__()
     if version() < v"8.0"
         @warn "This version of CUDA.jl only supports CUDNN 8.0 or higher"
     end

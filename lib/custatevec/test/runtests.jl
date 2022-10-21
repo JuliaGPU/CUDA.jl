@@ -1,12 +1,25 @@
-using Test, CUDA, CUSTATEVEC
-import CUSTATEVEC: CuStateVec, applyMatrix!, expectation, sample
+using Test
 
+# work around JuliaLang/Pkg.jl#2500
+if VERSION < v"1.8"
+    test_project = first(Base.load_path())
+    preferences_file = joinpath(dirname(@__DIR__), "LocalPreferences.toml")
+    test_preferences_file = joinpath(dirname(test_project), "LocalPreferences.toml")
+    if isfile(preferences_file) && !isfile(test_preferences_file)
+        cp(preferences_file, test_preferences_file)
+    end
+end
+
+using CUDA
 @info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
 
+using CUSTATEVEC
 @test CUSTATEVEC.has_custatevec()
 @info "CUSTATEVEC version: $(CUSTATEVEC.version())"
 
 @testset "CUSTATEVEC" begin
+    import CUSTATEVEC: CuStateVec, applyMatrix!, expectation, sample
+
     # build a simple state and compute expectations
     n_q = 2
     @testset for elty in [ComplexF32, ComplexF64]

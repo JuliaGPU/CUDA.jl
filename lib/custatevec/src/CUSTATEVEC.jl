@@ -6,9 +6,21 @@ using CUDA: unsafe_free!, @retry_reclaim, initialize_context
 
 using CEnum: @cenum
 
-const cudaDataType_t = cudaDataType
+using cuQuantum_jll
 
-include("bindeps.jl")
+
+export has_custatevec
+
+function has_custatevec(show_reason::Bool=false)
+    if !isdefined(cuQuantum_jll, :libcustatevec)
+        show_reason && error("cuStateVec library not found")
+        return false
+    end
+    return true
+end
+
+
+const cudaDataType_t = cudaDataType
 
 # core library
 include("libcustatevec_common.jl")

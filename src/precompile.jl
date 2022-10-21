@@ -1,8 +1,4 @@
 
-# installation management
-precompile(__init_toolkit__, ())
-precompile(libcuda, ())
-
 # array
 precompile(CuArray, (Vector{Int},))
 

@@ -9,6 +9,8 @@ using CEnum: @cenum
 import Libdl
 
 
+export has_nvml
+
 function libnvml()
     @memoize begin
         if Sys.iswindows()

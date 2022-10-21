@@ -15,12 +15,8 @@ in the case the package failed to initialize. For example, on a system without C
 
 ```julia
 julia> using CUDA
-julia> CUDA.version()
- ┌ Error: Could not initialize CUDA
-│   exception =
-│    could not load library "libcuda"
-│    libcuda.so: cannot open shared object file: No such file or directory
-└ @ CUDA CUDA.jl/src/initialization.jl:99
+julia> CUDA.driver_version()
+ERROR: UndefVarError: libcuda not defined
 ```
 
 To avoid this, you should call `CUDA.functional()` to inspect whether the package is

@@ -172,7 +172,7 @@ julia> findmin(b)
 (11, CartesianIndex(1, 1))
 
 julia> findmax(b; dims=2)
-([13; 23], CartesianIndex{2}[CartesianIndex(1, 3); CartesianIndex(2, 3)])
+([13; 23;;], CartesianIndex{2}[CartesianIndex(1, 3); CartesianIndex(2, 3);;])
 ```
 
 
@@ -397,30 +397,33 @@ through functionality from the SparseArrays package applied to `CuSparseArray` o
 julia> using SparseArrays
 
 julia> x = sprand(10,0.2)
-10-element SparseVector{Float64, Int64} with 4 stored entries:
-  [3 ]  =  0.585812
-  [4 ]  =  0.539289
-  [7 ]  =  0.260036
-  [8 ]  =  0.910047
+10-element SparseVector{Float64, Int64} with 5 stored entries:
+  [2 ]  =  0.538639
+  [4 ]  =  0.89699
+  [6 ]  =  0.258478
+  [7 ]  =  0.338949
+  [10]  =  0.424742
 
 julia> using CUDA.CUSPARSE
 
 julia> d_x = CuSparseVector(x)
-10-element CuSparseVector{Float64, Int32} with 4 stored entries:
-  [3 ]  =  0.585812
-  [4 ]  =  0.539289
-  [7 ]  =  0.260036
-  [8 ]  =  0.910047
+10-element CuSparseVector{Float64, Int32} with 5 stored entries:
+  [2 ]  =  0.538639
+  [4 ]  =  0.89699
+  [6 ]  =  0.258478
+  [7 ]  =  0.338949
+  [10]  =  0.424742
 
 julia> nonzeros(d_x)
-4-element CuArray{Float64, 1, CUDA.Mem.DeviceBuffer}:
- 0.5858115517433242
- 0.5392892841426182
- 0.26003585026904785
- 0.910046541351011
+5-element CuArray{Float64, 1, CUDA.Mem.DeviceBuffer}:
+ 0.538639413965653
+ 0.8969897902567084
+ 0.25847781536337067
+ 0.3389490517221738
+ 0.4247416640213063
 
 julia> nnz(d_x)
-4
+5
 ```
 
 For 2-D arrays the `CuSparseMatrixCSC` and `CuSparseMatrixCSR` can be used.
