@@ -19,41 +19,37 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
             descrB = CuMatrixDescriptor('G', 'L', 'N', index)
             descrC = CuMatrixDescriptor('G', 'L', 'N', index)
 
-            rowPtrC = CuArray{Int32,1}(undef, m+1)
+            rowPtrC = CuVector{Int32}(undef, m+1)
+            local colValC, nzValC
 
             function bufferSize()
-                out = Ref{Csize_t}(1)
+                out = Ref{Csize_t}()
                 $bname(handle(), m, n,
                     alpha, descrA, nnz(A), nonzeros(A), A.rowPtr, A.colVal,
                     beta, descrB, nnz(B), nonzeros(B), B.rowPtr, B.colVal,
-                    descrC, CuArray{$elty,1}(undef, 0), rowPtrC, CuArray{Int32,1}(undef, 0),
+                    descrC, CuPtr{$elty}(CU_NULL), rowPtrC, CuPtr{Int32}(CU_NULL),
                     out)
                 return out[]
             end
 
-            C = with_workspace(bufferSize) do buffer
-                function get_nnzC(buffer)
-                    nnzTotalDevHostPtr = Ref{Cint}(1)
-                    cusparseXcsrgeam2Nnz(handle(), m, n,
-                        descrA, nnz(A), A.rowPtr, A.colVal,
-                        descrB, nnz(B), B.rowPtr, B.colVal,
-                        descrC, rowPtrC, nnzTotalDevHostPtr,
-                        buffer)
-                    return nnzTotalDevHostPtr[]
-                end
+            with_workspace(bufferSize) do buffer
+                nnzTotal = Ref{Cint}()
+                cusparseXcsrgeam2Nnz(handle(), m, n,
+                    descrA, nnz(A), A.rowPtr, A.colVal,
+                    descrB, nnz(B), B.rowPtr, B.colVal,
+                    descrC, rowPtrC, nnzTotal,
+                    buffer)
 
-                nnzC = get_nnzC(buffer)
-                colValC = CuArray{Int32,1}(undef, Int(nnzC))
-                nzValC = CuArray{$elty,1}(undef, Int(nnzC))
+                colValC = CuVector{Int32}(undef, nnzTotal[])
+                nzValC  = CuVector{$elty}(undef, nnzTotal[])
 
                 $gname(handle(), m, n,
                     alpha, descrA, nnz(A), nonzeros(A), A.rowPtr, A.colVal,
                     beta, descrB, nnz(B), nonzeros(B), B.rowPtr, B.colVal,
                     descrC, nzValC, rowPtrC, colValC,
                     buffer)
-                return CuSparseMatrixCSR(rowPtrC, colValC, nzValC, (m, n))
             end
-            C
+            return CuSparseMatrixCSR(rowPtrC, colValC, nzValC, (m, n))
         end
     end
 end

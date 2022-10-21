@@ -43,8 +43,9 @@ end
 
     # ensure we cover both the CUSPARSE-based and native COO row sort
     for typ in (Float16, Float32)
-        A = sparse(I, J, ones(typ, length(I)), 6, 6)
-        Agpu = sparse(I |> cu, J |> cu, ones(typ, length(I)) |> cu, 6, 6)
+        V = rand(typ, length(I))
+        A = sparse(I, J, V, 6, 6)
+        Agpu = sparse(I |> cu, J |> cu, V |> cu, 6, 6)
         @test Array(Agpu) == A
     end
 end
@@ -56,4 +57,16 @@ end
     dZ = CuSparseMatrixCSR{Float64, Int32}(dX)
     @test SparseMatrixCSC(dY) ≈ SparseMatrixCSC(dZ)
     @test SparseMatrixCSC(CuSparseMatrixCSC(X)) ≈ SparseMatrixCSC(CuSparseMatrixCSR(X))
+end
+
+@testset "prune" begin
+    for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR)
+        for T in (Float32, Float64)
+            A = sprand(T, 20, 10, 0.7)
+            threshold = T(0.5)
+            dA = SparseMatrixType(A)
+            dC = CUSPARSE.prune(dA, threshold, 'O')
+            @test droptol!(A, threshold) ≈ collect(dC)
+        end
+    end
 end

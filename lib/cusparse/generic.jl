@@ -293,7 +293,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
     return C
 end
 
-# AB and C must have the same sparsity pattern.
+# AB and C must have the same sparsity pattern if β ≠ 0.
 function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T},
                beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
     m,k = size(A)
@@ -338,6 +338,26 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
         cusparseSpGEMM_compute(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, spgemm_desc, out, buffer)
+    end
+    # cusparseSpMatGetSize retrieve the size of the output matrix and the number of non-zero elements
+    nnzC = Ref{Int64}()
+    cusparseSpMatGetSize(descC, Ref{Int64}(), Ref{Int64}(), nnzC)
+    # We suppose that AB and C have the same sparsity pattern if they have the same number of non-zero elements.
+    # Even if AB and C have the same number of non-zero elements they could have different
+    # sparsity patterns and the result will be wrong with β ≠ 0...
+    if nnz(C) ≠ nnzC[]
+        beta ≠ zero(T) && throw(ErrorException("AB and C must have the same sparsity pattern."))
+        # AB and C don't have the same sparsity pattern but we are still able to reallocate
+        # the memory to store the result of αAB in C because β = 0.
+        unsafe_free!(C.rowPtr)
+        unsafe_free!(C.colVal)
+        unsafe_free!(C.nzVal)
+        C.rowPtr = CuVector{Cint}(undef, m+1)
+        C.colVal = CuVector{Cint}(undef, nnzC[])
+        C.nzVal  = CuVector{T}(undef, nnzC[])
+        C.nnz    = nnzC[]
+        # We update the descriptor with cusparseCsrSetPointers
+        cusparseCsrSetPointers(descC, C.rowPtr, C.colVal, C.nzVal)
     end
     # cusparseSpGEMM_copy copies the offsets, column indices, and values from the temporary buffers to the output matrix.
     cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB,
