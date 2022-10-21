@@ -344,7 +344,7 @@ end
             d_A = CuSparseMatrixBSR(d_A, blockdim)
             d_A = CUSPARSE.ilu02!(d_A,'O')
             h_A = SparseMatrixCSC(CuSparseMatrixCSR(d_A))
-            pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
+            pivot = VERSION >= v"1.7" ? NoPivot() : Val(false)
             Alu = lu(Array(A), pivot)
             Ac = sparse(Alu.L*Alu.U)
             h_A = adjoint(h_A) * h_A
@@ -360,7 +360,7 @@ end
             d_A = CuSparseMatrixBSR(d_A, blockdim)
             d_B = CUSPARSE.ilu02(d_A,'O')
             h_A = SparseMatrixCSC(CuSparseMatrixCSR(d_B))
-            pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
+            pivot = VERSION >= v"1.7" ? NoPivot() : Val(false)
             Alu = lu(Array(A),pivot)
             Ac = sparse(Alu.L*Alu.U)
             h_A = adjoint(h_A) * h_A
@@ -529,7 +529,7 @@ end
             d_A = CuSparseMatrixCSR(sparse(A))
             d_B = CUSPARSE.ilu02(d_A,'O')
             h_A = SparseMatrixCSC(d_B)
-            pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
+            pivot = VERSION >= v"1.7" ? NoPivot() : Val(false)
             Alu = lu(Array(A),pivot)
             Ac = sparse(Alu.L*Alu.U)
             h_A = adjoint(h_A) * h_A
@@ -543,7 +543,7 @@ end
             d_A = CuSparseMatrixCSC(sparse(A))
             d_B = CUSPARSE.ilu02(d_A,'O')
             h_A = SparseMatrixCSC(d_B)
-            pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
+            pivot = VERSION >= v"1.7" ? NoPivot() : Val(false)
             Alu = lu(Array(A),pivot)
             Ac = sparse(Alu.L*Alu.U)
             h_A = adjoint(h_A) * h_A
