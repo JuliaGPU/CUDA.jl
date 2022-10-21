@@ -519,7 +519,7 @@ function CuSparseMatrixCSC(coo::CuSparseMatrixCOO{Tv}, ind::SparseChar='O') wher
     CuSparseMatrixCSC{Tv}(cscColPtr, coo.rowInd, nonzeros(coo), size(coo))
 end
 
-function CuSparseMatrixCOO(csr::CuSparseMatrixCSC{Tv}, ind::SparseChar='O') where {Tv}
+function CuSparseMatrixCOO(csc::CuSparseMatrixCSC{Tv}, ind::SparseChar='O') where {Tv}
     m,n = size(csc)
     cooColInd = CuVector{Cint}(undef, nnz(csc))
     cusparseXcsr2coo(handle(), csc.colPtr, nnz(csc), n, cooColInd, ind)
