@@ -78,7 +78,7 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
                 $bname(handle(), m, n,
                     alpha, descrA, nnz(A), nonzeros(A), rowPtrA, A.iPtr,
                     beta, descrB, nnz(B), nonzeros(B), rowPtrB, B.iPtr,
-                    descrC, CuPtr{$elty}(CU_NULL), rowPtrC, CuPtr{Int32}(CU_NULL),
+                    descrC, CU_NULL, rowPtrC, CU_NULL,
                     out)
                 return out[]
             end
