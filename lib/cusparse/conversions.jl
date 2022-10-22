@@ -136,7 +136,12 @@ end
 # by flipping rows and columns, we can use that to get CSC to CSR too
 for elty in (Float32, Float64, ComplexF32, ComplexF64)
     @eval begin
-        function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O')
+        CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty, Cint}; inda::SparseChar='O') =
+            CuSparseMatrixCSC{$elty, Cint}(csr; inda)
+        CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty, Cint}; inda::SparseChar='O') =
+            CuSparseMatrixCSR{$elty, Cint}(csc; inda)
+
+        function CuSparseMatrixCSC{$elty, Cint}(csr::CuSparseMatrixCSR{$elty, Cint}; inda::SparseChar='O')
             m,n = size(csr)
             colPtr = CUDA.zeros(Cint, n+1)
             rowVal = CUDA.zeros(Cint, nnz(csr))
@@ -156,10 +161,10 @@ for elty in (Float32, Float64, ComplexF32, ComplexF64)
                     $elty, CUSPARSE_ACTION_NUMERIC, inda,
                     CUSPARSE_CSR2CSC_ALG1, buffer)
             end
-            CuSparseMatrixCSC(colPtr,rowVal,nzVal,size(csr))
+            CuSparseMatrixCSC{$elty, Cint}(colPtr,rowVal,nzVal,size(csr))
         end
 
-        function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O')
+        function CuSparseMatrixCSR{$elty, Cint}(csc::CuSparseMatrixCSC{$elty, Cint}; inda::SparseChar='O')
             m,n    = size(csc)
             rowPtr = CUDA.zeros(Cint,m+1)
             colVal = CUDA.zeros(Cint,nnz(csc))
@@ -179,7 +184,7 @@ for elty in (Float32, Float64, ComplexF32, ComplexF64)
                     $elty, CUSPARSE_ACTION_NUMERIC, inda,
                     CUSPARSE_CSR2CSC_ALG1, buffer)
             end
-            CuSparseMatrixCSR(rowPtr,colVal,nzVal,size(csc))
+            CuSparseMatrixCSR{$elty, Cint}(rowPtr,colVal,nzVal,size(csc))
         end
     end
 end
@@ -189,7 +194,12 @@ end
 for (elty, welty) in ((:Float16, :Float32),
                       (:ComplexF16, :ComplexF32))
     @eval begin
-        function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O')
+        CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty, Cint}; inda::SparseChar='O') =
+            CuSparseMatrixCSC{$elty, Cint}(csr; inda)
+        CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty, Cint}; inda::SparseChar='O') =
+            CuSparseMatrixCSR{$elty, Cint}(csc; inda)
+
+        function CuSparseMatrixCSC{$elty, Cint}(csr::CuSparseMatrixCSR{$elty, Cint}; inda::SparseChar='O')
             m,n = size(csr)
             colPtr = CUDA.zeros(Cint, n+1)
             rowVal = CUDA.zeros(Cint, nnz(csr))
@@ -210,15 +220,15 @@ for (elty, welty) in ((:Float16, :Float32),
                         $elty, CUSPARSE_ACTION_NUMERIC, inda,
                         CUSPARSE_CSR2CSC_ALG1, buffer)
                 end
-                return CuSparseMatrixCSC(colPtr,rowVal,nzVal,size(csr))
+                return CuSparseMatrixCSC{$elty, Cint}(colPtr,rowVal,nzVal,size(csr))
             else
-                wide_csr = CuSparseMatrixCSR(csr.rowPtr, csr.colVal, convert(CuVector{$welty}, nonzeros(csr)), size(csr))
-                wide_csc = CuSparseMatrixCSC(wide_csr)
-                return CuSparseMatrixCSC(wide_csc.colPtr, wide_csc.rowVal, convert(CuVector{$elty}, nonzeros(wide_csc)), size(wide_csc))
+                wide_csr = CuSparseMatrixCSR{$welty, Cint}(csr.rowPtr, csr.colVal, convert(CuVector{$welty}, nonzeros(csr)), size(csr))
+                wide_csc = CuSparseMatrixCSC{$welty, Cint}(wide_csr)
+                return CuSparseMatrixCSC{$elty, Cint}(wide_csc.colPtr, wide_csc.rowVal, convert(CuVector{$elty}, nonzeros(wide_csc)), size(wide_csc))
             end
         end
 
-        function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O')
+        function CuSparseMatrixCSR{$elty, Cint}(csc::CuSparseMatrixCSC{$elty, Cint}; inda::SparseChar='O')
             m,n    = size(csc)
             rowPtr = CUDA.zeros(Cint,m+1)
             colVal = CUDA.zeros(Cint,nnz(csc))
@@ -239,11 +249,11 @@ for (elty, welty) in ((:Float16, :Float32),
                         $elty, CUSPARSE_ACTION_NUMERIC, inda,
                         CUSPARSE_CSR2CSC_ALG1, buffer)
                 end
-                return CuSparseMatrixCSR(rowPtr,colVal,nzVal,size(csc))
+                return CuSparseMatrixCSR{$elty, Cint}(rowPtr,colVal,nzVal,size(csc))
             else
-                wide_csc = CuSparseMatrixCSC(csc.colPtr, csc.rowVal, convert(CuVector{$welty}, nonzeros(csc)), size(csc))
-                wide_csr = CuSparseMatrixCSR(wide_csc)
-                return CuSparseMatrixCSR(wide_csr.rowPtr, wide_csr.colVal, convert(CuVector{$elty}, nonzeros(wide_csr)), size(wide_csr))
+                wide_csc = CuSparseMatrixCSC{$welty, Cint}(csc.colPtr, csc.rowVal, convert(CuVector{$welty}, nonzeros(csc)), size(csc))
+                wide_csr = CuSparseMatrixCSR{$welty, Cint}(wide_csc)
+                return CuSparseMatrixCSR{$elty, Cint}(wide_csr.rowPtr, wide_csr.colVal, convert(CuVector{$elty}, nonzeros(wide_csr)), size(wide_csr))
             end
         end
     end
@@ -255,15 +265,19 @@ for (elty, felty) in ((:Int16, :Float16),
                       (:Int64, :Float64),
                       (:Int128, :ComplexF64))
     @eval begin
-        function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty})
-            csc_compat = CuSparseMatrixCSC(
+        CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty, Cint}) =
+            CuSparseMatrixCSR{$elty, Cint}(csc)
+        CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty, Cint}) =
+            CuSparseMatrixCSC{$elty, Cint}(csr)
+        function CuSparseMatrixCSR{$elty, Cint}(csc::CuSparseMatrixCSC{$elty, Cint})
+            csc_compat = CuSparseMatrixCSC{$felty, Cint}(
                 csc.colPtr,
                 csc.rowVal,
                 reinterpret($felty, csc.nzVal),
                 size(csc)
             )
             csr_compat = CuSparseMatrixCSR(csc_compat)
-            CuSparseMatrixCSR(
+            CuSparseMatrixCSR{$elty, Cint}(
                 csr_compat.rowPtr,
                 csr_compat.colVal,
                 reinterpret($elty, csr_compat.nzVal),
@@ -271,15 +285,15 @@ for (elty, felty) in ((:Int16, :Float16),
             )
         end
 
-        function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty})
-            csr_compat = CuSparseMatrixCSR(
+        function CuSparseMatrixCSC{$elty, Cint}(csr::CuSparseMatrixCSR{$elty, Cint})
+            csr_compat = CuSparseMatrixCSR{$felty, Cint}(
                 csr.rowPtr,
                 csr.colVal,
                 reinterpret($felty, csr.nzVal),
                 size(csr)
             )
             csc_compat = CuSparseMatrixCSC(csr_compat)
-            CuSparseMatrixCSC(
+            CuSparseMatrixCSC{$elty, Cint}(
                 csc_compat.colPtr,
                 csc_compat.rowVal,
                 reinterpret($elty, csc_compat.nzVal),
@@ -296,7 +310,11 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
                      (:cusparseCcsr2bsr, :ComplexF32),
                      (:cusparseZcsr2bsr, :ComplexF64))
     @eval begin
-        function CuSparseMatrixBSR{$elty}(csr::CuSparseMatrixCSR{$elty}, blockDim::Integer;
+        CuSparseMatrixBSR{$elty}(csr::CuSparseMatrixCSR{$elty, Cint}, blockDim::Integer;
+            dir::SparseChar='R', inda::SparseChar='O', indc::SparseChar='O') =
+                CuSparseMatrixBSR{$elty, Cint}(csr, blockDim; dir, inda, indc)
+
+        function CuSparseMatrixBSR{$elty, Cint}(csr::CuSparseMatrixCSR{$elty, Cint}, blockDim::Integer;
                                           dir::SparseChar='R', inda::SparseChar='O',
                                           indc::SparseChar='O')
             m,n = size(csr)
@@ -315,7 +333,7 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
                    cudesca, nonzeros(csr), csr.rowPtr, csr.colVal,
                    blockDim, cudescc, bsrNzVal, bsrRowPtr,
                    bsrColInd)
-            CuSparseMatrixBSR{$elty}(bsrRowPtr, bsrColInd, bsrNzVal, size(csr), blockDim, dir, nnz_ref[])
+            CuSparseMatrixBSR{$elty, Cint}(bsrRowPtr, bsrColInd, bsrNzVal, size(csr), blockDim, dir, nnz_ref[])
         end
     end
 end
@@ -325,7 +343,10 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
                      (:cusparseCbsr2csr, :ComplexF32),
                      (:cusparseZbsr2csr, :ComplexF64))
     @eval begin
-        function CuSparseMatrixCSR{$elty}(bsr::CuSparseMatrixBSR{$elty};
+        CuSparseMatrixCSR{$elty}(bsr::CuSparseMatrixBSR{$elty, Cint};
+                                          inda::SparseChar='O', indc::SparseChar='O') =
+            CuSparseMatrixCSR{$elty, Cint}(bsr;inda, indc)
+        function CuSparseMatrixCSR{$elty, Cint}(bsr::CuSparseMatrixBSR{$elty, Cint};
                                           inda::SparseChar='O', indc::SparseChar='O')
             m,n = size(bsr)
             mb = cld(m, bsr.blockDim)
@@ -341,7 +362,7 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
                    csrColInd)
             # XXX: the size here may not match the expected size, when the matrix dimension
             #      is not a multiple of the block dimension!
-            CuSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, (mb*bsr.blockDim, nb*bsr.blockDim))
+            CuSparseMatrixCSR{$elty, Cint}(csrRowPtr, csrColInd, csrNzVal, (mb*bsr.blockDim, nb*bsr.blockDim))
         end
     end
 end
@@ -352,8 +373,11 @@ for (elty, felty) in ((:Int16, :Float16),
                       (:Int64, :Float64),
                       (:Int128, :ComplexF64))
     @eval begin
-        function CuSparseMatrixCSR{$elty}(bsr::CuSparseMatrixBSR{$elty})
-            bsr_compat = CuSparseMatrixBSR(
+        CuSparseMatrixCSR{$elty}(bsr::CuSparseMatrixBSR{$elty, Cint}) = CuSparseMatrixCSR{$elty, Cint}(bsr)
+        CuSparseMatrixBSR{$elty}(csr::CuSparseMatrixCSR{$elty, Cint}, blockDim) = CuSparseMatrixBSR{$elty, Cint}(csr, blockDim)
+
+        function CuSparseMatrixCSR{$elty, Cint}(bsr::CuSparseMatrixBSR{$elty, Cint})
+            bsr_compat = CuSparseMatrixBSR{$elty, Cint}(
                 bsr.rowPtr,
                 bsr.colVal,
                 reinterpret($felty, bsr.nzVal),
@@ -362,8 +386,8 @@ for (elty, felty) in ((:Int16, :Float16),
                 bsr.nnzb,
                 size(bsr)
             )
-            csr_compat = CuSparseMatrixCSR(bsr_compat)
-            CuSparseMatrixCSR(
+            csr_compat = CuSparseMatrixCSR{$elty, Cint}(bsr_compat)
+            CuSparseMatrixCSR{$elty, Cint}(
                 csr_compat.rowPtr,
                 csr_compat.colVal,
                 reinterpret($elty, csr_compat.nzVal),
@@ -371,15 +395,15 @@ for (elty, felty) in ((:Int16, :Float16),
             )
         end
 
-        function CuSparseMatrixBSR{$elty}(csr::CuSparseMatrixCSR{$elty}, blockDim)
-            csr_compat = CuSparseMatrixCSR(
+        function CuSparseMatrixBSR{$elty, Cint}(csr::CuSparseMatrixCSR{$elty, Cint}, blockDim)
+            csr_compat = CuSparseMatrixCSR{$elty, Cint}(
                 csr.rowPtr,
                 csr.colVal,
                 reinterpret($felty, csr.nzVal),
                 size(csr)
             )
-            bsr_compat = CuSparseMatrixBSR(csr_compat, blockDim)
-            CuSparseMatrixBSR(
+            bsr_compat = CuSparseMatrixBSR{$elty, Cint}(csr_compat, blockDim)
+            CuSparseMatrixBSR{$elty, Cint}(
                 bsr_compat.rowPtr,
                 bsr_compat.colVal,
                 reinterpret($elty, bsr_compat.nzVal),

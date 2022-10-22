@@ -57,3 +57,12 @@ end
     @test SparseMatrixCSC(dY) ≈ SparseMatrixCSC(dZ)
     @test SparseMatrixCSC(CuSparseMatrixCSC(X)) ≈ SparseMatrixCSC(CuSparseMatrixCSR(X))
 end
+
+@testset "$TA{$T}(::$TB)" for T in [Float16, Float32, Float64, ComplexF16, ComplexF32, ComplexF64],
+    TA in [CuSparseMatrixCSC, CuSparseMatrixCSR], TB in [CuSparseMatrixCSC, CuSparseMatrixCSR]
+    X = sprand(T, 10, 10, 0.1)
+    dX = TA{T, Cint}(TB{T, Cint}(X))
+    @test TA{T}(X) isa TA{T, Cint} # eagerly convert to Cint
+    @test TA(X) isa TA{T, Cint}
+    @test SparseMatrixCSC(dX) ≈ X
+end
