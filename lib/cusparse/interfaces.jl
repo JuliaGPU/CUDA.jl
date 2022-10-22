@@ -171,7 +171,7 @@ LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T,M}, A::Union{CuSparseMatrixCSC{T,M}, T
     B::Union{CuSparseMatrixCSC{T,M}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}) where {T,M} = mul!(Y, A, B, one(T), zero(T))
 
 function LinearAlgebra.:(*)(A::CuSparseMatrixCSR{T,M}, B::CuSparseMatrixCSR{T,M}) where {T,M}
-    CUSPARSE.version() < v"11.5.1" && throw(ErrorException("This operation is not 
+    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not 
                                         supported by the current CUDA version."))
     gemm('N', 'N', one(T), A, B, 'O')
 end
@@ -228,11 +228,10 @@ function _sptranspose(A::CuSparseMatrixCSR{T,M}) where {T,M}
     CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA)))
 end
 function _spadjoint(A::CuSparseMatrixCSC{T,M}) where {T,M}
-    cscA = conj(A)
-    CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA)))
+    CuSparseMatrixCSC(CuSparseMatrixCSR(A.colPtr, A.rowVal, conj(A.nzVal), reverse(size(A))))
 end
 function _sptranspose(A::CuSparseMatrixCSC{T,M}) where {T,M}
-    CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, reverse(size(A)))
+    CuSparseMatrixCSC(CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, reverse(size(A))))
 end
 function _spadjoint(A::CuSparseMatrixCOO{T,M}) where {T,M}
     sparse(A.colInd, A.rowInd, conj(A.nzVal), size(A)..., fmt = :coo)
