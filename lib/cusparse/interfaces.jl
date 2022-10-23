@@ -45,6 +45,13 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
                                     alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
             mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), CuVector{T}(B), beta, C)
         end
+
+        function LinearAlgebra.:(*)(A::$TypeA, x::CuSparseVector{T}) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+            m, n = size(A)
+            length(x) == n || throw(DimensionMismatch())
+            y = CuVector{T}(undef, m)
+            mul!(y, A, x)
+        end
     end
 
     for (tagb, untagb) in tag_wrappers, (wrapb, transb, unwrapb) in op_wrappers

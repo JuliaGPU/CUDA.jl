@@ -29,13 +29,8 @@ SparseArrays.sparse(I::CuVector, J::CuVector, V::CuVector, m, n; kws...) =
 
 function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{Tv}, m, n;
                              fmt=:csc, sorted::Bool=false) where Tv
+
     coo = CuSparseMatrixCOO{Tv}(I, J, V, (m, n))
-
-    # The COO format is assumed to be sorted by row.
-    if !sorted
-        coo = sort_rows(coo)
-    end
-
     if fmt == :csc
         return CuSparseMatrixCSC(coo)
     elseif fmt == :csr
@@ -47,46 +42,151 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
     end
 end
 
-function sort_rows(coo::CuSparseMatrixCOO{Tv,Ti}) where {Tv <: BlasFloat,Ti}
-    m,n = size(coo)
+function sort_csc(A::CuSparseMatrixCSC{Tv,Ti}, index::SparseChar) where {Tv <: BlasFloat,Ti}
 
-    perm = CuArray{Ti}(undef, nnz(coo))
-    cusparseCreateIdentityPermutation(handle(), nnz(coo), perm)
+    m,n = size(A)
+    perm = CuArray{Ti}(undef, nnz(A))
+    cusparseCreateIdentityPermutation(handle(), nnz(A), perm)
 
-    sorted_rowInd = copy(coo.rowInd)
-    sorted_colInd = copy(coo.colInd)
+    descA = CuMatrixDescriptor('G', 'L', 'N', index)
+    sorted_colPtr = copy(A.colPtr)
+    sorted_rowVal = copy(A.rowVal)
     function bufferSize()
         out = Ref{Csize_t}()
-        cusparseXcoosort_bufferSizeExt(handle(), m, n, nnz(coo), coo.rowInd,
-            coo.colInd, out)
+        cusparseXcscsort_bufferSizeExt(handle(), m, n, nnz(A), A.colPtr, A.rowVal, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        cusparseXcoosortByRow(handle(), m, n, nnz(coo), sorted_rowInd, sorted_colInd, perm, buffer)
+        cusparseXcscsort(handle(), m, n, nnz(A), descA, sorted_colPtr, sorted_rowVal, perm, buffer)
+    end
+    perm .+= one(Ti)
+    sorted_nzVal = A.nzVal[perm]
+    CUDA.unsafe_free!(perm)
+    CuSparseMatrixCSC{Tv,Ti}(sorted_colPtr, sorted_rowVal, sorted_nzVal, size(A))
+end
+
+function sort_csr(A::CuSparseMatrixCSR{Tv,Ti}, index::SparseChar) where {Tv <: BlasFloat,Ti}
+
+    m,n = size(A)
+    perm = CuArray{Ti}(undef, nnz(A))
+    cusparseCreateIdentityPermutation(handle(), nnz(A), perm)
+
+    descA = CuMatrixDescriptor('G', 'L', 'N', index)
+    sorted_rowPtr = copy(A.rowPtr)
+    sorted_colVal = copy(A.colVal)
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cusparseXcsrsort_bufferSizeExt(handle(), m, n, nnz(A), A.rowPtr, A.colVal, out)
+        return out[]
+    end
+    with_workspace(bufferSize) do buffer
+        cusparseXcsrsort(handle(), m, n, nnz(A), descA, sorted_rowPtr, sorted_colVal, perm, buffer)
+    end
+    perm .+= one(Ti)
+    sorted_nzVal = A.nzVal[perm]
+    CUDA.unsafe_free!(perm)
+    CuSparseMatrixCSR{Tv,Ti}(sorted_rowPtr, sorted_colVal, sorted_nzVal, size(A))
+end
+
+function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}, type::SparseChar='R') where {Tv <: BlasFloat,Ti}
+
+    type == 'R' || type == 'C' || throw(ArgumentError("type=$type was used and only type='R' and type='C' are supported."))
+
+    m,n = size(A)
+    perm = CuArray{Ti}(undef, nnz(A))
+    cusparseCreateIdentityPermutation(handle(), nnz(A), perm)
+
+    sorted_rowInd = copy(A.rowInd)
+    sorted_colInd = copy(A.colInd)
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cusparseXcoosort_bufferSizeExt(handle(), m, n, nnz(A), A.rowInd, A.colInd, out)
+        return out[]
+    end
+    with_workspace(bufferSize) do buffer
+        type == 'R' && cusparseXcoosortByRow(handle(), m, n, nnz(A), sorted_rowInd, sorted_colInd, perm, buffer)
+        type == 'C' && cusparseXcoosortByColumn(handle(), m, n, nnz(A), sorted_rowInd, sorted_colInd, perm, buffer)
     end
 
-    sorted_nzVal = similar(coo.nzVal)
-    let spvec = CuSparseVector(perm, sorted_nzVal, nnz(coo))
-        if version() >= v"11.3"
-            gather!(spvec, nonzeros(coo), 'Z')
-        else
-            gthr!(spvec, nonzeros(coo), 'Z')
+    perm .+= one(Ti)
+    sorted_nzVal = A.nzVal[perm]
+    CUDA.unsafe_free!(perm)
+    CuSparseMatrixCOO{Tv,Ti}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(A))
+end
+
+function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}, type::SparseChar='R') where {Tv,Ti}
+
+    type == 'R' || type == 'C' || throw(ArgumentError("type=$type was used and only type='R' and type='C' are supported."))
+    type == 'R' && (perm = sortperm(A.rowInd))
+    type == 'C' && (perm = sortperm(A.colInd))
+
+    sorted_rowInd = A.rowInd[perm]
+    sorted_colInd = A.colInd[perm]
+    sorted_nzVal  = A.nzVal[perm]
+    CUDA.unsafe_free!(perm)
+    CuSparseMatrixCOO{Tv,Ti}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(A))
+end
+
+for (bname, fname, pname, elty) in ((:cusparseSpruneCsr2csr_bufferSizeExt, :cusparseSpruneCsr2csrNnz, :cusparseSpruneCsr2csr, :Float32),
+                                    (:cusparseDpruneCsr2csr_bufferSizeExt, :cusparseDpruneCsr2csrNnz, :cusparseDpruneCsr2csr, :Float64))
+    @eval begin
+        function prune(A::CuSparseMatrixCSR{$elty}, threshold::Number, index::SparseChar)
+            m, n = size(A)
+            descA = CuMatrixDescriptor('G', 'L', 'N', index)
+            descC = CuMatrixDescriptor('G', 'L', 'N', index)
+            rowPtrC = CuVector{Int32}(undef, m+1)
+            local colValC, nzValC
+
+            function bufferSize()
+                out = Ref{Csize_t}()
+                $bname(handle(), m, n, nnz(A), descA, nonzeros(A), A.rowPtr, A.colVal,
+                       Ref{$elty}(threshold), descC, CuPtr{$elty}(CU_NULL), rowPtrC, CuPtr{Int32}(CU_NULL), out)
+                return out[]
+            end
+
+            with_workspace(bufferSize) do buffer
+                nnzTotal = Ref{Cint}()
+                $fname(handle(), m, n, nnz(A), descA, nonzeros(A), A.rowPtr, A.colVal,
+                       Ref{$elty}(threshold), descC, rowPtrC, nnzTotal, buffer)
+
+                colValC = CuVector{Int32}(undef, nnzTotal[])
+                nzValC  = CuVector{$elty}(undef, nnzTotal[])
+
+                $pname(handle(), m, n, nnz(A), descA, nonzeros(A), A.rowPtr, A.colVal,
+                       Ref{$elty}(threshold), descC, nzValC, rowPtrC, colValC, buffer)
+            end
+            return CuSparseMatrixCSR(rowPtrC, colValC, nzValC, (m, n))
+        end
+
+        function prune(A::CuSparseMatrixCSC{$elty}, threshold::Number, index::SparseChar)
+            m, n = size(A)
+            descA = CuMatrixDescriptor('G', 'L', 'N', index)
+            descC = CuMatrixDescriptor('G', 'L', 'N', index)
+            colPtrC = CuVector{Int32}(undef, n+1)
+            local rowValC, nzValC
+
+            function bufferSize()
+                out = Ref{Csize_t}()
+                $bname(handle(), n, m, nnz(A), descA, nonzeros(A), A.colPtr, A.rowVal,
+                       Ref{$elty}(threshold), descC, CuPtr{$elty}(CU_NULL), colPtrC, CuPtr{Int32}(CU_NULL), out)
+                return out[]
+            end
+
+            with_workspace(bufferSize) do buffer
+                nnzTotal = Ref{Cint}()
+                $fname(handle(), n, m, nnz(A), descA, nonzeros(A), A.colPtr, A.rowVal,
+                       Ref{$elty}(threshold), descC, colPtrC, nnzTotal, buffer)
+
+                rowValC = CuVector{Int32}(undef, nnzTotal[])
+                nzValC  = CuVector{$elty}(undef, nnzTotal[])
+
+                $pname(handle(), n, m, nnz(A), descA, nonzeros(A), A.colPtr, A.rowVal,
+                       Ref{$elty}(threshold), descC, nzValC, colPtrC, rowValC, buffer)
+            end
+            return CuSparseMatrixCSC(colPtrC, rowValC, nzValC, (m, n))
         end
     end
-
-    CUDA.unsafe_free!(perm)
-    CuSparseMatrixCOO{Tv}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(coo))
 end
-function sort_rows(coo::CuSparseMatrixCOO{Tv,Ti}) where {Tv,Ti}
-    perm = sortperm(coo.rowInd)
-    sorted_rowInd = coo.rowInd[perm]
-    sorted_colInd = coo.colInd[perm]
-    sorted_nzVal = coo.nzVal[perm]
-    CUDA.unsafe_free!(perm)
-
-    CuSparseMatrixCOO{Tv}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(coo))
-end
-
 
 ## CSR to CSC
 
@@ -394,10 +494,9 @@ end
 
 ## CSR to COO and vice-versa
 
-# TODO: we can do similar for CSC conversions, but that requires the columns to be sorted
-
 function CuSparseMatrixCSR(coo::CuSparseMatrixCOO{Tv}, ind::SparseChar='O') where {Tv}
     m,n = size(coo)
+    coo = sort_coo(coo, 'R')
     csrRowPtr = CuVector{Cint}(undef, m+1)
     cusparseXcoo2csr(handle(), coo.rowInd, nnz(coo), m, csrRowPtr, ind)
     CuSparseMatrixCSR{Tv}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
@@ -410,10 +509,25 @@ function CuSparseMatrixCOO(csr::CuSparseMatrixCSR{Tv}, ind::SparseChar='O') wher
     CuSparseMatrixCOO{Tv}(cooRowInd, csr.colVal, nonzeros(csr), size(csr), nnz(csr))
 end
 
-### CSC/BSR to COO and viceversa
+### CSC to COO and viceversa
 
-CuSparseMatrixCSC(coo::CuSparseMatrixCOO) = CuSparseMatrixCSC(CuSparseMatrixCSR(coo)) # no direct conversion
-CuSparseMatrixCOO(csc::CuSparseMatrixCSC) = CuSparseMatrixCOO(CuSparseMatrixCSR(csc)) # no direct conversion
+function CuSparseMatrixCSC(coo::CuSparseMatrixCOO{Tv}, ind::SparseChar='O') where {Tv}
+    m,n = size(coo)
+    coo = sort_coo(coo, 'C')
+    cscColPtr = CuVector{Cint}(undef, n+1)
+    cusparseXcoo2csr(handle(), coo.colInd, nnz(coo), n, cscColPtr, ind)
+    CuSparseMatrixCSC{Tv}(cscColPtr, coo.rowInd, nonzeros(coo), size(coo))
+end
+
+function CuSparseMatrixCOO(csc::CuSparseMatrixCSC{Tv}, ind::SparseChar='O') where {Tv}
+    m,n = size(csc)
+    cooColInd = CuVector{Cint}(undef, nnz(csc))
+    cusparseXcsr2coo(handle(), csc.colPtr, nnz(csc), n, cooColInd, ind)
+    CuSparseMatrixCOO{Tv}(cooColInd, csc.rowVal, nonzeros(csc), size(csc), nnz(csc))
+end
+
+### BSR to COO and viceversa
+
 CuSparseMatrixBSR(coo::CuSparseMatrixCOO, blockdim) = CuSparseMatrixBSR(CuSparseMatrixCSR(coo), blockdim) # no direct conversion
 CuSparseMatrixCOO(bsr::CuSparseMatrixBSR) = CuSparseMatrixCOO(CuSparseMatrixCSR(bsr)) # no direct conversion
 
@@ -493,15 +607,17 @@ for (nname,cname,rname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseS
                                  (:cusparseZnnz, :cusparseZdense2csc, :cusparseZdense2csr, :ComplexF64))
     @eval begin
         function CuSparseMatrixCSR(A::CuMatrix{$elty}; ind::SparseChar='O', sorted::Bool=false)
-            if !sorted && version() >= v"11.3" # CUSPARSE version from CUDA release notes
-                return densetosparse(A, :csr, ind)
+            if version() >= v"11.3" # CUSPARSE version from CUDA release notes
+                csr = densetosparse(A, :csr, ind)
+                csr = sorted ? sort_csr(csr, ind) : csr
+                return csr
             else
                 m,n = size(A)
                 lda = max(1, stride(A,2))
                 cudesc = CuMatrixDescriptor('G',
                                             'L',
                                             'N', ind)
-                nnzRowCol = CUDA.zeros(Cint, m)
+                nnzRowCol = CuVector{Cint}(undef, m)
                 nnzTotal = Ref{Cint}(1)
                 $nname(handle(),
                        'R', m, n, cudesc, A, lda, nnzRowCol,
@@ -517,15 +633,17 @@ for (nname,cname,rname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseS
         end
 
         function CuSparseMatrixCSC(A::CuMatrix{$elty}; ind::SparseChar='O', sorted::Bool=false)
-            if !sorted && version() >= v"11.3" # CUSPARSE version from CUDA release notes
-                return densetosparse(A, :csc, ind)
+            if version() >= v"11.3" # CUSPARSE version from CUDA release notes
+                csc = densetosparse(A, :csc, ind)
+                csc = sorted ? sort_csc(csc, ind) : csc
+                return csc
             else
                 m,n = size(A)
                 lda = max(1, stride(A,2))
                 cudesc = CuMatrixDescriptor('G',
                                             'L',
                                             'N', ind)
-                nnzRowCol = CUDA.zeros(Cint, n)
+                nnzRowCol = CuVector{Cint}(undef, n)
                 nnzTotal = Ref{Cint}(1)
                 $nname(handle(),
                        'C', m, n, cudesc, A, lda, nnzRowCol,
@@ -546,16 +664,20 @@ for (elty, welty) in ((:Float16, :Float32),
                       (:ComplexF16, :ComplexF32))
     @eval begin
         function CuSparseMatrixCSR(A::CuMatrix{$elty}; ind::SparseChar='O', sorted::Bool=false)
-            if !sorted && version() >= v"11.3" # CUSPARSE version from CUDA release notes
-                return densetosparse(A, :csr, ind)
+            if version() >= v"11.3" # CUSPARSE version from CUDA release notes
+                csr = densetosparse(A, :csr, ind)
+                csr = sorted ? sort_csr(csr, ind) : csr
+                return csr
             else
                 wide_csr = CuSparseMatrixCSR(convert(CuMatrix{$welty}, A))
                 return CuSparseMatrixCSR(wide_csr.rowPtr, wide_csr.colVal, convert(CuVector{$elty}, nonzeros(wide_csr)), size(wide_csr))
             end
         end
         function CuSparseMatrixCSC(A::CuMatrix{$elty}; ind::SparseChar='O', sorted::Bool=false)
-            if !sorted && version() >= v"11.3" # CUSPARSE version from CUDA release notes
-                return densetosparse(A, :csc, ind)
+            if version() >= v"11.3" # CUSPARSE version from CUDA release notes
+                csc = densetosparse(A, :csc, ind)
+                csc = sorted ? sort_csc(csc, ind) : csc
+                return csc
             else
                 wide_csc = CuSparseMatrixCSC(convert(CuMatrix{$welty}, A))
                 return CuSparseMatrixCSC(wide_csc.colPtr, wide_csc.rowVal, convert(CuVector{$elty}, nonzeros(wide_csc)), size(wide_csc))
