@@ -4,6 +4,119 @@
 # Low-level intrinsics
 #
 
+abstract type ThreadScope end
+struct System <: ThreadScope end
+struct Device <: ThreadScope end
+struct Block <: ThreadScope end
+
+abstract type MemoryOrder end
+struct Relaxed <: MemoryOrder end
+struct Consume <: MemoryOrder end
+struct Acquire <: MemoryOrder end
+struct Release <: MemoryOrder end
+struct Acq_Rel <: MemoryOrder end
+struct Seq_Cst <: MemoryOrder end
+
+threadfence_sc_block() =
+    @asmcall("fence.sc.cta;", "~{memory}", true, Cvoid, Tuple{})
+threadfence_acq_rel_block() =
+    @asmcall("fence.acq_rel.cta;", "~{memory}", true, Cvoid, Tuple{})
+
+function atomic_thread_fence(order, scope::Block)
+    if compute_capability() >= sv"7.0"
+        if order == Seq_Cst()
+
+            threadfence_sc_block()
+        elseif order == Consume() ||
+               order == Acquire() ||
+               order == Acq_Rel() ||
+               order == Release()
+
+           threadfence_acq_rel_block()
+        else 
+            assert(false)
+        end
+    end
+
+    else
+        if order == Seq_Cst() ||
+           order == Consume() ||
+           order == Acquire() ||
+           order == Acq_Rel() ||
+           order == Release()
+
+           threadfence_block()
+        else
+            assert(false)
+        end
+    end
+end
+
+threadfence_sc_system() =
+    @asmcall("fence.sc.sys;", "~{memory}", true, Cvoid, Tuple{})
+threadfence_acq_rel_system() =
+    @asmcall("fence.acq_rel.sys;", "~{memory}", true, Cvoid, Tuple{})
+
+function atomic_thread_fence(order, scope::Device)
+    if compute_capability() >= sv"7.0"
+        if order == Seq_Cst()
+
+            threadfence_sc_device()
+        elseif order == Consume() ||
+               order == Acquire() ||
+               order == Acq_Rel() ||
+               order == Release()
+
+           threadfence_acq_rel_device()
+        else 
+            assert(false)
+        end
+    end
+
+    else
+        if order == Seq_Cst() ||
+           order == Consume() ||
+           order == Acquire() ||
+           order == Acq_Rel() ||
+           order == Release()
+
+           threadfence()
+        else
+            assert(false)
+        end
+    end
+end
+
+function atomic_thread_fence(order, scope::System=System())
+    if compute_capability() >= sv"7.0"
+        if order == Seq_Cst()
+
+            threadfence_sc_system()
+        elseif order == Consume() ||
+               order == Acquire() ||
+               order == Acq_Rel() ||
+               order == Release()
+
+           threadfence_acq_rel_system()
+        else 
+            assert(false)
+        end
+    end
+
+    else
+        if order == Seq_Cst() ||
+           order == Consume() ||
+           order == Acquire() ||
+           order == Acq_Rel() ||
+           order == Release()
+
+           threadfence_system()
+        else
+            assert(false)
+        end
+    end
+end
+
 # TODO:
 # - scoped atomics: _system and _block versions (see CUDA programming guide, sm_60+)
 #   https://github.com/Microsoft/clang/blob/86d4513d3e0daa4d5a29b0b1de7c854ca15f9fe5/test/CodeGen/builtins-nvptx.c#L293
