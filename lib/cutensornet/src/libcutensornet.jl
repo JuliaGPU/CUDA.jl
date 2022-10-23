@@ -138,7 +138,7 @@ end
 
 @checked function cutensornetWorkspaceSet(handle, workDesc, memSpace, workspacePtr, workspaceSize)
     initialize_context()
-    ccall((:cutensornetWorkspaceSet, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetWorkspaceDescriptor_t, cutensornetMemspace_t, Ptr{Cvoid}, UInt64), handle, workDesc, memSpace, workspacePtr, workspaceSize)
+    ccall((:cutensornetWorkspaceSet, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetWorkspaceDescriptor_t, cutensornetMemspace_t, PtrOrCuPtr{Cvoid}, UInt64), handle, workDesc, memSpace, workspacePtr, workspaceSize)
 end
 
 @checked function cutensornetDestroySliceGroup(sliceGroup)
@@ -218,7 +218,7 @@ end
 
 @checked function cutensornetContractionAutotune(handle, plan, rawDataIn, rawDataOut, workDesc, pref, stream)
     initialize_context()
-    ccall((:cutensornetContractionAutotune, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionPlan_t, Ptr{Ptr{Cvoid}}, Ptr{Cvoid}, cutensornetWorkspaceDescriptor_t, cutensornetContractionAutotunePreference_t, CUstream), handle, plan, rawDataIn, rawDataOut, workDesc, pref, stream)
+    ccall((:cutensornetContractionAutotune, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionPlan_t, Ptr{CuPtr{Cvoid}}, CuPtr{Cvoid}, cutensornetWorkspaceDescriptor_t, cutensornetContractionAutotunePreference_t, CUstream), handle, plan, rawDataIn, rawDataOut, workDesc, pref, stream)
 end
 
 @checked function cutensornetCreateContractionPlan(handle, descNet, optimizerInfo, workDesc, plan)
@@ -227,5 +227,5 @@ end
 end
 @checked function cutensornetContraction(handle, plan, rawDataIn, rawDataOut, workDesc, sliceId, stream)
     initialize_context()
-    ccall((:cutensornetContraction, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionPlan_t, Ptr{Ptr{Cvoid}}, Ptr{Cvoid}, cutensornetWorkspaceDescriptor_t, Int64, CUstream), handle, plan, rawDataIn, rawDataOut, workDesc, sliceId, stream)
+    ccall((:cutensornetContraction, libcutensornet), cutensornetStatus_t, (cutensornetHandle_t, cutensornetContractionPlan_t, Ptr{CuPtr{Cvoid}}, CuPtr{Cvoid}, cutensornetWorkspaceDescriptor_t, Int64, CUstream), handle, plan, rawDataIn, rawDataOut, workDesc, sliceId, stream)
 end
