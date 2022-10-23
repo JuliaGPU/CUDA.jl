@@ -83,10 +83,10 @@ mutable struct CuStateVecSampler
     ws_size::Csize_t
     function CuStateVecSampler(sv::CuStateVec, shot_count::UInt32)
         desc_ref   = Ref{custatevecSamplerDescriptor_t}()
-        extra_size = Ref{Csize_t}()
+        extra_size = Ref{Csize_t}(0)
         custatevecSamplerCreate(handle(), pointer(sv.data), eltype(sv), sv.nbits, desc_ref, shot_count, extra_size)
         obj = new(desc_ref[], extra_size[])
-        #finalizer(custatevecSampler_destroy, obj) # apparently there is no such method?
+        finalizer(custatevecSamplerDestroy, obj)
         obj
     end
 end

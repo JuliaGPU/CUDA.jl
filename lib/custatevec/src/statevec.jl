@@ -34,8 +34,8 @@ function sample(sv::CuStateVec, sampled_bits::Vector{Int32}, shot_count)
     sampler = CuStateVecSampler(sv, UInt32(shot_count))
     bitstrings = Vector{custatevecIndex_t}(undef, shot_count)
     with_workspace(sampler.ws_size) do buffer
-        custatevecSamplerPreprocess(handle(), Ref(sampler.handle), buffer, length(buffer))
-        custatevecSamplerSample(handle(), Ref(sampler.handle), bitstrings, sampled_bits, length(sampled_bits), rand(shot_count), shot_count, CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
+        custatevecSamplerPreprocess(handle(), sampler.handle, buffer, length(buffer))
+        custatevecSamplerSample(handle(), sampler.handle, bitstrings, sampled_bits, length(sampled_bits), rand(shot_count), shot_count, CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
     end
     return bitstrings
 end
