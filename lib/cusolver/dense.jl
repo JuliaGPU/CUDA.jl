@@ -638,7 +638,7 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
             # Calculate the workspace size
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), jobz, uplo, n, A, lda, W, out, params, batchSize)
+                $bname(dense_handle(), jobz, uplo, n, A, lda, W, out, params[], batchSize)
                 return out[]
             end
 
