@@ -218,4 +218,15 @@ using LinearAlgebra, SparseArrays
         @test dA - dD isa typ
         @test dD - dA isa typ
     end
+    @testset "dot(CuVector, CuSparseVector) and dot(CuSparseVector, CuVector) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
+        n = 10
+        x = sprand(elty, n, 0.5)
+        y = rand(elty, n)
+
+        dx = CuSparseVector(x)
+        dy = CuVector(y)
+
+        @test dot(dx,dy) ≈ dot(x,y)
+        @test dot(dy,dx) ≈ dot(y,x)
+    end
 end
