@@ -3,7 +3,7 @@ export geam, axpby
 """
     geam(alpha::Number, A::CuSparseMatrix, beta::Number, B::CuSparseMatrix, index::SparseChar)
 
-Performs `C = alpha * A + beta * B`. `A` and `B` are sparse matrices defined in CSR storage format.
+Performs `C = alpha * A + beta * B`. `A` and `B` are sparse matrices defined in CSR or CSC storage formats.
 """
 geam(alpha::Number, A::CuSparseMatrixCSR, beta::Number, B::CuSparseMatrixCSR, index::SparseChar)
 
@@ -54,6 +54,18 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
             return C
         end
     end
+end
+
+function geam(alpha::Number, A::CuSparseMatrixCSC{T}, beta::Number, B::CuSparseMatrixCSC{T}, index::SparseChar) where {T <: BlasFloat}
+    m, n = size(A)
+    (m, n) == size(B) || throw(DimensionMismatch("dimensions must match: A has dims $(size(A)), B has dims $(size(B))"))
+
+    Aᵀ = CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, (n, m))
+    Bᵀ = CuSparseMatrixCSR(B.colPtr, B.rowVal, B.nzVal, (n, m))
+    Cᵀ = geam(alpha, Aᵀ, beta, Bᵀ, index)
+
+    C = CuSparseMatrixCSC(Cᵀ.rowPtr, Cᵀ.colVal, Cᵀ.nzVal, (m, n))
+    return C
 end
 
 """
