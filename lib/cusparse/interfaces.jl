@@ -25,6 +25,12 @@ function mm_wrapper(transa::SparseChar, transb::SparseChar, alpha::Number,
     mm!(transa, transb, alpha, A, B, beta, C, 'O')
 end
 
+LinearAlgebra.dot(x::CuSparseVector{T}, y::DenseCuVector{T}) where {T <: BlasReal} = vv!('N', x, y, 'O')
+LinearAlgebra.dot(x::DenseCuVector{T}, y::CuSparseVector{T}) where {T <: BlasReal} = dot(y, x)
+
+LinearAlgebra.dot(x::CuSparseVector{T}, y::DenseCuVector{T}) where {T <: BlasComplex} = vv!('C', x, y, 'O')
+LinearAlgebra.dot(x::DenseCuVector{T}, y::CuSparseVector{T}) where {T <: BlasComplex} = conj(dot(y,x))
+
 tag_wrappers = ((identity, identity),
                 (T -> :(HermOrSym{T, <:$T}), A -> :(parent($A))))
 op_wrappers = (
