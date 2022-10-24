@@ -48,6 +48,7 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
                     beta, descrB, nnz(B), nonzeros(B), B.rowPtr, B.colVal,
                     descrC, nzValC, rowPtrC, colValC,
                     buffer)
+            end
 
             C = CuSparseMatrixCSR(rowPtrC, colValC, nzValC, (m, n))
             return C
