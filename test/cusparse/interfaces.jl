@@ -3,6 +3,53 @@ using CUDA.CUSPARSE
 using LinearAlgebra, SparseArrays
 
 @testset "LinearAlgebra" begin
+    @testset "CuSparseVector -- A ± B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        n = 10
+        alpha = rand()
+        beta = rand()
+        A = sprand(elty, n, 0.3)
+        B = sprand(elty, n, 0.7)
+
+        dA = CuSparseVector(A)
+        dB = CuSparseVector(B)
+
+        C = alpha * A + beta * B
+        dC = axpby(alpha, dA, beta, dB, 'O')
+        @test C ≈ collect(dC)
+
+        C = A + B
+        dC = dA + dB
+        @test C ≈ collect(dC)
+
+        C = A - B
+        dC = dA - dB
+        @test C ≈ collect(dC)
+    end
+
+    @testset "CuSparseMatrixCSR -- A ± B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        n = 10
+        m = 20
+        alpha = rand()
+        beta = rand()
+        A = sprand(elty, n, m, 0.2)
+        B = sprand(elty, n, m, 0.5)
+
+        dA = CuSparseMatrixCSR(A)
+        dB = CuSparseMatrixCSR(B)
+
+        C = alpha * A + beta * B
+        dC = geam(alpha, dA, beta, dB, 'O')
+        @test C ≈ collect(dC)
+
+        C = A + B
+        dC = dA + dB
+        @test C ≈ collect(dC)
+
+        C = A - B
+        dC = dA - dB
+        @test C ≈ collect(dC)
+    end
+
     @testset "$f(A)±$h(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
                                      f in (identity, transpose), #adjoint),
                                      h in (identity, transpose)#, adjoint)
