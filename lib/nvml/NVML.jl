@@ -48,12 +48,11 @@ end
 
 
 # core library
-include("libnvml_common.jl")
-include("error.jl")
 include("libnvml.jl")
 include("libnvml_deprecated.jl")
 
 # wrappers
+include("error.jl")
 include("system.jl")
 include("device.jl")
 
