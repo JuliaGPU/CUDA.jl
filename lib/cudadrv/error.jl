@@ -72,31 +72,3 @@ end
 Base.show(io::IO, ::MIME"text/plain", err::CuError) = print(io, "CuError($(err.code))")
 
 @enum_without_prefix cudaError_enum CUDA_
-
-
-## API call wrapper
-
-@inline function initialize_context()
-    prepare_cuda_state()
-    return
-end
-
-# outlined functionality to avoid GC frame allocation
-@noinline function throw_api_error(res)
-    if res == ERROR_OUT_OF_MEMORY
-        throw(OutOfGPUMemoryError())
-    else
-        throw(CuError(res))
-    end
-end
-
-macro check(ex)
-    quote
-        res = $(esc(ex))
-        if res != SUCCESS
-            throw_api_error(res)
-        end
-
-        nothing
-    end
-end
