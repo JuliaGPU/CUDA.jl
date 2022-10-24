@@ -12,8 +12,6 @@ using ExprTools: splitdef, combinedef
 
 
 # core library
-initialize_context() = return
-include("libnvtx_common.jl")
 include("libnvtx.jl")
 
 include("highlevel.jl")
