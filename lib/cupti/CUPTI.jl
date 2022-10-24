@@ -13,10 +13,9 @@ using CEnum: @cenum
 
 
 # core library
-include("libcupti_common.jl")
-include("error.jl")
 include("libcupti.jl")
 
+include("error.jl")
 include("wrappers.jl")
 
 end
