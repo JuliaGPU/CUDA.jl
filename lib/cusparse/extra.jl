@@ -14,7 +14,7 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
     @eval begin
         function geam(alpha::Number, A::CuSparseMatrixCSR{$elty}, beta::Number, B::CuSparseMatrixCSR{$elty}, index::SparseChar)
             m, n = size(A)
-            (m, n) == size(B) || DimensionMismatch("dimensions must match: A has dims $(size(A)), B has dims $(size(B))")
+            (m, n) == size(B) || throw(DimensionMismatch("dimensions must match: A has dims $(size(A)), B has dims $(size(B))"))
             descrA = CuMatrixDescriptor('G', 'L', 'N', index)
             descrB = CuMatrixDescriptor('G', 'L', 'N', index)
             descrC = CuMatrixDescriptor('G', 'L', 'N', index)
@@ -65,7 +65,7 @@ axpby(alpha::Number, x::CuSparseVector, beta::Number, y::CuSparseVector, index::
 
 function axpby(alpha::Number, x::CuSparseVector{T}, beta::Number, y::CuSparseVector{T}, index::SparseChar) where {T <: BlasFloat}
     n = length(x)
-    n == length(y) || DimensionMismatch("dimensions must match: x has length $(length(x)), y has length $(length(y))")
+    n == length(y) || throw(DimensionMismatch("dimensions must match: x has length $(length(x)), y has length $(length(y))"))
 
     # we model x as a CuSparseMatrixCSR with one row.
     rowPtrA = CuVector{Int32}([1; nnz(x)+1])
