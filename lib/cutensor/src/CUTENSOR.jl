@@ -24,11 +24,10 @@ end
 const cudaDataType_t = cudaDataType
 
 # core library
-include("libcutensor_common.jl")
-include("error.jl")
 include("libcutensor.jl")
 
 # low-level wrappers
+include("error.jl")
 include("tensor.jl")
 include("wrappers.jl")
 
