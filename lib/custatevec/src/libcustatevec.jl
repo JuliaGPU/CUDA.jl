@@ -359,13 +359,5 @@ end
         ccall((:custatevecMultiDeviceSwapIndexBits, libcustatevec), custatevecStatus_t, (Ptr{custatevecHandle_t}, UInt32, Ptr{Ptr{Cvoid}}, cudaDataType_t, UInt32, UInt32, Ptr{int2}, UInt32, Ptr{Int32}, Ptr{Int32}, UInt32, custatevecDeviceNetworkType_t), handles, nHandles, subSVs, svDataType, nGlobalIndexBits, nLocalIndexBits, indexBitSwaps, nIndexBitSwaps, maskBitString, maskOrdering, maskLen, deviceNetworkType)
     end
 
-const CUSTATEVEC_VER_MAJOR = 1
-
-const CUSTATEVEC_VER_MINOR = 1
-
-const CUSTATEVEC_VER_PATCH = 0
-
-const CUSTATEVEC_VERSION = 1100
-
 const CUSTATEVEC_ALLOCATOR_NAME_LEN = 64
 

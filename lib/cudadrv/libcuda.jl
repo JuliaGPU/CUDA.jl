@@ -4492,8 +4492,6 @@ end
 
 # Skipping MacroDefinition: __CUDA_DEPRECATED __attribute__ ( ( deprecated ) )
 
-const CUDA_VERSION = 11080
-
 const CU_IPC_HANDLE_SIZE = 64
 
 const CU_STREAM_LEGACY = CUstream(0x01)

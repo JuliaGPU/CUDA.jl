@@ -282,13 +282,3 @@ const curandMethod_t = curandMethod
         ccall((:curandGetScrambleConstants64, libcurand), curandStatus_t, (Ptr{Ptr{Culonglong}},), constants)
     end
 
-const CURAND_VER_MAJOR = 10
-
-const CURAND_VER_MINOR = 3
-
-const CURAND_VER_PATCH = 0
-
-const CURAND_VER_BUILD = 86
-
-const CURAND_VERSION = CURAND_VER_MAJOR * 1000 + CURAND_VER_MINOR * 100 + CURAND_VER_PATCH
-

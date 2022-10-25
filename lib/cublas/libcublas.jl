@@ -1841,16 +1841,6 @@ end
         ccall((:cublasXtZtrmm, libcublas), cublasStatus_t, (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Csize_t, Csize_t, RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t, PtrOrCuPtr{cuDoubleComplex}, Csize_t, PtrOrCuPtr{cuDoubleComplex}, Csize_t), handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
     end
 
-const CUBLAS_VER_MAJOR = 11
-
-const CUBLAS_VER_MINOR = 11
-
-const CUBLAS_VER_PATCH = 3
-
-const CUBLAS_VER_BUILD = 6
-
-const CUBLAS_VERSION = CUBLAS_VER_MAJOR * 10000 + CUBLAS_VER_MINOR * 100 + CUBLAS_VER_PATCH
-
 # Float16 functionality is only enabled when using C++ (and defining __cplusplus breaks things)
 
 @checked function cublasHSHgemvBatched(handle, trans, m, n, alpha, Aarray, lda, xarray, incx, beta, yarray, incy, batchCount)

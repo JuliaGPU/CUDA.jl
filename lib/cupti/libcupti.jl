@@ -5639,8 +5639,6 @@ function Base.setproperty!(x::Ptr{var"##Ctag#796"}, f::Symbol, v)
 end
 
 
-const CUPTI_API_VERSION = 18
-
 const CUPTI_EVENT_OVERFLOW = uint64_t(Culonglong(0xffffffffffffffff))
 
 const CUPTI_EVENT_INVALID = uint64_t(Culonglong(0xfffffffffffffffe))

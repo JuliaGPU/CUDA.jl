@@ -4,9 +4,16 @@ output_file_path = "../../lib/cudnn/src/libcudnn.jl"
 prologue_file_path = "./libcudnn_prologue.jl"
 
 output_ignorelist = [
-    "CUDNN_SEV_ERROR_EN",
-    "CUDNN_SEV_WARNING_EN",
-    "CUDNN_SEV_INFO_EN"
+    # bitshift syntax with enums generates bad code
+    "^CUDNN_SEV_ERROR_EN$",
+    "^CUDNN_SEV_WARNING_EN$",
+    "^CUDNN_SEV_INFO_EN$",
+    # these change often
+    "^CUDNN.*_VERSION",
+    "^CUDNN.*_MAJOR",
+    "^CUDNN.*_MINOR",
+    "^CUDNN.*_PATCH",
+    "^CUDNN.*_PATCH",
 ]
 
 

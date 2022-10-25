@@ -4,7 +4,11 @@ output_file_path = "../../lib/cusparse/libcusparse.jl"
 prologue_file_path = "./libcusparse_prologue.jl"
 
 output_ignorelist = [
-    "CUSPARSE_CPP_VERSION"
+    # generates bad code
+    "^CUSPARSE_CPP_VERSION$",
+    # these change often
+    "^CUSPARSE_VERSION$",
+    "^CUSPARSE_VER_",
 ]
 
 

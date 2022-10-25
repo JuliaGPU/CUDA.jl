@@ -238,16 +238,6 @@ const cufftHandle = Cint
 
 # Skipping MacroDefinition: CUFFTAPI __attribute__ ( ( visibility ( "default" ) ) )
 
-const CUFFT_VER_MAJOR = 10
-
-const CUFFT_VER_MINOR = 9
-
-const CUFFT_VER_PATCH = 0
-
-const CUFFT_VER_BUILD = 58
-
-const CUFFT_VERSION = 10900
-
 const MAX_CUFFT_ERROR = 0x11
 
 const CUFFT_FORWARD = -1

@@ -4,6 +4,12 @@ output_file_path = "../../lib/cublas/libcublas.jl"
 prologue_file_path = "./libcublas_prologue.jl"
 epilogue_file_path = "./libcublas_epilogue.jl"
 
+output_ignorelist = [
+    # these change often
+    "^CUBLAS_VERSION$",
+    "^CUBLAS_VER_",
+]
+
 
 [codegen]
 always_NUL_terminated_string = true

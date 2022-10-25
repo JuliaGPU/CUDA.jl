@@ -2951,13 +2951,3 @@ const csrcholInfo_t = Ptr{csrcholInfo}
         ccall((:cusolverSpZcsrcholDiag, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Ptr{Cdouble}), handle, info, diag)
     end
 
-const CUSOLVER_VER_MAJOR = 11
-
-const CUSOLVER_VER_MINOR = 4
-
-const CUSOLVER_VER_PATCH = 1
-
-const CUSOLVER_VER_BUILD = 48
-
-const CUSOLVER_VERSION = CUSOLVER_VER_MAJOR * 1000 + CUSOLVER_VER_MINOR * 100 + CUSOLVER_VER_PATCH
-

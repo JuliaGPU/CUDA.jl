@@ -3,6 +3,14 @@ library_name = "libcutensornet"
 output_file_path = "../../lib/cutensornet/src/libcutensornet.jl"
 prologue_file_path = "./libcutensornet_prologue.jl"
 
+output_ignorelist = [
+    # these change often
+    "^CUTENSORNET_VERSION$",
+    "^CUTENSORNET_MAJOR",
+    "^CUTENSORNET_MINOR",
+    "^CUTENSORNET_PATCH",
+]
+
 
 [codegen]
 always_NUL_terminated_string = true

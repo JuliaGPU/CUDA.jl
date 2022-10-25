@@ -3,6 +3,14 @@ library_name = "libcutensor"
 output_file_path = "../../lib/cutensor/src/libcutensor.jl"
 prologue_file_path = "./libcutensor_prologue.jl"
 
+output_ignorelist = [
+    # these change often
+    "^CUTENSOR_VERSION$",
+    "^CUTENSOR_MAJOR",
+    "^CUTENSOR_MINOR",
+    "^CUTENSOR_PATCH",
+]
+
 
 [codegen]
 always_NUL_terminated_string = true

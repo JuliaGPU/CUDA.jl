@@ -404,13 +404,5 @@ function cutensornetGetErrorString(error)
     ccall((:cutensornetGetErrorString, libcutensornet), Cstring, (cutensornetStatus_t,), error)
 end
 
-const CUTENSORNET_MAJOR = 1
-
-const CUTENSORNET_MINOR = 1
-
-const CUTENSORNET_PATCH = 1
-
-const CUTENSORNET_VERSION = CUTENSORNET_MAJOR * 10000 + CUTENSORNET_MINOR * 100 + CUTENSORNET_PATCH
-
 const CUTENSORNET_ALLOCATOR_NAME_LEN = 64
 

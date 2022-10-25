@@ -324,11 +324,3 @@ end
         ccall((:cutensorReductionGetWorkspace, libcutensor), cutensorStatus_t, (Ptr{cutensorHandle_t}, PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, cutensorOperator_t, cutensorComputeType_t, Ptr{UInt64}), handle, A, descA, modeA, C, descC, modeC, D, descD, modeD, opReduce, typeCompute, workspaceSize)
     end
 
-const CUTENSOR_MAJOR = 1
-
-const CUTENSOR_MINOR = 6
-
-const CUTENSOR_PATCH = 1
-
-const CUTENSOR_VERSION = CUTENSOR_MAJOR * 10000 + CUTENSOR_MINOR * 100 + CUTENSOR_PATCH
-

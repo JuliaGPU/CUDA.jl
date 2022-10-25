@@ -3,6 +3,12 @@ library_name = "libcurand"
 output_file_path = "../../lib/curand/libcurand.jl"
 prologue_file_path = "./libcurand_prologue.jl"
 
+output_ignorelist = [
+    # these change often
+    "^CURAND_VERSION$",
+    "^CURAND_VER_",
+]
+
 
 [codegen]
 always_NUL_terminated_string = true
