@@ -23,10 +23,9 @@ end
 const cudaDataType_t = cudaDataType
 
 # core library
-include("libcutensornet_common.jl")
-include("error.jl")
 include("libcutensornet.jl")
 
+include("error.jl")
 include("types.jl")
 include("tensornet.jl")
 
