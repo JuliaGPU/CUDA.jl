@@ -23,9 +23,9 @@ end
 const cudaDataType_t = cudaDataType
 
 # core library
-include("libcustatevec_common.jl")
-include("error.jl")
 include("libcustatevec.jl")
+
+include("error.jl")
 include("types.jl")
 include("statevec.jl")
 
