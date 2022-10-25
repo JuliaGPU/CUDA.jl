@@ -139,7 +139,7 @@ end
 const CUresult = cudaError_enum
 
 @checked function cuDeviceTotalMem_v2(bytes, dev)
-    ccall((:cuDeviceTotalMem_v2, libcuda), CUresult, (Ptr{Csize_t}, CUdevice), bytes, dev)
+    @ccall libcuda.cuDeviceTotalMem_v2(bytes::Ptr{Csize_t}, dev::CUdevice)::CUresult
 end
 
 mutable struct CUctx_st end
@@ -147,8 +147,8 @@ mutable struct CUctx_st end
 const CUcontext = Ptr{CUctx_st}
 
 @checked function cuCtxCreate_v2(pctx, flags, dev)
-    ccall((:cuCtxCreate_v2, libcuda), CUresult, (Ptr{CUcontext}, Cuint, CUdevice), pctx,
-          flags, dev)
+    @ccall libcuda.cuCtxCreate_v2(pctx::Ptr{CUcontext}, flags::Cuint,
+                                  dev::CUdevice)::CUresult
 end
 
 mutable struct CUmod_st end
@@ -157,112 +157,111 @@ const CUmodule = Ptr{CUmod_st}
 
 @checked function cuModuleGetGlobal_v2(dptr, bytes, hmod, name)
     initialize_context()
-    ccall((:cuModuleGetGlobal_v2, libcuda), CUresult,
-          (Ptr{CUdeviceptr}, Ptr{Csize_t}, CUmodule, Cstring), dptr, bytes, hmod, name)
+    @ccall libcuda.cuModuleGetGlobal_v2(dptr::Ptr{CUdeviceptr}, bytes::Ptr{Csize_t},
+                                        hmod::CUmodule, name::Cstring)::CUresult
 end
 
 @checked function cuMemGetInfo_v2(free, total)
     initialize_context()
-    ccall((:cuMemGetInfo_v2, libcuda), CUresult, (Ptr{Csize_t}, Ptr{Csize_t}), free, total)
+    @ccall libcuda.cuMemGetInfo_v2(free::Ptr{Csize_t}, total::Ptr{Csize_t})::CUresult
 end
 
 @checked function cuMemAlloc_v2(dptr, bytesize)
     initialize_context()
-    ccall((:cuMemAlloc_v2, libcuda), CUresult, (Ptr{CUdeviceptr}, Csize_t), dptr, bytesize)
+    @ccall libcuda.cuMemAlloc_v2(dptr::Ptr{CUdeviceptr}, bytesize::Csize_t)::CUresult
 end
 
 @checked function cuMemAllocPitch_v2(dptr, pPitch, WidthInBytes, Height, ElementSizeBytes)
     initialize_context()
-    ccall((:cuMemAllocPitch_v2, libcuda), CUresult,
-          (Ptr{CUdeviceptr}, Ptr{Csize_t}, Csize_t, Csize_t, Cuint), dptr, pPitch,
-          WidthInBytes, Height, ElementSizeBytes)
+    @ccall libcuda.cuMemAllocPitch_v2(dptr::Ptr{CUdeviceptr}, pPitch::Ptr{Csize_t},
+                                      WidthInBytes::Csize_t, Height::Csize_t,
+                                      ElementSizeBytes::Cuint)::CUresult
 end
 
 @checked function cuMemFree_v2(dptr)
     initialize_context()
-    ccall((:cuMemFree_v2, libcuda), CUresult, (CUdeviceptr,), dptr)
+    @ccall libcuda.cuMemFree_v2(dptr::CUdeviceptr)::CUresult
 end
 
 @checked function cuMemGetAddressRange_v2(pbase, psize, dptr)
     initialize_context()
-    ccall((:cuMemGetAddressRange_v2, libcuda), CUresult,
-          (Ptr{CUdeviceptr}, Ptr{Csize_t}, CUdeviceptr), pbase, psize, dptr)
+    @ccall libcuda.cuMemGetAddressRange_v2(pbase::Ptr{CUdeviceptr}, psize::Ptr{Csize_t},
+                                           dptr::CUdeviceptr)::CUresult
 end
 
 @checked function cuMemAllocHost_v2(pp, bytesize)
     initialize_context()
-    ccall((:cuMemAllocHost_v2, libcuda), CUresult, (Ptr{Ptr{Cvoid}}, Csize_t), pp, bytesize)
+    @ccall libcuda.cuMemAllocHost_v2(pp::Ptr{Ptr{Cvoid}}, bytesize::Csize_t)::CUresult
 end
 
 @checked function cuMemHostGetDevicePointer_v2(pdptr, p, Flags)
     initialize_context()
-    ccall((:cuMemHostGetDevicePointer_v2, libcuda), CUresult,
-          (Ptr{CUdeviceptr}, Ptr{Cvoid}, Cuint), pdptr, p, Flags)
+    @ccall libcuda.cuMemHostGetDevicePointer_v2(pdptr::Ptr{CUdeviceptr}, p::Ptr{Cvoid},
+                                                Flags::Cuint)::CUresult
 end
 
 @checked function cuMemcpyHtoD_v2(dstDevice, srcHost, ByteCount)
     initialize_context()
-    ccall((:cuMemcpyHtoD_v2, libcuda), CUresult, (CUdeviceptr, Ptr{Cvoid}, Csize_t),
-          dstDevice, srcHost, ByteCount)
+    @ccall libcuda.cuMemcpyHtoD_v2(dstDevice::CUdeviceptr, srcHost::Ptr{Cvoid},
+                                   ByteCount::Csize_t)::CUresult
 end
 
 @checked function cuMemcpyDtoH_v2(dstHost, srcDevice, ByteCount)
     initialize_context()
-    ccall((:cuMemcpyDtoH_v2, libcuda), CUresult, (Ptr{Cvoid}, CUdeviceptr, Csize_t),
-          dstHost, srcDevice, ByteCount)
+    @ccall libcuda.cuMemcpyDtoH_v2(dstHost::Ptr{Cvoid}, srcDevice::CUdeviceptr,
+                                   ByteCount::Csize_t)::CUresult
 end
 
 @checked function cuMemcpyDtoD_v2(dstDevice, srcDevice, ByteCount)
     initialize_context()
-    ccall((:cuMemcpyDtoD_v2, libcuda), CUresult, (CUdeviceptr, CUdeviceptr, Csize_t),
-          dstDevice, srcDevice, ByteCount)
+    @ccall libcuda.cuMemcpyDtoD_v2(dstDevice::CUdeviceptr, srcDevice::CUdeviceptr,
+                                   ByteCount::Csize_t)::CUresult
 end
 
 mutable struct CUarray_st end
 
 @checked function cuMemcpyDtoA_v2(dstArray, dstOffset, srcDevice, ByteCount)
     initialize_context()
-    ccall((:cuMemcpyDtoA_v2, libcuda), CUresult, (CUarray, Csize_t, CUdeviceptr, Csize_t),
-          dstArray, dstOffset, srcDevice, ByteCount)
+    @ccall libcuda.cuMemcpyDtoA_v2(dstArray::CUarray, dstOffset::Csize_t,
+                                   srcDevice::CUdeviceptr, ByteCount::Csize_t)::CUresult
 end
 
 @checked function cuMemcpyAtoD_v2(dstDevice, srcArray, srcOffset, ByteCount)
     initialize_context()
-    ccall((:cuMemcpyAtoD_v2, libcuda), CUresult, (CUdeviceptr, CUarray, Csize_t, Csize_t),
-          dstDevice, srcArray, srcOffset, ByteCount)
+    @ccall libcuda.cuMemcpyAtoD_v2(dstDevice::CUdeviceptr, srcArray::CUarray,
+                                   srcOffset::Csize_t, ByteCount::Csize_t)::CUresult
 end
 
 @checked function cuMemcpyHtoA_v2(dstArray, dstOffset, srcHost, ByteCount)
     initialize_context()
-    ccall((:cuMemcpyHtoA_v2, libcuda), CUresult, (CUarray, Csize_t, Ptr{Cvoid}, Csize_t),
-          dstArray, dstOffset, srcHost, ByteCount)
+    @ccall libcuda.cuMemcpyHtoA_v2(dstArray::CUarray, dstOffset::Csize_t,
+                                   srcHost::Ptr{Cvoid}, ByteCount::Csize_t)::CUresult
 end
 
 @checked function cuMemcpyAtoH_v2(dstHost, srcArray, srcOffset, ByteCount)
     initialize_context()
-    ccall((:cuMemcpyAtoH_v2, libcuda), CUresult, (Ptr{Cvoid}, CUarray, Csize_t, Csize_t),
-          dstHost, srcArray, srcOffset, ByteCount)
+    @ccall libcuda.cuMemcpyAtoH_v2(dstHost::Ptr{Cvoid}, srcArray::CUarray,
+                                   srcOffset::Csize_t, ByteCount::Csize_t)::CUresult
 end
 
 @checked function cuMemcpyAtoA_v2(dstArray, dstOffset, srcArray, srcOffset, ByteCount)
     initialize_context()
-    ccall((:cuMemcpyAtoA_v2, libcuda), CUresult,
-          (CUarray, Csize_t, CUarray, Csize_t, Csize_t), dstArray, dstOffset, srcArray,
-          srcOffset, ByteCount)
+    @ccall libcuda.cuMemcpyAtoA_v2(dstArray::CUarray, dstOffset::Csize_t, srcArray::CUarray,
+                                   srcOffset::Csize_t, ByteCount::Csize_t)::CUresult
 end
 
 @checked function cuMemcpyHtoAAsync_v2(dstArray, dstOffset, srcHost, ByteCount, hStream)
     initialize_context()
-    ccall((:cuMemcpyHtoAAsync_v2, libcuda), CUresult,
-          (CUarray, Csize_t, Ptr{Cvoid}, Csize_t, CUstream), dstArray, dstOffset, srcHost,
-          ByteCount, hStream)
+    @ccall libcuda.cuMemcpyHtoAAsync_v2(dstArray::CUarray, dstOffset::Csize_t,
+                                        srcHost::Ptr{Cvoid}, ByteCount::Csize_t,
+                                        hStream::CUstream)::CUresult
 end
 
 @checked function cuMemcpyAtoHAsync_v2(dstHost, srcArray, srcOffset, ByteCount, hStream)
     initialize_context()
-    ccall((:cuMemcpyAtoHAsync_v2, libcuda), CUresult,
-          (Ptr{Cvoid}, CUarray, Csize_t, Csize_t, CUstream), dstHost, srcArray, srcOffset,
-          ByteCount, hStream)
+    @ccall libcuda.cuMemcpyAtoHAsync_v2(dstHost::Ptr{Cvoid}, srcArray::CUarray,
+                                        srcOffset::Csize_t, ByteCount::Csize_t,
+                                        hStream::CUstream)::CUresult
 end
 
 @cenum CUmemorytype_enum::UInt32 begin
@@ -299,12 +298,12 @@ const CUDA_MEMCPY2D = CUDA_MEMCPY2D_v2
 
 @checked function cuMemcpy2D_v2(pCopy)
     initialize_context()
-    ccall((:cuMemcpy2D_v2, libcuda), CUresult, (Ptr{CUDA_MEMCPY2D},), pCopy)
+    @ccall libcuda.cuMemcpy2D_v2(pCopy::Ptr{CUDA_MEMCPY2D})::CUresult
 end
 
 @checked function cuMemcpy2DUnaligned_v2(pCopy)
     initialize_context()
-    ccall((:cuMemcpy2DUnaligned_v2, libcuda), CUresult, (Ptr{CUDA_MEMCPY2D},), pCopy)
+    @ccall libcuda.cuMemcpy2DUnaligned_v2(pCopy::Ptr{CUDA_MEMCPY2D})::CUresult
 end
 
 struct CUDA_MEMCPY3D_st
@@ -341,79 +340,70 @@ const CUDA_MEMCPY3D = CUDA_MEMCPY3D_v2
 
 @checked function cuMemcpy3D_v2(pCopy)
     initialize_context()
-    ccall((:cuMemcpy3D_v2, libcuda), CUresult, (Ptr{CUDA_MEMCPY3D},), pCopy)
+    @ccall libcuda.cuMemcpy3D_v2(pCopy::Ptr{CUDA_MEMCPY3D})::CUresult
 end
 
 @checked function cuMemcpyHtoDAsync_v2(dstDevice, srcHost, ByteCount, hStream)
     initialize_context()
-    ccall((:cuMemcpyHtoDAsync_v2, libcuda), CUresult,
-          (CUdeviceptr, Ptr{Cvoid}, Csize_t, CUstream), dstDevice, srcHost, ByteCount,
-          hStream)
+    @ccall libcuda.cuMemcpyHtoDAsync_v2(dstDevice::CUdeviceptr, srcHost::Ptr{Cvoid},
+                                        ByteCount::Csize_t, hStream::CUstream)::CUresult
 end
 
 @checked function cuMemcpyDtoHAsync_v2(dstHost, srcDevice, ByteCount, hStream)
     initialize_context()
-    ccall((:cuMemcpyDtoHAsync_v2, libcuda), CUresult,
-          (Ptr{Cvoid}, CUdeviceptr, Csize_t, CUstream), dstHost, srcDevice, ByteCount,
-          hStream)
+    @ccall libcuda.cuMemcpyDtoHAsync_v2(dstHost::Ptr{Cvoid}, srcDevice::CUdeviceptr,
+                                        ByteCount::Csize_t, hStream::CUstream)::CUresult
 end
 
 @checked function cuMemcpyDtoDAsync_v2(dstDevice, srcDevice, ByteCount, hStream)
     initialize_context()
-    ccall((:cuMemcpyDtoDAsync_v2, libcuda), CUresult,
-          (CUdeviceptr, CUdeviceptr, Csize_t, CUstream), dstDevice, srcDevice, ByteCount,
-          hStream)
+    @ccall libcuda.cuMemcpyDtoDAsync_v2(dstDevice::CUdeviceptr, srcDevice::CUdeviceptr,
+                                        ByteCount::Csize_t, hStream::CUstream)::CUresult
 end
 
 @checked function cuMemcpy2DAsync_v2(pCopy, hStream)
     initialize_context()
-    ccall((:cuMemcpy2DAsync_v2, libcuda), CUresult, (Ptr{CUDA_MEMCPY2D}, CUstream), pCopy,
-          hStream)
+    @ccall libcuda.cuMemcpy2DAsync_v2(pCopy::Ptr{CUDA_MEMCPY2D},
+                                      hStream::CUstream)::CUresult
 end
 
 @checked function cuMemcpy3DAsync_v2(pCopy, hStream)
     initialize_context()
-    ccall((:cuMemcpy3DAsync_v2, libcuda), CUresult, (Ptr{CUDA_MEMCPY3D}, CUstream), pCopy,
-          hStream)
+    @ccall libcuda.cuMemcpy3DAsync_v2(pCopy::Ptr{CUDA_MEMCPY3D},
+                                      hStream::CUstream)::CUresult
 end
 
 @checked function cuMemsetD8_v2(dstDevice, uc, N)
     initialize_context()
-    ccall((:cuMemsetD8_v2, libcuda), CUresult, (CUdeviceptr, Cuchar, Csize_t), dstDevice,
-          uc, N)
+    @ccall libcuda.cuMemsetD8_v2(dstDevice::CUdeviceptr, uc::Cuchar, N::Csize_t)::CUresult
 end
 
 @checked function cuMemsetD16_v2(dstDevice, us, N)
     initialize_context()
-    ccall((:cuMemsetD16_v2, libcuda), CUresult, (CUdeviceptr, Cushort, Csize_t), dstDevice,
-          us, N)
+    @ccall libcuda.cuMemsetD16_v2(dstDevice::CUdeviceptr, us::Cushort, N::Csize_t)::CUresult
 end
 
 @checked function cuMemsetD32_v2(dstDevice, ui, N)
     initialize_context()
-    ccall((:cuMemsetD32_v2, libcuda), CUresult, (CUdeviceptr, Cuint, Csize_t), dstDevice,
-          ui, N)
+    @ccall libcuda.cuMemsetD32_v2(dstDevice::CUdeviceptr, ui::Cuint, N::Csize_t)::CUresult
 end
 
 @checked function cuMemsetD2D8_v2(dstDevice, dstPitch, uc, Width, Height)
     initialize_context()
-    ccall((:cuMemsetD2D8_v2, libcuda), CUresult,
-          (CUdeviceptr, Csize_t, Cuchar, Csize_t, Csize_t), dstDevice, dstPitch, uc, Width,
-          Height)
+    @ccall libcuda.cuMemsetD2D8_v2(dstDevice::CUdeviceptr, dstPitch::Csize_t, uc::Cuchar,
+                                   Width::Csize_t, Height::Csize_t)::CUresult
 end
 
 @checked function cuMemsetD2D16_v2(dstDevice, dstPitch, us, Width, Height)
     initialize_context()
-    ccall((:cuMemsetD2D16_v2, libcuda), CUresult,
-          (CUdeviceptr, Csize_t, Cushort, Csize_t, Csize_t), dstDevice, dstPitch, us, Width,
-          Height)
+    @ccall libcuda.cuMemsetD2D16_v2(dstDevice::CUdeviceptr, dstPitch::Csize_t, us::Cushort,
+                                    Width::Csize_t, Height::Csize_t)::CUresult
 end
 
 @checked function cuMemsetD2D32_v2(dstDevice, dstPitch, ui, Width, Height)
     initialize_context()
-    ccall((:cuMemsetD2D32_v2, libcuda), CUresult,
-          (CUdeviceptr, Csize_t, Cuint, Csize_t, Csize_t), dstDevice, dstPitch, ui, Width,
-          Height)
+    @ccall libcuda.cuMemsetD2D32_v2(dstDevice::CUdeviceptr, dstPitch::Csize_t, ui::Cuint,
+                                    Width::Csize_t, Height::Csize_t)::CUresult
 end
 
 @cenum CUarray_format_enum::UInt32 begin
@@ -469,14 +459,14 @@ const CUDA_ARRAY_DESCRIPTOR = CUDA_ARRAY_DESCRIPTOR_v2
 
 @checked function cuArrayCreate_v2(pHandle, pAllocateArray)
     initialize_context()
-    ccall((:cuArrayCreate_v2, libcuda), CUresult,
-          (Ptr{CUarray}, Ptr{CUDA_ARRAY_DESCRIPTOR}), pHandle, pAllocateArray)
+    @ccall libcuda.cuArrayCreate_v2(pHandle::Ptr{CUarray},
+                                    pAllocateArray::Ptr{CUDA_ARRAY_DESCRIPTOR})::CUresult
 end
 
 @checked function cuArrayGetDescriptor_v2(pArrayDescriptor, hArray)
     initialize_context()
-    ccall((:cuArrayGetDescriptor_v2, libcuda), CUresult,
-          (Ptr{CUDA_ARRAY_DESCRIPTOR}, CUarray), pArrayDescriptor, hArray)
+    @ccall libcuda.cuArrayGetDescriptor_v2(pArrayDescriptor::Ptr{CUDA_ARRAY_DESCRIPTOR},
+                                           hArray::CUarray)::CUresult
 end
 
 struct CUDA_ARRAY3D_DESCRIPTOR_st
@@ -494,14 +484,14 @@ const CUDA_ARRAY3D_DESCRIPTOR = CUDA_ARRAY3D_DESCRIPTOR_v2
 
 @checked function cuArray3DCreate_v2(pHandle, pAllocateArray)
     initialize_context()
-    ccall((:cuArray3DCreate_v2, libcuda), CUresult,
-          (Ptr{CUarray}, Ptr{CUDA_ARRAY3D_DESCRIPTOR}), pHandle, pAllocateArray)
+    @ccall libcuda.cuArray3DCreate_v2(pHandle::Ptr{CUarray},
+                                      pAllocateArray::Ptr{CUDA_ARRAY3D_DESCRIPTOR})::CUresult
 end
 
 @checked function cuArray3DGetDescriptor_v2(pArrayDescriptor, hArray)
     initialize_context()
-    ccall((:cuArray3DGetDescriptor_v2, libcuda), CUresult,
-          (Ptr{CUDA_ARRAY3D_DESCRIPTOR}, CUarray), pArrayDescriptor, hArray)
+    @ccall libcuda.cuArray3DGetDescriptor_v2(pArrayDescriptor::Ptr{CUDA_ARRAY3D_DESCRIPTOR},
+                                             hArray::CUarray)::CUresult
 end
 
 mutable struct CUtexref_st end
@@ -510,14 +500,14 @@ const CUtexref = Ptr{CUtexref_st}
 
 @checked function cuTexRefSetAddress_v2(ByteOffset, hTexRef, dptr, bytes)
     initialize_context()
-    ccall((:cuTexRefSetAddress_v2, libcuda), CUresult,
-          (Ptr{Csize_t}, CUtexref, CUdeviceptr, Csize_t), ByteOffset, hTexRef, dptr, bytes)
+    @ccall libcuda.cuTexRefSetAddress_v2(ByteOffset::Ptr{Csize_t}, hTexRef::CUtexref,
+                                         dptr::CUdeviceptr, bytes::Csize_t)::CUresult
 end
 
 @checked function cuTexRefGetAddress_v2(pdptr, hTexRef)
     initialize_context()
-    ccall((:cuTexRefGetAddress_v2, libcuda), CUresult, (Ptr{CUdeviceptr}, CUtexref), pdptr,
-          hTexRef)
+    @ccall libcuda.cuTexRefGetAddress_v2(pdptr::Ptr{CUdeviceptr},
+                                         hTexRef::CUtexref)::CUresult
 end
 
 mutable struct CUgraphicsResource_st end
@@ -526,25 +516,26 @@ const CUgraphicsResource = Ptr{CUgraphicsResource_st}
 
 @checked function cuGraphicsResourceGetMappedPointer_v2(pDevPtr, pSize, resource)
     initialize_context()
-    ccall((:cuGraphicsResourceGetMappedPointer_v2, libcuda), CUresult,
-          (Ptr{CUdeviceptr}, Ptr{Csize_t}, CUgraphicsResource), pDevPtr, pSize, resource)
+    @ccall libcuda.cuGraphicsResourceGetMappedPointer_v2(pDevPtr::Ptr{CUdeviceptr},
+                                                         pSize::Ptr{Csize_t},
+                                                         resource::CUgraphicsResource)::CUresult
 end
 
 @checked function cuCtxDestroy_v2(ctx)
-    ccall((:cuCtxDestroy_v2, libcuda), CUresult, (CUcontext,), ctx)
+    @ccall libcuda.cuCtxDestroy_v2(ctx::CUcontext)::CUresult
 end
 
 @checked function cuCtxPopCurrent_v2(pctx)
-    ccall((:cuCtxPopCurrent_v2, libcuda), CUresult, (Ptr{CUcontext},), pctx)
+    @ccall libcuda.cuCtxPopCurrent_v2(pctx::Ptr{CUcontext})::CUresult
 end
 
 @checked function cuCtxPushCurrent_v2(ctx)
-    ccall((:cuCtxPushCurrent_v2, libcuda), CUresult, (CUcontext,), ctx)
+    @ccall libcuda.cuCtxPushCurrent_v2(ctx::CUcontext)::CUresult
 end
 
 @checked function cuStreamDestroy_v2(hStream)
     initialize_context()
-    ccall((:cuStreamDestroy_v2, libcuda), CUresult, (CUstream,), hStream)
+    @ccall libcuda.cuStreamDestroy_v2(hStream::CUstream)::CUresult
 end
 
 mutable struct CUevent_st end
@@ -553,14 +544,14 @@ const CUevent = Ptr{CUevent_st}
 
 @checked function cuEventDestroy_v2(hEvent)
     initialize_context()
-    ccall((:cuEventDestroy_v2, libcuda), CUresult, (CUevent,), hEvent)
+    @ccall libcuda.cuEventDestroy_v2(hEvent::CUevent)::CUresult
 end
 
 @checked function cuTexRefSetAddress2D_v3(hTexRef, desc, dptr, Pitch)
     initialize_context()
-    ccall((:cuTexRefSetAddress2D_v3, libcuda), CUresult,
-          (CUtexref, Ptr{CUDA_ARRAY_DESCRIPTOR}, CUdeviceptr, Csize_t), hTexRef, desc, dptr,
-          Pitch)
+    @ccall libcuda.cuTexRefSetAddress2D_v3(hTexRef::CUtexref,
+                                           desc::Ptr{CUDA_ARRAY_DESCRIPTOR},
+                                           dptr::CUdeviceptr, Pitch::Csize_t)::CUresult
 end
 
 @cenum CUjit_option_enum::UInt32 begin
@@ -605,9 +596,9 @@ const CUlinkState = Ptr{CUlinkState_st}
 
 @checked function cuLinkCreate_v2(numOptions, options, optionValues, stateOut)
     initialize_context()
-    ccall((:cuLinkCreate_v2, libcuda), CUresult,
-          (Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}, Ptr{CUlinkState}), numOptions,
-          options, optionValues, stateOut)
+    @ccall libcuda.cuLinkCreate_v2(numOptions::Cuint, options::Ptr{CUjit_option},
+                                   optionValues::Ptr{Ptr{Cvoid}},
+                                   stateOut::Ptr{CUlinkState})::CUresult
 end
 
 @cenum CUjitInputType_enum::UInt32 begin
@@ -625,29 +616,29 @@ const CUjitInputType = CUjitInputType_enum
 @checked function cuLinkAddData_v2(state, type, data, size, name, numOptions, options,
                                    optionValues)
     initialize_context()
-    ccall((:cuLinkAddData_v2, libcuda), CUresult,
-          (CUlinkState, CUjitInputType, Ptr{Cvoid}, Csize_t, Cstring, Cuint,
-           Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}), state, type, data, size, name, numOptions,
-          options, optionValues)
+    @ccall libcuda.cuLinkAddData_v2(state::CUlinkState, type::CUjitInputType,
+                                    data::Ptr{Cvoid}, size::Csize_t, name::Cstring,
+                                    numOptions::Cuint, options::Ptr{CUjit_option},
+                                    optionValues::Ptr{Ptr{Cvoid}})::CUresult
 end
 
 @checked function cuLinkAddFile_v2(state, type, path, numOptions, options, optionValues)
     initialize_context()
-    ccall((:cuLinkAddFile_v2, libcuda), CUresult,
-          (CUlinkState, CUjitInputType, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
-          state, type, path, numOptions, options, optionValues)
+    @ccall libcuda.cuLinkAddFile_v2(state::CUlinkState, type::CUjitInputType, path::Cstring,
+                                    numOptions::Cuint, options::Ptr{CUjit_option},
+                                    optionValues::Ptr{Ptr{Cvoid}})::CUresult
 end
 
 @checked function cuMemHostRegister_v2(p, bytesize, Flags)
     initialize_context()
-    ccall((:cuMemHostRegister_v2, libcuda), CUresult, (Ptr{Cvoid}, Csize_t, Cuint), p,
-          bytesize, Flags)
+    @ccall libcuda.cuMemHostRegister_v2(p::Ptr{Cvoid}, bytesize::Csize_t,
+                                        Flags::Cuint)::CUresult
 end
 
 @checked function cuGraphicsResourceSetMapFlags_v2(resource, flags)
     initialize_context()
-    ccall((:cuGraphicsResourceSetMapFlags_v2, libcuda), CUresult,
-          (CUgraphicsResource, Cuint), resource, flags)
+    @ccall libcuda.cuGraphicsResourceSetMapFlags_v2(resource::CUgraphicsResource,
+                                                    flags::Cuint)::CUresult
 end
 
 @cenum CUstreamCaptureMode_enum::UInt32 begin
@@ -660,21 +651,20 @@ const CUstreamCaptureMode = CUstreamCaptureMode_enum
 
 @checked function cuStreamBeginCapture_v2(hStream, mode)
     initialize_context()
-    ccall((:cuStreamBeginCapture_v2, libcuda), CUresult, (CUstream, CUstreamCaptureMode),
-          hStream, mode)
+    @ccall libcuda.cuStreamBeginCapture_v2(hStream::CUstream,
+                                           mode::CUstreamCaptureMode)::CUresult
 end
 
 @checked function cuDevicePrimaryCtxRelease_v2(dev)
-    ccall((:cuDevicePrimaryCtxRelease_v2, libcuda), CUresult, (CUdevice,), dev)
+    @ccall libcuda.cuDevicePrimaryCtxRelease_v2(dev::CUdevice)::CUresult
 end
 
 @checked function cuDevicePrimaryCtxReset_v2(dev)
-    ccall((:cuDevicePrimaryCtxReset_v2, libcuda), CUresult, (CUdevice,), dev)
+    @ccall libcuda.cuDevicePrimaryCtxReset_v2(dev::CUdevice)::CUresult
 end
 
 @checked function cuDevicePrimaryCtxSetFlags_v2(dev, flags)
-    ccall((:cuDevicePrimaryCtxSetFlags_v2, libcuda), CUresult, (CUdevice, Cuint), dev,
-          flags)
+    @ccall libcuda.cuDevicePrimaryCtxSetFlags_v2(dev::CUdevice, flags::Cuint)::CUresult
 end
 
 struct CUipcMemHandle_st
@@ -687,8 +677,8 @@ const CUipcMemHandle = CUipcMemHandle_v1
 
 @checked function cuIpcOpenMemHandle_v2(pdptr, handle, Flags)
     initialize_context()
-    ccall((:cuIpcOpenMemHandle_v2, libcuda), CUresult,
-          (Ptr{CUdeviceptr}, CUipcMemHandle, Cuint), pdptr, handle, Flags)
+    @ccall libcuda.cuIpcOpenMemHandle_v2(pdptr::Ptr{CUdeviceptr}, handle::CUipcMemHandle,
+                                         Flags::Cuint)::CUresult
 end
 
 mutable struct CUgraphExec_st end
@@ -706,9 +696,9 @@ const CUgraphNode = Ptr{CUgraphNode_st}
 @checked function cuGraphInstantiate_v2(phGraphExec, hGraph, phErrorNode, logBuffer,
                                         bufferSize)
     initialize_context()
-    ccall((:cuGraphInstantiate_v2, libcuda), CUresult,
-          (Ptr{CUgraphExec}, CUgraph, Ptr{CUgraphNode}, Cstring, Csize_t), phGraphExec,
-          hGraph, phErrorNode, logBuffer, bufferSize)
+    @ccall libcuda.cuGraphInstantiate_v2(phGraphExec::Ptr{CUgraphExec}, hGraph::CUgraph,
+                                         phErrorNode::Ptr{CUgraphNode}, logBuffer::Cstring,
+                                         bufferSize::Csize_t)::CUresult
 end
 
 const cuuint32_t = UInt32
@@ -907,7 +897,7 @@ function Base.getproperty(x::CUstreamBatchMemOpParams_union, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{CUstreamBatchMemOpParams_union}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUstreamBatchMemOpParams_v1 = CUstreamBatchMemOpParams_union
@@ -1417,10 +1407,10 @@ function Base.getproperty(x::Ptr{CUlaunchAttributeValue_union}, f::Symbol)
     f === :accessPolicyWindow && return Ptr{CUaccessPolicyWindow}(x + 0)
     f === :cooperative && return Ptr{Cint}(x + 0)
     f === :syncPolicy && return Ptr{CUsynchronizationPolicy}(x + 0)
-    f === :clusterDim && return Ptr{var"##Ctag#380"}(x + 0)
+    f === :clusterDim && return Ptr{var"##Ctag#4287"}(x + 0)
     f === :clusterSchedulingPolicyPreference && return Ptr{CUclusterSchedulingPolicy}(x + 0)
     f === :programmaticStreamSerializationAllowed && return Ptr{Cint}(x + 0)
-    f === :programmaticEvent && return Ptr{var"##Ctag#381"}(x + 0)
+    f === :programmaticEvent && return Ptr{var"##Ctag#4288"}(x + 0)
     f === :priority && return Ptr{Cint}(x + 0)
     return getfield(x, f)
 end
@@ -1433,7 +1423,7 @@ function Base.getproperty(x::CUlaunchAttributeValue_union, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{CUlaunchAttributeValue_union}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUlaunchAttributeValue = CUlaunchAttributeValue_union
@@ -1504,24 +1494,24 @@ const CUexecAffinitySmCount_v1 = CUexecAffinitySmCount_st
 
 const CUexecAffinitySmCount = CUexecAffinitySmCount_v1
 
-struct var"##Ctag#384"
+struct var"##Ctag#4291"
     data::NTuple{4,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#384"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4291"}, f::Symbol)
     f === :smCount && return Ptr{CUexecAffinitySmCount}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#384", f::Symbol)
-    r = Ref{var"##Ctag#384"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#384"}, r)
+function Base.getproperty(x::var"##Ctag#4291", f::Symbol)
+    r = Ref{var"##Ctag#4291"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4291"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#384"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4291"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUexecAffinityParam_st
@@ -1530,7 +1520,7 @@ end
 
 function Base.getproperty(x::Ptr{CUexecAffinityParam_st}, f::Symbol)
     f === :type && return Ptr{CUexecAffinityType}(x + 0)
-    f === :param && return Ptr{var"##Ctag#384"}(x + 4)
+    f === :param && return Ptr{var"##Ctag#4291"}(x + 4)
     return getfield(x, f)
 end
 
@@ -1542,7 +1532,7 @@ function Base.getproperty(x::CUexecAffinityParam_st, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{CUexecAffinityParam_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUexecAffinityParam_v1 = CUexecAffinityParam_st
@@ -1597,27 +1587,27 @@ const CUDA_MEMCPY3D_PEER_v1 = CUDA_MEMCPY3D_PEER_st
 
 const CUDA_MEMCPY3D_PEER = CUDA_MEMCPY3D_PEER_v1
 
-struct var"##Ctag#370"
+struct var"##Ctag#4277"
     width::Cuint
     height::Cuint
     depth::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#370"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4277"}, f::Symbol)
     f === :width && return Ptr{Cuint}(x + 0)
     f === :height && return Ptr{Cuint}(x + 4)
     f === :depth && return Ptr{Cuint}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#370", f::Symbol)
-    r = Ref{var"##Ctag#370"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#370"}, r)
+function Base.getproperty(x::var"##Ctag#4277", f::Symbol)
+    r = Ref{var"##Ctag#4277"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4277"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#370"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4277"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUDA_ARRAY_SPARSE_PROPERTIES_st
@@ -1625,7 +1615,7 @@ struct CUDA_ARRAY_SPARSE_PROPERTIES_st
 end
 
 function Base.getproperty(x::Ptr{CUDA_ARRAY_SPARSE_PROPERTIES_st}, f::Symbol)
-    f === :tileExtent && return Ptr{var"##Ctag#370"}(x + 0)
+    f === :tileExtent && return Ptr{var"##Ctag#4277"}(x + 0)
     f === :miptailFirstLevel && return Ptr{Cuint}(x + 12)
     f === :miptailSize && return Ptr{Culonglong}(x + 16)
     f === :flags && return Ptr{Cuint}(x + 24)
@@ -1641,7 +1631,7 @@ function Base.getproperty(x::CUDA_ARRAY_SPARSE_PROPERTIES_st, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{CUDA_ARRAY_SPARSE_PROPERTIES_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUDA_ARRAY_SPARSE_PROPERTIES_v1 = CUDA_ARRAY_SPARSE_PROPERTIES_st
@@ -1658,28 +1648,28 @@ const CUDA_ARRAY_MEMORY_REQUIREMENTS_v1 = CUDA_ARRAY_MEMORY_REQUIREMENTS_st
 
 const CUDA_ARRAY_MEMORY_REQUIREMENTS = CUDA_ARRAY_MEMORY_REQUIREMENTS_v1
 
-struct var"##Ctag#362"
+struct var"##Ctag#4269"
     data::NTuple{128,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#362"}, f::Symbol)
-    f === :array && return Ptr{var"##Ctag#363"}(x + 0)
-    f === :mipmap && return Ptr{var"##Ctag#364"}(x + 0)
-    f === :linear && return Ptr{var"##Ctag#365"}(x + 0)
-    f === :pitch2D && return Ptr{var"##Ctag#366"}(x + 0)
-    f === :reserved && return Ptr{var"##Ctag#367"}(x + 0)
+function Base.getproperty(x::Ptr{var"##Ctag#4269"}, f::Symbol)
+    f === :array && return Ptr{var"##Ctag#4270"}(x + 0)
+    f === :mipmap && return Ptr{var"##Ctag#4271"}(x + 0)
+    f === :linear && return Ptr{var"##Ctag#4272"}(x + 0)
+    f === :pitch2D && return Ptr{var"##Ctag#4273"}(x + 0)
+    f === :reserved && return Ptr{var"##Ctag#4274"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#362", f::Symbol)
-    r = Ref{var"##Ctag#362"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#362"}, r)
+function Base.getproperty(x::var"##Ctag#4269", f::Symbol)
+    r = Ref{var"##Ctag#4269"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4269"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#362"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4269"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUDA_RESOURCE_DESC_st
@@ -1688,7 +1678,7 @@ end
 
 function Base.getproperty(x::Ptr{CUDA_RESOURCE_DESC_st}, f::Symbol)
     f === :resType && return Ptr{CUresourcetype}(x + 0)
-    f === :res && return Ptr{var"##Ctag#362"}(x + 8)
+    f === :res && return Ptr{var"##Ctag#4269"}(x + 8)
     f === :flags && return Ptr{Cuint}(x + 136)
     return getfield(x, f)
 end
@@ -1701,7 +1691,7 @@ function Base.getproperty(x::CUDA_RESOURCE_DESC_st, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{CUDA_RESOURCE_DESC_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUDA_RESOURCE_DESC_v1 = CUDA_RESOURCE_DESC_st
@@ -1828,26 +1818,26 @@ end
 
 const CUexternalMemoryHandleType = CUexternalMemoryHandleType_enum
 
-struct var"##Ctag#382"
+struct var"##Ctag#4289"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#382"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4289"}, f::Symbol)
     f === :fd && return Ptr{Cint}(x + 0)
-    f === :win32 && return Ptr{var"##Ctag#383"}(x + 0)
+    f === :win32 && return Ptr{var"##Ctag#4290"}(x + 0)
     f === :nvSciBufObject && return Ptr{Ptr{Cvoid}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#382", f::Symbol)
-    r = Ref{var"##Ctag#382"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#382"}, r)
+function Base.getproperty(x::var"##Ctag#4289", f::Symbol)
+    r = Ref{var"##Ctag#4289"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4289"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#382"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4289"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUDA_EXTERNAL_MEMORY_HANDLE_DESC_st
@@ -1856,7 +1846,7 @@ end
 
 function Base.getproperty(x::Ptr{CUDA_EXTERNAL_MEMORY_HANDLE_DESC_st}, f::Symbol)
     f === :type && return Ptr{CUexternalMemoryHandleType}(x + 0)
-    f === :handle && return Ptr{var"##Ctag#382"}(x + 8)
+    f === :handle && return Ptr{var"##Ctag#4289"}(x + 8)
     f === :size && return Ptr{Culonglong}(x + 24)
     f === :flags && return Ptr{Cuint}(x + 32)
     f === :reserved && return Ptr{NTuple{16,Cuint}}(x + 36)
@@ -1871,7 +1861,7 @@ function Base.getproperty(x::CUDA_EXTERNAL_MEMORY_HANDLE_DESC_st, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{CUDA_EXTERNAL_MEMORY_HANDLE_DESC_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUDA_EXTERNAL_MEMORY_HANDLE_DESC_v1 = CUDA_EXTERNAL_MEMORY_HANDLE_DESC_st
@@ -1915,26 +1905,26 @@ end
 
 const CUexternalSemaphoreHandleType = CUexternalSemaphoreHandleType_enum
 
-struct var"##Ctag#368"
+struct var"##Ctag#4275"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#368"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4275"}, f::Symbol)
     f === :fd && return Ptr{Cint}(x + 0)
-    f === :win32 && return Ptr{var"##Ctag#369"}(x + 0)
+    f === :win32 && return Ptr{var"##Ctag#4276"}(x + 0)
     f === :nvSciSyncObj && return Ptr{Ptr{Cvoid}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#368", f::Symbol)
-    r = Ref{var"##Ctag#368"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#368"}, r)
+function Base.getproperty(x::var"##Ctag#4275", f::Symbol)
+    r = Ref{var"##Ctag#4275"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4275"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#368"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4275"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_st
@@ -1943,7 +1933,7 @@ end
 
 function Base.getproperty(x::Ptr{CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_st}, f::Symbol)
     f === :type && return Ptr{CUexternalSemaphoreHandleType}(x + 0)
-    f === :handle && return Ptr{var"##Ctag#368"}(x + 8)
+    f === :handle && return Ptr{var"##Ctag#4275"}(x + 8)
     f === :flags && return Ptr{Cuint}(x + 24)
     f === :reserved && return Ptr{NTuple{16,Cuint}}(x + 28)
     return getfield(x, f)
@@ -1957,93 +1947,93 @@ function Base.getproperty(x::CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_st, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_v1 = CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_st
 
 const CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC = CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_v1
 
-struct var"##Ctag#386"
+struct var"##Ctag#4293"
     value::Culonglong
 end
-function Base.getproperty(x::Ptr{var"##Ctag#386"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4293"}, f::Symbol)
     f === :value && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#386", f::Symbol)
-    r = Ref{var"##Ctag#386"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#386"}, r)
+function Base.getproperty(x::var"##Ctag#4293", f::Symbol)
+    r = Ref{var"##Ctag#4293"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4293"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#386"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4293"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#387"
+struct var"##Ctag#4294"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#387"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4294"}, f::Symbol)
     f === :fence && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :reserved && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#387", f::Symbol)
-    r = Ref{var"##Ctag#387"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#387"}, r)
+function Base.getproperty(x::var"##Ctag#4294", f::Symbol)
+    r = Ref{var"##Ctag#4294"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4294"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#387"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4294"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#388"
+struct var"##Ctag#4295"
     key::Culonglong
 end
-function Base.getproperty(x::Ptr{var"##Ctag#388"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4295"}, f::Symbol)
     f === :key && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#388", f::Symbol)
-    r = Ref{var"##Ctag#388"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#388"}, r)
+function Base.getproperty(x::var"##Ctag#4295", f::Symbol)
+    r = Ref{var"##Ctag#4295"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4295"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#388"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4295"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#385"
+struct var"##Ctag#4292"
     data::NTuple{72,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#385"}, f::Symbol)
-    f === :fence && return Ptr{var"##Ctag#386"}(x + 0)
-    f === :nvSciSync && return Ptr{var"##Ctag#387"}(x + 8)
-    f === :keyedMutex && return Ptr{var"##Ctag#388"}(x + 16)
+function Base.getproperty(x::Ptr{var"##Ctag#4292"}, f::Symbol)
+    f === :fence && return Ptr{var"##Ctag#4293"}(x + 0)
+    f === :nvSciSync && return Ptr{var"##Ctag#4294"}(x + 8)
+    f === :keyedMutex && return Ptr{var"##Ctag#4295"}(x + 16)
     f === :reserved && return Ptr{NTuple{12,Cuint}}(x + 24)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#385", f::Symbol)
-    r = Ref{var"##Ctag#385"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#385"}, r)
+function Base.getproperty(x::var"##Ctag#4292", f::Symbol)
+    r = Ref{var"##Ctag#4292"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4292"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#385"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4292"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_st
@@ -2065,95 +2055,95 @@ function Base.getproperty(x::CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_st, f::Symbol
 end
 
 function Base.setproperty!(x::Ptr{CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_v1 = CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_st
 
 const CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS = CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_v1
 
-struct var"##Ctag#377"
+struct var"##Ctag#4284"
     value::Culonglong
 end
-function Base.getproperty(x::Ptr{var"##Ctag#377"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4284"}, f::Symbol)
     f === :value && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#377", f::Symbol)
-    r = Ref{var"##Ctag#377"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#377"}, r)
+function Base.getproperty(x::var"##Ctag#4284", f::Symbol)
+    r = Ref{var"##Ctag#4284"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4284"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#377"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4284"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#378"
+struct var"##Ctag#4285"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#378"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4285"}, f::Symbol)
     f === :fence && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :reserved && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#378", f::Symbol)
-    r = Ref{var"##Ctag#378"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#378"}, r)
+function Base.getproperty(x::var"##Ctag#4285", f::Symbol)
+    r = Ref{var"##Ctag#4285"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4285"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#378"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4285"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#379"
+struct var"##Ctag#4286"
     key::Culonglong
     timeoutMs::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#379"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4286"}, f::Symbol)
     f === :key && return Ptr{Culonglong}(x + 0)
     f === :timeoutMs && return Ptr{Cuint}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#379", f::Symbol)
-    r = Ref{var"##Ctag#379"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#379"}, r)
+function Base.getproperty(x::var"##Ctag#4286", f::Symbol)
+    r = Ref{var"##Ctag#4286"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4286"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#379"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4286"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#376"
+struct var"##Ctag#4283"
     data::NTuple{72,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#376"}, f::Symbol)
-    f === :fence && return Ptr{var"##Ctag#377"}(x + 0)
-    f === :nvSciSync && return Ptr{var"##Ctag#378"}(x + 8)
-    f === :keyedMutex && return Ptr{var"##Ctag#379"}(x + 16)
+function Base.getproperty(x::Ptr{var"##Ctag#4283"}, f::Symbol)
+    f === :fence && return Ptr{var"##Ctag#4284"}(x + 0)
+    f === :nvSciSync && return Ptr{var"##Ctag#4285"}(x + 8)
+    f === :keyedMutex && return Ptr{var"##Ctag#4286"}(x + 16)
     f === :reserved && return Ptr{NTuple{10,Cuint}}(x + 32)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#376", f::Symbol)
-    r = Ref{var"##Ctag#376"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#376"}, r)
+function Base.getproperty(x::var"##Ctag#4283", f::Symbol)
+    r = Ref{var"##Ctag#4283"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4283"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#376"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4283"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS_st
@@ -2175,7 +2165,7 @@ function Base.getproperty(x::CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS_st, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS_v1 = CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS_st
@@ -2275,66 +2265,66 @@ end
 
 const CUmemHandleType = CUmemHandleType_enum
 
-struct var"##Ctag#371"
+struct var"##Ctag#4278"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#371"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4278"}, f::Symbol)
     f === :mipmap && return Ptr{CUmipmappedArray}(x + 0)
     f === :array && return Ptr{CUarray}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#371", f::Symbol)
-    r = Ref{var"##Ctag#371"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#371"}, r)
+function Base.getproperty(x::var"##Ctag#4278", f::Symbol)
+    r = Ref{var"##Ctag#4278"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4278"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#371"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4278"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#372"
+struct var"##Ctag#4279"
     data::NTuple{32,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#372"}, f::Symbol)
-    f === :sparseLevel && return Ptr{var"##Ctag#373"}(x + 0)
-    f === :miptail && return Ptr{var"##Ctag#374"}(x + 0)
+function Base.getproperty(x::Ptr{var"##Ctag#4279"}, f::Symbol)
+    f === :sparseLevel && return Ptr{var"##Ctag#4280"}(x + 0)
+    f === :miptail && return Ptr{var"##Ctag#4281"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#372", f::Symbol)
-    r = Ref{var"##Ctag#372"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#372"}, r)
+function Base.getproperty(x::var"##Ctag#4279", f::Symbol)
+    r = Ref{var"##Ctag#4279"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4279"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#372"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4279"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#375"
+struct var"##Ctag#4282"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#375"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4282"}, f::Symbol)
     f === :memHandle && return Ptr{CUmemGenericAllocationHandle}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#375", f::Symbol)
-    r = Ref{var"##Ctag#375"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#375"}, r)
+function Base.getproperty(x::var"##Ctag#4282", f::Symbol)
+    r = Ref{var"##Ctag#4282"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4282"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#375"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4282"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUarrayMapInfo_st
@@ -2343,12 +2333,12 @@ end
 
 function Base.getproperty(x::Ptr{CUarrayMapInfo_st}, f::Symbol)
     f === :resourceType && return Ptr{CUresourcetype}(x + 0)
-    f === :resource && return Ptr{var"##Ctag#371"}(x + 8)
+    f === :resource && return Ptr{var"##Ctag#4278"}(x + 8)
     f === :subresourceType && return Ptr{CUarraySparseSubresourceType}(x + 16)
-    f === :subresource && return Ptr{var"##Ctag#372"}(x + 24)
+    f === :subresource && return Ptr{var"##Ctag#4279"}(x + 24)
     f === :memOperationType && return Ptr{CUmemOperationType}(x + 56)
     f === :memHandleType && return Ptr{CUmemHandleType}(x + 60)
-    f === :memHandle && return Ptr{var"##Ctag#375"}(x + 64)
+    f === :memHandle && return Ptr{var"##Ctag#4282"}(x + 64)
     f === :offset && return Ptr{Culonglong}(x + 72)
     f === :deviceBitMask && return Ptr{Cuint}(x + 80)
     f === :flags && return Ptr{Cuint}(x + 84)
@@ -2364,7 +2354,7 @@ function Base.getproperty(x::CUarrayMapInfo_st, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{CUarrayMapInfo_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUarrayMapInfo_v1 = CUarrayMapInfo_st
@@ -2387,13 +2377,13 @@ end
 
 const CUmemAllocationCompType = CUmemAllocationCompType_enum
 
-struct var"##Ctag#361"
+struct var"##Ctag#4268"
     compressionType::Cuchar
     gpuDirectRDMACapable::Cuchar
     usage::Cushort
     reserved::NTuple{4,Cuchar}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#361"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4268"}, f::Symbol)
     f === :compressionType && return Ptr{Cuchar}(x + 0)
     f === :gpuDirectRDMACapable && return Ptr{Cuchar}(x + 1)
     f === :usage && return Ptr{Cushort}(x + 2)
@@ -2401,15 +2391,15 @@ function Base.getproperty(x::Ptr{var"##Ctag#361"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#361", f::Symbol)
-    r = Ref{var"##Ctag#361"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#361"}, r)
+function Base.getproperty(x::var"##Ctag#4268", f::Symbol)
+    r = Ref{var"##Ctag#4268"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4268"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#361"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4268"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUmemAllocationProp_st
@@ -2421,7 +2411,7 @@ function Base.getproperty(x::Ptr{CUmemAllocationProp_st}, f::Symbol)
     f === :requestedHandleTypes && return Ptr{CUmemAllocationHandleType}(x + 4)
     f === :location && return Ptr{CUmemLocation}(x + 8)
     f === :win32HandleMetaData && return Ptr{Ptr{Cvoid}}(x + 16)
-    f === :allocFlags && return Ptr{var"##Ctag#361"}(x + 24)
+    f === :allocFlags && return Ptr{var"##Ctag#4268"}(x + 24)
     return getfield(x, f)
 end
 
@@ -2433,7 +2423,7 @@ function Base.getproperty(x::CUmemAllocationProp_st, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{CUmemAllocationProp_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUmemAllocationProp_v1 = CUmemAllocationProp_st
@@ -2582,233 +2572,229 @@ end
 const CUgraphInstantiate_flags = CUgraphInstantiate_flags_enum
 
 @checked function cuGetErrorString(error, pStr)
-    ccall((:cuGetErrorString, libcuda), CUresult, (CUresult, Ptr{Cstring}), error, pStr)
+    @ccall libcuda.cuGetErrorString(error::CUresult, pStr::Ptr{Cstring})::CUresult
 end
 
 @checked function cuGetErrorName(error, pStr)
-    ccall((:cuGetErrorName, libcuda), CUresult, (CUresult, Ptr{Cstring}), error, pStr)
+    @ccall libcuda.cuGetErrorName(error::CUresult, pStr::Ptr{Cstring})::CUresult
 end
 
 @checked function cuInit(Flags)
-    ccall((:cuInit, libcuda), CUresult, (Cuint,), Flags)
+    @ccall libcuda.cuInit(Flags::Cuint)::CUresult
 end
 
 @checked function cuDriverGetVersion(driverVersion)
-    ccall((:cuDriverGetVersion, libcuda), CUresult, (Ptr{Cint},), driverVersion)
+    @ccall libcuda.cuDriverGetVersion(driverVersion::Ptr{Cint})::CUresult
 end
 
 @checked function cuDeviceGet(device, ordinal)
-    ccall((:cuDeviceGet, libcuda), CUresult, (Ptr{CUdevice}, Cint), device, ordinal)
+    @ccall libcuda.cuDeviceGet(device::Ptr{CUdevice}, ordinal::Cint)::CUresult
 end
 
 @checked function cuDeviceGetCount(count)
-    ccall((:cuDeviceGetCount, libcuda), CUresult, (Ptr{Cint},), count)
+    @ccall libcuda.cuDeviceGetCount(count::Ptr{Cint})::CUresult
 end
 
 @checked function cuDeviceGetName(name, len, dev)
-    ccall((:cuDeviceGetName, libcuda), CUresult, (Cstring, Cint, CUdevice), name, len, dev)
+    @ccall libcuda.cuDeviceGetName(name::Cstring, len::Cint, dev::CUdevice)::CUresult
 end
 
 @checked function cuDeviceGetUuid(uuid, dev)
-    ccall((:cuDeviceGetUuid, libcuda), CUresult, (Ptr{CUuuid}, CUdevice), uuid, dev)
+    @ccall libcuda.cuDeviceGetUuid(uuid::Ptr{CUuuid}, dev::CUdevice)::CUresult
 end
 
 @checked function cuDeviceGetUuid_v2(uuid, dev)
-    ccall((:cuDeviceGetUuid_v2, libcuda), CUresult, (Ptr{CUuuid}, CUdevice), uuid, dev)
+    @ccall libcuda.cuDeviceGetUuid_v2(uuid::Ptr{CUuuid}, dev::CUdevice)::CUresult
 end
 
 @checked function cuDeviceGetLuid(luid, deviceNodeMask, dev)
-    ccall((:cuDeviceGetLuid, libcuda), CUresult, (Cstring, Ptr{Cuint}, CUdevice), luid,
-          deviceNodeMask, dev)
+    @ccall libcuda.cuDeviceGetLuid(luid::Cstring, deviceNodeMask::Ptr{Cuint},
+                                   dev::CUdevice)::CUresult
 end
 
 @checked function cuDeviceGetTexture1DLinearMaxWidth(maxWidthInElements, format,
                                                      numChannels, dev)
     initialize_context()
-    ccall((:cuDeviceGetTexture1DLinearMaxWidth, libcuda), CUresult,
-          (Ptr{Csize_t}, CUarray_format, Cuint, CUdevice), maxWidthInElements, format,
-          numChannels, dev)
+    @ccall libcuda.cuDeviceGetTexture1DLinearMaxWidth(maxWidthInElements::Ptr{Csize_t},
+                                                      format::CUarray_format,
+                                                      numChannels::Cuint,
+                                                      dev::CUdevice)::CUresult
 end
 
 @checked function cuDeviceGetAttribute(pi, attrib, dev)
-    ccall((:cuDeviceGetAttribute, libcuda), CUresult,
-          (Ptr{Cint}, CUdevice_attribute, CUdevice), pi, attrib, dev)
+    @ccall libcuda.cuDeviceGetAttribute(pi::Ptr{Cint}, attrib::CUdevice_attribute,
+                                        dev::CUdevice)::CUresult
 end
 
 @checked function cuDeviceGetNvSciSyncAttributes(nvSciSyncAttrList, dev, flags)
     initialize_context()
-    ccall((:cuDeviceGetNvSciSyncAttributes, libcuda), CUresult,
-          (Ptr{Cvoid}, CUdevice, Cint), nvSciSyncAttrList, dev, flags)
+    @ccall libcuda.cuDeviceGetNvSciSyncAttributes(nvSciSyncAttrList::Ptr{Cvoid},
+                                                  dev::CUdevice, flags::Cint)::CUresult
 end
 
 @checked function cuDeviceSetMemPool(dev, pool)
     initialize_context()
-    ccall((:cuDeviceSetMemPool, libcuda), CUresult, (CUdevice, CUmemoryPool), dev, pool)
+    @ccall libcuda.cuDeviceSetMemPool(dev::CUdevice, pool::CUmemoryPool)::CUresult
 end
 
 @checked function cuDeviceGetMemPool(pool, dev)
     initialize_context()
-    ccall((:cuDeviceGetMemPool, libcuda), CUresult, (Ptr{CUmemoryPool}, CUdevice), pool,
-          dev)
+    @ccall libcuda.cuDeviceGetMemPool(pool::Ptr{CUmemoryPool}, dev::CUdevice)::CUresult
 end
 
 @checked function cuDeviceGetDefaultMemPool(pool_out, dev)
     initialize_context()
-    ccall((:cuDeviceGetDefaultMemPool, libcuda), CUresult, (Ptr{CUmemoryPool}, CUdevice),
-          pool_out, dev)
+    @ccall libcuda.cuDeviceGetDefaultMemPool(pool_out::Ptr{CUmemoryPool},
+                                             dev::CUdevice)::CUresult
 end
 
 @checked function cuFlushGPUDirectRDMAWrites(target, scope)
     initialize_context()
-    ccall((:cuFlushGPUDirectRDMAWrites, libcuda), CUresult,
-          (CUflushGPUDirectRDMAWritesTarget, CUflushGPUDirectRDMAWritesScope), target,
-          scope)
+    @ccall libcuda.cuFlushGPUDirectRDMAWrites(target::CUflushGPUDirectRDMAWritesTarget,
+                                              scope::CUflushGPUDirectRDMAWritesScope)::CUresult
 end
 
 @checked function cuDeviceGetProperties(prop, dev)
-    ccall((:cuDeviceGetProperties, libcuda), CUresult, (Ptr{CUdevprop}, CUdevice), prop,
-          dev)
+    @ccall libcuda.cuDeviceGetProperties(prop::Ptr{CUdevprop}, dev::CUdevice)::CUresult
 end
 
 @checked function cuDeviceComputeCapability(major, minor, dev)
-    ccall((:cuDeviceComputeCapability, libcuda), CUresult, (Ptr{Cint}, Ptr{Cint}, CUdevice),
-          major, minor, dev)
+    @ccall libcuda.cuDeviceComputeCapability(major::Ptr{Cint}, minor::Ptr{Cint},
+                                             dev::CUdevice)::CUresult
 end
 
 @checked function cuDevicePrimaryCtxRetain(pctx, dev)
-    ccall((:cuDevicePrimaryCtxRetain, libcuda), CUresult, (Ptr{CUcontext}, CUdevice), pctx,
-          dev)
+    @ccall libcuda.cuDevicePrimaryCtxRetain(pctx::Ptr{CUcontext}, dev::CUdevice)::CUresult
 end
 
 @checked function cuDevicePrimaryCtxGetState(dev, flags, active)
-    ccall((:cuDevicePrimaryCtxGetState, libcuda), CUresult,
-          (CUdevice, Ptr{Cuint}, Ptr{Cint}), dev, flags, active)
+    @ccall libcuda.cuDevicePrimaryCtxGetState(dev::CUdevice, flags::Ptr{Cuint},
+                                              active::Ptr{Cint})::CUresult
 end
 
 @checked function cuDeviceGetExecAffinitySupport(pi, type, dev)
     initialize_context()
-    ccall((:cuDeviceGetExecAffinitySupport, libcuda), CUresult,
-          (Ptr{Cint}, CUexecAffinityType, CUdevice), pi, type, dev)
+    @ccall libcuda.cuDeviceGetExecAffinitySupport(pi::Ptr{Cint}, type::CUexecAffinityType,
+                                                  dev::CUdevice)::CUresult
 end
 
 @checked function cuCtxCreate_v3(pctx, paramsArray, numParams, flags, dev)
     initialize_context()
-    ccall((:cuCtxCreate_v3, libcuda), CUresult,
-          (Ptr{CUcontext}, Ptr{CUexecAffinityParam}, Cint, Cuint, CUdevice), pctx,
-          paramsArray, numParams, flags, dev)
+    @ccall libcuda.cuCtxCreate_v3(pctx::Ptr{CUcontext},
+                                  paramsArray::Ptr{CUexecAffinityParam}, numParams::Cint,
+                                  flags::Cuint, dev::CUdevice)::CUresult
 end
 
 @checked function cuCtxSetCurrent(ctx)
-    ccall((:cuCtxSetCurrent, libcuda), CUresult, (CUcontext,), ctx)
+    @ccall libcuda.cuCtxSetCurrent(ctx::CUcontext)::CUresult
 end
 
 @checked function cuCtxGetCurrent(pctx)
-    ccall((:cuCtxGetCurrent, libcuda), CUresult, (Ptr{CUcontext},), pctx)
+    @ccall libcuda.cuCtxGetCurrent(pctx::Ptr{CUcontext})::CUresult
 end
 
 @checked function cuCtxGetDevice(device)
-    ccall((:cuCtxGetDevice, libcuda), CUresult, (Ptr{CUdevice},), device)
+    @ccall libcuda.cuCtxGetDevice(device::Ptr{CUdevice})::CUresult
 end
 
 @checked function cuCtxGetFlags(flags)
     initialize_context()
-    ccall((:cuCtxGetFlags, libcuda), CUresult, (Ptr{Cuint},), flags)
+    @ccall libcuda.cuCtxGetFlags(flags::Ptr{Cuint})::CUresult
 end
 
 @checked function cuCtxSynchronize()
     initialize_context()
-    ccall((:cuCtxSynchronize, libcuda), CUresult, ())
+    @ccall libcuda.cuCtxSynchronize()::CUresult
 end
 
 @checked function cuCtxSetLimit(limit, value)
     initialize_context()
-    ccall((:cuCtxSetLimit, libcuda), CUresult, (CUlimit, Csize_t), limit, value)
+    @ccall libcuda.cuCtxSetLimit(limit::CUlimit, value::Csize_t)::CUresult
 end
 
 @checked function cuCtxGetLimit(pvalue, limit)
     initialize_context()
-    ccall((:cuCtxGetLimit, libcuda), CUresult, (Ptr{Csize_t}, CUlimit), pvalue, limit)
+    @ccall libcuda.cuCtxGetLimit(pvalue::Ptr{Csize_t}, limit::CUlimit)::CUresult
 end
 
 @checked function cuCtxGetCacheConfig(pconfig)
     initialize_context()
-    ccall((:cuCtxGetCacheConfig, libcuda), CUresult, (Ptr{CUfunc_cache},), pconfig)
+    @ccall libcuda.cuCtxGetCacheConfig(pconfig::Ptr{CUfunc_cache})::CUresult
 end
 
 @checked function cuCtxSetCacheConfig(config)
     initialize_context()
-    ccall((:cuCtxSetCacheConfig, libcuda), CUresult, (CUfunc_cache,), config)
+    @ccall libcuda.cuCtxSetCacheConfig(config::CUfunc_cache)::CUresult
 end
 
 @checked function cuCtxGetSharedMemConfig(pConfig)
     initialize_context()
-    ccall((:cuCtxGetSharedMemConfig, libcuda), CUresult, (Ptr{CUsharedconfig},), pConfig)
+    @ccall libcuda.cuCtxGetSharedMemConfig(pConfig::Ptr{CUsharedconfig})::CUresult
 end
 
 @checked function cuCtxSetSharedMemConfig(config)
     initialize_context()
-    ccall((:cuCtxSetSharedMemConfig, libcuda), CUresult, (CUsharedconfig,), config)
+    @ccall libcuda.cuCtxSetSharedMemConfig(config::CUsharedconfig)::CUresult
 end
 
 @checked function cuCtxGetApiVersion(ctx, version)
     initialize_context()
-    ccall((:cuCtxGetApiVersion, libcuda), CUresult, (CUcontext, Ptr{Cuint}), ctx, version)
+    @ccall libcuda.cuCtxGetApiVersion(ctx::CUcontext, version::Ptr{Cuint})::CUresult
 end
 
 @checked function cuCtxGetStreamPriorityRange(leastPriority, greatestPriority)
     initialize_context()
-    ccall((:cuCtxGetStreamPriorityRange, libcuda), CUresult, (Ptr{Cint}, Ptr{Cint}),
-          leastPriority, greatestPriority)
+    @ccall libcuda.cuCtxGetStreamPriorityRange(leastPriority::Ptr{Cint},
+                                               greatestPriority::Ptr{Cint})::CUresult
 end
 
 @checked function cuCtxResetPersistingL2Cache()
     initialize_context()
-    ccall((:cuCtxResetPersistingL2Cache, libcuda), CUresult, ())
+    @ccall libcuda.cuCtxResetPersistingL2Cache()::CUresult
 end
 
 @checked function cuCtxGetExecAffinity(pExecAffinity, type)
     initialize_context()
-    ccall((:cuCtxGetExecAffinity, libcuda), CUresult,
-          (Ptr{CUexecAffinityParam}, CUexecAffinityType), pExecAffinity, type)
+    @ccall libcuda.cuCtxGetExecAffinity(pExecAffinity::Ptr{CUexecAffinityParam},
+                                        type::CUexecAffinityType)::CUresult
 end
 
 @checked function cuCtxAttach(pctx, flags)
     initialize_context()
-    ccall((:cuCtxAttach, libcuda), CUresult, (Ptr{CUcontext}, Cuint), pctx, flags)
+    @ccall libcuda.cuCtxAttach(pctx::Ptr{CUcontext}, flags::Cuint)::CUresult
 end
 
 @checked function cuCtxDetach(ctx)
     initialize_context()
-    ccall((:cuCtxDetach, libcuda), CUresult, (CUcontext,), ctx)
+    @ccall libcuda.cuCtxDetach(ctx::CUcontext)::CUresult
 end
 
 @checked function cuModuleLoad(_module, fname)
     initialize_context()
-    ccall((:cuModuleLoad, libcuda), CUresult, (Ptr{CUmodule}, Cstring), _module, fname)
+    @ccall libcuda.cuModuleLoad(_module::Ptr{CUmodule}, fname::Cstring)::CUresult
 end
 
 @checked function cuModuleLoadData(_module, image)
     initialize_context()
-    ccall((:cuModuleLoadData, libcuda), CUresult, (Ptr{CUmodule}, Ptr{Cvoid}), _module,
-          image)
+    @ccall libcuda.cuModuleLoadData(_module::Ptr{CUmodule}, image::Ptr{Cvoid})::CUresult
 end
 
 @checked function cuModuleLoadDataEx(_module, image, numOptions, options, optionValues)
     initialize_context()
-    ccall((:cuModuleLoadDataEx, libcuda), CUresult,
-          (Ptr{CUmodule}, Ptr{Cvoid}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}), _module,
-          image, numOptions, options, optionValues)
+    @ccall libcuda.cuModuleLoadDataEx(_module::Ptr{CUmodule}, image::Ptr{Cvoid},
+                                      numOptions::Cuint, options::Ptr{CUjit_option},
+                                      optionValues::Ptr{Ptr{Cvoid}})::CUresult
 end
 
 @checked function cuModuleLoadFatBinary(_module, fatCubin)
     initialize_context()
-    ccall((:cuModuleLoadFatBinary, libcuda), CUresult, (Ptr{CUmodule}, Ptr{Cvoid}), _module,
-          fatCubin)
+    @ccall libcuda.cuModuleLoadFatBinary(_module::Ptr{CUmodule},
+                                         fatCubin::Ptr{Cvoid})::CUresult
 end
 
 @checked function cuModuleUnload(hmod)
     initialize_context()
-    ccall((:cuModuleUnload, libcuda), CUresult, (CUmodule,), hmod)
+    @ccall libcuda.cuModuleUnload(hmod::CUmodule)::CUresult
 end
 
 @cenum CUmoduleLoadingMode_enum::UInt32 begin
@@ -2820,1349 +2806,1364 @@ const CUmoduleLoadingMode = CUmoduleLoadingMode_enum
 
 @checked function cuModuleGetLoadingMode(mode)
     initialize_context()
-    ccall((:cuModuleGetLoadingMode, libcuda), CUresult, (Ptr{CUmoduleLoadingMode},), mode)
+    @ccall libcuda.cuModuleGetLoadingMode(mode::Ptr{CUmoduleLoadingMode})::CUresult
 end
 
 @checked function cuModuleGetFunction(hfunc, hmod, name)
     initialize_context()
-    ccall((:cuModuleGetFunction, libcuda), CUresult, (Ptr{CUfunction}, CUmodule, Cstring),
-          hfunc, hmod, name)
+    @ccall libcuda.cuModuleGetFunction(hfunc::Ptr{CUfunction}, hmod::CUmodule,
+                                       name::Cstring)::CUresult
 end
 
 @checked function cuModuleGetTexRef(pTexRef, hmod, name)
     initialize_context()
-    ccall((:cuModuleGetTexRef, libcuda), CUresult, (Ptr{CUtexref}, CUmodule, Cstring),
-          pTexRef, hmod, name)
+    @ccall libcuda.cuModuleGetTexRef(pTexRef::Ptr{CUtexref}, hmod::CUmodule,
+                                     name::Cstring)::CUresult
 end
 
 @checked function cuModuleGetSurfRef(pSurfRef, hmod, name)
     initialize_context()
-    ccall((:cuModuleGetSurfRef, libcuda), CUresult, (Ptr{CUsurfref}, CUmodule, Cstring),
-          pSurfRef, hmod, name)
+    @ccall libcuda.cuModuleGetSurfRef(pSurfRef::Ptr{CUsurfref}, hmod::CUmodule,
+                                      name::Cstring)::CUresult
 end
 
 @checked function cuLinkComplete(state, cubinOut, sizeOut)
     initialize_context()
-    ccall((:cuLinkComplete, libcuda), CUresult,
-          (CUlinkState, Ptr{Ptr{Cvoid}}, Ptr{Csize_t}), state, cubinOut, sizeOut)
+    @ccall libcuda.cuLinkComplete(state::CUlinkState, cubinOut::Ptr{Ptr{Cvoid}},
+                                  sizeOut::Ptr{Csize_t})::CUresult
 end
 
 @checked function cuLinkDestroy(state)
     initialize_context()
-    ccall((:cuLinkDestroy, libcuda), CUresult, (CUlinkState,), state)
+    @ccall libcuda.cuLinkDestroy(state::CUlinkState)::CUresult
 end
 
 @checked function cuMemFreeHost(p)
     initialize_context()
-    ccall((:cuMemFreeHost, libcuda), CUresult, (Ptr{Cvoid},), p)
+    @ccall libcuda.cuMemFreeHost(p::Ptr{Cvoid})::CUresult
 end
 
 @checked function cuMemHostAlloc(pp, bytesize, Flags)
     initialize_context()
-    ccall((:cuMemHostAlloc, libcuda), CUresult, (Ptr{Ptr{Cvoid}}, Csize_t, Cuint), pp,
-          bytesize, Flags)
+    @ccall libcuda.cuMemHostAlloc(pp::Ptr{Ptr{Cvoid}}, bytesize::Csize_t,
+                                  Flags::Cuint)::CUresult
 end
 
 @checked function cuMemHostGetFlags(pFlags, p)
     initialize_context()
-    ccall((:cuMemHostGetFlags, libcuda), CUresult, (Ptr{Cuint}, Ptr{Cvoid}), pFlags, p)
+    @ccall libcuda.cuMemHostGetFlags(pFlags::Ptr{Cuint}, p::Ptr{Cvoid})::CUresult
 end
 
 @checked function cuMemAllocManaged(dptr, bytesize, flags)
     initialize_context()
-    ccall((:cuMemAllocManaged, libcuda), CUresult, (Ptr{CUdeviceptr}, Csize_t, Cuint), dptr,
-          bytesize, flags)
+    @ccall libcuda.cuMemAllocManaged(dptr::Ptr{CUdeviceptr}, bytesize::Csize_t,
+                                     flags::Cuint)::CUresult
 end
 
 @checked function cuDeviceGetByPCIBusId(dev, pciBusId)
     initialize_context()
-    ccall((:cuDeviceGetByPCIBusId, libcuda), CUresult, (Ptr{CUdevice}, Cstring), dev,
-          pciBusId)
+    @ccall libcuda.cuDeviceGetByPCIBusId(dev::Ptr{CUdevice}, pciBusId::Cstring)::CUresult
 end
 
 @checked function cuDeviceGetPCIBusId(pciBusId, len, dev)
     initialize_context()
-    ccall((:cuDeviceGetPCIBusId, libcuda), CUresult, (Cstring, Cint, CUdevice), pciBusId,
-          len, dev)
+    @ccall libcuda.cuDeviceGetPCIBusId(pciBusId::Cstring, len::Cint,
+                                       dev::CUdevice)::CUresult
 end
 
 @checked function cuIpcGetEventHandle(pHandle, event)
     initialize_context()
-    ccall((:cuIpcGetEventHandle, libcuda), CUresult, (Ptr{CUipcEventHandle}, CUevent),
-          pHandle, event)
+    @ccall libcuda.cuIpcGetEventHandle(pHandle::Ptr{CUipcEventHandle},
+                                       event::CUevent)::CUresult
 end
 
 @checked function cuIpcOpenEventHandle(phEvent, handle)
     initialize_context()
-    ccall((:cuIpcOpenEventHandle, libcuda), CUresult, (Ptr{CUevent}, CUipcEventHandle),
-          phEvent, handle)
+    @ccall libcuda.cuIpcOpenEventHandle(phEvent::Ptr{CUevent},
+                                        handle::CUipcEventHandle)::CUresult
 end
 
 @checked function cuIpcGetMemHandle(pHandle, dptr)
     initialize_context()
-    ccall((:cuIpcGetMemHandle, libcuda), CUresult, (Ptr{CUipcMemHandle}, CUdeviceptr),
-          pHandle, dptr)
+    @ccall libcuda.cuIpcGetMemHandle(pHandle::Ptr{CUipcMemHandle},
+                                     dptr::CUdeviceptr)::CUresult
 end
 
 @checked function cuIpcCloseMemHandle(dptr)
     initialize_context()
-    ccall((:cuIpcCloseMemHandle, libcuda), CUresult, (CUdeviceptr,), dptr)
+    @ccall libcuda.cuIpcCloseMemHandle(dptr::CUdeviceptr)::CUresult
 end
 
 @checked function cuMemHostUnregister(p)
     initialize_context()
-    ccall((:cuMemHostUnregister, libcuda), CUresult, (Ptr{Cvoid},), p)
+    @ccall libcuda.cuMemHostUnregister(p::Ptr{Cvoid})::CUresult
 end
 
 @checked function cuMemcpy(dst, src, ByteCount)
     initialize_context()
-    ccall((:cuMemcpy, libcuda), CUresult, (CUdeviceptr, CUdeviceptr, Csize_t), dst, src,
-          ByteCount)
+    @ccall libcuda.cuMemcpy(dst::CUdeviceptr, src::CUdeviceptr,
+                            ByteCount::Csize_t)::CUresult
 end
 
 @checked function cuMemcpyPeer(dstDevice, dstContext, srcDevice, srcContext, ByteCount)
     initialize_context()
-    ccall((:cuMemcpyPeer, libcuda), CUresult,
-          (CUdeviceptr, CUcontext, CUdeviceptr, CUcontext, Csize_t), dstDevice, dstContext,
-          srcDevice, srcContext, ByteCount)
+    @ccall libcuda.cuMemcpyPeer(dstDevice::CUdeviceptr, dstContext::CUcontext,
+                                srcDevice::CUdeviceptr, srcContext::CUcontext,
+                                ByteCount::Csize_t)::CUresult
 end
 
 @checked function cuMemcpy3DPeer(pCopy)
     initialize_context()
-    ccall((:cuMemcpy3DPeer, libcuda), CUresult, (Ptr{CUDA_MEMCPY3D_PEER},), pCopy)
+    @ccall libcuda.cuMemcpy3DPeer(pCopy::Ptr{CUDA_MEMCPY3D_PEER})::CUresult
 end
 
 @checked function cuMemcpyAsync(dst, src, ByteCount, hStream)
     initialize_context()
-    ccall((:cuMemcpyAsync, libcuda), CUresult,
-          (CUdeviceptr, CUdeviceptr, Csize_t, CUstream), dst, src, ByteCount, hStream)
+    @ccall libcuda.cuMemcpyAsync(dst::CUdeviceptr, src::CUdeviceptr, ByteCount::Csize_t,
+                                 hStream::CUstream)::CUresult
 end
 
 @checked function cuMemcpyPeerAsync(dstDevice, dstContext, srcDevice, srcContext, ByteCount,
                                     hStream)
     initialize_context()
-    ccall((:cuMemcpyPeerAsync, libcuda), CUresult,
-          (CUdeviceptr, CUcontext, CUdeviceptr, CUcontext, Csize_t, CUstream), dstDevice,
-          dstContext, srcDevice, srcContext, ByteCount, hStream)
+    @ccall libcuda.cuMemcpyPeerAsync(dstDevice::CUdeviceptr, dstContext::CUcontext,
+                                     srcDevice::CUdeviceptr, srcContext::CUcontext,
+                                     ByteCount::Csize_t, hStream::CUstream)::CUresult
 end
 
 @checked function cuMemcpy3DPeerAsync(pCopy, hStream)
     initialize_context()
-    ccall((:cuMemcpy3DPeerAsync, libcuda), CUresult, (Ptr{CUDA_MEMCPY3D_PEER}, CUstream),
-          pCopy, hStream)
+    @ccall libcuda.cuMemcpy3DPeerAsync(pCopy::Ptr{CUDA_MEMCPY3D_PEER},
+                                       hStream::CUstream)::CUresult
 end
 
 @checked function cuMemsetD8Async(dstDevice, uc, N, hStream)
     initialize_context()
-    ccall((:cuMemsetD8Async, libcuda), CUresult, (CUdeviceptr, Cuchar, Csize_t, CUstream),
-          dstDevice, uc, N, hStream)
+    @ccall libcuda.cuMemsetD8Async(dstDevice::CUdeviceptr, uc::Cuchar, N::Csize_t,
+                                   hStream::CUstream)::CUresult
 end
 
 @checked function cuMemsetD16Async(dstDevice, us, N, hStream)
     initialize_context()
-    ccall((:cuMemsetD16Async, libcuda), CUresult, (CUdeviceptr, Cushort, Csize_t, CUstream),
-          dstDevice, us, N, hStream)
+    @ccall libcuda.cuMemsetD16Async(dstDevice::CUdeviceptr, us::Cushort, N::Csize_t,
+                                    hStream::CUstream)::CUresult
 end
 
 @checked function cuMemsetD32Async(dstDevice, ui, N, hStream)
     initialize_context()
-    ccall((:cuMemsetD32Async, libcuda), CUresult, (CUdeviceptr, Cuint, Csize_t, CUstream),
-          dstDevice, ui, N, hStream)
+    @ccall libcuda.cuMemsetD32Async(dstDevice::CUdeviceptr, ui::Cuint, N::Csize_t,
+                                    hStream::CUstream)::CUresult
 end
 
 @checked function cuMemsetD2D8Async(dstDevice, dstPitch, uc, Width, Height, hStream)
     initialize_context()
-    ccall((:cuMemsetD2D8Async, libcuda), CUresult,
-          (CUdeviceptr, Csize_t, Cuchar, Csize_t, Csize_t, CUstream), dstDevice, dstPitch,
-          uc, Width, Height, hStream)
+    @ccall libcuda.cuMemsetD2D8Async(dstDevice::CUdeviceptr, dstPitch::Csize_t, uc::Cuchar,
+                                     Width::Csize_t, Height::Csize_t,
+                                     hStream::CUstream)::CUresult
 end
 
 @checked function cuMemsetD2D16Async(dstDevice, dstPitch, us, Width, Height, hStream)
     initialize_context()
-    ccall((:cuMemsetD2D16Async, libcuda), CUresult,
-          (CUdeviceptr, Csize_t, Cushort, Csize_t, Csize_t, CUstream), dstDevice, dstPitch,
-          us, Width, Height, hStream)
+    @ccall libcuda.cuMemsetD2D16Async(dstDevice::CUdeviceptr, dstPitch::Csize_t,
+                                      us::Cushort, Width::Csize_t, Height::Csize_t,
+                                      hStream::CUstream)::CUresult
 end
 
 @checked function cuMemsetD2D32Async(dstDevice, dstPitch, ui, Width, Height, hStream)
     initialize_context()
-    ccall((:cuMemsetD2D32Async, libcuda), CUresult,
-          (CUdeviceptr, Csize_t, Cuint, Csize_t, Csize_t, CUstream), dstDevice, dstPitch,
-          ui, Width, Height, hStream)
+    @ccall libcuda.cuMemsetD2D32Async(dstDevice::CUdeviceptr, dstPitch::Csize_t, ui::Cuint,
+                                      Width::Csize_t, Height::Csize_t,
+                                      hStream::CUstream)::CUresult
 end
 
 @checked function cuArrayGetSparseProperties(sparseProperties, array)
     initialize_context()
-    ccall((:cuArrayGetSparseProperties, libcuda), CUresult,
-          (Ptr{CUDA_ARRAY_SPARSE_PROPERTIES}, CUarray), sparseProperties, array)
+    @ccall libcuda.cuArrayGetSparseProperties(sparseProperties::Ptr{CUDA_ARRAY_SPARSE_PROPERTIES},
+                                              array::CUarray)::CUresult
 end
 
 @checked function cuMipmappedArrayGetSparseProperties(sparseProperties, mipmap)
     initialize_context()
-    ccall((:cuMipmappedArrayGetSparseProperties, libcuda), CUresult,
-          (Ptr{CUDA_ARRAY_SPARSE_PROPERTIES}, CUmipmappedArray), sparseProperties, mipmap)
+    @ccall libcuda.cuMipmappedArrayGetSparseProperties(sparseProperties::Ptr{CUDA_ARRAY_SPARSE_PROPERTIES},
+                                                       mipmap::CUmipmappedArray)::CUresult
 end
 
 @checked function cuArrayGetMemoryRequirements(memoryRequirements, array, device)
     initialize_context()
-    ccall((:cuArrayGetMemoryRequirements, libcuda), CUresult,
-          (Ptr{CUDA_ARRAY_MEMORY_REQUIREMENTS}, CUarray, CUdevice), memoryRequirements,
-          array, device)
+    @ccall libcuda.cuArrayGetMemoryRequirements(memoryRequirements::Ptr{CUDA_ARRAY_MEMORY_REQUIREMENTS},
+                                                array::CUarray, device::CUdevice)::CUresult
 end
 
 @checked function cuMipmappedArrayGetMemoryRequirements(memoryRequirements, mipmap, device)
     initialize_context()
-    ccall((:cuMipmappedArrayGetMemoryRequirements, libcuda), CUresult,
-          (Ptr{CUDA_ARRAY_MEMORY_REQUIREMENTS}, CUmipmappedArray, CUdevice),
-          memoryRequirements, mipmap, device)
+    @ccall libcuda.cuMipmappedArrayGetMemoryRequirements(memoryRequirements::Ptr{CUDA_ARRAY_MEMORY_REQUIREMENTS},
+                                                         mipmap::CUmipmappedArray,
+                                                         device::CUdevice)::CUresult
 end
 
 @checked function cuArrayGetPlane(pPlaneArray, hArray, planeIdx)
     initialize_context()
-    ccall((:cuArrayGetPlane, libcuda), CUresult, (Ptr{CUarray}, CUarray, Cuint),
-          pPlaneArray, hArray, planeIdx)
+    @ccall libcuda.cuArrayGetPlane(pPlaneArray::Ptr{CUarray}, hArray::CUarray,
+                                   planeIdx::Cuint)::CUresult
 end
 
 @checked function cuArrayDestroy(hArray)
     initialize_context()
-    ccall((:cuArrayDestroy, libcuda), CUresult, (CUarray,), hArray)
+    @ccall libcuda.cuArrayDestroy(hArray::CUarray)::CUresult
 end
 
 @checked function cuMipmappedArrayCreate(pHandle, pMipmappedArrayDesc, numMipmapLevels)
     initialize_context()
-    ccall((:cuMipmappedArrayCreate, libcuda), CUresult,
-          (Ptr{CUmipmappedArray}, Ptr{CUDA_ARRAY3D_DESCRIPTOR}, Cuint), pHandle,
-          pMipmappedArrayDesc, numMipmapLevels)
+    @ccall libcuda.cuMipmappedArrayCreate(pHandle::Ptr{CUmipmappedArray},
+                                          pMipmappedArrayDesc::Ptr{CUDA_ARRAY3D_DESCRIPTOR},
+                                          numMipmapLevels::Cuint)::CUresult
 end
 
 @checked function cuMipmappedArrayGetLevel(pLevelArray, hMipmappedArray, level)
     initialize_context()
-    ccall((:cuMipmappedArrayGetLevel, libcuda), CUresult,
-          (Ptr{CUarray}, CUmipmappedArray, Cuint), pLevelArray, hMipmappedArray, level)
+    @ccall libcuda.cuMipmappedArrayGetLevel(pLevelArray::Ptr{CUarray},
+                                            hMipmappedArray::CUmipmappedArray,
+                                            level::Cuint)::CUresult
 end
 
 @checked function cuMipmappedArrayDestroy(hMipmappedArray)
     initialize_context()
-    ccall((:cuMipmappedArrayDestroy, libcuda), CUresult, (CUmipmappedArray,),
-          hMipmappedArray)
+    @ccall libcuda.cuMipmappedArrayDestroy(hMipmappedArray::CUmipmappedArray)::CUresult
 end
 
 @checked function cuMemGetHandleForAddressRange(handle, dptr, size, handleType, flags)
     initialize_context()
-    ccall((:cuMemGetHandleForAddressRange, libcuda), CUresult,
-          (Ptr{Cvoid}, CUdeviceptr, Csize_t, CUmemRangeHandleType, Culonglong), handle,
-          dptr, size, handleType, flags)
+    @ccall libcuda.cuMemGetHandleForAddressRange(handle::Ptr{Cvoid}, dptr::CUdeviceptr,
+                                                 size::Csize_t,
+                                                 handleType::CUmemRangeHandleType,
+                                                 flags::Culonglong)::CUresult
 end
 
 @checked function cuMemAddressReserve(ptr, size, alignment, addr, flags)
     initialize_context()
-    ccall((:cuMemAddressReserve, libcuda), CUresult,
-          (Ptr{CUdeviceptr}, Csize_t, Csize_t, CUdeviceptr, Culonglong), ptr, size,
-          alignment, addr, flags)
+    @ccall libcuda.cuMemAddressReserve(ptr::Ptr{CUdeviceptr}, size::Csize_t,
+                                       alignment::Csize_t, addr::CUdeviceptr,
+                                       flags::Culonglong)::CUresult
 end
 
 @checked function cuMemAddressFree(ptr, size)
     initialize_context()
-    ccall((:cuMemAddressFree, libcuda), CUresult, (CUdeviceptr, Csize_t), ptr, size)
+    @ccall libcuda.cuMemAddressFree(ptr::CUdeviceptr, size::Csize_t)::CUresult
 end
 
 @checked function cuMemCreate(handle, size, prop, flags)
     initialize_context()
-    ccall((:cuMemCreate, libcuda), CUresult,
-          (Ptr{CUmemGenericAllocationHandle}, Csize_t, Ptr{CUmemAllocationProp},
-           Culonglong), handle, size, prop, flags)
+    @ccall libcuda.cuMemCreate(handle::Ptr{CUmemGenericAllocationHandle}, size::Csize_t,
+                               prop::Ptr{CUmemAllocationProp}, flags::Culonglong)::CUresult
 end
 
 @checked function cuMemRelease(handle)
     initialize_context()
-    ccall((:cuMemRelease, libcuda), CUresult, (CUmemGenericAllocationHandle,), handle)
+    @ccall libcuda.cuMemRelease(handle::CUmemGenericAllocationHandle)::CUresult
 end
 
 @checked function cuMemMap(ptr, size, offset, handle, flags)
     initialize_context()
-    ccall((:cuMemMap, libcuda), CUresult,
-          (CUdeviceptr, Csize_t, Csize_t, CUmemGenericAllocationHandle, Culonglong), ptr,
-          size, offset, handle, flags)
+    @ccall libcuda.cuMemMap(ptr::CUdeviceptr, size::Csize_t, offset::Csize_t,
+                            handle::CUmemGenericAllocationHandle,
+                            flags::Culonglong)::CUresult
 end
 
 @checked function cuMemMapArrayAsync(mapInfoList, count, hStream)
     initialize_context()
-    ccall((:cuMemMapArrayAsync, libcuda), CUresult, (Ptr{CUarrayMapInfo}, Cuint, CUstream),
-          mapInfoList, count, hStream)
+    @ccall libcuda.cuMemMapArrayAsync(mapInfoList::Ptr{CUarrayMapInfo}, count::Cuint,
+                                      hStream::CUstream)::CUresult
 end
 
 @checked function cuMemUnmap(ptr, size)
     initialize_context()
-    ccall((:cuMemUnmap, libcuda), CUresult, (CUdeviceptr, Csize_t), ptr, size)
+    @ccall libcuda.cuMemUnmap(ptr::CUdeviceptr, size::Csize_t)::CUresult
 end
 
 @checked function cuMemSetAccess(ptr, size, desc, count)
     initialize_context()
-    ccall((:cuMemSetAccess, libcuda), CUresult,
-          (CUdeviceptr, Csize_t, Ptr{CUmemAccessDesc}, Csize_t), ptr, size, desc, count)
+    @ccall libcuda.cuMemSetAccess(ptr::CUdeviceptr, size::Csize_t,
+                                  desc::Ptr{CUmemAccessDesc}, count::Csize_t)::CUresult
 end
 
 @checked function cuMemGetAccess(flags, location, ptr)
     initialize_context()
-    ccall((:cuMemGetAccess, libcuda), CUresult,
-          (Ptr{Culonglong}, Ptr{CUmemLocation}, CUdeviceptr), flags, location, ptr)
+    @ccall libcuda.cuMemGetAccess(flags::Ptr{Culonglong}, location::Ptr{CUmemLocation},
+                                  ptr::CUdeviceptr)::CUresult
 end
 
 @checked function cuMemExportToShareableHandle(shareableHandle, handle, handleType, flags)
     initialize_context()
-    ccall((:cuMemExportToShareableHandle, libcuda), CUresult,
-          (Ptr{Cvoid}, CUmemGenericAllocationHandle, CUmemAllocationHandleType, Culonglong),
-          shareableHandle, handle, handleType, flags)
+    @ccall libcuda.cuMemExportToShareableHandle(shareableHandle::Ptr{Cvoid},
+                                                handle::CUmemGenericAllocationHandle,
+                                                handleType::CUmemAllocationHandleType,
+                                                flags::Culonglong)::CUresult
 end
 
 @checked function cuMemImportFromShareableHandle(handle, osHandle, shHandleType)
     initialize_context()
-    ccall((:cuMemImportFromShareableHandle, libcuda), CUresult,
-          (Ptr{CUmemGenericAllocationHandle}, Ptr{Cvoid}, CUmemAllocationHandleType),
-          handle, osHandle, shHandleType)
+    @ccall libcuda.cuMemImportFromShareableHandle(handle::Ptr{CUmemGenericAllocationHandle},
+                                                  osHandle::Ptr{Cvoid},
+                                                  shHandleType::CUmemAllocationHandleType)::CUresult
 end
 
 @checked function cuMemGetAllocationGranularity(granularity, prop, option)
     initialize_context()
-    ccall((:cuMemGetAllocationGranularity, libcuda), CUresult,
-          (Ptr{Csize_t}, Ptr{CUmemAllocationProp}, CUmemAllocationGranularity_flags),
-          granularity, prop, option)
+    @ccall libcuda.cuMemGetAllocationGranularity(granularity::Ptr{Csize_t},
+                                                 prop::Ptr{CUmemAllocationProp},
+                                                 option::CUmemAllocationGranularity_flags)::CUresult
 end
 
 @checked function cuMemGetAllocationPropertiesFromHandle(prop, handle)
     initialize_context()
-    ccall((:cuMemGetAllocationPropertiesFromHandle, libcuda), CUresult,
-          (Ptr{CUmemAllocationProp}, CUmemGenericAllocationHandle), prop, handle)
+    @ccall libcuda.cuMemGetAllocationPropertiesFromHandle(prop::Ptr{CUmemAllocationProp},
+                                                          handle::CUmemGenericAllocationHandle)::CUresult
 end
 
 @checked function cuMemRetainAllocationHandle(handle, addr)
     initialize_context()
-    ccall((:cuMemRetainAllocationHandle, libcuda), CUresult,
-          (Ptr{CUmemGenericAllocationHandle}, Ptr{Cvoid}), handle, addr)
+    @ccall libcuda.cuMemRetainAllocationHandle(handle::Ptr{CUmemGenericAllocationHandle},
+                                               addr::Ptr{Cvoid})::CUresult
 end
 
 @checked function cuMemFreeAsync(dptr, hStream)
     initialize_context()
-    ccall((:cuMemFreeAsync, libcuda), CUresult, (CUdeviceptr, CUstream), dptr, hStream)
+    @ccall libcuda.cuMemFreeAsync(dptr::CUdeviceptr, hStream::CUstream)::CUresult
 end
 
 @checked function cuMemAllocAsync(dptr, bytesize, hStream)
     initialize_context()
-    ccall((:cuMemAllocAsync, libcuda), CUresult, (Ptr{CUdeviceptr}, Csize_t, CUstream),
-          dptr, bytesize, hStream)
+    @ccall libcuda.cuMemAllocAsync(dptr::Ptr{CUdeviceptr}, bytesize::Csize_t,
+                                   hStream::CUstream)::CUresult
 end
 
 @checked function cuMemPoolTrimTo(pool, minBytesToKeep)
     initialize_context()
-    ccall((:cuMemPoolTrimTo, libcuda), CUresult, (CUmemoryPool, Csize_t), pool,
-          minBytesToKeep)
+    @ccall libcuda.cuMemPoolTrimTo(pool::CUmemoryPool, minBytesToKeep::Csize_t)::CUresult
 end
 
 @checked function cuMemPoolSetAttribute(pool, attr, value)
     initialize_context()
-    ccall((:cuMemPoolSetAttribute, libcuda), CUresult,
-          (CUmemoryPool, CUmemPool_attribute, Ptr{Cvoid}), pool, attr, value)
+    @ccall libcuda.cuMemPoolSetAttribute(pool::CUmemoryPool, attr::CUmemPool_attribute,
+                                         value::Ptr{Cvoid})::CUresult
 end
 
 @checked function cuMemPoolGetAttribute(pool, attr, value)
     initialize_context()
-    ccall((:cuMemPoolGetAttribute, libcuda), CUresult,
-          (CUmemoryPool, CUmemPool_attribute, Ptr{Cvoid}), pool, attr, value)
+    @ccall libcuda.cuMemPoolGetAttribute(pool::CUmemoryPool, attr::CUmemPool_attribute,
+                                         value::Ptr{Cvoid})::CUresult
 end
 
 @checked function cuMemPoolSetAccess(pool, map, count)
     initialize_context()
-    ccall((:cuMemPoolSetAccess, libcuda), CUresult,
-          (CUmemoryPool, Ptr{CUmemAccessDesc}, Csize_t), pool, map, count)
+    @ccall libcuda.cuMemPoolSetAccess(pool::CUmemoryPool, map::Ptr{CUmemAccessDesc},
+                                      count::Csize_t)::CUresult
 end
 
 @checked function cuMemPoolGetAccess(flags, memPool, location)
     initialize_context()
-    ccall((:cuMemPoolGetAccess, libcuda), CUresult,
-          (Ptr{CUmemAccess_flags}, CUmemoryPool, Ptr{CUmemLocation}), flags, memPool,
-          location)
+    @ccall libcuda.cuMemPoolGetAccess(flags::Ptr{CUmemAccess_flags}, memPool::CUmemoryPool,
+                                      location::Ptr{CUmemLocation})::CUresult
 end
 
 @checked function cuMemPoolCreate(pool, poolProps)
     initialize_context()
-    ccall((:cuMemPoolCreate, libcuda), CUresult, (Ptr{CUmemoryPool}, Ptr{CUmemPoolProps}),
-          pool, poolProps)
+    @ccall libcuda.cuMemPoolCreate(pool::Ptr{CUmemoryPool},
+                                   poolProps::Ptr{CUmemPoolProps})::CUresult
 end
 
 @checked function cuMemPoolDestroy(pool)
     initialize_context()
-    ccall((:cuMemPoolDestroy, libcuda), CUresult, (CUmemoryPool,), pool)
+    @ccall libcuda.cuMemPoolDestroy(pool::CUmemoryPool)::CUresult
 end
 
 @checked function cuMemAllocFromPoolAsync(dptr, bytesize, pool, hStream)
     initialize_context()
-    ccall((:cuMemAllocFromPoolAsync, libcuda), CUresult,
-          (Ptr{CUdeviceptr}, Csize_t, CUmemoryPool, CUstream), dptr, bytesize, pool,
-          hStream)
+    @ccall libcuda.cuMemAllocFromPoolAsync(dptr::Ptr{CUdeviceptr}, bytesize::Csize_t,
+                                           pool::CUmemoryPool, hStream::CUstream)::CUresult
 end
 
 @checked function cuMemPoolExportToShareableHandle(handle_out, pool, handleType, flags)
     initialize_context()
-    ccall((:cuMemPoolExportToShareableHandle, libcuda), CUresult,
-          (Ptr{Cvoid}, CUmemoryPool, CUmemAllocationHandleType, Culonglong), handle_out,
-          pool, handleType, flags)
+    @ccall libcuda.cuMemPoolExportToShareableHandle(handle_out::Ptr{Cvoid},
+                                                    pool::CUmemoryPool,
+                                                    handleType::CUmemAllocationHandleType,
+                                                    flags::Culonglong)::CUresult
 end
 
 @checked function cuMemPoolImportFromShareableHandle(pool_out, handle, handleType, flags)
     initialize_context()
-    ccall((:cuMemPoolImportFromShareableHandle, libcuda), CUresult,
-          (Ptr{CUmemoryPool}, Ptr{Cvoid}, CUmemAllocationHandleType, Culonglong), pool_out,
-          handle, handleType, flags)
+    @ccall libcuda.cuMemPoolImportFromShareableHandle(pool_out::Ptr{CUmemoryPool},
+                                                      handle::Ptr{Cvoid},
+                                                      handleType::CUmemAllocationHandleType,
+                                                      flags::Culonglong)::CUresult
 end
 
 @checked function cuMemPoolExportPointer(shareData_out, ptr)
     initialize_context()
-    ccall((:cuMemPoolExportPointer, libcuda), CUresult,
-          (Ptr{CUmemPoolPtrExportData}, CUdeviceptr), shareData_out, ptr)
+    @ccall libcuda.cuMemPoolExportPointer(shareData_out::Ptr{CUmemPoolPtrExportData},
+                                          ptr::CUdeviceptr)::CUresult
 end
 
 @checked function cuMemPoolImportPointer(ptr_out, pool, shareData)
     initialize_context()
-    ccall((:cuMemPoolImportPointer, libcuda), CUresult,
-          (Ptr{CUdeviceptr}, CUmemoryPool, Ptr{CUmemPoolPtrExportData}), ptr_out, pool,
-          shareData)
+    @ccall libcuda.cuMemPoolImportPointer(ptr_out::Ptr{CUdeviceptr}, pool::CUmemoryPool,
+                                          shareData::Ptr{CUmemPoolPtrExportData})::CUresult
 end
 
 @checked function cuPointerGetAttribute(data, attribute, ptr)
     initialize_context()
-    ccall((:cuPointerGetAttribute, libcuda), CUresult,
-          (Ptr{Cvoid}, CUpointer_attribute, CUdeviceptr), data, attribute, ptr)
+    @ccall libcuda.cuPointerGetAttribute(data::Ptr{Cvoid}, attribute::CUpointer_attribute,
+                                         ptr::CUdeviceptr)::CUresult
 end
 
 @checked function cuMemPrefetchAsync(devPtr, count, dstDevice, hStream)
     initialize_context()
-    ccall((:cuMemPrefetchAsync, libcuda), CUresult,
-          (CUdeviceptr, Csize_t, CUdevice, CUstream), devPtr, count, dstDevice, hStream)
+    @ccall libcuda.cuMemPrefetchAsync(devPtr::CUdeviceptr, count::Csize_t,
+                                      dstDevice::CUdevice, hStream::CUstream)::CUresult
 end
 
 @checked function cuMemAdvise(devPtr, count, advice, device)
     initialize_context()
-    ccall((:cuMemAdvise, libcuda), CUresult, (CUdeviceptr, Csize_t, CUmem_advise, CUdevice),
-          devPtr, count, advice, device)
+    @ccall libcuda.cuMemAdvise(devPtr::CUdeviceptr, count::Csize_t, advice::CUmem_advise,
+                               device::CUdevice)::CUresult
 end
 
 @checked function cuMemRangeGetAttribute(data, dataSize, attribute, devPtr, count)
     initialize_context()
-    ccall((:cuMemRangeGetAttribute, libcuda), CUresult,
-          (Ptr{Cvoid}, Csize_t, CUmem_range_attribute, CUdeviceptr, Csize_t), data,
-          dataSize, attribute, devPtr, count)
+    @ccall libcuda.cuMemRangeGetAttribute(data::Ptr{Cvoid}, dataSize::Csize_t,
+                                          attribute::CUmem_range_attribute,
+                                          devPtr::CUdeviceptr, count::Csize_t)::CUresult
 end
 
 @checked function cuMemRangeGetAttributes(data, dataSizes, attributes, numAttributes,
                                           devPtr, count)
     initialize_context()
-    ccall((:cuMemRangeGetAttributes, libcuda), CUresult,
-          (Ptr{Ptr{Cvoid}}, Ptr{Csize_t}, Ptr{CUmem_range_attribute}, Csize_t, CUdeviceptr,
-           Csize_t), data, dataSizes, attributes, numAttributes, devPtr, count)
+    @ccall libcuda.cuMemRangeGetAttributes(data::Ptr{Ptr{Cvoid}}, dataSizes::Ptr{Csize_t},
+                                           attributes::Ptr{CUmem_range_attribute},
+                                           numAttributes::Csize_t, devPtr::CUdeviceptr,
+                                           count::Csize_t)::CUresult
 end
 
 @checked function cuPointerSetAttribute(value, attribute, ptr)
     initialize_context()
-    ccall((:cuPointerSetAttribute, libcuda), CUresult,
-          (Ptr{Cvoid}, CUpointer_attribute, CUdeviceptr), value, attribute, ptr)
+    @ccall libcuda.cuPointerSetAttribute(value::Ptr{Cvoid}, attribute::CUpointer_attribute,
+                                         ptr::CUdeviceptr)::CUresult
 end
 
 @checked function cuPointerGetAttributes(numAttributes, attributes, data, ptr)
     initialize_context()
-    ccall((:cuPointerGetAttributes, libcuda), CUresult,
-          (Cuint, Ptr{CUpointer_attribute}, Ptr{Ptr{Cvoid}}, CUdeviceptr), numAttributes,
-          attributes, data, ptr)
+    @ccall libcuda.cuPointerGetAttributes(numAttributes::Cuint,
+                                          attributes::Ptr{CUpointer_attribute},
+                                          data::Ptr{Ptr{Cvoid}}, ptr::CUdeviceptr)::CUresult
 end
 
 @checked function cuStreamCreate(phStream, Flags)
     initialize_context()
-    ccall((:cuStreamCreate, libcuda), CUresult, (Ptr{CUstream}, Cuint), phStream, Flags)
+    @ccall libcuda.cuStreamCreate(phStream::Ptr{CUstream}, Flags::Cuint)::CUresult
 end
 
 @checked function cuStreamCreateWithPriority(phStream, flags, priority)
     initialize_context()
-    ccall((:cuStreamCreateWithPriority, libcuda), CUresult, (Ptr{CUstream}, Cuint, Cint),
-          phStream, flags, priority)
+    @ccall libcuda.cuStreamCreateWithPriority(phStream::Ptr{CUstream}, flags::Cuint,
+                                              priority::Cint)::CUresult
 end
 
 @checked function cuStreamGetPriority(hStream, priority)
     initialize_context()
-    ccall((:cuStreamGetPriority, libcuda), CUresult, (CUstream, Ptr{Cint}), hStream,
-          priority)
+    @ccall libcuda.cuStreamGetPriority(hStream::CUstream, priority::Ptr{Cint})::CUresult
 end
 
 @checked function cuStreamGetFlags(hStream, flags)
     initialize_context()
-    ccall((:cuStreamGetFlags, libcuda), CUresult, (CUstream, Ptr{Cuint}), hStream, flags)
+    @ccall libcuda.cuStreamGetFlags(hStream::CUstream, flags::Ptr{Cuint})::CUresult
 end
 
 @checked function cuStreamGetCtx(hStream, pctx)
     initialize_context()
-    ccall((:cuStreamGetCtx, libcuda), CUresult, (CUstream, Ptr{CUcontext}), hStream, pctx)
+    @ccall libcuda.cuStreamGetCtx(hStream::CUstream, pctx::Ptr{CUcontext})::CUresult
 end
 
 @checked function cuStreamWaitEvent(hStream, hEvent, Flags)
     initialize_context()
-    ccall((:cuStreamWaitEvent, libcuda), CUresult, (CUstream, CUevent, Cuint), hStream,
-          hEvent, Flags)
+    @ccall libcuda.cuStreamWaitEvent(hStream::CUstream, hEvent::CUevent,
+                                     Flags::Cuint)::CUresult
 end
 
 @checked function cuStreamAddCallback(hStream, callback, userData, flags)
     initialize_context()
-    ccall((:cuStreamAddCallback, libcuda), CUresult,
-          (CUstream, CUstreamCallback, Ptr{Cvoid}, Cuint), hStream, callback, userData,
-          flags)
+    @ccall libcuda.cuStreamAddCallback(hStream::CUstream, callback::CUstreamCallback,
+                                       userData::Ptr{Cvoid}, flags::Cuint)::CUresult
 end
 
 @checked function cuThreadExchangeStreamCaptureMode(mode)
     initialize_context()
-    ccall((:cuThreadExchangeStreamCaptureMode, libcuda), CUresult,
-          (Ptr{CUstreamCaptureMode},), mode)
+    @ccall libcuda.cuThreadExchangeStreamCaptureMode(mode::Ptr{CUstreamCaptureMode})::CUresult
 end
 
 @checked function cuStreamEndCapture(hStream, phGraph)
     initialize_context()
-    ccall((:cuStreamEndCapture, libcuda), CUresult, (CUstream, Ptr{CUgraph}), hStream,
-          phGraph)
+    @ccall libcuda.cuStreamEndCapture(hStream::CUstream, phGraph::Ptr{CUgraph})::CUresult
 end
 
 @checked function cuStreamIsCapturing(hStream, captureStatus)
     initialize_context()
-    ccall((:cuStreamIsCapturing, libcuda), CUresult, (CUstream, Ptr{CUstreamCaptureStatus}),
-          hStream, captureStatus)
+    @ccall libcuda.cuStreamIsCapturing(hStream::CUstream,
+                                       captureStatus::Ptr{CUstreamCaptureStatus})::CUresult
 end
 
 @checked function cuStreamGetCaptureInfo(hStream, captureStatus_out, id_out)
     initialize_context()
-    ccall((:cuStreamGetCaptureInfo, libcuda), CUresult,
-          (CUstream, Ptr{CUstreamCaptureStatus}, Ptr{cuuint64_t}), hStream,
-          captureStatus_out, id_out)
+    @ccall libcuda.cuStreamGetCaptureInfo(hStream::CUstream,
+                                          captureStatus_out::Ptr{CUstreamCaptureStatus},
+                                          id_out::Ptr{cuuint64_t})::CUresult
 end
 
 @checked function cuStreamGetCaptureInfo_v2(hStream, captureStatus_out, id_out, graph_out,
                                             dependencies_out, numDependencies_out)
     initialize_context()
-    ccall((:cuStreamGetCaptureInfo_v2, libcuda), CUresult,
-          (CUstream, Ptr{CUstreamCaptureStatus}, Ptr{cuuint64_t}, Ptr{CUgraph},
-           Ptr{Ptr{CUgraphNode}}, Ptr{Csize_t}), hStream, captureStatus_out, id_out,
-          graph_out, dependencies_out, numDependencies_out)
+    @ccall libcuda.cuStreamGetCaptureInfo_v2(hStream::CUstream,
+                                             captureStatus_out::Ptr{CUstreamCaptureStatus},
+                                             id_out::Ptr{cuuint64_t},
+                                             graph_out::Ptr{CUgraph},
+                                             dependencies_out::Ptr{Ptr{CUgraphNode}},
+                                             numDependencies_out::Ptr{Csize_t})::CUresult
 end
 
 @checked function cuStreamUpdateCaptureDependencies(hStream, dependencies, numDependencies,
                                                     flags)
     initialize_context()
-    ccall((:cuStreamUpdateCaptureDependencies, libcuda), CUresult,
-          (CUstream, Ptr{CUgraphNode}, Csize_t, Cuint), hStream, dependencies,
-          numDependencies, flags)
+    @ccall libcuda.cuStreamUpdateCaptureDependencies(hStream::CUstream,
+                                                     dependencies::Ptr{CUgraphNode},
+                                                     numDependencies::Csize_t,
+                                                     flags::Cuint)::CUresult
 end
 
 @checked function cuStreamAttachMemAsync(hStream, dptr, length, flags)
     initialize_context()
-    ccall((:cuStreamAttachMemAsync, libcuda), CUresult,
-          (CUstream, CUdeviceptr, Csize_t, Cuint), hStream, dptr, length, flags)
+    @ccall libcuda.cuStreamAttachMemAsync(hStream::CUstream, dptr::CUdeviceptr,
+                                          length::Csize_t, flags::Cuint)::CUresult
 end
 
 @checked function cuStreamQuery(hStream)
     initialize_context()
-    ccall((:cuStreamQuery, libcuda), CUresult, (CUstream,), hStream)
+    @ccall libcuda.cuStreamQuery(hStream::CUstream)::CUresult
 end
 
 @checked function cuStreamSynchronize(hStream)
     initialize_context()
-    ccall((:cuStreamSynchronize, libcuda), CUresult, (CUstream,), hStream)
+    @ccall libcuda.cuStreamSynchronize(hStream::CUstream)::CUresult
 end
 
 @checked function cuStreamCopyAttributes(dst, src)
     initialize_context()
-    ccall((:cuStreamCopyAttributes, libcuda), CUresult, (CUstream, CUstream), dst, src)
+    @ccall libcuda.cuStreamCopyAttributes(dst::CUstream, src::CUstream)::CUresult
 end
 
 @checked function cuStreamGetAttribute(hStream, attr, value_out)
     initialize_context()
-    ccall((:cuStreamGetAttribute, libcuda), CUresult,
-          (CUstream, CUstreamAttrID, Ptr{CUstreamAttrValue}), hStream, attr, value_out)
+    @ccall libcuda.cuStreamGetAttribute(hStream::CUstream, attr::CUstreamAttrID,
+                                        value_out::Ptr{CUstreamAttrValue})::CUresult
 end
 
 @checked function cuStreamSetAttribute(hStream, attr, value)
     initialize_context()
-    ccall((:cuStreamSetAttribute, libcuda), CUresult,
-          (CUstream, CUstreamAttrID, Ptr{CUstreamAttrValue}), hStream, attr, value)
+    @ccall libcuda.cuStreamSetAttribute(hStream::CUstream, attr::CUstreamAttrID,
+                                        value::Ptr{CUstreamAttrValue})::CUresult
 end
 
 @checked function cuEventCreate(phEvent, Flags)
     initialize_context()
-    ccall((:cuEventCreate, libcuda), CUresult, (Ptr{CUevent}, Cuint), phEvent, Flags)
+    @ccall libcuda.cuEventCreate(phEvent::Ptr{CUevent}, Flags::Cuint)::CUresult
 end
 
 @checked function cuEventRecord(hEvent, hStream)
     initialize_context()
-    ccall((:cuEventRecord, libcuda), CUresult, (CUevent, CUstream), hEvent, hStream)
+    @ccall libcuda.cuEventRecord(hEvent::CUevent, hStream::CUstream)::CUresult
 end
 
 @checked function cuEventRecordWithFlags(hEvent, hStream, flags)
     initialize_context()
-    ccall((:cuEventRecordWithFlags, libcuda), CUresult, (CUevent, CUstream, Cuint), hEvent,
-          hStream, flags)
+    @ccall libcuda.cuEventRecordWithFlags(hEvent::CUevent, hStream::CUstream,
+                                          flags::Cuint)::CUresult
 end
 
 @checked function cuEventQuery(hEvent)
     initialize_context()
-    ccall((:cuEventQuery, libcuda), CUresult, (CUevent,), hEvent)
+    @ccall libcuda.cuEventQuery(hEvent::CUevent)::CUresult
 end
 
 @checked function cuEventSynchronize(hEvent)
     initialize_context()
-    ccall((:cuEventSynchronize, libcuda), CUresult, (CUevent,), hEvent)
+    @ccall libcuda.cuEventSynchronize(hEvent::CUevent)::CUresult
 end
 
 @checked function cuEventElapsedTime(pMilliseconds, hStart, hEnd)
     initialize_context()
-    ccall((:cuEventElapsedTime, libcuda), CUresult, (Ptr{Cfloat}, CUevent, CUevent),
-          pMilliseconds, hStart, hEnd)
+    @ccall libcuda.cuEventElapsedTime(pMilliseconds::Ptr{Cfloat}, hStart::CUevent,
+                                      hEnd::CUevent)::CUresult
 end
 
 @checked function cuImportExternalMemory(extMem_out, memHandleDesc)
     initialize_context()
-    ccall((:cuImportExternalMemory, libcuda), CUresult,
-          (Ptr{CUexternalMemory}, Ptr{CUDA_EXTERNAL_MEMORY_HANDLE_DESC}), extMem_out,
-          memHandleDesc)
+    @ccall libcuda.cuImportExternalMemory(extMem_out::Ptr{CUexternalMemory},
+                                          memHandleDesc::Ptr{CUDA_EXTERNAL_MEMORY_HANDLE_DESC})::CUresult
 end
 
 @checked function cuExternalMemoryGetMappedBuffer(devPtr, extMem, bufferDesc)
     initialize_context()
-    ccall((:cuExternalMemoryGetMappedBuffer, libcuda), CUresult,
-          (Ptr{CUdeviceptr}, CUexternalMemory, Ptr{CUDA_EXTERNAL_MEMORY_BUFFER_DESC}),
-          devPtr, extMem, bufferDesc)
+    @ccall libcuda.cuExternalMemoryGetMappedBuffer(devPtr::Ptr{CUdeviceptr},
+                                                   extMem::CUexternalMemory,
+                                                   bufferDesc::Ptr{CUDA_EXTERNAL_MEMORY_BUFFER_DESC})::CUresult
 end
 
 @checked function cuExternalMemoryGetMappedMipmappedArray(mipmap, extMem, mipmapDesc)
     initialize_context()
-    ccall((:cuExternalMemoryGetMappedMipmappedArray, libcuda), CUresult,
-          (Ptr{CUmipmappedArray}, CUexternalMemory,
-           Ptr{CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC}), mipmap, extMem, mipmapDesc)
+    @ccall libcuda.cuExternalMemoryGetMappedMipmappedArray(mipmap::Ptr{CUmipmappedArray},
+                                                           extMem::CUexternalMemory,
+                                                           mipmapDesc::Ptr{CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC})::CUresult
 end
 
 @checked function cuDestroyExternalMemory(extMem)
     initialize_context()
-    ccall((:cuDestroyExternalMemory, libcuda), CUresult, (CUexternalMemory,), extMem)
+    @ccall libcuda.cuDestroyExternalMemory(extMem::CUexternalMemory)::CUresult
 end
 
 @checked function cuImportExternalSemaphore(extSem_out, semHandleDesc)
     initialize_context()
-    ccall((:cuImportExternalSemaphore, libcuda), CUresult,
-          (Ptr{CUexternalSemaphore}, Ptr{CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC}), extSem_out,
-          semHandleDesc)
+    @ccall libcuda.cuImportExternalSemaphore(extSem_out::Ptr{CUexternalSemaphore},
+                                             semHandleDesc::Ptr{CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC})::CUresult
 end
 
 @checked function cuSignalExternalSemaphoresAsync(extSemArray, paramsArray, numExtSems,
                                                   stream)
     initialize_context()
-    ccall((:cuSignalExternalSemaphoresAsync, libcuda), CUresult,
-          (Ptr{CUexternalSemaphore}, Ptr{CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS}, Cuint,
-           CUstream), extSemArray, paramsArray, numExtSems, stream)
+    @ccall libcuda.cuSignalExternalSemaphoresAsync(extSemArray::Ptr{CUexternalSemaphore},
+                                                   paramsArray::Ptr{CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS},
+                                                   numExtSems::Cuint,
+                                                   stream::CUstream)::CUresult
 end
 
 @checked function cuWaitExternalSemaphoresAsync(extSemArray, paramsArray, numExtSems,
                                                 stream)
     initialize_context()
-    ccall((:cuWaitExternalSemaphoresAsync, libcuda), CUresult,
-          (Ptr{CUexternalSemaphore}, Ptr{CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS}, Cuint,
-           CUstream), extSemArray, paramsArray, numExtSems, stream)
+    @ccall libcuda.cuWaitExternalSemaphoresAsync(extSemArray::Ptr{CUexternalSemaphore},
+                                                 paramsArray::Ptr{CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS},
+                                                 numExtSems::Cuint,
+                                                 stream::CUstream)::CUresult
 end
 
 @checked function cuDestroyExternalSemaphore(extSem)
     initialize_context()
-    ccall((:cuDestroyExternalSemaphore, libcuda), CUresult, (CUexternalSemaphore,), extSem)
+    @ccall libcuda.cuDestroyExternalSemaphore(extSem::CUexternalSemaphore)::CUresult
 end
 
 @checked function cuStreamWaitValue32(stream, addr, value, flags)
     initialize_context()
-    ccall((:cuStreamWaitValue32, libcuda), CUresult,
-          (CUstream, CUdeviceptr, cuuint32_t, Cuint), stream, addr, value, flags)
+    @ccall libcuda.cuStreamWaitValue32(stream::CUstream, addr::CUdeviceptr,
+                                       value::cuuint32_t, flags::Cuint)::CUresult
 end
 
 @checked function cuStreamWaitValue64(stream, addr, value, flags)
     initialize_context()
-    ccall((:cuStreamWaitValue64, libcuda), CUresult,
-          (CUstream, CUdeviceptr, cuuint64_t, Cuint), stream, addr, value, flags)
+    @ccall libcuda.cuStreamWaitValue64(stream::CUstream, addr::CUdeviceptr,
+                                       value::cuuint64_t, flags::Cuint)::CUresult
 end
 
 @checked function cuStreamWriteValue32(stream, addr, value, flags)
     initialize_context()
-    ccall((:cuStreamWriteValue32, libcuda), CUresult,
-          (CUstream, CUdeviceptr, cuuint32_t, Cuint), stream, addr, value, flags)
+    @ccall libcuda.cuStreamWriteValue32(stream::CUstream, addr::CUdeviceptr,
+                                        value::cuuint32_t, flags::Cuint)::CUresult
 end
 
 @checked function cuStreamWriteValue64(stream, addr, value, flags)
     initialize_context()
-    ccall((:cuStreamWriteValue64, libcuda), CUresult,
-          (CUstream, CUdeviceptr, cuuint64_t, Cuint), stream, addr, value, flags)
+    @ccall libcuda.cuStreamWriteValue64(stream::CUstream, addr::CUdeviceptr,
+                                        value::cuuint64_t, flags::Cuint)::CUresult
 end
 
 @checked function cuStreamBatchMemOp(stream, count, paramArray, flags)
     initialize_context()
-    ccall((:cuStreamBatchMemOp, libcuda), CUresult,
-          (CUstream, Cuint, Ptr{CUstreamBatchMemOpParams}, Cuint), stream, count,
-          paramArray, flags)
+    @ccall libcuda.cuStreamBatchMemOp(stream::CUstream, count::Cuint,
+                                      paramArray::Ptr{CUstreamBatchMemOpParams},
+                                      flags::Cuint)::CUresult
 end
 
 @checked function cuStreamWaitValue32_v2(stream, addr, value, flags)
     initialize_context()
-    ccall((:cuStreamWaitValue32_v2, libcuda), CUresult,
-          (CUstream, CUdeviceptr, cuuint32_t, Cuint), stream, addr, value, flags)
+    @ccall libcuda.cuStreamWaitValue32_v2(stream::CUstream, addr::CUdeviceptr,
+                                          value::cuuint32_t, flags::Cuint)::CUresult
 end
 
 @checked function cuStreamWaitValue64_v2(stream, addr, value, flags)
     initialize_context()
-    ccall((:cuStreamWaitValue64_v2, libcuda), CUresult,
-          (CUstream, CUdeviceptr, cuuint64_t, Cuint), stream, addr, value, flags)
+    @ccall libcuda.cuStreamWaitValue64_v2(stream::CUstream, addr::CUdeviceptr,
+                                          value::cuuint64_t, flags::Cuint)::CUresult
 end
 
 @checked function cuStreamWriteValue32_v2(stream, addr, value, flags)
     initialize_context()
-    ccall((:cuStreamWriteValue32_v2, libcuda), CUresult,
-          (CUstream, CUdeviceptr, cuuint32_t, Cuint), stream, addr, value, flags)
+    @ccall libcuda.cuStreamWriteValue32_v2(stream::CUstream, addr::CUdeviceptr,
+                                           value::cuuint32_t, flags::Cuint)::CUresult
 end
 
 @checked function cuStreamWriteValue64_v2(stream, addr, value, flags)
     initialize_context()
-    ccall((:cuStreamWriteValue64_v2, libcuda), CUresult,
-          (CUstream, CUdeviceptr, cuuint64_t, Cuint), stream, addr, value, flags)
+    @ccall libcuda.cuStreamWriteValue64_v2(stream::CUstream, addr::CUdeviceptr,
+                                           value::cuuint64_t, flags::Cuint)::CUresult
 end
 
 @checked function cuStreamBatchMemOp_v2(stream, count, paramArray, flags)
     initialize_context()
-    ccall((:cuStreamBatchMemOp_v2, libcuda), CUresult,
-          (CUstream, Cuint, Ptr{CUstreamBatchMemOpParams}, Cuint), stream, count,
-          paramArray, flags)
+    @ccall libcuda.cuStreamBatchMemOp_v2(stream::CUstream, count::Cuint,
+                                         paramArray::Ptr{CUstreamBatchMemOpParams},
+                                         flags::Cuint)::CUresult
 end
 
 @checked function cuFuncGetAttribute(pi, attrib, hfunc)
     initialize_context()
-    ccall((:cuFuncGetAttribute, libcuda), CUresult,
-          (Ptr{Cint}, CUfunction_attribute, CUfunction), pi, attrib, hfunc)
+    @ccall libcuda.cuFuncGetAttribute(pi::Ptr{Cint}, attrib::CUfunction_attribute,
+                                      hfunc::CUfunction)::CUresult
 end
 
 @checked function cuFuncSetAttribute(hfunc, attrib, value)
     initialize_context()
-    ccall((:cuFuncSetAttribute, libcuda), CUresult,
-          (CUfunction, CUfunction_attribute, Cint), hfunc, attrib, value)
+    @ccall libcuda.cuFuncSetAttribute(hfunc::CUfunction, attrib::CUfunction_attribute,
+                                      value::Cint)::CUresult
 end
 
 @checked function cuFuncSetCacheConfig(hfunc, config)
     initialize_context()
-    ccall((:cuFuncSetCacheConfig, libcuda), CUresult, (CUfunction, CUfunc_cache), hfunc,
-          config)
+    @ccall libcuda.cuFuncSetCacheConfig(hfunc::CUfunction, config::CUfunc_cache)::CUresult
 end
 
 @checked function cuFuncSetSharedMemConfig(hfunc, config)
     initialize_context()
-    ccall((:cuFuncSetSharedMemConfig, libcuda), CUresult, (CUfunction, CUsharedconfig),
-          hfunc, config)
+    @ccall libcuda.cuFuncSetSharedMemConfig(hfunc::CUfunction,
+                                            config::CUsharedconfig)::CUresult
 end
 
 @checked function cuFuncGetModule(hmod, hfunc)
     initialize_context()
-    ccall((:cuFuncGetModule, libcuda), CUresult, (Ptr{CUmodule}, CUfunction), hmod, hfunc)
+    @ccall libcuda.cuFuncGetModule(hmod::Ptr{CUmodule}, hfunc::CUfunction)::CUresult
 end
 
 @checked function cuLaunchKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY,
                                  blockDimZ, sharedMemBytes, hStream, kernelParams, extra)
     initialize_context()
-    ccall((:cuLaunchKernel, libcuda), CUresult,
-          (CUfunction, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, CUstream,
-           Ptr{Ptr{Cvoid}}, Ptr{Ptr{Cvoid}}), f, gridDimX, gridDimY, gridDimZ, blockDimX,
-          blockDimY, blockDimZ, sharedMemBytes, hStream, kernelParams, extra)
+    @ccall libcuda.cuLaunchKernel(f::CUfunction, gridDimX::Cuint, gridDimY::Cuint,
+                                  gridDimZ::Cuint, blockDimX::Cuint, blockDimY::Cuint,
+                                  blockDimZ::Cuint, sharedMemBytes::Cuint,
+                                  hStream::CUstream, kernelParams::Ptr{Ptr{Cvoid}},
+                                  extra::Ptr{Ptr{Cvoid}})::CUresult
 end
 
 @checked function cuLaunchKernelEx(config, f, kernelParams, extra)
     initialize_context()
-    ccall((:cuLaunchKernelEx, libcuda), CUresult,
-          (Ptr{CUlaunchConfig}, CUfunction, Ptr{Ptr{Cvoid}}, Ptr{Ptr{Cvoid}}), config, f,
-          kernelParams, extra)
+    @ccall libcuda.cuLaunchKernelEx(config::Ptr{CUlaunchConfig}, f::CUfunction,
+                                    kernelParams::Ptr{Ptr{Cvoid}},
+                                    extra::Ptr{Ptr{Cvoid}})::CUresult
 end
 
 @checked function cuLaunchCooperativeKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX,
                                             blockDimY, blockDimZ, sharedMemBytes, hStream,
                                             kernelParams)
     initialize_context()
-    ccall((:cuLaunchCooperativeKernel, libcuda), CUresult,
-          (CUfunction, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, CUstream,
-           Ptr{Ptr{Cvoid}}), f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY,
-          blockDimZ, sharedMemBytes, hStream, kernelParams)
+    @ccall libcuda.cuLaunchCooperativeKernel(f::CUfunction, gridDimX::Cuint,
+                                             gridDimY::Cuint, gridDimZ::Cuint,
+                                             blockDimX::Cuint, blockDimY::Cuint,
+                                             blockDimZ::Cuint, sharedMemBytes::Cuint,
+                                             hStream::CUstream,
+                                             kernelParams::Ptr{Ptr{Cvoid}})::CUresult
 end
 
 @checked function cuLaunchCooperativeKernelMultiDevice(launchParamsList, numDevices, flags)
     initialize_context()
-    ccall((:cuLaunchCooperativeKernelMultiDevice, libcuda), CUresult,
-          (Ptr{CUDA_LAUNCH_PARAMS}, Cuint, Cuint), launchParamsList, numDevices, flags)
+    @ccall libcuda.cuLaunchCooperativeKernelMultiDevice(launchParamsList::Ptr{CUDA_LAUNCH_PARAMS},
+                                                        numDevices::Cuint,
+                                                        flags::Cuint)::CUresult
 end
 
 @checked function cuLaunchHostFunc(hStream, fn, userData)
     initialize_context()
-    ccall((:cuLaunchHostFunc, libcuda), CUresult, (CUstream, CUhostFn, Ptr{Cvoid}), hStream,
-          fn, userData)
+    @ccall libcuda.cuLaunchHostFunc(hStream::CUstream, fn::CUhostFn,
+                                    userData::Ptr{Cvoid})::CUresult
 end
 
 @checked function cuFuncSetBlockShape(hfunc, x, y, z)
     initialize_context()
-    ccall((:cuFuncSetBlockShape, libcuda), CUresult, (CUfunction, Cint, Cint, Cint), hfunc,
-          x, y, z)
+    @ccall libcuda.cuFuncSetBlockShape(hfunc::CUfunction, x::Cint, y::Cint,
+                                       z::Cint)::CUresult
 end
 
 @checked function cuFuncSetSharedSize(hfunc, bytes)
     initialize_context()
-    ccall((:cuFuncSetSharedSize, libcuda), CUresult, (CUfunction, Cuint), hfunc, bytes)
+    @ccall libcuda.cuFuncSetSharedSize(hfunc::CUfunction, bytes::Cuint)::CUresult
 end
 
 @checked function cuParamSetSize(hfunc, numbytes)
     initialize_context()
-    ccall((:cuParamSetSize, libcuda), CUresult, (CUfunction, Cuint), hfunc, numbytes)
+    @ccall libcuda.cuParamSetSize(hfunc::CUfunction, numbytes::Cuint)::CUresult
 end
 
 @checked function cuParamSeti(hfunc, offset, value)
     initialize_context()
-    ccall((:cuParamSeti, libcuda), CUresult, (CUfunction, Cint, Cuint), hfunc, offset,
-          value)
+    @ccall libcuda.cuParamSeti(hfunc::CUfunction, offset::Cint, value::Cuint)::CUresult
 end
 
 @checked function cuParamSetf(hfunc, offset, value)
     initialize_context()
-    ccall((:cuParamSetf, libcuda), CUresult, (CUfunction, Cint, Cfloat), hfunc, offset,
-          value)
+    @ccall libcuda.cuParamSetf(hfunc::CUfunction, offset::Cint, value::Cfloat)::CUresult
 end
 
 @checked function cuParamSetv(hfunc, offset, ptr, numbytes)
     initialize_context()
-    ccall((:cuParamSetv, libcuda), CUresult, (CUfunction, Cint, Ptr{Cvoid}, Cuint), hfunc,
-          offset, ptr, numbytes)
+    @ccall libcuda.cuParamSetv(hfunc::CUfunction, offset::Cint, ptr::Ptr{Cvoid},
+                               numbytes::Cuint)::CUresult
 end
 
 @checked function cuLaunch(f)
     initialize_context()
-    ccall((:cuLaunch, libcuda), CUresult, (CUfunction,), f)
+    @ccall libcuda.cuLaunch(f::CUfunction)::CUresult
 end
 
 @checked function cuLaunchGrid(f, grid_width, grid_height)
     initialize_context()
-    ccall((:cuLaunchGrid, libcuda), CUresult, (CUfunction, Cint, Cint), f, grid_width,
-          grid_height)
+    @ccall libcuda.cuLaunchGrid(f::CUfunction, grid_width::Cint,
+                                grid_height::Cint)::CUresult
 end
 
 @checked function cuLaunchGridAsync(f, grid_width, grid_height, hStream)
     initialize_context()
-    ccall((:cuLaunchGridAsync, libcuda), CUresult, (CUfunction, Cint, Cint, CUstream), f,
-          grid_width, grid_height, hStream)
+    @ccall libcuda.cuLaunchGridAsync(f::CUfunction, grid_width::Cint, grid_height::Cint,
+                                     hStream::CUstream)::CUresult
 end
 
 @checked function cuParamSetTexRef(hfunc, texunit, hTexRef)
     initialize_context()
-    ccall((:cuParamSetTexRef, libcuda), CUresult, (CUfunction, Cint, CUtexref), hfunc,
-          texunit, hTexRef)
+    @ccall libcuda.cuParamSetTexRef(hfunc::CUfunction, texunit::Cint,
+                                    hTexRef::CUtexref)::CUresult
 end
 
 @checked function cuGraphCreate(phGraph, flags)
     initialize_context()
-    ccall((:cuGraphCreate, libcuda), CUresult, (Ptr{CUgraph}, Cuint), phGraph, flags)
+    @ccall libcuda.cuGraphCreate(phGraph::Ptr{CUgraph}, flags::Cuint)::CUresult
 end
 
 @checked function cuGraphAddKernelNode(phGraphNode, hGraph, dependencies, numDependencies,
                                        nodeParams)
     initialize_context()
-    ccall((:cuGraphAddKernelNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t,
-           Ptr{CUDA_KERNEL_NODE_PARAMS}), phGraphNode, hGraph, dependencies,
-          numDependencies, nodeParams)
+    @ccall libcuda.cuGraphAddKernelNode(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                        dependencies::Ptr{CUgraphNode},
+                                        numDependencies::Csize_t,
+                                        nodeParams::Ptr{CUDA_KERNEL_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphKernelNodeGetParams(hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphKernelNodeGetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_KERNEL_NODE_PARAMS}), hNode, nodeParams)
+    @ccall libcuda.cuGraphKernelNodeGetParams(hNode::CUgraphNode,
+                                              nodeParams::Ptr{CUDA_KERNEL_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphKernelNodeSetParams(hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphKernelNodeSetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_KERNEL_NODE_PARAMS}), hNode, nodeParams)
+    @ccall libcuda.cuGraphKernelNodeSetParams(hNode::CUgraphNode,
+                                              nodeParams::Ptr{CUDA_KERNEL_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphAddMemcpyNode(phGraphNode, hGraph, dependencies, numDependencies,
                                        copyParams, ctx)
     initialize_context()
-    ccall((:cuGraphAddMemcpyNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t, Ptr{CUDA_MEMCPY3D},
-           CUcontext), phGraphNode, hGraph, dependencies, numDependencies, copyParams, ctx)
+    @ccall libcuda.cuGraphAddMemcpyNode(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                        dependencies::Ptr{CUgraphNode},
+                                        numDependencies::Csize_t,
+                                        copyParams::Ptr{CUDA_MEMCPY3D},
+                                        ctx::CUcontext)::CUresult
 end
 
 @checked function cuGraphMemcpyNodeGetParams(hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphMemcpyNodeGetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_MEMCPY3D}), hNode, nodeParams)
+    @ccall libcuda.cuGraphMemcpyNodeGetParams(hNode::CUgraphNode,
+                                              nodeParams::Ptr{CUDA_MEMCPY3D})::CUresult
 end
 
 @checked function cuGraphMemcpyNodeSetParams(hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphMemcpyNodeSetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_MEMCPY3D}), hNode, nodeParams)
+    @ccall libcuda.cuGraphMemcpyNodeSetParams(hNode::CUgraphNode,
+                                              nodeParams::Ptr{CUDA_MEMCPY3D})::CUresult
 end
 
 @checked function cuGraphAddMemsetNode(phGraphNode, hGraph, dependencies, numDependencies,
                                        memsetParams, ctx)
     initialize_context()
-    ccall((:cuGraphAddMemsetNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t,
-           Ptr{CUDA_MEMSET_NODE_PARAMS}, CUcontext), phGraphNode, hGraph, dependencies,
-          numDependencies, memsetParams, ctx)
+    @ccall libcuda.cuGraphAddMemsetNode(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                        dependencies::Ptr{CUgraphNode},
+                                        numDependencies::Csize_t,
+                                        memsetParams::Ptr{CUDA_MEMSET_NODE_PARAMS},
+                                        ctx::CUcontext)::CUresult
 end
 
 @checked function cuGraphMemsetNodeGetParams(hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphMemsetNodeGetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_MEMSET_NODE_PARAMS}), hNode, nodeParams)
+    @ccall libcuda.cuGraphMemsetNodeGetParams(hNode::CUgraphNode,
+                                              nodeParams::Ptr{CUDA_MEMSET_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphMemsetNodeSetParams(hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphMemsetNodeSetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_MEMSET_NODE_PARAMS}), hNode, nodeParams)
+    @ccall libcuda.cuGraphMemsetNodeSetParams(hNode::CUgraphNode,
+                                              nodeParams::Ptr{CUDA_MEMSET_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphAddHostNode(phGraphNode, hGraph, dependencies, numDependencies,
                                      nodeParams)
     initialize_context()
-    ccall((:cuGraphAddHostNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t,
-           Ptr{CUDA_HOST_NODE_PARAMS}), phGraphNode, hGraph, dependencies, numDependencies,
-          nodeParams)
+    @ccall libcuda.cuGraphAddHostNode(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                      dependencies::Ptr{CUgraphNode},
+                                      numDependencies::Csize_t,
+                                      nodeParams::Ptr{CUDA_HOST_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphHostNodeGetParams(hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphHostNodeGetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_HOST_NODE_PARAMS}), hNode, nodeParams)
+    @ccall libcuda.cuGraphHostNodeGetParams(hNode::CUgraphNode,
+                                            nodeParams::Ptr{CUDA_HOST_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphHostNodeSetParams(hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphHostNodeSetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_HOST_NODE_PARAMS}), hNode, nodeParams)
+    @ccall libcuda.cuGraphHostNodeSetParams(hNode::CUgraphNode,
+                                            nodeParams::Ptr{CUDA_HOST_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphAddChildGraphNode(phGraphNode, hGraph, dependencies,
                                            numDependencies, childGraph)
     initialize_context()
-    ccall((:cuGraphAddChildGraphNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t, CUgraph), phGraphNode,
-          hGraph, dependencies, numDependencies, childGraph)
+    @ccall libcuda.cuGraphAddChildGraphNode(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                            dependencies::Ptr{CUgraphNode},
+                                            numDependencies::Csize_t,
+                                            childGraph::CUgraph)::CUresult
 end
 
 @checked function cuGraphChildGraphNodeGetGraph(hNode, phGraph)
     initialize_context()
-    ccall((:cuGraphChildGraphNodeGetGraph, libcuda), CUresult, (CUgraphNode, Ptr{CUgraph}),
-          hNode, phGraph)
+    @ccall libcuda.cuGraphChildGraphNodeGetGraph(hNode::CUgraphNode,
+                                                 phGraph::Ptr{CUgraph})::CUresult
 end
 
 @checked function cuGraphAddEmptyNode(phGraphNode, hGraph, dependencies, numDependencies)
     initialize_context()
-    ccall((:cuGraphAddEmptyNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t), phGraphNode, hGraph,
-          dependencies, numDependencies)
+    @ccall libcuda.cuGraphAddEmptyNode(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                       dependencies::Ptr{CUgraphNode},
+                                       numDependencies::Csize_t)::CUresult
 end
 
 @checked function cuGraphAddEventRecordNode(phGraphNode, hGraph, dependencies,
                                             numDependencies, event)
     initialize_context()
-    ccall((:cuGraphAddEventRecordNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t, CUevent), phGraphNode,
-          hGraph, dependencies, numDependencies, event)
+    @ccall libcuda.cuGraphAddEventRecordNode(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                             dependencies::Ptr{CUgraphNode},
+                                             numDependencies::Csize_t,
+                                             event::CUevent)::CUresult
 end
 
 @checked function cuGraphEventRecordNodeGetEvent(hNode, event_out)
     initialize_context()
-    ccall((:cuGraphEventRecordNodeGetEvent, libcuda), CUresult, (CUgraphNode, Ptr{CUevent}),
-          hNode, event_out)
+    @ccall libcuda.cuGraphEventRecordNodeGetEvent(hNode::CUgraphNode,
+                                                  event_out::Ptr{CUevent})::CUresult
 end
 
 @checked function cuGraphEventRecordNodeSetEvent(hNode, event)
     initialize_context()
-    ccall((:cuGraphEventRecordNodeSetEvent, libcuda), CUresult, (CUgraphNode, CUevent),
-          hNode, event)
+    @ccall libcuda.cuGraphEventRecordNodeSetEvent(hNode::CUgraphNode,
+                                                  event::CUevent)::CUresult
 end
 
 @checked function cuGraphAddEventWaitNode(phGraphNode, hGraph, dependencies,
                                           numDependencies, event)
     initialize_context()
-    ccall((:cuGraphAddEventWaitNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t, CUevent), phGraphNode,
-          hGraph, dependencies, numDependencies, event)
+    @ccall libcuda.cuGraphAddEventWaitNode(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                           dependencies::Ptr{CUgraphNode},
+                                           numDependencies::Csize_t,
+                                           event::CUevent)::CUresult
 end
 
 @checked function cuGraphEventWaitNodeGetEvent(hNode, event_out)
     initialize_context()
-    ccall((:cuGraphEventWaitNodeGetEvent, libcuda), CUresult, (CUgraphNode, Ptr{CUevent}),
-          hNode, event_out)
+    @ccall libcuda.cuGraphEventWaitNodeGetEvent(hNode::CUgraphNode,
+                                                event_out::Ptr{CUevent})::CUresult
 end
 
 @checked function cuGraphEventWaitNodeSetEvent(hNode, event)
     initialize_context()
-    ccall((:cuGraphEventWaitNodeSetEvent, libcuda), CUresult, (CUgraphNode, CUevent), hNode,
-          event)
+    @ccall libcuda.cuGraphEventWaitNodeSetEvent(hNode::CUgraphNode,
+                                                event::CUevent)::CUresult
 end
 
 @checked function cuGraphAddExternalSemaphoresSignalNode(phGraphNode, hGraph, dependencies,
                                                          numDependencies, nodeParams)
     initialize_context()
-    ccall((:cuGraphAddExternalSemaphoresSignalNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t,
-           Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS}), phGraphNode, hGraph, dependencies,
-          numDependencies, nodeParams)
+    @ccall libcuda.cuGraphAddExternalSemaphoresSignalNode(phGraphNode::Ptr{CUgraphNode},
+                                                          hGraph::CUgraph,
+                                                          dependencies::Ptr{CUgraphNode},
+                                                          numDependencies::Csize_t,
+                                                          nodeParams::Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphExternalSemaphoresSignalNodeGetParams(hNode, params_out)
     initialize_context()
-    ccall((:cuGraphExternalSemaphoresSignalNodeGetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS}), hNode, params_out)
+    @ccall libcuda.cuGraphExternalSemaphoresSignalNodeGetParams(hNode::CUgraphNode,
+                                                                params_out::Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphExternalSemaphoresSignalNodeSetParams(hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphExternalSemaphoresSignalNodeSetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS}), hNode, nodeParams)
+    @ccall libcuda.cuGraphExternalSemaphoresSignalNodeSetParams(hNode::CUgraphNode,
+                                                                nodeParams::Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphAddExternalSemaphoresWaitNode(phGraphNode, hGraph, dependencies,
                                                        numDependencies, nodeParams)
     initialize_context()
-    ccall((:cuGraphAddExternalSemaphoresWaitNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t,
-           Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS}), phGraphNode, hGraph, dependencies,
-          numDependencies, nodeParams)
+    @ccall libcuda.cuGraphAddExternalSemaphoresWaitNode(phGraphNode::Ptr{CUgraphNode},
+                                                        hGraph::CUgraph,
+                                                        dependencies::Ptr{CUgraphNode},
+                                                        numDependencies::Csize_t,
+                                                        nodeParams::Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphExternalSemaphoresWaitNodeGetParams(hNode, params_out)
     initialize_context()
-    ccall((:cuGraphExternalSemaphoresWaitNodeGetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS}), hNode, params_out)
+    @ccall libcuda.cuGraphExternalSemaphoresWaitNodeGetParams(hNode::CUgraphNode,
+                                                              params_out::Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphExternalSemaphoresWaitNodeSetParams(hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphExternalSemaphoresWaitNodeSetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS}), hNode, nodeParams)
+    @ccall libcuda.cuGraphExternalSemaphoresWaitNodeSetParams(hNode::CUgraphNode,
+                                                              nodeParams::Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphAddBatchMemOpNode(phGraphNode, hGraph, dependencies,
                                            numDependencies, nodeParams)
     initialize_context()
-    ccall((:cuGraphAddBatchMemOpNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t,
-           Ptr{CUDA_BATCH_MEM_OP_NODE_PARAMS}), phGraphNode, hGraph, dependencies,
-          numDependencies, nodeParams)
+    @ccall libcuda.cuGraphAddBatchMemOpNode(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                            dependencies::Ptr{CUgraphNode},
+                                            numDependencies::Csize_t,
+                                            nodeParams::Ptr{CUDA_BATCH_MEM_OP_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphBatchMemOpNodeGetParams(hNode, nodeParams_out)
     initialize_context()
-    ccall((:cuGraphBatchMemOpNodeGetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_BATCH_MEM_OP_NODE_PARAMS}), hNode, nodeParams_out)
+    @ccall libcuda.cuGraphBatchMemOpNodeGetParams(hNode::CUgraphNode,
+                                                  nodeParams_out::Ptr{CUDA_BATCH_MEM_OP_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphBatchMemOpNodeSetParams(hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphBatchMemOpNodeSetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_BATCH_MEM_OP_NODE_PARAMS}), hNode, nodeParams)
+    @ccall libcuda.cuGraphBatchMemOpNodeSetParams(hNode::CUgraphNode,
+                                                  nodeParams::Ptr{CUDA_BATCH_MEM_OP_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphExecBatchMemOpNodeSetParams(hGraphExec, hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphExecBatchMemOpNodeSetParams, libcuda), CUresult,
-          (CUgraphExec, CUgraphNode, Ptr{CUDA_BATCH_MEM_OP_NODE_PARAMS}), hGraphExec, hNode,
-          nodeParams)
+    @ccall libcuda.cuGraphExecBatchMemOpNodeSetParams(hGraphExec::CUgraphExec,
+                                                      hNode::CUgraphNode,
+                                                      nodeParams::Ptr{CUDA_BATCH_MEM_OP_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphAddMemAllocNode(phGraphNode, hGraph, dependencies, numDependencies,
                                          nodeParams)
     initialize_context()
-    ccall((:cuGraphAddMemAllocNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t,
-           Ptr{CUDA_MEM_ALLOC_NODE_PARAMS}), phGraphNode, hGraph, dependencies,
-          numDependencies, nodeParams)
+    @ccall libcuda.cuGraphAddMemAllocNode(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                          dependencies::Ptr{CUgraphNode},
+                                          numDependencies::Csize_t,
+                                          nodeParams::Ptr{CUDA_MEM_ALLOC_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphMemAllocNodeGetParams(hNode, params_out)
     initialize_context()
-    ccall((:cuGraphMemAllocNodeGetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUDA_MEM_ALLOC_NODE_PARAMS}), hNode, params_out)
+    @ccall libcuda.cuGraphMemAllocNodeGetParams(hNode::CUgraphNode,
+                                                params_out::Ptr{CUDA_MEM_ALLOC_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphAddMemFreeNode(phGraphNode, hGraph, dependencies, numDependencies,
                                         dptr)
     initialize_context()
-    ccall((:cuGraphAddMemFreeNode, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t, CUdeviceptr), phGraphNode,
-          hGraph, dependencies, numDependencies, dptr)
+    @ccall libcuda.cuGraphAddMemFreeNode(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                         dependencies::Ptr{CUgraphNode},
+                                         numDependencies::Csize_t,
+                                         dptr::CUdeviceptr)::CUresult
 end
 
 @checked function cuGraphMemFreeNodeGetParams(hNode, dptr_out)
     initialize_context()
-    ccall((:cuGraphMemFreeNodeGetParams, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUdeviceptr}), hNode, dptr_out)
+    @ccall libcuda.cuGraphMemFreeNodeGetParams(hNode::CUgraphNode,
+                                               dptr_out::Ptr{CUdeviceptr})::CUresult
 end
 
 @checked function cuDeviceGraphMemTrim(device)
     initialize_context()
-    ccall((:cuDeviceGraphMemTrim, libcuda), CUresult, (CUdevice,), device)
+    @ccall libcuda.cuDeviceGraphMemTrim(device::CUdevice)::CUresult
 end
 
 @checked function cuDeviceGetGraphMemAttribute(device, attr, value)
     initialize_context()
-    ccall((:cuDeviceGetGraphMemAttribute, libcuda), CUresult,
-          (CUdevice, CUgraphMem_attribute, Ptr{Cvoid}), device, attr, value)
+    @ccall libcuda.cuDeviceGetGraphMemAttribute(device::CUdevice,
+                                                attr::CUgraphMem_attribute,
+                                                value::Ptr{Cvoid})::CUresult
 end
 
 @checked function cuDeviceSetGraphMemAttribute(device, attr, value)
     initialize_context()
-    ccall((:cuDeviceSetGraphMemAttribute, libcuda), CUresult,
-          (CUdevice, CUgraphMem_attribute, Ptr{Cvoid}), device, attr, value)
+    @ccall libcuda.cuDeviceSetGraphMemAttribute(device::CUdevice,
+                                                attr::CUgraphMem_attribute,
+                                                value::Ptr{Cvoid})::CUresult
 end
 
 @checked function cuGraphClone(phGraphClone, originalGraph)
     initialize_context()
-    ccall((:cuGraphClone, libcuda), CUresult, (Ptr{CUgraph}, CUgraph), phGraphClone,
-          originalGraph)
+    @ccall libcuda.cuGraphClone(phGraphClone::Ptr{CUgraph},
+                                originalGraph::CUgraph)::CUresult
 end
 
 @checked function cuGraphNodeFindInClone(phNode, hOriginalNode, hClonedGraph)
     initialize_context()
-    ccall((:cuGraphNodeFindInClone, libcuda), CUresult,
-          (Ptr{CUgraphNode}, CUgraphNode, CUgraph), phNode, hOriginalNode, hClonedGraph)
+    @ccall libcuda.cuGraphNodeFindInClone(phNode::Ptr{CUgraphNode},
+                                          hOriginalNode::CUgraphNode,
+                                          hClonedGraph::CUgraph)::CUresult
 end
 
 @checked function cuGraphNodeGetType(hNode, type)
     initialize_context()
-    ccall((:cuGraphNodeGetType, libcuda), CUresult, (CUgraphNode, Ptr{CUgraphNodeType}),
-          hNode, type)
+    @ccall libcuda.cuGraphNodeGetType(hNode::CUgraphNode,
+                                      type::Ptr{CUgraphNodeType})::CUresult
 end
 
 @checked function cuGraphGetNodes(hGraph, nodes, numNodes)
     initialize_context()
-    ccall((:cuGraphGetNodes, libcuda), CUresult, (CUgraph, Ptr{CUgraphNode}, Ptr{Csize_t}),
-          hGraph, nodes, numNodes)
+    @ccall libcuda.cuGraphGetNodes(hGraph::CUgraph, nodes::Ptr{CUgraphNode},
+                                   numNodes::Ptr{Csize_t})::CUresult
 end
 
 @checked function cuGraphGetRootNodes(hGraph, rootNodes, numRootNodes)
     initialize_context()
-    ccall((:cuGraphGetRootNodes, libcuda), CUresult,
-          (CUgraph, Ptr{CUgraphNode}, Ptr{Csize_t}), hGraph, rootNodes, numRootNodes)
+    @ccall libcuda.cuGraphGetRootNodes(hGraph::CUgraph, rootNodes::Ptr{CUgraphNode},
+                                       numRootNodes::Ptr{Csize_t})::CUresult
 end
 
 @checked function cuGraphGetEdges(hGraph, from, to, numEdges)
     initialize_context()
-    ccall((:cuGraphGetEdges, libcuda), CUresult,
-          (CUgraph, Ptr{CUgraphNode}, Ptr{CUgraphNode}, Ptr{Csize_t}), hGraph, from, to,
-          numEdges)
+    @ccall libcuda.cuGraphGetEdges(hGraph::CUgraph, from::Ptr{CUgraphNode},
+                                   to::Ptr{CUgraphNode}, numEdges::Ptr{Csize_t})::CUresult
 end
 
 @checked function cuGraphNodeGetDependencies(hNode, dependencies, numDependencies)
     initialize_context()
-    ccall((:cuGraphNodeGetDependencies, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUgraphNode}, Ptr{Csize_t}), hNode, dependencies,
-          numDependencies)
+    @ccall libcuda.cuGraphNodeGetDependencies(hNode::CUgraphNode,
+                                              dependencies::Ptr{CUgraphNode},
+                                              numDependencies::Ptr{Csize_t})::CUresult
 end
 
 @checked function cuGraphNodeGetDependentNodes(hNode, dependentNodes, numDependentNodes)
     initialize_context()
-    ccall((:cuGraphNodeGetDependentNodes, libcuda), CUresult,
-          (CUgraphNode, Ptr{CUgraphNode}, Ptr{Csize_t}), hNode, dependentNodes,
-          numDependentNodes)
+    @ccall libcuda.cuGraphNodeGetDependentNodes(hNode::CUgraphNode,
+                                                dependentNodes::Ptr{CUgraphNode},
+                                                numDependentNodes::Ptr{Csize_t})::CUresult
 end
 
 @checked function cuGraphAddDependencies(hGraph, from, to, numDependencies)
     initialize_context()
-    ccall((:cuGraphAddDependencies, libcuda), CUresult,
-          (CUgraph, Ptr{CUgraphNode}, Ptr{CUgraphNode}, Csize_t), hGraph, from, to,
-          numDependencies)
+    @ccall libcuda.cuGraphAddDependencies(hGraph::CUgraph, from::Ptr{CUgraphNode},
+                                          to::Ptr{CUgraphNode},
+                                          numDependencies::Csize_t)::CUresult
 end
 
 @checked function cuGraphRemoveDependencies(hGraph, from, to, numDependencies)
     initialize_context()
-    ccall((:cuGraphRemoveDependencies, libcuda), CUresult,
-          (CUgraph, Ptr{CUgraphNode}, Ptr{CUgraphNode}, Csize_t), hGraph, from, to,
-          numDependencies)
+    @ccall libcuda.cuGraphRemoveDependencies(hGraph::CUgraph, from::Ptr{CUgraphNode},
+                                             to::Ptr{CUgraphNode},
+                                             numDependencies::Csize_t)::CUresult
 end
 
 @checked function cuGraphDestroyNode(hNode)
     initialize_context()
-    ccall((:cuGraphDestroyNode, libcuda), CUresult, (CUgraphNode,), hNode)
+    @ccall libcuda.cuGraphDestroyNode(hNode::CUgraphNode)::CUresult
 end
 
 @checked function cuGraphInstantiateWithFlags(phGraphExec, hGraph, flags)
     initialize_context()
-    ccall((:cuGraphInstantiateWithFlags, libcuda), CUresult,
-          (Ptr{CUgraphExec}, CUgraph, Culonglong), phGraphExec, hGraph, flags)
+    @ccall libcuda.cuGraphInstantiateWithFlags(phGraphExec::Ptr{CUgraphExec},
+                                               hGraph::CUgraph, flags::Culonglong)::CUresult
 end
 
 @checked function cuGraphExecKernelNodeSetParams(hGraphExec, hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphExecKernelNodeSetParams, libcuda), CUresult,
-          (CUgraphExec, CUgraphNode, Ptr{CUDA_KERNEL_NODE_PARAMS}), hGraphExec, hNode,
-          nodeParams)
+    @ccall libcuda.cuGraphExecKernelNodeSetParams(hGraphExec::CUgraphExec,
+                                                  hNode::CUgraphNode,
+                                                  nodeParams::Ptr{CUDA_KERNEL_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphExecMemcpyNodeSetParams(hGraphExec, hNode, copyParams, ctx)
     initialize_context()
-    ccall((:cuGraphExecMemcpyNodeSetParams, libcuda), CUresult,
-          (CUgraphExec, CUgraphNode, Ptr{CUDA_MEMCPY3D}, CUcontext), hGraphExec, hNode,
-          copyParams, ctx)
+    @ccall libcuda.cuGraphExecMemcpyNodeSetParams(hGraphExec::CUgraphExec,
+                                                  hNode::CUgraphNode,
+                                                  copyParams::Ptr{CUDA_MEMCPY3D},
+                                                  ctx::CUcontext)::CUresult
 end
 
 @checked function cuGraphExecMemsetNodeSetParams(hGraphExec, hNode, memsetParams, ctx)
     initialize_context()
-    ccall((:cuGraphExecMemsetNodeSetParams, libcuda), CUresult,
-          (CUgraphExec, CUgraphNode, Ptr{CUDA_MEMSET_NODE_PARAMS}, CUcontext), hGraphExec,
-          hNode, memsetParams, ctx)
+    @ccall libcuda.cuGraphExecMemsetNodeSetParams(hGraphExec::CUgraphExec,
+                                                  hNode::CUgraphNode,
+                                                  memsetParams::Ptr{CUDA_MEMSET_NODE_PARAMS},
+                                                  ctx::CUcontext)::CUresult
 end
 
 @checked function cuGraphExecHostNodeSetParams(hGraphExec, hNode, nodeParams)
     initialize_context()
-    ccall((:cuGraphExecHostNodeSetParams, libcuda), CUresult,
-          (CUgraphExec, CUgraphNode, Ptr{CUDA_HOST_NODE_PARAMS}), hGraphExec, hNode,
-          nodeParams)
+    @ccall libcuda.cuGraphExecHostNodeSetParams(hGraphExec::CUgraphExec, hNode::CUgraphNode,
+                                                nodeParams::Ptr{CUDA_HOST_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphExecChildGraphNodeSetParams(hGraphExec, hNode, childGraph)
     initialize_context()
-    ccall((:cuGraphExecChildGraphNodeSetParams, libcuda), CUresult,
-          (CUgraphExec, CUgraphNode, CUgraph), hGraphExec, hNode, childGraph)
+    @ccall libcuda.cuGraphExecChildGraphNodeSetParams(hGraphExec::CUgraphExec,
+                                                      hNode::CUgraphNode,
+                                                      childGraph::CUgraph)::CUresult
 end
 
 @checked function cuGraphExecEventRecordNodeSetEvent(hGraphExec, hNode, event)
     initialize_context()
-    ccall((:cuGraphExecEventRecordNodeSetEvent, libcuda), CUresult,
-          (CUgraphExec, CUgraphNode, CUevent), hGraphExec, hNode, event)
+    @ccall libcuda.cuGraphExecEventRecordNodeSetEvent(hGraphExec::CUgraphExec,
+                                                      hNode::CUgraphNode,
+                                                      event::CUevent)::CUresult
 end
 
 @checked function cuGraphExecEventWaitNodeSetEvent(hGraphExec, hNode, event)
     initialize_context()
-    ccall((:cuGraphExecEventWaitNodeSetEvent, libcuda), CUresult,
-          (CUgraphExec, CUgraphNode, CUevent), hGraphExec, hNode, event)
+    @ccall libcuda.cuGraphExecEventWaitNodeSetEvent(hGraphExec::CUgraphExec,
+                                                    hNode::CUgraphNode,
+                                                    event::CUevent)::CUresult
 end
 
 @checked function cuGraphExecExternalSemaphoresSignalNodeSetParams(hGraphExec, hNode,
                                                                    nodeParams)
     initialize_context()
-    ccall((:cuGraphExecExternalSemaphoresSignalNodeSetParams, libcuda), CUresult,
-          (CUgraphExec, CUgraphNode, Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS}), hGraphExec,
-          hNode, nodeParams)
+    @ccall libcuda.cuGraphExecExternalSemaphoresSignalNodeSetParams(hGraphExec::CUgraphExec,
+                                                                    hNode::CUgraphNode,
+                                                                    nodeParams::Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphExecExternalSemaphoresWaitNodeSetParams(hGraphExec, hNode,
                                                                  nodeParams)
     initialize_context()
-    ccall((:cuGraphExecExternalSemaphoresWaitNodeSetParams, libcuda), CUresult,
-          (CUgraphExec, CUgraphNode, Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS}), hGraphExec, hNode,
-          nodeParams)
+    @ccall libcuda.cuGraphExecExternalSemaphoresWaitNodeSetParams(hGraphExec::CUgraphExec,
+                                                                  hNode::CUgraphNode,
+                                                                  nodeParams::Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS})::CUresult
 end
 
 @checked function cuGraphNodeSetEnabled(hGraphExec, hNode, isEnabled)
     initialize_context()
-    ccall((:cuGraphNodeSetEnabled, libcuda), CUresult, (CUgraphExec, CUgraphNode, Cuint),
-          hGraphExec, hNode, isEnabled)
+    @ccall libcuda.cuGraphNodeSetEnabled(hGraphExec::CUgraphExec, hNode::CUgraphNode,
+                                         isEnabled::Cuint)::CUresult
 end
 
 @checked function cuGraphNodeGetEnabled(hGraphExec, hNode, isEnabled)
     initialize_context()
-    ccall((:cuGraphNodeGetEnabled, libcuda), CUresult,
-          (CUgraphExec, CUgraphNode, Ptr{Cuint}), hGraphExec, hNode, isEnabled)
+    @ccall libcuda.cuGraphNodeGetEnabled(hGraphExec::CUgraphExec, hNode::CUgraphNode,
+                                         isEnabled::Ptr{Cuint})::CUresult
 end
 
 @checked function cuGraphUpload(hGraphExec, hStream)
     initialize_context()
-    ccall((:cuGraphUpload, libcuda), CUresult, (CUgraphExec, CUstream), hGraphExec, hStream)
+    @ccall libcuda.cuGraphUpload(hGraphExec::CUgraphExec, hStream::CUstream)::CUresult
 end
 
 @checked function cuGraphLaunch(hGraphExec, hStream)
     initialize_context()
-    ccall((:cuGraphLaunch, libcuda), CUresult, (CUgraphExec, CUstream), hGraphExec, hStream)
+    @ccall libcuda.cuGraphLaunch(hGraphExec::CUgraphExec, hStream::CUstream)::CUresult
 end
 
 @checked function cuGraphExecDestroy(hGraphExec)
     initialize_context()
-    ccall((:cuGraphExecDestroy, libcuda), CUresult, (CUgraphExec,), hGraphExec)
+    @ccall libcuda.cuGraphExecDestroy(hGraphExec::CUgraphExec)::CUresult
 end
 
 @checked function cuGraphDestroy(hGraph)
     initialize_context()
-    ccall((:cuGraphDestroy, libcuda), CUresult, (CUgraph,), hGraph)
+    @ccall libcuda.cuGraphDestroy(hGraph::CUgraph)::CUresult
 end
 
 @checked function cuGraphExecUpdate(hGraphExec, hGraph, hErrorNode_out, updateResult_out)
     initialize_context()
-    ccall((:cuGraphExecUpdate, libcuda), CUresult,
-          (CUgraphExec, CUgraph, Ptr{CUgraphNode}, Ptr{CUgraphExecUpdateResult}),
-          hGraphExec, hGraph, hErrorNode_out, updateResult_out)
+    @ccall libcuda.cuGraphExecUpdate(hGraphExec::CUgraphExec, hGraph::CUgraph,
+                                     hErrorNode_out::Ptr{CUgraphNode},
+                                     updateResult_out::Ptr{CUgraphExecUpdateResult})::CUresult
 end
 
 @checked function cuGraphKernelNodeCopyAttributes(dst, src)
     initialize_context()
-    ccall((:cuGraphKernelNodeCopyAttributes, libcuda), CUresult, (CUgraphNode, CUgraphNode),
-          dst, src)
+    @ccall libcuda.cuGraphKernelNodeCopyAttributes(dst::CUgraphNode,
+                                                   src::CUgraphNode)::CUresult
 end
 
 @checked function cuGraphKernelNodeGetAttribute(hNode, attr, value_out)
     initialize_context()
-    ccall((:cuGraphKernelNodeGetAttribute, libcuda), CUresult,
-          (CUgraphNode, CUkernelNodeAttrID, Ptr{CUkernelNodeAttrValue}), hNode, attr,
-          value_out)
+    @ccall libcuda.cuGraphKernelNodeGetAttribute(hNode::CUgraphNode,
+                                                 attr::CUkernelNodeAttrID,
+                                                 value_out::Ptr{CUkernelNodeAttrValue})::CUresult
 end
 
 @checked function cuGraphKernelNodeSetAttribute(hNode, attr, value)
     initialize_context()
-    ccall((:cuGraphKernelNodeSetAttribute, libcuda), CUresult,
-          (CUgraphNode, CUkernelNodeAttrID, Ptr{CUkernelNodeAttrValue}), hNode, attr, value)
+    @ccall libcuda.cuGraphKernelNodeSetAttribute(hNode::CUgraphNode,
+                                                 attr::CUkernelNodeAttrID,
+                                                 value::Ptr{CUkernelNodeAttrValue})::CUresult
 end
 
 @checked function cuGraphDebugDotPrint(hGraph, path, flags)
     initialize_context()
-    ccall((:cuGraphDebugDotPrint, libcuda), CUresult, (CUgraph, Cstring, Cuint), hGraph,
-          path, flags)
+    @ccall libcuda.cuGraphDebugDotPrint(hGraph::CUgraph, path::Cstring,
+                                        flags::Cuint)::CUresult
 end
 
 @checked function cuUserObjectCreate(object_out, ptr, destroy, initialRefcount, flags)
     initialize_context()
-    ccall((:cuUserObjectCreate, libcuda), CUresult,
-          (Ptr{CUuserObject}, Ptr{Cvoid}, CUhostFn, Cuint, Cuint), object_out, ptr, destroy,
-          initialRefcount, flags)
+    @ccall libcuda.cuUserObjectCreate(object_out::Ptr{CUuserObject}, ptr::Ptr{Cvoid},
+                                      destroy::CUhostFn, initialRefcount::Cuint,
+                                      flags::Cuint)::CUresult
 end
 
 @checked function cuUserObjectRetain(object, count)
     initialize_context()
-    ccall((:cuUserObjectRetain, libcuda), CUresult, (CUuserObject, Cuint), object, count)
+    @ccall libcuda.cuUserObjectRetain(object::CUuserObject, count::Cuint)::CUresult
 end
 
 @checked function cuUserObjectRelease(object, count)
     initialize_context()
-    ccall((:cuUserObjectRelease, libcuda), CUresult, (CUuserObject, Cuint), object, count)
+    @ccall libcuda.cuUserObjectRelease(object::CUuserObject, count::Cuint)::CUresult
 end
 
 @checked function cuGraphRetainUserObject(graph, object, count, flags)
     initialize_context()
-    ccall((:cuGraphRetainUserObject, libcuda), CUresult,
-          (CUgraph, CUuserObject, Cuint, Cuint), graph, object, count, flags)
+    @ccall libcuda.cuGraphRetainUserObject(graph::CUgraph, object::CUuserObject,
+                                           count::Cuint, flags::Cuint)::CUresult
 end
 
 @checked function cuGraphReleaseUserObject(graph, object, count)
     initialize_context()
-    ccall((:cuGraphReleaseUserObject, libcuda), CUresult, (CUgraph, CUuserObject, Cuint),
-          graph, object, count)
+    @ccall libcuda.cuGraphReleaseUserObject(graph::CUgraph, object::CUuserObject,
+                                            count::Cuint)::CUresult
 end
 
 @checked function cuOccupancyMaxActiveBlocksPerMultiprocessor(numBlocks, func, blockSize,
                                                               dynamicSMemSize)
     initialize_context()
-    ccall((:cuOccupancyMaxActiveBlocksPerMultiprocessor, libcuda), CUresult,
-          (Ptr{Cint}, CUfunction, Cint, Csize_t), numBlocks, func, blockSize,
-          dynamicSMemSize)
+    @ccall libcuda.cuOccupancyMaxActiveBlocksPerMultiprocessor(numBlocks::Ptr{Cint},
+                                                               func::CUfunction,
+                                                               blockSize::Cint,
+                                                               dynamicSMemSize::Csize_t)::CUresult
 end
 
 @checked function cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(numBlocks, func,
@@ -4170,19 +4171,22 @@ end
                                                                        dynamicSMemSize,
                                                                        flags)
     initialize_context()
-    ccall((:cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags, libcuda), CUresult,
-          (Ptr{Cint}, CUfunction, Cint, Csize_t, Cuint), numBlocks, func, blockSize,
-          dynamicSMemSize, flags)
+    @ccall libcuda.cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(numBlocks::Ptr{Cint},
+                                                                        func::CUfunction,
+                                                                        blockSize::Cint,
+                                                                        dynamicSMemSize::Csize_t,
+                                                                        flags::Cuint)::CUresult
 end
 
 @checked function cuOccupancyMaxPotentialBlockSize(minGridSize, blockSize, func,
                                                    blockSizeToDynamicSMemSize,
                                                    dynamicSMemSize, blockSizeLimit)
     initialize_context()
-    ccall((:cuOccupancyMaxPotentialBlockSize, libcuda), CUresult,
-          (Ptr{Cint}, Ptr{Cint}, CUfunction, CUoccupancyB2DSize, Csize_t, Cint),
-          minGridSize, blockSize, func, blockSizeToDynamicSMemSize, dynamicSMemSize,
-          blockSizeLimit)
+    @ccall libcuda.cuOccupancyMaxPotentialBlockSize(minGridSize::Ptr{Cint},
+                                                    blockSize::Ptr{Cint}, func::CUfunction,
+                                                    blockSizeToDynamicSMemSize::CUoccupancyB2DSize,
+                                                    dynamicSMemSize::Csize_t,
+                                                    blockSizeLimit::Cint)::CUresult
 end
 
 @checked function cuOccupancyMaxPotentialBlockSizeWithFlags(minGridSize, blockSize, func,
@@ -4190,318 +4194,321 @@ end
                                                             dynamicSMemSize, blockSizeLimit,
                                                             flags)
     initialize_context()
-    ccall((:cuOccupancyMaxPotentialBlockSizeWithFlags, libcuda), CUresult,
-          (Ptr{Cint}, Ptr{Cint}, CUfunction, CUoccupancyB2DSize, Csize_t, Cint, Cuint),
-          minGridSize, blockSize, func, blockSizeToDynamicSMemSize, dynamicSMemSize,
-          blockSizeLimit, flags)
+    @ccall libcuda.cuOccupancyMaxPotentialBlockSizeWithFlags(minGridSize::Ptr{Cint},
+                                                             blockSize::Ptr{Cint},
+                                                             func::CUfunction,
+                                                             blockSizeToDynamicSMemSize::CUoccupancyB2DSize,
+                                                             dynamicSMemSize::Csize_t,
+                                                             blockSizeLimit::Cint,
+                                                             flags::Cuint)::CUresult
 end
 
 @checked function cuOccupancyAvailableDynamicSMemPerBlock(dynamicSmemSize, func, numBlocks,
                                                           blockSize)
     initialize_context()
-    ccall((:cuOccupancyAvailableDynamicSMemPerBlock, libcuda), CUresult,
-          (Ptr{Csize_t}, CUfunction, Cint, Cint), dynamicSmemSize, func, numBlocks,
-          blockSize)
+    @ccall libcuda.cuOccupancyAvailableDynamicSMemPerBlock(dynamicSmemSize::Ptr{Csize_t},
+                                                           func::CUfunction,
+                                                           numBlocks::Cint,
+                                                           blockSize::Cint)::CUresult
 end
 
 @checked function cuOccupancyMaxPotentialClusterSize(clusterSize, func, config)
     initialize_context()
-    ccall((:cuOccupancyMaxPotentialClusterSize, libcuda), CUresult,
-          (Ptr{Cint}, CUfunction, Ptr{CUlaunchConfig}), clusterSize, func, config)
+    @ccall libcuda.cuOccupancyMaxPotentialClusterSize(clusterSize::Ptr{Cint},
+                                                      func::CUfunction,
+                                                      config::Ptr{CUlaunchConfig})::CUresult
 end
 
 @checked function cuOccupancyMaxActiveClusters(numClusters, func, config)
     initialize_context()
-    ccall((:cuOccupancyMaxActiveClusters, libcuda), CUresult,
-          (Ptr{Cint}, CUfunction, Ptr{CUlaunchConfig}), numClusters, func, config)
+    @ccall libcuda.cuOccupancyMaxActiveClusters(numClusters::Ptr{Cint}, func::CUfunction,
+                                                config::Ptr{CUlaunchConfig})::CUresult
 end
 
 @checked function cuTexRefSetArray(hTexRef, hArray, Flags)
     initialize_context()
-    ccall((:cuTexRefSetArray, libcuda), CUresult, (CUtexref, CUarray, Cuint), hTexRef,
-          hArray, Flags)
+    @ccall libcuda.cuTexRefSetArray(hTexRef::CUtexref, hArray::CUarray,
+                                    Flags::Cuint)::CUresult
 end
 
 @checked function cuTexRefSetMipmappedArray(hTexRef, hMipmappedArray, Flags)
     initialize_context()
-    ccall((:cuTexRefSetMipmappedArray, libcuda), CUresult,
-          (CUtexref, CUmipmappedArray, Cuint), hTexRef, hMipmappedArray, Flags)
+    @ccall libcuda.cuTexRefSetMipmappedArray(hTexRef::CUtexref,
+                                             hMipmappedArray::CUmipmappedArray,
+                                             Flags::Cuint)::CUresult
 end
 
 @checked function cuTexRefSetFormat(hTexRef, fmt, NumPackedComponents)
     initialize_context()
-    ccall((:cuTexRefSetFormat, libcuda), CUresult, (CUtexref, CUarray_format, Cint),
-          hTexRef, fmt, NumPackedComponents)
+    @ccall libcuda.cuTexRefSetFormat(hTexRef::CUtexref, fmt::CUarray_format,
+                                     NumPackedComponents::Cint)::CUresult
 end
 
 @checked function cuTexRefSetAddressMode(hTexRef, dim, am)
     initialize_context()
-    ccall((:cuTexRefSetAddressMode, libcuda), CUresult, (CUtexref, Cint, CUaddress_mode),
-          hTexRef, dim, am)
+    @ccall libcuda.cuTexRefSetAddressMode(hTexRef::CUtexref, dim::Cint,
+                                          am::CUaddress_mode)::CUresult
 end
 
 @checked function cuTexRefSetFilterMode(hTexRef, fm)
     initialize_context()
-    ccall((:cuTexRefSetFilterMode, libcuda), CUresult, (CUtexref, CUfilter_mode), hTexRef,
-          fm)
+    @ccall libcuda.cuTexRefSetFilterMode(hTexRef::CUtexref, fm::CUfilter_mode)::CUresult
 end
 
 @checked function cuTexRefSetMipmapFilterMode(hTexRef, fm)
     initialize_context()
-    ccall((:cuTexRefSetMipmapFilterMode, libcuda), CUresult, (CUtexref, CUfilter_mode),
-          hTexRef, fm)
+    @ccall libcuda.cuTexRefSetMipmapFilterMode(hTexRef::CUtexref,
+                                               fm::CUfilter_mode)::CUresult
 end
 
 @checked function cuTexRefSetMipmapLevelBias(hTexRef, bias)
     initialize_context()
-    ccall((:cuTexRefSetMipmapLevelBias, libcuda), CUresult, (CUtexref, Cfloat), hTexRef,
-          bias)
+    @ccall libcuda.cuTexRefSetMipmapLevelBias(hTexRef::CUtexref, bias::Cfloat)::CUresult
 end
 
 @checked function cuTexRefSetMipmapLevelClamp(hTexRef, minMipmapLevelClamp,
                                               maxMipmapLevelClamp)
     initialize_context()
-    ccall((:cuTexRefSetMipmapLevelClamp, libcuda), CUresult, (CUtexref, Cfloat, Cfloat),
-          hTexRef, minMipmapLevelClamp, maxMipmapLevelClamp)
+    @ccall libcuda.cuTexRefSetMipmapLevelClamp(hTexRef::CUtexref,
+                                               minMipmapLevelClamp::Cfloat,
+                                               maxMipmapLevelClamp::Cfloat)::CUresult
 end
 
 @checked function cuTexRefSetMaxAnisotropy(hTexRef, maxAniso)
     initialize_context()
-    ccall((:cuTexRefSetMaxAnisotropy, libcuda), CUresult, (CUtexref, Cuint), hTexRef,
-          maxAniso)
+    @ccall libcuda.cuTexRefSetMaxAnisotropy(hTexRef::CUtexref, maxAniso::Cuint)::CUresult
 end
 
 @checked function cuTexRefSetBorderColor(hTexRef, pBorderColor)
     initialize_context()
-    ccall((:cuTexRefSetBorderColor, libcuda), CUresult, (CUtexref, Ptr{Cfloat}), hTexRef,
-          pBorderColor)
+    @ccall libcuda.cuTexRefSetBorderColor(hTexRef::CUtexref,
+                                          pBorderColor::Ptr{Cfloat})::CUresult
 end
 
 @checked function cuTexRefSetFlags(hTexRef, Flags)
     initialize_context()
-    ccall((:cuTexRefSetFlags, libcuda), CUresult, (CUtexref, Cuint), hTexRef, Flags)
+    @ccall libcuda.cuTexRefSetFlags(hTexRef::CUtexref, Flags::Cuint)::CUresult
 end
 
 @checked function cuTexRefGetArray(phArray, hTexRef)
     initialize_context()
-    ccall((:cuTexRefGetArray, libcuda), CUresult, (Ptr{CUarray}, CUtexref), phArray,
-          hTexRef)
+    @ccall libcuda.cuTexRefGetArray(phArray::Ptr{CUarray}, hTexRef::CUtexref)::CUresult
 end
 
 @checked function cuTexRefGetMipmappedArray(phMipmappedArray, hTexRef)
     initialize_context()
-    ccall((:cuTexRefGetMipmappedArray, libcuda), CUresult,
-          (Ptr{CUmipmappedArray}, CUtexref), phMipmappedArray, hTexRef)
+    @ccall libcuda.cuTexRefGetMipmappedArray(phMipmappedArray::Ptr{CUmipmappedArray},
+                                             hTexRef::CUtexref)::CUresult
 end
 
 @checked function cuTexRefGetAddressMode(pam, hTexRef, dim)
     initialize_context()
-    ccall((:cuTexRefGetAddressMode, libcuda), CUresult,
-          (Ptr{CUaddress_mode}, CUtexref, Cint), pam, hTexRef, dim)
+    @ccall libcuda.cuTexRefGetAddressMode(pam::Ptr{CUaddress_mode}, hTexRef::CUtexref,
+                                          dim::Cint)::CUresult
 end
 
 @checked function cuTexRefGetFilterMode(pfm, hTexRef)
     initialize_context()
-    ccall((:cuTexRefGetFilterMode, libcuda), CUresult, (Ptr{CUfilter_mode}, CUtexref), pfm,
-          hTexRef)
+    @ccall libcuda.cuTexRefGetFilterMode(pfm::Ptr{CUfilter_mode},
+                                         hTexRef::CUtexref)::CUresult
 end
 
 @checked function cuTexRefGetFormat(pFormat, pNumChannels, hTexRef)
     initialize_context()
-    ccall((:cuTexRefGetFormat, libcuda), CUresult,
-          (Ptr{CUarray_format}, Ptr{Cint}, CUtexref), pFormat, pNumChannels, hTexRef)
+    @ccall libcuda.cuTexRefGetFormat(pFormat::Ptr{CUarray_format}, pNumChannels::Ptr{Cint},
+                                     hTexRef::CUtexref)::CUresult
 end
 
 @checked function cuTexRefGetMipmapFilterMode(pfm, hTexRef)
     initialize_context()
-    ccall((:cuTexRefGetMipmapFilterMode, libcuda), CUresult, (Ptr{CUfilter_mode}, CUtexref),
-          pfm, hTexRef)
+    @ccall libcuda.cuTexRefGetMipmapFilterMode(pfm::Ptr{CUfilter_mode},
+                                               hTexRef::CUtexref)::CUresult
 end
 
 @checked function cuTexRefGetMipmapLevelBias(pbias, hTexRef)
     initialize_context()
-    ccall((:cuTexRefGetMipmapLevelBias, libcuda), CUresult, (Ptr{Cfloat}, CUtexref), pbias,
-          hTexRef)
+    @ccall libcuda.cuTexRefGetMipmapLevelBias(pbias::Ptr{Cfloat},
+                                              hTexRef::CUtexref)::CUresult
 end
 
 @checked function cuTexRefGetMipmapLevelClamp(pminMipmapLevelClamp, pmaxMipmapLevelClamp,
                                               hTexRef)
     initialize_context()
-    ccall((:cuTexRefGetMipmapLevelClamp, libcuda), CUresult,
-          (Ptr{Cfloat}, Ptr{Cfloat}, CUtexref), pminMipmapLevelClamp, pmaxMipmapLevelClamp,
-          hTexRef)
+    @ccall libcuda.cuTexRefGetMipmapLevelClamp(pminMipmapLevelClamp::Ptr{Cfloat},
+                                               pmaxMipmapLevelClamp::Ptr{Cfloat},
+                                               hTexRef::CUtexref)::CUresult
 end
 
 @checked function cuTexRefGetMaxAnisotropy(pmaxAniso, hTexRef)
     initialize_context()
-    ccall((:cuTexRefGetMaxAnisotropy, libcuda), CUresult, (Ptr{Cint}, CUtexref), pmaxAniso,
-          hTexRef)
+    @ccall libcuda.cuTexRefGetMaxAnisotropy(pmaxAniso::Ptr{Cint},
+                                            hTexRef::CUtexref)::CUresult
 end
 
 @checked function cuTexRefGetBorderColor(pBorderColor, hTexRef)
     initialize_context()
-    ccall((:cuTexRefGetBorderColor, libcuda), CUresult, (Ptr{Cfloat}, CUtexref),
-          pBorderColor, hTexRef)
+    @ccall libcuda.cuTexRefGetBorderColor(pBorderColor::Ptr{Cfloat},
+                                          hTexRef::CUtexref)::CUresult
 end
 
 @checked function cuTexRefGetFlags(pFlags, hTexRef)
     initialize_context()
-    ccall((:cuTexRefGetFlags, libcuda), CUresult, (Ptr{Cuint}, CUtexref), pFlags, hTexRef)
+    @ccall libcuda.cuTexRefGetFlags(pFlags::Ptr{Cuint}, hTexRef::CUtexref)::CUresult
 end
 
 @checked function cuTexRefCreate(pTexRef)
     initialize_context()
-    ccall((:cuTexRefCreate, libcuda), CUresult, (Ptr{CUtexref},), pTexRef)
+    @ccall libcuda.cuTexRefCreate(pTexRef::Ptr{CUtexref})::CUresult
 end
 
 @checked function cuTexRefDestroy(hTexRef)
     initialize_context()
-    ccall((:cuTexRefDestroy, libcuda), CUresult, (CUtexref,), hTexRef)
+    @ccall libcuda.cuTexRefDestroy(hTexRef::CUtexref)::CUresult
 end
 
 @checked function cuSurfRefSetArray(hSurfRef, hArray, Flags)
     initialize_context()
-    ccall((:cuSurfRefSetArray, libcuda), CUresult, (CUsurfref, CUarray, Cuint), hSurfRef,
-          hArray, Flags)
+    @ccall libcuda.cuSurfRefSetArray(hSurfRef::CUsurfref, hArray::CUarray,
+                                     Flags::Cuint)::CUresult
 end
 
 @checked function cuSurfRefGetArray(phArray, hSurfRef)
     initialize_context()
-    ccall((:cuSurfRefGetArray, libcuda), CUresult, (Ptr{CUarray}, CUsurfref), phArray,
-          hSurfRef)
+    @ccall libcuda.cuSurfRefGetArray(phArray::Ptr{CUarray}, hSurfRef::CUsurfref)::CUresult
 end
 
 @checked function cuTexObjectCreate(pTexObject, pResDesc, pTexDesc, pResViewDesc)
     initialize_context()
-    ccall((:cuTexObjectCreate, libcuda), CUresult,
-          (Ptr{CUtexObject}, Ptr{CUDA_RESOURCE_DESC}, Ptr{CUDA_TEXTURE_DESC},
-           Ptr{CUDA_RESOURCE_VIEW_DESC}), pTexObject, pResDesc, pTexDesc, pResViewDesc)
+    @ccall libcuda.cuTexObjectCreate(pTexObject::Ptr{CUtexObject},
+                                     pResDesc::Ptr{CUDA_RESOURCE_DESC},
+                                     pTexDesc::Ptr{CUDA_TEXTURE_DESC},
+                                     pResViewDesc::Ptr{CUDA_RESOURCE_VIEW_DESC})::CUresult
 end
 
 @checked function cuTexObjectDestroy(texObject)
     initialize_context()
-    ccall((:cuTexObjectDestroy, libcuda), CUresult, (CUtexObject,), texObject)
+    @ccall libcuda.cuTexObjectDestroy(texObject::CUtexObject)::CUresult
 end
 
 @checked function cuTexObjectGetResourceDesc(pResDesc, texObject)
     initialize_context()
-    ccall((:cuTexObjectGetResourceDesc, libcuda), CUresult,
-          (Ptr{CUDA_RESOURCE_DESC}, CUtexObject), pResDesc, texObject)
+    @ccall libcuda.cuTexObjectGetResourceDesc(pResDesc::Ptr{CUDA_RESOURCE_DESC},
+                                              texObject::CUtexObject)::CUresult
 end
 
 @checked function cuTexObjectGetTextureDesc(pTexDesc, texObject)
     initialize_context()
-    ccall((:cuTexObjectGetTextureDesc, libcuda), CUresult,
-          (Ptr{CUDA_TEXTURE_DESC}, CUtexObject), pTexDesc, texObject)
+    @ccall libcuda.cuTexObjectGetTextureDesc(pTexDesc::Ptr{CUDA_TEXTURE_DESC},
+                                             texObject::CUtexObject)::CUresult
 end
 
 @checked function cuTexObjectGetResourceViewDesc(pResViewDesc, texObject)
     initialize_context()
-    ccall((:cuTexObjectGetResourceViewDesc, libcuda), CUresult,
-          (Ptr{CUDA_RESOURCE_VIEW_DESC}, CUtexObject), pResViewDesc, texObject)
+    @ccall libcuda.cuTexObjectGetResourceViewDesc(pResViewDesc::Ptr{CUDA_RESOURCE_VIEW_DESC},
+                                                  texObject::CUtexObject)::CUresult
 end
 
 @checked function cuSurfObjectCreate(pSurfObject, pResDesc)
     initialize_context()
-    ccall((:cuSurfObjectCreate, libcuda), CUresult,
-          (Ptr{CUsurfObject}, Ptr{CUDA_RESOURCE_DESC}), pSurfObject, pResDesc)
+    @ccall libcuda.cuSurfObjectCreate(pSurfObject::Ptr{CUsurfObject},
+                                      pResDesc::Ptr{CUDA_RESOURCE_DESC})::CUresult
 end
 
 @checked function cuSurfObjectDestroy(surfObject)
     initialize_context()
-    ccall((:cuSurfObjectDestroy, libcuda), CUresult, (CUsurfObject,), surfObject)
+    @ccall libcuda.cuSurfObjectDestroy(surfObject::CUsurfObject)::CUresult
 end
 
 @checked function cuSurfObjectGetResourceDesc(pResDesc, surfObject)
     initialize_context()
-    ccall((:cuSurfObjectGetResourceDesc, libcuda), CUresult,
-          (Ptr{CUDA_RESOURCE_DESC}, CUsurfObject), pResDesc, surfObject)
+    @ccall libcuda.cuSurfObjectGetResourceDesc(pResDesc::Ptr{CUDA_RESOURCE_DESC},
+                                               surfObject::CUsurfObject)::CUresult
 end
 
 @checked function cuDeviceCanAccessPeer(canAccessPeer, dev, peerDev)
     initialize_context()
-    ccall((:cuDeviceCanAccessPeer, libcuda), CUresult, (Ptr{Cint}, CUdevice, CUdevice),
-          canAccessPeer, dev, peerDev)
+    @ccall libcuda.cuDeviceCanAccessPeer(canAccessPeer::Ptr{Cint}, dev::CUdevice,
+                                         peerDev::CUdevice)::CUresult
 end
 
 @checked function cuCtxEnablePeerAccess(peerContext, Flags)
     initialize_context()
-    ccall((:cuCtxEnablePeerAccess, libcuda), CUresult, (CUcontext, Cuint), peerContext,
-          Flags)
+    @ccall libcuda.cuCtxEnablePeerAccess(peerContext::CUcontext, Flags::Cuint)::CUresult
 end
 
 @checked function cuCtxDisablePeerAccess(peerContext)
     initialize_context()
-    ccall((:cuCtxDisablePeerAccess, libcuda), CUresult, (CUcontext,), peerContext)
+    @ccall libcuda.cuCtxDisablePeerAccess(peerContext::CUcontext)::CUresult
 end
 
 @checked function cuDeviceGetP2PAttribute(value, attrib, srcDevice, dstDevice)
     initialize_context()
-    ccall((:cuDeviceGetP2PAttribute, libcuda), CUresult,
-          (Ptr{Cint}, CUdevice_P2PAttribute, CUdevice, CUdevice), value, attrib, srcDevice,
-          dstDevice)
+    @ccall libcuda.cuDeviceGetP2PAttribute(value::Ptr{Cint}, attrib::CUdevice_P2PAttribute,
+                                           srcDevice::CUdevice,
+                                           dstDevice::CUdevice)::CUresult
 end
 
 @checked function cuGraphicsUnregisterResource(resource)
     initialize_context()
-    ccall((:cuGraphicsUnregisterResource, libcuda), CUresult, (CUgraphicsResource,),
-          resource)
+    @ccall libcuda.cuGraphicsUnregisterResource(resource::CUgraphicsResource)::CUresult
 end
 
 @checked function cuGraphicsSubResourceGetMappedArray(pArray, resource, arrayIndex,
                                                       mipLevel)
     initialize_context()
-    ccall((:cuGraphicsSubResourceGetMappedArray, libcuda), CUresult,
-          (Ptr{CUarray}, CUgraphicsResource, Cuint, Cuint), pArray, resource, arrayIndex,
-          mipLevel)
+    @ccall libcuda.cuGraphicsSubResourceGetMappedArray(pArray::Ptr{CUarray},
+                                                       resource::CUgraphicsResource,
+                                                       arrayIndex::Cuint,
+                                                       mipLevel::Cuint)::CUresult
 end
 
 @checked function cuGraphicsResourceGetMappedMipmappedArray(pMipmappedArray, resource)
     initialize_context()
-    ccall((:cuGraphicsResourceGetMappedMipmappedArray, libcuda), CUresult,
-          (Ptr{CUmipmappedArray}, CUgraphicsResource), pMipmappedArray, resource)
+    @ccall libcuda.cuGraphicsResourceGetMappedMipmappedArray(pMipmappedArray::Ptr{CUmipmappedArray},
+                                                             resource::CUgraphicsResource)::CUresult
 end
 
 @checked function cuGraphicsMapResources(count, resources, hStream)
     initialize_context()
-    ccall((:cuGraphicsMapResources, libcuda), CUresult,
-          (Cuint, Ptr{CUgraphicsResource}, CUstream), count, resources, hStream)
+    @ccall libcuda.cuGraphicsMapResources(count::Cuint, resources::Ptr{CUgraphicsResource},
+                                          hStream::CUstream)::CUresult
 end
 
 @checked function cuGraphicsUnmapResources(count, resources, hStream)
     initialize_context()
-    ccall((:cuGraphicsUnmapResources, libcuda), CUresult,
-          (Cuint, Ptr{CUgraphicsResource}, CUstream), count, resources, hStream)
+    @ccall libcuda.cuGraphicsUnmapResources(count::Cuint,
+                                            resources::Ptr{CUgraphicsResource},
+                                            hStream::CUstream)::CUresult
 end
 
 @checked function cuGetProcAddress(symbol, pfn, cudaVersion, flags)
     initialize_context()
-    ccall((:cuGetProcAddress, libcuda), CUresult,
-          (Cstring, Ptr{Ptr{Cvoid}}, Cint, cuuint64_t), symbol, pfn, cudaVersion, flags)
+    @ccall libcuda.cuGetProcAddress(symbol::Cstring, pfn::Ptr{Ptr{Cvoid}},
+                                    cudaVersion::Cint, flags::cuuint64_t)::CUresult
 end
 
 @checked function cuGetExportTable(ppExportTable, pExportTableId)
     initialize_context()
-    ccall((:cuGetExportTable, libcuda), CUresult, (Ptr{Ptr{Cvoid}}, Ptr{CUuuid}),
-          ppExportTable, pExportTableId)
+    @ccall libcuda.cuGetExportTable(ppExportTable::Ptr{Ptr{Cvoid}},
+                                    pExportTableId::Ptr{CUuuid})::CUresult
 end
 
 @checked function cuGLCtxCreate_v2(pCtx, Flags, device)
     initialize_context()
-    ccall((:cuGLCtxCreate_v2, libcuda), CUresult, (Ptr{CUcontext}, Cuint, CUdevice), pCtx,
-          Flags, device)
+    @ccall libcuda.cuGLCtxCreate_v2(pCtx::Ptr{CUcontext}, Flags::Cuint,
+                                    device::CUdevice)::CUresult
 end
 
 @checked function cuGLMapBufferObject_v2(dptr, size, buffer)
     initialize_context()
-    ccall((:cuGLMapBufferObject_v2, libcuda), CUresult,
-          (Ptr{CUdeviceptr}, Ptr{Csize_t}, GLuint), dptr, size, buffer)
+    @ccall libcuda.cuGLMapBufferObject_v2(dptr::Ptr{CUdeviceptr}, size::Ptr{Csize_t},
+                                          buffer::GLuint)::CUresult
 end
 
 @checked function cuGLMapBufferObjectAsync_v2(dptr, size, buffer, hStream)
     initialize_context()
-    ccall((:cuGLMapBufferObjectAsync_v2, libcuda), CUresult,
-          (Ptr{CUdeviceptr}, Ptr{Csize_t}, GLuint, CUstream), dptr, size, buffer, hStream)
+    @ccall libcuda.cuGLMapBufferObjectAsync_v2(dptr::Ptr{CUdeviceptr}, size::Ptr{Csize_t},
+                                               buffer::GLuint, hStream::CUstream)::CUresult
 end
 
 @cenum CUGLDeviceList_enum::UInt32 begin
@@ -4515,22 +4522,22 @@ const CUGLDeviceList = CUGLDeviceList_enum
 @checked function cuGLGetDevices_v2(pCudaDeviceCount, pCudaDevices, cudaDeviceCount,
                                     deviceList)
     initialize_context()
-    ccall((:cuGLGetDevices_v2, libcuda), CUresult,
-          (Ptr{Cuint}, Ptr{CUdevice}, Cuint, CUGLDeviceList), pCudaDeviceCount,
-          pCudaDevices, cudaDeviceCount, deviceList)
+    @ccall libcuda.cuGLGetDevices_v2(pCudaDeviceCount::Ptr{Cuint},
+                                     pCudaDevices::Ptr{CUdevice}, cudaDeviceCount::Cuint,
+                                     deviceList::CUGLDeviceList)::CUresult
 end
 
 @checked function cuGraphicsGLRegisterBuffer(pCudaResource, buffer, Flags)
     initialize_context()
-    ccall((:cuGraphicsGLRegisterBuffer, libcuda), CUresult,
-          (Ptr{CUgraphicsResource}, GLuint, Cuint), pCudaResource, buffer, Flags)
+    @ccall libcuda.cuGraphicsGLRegisterBuffer(pCudaResource::Ptr{CUgraphicsResource},
+                                              buffer::GLuint, Flags::Cuint)::CUresult
 end
 
 @checked function cuGraphicsGLRegisterImage(pCudaResource, image, target, Flags)
     initialize_context()
-    ccall((:cuGraphicsGLRegisterImage, libcuda), CUresult,
-          (Ptr{CUgraphicsResource}, GLuint, GLenum, Cuint), pCudaResource, image, target,
-          Flags)
+    @ccall libcuda.cuGraphicsGLRegisterImage(pCudaResource::Ptr{CUgraphicsResource},
+                                             image::GLuint, target::GLenum,
+                                             Flags::Cuint)::CUresult
 end
 
 @cenum CUGLmap_flags_enum::UInt32 begin
@@ -4543,33 +4550,32 @@ const CUGLmap_flags = CUGLmap_flags_enum
 
 @checked function cuGLInit()
     initialize_context()
-    ccall((:cuGLInit, libcuda), CUresult, ())
+    @ccall libcuda.cuGLInit()::CUresult
 end
 
 @checked function cuGLRegisterBufferObject(buffer)
     initialize_context()
-    ccall((:cuGLRegisterBufferObject, libcuda), CUresult, (GLuint,), buffer)
+    @ccall libcuda.cuGLRegisterBufferObject(buffer::GLuint)::CUresult
 end
 
 @checked function cuGLUnmapBufferObject(buffer)
     initialize_context()
-    ccall((:cuGLUnmapBufferObject, libcuda), CUresult, (GLuint,), buffer)
+    @ccall libcuda.cuGLUnmapBufferObject(buffer::GLuint)::CUresult
 end
 
 @checked function cuGLUnregisterBufferObject(buffer)
     initialize_context()
-    ccall((:cuGLUnregisterBufferObject, libcuda), CUresult, (GLuint,), buffer)
+    @ccall libcuda.cuGLUnregisterBufferObject(buffer::GLuint)::CUresult
 end
 
 @checked function cuGLSetBufferObjectMapFlags(buffer, Flags)
     initialize_context()
-    ccall((:cuGLSetBufferObjectMapFlags, libcuda), CUresult, (GLuint, Cuint), buffer, Flags)
+    @ccall libcuda.cuGLSetBufferObjectMapFlags(buffer::GLuint, Flags::Cuint)::CUresult
 end
 
 @checked function cuGLUnmapBufferObjectAsync(buffer, hStream)
     initialize_context()
-    ccall((:cuGLUnmapBufferObjectAsync, libcuda), CUresult, (GLuint, CUstream), buffer,
-          hStream)
+    @ccall libcuda.cuGLUnmapBufferObjectAsync(buffer::GLuint, hStream::CUstream)::CUresult
 end
 
 @cenum CUoutput_mode_enum::UInt32 begin
@@ -4581,65 +4587,65 @@ const CUoutput_mode = CUoutput_mode_enum
 
 @checked function cuProfilerInitialize(configFile, outputFile, outputMode)
     initialize_context()
-    ccall((:cuProfilerInitialize, libcuda), CUresult, (Cstring, Cstring, CUoutput_mode),
-          configFile, outputFile, outputMode)
+    @ccall libcuda.cuProfilerInitialize(configFile::Cstring, outputFile::Cstring,
+                                        outputMode::CUoutput_mode)::CUresult
 end
 
 @checked function cuProfilerStart()
     initialize_context()
-    ccall((:cuProfilerStart, libcuda), CUresult, ())
+    @ccall libcuda.cuProfilerStart()::CUresult
 end
 
 @checked function cuProfilerStop()
     initialize_context()
-    ccall((:cuProfilerStop, libcuda), CUresult, ())
+    @ccall libcuda.cuProfilerStop()::CUresult
 end
 
-struct var"##Ctag#363"
+struct var"##Ctag#4270"
     hArray::CUarray
 end
-function Base.getproperty(x::Ptr{var"##Ctag#363"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4270"}, f::Symbol)
     f === :hArray && return Ptr{CUarray}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#363", f::Symbol)
-    r = Ref{var"##Ctag#363"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#363"}, r)
+function Base.getproperty(x::var"##Ctag#4270", f::Symbol)
+    r = Ref{var"##Ctag#4270"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4270"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#363"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4270"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#364"
+struct var"##Ctag#4271"
     hMipmappedArray::CUmipmappedArray
 end
-function Base.getproperty(x::Ptr{var"##Ctag#364"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4271"}, f::Symbol)
     f === :hMipmappedArray && return Ptr{CUmipmappedArray}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#364", f::Symbol)
-    r = Ref{var"##Ctag#364"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#364"}, r)
+function Base.getproperty(x::var"##Ctag#4271", f::Symbol)
+    r = Ref{var"##Ctag#4271"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4271"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#364"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4271"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#365"
+struct var"##Ctag#4272"
     devPtr::CUdeviceptr
     format::CUarray_format
     numChannels::Cuint
     sizeInBytes::Csize_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#365"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4272"}, f::Symbol)
     f === :devPtr && return Ptr{CUdeviceptr}(x + 0)
     f === :format && return Ptr{CUarray_format}(x + 8)
     f === :numChannels && return Ptr{Cuint}(x + 12)
@@ -4647,18 +4653,18 @@ function Base.getproperty(x::Ptr{var"##Ctag#365"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#365", f::Symbol)
-    r = Ref{var"##Ctag#365"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#365"}, r)
+function Base.getproperty(x::var"##Ctag#4272", f::Symbol)
+    r = Ref{var"##Ctag#4272"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4272"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#365"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4272"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#366"
+struct var"##Ctag#4273"
     devPtr::CUdeviceptr
     format::CUarray_format
     numChannels::Cuint
@@ -4666,7 +4672,7 @@ struct var"##Ctag#366"
     height::Csize_t
     pitchInBytes::Csize_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#366"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4273"}, f::Symbol)
     f === :devPtr && return Ptr{CUdeviceptr}(x + 0)
     f === :format && return Ptr{CUarray_format}(x + 8)
     f === :numChannels && return Ptr{Cuint}(x + 12)
@@ -4676,58 +4682,58 @@ function Base.getproperty(x::Ptr{var"##Ctag#366"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#366", f::Symbol)
-    r = Ref{var"##Ctag#366"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#366"}, r)
+function Base.getproperty(x::var"##Ctag#4273", f::Symbol)
+    r = Ref{var"##Ctag#4273"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4273"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#366"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4273"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#367"
+struct var"##Ctag#4274"
     reserved::NTuple{32,Cint}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#367"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4274"}, f::Symbol)
     f === :reserved && return Ptr{NTuple{32,Cint}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#367", f::Symbol)
-    r = Ref{var"##Ctag#367"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#367"}, r)
+function Base.getproperty(x::var"##Ctag#4274", f::Symbol)
+    r = Ref{var"##Ctag#4274"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4274"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#367"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4274"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#369"
+struct var"##Ctag#4276"
     handle::Ptr{Cvoid}
     name::Ptr{Cvoid}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#369"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4276"}, f::Symbol)
     f === :handle && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :name && return Ptr{Ptr{Cvoid}}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#369", f::Symbol)
-    r = Ref{var"##Ctag#369"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#369"}, r)
+function Base.getproperty(x::var"##Ctag#4276", f::Symbol)
+    r = Ref{var"##Ctag#4276"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4276"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#369"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4276"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#373"
+struct var"##Ctag#4280"
     level::Cuint
     layer::Cuint
     offsetX::Cuint
@@ -4737,7 +4743,7 @@ struct var"##Ctag#373"
     extentHeight::Cuint
     extentDepth::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#373"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4280"}, f::Symbol)
     f === :level && return Ptr{Cuint}(x + 0)
     f === :layer && return Ptr{Cuint}(x + 4)
     f === :offsetX && return Ptr{Cuint}(x + 8)
@@ -4749,84 +4755,84 @@ function Base.getproperty(x::Ptr{var"##Ctag#373"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#373", f::Symbol)
-    r = Ref{var"##Ctag#373"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#373"}, r)
+function Base.getproperty(x::var"##Ctag#4280", f::Symbol)
+    r = Ref{var"##Ctag#4280"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4280"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#373"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4280"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#374"
+struct var"##Ctag#4281"
     layer::Cuint
     offset::Culonglong
     size::Culonglong
 end
-function Base.getproperty(x::Ptr{var"##Ctag#374"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4281"}, f::Symbol)
     f === :layer && return Ptr{Cuint}(x + 0)
     f === :offset && return Ptr{Culonglong}(x + 8)
     f === :size && return Ptr{Culonglong}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#374", f::Symbol)
-    r = Ref{var"##Ctag#374"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#374"}, r)
+function Base.getproperty(x::var"##Ctag#4281", f::Symbol)
+    r = Ref{var"##Ctag#4281"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4281"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#374"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4281"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#380"
+struct var"##Ctag#4287"
     x::Cuint
     y::Cuint
     z::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#380"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4287"}, f::Symbol)
     f === :x && return Ptr{Cuint}(x + 0)
     f === :y && return Ptr{Cuint}(x + 4)
     f === :z && return Ptr{Cuint}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#380", f::Symbol)
-    r = Ref{var"##Ctag#380"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#380"}, r)
+function Base.getproperty(x::var"##Ctag#4287", f::Symbol)
+    r = Ref{var"##Ctag#4287"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4287"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#380"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4287"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#381"
+struct var"##Ctag#4288"
     event::CUevent
     flags::Cint
     triggerAtBlockStart::Cint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#381"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4288"}, f::Symbol)
     f === :event && return Ptr{CUevent}(x + 0)
     f === :flags && return Ptr{Cint}(x + 8)
     f === :triggerAtBlockStart && return Ptr{Cint}(x + 12)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#381", f::Symbol)
-    r = Ref{var"##Ctag#381"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#381"}, r)
+function Base.getproperty(x::var"##Ctag#4288", f::Symbol)
+    r = Ref{var"##Ctag#4288"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4288"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#381"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4288"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUstreamMemOpWaitValueParams_st
@@ -4851,7 +4857,7 @@ function Base.getproperty(x::CUstreamMemOpWaitValueParams_st, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{CUstreamMemOpWaitValueParams_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUstreamMemOpWriteValueParams_st
@@ -4876,7 +4882,7 @@ function Base.getproperty(x::CUstreamMemOpWriteValueParams_st, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{CUstreamMemOpWriteValueParams_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUstreamMemOpFlushRemoteWritesParams_st
@@ -4889,25 +4895,25 @@ struct CUstreamMemOpMemoryBarrierParams_st
     flags::Cuint
 end
 
-struct var"##Ctag#383"
+struct var"##Ctag#4290"
     handle::Ptr{Cvoid}
     name::Ptr{Cvoid}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#383"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4290"}, f::Symbol)
     f === :handle && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :name && return Ptr{Ptr{Cvoid}}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#383", f::Symbol)
-    r = Ref{var"##Ctag#383"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#383"}, r)
+function Base.getproperty(x::var"##Ctag#4290", f::Symbol)
+    r = Ref{var"##Ctag#4290"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4290"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#383"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4290"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 # Skipping MacroDefinition: __CUDA_DEPRECATED __attribute__ ( ( deprecated ) )

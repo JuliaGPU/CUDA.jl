@@ -9,6 +9,8 @@ using CUDA_full_jll, CUDNN_jll, CUTENSOR_jll, cuQuantum_jll
 using Libglvnd_jll
 
 function wrap(name, headers; targets=headers, defines=[], include_dirs=[])
+    @info "Wrapping $name"
+
     args = get_default_args()
     append!(args, map(dir->"-I$dir", include_dirs))
     for define in defines
@@ -45,7 +47,7 @@ function wrap(name, headers; targets=headers, defines=[], include_dirs=[])
 
     build!(ctx, BUILDSTAGE_PRINTING_ONLY)
 
-    format(options["general"]["output_file_path"], YASStyle(), always_use_return=false)
+    format_file(options["general"]["output_file_path"], YASStyle())
 
     return
 end
@@ -85,16 +87,18 @@ function rewriter!(ctx, options)
 
         if Generators.is_function(node) && !Generators.is_variadic_function(node)
             expr = node.exprs[1]
-            call_expr = expr.args[2].args[1]
-            target_expr = call_expr.args[2]
-            fn = String(target_expr.args[1].value)
+            call_expr = expr.args[2].args[1].args[3]    # assumes `@ccall`
+
+            target_expr = call_expr.args[1].args[1]
+            fn = String(target_expr.args[2].value)
 
             # rewrite pointer argument types
-            argtyps = call_expr.args[4]
+            arg_exprs = call_expr.args[1].args[2:end]
             if haskey(options, "api") && haskey(options["api"], fn)
                 argtypes = get(options["api"][fn], "argtypes", Dict())
-                for (arg,typ) in argtypes
-                    argtyps.args[parse(Int, arg)] =  Meta.parse(typ)
+                for (arg, typ) in argtypes
+                    i = parse(Int, arg)
+                    arg_exprs[i].args[2] = Meta.parse(typ)
                 end
             end
 
@@ -109,7 +113,7 @@ function rewriter!(ctx, options)
             end
 
             # insert `@checked` before each function with a `ccall` returning a checked type`
-            rettyp = call_expr.args[3]
+            rettyp = call_expr.args[2]
             checked_types = if haskey(options, "api")
                 get(options["api"], "checked_rettypes", Dict())
             else

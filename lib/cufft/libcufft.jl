@@ -79,216 +79,211 @@ const cufftHandle = Cint
 
 @checked function cufftPlan1d(plan, nx, type, batch)
     initialize_context()
-    ccall((:cufftPlan1d, libcufft), cufftResult, (Ptr{cufftHandle}, Cint, cufftType, Cint),
-          plan, nx, type, batch)
+    @ccall libcufft.cufftPlan1d(plan::Ptr{cufftHandle}, nx::Cint, type::cufftType,
+                                batch::Cint)::cufftResult
 end
 
 @checked function cufftPlan2d(plan, nx, ny, type)
     initialize_context()
-    ccall((:cufftPlan2d, libcufft), cufftResult, (Ptr{cufftHandle}, Cint, Cint, cufftType),
-          plan, nx, ny, type)
+    @ccall libcufft.cufftPlan2d(plan::Ptr{cufftHandle}, nx::Cint, ny::Cint,
+                                type::cufftType)::cufftResult
 end
 
 @checked function cufftPlan3d(plan, nx, ny, nz, type)
     initialize_context()
-    ccall((:cufftPlan3d, libcufft), cufftResult,
-          (Ptr{cufftHandle}, Cint, Cint, Cint, cufftType), plan, nx, ny, nz, type)
+    @ccall libcufft.cufftPlan3d(plan::Ptr{cufftHandle}, nx::Cint, ny::Cint, nz::Cint,
+                                type::cufftType)::cufftResult
 end
 
 @checked function cufftPlanMany(plan, rank, n, inembed, istride, idist, onembed, ostride,
                                 odist, type, batch)
     initialize_context()
-    ccall((:cufftPlanMany, libcufft), cufftResult,
-          (Ptr{cufftHandle}, Cint, Ptr{Cint}, Ptr{Cint}, Cint, Cint, Ptr{Cint}, Cint, Cint,
-           cufftType, Cint), plan, rank, n, inembed, istride, idist, onembed, ostride,
-          odist, type, batch)
+    @ccall libcufft.cufftPlanMany(plan::Ptr{cufftHandle}, rank::Cint, n::Ptr{Cint},
+                                  inembed::Ptr{Cint}, istride::Cint, idist::Cint,
+                                  onembed::Ptr{Cint}, ostride::Cint, odist::Cint,
+                                  type::cufftType, batch::Cint)::cufftResult
 end
 
 @checked function cufftMakePlan1d(plan, nx, type, batch, workSize)
     initialize_context()
-    ccall((:cufftMakePlan1d, libcufft), cufftResult,
-          (cufftHandle, Cint, cufftType, Cint, Ptr{Csize_t}), plan, nx, type, batch,
-          workSize)
+    @ccall libcufft.cufftMakePlan1d(plan::cufftHandle, nx::Cint, type::cufftType,
+                                    batch::Cint, workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftMakePlan2d(plan, nx, ny, type, workSize)
     initialize_context()
-    ccall((:cufftMakePlan2d, libcufft), cufftResult,
-          (cufftHandle, Cint, Cint, cufftType, Ptr{Csize_t}), plan, nx, ny, type, workSize)
+    @ccall libcufft.cufftMakePlan2d(plan::cufftHandle, nx::Cint, ny::Cint, type::cufftType,
+                                    workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftMakePlan3d(plan, nx, ny, nz, type, workSize)
     initialize_context()
-    ccall((:cufftMakePlan3d, libcufft), cufftResult,
-          (cufftHandle, Cint, Cint, Cint, cufftType, Ptr{Csize_t}), plan, nx, ny, nz, type,
-          workSize)
+    @ccall libcufft.cufftMakePlan3d(plan::cufftHandle, nx::Cint, ny::Cint, nz::Cint,
+                                    type::cufftType, workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftMakePlanMany(plan, rank, n, inembed, istride, idist, onembed,
                                     ostride, odist, type, batch, workSize)
     initialize_context()
-    ccall((:cufftMakePlanMany, libcufft), cufftResult,
-          (cufftHandle, Cint, Ptr{Cint}, Ptr{Cint}, Cint, Cint, Ptr{Cint}, Cint, Cint,
-           cufftType, Cint, Ptr{Csize_t}), plan, rank, n, inembed, istride, idist, onembed,
-          ostride, odist, type, batch, workSize)
+    @ccall libcufft.cufftMakePlanMany(plan::cufftHandle, rank::Cint, n::Ptr{Cint},
+                                      inembed::Ptr{Cint}, istride::Cint, idist::Cint,
+                                      onembed::Ptr{Cint}, ostride::Cint, odist::Cint,
+                                      type::cufftType, batch::Cint,
+                                      workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftMakePlanMany64(plan, rank, n, inembed, istride, idist, onembed,
                                       ostride, odist, type, batch, workSize)
     initialize_context()
-    ccall((:cufftMakePlanMany64, libcufft), cufftResult,
-          (cufftHandle, Cint, Ptr{Clonglong}, Ptr{Clonglong}, Clonglong, Clonglong,
-           Ptr{Clonglong}, Clonglong, Clonglong, cufftType, Clonglong, Ptr{Csize_t}), plan,
-          rank, n, inembed, istride, idist, onembed, ostride, odist, type, batch, workSize)
+    @ccall libcufft.cufftMakePlanMany64(plan::cufftHandle, rank::Cint, n::Ptr{Clonglong},
+                                        inembed::Ptr{Clonglong}, istride::Clonglong,
+                                        idist::Clonglong, onembed::Ptr{Clonglong},
+                                        ostride::Clonglong, odist::Clonglong,
+                                        type::cufftType, batch::Clonglong,
+                                        workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftGetSizeMany64(plan, rank, n, inembed, istride, idist, onembed,
                                      ostride, odist, type, batch, workSize)
     initialize_context()
-    ccall((:cufftGetSizeMany64, libcufft), cufftResult,
-          (cufftHandle, Cint, Ptr{Clonglong}, Ptr{Clonglong}, Clonglong, Clonglong,
-           Ptr{Clonglong}, Clonglong, Clonglong, cufftType, Clonglong, Ptr{Csize_t}), plan,
-          rank, n, inembed, istride, idist, onembed, ostride, odist, type, batch, workSize)
+    @ccall libcufft.cufftGetSizeMany64(plan::cufftHandle, rank::Cint, n::Ptr{Clonglong},
+                                       inembed::Ptr{Clonglong}, istride::Clonglong,
+                                       idist::Clonglong, onembed::Ptr{Clonglong},
+                                       ostride::Clonglong, odist::Clonglong,
+                                       type::cufftType, batch::Clonglong,
+                                       workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftEstimate1d(nx, type, batch, workSize)
     initialize_context()
-    ccall((:cufftEstimate1d, libcufft), cufftResult, (Cint, cufftType, Cint, Ptr{Csize_t}),
-          nx, type, batch, workSize)
+    @ccall libcufft.cufftEstimate1d(nx::Cint, type::cufftType, batch::Cint,
+                                    workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftEstimate2d(nx, ny, type, workSize)
     initialize_context()
-    ccall((:cufftEstimate2d, libcufft), cufftResult, (Cint, Cint, cufftType, Ptr{Csize_t}),
-          nx, ny, type, workSize)
+    @ccall libcufft.cufftEstimate2d(nx::Cint, ny::Cint, type::cufftType,
+                                    workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftEstimate3d(nx, ny, nz, type, workSize)
     initialize_context()
-    ccall((:cufftEstimate3d, libcufft), cufftResult,
-          (Cint, Cint, Cint, cufftType, Ptr{Csize_t}), nx, ny, nz, type, workSize)
+    @ccall libcufft.cufftEstimate3d(nx::Cint, ny::Cint, nz::Cint, type::cufftType,
+                                    workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftEstimateMany(rank, n, inembed, istride, idist, onembed, ostride,
                                     odist, type, batch, workSize)
     initialize_context()
-    ccall((:cufftEstimateMany, libcufft), cufftResult,
-          (Cint, Ptr{Cint}, Ptr{Cint}, Cint, Cint, Ptr{Cint}, Cint, Cint, cufftType, Cint,
-           Ptr{Csize_t}), rank, n, inembed, istride, idist, onembed, ostride, odist, type,
-          batch, workSize)
+    @ccall libcufft.cufftEstimateMany(rank::Cint, n::Ptr{Cint}, inembed::Ptr{Cint},
+                                      istride::Cint, idist::Cint, onembed::Ptr{Cint},
+                                      ostride::Cint, odist::Cint, type::cufftType,
+                                      batch::Cint, workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftCreate(handle)
     initialize_context()
-    ccall((:cufftCreate, libcufft), cufftResult, (Ptr{cufftHandle},), handle)
+    @ccall libcufft.cufftCreate(handle::Ptr{cufftHandle})::cufftResult
 end
 
 @checked function cufftGetSize1d(handle, nx, type, batch, workSize)
     initialize_context()
-    ccall((:cufftGetSize1d, libcufft), cufftResult,
-          (cufftHandle, Cint, cufftType, Cint, Ptr{Csize_t}), handle, nx, type, batch,
-          workSize)
+    @ccall libcufft.cufftGetSize1d(handle::cufftHandle, nx::Cint, type::cufftType,
+                                   batch::Cint, workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftGetSize2d(handle, nx, ny, type, workSize)
     initialize_context()
-    ccall((:cufftGetSize2d, libcufft), cufftResult,
-          (cufftHandle, Cint, Cint, cufftType, Ptr{Csize_t}), handle, nx, ny, type,
-          workSize)
+    @ccall libcufft.cufftGetSize2d(handle::cufftHandle, nx::Cint, ny::Cint, type::cufftType,
+                                   workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftGetSize3d(handle, nx, ny, nz, type, workSize)
     initialize_context()
-    ccall((:cufftGetSize3d, libcufft), cufftResult,
-          (cufftHandle, Cint, Cint, Cint, cufftType, Ptr{Csize_t}), handle, nx, ny, nz,
-          type, workSize)
+    @ccall libcufft.cufftGetSize3d(handle::cufftHandle, nx::Cint, ny::Cint, nz::Cint,
+                                   type::cufftType, workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftGetSizeMany(handle, rank, n, inembed, istride, idist, onembed,
                                    ostride, odist, type, batch, workArea)
     initialize_context()
-    ccall((:cufftGetSizeMany, libcufft), cufftResult,
-          (cufftHandle, Cint, Ptr{Cint}, Ptr{Cint}, Cint, Cint, Ptr{Cint}, Cint, Cint,
-           cufftType, Cint, Ptr{Csize_t}), handle, rank, n, inembed, istride, idist,
-          onembed, ostride, odist, type, batch, workArea)
+    @ccall libcufft.cufftGetSizeMany(handle::cufftHandle, rank::Cint, n::Ptr{Cint},
+                                     inembed::Ptr{Cint}, istride::Cint, idist::Cint,
+                                     onembed::Ptr{Cint}, ostride::Cint, odist::Cint,
+                                     type::cufftType, batch::Cint,
+                                     workArea::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftGetSize(handle, workSize)
     initialize_context()
-    ccall((:cufftGetSize, libcufft), cufftResult, (cufftHandle, Ptr{Csize_t}), handle,
-          workSize)
+    @ccall libcufft.cufftGetSize(handle::cufftHandle, workSize::Ptr{Csize_t})::cufftResult
 end
 
 @checked function cufftSetWorkArea(plan, workArea)
     initialize_context()
-    ccall((:cufftSetWorkArea, libcufft), cufftResult, (cufftHandle, CuPtr{Cvoid}), plan,
-          workArea)
+    @ccall libcufft.cufftSetWorkArea(plan::cufftHandle, workArea::CuPtr{Cvoid})::cufftResult
 end
 
 @checked function cufftSetAutoAllocation(plan, autoAllocate)
     initialize_context()
-    ccall((:cufftSetAutoAllocation, libcufft), cufftResult, (cufftHandle, Cint), plan,
-          autoAllocate)
+    @ccall libcufft.cufftSetAutoAllocation(plan::cufftHandle,
+                                           autoAllocate::Cint)::cufftResult
 end
 
 @checked function cufftExecC2C(plan, idata, odata, direction)
     initialize_context()
-    ccall((:cufftExecC2C, libcufft), cufftResult,
-          (cufftHandle, CuPtr{cufftComplex}, CuPtr{cufftComplex}, Cint), plan, idata, odata,
-          direction)
+    @ccall libcufft.cufftExecC2C(plan::cufftHandle, idata::CuPtr{cufftComplex},
+                                 odata::CuPtr{cufftComplex}, direction::Cint)::cufftResult
 end
 
 @checked function cufftExecR2C(plan, idata, odata)
     initialize_context()
-    ccall((:cufftExecR2C, libcufft), cufftResult,
-          (cufftHandle, CuPtr{cufftReal}, CuPtr{cufftComplex}), plan, idata, odata)
+    @ccall libcufft.cufftExecR2C(plan::cufftHandle, idata::CuPtr{cufftReal},
+                                 odata::CuPtr{cufftComplex})::cufftResult
 end
 
 @checked function cufftExecC2R(plan, idata, odata)
     initialize_context()
-    ccall((:cufftExecC2R, libcufft), cufftResult,
-          (cufftHandle, CuPtr{cufftComplex}, CuPtr{cufftReal}), plan, idata, odata)
+    @ccall libcufft.cufftExecC2R(plan::cufftHandle, idata::CuPtr{cufftComplex},
+                                 odata::CuPtr{cufftReal})::cufftResult
 end
 
 @checked function cufftExecZ2Z(plan, idata, odata, direction)
     initialize_context()
-    ccall((:cufftExecZ2Z, libcufft), cufftResult,
-          (cufftHandle, CuPtr{cufftDoubleComplex}, CuPtr{cufftDoubleComplex}, Cint), plan,
-          idata, odata, direction)
+    @ccall libcufft.cufftExecZ2Z(plan::cufftHandle, idata::CuPtr{cufftDoubleComplex},
+                                 odata::CuPtr{cufftDoubleComplex},
+                                 direction::Cint)::cufftResult
 end
 
 @checked function cufftExecD2Z(plan, idata, odata)
     initialize_context()
-    ccall((:cufftExecD2Z, libcufft), cufftResult,
-          (cufftHandle, CuPtr{cufftDoubleReal}, CuPtr{cufftDoubleComplex}), plan, idata,
-          odata)
+    @ccall libcufft.cufftExecD2Z(plan::cufftHandle, idata::CuPtr{cufftDoubleReal},
+                                 odata::CuPtr{cufftDoubleComplex})::cufftResult
 end
 
 @checked function cufftExecZ2D(plan, idata, odata)
     initialize_context()
-    ccall((:cufftExecZ2D, libcufft), cufftResult,
-          (cufftHandle, CuPtr{cufftDoubleComplex}, CuPtr{cufftDoubleReal}), plan, idata,
-          odata)
+    @ccall libcufft.cufftExecZ2D(plan::cufftHandle, idata::CuPtr{cufftDoubleComplex},
+                                 odata::CuPtr{cufftDoubleReal})::cufftResult
 end
 
 @checked function cufftSetStream(plan, stream)
     initialize_context()
-    ccall((:cufftSetStream, libcufft), cufftResult, (cufftHandle, cudaStream_t), plan,
-          stream)
+    @ccall libcufft.cufftSetStream(plan::cufftHandle, stream::cudaStream_t)::cufftResult
 end
 
 @checked function cufftDestroy(plan)
     initialize_context()
-    ccall((:cufftDestroy, libcufft), cufftResult, (cufftHandle,), plan)
+    @ccall libcufft.cufftDestroy(plan::cufftHandle)::cufftResult
 end
 
 @checked function cufftGetVersion(version)
-    ccall((:cufftGetVersion, libcufft), cufftResult, (Ptr{Cint},), version)
+    @ccall libcufft.cufftGetVersion(version::Ptr{Cint})::cufftResult
 end
 
 @checked function cufftGetProperty(type, value)
-    ccall((:cufftGetProperty, libcufft), cufftResult, (libraryPropertyType, Ptr{Cint}),
-          type, value)
+    @ccall libcufft.cufftGetProperty(type::libraryPropertyType,
+                                     value::Ptr{Cint})::cufftResult
 end
 
 # Skipping MacroDefinition: CUFFTAPI __attribute__ ( ( visibility ( "default" ) ) )

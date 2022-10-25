@@ -14,7 +14,7 @@ function initialize_context()
             error("NVML could not be initialized ($res)")
         end
         atexit() do
-            nvmlShutdown()
+            return nvmlShutdown()
         end
         initialized[] = true
     end
@@ -64,7 +64,7 @@ end
 const nvmlReturn_t = nvmlReturn_enum
 
 @checked function nvmlInit_v2()
-    ccall((:nvmlInit_v2, libnvml()), nvmlReturn_t, ())
+    @ccall (libnvml()).nvmlInit_v2()::nvmlReturn_t
 end
 
 mutable struct nvmlDevice_st end
@@ -85,31 +85,32 @@ const nvmlPciInfo_t = nvmlPciInfo_st
 
 @checked function nvmlDeviceGetPciInfo_v3(device, pci)
     initialize_context()
-    ccall((:nvmlDeviceGetPciInfo_v3, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlPciInfo_t}), device, pci)
+    @ccall (libnvml()).nvmlDeviceGetPciInfo_v3(device::nvmlDevice_t,
+                                               pci::Ptr{nvmlPciInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetCount_v2(deviceCount)
     initialize_context()
-    ccall((:nvmlDeviceGetCount_v2, libnvml()), nvmlReturn_t, (Ptr{Cuint},), deviceCount)
+    @ccall (libnvml()).nvmlDeviceGetCount_v2(deviceCount::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetHandleByIndex_v2(index, device)
     initialize_context()
-    ccall((:nvmlDeviceGetHandleByIndex_v2, libnvml()), nvmlReturn_t,
-          (Cuint, Ptr{nvmlDevice_t}), index, device)
+    @ccall (libnvml()).nvmlDeviceGetHandleByIndex_v2(index::Cuint,
+                                                     device::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetHandleByPciBusId_v2(pciBusId, device)
     initialize_context()
-    ccall((:nvmlDeviceGetHandleByPciBusId_v2, libnvml()), nvmlReturn_t,
-          (Cstring, Ptr{nvmlDevice_t}), pciBusId, device)
+    @ccall (libnvml()).nvmlDeviceGetHandleByPciBusId_v2(pciBusId::Cstring,
+                                                        device::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetNvLinkRemotePciInfo_v2(device, link, pci)
     initialize_context()
-    ccall((:nvmlDeviceGetNvLinkRemotePciInfo_v2, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlPciInfo_t}), device, link, pci)
+    @ccall (libnvml()).nvmlDeviceGetNvLinkRemotePciInfo_v2(device::nvmlDevice_t,
+                                                           link::Cuint,
+                                                           pci::Ptr{nvmlPciInfo_t})::nvmlReturn_t
 end
 
 @cenum nvmlDetachGpuState_enum::UInt32 begin
@@ -128,9 +129,9 @@ const nvmlPcieLinkState_t = nvmlPcieLinkState_enum
 
 @checked function nvmlDeviceRemoveGpu_v2(pciInfo, gpuState, linkState)
     initialize_context()
-    ccall((:nvmlDeviceRemoveGpu_v2, libnvml()), nvmlReturn_t,
-          (Ptr{nvmlPciInfo_t}, nvmlDetachGpuState_t, nvmlPcieLinkState_t), pciInfo,
-          gpuState, linkState)
+    @ccall (libnvml()).nvmlDeviceRemoveGpu_v2(pciInfo::Ptr{nvmlPciInfo_t},
+                                              gpuState::nvmlDetachGpuState_t,
+                                              linkState::nvmlPcieLinkState_t)::nvmlReturn_t
 end
 
 @cenum nvmlGridLicenseFeatureCode_t::UInt32 begin
@@ -175,9 +176,8 @@ const nvmlGridLicensableFeatures_t = nvmlGridLicensableFeatures_st
 
 @checked function nvmlDeviceGetGridLicensableFeatures_v4(device, pGridLicensableFeatures)
     initialize_context()
-    ccall((:nvmlDeviceGetGridLicensableFeatures_v4, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlGridLicensableFeatures_t}), device,
-          pGridLicensableFeatures)
+    @ccall (libnvml()).nvmlDeviceGetGridLicensableFeatures_v4(device::nvmlDevice_t,
+                                                              pGridLicensableFeatures::Ptr{nvmlGridLicensableFeatures_t})::nvmlReturn_t
 end
 
 mutable struct nvmlEventSet_st end
@@ -196,8 +196,8 @@ const nvmlEventData_t = nvmlEventData_st
 
 @checked function nvmlEventSetWait_v2(set, data, timeoutms)
     initialize_context()
-    ccall((:nvmlEventSetWait_v2, libnvml()), nvmlReturn_t,
-          (nvmlEventSet_t, Ptr{nvmlEventData_t}, Cuint), set, data, timeoutms)
+    @ccall (libnvml()).nvmlEventSetWait_v2(set::nvmlEventSet_t, data::Ptr{nvmlEventData_t},
+                                           timeoutms::Cuint)::nvmlReturn_t
 end
 
 struct nvmlDeviceAttributes_st
@@ -216,8 +216,8 @@ const nvmlDeviceAttributes_t = nvmlDeviceAttributes_st
 
 @checked function nvmlDeviceGetAttributes_v2(device, attributes)
     initialize_context()
-    ccall((:nvmlDeviceGetAttributes_v2, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlDeviceAttributes_t}), device, attributes)
+    @ccall (libnvml()).nvmlDeviceGetAttributes_v2(device::nvmlDevice_t,
+                                                  attributes::Ptr{nvmlDeviceAttributes_t})::nvmlReturn_t
 end
 
 mutable struct nvmlComputeInstance_st end
@@ -247,8 +247,8 @@ const nvmlComputeInstanceInfo_t = nvmlComputeInstanceInfo_st
 
 @checked function nvmlComputeInstanceGetInfo_v2(computeInstance, info)
     initialize_context()
-    ccall((:nvmlComputeInstanceGetInfo_v2, libnvml()), nvmlReturn_t,
-          (nvmlComputeInstance_t, Ptr{nvmlComputeInstanceInfo_t}), computeInstance, info)
+    @ccall (libnvml()).nvmlComputeInstanceGetInfo_v2(computeInstance::nvmlComputeInstance_t,
+                                                     info::Ptr{nvmlComputeInstanceInfo_t})::nvmlReturn_t
 end
 
 struct nvmlProcessInfo_st
@@ -262,20 +262,23 @@ const nvmlProcessInfo_t = nvmlProcessInfo_st
 
 @checked function nvmlDeviceGetComputeRunningProcesses_v3(device, infoCount, infos)
     initialize_context()
-    ccall((:nvmlDeviceGetComputeRunningProcesses_v3, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{nvmlProcessInfo_t}), device, infoCount, infos)
+    @ccall (libnvml()).nvmlDeviceGetComputeRunningProcesses_v3(device::nvmlDevice_t,
+                                                               infoCount::Ptr{Cuint},
+                                                               infos::Ptr{nvmlProcessInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGraphicsRunningProcesses_v3(device, infoCount, infos)
     initialize_context()
-    ccall((:nvmlDeviceGetGraphicsRunningProcesses_v3, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{nvmlProcessInfo_t}), device, infoCount, infos)
+    @ccall (libnvml()).nvmlDeviceGetGraphicsRunningProcesses_v3(device::nvmlDevice_t,
+                                                                infoCount::Ptr{Cuint},
+                                                                infos::Ptr{nvmlProcessInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMPSComputeRunningProcesses_v3(device, infoCount, infos)
     initialize_context()
-    ccall((:nvmlDeviceGetMPSComputeRunningProcesses_v3, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{nvmlProcessInfo_t}), device, infoCount, infos)
+    @ccall (libnvml()).nvmlDeviceGetMPSComputeRunningProcesses_v3(device::nvmlDevice_t,
+                                                                  infoCount::Ptr{Cuint},
+                                                                  infos::Ptr{nvmlProcessInfo_t})::nvmlReturn_t
 end
 
 struct nvmlExcludedDeviceInfo_st
@@ -287,14 +290,13 @@ const nvmlExcludedDeviceInfo_t = nvmlExcludedDeviceInfo_st
 
 @checked function nvmlGetExcludedDeviceCount(deviceCount)
     initialize_context()
-    ccall((:nvmlGetExcludedDeviceCount, libnvml()), nvmlReturn_t, (Ptr{Cuint},),
-          deviceCount)
+    @ccall (libnvml()).nvmlGetExcludedDeviceCount(deviceCount::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlGetExcludedDeviceInfoByIndex(index, info)
     initialize_context()
-    ccall((:nvmlGetExcludedDeviceInfoByIndex, libnvml()), nvmlReturn_t,
-          (Cuint, Ptr{nvmlExcludedDeviceInfo_t}), index, info)
+    @ccall (libnvml()).nvmlGetExcludedDeviceInfoByIndex(index::Cuint,
+                                                        info::Ptr{nvmlExcludedDeviceInfo_t})::nvmlReturn_t
 end
 
 struct nvmlGpuInstancePlacement_st
@@ -307,9 +309,10 @@ const nvmlGpuInstancePlacement_t = nvmlGpuInstancePlacement_st
 @checked function nvmlDeviceGetGpuInstancePossiblePlacements_v2(device, profileId,
                                                                 placements, count)
     initialize_context()
-    ccall((:nvmlDeviceGetGpuInstancePossiblePlacements_v2, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlGpuInstancePlacement_t}, Ptr{Cuint}), device,
-          profileId, placements, count)
+    @ccall (libnvml()).nvmlDeviceGetGpuInstancePossiblePlacements_v2(device::nvmlDevice_t,
+                                                                     profileId::Cuint,
+                                                                     placements::Ptr{nvmlGpuInstancePlacement_t},
+                                                                     count::Ptr{Cuint})::nvmlReturn_t
 end
 
 const nvmlVgpuInstance_t = Cuint
@@ -336,8 +339,8 @@ const nvmlVgpuLicenseInfo_t = nvmlVgpuLicenseInfo_st
 
 @checked function nvmlVgpuInstanceGetLicenseInfo_v2(vgpuInstance, licenseInfo)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetLicenseInfo_v2, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{nvmlVgpuLicenseInfo_t}), vgpuInstance, licenseInfo)
+    @ccall (libnvml()).nvmlVgpuInstanceGetLicenseInfo_v2(vgpuInstance::nvmlVgpuInstance_t,
+                                                         licenseInfo::Ptr{nvmlVgpuLicenseInfo_t})::nvmlReturn_t
 end
 
 @cenum nvmlMemoryErrorType_enum::UInt32 begin
@@ -587,7 +590,7 @@ function Base.getproperty(x::nvmlValue_st, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{nvmlValue_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const nvmlValue_t = nvmlValue_st
@@ -655,14 +658,14 @@ end
     NVML_THERMAL_CONTROLLER_UNKNOWN = -1
 end
 
-struct var"##Ctag#493"
+struct var"##Ctag#4402"
     controller::nvmlThermalController_t
     defaultMinTemp::Cint
     defaultMaxTemp::Cint
     currentTemp::Cint
     target::nvmlThermalTarget_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#493"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4402"}, f::Symbol)
     f === :controller && return Ptr{nvmlThermalController_t}(x + 0)
     f === :defaultMinTemp && return Ptr{Cint}(x + 4)
     f === :defaultMaxTemp && return Ptr{Cint}(x + 8)
@@ -671,15 +674,15 @@ function Base.getproperty(x::Ptr{var"##Ctag#493"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#493", f::Symbol)
-    r = Ref{var"##Ctag#493"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#493"}, r)
+function Base.getproperty(x::var"##Ctag#4402", f::Symbol)
+    r = Ref{var"##Ctag#4402"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4402"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#493"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4402"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct nvmlGpuThermalSettings_t
@@ -688,7 +691,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol)
     f === :count && return Ptr{Cuint}(x + 0)
-    f === :sensor && return Ptr{NTuple{3,var"##Ctag#493"}}(x + 4)
+    f === :sensor && return Ptr{NTuple{3,var"##Ctag#4402"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -700,7 +703,7 @@ function Base.getproperty(x::nvmlGpuThermalSettings_t, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 @cenum nvmlEnableState_enum::UInt32 begin
@@ -973,13 +976,13 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"##Ctag#494"
+struct var"##Ctag#4400"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
     decThreshold::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#494"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4400"}, f::Symbol)
     f === :bIsPresent && return Ptr{Cuint}(x + 0)
     f === :percentage && return Ptr{Cuint}(x + 4)
     f === :incThreshold && return Ptr{Cuint}(x + 8)
@@ -987,15 +990,15 @@ function Base.getproperty(x::Ptr{var"##Ctag#494"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#494", f::Symbol)
-    r = Ref{var"##Ctag#494"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#494"}, r)
+function Base.getproperty(x::var"##Ctag#4400", f::Symbol)
+    r = Ref{var"##Ctag#4400"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4400"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#494"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4400"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct nvmlGpuDynamicPstatesInfo_st
@@ -1004,7 +1007,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
-    f === :utilization && return Ptr{NTuple{8,var"##Ctag#494"}}(x + 4)
+    f === :utilization && return Ptr{NTuple{8,var"##Ctag#4400"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -1016,7 +1019,7 @@ function Base.getproperty(x::nvmlGpuDynamicPstatesInfo_st, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const nvmlGpuDynamicPstatesInfo_t = nvmlGpuDynamicPstatesInfo_st
@@ -1165,847 +1168,874 @@ end
 const nvmlFBCSessionInfo_t = nvmlFBCSessionInfo_st
 
 @checked function nvmlInitWithFlags(flags)
-    ccall((:nvmlInitWithFlags, libnvml()), nvmlReturn_t, (Cuint,), flags)
+    @ccall (libnvml()).nvmlInitWithFlags(flags::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlShutdown()
-    ccall((:nvmlShutdown, libnvml()), nvmlReturn_t, ())
+    @ccall (libnvml()).nvmlShutdown()::nvmlReturn_t
 end
 
 function nvmlErrorString(result)
-    ccall((:nvmlErrorString, libnvml()), Cstring, (nvmlReturn_t,), result)
+    @ccall (libnvml()).nvmlErrorString(result::nvmlReturn_t)::Cstring
 end
 
 @checked function nvmlSystemGetDriverVersion(version, length)
     initialize_context()
-    ccall((:nvmlSystemGetDriverVersion, libnvml()), nvmlReturn_t, (Cstring, Cuint), version,
-          length)
+    @ccall (libnvml()).nvmlSystemGetDriverVersion(version::Cstring,
+                                                  length::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlSystemGetNVMLVersion(version, length)
     initialize_context()
-    ccall((:nvmlSystemGetNVMLVersion, libnvml()), nvmlReturn_t, (Cstring, Cuint), version,
-          length)
+    @ccall (libnvml()).nvmlSystemGetNVMLVersion(version::Cstring,
+                                                length::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlSystemGetCudaDriverVersion(cudaDriverVersion)
     initialize_context()
-    ccall((:nvmlSystemGetCudaDriverVersion, libnvml()), nvmlReturn_t, (Ptr{Cint},),
-          cudaDriverVersion)
+    @ccall (libnvml()).nvmlSystemGetCudaDriverVersion(cudaDriverVersion::Ptr{Cint})::nvmlReturn_t
 end
 
 @checked function nvmlSystemGetCudaDriverVersion_v2(cudaDriverVersion)
     initialize_context()
-    ccall((:nvmlSystemGetCudaDriverVersion_v2, libnvml()), nvmlReturn_t, (Ptr{Cint},),
-          cudaDriverVersion)
+    @ccall (libnvml()).nvmlSystemGetCudaDriverVersion_v2(cudaDriverVersion::Ptr{Cint})::nvmlReturn_t
 end
 
 @checked function nvmlSystemGetProcessName(pid, name, length)
     initialize_context()
-    ccall((:nvmlSystemGetProcessName, libnvml()), nvmlReturn_t, (Cuint, Cstring, Cuint),
-          pid, name, length)
+    @ccall (libnvml()).nvmlSystemGetProcessName(pid::Cuint, name::Cstring,
+                                                length::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlUnitGetCount(unitCount)
     initialize_context()
-    ccall((:nvmlUnitGetCount, libnvml()), nvmlReturn_t, (Ptr{Cuint},), unitCount)
+    @ccall (libnvml()).nvmlUnitGetCount(unitCount::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlUnitGetHandleByIndex(index, unit)
     initialize_context()
-    ccall((:nvmlUnitGetHandleByIndex, libnvml()), nvmlReturn_t, (Cuint, Ptr{nvmlUnit_t}),
-          index, unit)
+    @ccall (libnvml()).nvmlUnitGetHandleByIndex(index::Cuint,
+                                                unit::Ptr{nvmlUnit_t})::nvmlReturn_t
 end
 
 @checked function nvmlUnitGetUnitInfo(unit, info)
     initialize_context()
-    ccall((:nvmlUnitGetUnitInfo, libnvml()), nvmlReturn_t,
-          (nvmlUnit_t, Ptr{nvmlUnitInfo_t}), unit, info)
+    @ccall (libnvml()).nvmlUnitGetUnitInfo(unit::nvmlUnit_t,
+                                           info::Ptr{nvmlUnitInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlUnitGetLedState(unit, state)
     initialize_context()
-    ccall((:nvmlUnitGetLedState, libnvml()), nvmlReturn_t,
-          (nvmlUnit_t, Ptr{nvmlLedState_t}), unit, state)
+    @ccall (libnvml()).nvmlUnitGetLedState(unit::nvmlUnit_t,
+                                           state::Ptr{nvmlLedState_t})::nvmlReturn_t
 end
 
 @checked function nvmlUnitGetPsuInfo(unit, psu)
     initialize_context()
-    ccall((:nvmlUnitGetPsuInfo, libnvml()), nvmlReturn_t, (nvmlUnit_t, Ptr{nvmlPSUInfo_t}),
-          unit, psu)
+    @ccall (libnvml()).nvmlUnitGetPsuInfo(unit::nvmlUnit_t,
+                                          psu::Ptr{nvmlPSUInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlUnitGetTemperature(unit, type, temp)
     initialize_context()
-    ccall((:nvmlUnitGetTemperature, libnvml()), nvmlReturn_t,
-          (nvmlUnit_t, Cuint, Ptr{Cuint}), unit, type, temp)
+    @ccall (libnvml()).nvmlUnitGetTemperature(unit::nvmlUnit_t, type::Cuint,
+                                              temp::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlUnitGetFanSpeedInfo(unit, fanSpeeds)
     initialize_context()
-    ccall((:nvmlUnitGetFanSpeedInfo, libnvml()), nvmlReturn_t,
-          (nvmlUnit_t, Ptr{nvmlUnitFanSpeeds_t}), unit, fanSpeeds)
+    @ccall (libnvml()).nvmlUnitGetFanSpeedInfo(unit::nvmlUnit_t,
+                                               fanSpeeds::Ptr{nvmlUnitFanSpeeds_t})::nvmlReturn_t
 end
 
 @checked function nvmlUnitGetDevices(unit, deviceCount, devices)
     initialize_context()
-    ccall((:nvmlUnitGetDevices, libnvml()), nvmlReturn_t,
-          (nvmlUnit_t, Ptr{Cuint}, Ptr{nvmlDevice_t}), unit, deviceCount, devices)
+    @ccall (libnvml()).nvmlUnitGetDevices(unit::nvmlUnit_t, deviceCount::Ptr{Cuint},
+                                          devices::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
 @checked function nvmlSystemGetHicVersion(hwbcCount, hwbcEntries)
     initialize_context()
-    ccall((:nvmlSystemGetHicVersion, libnvml()), nvmlReturn_t,
-          (Ptr{Cuint}, Ptr{nvmlHwbcEntry_t}), hwbcCount, hwbcEntries)
+    @ccall (libnvml()).nvmlSystemGetHicVersion(hwbcCount::Ptr{Cuint},
+                                               hwbcEntries::Ptr{nvmlHwbcEntry_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetHandleBySerial(serial, device)
     initialize_context()
-    ccall((:nvmlDeviceGetHandleBySerial, libnvml()), nvmlReturn_t,
-          (Cstring, Ptr{nvmlDevice_t}), serial, device)
+    @ccall (libnvml()).nvmlDeviceGetHandleBySerial(serial::Cstring,
+                                                   device::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetHandleByUUID(uuid, device)
     initialize_context()
-    ccall((:nvmlDeviceGetHandleByUUID, libnvml()), nvmlReturn_t,
-          (Cstring, Ptr{nvmlDevice_t}), uuid, device)
+    @ccall (libnvml()).nvmlDeviceGetHandleByUUID(uuid::Cstring,
+                                                 device::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetName(device, name, length)
     initialize_context()
-    ccall((:nvmlDeviceGetName, libnvml()), nvmlReturn_t, (nvmlDevice_t, Cstring, Cuint),
-          device, name, length)
+    @ccall (libnvml()).nvmlDeviceGetName(device::nvmlDevice_t, name::Cstring,
+                                         length::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetBrand(device, type)
     initialize_context()
-    ccall((:nvmlDeviceGetBrand, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlBrandType_t}), device, type)
+    @ccall (libnvml()).nvmlDeviceGetBrand(device::nvmlDevice_t,
+                                          type::Ptr{nvmlBrandType_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetIndex(device, index)
     initialize_context()
-    ccall((:nvmlDeviceGetIndex, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{Cuint}),
-          device, index)
+    @ccall (libnvml()).nvmlDeviceGetIndex(device::nvmlDevice_t,
+                                          index::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetSerial(device, serial, length)
     initialize_context()
-    ccall((:nvmlDeviceGetSerial, libnvml()), nvmlReturn_t, (nvmlDevice_t, Cstring, Cuint),
-          device, serial, length)
+    @ccall (libnvml()).nvmlDeviceGetSerial(device::nvmlDevice_t, serial::Cstring,
+                                           length::Cuint)::nvmlReturn_t
 end
 
 const nvmlAffinityScope_t = Cuint
 
 @checked function nvmlDeviceGetMemoryAffinity(device, nodeSetSize, nodeSet, scope)
     initialize_context()
-    ccall((:nvmlDeviceGetMemoryAffinity, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{Culong}, nvmlAffinityScope_t), device, nodeSetSize,
-          nodeSet, scope)
+    @ccall (libnvml()).nvmlDeviceGetMemoryAffinity(device::nvmlDevice_t, nodeSetSize::Cuint,
+                                                   nodeSet::Ptr{Culong},
+                                                   scope::nvmlAffinityScope_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetCpuAffinityWithinScope(device, cpuSetSize, cpuSet, scope)
     initialize_context()
-    ccall((:nvmlDeviceGetCpuAffinityWithinScope, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{Culong}, nvmlAffinityScope_t), device, cpuSetSize,
-          cpuSet, scope)
+    @ccall (libnvml()).nvmlDeviceGetCpuAffinityWithinScope(device::nvmlDevice_t,
+                                                           cpuSetSize::Cuint,
+                                                           cpuSet::Ptr{Culong},
+                                                           scope::nvmlAffinityScope_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetCpuAffinity(device, cpuSetSize, cpuSet)
     initialize_context()
-    ccall((:nvmlDeviceGetCpuAffinity, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{Culong}), device, cpuSetSize, cpuSet)
+    @ccall (libnvml()).nvmlDeviceGetCpuAffinity(device::nvmlDevice_t, cpuSetSize::Cuint,
+                                                cpuSet::Ptr{Culong})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetCpuAffinity(device)
     initialize_context()
-    ccall((:nvmlDeviceSetCpuAffinity, libnvml()), nvmlReturn_t, (nvmlDevice_t,), device)
+    @ccall (libnvml()).nvmlDeviceSetCpuAffinity(device::nvmlDevice_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceClearCpuAffinity(device)
     initialize_context()
-    ccall((:nvmlDeviceClearCpuAffinity, libnvml()), nvmlReturn_t, (nvmlDevice_t,), device)
+    @ccall (libnvml()).nvmlDeviceClearCpuAffinity(device::nvmlDevice_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetTopologyCommonAncestor(device1, device2, pathInfo)
     initialize_context()
-    ccall((:nvmlDeviceGetTopologyCommonAncestor, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlDevice_t, Ptr{nvmlGpuTopologyLevel_t}), device1, device2,
-          pathInfo)
+    @ccall (libnvml()).nvmlDeviceGetTopologyCommonAncestor(device1::nvmlDevice_t,
+                                                           device2::nvmlDevice_t,
+                                                           pathInfo::Ptr{nvmlGpuTopologyLevel_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetTopologyNearestGpus(device, level, count, deviceArray)
     initialize_context()
-    ccall((:nvmlDeviceGetTopologyNearestGpus, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlGpuTopologyLevel_t, Ptr{Cuint}, Ptr{nvmlDevice_t}), device,
-          level, count, deviceArray)
+    @ccall (libnvml()).nvmlDeviceGetTopologyNearestGpus(device::nvmlDevice_t,
+                                                        level::nvmlGpuTopologyLevel_t,
+                                                        count::Ptr{Cuint},
+                                                        deviceArray::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
 @checked function nvmlSystemGetTopologyGpuSet(cpuNumber, count, deviceArray)
     initialize_context()
-    ccall((:nvmlSystemGetTopologyGpuSet, libnvml()), nvmlReturn_t,
-          (Cuint, Ptr{Cuint}, Ptr{nvmlDevice_t}), cpuNumber, count, deviceArray)
+    @ccall (libnvml()).nvmlSystemGetTopologyGpuSet(cpuNumber::Cuint, count::Ptr{Cuint},
+                                                   deviceArray::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetP2PStatus(device1, device2, p2pIndex, p2pStatus)
     initialize_context()
-    ccall((:nvmlDeviceGetP2PStatus, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlDevice_t, nvmlGpuP2PCapsIndex_t, Ptr{nvmlGpuP2PStatus_t}),
-          device1, device2, p2pIndex, p2pStatus)
+    @ccall (libnvml()).nvmlDeviceGetP2PStatus(device1::nvmlDevice_t, device2::nvmlDevice_t,
+                                              p2pIndex::nvmlGpuP2PCapsIndex_t,
+                                              p2pStatus::Ptr{nvmlGpuP2PStatus_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetUUID(device, uuid, length)
     initialize_context()
-    ccall((:nvmlDeviceGetUUID, libnvml()), nvmlReturn_t, (nvmlDevice_t, Cstring, Cuint),
-          device, uuid, length)
+    @ccall (libnvml()).nvmlDeviceGetUUID(device::nvmlDevice_t, uuid::Cstring,
+                                         length::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetMdevUUID(vgpuInstance, mdevUuid, size)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetMdevUUID, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Cstring, Cuint), vgpuInstance, mdevUuid, size)
+    @ccall (libnvml()).nvmlVgpuInstanceGetMdevUUID(vgpuInstance::nvmlVgpuInstance_t,
+                                                   mdevUuid::Cstring,
+                                                   size::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMinorNumber(device, minorNumber)
     initialize_context()
-    ccall((:nvmlDeviceGetMinorNumber, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{Cuint}),
-          device, minorNumber)
+    @ccall (libnvml()).nvmlDeviceGetMinorNumber(device::nvmlDevice_t,
+                                                minorNumber::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetBoardPartNumber(device, partNumber, length)
     initialize_context()
-    ccall((:nvmlDeviceGetBoardPartNumber, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cstring, Cuint), device, partNumber, length)
+    @ccall (libnvml()).nvmlDeviceGetBoardPartNumber(device::nvmlDevice_t,
+                                                    partNumber::Cstring,
+                                                    length::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetInforomVersion(device, object, version, length)
     initialize_context()
-    ccall((:nvmlDeviceGetInforomVersion, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlInforomObject_t, Cstring, Cuint), device, object, version,
-          length)
+    @ccall (libnvml()).nvmlDeviceGetInforomVersion(device::nvmlDevice_t,
+                                                   object::nvmlInforomObject_t,
+                                                   version::Cstring,
+                                                   length::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetInforomImageVersion(device, version, length)
     initialize_context()
-    ccall((:nvmlDeviceGetInforomImageVersion, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cstring, Cuint), device, version, length)
+    @ccall (libnvml()).nvmlDeviceGetInforomImageVersion(device::nvmlDevice_t,
+                                                        version::Cstring,
+                                                        length::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetInforomConfigurationChecksum(device, checksum)
     initialize_context()
-    ccall((:nvmlDeviceGetInforomConfigurationChecksum, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, checksum)
+    @ccall (libnvml()).nvmlDeviceGetInforomConfigurationChecksum(device::nvmlDevice_t,
+                                                                 checksum::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceValidateInforom(device)
     initialize_context()
-    ccall((:nvmlDeviceValidateInforom, libnvml()), nvmlReturn_t, (nvmlDevice_t,), device)
+    @ccall (libnvml()).nvmlDeviceValidateInforom(device::nvmlDevice_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetDisplayMode(device, display)
     initialize_context()
-    ccall((:nvmlDeviceGetDisplayMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlEnableState_t}), device, display)
+    @ccall (libnvml()).nvmlDeviceGetDisplayMode(device::nvmlDevice_t,
+                                                display::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetDisplayActive(device, isActive)
     initialize_context()
-    ccall((:nvmlDeviceGetDisplayActive, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlEnableState_t}), device, isActive)
+    @ccall (libnvml()).nvmlDeviceGetDisplayActive(device::nvmlDevice_t,
+                                                  isActive::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPersistenceMode(device, mode)
     initialize_context()
-    ccall((:nvmlDeviceGetPersistenceMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlEnableState_t}), device, mode)
+    @ccall (libnvml()).nvmlDeviceGetPersistenceMode(device::nvmlDevice_t,
+                                                    mode::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMaxPcieLinkGeneration(device, maxLinkGen)
     initialize_context()
-    ccall((:nvmlDeviceGetMaxPcieLinkGeneration, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, maxLinkGen)
+    @ccall (libnvml()).nvmlDeviceGetMaxPcieLinkGeneration(device::nvmlDevice_t,
+                                                          maxLinkGen::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMaxPcieLinkWidth(device, maxLinkWidth)
     initialize_context()
-    ccall((:nvmlDeviceGetMaxPcieLinkWidth, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, maxLinkWidth)
+    @ccall (libnvml()).nvmlDeviceGetMaxPcieLinkWidth(device::nvmlDevice_t,
+                                                     maxLinkWidth::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetCurrPcieLinkGeneration(device, currLinkGen)
     initialize_context()
-    ccall((:nvmlDeviceGetCurrPcieLinkGeneration, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, currLinkGen)
+    @ccall (libnvml()).nvmlDeviceGetCurrPcieLinkGeneration(device::nvmlDevice_t,
+                                                           currLinkGen::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetCurrPcieLinkWidth(device, currLinkWidth)
     initialize_context()
-    ccall((:nvmlDeviceGetCurrPcieLinkWidth, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, currLinkWidth)
+    @ccall (libnvml()).nvmlDeviceGetCurrPcieLinkWidth(device::nvmlDevice_t,
+                                                      currLinkWidth::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPcieThroughput(device, counter, value)
     initialize_context()
-    ccall((:nvmlDeviceGetPcieThroughput, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlPcieUtilCounter_t, Ptr{Cuint}), device, counter, value)
+    @ccall (libnvml()).nvmlDeviceGetPcieThroughput(device::nvmlDevice_t,
+                                                   counter::nvmlPcieUtilCounter_t,
+                                                   value::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPcieReplayCounter(device, value)
     initialize_context()
-    ccall((:nvmlDeviceGetPcieReplayCounter, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, value)
+    @ccall (libnvml()).nvmlDeviceGetPcieReplayCounter(device::nvmlDevice_t,
+                                                      value::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetClockInfo(device, type, clock)
     initialize_context()
-    ccall((:nvmlDeviceGetClockInfo, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlClockType_t, Ptr{Cuint}), device, type, clock)
+    @ccall (libnvml()).nvmlDeviceGetClockInfo(device::nvmlDevice_t, type::nvmlClockType_t,
+                                              clock::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMaxClockInfo(device, type, clock)
     initialize_context()
-    ccall((:nvmlDeviceGetMaxClockInfo, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlClockType_t, Ptr{Cuint}), device, type, clock)
+    @ccall (libnvml()).nvmlDeviceGetMaxClockInfo(device::nvmlDevice_t,
+                                                 type::nvmlClockType_t,
+                                                 clock::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetApplicationsClock(device, clockType, clockMHz)
     initialize_context()
-    ccall((:nvmlDeviceGetApplicationsClock, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlClockType_t, Ptr{Cuint}), device, clockType, clockMHz)
+    @ccall (libnvml()).nvmlDeviceGetApplicationsClock(device::nvmlDevice_t,
+                                                      clockType::nvmlClockType_t,
+                                                      clockMHz::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetDefaultApplicationsClock(device, clockType, clockMHz)
     initialize_context()
-    ccall((:nvmlDeviceGetDefaultApplicationsClock, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlClockType_t, Ptr{Cuint}), device, clockType, clockMHz)
+    @ccall (libnvml()).nvmlDeviceGetDefaultApplicationsClock(device::nvmlDevice_t,
+                                                             clockType::nvmlClockType_t,
+                                                             clockMHz::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceResetApplicationsClocks(device)
     initialize_context()
-    ccall((:nvmlDeviceResetApplicationsClocks, libnvml()), nvmlReturn_t, (nvmlDevice_t,),
-          device)
+    @ccall (libnvml()).nvmlDeviceResetApplicationsClocks(device::nvmlDevice_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetClock(device, clockType, clockId, clockMHz)
     initialize_context()
-    ccall((:nvmlDeviceGetClock, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlClockType_t, nvmlClockId_t, Ptr{Cuint}), device, clockType,
-          clockId, clockMHz)
+    @ccall (libnvml()).nvmlDeviceGetClock(device::nvmlDevice_t, clockType::nvmlClockType_t,
+                                          clockId::nvmlClockId_t,
+                                          clockMHz::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMaxCustomerBoostClock(device, clockType, clockMHz)
     initialize_context()
-    ccall((:nvmlDeviceGetMaxCustomerBoostClock, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlClockType_t, Ptr{Cuint}), device, clockType, clockMHz)
+    @ccall (libnvml()).nvmlDeviceGetMaxCustomerBoostClock(device::nvmlDevice_t,
+                                                          clockType::nvmlClockType_t,
+                                                          clockMHz::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetSupportedMemoryClocks(device, count, clocksMHz)
     initialize_context()
-    ccall((:nvmlDeviceGetSupportedMemoryClocks, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{Cuint}), device, count, clocksMHz)
+    @ccall (libnvml()).nvmlDeviceGetSupportedMemoryClocks(device::nvmlDevice_t,
+                                                          count::Ptr{Cuint},
+                                                          clocksMHz::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetSupportedGraphicsClocks(device, memoryClockMHz, count,
                                                        clocksMHz)
     initialize_context()
-    ccall((:nvmlDeviceGetSupportedGraphicsClocks, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{Cuint}, Ptr{Cuint}), device, memoryClockMHz, count,
-          clocksMHz)
+    @ccall (libnvml()).nvmlDeviceGetSupportedGraphicsClocks(device::nvmlDevice_t,
+                                                            memoryClockMHz::Cuint,
+                                                            count::Ptr{Cuint},
+                                                            clocksMHz::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetAutoBoostedClocksEnabled(device, isEnabled, defaultIsEnabled)
     initialize_context()
-    ccall((:nvmlDeviceGetAutoBoostedClocksEnabled, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlEnableState_t}, Ptr{nvmlEnableState_t}), device, isEnabled,
-          defaultIsEnabled)
+    @ccall (libnvml()).nvmlDeviceGetAutoBoostedClocksEnabled(device::nvmlDevice_t,
+                                                             isEnabled::Ptr{nvmlEnableState_t},
+                                                             defaultIsEnabled::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetAutoBoostedClocksEnabled(device, enabled)
     initialize_context()
-    ccall((:nvmlDeviceSetAutoBoostedClocksEnabled, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlEnableState_t), device, enabled)
+    @ccall (libnvml()).nvmlDeviceSetAutoBoostedClocksEnabled(device::nvmlDevice_t,
+                                                             enabled::nvmlEnableState_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetDefaultAutoBoostedClocksEnabled(device, enabled, flags)
     initialize_context()
-    ccall((:nvmlDeviceSetDefaultAutoBoostedClocksEnabled, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlEnableState_t, Cuint), device, enabled, flags)
+    @ccall (libnvml()).nvmlDeviceSetDefaultAutoBoostedClocksEnabled(device::nvmlDevice_t,
+                                                                    enabled::nvmlEnableState_t,
+                                                                    flags::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetFanSpeed(device, speed)
     initialize_context()
-    ccall((:nvmlDeviceGetFanSpeed, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{Cuint}),
-          device, speed)
+    @ccall (libnvml()).nvmlDeviceGetFanSpeed(device::nvmlDevice_t,
+                                             speed::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetFanSpeed_v2(device, fan, speed)
     initialize_context()
-    ccall((:nvmlDeviceGetFanSpeed_v2, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{Cuint}), device, fan, speed)
+    @ccall (libnvml()).nvmlDeviceGetFanSpeed_v2(device::nvmlDevice_t, fan::Cuint,
+                                                speed::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetTargetFanSpeed(device, fan, targetSpeed)
     initialize_context()
-    ccall((:nvmlDeviceGetTargetFanSpeed, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{Cuint}), device, fan, targetSpeed)
+    @ccall (libnvml()).nvmlDeviceGetTargetFanSpeed(device::nvmlDevice_t, fan::Cuint,
+                                                   targetSpeed::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetDefaultFanSpeed_v2(device, fan)
     initialize_context()
-    ccall((:nvmlDeviceSetDefaultFanSpeed_v2, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint), device, fan)
+    @ccall (libnvml()).nvmlDeviceSetDefaultFanSpeed_v2(device::nvmlDevice_t,
+                                                       fan::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMinMaxFanSpeed(device, minSpeed, maxSpeed)
     initialize_context()
-    ccall((:nvmlDeviceGetMinMaxFanSpeed, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{Cuint}), device, minSpeed, maxSpeed)
+    @ccall (libnvml()).nvmlDeviceGetMinMaxFanSpeed(device::nvmlDevice_t,
+                                                   minSpeed::Ptr{Cuint},
+                                                   maxSpeed::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetNumFans(device, numFans)
     initialize_context()
-    ccall((:nvmlDeviceGetNumFans, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{Cuint}),
-          device, numFans)
+    @ccall (libnvml()).nvmlDeviceGetNumFans(device::nvmlDevice_t,
+                                            numFans::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetTemperature(device, sensorType, temp)
     initialize_context()
-    ccall((:nvmlDeviceGetTemperature, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlTemperatureSensors_t, Ptr{Cuint}), device, sensorType, temp)
+    @ccall (libnvml()).nvmlDeviceGetTemperature(device::nvmlDevice_t,
+                                                sensorType::nvmlTemperatureSensors_t,
+                                                temp::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetTemperatureThreshold(device, thresholdType, temp)
     initialize_context()
-    ccall((:nvmlDeviceGetTemperatureThreshold, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlTemperatureThresholds_t, Ptr{Cuint}), device, thresholdType,
-          temp)
+    @ccall (libnvml()).nvmlDeviceGetTemperatureThreshold(device::nvmlDevice_t,
+                                                         thresholdType::nvmlTemperatureThresholds_t,
+                                                         temp::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetTemperatureThreshold(device, thresholdType, temp)
     initialize_context()
-    ccall((:nvmlDeviceSetTemperatureThreshold, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlTemperatureThresholds_t, Ptr{Cint}), device, thresholdType,
-          temp)
+    @ccall (libnvml()).nvmlDeviceSetTemperatureThreshold(device::nvmlDevice_t,
+                                                         thresholdType::nvmlTemperatureThresholds_t,
+                                                         temp::Ptr{Cint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetThermalSettings(device, sensorIndex, pThermalSettings)
     initialize_context()
-    ccall((:nvmlDeviceGetThermalSettings, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlGpuThermalSettings_t}), device, sensorIndex,
-          pThermalSettings)
+    @ccall (libnvml()).nvmlDeviceGetThermalSettings(device::nvmlDevice_t,
+                                                    sensorIndex::Cuint,
+                                                    pThermalSettings::Ptr{nvmlGpuThermalSettings_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPerformanceState(device, pState)
     initialize_context()
-    ccall((:nvmlDeviceGetPerformanceState, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlPstates_t}), device, pState)
+    @ccall (libnvml()).nvmlDeviceGetPerformanceState(device::nvmlDevice_t,
+                                                     pState::Ptr{nvmlPstates_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetCurrentClocksThrottleReasons(device, clocksThrottleReasons)
     initialize_context()
-    ccall((:nvmlDeviceGetCurrentClocksThrottleReasons, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Culonglong}), device, clocksThrottleReasons)
+    @ccall (libnvml()).nvmlDeviceGetCurrentClocksThrottleReasons(device::nvmlDevice_t,
+                                                                 clocksThrottleReasons::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetSupportedClocksThrottleReasons(device,
                                                               supportedClocksThrottleReasons)
     initialize_context()
-    ccall((:nvmlDeviceGetSupportedClocksThrottleReasons, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Culonglong}), device, supportedClocksThrottleReasons)
+    @ccall (libnvml()).nvmlDeviceGetSupportedClocksThrottleReasons(device::nvmlDevice_t,
+                                                                   supportedClocksThrottleReasons::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPowerState(device, pState)
     initialize_context()
-    ccall((:nvmlDeviceGetPowerState, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlPstates_t}), device, pState)
+    @ccall (libnvml()).nvmlDeviceGetPowerState(device::nvmlDevice_t,
+                                               pState::Ptr{nvmlPstates_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPowerManagementMode(device, mode)
     initialize_context()
-    ccall((:nvmlDeviceGetPowerManagementMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlEnableState_t}), device, mode)
+    @ccall (libnvml()).nvmlDeviceGetPowerManagementMode(device::nvmlDevice_t,
+                                                        mode::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPowerManagementLimit(device, limit)
     initialize_context()
-    ccall((:nvmlDeviceGetPowerManagementLimit, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, limit)
+    @ccall (libnvml()).nvmlDeviceGetPowerManagementLimit(device::nvmlDevice_t,
+                                                         limit::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPowerManagementLimitConstraints(device, minLimit, maxLimit)
     initialize_context()
-    ccall((:nvmlDeviceGetPowerManagementLimitConstraints, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{Cuint}), device, minLimit, maxLimit)
+    @ccall (libnvml()).nvmlDeviceGetPowerManagementLimitConstraints(device::nvmlDevice_t,
+                                                                    minLimit::Ptr{Cuint},
+                                                                    maxLimit::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPowerManagementDefaultLimit(device, defaultLimit)
     initialize_context()
-    ccall((:nvmlDeviceGetPowerManagementDefaultLimit, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, defaultLimit)
+    @ccall (libnvml()).nvmlDeviceGetPowerManagementDefaultLimit(device::nvmlDevice_t,
+                                                                defaultLimit::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPowerUsage(device, power)
     initialize_context()
-    ccall((:nvmlDeviceGetPowerUsage, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{Cuint}),
-          device, power)
+    @ccall (libnvml()).nvmlDeviceGetPowerUsage(device::nvmlDevice_t,
+                                               power::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPowerMode(device, powerModeId)
     initialize_context()
-    ccall((:nvmlDeviceGetPowerMode, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{Cuint}),
-          device, powerModeId)
+    @ccall (libnvml()).nvmlDeviceGetPowerMode(device::nvmlDevice_t,
+                                              powerModeId::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetSupportedPowerModes(device, supportedPowerModes)
     initialize_context()
-    ccall((:nvmlDeviceGetSupportedPowerModes, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, supportedPowerModes)
+    @ccall (libnvml()).nvmlDeviceGetSupportedPowerModes(device::nvmlDevice_t,
+                                                        supportedPowerModes::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetPowerMode(device, powerModeId)
     initialize_context()
-    ccall((:nvmlDeviceSetPowerMode, libnvml()), nvmlReturn_t, (nvmlDevice_t, Cuint), device,
-          powerModeId)
+    @ccall (libnvml()).nvmlDeviceSetPowerMode(device::nvmlDevice_t,
+                                              powerModeId::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetTotalEnergyConsumption(device, energy)
     initialize_context()
-    ccall((:nvmlDeviceGetTotalEnergyConsumption, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Culonglong}), device, energy)
+    @ccall (libnvml()).nvmlDeviceGetTotalEnergyConsumption(device::nvmlDevice_t,
+                                                           energy::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetEnforcedPowerLimit(device, limit)
     initialize_context()
-    ccall((:nvmlDeviceGetEnforcedPowerLimit, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, limit)
+    @ccall (libnvml()).nvmlDeviceGetEnforcedPowerLimit(device::nvmlDevice_t,
+                                                       limit::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGpuOperationMode(device, current, pending)
     initialize_context()
-    ccall((:nvmlDeviceGetGpuOperationMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlGpuOperationMode_t}, Ptr{nvmlGpuOperationMode_t}), device,
-          current, pending)
+    @ccall (libnvml()).nvmlDeviceGetGpuOperationMode(device::nvmlDevice_t,
+                                                     current::Ptr{nvmlGpuOperationMode_t},
+                                                     pending::Ptr{nvmlGpuOperationMode_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMemoryInfo(device, memory)
     initialize_context()
-    ccall((:nvmlDeviceGetMemoryInfo, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlMemory_t}), device, memory)
+    @ccall (libnvml()).nvmlDeviceGetMemoryInfo(device::nvmlDevice_t,
+                                               memory::Ptr{nvmlMemory_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMemoryInfo_v2(device, memory)
     initialize_context()
-    ccall((:nvmlDeviceGetMemoryInfo_v2, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlMemory_v2_t}), device, memory)
+    @ccall (libnvml()).nvmlDeviceGetMemoryInfo_v2(device::nvmlDevice_t,
+                                                  memory::Ptr{nvmlMemory_v2_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetComputeMode(device, mode)
     initialize_context()
-    ccall((:nvmlDeviceGetComputeMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlComputeMode_t}), device, mode)
+    @ccall (libnvml()).nvmlDeviceGetComputeMode(device::nvmlDevice_t,
+                                                mode::Ptr{nvmlComputeMode_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetCudaComputeCapability(device, major, minor)
     initialize_context()
-    ccall((:nvmlDeviceGetCudaComputeCapability, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cint}, Ptr{Cint}), device, major, minor)
+    @ccall (libnvml()).nvmlDeviceGetCudaComputeCapability(device::nvmlDevice_t,
+                                                          major::Ptr{Cint},
+                                                          minor::Ptr{Cint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetEccMode(device, current, pending)
     initialize_context()
-    ccall((:nvmlDeviceGetEccMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlEnableState_t}, Ptr{nvmlEnableState_t}), device, current,
-          pending)
+    @ccall (libnvml()).nvmlDeviceGetEccMode(device::nvmlDevice_t,
+                                            current::Ptr{nvmlEnableState_t},
+                                            pending::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetDefaultEccMode(device, defaultMode)
     initialize_context()
-    ccall((:nvmlDeviceGetDefaultEccMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlEnableState_t}), device, defaultMode)
+    @ccall (libnvml()).nvmlDeviceGetDefaultEccMode(device::nvmlDevice_t,
+                                                   defaultMode::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetBoardId(device, boardId)
     initialize_context()
-    ccall((:nvmlDeviceGetBoardId, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{Cuint}),
-          device, boardId)
+    @ccall (libnvml()).nvmlDeviceGetBoardId(device::nvmlDevice_t,
+                                            boardId::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMultiGpuBoard(device, multiGpuBool)
     initialize_context()
-    ccall((:nvmlDeviceGetMultiGpuBoard, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, multiGpuBool)
+    @ccall (libnvml()).nvmlDeviceGetMultiGpuBoard(device::nvmlDevice_t,
+                                                  multiGpuBool::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetTotalEccErrors(device, errorType, counterType, eccCounts)
     initialize_context()
-    ccall((:nvmlDeviceGetTotalEccErrors, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlMemoryErrorType_t, nvmlEccCounterType_t, Ptr{Culonglong}),
-          device, errorType, counterType, eccCounts)
+    @ccall (libnvml()).nvmlDeviceGetTotalEccErrors(device::nvmlDevice_t,
+                                                   errorType::nvmlMemoryErrorType_t,
+                                                   counterType::nvmlEccCounterType_t,
+                                                   eccCounts::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetDetailedEccErrors(device, errorType, counterType, eccCounts)
     initialize_context()
-    ccall((:nvmlDeviceGetDetailedEccErrors, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlMemoryErrorType_t, nvmlEccCounterType_t,
-           Ptr{nvmlEccErrorCounts_t}), device, errorType, counterType, eccCounts)
+    @ccall (libnvml()).nvmlDeviceGetDetailedEccErrors(device::nvmlDevice_t,
+                                                      errorType::nvmlMemoryErrorType_t,
+                                                      counterType::nvmlEccCounterType_t,
+                                                      eccCounts::Ptr{nvmlEccErrorCounts_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMemoryErrorCounter(device, errorType, counterType,
                                                   locationType, count)
     initialize_context()
-    ccall((:nvmlDeviceGetMemoryErrorCounter, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlMemoryErrorType_t, nvmlEccCounterType_t, nvmlMemoryLocation_t,
-           Ptr{Culonglong}), device, errorType, counterType, locationType, count)
+    @ccall (libnvml()).nvmlDeviceGetMemoryErrorCounter(device::nvmlDevice_t,
+                                                       errorType::nvmlMemoryErrorType_t,
+                                                       counterType::nvmlEccCounterType_t,
+                                                       locationType::nvmlMemoryLocation_t,
+                                                       count::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetUtilizationRates(device, utilization)
     initialize_context()
-    ccall((:nvmlDeviceGetUtilizationRates, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlUtilization_t}), device, utilization)
+    @ccall (libnvml()).nvmlDeviceGetUtilizationRates(device::nvmlDevice_t,
+                                                     utilization::Ptr{nvmlUtilization_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetEncoderUtilization(device, utilization, samplingPeriodUs)
     initialize_context()
-    ccall((:nvmlDeviceGetEncoderUtilization, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{Cuint}), device, utilization, samplingPeriodUs)
+    @ccall (libnvml()).nvmlDeviceGetEncoderUtilization(device::nvmlDevice_t,
+                                                       utilization::Ptr{Cuint},
+                                                       samplingPeriodUs::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetEncoderCapacity(device, encoderQueryType, encoderCapacity)
     initialize_context()
-    ccall((:nvmlDeviceGetEncoderCapacity, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlEncoderType_t, Ptr{Cuint}), device, encoderQueryType,
-          encoderCapacity)
+    @ccall (libnvml()).nvmlDeviceGetEncoderCapacity(device::nvmlDevice_t,
+                                                    encoderQueryType::nvmlEncoderType_t,
+                                                    encoderCapacity::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetEncoderStats(device, sessionCount, averageFps,
                                             averageLatency)
     initialize_context()
-    ccall((:nvmlDeviceGetEncoderStats, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{Cuint}, Ptr{Cuint}), device, sessionCount,
-          averageFps, averageLatency)
+    @ccall (libnvml()).nvmlDeviceGetEncoderStats(device::nvmlDevice_t,
+                                                 sessionCount::Ptr{Cuint},
+                                                 averageFps::Ptr{Cuint},
+                                                 averageLatency::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetEncoderSessions(device, sessionCount, sessionInfos)
     initialize_context()
-    ccall((:nvmlDeviceGetEncoderSessions, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{nvmlEncoderSessionInfo_t}), device, sessionCount,
-          sessionInfos)
+    @ccall (libnvml()).nvmlDeviceGetEncoderSessions(device::nvmlDevice_t,
+                                                    sessionCount::Ptr{Cuint},
+                                                    sessionInfos::Ptr{nvmlEncoderSessionInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetDecoderUtilization(device, utilization, samplingPeriodUs)
     initialize_context()
-    ccall((:nvmlDeviceGetDecoderUtilization, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{Cuint}), device, utilization, samplingPeriodUs)
+    @ccall (libnvml()).nvmlDeviceGetDecoderUtilization(device::nvmlDevice_t,
+                                                       utilization::Ptr{Cuint},
+                                                       samplingPeriodUs::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetFBCStats(device, fbcStats)
     initialize_context()
-    ccall((:nvmlDeviceGetFBCStats, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlFBCStats_t}), device, fbcStats)
+    @ccall (libnvml()).nvmlDeviceGetFBCStats(device::nvmlDevice_t,
+                                             fbcStats::Ptr{nvmlFBCStats_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetFBCSessions(device, sessionCount, sessionInfo)
     initialize_context()
-    ccall((:nvmlDeviceGetFBCSessions, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{nvmlFBCSessionInfo_t}), device, sessionCount,
-          sessionInfo)
+    @ccall (libnvml()).nvmlDeviceGetFBCSessions(device::nvmlDevice_t,
+                                                sessionCount::Ptr{Cuint},
+                                                sessionInfo::Ptr{nvmlFBCSessionInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetDriverModel(device, current, pending)
     initialize_context()
-    ccall((:nvmlDeviceGetDriverModel, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlDriverModel_t}, Ptr{nvmlDriverModel_t}), device, current,
-          pending)
+    @ccall (libnvml()).nvmlDeviceGetDriverModel(device::nvmlDevice_t,
+                                                current::Ptr{nvmlDriverModel_t},
+                                                pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetVbiosVersion(device, version, length)
     initialize_context()
-    ccall((:nvmlDeviceGetVbiosVersion, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cstring, Cuint), device, version, length)
+    @ccall (libnvml()).nvmlDeviceGetVbiosVersion(device::nvmlDevice_t, version::Cstring,
+                                                 length::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetBridgeChipInfo(device, bridgeHierarchy)
     initialize_context()
-    ccall((:nvmlDeviceGetBridgeChipInfo, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlBridgeChipHierarchy_t}), device, bridgeHierarchy)
+    @ccall (libnvml()).nvmlDeviceGetBridgeChipInfo(device::nvmlDevice_t,
+                                                   bridgeHierarchy::Ptr{nvmlBridgeChipHierarchy_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceOnSameBoard(device1, device2, onSameBoard)
     initialize_context()
-    ccall((:nvmlDeviceOnSameBoard, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlDevice_t, Ptr{Cint}), device1, device2, onSameBoard)
+    @ccall (libnvml()).nvmlDeviceOnSameBoard(device1::nvmlDevice_t, device2::nvmlDevice_t,
+                                             onSameBoard::Ptr{Cint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetAPIRestriction(device, apiType, isRestricted)
     initialize_context()
-    ccall((:nvmlDeviceGetAPIRestriction, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlRestrictedAPI_t, Ptr{nvmlEnableState_t}), device, apiType,
-          isRestricted)
+    @ccall (libnvml()).nvmlDeviceGetAPIRestriction(device::nvmlDevice_t,
+                                                   apiType::nvmlRestrictedAPI_t,
+                                                   isRestricted::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetSamples(device, type, lastSeenTimeStamp, sampleValType,
                                        sampleCount, samples)
     initialize_context()
-    ccall((:nvmlDeviceGetSamples, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlSamplingType_t, Culonglong, Ptr{nvmlValueType_t}, Ptr{Cuint},
-           Ptr{nvmlSample_t}), device, type, lastSeenTimeStamp, sampleValType, sampleCount,
-          samples)
+    @ccall (libnvml()).nvmlDeviceGetSamples(device::nvmlDevice_t, type::nvmlSamplingType_t,
+                                            lastSeenTimeStamp::Culonglong,
+                                            sampleValType::Ptr{nvmlValueType_t},
+                                            sampleCount::Ptr{Cuint},
+                                            samples::Ptr{nvmlSample_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetBAR1MemoryInfo(device, bar1Memory)
     initialize_context()
-    ccall((:nvmlDeviceGetBAR1MemoryInfo, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlBAR1Memory_t}), device, bar1Memory)
+    @ccall (libnvml()).nvmlDeviceGetBAR1MemoryInfo(device::nvmlDevice_t,
+                                                   bar1Memory::Ptr{nvmlBAR1Memory_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetViolationStatus(device, perfPolicyType, violTime)
     initialize_context()
-    ccall((:nvmlDeviceGetViolationStatus, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlPerfPolicyType_t, Ptr{nvmlViolationTime_t}), device,
-          perfPolicyType, violTime)
+    @ccall (libnvml()).nvmlDeviceGetViolationStatus(device::nvmlDevice_t,
+                                                    perfPolicyType::nvmlPerfPolicyType_t,
+                                                    violTime::Ptr{nvmlViolationTime_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetIrqNum(device, irqNum)
     initialize_context()
-    ccall((:nvmlDeviceGetIrqNum, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{Cuint}),
-          device, irqNum)
+    @ccall (libnvml()).nvmlDeviceGetIrqNum(device::nvmlDevice_t,
+                                           irqNum::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetNumGpuCores(device, numCores)
     initialize_context()
-    ccall((:nvmlDeviceGetNumGpuCores, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{Cuint}),
-          device, numCores)
+    @ccall (libnvml()).nvmlDeviceGetNumGpuCores(device::nvmlDevice_t,
+                                                numCores::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPowerSource(device, powerSource)
     initialize_context()
-    ccall((:nvmlDeviceGetPowerSource, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlPowerSource_t}), device, powerSource)
+    @ccall (libnvml()).nvmlDeviceGetPowerSource(device::nvmlDevice_t,
+                                                powerSource::Ptr{nvmlPowerSource_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMemoryBusWidth(device, busWidth)
     initialize_context()
-    ccall((:nvmlDeviceGetMemoryBusWidth, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, busWidth)
+    @ccall (libnvml()).nvmlDeviceGetMemoryBusWidth(device::nvmlDevice_t,
+                                                   busWidth::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPcieLinkMaxSpeed(device, maxSpeed)
     initialize_context()
-    ccall((:nvmlDeviceGetPcieLinkMaxSpeed, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, maxSpeed)
+    @ccall (libnvml()).nvmlDeviceGetPcieLinkMaxSpeed(device::nvmlDevice_t,
+                                                     maxSpeed::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPcieSpeed(device, pcieSpeed)
     initialize_context()
-    ccall((:nvmlDeviceGetPcieSpeed, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{Cuint}),
-          device, pcieSpeed)
+    @ccall (libnvml()).nvmlDeviceGetPcieSpeed(device::nvmlDevice_t,
+                                              pcieSpeed::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetAdaptiveClockInfoStatus(device, adaptiveClockStatus)
     initialize_context()
-    ccall((:nvmlDeviceGetAdaptiveClockInfoStatus, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, adaptiveClockStatus)
+    @ccall (libnvml()).nvmlDeviceGetAdaptiveClockInfoStatus(device::nvmlDevice_t,
+                                                            adaptiveClockStatus::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetAccountingMode(device, mode)
     initialize_context()
-    ccall((:nvmlDeviceGetAccountingMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlEnableState_t}), device, mode)
+    @ccall (libnvml()).nvmlDeviceGetAccountingMode(device::nvmlDevice_t,
+                                                   mode::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetAccountingStats(device, pid, stats)
     initialize_context()
-    ccall((:nvmlDeviceGetAccountingStats, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlAccountingStats_t}), device, pid, stats)
+    @ccall (libnvml()).nvmlDeviceGetAccountingStats(device::nvmlDevice_t, pid::Cuint,
+                                                    stats::Ptr{nvmlAccountingStats_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetAccountingPids(device, count, pids)
     initialize_context()
-    ccall((:nvmlDeviceGetAccountingPids, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{Cuint}), device, count, pids)
+    @ccall (libnvml()).nvmlDeviceGetAccountingPids(device::nvmlDevice_t, count::Ptr{Cuint},
+                                                   pids::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetAccountingBufferSize(device, bufferSize)
     initialize_context()
-    ccall((:nvmlDeviceGetAccountingBufferSize, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, bufferSize)
+    @ccall (libnvml()).nvmlDeviceGetAccountingBufferSize(device::nvmlDevice_t,
+                                                         bufferSize::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetRetiredPages(device, cause, pageCount, addresses)
     initialize_context()
-    ccall((:nvmlDeviceGetRetiredPages, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlPageRetirementCause_t, Ptr{Cuint}, Ptr{Culonglong}), device,
-          cause, pageCount, addresses)
+    @ccall (libnvml()).nvmlDeviceGetRetiredPages(device::nvmlDevice_t,
+                                                 cause::nvmlPageRetirementCause_t,
+                                                 pageCount::Ptr{Cuint},
+                                                 addresses::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetRetiredPages_v2(device, cause, pageCount, addresses,
                                                timestamps)
     initialize_context()
-    ccall((:nvmlDeviceGetRetiredPages_v2, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlPageRetirementCause_t, Ptr{Cuint}, Ptr{Culonglong},
-           Ptr{Culonglong}), device, cause, pageCount, addresses, timestamps)
+    @ccall (libnvml()).nvmlDeviceGetRetiredPages_v2(device::nvmlDevice_t,
+                                                    cause::nvmlPageRetirementCause_t,
+                                                    pageCount::Ptr{Cuint},
+                                                    addresses::Ptr{Culonglong},
+                                                    timestamps::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetRetiredPagesPendingStatus(device, isPending)
     initialize_context()
-    ccall((:nvmlDeviceGetRetiredPagesPendingStatus, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlEnableState_t}), device, isPending)
+    @ccall (libnvml()).nvmlDeviceGetRetiredPagesPendingStatus(device::nvmlDevice_t,
+                                                              isPending::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetRemappedRows(device, corrRows, uncRows, isPending,
                                             failureOccurred)
     initialize_context()
-    ccall((:nvmlDeviceGetRemappedRows, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{Cuint}, Ptr{Cuint}, Ptr{Cuint}), device, corrRows,
-          uncRows, isPending, failureOccurred)
+    @ccall (libnvml()).nvmlDeviceGetRemappedRows(device::nvmlDevice_t, corrRows::Ptr{Cuint},
+                                                 uncRows::Ptr{Cuint}, isPending::Ptr{Cuint},
+                                                 failureOccurred::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetRowRemapperHistogram(device, values)
     initialize_context()
-    ccall((:nvmlDeviceGetRowRemapperHistogram, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlRowRemapperHistogramValues_t}), device, values)
+    @ccall (libnvml()).nvmlDeviceGetRowRemapperHistogram(device::nvmlDevice_t,
+                                                         values::Ptr{nvmlRowRemapperHistogramValues_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetArchitecture(device, arch)
     initialize_context()
-    ccall((:nvmlDeviceGetArchitecture, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlDeviceArchitecture_t}), device, arch)
+    @ccall (libnvml()).nvmlDeviceGetArchitecture(device::nvmlDevice_t,
+                                                 arch::Ptr{nvmlDeviceArchitecture_t})::nvmlReturn_t
 end
 
 @checked function nvmlUnitSetLedState(unit, color)
     initialize_context()
-    ccall((:nvmlUnitSetLedState, libnvml()), nvmlReturn_t, (nvmlUnit_t, nvmlLedColor_t),
-          unit, color)
+    @ccall (libnvml()).nvmlUnitSetLedState(unit::nvmlUnit_t,
+                                           color::nvmlLedColor_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetPersistenceMode(device, mode)
     initialize_context()
-    ccall((:nvmlDeviceSetPersistenceMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlEnableState_t), device, mode)
+    @ccall (libnvml()).nvmlDeviceSetPersistenceMode(device::nvmlDevice_t,
+                                                    mode::nvmlEnableState_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetComputeMode(device, mode)
     initialize_context()
-    ccall((:nvmlDeviceSetComputeMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlComputeMode_t), device, mode)
+    @ccall (libnvml()).nvmlDeviceSetComputeMode(device::nvmlDevice_t,
+                                                mode::nvmlComputeMode_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetEccMode(device, ecc)
     initialize_context()
-    ccall((:nvmlDeviceSetEccMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlEnableState_t), device, ecc)
+    @ccall (libnvml()).nvmlDeviceSetEccMode(device::nvmlDevice_t,
+                                            ecc::nvmlEnableState_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceClearEccErrorCounts(device, counterType)
     initialize_context()
-    ccall((:nvmlDeviceClearEccErrorCounts, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlEccCounterType_t), device, counterType)
+    @ccall (libnvml()).nvmlDeviceClearEccErrorCounts(device::nvmlDevice_t,
+                                                     counterType::nvmlEccCounterType_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetDriverModel(device, driverModel, flags)
     initialize_context()
-    ccall((:nvmlDeviceSetDriverModel, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlDriverModel_t, Cuint), device, driverModel, flags)
+    @ccall (libnvml()).nvmlDeviceSetDriverModel(device::nvmlDevice_t,
+                                                driverModel::nvmlDriverModel_t,
+                                                flags::Cuint)::nvmlReturn_t
 end
 
 @cenum nvmlClockLimitId_enum::UInt32 begin
@@ -2018,424 +2048,437 @@ const nvmlClockLimitId_t = nvmlClockLimitId_enum
 
 @checked function nvmlDeviceSetGpuLockedClocks(device, minGpuClockMHz, maxGpuClockMHz)
     initialize_context()
-    ccall((:nvmlDeviceSetGpuLockedClocks, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Cuint), device, minGpuClockMHz, maxGpuClockMHz)
+    @ccall (libnvml()).nvmlDeviceSetGpuLockedClocks(device::nvmlDevice_t,
+                                                    minGpuClockMHz::Cuint,
+                                                    maxGpuClockMHz::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceResetGpuLockedClocks(device)
     initialize_context()
-    ccall((:nvmlDeviceResetGpuLockedClocks, libnvml()), nvmlReturn_t, (nvmlDevice_t,),
-          device)
+    @ccall (libnvml()).nvmlDeviceResetGpuLockedClocks(device::nvmlDevice_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetMemoryLockedClocks(device, minMemClockMHz, maxMemClockMHz)
     initialize_context()
-    ccall((:nvmlDeviceSetMemoryLockedClocks, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Cuint), device, minMemClockMHz, maxMemClockMHz)
+    @ccall (libnvml()).nvmlDeviceSetMemoryLockedClocks(device::nvmlDevice_t,
+                                                       minMemClockMHz::Cuint,
+                                                       maxMemClockMHz::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceResetMemoryLockedClocks(device)
     initialize_context()
-    ccall((:nvmlDeviceResetMemoryLockedClocks, libnvml()), nvmlReturn_t, (nvmlDevice_t,),
-          device)
+    @ccall (libnvml()).nvmlDeviceResetMemoryLockedClocks(device::nvmlDevice_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetApplicationsClocks(device, memClockMHz, graphicsClockMHz)
     initialize_context()
-    ccall((:nvmlDeviceSetApplicationsClocks, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Cuint), device, memClockMHz, graphicsClockMHz)
+    @ccall (libnvml()).nvmlDeviceSetApplicationsClocks(device::nvmlDevice_t,
+                                                       memClockMHz::Cuint,
+                                                       graphicsClockMHz::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetClkMonStatus(device, status)
     initialize_context()
-    ccall((:nvmlDeviceGetClkMonStatus, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlClkMonStatus_t}), device, status)
+    @ccall (libnvml()).nvmlDeviceGetClkMonStatus(device::nvmlDevice_t,
+                                                 status::Ptr{nvmlClkMonStatus_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetPowerManagementLimit(device, limit)
     initialize_context()
-    ccall((:nvmlDeviceSetPowerManagementLimit, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint), device, limit)
+    @ccall (libnvml()).nvmlDeviceSetPowerManagementLimit(device::nvmlDevice_t,
+                                                         limit::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetGpuOperationMode(device, mode)
     initialize_context()
-    ccall((:nvmlDeviceSetGpuOperationMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlGpuOperationMode_t), device, mode)
+    @ccall (libnvml()).nvmlDeviceSetGpuOperationMode(device::nvmlDevice_t,
+                                                     mode::nvmlGpuOperationMode_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetAPIRestriction(device, apiType, isRestricted)
     initialize_context()
-    ccall((:nvmlDeviceSetAPIRestriction, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlRestrictedAPI_t, nvmlEnableState_t), device, apiType,
-          isRestricted)
+    @ccall (libnvml()).nvmlDeviceSetAPIRestriction(device::nvmlDevice_t,
+                                                   apiType::nvmlRestrictedAPI_t,
+                                                   isRestricted::nvmlEnableState_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetAccountingMode(device, mode)
     initialize_context()
-    ccall((:nvmlDeviceSetAccountingMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlEnableState_t), device, mode)
+    @ccall (libnvml()).nvmlDeviceSetAccountingMode(device::nvmlDevice_t,
+                                                   mode::nvmlEnableState_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceClearAccountingPids(device)
     initialize_context()
-    ccall((:nvmlDeviceClearAccountingPids, libnvml()), nvmlReturn_t, (nvmlDevice_t,),
-          device)
+    @ccall (libnvml()).nvmlDeviceClearAccountingPids(device::nvmlDevice_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetNvLinkState(device, link, isActive)
     initialize_context()
-    ccall((:nvmlDeviceGetNvLinkState, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlEnableState_t}), device, link, isActive)
+    @ccall (libnvml()).nvmlDeviceGetNvLinkState(device::nvmlDevice_t, link::Cuint,
+                                                isActive::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetNvLinkVersion(device, link, version)
     initialize_context()
-    ccall((:nvmlDeviceGetNvLinkVersion, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{Cuint}), device, link, version)
+    @ccall (libnvml()).nvmlDeviceGetNvLinkVersion(device::nvmlDevice_t, link::Cuint,
+                                                  version::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetNvLinkCapability(device, link, capability, capResult)
     initialize_context()
-    ccall((:nvmlDeviceGetNvLinkCapability, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, nvmlNvLinkCapability_t, Ptr{Cuint}), device, link,
-          capability, capResult)
+    @ccall (libnvml()).nvmlDeviceGetNvLinkCapability(device::nvmlDevice_t, link::Cuint,
+                                                     capability::nvmlNvLinkCapability_t,
+                                                     capResult::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetNvLinkErrorCounter(device, link, counter, counterValue)
     initialize_context()
-    ccall((:nvmlDeviceGetNvLinkErrorCounter, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, nvmlNvLinkErrorCounter_t, Ptr{Culonglong}), device, link,
-          counter, counterValue)
+    @ccall (libnvml()).nvmlDeviceGetNvLinkErrorCounter(device::nvmlDevice_t, link::Cuint,
+                                                       counter::nvmlNvLinkErrorCounter_t,
+                                                       counterValue::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceResetNvLinkErrorCounters(device, link)
     initialize_context()
-    ccall((:nvmlDeviceResetNvLinkErrorCounters, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint), device, link)
+    @ccall (libnvml()).nvmlDeviceResetNvLinkErrorCounters(device::nvmlDevice_t,
+                                                          link::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetNvLinkUtilizationControl(device, link, counter, control,
                                                         reset)
     initialize_context()
-    ccall((:nvmlDeviceSetNvLinkUtilizationControl, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Cuint, Ptr{nvmlNvLinkUtilizationControl_t}, Cuint), device,
-          link, counter, control, reset)
+    @ccall (libnvml()).nvmlDeviceSetNvLinkUtilizationControl(device::nvmlDevice_t,
+                                                             link::Cuint, counter::Cuint,
+                                                             control::Ptr{nvmlNvLinkUtilizationControl_t},
+                                                             reset::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetNvLinkUtilizationControl(device, link, counter, control)
     initialize_context()
-    ccall((:nvmlDeviceGetNvLinkUtilizationControl, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Cuint, Ptr{nvmlNvLinkUtilizationControl_t}), device, link,
-          counter, control)
+    @ccall (libnvml()).nvmlDeviceGetNvLinkUtilizationControl(device::nvmlDevice_t,
+                                                             link::Cuint, counter::Cuint,
+                                                             control::Ptr{nvmlNvLinkUtilizationControl_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetNvLinkUtilizationCounter(device, link, counter, rxcounter,
                                                         txcounter)
     initialize_context()
-    ccall((:nvmlDeviceGetNvLinkUtilizationCounter, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Cuint, Ptr{Culonglong}, Ptr{Culonglong}), device, link,
-          counter, rxcounter, txcounter)
+    @ccall (libnvml()).nvmlDeviceGetNvLinkUtilizationCounter(device::nvmlDevice_t,
+                                                             link::Cuint, counter::Cuint,
+                                                             rxcounter::Ptr{Culonglong},
+                                                             txcounter::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceFreezeNvLinkUtilizationCounter(device, link, counter, freeze)
     initialize_context()
-    ccall((:nvmlDeviceFreezeNvLinkUtilizationCounter, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Cuint, nvmlEnableState_t), device, link, counter, freeze)
+    @ccall (libnvml()).nvmlDeviceFreezeNvLinkUtilizationCounter(device::nvmlDevice_t,
+                                                                link::Cuint, counter::Cuint,
+                                                                freeze::nvmlEnableState_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceResetNvLinkUtilizationCounter(device, link, counter)
     initialize_context()
-    ccall((:nvmlDeviceResetNvLinkUtilizationCounter, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Cuint), device, link, counter)
+    @ccall (libnvml()).nvmlDeviceResetNvLinkUtilizationCounter(device::nvmlDevice_t,
+                                                               link::Cuint,
+                                                               counter::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetNvLinkRemoteDeviceType(device, link, pNvLinkDeviceType)
     initialize_context()
-    ccall((:nvmlDeviceGetNvLinkRemoteDeviceType, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlIntNvLinkDeviceType_t}), device, link,
-          pNvLinkDeviceType)
+    @ccall (libnvml()).nvmlDeviceGetNvLinkRemoteDeviceType(device::nvmlDevice_t,
+                                                           link::Cuint,
+                                                           pNvLinkDeviceType::Ptr{nvmlIntNvLinkDeviceType_t})::nvmlReturn_t
 end
 
 @checked function nvmlEventSetCreate(set)
     initialize_context()
-    ccall((:nvmlEventSetCreate, libnvml()), nvmlReturn_t, (Ptr{nvmlEventSet_t},), set)
+    @ccall (libnvml()).nvmlEventSetCreate(set::Ptr{nvmlEventSet_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceRegisterEvents(device, eventTypes, set)
     initialize_context()
-    ccall((:nvmlDeviceRegisterEvents, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Culonglong, nvmlEventSet_t), device, eventTypes, set)
+    @ccall (libnvml()).nvmlDeviceRegisterEvents(device::nvmlDevice_t,
+                                                eventTypes::Culonglong,
+                                                set::nvmlEventSet_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetSupportedEventTypes(device, eventTypes)
     initialize_context()
-    ccall((:nvmlDeviceGetSupportedEventTypes, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Culonglong}), device, eventTypes)
+    @ccall (libnvml()).nvmlDeviceGetSupportedEventTypes(device::nvmlDevice_t,
+                                                        eventTypes::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlEventSetFree(set)
     initialize_context()
-    ccall((:nvmlEventSetFree, libnvml()), nvmlReturn_t, (nvmlEventSet_t,), set)
+    @ccall (libnvml()).nvmlEventSetFree(set::nvmlEventSet_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceModifyDrainState(pciInfo, newState)
     initialize_context()
-    ccall((:nvmlDeviceModifyDrainState, libnvml()), nvmlReturn_t,
-          (Ptr{nvmlPciInfo_t}, nvmlEnableState_t), pciInfo, newState)
+    @ccall (libnvml()).nvmlDeviceModifyDrainState(pciInfo::Ptr{nvmlPciInfo_t},
+                                                  newState::nvmlEnableState_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceQueryDrainState(pciInfo, currentState)
     initialize_context()
-    ccall((:nvmlDeviceQueryDrainState, libnvml()), nvmlReturn_t,
-          (Ptr{nvmlPciInfo_t}, Ptr{nvmlEnableState_t}), pciInfo, currentState)
+    @ccall (libnvml()).nvmlDeviceQueryDrainState(pciInfo::Ptr{nvmlPciInfo_t},
+                                                 currentState::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceDiscoverGpus(pciInfo)
     initialize_context()
-    ccall((:nvmlDeviceDiscoverGpus, libnvml()), nvmlReturn_t, (Ptr{nvmlPciInfo_t},),
-          pciInfo)
+    @ccall (libnvml()).nvmlDeviceDiscoverGpus(pciInfo::Ptr{nvmlPciInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetFieldValues(device, valuesCount, values)
     initialize_context()
-    ccall((:nvmlDeviceGetFieldValues, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cint, Ptr{nvmlFieldValue_t}), device, valuesCount, values)
+    @ccall (libnvml()).nvmlDeviceGetFieldValues(device::nvmlDevice_t, valuesCount::Cint,
+                                                values::Ptr{nvmlFieldValue_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetVirtualizationMode(device, pVirtualMode)
     initialize_context()
-    ccall((:nvmlDeviceGetVirtualizationMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlGpuVirtualizationMode_t}), device, pVirtualMode)
+    @ccall (libnvml()).nvmlDeviceGetVirtualizationMode(device::nvmlDevice_t,
+                                                       pVirtualMode::Ptr{nvmlGpuVirtualizationMode_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetHostVgpuMode(device, pHostVgpuMode)
     initialize_context()
-    ccall((:nvmlDeviceGetHostVgpuMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlHostVgpuMode_t}), device, pHostVgpuMode)
+    @ccall (libnvml()).nvmlDeviceGetHostVgpuMode(device::nvmlDevice_t,
+                                                 pHostVgpuMode::Ptr{nvmlHostVgpuMode_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetVirtualizationMode(device, virtualMode)
     initialize_context()
-    ccall((:nvmlDeviceSetVirtualizationMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlGpuVirtualizationMode_t), device, virtualMode)
+    @ccall (libnvml()).nvmlDeviceSetVirtualizationMode(device::nvmlDevice_t,
+                                                       virtualMode::nvmlGpuVirtualizationMode_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetProcessUtilization(device, utilization, processSamplesCount,
                                                   lastSeenTimeStamp)
     initialize_context()
-    ccall((:nvmlDeviceGetProcessUtilization, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlProcessUtilizationSample_t}, Ptr{Cuint}, Culonglong),
-          device, utilization, processSamplesCount, lastSeenTimeStamp)
+    @ccall (libnvml()).nvmlDeviceGetProcessUtilization(device::nvmlDevice_t,
+                                                       utilization::Ptr{nvmlProcessUtilizationSample_t},
+                                                       processSamplesCount::Ptr{Cuint},
+                                                       lastSeenTimeStamp::Culonglong)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGspFirmwareVersion(device, version)
     initialize_context()
-    ccall((:nvmlDeviceGetGspFirmwareVersion, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cstring), device, version)
+    @ccall (libnvml()).nvmlDeviceGetGspFirmwareVersion(device::nvmlDevice_t,
+                                                       version::Cstring)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGspFirmwareMode(device, isEnabled, defaultMode)
     initialize_context()
-    ccall((:nvmlDeviceGetGspFirmwareMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{Cuint}), device, isEnabled, defaultMode)
+    @ccall (libnvml()).nvmlDeviceGetGspFirmwareMode(device::nvmlDevice_t,
+                                                    isEnabled::Ptr{Cuint},
+                                                    defaultMode::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetSupportedVgpus(device, vgpuCount, vgpuTypeIds)
     initialize_context()
-    ccall((:nvmlDeviceGetSupportedVgpus, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{nvmlVgpuTypeId_t}), device, vgpuCount, vgpuTypeIds)
+    @ccall (libnvml()).nvmlDeviceGetSupportedVgpus(device::nvmlDevice_t,
+                                                   vgpuCount::Ptr{Cuint},
+                                                   vgpuTypeIds::Ptr{nvmlVgpuTypeId_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetCreatableVgpus(device, vgpuCount, vgpuTypeIds)
     initialize_context()
-    ccall((:nvmlDeviceGetCreatableVgpus, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{nvmlVgpuTypeId_t}), device, vgpuCount, vgpuTypeIds)
+    @ccall (libnvml()).nvmlDeviceGetCreatableVgpus(device::nvmlDevice_t,
+                                                   vgpuCount::Ptr{Cuint},
+                                                   vgpuTypeIds::Ptr{nvmlVgpuTypeId_t})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuTypeGetClass(vgpuTypeId, vgpuTypeClass, size)
     initialize_context()
-    ccall((:nvmlVgpuTypeGetClass, libnvml()), nvmlReturn_t,
-          (nvmlVgpuTypeId_t, Cstring, Ptr{Cuint}), vgpuTypeId, vgpuTypeClass, size)
+    @ccall (libnvml()).nvmlVgpuTypeGetClass(vgpuTypeId::nvmlVgpuTypeId_t,
+                                            vgpuTypeClass::Cstring,
+                                            size::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuTypeGetName(vgpuTypeId, vgpuTypeName, size)
     initialize_context()
-    ccall((:nvmlVgpuTypeGetName, libnvml()), nvmlReturn_t,
-          (nvmlVgpuTypeId_t, Cstring, Ptr{Cuint}), vgpuTypeId, vgpuTypeName, size)
+    @ccall (libnvml()).nvmlVgpuTypeGetName(vgpuTypeId::nvmlVgpuTypeId_t,
+                                           vgpuTypeName::Cstring,
+                                           size::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuTypeGetGpuInstanceProfileId(vgpuTypeId, gpuInstanceProfileId)
     initialize_context()
-    ccall((:nvmlVgpuTypeGetGpuInstanceProfileId, libnvml()), nvmlReturn_t,
-          (nvmlVgpuTypeId_t, Ptr{Cuint}), vgpuTypeId, gpuInstanceProfileId)
+    @ccall (libnvml()).nvmlVgpuTypeGetGpuInstanceProfileId(vgpuTypeId::nvmlVgpuTypeId_t,
+                                                           gpuInstanceProfileId::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuTypeGetDeviceID(vgpuTypeId, deviceID, subsystemID)
     initialize_context()
-    ccall((:nvmlVgpuTypeGetDeviceID, libnvml()), nvmlReturn_t,
-          (nvmlVgpuTypeId_t, Ptr{Culonglong}, Ptr{Culonglong}), vgpuTypeId, deviceID,
-          subsystemID)
+    @ccall (libnvml()).nvmlVgpuTypeGetDeviceID(vgpuTypeId::nvmlVgpuTypeId_t,
+                                               deviceID::Ptr{Culonglong},
+                                               subsystemID::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuTypeGetFramebufferSize(vgpuTypeId, fbSize)
     initialize_context()
-    ccall((:nvmlVgpuTypeGetFramebufferSize, libnvml()), nvmlReturn_t,
-          (nvmlVgpuTypeId_t, Ptr{Culonglong}), vgpuTypeId, fbSize)
+    @ccall (libnvml()).nvmlVgpuTypeGetFramebufferSize(vgpuTypeId::nvmlVgpuTypeId_t,
+                                                      fbSize::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuTypeGetNumDisplayHeads(vgpuTypeId, numDisplayHeads)
     initialize_context()
-    ccall((:nvmlVgpuTypeGetNumDisplayHeads, libnvml()), nvmlReturn_t,
-          (nvmlVgpuTypeId_t, Ptr{Cuint}), vgpuTypeId, numDisplayHeads)
+    @ccall (libnvml()).nvmlVgpuTypeGetNumDisplayHeads(vgpuTypeId::nvmlVgpuTypeId_t,
+                                                      numDisplayHeads::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuTypeGetResolution(vgpuTypeId, displayIndex, xdim, ydim)
     initialize_context()
-    ccall((:nvmlVgpuTypeGetResolution, libnvml()), nvmlReturn_t,
-          (nvmlVgpuTypeId_t, Cuint, Ptr{Cuint}, Ptr{Cuint}), vgpuTypeId, displayIndex, xdim,
-          ydim)
+    @ccall (libnvml()).nvmlVgpuTypeGetResolution(vgpuTypeId::nvmlVgpuTypeId_t,
+                                                 displayIndex::Cuint, xdim::Ptr{Cuint},
+                                                 ydim::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuTypeGetLicense(vgpuTypeId, vgpuTypeLicenseString, size)
     initialize_context()
-    ccall((:nvmlVgpuTypeGetLicense, libnvml()), nvmlReturn_t,
-          (nvmlVgpuTypeId_t, Cstring, Cuint), vgpuTypeId, vgpuTypeLicenseString, size)
+    @ccall (libnvml()).nvmlVgpuTypeGetLicense(vgpuTypeId::nvmlVgpuTypeId_t,
+                                              vgpuTypeLicenseString::Cstring,
+                                              size::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlVgpuTypeGetFrameRateLimit(vgpuTypeId, frameRateLimit)
     initialize_context()
-    ccall((:nvmlVgpuTypeGetFrameRateLimit, libnvml()), nvmlReturn_t,
-          (nvmlVgpuTypeId_t, Ptr{Cuint}), vgpuTypeId, frameRateLimit)
+    @ccall (libnvml()).nvmlVgpuTypeGetFrameRateLimit(vgpuTypeId::nvmlVgpuTypeId_t,
+                                                     frameRateLimit::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuTypeGetMaxInstances(device, vgpuTypeId, vgpuInstanceCount)
     initialize_context()
-    ccall((:nvmlVgpuTypeGetMaxInstances, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlVgpuTypeId_t, Ptr{Cuint}), device, vgpuTypeId,
-          vgpuInstanceCount)
+    @ccall (libnvml()).nvmlVgpuTypeGetMaxInstances(device::nvmlDevice_t,
+                                                   vgpuTypeId::nvmlVgpuTypeId_t,
+                                                   vgpuInstanceCount::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuTypeGetMaxInstancesPerVm(vgpuTypeId, vgpuInstanceCountPerVm)
     initialize_context()
-    ccall((:nvmlVgpuTypeGetMaxInstancesPerVm, libnvml()), nvmlReturn_t,
-          (nvmlVgpuTypeId_t, Ptr{Cuint}), vgpuTypeId, vgpuInstanceCountPerVm)
+    @ccall (libnvml()).nvmlVgpuTypeGetMaxInstancesPerVm(vgpuTypeId::nvmlVgpuTypeId_t,
+                                                        vgpuInstanceCountPerVm::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetActiveVgpus(device, vgpuCount, vgpuInstances)
     initialize_context()
-    ccall((:nvmlDeviceGetActiveVgpus, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{nvmlVgpuInstance_t}), device, vgpuCount,
-          vgpuInstances)
+    @ccall (libnvml()).nvmlDeviceGetActiveVgpus(device::nvmlDevice_t, vgpuCount::Ptr{Cuint},
+                                                vgpuInstances::Ptr{nvmlVgpuInstance_t})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetVmID(vgpuInstance, vmId, size, vmIdType)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetVmID, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Cstring, Cuint, Ptr{nvmlVgpuVmIdType_t}), vgpuInstance, vmId,
-          size, vmIdType)
+    @ccall (libnvml()).nvmlVgpuInstanceGetVmID(vgpuInstance::nvmlVgpuInstance_t,
+                                               vmId::Cstring, size::Cuint,
+                                               vmIdType::Ptr{nvmlVgpuVmIdType_t})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetUUID(vgpuInstance, uuid, size)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetUUID, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Cstring, Cuint), vgpuInstance, uuid, size)
+    @ccall (libnvml()).nvmlVgpuInstanceGetUUID(vgpuInstance::nvmlVgpuInstance_t,
+                                               uuid::Cstring, size::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetVmDriverVersion(vgpuInstance, version, length)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetVmDriverVersion, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Cstring, Cuint), vgpuInstance, version, length)
+    @ccall (libnvml()).nvmlVgpuInstanceGetVmDriverVersion(vgpuInstance::nvmlVgpuInstance_t,
+                                                          version::Cstring,
+                                                          length::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetFbUsage(vgpuInstance, fbUsage)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetFbUsage, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{Culonglong}), vgpuInstance, fbUsage)
+    @ccall (libnvml()).nvmlVgpuInstanceGetFbUsage(vgpuInstance::nvmlVgpuInstance_t,
+                                                  fbUsage::Ptr{Culonglong})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetLicenseStatus(vgpuInstance, licensed)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetLicenseStatus, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{Cuint}), vgpuInstance, licensed)
+    @ccall (libnvml()).nvmlVgpuInstanceGetLicenseStatus(vgpuInstance::nvmlVgpuInstance_t,
+                                                        licensed::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetType(vgpuInstance, vgpuTypeId)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetType, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{nvmlVgpuTypeId_t}), vgpuInstance, vgpuTypeId)
+    @ccall (libnvml()).nvmlVgpuInstanceGetType(vgpuInstance::nvmlVgpuInstance_t,
+                                               vgpuTypeId::Ptr{nvmlVgpuTypeId_t})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetFrameRateLimit(vgpuInstance, frameRateLimit)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetFrameRateLimit, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{Cuint}), vgpuInstance, frameRateLimit)
+    @ccall (libnvml()).nvmlVgpuInstanceGetFrameRateLimit(vgpuInstance::nvmlVgpuInstance_t,
+                                                         frameRateLimit::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetEccMode(vgpuInstance, eccMode)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetEccMode, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{nvmlEnableState_t}), vgpuInstance, eccMode)
+    @ccall (libnvml()).nvmlVgpuInstanceGetEccMode(vgpuInstance::nvmlVgpuInstance_t,
+                                                  eccMode::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetEncoderCapacity(vgpuInstance, encoderCapacity)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetEncoderCapacity, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{Cuint}), vgpuInstance, encoderCapacity)
+    @ccall (libnvml()).nvmlVgpuInstanceGetEncoderCapacity(vgpuInstance::nvmlVgpuInstance_t,
+                                                          encoderCapacity::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceSetEncoderCapacity(vgpuInstance, encoderCapacity)
     initialize_context()
-    ccall((:nvmlVgpuInstanceSetEncoderCapacity, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Cuint), vgpuInstance, encoderCapacity)
+    @ccall (libnvml()).nvmlVgpuInstanceSetEncoderCapacity(vgpuInstance::nvmlVgpuInstance_t,
+                                                          encoderCapacity::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetEncoderStats(vgpuInstance, sessionCount, averageFps,
                                                   averageLatency)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetEncoderStats, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{Cuint}, Ptr{Cuint}, Ptr{Cuint}), vgpuInstance,
-          sessionCount, averageFps, averageLatency)
+    @ccall (libnvml()).nvmlVgpuInstanceGetEncoderStats(vgpuInstance::nvmlVgpuInstance_t,
+                                                       sessionCount::Ptr{Cuint},
+                                                       averageFps::Ptr{Cuint},
+                                                       averageLatency::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetEncoderSessions(vgpuInstance, sessionCount,
                                                      sessionInfo)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetEncoderSessions, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{Cuint}, Ptr{nvmlEncoderSessionInfo_t}), vgpuInstance,
-          sessionCount, sessionInfo)
+    @ccall (libnvml()).nvmlVgpuInstanceGetEncoderSessions(vgpuInstance::nvmlVgpuInstance_t,
+                                                          sessionCount::Ptr{Cuint},
+                                                          sessionInfo::Ptr{nvmlEncoderSessionInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetFBCStats(vgpuInstance, fbcStats)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetFBCStats, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{nvmlFBCStats_t}), vgpuInstance, fbcStats)
+    @ccall (libnvml()).nvmlVgpuInstanceGetFBCStats(vgpuInstance::nvmlVgpuInstance_t,
+                                                   fbcStats::Ptr{nvmlFBCStats_t})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetFBCSessions(vgpuInstance, sessionCount, sessionInfo)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetFBCSessions, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{Cuint}, Ptr{nvmlFBCSessionInfo_t}), vgpuInstance,
-          sessionCount, sessionInfo)
+    @ccall (libnvml()).nvmlVgpuInstanceGetFBCSessions(vgpuInstance::nvmlVgpuInstance_t,
+                                                      sessionCount::Ptr{Cuint},
+                                                      sessionInfo::Ptr{nvmlFBCSessionInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetGpuInstanceId(vgpuInstance, gpuInstanceId)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetGpuInstanceId, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{Cuint}), vgpuInstance, gpuInstanceId)
+    @ccall (libnvml()).nvmlVgpuInstanceGetGpuInstanceId(vgpuInstance::nvmlVgpuInstance_t,
+                                                        gpuInstanceId::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetGpuPciId(vgpuInstance, vgpuPciId, length)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetGpuPciId, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Cstring, Ptr{Cuint}), vgpuInstance, vgpuPciId, length)
+    @ccall (libnvml()).nvmlVgpuInstanceGetGpuPciId(vgpuInstance::nvmlVgpuInstance_t,
+                                                   vgpuPciId::Cstring,
+                                                   length::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuTypeGetCapabilities(vgpuTypeId, capability, capResult)
     initialize_context()
-    ccall((:nvmlVgpuTypeGetCapabilities, libnvml()), nvmlReturn_t,
-          (nvmlVgpuTypeId_t, nvmlVgpuCapability_t, Ptr{Cuint}), vgpuTypeId, capability,
-          capResult)
+    @ccall (libnvml()).nvmlVgpuTypeGetCapabilities(vgpuTypeId::nvmlVgpuTypeId_t,
+                                                   capability::nvmlVgpuCapability_t,
+                                                   capResult::Ptr{Cuint})::nvmlReturn_t
 end
 
 struct nvmlVgpuVersion_st
@@ -2502,83 +2545,86 @@ const nvmlVgpuPgpuCompatibility_t = nvmlVgpuPgpuCompatibility_st
 
 @checked function nvmlVgpuInstanceGetMetadata(vgpuInstance, vgpuMetadata, bufferSize)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetMetadata, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{nvmlVgpuMetadata_t}, Ptr{Cuint}), vgpuInstance,
-          vgpuMetadata, bufferSize)
+    @ccall (libnvml()).nvmlVgpuInstanceGetMetadata(vgpuInstance::nvmlVgpuInstance_t,
+                                                   vgpuMetadata::Ptr{nvmlVgpuMetadata_t},
+                                                   bufferSize::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetVgpuMetadata(device, pgpuMetadata, bufferSize)
     initialize_context()
-    ccall((:nvmlDeviceGetVgpuMetadata, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlVgpuPgpuMetadata_t}, Ptr{Cuint}), device, pgpuMetadata,
-          bufferSize)
+    @ccall (libnvml()).nvmlDeviceGetVgpuMetadata(device::nvmlDevice_t,
+                                                 pgpuMetadata::Ptr{nvmlVgpuPgpuMetadata_t},
+                                                 bufferSize::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlGetVgpuCompatibility(vgpuMetadata, pgpuMetadata, compatibilityInfo)
     initialize_context()
-    ccall((:nvmlGetVgpuCompatibility, libnvml()), nvmlReturn_t,
-          (Ptr{nvmlVgpuMetadata_t}, Ptr{nvmlVgpuPgpuMetadata_t},
-           Ptr{nvmlVgpuPgpuCompatibility_t}), vgpuMetadata, pgpuMetadata, compatibilityInfo)
+    @ccall (libnvml()).nvmlGetVgpuCompatibility(vgpuMetadata::Ptr{nvmlVgpuMetadata_t},
+                                                pgpuMetadata::Ptr{nvmlVgpuPgpuMetadata_t},
+                                                compatibilityInfo::Ptr{nvmlVgpuPgpuCompatibility_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetPgpuMetadataString(device, pgpuMetadata, bufferSize)
     initialize_context()
-    ccall((:nvmlDeviceGetPgpuMetadataString, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cstring, Ptr{Cuint}), device, pgpuMetadata, bufferSize)
+    @ccall (libnvml()).nvmlDeviceGetPgpuMetadataString(device::nvmlDevice_t,
+                                                       pgpuMetadata::Cstring,
+                                                       bufferSize::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlGetVgpuVersion(supported, current)
     initialize_context()
-    ccall((:nvmlGetVgpuVersion, libnvml()), nvmlReturn_t,
-          (Ptr{nvmlVgpuVersion_t}, Ptr{nvmlVgpuVersion_t}), supported, current)
+    @ccall (libnvml()).nvmlGetVgpuVersion(supported::Ptr{nvmlVgpuVersion_t},
+                                          current::Ptr{nvmlVgpuVersion_t})::nvmlReturn_t
 end
 
 @checked function nvmlSetVgpuVersion(vgpuVersion)
     initialize_context()
-    ccall((:nvmlSetVgpuVersion, libnvml()), nvmlReturn_t, (Ptr{nvmlVgpuVersion_t},),
-          vgpuVersion)
+    @ccall (libnvml()).nvmlSetVgpuVersion(vgpuVersion::Ptr{nvmlVgpuVersion_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetVgpuUtilization(device, lastSeenTimeStamp, sampleValType,
                                                vgpuInstanceSamplesCount, utilizationSamples)
     initialize_context()
-    ccall((:nvmlDeviceGetVgpuUtilization, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Culonglong, Ptr{nvmlValueType_t}, Ptr{Cuint},
-           Ptr{nvmlVgpuInstanceUtilizationSample_t}), device, lastSeenTimeStamp,
-          sampleValType, vgpuInstanceSamplesCount, utilizationSamples)
+    @ccall (libnvml()).nvmlDeviceGetVgpuUtilization(device::nvmlDevice_t,
+                                                    lastSeenTimeStamp::Culonglong,
+                                                    sampleValType::Ptr{nvmlValueType_t},
+                                                    vgpuInstanceSamplesCount::Ptr{Cuint},
+                                                    utilizationSamples::Ptr{nvmlVgpuInstanceUtilizationSample_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetVgpuProcessUtilization(device, lastSeenTimeStamp,
                                                       vgpuProcessSamplesCount,
                                                       utilizationSamples)
     initialize_context()
-    ccall((:nvmlDeviceGetVgpuProcessUtilization, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Culonglong, Ptr{Cuint}, Ptr{nvmlVgpuProcessUtilizationSample_t}),
-          device, lastSeenTimeStamp, vgpuProcessSamplesCount, utilizationSamples)
+    @ccall (libnvml()).nvmlDeviceGetVgpuProcessUtilization(device::nvmlDevice_t,
+                                                           lastSeenTimeStamp::Culonglong,
+                                                           vgpuProcessSamplesCount::Ptr{Cuint},
+                                                           utilizationSamples::Ptr{nvmlVgpuProcessUtilizationSample_t})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetAccountingMode(vgpuInstance, mode)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetAccountingMode, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{nvmlEnableState_t}), vgpuInstance, mode)
+    @ccall (libnvml()).nvmlVgpuInstanceGetAccountingMode(vgpuInstance::nvmlVgpuInstance_t,
+                                                         mode::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetAccountingPids(vgpuInstance, count, pids)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetAccountingPids, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Ptr{Cuint}, Ptr{Cuint}), vgpuInstance, count, pids)
+    @ccall (libnvml()).nvmlVgpuInstanceGetAccountingPids(vgpuInstance::nvmlVgpuInstance_t,
+                                                         count::Ptr{Cuint},
+                                                         pids::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetAccountingStats(vgpuInstance, pid, stats)
     initialize_context()
-    ccall((:nvmlVgpuInstanceGetAccountingStats, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t, Cuint, Ptr{nvmlAccountingStats_t}), vgpuInstance, pid, stats)
+    @ccall (libnvml()).nvmlVgpuInstanceGetAccountingStats(vgpuInstance::nvmlVgpuInstance_t,
+                                                          pid::Cuint,
+                                                          stats::Ptr{nvmlAccountingStats_t})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceClearAccountingPids(vgpuInstance)
     initialize_context()
-    ccall((:nvmlVgpuInstanceClearAccountingPids, libnvml()), nvmlReturn_t,
-          (nvmlVgpuInstance_t,), vgpuInstance)
+    @ccall (libnvml()).nvmlVgpuInstanceClearAccountingPids(vgpuInstance::nvmlVgpuInstance_t)::nvmlReturn_t
 end
 
 struct nvmlGpuInstanceProfileInfo_st
@@ -2656,228 +2702,239 @@ const nvmlComputeInstanceProfileInfo_v2_t = nvmlComputeInstanceProfileInfo_v2_st
 
 @checked function nvmlDeviceSetMigMode(device, mode, activationStatus)
     initialize_context()
-    ccall((:nvmlDeviceSetMigMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlReturn_t}), device, mode, activationStatus)
+    @ccall (libnvml()).nvmlDeviceSetMigMode(device::nvmlDevice_t, mode::Cuint,
+                                            activationStatus::Ptr{nvmlReturn_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMigMode(device, currentMode, pendingMode)
     initialize_context()
-    ccall((:nvmlDeviceGetMigMode, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}, Ptr{Cuint}), device, currentMode, pendingMode)
+    @ccall (libnvml()).nvmlDeviceGetMigMode(device::nvmlDevice_t, currentMode::Ptr{Cuint},
+                                            pendingMode::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGpuInstanceProfileInfo(device, profile, info)
     initialize_context()
-    ccall((:nvmlDeviceGetGpuInstanceProfileInfo, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlGpuInstanceProfileInfo_t}), device, profile, info)
+    @ccall (libnvml()).nvmlDeviceGetGpuInstanceProfileInfo(device::nvmlDevice_t,
+                                                           profile::Cuint,
+                                                           info::Ptr{nvmlGpuInstanceProfileInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGpuInstanceProfileInfoV(device, profile, info)
     initialize_context()
-    ccall((:nvmlDeviceGetGpuInstanceProfileInfoV, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlGpuInstanceProfileInfo_v2_t}), device, profile,
-          info)
+    @ccall (libnvml()).nvmlDeviceGetGpuInstanceProfileInfoV(device::nvmlDevice_t,
+                                                            profile::Cuint,
+                                                            info::Ptr{nvmlGpuInstanceProfileInfo_v2_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGpuInstanceRemainingCapacity(device, profileId, count)
     initialize_context()
-    ccall((:nvmlDeviceGetGpuInstanceRemainingCapacity, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{Cuint}), device, profileId, count)
+    @ccall (libnvml()).nvmlDeviceGetGpuInstanceRemainingCapacity(device::nvmlDevice_t,
+                                                                 profileId::Cuint,
+                                                                 count::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceCreateGpuInstance(device, profileId, gpuInstance)
     initialize_context()
-    ccall((:nvmlDeviceCreateGpuInstance, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlGpuInstance_t}), device, profileId, gpuInstance)
+    @ccall (libnvml()).nvmlDeviceCreateGpuInstance(device::nvmlDevice_t, profileId::Cuint,
+                                                   gpuInstance::Ptr{nvmlGpuInstance_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceCreateGpuInstanceWithPlacement(device, profileId, placement,
                                                            gpuInstance)
     initialize_context()
-    ccall((:nvmlDeviceCreateGpuInstanceWithPlacement, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlGpuInstancePlacement_t}, Ptr{nvmlGpuInstance_t}),
-          device, profileId, placement, gpuInstance)
+    @ccall (libnvml()).nvmlDeviceCreateGpuInstanceWithPlacement(device::nvmlDevice_t,
+                                                                profileId::Cuint,
+                                                                placement::Ptr{nvmlGpuInstancePlacement_t},
+                                                                gpuInstance::Ptr{nvmlGpuInstance_t})::nvmlReturn_t
 end
 
 @checked function nvmlGpuInstanceDestroy(gpuInstance)
     initialize_context()
-    ccall((:nvmlGpuInstanceDestroy, libnvml()), nvmlReturn_t, (nvmlGpuInstance_t,),
-          gpuInstance)
+    @ccall (libnvml()).nvmlGpuInstanceDestroy(gpuInstance::nvmlGpuInstance_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGpuInstances(device, profileId, gpuInstances, count)
     initialize_context()
-    ccall((:nvmlDeviceGetGpuInstances, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlGpuInstance_t}, Ptr{Cuint}), device, profileId,
-          gpuInstances, count)
+    @ccall (libnvml()).nvmlDeviceGetGpuInstances(device::nvmlDevice_t, profileId::Cuint,
+                                                 gpuInstances::Ptr{nvmlGpuInstance_t},
+                                                 count::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGpuInstanceById(device, id, gpuInstance)
     initialize_context()
-    ccall((:nvmlDeviceGetGpuInstanceById, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlGpuInstance_t}), device, id, gpuInstance)
+    @ccall (libnvml()).nvmlDeviceGetGpuInstanceById(device::nvmlDevice_t, id::Cuint,
+                                                    gpuInstance::Ptr{nvmlGpuInstance_t})::nvmlReturn_t
 end
 
 @checked function nvmlGpuInstanceGetInfo(gpuInstance, info)
     initialize_context()
-    ccall((:nvmlGpuInstanceGetInfo, libnvml()), nvmlReturn_t,
-          (nvmlGpuInstance_t, Ptr{nvmlGpuInstanceInfo_t}), gpuInstance, info)
+    @ccall (libnvml()).nvmlGpuInstanceGetInfo(gpuInstance::nvmlGpuInstance_t,
+                                              info::Ptr{nvmlGpuInstanceInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlGpuInstanceGetComputeInstanceProfileInfo(gpuInstance, profile,
                                                                engProfile, info)
     initialize_context()
-    ccall((:nvmlGpuInstanceGetComputeInstanceProfileInfo, libnvml()), nvmlReturn_t,
-          (nvmlGpuInstance_t, Cuint, Cuint, Ptr{nvmlComputeInstanceProfileInfo_t}),
-          gpuInstance, profile, engProfile, info)
+    @ccall (libnvml()).nvmlGpuInstanceGetComputeInstanceProfileInfo(gpuInstance::nvmlGpuInstance_t,
+                                                                    profile::Cuint,
+                                                                    engProfile::Cuint,
+                                                                    info::Ptr{nvmlComputeInstanceProfileInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlGpuInstanceGetComputeInstanceProfileInfoV(gpuInstance, profile,
                                                                 engProfile, info)
     initialize_context()
-    ccall((:nvmlGpuInstanceGetComputeInstanceProfileInfoV, libnvml()), nvmlReturn_t,
-          (nvmlGpuInstance_t, Cuint, Cuint, Ptr{nvmlComputeInstanceProfileInfo_v2_t}),
-          gpuInstance, profile, engProfile, info)
+    @ccall (libnvml()).nvmlGpuInstanceGetComputeInstanceProfileInfoV(gpuInstance::nvmlGpuInstance_t,
+                                                                     profile::Cuint,
+                                                                     engProfile::Cuint,
+                                                                     info::Ptr{nvmlComputeInstanceProfileInfo_v2_t})::nvmlReturn_t
 end
 
 @checked function nvmlGpuInstanceGetComputeInstanceRemainingCapacity(gpuInstance, profileId,
                                                                      count)
     initialize_context()
-    ccall((:nvmlGpuInstanceGetComputeInstanceRemainingCapacity, libnvml()), nvmlReturn_t,
-          (nvmlGpuInstance_t, Cuint, Ptr{Cuint}), gpuInstance, profileId, count)
+    @ccall (libnvml()).nvmlGpuInstanceGetComputeInstanceRemainingCapacity(gpuInstance::nvmlGpuInstance_t,
+                                                                          profileId::Cuint,
+                                                                          count::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlGpuInstanceCreateComputeInstance(gpuInstance, profileId,
                                                        computeInstance)
     initialize_context()
-    ccall((:nvmlGpuInstanceCreateComputeInstance, libnvml()), nvmlReturn_t,
-          (nvmlGpuInstance_t, Cuint, Ptr{nvmlComputeInstance_t}), gpuInstance, profileId,
-          computeInstance)
+    @ccall (libnvml()).nvmlGpuInstanceCreateComputeInstance(gpuInstance::nvmlGpuInstance_t,
+                                                            profileId::Cuint,
+                                                            computeInstance::Ptr{nvmlComputeInstance_t})::nvmlReturn_t
 end
 
 @checked function nvmlComputeInstanceDestroy(computeInstance)
     initialize_context()
-    ccall((:nvmlComputeInstanceDestroy, libnvml()), nvmlReturn_t, (nvmlComputeInstance_t,),
-          computeInstance)
+    @ccall (libnvml()).nvmlComputeInstanceDestroy(computeInstance::nvmlComputeInstance_t)::nvmlReturn_t
 end
 
 @checked function nvmlGpuInstanceGetComputeInstances(gpuInstance, profileId,
                                                      computeInstances, count)
     initialize_context()
-    ccall((:nvmlGpuInstanceGetComputeInstances, libnvml()), nvmlReturn_t,
-          (nvmlGpuInstance_t, Cuint, Ptr{nvmlComputeInstance_t}, Ptr{Cuint}), gpuInstance,
-          profileId, computeInstances, count)
+    @ccall (libnvml()).nvmlGpuInstanceGetComputeInstances(gpuInstance::nvmlGpuInstance_t,
+                                                          profileId::Cuint,
+                                                          computeInstances::Ptr{nvmlComputeInstance_t},
+                                                          count::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlGpuInstanceGetComputeInstanceById(gpuInstance, id, computeInstance)
     initialize_context()
-    ccall((:nvmlGpuInstanceGetComputeInstanceById, libnvml()), nvmlReturn_t,
-          (nvmlGpuInstance_t, Cuint, Ptr{nvmlComputeInstance_t}), gpuInstance, id,
-          computeInstance)
+    @ccall (libnvml()).nvmlGpuInstanceGetComputeInstanceById(gpuInstance::nvmlGpuInstance_t,
+                                                             id::Cuint,
+                                                             computeInstance::Ptr{nvmlComputeInstance_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceIsMigDeviceHandle(device, isMigDevice)
     initialize_context()
-    ccall((:nvmlDeviceIsMigDeviceHandle, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, isMigDevice)
+    @ccall (libnvml()).nvmlDeviceIsMigDeviceHandle(device::nvmlDevice_t,
+                                                   isMigDevice::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGpuInstanceId(device, id)
     initialize_context()
-    ccall((:nvmlDeviceGetGpuInstanceId, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, id)
+    @ccall (libnvml()).nvmlDeviceGetGpuInstanceId(device::nvmlDevice_t,
+                                                  id::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetComputeInstanceId(device, id)
     initialize_context()
-    ccall((:nvmlDeviceGetComputeInstanceId, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, id)
+    @ccall (libnvml()).nvmlDeviceGetComputeInstanceId(device::nvmlDevice_t,
+                                                      id::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMaxMigDeviceCount(device, count)
     initialize_context()
-    ccall((:nvmlDeviceGetMaxMigDeviceCount, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cuint}), device, count)
+    @ccall (libnvml()).nvmlDeviceGetMaxMigDeviceCount(device::nvmlDevice_t,
+                                                      count::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMigDeviceHandleByIndex(device, index, migDevice)
     initialize_context()
-    ccall((:nvmlDeviceGetMigDeviceHandleByIndex, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Ptr{nvmlDevice_t}), device, index, migDevice)
+    @ccall (libnvml()).nvmlDeviceGetMigDeviceHandleByIndex(device::nvmlDevice_t,
+                                                           index::Cuint,
+                                                           migDevice::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetDeviceHandleFromMigDeviceHandle(migDevice, device)
     initialize_context()
-    ccall((:nvmlDeviceGetDeviceHandleFromMigDeviceHandle, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlDevice_t}), migDevice, device)
+    @ccall (libnvml()).nvmlDeviceGetDeviceHandleFromMigDeviceHandle(migDevice::nvmlDevice_t,
+                                                                    device::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetBusType(device, type)
     initialize_context()
-    ccall((:nvmlDeviceGetBusType, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlBusType_t}), device, type)
+    @ccall (libnvml()).nvmlDeviceGetBusType(device::nvmlDevice_t,
+                                            type::Ptr{nvmlBusType_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetDynamicPstatesInfo(device, pDynamicPstatesInfo)
     initialize_context()
-    ccall((:nvmlDeviceGetDynamicPstatesInfo, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlGpuDynamicPstatesInfo_t}), device, pDynamicPstatesInfo)
+    @ccall (libnvml()).nvmlDeviceGetDynamicPstatesInfo(device::nvmlDevice_t,
+                                                       pDynamicPstatesInfo::Ptr{nvmlGpuDynamicPstatesInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetFanSpeed_v2(device, fan, speed)
     initialize_context()
-    ccall((:nvmlDeviceSetFanSpeed_v2, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Cuint, Cuint), device, fan, speed)
+    @ccall (libnvml()).nvmlDeviceSetFanSpeed_v2(device::nvmlDevice_t, fan::Cuint,
+                                                speed::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGpcClkVfOffset(device, offset)
     initialize_context()
-    ccall((:nvmlDeviceGetGpcClkVfOffset, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cint}), device, offset)
+    @ccall (libnvml()).nvmlDeviceGetGpcClkVfOffset(device::nvmlDevice_t,
+                                                   offset::Ptr{Cint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetGpcClkVfOffset(device, offset)
     initialize_context()
-    ccall((:nvmlDeviceSetGpcClkVfOffset, libnvml()), nvmlReturn_t, (nvmlDevice_t, Cint),
-          device, offset)
+    @ccall (libnvml()).nvmlDeviceSetGpcClkVfOffset(device::nvmlDevice_t,
+                                                   offset::Cint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMemClkVfOffset(device, offset)
     initialize_context()
-    ccall((:nvmlDeviceGetMemClkVfOffset, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cint}), device, offset)
+    @ccall (libnvml()).nvmlDeviceGetMemClkVfOffset(device::nvmlDevice_t,
+                                                   offset::Ptr{Cint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetMemClkVfOffset(device, offset)
     initialize_context()
-    ccall((:nvmlDeviceSetMemClkVfOffset, libnvml()), nvmlReturn_t, (nvmlDevice_t, Cint),
-          device, offset)
+    @ccall (libnvml()).nvmlDeviceSetMemClkVfOffset(device::nvmlDevice_t,
+                                                   offset::Cint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMinMaxClockOfPState(device, type, pstate, minClockMHz,
                                                    maxClockMHz)
     initialize_context()
-    ccall((:nvmlDeviceGetMinMaxClockOfPState, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, nvmlClockType_t, nvmlPstates_t, Ptr{Cuint}, Ptr{Cuint}), device,
-          type, pstate, minClockMHz, maxClockMHz)
+    @ccall (libnvml()).nvmlDeviceGetMinMaxClockOfPState(device::nvmlDevice_t,
+                                                        type::nvmlClockType_t,
+                                                        pstate::nvmlPstates_t,
+                                                        minClockMHz::Ptr{Cuint},
+                                                        maxClockMHz::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetSupportedPerformanceStates(device, pstates, size)
     initialize_context()
-    ccall((:nvmlDeviceGetSupportedPerformanceStates, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlPstates_t}, Cuint), device, pstates, size)
+    @ccall (libnvml()).nvmlDeviceGetSupportedPerformanceStates(device::nvmlDevice_t,
+                                                               pstates::Ptr{nvmlPstates_t},
+                                                               size::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGpcClkMinMaxVfOffset(device, minOffset, maxOffset)
     initialize_context()
-    ccall((:nvmlDeviceGetGpcClkMinMaxVfOffset, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cint}, Ptr{Cint}), device, minOffset, maxOffset)
+    @ccall (libnvml()).nvmlDeviceGetGpcClkMinMaxVfOffset(device::nvmlDevice_t,
+                                                         minOffset::Ptr{Cint},
+                                                         maxOffset::Ptr{Cint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMemClkMinMaxVfOffset(device, minOffset, maxOffset)
     initialize_context()
-    ccall((:nvmlDeviceGetMemClkMinMaxVfOffset, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{Cint}, Ptr{Cint}), device, minOffset, maxOffset)
+    @ccall (libnvml()).nvmlDeviceGetMemClkMinMaxVfOffset(device::nvmlDevice_t,
+                                                         minOffset::Ptr{Cint},
+                                                         maxOffset::Ptr{Cint})::nvmlReturn_t
 end
 
 @cenum nvmlGpmMetricId_t::UInt32 begin
@@ -2957,27 +3014,27 @@ mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"##Ctag#495"
+struct var"##Ctag#4401"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
 end
-function Base.getproperty(x::Ptr{var"##Ctag#495"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#4401"}, f::Symbol)
     f === :shortName && return Ptr{Cstring}(x + 0)
     f === :longName && return Ptr{Cstring}(x + 8)
     f === :unit && return Ptr{Cstring}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#495", f::Symbol)
-    r = Ref{var"##Ctag#495"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#495"}, r)
+function Base.getproperty(x::var"##Ctag#4401", f::Symbol)
+    r = Ref{var"##Ctag#4401"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4401"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#495"}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"##Ctag#4401"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct nvmlGpmMetric_t
@@ -2988,7 +3045,7 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :metricId && return Ptr{Cuint}(x + 0)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
-    f === :metricInfo && return Ptr{var"##Ctag#495"}(x + 16)
+    f === :metricInfo && return Ptr{var"##Ctag#4401"}(x + 16)
     return getfield(x, f)
 end
 
@@ -3000,7 +3057,7 @@ function Base.getproperty(x::nvmlGpmMetric_t, f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{nvmlGpmMetric_t}, f::Symbol, v)
-    unsafe_store!(getproperty(x, f), v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct nvmlGpmMetricsGet_t
@@ -3018,31 +3075,29 @@ end
 
 @checked function nvmlGpmMetricsGet(metricsGet)
     initialize_context()
-    ccall((:nvmlGpmMetricsGet, libnvml()), nvmlReturn_t, (Ptr{nvmlGpmMetricsGet_t},),
-          metricsGet)
+    @ccall (libnvml()).nvmlGpmMetricsGet(metricsGet::Ptr{nvmlGpmMetricsGet_t})::nvmlReturn_t
 end
 
 @checked function nvmlGpmSampleFree(gpmSample)
     initialize_context()
-    ccall((:nvmlGpmSampleFree, libnvml()), nvmlReturn_t, (nvmlGpmSample_t,), gpmSample)
+    @ccall (libnvml()).nvmlGpmSampleFree(gpmSample::nvmlGpmSample_t)::nvmlReturn_t
 end
 
 @checked function nvmlGpmSampleAlloc(gpmSample)
     initialize_context()
-    ccall((:nvmlGpmSampleAlloc, libnvml()), nvmlReturn_t, (Ptr{nvmlGpmSample_t},),
-          gpmSample)
+    @ccall (libnvml()).nvmlGpmSampleAlloc(gpmSample::Ptr{nvmlGpmSample_t})::nvmlReturn_t
 end
 
 @checked function nvmlGpmSampleGet(device, gpmSample)
     initialize_context()
-    ccall((:nvmlGpmSampleGet, libnvml()), nvmlReturn_t, (nvmlDevice_t, nvmlGpmSample_t),
-          device, gpmSample)
+    @ccall (libnvml()).nvmlGpmSampleGet(device::nvmlDevice_t,
+                                        gpmSample::nvmlGpmSample_t)::nvmlReturn_t
 end
 
 @checked function nvmlGpmQueryDeviceSupport(device, gpmSupport)
     initialize_context()
-    ccall((:nvmlGpmQueryDeviceSupport, libnvml()), nvmlReturn_t,
-          (nvmlDevice_t, Ptr{nvmlGpmSupport_t}), device, gpmSupport)
+    @ccall (libnvml()).nvmlGpmQueryDeviceSupport(device::nvmlDevice_t,
+                                                 gpmSupport::Ptr{nvmlGpmSupport_t})::nvmlReturn_t
 end
 
 const NVML_API_VERSION = 11

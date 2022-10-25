@@ -4,8 +4,8 @@ output_file_path = "../../lib/cusolver/libcusolverMg.jl"
 
 
 [codegen]
+use_ccall_macro = true
 always_NUL_terminated_string = true
-
 
 
 [api]

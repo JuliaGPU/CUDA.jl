@@ -3,10 +3,9 @@ library_name = "libcusolver"
 output_file_path = "../../lib/cusolver/libcusolverRF.jl"
 
 
-
 [codegen]
+use_ccall_macro = true
 always_NUL_terminated_string = true
-
 
 
 [api]

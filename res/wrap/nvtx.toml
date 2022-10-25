@@ -11,4 +11,5 @@ output_ignorelist = [
 
 
 [codegen]
+use_ccall_macro = true
 always_NUL_terminated_string = true

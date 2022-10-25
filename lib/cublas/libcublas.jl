@@ -47,35 +47,35 @@ end
 
 @checked function cublasCreate_v2(handle)
     initialize_context()
-    ccall((:cublasCreate_v2, libcublas), cublasStatus_t, (Ref{cublasHandle_t},), handle)
+    @ccall libcublas.cublasCreate_v2(handle::Ref{cublasHandle_t})::cublasStatus_t
 end
 
 @checked function cublasDestroy_v2(handle)
     initialize_context()
-    ccall((:cublasDestroy_v2, libcublas), cublasStatus_t, (cublasHandle_t,), handle)
+    @ccall libcublas.cublasDestroy_v2(handle::cublasHandle_t)::cublasStatus_t
 end
 
 @checked function cublasGetVersion_v2(handle, version)
-    ccall((:cublasGetVersion_v2, libcublas), cublasStatus_t, (cublasHandle_t, Ref{Cint}),
-          handle, version)
+    @ccall libcublas.cublasGetVersion_v2(handle::cublasHandle_t,
+                                         version::Ref{Cint})::cublasStatus_t
 end
 
 @checked function cublasSetWorkspace_v2(handle, workspace, workspaceSizeInBytes)
     initialize_context()
-    ccall((:cublasSetWorkspace_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, CuPtr{Cvoid}, Csize_t), handle, workspace, workspaceSizeInBytes)
+    @ccall libcublas.cublasSetWorkspace_v2(handle::cublasHandle_t, workspace::CuPtr{Cvoid},
+                                           workspaceSizeInBytes::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasSetStream_v2(handle, streamId)
     initialize_context()
-    ccall((:cublasSetStream_v2, libcublas), cublasStatus_t, (cublasHandle_t, cudaStream_t),
-          handle, streamId)
+    @ccall libcublas.cublasSetStream_v2(handle::cublasHandle_t,
+                                        streamId::cudaStream_t)::cublasStatus_t
 end
 
 @checked function cublasGetStream_v2(handle, streamId)
     initialize_context()
-    ccall((:cublasGetStream_v2, libcublas), cublasStatus_t, (cublasHandle_t, Ref{CUstream}),
-          handle, streamId)
+    @ccall libcublas.cublasGetStream_v2(handle::cublasHandle_t,
+                                        streamId::Ref{CUstream})::cublasStatus_t
 end
 
 @cenum cublasPointerMode_t::UInt32 begin
@@ -85,393 +85,395 @@ end
 
 @checked function cublasGetPointerMode_v2(handle, mode)
     initialize_context()
-    ccall((:cublasGetPointerMode_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Ref{cublasPointerMode_t}), handle, mode)
+    @ccall libcublas.cublasGetPointerMode_v2(handle::cublasHandle_t,
+                                             mode::Ref{cublasPointerMode_t})::cublasStatus_t
 end
 
 @checked function cublasSetPointerMode_v2(handle, mode)
     initialize_context()
-    ccall((:cublasSetPointerMode_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasPointerMode_t), handle, mode)
+    @ccall libcublas.cublasSetPointerMode_v2(handle::cublasHandle_t,
+                                             mode::cublasPointerMode_t)::cublasStatus_t
 end
 
 @checked function cublasSnrm2_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasSnrm2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat}), handle, n, x,
-          incx, result)
+    @ccall libcublas.cublasSnrm2_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cfloat},
+                                    incx::Cint, result::RefOrCuRef{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDnrm2_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasDnrm2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble}), handle, n, x,
-          incx, result)
+    @ccall libcublas.cublasDnrm2_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cdouble},
+                                    incx::Cint, result::RefOrCuRef{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasScnrm2_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasScnrm2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{Cfloat}), handle, n, x,
-          incx, result)
+    @ccall libcublas.cublasScnrm2_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{cuComplex},
+                                     incx::Cint, result::RefOrCuRef{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDznrm2_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasDznrm2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cdouble}), handle,
-          n, x, incx, result)
+    @ccall libcublas.cublasDznrm2_v2(handle::cublasHandle_t, n::Cint,
+                                     x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                     result::RefOrCuRef{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasSdot_v2(handle, n, x, incx, y, incy, result)
     initialize_context()
-    ccall((:cublasSdot_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-           RefOrCuRef{Cfloat}), handle, n, x, incx, y, incy, result)
+    @ccall libcublas.cublasSdot_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cfloat},
+                                   incx::Cint, y::CuPtr{Cfloat}, incy::Cint,
+                                   result::RefOrCuRef{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDdot_v2(handle, n, x, incx, y, incy, result)
     initialize_context()
-    ccall((:cublasDdot_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-           RefOrCuRef{Cdouble}), handle, n, x, incx, y, incy, result)
+    @ccall libcublas.cublasDdot_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cdouble},
+                                   incx::Cint, y::CuPtr{Cdouble}, incy::Cint,
+                                   result::RefOrCuRef{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasCdotu_v2(handle, n, x, incx, y, incy, result)
     initialize_context()
-    ccall((:cublasCdotu_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-           RefOrCuRef{cuComplex}), handle, n, x, incx, y, incy, result)
+    @ccall libcublas.cublasCdotu_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{cuComplex},
+                                    incx::Cint, y::CuPtr{cuComplex}, incy::Cint,
+                                    result::RefOrCuRef{cuComplex})::cublasStatus_t
 end
 
 @checked function cublasCdotc_v2(handle, n, x, incx, y, incy, result)
     initialize_context()
-    ccall((:cublasCdotc_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-           RefOrCuRef{cuComplex}), handle, n, x, incx, y, incy, result)
+    @ccall libcublas.cublasCdotc_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{cuComplex},
+                                    incx::Cint, y::CuPtr{cuComplex}, incy::Cint,
+                                    result::RefOrCuRef{cuComplex})::cublasStatus_t
 end
 
 @checked function cublasZdotu_v2(handle, n, x, incx, y, incy, result)
     initialize_context()
-    ccall((:cublasZdotu_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-           RefOrCuRef{cuDoubleComplex}), handle, n, x, incx, y, incy, result)
+    @ccall libcublas.cublasZdotu_v2(handle::cublasHandle_t, n::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint,
+                                    result::RefOrCuRef{cuDoubleComplex})::cublasStatus_t
 end
 
 @checked function cublasZdotc_v2(handle, n, x, incx, y, incy, result)
     initialize_context()
-    ccall((:cublasZdotc_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-           RefOrCuRef{cuDoubleComplex}), handle, n, x, incx, y, incy, result)
+    @ccall libcublas.cublasZdotc_v2(handle::cublasHandle_t, n::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint,
+                                    result::RefOrCuRef{cuDoubleComplex})::cublasStatus_t
 end
 
 @checked function cublasSscal_v2(handle, n, alpha, x, incx)
     initialize_context()
-    ccall((:cublasSscal_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint), handle, n, alpha,
-          x, incx)
+    @ccall libcublas.cublasSscal_v2(handle::cublasHandle_t, n::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, x::CuPtr{Cfloat},
+                                    incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasDscal_v2(handle, n, alpha, x, incx)
     initialize_context()
-    ccall((:cublasDscal_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint), handle, n,
-          alpha, x, incx)
+    @ccall libcublas.cublasDscal_v2(handle::cublasHandle_t, n::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, x::CuPtr{Cdouble},
+                                    incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasCscal_v2(handle, n, alpha, x, incx)
     initialize_context()
-    ccall((:cublasCscal_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint), handle, n,
-          alpha, x, incx)
+    @ccall libcublas.cublasCscal_v2(handle::cublasHandle_t, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, x::CuPtr{cuComplex},
+                                    incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasCsscal_v2(handle, n, alpha, x, incx)
     initialize_context()
-    ccall((:cublasCsscal_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, RefOrCuRef{Cfloat}, CuPtr{cuComplex}, Cint), handle, n,
-          alpha, x, incx)
+    @ccall libcublas.cublasCsscal_v2(handle::cublasHandle_t, n::Cint,
+                                     alpha::RefOrCuRef{Cfloat}, x::CuPtr{cuComplex},
+                                     incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasZscal_v2(handle, n, alpha, x, incx)
     initialize_context()
-    ccall((:cublasZscal_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint),
-          handle, n, alpha, x, incx)
+    @ccall libcublas.cublasZscal_v2(handle::cublasHandle_t, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasZdscal_v2(handle, n, alpha, x, incx)
     initialize_context()
-    ccall((:cublasZdscal_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, RefOrCuRef{Cdouble}, CuPtr{cuDoubleComplex}, Cint), handle,
-          n, alpha, x, incx)
+    @ccall libcublas.cublasZdscal_v2(handle::cublasHandle_t, n::Cint,
+                                     alpha::RefOrCuRef{Cdouble}, x::CuPtr{cuDoubleComplex},
+                                     incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasSaxpy_v2(handle, n, alpha, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasSaxpy_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
-           Cint), handle, n, alpha, x, incx, y, incy)
+    @ccall libcublas.cublasSaxpy_v2(handle::cublasHandle_t, n::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, x::CuPtr{Cfloat}, incx::Cint,
+                                    y::CuPtr{Cfloat}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasDaxpy_v2(handle, n, alpha, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasDaxpy_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble},
-           Cint), handle, n, alpha, x, incx, y, incy)
+    @ccall libcublas.cublasDaxpy_v2(handle::cublasHandle_t, n::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, x::CuPtr{Cdouble},
+                                    incx::Cint, y::CuPtr{Cdouble},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasCaxpy_v2(handle, n, alpha, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasCaxpy_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint,
-           CuPtr{cuComplex}, Cint), handle, n, alpha, x, incx, y, incy)
+    @ccall libcublas.cublasCaxpy_v2(handle::cublasHandle_t, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, x::CuPtr{cuComplex},
+                                    incx::Cint, y::CuPtr{cuComplex},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasZaxpy_v2(handle, n, alpha, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasZaxpy_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint), handle, n, alpha, x, incx, y, incy)
+    @ccall libcublas.cublasZaxpy_v2(handle::cublasHandle_t, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasScopy_v2(handle, n, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasScopy_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint), handle, n, x,
-          incx, y, incy)
+    @ccall libcublas.cublasScopy_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cfloat},
+                                    incx::Cint, y::CuPtr{Cfloat},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasDcopy_v2(handle, n, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasDcopy_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint), handle, n, x,
-          incx, y, incy)
+    @ccall libcublas.cublasDcopy_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cdouble},
+                                    incx::Cint, y::CuPtr{Cdouble},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasCcopy_v2(handle, n, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasCcopy_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, n,
-          x, incx, y, incy)
+    @ccall libcublas.cublasCcopy_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{cuComplex},
+                                    incx::Cint, y::CuPtr{cuComplex},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasZcopy_v2(handle, n, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasZcopy_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex},
-           Cint), handle, n, x, incx, y, incy)
+    @ccall libcublas.cublasZcopy_v2(handle::cublasHandle_t, n::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasSswap_v2(handle, n, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasSswap_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint), handle, n, x,
-          incx, y, incy)
+    @ccall libcublas.cublasSswap_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cfloat},
+                                    incx::Cint, y::CuPtr{Cfloat},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasDswap_v2(handle, n, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasDswap_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint), handle, n, x,
-          incx, y, incy)
+    @ccall libcublas.cublasDswap_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cdouble},
+                                    incx::Cint, y::CuPtr{Cdouble},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasCswap_v2(handle, n, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasCswap_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, n,
-          x, incx, y, incy)
+    @ccall libcublas.cublasCswap_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{cuComplex},
+                                    incx::Cint, y::CuPtr{cuComplex},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasZswap_v2(handle, n, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasZswap_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex},
-           Cint), handle, n, x, incx, y, incy)
+    @ccall libcublas.cublasZswap_v2(handle::cublasHandle_t, n::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasIsamax_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasIsamax_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cint}), handle, n, x, incx,
-          result)
+    @ccall libcublas.cublasIsamax_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cfloat},
+                                     incx::Cint, result::RefOrCuRef{Cint})::cublasStatus_t
 end
 
 @checked function cublasIdamax_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasIdamax_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cint}), handle, n, x,
-          incx, result)
+    @ccall libcublas.cublasIdamax_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cdouble},
+                                     incx::Cint, result::RefOrCuRef{Cint})::cublasStatus_t
 end
 
 @checked function cublasIcamax_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasIcamax_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{Cint}), handle, n, x,
-          incx, result)
+    @ccall libcublas.cublasIcamax_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{cuComplex},
+                                     incx::Cint, result::RefOrCuRef{Cint})::cublasStatus_t
 end
 
 @checked function cublasIzamax_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasIzamax_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cint}), handle, n,
-          x, incx, result)
+    @ccall libcublas.cublasIzamax_v2(handle::cublasHandle_t, n::Cint,
+                                     x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                     result::RefOrCuRef{Cint})::cublasStatus_t
 end
 
 @checked function cublasIsamin_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasIsamin_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cint}), handle, n, x, incx,
-          result)
+    @ccall libcublas.cublasIsamin_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cfloat},
+                                     incx::Cint, result::RefOrCuRef{Cint})::cublasStatus_t
 end
 
 @checked function cublasIdamin_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasIdamin_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cint}), handle, n, x,
-          incx, result)
+    @ccall libcublas.cublasIdamin_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cdouble},
+                                     incx::Cint, result::RefOrCuRef{Cint})::cublasStatus_t
 end
 
 @checked function cublasIcamin_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasIcamin_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{Cint}), handle, n, x,
-          incx, result)
+    @ccall libcublas.cublasIcamin_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{cuComplex},
+                                     incx::Cint, result::RefOrCuRef{Cint})::cublasStatus_t
 end
 
 @checked function cublasIzamin_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasIzamin_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cint}), handle, n,
-          x, incx, result)
+    @ccall libcublas.cublasIzamin_v2(handle::cublasHandle_t, n::Cint,
+                                     x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                     result::RefOrCuRef{Cint})::cublasStatus_t
 end
 
 @checked function cublasSasum_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasSasum_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat}), handle, n, x,
-          incx, result)
+    @ccall libcublas.cublasSasum_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cfloat},
+                                    incx::Cint, result::RefOrCuRef{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDasum_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasDasum_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble}), handle, n, x,
-          incx, result)
+    @ccall libcublas.cublasDasum_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cdouble},
+                                    incx::Cint, result::RefOrCuRef{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasScasum_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasScasum_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{Cfloat}), handle, n, x,
-          incx, result)
+    @ccall libcublas.cublasScasum_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{cuComplex},
+                                     incx::Cint, result::RefOrCuRef{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDzasum_v2(handle, n, x, incx, result)
     initialize_context()
-    ccall((:cublasDzasum_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cdouble}), handle,
-          n, x, incx, result)
+    @ccall libcublas.cublasDzasum_v2(handle::cublasHandle_t, n::Cint,
+                                     x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                     result::RefOrCuRef{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasSrot_v2(handle, n, x, incx, y, incy, c, s)
     initialize_context()
-    ccall((:cublasSrot_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-           RefOrCuRef{Cfloat}, RefOrCuRef{Cfloat}), handle, n, x, incx, y, incy, c, s)
+    @ccall libcublas.cublasSrot_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cfloat},
+                                   incx::Cint, y::CuPtr{Cfloat}, incy::Cint,
+                                   c::RefOrCuRef{Cfloat},
+                                   s::RefOrCuRef{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDrot_v2(handle, n, x, incx, y, incy, c, s)
     initialize_context()
-    ccall((:cublasDrot_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-           RefOrCuRef{Cdouble}, RefOrCuRef{Cdouble}), handle, n, x, incx, y, incy, c, s)
+    @ccall libcublas.cublasDrot_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cdouble},
+                                   incx::Cint, y::CuPtr{Cdouble}, incy::Cint,
+                                   c::RefOrCuRef{Cdouble},
+                                   s::RefOrCuRef{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasCrot_v2(handle, n, x, incx, y, incy, c, s)
     initialize_context()
-    ccall((:cublasCrot_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-           RefOrCuRef{Cfloat}, RefOrCuRef{cuComplex}), handle, n, x, incx, y, incy, c, s)
+    @ccall libcublas.cublasCrot_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{cuComplex},
+                                   incx::Cint, y::CuPtr{cuComplex}, incy::Cint,
+                                   c::RefOrCuRef{Cfloat},
+                                   s::RefOrCuRef{cuComplex})::cublasStatus_t
 end
 
 @checked function cublasCsrot_v2(handle, n, x, incx, y, incy, c, s)
     initialize_context()
-    ccall((:cublasCsrot_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-           RefOrCuRef{Cfloat}, RefOrCuRef{Cfloat}), handle, n, x, incx, y, incy, c, s)
+    @ccall libcublas.cublasCsrot_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{cuComplex},
+                                    incx::Cint, y::CuPtr{cuComplex}, incy::Cint,
+                                    c::RefOrCuRef{Cfloat},
+                                    s::RefOrCuRef{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasZrot_v2(handle, n, x, incx, y, incy, c, s)
     initialize_context()
-    ccall((:cublasZrot_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-           RefOrCuRef{Cdouble}, RefOrCuRef{cuDoubleComplex}), handle, n, x, incx, y, incy,
-          c, s)
+    @ccall libcublas.cublasZrot_v2(handle::cublasHandle_t, n::Cint,
+                                   x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                   y::CuPtr{cuDoubleComplex}, incy::Cint,
+                                   c::RefOrCuRef{Cdouble},
+                                   s::RefOrCuRef{cuDoubleComplex})::cublasStatus_t
 end
 
 @checked function cublasZdrot_v2(handle, n, x, incx, y, incy, c, s)
     initialize_context()
-    ccall((:cublasZdrot_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-           RefOrCuRef{Cdouble}, RefOrCuRef{Cdouble}), handle, n, x, incx, y, incy, c, s)
+    @ccall libcublas.cublasZdrot_v2(handle::cublasHandle_t, n::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint,
+                                    c::RefOrCuRef{Cdouble},
+                                    s::RefOrCuRef{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasSrotg_v2(handle, a, b, c, s)
     initialize_context()
-    ccall((:cublasSrotg_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, RefOrCuRef{Cfloat}, RefOrCuRef{Cfloat}, RefOrCuRef{Cfloat},
-           RefOrCuRef{Cfloat}), handle, a, b, c, s)
+    @ccall libcublas.cublasSrotg_v2(handle::cublasHandle_t, a::RefOrCuRef{Cfloat},
+                                    b::RefOrCuRef{Cfloat}, c::RefOrCuRef{Cfloat},
+                                    s::RefOrCuRef{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDrotg_v2(handle, a, b, c, s)
     initialize_context()
-    ccall((:cublasDrotg_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, RefOrCuRef{Cdouble}, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble},
-           PtrOrCuPtr{Cdouble}), handle, a, b, c, s)
+    @ccall libcublas.cublasDrotg_v2(handle::cublasHandle_t, a::RefOrCuRef{Cdouble},
+                                    b::RefOrCuRef{Cdouble}, c::PtrOrCuPtr{Cdouble},
+                                    s::PtrOrCuPtr{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasCrotg_v2(handle, a, b, c, s)
     initialize_context()
-    ccall((:cublasCrotg_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, RefOrCuRef{cuComplex}, RefOrCuRef{cuComplex}, RefOrCuRef{Cfloat},
-           RefOrCuRef{cuComplex}), handle, a, b, c, s)
+    @ccall libcublas.cublasCrotg_v2(handle::cublasHandle_t, a::RefOrCuRef{cuComplex},
+                                    b::RefOrCuRef{cuComplex}, c::RefOrCuRef{Cfloat},
+                                    s::RefOrCuRef{cuComplex})::cublasStatus_t
 end
 
 @checked function cublasZrotg_v2(handle, a, b, c, s)
     initialize_context()
-    ccall((:cublasZrotg_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, RefOrCuRef{cuDoubleComplex}, RefOrCuRef{cuDoubleComplex},
-           RefOrCuRef{Cdouble}, RefOrCuRef{cuDoubleComplex}), handle, a, b, c, s)
+    @ccall libcublas.cublasZrotg_v2(handle::cublasHandle_t, a::RefOrCuRef{cuDoubleComplex},
+                                    b::RefOrCuRef{cuDoubleComplex}, c::RefOrCuRef{Cdouble},
+                                    s::RefOrCuRef{cuDoubleComplex})::cublasStatus_t
 end
 
 @checked function cublasSrotm_v2(handle, n, x, incx, y, incy, param)
     initialize_context()
-    ccall((:cublasSrotm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-           PtrOrCuPtr{Cfloat}), handle, n, x, incx, y, incy, param)
+    @ccall libcublas.cublasSrotm_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cfloat},
+                                    incx::Cint, y::CuPtr{Cfloat}, incy::Cint,
+                                    param::PtrOrCuPtr{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDrotm_v2(handle, n, x, incx, y, incy, param)
     initialize_context()
-    ccall((:cublasDrotm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-           PtrOrCuPtr{Cdouble}), handle, n, x, incx, y, incy, param)
+    @ccall libcublas.cublasDrotm_v2(handle::cublasHandle_t, n::Cint, x::CuPtr{Cdouble},
+                                    incx::Cint, y::CuPtr{Cdouble}, incy::Cint,
+                                    param::PtrOrCuPtr{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasSrotmg_v2(handle, d1, d2, x1, y1, param)
     initialize_context()
-    ccall((:cublasSrotmg_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, RefOrCuRef{Cfloat}, RefOrCuRef{Cfloat}, RefOrCuRef{Cfloat},
-           RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}), handle, d1, d2, x1, y1, param)
+    @ccall libcublas.cublasSrotmg_v2(handle::cublasHandle_t, d1::RefOrCuRef{Cfloat},
+                                     d2::RefOrCuRef{Cfloat}, x1::RefOrCuRef{Cfloat},
+                                     y1::RefOrCuRef{Cfloat},
+                                     param::PtrOrCuPtr{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDrotmg_v2(handle, d1, d2, x1, y1, param)
     initialize_context()
-    ccall((:cublasDrotmg_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, RefOrCuRef{Cdouble}, RefOrCuRef{Cdouble}, RefOrCuRef{Cdouble},
-           RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}), handle, d1, d2, x1, y1, param)
+    @ccall libcublas.cublasDrotmg_v2(handle::cublasHandle_t, d1::RefOrCuRef{Cdouble},
+                                     d2::RefOrCuRef{Cdouble}, x1::RefOrCuRef{Cdouble},
+                                     y1::RefOrCuRef{Cdouble},
+                                     param::PtrOrCuPtr{Cdouble})::cublasStatus_t
 end
 
 @cenum cublasOperation_t::UInt32 begin
@@ -484,75 +486,83 @@ end
 
 @checked function cublasSgemv_v2(handle, trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasSgemv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat},
-           Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint), handle,
-          trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasSgemv_v2(handle::cublasHandle_t, trans::cublasOperation_t,
+                                    m::Cint, n::Cint, alpha::RefOrCuRef{Cfloat},
+                                    A::CuPtr{Cfloat}, lda::Cint, x::CuPtr{Cfloat},
+                                    incx::Cint, beta::RefOrCuRef{Cfloat}, y::CuPtr{Cfloat},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgemv_v2(handle, trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasDgemv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, RefOrCuRef{Cdouble},
-           CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
-           Cint), handle, trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasDgemv_v2(handle::cublasHandle_t, trans::cublasOperation_t,
+                                    m::Cint, n::Cint, alpha::RefOrCuRef{Cdouble},
+                                    A::CuPtr{Cdouble}, lda::Cint, x::CuPtr{Cdouble},
+                                    incx::Cint, beta::RefOrCuRef{Cdouble},
+                                    y::CuPtr{Cdouble}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgemv_v2(handle, trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasCgemv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, RefOrCuRef{cuComplex},
-           CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex},
-           CuPtr{cuComplex}, Cint), handle, trans, m, n, alpha, A, lda, x, incx, beta, y,
-          incy)
+    @ccall libcublas.cublasCgemv_v2(handle::cublasHandle_t, trans::cublasOperation_t,
+                                    m::Cint, n::Cint, alpha::RefOrCuRef{cuComplex},
+                                    A::CuPtr{cuComplex}, lda::Cint, x::CuPtr{cuComplex},
+                                    incx::Cint, beta::RefOrCuRef{cuComplex},
+                                    y::CuPtr{cuComplex}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgemv_v2(handle, trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasZgemv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint), handle, trans, m, n,
-          alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasZgemv_v2(handle::cublasHandle_t, trans::cublasOperation_t,
+                                    m::Cint, n::Cint, alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    beta::RefOrCuRef{cuDoubleComplex},
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasSgbmv_v2(handle, trans, m, n, kl, ku, alpha, A, lda, x, incx, beta,
                                  y, incy)
     initialize_context()
-    ccall((:cublasSgbmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Cint, Cint, RefOrCuRef{Cfloat},
-           CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat},
-           Cint), handle, trans, m, n, kl, ku, alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasSgbmv_v2(handle::cublasHandle_t, trans::cublasOperation_t,
+                                    m::Cint, n::Cint, kl::Cint, ku::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cfloat}, lda::Cint,
+                                    x::CuPtr{Cfloat}, incx::Cint, beta::RefOrCuRef{Cfloat},
+                                    y::CuPtr{Cfloat}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgbmv_v2(handle, trans, m, n, kl, ku, alpha, A, lda, x, incx, beta,
                                  y, incy)
     initialize_context()
-    ccall((:cublasDgbmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Cint, Cint, RefOrCuRef{Cdouble},
-           CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
-           Cint), handle, trans, m, n, kl, ku, alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasDgbmv_v2(handle::cublasHandle_t, trans::cublasOperation_t,
+                                    m::Cint, n::Cint, kl::Cint, ku::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, A::CuPtr{Cdouble},
+                                    lda::Cint, x::CuPtr{Cdouble}, incx::Cint,
+                                    beta::RefOrCuRef{Cdouble}, y::CuPtr{Cdouble},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgbmv_v2(handle, trans, m, n, kl, ku, alpha, A, lda, x, incx, beta,
                                  y, incy)
     initialize_context()
-    ccall((:cublasCgbmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Cint, Cint, RefOrCuRef{cuComplex},
-           CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex},
-           CuPtr{cuComplex}, Cint), handle, trans, m, n, kl, ku, alpha, A, lda, x, incx,
-          beta, y, incy)
+    @ccall libcublas.cublasCgbmv_v2(handle::cublasHandle_t, trans::cublasOperation_t,
+                                    m::Cint, n::Cint, kl::Cint, ku::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                    lda::Cint, x::CuPtr{cuComplex}, incx::Cint,
+                                    beta::RefOrCuRef{cuComplex}, y::CuPtr{cuComplex},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgbmv_v2(handle, trans, m, n, kl, ku, alpha, A, lda, x, incx, beta,
                                  y, incy)
     initialize_context()
-    ccall((:cublasZgbmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint), handle, trans, m, n, kl, ku, alpha, A, lda, x,
-          incx, beta, y, incy)
+    @ccall libcublas.cublasZgbmv_v2(handle::cublasHandle_t, trans::cublasOperation_t,
+                                    m::Cint, n::Cint, kl::Cint, ku::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    beta::RefOrCuRef{cuDoubleComplex},
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint)::cublasStatus_t
 end
 
 @cenum cublasFillMode_t::UInt32 begin
@@ -568,660 +578,694 @@ end
 
 @checked function cublasStrmv_v2(handle, uplo, trans, diag, n, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasStrmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint), handle, uplo, trans, diag, n, A, lda,
-          x, incx)
+    @ccall libcublas.cublasStrmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, A::CuPtr{Cfloat}, lda::Cint, x::CuPtr{Cfloat},
+                                    incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasDtrmv_v2(handle, uplo, trans, diag, n, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasDtrmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint), handle, uplo, trans, diag, n, A,
-          lda, x, incx)
+    @ccall libcublas.cublasDtrmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                    x::CuPtr{Cdouble}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasCtrmv_v2(handle, uplo, trans, diag, n, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasCtrmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, uplo, trans, diag, n, A,
-          lda, x, incx)
+    @ccall libcublas.cublasCtrmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                    x::CuPtr{cuComplex}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasZtrmv_v2(handle, uplo, trans, diag, n, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasZtrmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint), handle, uplo, trans,
-          diag, n, A, lda, x, incx)
+    @ccall libcublas.cublasZtrmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasStbmv_v2(handle, uplo, trans, diag, n, k, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasStbmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint), handle, uplo, trans, diag, n, k,
-          A, lda, x, incx)
+    @ccall libcublas.cublasStbmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, k::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                    x::CuPtr{Cfloat}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasDtbmv_v2(handle, uplo, trans, diag, n, k, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasDtbmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint), handle, uplo, trans, diag, n,
-          k, A, lda, x, incx)
+    @ccall libcublas.cublasDtbmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, k::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                    x::CuPtr{Cdouble}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasCtbmv_v2(handle, uplo, trans, diag, n, k, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasCtbmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, uplo, trans, diag,
-          n, k, A, lda, x, incx)
+    @ccall libcublas.cublasCtbmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, k::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                    x::CuPtr{cuComplex}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasZtbmv_v2(handle, uplo, trans, diag, n, k, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasZtbmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint), handle, uplo,
-          trans, diag, n, k, A, lda, x, incx)
+    @ccall libcublas.cublasZtbmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, k::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasStpmv_v2(handle, uplo, trans, diag, n, AP, x, incx)
     initialize_context()
-    ccall((:cublasStpmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{Cfloat}, CuPtr{Cfloat}, Cint), handle, uplo, trans, diag, n, AP, x, incx)
+    @ccall libcublas.cublasStpmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, AP::CuPtr{Cfloat}, x::CuPtr{Cfloat},
+                                    incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasDtpmv_v2(handle, uplo, trans, diag, n, AP, x, incx)
     initialize_context()
-    ccall((:cublasDtpmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{Cdouble}, CuPtr{Cdouble}, Cint), handle, uplo, trans, diag, n, AP, x, incx)
+    @ccall libcublas.cublasDtpmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, AP::CuPtr{Cdouble}, x::CuPtr{Cdouble},
+                                    incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasCtpmv_v2(handle, uplo, trans, diag, n, AP, x, incx)
     initialize_context()
-    ccall((:cublasCtpmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{cuComplex}, CuPtr{cuComplex}, Cint), handle, uplo, trans, diag, n, AP, x,
-          incx)
+    @ccall libcublas.cublasCtpmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, AP::CuPtr{cuComplex}, x::CuPtr{cuComplex},
+                                    incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasZtpmv_v2(handle, uplo, trans, diag, n, AP, x, incx)
     initialize_context()
-    ccall((:cublasZtpmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint), handle, uplo, trans, diag,
-          n, AP, x, incx)
+    @ccall libcublas.cublasZtpmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, AP::CuPtr{cuDoubleComplex},
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasStrsv_v2(handle, uplo, trans, diag, n, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasStrsv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint), handle, uplo, trans, diag, n, A, lda,
-          x, incx)
+    @ccall libcublas.cublasStrsv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, A::CuPtr{Cfloat}, lda::Cint, x::CuPtr{Cfloat},
+                                    incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasDtrsv_v2(handle, uplo, trans, diag, n, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasDtrsv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint), handle, uplo, trans, diag, n, A,
-          lda, x, incx)
+    @ccall libcublas.cublasDtrsv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                    x::CuPtr{Cdouble}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasCtrsv_v2(handle, uplo, trans, diag, n, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasCtrsv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, uplo, trans, diag, n, A,
-          lda, x, incx)
+    @ccall libcublas.cublasCtrsv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                    x::CuPtr{cuComplex}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasZtrsv_v2(handle, uplo, trans, diag, n, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasZtrsv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint), handle, uplo, trans,
-          diag, n, A, lda, x, incx)
+    @ccall libcublas.cublasZtrsv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasStpsv_v2(handle, uplo, trans, diag, n, AP, x, incx)
     initialize_context()
-    ccall((:cublasStpsv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{Cfloat}, CuPtr{Cfloat}, Cint), handle, uplo, trans, diag, n, AP, x, incx)
+    @ccall libcublas.cublasStpsv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, AP::CuPtr{Cfloat}, x::CuPtr{Cfloat},
+                                    incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasDtpsv_v2(handle, uplo, trans, diag, n, AP, x, incx)
     initialize_context()
-    ccall((:cublasDtpsv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{Cdouble}, CuPtr{Cdouble}, Cint), handle, uplo, trans, diag, n, AP, x, incx)
+    @ccall libcublas.cublasDtpsv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, AP::CuPtr{Cdouble}, x::CuPtr{Cdouble},
+                                    incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasCtpsv_v2(handle, uplo, trans, diag, n, AP, x, incx)
     initialize_context()
-    ccall((:cublasCtpsv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{cuComplex}, CuPtr{cuComplex}, Cint), handle, uplo, trans, diag, n, AP, x,
-          incx)
+    @ccall libcublas.cublasCtpsv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, AP::CuPtr{cuComplex}, x::CuPtr{cuComplex},
+                                    incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasZtpsv_v2(handle, uplo, trans, diag, n, AP, x, incx)
     initialize_context()
-    ccall((:cublasZtpsv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           CuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint), handle, uplo, trans, diag,
-          n, AP, x, incx)
+    @ccall libcublas.cublasZtpsv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, AP::CuPtr{cuDoubleComplex},
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasStbsv_v2(handle, uplo, trans, diag, n, k, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasStbsv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint), handle, uplo, trans, diag, n, k,
-          A, lda, x, incx)
+    @ccall libcublas.cublasStbsv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, k::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                    x::CuPtr{Cfloat}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasDtbsv_v2(handle, uplo, trans, diag, n, k, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasDtbsv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint), handle, uplo, trans, diag, n,
-          k, A, lda, x, incx)
+    @ccall libcublas.cublasDtbsv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, k::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                    x::CuPtr{Cdouble}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasCtbsv_v2(handle, uplo, trans, diag, n, k, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasCtbsv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, uplo, trans, diag,
-          n, k, A, lda, x, incx)
+    @ccall libcublas.cublasCtbsv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, k::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                    x::CuPtr{cuComplex}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasZtbsv_v2(handle, uplo, trans, diag, n, k, A, lda, x, incx)
     initialize_context()
-    ccall((:cublasZtbsv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, Cint,
-           Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint), handle, uplo,
-          trans, diag, n, k, A, lda, x, incx)
+    @ccall libcublas.cublasZtbsv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, diag::cublasDiagType_t,
+                                    n::Cint, k::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint)::cublasStatus_t
 end
 
 @checked function cublasSsymv_v2(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasSsymv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
-           CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint), handle, uplo, n,
-          alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasSsymv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cfloat}, lda::Cint,
+                                    x::CuPtr{Cfloat}, incx::Cint, beta::RefOrCuRef{Cfloat},
+                                    y::CuPtr{Cfloat}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasDsymv_v2(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasDsymv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
-           Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint), handle,
-          uplo, n, alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasDsymv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, A::CuPtr{Cdouble},
+                                    lda::Cint, x::CuPtr{Cdouble}, incx::Cint,
+                                    beta::RefOrCuRef{Cdouble}, y::CuPtr{Cdouble},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasCsymv_v2(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasCsymv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex},
-           Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint),
-          handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasCsymv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                    lda::Cint, x::CuPtr{cuComplex}, incx::Cint,
+                                    beta::RefOrCuRef{cuComplex}, y::CuPtr{cuComplex},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasZsymv_v2(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasZsymv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint), handle, uplo, n,
-          alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasZsymv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    beta::RefOrCuRef{cuDoubleComplex},
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasChemv_v2(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasChemv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex},
-           Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint),
-          handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasChemv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                    lda::Cint, x::CuPtr{cuComplex}, incx::Cint,
+                                    beta::RefOrCuRef{cuComplex}, y::CuPtr{cuComplex},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasZhemv_v2(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasZhemv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint), handle, uplo, n,
-          alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasZhemv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    beta::RefOrCuRef{cuDoubleComplex},
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasSsbmv_v2(handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasSsbmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat},
-           Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint), handle,
-          uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasSsbmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    k::Cint, alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cfloat},
+                                    lda::Cint, x::CuPtr{Cfloat}, incx::Cint,
+                                    beta::RefOrCuRef{Cfloat}, y::CuPtr{Cfloat},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasDsbmv_v2(handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasDsbmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, Cint, RefOrCuRef{Cdouble},
-           CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
-           Cint), handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasDsbmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    k::Cint, alpha::RefOrCuRef{Cdouble}, A::CuPtr{Cdouble},
+                                    lda::Cint, x::CuPtr{Cdouble}, incx::Cint,
+                                    beta::RefOrCuRef{Cdouble}, y::CuPtr{Cdouble},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasChbmv_v2(handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasChbmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, Cint, RefOrCuRef{cuComplex},
-           CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex},
-           CuPtr{cuComplex}, Cint), handle, uplo, n, k, alpha, A, lda, x, incx, beta, y,
-          incy)
+    @ccall libcublas.cublasChbmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    k::Cint, alpha::RefOrCuRef{cuComplex},
+                                    A::CuPtr{cuComplex}, lda::Cint, x::CuPtr{cuComplex},
+                                    incx::Cint, beta::RefOrCuRef{cuComplex},
+                                    y::CuPtr{cuComplex}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasZhbmv_v2(handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasZhbmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint), handle, uplo, n, k,
-          alpha, A, lda, x, incx, beta, y, incy)
+    @ccall libcublas.cublasZhbmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    k::Cint, alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    beta::RefOrCuRef{cuDoubleComplex},
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasSspmv_v2(handle, uplo, n, alpha, AP, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasSspmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat},
-           CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint), handle, uplo, n,
-          alpha, AP, x, incx, beta, y, incy)
+    @ccall libcublas.cublasSspmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, AP::CuPtr{Cfloat},
+                                    x::CuPtr{Cfloat}, incx::Cint, beta::RefOrCuRef{Cfloat},
+                                    y::CuPtr{Cfloat}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasDspmv_v2(handle, uplo, n, alpha, AP, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasDspmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
-           CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint), handle, uplo,
-          n, alpha, AP, x, incx, beta, y, incy)
+    @ccall libcublas.cublasDspmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, AP::CuPtr{Cdouble},
+                                    x::CuPtr{Cdouble}, incx::Cint,
+                                    beta::RefOrCuRef{Cdouble}, y::CuPtr{Cdouble},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasChpmv_v2(handle, uplo, n, alpha, AP, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasChpmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex},
-           CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint), handle,
-          uplo, n, alpha, AP, x, incx, beta, y, incy)
+    @ccall libcublas.cublasChpmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, AP::CuPtr{cuComplex},
+                                    x::CuPtr{cuComplex}, incx::Cint,
+                                    beta::RefOrCuRef{cuComplex}, y::CuPtr{cuComplex},
+                                    incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasZhpmv_v2(handle, uplo, n, alpha, AP, x, incx, beta, y, incy)
     initialize_context()
-    ccall((:cublasZhpmv_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint), handle, uplo, n,
-          alpha, AP, x, incx, beta, y, incy)
+    @ccall libcublas.cublasZhpmv_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    AP::CuPtr{cuDoubleComplex}, x::CuPtr{cuDoubleComplex},
+                                    incx::Cint, beta::RefOrCuRef{cuDoubleComplex},
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasSger_v2(handle, m, n, alpha, x, incx, y, incy, A, lda)
     initialize_context()
-    ccall((:cublasSger_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
-           CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint), handle, m, n, alpha, x, incx, y, incy,
-          A, lda)
+    @ccall libcublas.cublasSger_v2(handle::cublasHandle_t, m::Cint, n::Cint,
+                                   alpha::RefOrCuRef{Cfloat}, x::CuPtr{Cfloat}, incx::Cint,
+                                   y::CuPtr{Cfloat}, incy::Cint, A::CuPtr{Cfloat},
+                                   lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasDger_v2(handle, m, n, alpha, x, incx, y, incy, A, lda)
     initialize_context()
-    ccall((:cublasDger_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint,
-           CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint), handle, m, n, alpha, x, incx, y,
-          incy, A, lda)
+    @ccall libcublas.cublasDger_v2(handle::cublasHandle_t, m::Cint, n::Cint,
+                                   alpha::RefOrCuRef{Cdouble}, x::CuPtr{Cdouble},
+                                   incx::Cint, y::CuPtr{Cdouble}, incy::Cint,
+                                   A::CuPtr{Cdouble}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgeru_v2(handle, m, n, alpha, x, incx, y, incy, A, lda)
     initialize_context()
-    ccall((:cublasCgeru_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint,
-           CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, m, n, alpha, x, incx, y,
-          incy, A, lda)
+    @ccall libcublas.cublasCgeru_v2(handle::cublasHandle_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, x::CuPtr{cuComplex},
+                                    incx::Cint, y::CuPtr{cuComplex}, incy::Cint,
+                                    A::CuPtr{cuComplex}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgerc_v2(handle, m, n, alpha, x, incx, y, incy, A, lda)
     initialize_context()
-    ccall((:cublasCgerc_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint,
-           CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, m, n, alpha, x, incx, y,
-          incy, A, lda)
+    @ccall libcublas.cublasCgerc_v2(handle::cublasHandle_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, x::CuPtr{cuComplex},
+                                    incx::Cint, y::CuPtr{cuComplex}, incy::Cint,
+                                    A::CuPtr{cuComplex}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgeru_v2(handle, m, n, alpha, x, incx, y, incy, A, lda)
     initialize_context()
-    ccall((:cublasZgeru_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, Cint, RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex},
-           Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint), handle, m, n,
-          alpha, x, incx, y, incy, A, lda)
+    @ccall libcublas.cublasZgeru_v2(handle::cublasHandle_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint,
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgerc_v2(handle, m, n, alpha, x, incx, y, incy, A, lda)
     initialize_context()
-    ccall((:cublasZgerc_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, Cint, RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex},
-           Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint), handle, m, n,
-          alpha, x, incx, y, incy, A, lda)
+    @ccall libcublas.cublasZgerc_v2(handle::cublasHandle_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint,
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasSsyr_v2(handle, uplo, n, alpha, x, incx, A, lda)
     initialize_context()
-    ccall((:cublasSsyr_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
-           CuPtr{Cfloat}, Cint), handle, uplo, n, alpha, x, incx, A, lda)
+    @ccall libcublas.cublasSsyr_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                   alpha::RefOrCuRef{Cfloat}, x::CuPtr{Cfloat}, incx::Cint,
+                                   A::CuPtr{Cfloat}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasDsyr_v2(handle, uplo, n, alpha, x, incx, A, lda)
     initialize_context()
-    ccall((:cublasDsyr_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
-           Cint, CuPtr{Cdouble}, Cint), handle, uplo, n, alpha, x, incx, A, lda)
+    @ccall libcublas.cublasDsyr_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                   alpha::RefOrCuRef{Cdouble}, x::CuPtr{Cdouble},
+                                   incx::Cint, A::CuPtr{Cdouble}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasCsyr_v2(handle, uplo, n, alpha, x, incx, A, lda)
     initialize_context()
-    ccall((:cublasCsyr_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex},
-           Cint, CuPtr{cuComplex}, Cint), handle, uplo, n, alpha, x, incx, A, lda)
+    @ccall libcublas.cublasCsyr_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                   alpha::RefOrCuRef{cuComplex}, x::CuPtr{cuComplex},
+                                   incx::Cint, A::CuPtr{cuComplex},
+                                   lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasZsyr_v2(handle, uplo, n, alpha, x, incx, A, lda)
     initialize_context()
-    ccall((:cublasZsyr_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint), handle, uplo, n,
-          alpha, x, incx, A, lda)
+    @ccall libcublas.cublasZsyr_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                   alpha::RefOrCuRef{cuDoubleComplex},
+                                   x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                   A::CuPtr{cuDoubleComplex}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasCher_v2(handle, uplo, n, alpha, x, incx, A, lda)
     initialize_context()
-    ccall((:cublasCher_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat}, CuPtr{cuComplex},
-           Cint, CuPtr{cuComplex}, Cint), handle, uplo, n, alpha, x, incx, A, lda)
+    @ccall libcublas.cublasCher_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                   alpha::RefOrCuRef{Cfloat}, x::CuPtr{cuComplex},
+                                   incx::Cint, A::CuPtr{cuComplex},
+                                   lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasZher_v2(handle, uplo, n, alpha, x, incx, A, lda)
     initialize_context()
-    ccall((:cublasZher_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble},
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint), handle, uplo, n,
-          alpha, x, incx, A, lda)
+    @ccall libcublas.cublasZher_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                   alpha::RefOrCuRef{Cdouble}, x::CuPtr{cuDoubleComplex},
+                                   incx::Cint, A::CuPtr{cuDoubleComplex},
+                                   lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasSspr_v2(handle, uplo, n, alpha, x, incx, AP)
     initialize_context()
-    ccall((:cublasSspr_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
-           CuPtr{Cfloat}), handle, uplo, n, alpha, x, incx, AP)
+    @ccall libcublas.cublasSspr_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                   alpha::RefOrCuRef{Cfloat}, x::CuPtr{Cfloat}, incx::Cint,
+                                   AP::CuPtr{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDspr_v2(handle, uplo, n, alpha, x, incx, AP)
     initialize_context()
-    ccall((:cublasDspr_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
-           Cint, CuPtr{Cdouble}), handle, uplo, n, alpha, x, incx, AP)
+    @ccall libcublas.cublasDspr_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                   alpha::RefOrCuRef{Cdouble}, x::CuPtr{Cdouble},
+                                   incx::Cint, AP::CuPtr{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasChpr_v2(handle, uplo, n, alpha, x, incx, AP)
     initialize_context()
-    ccall((:cublasChpr_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat}, CuPtr{cuComplex},
-           Cint, CuPtr{cuComplex}), handle, uplo, n, alpha, x, incx, AP)
+    @ccall libcublas.cublasChpr_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                   alpha::RefOrCuRef{Cfloat}, x::CuPtr{cuComplex},
+                                   incx::Cint, AP::CuPtr{cuComplex})::cublasStatus_t
 end
 
 @checked function cublasZhpr_v2(handle, uplo, n, alpha, x, incx, AP)
     initialize_context()
-    ccall((:cublasZhpr_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble},
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}), handle, uplo, n, alpha, x,
-          incx, AP)
+    @ccall libcublas.cublasZhpr_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                   alpha::RefOrCuRef{Cdouble}, x::CuPtr{cuDoubleComplex},
+                                   incx::Cint, AP::CuPtr{cuDoubleComplex})::cublasStatus_t
 end
 
 @checked function cublasSsyr2_v2(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
     initialize_context()
-    ccall((:cublasSsyr2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
-           CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint), handle, uplo, n, alpha, x, incx, y,
-          incy, A, lda)
+    @ccall libcublas.cublasSsyr2_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, x::CuPtr{Cfloat}, incx::Cint,
+                                    y::CuPtr{Cfloat}, incy::Cint, A::CuPtr{Cfloat},
+                                    lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasDsyr2_v2(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
     initialize_context()
-    ccall((:cublasDsyr2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
-           Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint), handle, uplo, n, alpha, x,
-          incx, y, incy, A, lda)
+    @ccall libcublas.cublasDsyr2_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, x::CuPtr{Cdouble},
+                                    incx::Cint, y::CuPtr{Cdouble}, incy::Cint,
+                                    A::CuPtr{Cdouble}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasCsyr2_v2(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
     initialize_context()
-    ccall((:cublasCsyr2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex},
-           Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, uplo, n, alpha, x,
-          incx, y, incy, A, lda)
+    @ccall libcublas.cublasCsyr2_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, x::CuPtr{cuComplex},
+                                    incx::Cint, y::CuPtr{cuComplex}, incy::Cint,
+                                    A::CuPtr{cuComplex}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasZsyr2_v2(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
     initialize_context()
-    ccall((:cublasZsyr2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint), handle, uplo, n, alpha, x, incx, y, incy, A, lda)
+    @ccall libcublas.cublasZsyr2_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint,
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasCher2_v2(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
     initialize_context()
-    ccall((:cublasCher2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex},
-           Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, uplo, n, alpha, x,
-          incx, y, incy, A, lda)
+    @ccall libcublas.cublasCher2_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, x::CuPtr{cuComplex},
+                                    incx::Cint, y::CuPtr{cuComplex}, incy::Cint,
+                                    A::CuPtr{cuComplex}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasZher2_v2(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
     initialize_context()
-    ccall((:cublasZher2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint), handle, uplo, n, alpha, x, incx, y, incy, A, lda)
+    @ccall libcublas.cublasZher2_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint,
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasSspr2_v2(handle, uplo, n, alpha, x, incx, y, incy, AP)
     initialize_context()
-    ccall((:cublasSspr2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
-           CuPtr{Cfloat}, Cint, CuPtr{Cfloat}), handle, uplo, n, alpha, x, incx, y, incy,
-          AP)
+    @ccall libcublas.cublasSspr2_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, x::CuPtr{Cfloat}, incx::Cint,
+                                    y::CuPtr{Cfloat}, incy::Cint,
+                                    AP::CuPtr{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDspr2_v2(handle, uplo, n, alpha, x, incx, y, incy, AP)
     initialize_context()
-    ccall((:cublasDspr2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
-           Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}), handle, uplo, n, alpha, x, incx, y,
-          incy, AP)
+    @ccall libcublas.cublasDspr2_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, x::CuPtr{Cdouble},
+                                    incx::Cint, y::CuPtr{Cdouble}, incy::Cint,
+                                    AP::CuPtr{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasChpr2_v2(handle, uplo, n, alpha, x, incx, y, incy, AP)
     initialize_context()
-    ccall((:cublasChpr2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex},
-           Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}), handle, uplo, n, alpha, x, incx,
-          y, incy, AP)
+    @ccall libcublas.cublasChpr2_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, x::CuPtr{cuComplex},
+                                    incx::Cint, y::CuPtr{cuComplex}, incy::Cint,
+                                    AP::CuPtr{cuComplex})::cublasStatus_t
 end
 
 @checked function cublasZhpr2_v2(handle, uplo, n, alpha, x, incx, y, incy, AP)
     initialize_context()
-    ccall((:cublasZhpr2_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}), handle, uplo, n, alpha, x, incx, y, incy, AP)
+    @ccall libcublas.cublasZhpr2_v2(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                    y::CuPtr{cuDoubleComplex}, incy::Cint,
+                                    AP::CuPtr{cuDoubleComplex})::cublasStatus_t
 end
 
 @checked function cublasSgemm_v2(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
                                  beta, C, ldc)
     initialize_context()
-    ccall((:cublasSgemm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat},
-           CuPtr{Cfloat}, Cint), handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
-          beta, C, ldc)
+    @ccall libcublas.cublasSgemm_v2(handle::cublasHandle_t, transa::cublasOperation_t,
+                                    transb::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cfloat}, lda::Cint,
+                                    B::CuPtr{Cfloat}, ldb::Cint, beta::RefOrCuRef{Cfloat},
+                                    C::CuPtr{Cfloat}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgemm_v2(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
                                  beta, C, ldc)
     initialize_context()
-    ccall((:cublasDgemm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint), handle, transa, transb, m, n, k,
-          alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasDgemm_v2(handle::cublasHandle_t, transa::cublasOperation_t,
+                                    transb::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, A::CuPtr{Cdouble},
+                                    lda::Cint, B::CuPtr{Cdouble}, ldb::Cint,
+                                    beta::RefOrCuRef{Cdouble}, C::CuPtr{Cdouble},
+                                    ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgemm_v2(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
                                  beta, C, ldc)
     initialize_context()
-    ccall((:cublasCgemm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint), handle, transa, transb, m, n, k,
-          alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasCgemm_v2(handle::cublasHandle_t, transa::cublasOperation_t,
+                                    transb::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                    lda::Cint, B::CuPtr{cuComplex}, ldb::Cint,
+                                    beta::RefOrCuRef{cuComplex}, C::CuPtr{cuComplex},
+                                    ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgemm_v2(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
                                  beta, C, ldc)
     initialize_context()
-    ccall((:cublasZgemm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint), handle, transa, transb, m, n, k, alpha, A, lda, B,
-          ldb, beta, C, ldc)
+    @ccall libcublas.cublasZgemm_v2(handle::cublasHandle_t, transa::cublasOperation_t,
+                                    transb::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                    beta::RefOrCuRef{cuDoubleComplex},
+                                    C::CuPtr{cuDoubleComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasSsyrk_v2(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
     initialize_context()
-    ccall((:cublasSsyrk_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat},
-           Cint), handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
+    @ccall libcublas.cublasSsyrk_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Cint, k::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cfloat}, lda::Cint,
+                                    beta::RefOrCuRef{Cfloat}, C::CuPtr{Cfloat},
+                                    ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasDsyrk_v2(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
     initialize_context()
-    ccall((:cublasDsyrk_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
-           Cint), handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
+    @ccall libcublas.cublasDsyrk_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Cint, k::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, A::CuPtr{Cdouble},
+                                    lda::Cint, beta::RefOrCuRef{Cdouble}, C::CuPtr{Cdouble},
+                                    ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCsyrk_v2(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
     initialize_context()
-    ccall((:cublasCsyrk_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex},
-           CuPtr{cuComplex}, Cint), handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
+    @ccall libcublas.cublasCsyrk_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Cint, k::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                    lda::Cint, beta::RefOrCuRef{cuComplex},
+                                    C::CuPtr{cuComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZsyrk_v2(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
     initialize_context()
-    ccall((:cublasZsyrk_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint), handle, uplo, trans,
-          n, k, alpha, A, lda, beta, C, ldc)
+    @ccall libcublas.cublasZsyrk_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Cint, k::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    beta::RefOrCuRef{cuDoubleComplex},
+                                    C::CuPtr{cuDoubleComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCherk_v2(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
     initialize_context()
-    ccall((:cublasCherk_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{cuComplex}, Cint, RefOrCuRef{Cfloat}, CuPtr{cuComplex},
-           Cint), handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
+    @ccall libcublas.cublasCherk_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Cint, k::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, A::CuPtr{cuComplex},
+                                    lda::Cint, beta::RefOrCuRef{Cfloat},
+                                    C::CuPtr{cuComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZherk_v2(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
     initialize_context()
-    ccall((:cublasZherk_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cdouble},
-           CuPtr{cuDoubleComplex}, Cint), handle, uplo, trans, n, k, alpha, A, lda, beta, C,
-          ldc)
+    @ccall libcublas.cublasZherk_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Cint, k::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, A::CuPtr{cuDoubleComplex},
+                                    lda::Cint, beta::RefOrCuRef{Cdouble},
+                                    C::CuPtr{cuDoubleComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasSsyr2k_v2(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                   ldc)
     initialize_context()
-    ccall((:cublasSsyr2k_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat},
-           CuPtr{Cfloat}, Cint), handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
-          ldc)
+    @ccall libcublas.cublasSsyr2k_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                     trans::cublasOperation_t, n::Cint, k::Cint,
+                                     alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cfloat}, lda::Cint,
+                                     B::CuPtr{Cfloat}, ldb::Cint, beta::RefOrCuRef{Cfloat},
+                                     C::CuPtr{Cfloat}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasDsyr2k_v2(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                   ldc)
     initialize_context()
-    ccall((:cublasDsyr2k_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint), handle, uplo, trans, n, k, alpha, A,
-          lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasDsyr2k_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                     trans::cublasOperation_t, n::Cint, k::Cint,
+                                     alpha::RefOrCuRef{Cdouble}, A::CuPtr{Cdouble},
+                                     lda::Cint, B::CuPtr{Cdouble}, ldb::Cint,
+                                     beta::RefOrCuRef{Cdouble}, C::CuPtr{Cdouble},
+                                     ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCsyr2k_v2(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                   ldc)
     initialize_context()
-    ccall((:cublasCsyr2k_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint), handle, uplo, trans, n, k, alpha,
-          A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasCsyr2k_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                     trans::cublasOperation_t, n::Cint, k::Cint,
+                                     alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                     lda::Cint, B::CuPtr{cuComplex}, ldb::Cint,
+                                     beta::RefOrCuRef{cuComplex}, C::CuPtr{cuComplex},
+                                     ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZsyr2k_v2(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                   ldc)
     initialize_context()
-    ccall((:cublasZsyr2k_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint), handle, uplo, trans, n, k, alpha, A, lda, B, ldb,
-          beta, C, ldc)
+    @ccall libcublas.cublasZsyr2k_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                     trans::cublasOperation_t, n::Cint, k::Cint,
+                                     alpha::RefOrCuRef{cuDoubleComplex},
+                                     A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                     B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                     beta::RefOrCuRef{cuDoubleComplex},
+                                     C::CuPtr{cuDoubleComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCher2k_v2(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                   ldc)
     initialize_context()
-    ccall((:cublasCher2k_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{cuComplex}, Cint), handle, uplo, trans, n, k, alpha, A,
-          lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasCher2k_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                     trans::cublasOperation_t, n::Cint, k::Cint,
+                                     alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                     lda::Cint, B::CuPtr{cuComplex}, ldb::Cint,
+                                     beta::RefOrCuRef{Cfloat}, C::CuPtr{cuComplex},
+                                     ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZher2k_v2(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                   ldc)
     initialize_context()
-    ccall((:cublasZher2k_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cdouble}, CuPtr{cuDoubleComplex}, Cint),
-          handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasZher2k_v2(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                     trans::cublasOperation_t, n::Cint, k::Cint,
+                                     alpha::RefOrCuRef{cuDoubleComplex},
+                                     A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                     B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                     beta::RefOrCuRef{Cdouble}, C::CuPtr{cuDoubleComplex},
+                                     ldc::Cint)::cublasStatus_t
 end
 
 @cenum cublasSideMode_t::UInt32 begin
@@ -1232,144 +1276,155 @@ end
 @checked function cublasSsymm_v2(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasSsymm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, Cint, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat},
-           CuPtr{Cfloat}, Cint), handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
-          ldc)
+    @ccall libcublas.cublasSsymm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cfloat}, lda::Cint,
+                                    B::CuPtr{Cfloat}, ldb::Cint, beta::RefOrCuRef{Cfloat},
+                                    C::CuPtr{Cfloat}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasDsymm_v2(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasDsymm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, Cint, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint), handle, side, uplo, m, n, alpha, A,
-          lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasDsymm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, A::CuPtr{Cdouble},
+                                    lda::Cint, B::CuPtr{Cdouble}, ldb::Cint,
+                                    beta::RefOrCuRef{Cdouble}, C::CuPtr{Cdouble},
+                                    ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCsymm_v2(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasCsymm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint), handle, side, uplo, m, n, alpha,
-          A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasCsymm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                    lda::Cint, B::CuPtr{cuComplex}, ldb::Cint,
+                                    beta::RefOrCuRef{cuComplex}, C::CuPtr{cuComplex},
+                                    ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZsymm_v2(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasZsymm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint), handle, side, uplo, m, n, alpha, A, lda, B, ldb,
-          beta, C, ldc)
+    @ccall libcublas.cublasZsymm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                    beta::RefOrCuRef{cuDoubleComplex},
+                                    C::CuPtr{cuDoubleComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasChemm_v2(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasChemm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint), handle, side, uplo, m, n, alpha,
-          A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasChemm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                    lda::Cint, B::CuPtr{cuComplex}, ldb::Cint,
+                                    beta::RefOrCuRef{cuComplex}, C::CuPtr{cuComplex},
+                                    ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZhemm_v2(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasZhemm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint), handle, side, uplo, m, n, alpha, A, lda, B, ldb,
-          beta, C, ldc)
+    @ccall libcublas.cublasZhemm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                    beta::RefOrCuRef{cuDoubleComplex},
+                                    C::CuPtr{cuDoubleComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasStrsm_v2(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                  ldb)
     initialize_context()
-    ccall((:cublasStrsm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Cint, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
-           CuPtr{Cfloat}, Cint), handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
-          ldb)
+    @ccall libcublas.cublasStrsm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                    diag::cublasDiagType_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cfloat}, lda::Cint,
+                                    B::CuPtr{Cfloat}, ldb::Cint)::cublasStatus_t
 end
 
 @checked function cublasDtrsm_v2(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                  ldb)
     initialize_context()
-    ccall((:cublasDtrsm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Cint, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint,
-           CuPtr{Cdouble}, Cint), handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
-          ldb)
+    @ccall libcublas.cublasDtrsm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                    diag::cublasDiagType_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, A::CuPtr{Cdouble},
+                                    lda::Cint, B::CuPtr{Cdouble}, ldb::Cint)::cublasStatus_t
 end
 
 @checked function cublasCtrsm_v2(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                  ldb)
     initialize_context()
-    ccall((:cublasCtrsm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Cint, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint,
-           CuPtr{cuComplex}, Cint), handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
-          ldb)
+    @ccall libcublas.cublasCtrsm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                    diag::cublasDiagType_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                    lda::Cint, B::CuPtr{cuComplex},
+                                    ldb::Cint)::cublasStatus_t
 end
 
 @checked function cublasZtrsm_v2(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                  ldb)
     initialize_context()
-    ccall((:cublasZtrsm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Cint, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint), handle, side, uplo,
-          trans, diag, m, n, alpha, A, lda, B, ldb)
+    @ccall libcublas.cublasZtrsm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                    diag::cublasDiagType_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    B::CuPtr{cuDoubleComplex}, ldb::Cint)::cublasStatus_t
 end
 
 @checked function cublasStrmm_v2(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                  ldb, C, ldc)
     initialize_context()
-    ccall((:cublasStrmm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Cint, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
-           CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint), handle, side, uplo, trans, diag, m, n,
-          alpha, A, lda, B, ldb, C, ldc)
+    @ccall libcublas.cublasStrmm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                    diag::cublasDiagType_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cfloat}, lda::Cint,
+                                    B::CuPtr{Cfloat}, ldb::Cint, C::CuPtr{Cfloat},
+                                    ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasDtrmm_v2(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                  ldb, C, ldc)
     initialize_context()
-    ccall((:cublasDtrmm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Cint, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint,
-           CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint), handle, side, uplo, trans, diag, m,
-          n, alpha, A, lda, B, ldb, C, ldc)
+    @ccall libcublas.cublasDtrmm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                    diag::cublasDiagType_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{Cdouble}, A::CuPtr{Cdouble},
+                                    lda::Cint, B::CuPtr{Cdouble}, ldb::Cint,
+                                    C::CuPtr{Cdouble}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCtrmm_v2(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                  ldb, C, ldc)
     initialize_context()
-    ccall((:cublasCtrmm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Cint, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint,
-           CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, side, uplo, trans, diag,
-          m, n, alpha, A, lda, B, ldb, C, ldc)
+    @ccall libcublas.cublasCtrmm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                    diag::cublasDiagType_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                    lda::Cint, B::CuPtr{cuComplex}, ldb::Cint,
+                                    C::CuPtr{cuComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZtrmm_v2(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                  ldb, C, ldc)
     initialize_context()
-    ccall((:cublasZtrmm_v2, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Cint, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint), handle, side, uplo, trans, diag, m, n, alpha, A,
-          lda, B, ldb, C, ldc)
+    @ccall libcublas.cublasZtrmm_v2(handle::cublasHandle_t, side::cublasSideMode_t,
+                                    uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                    diag::cublasDiagType_t, m::Cint, n::Cint,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                    B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                    C::CuPtr{cuDoubleComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @cenum cublasAtomicsMode_t::UInt32 begin
@@ -1449,58 +1504,58 @@ const cublasDataType_t = cudaDataType
 end
 
 @checked function cublasGetProperty(type, value)
-    ccall((:cublasGetProperty, libcublas), cublasStatus_t, (libraryPropertyType, Ref{Cint}),
-          type, value)
+    @ccall libcublas.cublasGetProperty(type::libraryPropertyType,
+                                       value::Ref{Cint})::cublasStatus_t
 end
 
 function cublasGetCudartVersion()
-    ccall((:cublasGetCudartVersion, libcublas), Csize_t, ())
+    @ccall libcublas.cublasGetCudartVersion()::Csize_t
 end
 
 @checked function cublasGetAtomicsMode(handle, mode)
     initialize_context()
-    ccall((:cublasGetAtomicsMode, libcublas), cublasStatus_t,
-          (cublasHandle_t, Ref{cublasAtomicsMode_t}), handle, mode)
+    @ccall libcublas.cublasGetAtomicsMode(handle::cublasHandle_t,
+                                          mode::Ref{cublasAtomicsMode_t})::cublasStatus_t
 end
 
 @checked function cublasSetAtomicsMode(handle, mode)
     initialize_context()
-    ccall((:cublasSetAtomicsMode, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasAtomicsMode_t), handle, mode)
+    @ccall libcublas.cublasSetAtomicsMode(handle::cublasHandle_t,
+                                          mode::cublasAtomicsMode_t)::cublasStatus_t
 end
 
 @checked function cublasGetMathMode(handle, mode)
     initialize_context()
-    ccall((:cublasGetMathMode, libcublas), cublasStatus_t, (cublasHandle_t, Ref{UInt32}),
-          handle, mode)
+    @ccall libcublas.cublasGetMathMode(handle::cublasHandle_t,
+                                       mode::Ref{UInt32})::cublasStatus_t
 end
 
 @checked function cublasSetMathMode(handle, mode)
     initialize_context()
-    ccall((:cublasSetMathMode, libcublas), cublasStatus_t, (cublasHandle_t, cublasMath_t),
-          handle, mode)
+    @ccall libcublas.cublasSetMathMode(handle::cublasHandle_t,
+                                       mode::cublasMath_t)::cublasStatus_t
 end
 
 @checked function cublasGetSmCountTarget(handle, smCountTarget)
     initialize_context()
-    ccall((:cublasGetSmCountTarget, libcublas), cublasStatus_t, (cublasHandle_t, Ptr{Cint}),
-          handle, smCountTarget)
+    @ccall libcublas.cublasGetSmCountTarget(handle::cublasHandle_t,
+                                            smCountTarget::Ptr{Cint})::cublasStatus_t
 end
 
 @checked function cublasSetSmCountTarget(handle, smCountTarget)
     initialize_context()
-    ccall((:cublasSetSmCountTarget, libcublas), cublasStatus_t, (cublasHandle_t, Cint),
-          handle, smCountTarget)
+    @ccall libcublas.cublasSetSmCountTarget(handle::cublasHandle_t,
+                                            smCountTarget::Cint)::cublasStatus_t
 end
 
 function cublasGetStatusName(status)
     initialize_context()
-    ccall((:cublasGetStatusName, libcublas), Cstring, (cublasStatus_t,), status)
+    @ccall libcublas.cublasGetStatusName(status::cublasStatus_t)::Cstring
 end
 
 function cublasGetStatusString(status)
     initialize_context()
-    ccall((:cublasGetStatusString, libcublas), Cstring, (cublasStatus_t,), status)
+    @ccall libcublas.cublasGetStatusString(status::cublasStatus_t)::Cstring
 end
 
 # typedef void ( * cublasLogCallback ) ( const char * msg )
@@ -1508,517 +1563,578 @@ const cublasLogCallback = Ptr{Cvoid}
 
 @checked function cublasLoggerConfigure(logIsOn, logToStdOut, logToStdErr, logFileName)
     initialize_context()
-    ccall((:cublasLoggerConfigure, libcublas), cublasStatus_t, (Cint, Cint, Cint, Cstring),
-          logIsOn, logToStdOut, logToStdErr, logFileName)
+    @ccall libcublas.cublasLoggerConfigure(logIsOn::Cint, logToStdOut::Cint,
+                                           logToStdErr::Cint,
+                                           logFileName::Cstring)::cublasStatus_t
 end
 
 @checked function cublasSetLoggerCallback(userCallback)
-    ccall((:cublasSetLoggerCallback, libcublas), cublasStatus_t, (cublasLogCallback,),
-          userCallback)
+    @ccall libcublas.cublasSetLoggerCallback(userCallback::cublasLogCallback)::cublasStatus_t
 end
 
 @checked function cublasGetLoggerCallback(userCallback)
-    ccall((:cublasGetLoggerCallback, libcublas), cublasStatus_t, (Ref{cublasLogCallback},),
-          userCallback)
+    @ccall libcublas.cublasGetLoggerCallback(userCallback::Ref{cublasLogCallback})::cublasStatus_t
 end
 
 @checked function cublasSetVector(n, elemSize, x, incx, devicePtr, incy)
     initialize_context()
-    ccall((:cublasSetVector, libcublas), cublasStatus_t,
-          (Cint, Cint, Ptr{Cvoid}, Cint, CuPtr{Cvoid}, Cint), n, elemSize, x, incx,
-          devicePtr, incy)
+    @ccall libcublas.cublasSetVector(n::Cint, elemSize::Cint, x::Ptr{Cvoid}, incx::Cint,
+                                     devicePtr::CuPtr{Cvoid}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasGetVector(n, elemSize, x, incx, y, incy)
     initialize_context()
-    ccall((:cublasGetVector, libcublas), cublasStatus_t,
-          (Cint, Cint, CuPtr{Cvoid}, Cint, Ptr{Cvoid}, Cint), n, elemSize, x, incx, y, incy)
+    @ccall libcublas.cublasGetVector(n::Cint, elemSize::Cint, x::CuPtr{Cvoid}, incx::Cint,
+                                     y::Ptr{Cvoid}, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasSetMatrix(rows, cols, elemSize, A, lda, B, ldb)
     initialize_context()
-    ccall((:cublasSetMatrix, libcublas), cublasStatus_t,
-          (Cint, Cint, Cint, Ptr{Cvoid}, Cint, CuPtr{Cvoid}, Cint), rows, cols, elemSize, A,
-          lda, B, ldb)
+    @ccall libcublas.cublasSetMatrix(rows::Cint, cols::Cint, elemSize::Cint, A::Ptr{Cvoid},
+                                     lda::Cint, B::CuPtr{Cvoid}, ldb::Cint)::cublasStatus_t
 end
 
 @checked function cublasGetMatrix(rows, cols, elemSize, A, lda, B, ldb)
     initialize_context()
-    ccall((:cublasGetMatrix, libcublas), cublasStatus_t,
-          (Cint, Cint, Cint, CuPtr{Cvoid}, Cint, Ptr{Cvoid}, Cint), rows, cols, elemSize, A,
-          lda, B, ldb)
+    @ccall libcublas.cublasGetMatrix(rows::Cint, cols::Cint, elemSize::Cint,
+                                     A::CuPtr{Cvoid}, lda::Cint, B::Ptr{Cvoid},
+                                     ldb::Cint)::cublasStatus_t
 end
 
 @checked function cublasSetVectorAsync(n, elemSize, hostPtr, incx, devicePtr, incy, stream)
     initialize_context()
-    ccall((:cublasSetVectorAsync, libcublas), cublasStatus_t,
-          (Cint, Cint, Ptr{Cvoid}, Cint, CuPtr{Cvoid}, Cint, cudaStream_t), n, elemSize,
-          hostPtr, incx, devicePtr, incy, stream)
+    @ccall libcublas.cublasSetVectorAsync(n::Cint, elemSize::Cint, hostPtr::Ptr{Cvoid},
+                                          incx::Cint, devicePtr::CuPtr{Cvoid}, incy::Cint,
+                                          stream::cudaStream_t)::cublasStatus_t
 end
 
 @checked function cublasGetVectorAsync(n, elemSize, devicePtr, incx, hostPtr, incy, stream)
     initialize_context()
-    ccall((:cublasGetVectorAsync, libcublas), cublasStatus_t,
-          (Cint, Cint, CuPtr{Cvoid}, Cint, Ptr{Cvoid}, Cint, cudaStream_t), n, elemSize,
-          devicePtr, incx, hostPtr, incy, stream)
+    @ccall libcublas.cublasGetVectorAsync(n::Cint, elemSize::Cint, devicePtr::CuPtr{Cvoid},
+                                          incx::Cint, hostPtr::Ptr{Cvoid}, incy::Cint,
+                                          stream::cudaStream_t)::cublasStatus_t
 end
 
 @checked function cublasSetMatrixAsync(rows, cols, elemSize, A, lda, B, ldb, stream)
     initialize_context()
-    ccall((:cublasSetMatrixAsync, libcublas), cublasStatus_t,
-          (Cint, Cint, Cint, Ptr{Cvoid}, Cint, CuPtr{Cvoid}, Cint, cudaStream_t), rows,
-          cols, elemSize, A, lda, B, ldb, stream)
+    @ccall libcublas.cublasSetMatrixAsync(rows::Cint, cols::Cint, elemSize::Cint,
+                                          A::Ptr{Cvoid}, lda::Cint, B::CuPtr{Cvoid},
+                                          ldb::Cint, stream::cudaStream_t)::cublasStatus_t
 end
 
 @checked function cublasGetMatrixAsync(rows, cols, elemSize, A, lda, B, ldb, stream)
     initialize_context()
-    ccall((:cublasGetMatrixAsync, libcublas), cublasStatus_t,
-          (Cint, Cint, Cint, CuPtr{Cvoid}, Cint, Ptr{Cvoid}, Cint, cudaStream_t), rows,
-          cols, elemSize, A, lda, B, ldb, stream)
+    @ccall libcublas.cublasGetMatrixAsync(rows::Cint, cols::Cint, elemSize::Cint,
+                                          A::CuPtr{Cvoid}, lda::Cint, B::Ptr{Cvoid},
+                                          ldb::Cint, stream::cudaStream_t)::cublasStatus_t
 end
 
 function cublasXerbla(srName, info)
     initialize_context()
-    ccall((:cublasXerbla, libcublas), Cvoid, (Cstring, Cint), srName, info)
+    @ccall libcublas.cublasXerbla(srName::Cstring, info::Cint)::Cvoid
 end
 
 @checked function cublasNrm2Ex(handle, n, x, xType, incx, result, resultType, executionType)
     initialize_context()
-    ccall((:cublasNrm2Ex, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cvoid}, cudaDataType, Cint, PtrOrCuPtr{Cvoid},
-           cudaDataType, cudaDataType), handle, n, x, xType, incx, result, resultType,
-          executionType)
+    @ccall libcublas.cublasNrm2Ex(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
+                                  xType::cudaDataType, incx::Cint,
+                                  result::PtrOrCuPtr{Cvoid}, resultType::cudaDataType,
+                                  executionType::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasDotEx(handle, n, x, xType, incx, y, yType, incy, result, resultType,
                               executionType)
     initialize_context()
-    ccall((:cublasDotEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cvoid}, cudaDataType, Cint, CuPtr{Cvoid},
-           cudaDataType, Cint, PtrOrCuPtr{Cvoid}, cudaDataType, cudaDataType), handle, n, x,
-          xType, incx, y, yType, incy, result, resultType, executionType)
+    @ccall libcublas.cublasDotEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
+                                 xType::cudaDataType, incx::Cint, y::CuPtr{Cvoid},
+                                 yType::cudaDataType, incy::Cint, result::PtrOrCuPtr{Cvoid},
+                                 resultType::cudaDataType,
+                                 executionType::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasDotcEx(handle, n, x, xType, incx, y, yType, incy, result,
                                resultType, executionType)
     initialize_context()
-    ccall((:cublasDotcEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cvoid}, cudaDataType, Cint, CuPtr{Cvoid},
-           cudaDataType, Cint, PtrOrCuPtr{Cvoid}, cudaDataType, cudaDataType), handle, n, x,
-          xType, incx, y, yType, incy, result, resultType, executionType)
+    @ccall libcublas.cublasDotcEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
+                                  xType::cudaDataType, incx::Cint, y::CuPtr{Cvoid},
+                                  yType::cudaDataType, incy::Cint,
+                                  result::PtrOrCuPtr{Cvoid}, resultType::cudaDataType,
+                                  executionType::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasScalEx(handle, n, alpha, alphaType, x, xType, incx, executionType)
     initialize_context()
-    ccall((:cublasScalEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, PtrOrCuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid},
-           cudaDataType, Cint, cudaDataType), handle, n, alpha, alphaType, x, xType, incx,
-          executionType)
+    @ccall libcublas.cublasScalEx(handle::cublasHandle_t, n::Cint, alpha::PtrOrCuPtr{Cvoid},
+                                  alphaType::cudaDataType, x::CuPtr{Cvoid},
+                                  xType::cudaDataType, incx::Cint,
+                                  executionType::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasAxpyEx(handle, n, alpha, alphaType, x, xType, incx, y, yType, incy,
                                executiontype)
     initialize_context()
-    ccall((:cublasAxpyEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, PtrOrCuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid},
-           cudaDataType, Cint, CuPtr{Cvoid}, cudaDataType, Cint, cudaDataType), handle, n,
-          alpha, alphaType, x, xType, incx, y, yType, incy, executiontype)
+    @ccall libcublas.cublasAxpyEx(handle::cublasHandle_t, n::Cint, alpha::PtrOrCuPtr{Cvoid},
+                                  alphaType::cudaDataType, x::CuPtr{Cvoid},
+                                  xType::cudaDataType, incx::Cint, y::CuPtr{Cvoid},
+                                  yType::cudaDataType, incy::Cint,
+                                  executiontype::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasCopyEx(handle, n, x, xType, incx, y, yType, incy)
     initialize_context()
-    ccall((:cublasCopyEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cvoid}, cudaDataType, Cint, CuPtr{Cvoid},
-           cudaDataType, Cint), handle, n, x, xType, incx, y, yType, incy)
+    @ccall libcublas.cublasCopyEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
+                                  xType::cudaDataType, incx::Cint, y::CuPtr{Cvoid},
+                                  yType::cudaDataType, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasSwapEx(handle, n, x, xType, incx, y, yType, incy)
     initialize_context()
-    ccall((:cublasSwapEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cvoid}, cudaDataType, Cint, CuPtr{Cvoid},
-           cudaDataType, Cint), handle, n, x, xType, incx, y, yType, incy)
+    @ccall libcublas.cublasSwapEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
+                                  xType::cudaDataType, incx::Cint, y::CuPtr{Cvoid},
+                                  yType::cudaDataType, incy::Cint)::cublasStatus_t
 end
 
 @checked function cublasIamaxEx(handle, n, x, xType, incx, result)
     initialize_context()
-    ccall((:cublasIamaxEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cvoid}, cudaDataType, Cint, RefOrCuRef{Cint}),
-          handle, n, x, xType, incx, result)
+    @ccall libcublas.cublasIamaxEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
+                                   xType::cudaDataType, incx::Cint,
+                                   result::RefOrCuRef{Cint})::cublasStatus_t
 end
 
 @checked function cublasIaminEx(handle, n, x, xType, incx, result)
     initialize_context()
-    ccall((:cublasIaminEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cvoid}, cudaDataType, Cint, RefOrCuRef{Cint}),
-          handle, n, x, xType, incx, result)
+    @ccall libcublas.cublasIaminEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
+                                   xType::cudaDataType, incx::Cint,
+                                   result::RefOrCuRef{Cint})::cublasStatus_t
 end
 
 @checked function cublasAsumEx(handle, n, x, xType, incx, result, resultType, executiontype)
     initialize_context()
-    ccall((:cublasAsumEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cvoid}, cudaDataType, Cint, PtrOrCuPtr{Cvoid},
-           cudaDataType, cudaDataType), handle, n, x, xType, incx, result, resultType,
-          executiontype)
+    @ccall libcublas.cublasAsumEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
+                                  xType::cudaDataType, incx::Cint,
+                                  result::PtrOrCuPtr{Cvoid}, resultType::cudaDataType,
+                                  executiontype::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasRotEx(handle, n, x, xType, incx, y, yType, incy, c, s, csType,
                               executiontype)
     initialize_context()
-    ccall((:cublasRotEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cvoid}, cudaDataType, Cint, CuPtr{Cvoid},
-           cudaDataType, Cint, PtrOrCuPtr{Cvoid}, PtrOrCuPtr{Cvoid}, cudaDataType,
-           cudaDataType), handle, n, x, xType, incx, y, yType, incy, c, s, csType,
-          executiontype)
+    @ccall libcublas.cublasRotEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
+                                 xType::cudaDataType, incx::Cint, y::CuPtr{Cvoid},
+                                 yType::cudaDataType, incy::Cint, c::PtrOrCuPtr{Cvoid},
+                                 s::PtrOrCuPtr{Cvoid}, csType::cudaDataType,
+                                 executiontype::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasRotgEx(handle, a, b, abType, c, s, csType, executiontype)
     initialize_context()
-    ccall((:cublasRotgEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, Ptr{Cvoid}, Ptr{Cvoid}, cudaDataType, PtrOrCuPtr{Cvoid},
-           PtrOrCuPtr{Cvoid}, cudaDataType, cudaDataType), handle, a, b, abType, c, s,
-          csType, executiontype)
+    @ccall libcublas.cublasRotgEx(handle::cublasHandle_t, a::Ptr{Cvoid}, b::Ptr{Cvoid},
+                                  abType::cudaDataType, c::PtrOrCuPtr{Cvoid},
+                                  s::PtrOrCuPtr{Cvoid}, csType::cudaDataType,
+                                  executiontype::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasRotmEx(handle, n, x, xType, incx, y, yType, incy, param, paramType,
                                executiontype)
     initialize_context()
-    ccall((:cublasRotmEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Cvoid}, cudaDataType, Cint, CuPtr{Cvoid},
-           cudaDataType, Cint, PtrOrCuPtr{Cvoid}, cudaDataType, cudaDataType), handle, n, x,
-          xType, incx, y, yType, incy, param, paramType, executiontype)
+    @ccall libcublas.cublasRotmEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
+                                  xType::cudaDataType, incx::Cint, y::CuPtr{Cvoid},
+                                  yType::cudaDataType, incy::Cint, param::PtrOrCuPtr{Cvoid},
+                                  paramType::cudaDataType,
+                                  executiontype::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasRotmgEx(handle, d1, d1Type, d2, d2Type, x1, x1Type, y1, y1Type,
                                 param, paramType, executiontype)
     initialize_context()
-    ccall((:cublasRotmgEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, PtrOrCuPtr{Cvoid}, cudaDataType, PtrOrCuPtr{Cvoid}, cudaDataType,
-           PtrOrCuPtr{Cvoid}, cudaDataType, PtrOrCuPtr{Cvoid}, cudaDataType,
-           PtrOrCuPtr{Cvoid}, cudaDataType, cudaDataType), handle, d1, d1Type, d2, d2Type,
-          x1, x1Type, y1, y1Type, param, paramType, executiontype)
+    @ccall libcublas.cublasRotmgEx(handle::cublasHandle_t, d1::PtrOrCuPtr{Cvoid},
+                                   d1Type::cudaDataType, d2::PtrOrCuPtr{Cvoid},
+                                   d2Type::cudaDataType, x1::PtrOrCuPtr{Cvoid},
+                                   x1Type::cudaDataType, y1::PtrOrCuPtr{Cvoid},
+                                   y1Type::cudaDataType, param::PtrOrCuPtr{Cvoid},
+                                   paramType::cudaDataType,
+                                   executiontype::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasSgemvBatched(handle, trans, m, n, alpha, Aarray, lda, xarray, incx,
                                      beta, yarray, incy, batchCount)
     initialize_context()
-    ccall((:cublasSgemvBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{Cfloat}, Ptr{Ptr{Cfloat}},
-           Cint, Ptr{Ptr{Cfloat}}, Cint, Ptr{Cfloat}, Ptr{Ptr{Cfloat}}, Cint, Cint), handle,
-          trans, m, n, alpha, Aarray, lda, xarray, incx, beta, yarray, incy, batchCount)
+    @ccall libcublas.cublasSgemvBatched(handle::cublasHandle_t, trans::cublasOperation_t,
+                                        m::Cint, n::Cint, alpha::Ptr{Cfloat},
+                                        Aarray::Ptr{Ptr{Cfloat}}, lda::Cint,
+                                        xarray::Ptr{Ptr{Cfloat}}, incx::Cint,
+                                        beta::Ptr{Cfloat}, yarray::Ptr{Ptr{Cfloat}},
+                                        incy::Cint, batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgemvBatched(handle, trans, m, n, alpha, Aarray, lda, xarray, incx,
                                      beta, yarray, incy, batchCount)
     initialize_context()
-    ccall((:cublasDgemvBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{Cdouble}, Ptr{Ptr{Cdouble}},
-           Cint, Ptr{Ptr{Cdouble}}, Cint, Ptr{Cdouble}, Ptr{Ptr{Cdouble}}, Cint, Cint),
-          handle, trans, m, n, alpha, Aarray, lda, xarray, incx, beta, yarray, incy,
-          batchCount)
+    @ccall libcublas.cublasDgemvBatched(handle::cublasHandle_t, trans::cublasOperation_t,
+                                        m::Cint, n::Cint, alpha::Ptr{Cdouble},
+                                        Aarray::Ptr{Ptr{Cdouble}}, lda::Cint,
+                                        xarray::Ptr{Ptr{Cdouble}}, incx::Cint,
+                                        beta::Ptr{Cdouble}, yarray::Ptr{Ptr{Cdouble}},
+                                        incy::Cint, batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgemvBatched(handle, trans, m, n, alpha, Aarray, lda, xarray, incx,
                                      beta, yarray, incy, batchCount)
     initialize_context()
-    ccall((:cublasCgemvBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{cuComplex},
-           Ptr{Ptr{cuComplex}}, Cint, Ptr{Ptr{cuComplex}}, Cint, Ptr{cuComplex},
-           Ptr{Ptr{cuComplex}}, Cint, Cint), handle, trans, m, n, alpha, Aarray, lda,
-          xarray, incx, beta, yarray, incy, batchCount)
+    @ccall libcublas.cublasCgemvBatched(handle::cublasHandle_t, trans::cublasOperation_t,
+                                        m::Cint, n::Cint, alpha::Ptr{cuComplex},
+                                        Aarray::Ptr{Ptr{cuComplex}}, lda::Cint,
+                                        xarray::Ptr{Ptr{cuComplex}}, incx::Cint,
+                                        beta::Ptr{cuComplex}, yarray::Ptr{Ptr{cuComplex}},
+                                        incy::Cint, batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgemvBatched(handle, trans, m, n, alpha, Aarray, lda, xarray, incx,
                                      beta, yarray, incy, batchCount)
     initialize_context()
-    ccall((:cublasZgemvBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{cuDoubleComplex},
-           Ptr{Ptr{cuDoubleComplex}}, Cint, Ptr{Ptr{cuDoubleComplex}}, Cint,
-           Ptr{cuDoubleComplex}, Ptr{Ptr{cuDoubleComplex}}, Cint, Cint), handle, trans, m,
-          n, alpha, Aarray, lda, xarray, incx, beta, yarray, incy, batchCount)
+    @ccall libcublas.cublasZgemvBatched(handle::cublasHandle_t, trans::cublasOperation_t,
+                                        m::Cint, n::Cint, alpha::Ptr{cuDoubleComplex},
+                                        Aarray::Ptr{Ptr{cuDoubleComplex}}, lda::Cint,
+                                        xarray::Ptr{Ptr{cuDoubleComplex}}, incx::Cint,
+                                        beta::Ptr{cuDoubleComplex},
+                                        yarray::Ptr{Ptr{cuDoubleComplex}}, incy::Cint,
+                                        batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasSgemvStridedBatched(handle, trans, m, n, alpha, A, lda, strideA, x,
                                             incx, stridex, beta, y, incy, stridey,
                                             batchCount)
     initialize_context()
-    ccall((:cublasSgemvStridedBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{Cfloat}, Ptr{Cfloat}, Cint,
-           Clonglong, Ptr{Cfloat}, Cint, Clonglong, Ptr{Cfloat}, Ptr{Cfloat}, Cint,
-           Clonglong, Cint), handle, trans, m, n, alpha, A, lda, strideA, x, incx, stridex,
-          beta, y, incy, stridey, batchCount)
+    @ccall libcublas.cublasSgemvStridedBatched(handle::cublasHandle_t,
+                                               trans::cublasOperation_t, m::Cint, n::Cint,
+                                               alpha::Ptr{Cfloat}, A::Ptr{Cfloat},
+                                               lda::Cint, strideA::Clonglong,
+                                               x::Ptr{Cfloat}, incx::Cint,
+                                               stridex::Clonglong, beta::Ptr{Cfloat},
+                                               y::Ptr{Cfloat}, incy::Cint,
+                                               stridey::Clonglong,
+                                               batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgemvStridedBatched(handle, trans, m, n, alpha, A, lda, strideA, x,
                                             incx, stridex, beta, y, incy, stridey,
                                             batchCount)
     initialize_context()
-    ccall((:cublasDgemvStridedBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, Cint,
-           Clonglong, Ptr{Cdouble}, Cint, Clonglong, Ptr{Cdouble}, Ptr{Cdouble}, Cint,
-           Clonglong, Cint), handle, trans, m, n, alpha, A, lda, strideA, x, incx, stridex,
-          beta, y, incy, stridey, batchCount)
+    @ccall libcublas.cublasDgemvStridedBatched(handle::cublasHandle_t,
+                                               trans::cublasOperation_t, m::Cint, n::Cint,
+                                               alpha::Ptr{Cdouble}, A::Ptr{Cdouble},
+                                               lda::Cint, strideA::Clonglong,
+                                               x::Ptr{Cdouble}, incx::Cint,
+                                               stridex::Clonglong, beta::Ptr{Cdouble},
+                                               y::Ptr{Cdouble}, incy::Cint,
+                                               stridey::Clonglong,
+                                               batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgemvStridedBatched(handle, trans, m, n, alpha, A, lda, strideA, x,
                                             incx, stridex, beta, y, incy, stridey,
                                             batchCount)
     initialize_context()
-    ccall((:cublasCgemvStridedBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{cuComplex}, Ptr{cuComplex},
-           Cint, Clonglong, Ptr{cuComplex}, Cint, Clonglong, Ptr{cuComplex}, Ptr{cuComplex},
-           Cint, Clonglong, Cint), handle, trans, m, n, alpha, A, lda, strideA, x, incx,
-          stridex, beta, y, incy, stridey, batchCount)
+    @ccall libcublas.cublasCgemvStridedBatched(handle::cublasHandle_t,
+                                               trans::cublasOperation_t, m::Cint, n::Cint,
+                                               alpha::Ptr{cuComplex}, A::Ptr{cuComplex},
+                                               lda::Cint, strideA::Clonglong,
+                                               x::Ptr{cuComplex}, incx::Cint,
+                                               stridex::Clonglong, beta::Ptr{cuComplex},
+                                               y::Ptr{cuComplex}, incy::Cint,
+                                               stridey::Clonglong,
+                                               batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgemvStridedBatched(handle, trans, m, n, alpha, A, lda, strideA, x,
                                             incx, stridex, beta, y, incy, stridey,
                                             batchCount)
     initialize_context()
-    ccall((:cublasZgemvStridedBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{cuDoubleComplex},
-           Ptr{cuDoubleComplex}, Cint, Clonglong, Ptr{cuDoubleComplex}, Cint, Clonglong,
-           Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, Cint, Clonglong, Cint), handle,
-          trans, m, n, alpha, A, lda, strideA, x, incx, stridex, beta, y, incy, stridey,
-          batchCount)
+    @ccall libcublas.cublasZgemvStridedBatched(handle::cublasHandle_t,
+                                               trans::cublasOperation_t, m::Cint, n::Cint,
+                                               alpha::Ptr{cuDoubleComplex},
+                                               A::Ptr{cuDoubleComplex}, lda::Cint,
+                                               strideA::Clonglong, x::Ptr{cuDoubleComplex},
+                                               incx::Cint, stridex::Clonglong,
+                                               beta::Ptr{cuDoubleComplex},
+                                               y::Ptr{cuDoubleComplex}, incy::Cint,
+                                               stridey::Clonglong,
+                                               batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgemm3m(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
                                 beta, C, ldc)
     initialize_context()
-    ccall((:cublasCgemm3m, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint), handle, transa, transb, m, n, k,
-          alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasCgemm3m(handle::cublasHandle_t, transa::cublasOperation_t,
+                                   transb::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                   alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                   lda::Cint, B::CuPtr{cuComplex}, ldb::Cint,
+                                   beta::RefOrCuRef{cuComplex}, C::CuPtr{cuComplex},
+                                   ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgemm3mEx(handle, transa, transb, m, n, k, alpha, A, Atype, lda, B,
                                   Btype, ldb, beta, C, Ctype, ldc)
     initialize_context()
-    ccall((:cublasCgemm3mEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint, CuPtr{Cvoid},
-           cudaDataType, Cint, RefOrCuRef{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint),
-          handle, transa, transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb, beta, C,
-          Ctype, ldc)
+    @ccall libcublas.cublasCgemm3mEx(handle::cublasHandle_t, transa::cublasOperation_t,
+                                     transb::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                     alpha::RefOrCuRef{cuComplex}, A::CuPtr{Cvoid},
+                                     Atype::cudaDataType, lda::Cint, B::CuPtr{Cvoid},
+                                     Btype::cudaDataType, ldb::Cint,
+                                     beta::RefOrCuRef{cuComplex}, C::CuPtr{Cvoid},
+                                     Ctype::cudaDataType, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgemm3m(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
                                 beta, C, ldc)
     initialize_context()
-    ccall((:cublasZgemm3m, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint), handle, transa, transb, m, n, k, alpha, A, lda, B,
-          ldb, beta, C, ldc)
+    @ccall libcublas.cublasZgemm3m(handle::cublasHandle_t, transa::cublasOperation_t,
+                                   transb::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                   alpha::RefOrCuRef{cuDoubleComplex},
+                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                   B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                   beta::RefOrCuRef{cuDoubleComplex},
+                                   C::CuPtr{cuDoubleComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasSgemmEx(handle, transa, transb, m, n, k, alpha, A, Atype, lda, B,
                                 Btype, ldb, beta, C, Ctype, ldc)
     initialize_context()
-    ccall((:cublasSgemmEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint, CuPtr{Cvoid}, cudaDataType,
-           Cint, RefOrCuRef{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint), handle, transa,
-          transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb, beta, C, Ctype, ldc)
+    @ccall libcublas.cublasSgemmEx(handle::cublasHandle_t, transa::cublasOperation_t,
+                                   transb::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                   alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cvoid},
+                                   Atype::cudaDataType, lda::Cint, B::CuPtr{Cvoid},
+                                   Btype::cudaDataType, ldb::Cint, beta::RefOrCuRef{Cfloat},
+                                   C::CuPtr{Cvoid}, Ctype::cudaDataType,
+                                   ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasGemmEx(handle, transa, transb, m, n, k, alpha, A, Atype, lda, B,
                                Btype, ldb, beta, C, Ctype, ldc, computeType, algo)
     initialize_context()
-    ccall((:cublasGemmEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           PtrOrCuPtr{Cvoid}, CuPtr{Cvoid}, cudaDataType, Cint, CuPtr{Cvoid}, cudaDataType,
-           Cint, PtrOrCuPtr{Cvoid}, CuPtr{Cvoid}, cudaDataType, Cint, cublasComputeType_t,
-           cublasGemmAlgo_t), handle, transa, transb, m, n, k, alpha, A, Atype, lda, B,
-          Btype, ldb, beta, C, Ctype, ldc, computeType, algo)
+    @ccall libcublas.cublasGemmEx(handle::cublasHandle_t, transa::cublasOperation_t,
+                                  transb::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                  alpha::PtrOrCuPtr{Cvoid}, A::CuPtr{Cvoid},
+                                  Atype::cudaDataType, lda::Cint, B::CuPtr{Cvoid},
+                                  Btype::cudaDataType, ldb::Cint, beta::PtrOrCuPtr{Cvoid},
+                                  C::CuPtr{Cvoid}, Ctype::cudaDataType, ldc::Cint,
+                                  computeType::cublasComputeType_t,
+                                  algo::cublasGemmAlgo_t)::cublasStatus_t
 end
 
 @checked function cublasCgemmEx(handle, transa, transb, m, n, k, alpha, A, Atype, lda, B,
                                 Btype, ldb, beta, C, Ctype, ldc)
     initialize_context()
-    ccall((:cublasCgemmEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint, CuPtr{Cvoid},
-           cudaDataType, Cint, RefOrCuRef{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint),
-          handle, transa, transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb, beta, C,
-          Ctype, ldc)
+    @ccall libcublas.cublasCgemmEx(handle::cublasHandle_t, transa::cublasOperation_t,
+                                   transb::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                   alpha::RefOrCuRef{cuComplex}, A::CuPtr{Cvoid},
+                                   Atype::cudaDataType, lda::Cint, B::CuPtr{Cvoid},
+                                   Btype::cudaDataType, ldb::Cint,
+                                   beta::RefOrCuRef{cuComplex}, C::CuPtr{Cvoid},
+                                   Ctype::cudaDataType, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasUint8gemmBias(handle, transa, transb, transc, m, n, k, A, A_bias,
                                       lda, B, B_bias, ldb, C, C_bias, ldc, C_mult, C_shift)
     initialize_context()
-    ccall((:cublasUint8gemmBias, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, cublasOperation_t, Cint,
-           Cint, Cint, CuPtr{Cuchar}, Cint, Cint, CuPtr{Cuchar}, Cint, Cint, CuPtr{Cuchar},
-           Cint, Cint, Cint, Cint), handle, transa, transb, transc, m, n, k, A, A_bias, lda,
-          B, B_bias, ldb, C, C_bias, ldc, C_mult, C_shift)
+    @ccall libcublas.cublasUint8gemmBias(handle::cublasHandle_t, transa::cublasOperation_t,
+                                         transb::cublasOperation_t,
+                                         transc::cublasOperation_t, m::Cint, n::Cint,
+                                         k::Cint, A::CuPtr{Cuchar}, A_bias::Cint, lda::Cint,
+                                         B::CuPtr{Cuchar}, B_bias::Cint, ldb::Cint,
+                                         C::CuPtr{Cuchar}, C_bias::Cint, ldc::Cint,
+                                         C_mult::Cint, C_shift::Cint)::cublasStatus_t
 end
 
 @checked function cublasCsyrkEx(handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C,
                                 Ctype, ldc)
     initialize_context()
-    ccall((:cublasCsyrkEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint, RefOrCuRef{cuComplex},
-           CuPtr{Cvoid}, cudaDataType, Cint), handle, uplo, trans, n, k, alpha, A, Atype,
-          lda, beta, C, Ctype, ldc)
+    @ccall libcublas.cublasCsyrkEx(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                   trans::cublasOperation_t, n::Cint, k::Cint,
+                                   alpha::RefOrCuRef{cuComplex}, A::CuPtr{Cvoid},
+                                   Atype::cudaDataType, lda::Cint,
+                                   beta::RefOrCuRef{cuComplex}, C::CuPtr{Cvoid},
+                                   Ctype::cudaDataType, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCsyrk3mEx(handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C,
                                   Ctype, ldc)
     initialize_context()
-    ccall((:cublasCsyrk3mEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint, RefOrCuRef{cuComplex},
-           CuPtr{Cvoid}, cudaDataType, Cint), handle, uplo, trans, n, k, alpha, A, Atype,
-          lda, beta, C, Ctype, ldc)
+    @ccall libcublas.cublasCsyrk3mEx(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                     trans::cublasOperation_t, n::Cint, k::Cint,
+                                     alpha::RefOrCuRef{cuComplex}, A::CuPtr{Cvoid},
+                                     Atype::cudaDataType, lda::Cint,
+                                     beta::RefOrCuRef{cuComplex}, C::CuPtr{Cvoid},
+                                     Ctype::cudaDataType, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCherkEx(handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C,
                                 Ctype, ldc)
     initialize_context()
-    ccall((:cublasCherkEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint, RefOrCuRef{Cfloat},
-           CuPtr{Cvoid}, cudaDataType, Cint), handle, uplo, trans, n, k, alpha, A, Atype,
-          lda, beta, C, Ctype, ldc)
+    @ccall libcublas.cublasCherkEx(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                   trans::cublasOperation_t, n::Cint, k::Cint,
+                                   alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cvoid},
+                                   Atype::cudaDataType, lda::Cint, beta::RefOrCuRef{Cfloat},
+                                   C::CuPtr{Cvoid}, Ctype::cudaDataType,
+                                   ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCherk3mEx(handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C,
                                   Ctype, ldc)
     initialize_context()
-    ccall((:cublasCherk3mEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint, RefOrCuRef{Cfloat},
-           CuPtr{Cvoid}, cudaDataType, Cint), handle, uplo, trans, n, k, alpha, A, Atype,
-          lda, beta, C, Ctype, ldc)
+    @ccall libcublas.cublasCherk3mEx(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                     trans::cublasOperation_t, n::Cint, k::Cint,
+                                     alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cvoid},
+                                     Atype::cudaDataType, lda::Cint,
+                                     beta::RefOrCuRef{Cfloat}, C::CuPtr{Cvoid},
+                                     Ctype::cudaDataType, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasSsyrkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                ldc)
     initialize_context()
-    ccall((:cublasSsyrkx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat},
-           CuPtr{Cfloat}, Cint), handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
-          ldc)
+    @ccall libcublas.cublasSsyrkx(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                  trans::cublasOperation_t, n::Cint, k::Cint,
+                                  alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cfloat}, lda::Cint,
+                                  B::CuPtr{Cfloat}, ldb::Cint, beta::RefOrCuRef{Cfloat},
+                                  C::CuPtr{Cfloat}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasDsyrkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                ldc)
     initialize_context()
-    ccall((:cublasDsyrkx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint), handle, uplo, trans, n, k, alpha, A,
-          lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasDsyrkx(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                  trans::cublasOperation_t, n::Cint, k::Cint,
+                                  alpha::RefOrCuRef{Cdouble}, A::CuPtr{Cdouble}, lda::Cint,
+                                  B::CuPtr{Cdouble}, ldb::Cint, beta::RefOrCuRef{Cdouble},
+                                  C::CuPtr{Cdouble}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCsyrkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                ldc)
     initialize_context()
-    ccall((:cublasCsyrkx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint), handle, uplo, trans, n, k, alpha,
-          A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasCsyrkx(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                  trans::cublasOperation_t, n::Cint, k::Cint,
+                                  alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                  lda::Cint, B::CuPtr{cuComplex}, ldb::Cint,
+                                  beta::RefOrCuRef{cuComplex}, C::CuPtr{cuComplex},
+                                  ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZsyrkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                ldc)
     initialize_context()
-    ccall((:cublasZsyrkx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint), handle, uplo, trans, n, k, alpha, A, lda, B, ldb,
-          beta, C, ldc)
+    @ccall libcublas.cublasZsyrkx(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                  trans::cublasOperation_t, n::Cint, k::Cint,
+                                  alpha::RefOrCuRef{cuDoubleComplex},
+                                  A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                  B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                  beta::RefOrCuRef{cuDoubleComplex},
+                                  C::CuPtr{cuDoubleComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCherkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                ldc)
     initialize_context()
-    ccall((:cublasCherkx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{cuComplex}, Cint), handle, uplo, trans, n, k, alpha, A,
-          lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasCherkx(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                  trans::cublasOperation_t, n::Cint, k::Cint,
+                                  alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                  lda::Cint, B::CuPtr{cuComplex}, ldb::Cint,
+                                  beta::RefOrCuRef{Cfloat}, C::CuPtr{cuComplex},
+                                  ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZherkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                ldc)
     initialize_context()
-    ccall((:cublasZherkx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cdouble}, CuPtr{cuDoubleComplex}, Cint),
-          handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasZherkx(handle::cublasHandle_t, uplo::cublasFillMode_t,
+                                  trans::cublasOperation_t, n::Cint, k::Cint,
+                                  alpha::RefOrCuRef{cuDoubleComplex},
+                                  A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                  B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                  beta::RefOrCuRef{Cdouble}, C::CuPtr{cuDoubleComplex},
+                                  ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasSgemmBatched(handle, transa, transb, m, n, k, alpha, Aarray, lda,
                                      Barray, ldb, beta, Carray, ldc, batchCount)
     initialize_context()
-    ccall((:cublasSgemmBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{Ptr{Cfloat}}, Cint, CuPtr{Ptr{Cfloat}}, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{Ptr{Cfloat}}, Cint, Cint), handle, transa, transb, m,
-          n, k, alpha, Aarray, lda, Barray, ldb, beta, Carray, ldc, batchCount)
+    @ccall libcublas.cublasSgemmBatched(handle::cublasHandle_t, transa::cublasOperation_t,
+                                        transb::cublasOperation_t, m::Cint, n::Cint,
+                                        k::Cint, alpha::RefOrCuRef{Cfloat},
+                                        Aarray::CuPtr{Ptr{Cfloat}}, lda::Cint,
+                                        Barray::CuPtr{Ptr{Cfloat}}, ldb::Cint,
+                                        beta::RefOrCuRef{Cfloat},
+                                        Carray::CuPtr{Ptr{Cfloat}}, ldc::Cint,
+                                        batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgemmBatched(handle, transa, transb, m, n, k, alpha, Aarray, lda,
                                      Barray, ldb, beta, Carray, ldc, batchCount)
     initialize_context()
-    ccall((:cublasDgemmBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Ptr{Cdouble}}, Cint, CuPtr{Ptr{Cdouble}}, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Ptr{Cdouble}}, Cint, Cint), handle, transa, transb, m,
-          n, k, alpha, Aarray, lda, Barray, ldb, beta, Carray, ldc, batchCount)
+    @ccall libcublas.cublasDgemmBatched(handle::cublasHandle_t, transa::cublasOperation_t,
+                                        transb::cublasOperation_t, m::Cint, n::Cint,
+                                        k::Cint, alpha::RefOrCuRef{Cdouble},
+                                        Aarray::CuPtr{Ptr{Cdouble}}, lda::Cint,
+                                        Barray::CuPtr{Ptr{Cdouble}}, ldb::Cint,
+                                        beta::RefOrCuRef{Cdouble},
+                                        Carray::CuPtr{Ptr{Cdouble}}, ldc::Cint,
+                                        batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgemmBatched(handle, transa, transb, m, n, k, alpha, Aarray, lda,
                                      Barray, ldb, beta, Carray, ldc, batchCount)
     initialize_context()
-    ccall((:cublasCgemmBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{Ptr{cuComplex}}, Cint, CuPtr{Ptr{cuComplex}}, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{Ptr{cuComplex}}, Cint, Cint), handle, transa,
-          transb, m, n, k, alpha, Aarray, lda, Barray, ldb, beta, Carray, ldc, batchCount)
+    @ccall libcublas.cublasCgemmBatched(handle::cublasHandle_t, transa::cublasOperation_t,
+                                        transb::cublasOperation_t, m::Cint, n::Cint,
+                                        k::Cint, alpha::RefOrCuRef{cuComplex},
+                                        Aarray::CuPtr{Ptr{cuComplex}}, lda::Cint,
+                                        Barray::CuPtr{Ptr{cuComplex}}, ldb::Cint,
+                                        beta::RefOrCuRef{cuComplex},
+                                        Carray::CuPtr{Ptr{cuComplex}}, ldc::Cint,
+                                        batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgemm3mBatched(handle, transa, transb, m, n, k, alpha, Aarray, lda,
                                        Barray, ldb, beta, Carray, ldc, batchCount)
     initialize_context()
-    ccall((:cublasCgemm3mBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{Ptr{cuComplex}}, Cint, CuPtr{Ptr{cuComplex}}, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{Ptr{cuComplex}}, Cint, Cint), handle, transa,
-          transb, m, n, k, alpha, Aarray, lda, Barray, ldb, beta, Carray, ldc, batchCount)
+    @ccall libcublas.cublasCgemm3mBatched(handle::cublasHandle_t, transa::cublasOperation_t,
+                                          transb::cublasOperation_t, m::Cint, n::Cint,
+                                          k::Cint, alpha::RefOrCuRef{cuComplex},
+                                          Aarray::CuPtr{Ptr{cuComplex}}, lda::Cint,
+                                          Barray::CuPtr{Ptr{cuComplex}}, ldb::Cint,
+                                          beta::RefOrCuRef{cuComplex},
+                                          Carray::CuPtr{Ptr{cuComplex}}, ldc::Cint,
+                                          batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgemmBatched(handle, transa, transb, m, n, k, alpha, Aarray, lda,
                                      Barray, ldb, beta, Carray, ldc, batchCount)
     initialize_context()
-    ccall((:cublasZgemmBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{Ptr{cuDoubleComplex}}, Cint,
-           CuPtr{Ptr{cuDoubleComplex}}, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{Ptr{cuDoubleComplex}}, Cint, Cint), handle, transa, transb, m, n, k, alpha,
-          Aarray, lda, Barray, ldb, beta, Carray, ldc, batchCount)
+    @ccall libcublas.cublasZgemmBatched(handle::cublasHandle_t, transa::cublasOperation_t,
+                                        transb::cublasOperation_t, m::Cint, n::Cint,
+                                        k::Cint, alpha::RefOrCuRef{cuDoubleComplex},
+                                        Aarray::CuPtr{Ptr{cuDoubleComplex}}, lda::Cint,
+                                        Barray::CuPtr{Ptr{cuDoubleComplex}}, ldb::Cint,
+                                        beta::RefOrCuRef{cuDoubleComplex},
+                                        Carray::CuPtr{Ptr{cuDoubleComplex}}, ldc::Cint,
+                                        batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasGemmBatchedEx(handle, transa, transb, m, n, k, alpha, Aarray, Atype,
                                       lda, Barray, Btype, ldb, beta, Carray, Ctype, ldc,
                                       batchCount, computeType, algo)
     initialize_context()
-    ccall((:cublasGemmBatchedEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           PtrOrCuPtr{Cvoid}, CuPtr{Ptr{Cvoid}}, cudaDataType, Cint, CuPtr{Ptr{Cvoid}},
-           cudaDataType, Cint, PtrOrCuPtr{Cvoid}, CuPtr{Ptr{Cvoid}}, cudaDataType, Cint,
-           Cint, cublasComputeType_t, cublasGemmAlgo_t), handle, transa, transb, m, n, k,
-          alpha, Aarray, Atype, lda, Barray, Btype, ldb, beta, Carray, Ctype, ldc,
-          batchCount, computeType, algo)
+    @ccall libcublas.cublasGemmBatchedEx(handle::cublasHandle_t, transa::cublasOperation_t,
+                                         transb::cublasOperation_t, m::Cint, n::Cint,
+                                         k::Cint, alpha::PtrOrCuPtr{Cvoid},
+                                         Aarray::CuPtr{Ptr{Cvoid}}, Atype::cudaDataType,
+                                         lda::Cint, Barray::CuPtr{Ptr{Cvoid}},
+                                         Btype::cudaDataType, ldb::Cint,
+                                         beta::PtrOrCuPtr{Cvoid}, Carray::CuPtr{Ptr{Cvoid}},
+                                         Ctype::cudaDataType, ldc::Cint, batchCount::Cint,
+                                         computeType::cublasComputeType_t,
+                                         algo::cublasGemmAlgo_t)::cublasStatus_t
 end
 
 @checked function cublasGemmStridedBatchedEx(handle, transa, transb, m, n, k, alpha, A,
@@ -2026,430 +2142,496 @@ end
                                              beta, C, Ctype, ldc, strideC, batchCount,
                                              computeType, algo)
     initialize_context()
-    ccall((:cublasGemmStridedBatchedEx, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           PtrOrCuPtr{Cvoid}, CuPtr{Cvoid}, cudaDataType, Cint, Clonglong, CuPtr{Cvoid},
-           cudaDataType, Cint, Clonglong, PtrOrCuPtr{Cvoid}, CuPtr{Cvoid}, cudaDataType,
-           Cint, Clonglong, Cint, cublasComputeType_t, cublasGemmAlgo_t), handle, transa,
-          transb, m, n, k, alpha, A, Atype, lda, strideA, B, Btype, ldb, strideB, beta, C,
-          Ctype, ldc, strideC, batchCount, computeType, algo)
+    @ccall libcublas.cublasGemmStridedBatchedEx(handle::cublasHandle_t,
+                                                transa::cublasOperation_t,
+                                                transb::cublasOperation_t, m::Cint, n::Cint,
+                                                k::Cint, alpha::PtrOrCuPtr{Cvoid},
+                                                A::CuPtr{Cvoid}, Atype::cudaDataType,
+                                                lda::Cint, strideA::Clonglong,
+                                                B::CuPtr{Cvoid}, Btype::cudaDataType,
+                                                ldb::Cint, strideB::Clonglong,
+                                                beta::PtrOrCuPtr{Cvoid}, C::CuPtr{Cvoid},
+                                                Ctype::cudaDataType, ldc::Cint,
+                                                strideC::Clonglong, batchCount::Cint,
+                                                computeType::cublasComputeType_t,
+                                                algo::cublasGemmAlgo_t)::cublasStatus_t
 end
 
 @checked function cublasSgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda,
                                             strideA, B, ldb, strideB, beta, C, ldc, strideC,
                                             batchCount)
     initialize_context()
-    ccall((:cublasSgemmStridedBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, Clonglong, CuPtr{Cfloat}, Cint,
-           Clonglong, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, Clonglong, Cint), handle,
-          transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb, strideB, beta, C, ldc,
-          strideC, batchCount)
+    @ccall libcublas.cublasSgemmStridedBatched(handle::cublasHandle_t,
+                                               transa::cublasOperation_t,
+                                               transb::cublasOperation_t, m::Cint, n::Cint,
+                                               k::Cint, alpha::RefOrCuRef{Cfloat},
+                                               A::CuPtr{Cfloat}, lda::Cint,
+                                               strideA::Clonglong, B::CuPtr{Cfloat},
+                                               ldb::Cint, strideB::Clonglong,
+                                               beta::RefOrCuRef{Cfloat}, C::CuPtr{Cfloat},
+                                               ldc::Cint, strideC::Clonglong,
+                                               batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda,
                                             strideA, B, ldb, strideB, beta, C, ldc, strideC,
                                             batchCount)
     initialize_context()
-    ccall((:cublasDgemmStridedBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, Clonglong, CuPtr{Cdouble}, Cint,
-           Clonglong, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, Clonglong, Cint), handle,
-          transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb, strideB, beta, C, ldc,
-          strideC, batchCount)
+    @ccall libcublas.cublasDgemmStridedBatched(handle::cublasHandle_t,
+                                               transa::cublasOperation_t,
+                                               transb::cublasOperation_t, m::Cint, n::Cint,
+                                               k::Cint, alpha::RefOrCuRef{Cdouble},
+                                               A::CuPtr{Cdouble}, lda::Cint,
+                                               strideA::Clonglong, B::CuPtr{Cdouble},
+                                               ldb::Cint, strideB::Clonglong,
+                                               beta::RefOrCuRef{Cdouble}, C::CuPtr{Cdouble},
+                                               ldc::Cint, strideC::Clonglong,
+                                               batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda,
                                             strideA, B, ldb, strideB, beta, C, ldc, strideC,
                                             batchCount)
     initialize_context()
-    ccall((:cublasCgemmStridedBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, Clonglong, CuPtr{cuComplex}, Cint,
-           Clonglong, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, Clonglong, Cint),
-          handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb, strideB, beta, C,
-          ldc, strideC, batchCount)
+    @ccall libcublas.cublasCgemmStridedBatched(handle::cublasHandle_t,
+                                               transa::cublasOperation_t,
+                                               transb::cublasOperation_t, m::Cint, n::Cint,
+                                               k::Cint, alpha::RefOrCuRef{cuComplex},
+                                               A::CuPtr{cuComplex}, lda::Cint,
+                                               strideA::Clonglong, B::CuPtr{cuComplex},
+                                               ldb::Cint, strideB::Clonglong,
+                                               beta::RefOrCuRef{cuComplex},
+                                               C::CuPtr{cuComplex}, ldc::Cint,
+                                               strideC::Clonglong,
+                                               batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgemm3mStridedBatched(handle, transa, transb, m, n, k, alpha, A,
                                               lda, strideA, B, ldb, strideB, beta, C, ldc,
                                               strideC, batchCount)
     initialize_context()
-    ccall((:cublasCgemm3mStridedBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, Clonglong, CuPtr{cuComplex}, Cint,
-           Clonglong, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, Clonglong, Cint),
-          handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb, strideB, beta, C,
-          ldc, strideC, batchCount)
+    @ccall libcublas.cublasCgemm3mStridedBatched(handle::cublasHandle_t,
+                                                 transa::cublasOperation_t,
+                                                 transb::cublasOperation_t, m::Cint,
+                                                 n::Cint, k::Cint,
+                                                 alpha::RefOrCuRef{cuComplex},
+                                                 A::CuPtr{cuComplex}, lda::Cint,
+                                                 strideA::Clonglong, B::CuPtr{cuComplex},
+                                                 ldb::Cint, strideB::Clonglong,
+                                                 beta::RefOrCuRef{cuComplex},
+                                                 C::CuPtr{cuComplex}, ldc::Cint,
+                                                 strideC::Clonglong,
+                                                 batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda,
                                             strideA, B, ldb, strideB, beta, C, ldc, strideC,
                                             batchCount)
     initialize_context()
-    ccall((:cublasZgemmStridedBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, Clonglong,
-           CuPtr{cuDoubleComplex}, Cint, Clonglong, RefOrCuRef{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint, Clonglong, Cint), handle, transa, transb, m, n, k,
-          alpha, A, lda, strideA, B, ldb, strideB, beta, C, ldc, strideC, batchCount)
+    @ccall libcublas.cublasZgemmStridedBatched(handle::cublasHandle_t,
+                                               transa::cublasOperation_t,
+                                               transb::cublasOperation_t, m::Cint, n::Cint,
+                                               k::Cint, alpha::RefOrCuRef{cuDoubleComplex},
+                                               A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                               strideA::Clonglong,
+                                               B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                               strideB::Clonglong,
+                                               beta::RefOrCuRef{cuDoubleComplex},
+                                               C::CuPtr{cuDoubleComplex}, ldc::Cint,
+                                               strideC::Clonglong,
+                                               batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasSgeam(handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C,
                               ldc)
     initialize_context()
-    ccall((:cublasSgeam, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
-           CuPtr{Cfloat}, Cint), handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb,
-          C, ldc)
+    @ccall libcublas.cublasSgeam(handle::cublasHandle_t, transa::cublasOperation_t,
+                                 transb::cublasOperation_t, m::Cint, n::Cint,
+                                 alpha::RefOrCuRef{Cfloat}, A::CuPtr{Cfloat}, lda::Cint,
+                                 beta::RefOrCuRef{Cfloat}, B::CuPtr{Cfloat}, ldb::Cint,
+                                 C::CuPtr{Cfloat}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgeam(handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C,
                               ldc)
     initialize_context()
-    ccall((:cublasDgeam, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
-           Cint, CuPtr{Cdouble}, Cint), handle, transa, transb, m, n, alpha, A, lda, beta,
-          B, ldb, C, ldc)
+    @ccall libcublas.cublasDgeam(handle::cublasHandle_t, transa::cublasOperation_t,
+                                 transb::cublasOperation_t, m::Cint, n::Cint,
+                                 alpha::RefOrCuRef{Cdouble}, A::CuPtr{Cdouble}, lda::Cint,
+                                 beta::RefOrCuRef{Cdouble}, B::CuPtr{Cdouble}, ldb::Cint,
+                                 C::CuPtr{Cdouble}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgeam(handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C,
                               ldc)
     initialize_context()
-    ccall((:cublasCgeam, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex},
-           CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, transa, transb, m, n,
-          alpha, A, lda, beta, B, ldb, C, ldc)
+    @ccall libcublas.cublasCgeam(handle::cublasHandle_t, transa::cublasOperation_t,
+                                 transb::cublasOperation_t, m::Cint, n::Cint,
+                                 alpha::RefOrCuRef{cuComplex}, A::CuPtr{cuComplex},
+                                 lda::Cint, beta::RefOrCuRef{cuComplex},
+                                 B::CuPtr{cuComplex}, ldb::Cint, C::CuPtr{cuComplex},
+                                 ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgeam(handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C,
                               ldc)
     initialize_context()
-    ccall((:cublasZgeam, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint), handle, transa, transb, m, n, alpha, A, lda, beta,
-          B, ldb, C, ldc)
+    @ccall libcublas.cublasZgeam(handle::cublasHandle_t, transa::cublasOperation_t,
+                                 transb::cublasOperation_t, m::Cint, n::Cint,
+                                 alpha::RefOrCuRef{cuDoubleComplex},
+                                 A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                 beta::RefOrCuRef{cuDoubleComplex},
+                                 B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                 C::CuPtr{cuDoubleComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasSgetrfBatched(handle, n, A, lda, P, info, batchSize)
     initialize_context()
-    ccall((:cublasSgetrfBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Ptr{Cfloat}}, Cint, CuPtr{Cint}, CuPtr{Cint}, Cint),
-          handle, n, A, lda, P, info, batchSize)
+    @ccall libcublas.cublasSgetrfBatched(handle::cublasHandle_t, n::Cint,
+                                         A::CuPtr{Ptr{Cfloat}}, lda::Cint, P::CuPtr{Cint},
+                                         info::CuPtr{Cint}, batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgetrfBatched(handle, n, A, lda, P, info, batchSize)
     initialize_context()
-    ccall((:cublasDgetrfBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Ptr{Cdouble}}, Cint, CuPtr{Cint}, CuPtr{Cint}, Cint),
-          handle, n, A, lda, P, info, batchSize)
+    @ccall libcublas.cublasDgetrfBatched(handle::cublasHandle_t, n::Cint,
+                                         A::CuPtr{Ptr{Cdouble}}, lda::Cint, P::CuPtr{Cint},
+                                         info::CuPtr{Cint}, batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgetrfBatched(handle, n, A, lda, P, info, batchSize)
     initialize_context()
-    ccall((:cublasCgetrfBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Ptr{cuComplex}}, Cint, CuPtr{Cint}, CuPtr{Cint},
-           Cint), handle, n, A, lda, P, info, batchSize)
+    @ccall libcublas.cublasCgetrfBatched(handle::cublasHandle_t, n::Cint,
+                                         A::CuPtr{Ptr{cuComplex}}, lda::Cint,
+                                         P::CuPtr{Cint}, info::CuPtr{Cint},
+                                         batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgetrfBatched(handle, n, A, lda, P, info, batchSize)
     initialize_context()
-    ccall((:cublasZgetrfBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Ptr{cuDoubleComplex}}, Cint, CuPtr{Cint},
-           CuPtr{Cint}, Cint), handle, n, A, lda, P, info, batchSize)
+    @ccall libcublas.cublasZgetrfBatched(handle::cublasHandle_t, n::Cint,
+                                         A::CuPtr{Ptr{cuDoubleComplex}}, lda::Cint,
+                                         P::CuPtr{Cint}, info::CuPtr{Cint},
+                                         batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasSgetriBatched(handle, n, A, lda, P, C, ldc, info, batchSize)
     initialize_context()
-    ccall((:cublasSgetriBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Ptr{Cfloat}}, Cint, CuPtr{Cint}, CuPtr{Ptr{Cfloat}},
-           Cint, CuPtr{Cint}, Cint), handle, n, A, lda, P, C, ldc, info, batchSize)
+    @ccall libcublas.cublasSgetriBatched(handle::cublasHandle_t, n::Cint,
+                                         A::CuPtr{Ptr{Cfloat}}, lda::Cint, P::CuPtr{Cint},
+                                         C::CuPtr{Ptr{Cfloat}}, ldc::Cint,
+                                         info::CuPtr{Cint}, batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgetriBatched(handle, n, A, lda, P, C, ldc, info, batchSize)
     initialize_context()
-    ccall((:cublasDgetriBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Ptr{Cdouble}}, Cint, CuPtr{Cint},
-           CuPtr{Ptr{Cdouble}}, Cint, CuPtr{Cint}, Cint), handle, n, A, lda, P, C, ldc,
-          info, batchSize)
+    @ccall libcublas.cublasDgetriBatched(handle::cublasHandle_t, n::Cint,
+                                         A::CuPtr{Ptr{Cdouble}}, lda::Cint, P::CuPtr{Cint},
+                                         C::CuPtr{Ptr{Cdouble}}, ldc::Cint,
+                                         info::CuPtr{Cint}, batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgetriBatched(handle, n, A, lda, P, C, ldc, info, batchSize)
     initialize_context()
-    ccall((:cublasCgetriBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Ptr{cuComplex}}, Cint, CuPtr{Cint},
-           CuPtr{Ptr{cuComplex}}, Cint, CuPtr{Cint}, Cint), handle, n, A, lda, P, C, ldc,
-          info, batchSize)
+    @ccall libcublas.cublasCgetriBatched(handle::cublasHandle_t, n::Cint,
+                                         A::CuPtr{Ptr{cuComplex}}, lda::Cint,
+                                         P::CuPtr{Cint}, C::CuPtr{Ptr{cuComplex}},
+                                         ldc::Cint, info::CuPtr{Cint},
+                                         batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgetriBatched(handle, n, A, lda, P, C, ldc, info, batchSize)
     initialize_context()
-    ccall((:cublasZgetriBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Ptr{cuDoubleComplex}}, Cint, CuPtr{Cint},
-           CuPtr{Ptr{cuDoubleComplex}}, Cint, CuPtr{Cint}, Cint), handle, n, A, lda, P, C,
-          ldc, info, batchSize)
+    @ccall libcublas.cublasZgetriBatched(handle::cublasHandle_t, n::Cint,
+                                         A::CuPtr{Ptr{cuDoubleComplex}}, lda::Cint,
+                                         P::CuPtr{Cint}, C::CuPtr{Ptr{cuDoubleComplex}},
+                                         ldc::Cint, info::CuPtr{Cint},
+                                         batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasSgetrsBatched(handle, trans, n, nrhs, Aarray, lda, devIpiv, Barray,
                                       ldb, info, batchSize)
     initialize_context()
-    ccall((:cublasSgetrsBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, CuPtr{Ptr{Cfloat}}, Cint,
-           CuPtr{Cint}, CuPtr{Ptr{Cfloat}}, Cint, Ptr{Cint}, Cint), handle, trans, n, nrhs,
-          Aarray, lda, devIpiv, Barray, ldb, info, batchSize)
+    @ccall libcublas.cublasSgetrsBatched(handle::cublasHandle_t, trans::cublasOperation_t,
+                                         n::Cint, nrhs::Cint, Aarray::CuPtr{Ptr{Cfloat}},
+                                         lda::Cint, devIpiv::CuPtr{Cint},
+                                         Barray::CuPtr{Ptr{Cfloat}}, ldb::Cint,
+                                         info::Ptr{Cint}, batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgetrsBatched(handle, trans, n, nrhs, Aarray, lda, devIpiv, Barray,
                                       ldb, info, batchSize)
     initialize_context()
-    ccall((:cublasDgetrsBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, CuPtr{Ptr{Cdouble}}, Cint,
-           CuPtr{Cint}, CuPtr{Ptr{Cdouble}}, Cint, Ptr{Cint}, Cint), handle, trans, n, nrhs,
-          Aarray, lda, devIpiv, Barray, ldb, info, batchSize)
+    @ccall libcublas.cublasDgetrsBatched(handle::cublasHandle_t, trans::cublasOperation_t,
+                                         n::Cint, nrhs::Cint, Aarray::CuPtr{Ptr{Cdouble}},
+                                         lda::Cint, devIpiv::CuPtr{Cint},
+                                         Barray::CuPtr{Ptr{Cdouble}}, ldb::Cint,
+                                         info::Ptr{Cint}, batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgetrsBatched(handle, trans, n, nrhs, Aarray, lda, devIpiv, Barray,
                                       ldb, info, batchSize)
     initialize_context()
-    ccall((:cublasCgetrsBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, CuPtr{Ptr{cuComplex}}, Cint,
-           CuPtr{Cint}, CuPtr{Ptr{cuComplex}}, Cint, Ptr{Cint}, Cint), handle, trans, n,
-          nrhs, Aarray, lda, devIpiv, Barray, ldb, info, batchSize)
+    @ccall libcublas.cublasCgetrsBatched(handle::cublasHandle_t, trans::cublasOperation_t,
+                                         n::Cint, nrhs::Cint, Aarray::CuPtr{Ptr{cuComplex}},
+                                         lda::Cint, devIpiv::CuPtr{Cint},
+                                         Barray::CuPtr{Ptr{cuComplex}}, ldb::Cint,
+                                         info::Ptr{Cint}, batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgetrsBatched(handle, trans, n, nrhs, Aarray, lda, devIpiv, Barray,
                                       ldb, info, batchSize)
     initialize_context()
-    ccall((:cublasZgetrsBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, CuPtr{Ptr{cuDoubleComplex}}, Cint,
-           CuPtr{Cint}, CuPtr{Ptr{cuDoubleComplex}}, Cint, Ptr{Cint}, Cint), handle, trans,
-          n, nrhs, Aarray, lda, devIpiv, Barray, ldb, info, batchSize)
+    @ccall libcublas.cublasZgetrsBatched(handle::cublasHandle_t, trans::cublasOperation_t,
+                                         n::Cint, nrhs::Cint,
+                                         Aarray::CuPtr{Ptr{cuDoubleComplex}}, lda::Cint,
+                                         devIpiv::CuPtr{Cint},
+                                         Barray::CuPtr{Ptr{cuDoubleComplex}}, ldb::Cint,
+                                         info::Ptr{Cint}, batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasStrsmBatched(handle, side, uplo, trans, diag, m, n, alpha, A, lda,
                                      B, ldb, batchCount)
     initialize_context()
-    ccall((:cublasStrsmBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Cint, Cint, RefOrCuRef{Cfloat}, CuPtr{Ptr{Cfloat}}, Cint,
-           CuPtr{Ptr{Cfloat}}, Cint, Cint), handle, side, uplo, trans, diag, m, n, alpha, A,
-          lda, B, ldb, batchCount)
+    @ccall libcublas.cublasStrsmBatched(handle::cublasHandle_t, side::cublasSideMode_t,
+                                        uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                        diag::cublasDiagType_t, m::Cint, n::Cint,
+                                        alpha::RefOrCuRef{Cfloat}, A::CuPtr{Ptr{Cfloat}},
+                                        lda::Cint, B::CuPtr{Ptr{Cfloat}}, ldb::Cint,
+                                        batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasDtrsmBatched(handle, side, uplo, trans, diag, m, n, alpha, A, lda,
                                      B, ldb, batchCount)
     initialize_context()
-    ccall((:cublasDtrsmBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Cint, Cint, RefOrCuRef{Cdouble}, CuPtr{Ptr{Cdouble}}, Cint,
-           CuPtr{Ptr{Cdouble}}, Cint, Cint), handle, side, uplo, trans, diag, m, n, alpha,
-          A, lda, B, ldb, batchCount)
+    @ccall libcublas.cublasDtrsmBatched(handle::cublasHandle_t, side::cublasSideMode_t,
+                                        uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                        diag::cublasDiagType_t, m::Cint, n::Cint,
+                                        alpha::RefOrCuRef{Cdouble}, A::CuPtr{Ptr{Cdouble}},
+                                        lda::Cint, B::CuPtr{Ptr{Cdouble}}, ldb::Cint,
+                                        batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasCtrsmBatched(handle, side, uplo, trans, diag, m, n, alpha, A, lda,
                                      B, ldb, batchCount)
     initialize_context()
-    ccall((:cublasCtrsmBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Cint, Cint, RefOrCuRef{cuComplex}, CuPtr{Ptr{cuComplex}}, Cint,
-           CuPtr{Ptr{cuComplex}}, Cint, Cint), handle, side, uplo, trans, diag, m, n, alpha,
-          A, lda, B, ldb, batchCount)
+    @ccall libcublas.cublasCtrsmBatched(handle::cublasHandle_t, side::cublasSideMode_t,
+                                        uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                        diag::cublasDiagType_t, m::Cint, n::Cint,
+                                        alpha::RefOrCuRef{cuComplex},
+                                        A::CuPtr{Ptr{cuComplex}}, lda::Cint,
+                                        B::CuPtr{Ptr{cuComplex}}, ldb::Cint,
+                                        batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasZtrsmBatched(handle, side, uplo, trans, diag, m, n, alpha, A, lda,
                                      B, ldb, batchCount)
     initialize_context()
-    ccall((:cublasZtrsmBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Cint, Cint, RefOrCuRef{cuDoubleComplex},
-           CuPtr{Ptr{cuDoubleComplex}}, Cint, CuPtr{Ptr{cuDoubleComplex}}, Cint, Cint),
-          handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, batchCount)
+    @ccall libcublas.cublasZtrsmBatched(handle::cublasHandle_t, side::cublasSideMode_t,
+                                        uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                        diag::cublasDiagType_t, m::Cint, n::Cint,
+                                        alpha::RefOrCuRef{cuDoubleComplex},
+                                        A::CuPtr{Ptr{cuDoubleComplex}}, lda::Cint,
+                                        B::CuPtr{Ptr{cuDoubleComplex}}, ldb::Cint,
+                                        batchCount::Cint)::cublasStatus_t
 end
 
 @checked function cublasSmatinvBatched(handle, n, A, lda, Ainv, lda_inv, info, batchSize)
     initialize_context()
-    ccall((:cublasSmatinvBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Ptr{Cfloat}}, Cint, CuPtr{Ptr{Cfloat}}, Cint,
-           CuPtr{Cint}, Cint), handle, n, A, lda, Ainv, lda_inv, info, batchSize)
+    @ccall libcublas.cublasSmatinvBatched(handle::cublasHandle_t, n::Cint,
+                                          A::CuPtr{Ptr{Cfloat}}, lda::Cint,
+                                          Ainv::CuPtr{Ptr{Cfloat}}, lda_inv::Cint,
+                                          info::CuPtr{Cint},
+                                          batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasDmatinvBatched(handle, n, A, lda, Ainv, lda_inv, info, batchSize)
     initialize_context()
-    ccall((:cublasDmatinvBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Ptr{Cdouble}}, Cint, CuPtr{Ptr{Cdouble}}, Cint,
-           CuPtr{Cint}, Cint), handle, n, A, lda, Ainv, lda_inv, info, batchSize)
+    @ccall libcublas.cublasDmatinvBatched(handle::cublasHandle_t, n::Cint,
+                                          A::CuPtr{Ptr{Cdouble}}, lda::Cint,
+                                          Ainv::CuPtr{Ptr{Cdouble}}, lda_inv::Cint,
+                                          info::CuPtr{Cint},
+                                          batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasCmatinvBatched(handle, n, A, lda, Ainv, lda_inv, info, batchSize)
     initialize_context()
-    ccall((:cublasCmatinvBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Ptr{cuComplex}}, Cint, CuPtr{Ptr{cuComplex}}, Cint,
-           CuPtr{Cint}, Cint), handle, n, A, lda, Ainv, lda_inv, info, batchSize)
+    @ccall libcublas.cublasCmatinvBatched(handle::cublasHandle_t, n::Cint,
+                                          A::CuPtr{Ptr{cuComplex}}, lda::Cint,
+                                          Ainv::CuPtr{Ptr{cuComplex}}, lda_inv::Cint,
+                                          info::CuPtr{Cint},
+                                          batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasZmatinvBatched(handle, n, A, lda, Ainv, lda_inv, info, batchSize)
     initialize_context()
-    ccall((:cublasZmatinvBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, CuPtr{Ptr{cuDoubleComplex}}, Cint,
-           CuPtr{Ptr{cuDoubleComplex}}, Cint, CuPtr{Cint}, Cint), handle, n, A, lda, Ainv,
-          lda_inv, info, batchSize)
+    @ccall libcublas.cublasZmatinvBatched(handle::cublasHandle_t, n::Cint,
+                                          A::CuPtr{Ptr{cuDoubleComplex}}, lda::Cint,
+                                          Ainv::CuPtr{Ptr{cuDoubleComplex}}, lda_inv::Cint,
+                                          info::CuPtr{Cint},
+                                          batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasSgeqrfBatched(handle, m, n, Aarray, lda, TauArray, info, batchSize)
     initialize_context()
-    ccall((:cublasSgeqrfBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, Cint, CuPtr{Ptr{Cfloat}}, Cint, CuPtr{Ptr{Cfloat}},
-           Ptr{Cint}, Cint), handle, m, n, Aarray, lda, TauArray, info, batchSize)
+    @ccall libcublas.cublasSgeqrfBatched(handle::cublasHandle_t, m::Cint, n::Cint,
+                                         Aarray::CuPtr{Ptr{Cfloat}}, lda::Cint,
+                                         TauArray::CuPtr{Ptr{Cfloat}}, info::Ptr{Cint},
+                                         batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgeqrfBatched(handle, m, n, Aarray, lda, TauArray, info, batchSize)
     initialize_context()
-    ccall((:cublasDgeqrfBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, Cint, CuPtr{Ptr{Cdouble}}, Cint, CuPtr{Ptr{Cdouble}},
-           Ptr{Cint}, Cint), handle, m, n, Aarray, lda, TauArray, info, batchSize)
+    @ccall libcublas.cublasDgeqrfBatched(handle::cublasHandle_t, m::Cint, n::Cint,
+                                         Aarray::CuPtr{Ptr{Cdouble}}, lda::Cint,
+                                         TauArray::CuPtr{Ptr{Cdouble}}, info::Ptr{Cint},
+                                         batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgeqrfBatched(handle, m, n, Aarray, lda, TauArray, info, batchSize)
     initialize_context()
-    ccall((:cublasCgeqrfBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, Cint, CuPtr{Ptr{cuComplex}}, Cint, CuPtr{Ptr{cuComplex}},
-           Ptr{Cint}, Cint), handle, m, n, Aarray, lda, TauArray, info, batchSize)
+    @ccall libcublas.cublasCgeqrfBatched(handle::cublasHandle_t, m::Cint, n::Cint,
+                                         Aarray::CuPtr{Ptr{cuComplex}}, lda::Cint,
+                                         TauArray::CuPtr{Ptr{cuComplex}}, info::Ptr{Cint},
+                                         batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgeqrfBatched(handle, m, n, Aarray, lda, TauArray, info, batchSize)
     initialize_context()
-    ccall((:cublasZgeqrfBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, Cint, Cint, CuPtr{Ptr{cuDoubleComplex}}, Cint,
-           CuPtr{Ptr{cuDoubleComplex}}, Ptr{Cint}, Cint), handle, m, n, Aarray, lda,
-          TauArray, info, batchSize)
+    @ccall libcublas.cublasZgeqrfBatched(handle::cublasHandle_t, m::Cint, n::Cint,
+                                         Aarray::CuPtr{Ptr{cuDoubleComplex}}, lda::Cint,
+                                         TauArray::CuPtr{Ptr{cuDoubleComplex}},
+                                         info::Ptr{Cint}, batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasSgelsBatched(handle, trans, m, n, nrhs, Aarray, lda, Carray, ldc,
                                      info, devInfoArray, batchSize)
     initialize_context()
-    ccall((:cublasSgelsBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Cint, CuPtr{Ptr{Cfloat}}, Cint,
-           CuPtr{Ptr{Cfloat}}, Cint, Ptr{Cint}, CuPtr{Cint}, Cint), handle, trans, m, n,
-          nrhs, Aarray, lda, Carray, ldc, info, devInfoArray, batchSize)
+    @ccall libcublas.cublasSgelsBatched(handle::cublasHandle_t, trans::cublasOperation_t,
+                                        m::Cint, n::Cint, nrhs::Cint,
+                                        Aarray::CuPtr{Ptr{Cfloat}}, lda::Cint,
+                                        Carray::CuPtr{Ptr{Cfloat}}, ldc::Cint,
+                                        info::Ptr{Cint}, devInfoArray::CuPtr{Cint},
+                                        batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasDgelsBatched(handle, trans, m, n, nrhs, Aarray, lda, Carray, ldc,
                                      info, devInfoArray, batchSize)
     initialize_context()
-    ccall((:cublasDgelsBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Cint, CuPtr{Ptr{Cdouble}}, Cint,
-           CuPtr{Ptr{Cdouble}}, Cint, Ptr{Cint}, CuPtr{Cint}, Cint), handle, trans, m, n,
-          nrhs, Aarray, lda, Carray, ldc, info, devInfoArray, batchSize)
+    @ccall libcublas.cublasDgelsBatched(handle::cublasHandle_t, trans::cublasOperation_t,
+                                        m::Cint, n::Cint, nrhs::Cint,
+                                        Aarray::CuPtr{Ptr{Cdouble}}, lda::Cint,
+                                        Carray::CuPtr{Ptr{Cdouble}}, ldc::Cint,
+                                        info::Ptr{Cint}, devInfoArray::CuPtr{Cint},
+                                        batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasCgelsBatched(handle, trans, m, n, nrhs, Aarray, lda, Carray, ldc,
                                      info, devInfoArray, batchSize)
     initialize_context()
-    ccall((:cublasCgelsBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Cint, CuPtr{Ptr{cuComplex}}, Cint,
-           CuPtr{Ptr{cuComplex}}, Cint, Ptr{Cint}, CuPtr{Cint}, Cint), handle, trans, m, n,
-          nrhs, Aarray, lda, Carray, ldc, info, devInfoArray, batchSize)
+    @ccall libcublas.cublasCgelsBatched(handle::cublasHandle_t, trans::cublasOperation_t,
+                                        m::Cint, n::Cint, nrhs::Cint,
+                                        Aarray::CuPtr{Ptr{cuComplex}}, lda::Cint,
+                                        Carray::CuPtr{Ptr{cuComplex}}, ldc::Cint,
+                                        info::Ptr{Cint}, devInfoArray::CuPtr{Cint},
+                                        batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasZgelsBatched(handle, trans, m, n, nrhs, Aarray, lda, Carray, ldc,
                                      info, devInfoArray, batchSize)
     initialize_context()
-    ccall((:cublasZgelsBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Cint, CuPtr{Ptr{cuDoubleComplex}},
-           Cint, CuPtr{Ptr{cuDoubleComplex}}, Cint, Ptr{Cint}, CuPtr{Cint}, Cint), handle,
-          trans, m, n, nrhs, Aarray, lda, Carray, ldc, info, devInfoArray, batchSize)
+    @ccall libcublas.cublasZgelsBatched(handle::cublasHandle_t, trans::cublasOperation_t,
+                                        m::Cint, n::Cint, nrhs::Cint,
+                                        Aarray::CuPtr{Ptr{cuDoubleComplex}}, lda::Cint,
+                                        Carray::CuPtr{Ptr{cuDoubleComplex}}, ldc::Cint,
+                                        info::Ptr{Cint}, devInfoArray::CuPtr{Cint},
+                                        batchSize::Cint)::cublasStatus_t
 end
 
 @checked function cublasSdgmm(handle, mode, m, n, A, lda, x, incx, C, ldc)
     initialize_context()
-    ccall((:cublasSdgmm, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, Cint, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
-           Cint, CuPtr{Cfloat}, Cint), handle, mode, m, n, A, lda, x, incx, C, ldc)
+    @ccall libcublas.cublasSdgmm(handle::cublasHandle_t, mode::cublasSideMode_t, m::Cint,
+                                 n::Cint, A::CuPtr{Cfloat}, lda::Cint, x::CuPtr{Cfloat},
+                                 incx::Cint, C::CuPtr{Cfloat}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasDdgmm(handle, mode, m, n, A, lda, x, incx, C, ldc)
     initialize_context()
-    ccall((:cublasDdgmm, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, Cint, Cint, CuPtr{Cdouble}, Cint,
-           CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint), handle, mode, m, n, A, lda, x, incx,
-          C, ldc)
+    @ccall libcublas.cublasDdgmm(handle::cublasHandle_t, mode::cublasSideMode_t, m::Cint,
+                                 n::Cint, A::CuPtr{Cdouble}, lda::Cint, x::CuPtr{Cdouble},
+                                 incx::Cint, C::CuPtr{Cdouble}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasCdgmm(handle, mode, m, n, A, lda, x, incx, C, ldc)
     initialize_context()
-    ccall((:cublasCdgmm, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, Cint, Cint, CuPtr{cuComplex}, Cint,
-           CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint), handle, mode, m, n, A, lda, x,
-          incx, C, ldc)
+    @ccall libcublas.cublasCdgmm(handle::cublasHandle_t, mode::cublasSideMode_t, m::Cint,
+                                 n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                 x::CuPtr{cuComplex}, incx::Cint, C::CuPtr{cuComplex},
+                                 ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasZdgmm(handle, mode, m, n, A, lda, x, incx, C, ldc)
     initialize_context()
-    ccall((:cublasZdgmm, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasSideMode_t, Cint, Cint, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint), handle, mode, m, n,
-          A, lda, x, incx, C, ldc)
+    @ccall libcublas.cublasZdgmm(handle::cublasHandle_t, mode::cublasSideMode_t, m::Cint,
+                                 n::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                 x::CuPtr{cuDoubleComplex}, incx::Cint,
+                                 C::CuPtr{cuDoubleComplex}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasStpttr(handle, uplo, n, AP, A, lda)
     initialize_context()
-    ccall((:cublasStpttr, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint),
-          handle, uplo, n, AP, A, lda)
+    @ccall libcublas.cublasStpttr(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                  AP::CuPtr{Cfloat}, A::CuPtr{Cfloat},
+                                  lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasDtpttr(handle, uplo, n, AP, A, lda)
     initialize_context()
-    ccall((:cublasDtpttr, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint),
-          handle, uplo, n, AP, A, lda)
+    @ccall libcublas.cublasDtpttr(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                  AP::CuPtr{Cdouble}, A::CuPtr{Cdouble},
+                                  lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasCtpttr(handle, uplo, n, AP, A, lda)
     initialize_context()
-    ccall((:cublasCtpttr, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, CuPtr{cuComplex},
-           Cint), handle, uplo, n, AP, A, lda)
+    @ccall libcublas.cublasCtpttr(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                  AP::CuPtr{cuComplex}, A::CuPtr{cuComplex},
+                                  lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasZtpttr(handle, uplo, n, AP, A, lda)
     initialize_context()
-    ccall((:cublasZtpttr, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-           CuPtr{cuDoubleComplex}, Cint), handle, uplo, n, AP, A, lda)
+    @ccall libcublas.cublasZtpttr(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                  AP::CuPtr{cuDoubleComplex}, A::CuPtr{cuDoubleComplex},
+                                  lda::Cint)::cublasStatus_t
 end
 
 @checked function cublasStrttp(handle, uplo, n, A, lda, AP)
     initialize_context()
-    ccall((:cublasStrttp, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}),
-          handle, uplo, n, A, lda, AP)
+    @ccall libcublas.cublasStrttp(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                  A::CuPtr{Cfloat}, lda::Cint,
+                                  AP::CuPtr{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDtrttp(handle, uplo, n, A, lda, AP)
     initialize_context()
-    ccall((:cublasDtrttp, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}),
-          handle, uplo, n, A, lda, AP)
+    @ccall libcublas.cublasDtrttp(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                  A::CuPtr{Cdouble}, lda::Cint,
+                                  AP::CuPtr{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasCtrttp(handle, uplo, n, A, lda, AP)
     initialize_context()
-    ccall((:cublasCtrttp, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-           CuPtr{cuComplex}), handle, uplo, n, A, lda, AP)
+    @ccall libcublas.cublasCtrttp(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                  A::CuPtr{cuComplex}, lda::Cint,
+                                  AP::CuPtr{cuComplex})::cublasStatus_t
 end
 
 @checked function cublasZtrttp(handle, uplo, n, A, lda, AP)
     initialize_context()
-    ccall((:cublasZtrttp, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex}, Cint,
-           CuPtr{cuDoubleComplex}), handle, uplo, n, A, lda, AP)
+    @ccall libcublas.cublasZtrttp(handle::cublasHandle_t, uplo::cublasFillMode_t, n::Cint,
+                                  A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                  AP::CuPtr{cuDoubleComplex})::cublasStatus_t
 end
 
 mutable struct cublasXtContext end
@@ -2458,41 +2640,41 @@ const cublasXtHandle_t = Ptr{cublasXtContext}
 
 @checked function cublasXtCreate(handle)
     initialize_context()
-    ccall((:cublasXtCreate, libcublas), cublasStatus_t, (Ptr{cublasXtHandle_t},), handle)
+    @ccall libcublas.cublasXtCreate(handle::Ptr{cublasXtHandle_t})::cublasStatus_t
 end
 
 @checked function cublasXtDestroy(handle)
     initialize_context()
-    ccall((:cublasXtDestroy, libcublas), cublasStatus_t, (cublasXtHandle_t,), handle)
+    @ccall libcublas.cublasXtDestroy(handle::cublasXtHandle_t)::cublasStatus_t
 end
 
 @checked function cublasXtGetNumBoards(nbDevices, deviceId, nbBoards)
     initialize_context()
-    ccall((:cublasXtGetNumBoards, libcublas), cublasStatus_t, (Cint, Ptr{Cint}, Ptr{Cint}),
-          nbDevices, deviceId, nbBoards)
+    @ccall libcublas.cublasXtGetNumBoards(nbDevices::Cint, deviceId::Ptr{Cint},
+                                          nbBoards::Ptr{Cint})::cublasStatus_t
 end
 
 @checked function cublasXtMaxBoards(nbGpuBoards)
     initialize_context()
-    ccall((:cublasXtMaxBoards, libcublas), cublasStatus_t, (Ptr{Cint},), nbGpuBoards)
+    @ccall libcublas.cublasXtMaxBoards(nbGpuBoards::Ptr{Cint})::cublasStatus_t
 end
 
 @checked function cublasXtDeviceSelect(handle, nbDevices, deviceId)
     initialize_context()
-    ccall((:cublasXtDeviceSelect, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, Cint, Ptr{Cint}), handle, nbDevices, deviceId)
+    @ccall libcublas.cublasXtDeviceSelect(handle::cublasXtHandle_t, nbDevices::Cint,
+                                          deviceId::Ptr{Cint})::cublasStatus_t
 end
 
 @checked function cublasXtSetBlockDim(handle, blockDim)
     initialize_context()
-    ccall((:cublasXtSetBlockDim, libcublas), cublasStatus_t, (cublasXtHandle_t, Cint),
-          handle, blockDim)
+    @ccall libcublas.cublasXtSetBlockDim(handle::cublasXtHandle_t,
+                                         blockDim::Cint)::cublasStatus_t
 end
 
 @checked function cublasXtGetBlockDim(handle, blockDim)
     initialize_context()
-    ccall((:cublasXtGetBlockDim, libcublas), cublasStatus_t, (cublasXtHandle_t, Ptr{Cint}),
-          handle, blockDim)
+    @ccall libcublas.cublasXtGetBlockDim(handle::cublasXtHandle_t,
+                                         blockDim::Ptr{Cint})::cublasStatus_t
 end
 
 @cenum cublasXtPinnedMemMode_t::UInt32 begin
@@ -2502,14 +2684,14 @@ end
 
 @checked function cublasXtGetPinningMemMode(handle, mode)
     initialize_context()
-    ccall((:cublasXtGetPinningMemMode, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, Ptr{cublasXtPinnedMemMode_t}), handle, mode)
+    @ccall libcublas.cublasXtGetPinningMemMode(handle::cublasXtHandle_t,
+                                               mode::Ptr{cublasXtPinnedMemMode_t})::cublasStatus_t
 end
 
 @checked function cublasXtSetPinningMemMode(handle, mode)
     initialize_context()
-    ccall((:cublasXtSetPinningMemMode, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasXtPinnedMemMode_t), handle, mode)
+    @ccall libcublas.cublasXtSetPinningMemMode(handle::cublasXtHandle_t,
+                                               mode::cublasXtPinnedMemMode_t)::cublasStatus_t
 end
 
 @cenum cublasXtOpType_t::UInt32 begin
@@ -2537,414 +2719,463 @@ end
 
 @checked function cublasXtSetCpuRoutine(handle, blasOp, type, blasFunctor)
     initialize_context()
-    ccall((:cublasXtSetCpuRoutine, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasXtBlasOp_t, cublasXtOpType_t, Ptr{Cvoid}), handle,
-          blasOp, type, blasFunctor)
+    @ccall libcublas.cublasXtSetCpuRoutine(handle::cublasXtHandle_t,
+                                           blasOp::cublasXtBlasOp_t, type::cublasXtOpType_t,
+                                           blasFunctor::Ptr{Cvoid})::cublasStatus_t
 end
 
 @checked function cublasXtSetCpuRatio(handle, blasOp, type, ratio)
     initialize_context()
-    ccall((:cublasXtSetCpuRatio, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasXtBlasOp_t, cublasXtOpType_t, Cfloat), handle, blasOp,
-          type, ratio)
+    @ccall libcublas.cublasXtSetCpuRatio(handle::cublasXtHandle_t, blasOp::cublasXtBlasOp_t,
+                                         type::cublasXtOpType_t,
+                                         ratio::Cfloat)::cublasStatus_t
 end
 
 @checked function cublasXtSgemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
                                 beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtSgemm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasOperation_t, cublasOperation_t, Csize_t, Csize_t,
-           Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat},
-           Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t), handle, transa,
-          transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtSgemm(handle::cublasXtHandle_t, transa::cublasOperation_t,
+                                   transb::cublasOperation_t, m::Csize_t, n::Csize_t,
+                                   k::Csize_t, alpha::RefOrCuRef{Cfloat},
+                                   A::PtrOrCuPtr{Cfloat}, lda::Csize_t,
+                                   B::PtrOrCuPtr{Cfloat}, ldb::Csize_t,
+                                   beta::RefOrCuRef{Cfloat}, C::PtrOrCuPtr{Cfloat},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtDgemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
                                 beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtDgemm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasOperation_t, cublasOperation_t, Csize_t, Csize_t,
-           Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble},
-           Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t), handle, transa,
-          transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtDgemm(handle::cublasXtHandle_t, transa::cublasOperation_t,
+                                   transb::cublasOperation_t, m::Csize_t, n::Csize_t,
+                                   k::Csize_t, alpha::RefOrCuRef{Cdouble},
+                                   A::PtrOrCuPtr{Cdouble}, lda::Csize_t,
+                                   B::PtrOrCuPtr{Cdouble}, ldb::Csize_t,
+                                   beta::RefOrCuRef{Cdouble}, C::PtrOrCuPtr{Cdouble},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtCgemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
                                 beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtCgemm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasOperation_t, cublasOperation_t, Csize_t, Csize_t,
-           Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
-           PtrOrCuPtr{cuComplex}, Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex},
-           Csize_t), handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtCgemm(handle::cublasXtHandle_t, transa::cublasOperation_t,
+                                   transb::cublasOperation_t, m::Csize_t, n::Csize_t,
+                                   k::Csize_t, alpha::RefOrCuRef{cuComplex},
+                                   A::PtrOrCuPtr{cuComplex}, lda::Csize_t,
+                                   B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
+                                   beta::RefOrCuRef{cuComplex}, C::PtrOrCuPtr{cuComplex},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtZgemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
                                 beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtZgemm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasOperation_t, cublasOperation_t, Csize_t, Csize_t,
-           Csize_t, RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t, RefOrCuRef{cuDoubleComplex},
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t), handle, transa, transb, m, n, k, alpha, A,
-          lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtZgemm(handle::cublasXtHandle_t, transa::cublasOperation_t,
+                                   transb::cublasOperation_t, m::Csize_t, n::Csize_t,
+                                   k::Csize_t, alpha::RefOrCuRef{cuDoubleComplex},
+                                   A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
+                                   B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
+                                   beta::RefOrCuRef{cuDoubleComplex},
+                                   C::PtrOrCuPtr{cuDoubleComplex},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtSsyrk(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtSsyrk, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t, RefOrCuRef{Cfloat},
-           PtrOrCuPtr{Cfloat}, Csize_t), handle, uplo, trans, n, k, alpha, A, lda, beta, C,
-          ldc)
+    @ccall libcublas.cublasXtSsyrk(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                   trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                   alpha::RefOrCuRef{Cfloat}, A::PtrOrCuPtr{Cfloat},
+                                   lda::Csize_t, beta::RefOrCuRef{Cfloat},
+                                   C::PtrOrCuPtr{Cfloat}, ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtDsyrk(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtDsyrk, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t, RefOrCuRef{Cdouble},
-           PtrOrCuPtr{Cdouble}, Csize_t), handle, uplo, trans, n, k, alpha, A, lda, beta, C,
-          ldc)
+    @ccall libcublas.cublasXtDsyrk(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                   trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                   alpha::RefOrCuRef{Cdouble}, A::PtrOrCuPtr{Cdouble},
+                                   lda::Csize_t, beta::RefOrCuRef{Cdouble},
+                                   C::PtrOrCuPtr{Cdouble}, ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtCsyrk(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtCsyrk, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t, RefOrCuRef{cuComplex},
-           PtrOrCuPtr{cuComplex}, Csize_t), handle, uplo, trans, n, k, alpha, A, lda, beta,
-          C, ldc)
+    @ccall libcublas.cublasXtCsyrk(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                   trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                   alpha::RefOrCuRef{cuComplex}, A::PtrOrCuPtr{cuComplex},
+                                   lda::Csize_t, beta::RefOrCuRef{cuComplex},
+                                   C::PtrOrCuPtr{cuComplex}, ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtZsyrk(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtZsyrk, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-           RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t), handle, uplo,
-          trans, n, k, alpha, A, lda, beta, C, ldc)
+    @ccall libcublas.cublasXtZsyrk(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                   trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                   alpha::RefOrCuRef{cuDoubleComplex},
+                                   A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
+                                   beta::RefOrCuRef{cuDoubleComplex},
+                                   C::PtrOrCuPtr{cuDoubleComplex},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtCherk(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtCherk, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{Cfloat}, PtrOrCuPtr{cuComplex}, Csize_t, RefOrCuRef{Cfloat},
-           PtrOrCuPtr{cuComplex}, Csize_t), handle, uplo, trans, n, k, alpha, A, lda, beta,
-          C, ldc)
+    @ccall libcublas.cublasXtCherk(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                   trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                   alpha::RefOrCuRef{Cfloat}, A::PtrOrCuPtr{cuComplex},
+                                   lda::Csize_t, beta::RefOrCuRef{Cfloat},
+                                   C::PtrOrCuPtr{cuComplex}, ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtZherk(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtZherk, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{Cdouble}, PtrOrCuPtr{cuDoubleComplex}, Csize_t, RefOrCuRef{Cdouble},
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t), handle, uplo, trans, n, k, alpha, A, lda,
-          beta, C, ldc)
+    @ccall libcublas.cublasXtZherk(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                   trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                   alpha::RefOrCuRef{Cdouble},
+                                   A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
+                                   beta::RefOrCuRef{Cdouble},
+                                   C::PtrOrCuPtr{cuDoubleComplex},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtSsyr2k(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasXtSsyr2k, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat}, Csize_t,
-           RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t), handle, uplo, trans, n, k,
-          alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtSsyr2k(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                    alpha::RefOrCuRef{Cfloat}, A::PtrOrCuPtr{Cfloat},
+                                    lda::Csize_t, B::PtrOrCuPtr{Cfloat}, ldb::Csize_t,
+                                    beta::RefOrCuRef{Cfloat}, C::PtrOrCuPtr{Cfloat},
+                                    ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtDsyr2k(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasXtDsyr2k, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble}, Csize_t,
-           RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t), handle, uplo, trans, n, k,
-          alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtDsyr2k(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                    alpha::RefOrCuRef{Cdouble}, A::PtrOrCuPtr{Cdouble},
+                                    lda::Csize_t, B::PtrOrCuPtr{Cdouble}, ldb::Csize_t,
+                                    beta::RefOrCuRef{Cdouble}, C::PtrOrCuPtr{Cdouble},
+                                    ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtCsyr2k(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasXtCsyr2k, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex},
-           Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t), handle, uplo,
-          trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtCsyr2k(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                    alpha::RefOrCuRef{cuComplex}, A::PtrOrCuPtr{cuComplex},
+                                    lda::Csize_t, B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
+                                    beta::RefOrCuRef{cuComplex}, C::PtrOrCuPtr{cuComplex},
+                                    ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtZsyr2k(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasXtZsyr2k, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t, RefOrCuRef{cuDoubleComplex},
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t), handle, uplo, trans, n, k, alpha, A, lda,
-          B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtZsyr2k(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
+                                    B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
+                                    beta::RefOrCuRef{cuDoubleComplex},
+                                    C::PtrOrCuPtr{cuDoubleComplex},
+                                    ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtCherkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasXtCherkx, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex},
-           Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{cuComplex}, Csize_t), handle, uplo,
-          trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtCherkx(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                    alpha::RefOrCuRef{cuComplex}, A::PtrOrCuPtr{cuComplex},
+                                    lda::Csize_t, B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
+                                    beta::RefOrCuRef{Cfloat}, C::PtrOrCuPtr{cuComplex},
+                                    ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtZherkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasXtZherkx, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t, RefOrCuRef{Cdouble},
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t), handle, uplo, trans, n, k, alpha, A, lda,
-          B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtZherkx(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
+                                    B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
+                                    beta::RefOrCuRef{Cdouble},
+                                    C::PtrOrCuPtr{cuDoubleComplex},
+                                    ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtStrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                 ldb)
     initialize_context()
-    ccall((:cublasXtStrsm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Csize_t, Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat},
-           Csize_t, PtrOrCuPtr{Cfloat}, Csize_t), handle, side, uplo, trans, diag, m, n,
-          alpha, A, lda, B, ldb)
+    @ccall libcublas.cublasXtStrsm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                   diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{Cfloat}, A::PtrOrCuPtr{Cfloat},
+                                   lda::Csize_t, B::PtrOrCuPtr{Cfloat},
+                                   ldb::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtDtrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                 ldb)
     initialize_context()
-    ccall((:cublasXtDtrsm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Csize_t, Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble},
-           Csize_t, PtrOrCuPtr{Cdouble}, Csize_t), handle, side, uplo, trans, diag, m, n,
-          alpha, A, lda, B, ldb)
+    @ccall libcublas.cublasXtDtrsm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                   diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{Cdouble}, A::PtrOrCuPtr{Cdouble},
+                                   lda::Csize_t, B::PtrOrCuPtr{Cdouble},
+                                   ldb::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtCtrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                 ldb)
     initialize_context()
-    ccall((:cublasXtCtrsm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Csize_t, Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex},
-           Csize_t, PtrOrCuPtr{cuComplex}, Csize_t), handle, side, uplo, trans, diag, m, n,
-          alpha, A, lda, B, ldb)
+    @ccall libcublas.cublasXtCtrsm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                   diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{cuComplex}, A::PtrOrCuPtr{cuComplex},
+                                   lda::Csize_t, B::PtrOrCuPtr{cuComplex},
+                                   ldb::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtZtrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                 ldb)
     initialize_context()
-    ccall((:cublasXtZtrsm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Csize_t, Csize_t, RefOrCuRef{cuDoubleComplex},
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t, PtrOrCuPtr{cuDoubleComplex}, Csize_t),
-          handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
+    @ccall libcublas.cublasXtZtrsm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                   diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{cuDoubleComplex},
+                                   A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
+                                   B::PtrOrCuPtr{cuDoubleComplex},
+                                   ldb::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtSsymm(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
                                 ldc)
     initialize_context()
-    ccall((:cublasXtSsymm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t, Csize_t,
-           RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat}, Csize_t,
-           RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t), handle, side, uplo, m, n,
-          alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtSsymm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{Cfloat}, A::PtrOrCuPtr{Cfloat},
+                                   lda::Csize_t, B::PtrOrCuPtr{Cfloat}, ldb::Csize_t,
+                                   beta::RefOrCuRef{Cfloat}, C::PtrOrCuPtr{Cfloat},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtDsymm(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
                                 ldc)
     initialize_context()
-    ccall((:cublasXtDsymm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t, Csize_t,
-           RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble}, Csize_t,
-           RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t), handle, side, uplo, m, n,
-          alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtDsymm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{Cdouble}, A::PtrOrCuPtr{Cdouble},
+                                   lda::Csize_t, B::PtrOrCuPtr{Cdouble}, ldb::Csize_t,
+                                   beta::RefOrCuRef{Cdouble}, C::PtrOrCuPtr{Cdouble},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtCsymm(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
                                 ldc)
     initialize_context()
-    ccall((:cublasXtCsymm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t, Csize_t,
-           RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex},
-           Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t), handle, side,
-          uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtCsymm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{cuComplex}, A::PtrOrCuPtr{cuComplex},
+                                   lda::Csize_t, B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
+                                   beta::RefOrCuRef{cuComplex}, C::PtrOrCuPtr{cuComplex},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtZsymm(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
                                 ldc)
     initialize_context()
-    ccall((:cublasXtZsymm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t, Csize_t,
-           RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t, RefOrCuRef{cuDoubleComplex},
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t), handle, side, uplo, m, n, alpha, A, lda,
-          B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtZsymm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{cuDoubleComplex},
+                                   A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
+                                   B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
+                                   beta::RefOrCuRef{cuDoubleComplex},
+                                   C::PtrOrCuPtr{cuDoubleComplex},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtChemm(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
                                 ldc)
     initialize_context()
-    ccall((:cublasXtChemm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t, Csize_t,
-           RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex},
-           Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t), handle, side,
-          uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtChemm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{cuComplex}, A::PtrOrCuPtr{cuComplex},
+                                   lda::Csize_t, B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
+                                   beta::RefOrCuRef{cuComplex}, C::PtrOrCuPtr{cuComplex},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtZhemm(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C,
                                 ldc)
     initialize_context()
-    ccall((:cublasXtZhemm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t, Csize_t,
-           RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t, RefOrCuRef{cuDoubleComplex},
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t), handle, side, uplo, m, n, alpha, A, lda,
-          B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtZhemm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{cuDoubleComplex},
+                                   A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
+                                   B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
+                                   beta::RefOrCuRef{cuDoubleComplex},
+                                   C::PtrOrCuPtr{cuDoubleComplex},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtSsyrkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasXtSsyrkx, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat}, Csize_t,
-           RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t), handle, uplo, trans, n, k,
-          alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtSsyrkx(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                    alpha::RefOrCuRef{Cfloat}, A::PtrOrCuPtr{Cfloat},
+                                    lda::Csize_t, B::PtrOrCuPtr{Cfloat}, ldb::Csize_t,
+                                    beta::RefOrCuRef{Cfloat}, C::PtrOrCuPtr{Cfloat},
+                                    ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtDsyrkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasXtDsyrkx, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble}, Csize_t,
-           RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t), handle, uplo, trans, n, k,
-          alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtDsyrkx(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                    alpha::RefOrCuRef{Cdouble}, A::PtrOrCuPtr{Cdouble},
+                                    lda::Csize_t, B::PtrOrCuPtr{Cdouble}, ldb::Csize_t,
+                                    beta::RefOrCuRef{Cdouble}, C::PtrOrCuPtr{Cdouble},
+                                    ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtCsyrkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasXtCsyrkx, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex},
-           Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t), handle, uplo,
-          trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtCsyrkx(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                    alpha::RefOrCuRef{cuComplex}, A::PtrOrCuPtr{cuComplex},
+                                    lda::Csize_t, B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
+                                    beta::RefOrCuRef{cuComplex}, C::PtrOrCuPtr{cuComplex},
+                                    ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtZsyrkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasXtZsyrkx, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t, RefOrCuRef{cuDoubleComplex},
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t), handle, uplo, trans, n, k, alpha, A, lda,
-          B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtZsyrkx(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
+                                    B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
+                                    beta::RefOrCuRef{cuDoubleComplex},
+                                    C::PtrOrCuPtr{cuDoubleComplex},
+                                    ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtCher2k(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasXtCher2k, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex},
-           Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{cuComplex}, Csize_t), handle, uplo,
-          trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtCher2k(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                    alpha::RefOrCuRef{cuComplex}, A::PtrOrCuPtr{cuComplex},
+                                    lda::Csize_t, B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
+                                    beta::RefOrCuRef{Cfloat}, C::PtrOrCuPtr{cuComplex},
+                                    ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtZher2k(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C,
                                  ldc)
     initialize_context()
-    ccall((:cublasXtZher2k, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t, Csize_t,
-           RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t, RefOrCuRef{Cdouble},
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t), handle, uplo, trans, n, k, alpha, A, lda,
-          B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtZher2k(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
+                                    trans::cublasOperation_t, n::Csize_t, k::Csize_t,
+                                    alpha::RefOrCuRef{cuDoubleComplex},
+                                    A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
+                                    B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
+                                    beta::RefOrCuRef{Cdouble},
+                                    C::PtrOrCuPtr{cuDoubleComplex},
+                                    ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtSspmm(handle, side, uplo, m, n, alpha, AP, B, ldb, beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtSspmm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t, Csize_t,
-           Ref{Cfloat}, Ptr{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t, Ref{Cfloat},
-           PtrOrCuPtr{Cfloat}, Csize_t), handle, side, uplo, m, n, alpha, AP, B, ldb, beta,
-          C, ldc)
+    @ccall libcublas.cublasXtSspmm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
+                                   alpha::Ref{Cfloat}, AP::Ptr{Cfloat},
+                                   B::PtrOrCuPtr{Cfloat}, ldb::Csize_t, beta::Ref{Cfloat},
+                                   C::PtrOrCuPtr{Cfloat}, ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtDspmm(handle, side, uplo, m, n, alpha, AP, B, ldb, beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtDspmm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t, Csize_t,
-           Ref{Cdouble}, Ptr{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t, Ref{Cdouble},
-           PtrOrCuPtr{Cdouble}, Csize_t), handle, side, uplo, m, n, alpha, AP, B, ldb, beta,
-          C, ldc)
+    @ccall libcublas.cublasXtDspmm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
+                                   alpha::Ref{Cdouble}, AP::Ptr{Cdouble},
+                                   B::PtrOrCuPtr{Cdouble}, ldb::Csize_t, beta::Ref{Cdouble},
+                                   C::PtrOrCuPtr{Cdouble}, ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtCspmm(handle, side, uplo, m, n, alpha, AP, B, ldb, beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtCspmm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t, Csize_t,
-           Ref{cuComplex}, Ptr{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t, Ref{cuComplex},
-           PtrOrCuPtr{cuComplex}, Csize_t), handle, side, uplo, m, n, alpha, AP, B, ldb,
-          beta, C, ldc)
+    @ccall libcublas.cublasXtCspmm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
+                                   alpha::Ref{cuComplex}, AP::Ptr{cuComplex},
+                                   B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
+                                   beta::Ref{cuComplex}, C::PtrOrCuPtr{cuComplex},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtZspmm(handle, side, uplo, m, n, alpha, AP, B, ldb, beta, C, ldc)
     initialize_context()
-    ccall((:cublasXtZspmm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t, Csize_t,
-           Ref{cuDoubleComplex}, Ptr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-           Ref{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t), handle, side, uplo,
-          m, n, alpha, AP, B, ldb, beta, C, ldc)
+    @ccall libcublas.cublasXtZspmm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
+                                   alpha::Ref{cuDoubleComplex}, AP::Ptr{cuDoubleComplex},
+                                   B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
+                                   beta::Ref{cuDoubleComplex},
+                                   C::PtrOrCuPtr{cuDoubleComplex},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtStrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                 ldb, C, ldc)
     initialize_context()
-    ccall((:cublasXtStrmm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Csize_t, Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat},
-           Csize_t, PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat}, Csize_t), handle, side,
-          uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
+    @ccall libcublas.cublasXtStrmm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                   diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{Cfloat}, A::PtrOrCuPtr{Cfloat},
+                                   lda::Csize_t, B::PtrOrCuPtr{Cfloat}, ldb::Csize_t,
+                                   C::PtrOrCuPtr{Cfloat}, ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtDtrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                 ldb, C, ldc)
     initialize_context()
-    ccall((:cublasXtDtrmm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Csize_t, Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble},
-           Csize_t, PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble}, Csize_t), handle,
-          side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
+    @ccall libcublas.cublasXtDtrmm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                   diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{Cdouble}, A::PtrOrCuPtr{Cdouble},
+                                   lda::Csize_t, B::PtrOrCuPtr{Cdouble}, ldb::Csize_t,
+                                   C::PtrOrCuPtr{Cdouble}, ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtCtrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                 ldb, C, ldc)
     initialize_context()
-    ccall((:cublasXtCtrmm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Csize_t, Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex},
-           Csize_t, PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex}, Csize_t), handle,
-          side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
+    @ccall libcublas.cublasXtCtrmm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                   diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{cuComplex}, A::PtrOrCuPtr{cuComplex},
+                                   lda::Csize_t, B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
+                                   C::PtrOrCuPtr{cuComplex}, ldc::Csize_t)::cublasStatus_t
 end
 
 @checked function cublasXtZtrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
                                 ldb, C, ldc)
     initialize_context()
-    ccall((:cublasXtZtrmm, libcublas), cublasStatus_t,
-          (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-           cublasDiagType_t, Csize_t, Csize_t, RefOrCuRef{cuDoubleComplex},
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-           PtrOrCuPtr{cuDoubleComplex}, Csize_t), handle, side, uplo, trans, diag, m, n,
-          alpha, A, lda, B, ldb, C, ldc)
+    @ccall libcublas.cublasXtZtrmm(handle::cublasXtHandle_t, side::cublasSideMode_t,
+                                   uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                   diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
+                                   alpha::RefOrCuRef{cuDoubleComplex},
+                                   A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
+                                   B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
+                                   C::PtrOrCuPtr{cuDoubleComplex},
+                                   ldc::Csize_t)::cublasStatus_t
 end
 
 # Float16 functionality is only enabled when using C++ (and defining __cplusplus breaks things)
@@ -2952,65 +3183,65 @@ end
 @checked function cublasHSHgemvBatched(handle, trans, m, n, alpha, Aarray, lda, xarray,
                                        incx, beta, yarray, incy, batchCount)
     initialize_context()
-    ccall((:cublasHSHgemvBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{Float32}, Ptr{Ptr{Float16}},
-           Cint, Ptr{Ptr{Float16}}, Cint, Ptr{Float32}, Ptr{Ptr{Float16}}, Cint, Cint),
-          handle, trans, m, n, alpha, Aarray, lda, xarray, incx, beta, yarray, incy,
-          batchCount)
+    return ccall((:cublasHSHgemvBatched, libcublas), cublasStatus_t,
+                 (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{Float32},
+                  Ptr{Ptr{Float16}}, Cint, Ptr{Ptr{Float16}}, Cint, Ptr{Float32},
+                  Ptr{Ptr{Float16}}, Cint, Cint), handle, trans, m, n, alpha, Aarray, lda,
+                 xarray, incx, beta, yarray, incy, batchCount)
 end
 
 @checked function cublasHSSgemvBatched(handle, trans, m, n, alpha, Aarray, lda, xarray,
                                        incx, beta, yarray, incy, batchCount)
     initialize_context()
-    ccall((:cublasHSSgemvBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{Float32}, Ptr{Ptr{Float16}},
-           Cint, Ptr{Ptr{Float16}}, Cint, Ptr{Float32}, Ptr{Ptr{Float32}}, Cint, Cint),
-          handle, trans, m, n, alpha, Aarray, lda, xarray, incx, beta, yarray, incy,
-          batchCount)
+    return ccall((:cublasHSSgemvBatched, libcublas), cublasStatus_t,
+                 (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{Float32},
+                  Ptr{Ptr{Float16}}, Cint, Ptr{Ptr{Float16}}, Cint, Ptr{Float32},
+                  Ptr{Ptr{Float32}}, Cint, Cint), handle, trans, m, n, alpha, Aarray, lda,
+                 xarray, incx, beta, yarray, incy, batchCount)
 end
 
 @checked function cublasHSHgemvStridedBatched(handle, trans, m, n, alpha, A, lda, strideA,
                                               x, incx, stridex, beta, y, incy, stridey,
                                               batchCount)
     initialize_context()
-    ccall((:cublasHSHgemvStridedBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{Float32}, Ptr{Float16}, Cint,
-           Clonglong, Ptr{Float16}, Cint, Clonglong, Ptr{Float32}, Ptr{Float16}, Cint,
-           Clonglong, Cint), handle, trans, m, n, alpha, A, lda, strideA, x, incx, stridex,
-          beta, y, incy, stridey, batchCount)
+    return ccall((:cublasHSHgemvStridedBatched, libcublas), cublasStatus_t,
+                 (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{Float32}, Ptr{Float16},
+                  Cint, Clonglong, Ptr{Float16}, Cint, Clonglong, Ptr{Float32},
+                  Ptr{Float16}, Cint, Clonglong, Cint), handle, trans, m, n, alpha, A, lda,
+                 strideA, x, incx, stridex, beta, y, incy, stridey, batchCount)
 end
 
 @checked function cublasHSSgemvStridedBatched(handle, trans, m, n, alpha, A, lda, strideA,
                                               x, incx, stridex, beta, y, incy, stridey,
                                               batchCount)
     initialize_context()
-    ccall((:cublasHSSgemvStridedBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{Float32}, Ptr{Float16}, Cint,
-           Clonglong, Ptr{Float16}, Cint, Clonglong, Ptr{Float32}, Ptr{Float32}, Cint,
-           Clonglong, Cint), handle, trans, m, n, alpha, A, lda, strideA, x, incx, stridex,
-          beta, y, incy, stridey, batchCount)
+    return ccall((:cublasHSSgemvStridedBatched, libcublas), cublasStatus_t,
+                 (cublasHandle_t, cublasOperation_t, Cint, Cint, Ptr{Float32}, Ptr{Float16},
+                  Cint, Clonglong, Ptr{Float16}, Cint, Clonglong, Ptr{Float32},
+                  Ptr{Float32}, Cint, Clonglong, Cint), handle, trans, m, n, alpha, A, lda,
+                 strideA, x, incx, stridex, beta, y, incy, stridey, batchCount)
 end
 
 @checked function cublasHgemmBatched(handle, transa, transb, m, n, k, alpha, Aarray, lda,
                                      Barray, ldb, beta, Carray, ldc, batchCount)
     initialize_context()
-    ccall((:cublasHgemmBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-           Cint, RefOrCuRef{Float16}, CuPtr{Ptr{Float16}}, Cint, CuPtr{Ptr{Float16}},
-           Cint, RefOrCuRef{Float16}, CuPtr{Ptr{Float16}}, Cint, Cint),
-          handle, transa, transb, m, n, k, alpha, Aarray, lda, Barray, ldb, beta,
-          Carray, ldc, batchCount)
+    return ccall((:cublasHgemmBatched, libcublas), cublasStatus_t,
+                 (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
+                  Cint, RefOrCuRef{Float16}, CuPtr{Ptr{Float16}}, Cint, CuPtr{Ptr{Float16}},
+                  Cint, RefOrCuRef{Float16}, CuPtr{Ptr{Float16}}, Cint, Cint),
+                 handle, transa, transb, m, n, k, alpha, Aarray, lda, Barray, ldb, beta,
+                 Carray, ldc, batchCount)
 end
 
 @checked function cublasHgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda,
                                             strideA, B, ldb, strideB, beta, C, ldc,
                                             strideC, batchCount)
     initialize_context()
-    ccall((:cublasHgemmStridedBatched, libcublas), cublasStatus_t,
-          (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-           Cint, RefOrCuRef{Float16}, CuPtr{Float16}, Cint, Clonglong,
-           CuPtr{Float16}, Cint, Clonglong, RefOrCuRef{Float16}, CuPtr{Float16},
-           Cint, Clonglong, Cint),
-          handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
-          strideB, beta, C, ldc, strideC, batchCount)
+    return ccall((:cublasHgemmStridedBatched, libcublas), cublasStatus_t,
+                 (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
+                  Cint, RefOrCuRef{Float16}, CuPtr{Float16}, Cint, Clonglong,
+                  CuPtr{Float16}, Cint, Clonglong, RefOrCuRef{Float16}, CuPtr{Float16},
+                  Cint, Clonglong, Cint),
+                 handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
+                 strideB, beta, C, ldc, strideC, batchCount)
 end

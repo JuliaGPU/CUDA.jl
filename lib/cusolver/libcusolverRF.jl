@@ -40,72 +40,72 @@ const cusolverRfHandle_t = Ptr{cusolverRfCommon}
 
 @checked function cusolverRfCreate(handle)
     initialize_context()
-    ccall((:cusolverRfCreate, libcusolver), cusolverStatus_t, (Ptr{cusolverRfHandle_t},),
-          handle)
+    @ccall libcusolver.cusolverRfCreate(handle::Ptr{cusolverRfHandle_t})::cusolverStatus_t
 end
 
 @checked function cusolverRfDestroy(handle)
     initialize_context()
-    ccall((:cusolverRfDestroy, libcusolver), cusolverStatus_t, (cusolverRfHandle_t,),
-          handle)
+    @ccall libcusolver.cusolverRfDestroy(handle::cusolverRfHandle_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfGetMatrixFormat(handle, format, diag)
     initialize_context()
-    ccall((:cusolverRfGetMatrixFormat, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, Ptr{cusolverRfMatrixFormat_t},
-           Ptr{cusolverRfUnitDiagonal_t}), handle, format, diag)
+    @ccall libcusolver.cusolverRfGetMatrixFormat(handle::cusolverRfHandle_t,
+                                                 format::Ptr{cusolverRfMatrixFormat_t},
+                                                 diag::Ptr{cusolverRfUnitDiagonal_t})::cusolverStatus_t
 end
 
 @checked function cusolverRfSetMatrixFormat(handle, format, diag)
     initialize_context()
-    ccall((:cusolverRfSetMatrixFormat, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, cusolverRfMatrixFormat_t, cusolverRfUnitDiagonal_t), handle,
-          format, diag)
+    @ccall libcusolver.cusolverRfSetMatrixFormat(handle::cusolverRfHandle_t,
+                                                 format::cusolverRfMatrixFormat_t,
+                                                 diag::cusolverRfUnitDiagonal_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfSetNumericProperties(handle, zero, boost)
     initialize_context()
-    ccall((:cusolverRfSetNumericProperties, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, Cdouble, Cdouble), handle, zero, boost)
+    @ccall libcusolver.cusolverRfSetNumericProperties(handle::cusolverRfHandle_t,
+                                                      zero::Cdouble,
+                                                      boost::Cdouble)::cusolverStatus_t
 end
 
 @checked function cusolverRfGetNumericProperties(handle, zero, boost)
     initialize_context()
-    ccall((:cusolverRfGetNumericProperties, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, Ptr{Cdouble}, Ptr{Cdouble}), handle, zero, boost)
+    @ccall libcusolver.cusolverRfGetNumericProperties(handle::cusolverRfHandle_t,
+                                                      zero::Ptr{Cdouble},
+                                                      boost::Ptr{Cdouble})::cusolverStatus_t
 end
 
 @checked function cusolverRfGetNumericBoostReport(handle, report)
     initialize_context()
-    ccall((:cusolverRfGetNumericBoostReport, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, Ptr{cusolverRfNumericBoostReport_t}), handle, report)
+    @ccall libcusolver.cusolverRfGetNumericBoostReport(handle::cusolverRfHandle_t,
+                                                       report::Ptr{cusolverRfNumericBoostReport_t})::cusolverStatus_t
 end
 
 @checked function cusolverRfSetAlgs(handle, factAlg, solveAlg)
     initialize_context()
-    ccall((:cusolverRfSetAlgs, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, cusolverRfFactorization_t, cusolverRfTriangularSolve_t),
-          handle, factAlg, solveAlg)
+    @ccall libcusolver.cusolverRfSetAlgs(handle::cusolverRfHandle_t,
+                                         factAlg::cusolverRfFactorization_t,
+                                         solveAlg::cusolverRfTriangularSolve_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfGetAlgs(handle, factAlg, solveAlg)
     initialize_context()
-    ccall((:cusolverRfGetAlgs, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, Ptr{cusolverRfFactorization_t},
-           Ptr{cusolverRfTriangularSolve_t}), handle, factAlg, solveAlg)
+    @ccall libcusolver.cusolverRfGetAlgs(handle::cusolverRfHandle_t,
+                                         factAlg::Ptr{cusolverRfFactorization_t},
+                                         solveAlg::Ptr{cusolverRfTriangularSolve_t})::cusolverStatus_t
 end
 
 @checked function cusolverRfGetResetValuesFastMode(handle, fastMode)
     initialize_context()
-    ccall((:cusolverRfGetResetValuesFastMode, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, Ptr{cusolverRfResetValuesFastMode_t}), handle, fastMode)
+    @ccall libcusolver.cusolverRfGetResetValuesFastMode(handle::cusolverRfHandle_t,
+                                                        fastMode::Ptr{cusolverRfResetValuesFastMode_t})::cusolverStatus_t
 end
 
 @checked function cusolverRfSetResetValuesFastMode(handle, fastMode)
     initialize_context()
-    ccall((:cusolverRfSetResetValuesFastMode, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, cusolverRfResetValuesFastMode_t), handle, fastMode)
+    @ccall libcusolver.cusolverRfSetResetValuesFastMode(handle::cusolverRfHandle_t,
+                                                        fastMode::cusolverRfResetValuesFastMode_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfSetupHost(n, nnzA, h_csrRowPtrA, h_csrColIndA, h_csrValA, nnzL,
@@ -113,76 +113,92 @@ end
                                       h_csrRowPtrU, h_csrColIndU, h_csrValU, h_P, h_Q,
                                       handle)
     initialize_context()
-    ccall((:cusolverRfSetupHost, libcusolver), cusolverStatus_t,
-          (Cint, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cint}, Ptr{Cint},
-           Ptr{Cdouble}, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint},
-           cusolverRfHandle_t), n, nnzA, h_csrRowPtrA, h_csrColIndA, h_csrValA, nnzL,
-          h_csrRowPtrL, h_csrColIndL, h_csrValL, nnzU, h_csrRowPtrU, h_csrColIndU,
-          h_csrValU, h_P, h_Q, handle)
+    @ccall libcusolver.cusolverRfSetupHost(n::Cint, nnzA::Cint, h_csrRowPtrA::Ptr{Cint},
+                                           h_csrColIndA::Ptr{Cint}, h_csrValA::Ptr{Cdouble},
+                                           nnzL::Cint, h_csrRowPtrL::Ptr{Cint},
+                                           h_csrColIndL::Ptr{Cint}, h_csrValL::Ptr{Cdouble},
+                                           nnzU::Cint, h_csrRowPtrU::Ptr{Cint},
+                                           h_csrColIndU::Ptr{Cint}, h_csrValU::Ptr{Cdouble},
+                                           h_P::Ptr{Cint}, h_Q::Ptr{Cint},
+                                           handle::cusolverRfHandle_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfSetupDevice(n, nnzA, csrRowPtrA, csrColIndA, csrValA, nnzL,
                                         csrRowPtrL, csrColIndL, csrValL, nnzU, csrRowPtrU,
                                         csrColIndU, csrValU, P, Q, handle)
     initialize_context()
-    ccall((:cusolverRfSetupDevice, libcusolver), cusolverStatus_t,
-          (Cint, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, Cint, CuPtr{Cint},
-           CuPtr{Cint}, CuPtr{Cdouble}, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble},
-           CuPtr{Cint}, CuPtr{Cint}, cusolverRfHandle_t), n, nnzA, csrRowPtrA, csrColIndA,
-          csrValA, nnzL, csrRowPtrL, csrColIndL, csrValL, nnzU, csrRowPtrU, csrColIndU,
-          csrValU, P, Q, handle)
+    @ccall libcusolver.cusolverRfSetupDevice(n::Cint, nnzA::Cint, csrRowPtrA::CuPtr{Cint},
+                                             csrColIndA::CuPtr{Cint},
+                                             csrValA::CuPtr{Cdouble}, nnzL::Cint,
+                                             csrRowPtrL::CuPtr{Cint},
+                                             csrColIndL::CuPtr{Cint},
+                                             csrValL::CuPtr{Cdouble}, nnzU::Cint,
+                                             csrRowPtrU::CuPtr{Cint},
+                                             csrColIndU::CuPtr{Cint},
+                                             csrValU::CuPtr{Cdouble}, P::CuPtr{Cint},
+                                             Q::CuPtr{Cint},
+                                             handle::cusolverRfHandle_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfResetValues(n, nnzA, csrRowPtrA, csrColIndA, csrValA, P, Q,
                                         handle)
     initialize_context()
-    ccall((:cusolverRfResetValues, libcusolver), cusolverStatus_t,
-          (Cint, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, CuPtr{Cint}, CuPtr{Cint},
-           cusolverRfHandle_t), n, nnzA, csrRowPtrA, csrColIndA, csrValA, P, Q, handle)
+    @ccall libcusolver.cusolverRfResetValues(n::Cint, nnzA::Cint, csrRowPtrA::CuPtr{Cint},
+                                             csrColIndA::CuPtr{Cint},
+                                             csrValA::CuPtr{Cdouble}, P::CuPtr{Cint},
+                                             Q::CuPtr{Cint},
+                                             handle::cusolverRfHandle_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfAnalyze(handle)
     initialize_context()
-    ccall((:cusolverRfAnalyze, libcusolver), cusolverStatus_t, (cusolverRfHandle_t,),
-          handle)
+    @ccall libcusolver.cusolverRfAnalyze(handle::cusolverRfHandle_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfRefactor(handle)
     initialize_context()
-    ccall((:cusolverRfRefactor, libcusolver), cusolverStatus_t, (cusolverRfHandle_t,),
-          handle)
+    @ccall libcusolver.cusolverRfRefactor(handle::cusolverRfHandle_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfAccessBundledFactorsDevice(handle, nnzM, Mp, Mi, Mx)
     initialize_context()
-    ccall((:cusolverRfAccessBundledFactorsDevice, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, Ptr{Cint}, CuPtr{Ptr{Cint}}, CuPtr{Ptr{Cint}},
-           CuPtr{Ptr{Cdouble}}), handle, nnzM, Mp, Mi, Mx)
+    @ccall libcusolver.cusolverRfAccessBundledFactorsDevice(handle::cusolverRfHandle_t,
+                                                            nnzM::Ptr{Cint},
+                                                            Mp::CuPtr{Ptr{Cint}},
+                                                            Mi::CuPtr{Ptr{Cint}},
+                                                            Mx::CuPtr{Ptr{Cdouble}})::cusolverStatus_t
 end
 
 @checked function cusolverRfExtractBundledFactorsHost(handle, h_nnzM, h_Mp, h_Mi, h_Mx)
     initialize_context()
-    ccall((:cusolverRfExtractBundledFactorsHost, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, Ptr{Cint}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cint}},
-           Ptr{Ptr{Cdouble}}), handle, h_nnzM, h_Mp, h_Mi, h_Mx)
+    @ccall libcusolver.cusolverRfExtractBundledFactorsHost(handle::cusolverRfHandle_t,
+                                                           h_nnzM::Ptr{Cint},
+                                                           h_Mp::Ptr{Ptr{Cint}},
+                                                           h_Mi::Ptr{Ptr{Cint}},
+                                                           h_Mx::Ptr{Ptr{Cdouble}})::cusolverStatus_t
 end
 
 @checked function cusolverRfExtractSplitFactorsHost(handle, h_nnzL, h_csrRowPtrL,
                                                     h_csrColIndL, h_csrValL, h_nnzU,
                                                     h_csrRowPtrU, h_csrColIndU, h_csrValU)
     initialize_context()
-    ccall((:cusolverRfExtractSplitFactorsHost, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, Ptr{Cint}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cdouble}},
-           Ptr{Cint}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cdouble}}), handle, h_nnzL,
-          h_csrRowPtrL, h_csrColIndL, h_csrValL, h_nnzU, h_csrRowPtrU, h_csrColIndU,
-          h_csrValU)
+    @ccall libcusolver.cusolverRfExtractSplitFactorsHost(handle::cusolverRfHandle_t,
+                                                         h_nnzL::Ptr{Cint},
+                                                         h_csrRowPtrL::Ptr{Ptr{Cint}},
+                                                         h_csrColIndL::Ptr{Ptr{Cint}},
+                                                         h_csrValL::Ptr{Ptr{Cdouble}},
+                                                         h_nnzU::Ptr{Cint},
+                                                         h_csrRowPtrU::Ptr{Ptr{Cint}},
+                                                         h_csrColIndU::Ptr{Ptr{Cint}},
+                                                         h_csrValU::Ptr{Ptr{Cdouble}})::cusolverStatus_t
 end
 
 @checked function cusolverRfSolve(handle, P, Q, nrhs, Temp, ldt, XF, ldxf)
     initialize_context()
-    ccall((:cusolverRfSolve, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, CuPtr{Cint}, CuPtr{Cint}, Cint, CuPtr{Cdouble}, Cint,
-           CuPtr{Cdouble}, Cint), handle, P, Q, nrhs, Temp, ldt, XF, ldxf)
+    @ccall libcusolver.cusolverRfSolve(handle::cusolverRfHandle_t, P::CuPtr{Cint},
+                                       Q::CuPtr{Cint}, nrhs::Cint, Temp::CuPtr{Cdouble},
+                                       ldt::Cint, XF::CuPtr{Cdouble},
+                                       ldxf::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverRfBatchSetupHost(batchSize, n, nnzA, h_csrRowPtrA, h_csrColIndA,
@@ -190,44 +206,52 @@ end
                                            h_csrColIndL, h_csrValL, nnzU, h_csrRowPtrU,
                                            h_csrColIndU, h_csrValU, h_P, h_Q, handle)
     initialize_context()
-    ccall((:cusolverRfBatchSetupHost, libcusolver), cusolverStatus_t,
-          (Cint, Cint, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Ptr{Cdouble}}, Cint, Ptr{Cint},
-           Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cint},
-           Ptr{Cint}, cusolverRfHandle_t), batchSize, n, nnzA, h_csrRowPtrA, h_csrColIndA,
-          h_csrValA_array, nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, nnzU, h_csrRowPtrU,
-          h_csrColIndU, h_csrValU, h_P, h_Q, handle)
+    @ccall libcusolver.cusolverRfBatchSetupHost(batchSize::Cint, n::Cint, nnzA::Cint,
+                                                h_csrRowPtrA::Ptr{Cint},
+                                                h_csrColIndA::Ptr{Cint},
+                                                h_csrValA_array::Ptr{Ptr{Cdouble}},
+                                                nnzL::Cint, h_csrRowPtrL::Ptr{Cint},
+                                                h_csrColIndL::Ptr{Cint},
+                                                h_csrValL::Ptr{Cdouble}, nnzU::Cint,
+                                                h_csrRowPtrU::Ptr{Cint},
+                                                h_csrColIndU::Ptr{Cint},
+                                                h_csrValU::Ptr{Cdouble}, h_P::Ptr{Cint},
+                                                h_Q::Ptr{Cint},
+                                                handle::cusolverRfHandle_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfBatchResetValues(batchSize, n, nnzA, csrRowPtrA, csrColIndA,
                                              csrValA_array, P, Q, handle)
     initialize_context()
-    ccall((:cusolverRfBatchResetValues, libcusolver), cusolverStatus_t,
-          (Cint, Cint, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Ptr{Cdouble}}, CuPtr{Cint},
-           CuPtr{Cint}, cusolverRfHandle_t), batchSize, n, nnzA, csrRowPtrA, csrColIndA,
-          csrValA_array, P, Q, handle)
+    @ccall libcusolver.cusolverRfBatchResetValues(batchSize::Cint, n::Cint, nnzA::Cint,
+                                                  csrRowPtrA::CuPtr{Cint},
+                                                  csrColIndA::CuPtr{Cint},
+                                                  csrValA_array::CuPtr{Ptr{Cdouble}},
+                                                  P::CuPtr{Cint}, Q::CuPtr{Cint},
+                                                  handle::cusolverRfHandle_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfBatchAnalyze(handle)
     initialize_context()
-    ccall((:cusolverRfBatchAnalyze, libcusolver), cusolverStatus_t, (cusolverRfHandle_t,),
-          handle)
+    @ccall libcusolver.cusolverRfBatchAnalyze(handle::cusolverRfHandle_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfBatchRefactor(handle)
     initialize_context()
-    ccall((:cusolverRfBatchRefactor, libcusolver), cusolverStatus_t, (cusolverRfHandle_t,),
-          handle)
+    @ccall libcusolver.cusolverRfBatchRefactor(handle::cusolverRfHandle_t)::cusolverStatus_t
 end
 
 @checked function cusolverRfBatchSolve(handle, P, Q, nrhs, Temp, ldt, XF_array, ldxf)
     initialize_context()
-    ccall((:cusolverRfBatchSolve, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, CuPtr{Cint}, CuPtr{Cint}, Cint, CuPtr{Cdouble}, Cint,
-           CuPtr{Ptr{Cdouble}}, Cint), handle, P, Q, nrhs, Temp, ldt, XF_array, ldxf)
+    @ccall libcusolver.cusolverRfBatchSolve(handle::cusolverRfHandle_t, P::CuPtr{Cint},
+                                            Q::CuPtr{Cint}, nrhs::Cint,
+                                            Temp::CuPtr{Cdouble}, ldt::Cint,
+                                            XF_array::CuPtr{Ptr{Cdouble}},
+                                            ldxf::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverRfBatchZeroPivot(handle, position)
     initialize_context()
-    ccall((:cusolverRfBatchZeroPivot, libcusolver), cusolverStatus_t,
-          (cusolverRfHandle_t, CuPtr{Cint}), handle, position)
+    @ccall libcusolver.cusolverRfBatchZeroPivot(handle::cusolverRfHandle_t,
+                                                position::CuPtr{Cint})::cusolverStatus_t
 end
