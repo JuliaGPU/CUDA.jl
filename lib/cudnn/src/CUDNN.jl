@@ -29,12 +29,11 @@ end
 
 
 # core library
-include("libcudnn_common.jl")
-include("error.jl")
 include("libcudnn.jl")
 include("libcudnn_deprecated.jl")
 
 # low-level wrappers
+include("error.jl")
 include("util.jl")
 include("base.jl")
 include("descriptors.jl")
