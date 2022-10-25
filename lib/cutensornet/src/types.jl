@@ -5,17 +5,17 @@
 function Base.convert(::Type{cutensornetComputeType_t}, T::DataType)
     if T == Float16
         return CUTENSORNET_COMPUTE_16F
-    elseif T == Float32 
+    elseif T == Float32
         return CUTENSORNET_COMPUTE_32F
     elseif T == Float64
         return CUTENSORNET_COMPUTE_64F
-    elseif T == UInt8 
+    elseif T == UInt8
         return CUTENSORNET_COMPUTE_8U
-    elseif T == Int8 
+    elseif T == Int8
         return CUTENSORNET_COMPUTE_8I
-    elseif T == UInt32 
+    elseif T == UInt32
         return CUTENSORNET_COMPUTE_32U
-    elseif T == Int32 
+    elseif T == Int32
         return CUTENSORNET_COMPUTE_32I
     else
         throw(ArgumentError("CUTENSORNET type equivalent for compute type $T does not exist!"))
@@ -24,17 +24,17 @@ end
 
 function Base.convert(::Type{Type}, T::cutensornetComputeType_t)
     if T == CUTENSORNET_COMPUTE_16F
-        return Float16 
+        return Float16
     elseif T == CUTENSORNET_COMPUTE_32F
         return Float32
     elseif T == CUTENSORNET_COMPUTE_64F
         return Float64
     elseif T == CUTENSORNET_COMPUTE_8U
-        return UInt8 
+        return UInt8
     elseif T == CUTENSORNET_COMPUTE_32U
         return UInt32
     elseif T == CUTENSORNET_COMPUTE_8I
-        return Int8 
+        return Int8
     elseif T == CUTENSORNET_COMPUTE_32I
         return Int32
     else
@@ -45,12 +45,13 @@ end
 mutable struct CuTensorNetworkDescriptor
     handle::cutensornetNetworkDescriptor_t
     function CuTensorNetworkDescriptor(numInputs::Int32, numModesIn::Vector{Int32}, extentsIn::Vector{Vector{Int64}},
-                                       stridesIn::Vector{Vector{Int64}}, modesIn::Vector{Vector{Int32}},
-                                       alignmentRequirementsIn::Vector{Int32}, numModesOut::Int32,
-                                       extentsOut::Vector{Int64}, stridesOut::Vector{Int64}, modesOut::Vector{Int32},
-                                       alignmentRequirementsOut::Int32, dataType::Type, computeType::Type)
+                                       stridesIn, modesIn::Vector{Vector{Int32}},
+                                       alignmentRequirementsIn::Vector{UInt32}, numModesOut::Int32,
+                                       extentsOut::Vector{Int64}, stridesOut::Union{Ptr{Nothing}, Vector{Int64}}, modesOut::Vector{Int32},
+                                       alignmentRequirementsOut::UInt32, dataType::Type, computeType::Type)
         desc_ref = Ref{cutensornetNetworkDescriptor_t}()
-        cutensornetCreateNetworkDescriptor(handle(), numInputs, numModesIn, extentsIn, stridesIn, modesIn, alignmentRequirementsIn, numModesOut, extentsOut, stridesOut, modesOut, alignmentRequirementsOut, dataType, computeType, desc_ref)
+        cutensornetCreateNetworkDescriptor(handle(), numInputs, numModesIn, extentsIn, stridesIn, modesIn, alignmentRequirementsIn, numModesOut,
+                                           extentsOut, stridesOut, modesOut, alignmentRequirementsOut, dataType, computeType, desc_ref)
         obj = new(desc_ref[])
         finalizer(cutensornetDestroyNetworkDescriptor, obj)
         obj
@@ -65,26 +66,28 @@ function compute_type(T::DataType)
         return Float16
     elseif T == Float64
         return Float64
-    end 
+    end
 end
 
 mutable struct CuTensorNetwork{T}
     desc::CuTensorNetworkDescriptor
     input_modes::Vector{Vector{Int32}}
     input_extents::Vector{Vector{Int32}}
-    input_strides::Vector{Vector{Int32}}
+    input_strides::Vector{<:Union{Ptr{Nothing}, Vector{Int32}}}
     input_alignment_reqs::Vector{Int32}
     input_arrs::Vector{CuArray{T}}
     output_modes::Vector{Int32}
     output_extents::Vector{Int32}
-    output_strides::Vector{Int32}
+    output_strides::Union{Ptr{Nothing}, Vector{Int32}}
     output_alignment_reqs::Int32
     output_arr::CuArray{T}
 end
 function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides, input_alignment_reqs, output_modes, output_extents, output_strides, output_alignment_reqs)
-    desc = CuTensorNetworkDescriptor(Int32(length(input_modes)), Int32.(length.(input_modes)), input_extents, input_strides, input_modes, input_alignment_reqs, Int32(length(output_modes)), output_extents, output_strides, output_modes, output_alignment_reqs, T, compute_type(real(T)))
-    
-    return CuTensorNetwork{T}(desc, input_modes, input_extents, input_strides, input_alignment_reqs, Vector{CuArray{T}}(undef, 0), output_modes, output_extents, output_strides, output_alignment_reqs, CUDA.zeros(T, 0))
+    desc = CuTensorNetworkDescriptor(Int32(length(input_modes)), Int32.(length.(input_modes)), input_extents, input_strides, input_modes, input_alignment_reqs,
+                                     Int32(length(output_modes)), output_extents, output_strides, output_modes, output_alignment_reqs, T, compute_type(real(T)))
+
+    return CuTensorNetwork{T}(desc, input_modes, input_extents, input_strides, input_alignment_reqs, Vector{CuArray{T}}(undef, 0),
+                              output_modes, output_extents, output_strides, output_alignment_reqs, CUDA.zeros(T, 0))
 end
 
 mutable struct CuTensorNetworkContractionOptimizerInfo
@@ -100,11 +103,24 @@ end
 
 Base.unsafe_convert(::Type{cutensornetContractionOptimizerInfo_t}, desc::CuTensorNetworkContractionOptimizerInfo) = desc.handle
 
+mutable struct CuTensorNetworkWorkspaceDescriptor
+    handle::cutensornetWorkspaceDescriptor_t
+    function CuTensorNetworkWorkspaceDescriptor()
+        desc_ref = Ref{cutensornetWorkspaceDescriptor_t}()
+        cutensornetCreateWorkspaceDescriptor(handle(), desc_ref)
+        obj = new(desc_ref[])
+        finalizer(cutensornetDestroyWorkspaceDescriptor, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{cutensornetWorkspaceDescriptor_t}, desc::CuTensorNetworkWorkspaceDescriptor) = desc.handle
+
 mutable struct CuTensorNetworkContractionPlan
     handle::cutensornetContractionPlan_t
-    function CuTensorNetworkContractionPlan(net_desc::CuTensorNetworkDescriptor, info::CuTensorNetworkContractionOptimizerInfo, ws_size)
+    function CuTensorNetworkContractionPlan(net_desc::CuTensorNetworkDescriptor, info::CuTensorNetworkContractionOptimizerInfo, ws_desc::CuTensorNetworkWorkspaceDescriptor)
         desc_ref = Ref{cutensornetContractionPlan_t}()
-        cutensornetCreateContractionPlan(handle(), net_desc, info, ws_size, desc_ref)
+        cutensornetCreateContractionPlan(handle(), net_desc, info, ws_desc, desc_ref)
         obj = new(desc_ref[])
         finalizer(cutensornetDestroyContractionPlan, obj)
         obj
@@ -120,20 +136,22 @@ struct AutoTune   <: UseAutotuning end
 Base.@kwdef struct OptimizerConfig
     num_graph_partitions::Int32=8
     graph_cutoff_size::Int32=8
-    graph_algorithm::cutensornetGraphAlgo_t=CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_GRAPH_ALGORITHM_KWAY
+    graph_algorithm::cutensornetGraphAlgo_t=CUTENSORNET_GRAPH_ALGO_KWAY
     graph_imbalance_factor::Int32=200
     graph_num_iterations::Int32=60
     graph_num_cuts::Int32=10
     reconfig_num_iterations::Int32=500
-    reconfig_num_leaves::Int32=500
+    reconfig_num_leaves::Int32=8
     slicer_disable_slicing::Int32=0
-    slicer_memory_model::cutensornetMemoryModel_t=CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SLICER_MEMORY_MODEL_CUTENSOR
-    slicer_memory_factor::Int32=2
+    slicer_memory_model::cutensornetMemoryModel_t=CUTENSORNET_MEMORY_MODEL_CUTENSOR
+    slicer_memory_factor::Int32=80
     slicer_min_slices::Int32=1
     slicer_slice_factor::Int32=2
     hyper_num_samples::Int32=0
     simplification_disable_dr::Int32=0
+    hyper_num_threads::Int32=Threads.nthreads()
     seed::Int32=0
+    cost_function_objective::cutensornetOptimizerCost_t=CUTENSORNET_OPTIMIZER_COST_FLOPS
 end
 
 mutable struct CuTensorNetworkContractionOptimizerConfig
@@ -160,7 +178,9 @@ mutable struct CuTensorNetworkContractionOptimizerConfig
                         :slicer_slice_factor=>CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SLICER_SLICE_FACTOR,
                         :hyper_num_samples=>CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_HYPER_NUM_SAMPLES,
                         :simplification_disable_dr=>CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SIMPLIFICATION_DISABLE_DR,
+                        :hyper_num_threads=>CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_HYPER_NUM_THREADS,
                         :seed=>CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SEED,
+                        :cost_function_objective=>CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_COST_FUNCTION_OBJECTIVE,
                     )
             attr_buf = Ref(Base.getproperty(prefs, attr[1]))
             cutensornetContractionOptimizerConfigSetAttribute(handle(), desc_ref[], attr[2], attr_buf, sizeof(attr_buf))
@@ -171,7 +191,7 @@ end
 
 Base.unsafe_convert(::Type{cutensornetContractionOptimizerConfig_t}, desc::CuTensorNetworkContractionOptimizerConfig) = desc.handle
 
-Base.@kwdef struct AutotunePreferences 
+Base.@kwdef struct AutotunePreferences
     max_iterations::Int32=3
 end
 

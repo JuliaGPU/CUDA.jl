@@ -18,11 +18,19 @@ using BFloat16s: BFloat16
 
 using ExprTools: splitdef, combinedef
 
-# TODO: set lib versions in bindeps or so
+using CUDA_Driver_jll
 
-# XXX: to be replaced by a JLL
-include("../deps/Deps.jl")
-using .Deps
+import CUDA_Runtime_jll
+if haskey(CUDA_Runtime_jll.preferences, "version") &&
+   CUDA_Runtime_jll.preferences["version"] == "local"
+    using CUDA_Runtime_Discovery
+    const CUDA_Runtime = CUDA_Runtime_Discovery
+else
+    using CUDA_Runtime_jll
+    const CUDA_Runtime = CUDA_Runtime_jll
+end
+
+import Preferences
 
 
 ## source code includes
@@ -35,6 +43,7 @@ include("../lib/cudadrv/CUDAdrv.jl")
 
 # essential stuff
 include("initialization.jl")
+include("compatibility.jl")
 include("debug.jl")
 
 # device functionality (needs to be loaded first, because of generated functions)
@@ -86,6 +95,8 @@ include("../lib/cufft/CUFFT.jl")
 include("../lib/curand/CURAND.jl")
 
 export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND
+const has_cusolvermg = CUSOLVER.has_cusolvermg
+export has_cusolvermg
 
 # random depends on CURAND
 include("random.jl")

@@ -541,7 +541,7 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
     # JuliaGPU/CUDA.jl#863: cuMemcpy3DAsync calculates wrong offset
     #                       when using the stream-ordered memory allocator
     # NOTE: we apply the workaround unconditionally, since we want to keep this call cheap.
-    if v"11.2" <= CUDA.release() <= v"11.3" #&& CUDA.pools[device()].stream_ordered
+    if v"11.2" <= CUDA.driver_version() <= v"11.3" #&& CUDA.pools[device()].stream_ordered
         srcOffset = (srcPos.x-1)*sizeof(T) + srcPitch*((srcPos.y-1) + srcHeight*(srcPos.z-1))
         dstOffset = (dstPos.x-1)*sizeof(T) + dstPitch*((dstPos.y-1) + dstHeight*(dstPos.z-1))
     else

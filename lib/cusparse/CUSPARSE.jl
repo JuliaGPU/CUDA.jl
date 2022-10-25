@@ -2,9 +2,11 @@ module CUSPARSE
 
 using ..APIUtils
 
+using ..CUDA_Runtime
+
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim, initialize_context, i32, @allowscalar
+using ..CUDA: unsafe_free!, @retry_reclaim, initialize_context, i32, @allowscalar
 
 using CEnum: @cenum
 

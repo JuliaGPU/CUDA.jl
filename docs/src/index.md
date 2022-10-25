@@ -8,6 +8,10 @@ If you have any questions, please feel free to use the `#gpu` channel on the [Ju
 slack](https://julialang.slack.com/), or the [GPU domain of the Julia
 Discourse](https://discourse.julialang.org/c/domain/gpu).
 
+For information on recent or upcoming changes, consult the
+[`NEWS.md`](https://github.com/JuliaGPU/CUDA.jl/blob/master/NEWS.md) document in the CUDA.jl
+repository.
+
 
 ## Quick Start
 

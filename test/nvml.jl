@@ -13,7 +13,7 @@ end
 @testset "system" begin
     @test NVML.version() isa VersionNumber
     @test NVML.driver_version() isa VersionNumber
-    @test NVML.cuda_driver_version() == CUDA.version()
+    @test NVML.cuda_driver_version() == CUDA.driver_version()
 end
 
 @testset "devices" begin

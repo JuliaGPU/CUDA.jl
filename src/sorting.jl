@@ -841,7 +841,7 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false)
     end
     k0 = c_len |> log2 |> ceil |> Int
 
-    blocks_per_mp = if CUDA.version() >= v"11.0"
+    blocks_per_mp = if CUDA.driver_version() >= v"11.0"
         CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_BLOCKS_PER_MULTIPROCESSOR)
     else
         16

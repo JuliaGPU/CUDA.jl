@@ -273,7 +273,8 @@ function device!(f::Function, dev::CuDevice)
 end
 
 # NVIDIA bug #3240770
-can_reset_device() = !(release() == v"11.2" && any(dev->stream_ordered(dev), devices()))
+can_reset_device() = !(Base.thisminor(driver_version()) == v"11.2" &&
+                       any(dev->stream_ordered(dev), devices()))
 
 """
     device_reset!(dev::CuDevice=device())

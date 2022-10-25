@@ -1,9 +1,9 @@
-export geam
+export geam, axpby
 
 """
     geam(alpha::Number, A::CuSparseMatrix, beta::Number, B::CuSparseMatrix, index::SparseChar)
 
-Performs `C = alpha * A + beta * B`. `A` and `B` are sparse matrix defined in CSR storage format.
+Performs `C = alpha * A + beta * B`. `A` and `B` are sparse matrices defined in CSR or CSC storage formats.
 """
 geam(alpha::Number, A::CuSparseMatrixCSR, beta::Number, B::CuSparseMatrixCSR, index::SparseChar)
 
@@ -14,46 +14,80 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
     @eval begin
         function geam(alpha::Number, A::CuSparseMatrixCSR{$elty}, beta::Number, B::CuSparseMatrixCSR{$elty}, index::SparseChar)
             m, n = size(A)
-            (m, n) == size(B) && DimensionMismatch("dimensions must match: a has dims $(axes(A)), b has dims $(axes(B))")
+            (m, n) == size(B) || throw(DimensionMismatch("dimensions must match: A has dims $(size(A)), B has dims $(size(B))"))
             descrA = CuMatrixDescriptor('G', 'L', 'N', index)
             descrB = CuMatrixDescriptor('G', 'L', 'N', index)
             descrC = CuMatrixDescriptor('G', 'L', 'N', index)
 
-            rowPtrC = CuArray{Int32,1}(undef, m+1)
+            rowPtrC = CuVector{Int32}(undef, m+1)
+            local colValC, nzValC
 
             function bufferSize()
-                out = Ref{Csize_t}(1)
+                out = Ref{Csize_t}()
                 $bname(handle(), m, n,
                     alpha, descrA, nnz(A), nonzeros(A), A.rowPtr, A.colVal,
                     beta, descrB, nnz(B), nonzeros(B), B.rowPtr, B.colVal,
-                    descrC, CuArray{$elty,1}(undef, 0), rowPtrC, CuArray{Int32,1}(undef, 0),
+                    descrC, CU_NULL, rowPtrC, CU_NULL,
                     out)
                 return out[]
             end
 
-            C = with_workspace(bufferSize) do buffer
-                function get_nnzC(buffer)
-                    nnzTotalDevHostPtr = Ref{Cint}(1)
-                    cusparseXcsrgeam2Nnz(handle(), m, n,
-                        descrA, nnz(A), A.rowPtr, A.colVal,
-                        descrB, nnz(B), B.rowPtr, B.colVal,
-                        descrC, rowPtrC, nnzTotalDevHostPtr,
-                        buffer)
-                    return nnzTotalDevHostPtr[]
-                end
+            with_workspace(bufferSize) do buffer
+                nnzTotal = Ref{Cint}()
+                cusparseXcsrgeam2Nnz(handle(), m, n,
+                    descrA, nnz(A), A.rowPtr, A.colVal,
+                    descrB, nnz(B), B.rowPtr, B.colVal,
+                    descrC, rowPtrC, nnzTotal,
+                    buffer)
 
-                nnzC = get_nnzC(buffer)
-                colValC = CuArray{Int32,1}(undef, Int(nnzC))
-                nzValC = CuArray{$elty,1}(undef, Int(nnzC))
+                colValC = CuVector{Int32}(undef, nnzTotal[])
+                nzValC  = CuVector{$elty}(undef, nnzTotal[])
 
                 $gname(handle(), m, n,
                     alpha, descrA, nnz(A), nonzeros(A), A.rowPtr, A.colVal,
                     beta, descrB, nnz(B), nonzeros(B), B.rowPtr, B.colVal,
                     descrC, nzValC, rowPtrC, colValC,
                     buffer)
-                return CuSparseMatrixCSR(rowPtrC, colValC, nzValC, (m, n))
             end
-            C
+
+            C = CuSparseMatrixCSR(rowPtrC, colValC, nzValC, (m, n))
+            return C
         end
     end
+end
+
+function geam(alpha::Number, A::CuSparseMatrixCSC{T}, beta::Number, B::CuSparseMatrixCSC{T}, index::SparseChar) where {T <: BlasFloat}
+    m, n = size(A)
+    (m, n) == size(B) || throw(DimensionMismatch("dimensions must match: A has dims $(size(A)), B has dims $(size(B))"))
+
+    Aᵀ = CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, (n, m))
+    Bᵀ = CuSparseMatrixCSR(B.colPtr, B.rowVal, B.nzVal, (n, m))
+    Cᵀ = geam(alpha, Aᵀ, beta, Bᵀ, index)
+
+    C = CuSparseMatrixCSC(Cᵀ.rowPtr, Cᵀ.colVal, Cᵀ.nzVal, (m, n))
+    return C
+end
+
+"""
+    axpby(alpha::Number, x::CuSparseVector, beta::Number, y::CuSparseVector, index::SparseChar)
+
+Performs `z = alpha * x + beta * y`. `x` and `y` are sparse vectors.
+"""
+axpby(alpha::Number, x::CuSparseVector, beta::Number, y::CuSparseVector, index::SparseChar)
+
+function axpby(alpha::Number, x::CuSparseVector{T}, beta::Number, y::CuSparseVector{T}, index::SparseChar) where {T <: BlasFloat}
+    n = length(x)
+    n == length(y) || throw(DimensionMismatch("dimensions must match: x has length $(length(x)), y has length $(length(y))"))
+
+    # we model x as a CuSparseMatrixCSR with one row.
+    rowPtrA = CuVector{Int32}([1; nnz(x)+1])
+    A = CuSparseMatrixCSR(rowPtrA, x.iPtr, nonzeros(x), (1,n))
+
+    # we model y as a CuSparseMatrixCSR with one row.
+    rowPtrB = CuVector{Int32}([1; nnz(y)+1])
+    B = CuSparseMatrixCSR(rowPtrB, y.iPtr, nonzeros(y), (1,n))
+
+    C = geam(alpha, A, beta, B, index)
+    z = CuSparseVector(C.colVal, C.nzVal, n)
+    return z
 end

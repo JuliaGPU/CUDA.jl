@@ -212,7 +212,7 @@ You will get an interactive REPL, where you can execute whatever code you want:
 ```julia
 julia> using CUDA
 
-julia> CUDA.version()
+julia> CUDA.driver_version()
 
 # Julia hangs!
 ```

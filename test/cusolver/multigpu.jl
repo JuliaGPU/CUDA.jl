@@ -97,7 +97,7 @@ if CUSOLVER.version() >= v"10.3"
         @testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
             A      = rand(elty,m,m)
             h_A    = copy(A)
-            pivot = VERSION >= v"1.7-" ? NoPivot() : Val(false)
+            pivot = VERSION >= v"1.7" ? NoPivot() : Val(false)
             alu    = lu(A, pivot)
             B      = rand(elty, m, div(m,2))
             h_B    = copy(B)

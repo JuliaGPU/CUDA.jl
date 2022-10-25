@@ -1,7 +1,9 @@
 module NVTX
 
+using ..CUDA_Runtime
+
 using ..CUDA
-using ..CUDA: libnvtx, @checked
+using ..CUDA: @checked
 using ..CUDA: CUstream, CUdevice, CUcontext, CUevent
 
 using CEnum: @cenum

@@ -32,6 +32,8 @@ function description(err)
         "the workspace on the device is too small to execute."
     elseif err.code == CUSTATEVEC_STATUS_SAMPLER_NOT_PREPROCESSED
         "the sampler was called prior to preprocessing."
+    elseif err.code == CUSTATEVEC_STATUS_NO_DEVICE_ALLOCATOR
+        "the device memory pool was not set."
     else
         "no description for this error"
     end

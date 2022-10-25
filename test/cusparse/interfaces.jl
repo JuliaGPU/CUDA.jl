@@ -3,6 +3,55 @@ using CUDA.CUSPARSE
 using LinearAlgebra, SparseArrays
 
 @testset "LinearAlgebra" begin
+    @testset "CuSparseVector -- A ± B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        n = 10
+        alpha = rand()
+        beta = rand()
+        A = sprand(elty, n, 0.3)
+        B = sprand(elty, n, 0.7)
+
+        dA = CuSparseVector(A)
+        dB = CuSparseVector(B)
+
+        C = alpha * A + beta * B
+        dC = axpby(alpha, dA, beta, dB, 'O')
+        @test C ≈ collect(dC)
+
+        C = A + B
+        dC = dA + dB
+        @test C ≈ collect(dC)
+
+        C = A - B
+        dC = dA - dB
+        @test C ≈ collect(dC)
+    end
+
+    for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR)
+        @testset "$SparseMatrixType -- A ± B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            n = 10
+            m = 20
+            alpha = rand()
+            beta = rand()
+            A = sprand(elty, n, m, 0.2)
+            B = sprand(elty, n, m, 0.5)
+
+            dA = SparseMatrixType(A)
+            dB = SparseMatrixType(B)
+
+            C = alpha * A + beta * B
+            dC = geam(alpha, dA, beta, dB, 'O')
+            @test C ≈ collect(dC)
+
+            C = A + B
+            dC = dA + dB
+            @test C ≈ collect(dC)
+
+            C = A - B
+            dC = dA - dB
+            @test C ≈ collect(dC)
+        end
+    end
+
     @testset "$f(A)±$h(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
                                      f in (identity, transpose), #adjoint),
                                      h in (identity, transpose)#, adjoint)
@@ -219,7 +268,6 @@ using LinearAlgebra, SparseArrays
         @test dD - dA isa typ
     end
 
-    
     @testset "Sparse-Sparse $typ multiplication and kronecker product" for
         typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
 
@@ -244,5 +292,91 @@ using LinearAlgebra, SparseArrays
         droptol!(A, 0.4)
         @test Array(A) ≈ a
     end
+  
+    @testset "dot(CuVector, CuSparseVector) and dot(CuSparseVector, CuVector) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
+        n = 10
+        x = sprand(elty, n, 0.5)
+        y = rand(elty, n)
 
+        dx = CuSparseVector(x)
+        dy = CuVector(y)
+
+        @test dot(dx,dy) ≈ dot(x,y)
+        @test dot(dy,dx) ≈ dot(y,x)
+    end
+
+    for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR)
+
+        @testset "ldiv!($SparseMatrixType, CuVector) $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
+            for triangle in [LowerTriangular, UnitLowerTriangular, UpperTriangular, UnitUpperTriangular]
+                for opa in [identity, transpose, adjoint]
+                    SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
+                    A = sparse(rand(elty, 10, 10))
+                    y = rand(elty, 10)
+                    dA = SparseMatrixType == CuSparseMatrixBSR ? SparseMatrixType(A, 1) : SparseMatrixType(A)
+                    dy = CuArray(y)
+                    ldiv!(triangle(opa(A)), y)
+                    ldiv!(triangle(opa(dA)), dy)
+                    @test y ≈ collect(dy)
+                 end
+            end
+        end
+
+        @testset "ldiv!($SparseMatrixType, CuMatrix) $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
+            for triangle in [LowerTriangular, UnitLowerTriangular, UpperTriangular, UnitUpperTriangular]
+                for opa in [identity, transpose, adjoint]
+                    SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
+                    A = sparse(rand(elty, 10, 10))
+                    B = rand(elty, 10, 2)
+                    dA = SparseMatrixType == CuSparseMatrixBSR ? SparseMatrixType(A, 1) : SparseMatrixType(A)
+                    dB = CuArray(B)
+                    ldiv!(triangle(opa(A)), B)
+                    ldiv!(triangle(opa(dA)), dB)
+                    @test B ≈ collect(dB)
+                end
+            end
+        end
+    end
+
+    if CUSPARSE.version() >= v"11.7.0"
+        for SparseMatrixType in (CuSparseMatrixCOO,)
+
+            @testset "ldiv!(CuVector, $SparseMatrixType, CuVector) $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
+                for triangle in [LowerTriangular, UnitLowerTriangular, UpperTriangular, UnitUpperTriangular]
+                    for opa in [identity, transpose, adjoint]
+                        elty <: Complex && opa == adjoint && continue  # Issue 1610
+                        A = sparse(rand(elty, 10, 10))
+                        y = rand(elty, 10)
+                        x = rand(elty, 10)
+                        dA = SparseMatrixType(A)
+                        dy = CuArray(y)
+                        dx = CuArray(x)
+                        ldiv!(x, triangle(opa(A)), y)
+                        ldiv!(dx, triangle(opa(dA)), dy)
+                        @test x ≈ collect(dx)
+                     end
+                end
+            end
+
+            @testset "ldiv!(CuMatrix, $SparseMatrixType, CuMatrix) $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
+                for triangle in [LowerTriangular, UnitLowerTriangular, UpperTriangular, UnitUpperTriangular]
+                    for opa in [identity, transpose, adjoint]
+                        for opb in [identity, transpose, adjoint]
+                            elty <: Complex && opa == adjoint && continue # Issue 1610
+                            elty <: Complex && opb == adjoint && continue
+                            A = sparse(rand(elty, 10, 10))
+                            B = opb == identity ? rand(elty, 10, 2) : rand(elty, 2, 10)
+                            C = rand(elty, 10, 2)
+                            dA = SparseMatrixType(A)
+                            dB = CuArray(B)
+                            dC = CuArray(C)
+                            ldiv!(C, triangle(opa(A)), opb(B))
+                            ldiv!(dC, triangle(opa(dA)), opb(dB))
+                            @test C ≈ collect(dC)
+                        end
+                    end
+                end
+            end
+        end
+    end
 end

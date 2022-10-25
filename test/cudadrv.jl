@@ -341,7 +341,7 @@ dummy = CuFunction(md, "dummy")
 
 val = attributes(dummy)[CUDA.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
 
-if CUDA.version() >= v"9.0"
+if CUDA.driver_version() >= v"9.0"
     attributes(dummy)[CUDA.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES] = val
 end
 
@@ -797,7 +797,7 @@ end
 @testset "pool" begin
 
 dev = device()
-if CUDA.version() >= v"11.2" && attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+if CUDA.driver_version() >= v"11.2" && attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
 
 pool = memory_pool(dev)
 
@@ -866,9 +866,8 @@ end
 
 @testset "version" begin
 
-@test isa(CUDA.version(), VersionNumber)
+@test isa(CUDA.driver_version(), VersionNumber)
 
-@test isa(CUDA.release(), VersionNumber)
-@test CUDA.release().patch == 0
+@test isa(CUDA.runtime_version(), VersionNumber)
 
 end
