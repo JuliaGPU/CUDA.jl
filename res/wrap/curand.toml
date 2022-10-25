@@ -1,0 +1,54 @@
+[general]
+library_name = "libcurand"
+output_file_path = "../../lib/curand/libcurand.jl"
+prologue_file_path = "./libcurand_prologue.jl"
+
+
+[codegen]
+always_NUL_terminated_string = true
+
+
+[api]
+checked_rettypes = [ "curandStatus_t" ]
+
+[api.curandGetVersion]
+needs_context = false
+
+[api.curandGetProperty]
+needs_context = false
+
+[api.curandGenerate.argtypes]
+2 = "CuPtr{UInt32}"
+
+[api.curandGenerateLongLong.argtypes]
+2 = "CuPtr{Culonglong}"
+
+[api.curandGenerateUniform.argtypes]
+2 = "CuPtr{Cfloat}"
+
+[api.curandGenerateUniformDouble.argtypes]
+2 = "CuPtr{Cdouble}"
+
+[api.curandGenerateNormal.argtypes]
+2 = "CuPtr{Cfloat}"
+
+[api.curandGenerateNormalDouble.argtypes]
+2 = "CuPtr{Cdouble}"
+
+[api.curandGenerateLogNormal.argtypes]
+2 = "CuPtr{Cfloat}"
+
+[api.curandGenerateLogNormalDouble.argtypes]
+2 = "CuPtr{Cdouble}"
+
+[api.curandGeneratePoisson.argtypes]
+2 = "CuPtr{UInt32}"
+
+[api.curandGeneratePoissonMethod.argtypes]
+2 = "CuPtr{UInt32}"
+
+[api.curandGenerateBinomial.argtypes]
+2 = "CuPtr{UInt32}"
+
+[api.curandGenerateBinomialMethod.argtypes]
+2 = "CuPtr{UInt32}"

@@ -1,0 +1,22 @@
+[general]
+library_name = "libcupti"
+output_file_path = "../../lib/cupti/libcupti.jl"
+prologue_file_path = "./libcupti_prologue.jl"
+
+output_ignorelist = [
+    "_STRUCT_SIZE$"
+]
+
+
+[codegen]
+always_NUL_terminated_string = true
+
+
+[api]
+checked_rettypes = [ "CUptiResult" ]
+
+[api.cuptiGetResultString]
+needs_context = false
+
+[api.cuptiGetVersion]
+needs_context = false

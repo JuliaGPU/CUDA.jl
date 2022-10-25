@@ -1,0 +1,45 @@
+[general]
+library_name = "libcufft"
+output_file_path = "../../lib/cufft/libcufft.jl"
+prologue_file_path = "./libcufft_prologue.jl"
+
+
+[codegen]
+always_NUL_terminated_string = true
+
+
+[api]
+checked_rettypes = [ "cufftResult" ]
+
+[api.cufftGetVersion]
+needs_context = false
+
+[api.cufftGetProperty]
+needs_context = false
+
+[api.cufftSetWorkArea.argtypes]
+2 = "CuPtr{Cvoid}"
+
+[api.cufftExecC2C.argtypes]
+2 = "CuPtr{cufftComplex}"
+3 = "CuPtr{cufftComplex}"
+
+[api.cufftExecR2C.argtypes]
+2 = "CuPtr{cufftReal}"
+3 = "CuPtr{cufftComplex}"
+
+[api.cufftExecC2R.argtypes]
+2 = "CuPtr{cufftComplex}"
+3 = "CuPtr{cufftReal}"
+
+[api.cufftExecZ2Z.argtypes]
+2 = "CuPtr{cufftDoubleComplex}"
+3 = "CuPtr{cufftDoubleComplex}"
+
+[api.cufftExecD2Z.argtypes]
+2 = "CuPtr{cufftDoubleReal}"
+3 = "CuPtr{cufftDoubleComplex}"
+
+[api.cufftExecZ2D.argtypes]
+2 = "CuPtr{cufftDoubleComplex}"
+3 = "CuPtr{cufftDoubleReal}"

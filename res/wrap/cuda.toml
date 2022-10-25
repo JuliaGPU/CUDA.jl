@@ -1,0 +1,95 @@
+[general]
+library_name = "libcuda"
+output_file_path = "../../lib/cudadrv/libcuda.jl"
+prologue_file_path = "./libcuda_prologue.jl"
+
+output_ignorelist = [
+    "^CUdeviceptr",
+    "^CUarray$",
+    "^CUstream$", "^CUstream_st$"
+]
+
+
+[codegen]
+always_NUL_terminated_string = true
+
+[api]
+checked_rettypes = [ "CUresult" ]
+
+[api.cuGetErrorString]
+needs_context = false
+
+[api.cuGetErrorName]
+needs_context = false
+
+[api.cuInit]
+needs_context = false
+
+[api.cuDriverGetVersion]
+needs_context = false
+
+[api.cuDeviceGet]
+needs_context = false
+
+[api.cuDeviceGetCount]
+needs_context = false
+
+[api.cuDeviceGetName]
+needs_context = false
+
+[api.cuDeviceGetUuid]
+needs_context = false
+
+[api.cuDeviceTotalMem_v2]
+needs_context = false
+
+[api.cuDeviceGetAttribute]
+needs_context = false
+
+[api.cuDeviceGetProperties]
+needs_context = false
+
+[api.cuDeviceComputeCapability]
+needs_context = false
+
+[api.cuDevicePrimaryCtxRetain]
+needs_context = false
+
+[api.cuDevicePrimaryCtxRelease_v2]
+needs_context = false
+
+[api.cuDevicePrimaryCtxSetFlags_v2]
+needs_context = false
+
+[api.cuDevicePrimaryCtxGetState]
+needs_context = false
+
+[api.cuDevicePrimaryCtxReset_v2]
+needs_context = false
+
+[api.cuCtxCreate_v2]
+needs_context = false
+
+[api.cuCtxDestroy_v2]
+needs_context = false
+
+[api.cuCtxPushCurrent_v2]
+needs_context = false
+
+[api.cuCtxPopCurrent_v2]
+needs_context = false
+
+[api.cuCtxSetCurrent]
+needs_context = false
+
+[api.cuCtxGetCurrent]
+needs_context = false
+
+[api.cuCtxGetDevice]
+needs_context = false
+
+[api.cuDeviceGetLuid]
+needs_context = false
+
+[api.cuDeviceGetUuid_v2]
+needs_context = false

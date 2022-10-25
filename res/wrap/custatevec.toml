@@ -1,0 +1,55 @@
+[general]
+library_name = "libcustatevec"
+output_file_path = "../../lib/custatevec/src/libcustatevec.jl"
+prologue_file_path = "./libcustatevec_prologue.jl"
+
+output_ignorelist = [
+]
+
+
+[codegen]
+always_NUL_terminated_string = true
+
+
+[api]
+checked_rettypes = [ "custatevecStatus_t" ]
+
+[api.custatevecLoggerSetMask]
+needs_context = false
+
+[api.custatevecGetVersion]
+needs_context = false
+
+[api.custatevecLoggerForceDisable]
+needs_context = false
+
+[api.custatevecLoggerOpenFile]
+needs_context = false
+
+[api.custatevecLoggerSetFile]
+needs_context = false
+
+[api.custatevecGetErrorString]
+needs_context = false
+
+[api.custatevecLoggerSetCallback]
+needs_context = false
+
+[api.custatevecComputeExpectationGetWorkspaceSize.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+
+[api.custatevecSamplerPreprocess.argtypes]
+3 = "CuPtr{Cvoid}"
+
+[api.custatevecComputeExpectation.argtypes]
+2 = "CuPtr{Cvoid}"
+8 = "PtrOrCuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+
+[api.custatevecSamplerCreate.argtypes]
+2 = "CuPtr{Cvoid}"
+
+[api.custatevecApplyMatrix.argtypes]
+2 = "CuPtr{Cvoid}"
+5 = "PtrOrCuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"

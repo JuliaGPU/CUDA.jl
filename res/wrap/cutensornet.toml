@@ -1,0 +1,47 @@
+[general]
+library_name = "libcutensornet"
+output_file_path = "../../lib/cutensornet/src/libcutensornet.jl"
+prologue_file_path = "./libcutensornet_prologue.jl"
+
+
+[codegen]
+always_NUL_terminated_string = true
+
+
+[api]
+checked_rettypes = [ "cutensornetStatus_t" ]
+
+[api.cutensornetGetCudartVersion]
+needs_context = false
+
+[api.cutensornetLoggerOpenFile]
+needs_context = false
+
+[api.cutensornetLoggerSetCallback]
+needs_context = false
+
+[api.cutensornetLoggerForceDisable]
+needs_context = false
+
+[api.cutensornetLoggerSetFile]
+needs_context = false
+
+[api.cutensornetGetVersion]
+needs_context = false
+
+[api.cutensornetGetErrorString]
+needs_context = false
+
+[api.cutensornetLoggerSetMask]
+needs_context = false
+
+[api.cutensornetWorkspaceSet.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+
+[api.cutensornetContractionAutotune.argtypes]
+3 = "Ptr{CuPtr{Cvoid}}"
+4 = "CuPtr{Cvoid}"
+
+[api.cutensornetContraction.argtypes]
+3 = "Ptr{CuPtr{Cvoid}}"
+4 = "CuPtr{Cvoid}"
