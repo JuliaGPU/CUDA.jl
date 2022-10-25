@@ -1,12 +1,12 @@
 # script to parse CUDA headers and generate Julia wrappers
 
-
-#
-# Parsing
-#
-
 using Clang
 using Clang.Generators
+
+using JuliaFormatter
+
+using CUDA_full_jll, CUDNN_jll, CUTENSOR_jll, cuQuantum_jll
+using Libglvnd_jll
 
 function wrap(name, headers; targets=headers, defines=[], include_dirs=[])
     args = get_default_args()
@@ -44,6 +44,8 @@ function wrap(name, headers; targets=headers, defines=[], include_dirs=[])
     rewriter!(ctx, options)
 
     build!(ctx, BUILDSTAGE_PRINTING_ONLY)
+
+    format(options["general"]["output_file_path"], YASStyle(), always_use_return=false)
 
     return
 end
@@ -120,15 +122,7 @@ function rewriter!(ctx, options)
     end
 end
 
-
-#
-# Main application
-#
-
-using CUDA_full_jll, CUDNN_jll, CUTENSOR_jll, cuQuantum_jll
-using Libglvnd_jll
-
-function wrap(name="all")
+function main(name="all")
     cuda = joinpath(CUDA_full_jll.artifact_dir, "cuda", "include")
     cupti = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
     cudnn = joinpath(CUDNN_jll.artifact_dir, "include")
@@ -219,5 +213,5 @@ function wrap(name="all")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    wrap()
+    main()
 end

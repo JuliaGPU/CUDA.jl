@@ -19,7 +19,7 @@ macro check(ex, errs...)
     end
 
     quote
-        res = @retry_reclaim err->$check $(esc(ex))
+        res = @retry_reclaim err -> $check $(esc(ex))
         if res != CUPTI_SUCCESS
             throw_api_error(res)
         end
@@ -27,7 +27,6 @@ macro check(ex, errs...)
         nothing
     end
 end
-
 
 @cenum CUptiResult::UInt32 begin
     CUPTI_SUCCESS = 0
@@ -78,12 +77,13 @@ end
 end
 
 @checked function cuptiGetResultString(result, str)
-        ccall((:cuptiGetResultString, libcupti), CUptiResult, (CUptiResult, Ptr{Cstring}), result, str)
-    end
+    ccall((:cuptiGetResultString, libcupti), CUptiResult, (CUptiResult, Ptr{Cstring}),
+          result, str)
+end
 
 @checked function cuptiGetVersion(version)
-        ccall((:cuptiGetVersion, libcupti), CUptiResult, (Ptr{UInt32},), version)
-    end
+    ccall((:cuptiGetVersion, libcupti), CUptiResult, (Ptr{UInt32},), version)
+end
 
 @cenum CUpti_ApiCallbackSite::UInt32 begin
     CUPTI_API_ENTER = 0
@@ -149,7 +149,7 @@ struct CUpti_CallbackData
 end
 
 struct var"##Ctag#737"
-    data::NTuple{8, UInt8}
+    data::NTuple{8,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#737"}, f::Symbol)
@@ -169,7 +169,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#737"}, f::Symbol, v)
 end
 
 struct CUpti_ResourceData
-    data::NTuple{24, UInt8}
+    data::NTuple{24,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ResourceData}, f::Symbol)
@@ -229,44 +229,55 @@ const CUpti_SubscriberHandle = Ptr{CUpti_Subscriber_st}
 const CUpti_DomainTable = Ptr{CUpti_CallbackDomain}
 
 @checked function cuptiSupportedDomains(domainCount, domainTable)
-        initialize_context()
-        ccall((:cuptiSupportedDomains, libcupti), CUptiResult, (Ptr{Csize_t}, Ptr{CUpti_DomainTable}), domainCount, domainTable)
-    end
+    initialize_context()
+    ccall((:cuptiSupportedDomains, libcupti), CUptiResult,
+          (Ptr{Csize_t}, Ptr{CUpti_DomainTable}), domainCount, domainTable)
+end
 
 @checked function cuptiSubscribe(subscriber, callback, userdata)
-        initialize_context()
-        ccall((:cuptiSubscribe, libcupti), CUptiResult, (Ptr{CUpti_SubscriberHandle}, CUpti_CallbackFunc, Ptr{Cvoid}), subscriber, callback, userdata)
-    end
+    initialize_context()
+    ccall((:cuptiSubscribe, libcupti), CUptiResult,
+          (Ptr{CUpti_SubscriberHandle}, CUpti_CallbackFunc, Ptr{Cvoid}), subscriber,
+          callback, userdata)
+end
 
 @checked function cuptiUnsubscribe(subscriber)
-        initialize_context()
-        ccall((:cuptiUnsubscribe, libcupti), CUptiResult, (CUpti_SubscriberHandle,), subscriber)
-    end
+    initialize_context()
+    ccall((:cuptiUnsubscribe, libcupti), CUptiResult, (CUpti_SubscriberHandle,), subscriber)
+end
 
 @checked function cuptiGetCallbackState(enable, subscriber, domain, cbid)
-        initialize_context()
-        ccall((:cuptiGetCallbackState, libcupti), CUptiResult, (Ptr{UInt32}, CUpti_SubscriberHandle, CUpti_CallbackDomain, CUpti_CallbackId), enable, subscriber, domain, cbid)
-    end
+    initialize_context()
+    ccall((:cuptiGetCallbackState, libcupti), CUptiResult,
+          (Ptr{UInt32}, CUpti_SubscriberHandle, CUpti_CallbackDomain, CUpti_CallbackId),
+          enable, subscriber, domain, cbid)
+end
 
 @checked function cuptiEnableCallback(enable, subscriber, domain, cbid)
-        initialize_context()
-        ccall((:cuptiEnableCallback, libcupti), CUptiResult, (UInt32, CUpti_SubscriberHandle, CUpti_CallbackDomain, CUpti_CallbackId), enable, subscriber, domain, cbid)
-    end
+    initialize_context()
+    ccall((:cuptiEnableCallback, libcupti), CUptiResult,
+          (UInt32, CUpti_SubscriberHandle, CUpti_CallbackDomain, CUpti_CallbackId), enable,
+          subscriber, domain, cbid)
+end
 
 @checked function cuptiEnableDomain(enable, subscriber, domain)
-        initialize_context()
-        ccall((:cuptiEnableDomain, libcupti), CUptiResult, (UInt32, CUpti_SubscriberHandle, CUpti_CallbackDomain), enable, subscriber, domain)
-    end
+    initialize_context()
+    ccall((:cuptiEnableDomain, libcupti), CUptiResult,
+          (UInt32, CUpti_SubscriberHandle, CUpti_CallbackDomain), enable, subscriber,
+          domain)
+end
 
 @checked function cuptiEnableAllDomains(enable, subscriber)
-        initialize_context()
-        ccall((:cuptiEnableAllDomains, libcupti), CUptiResult, (UInt32, CUpti_SubscriberHandle), enable, subscriber)
-    end
+    initialize_context()
+    ccall((:cuptiEnableAllDomains, libcupti), CUptiResult, (UInt32, CUpti_SubscriberHandle),
+          enable, subscriber)
+end
 
 @checked function cuptiGetCallbackName(domain, cbid, name)
-        initialize_context()
-        ccall((:cuptiGetCallbackName, libcupti), CUptiResult, (CUpti_CallbackDomain, UInt32, Ptr{Cstring}), domain, cbid, name)
-    end
+    initialize_context()
+    ccall((:cuptiGetCallbackName, libcupti), CUptiResult,
+          (CUpti_CallbackDomain, UInt32, Ptr{Cstring}), domain, cbid, name)
+end
 
 const CUpti_EventID = UInt32
 
@@ -379,167 +390,211 @@ struct CUpti_EventGroupSets
 end
 
 @checked function cuptiSetEventCollectionMode(context, mode)
-        initialize_context()
-        ccall((:cuptiSetEventCollectionMode, libcupti), CUptiResult, (CUcontext, CUpti_EventCollectionMode), context, mode)
-    end
+    initialize_context()
+    ccall((:cuptiSetEventCollectionMode, libcupti), CUptiResult,
+          (CUcontext, CUpti_EventCollectionMode), context, mode)
+end
 
 @checked function cuptiDeviceGetAttribute(device, attrib, valueSize, value)
-        initialize_context()
-        ccall((:cuptiDeviceGetAttribute, libcupti), CUptiResult, (CUdevice, CUpti_DeviceAttribute, Ptr{Csize_t}, Ptr{Cvoid}), device, attrib, valueSize, value)
-    end
+    initialize_context()
+    ccall((:cuptiDeviceGetAttribute, libcupti), CUptiResult,
+          (CUdevice, CUpti_DeviceAttribute, Ptr{Csize_t}, Ptr{Cvoid}), device, attrib,
+          valueSize, value)
+end
 
 @checked function cuptiDeviceGetTimestamp(context, timestamp)
-        initialize_context()
-        ccall((:cuptiDeviceGetTimestamp, libcupti), CUptiResult, (CUcontext, Ptr{UInt64}), context, timestamp)
-    end
+    initialize_context()
+    ccall((:cuptiDeviceGetTimestamp, libcupti), CUptiResult, (CUcontext, Ptr{UInt64}),
+          context, timestamp)
+end
 
 @checked function cuptiDeviceGetNumEventDomains(device, numDomains)
-        initialize_context()
-        ccall((:cuptiDeviceGetNumEventDomains, libcupti), CUptiResult, (CUdevice, Ptr{UInt32}), device, numDomains)
-    end
+    initialize_context()
+    ccall((:cuptiDeviceGetNumEventDomains, libcupti), CUptiResult, (CUdevice, Ptr{UInt32}),
+          device, numDomains)
+end
 
 @checked function cuptiDeviceEnumEventDomains(device, arraySizeBytes, domainArray)
-        initialize_context()
-        ccall((:cuptiDeviceEnumEventDomains, libcupti), CUptiResult, (CUdevice, Ptr{Csize_t}, Ptr{CUpti_EventDomainID}), device, arraySizeBytes, domainArray)
-    end
+    initialize_context()
+    ccall((:cuptiDeviceEnumEventDomains, libcupti), CUptiResult,
+          (CUdevice, Ptr{Csize_t}, Ptr{CUpti_EventDomainID}), device, arraySizeBytes,
+          domainArray)
+end
 
-@checked function cuptiDeviceGetEventDomainAttribute(device, eventDomain, attrib, valueSize, value)
-        initialize_context()
-        ccall((:cuptiDeviceGetEventDomainAttribute, libcupti), CUptiResult, (CUdevice, CUpti_EventDomainID, CUpti_EventDomainAttribute, Ptr{Csize_t}, Ptr{Cvoid}), device, eventDomain, attrib, valueSize, value)
-    end
+@checked function cuptiDeviceGetEventDomainAttribute(device, eventDomain, attrib, valueSize,
+                                                     value)
+    initialize_context()
+    ccall((:cuptiDeviceGetEventDomainAttribute, libcupti), CUptiResult,
+          (CUdevice, CUpti_EventDomainID, CUpti_EventDomainAttribute, Ptr{Csize_t},
+           Ptr{Cvoid}), device, eventDomain, attrib, valueSize, value)
+end
 
 @checked function cuptiGetNumEventDomains(numDomains)
-        initialize_context()
-        ccall((:cuptiGetNumEventDomains, libcupti), CUptiResult, (Ptr{UInt32},), numDomains)
-    end
+    initialize_context()
+    ccall((:cuptiGetNumEventDomains, libcupti), CUptiResult, (Ptr{UInt32},), numDomains)
+end
 
 @checked function cuptiEnumEventDomains(arraySizeBytes, domainArray)
-        initialize_context()
-        ccall((:cuptiEnumEventDomains, libcupti), CUptiResult, (Ptr{Csize_t}, Ptr{CUpti_EventDomainID}), arraySizeBytes, domainArray)
-    end
+    initialize_context()
+    ccall((:cuptiEnumEventDomains, libcupti), CUptiResult,
+          (Ptr{Csize_t}, Ptr{CUpti_EventDomainID}), arraySizeBytes, domainArray)
+end
 
 @checked function cuptiEventDomainGetAttribute(eventDomain, attrib, valueSize, value)
-        initialize_context()
-        ccall((:cuptiEventDomainGetAttribute, libcupti), CUptiResult, (CUpti_EventDomainID, CUpti_EventDomainAttribute, Ptr{Csize_t}, Ptr{Cvoid}), eventDomain, attrib, valueSize, value)
-    end
+    initialize_context()
+    ccall((:cuptiEventDomainGetAttribute, libcupti), CUptiResult,
+          (CUpti_EventDomainID, CUpti_EventDomainAttribute, Ptr{Csize_t}, Ptr{Cvoid}),
+          eventDomain, attrib, valueSize, value)
+end
 
 @checked function cuptiEventDomainGetNumEvents(eventDomain, numEvents)
-        initialize_context()
-        ccall((:cuptiEventDomainGetNumEvents, libcupti), CUptiResult, (CUpti_EventDomainID, Ptr{UInt32}), eventDomain, numEvents)
-    end
+    initialize_context()
+    ccall((:cuptiEventDomainGetNumEvents, libcupti), CUptiResult,
+          (CUpti_EventDomainID, Ptr{UInt32}), eventDomain, numEvents)
+end
 
 @checked function cuptiEventDomainEnumEvents(eventDomain, arraySizeBytes, eventArray)
-        initialize_context()
-        ccall((:cuptiEventDomainEnumEvents, libcupti), CUptiResult, (CUpti_EventDomainID, Ptr{Csize_t}, Ptr{CUpti_EventID}), eventDomain, arraySizeBytes, eventArray)
-    end
+    initialize_context()
+    ccall((:cuptiEventDomainEnumEvents, libcupti), CUptiResult,
+          (CUpti_EventDomainID, Ptr{Csize_t}, Ptr{CUpti_EventID}), eventDomain,
+          arraySizeBytes, eventArray)
+end
 
 @checked function cuptiEventGetAttribute(event, attrib, valueSize, value)
-        initialize_context()
-        ccall((:cuptiEventGetAttribute, libcupti), CUptiResult, (CUpti_EventID, CUpti_EventAttribute, Ptr{Csize_t}, Ptr{Cvoid}), event, attrib, valueSize, value)
-    end
+    initialize_context()
+    ccall((:cuptiEventGetAttribute, libcupti), CUptiResult,
+          (CUpti_EventID, CUpti_EventAttribute, Ptr{Csize_t}, Ptr{Cvoid}), event, attrib,
+          valueSize, value)
+end
 
 @checked function cuptiEventGetIdFromName(device, eventName, event)
-        initialize_context()
-        ccall((:cuptiEventGetIdFromName, libcupti), CUptiResult, (CUdevice, Cstring, Ptr{CUpti_EventID}), device, eventName, event)
-    end
+    initialize_context()
+    ccall((:cuptiEventGetIdFromName, libcupti), CUptiResult,
+          (CUdevice, Cstring, Ptr{CUpti_EventID}), device, eventName, event)
+end
 
 @checked function cuptiEventGroupCreate(context, eventGroup, flags)
-        initialize_context()
-        ccall((:cuptiEventGroupCreate, libcupti), CUptiResult, (CUcontext, Ptr{CUpti_EventGroup}, UInt32), context, eventGroup, flags)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupCreate, libcupti), CUptiResult,
+          (CUcontext, Ptr{CUpti_EventGroup}, UInt32), context, eventGroup, flags)
+end
 
 @checked function cuptiEventGroupDestroy(eventGroup)
-        initialize_context()
-        ccall((:cuptiEventGroupDestroy, libcupti), CUptiResult, (CUpti_EventGroup,), eventGroup)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupDestroy, libcupti), CUptiResult, (CUpti_EventGroup,), eventGroup)
+end
 
 @checked function cuptiEventGroupGetAttribute(eventGroup, attrib, valueSize, value)
-        initialize_context()
-        ccall((:cuptiEventGroupGetAttribute, libcupti), CUptiResult, (CUpti_EventGroup, CUpti_EventGroupAttribute, Ptr{Csize_t}, Ptr{Cvoid}), eventGroup, attrib, valueSize, value)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupGetAttribute, libcupti), CUptiResult,
+          (CUpti_EventGroup, CUpti_EventGroupAttribute, Ptr{Csize_t}, Ptr{Cvoid}),
+          eventGroup, attrib, valueSize, value)
+end
 
 @checked function cuptiEventGroupSetAttribute(eventGroup, attrib, valueSize, value)
-        initialize_context()
-        ccall((:cuptiEventGroupSetAttribute, libcupti), CUptiResult, (CUpti_EventGroup, CUpti_EventGroupAttribute, Csize_t, Ptr{Cvoid}), eventGroup, attrib, valueSize, value)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupSetAttribute, libcupti), CUptiResult,
+          (CUpti_EventGroup, CUpti_EventGroupAttribute, Csize_t, Ptr{Cvoid}), eventGroup,
+          attrib, valueSize, value)
+end
 
 @checked function cuptiEventGroupAddEvent(eventGroup, event)
-        initialize_context()
-        ccall((:cuptiEventGroupAddEvent, libcupti), CUptiResult, (CUpti_EventGroup, CUpti_EventID), eventGroup, event)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupAddEvent, libcupti), CUptiResult,
+          (CUpti_EventGroup, CUpti_EventID), eventGroup, event)
+end
 
 @checked function cuptiEventGroupRemoveEvent(eventGroup, event)
-        initialize_context()
-        ccall((:cuptiEventGroupRemoveEvent, libcupti), CUptiResult, (CUpti_EventGroup, CUpti_EventID), eventGroup, event)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupRemoveEvent, libcupti), CUptiResult,
+          (CUpti_EventGroup, CUpti_EventID), eventGroup, event)
+end
 
 @checked function cuptiEventGroupRemoveAllEvents(eventGroup)
-        initialize_context()
-        ccall((:cuptiEventGroupRemoveAllEvents, libcupti), CUptiResult, (CUpti_EventGroup,), eventGroup)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupRemoveAllEvents, libcupti), CUptiResult, (CUpti_EventGroup,),
+          eventGroup)
+end
 
 @checked function cuptiEventGroupResetAllEvents(eventGroup)
-        initialize_context()
-        ccall((:cuptiEventGroupResetAllEvents, libcupti), CUptiResult, (CUpti_EventGroup,), eventGroup)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupResetAllEvents, libcupti), CUptiResult, (CUpti_EventGroup,),
+          eventGroup)
+end
 
 @checked function cuptiEventGroupEnable(eventGroup)
-        initialize_context()
-        ccall((:cuptiEventGroupEnable, libcupti), CUptiResult, (CUpti_EventGroup,), eventGroup)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupEnable, libcupti), CUptiResult, (CUpti_EventGroup,), eventGroup)
+end
 
 @checked function cuptiEventGroupDisable(eventGroup)
-        initialize_context()
-        ccall((:cuptiEventGroupDisable, libcupti), CUptiResult, (CUpti_EventGroup,), eventGroup)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupDisable, libcupti), CUptiResult, (CUpti_EventGroup,), eventGroup)
+end
 
-@checked function cuptiEventGroupReadEvent(eventGroup, flags, event, eventValueBufferSizeBytes, eventValueBuffer)
-        initialize_context()
-        ccall((:cuptiEventGroupReadEvent, libcupti), CUptiResult, (CUpti_EventGroup, CUpti_ReadEventFlags, CUpti_EventID, Ptr{Csize_t}, Ptr{UInt64}), eventGroup, flags, event, eventValueBufferSizeBytes, eventValueBuffer)
-    end
+@checked function cuptiEventGroupReadEvent(eventGroup, flags, event,
+                                           eventValueBufferSizeBytes, eventValueBuffer)
+    initialize_context()
+    ccall((:cuptiEventGroupReadEvent, libcupti), CUptiResult,
+          (CUpti_EventGroup, CUpti_ReadEventFlags, CUpti_EventID, Ptr{Csize_t},
+           Ptr{UInt64}), eventGroup, flags, event, eventValueBufferSizeBytes,
+          eventValueBuffer)
+end
 
-@checked function cuptiEventGroupReadAllEvents(eventGroup, flags, eventValueBufferSizeBytes, eventValueBuffer, eventIdArraySizeBytes, eventIdArray, numEventIdsRead)
-        initialize_context()
-        ccall((:cuptiEventGroupReadAllEvents, libcupti), CUptiResult, (CUpti_EventGroup, CUpti_ReadEventFlags, Ptr{Csize_t}, Ptr{UInt64}, Ptr{Csize_t}, Ptr{CUpti_EventID}, Ptr{Csize_t}), eventGroup, flags, eventValueBufferSizeBytes, eventValueBuffer, eventIdArraySizeBytes, eventIdArray, numEventIdsRead)
-    end
+@checked function cuptiEventGroupReadAllEvents(eventGroup, flags, eventValueBufferSizeBytes,
+                                               eventValueBuffer, eventIdArraySizeBytes,
+                                               eventIdArray, numEventIdsRead)
+    initialize_context()
+    ccall((:cuptiEventGroupReadAllEvents, libcupti), CUptiResult,
+          (CUpti_EventGroup, CUpti_ReadEventFlags, Ptr{Csize_t}, Ptr{UInt64}, Ptr{Csize_t},
+           Ptr{CUpti_EventID}, Ptr{Csize_t}), eventGroup, flags, eventValueBufferSizeBytes,
+          eventValueBuffer, eventIdArraySizeBytes, eventIdArray, numEventIdsRead)
+end
 
-@checked function cuptiEventGroupSetsCreate(context, eventIdArraySizeBytes, eventIdArray, eventGroupPasses)
-        initialize_context()
-        ccall((:cuptiEventGroupSetsCreate, libcupti), CUptiResult, (CUcontext, Csize_t, Ptr{CUpti_EventID}, Ptr{Ptr{CUpti_EventGroupSets}}), context, eventIdArraySizeBytes, eventIdArray, eventGroupPasses)
-    end
+@checked function cuptiEventGroupSetsCreate(context, eventIdArraySizeBytes, eventIdArray,
+                                            eventGroupPasses)
+    initialize_context()
+    ccall((:cuptiEventGroupSetsCreate, libcupti), CUptiResult,
+          (CUcontext, Csize_t, Ptr{CUpti_EventID}, Ptr{Ptr{CUpti_EventGroupSets}}), context,
+          eventIdArraySizeBytes, eventIdArray, eventGroupPasses)
+end
 
 @checked function cuptiEventGroupSetsDestroy(eventGroupSets)
-        initialize_context()
-        ccall((:cuptiEventGroupSetsDestroy, libcupti), CUptiResult, (Ptr{CUpti_EventGroupSets},), eventGroupSets)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupSetsDestroy, libcupti), CUptiResult,
+          (Ptr{CUpti_EventGroupSets},), eventGroupSets)
+end
 
 @checked function cuptiEventGroupSetEnable(eventGroupSet)
-        initialize_context()
-        ccall((:cuptiEventGroupSetEnable, libcupti), CUptiResult, (Ptr{CUpti_EventGroupSet},), eventGroupSet)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupSetEnable, libcupti), CUptiResult, (Ptr{CUpti_EventGroupSet},),
+          eventGroupSet)
+end
 
 @checked function cuptiEventGroupSetDisable(eventGroupSet)
-        initialize_context()
-        ccall((:cuptiEventGroupSetDisable, libcupti), CUptiResult, (Ptr{CUpti_EventGroupSet},), eventGroupSet)
-    end
+    initialize_context()
+    ccall((:cuptiEventGroupSetDisable, libcupti), CUptiResult, (Ptr{CUpti_EventGroupSet},),
+          eventGroupSet)
+end
 
 @checked function cuptiEnableKernelReplayMode(context)
-        initialize_context()
-        ccall((:cuptiEnableKernelReplayMode, libcupti), CUptiResult, (CUcontext,), context)
-    end
+    initialize_context()
+    ccall((:cuptiEnableKernelReplayMode, libcupti), CUptiResult, (CUcontext,), context)
+end
 
 @checked function cuptiDisableKernelReplayMode(context)
-        initialize_context()
-        ccall((:cuptiDisableKernelReplayMode, libcupti), CUptiResult, (CUcontext,), context)
-    end
+    initialize_context()
+    ccall((:cuptiDisableKernelReplayMode, libcupti), CUptiResult, (CUcontext,), context)
+end
 
 # typedef void ( CUPTIAPI * CUpti_KernelReplayUpdateFunc ) ( const char * kernelName , int numReplaysDone , void * customData )
 const CUpti_KernelReplayUpdateFunc = Ptr{Cvoid}
 
 @checked function cuptiKernelReplaySubscribeUpdate(updateFunc, customData)
-        initialize_context()
-        ccall((:cuptiKernelReplaySubscribeUpdate, libcupti), CUptiResult, (CUpti_KernelReplayUpdateFunc, Ptr{Cvoid}), updateFunc, customData)
-    end
+    initialize_context()
+    ccall((:cuptiKernelReplaySubscribeUpdate, libcupti), CUptiResult,
+          (CUpti_KernelReplayUpdateFunc, Ptr{Cvoid}), updateFunc, customData)
+end
 
 const CUpti_MetricID = UInt32
 
@@ -590,7 +645,7 @@ end
 end
 
 struct CUpti_MetricValue
-    data::NTuple{8, UInt8}
+    data::NTuple{8,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_MetricValue}, f::Symbol)
@@ -599,7 +654,8 @@ function Base.getproperty(x::Ptr{CUpti_MetricValue}, f::Symbol)
     f === :metricValueInt64 && return Ptr{Int64}(x + 0)
     f === :metricValuePercent && return Ptr{Cdouble}(x + 0)
     f === :metricValueThroughput && return Ptr{UInt64}(x + 0)
-    f === :metricValueUtilizationLevel && return Ptr{CUpti_MetricValueUtilizationLevel}(x + 0)
+    f === :metricValueUtilizationLevel &&
+        return Ptr{CUpti_MetricValueUtilizationLevel}(x + 0)
     return getfield(x, f)
 end
 
@@ -641,74 +697,106 @@ end
 end
 
 @checked function cuptiGetNumMetrics(numMetrics)
-        initialize_context()
-        ccall((:cuptiGetNumMetrics, libcupti), CUptiResult, (Ptr{UInt32},), numMetrics)
-    end
+    initialize_context()
+    ccall((:cuptiGetNumMetrics, libcupti), CUptiResult, (Ptr{UInt32},), numMetrics)
+end
 
 @checked function cuptiEnumMetrics(arraySizeBytes, metricArray)
-        initialize_context()
-        ccall((:cuptiEnumMetrics, libcupti), CUptiResult, (Ptr{Csize_t}, Ptr{CUpti_MetricID}), arraySizeBytes, metricArray)
-    end
+    initialize_context()
+    ccall((:cuptiEnumMetrics, libcupti), CUptiResult, (Ptr{Csize_t}, Ptr{CUpti_MetricID}),
+          arraySizeBytes, metricArray)
+end
 
 @checked function cuptiDeviceGetNumMetrics(device, numMetrics)
-        initialize_context()
-        ccall((:cuptiDeviceGetNumMetrics, libcupti), CUptiResult, (CUdevice, Ptr{UInt32}), device, numMetrics)
-    end
+    initialize_context()
+    ccall((:cuptiDeviceGetNumMetrics, libcupti), CUptiResult, (CUdevice, Ptr{UInt32}),
+          device, numMetrics)
+end
 
 @checked function cuptiDeviceEnumMetrics(device, arraySizeBytes, metricArray)
-        initialize_context()
-        ccall((:cuptiDeviceEnumMetrics, libcupti), CUptiResult, (CUdevice, Ptr{Csize_t}, Ptr{CUpti_MetricID}), device, arraySizeBytes, metricArray)
-    end
+    initialize_context()
+    ccall((:cuptiDeviceEnumMetrics, libcupti), CUptiResult,
+          (CUdevice, Ptr{Csize_t}, Ptr{CUpti_MetricID}), device, arraySizeBytes,
+          metricArray)
+end
 
 @checked function cuptiMetricGetAttribute(metric, attrib, valueSize, value)
-        initialize_context()
-        ccall((:cuptiMetricGetAttribute, libcupti), CUptiResult, (CUpti_MetricID, CUpti_MetricAttribute, Ptr{Csize_t}, Ptr{Cvoid}), metric, attrib, valueSize, value)
-    end
+    initialize_context()
+    ccall((:cuptiMetricGetAttribute, libcupti), CUptiResult,
+          (CUpti_MetricID, CUpti_MetricAttribute, Ptr{Csize_t}, Ptr{Cvoid}), metric, attrib,
+          valueSize, value)
+end
 
 @checked function cuptiMetricGetIdFromName(device, metricName, metric)
-        initialize_context()
-        ccall((:cuptiMetricGetIdFromName, libcupti), CUptiResult, (CUdevice, Cstring, Ptr{CUpti_MetricID}), device, metricName, metric)
-    end
+    initialize_context()
+    ccall((:cuptiMetricGetIdFromName, libcupti), CUptiResult,
+          (CUdevice, Cstring, Ptr{CUpti_MetricID}), device, metricName, metric)
+end
 
 @checked function cuptiMetricGetNumEvents(metric, numEvents)
-        initialize_context()
-        ccall((:cuptiMetricGetNumEvents, libcupti), CUptiResult, (CUpti_MetricID, Ptr{UInt32}), metric, numEvents)
-    end
+    initialize_context()
+    ccall((:cuptiMetricGetNumEvents, libcupti), CUptiResult, (CUpti_MetricID, Ptr{UInt32}),
+          metric, numEvents)
+end
 
 @checked function cuptiMetricEnumEvents(metric, eventIdArraySizeBytes, eventIdArray)
-        initialize_context()
-        ccall((:cuptiMetricEnumEvents, libcupti), CUptiResult, (CUpti_MetricID, Ptr{Csize_t}, Ptr{CUpti_EventID}), metric, eventIdArraySizeBytes, eventIdArray)
-    end
+    initialize_context()
+    ccall((:cuptiMetricEnumEvents, libcupti), CUptiResult,
+          (CUpti_MetricID, Ptr{Csize_t}, Ptr{CUpti_EventID}), metric, eventIdArraySizeBytes,
+          eventIdArray)
+end
 
 @checked function cuptiMetricGetNumProperties(metric, numProp)
-        initialize_context()
-        ccall((:cuptiMetricGetNumProperties, libcupti), CUptiResult, (CUpti_MetricID, Ptr{UInt32}), metric, numProp)
-    end
+    initialize_context()
+    ccall((:cuptiMetricGetNumProperties, libcupti), CUptiResult,
+          (CUpti_MetricID, Ptr{UInt32}), metric, numProp)
+end
 
 @checked function cuptiMetricEnumProperties(metric, propIdArraySizeBytes, propIdArray)
-        initialize_context()
-        ccall((:cuptiMetricEnumProperties, libcupti), CUptiResult, (CUpti_MetricID, Ptr{Csize_t}, Ptr{CUpti_MetricPropertyID}), metric, propIdArraySizeBytes, propIdArray)
-    end
+    initialize_context()
+    ccall((:cuptiMetricEnumProperties, libcupti), CUptiResult,
+          (CUpti_MetricID, Ptr{Csize_t}, Ptr{CUpti_MetricPropertyID}), metric,
+          propIdArraySizeBytes, propIdArray)
+end
 
 @checked function cuptiMetricGetRequiredEventGroupSets(context, metric, eventGroupSets)
-        initialize_context()
-        ccall((:cuptiMetricGetRequiredEventGroupSets, libcupti), CUptiResult, (CUcontext, CUpti_MetricID, Ptr{Ptr{CUpti_EventGroupSets}}), context, metric, eventGroupSets)
-    end
+    initialize_context()
+    ccall((:cuptiMetricGetRequiredEventGroupSets, libcupti), CUptiResult,
+          (CUcontext, CUpti_MetricID, Ptr{Ptr{CUpti_EventGroupSets}}), context, metric,
+          eventGroupSets)
+end
 
-@checked function cuptiMetricCreateEventGroupSets(context, metricIdArraySizeBytes, metricIdArray, eventGroupPasses)
-        initialize_context()
-        ccall((:cuptiMetricCreateEventGroupSets, libcupti), CUptiResult, (CUcontext, Csize_t, Ptr{CUpti_MetricID}, Ptr{Ptr{CUpti_EventGroupSets}}), context, metricIdArraySizeBytes, metricIdArray, eventGroupPasses)
-    end
+@checked function cuptiMetricCreateEventGroupSets(context, metricIdArraySizeBytes,
+                                                  metricIdArray, eventGroupPasses)
+    initialize_context()
+    ccall((:cuptiMetricCreateEventGroupSets, libcupti), CUptiResult,
+          (CUcontext, Csize_t, Ptr{CUpti_MetricID}, Ptr{Ptr{CUpti_EventGroupSets}}),
+          context, metricIdArraySizeBytes, metricIdArray, eventGroupPasses)
+end
 
-@checked function cuptiMetricGetValue(device, metric, eventIdArraySizeBytes, eventIdArray, eventValueArraySizeBytes, eventValueArray, timeDuration, metricValue)
-        initialize_context()
-        ccall((:cuptiMetricGetValue, libcupti), CUptiResult, (CUdevice, CUpti_MetricID, Csize_t, Ptr{CUpti_EventID}, Csize_t, Ptr{UInt64}, UInt64, Ptr{CUpti_MetricValue}), device, metric, eventIdArraySizeBytes, eventIdArray, eventValueArraySizeBytes, eventValueArray, timeDuration, metricValue)
-    end
+@checked function cuptiMetricGetValue(device, metric, eventIdArraySizeBytes, eventIdArray,
+                                      eventValueArraySizeBytes, eventValueArray,
+                                      timeDuration, metricValue)
+    initialize_context()
+    ccall((:cuptiMetricGetValue, libcupti), CUptiResult,
+          (CUdevice, CUpti_MetricID, Csize_t, Ptr{CUpti_EventID}, Csize_t, Ptr{UInt64},
+           UInt64, Ptr{CUpti_MetricValue}), device, metric, eventIdArraySizeBytes,
+          eventIdArray, eventValueArraySizeBytes, eventValueArray, timeDuration,
+          metricValue)
+end
 
-@checked function cuptiMetricGetValue2(metric, eventIdArraySizeBytes, eventIdArray, eventValueArraySizeBytes, eventValueArray, propIdArraySizeBytes, propIdArray, propValueArraySizeBytes, propValueArray, metricValue)
-        initialize_context()
-        ccall((:cuptiMetricGetValue2, libcupti), CUptiResult, (CUpti_MetricID, Csize_t, Ptr{CUpti_EventID}, Csize_t, Ptr{UInt64}, Csize_t, Ptr{CUpti_MetricPropertyID}, Csize_t, Ptr{UInt64}, Ptr{CUpti_MetricValue}), metric, eventIdArraySizeBytes, eventIdArray, eventValueArraySizeBytes, eventValueArray, propIdArraySizeBytes, propIdArray, propValueArraySizeBytes, propValueArray, metricValue)
-    end
+@checked function cuptiMetricGetValue2(metric, eventIdArraySizeBytes, eventIdArray,
+                                       eventValueArraySizeBytes, eventValueArray,
+                                       propIdArraySizeBytes, propIdArray,
+                                       propValueArraySizeBytes, propValueArray, metricValue)
+    initialize_context()
+    ccall((:cuptiMetricGetValue2, libcupti), CUptiResult,
+          (CUpti_MetricID, Csize_t, Ptr{CUpti_EventID}, Csize_t, Ptr{UInt64}, Csize_t,
+           Ptr{CUpti_MetricPropertyID}, Csize_t, Ptr{UInt64}, Ptr{CUpti_MetricValue}),
+          metric, eventIdArraySizeBytes, eventIdArray, eventValueArraySizeBytes,
+          eventValueArray, propIdArraySizeBytes, propIdArray, propValueArraySizeBytes,
+          propValueArray, metricValue)
+end
 
 @cenum CUpti_ActivityKind::UInt32 begin
     CUPTI_ACTIVITY_KIND_INVALID = 0
@@ -779,7 +867,7 @@ end
 end
 
 struct CUpti_ActivityObjectKindId
-    data::NTuple{12, UInt8}
+    data::NTuple{12,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityObjectKindId}, f::Symbol)
@@ -1346,7 +1434,7 @@ struct CUpti_ActivityMemory
 end
 
 struct var"##Ctag#728"
-    data::NTuple{8, UInt8}
+    data::NTuple{8,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#728"}, f::Symbol)
@@ -1367,7 +1455,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#728"}, f::Symbol, v)
 end
 
 struct var"##Ctag#727"
-    data::NTuple{32, UInt8}
+    data::NTuple{32,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#727"}, f::Symbol)
@@ -1391,7 +1479,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#727"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityMemory2
-    data::NTuple{112, UInt8}
+    data::NTuple{112,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityMemory2}, f::Symbol)
@@ -1426,7 +1514,7 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityMemory2}, f::Symbol, v)
 end
 
 struct var"##Ctag#716"
-    data::NTuple{8, UInt8}
+    data::NTuple{8,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#716"}, f::Symbol)
@@ -1447,7 +1535,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#716"}, f::Symbol, v)
 end
 
 struct var"##Ctag#715"
-    data::NTuple{40, UInt8}
+    data::NTuple{40,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#715"}, f::Symbol)
@@ -1472,7 +1560,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#715"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityMemory3
-    data::NTuple{120, UInt8}
+    data::NTuple{120,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityMemory3}, f::Symbol)
@@ -1563,7 +1651,7 @@ struct CUpti_ActivityKernel
 end
 
 struct var"##Ctag#735"
-    data::NTuple{1, UInt8}
+    data::NTuple{1,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#735"}, f::Symbol)
@@ -1584,7 +1672,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#735"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityKernel2
-    data::NTuple{112, UInt8}
+    data::NTuple{112,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel2}, f::Symbol)
@@ -1627,7 +1715,7 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel2}, f::Symbol, v)
 end
 
 struct var"##Ctag#769"
-    data::NTuple{1, UInt8}
+    data::NTuple{1,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#769"}, f::Symbol)
@@ -1648,7 +1736,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#769"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityKernel3
-    data::NTuple{120, UInt8}
+    data::NTuple{120,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel3}, f::Symbol)
@@ -1656,8 +1744,10 @@ function Base.getproperty(x::Ptr{CUpti_ActivityKernel3}, f::Symbol)
     f === :cacheConfig && return Ptr{var"##Ctag#769"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
-    f === :partitionedGlobalCacheRequested && return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 8)
-    f === :partitionedGlobalCacheExecuted && return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 12)
+    f === :partitionedGlobalCacheRequested &&
+        return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 8)
+    f === :partitionedGlobalCacheExecuted &&
+        return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 12)
     f === :start && return Ptr{UInt64}(x + 16)
     f === :_end && return Ptr{UInt64}(x + 24)
     f === :completed && return Ptr{UInt64}(x + 32)
@@ -1699,7 +1789,7 @@ end
 end
 
 struct var"##Ctag#760"
-    data::NTuple{1, UInt8}
+    data::NTuple{1,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#760"}, f::Symbol)
@@ -1720,7 +1810,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#760"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityKernel4
-    data::NTuple{144, UInt8}
+    data::NTuple{144,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel4}, f::Symbol)
@@ -1728,8 +1818,10 @@ function Base.getproperty(x::Ptr{CUpti_ActivityKernel4}, f::Symbol)
     f === :cacheConfig && return Ptr{var"##Ctag#760"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
-    f === :partitionedGlobalCacheRequested && return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 8)
-    f === :partitionedGlobalCacheExecuted && return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 12)
+    f === :partitionedGlobalCacheRequested &&
+        return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 8)
+    f === :partitionedGlobalCacheExecuted &&
+        return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 12)
     f === :start && return Ptr{UInt64}(x + 16)
     f === :_end && return Ptr{UInt64}(x + 24)
     f === :completed && return Ptr{UInt64}(x + 32)
@@ -1778,7 +1870,7 @@ end
 end
 
 struct var"##Ctag#718"
-    data::NTuple{1, UInt8}
+    data::NTuple{1,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#718"}, f::Symbol)
@@ -1799,7 +1891,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#718"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityKernel5
-    data::NTuple{160, UInt8}
+    data::NTuple{160,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel5}, f::Symbol)
@@ -1807,8 +1899,10 @@ function Base.getproperty(x::Ptr{CUpti_ActivityKernel5}, f::Symbol)
     f === :cacheConfig && return Ptr{var"##Ctag#718"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
-    f === :partitionedGlobalCacheRequested && return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 8)
-    f === :partitionedGlobalCacheExecuted && return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 12)
+    f === :partitionedGlobalCacheRequested &&
+        return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 8)
+    f === :partitionedGlobalCacheExecuted &&
+        return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 12)
     f === :start && return Ptr{UInt64}(x + 16)
     f === :_end && return Ptr{UInt64}(x + 24)
     f === :completed && return Ptr{UInt64}(x + 32)
@@ -1854,7 +1948,7 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel5}, f::Symbol, v)
 end
 
 struct var"##Ctag#725"
-    data::NTuple{1, UInt8}
+    data::NTuple{1,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#725"}, f::Symbol)
@@ -1875,7 +1969,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#725"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityKernel6
-    data::NTuple{168, UInt8}
+    data::NTuple{168,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel6}, f::Symbol)
@@ -1883,8 +1977,10 @@ function Base.getproperty(x::Ptr{CUpti_ActivityKernel6}, f::Symbol)
     f === :cacheConfig && return Ptr{var"##Ctag#725"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
-    f === :partitionedGlobalCacheRequested && return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 8)
-    f === :partitionedGlobalCacheExecuted && return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 12)
+    f === :partitionedGlobalCacheRequested &&
+        return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 8)
+    f === :partitionedGlobalCacheExecuted &&
+        return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 12)
     f === :start && return Ptr{UInt64}(x + 16)
     f === :_end && return Ptr{UInt64}(x + 24)
     f === :completed && return Ptr{UInt64}(x + 32)
@@ -1931,7 +2027,7 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel6}, f::Symbol, v)
 end
 
 struct var"##Ctag#762"
-    data::NTuple{1, UInt8}
+    data::NTuple{1,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#762"}, f::Symbol)
@@ -1952,7 +2048,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#762"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityKernel7
-    data::NTuple{176, UInt8}
+    data::NTuple{176,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel7}, f::Symbol)
@@ -1960,8 +2056,10 @@ function Base.getproperty(x::Ptr{CUpti_ActivityKernel7}, f::Symbol)
     f === :cacheConfig && return Ptr{var"##Ctag#762"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
-    f === :partitionedGlobalCacheRequested && return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 8)
-    f === :partitionedGlobalCacheExecuted && return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 12)
+    f === :partitionedGlobalCacheRequested &&
+        return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 8)
+    f === :partitionedGlobalCacheExecuted &&
+        return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 12)
     f === :start && return Ptr{UInt64}(x + 16)
     f === :_end && return Ptr{UInt64}(x + 24)
     f === :completed && return Ptr{UInt64}(x + 32)
@@ -2010,7 +2108,7 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel7}, f::Symbol, v)
 end
 
 struct var"##Ctag#795"
-    data::NTuple{1, UInt8}
+    data::NTuple{1,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#795"}, f::Symbol)
@@ -2031,7 +2129,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#795"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityKernel8
-    data::NTuple{200, UInt8}
+    data::NTuple{200,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel8}, f::Symbol)
@@ -2039,8 +2137,10 @@ function Base.getproperty(x::Ptr{CUpti_ActivityKernel8}, f::Symbol)
     f === :cacheConfig && return Ptr{var"##Ctag#795"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
-    f === :partitionedGlobalCacheRequested && return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 8)
-    f === :partitionedGlobalCacheExecuted && return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 12)
+    f === :partitionedGlobalCacheRequested &&
+        return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 8)
+    f === :partitionedGlobalCacheExecuted &&
+        return Ptr{CUpti_ActivityPartitionedGlobalCacheConfig}(x + 12)
     f === :start && return Ptr{UInt64}(x + 16)
     f === :_end && return Ptr{UInt64}(x + 24)
     f === :completed && return Ptr{UInt64}(x + 32)
@@ -2094,7 +2194,7 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel8}, f::Symbol, v)
 end
 
 struct var"##Ctag#733"
-    data::NTuple{1, UInt8}
+    data::NTuple{1,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#733"}, f::Symbol)
@@ -2115,7 +2215,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#733"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityCdpKernel
-    data::NTuple{144, UInt8}
+    data::NTuple{144,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityCdpKernel}, f::Symbol)
@@ -2209,7 +2309,7 @@ struct CUpti_ActivityMetric
     value::CUpti_MetricValue
     correlationId::UInt32
     flags::UInt8
-    pad::NTuple{3, UInt8}
+    pad::NTuple{3,UInt8}
 end
 
 struct CUpti_ActivityMetricInstance
@@ -2219,7 +2319,7 @@ struct CUpti_ActivityMetricInstance
     instance::UInt32
     correlationId::UInt32
     flags::UInt8
-    pad::NTuple{7, UInt8}
+    pad::NTuple{7,UInt8}
 end
 
 struct CUpti_ActivitySourceLocator
@@ -2385,7 +2485,7 @@ struct CUpti_ActivityDevice3
     uuid::CUuuid
     name::Cstring
     isCudaVisible::UInt8
-    reserved::NTuple{7, UInt8}
+    reserved::NTuple{7,UInt8}
 end
 
 struct CUpti_ActivityDevice4
@@ -2421,14 +2521,14 @@ struct CUpti_ActivityDevice4
     name::Cstring
     isCudaVisible::UInt8
     isMigEnabled::UInt8
-    reserved::NTuple{6, UInt8}
+    reserved::NTuple{6,UInt8}
     gpuInstanceId::UInt32
     computeInstanceId::UInt32
     migUuid::CUuuid
 end
 
 struct var"##Ctag#775"
-    data::NTuple{4, UInt8}
+    data::NTuple{4,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#775"}, f::Symbol)
@@ -2449,7 +2549,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#775"}, f::Symbol, v)
 end
 
 struct var"##Ctag#776"
-    data::NTuple{8, UInt8}
+    data::NTuple{8,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#776"}, f::Symbol)
@@ -2473,7 +2573,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#776"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityDeviceAttribute
-    data::NTuple{24, UInt8}
+    data::NTuple{24,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityDeviceAttribute}, f::Symbol)
@@ -2555,7 +2655,7 @@ struct CUpti_ActivityOverhead
 end
 
 struct var"##Ctag#720"
-    data::NTuple{20, UInt8}
+    data::NTuple{20,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#720"}, f::Symbol)
@@ -2578,7 +2678,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#720"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityEnvironment
-    data::NTuple{40, UInt8}
+    data::NTuple{40,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityEnvironment}, f::Symbol)
@@ -2961,7 +3061,7 @@ end
 end
 
 struct var"##Ctag#729"
-    data::NTuple{16, UInt8}
+    data::NTuple{16,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#729"}, f::Symbol)
@@ -2982,7 +3082,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#729"}, f::Symbol, v)
 end
 
 struct var"##Ctag#731"
-    data::NTuple{16, UInt8}
+    data::NTuple{16,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#731"}, f::Symbol)
@@ -3003,7 +3103,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#731"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityNvLink
-    data::NTuple{72, UInt8}
+    data::NTuple{72,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityNvLink}, f::Symbol)
@@ -3015,8 +3115,8 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink}, f::Symbol)
     f === :idDev1 && return Ptr{var"##Ctag#731"}(x + 32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
-    f === :portDev0 && return Ptr{NTuple{4, Int8}}(x + 56)
-    f === :portDev1 && return Ptr{NTuple{4, Int8}}(x + 60)
+    f === :portDev0 && return Ptr{NTuple{4,Int8}}(x + 56)
+    f === :portDev1 && return Ptr{NTuple{4,Int8}}(x + 60)
     f === :bandwidth && return Ptr{UInt64}(x + 64)
     return getfield(x, f)
 end
@@ -3033,7 +3133,7 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityNvLink}, f::Symbol, v)
 end
 
 struct var"##Ctag#707"
-    data::NTuple{16, UInt8}
+    data::NTuple{16,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#707"}, f::Symbol)
@@ -3054,7 +3154,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#707"}, f::Symbol, v)
 end
 
 struct var"##Ctag#709"
-    data::NTuple{16, UInt8}
+    data::NTuple{16,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#709"}, f::Symbol)
@@ -3075,7 +3175,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#709"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityNvLink2
-    data::NTuple{128, UInt8}
+    data::NTuple{128,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityNvLink2}, f::Symbol)
@@ -3087,8 +3187,8 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink2}, f::Symbol)
     f === :idDev1 && return Ptr{var"##Ctag#709"}(x + 32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
-    f === :portDev0 && return Ptr{NTuple{32, Int8}}(x + 56)
-    f === :portDev1 && return Ptr{NTuple{32, Int8}}(x + 88)
+    f === :portDev0 && return Ptr{NTuple{32,Int8}}(x + 56)
+    f === :portDev1 && return Ptr{NTuple{32,Int8}}(x + 88)
     f === :bandwidth && return Ptr{UInt64}(x + 120)
     return getfield(x, f)
 end
@@ -3105,7 +3205,7 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityNvLink2}, f::Symbol, v)
 end
 
 struct var"##Ctag#765"
-    data::NTuple{16, UInt8}
+    data::NTuple{16,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#765"}, f::Symbol)
@@ -3126,7 +3226,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#765"}, f::Symbol, v)
 end
 
 struct var"##Ctag#767"
-    data::NTuple{16, UInt8}
+    data::NTuple{16,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#767"}, f::Symbol)
@@ -3147,7 +3247,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#767"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityNvLink3
-    data::NTuple{136, UInt8}
+    data::NTuple{136,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityNvLink3}, f::Symbol)
@@ -3159,11 +3259,11 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink3}, f::Symbol)
     f === :idDev1 && return Ptr{var"##Ctag#767"}(x + 32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
-    f === :portDev0 && return Ptr{NTuple{32, Int8}}(x + 56)
-    f === :portDev1 && return Ptr{NTuple{32, Int8}}(x + 88)
+    f === :portDev0 && return Ptr{NTuple{32,Int8}}(x + 56)
+    f === :portDev1 && return Ptr{NTuple{32,Int8}}(x + 88)
     f === :bandwidth && return Ptr{UInt64}(x + 120)
     f === :nvswitchConnected && return Ptr{UInt8}(x + 128)
-    f === :pad && return Ptr{NTuple{7, UInt8}}(x + 129)
+    f === :pad && return Ptr{NTuple{7,UInt8}}(x + 129)
     return getfield(x, f)
 end
 
@@ -3179,7 +3279,7 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityNvLink3}, f::Symbol, v)
 end
 
 struct var"##Ctag#784"
-    data::NTuple{16, UInt8}
+    data::NTuple{16,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#784"}, f::Symbol)
@@ -3200,7 +3300,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#784"}, f::Symbol, v)
 end
 
 struct var"##Ctag#786"
-    data::NTuple{16, UInt8}
+    data::NTuple{16,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#786"}, f::Symbol)
@@ -3221,7 +3321,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#786"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityNvLink4
-    data::NTuple{136, UInt8}
+    data::NTuple{136,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityNvLink4}, f::Symbol)
@@ -3233,11 +3333,11 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink4}, f::Symbol)
     f === :idDev1 && return Ptr{var"##Ctag#786"}(x + 32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
-    f === :portDev0 && return Ptr{NTuple{32, Int8}}(x + 56)
-    f === :portDev1 && return Ptr{NTuple{32, Int8}}(x + 88)
+    f === :portDev0 && return Ptr{NTuple{32,Int8}}(x + 56)
+    f === :portDev1 && return Ptr{NTuple{32,Int8}}(x + 88)
     f === :bandwidth && return Ptr{UInt64}(x + 120)
     f === :nvswitchConnected && return Ptr{UInt8}(x + 128)
-    f === :pad && return Ptr{NTuple{7, UInt8}}(x + 129)
+    f === :pad && return Ptr{NTuple{7,UInt8}}(x + 129)
     return getfield(x, f)
 end
 
@@ -3259,7 +3359,7 @@ end
 end
 
 struct var"##Ctag#779"
-    data::NTuple{4, UInt8}
+    data::NTuple{4,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#779"}, f::Symbol)
@@ -3280,7 +3380,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#779"}, f::Symbol, v)
 end
 
 struct var"##Ctag#780"
-    data::NTuple{144, UInt8}
+    data::NTuple{144,UInt8}
 end
 
 function Base.getproperty(x::Ptr{var"##Ctag#780"}, f::Symbol)
@@ -3301,7 +3401,7 @@ function Base.setproperty!(x::Ptr{var"##Ctag#780"}, f::Symbol, v)
 end
 
 struct CUpti_ActivityPcie
-    data::NTuple{168, UInt8}
+    data::NTuple{168,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityPcie}, f::Symbol)
@@ -3353,7 +3453,7 @@ struct CUpti_ActivityInstantaneousEventInstance
     timestamp::UInt64
     deviceId::UInt32
     instance::UInt8
-    pad::NTuple{3, UInt8}
+    pad::NTuple{3,UInt8}
 end
 
 struct CUpti_ActivityInstantaneousMetric
@@ -3363,7 +3463,7 @@ struct CUpti_ActivityInstantaneousMetric
     timestamp::UInt64
     deviceId::UInt32
     flags::UInt8
-    pad::NTuple{3, UInt8}
+    pad::NTuple{3,UInt8}
 end
 
 struct CUpti_ActivityInstantaneousMetricInstance
@@ -3374,7 +3474,7 @@ struct CUpti_ActivityInstantaneousMetricInstance
     deviceId::UInt32
     flags::UInt8
     instance::UInt8
-    pad::NTuple{2, UInt8}
+    pad::NTuple{2,UInt8}
 end
 
 @cenum CUpti_ActivityJitEntryType::UInt32 begin
@@ -3438,74 +3538,85 @@ end
 end
 
 @checked function cuptiGetTimestamp(timestamp)
-        initialize_context()
-        ccall((:cuptiGetTimestamp, libcupti), CUptiResult, (Ptr{UInt64},), timestamp)
-    end
+    initialize_context()
+    ccall((:cuptiGetTimestamp, libcupti), CUptiResult, (Ptr{UInt64},), timestamp)
+end
 
 @checked function cuptiGetContextId(context, contextId)
-        initialize_context()
-        ccall((:cuptiGetContextId, libcupti), CUptiResult, (CUcontext, Ptr{UInt32}), context, contextId)
-    end
+    initialize_context()
+    ccall((:cuptiGetContextId, libcupti), CUptiResult, (CUcontext, Ptr{UInt32}), context,
+          contextId)
+end
 
 @checked function cuptiGetStreamId(context, stream, streamId)
-        initialize_context()
-        ccall((:cuptiGetStreamId, libcupti), CUptiResult, (CUcontext, CUstream, Ptr{UInt32}), context, stream, streamId)
-    end
+    initialize_context()
+    ccall((:cuptiGetStreamId, libcupti), CUptiResult, (CUcontext, CUstream, Ptr{UInt32}),
+          context, stream, streamId)
+end
 
 @checked function cuptiGetStreamIdEx(context, stream, perThreadStream, streamId)
-        initialize_context()
-        ccall((:cuptiGetStreamIdEx, libcupti), CUptiResult, (CUcontext, CUstream, UInt8, Ptr{UInt32}), context, stream, perThreadStream, streamId)
-    end
+    initialize_context()
+    ccall((:cuptiGetStreamIdEx, libcupti), CUptiResult,
+          (CUcontext, CUstream, UInt8, Ptr{UInt32}), context, stream, perThreadStream,
+          streamId)
+end
 
 @checked function cuptiGetDeviceId(context, deviceId)
-        initialize_context()
-        ccall((:cuptiGetDeviceId, libcupti), CUptiResult, (CUcontext, Ptr{UInt32}), context, deviceId)
-    end
+    initialize_context()
+    ccall((:cuptiGetDeviceId, libcupti), CUptiResult, (CUcontext, Ptr{UInt32}), context,
+          deviceId)
+end
 
 @checked function cuptiGetGraphNodeId(node, nodeId)
-        initialize_context()
-        ccall((:cuptiGetGraphNodeId, libcupti), CUptiResult, (CUgraphNode, Ptr{UInt64}), node, nodeId)
-    end
+    initialize_context()
+    ccall((:cuptiGetGraphNodeId, libcupti), CUptiResult, (CUgraphNode, Ptr{UInt64}), node,
+          nodeId)
+end
 
 @checked function cuptiGetGraphId(graph, pId)
-        initialize_context()
-        ccall((:cuptiGetGraphId, libcupti), CUptiResult, (CUgraph, Ptr{UInt32}), graph, pId)
-    end
+    initialize_context()
+    ccall((:cuptiGetGraphId, libcupti), CUptiResult, (CUgraph, Ptr{UInt32}), graph, pId)
+end
 
 @checked function cuptiActivityEnable(kind)
-        initialize_context()
-        ccall((:cuptiActivityEnable, libcupti), CUptiResult, (CUpti_ActivityKind,), kind)
-    end
+    initialize_context()
+    ccall((:cuptiActivityEnable, libcupti), CUptiResult, (CUpti_ActivityKind,), kind)
+end
 
 @checked function cuptiActivityEnableAndDump(kind)
-        initialize_context()
-        ccall((:cuptiActivityEnableAndDump, libcupti), CUptiResult, (CUpti_ActivityKind,), kind)
-    end
+    initialize_context()
+    ccall((:cuptiActivityEnableAndDump, libcupti), CUptiResult, (CUpti_ActivityKind,), kind)
+end
 
 @checked function cuptiActivityDisable(kind)
-        initialize_context()
-        ccall((:cuptiActivityDisable, libcupti), CUptiResult, (CUpti_ActivityKind,), kind)
-    end
+    initialize_context()
+    ccall((:cuptiActivityDisable, libcupti), CUptiResult, (CUpti_ActivityKind,), kind)
+end
 
 @checked function cuptiActivityEnableContext(context, kind)
-        initialize_context()
-        ccall((:cuptiActivityEnableContext, libcupti), CUptiResult, (CUcontext, CUpti_ActivityKind), context, kind)
-    end
+    initialize_context()
+    ccall((:cuptiActivityEnableContext, libcupti), CUptiResult,
+          (CUcontext, CUpti_ActivityKind), context, kind)
+end
 
 @checked function cuptiActivityDisableContext(context, kind)
-        initialize_context()
-        ccall((:cuptiActivityDisableContext, libcupti), CUptiResult, (CUcontext, CUpti_ActivityKind), context, kind)
-    end
+    initialize_context()
+    ccall((:cuptiActivityDisableContext, libcupti), CUptiResult,
+          (CUcontext, CUpti_ActivityKind), context, kind)
+end
 
 @checked function cuptiActivityGetNumDroppedRecords(context, streamId, dropped)
-        initialize_context()
-        ccall((:cuptiActivityGetNumDroppedRecords, libcupti), CUptiResult, (CUcontext, UInt32, Ptr{Csize_t}), context, streamId, dropped)
-    end
+    initialize_context()
+    ccall((:cuptiActivityGetNumDroppedRecords, libcupti), CUptiResult,
+          (CUcontext, UInt32, Ptr{Csize_t}), context, streamId, dropped)
+end
 
 @checked function cuptiActivityGetNextRecord(buffer, validBufferSizeBytes, record)
-        initialize_context()
-        ccall((:cuptiActivityGetNextRecord, libcupti), CUptiResult, (Ptr{UInt8}, Csize_t, Ptr{Ptr{CUpti_Activity}}), buffer, validBufferSizeBytes, record)
-    end
+    initialize_context()
+    ccall((:cuptiActivityGetNextRecord, libcupti), CUptiResult,
+          (Ptr{UInt8}, Csize_t, Ptr{Ptr{CUpti_Activity}}), buffer, validBufferSizeBytes,
+          record)
+end
 
 # typedef void ( CUPTIAPI * CUpti_BuffersCallbackRequestFunc ) ( uint8_t * * buffer , size_t * size , size_t * maxNumRecords )
 const CUpti_BuffersCallbackRequestFunc = Ptr{Cvoid}
@@ -3514,69 +3625,81 @@ const CUpti_BuffersCallbackRequestFunc = Ptr{Cvoid}
 const CUpti_BuffersCallbackCompleteFunc = Ptr{Cvoid}
 
 @checked function cuptiActivityRegisterCallbacks(funcBufferRequested, funcBufferCompleted)
-        initialize_context()
-        ccall((:cuptiActivityRegisterCallbacks, libcupti), CUptiResult, (CUpti_BuffersCallbackRequestFunc, CUpti_BuffersCallbackCompleteFunc), funcBufferRequested, funcBufferCompleted)
-    end
+    initialize_context()
+    ccall((:cuptiActivityRegisterCallbacks, libcupti), CUptiResult,
+          (CUpti_BuffersCallbackRequestFunc, CUpti_BuffersCallbackCompleteFunc),
+          funcBufferRequested, funcBufferCompleted)
+end
 
 @checked function cuptiActivityFlush(context, streamId, flag)
-        initialize_context()
-        ccall((:cuptiActivityFlush, libcupti), CUptiResult, (CUcontext, UInt32, UInt32), context, streamId, flag)
-    end
+    initialize_context()
+    ccall((:cuptiActivityFlush, libcupti), CUptiResult, (CUcontext, UInt32, UInt32),
+          context, streamId, flag)
+end
 
 @checked function cuptiActivityFlushAll(flag)
-        initialize_context()
-        ccall((:cuptiActivityFlushAll, libcupti), CUptiResult, (UInt32,), flag)
-    end
+    initialize_context()
+    ccall((:cuptiActivityFlushAll, libcupti), CUptiResult, (UInt32,), flag)
+end
 
 @checked function cuptiActivityGetAttribute(attr, valueSize, value)
-        initialize_context()
-        ccall((:cuptiActivityGetAttribute, libcupti), CUptiResult, (CUpti_ActivityAttribute, Ptr{Csize_t}, Ptr{Cvoid}), attr, valueSize, value)
-    end
+    initialize_context()
+    ccall((:cuptiActivityGetAttribute, libcupti), CUptiResult,
+          (CUpti_ActivityAttribute, Ptr{Csize_t}, Ptr{Cvoid}), attr, valueSize, value)
+end
 
 @checked function cuptiActivitySetAttribute(attr, valueSize, value)
-        initialize_context()
-        ccall((:cuptiActivitySetAttribute, libcupti), CUptiResult, (CUpti_ActivityAttribute, Ptr{Csize_t}, Ptr{Cvoid}), attr, valueSize, value)
-    end
+    initialize_context()
+    ccall((:cuptiActivitySetAttribute, libcupti), CUptiResult,
+          (CUpti_ActivityAttribute, Ptr{Csize_t}, Ptr{Cvoid}), attr, valueSize, value)
+end
 
 @checked function cuptiActivityConfigureUnifiedMemoryCounter(config, count)
-        initialize_context()
-        ccall((:cuptiActivityConfigureUnifiedMemoryCounter, libcupti), CUptiResult, (Ptr{CUpti_ActivityUnifiedMemoryCounterConfig}, UInt32), config, count)
-    end
+    initialize_context()
+    ccall((:cuptiActivityConfigureUnifiedMemoryCounter, libcupti), CUptiResult,
+          (Ptr{CUpti_ActivityUnifiedMemoryCounterConfig}, UInt32), config, count)
+end
 
 @checked function cuptiGetAutoBoostState(context, state)
-        initialize_context()
-        ccall((:cuptiGetAutoBoostState, libcupti), CUptiResult, (CUcontext, Ptr{CUpti_ActivityAutoBoostState}), context, state)
-    end
+    initialize_context()
+    ccall((:cuptiGetAutoBoostState, libcupti), CUptiResult,
+          (CUcontext, Ptr{CUpti_ActivityAutoBoostState}), context, state)
+end
 
 @checked function cuptiActivityConfigurePCSampling(ctx, config)
-        initialize_context()
-        ccall((:cuptiActivityConfigurePCSampling, libcupti), CUptiResult, (CUcontext, Ptr{CUpti_ActivityPCSamplingConfig}), ctx, config)
-    end
+    initialize_context()
+    ccall((:cuptiActivityConfigurePCSampling, libcupti), CUptiResult,
+          (CUcontext, Ptr{CUpti_ActivityPCSamplingConfig}), ctx, config)
+end
 
 @checked function cuptiGetLastError()
-        initialize_context()
-        ccall((:cuptiGetLastError, libcupti), CUptiResult, ())
-    end
+    initialize_context()
+    ccall((:cuptiGetLastError, libcupti), CUptiResult, ())
+end
 
 @checked function cuptiSetThreadIdType(type)
-        initialize_context()
-        ccall((:cuptiSetThreadIdType, libcupti), CUptiResult, (CUpti_ActivityThreadIdType,), type)
-    end
+    initialize_context()
+    ccall((:cuptiSetThreadIdType, libcupti), CUptiResult, (CUpti_ActivityThreadIdType,),
+          type)
+end
 
 @checked function cuptiGetThreadIdType(type)
-        initialize_context()
-        ccall((:cuptiGetThreadIdType, libcupti), CUptiResult, (Ptr{CUpti_ActivityThreadIdType},), type)
-    end
+    initialize_context()
+    ccall((:cuptiGetThreadIdType, libcupti), CUptiResult,
+          (Ptr{CUpti_ActivityThreadIdType},), type)
+end
 
 @checked function cuptiComputeCapabilitySupported(major, minor, support)
-        initialize_context()
-        ccall((:cuptiComputeCapabilitySupported, libcupti), CUptiResult, (Cint, Cint, Ptr{Cint}), major, minor, support)
-    end
+    initialize_context()
+    ccall((:cuptiComputeCapabilitySupported, libcupti), CUptiResult,
+          (Cint, Cint, Ptr{Cint}), major, minor, support)
+end
 
 @checked function cuptiDeviceSupported(dev, support)
-        initialize_context()
-        ccall((:cuptiDeviceSupported, libcupti), CUptiResult, (CUdevice, Ptr{Cint}), dev, support)
-    end
+    initialize_context()
+    ccall((:cuptiDeviceSupported, libcupti), CUptiResult, (CUdevice, Ptr{Cint}), dev,
+          support)
+end
 
 @cenum CUpti_DeviceVirtualizationMode::UInt32 begin
     CUPTI_DEVICE_VIRTUALIZATION_MODE_NONE = 0
@@ -3586,47 +3709,51 @@ const CUpti_BuffersCallbackCompleteFunc = Ptr{Cvoid}
 end
 
 @checked function cuptiDeviceVirtualizationMode(dev, mode)
-        initialize_context()
-        ccall((:cuptiDeviceVirtualizationMode, libcupti), CUptiResult, (CUdevice, Ptr{CUpti_DeviceVirtualizationMode}), dev, mode)
-    end
+    initialize_context()
+    ccall((:cuptiDeviceVirtualizationMode, libcupti), CUptiResult,
+          (CUdevice, Ptr{CUpti_DeviceVirtualizationMode}), dev, mode)
+end
 
 @checked function cuptiFinalize()
-        initialize_context()
-        ccall((:cuptiFinalize, libcupti), CUptiResult, ())
-    end
+    initialize_context()
+    ccall((:cuptiFinalize, libcupti), CUptiResult, ())
+end
 
 @checked function cuptiActivityPushExternalCorrelationId(kind, id)
-        initialize_context()
-        ccall((:cuptiActivityPushExternalCorrelationId, libcupti), CUptiResult, (CUpti_ExternalCorrelationKind, UInt64), kind, id)
-    end
+    initialize_context()
+    ccall((:cuptiActivityPushExternalCorrelationId, libcupti), CUptiResult,
+          (CUpti_ExternalCorrelationKind, UInt64), kind, id)
+end
 
 @checked function cuptiActivityPopExternalCorrelationId(kind, lastId)
-        initialize_context()
-        ccall((:cuptiActivityPopExternalCorrelationId, libcupti), CUptiResult, (CUpti_ExternalCorrelationKind, Ptr{UInt64}), kind, lastId)
-    end
+    initialize_context()
+    ccall((:cuptiActivityPopExternalCorrelationId, libcupti), CUptiResult,
+          (CUpti_ExternalCorrelationKind, Ptr{UInt64}), kind, lastId)
+end
 
 @checked function cuptiActivityEnableLatencyTimestamps(enable)
-        initialize_context()
-        ccall((:cuptiActivityEnableLatencyTimestamps, libcupti), CUptiResult, (UInt8,), enable)
-    end
+    initialize_context()
+    ccall((:cuptiActivityEnableLatencyTimestamps, libcupti), CUptiResult, (UInt8,), enable)
+end
 
 @checked function cuptiActivityFlushPeriod(time)
-        initialize_context()
-        ccall((:cuptiActivityFlushPeriod, libcupti), CUptiResult, (UInt32,), time)
-    end
+    initialize_context()
+    ccall((:cuptiActivityFlushPeriod, libcupti), CUptiResult, (UInt32,), time)
+end
 
 @checked function cuptiActivityEnableLaunchAttributes(enable)
-        initialize_context()
-        ccall((:cuptiActivityEnableLaunchAttributes, libcupti), CUptiResult, (UInt8,), enable)
-    end
+    initialize_context()
+    ccall((:cuptiActivityEnableLaunchAttributes, libcupti), CUptiResult, (UInt8,), enable)
+end
 
 # typedef uint64_t ( CUPTIAPI * CUpti_TimestampCallbackFunc ) ( void )
 const CUpti_TimestampCallbackFunc = Ptr{Cvoid}
 
 @checked function cuptiActivityRegisterTimestampCallback(funcTimestamp)
-        initialize_context()
-        ccall((:cuptiActivityRegisterTimestampCallback, libcupti), CUptiResult, (CUpti_TimestampCallbackFunc,), funcTimestamp)
-    end
+    initialize_context()
+    ccall((:cuptiActivityRegisterTimestampCallback, libcupti), CUptiResult,
+          (CUpti_TimestampCallbackFunc,), funcTimestamp)
+end
 
 @cenum CUpti_driver_api_trace_cbid_enum::UInt32 begin
     CUPTI_DRIVER_TRACE_CBID_INVALID = 0
@@ -5004,104 +5131,125 @@ struct CUpti_Profiler_DeviceSupported_Params
 end
 
 @checked function cuptiProfilerInitialize(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerInitialize, libcupti), CUptiResult, (Ptr{CUpti_Profiler_Initialize_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerInitialize, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_Initialize_Params},), pParams)
+end
 
 @checked function cuptiProfilerDeInitialize(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerDeInitialize, libcupti), CUptiResult, (Ptr{CUpti_Profiler_DeInitialize_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerDeInitialize, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_DeInitialize_Params},), pParams)
+end
 
 @checked function cuptiProfilerCounterDataImageCalculateSize(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerCounterDataImageCalculateSize, libcupti), CUptiResult, (Ptr{CUpti_Profiler_CounterDataImage_CalculateSize_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerCounterDataImageCalculateSize, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_CounterDataImage_CalculateSize_Params},), pParams)
+end
 
 @checked function cuptiProfilerCounterDataImageInitialize(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerCounterDataImageInitialize, libcupti), CUptiResult, (Ptr{CUpti_Profiler_CounterDataImage_Initialize_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerCounterDataImageInitialize, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_CounterDataImage_Initialize_Params},), pParams)
+end
 
 @checked function cuptiProfilerCounterDataImageCalculateScratchBufferSize(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerCounterDataImageCalculateScratchBufferSize, libcupti), CUptiResult, (Ptr{CUpti_Profiler_CounterDataImage_CalculateScratchBufferSize_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerCounterDataImageCalculateScratchBufferSize, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_CounterDataImage_CalculateScratchBufferSize_Params},),
+          pParams)
+end
 
 @checked function cuptiProfilerCounterDataImageInitializeScratchBuffer(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerCounterDataImageInitializeScratchBuffer, libcupti), CUptiResult, (Ptr{CUpti_Profiler_CounterDataImage_InitializeScratchBuffer_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerCounterDataImageInitializeScratchBuffer, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_CounterDataImage_InitializeScratchBuffer_Params},), pParams)
+end
 
 @checked function cuptiProfilerBeginSession(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerBeginSession, libcupti), CUptiResult, (Ptr{CUpti_Profiler_BeginSession_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerBeginSession, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_BeginSession_Params},), pParams)
+end
 
 @checked function cuptiProfilerEndSession(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerEndSession, libcupti), CUptiResult, (Ptr{CUpti_Profiler_EndSession_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerEndSession, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_EndSession_Params},), pParams)
+end
 
 @checked function cuptiProfilerSetConfig(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerSetConfig, libcupti), CUptiResult, (Ptr{CUpti_Profiler_SetConfig_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerSetConfig, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_SetConfig_Params},), pParams)
+end
 
 @checked function cuptiProfilerUnsetConfig(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerUnsetConfig, libcupti), CUptiResult, (Ptr{CUpti_Profiler_UnsetConfig_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerUnsetConfig, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_UnsetConfig_Params},), pParams)
+end
 
 @checked function cuptiProfilerBeginPass(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerBeginPass, libcupti), CUptiResult, (Ptr{CUpti_Profiler_BeginPass_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerBeginPass, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_BeginPass_Params},), pParams)
+end
 
 @checked function cuptiProfilerEndPass(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerEndPass, libcupti), CUptiResult, (Ptr{CUpti_Profiler_EndPass_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerEndPass, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_EndPass_Params},), pParams)
+end
 
 @checked function cuptiProfilerEnableProfiling(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerEnableProfiling, libcupti), CUptiResult, (Ptr{CUpti_Profiler_EnableProfiling_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerEnableProfiling, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_EnableProfiling_Params},), pParams)
+end
 
 @checked function cuptiProfilerDisableProfiling(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerDisableProfiling, libcupti), CUptiResult, (Ptr{CUpti_Profiler_DisableProfiling_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerDisableProfiling, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_DisableProfiling_Params},), pParams)
+end
 
 @checked function cuptiProfilerIsPassCollected(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerIsPassCollected, libcupti), CUptiResult, (Ptr{CUpti_Profiler_IsPassCollected_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerIsPassCollected, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_IsPassCollected_Params},), pParams)
+end
 
 @checked function cuptiProfilerFlushCounterData(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerFlushCounterData, libcupti), CUptiResult, (Ptr{CUpti_Profiler_FlushCounterData_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerFlushCounterData, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_FlushCounterData_Params},), pParams)
+end
 
 @checked function cuptiProfilerPushRange(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerPushRange, libcupti), CUptiResult, (Ptr{CUpti_Profiler_PushRange_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerPushRange, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_PushRange_Params},), pParams)
+end
 
 @checked function cuptiProfilerPopRange(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerPopRange, libcupti), CUptiResult, (Ptr{CUpti_Profiler_PopRange_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerPopRange, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_PopRange_Params},), pParams)
+end
 
 @checked function cuptiProfilerGetCounterAvailability(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerGetCounterAvailability, libcupti), CUptiResult, (Ptr{CUpti_Profiler_GetCounterAvailability_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerGetCounterAvailability, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_GetCounterAvailability_Params},), pParams)
+end
 
 @checked function cuptiProfilerDeviceSupported(pParams)
-        initialize_context()
-        ccall((:cuptiProfilerDeviceSupported, libcupti), CUptiResult, (Ptr{CUpti_Profiler_DeviceSupported_Params},), pParams)
-    end
+    initialize_context()
+    ccall((:cuptiProfilerDeviceSupported, libcupti), CUptiResult,
+          (Ptr{CUpti_Profiler_DeviceSupported_Params},), pParams)
+end
 
 struct var"##Ctag#705"
     processId::UInt32
@@ -5123,7 +5271,6 @@ end
 function Base.setproperty!(x::Ptr{var"##Ctag#705"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
-
 
 struct var"##Ctag#706"
     deviceId::UInt32
@@ -5148,7 +5295,6 @@ function Base.setproperty!(x::Ptr{var"##Ctag#706"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
-
 struct var"##Ctag#708"
     index::UInt32
     domainId::UInt32
@@ -5169,7 +5315,6 @@ end
 function Base.setproperty!(x::Ptr{var"##Ctag#708"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
-
 
 struct var"##Ctag#710"
     index::UInt32
@@ -5192,7 +5337,6 @@ function Base.setproperty!(x::Ptr{var"##Ctag#710"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
-
 struct var"##Ctag#719"
     requested::UInt8
     executed::UInt8
@@ -5214,7 +5358,6 @@ function Base.setproperty!(x::Ptr{var"##Ctag#719"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
-
 struct var"##Ctag#721"
     smClock::UInt32
     memoryClock::UInt32
@@ -5227,7 +5370,8 @@ function Base.getproperty(x::Ptr{var"##Ctag#721"}, f::Symbol)
     f === :memoryClock && return Ptr{UInt32}(x + 4)
     f === :pcieLinkGen && return Ptr{UInt32}(x + 8)
     f === :pcieLinkWidth && return Ptr{UInt32}(x + 12)
-    f === :clocksThrottleReasons && return Ptr{CUpti_EnvironmentClocksThrottleReason}(x + 16)
+    f === :clocksThrottleReasons &&
+        return Ptr{CUpti_EnvironmentClocksThrottleReason}(x + 16)
     return getfield(x, f)
 end
 
@@ -5241,7 +5385,6 @@ end
 function Base.setproperty!(x::Ptr{var"##Ctag#721"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
-
 
 struct var"##Ctag#722"
     gpuTemperature::UInt32
@@ -5261,7 +5404,6 @@ end
 function Base.setproperty!(x::Ptr{var"##Ctag#722"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
-
 
 struct var"##Ctag#723"
     power::UInt32
@@ -5284,7 +5426,6 @@ function Base.setproperty!(x::Ptr{var"##Ctag#723"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
-
 struct var"##Ctag#724"
     fanSpeed::UInt32
 end
@@ -5303,7 +5444,6 @@ end
 function Base.setproperty!(x::Ptr{var"##Ctag#724"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
-
 
 struct var"##Ctag#726"
     requested::UInt8
@@ -5326,7 +5466,6 @@ function Base.setproperty!(x::Ptr{var"##Ctag#726"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
-
 struct var"##Ctag#730"
     index::UInt32
     domainId::UInt32
@@ -5347,7 +5486,6 @@ end
 function Base.setproperty!(x::Ptr{var"##Ctag#730"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
-
 
 struct var"##Ctag#732"
     index::UInt32
@@ -5370,7 +5508,6 @@ function Base.setproperty!(x::Ptr{var"##Ctag#732"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
-
 struct var"##Ctag#734"
     requested::UInt8
     executed::UInt8
@@ -5391,7 +5528,6 @@ end
 function Base.setproperty!(x::Ptr{var"##Ctag#734"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
-
 
 struct var"##Ctag#736"
     requested::UInt8
@@ -5414,7 +5550,6 @@ function Base.setproperty!(x::Ptr{var"##Ctag#736"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
-
 struct var"##Ctag#761"
     requested::UInt8
     executed::UInt8
@@ -5435,7 +5570,6 @@ end
 function Base.setproperty!(x::Ptr{var"##Ctag#761"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
-
 
 struct var"##Ctag#763"
     requested::UInt8
@@ -5458,7 +5592,6 @@ function Base.setproperty!(x::Ptr{var"##Ctag#763"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
-
 struct var"##Ctag#766"
     index::UInt32
     domainId::UInt32
@@ -5479,7 +5612,6 @@ end
 function Base.setproperty!(x::Ptr{var"##Ctag#766"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
-
 
 struct var"##Ctag#768"
     index::UInt32
@@ -5502,7 +5634,6 @@ function Base.setproperty!(x::Ptr{var"##Ctag#768"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
-
 struct var"##Ctag#770"
     requested::UInt8
     executed::UInt8
@@ -5524,14 +5655,13 @@ function Base.setproperty!(x::Ptr{var"##Ctag#770"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
-
 struct var"##Ctag#781"
     uuidDev::CUuuid
-    peerDev::NTuple{32, CUdevice}
+    peerDev::NTuple{32,CUdevice}
 end
 function Base.getproperty(x::Ptr{var"##Ctag#781"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :peerDev && return Ptr{NTuple{32, CUdevice}}(x + 16)
+    f === :peerDev && return Ptr{NTuple{32,CUdevice}}(x + 16)
     return getfield(x, f)
 end
 
@@ -5545,7 +5675,6 @@ end
 function Base.setproperty!(x::Ptr{var"##Ctag#781"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
-
 
 struct var"##Ctag#782"
     secondaryBus::UInt16
@@ -5572,7 +5701,6 @@ function Base.setproperty!(x::Ptr{var"##Ctag#782"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
-
 struct var"##Ctag#785"
     index::UInt32
     domainId::UInt32
@@ -5593,7 +5721,6 @@ end
 function Base.setproperty!(x::Ptr{var"##Ctag#785"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
-
 
 struct var"##Ctag#787"
     index::UInt32
@@ -5616,7 +5743,6 @@ function Base.setproperty!(x::Ptr{var"##Ctag#787"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
-
 struct var"##Ctag#796"
     requested::UInt8
     executed::UInt8
@@ -5637,7 +5763,6 @@ end
 function Base.setproperty!(x::Ptr{var"##Ctag#796"}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
-
 
 const CUPTI_EVENT_OVERFLOW = uint64_t(Culonglong(0xffffffffffffffff))
 
@@ -5676,4 +5801,3 @@ const CUPTI_NVLINK_INVALID_PORT = -1
 const CUPTI_MAX_NVLINK_PORTS = 32
 
 const CUPTI_MAX_GPUS = 32
-

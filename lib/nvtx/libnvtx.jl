@@ -2,9 +2,8 @@ using CEnum
 
 initialize_context() = return
 
-
 struct payload_t
-    data::NTuple{8, UInt8}
+    data::NTuple{8,UInt8}
 end
 
 function Base.getproperty(x::Ptr{payload_t}, f::Symbol)
@@ -29,7 +28,7 @@ function Base.setproperty!(x::Ptr{payload_t}, f::Symbol, v)
 end
 
 struct nvtxMessageValue_t
-    data::NTuple{8, UInt8}
+    data::NTuple{8,UInt8}
 end
 
 function Base.getproperty(x::Ptr{nvtxMessageValue_t}, f::Symbol)
@@ -51,7 +50,7 @@ function Base.setproperty!(x::Ptr{nvtxMessageValue_t}, f::Symbol, v)
 end
 
 struct nvtxEventAttributes_v2
-    data::NTuple{48, UInt8}
+    data::NTuple{48,UInt8}
 end
 
 function Base.getproperty(x::Ptr{nvtxEventAttributes_v2}, f::Symbol)
@@ -82,7 +81,7 @@ end
 const nvtxEventAttributes_t = nvtxEventAttributes_v2
 
 struct identifier_t
-    data::NTuple{8, UInt8}
+    data::NTuple{8,UInt8}
 end
 
 function Base.getproperty(x::Ptr{identifier_t}, f::Symbol)
@@ -103,7 +102,7 @@ function Base.setproperty!(x::Ptr{identifier_t}, f::Symbol, v)
 end
 
 struct nvtxResourceAttributes_v0
-    data::NTuple{32, UInt8}
+    data::NTuple{32,UInt8}
 end
 
 function Base.getproperty(x::Ptr{nvtxResourceAttributes_v0}, f::Symbol)
@@ -173,12 +172,14 @@ const nvtxStringHandle_t = Ptr{nvtxStringRegistration}
 
 function nvtxDomainRegisterStringA(domain, string)
     initialize_context()
-    ccall((:nvtxDomainRegisterStringA, libnvtoolsext), nvtxStringHandle_t, (nvtxDomainHandle_t, Cstring), domain, string)
+    ccall((:nvtxDomainRegisterStringA, libnvtoolsext), nvtxStringHandle_t,
+          (nvtxDomainHandle_t, Cstring), domain, string)
 end
 
 function nvtxDomainNameCategoryA(domain, category, name)
     initialize_context()
-    ccall((:nvtxDomainNameCategoryA, libnvtoolsext), Cvoid, (nvtxDomainHandle_t, UInt32, Cstring), domain, category, name)
+    ccall((:nvtxDomainNameCategoryA, libnvtoolsext), Cvoid,
+          (nvtxDomainHandle_t, UInt32, Cstring), domain, category, name)
 end
 
 @cenum nvtxColorType_t::UInt32 begin
@@ -210,7 +211,8 @@ end
 
 function nvtxDomainMarkEx(domain, eventAttrib)
     initialize_context()
-    ccall((:nvtxDomainMarkEx, libnvtoolsext), Cvoid, (nvtxDomainHandle_t, Ptr{nvtxEventAttributes_t}), domain, eventAttrib)
+    ccall((:nvtxDomainMarkEx, libnvtoolsext), Cvoid,
+          (nvtxDomainHandle_t, Ptr{nvtxEventAttributes_t}), domain, eventAttrib)
 end
 
 function nvtxMarkEx(eventAttrib)
@@ -225,12 +227,14 @@ end
 
 function nvtxDomainRangeStartEx(domain, eventAttrib)
     initialize_context()
-    ccall((:nvtxDomainRangeStartEx, libnvtoolsext), nvtxRangeId_t, (nvtxDomainHandle_t, Ptr{nvtxEventAttributes_t}), domain, eventAttrib)
+    ccall((:nvtxDomainRangeStartEx, libnvtoolsext), nvtxRangeId_t,
+          (nvtxDomainHandle_t, Ptr{nvtxEventAttributes_t}), domain, eventAttrib)
 end
 
 function nvtxRangeStartEx(eventAttrib)
     initialize_context()
-    ccall((:nvtxRangeStartEx, libnvtoolsext), nvtxRangeId_t, (Ptr{nvtxEventAttributes_t},), eventAttrib)
+    ccall((:nvtxRangeStartEx, libnvtoolsext), nvtxRangeId_t, (Ptr{nvtxEventAttributes_t},),
+          eventAttrib)
 end
 
 function nvtxRangeStartW(message)
@@ -240,7 +244,8 @@ end
 
 function nvtxDomainRangeEnd(domain, id)
     initialize_context()
-    ccall((:nvtxDomainRangeEnd, libnvtoolsext), Cvoid, (nvtxDomainHandle_t, nvtxRangeId_t), domain, id)
+    ccall((:nvtxDomainRangeEnd, libnvtoolsext), Cvoid, (nvtxDomainHandle_t, nvtxRangeId_t),
+          domain, id)
 end
 
 function nvtxRangeEnd(id)
@@ -250,12 +255,14 @@ end
 
 function nvtxDomainRangePushEx(domain, eventAttrib)
     initialize_context()
-    ccall((:nvtxDomainRangePushEx, libnvtoolsext), Cint, (nvtxDomainHandle_t, Ptr{nvtxEventAttributes_t}), domain, eventAttrib)
+    ccall((:nvtxDomainRangePushEx, libnvtoolsext), Cint,
+          (nvtxDomainHandle_t, Ptr{nvtxEventAttributes_t}), domain, eventAttrib)
 end
 
 function nvtxRangePushEx(eventAttrib)
     initialize_context()
-    ccall((:nvtxRangePushEx, libnvtoolsext), Cint, (Ptr{nvtxEventAttributes_t},), eventAttrib)
+    ccall((:nvtxRangePushEx, libnvtoolsext), Cint, (Ptr{nvtxEventAttributes_t},),
+          eventAttrib)
 end
 
 function nvtxRangePushW(message)
@@ -289,32 +296,38 @@ const nvtxResourceHandle_t = Ptr{nvtxResourceHandle}
 
 function nvtxDomainResourceCreate(domain, attribs)
     initialize_context()
-    ccall((:nvtxDomainResourceCreate, libnvtoolsext), nvtxResourceHandle_t, (nvtxDomainHandle_t, Ptr{nvtxResourceAttributes_t}), domain, attribs)
+    ccall((:nvtxDomainResourceCreate, libnvtoolsext), nvtxResourceHandle_t,
+          (nvtxDomainHandle_t, Ptr{nvtxResourceAttributes_t}), domain, attribs)
 end
 
 function nvtxDomainResourceDestroy(resource)
     initialize_context()
-    ccall((:nvtxDomainResourceDestroy, libnvtoolsext), Cvoid, (nvtxResourceHandle_t,), resource)
+    ccall((:nvtxDomainResourceDestroy, libnvtoolsext), Cvoid, (nvtxResourceHandle_t,),
+          resource)
 end
 
 function nvtxDomainNameCategoryW(domain, category, name)
     initialize_context()
-    ccall((:nvtxDomainNameCategoryW, libnvtoolsext), Cvoid, (nvtxDomainHandle_t, UInt32, Ptr{Cwchar_t}), domain, category, name)
+    ccall((:nvtxDomainNameCategoryW, libnvtoolsext), Cvoid,
+          (nvtxDomainHandle_t, UInt32, Ptr{Cwchar_t}), domain, category, name)
 end
 
 function nvtxNameCategoryW(category, name)
     initialize_context()
-    ccall((:nvtxNameCategoryW, libnvtoolsext), Cvoid, (UInt32, Ptr{Cwchar_t}), category, name)
+    ccall((:nvtxNameCategoryW, libnvtoolsext), Cvoid, (UInt32, Ptr{Cwchar_t}), category,
+          name)
 end
 
 function nvtxNameOsThreadW(threadId, name)
     initialize_context()
-    ccall((:nvtxNameOsThreadW, libnvtoolsext), Cvoid, (UInt32, Ptr{Cwchar_t}), threadId, name)
+    ccall((:nvtxNameOsThreadW, libnvtoolsext), Cvoid, (UInt32, Ptr{Cwchar_t}), threadId,
+          name)
 end
 
 function nvtxDomainRegisterStringW(domain, string)
     initialize_context()
-    ccall((:nvtxDomainRegisterStringW, libnvtoolsext), nvtxStringHandle_t, (nvtxDomainHandle_t, Ptr{Cwchar_t}), domain, string)
+    ccall((:nvtxDomainRegisterStringW, libnvtoolsext), nvtxStringHandle_t,
+          (nvtxDomainHandle_t, Ptr{Cwchar_t}), domain, string)
 end
 
 function nvtxDomainCreateW(name)
@@ -356,17 +369,20 @@ end
 
 function nvtxNameCuDeviceW(device, name)
     initialize_context()
-    ccall((:nvtxNameCuDeviceW, libnvtoolsext), Cvoid, (CUdevice, Ptr{Cwchar_t}), device, name)
+    ccall((:nvtxNameCuDeviceW, libnvtoolsext), Cvoid, (CUdevice, Ptr{Cwchar_t}), device,
+          name)
 end
 
 function nvtxNameCuContextW(context, name)
     initialize_context()
-    ccall((:nvtxNameCuContextW, libnvtoolsext), Cvoid, (CUcontext, Ptr{Cwchar_t}), context, name)
+    ccall((:nvtxNameCuContextW, libnvtoolsext), Cvoid, (CUcontext, Ptr{Cwchar_t}), context,
+          name)
 end
 
 function nvtxNameCuStreamW(stream, name)
     initialize_context()
-    ccall((:nvtxNameCuStreamW, libnvtoolsext), Cvoid, (CUstream, Ptr{Cwchar_t}), stream, name)
+    ccall((:nvtxNameCuStreamW, libnvtoolsext), Cvoid, (CUstream, Ptr{Cwchar_t}), stream,
+          name)
 end
 
 function nvtxNameCuEventW(event, name)
@@ -399,4 +415,3 @@ const NVTX_RESOURCE_CLASS_GENERIC = 1
 # Skipping MacroDefinition: NVTX_RESOURCE_ATTRIB_STRUCT_SIZE ( ( uint16_t ) ( sizeof ( nvtxResourceAttributes_v0 ) ) )
 
 const NVTX_RESOURCE_CLASS_CUDA = 4
-
