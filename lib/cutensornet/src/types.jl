@@ -212,3 +212,22 @@ mutable struct CuTensorNetworkAutotunePreference
 end
 Base.unsafe_convert(::Type{cutensornetContractionAutotunePreference_t}, prefs::CuTensorNetworkAutotunePreference)   = prefs.handle
 Base.unsafe_convert(::Type{CuTensorNetworkAutotunePreference}, prefs::AutotunePreferences) = cutensornetContractionAutotunePreference(prefs)
+
+mutable struct CuTensorNetworkSliceGroup
+    handle::cutensornetSliceGroup_t
+    function CuTensorNetworkSliceGroup(sliceStart::Int64, sliceStop::Int64, sliceStep::Int64)
+        group_ref = Ref{cutensornetSliceGroup_t}()
+        cutensornetCreateSliceGroupFromIDRange(handle(), sliceStart, sliceStop, sliceStep, group_ref)
+        obj = new(group_ref[])
+        finalizer(cutensornetDestroySliceGroup, obj)
+        obj
+    end
+    function CuTensorNetworkSliceGroup(slices::Vector{Int64})
+        group_ref = Ref{cutensornetSliceGroup_t}()
+        cutensornetCreateSliceGroupFromIDs(handle(), pointer(slices), pointer(slices, length(slices)), group_ref)
+        obj = new(group_ref[])
+        finalizer(cutensornetDestroySliceGroup, obj)
+        obj
+    end
+end
+Base.unsafe_convert(::Type{cutensornetSliceGroup_t}, prefs::CuTensorNetworkSliceGroup)   = prefs.handle

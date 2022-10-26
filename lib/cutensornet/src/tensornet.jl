@@ -40,9 +40,8 @@ function perform_contraction!(tn::CuTensorNetwork, info, ::NoAutoTune; prefs::Au
         cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
         input_ptrs = [pointer(arr) for arr in inputs]
         output_ptr = pointer(output)
-        for slice_ix in 0:num_slices(info)-1
-            cutensornetContraction(handle(), plan, input_ptrs, output_ptr, workspace_desc, slice_ix, stream)
-        end
+        slice_group = CuTensorNetworkSliceGroup(0, num_slices(info), 1)
+        cutensornetContractSlices(handle(), plan, input_ptrs, output_ptr, 0, workspace_desc, slice_group, stream)
         cutensornetWorkspaceSet(handle(), workspace_desc, memspace, C_NULL, 0)
     end
     return tn
@@ -64,9 +63,8 @@ function perform_contraction!(tn::CuTensorNetwork, info, ::AutoTune; prefs::Auto
                                        ctn_prefs, stream)
         input_ptrs = [pointer(arr) for arr in inputs]
         output_ptr = pointer(output)
-        for slice_ix in 0:num_slices(info)-1
-            cutensornetContraction(handle(), plan, input_ptrs, output_ptr, workspace_desc, slice_ix, stream)
-        end
+        slice_group = CuTensorNetworkSliceGroup(0, num_slices(info), 1)
+        cutensornetContractSlices(handle(), plan, input_ptrs, output_ptr, 0, workspace_desc, slice_group, stream)
         cutensornetWorkspaceSet(handle(), workspace_desc, memspace, C_NULL, 0)
     end
     return tn
