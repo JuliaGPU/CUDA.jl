@@ -30,7 +30,6 @@ end
 
 # core library
 include("libcudnn.jl")
-include("libcudnn_deprecated.jl")
 
 # low-level wrappers
 include("error.jl")
