@@ -1,0 +1,31 @@
+[general]
+library_name = "libnvml()"
+output_file_path = "../../lib/nvml/libnvml.jl"
+prologue_file_path = "./libnvml_prologue.jl"
+
+output_ignorelist = [
+    "^nvmlMemory_v2$",
+    "^nvmlGpuInstanceProfileInfo_v2$",
+    "^nvmlComputeInstanceProfileInfo_v2$",
+]
+
+
+[codegen]
+use_ccall_macro = true
+always_NUL_terminated_string = true
+
+
+[api]
+checked_rettypes = [ "nvmlReturn_t" ]
+
+[api.nvmlInit_v2]
+needs_context = false
+
+[api.nvmlInitWithFlags]
+needs_context = false
+
+[api.nvmlShutdown]
+needs_context = false
+
+[api.nvmlErrorString]
+needs_context = false

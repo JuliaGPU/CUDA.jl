@@ -1,6 +1,0 @@
---- a/libcusolver_common.jl
-+++ b/libcusolver_common.jl
-@@ -8,3 +7,0 @@
--const CUSOLVER_CPP_VERSION = __cplusplus
--const CUSOLVER_DEPRECATED = new_func
--const CUSOLVER_DEPRECATED_ENUM = new_enum

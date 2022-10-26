@@ -917,13 +917,16 @@ function gemmEx!(transA::Char, transB::Char,
     isnothing(computeType) &&
         throw(ArgumentError("gemmEx does not support $(eltype(C))=$(eltype(A))*$(eltype(B))"))
     computeT = juliaStorageType(eltype(C), computeType)
-    if version() < v"11.0"
+    if version() >= v"11.0"
         # with CUDA 11, the compute type encodes the math mode.
+        cublasGemmEx(handle(), transA, transB, m, n, k, Ref{computeT}(alpha), A, eltype(A), lda, B,
+                    eltype(B), ldb, Ref{computeT}(beta), C, eltype(C), ldc, computeType, algo)
+    else
         # before CUDA 11, it was a plain cudaDataType.
         computeType = convert(cudaDataType, computeT)
+        cublasGemmEx_old(handle(), transA, transB, m, n, k, Ref{computeT}(alpha), A, eltype(A), lda, B,
+                    eltype(B), ldb, Ref{computeT}(beta), C, eltype(C), ldc, computeType, algo)
     end
-    cublasGemmEx(handle(), transA, transB, m, n, k, Ref{computeT}(alpha), A, eltype(A), lda, B,
-                 eltype(B), ldb, Ref{computeT}(beta), C, eltype(C), ldc, computeType, algo)
     C
 end
 

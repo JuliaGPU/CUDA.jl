@@ -1,0 +1,62 @@
+[general]
+library_name = "libcusolverMg"
+output_file_path = "../../lib/cusolver/libcusolverMg.jl"
+
+
+[codegen]
+use_ccall_macro = true
+always_NUL_terminated_string = true
+
+
+[api]
+checked_rettypes = [ "cusolverStatus_t" ]
+
+[api.cusolverMgSyevd_bufferSize.argtypes]
+5 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cusolverMgSyevd.argtypes]
+5 = "Ptr{CuPtr{Cvoid}}"
+12 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cusolverMgGetrf_bufferSize.argtypes]
+4 = "Ptr{CuPtr{Cvoid}}"
+8 = "Ptr{CuPtr{Cint}}"
+
+[api.cusolverMgGetrf.argtypes]
+4 = "Ptr{CuPtr{Cvoid}}"
+8 = "Ptr{CuPtr{Cint}}"
+10 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cusolverMgGetrs_bufferSize.argtypes]
+5 = "Ptr{CuPtr{Cvoid}}"
+9 = "Ptr{CuPtr{Cint}}"
+10 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cusolverMgGetrs.argtypes]
+5 = "Ptr{CuPtr{Cvoid}}"
+9 = "Ptr{CuPtr{Cint}}"
+10 = "Ptr{CuPtr{Cvoid}}"
+15 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cusolverMgPotrf_bufferSize.argtypes]
+4 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cusolverMgPotrf.argtypes]
+4 = "Ptr{CuPtr{Cvoid}}"
+9 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cusolverMgPotrs_bufferSize.argtypes]
+5 = "Ptr{CuPtr{Cvoid}}"
+9 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cusolverMgPotrs.argtypes]
+5 = "Ptr{CuPtr{Cvoid}}"
+9 = "Ptr{CuPtr{Cvoid}}"
+14 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cusolverMgPotri_bufferSize.argtypes]
+4 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cusolverMgPotri.argtypes]
+4 = "Ptr{CuPtr{Cvoid}}"
+9 = "Ptr{CuPtr{Cvoid}}"

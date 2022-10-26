@@ -14,11 +14,10 @@ using Reexport: @reexport
 
 
 # core library
-include("libcufft_common.jl")
-include("error.jl")
 include("libcufft.jl")
 
 # low-level wrappers
+include("error.jl")
 include("util.jl")
 include("wrappers.jl")
 

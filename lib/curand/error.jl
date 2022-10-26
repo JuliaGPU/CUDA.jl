@@ -44,31 +44,3 @@ function description(err)
     end
 end
 ## COV_EXCL_STOP
-
-
-## API call wrapper
-
-# outlined functionality to avoid GC frame allocation
-@noinline function throw_api_error(res)
-    if res == CURAND_STATUS_ALLOCATION_FAILED
-        throw(OutOfGPUMemoryError())
-    else
-        throw(CURANDError(res))
-    end
-end
-
-macro check(ex, errs...)
-    check = :(isequal(err, CURAND_STATUS_ALLOCATION_FAILED))
-    for err in errs
-        check = :($check || isequal(err, $(esc(err))))
-    end
-
-    quote
-        res = @retry_reclaim err->$check $(esc(ex))
-        if res != CURAND_STATUS_SUCCESS
-            throw_api_error(res)
-        end
-
-        nothing
-    end
-end

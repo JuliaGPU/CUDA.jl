@@ -203,7 +203,7 @@ function cudnnRNNTempSpaceSizes(rnnDesc::cudnnRNNDescriptor, fwdMode::cudnnForwa
 end
 
 function cudnnGetRNNDescriptor_v8(rnnDesc::cudnnRNNDescriptor)
-    (algo, cellMode, biasMode, dirMode, inputMode, dataType, mathPrec, mathType, inputSize, hiddenSize, projSize, numLayers, dropout, auxFlags) = (Ref{cudnnRNNAlgo_t}(), Ref{cudnnRNNMode_t}(), Ref{cudnnRNNBiasMode_t}(), Ref{cudnnDirectionMode_t}(), Ref{cudnnRNNInputMode_t}(), Ref{cudnnDataType_t}(), Ref{cudnnDataType_t}(), Ref{cudnnMathType_t}(), Ref{Int32}(), Ref{Int32}(), Ref{Int32}(), Ref{Int32}(), Ref{Ptr{Nothing}}(), Ref{UInt32}())
+    (algo, cellMode, biasMode, dirMode, inputMode, dataType, mathPrec, mathType, inputSize, hiddenSize, projSize, numLayers, dropout, auxFlags) = (Ref{cudnnRNNAlgo_t}(), Ref{cudnnRNNMode_t}(), Ref{cudnnRNNBiasMode_t}(), Ref{cudnnDirectionMode_t}(), Ref{cudnnRNNInputMode_t}(), Ref{cudnnDataType_t}(), Ref{cudnnDataType_t}(), Ref{cudnnMathType_t}(), Ref{Int32}(), Ref{Int32}(), Ref{Int32}(), Ref{Int32}(), Ref{cudnnDropoutDescriptor_t}(), Ref{UInt32}())
     cudnnGetRNNDescriptor_v8(rnnDesc, algo, cellMode, biasMode, dirMode, inputMode, dataType, mathPrec, mathType, inputSize, hiddenSize, projSize, numLayers, dropout, auxFlags)
     (algo, cellMode, biasMode, dirMode, inputMode, dataType, mathPrec, mathType, inputSize, hiddenSize, projSize, numLayers, dropout, auxFlags) = (algo[], cellMode[], biasMode[], dirMode[], inputMode[], dataType[], mathPrec[], mathType[], inputSize[], hiddenSize[], projSize[], numLayers[], dropout[], auxFlags[])
     (; rnnDesc, algo, cellMode, biasMode, dirMode, inputMode, dataType, mathPrec, mathType, inputSize, hiddenSize, projSize, numLayers, dropout, auxFlags)

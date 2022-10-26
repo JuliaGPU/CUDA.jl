@@ -1,0 +1,59 @@
+[general]
+library_name = "libcusolver"
+output_file_path = "../../lib/cusolver/libcusolverRF.jl"
+
+
+[codegen]
+use_ccall_macro = true
+always_NUL_terminated_string = true
+
+
+[api]
+checked_rettypes = [ "cusolverStatus_t" ]
+
+[api.cusolverRfBatchResetValues.argtypes]
+4 = "CuPtr{Cint}"
+5 = "CuPtr{Cint}"
+6 = "CuPtr{Ptr{Cdouble}}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+
+[api.cusolverRfAccessBundledFactorsDevice.argtypes]
+3 = "CuPtr{Ptr{Cint}}"
+4 = "CuPtr{Ptr{Cint}}"
+5 = "CuPtr{Ptr{Cdouble}}"
+
+[api.cusolverRfResetValues.argtypes]
+3 = "CuPtr{Cint}"
+4 = "CuPtr{Cint}"
+5 = "CuPtr{Cdouble}"
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+
+[api.cusolverRfSetupDevice.argtypes]
+3 = "CuPtr{Cint}"
+4 = "CuPtr{Cint}"
+5 = "CuPtr{Cdouble}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+9 = "CuPtr{Cdouble}"
+11 = "CuPtr{Cint}"
+12 = "CuPtr{Cint}"
+13 = "CuPtr{Cdouble}"
+14 = "CuPtr{Cint}"
+15 = "CuPtr{Cint}"
+
+[api.cusolverRfBatchZeroPivot.argtypes]
+2 = "CuPtr{Cint}"
+
+[api.cusolverRfSolve.argtypes]
+2 = "CuPtr{Cint}"
+3 = "CuPtr{Cint}"
+5 = "CuPtr{Cdouble}"
+7 = "CuPtr{Cdouble}"
+
+[api.cusolverRfBatchSolve.argtypes]
+2 = "CuPtr{Cint}"
+3 = "CuPtr{Cint}"
+5 = "CuPtr{Cdouble}"
+7 = "CuPtr{Ptr{Cdouble}}"

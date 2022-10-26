@@ -21,12 +21,11 @@ using CEnum: @cenum
 
 
 # core library
-include("libcublas_common.jl")
-include("error.jl")
 include("libcublas.jl")
 include("libcublas_deprecated.jl")
 
 # low-level wrappers
+include("error.jl")
 include("util.jl")
 include("wrappers.jl")
 
@@ -64,7 +63,7 @@ function math_mode!(handle, mode)
         end
     end
 
-    cublasSetMathMode(handle, flags)
+    cublasSetMathMode(handle, cublasMath_t(flags))
 
     return
 end
