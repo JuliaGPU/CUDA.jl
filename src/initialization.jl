@@ -117,12 +117,16 @@ function __init__()
     LLVM.clopts("-nvptx-fma-level=1")
 
     # warn about old, deprecated environment variables
-    haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER") &&
+    if haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER") && CUDA_Runtime == CUDA_Runtime_jll
         @error """JULIA_CUDA_USE_BINARYBUILDER is deprecated, and CUDA.jl always uses artifacts now.
                   To use a local installation, use overrides or preferences to customize the artifact.
                   Please check the CUDA.jl or Pkg.jl documentation for more details."""
-    haskey(ENV, "JULIA_CUDA_VERSION") &&
+        # we do not warn about this when we're already using the new preference,
+        # because during the transition clusters will be deploying both mechanisms.
+    end
+    if haskey(ENV, "JULIA_CUDA_VERSION")
         @error """JULIA_CUDA_VERSION is deprecated. Call `CUDA.jl.set_runtime_version!` to use a different version instead."""
+    end
 
     _initialized[] = true
 end
