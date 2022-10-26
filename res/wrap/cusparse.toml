@@ -2,6 +2,7 @@
 library_name = "libcusparse"
 output_file_path = "../../lib/cusparse/libcusparse.jl"
 prologue_file_path = "./libcusparse_prologue.jl"
+epilogue_file_path = "./libcusparse_epilogue.jl"
 
 output_ignorelist = [
     # generates bad code
