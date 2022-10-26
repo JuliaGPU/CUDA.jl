@@ -149,12 +149,9 @@ function main(name="all")
     end
 
     if name == "all" || name == "cupti"
-        # NOTE: libclang (the C API) doesn't support/expose the __packed__/aligned attributes,
-        #       so disable them (Julia doesn't support packed structs anyway)
         wrap("cupti", ["$cupti/cupti.h", "$cupti/cupti_profiler_target.h"];
             include_dirs=[cuda, cupti],
-            targets=[r"cupti_.*.h"],
-            defines=["__packed__"=>"", "aligned"=>""])
+            targets=[r"cupti_.*.h"])
     end
 
     if name == "all" || name == "cublas"
