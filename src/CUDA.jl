@@ -32,6 +32,8 @@ end
 
 import Preferences
 
+using Libdl
+
 
 ## source code includes
 
