@@ -36,11 +36,29 @@ function __init__()
     #       once we have conditional dependencies
 
     # check that we have a driver
-    if !isdefined(CUDA_Driver_jll, :libcuda)
-        _initialization_error[] = "CUDA driver not found"
-        return
+    global libcuda
+    if CUDA_Driver_jll.is_available()
+        if isdefined(CUDA_Driver_jll, :libcuda)
+            libcuda = CUDA_Driver_jll.libcuda
+        else
+            _initialization_error[] = "CUDA driver not found"
+            return
+        end
+    else
+        # CUDA_Driver_jll only kicks in for supported platforms, so fall back to
+        # a system search if the artifact isn't available (JLLWrappers.jl#50)
+        library = if Sys.iswindows()
+            Libdl.find_library("nvcuda")
+        else
+            Libdl.find_library(["libcuda.so.1", "libcuda.so"])
+        end
+        if library != ""
+            libcuda = library
+        else
+            _initialization_error[] = "CUDA driver not found"
+            return
+        end
     end
-    global libcuda = CUDA_Driver_jll.libcuda
     driver = driver_version()
 
     if driver < v"10.2"
