@@ -427,6 +427,7 @@ function cufunction_compile(@nospecialize(job::CompilerJob), ctx)
         reason = proc.termsignal > 0 ? "ptxas received signal $(proc.termsignal)" :
                                        "ptxas exited with code $(proc.exitcode)"
         msg = "Failed to compile PTX code ($reason)"
+        msg *= "\nInvocation arguments: $(join(ptxas_opts, ' '))"
         if !isempty(log)
             msg *= "\n" * log
         end
@@ -459,6 +460,7 @@ function cufunction_compile(@nospecialize(job::CompilerJob), ctx)
             reason = proc.termsignal > 0 ? "nvlink received signal $(proc.termsignal)" :
                                            "nvlink exited with code $(proc.exitcode)"
             msg = "Failed to link PTX code ($reason)"
+            msg *= "\nInvocation arguments: $(join(nvlink_opts, ' '))"
             if !isempty(log)
                 msg *= "\n" * log
             end
