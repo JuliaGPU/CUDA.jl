@@ -51,6 +51,10 @@ needs_context = false
 3 = "Ptr{CuPtr{Cvoid}}"
 4 = "CuPtr{Cvoid}"
 
+[api.cutensornetContractSlices.argtypes]
+3 = "Ptr{CuPtr{Cvoid}}"
+4 = "CuPtr{Cvoid}"
+
 [api.cutensornetContraction.argtypes]
 3 = "Ptr{CuPtr{Cvoid}}"
 4 = "CuPtr{Cvoid}"

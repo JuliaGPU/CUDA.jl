@@ -484,8 +484,8 @@ end
     initialize_context()
     @ccall libcutensornet.cutensornetContractSlices(handle::cutensornetHandle_t,
                                                     plan::cutensornetContractionPlan_t,
-                                                    rawDataIn::Ptr{Ptr{Cvoid}},
-                                                    rawDataOut::Ptr{Cvoid},
+                                                    rawDataIn::Ptr{CuPtr{Cvoid}},
+                                                    rawDataOut::CuPtr{Cvoid},
                                                     accumulateOutput::Int32,
                                                     workDesc::cutensornetWorkspaceDescriptor_t,
                                                     sliceGroup::cutensornetSliceGroup_t,
