@@ -1,3 +1,5 @@
+export sort_csc, sort_csr, sort_coo
+
 # conversion routines between different sparse and dense storage formats
 
 """
@@ -28,7 +30,7 @@ SparseArrays.sparse(I::CuVector, J::CuVector, V::CuVector, m, n; kws...) =
     sparse(Cint.(I), Cint.(J), V, m, n; kws...)
 
 function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{Tv}, m, n;
-                             fmt=:csc, sorted::Bool=false) where Tv
+                             fmt=:csc) where Tv
 
     coo = CuSparseMatrixCOO{Tv}(I, J, V, (m, n))
     if fmt == :csc
@@ -42,7 +44,7 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
     end
 end
 
-function sort_csc(A::CuSparseMatrixCSC{Tv,Ti}, index::SparseChar) where {Tv <: BlasFloat,Ti}
+function sort_csc(A::CuSparseMatrixCSC{Tv,Ti}, index::SparseChar='O') where {Tv,Ti}
 
     m,n = size(A)
     perm = CuArray{Ti}(undef, nnz(A))
@@ -65,7 +67,7 @@ function sort_csc(A::CuSparseMatrixCSC{Tv,Ti}, index::SparseChar) where {Tv <: B
     CuSparseMatrixCSC{Tv,Ti}(sorted_colPtr, sorted_rowVal, sorted_nzVal, size(A))
 end
 
-function sort_csr(A::CuSparseMatrixCSR{Tv,Ti}, index::SparseChar) where {Tv <: BlasFloat,Ti}
+function sort_csr(A::CuSparseMatrixCSR{Tv,Ti}, index::SparseChar='O') where {Tv,Ti}
 
     m,n = size(A)
     perm = CuArray{Ti}(undef, nnz(A))
@@ -88,7 +90,7 @@ function sort_csr(A::CuSparseMatrixCSR{Tv,Ti}, index::SparseChar) where {Tv <: B
     CuSparseMatrixCSR{Tv,Ti}(sorted_rowPtr, sorted_colVal, sorted_nzVal, size(A))
 end
 
-function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}, type::SparseChar='R') where {Tv <: BlasFloat,Ti}
+function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}, type::SparseChar='R') where {Tv,Ti}
 
     type == 'R' || type == 'C' || throw(ArgumentError("type=$type was used and only type='R' and type='C' are supported."))
 
@@ -110,19 +112,6 @@ function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}, type::SparseChar='R') where {Tv <
 
     perm .+= one(Ti)
     sorted_nzVal = A.nzVal[perm]
-    CUDA.unsafe_free!(perm)
-    CuSparseMatrixCOO{Tv,Ti}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(A))
-end
-
-function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}, type::SparseChar='R') where {Tv,Ti}
-
-    type == 'R' || type == 'C' || throw(ArgumentError("type=$type was used and only type='R' and type='C' are supported."))
-    type == 'R' && (perm = sortperm(A.rowInd))
-    type == 'C' && (perm = sortperm(A.colInd))
-
-    sorted_rowInd = A.rowInd[perm]
-    sorted_colInd = A.colInd[perm]
-    sorted_nzVal  = A.nzVal[perm]
     CUDA.unsafe_free!(perm)
     CuSparseMatrixCOO{Tv,Ti}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(A))
 end
@@ -506,7 +495,7 @@ function CuSparseMatrixCOO(csr::CuSparseMatrixCSR{Tv}, ind::SparseChar='O') wher
     m,n = size(csr)
     cooRowInd = CuVector{Cint}(undef, nnz(csr))
     cusparseXcsr2coo(handle(), csr.rowPtr, nnz(csr), m, cooRowInd, ind)
-    CuSparseMatrixCOO{Tv}(cooRowInd, csr.colVal, nonzeros(csr), size(csr), nnz(csr))
+    CuSparseMatrixCOO{Tv}(cooRowInd, csr.colVal, nonzeros(csr), size(csr))
 end
 
 ### CSC to COO and viceversa
@@ -523,7 +512,7 @@ function CuSparseMatrixCOO(csc::CuSparseMatrixCSC{Tv}, ind::SparseChar='O') wher
     m,n = size(csc)
     cooColInd = CuVector{Cint}(undef, nnz(csc))
     cusparseXcsr2coo(handle(), csc.colPtr, nnz(csc), n, cooColInd, ind)
-    CuSparseMatrixCOO{Tv}(cooColInd, csc.rowVal, nonzeros(csc), size(csc), nnz(csc))
+    CuSparseMatrixCOO{Tv}(csc.rowVal, cooColInd, nonzeros(csc), size(csc))
 end
 
 ### BSR to COO and viceversa
@@ -531,6 +520,10 @@ end
 CuSparseMatrixBSR(coo::CuSparseMatrixCOO, blockdim) = CuSparseMatrixBSR(CuSparseMatrixCSR(coo), blockdim) # no direct conversion
 CuSparseMatrixCOO(bsr::CuSparseMatrixBSR) = CuSparseMatrixCOO(CuSparseMatrixCSR(bsr)) # no direct conversion
 
+### BSR to CSC and viceversa
+
+CuSparseMatrixBSR(csc::CuSparseMatrixCSC, blockdim) = CuSparseMatrixBSR(CuSparseMatrixCSR(csc), blockdim) # no direct conversion
+CuSparseMatrixCSC(bsr::CuSparseMatrixBSR) = CuSparseMatrixCSC(CuSparseMatrixCSR(bsr)) # no direct conversion
 
 ## sparse to dense, and vice-versa
 
