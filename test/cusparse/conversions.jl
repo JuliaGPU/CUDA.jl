@@ -32,9 +32,11 @@ using CUDA
                 @test  size(x) == (4, 4)
             end
 
-            x = sparse(dense; fmt=fmt)
-            @test x isa T{Float32}
-            @test collect(x) == collect(dense)
+            if fmt != :coo || CUSPARSE.version() >= v"11.3"
+                x = sparse(dense; fmt=fmt)
+                @test x isa T{Float32}
+                @test collect(x) == collect(dense)
+            end
         end
     end
 end
@@ -47,8 +49,9 @@ end
         V = rand(typ, length(I))
         A = sparse(I, J, V, 6, 6)
         for format ∈ (:coo, :csr, :csc)
+            format == :coo && CUSPARSE.version() < v"11.3" && continue
             Agpu = sparse(I |> cu, J |> cu, V |> cu, 6, 6, fmt=format)
-            @test Array(Agpu) == A
+            @test collect(Agpu) == A
         end
     end
 end
@@ -74,27 +77,29 @@ end
     end
 end
 
-@testset "conversions" begin
-    A = sprand(100, 100, 0.02)
-    blockdim = 5
-    for CuSparseMatrixType1 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
-        if CuSparseMatrixType1 == CuSparseMatrixBSR
-            dA1 = CuSparseMatrixType1(A, blockdim)
-        else
-            dA1 = CuSparseMatrixType1(A)
-        end
-        @testset "conversion SparseMatrixCSC -- $CuSparseMatrixType1" begin
-            @test collect(dA1) ≈ A
-        end
-        for CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
-            CuSparseMatrixType1 == CuSparseMatrixType2 && continue
-            @testset "conversion $CuSparseMatrixType1 -- $CuSparseMatrixType2" begin
-                if CuSparseMatrixType2 == CuSparseMatrixBSR
-                    dA2 = CuSparseMatrixType2(dA1, blockdim)
-                else
-                    dA2 = CuSparseMatrixType2(dA1)
+if CUSPARSE.version() >= v"11.3"
+    @testset "conversions" begin
+        A = sprand(100, 100, 0.02)
+        blockdim = 5
+        for CuSparseMatrixType1 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
+            if CuSparseMatrixType1 == CuSparseMatrixBSR
+                dA1 = CuSparseMatrixType1(A, blockdim)
+            else
+                dA1 = CuSparseMatrixType1(A)
+            end
+            @testset "conversion SparseMatrixCSC -- $CuSparseMatrixType1" begin
+                @test collect(dA1) ≈ A
+            end
+            for CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
+                CuSparseMatrixType1 == CuSparseMatrixType2 && continue
+                @testset "conversion $CuSparseMatrixType1 -- $CuSparseMatrixType2" begin
+                    if CuSparseMatrixType2 == CuSparseMatrixBSR
+                        dA2 = CuSparseMatrixType2(dA1, blockdim)
+                    else
+                        dA2 = CuSparseMatrixType2(dA1)
+                    end
+                    @test collect(dA1) ≈ collect(dA2)
                 end
-                @test collect(dA1) ≈ collect(dA2)
             end
         end
     end
