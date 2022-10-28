@@ -567,9 +567,13 @@ end
 Adapt.adapt_storage(::Type{CuArray}, xs::AT) where {AT<:AbstractArray} =
   isbitstype(AT) ? xs : convert(CuArray, xs)
 
-# if an element type is specified, convert to it
+# if specific type parameters are specified, preserve those
 Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
   isbitstype(AT) ? xs : convert(CuArray{T}, xs)
+Adapt.adapt_storage(::Type{<:CuArray{T, N}}, xs::AT) where {T, N, AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuArray{T,N}, xs)
+Adapt.adapt_storage(::Type{<:CuArray{T, N, B}}, xs::AT) where {T, N, B, AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuArray{T,N,B}, xs)
 
 
 ## opinionated gpu array adaptor

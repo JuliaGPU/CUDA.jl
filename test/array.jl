@@ -14,12 +14,12 @@ import Adapt
   @test CuArray{Int, 2}(xs) === xs
 
   # test aggressive conversion to Float32, but only for floats, and only with `cu`
-  @test cu([1]) isa AbstractArray{Int}
-  @test cu(Float64[1]) isa AbstractArray{Float32}
-  @test cu(ComplexF64[1+1im]) isa AbstractArray{ComplexF32}
-  @test Adapt.adapt(CuArray, Float64[1]) isa AbstractArray{Float64}
-  @test Adapt.adapt(CuArray, ComplexF64[1]) isa AbstractArray{ComplexF64}
-  @test Adapt.adapt(CuArray{Float16}, Float64[1]) isa AbstractArray{Float16}
+  @test cu([1]) isa CuArray{Int}
+  @test cu(Float64[1]) isa CuArray{Float32}
+  @test cu(ComplexF64[1+1im]) isa CuArray{ComplexF32}
+  @test Adapt.adapt(CuArray, Float64[1]) isa CuArray{Float64}
+  @test Adapt.adapt(CuArray, ComplexF64[1]) isa CuArray{ComplexF64}
+  @test Adapt.adapt(CuArray{Float16}, Float64[1]) isa CuArray{Float16}
 
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Int}, xs)
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
@@ -94,6 +94,10 @@ end
   @test Adapt.adapt(Array, dA) == A
   @test Adapt.adapt(CuArray, A) isa CuArray
   @test Array(Adapt.adapt(CuArray, A)) == A
+
+  @test Adapt.adapt(CuArray{Float64}, A) isa CuArray{Float64}
+  @test Adapt.adapt(CuArray{Float64,2}, A) isa CuArray{Float64,2}
+  @test Adapt.adapt(CuArray{Float64,2, Mem.UnifiedBuffer}, A) isa CuArray{Float64,2, Mem.UnifiedBuffer}
 end
 
 @testset "view" begin
