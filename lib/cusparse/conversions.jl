@@ -692,9 +692,19 @@ function CuSparseMatrixBSR(A::CuMatrix, blockDim::Integer=gcd(size(A)...); ind::
 end
 
 function CUDA.CuMatrix{T}(coo::CuSparseMatrixCOO{T}; ind::SparseChar='O') where {T}
-    sparsetodense(coo, ind)
+    if version() >= v"11.3"
+        sparsetodense(coo, ind)
+    else
+        csr = CuSparseMatrixCSR(coo, ind)
+        CuMatrix{T}(csr, ind=ind)
+    end
 end
 
 function CuSparseMatrixCOO(A::CuMatrix; ind::SparseChar='O')
-    densetosparse(A, :coo, ind)
+    if version() >= v"11.3"
+        densetosparse(A, :coo, ind)
+    else
+        csr = CuSparseMatrixCSR(A, ind=ind)
+        CuSparseMatrixCOO(csr, ind)
+    end
 end
