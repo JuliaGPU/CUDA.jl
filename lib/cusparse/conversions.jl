@@ -38,7 +38,8 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
     elseif fmt == :csr
         return CuSparseMatrixCSR(coo)
     elseif fmt == :coo
-        return coo
+        # The COO format is assumed to be sorted by row.
+        return sort_coo(coo, 'R')
     else
         error("Format :$fmt not available, use :csc, :csr, or :coo.")
     end
