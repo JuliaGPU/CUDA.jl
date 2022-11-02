@@ -114,6 +114,7 @@ CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
 CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
 CuMatrix{T}(Q::QRPackedQ{S}) where {T,S} =
     CuMatrix{T}(lmul!(Q, CuMatrix{S}(I, size(Q, 1), min(size(Q.factors)...))))
+CuMatrix{T, B}(Q::QRPackedQ{S}) where {T, B, S} = CuMatrix{T}(Q)
 CuMatrix{T}(Q::QRCompactWYQ) where {T} = error("QRCompactWY format is not supported")
 # avoid the CPU array in the above mul!
 Matrix{T}(Q::QRPackedQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
