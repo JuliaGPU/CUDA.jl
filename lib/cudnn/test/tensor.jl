@@ -1,6 +1,7 @@
 using CUDNN:
     cudnnTensorDescriptor,
     cudnnCreateTensorDescriptor,
+    cudnnTensorDescriptor_t,
     cudnnFilterDescriptor,
     cudnnDataType,
     cudnnDataType_t,
@@ -28,4 +29,4 @@ fd = FD(x)
 
 @test DT(Float32) isa cudnnDataType_t
 
-@test (@retry_reclaim(x->(x!==CUDNN_STATUS_SUCCESS),cudnnCreateTensorDescriptor(Ref{Ptr{Cvoid}}(C_NULL)))) isa Nothing
+@test (@retry_reclaim(x->(x!==CUDNN_STATUS_SUCCESS),cudnnCreateTensorDescriptor(Ref{cudnnTensorDescriptor_t}(C_NULL)))) isa Nothing

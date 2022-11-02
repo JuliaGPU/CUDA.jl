@@ -1,3221 +1,3630 @@
-# Julia wrapper for header: cusolverDn.h
-# Automatically generated using Clang.jl
+using CEnum
+
+# CUSOLVER uses CUDA runtime objects, which are compatible with our driver usage
+const cudaStream_t = CUstream
+
+# outlined functionality to avoid GC frame allocation
+@noinline function throw_api_error(res)
+    if res == CUSOLVER_STATUS_ALLOC_FAILED
+        throw(OutOfGPUMemoryError())
+    else
+        throw(CUSOLVERError(res))
+    end
+end
+
+macro check(ex, errs...)
+    check = :(isequal(err, CUSOLVER_STATUS_ALLOC_FAILED))
+    for err in errs
+        check = :($check || isequal(err, $(esc(err))))
+    end
+
+    quote
+        res = @retry_reclaim err -> $check $(esc(ex))
+        if res != CUSOLVER_STATUS_SUCCESS
+            throw_api_error(res)
+        end
+
+        nothing
+    end
+end
+
+mutable struct cusolverDnContext end
+
+const cusolverDnHandle_t = Ptr{cusolverDnContext}
+
+mutable struct syevjInfo end
+
+const syevjInfo_t = Ptr{syevjInfo}
+
+mutable struct gesvdjInfo end
+
+const gesvdjInfo_t = Ptr{gesvdjInfo}
+
+mutable struct cusolverDnIRSParams end
+
+const cusolverDnIRSParams_t = Ptr{cusolverDnIRSParams}
+
+mutable struct cusolverDnIRSInfos end
+
+const cusolverDnIRSInfos_t = Ptr{cusolverDnIRSInfos}
+
+mutable struct cusolverDnParams end
+
+const cusolverDnParams_t = Ptr{cusolverDnParams}
+
+@cenum cusolverDnFunction_t::UInt32 begin
+    CUSOLVERDN_GETRF = 0
+    CUSOLVERDN_POTRF = 1
+end
+
+const cusolver_int_t = Cint
+
+@cenum cusolverStatus_t::UInt32 begin
+    CUSOLVER_STATUS_SUCCESS = 0
+    CUSOLVER_STATUS_NOT_INITIALIZED = 1
+    CUSOLVER_STATUS_ALLOC_FAILED = 2
+    CUSOLVER_STATUS_INVALID_VALUE = 3
+    CUSOLVER_STATUS_ARCH_MISMATCH = 4
+    CUSOLVER_STATUS_MAPPING_ERROR = 5
+    CUSOLVER_STATUS_EXECUTION_FAILED = 6
+    CUSOLVER_STATUS_INTERNAL_ERROR = 7
+    CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED = 8
+    CUSOLVER_STATUS_NOT_SUPPORTED = 9
+    CUSOLVER_STATUS_ZERO_PIVOT = 10
+    CUSOLVER_STATUS_INVALID_LICENSE = 11
+    CUSOLVER_STATUS_IRS_PARAMS_NOT_INITIALIZED = 12
+    CUSOLVER_STATUS_IRS_PARAMS_INVALID = 13
+    CUSOLVER_STATUS_IRS_PARAMS_INVALID_PREC = 14
+    CUSOLVER_STATUS_IRS_PARAMS_INVALID_REFINE = 15
+    CUSOLVER_STATUS_IRS_PARAMS_INVALID_MAXITER = 16
+    CUSOLVER_STATUS_IRS_INTERNAL_ERROR = 20
+    CUSOLVER_STATUS_IRS_NOT_SUPPORTED = 21
+    CUSOLVER_STATUS_IRS_OUT_OF_RANGE = 22
+    CUSOLVER_STATUS_IRS_NRHS_NOT_SUPPORTED_FOR_REFINE_GMRES = 23
+    CUSOLVER_STATUS_IRS_INFOS_NOT_INITIALIZED = 25
+    CUSOLVER_STATUS_IRS_INFOS_NOT_DESTROYED = 26
+    CUSOLVER_STATUS_IRS_MATRIX_SINGULAR = 30
+    CUSOLVER_STATUS_INVALID_WORKSPACE = 31
+end
+
+@cenum cusolverEigType_t::UInt32 begin
+    CUSOLVER_EIG_TYPE_1 = 1
+    CUSOLVER_EIG_TYPE_2 = 2
+    CUSOLVER_EIG_TYPE_3 = 3
+end
+
+@cenum cusolverEigMode_t::UInt32 begin
+    CUSOLVER_EIG_MODE_NOVECTOR = 0
+    CUSOLVER_EIG_MODE_VECTOR = 1
+end
+
+@cenum cusolverEigRange_t::UInt32 begin
+    CUSOLVER_EIG_RANGE_ALL = 1001
+    CUSOLVER_EIG_RANGE_I = 1002
+    CUSOLVER_EIG_RANGE_V = 1003
+end
+
+@cenum cusolverNorm_t::UInt32 begin
+    CUSOLVER_INF_NORM = 104
+    CUSOLVER_MAX_NORM = 105
+    CUSOLVER_ONE_NORM = 106
+    CUSOLVER_FRO_NORM = 107
+end
+
+@cenum cusolverIRSRefinement_t::UInt32 begin
+    CUSOLVER_IRS_REFINE_NOT_SET = 1100
+    CUSOLVER_IRS_REFINE_NONE = 1101
+    CUSOLVER_IRS_REFINE_CLASSICAL = 1102
+    CUSOLVER_IRS_REFINE_CLASSICAL_GMRES = 1103
+    CUSOLVER_IRS_REFINE_GMRES = 1104
+    CUSOLVER_IRS_REFINE_GMRES_GMRES = 1105
+    CUSOLVER_IRS_REFINE_GMRES_NOPCOND = 1106
+    CUSOLVER_PREC_DD = 1150
+    CUSOLVER_PREC_SS = 1151
+    CUSOLVER_PREC_SHT = 1152
+end
+
+@cenum cusolverPrecType_t::UInt32 begin
+    CUSOLVER_R_8I = 1201
+    CUSOLVER_R_8U = 1202
+    CUSOLVER_R_64F = 1203
+    CUSOLVER_R_32F = 1204
+    CUSOLVER_R_16F = 1205
+    CUSOLVER_R_16BF = 1206
+    CUSOLVER_R_TF32 = 1207
+    CUSOLVER_R_AP = 1208
+    CUSOLVER_C_8I = 1211
+    CUSOLVER_C_8U = 1212
+    CUSOLVER_C_64F = 1213
+    CUSOLVER_C_32F = 1214
+    CUSOLVER_C_16F = 1215
+    CUSOLVER_C_16BF = 1216
+    CUSOLVER_C_TF32 = 1217
+    CUSOLVER_C_AP = 1218
+end
+
+@cenum cusolverAlgMode_t::UInt32 begin
+    CUSOLVER_ALG_0 = 0
+    CUSOLVER_ALG_1 = 1
+    CUSOLVER_ALG_2 = 2
+end
+
+@cenum cusolverStorevMode_t::UInt32 begin
+    CUBLAS_STOREV_COLUMNWISE = 0
+    CUBLAS_STOREV_ROWWISE = 1
+end
+
+@cenum cusolverDirectMode_t::UInt32 begin
+    CUBLAS_DIRECT_FORWARD = 0
+    CUBLAS_DIRECT_BACKWARD = 1
+end
 
 @checked function cusolverGetProperty(type, value)
-    ccall((:cusolverGetProperty, libcusolver), cusolverStatus_t,
-                   (libraryPropertyType, Ptr{Cint}),
-                   type, value)
+    @ccall libcusolver.cusolverGetProperty(type::libraryPropertyType,
+                                           value::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverGetVersion(version)
-    ccall((:cusolverGetVersion, libcusolver), cusolverStatus_t,
-                   (Ptr{Cint},),
-                   version)
+    @ccall libcusolver.cusolverGetVersion(version::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCreate(handle)
     initialize_context()
-    ccall((:cusolverDnCreate, libcusolver), cusolverStatus_t,
-                   (Ptr{cusolverDnHandle_t},),
-                   handle)
+    @ccall libcusolver.cusolverDnCreate(handle::Ptr{cusolverDnHandle_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDestroy(handle)
     initialize_context()
-    ccall((:cusolverDnDestroy, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t,),
-                   handle)
+    @ccall libcusolver.cusolverDnDestroy(handle::cusolverDnHandle_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnSetStream(handle, streamId)
     initialize_context()
-    ccall((:cusolverDnSetStream, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, CUstream),
-                   handle, streamId)
+    @ccall libcusolver.cusolverDnSetStream(handle::cusolverDnHandle_t,
+                                           streamId::cudaStream_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnGetStream(handle, streamId)
     initialize_context()
-    ccall((:cusolverDnGetStream, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Ptr{CUstream}),
-                   handle, streamId)
+    @ccall libcusolver.cusolverDnGetStream(handle::cusolverDnHandle_t,
+                                           streamId::Ptr{cudaStream_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsCreate(params_ptr)
     initialize_context()
-    ccall((:cusolverDnIRSParamsCreate, libcusolver), cusolverStatus_t,
-                   (Ptr{cusolverDnIRSParams_t},),
-                   params_ptr)
+    @ccall libcusolver.cusolverDnIRSParamsCreate(params_ptr::Ptr{cusolverDnIRSParams_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsDestroy(params)
     initialize_context()
-    ccall((:cusolverDnIRSParamsDestroy, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSParams_t,),
-                   params)
+    @ccall libcusolver.cusolverDnIRSParamsDestroy(params::cusolverDnIRSParams_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsSetRefinementSolver(params, refinement_solver)
     initialize_context()
-    ccall((:cusolverDnIRSParamsSetRefinementSolver, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSParams_t, cusolverIRSRefinement_t),
-                   params, refinement_solver)
+    @ccall libcusolver.cusolverDnIRSParamsSetRefinementSolver(params::cusolverDnIRSParams_t,
+                                                              refinement_solver::cusolverIRSRefinement_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsSetSolverMainPrecision(params, solver_main_precision)
     initialize_context()
-    ccall((:cusolverDnIRSParamsSetSolverMainPrecision, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSParams_t, cusolverPrecType_t),
-                   params, solver_main_precision)
+    @ccall libcusolver.cusolverDnIRSParamsSetSolverMainPrecision(params::cusolverDnIRSParams_t,
+                                                                 solver_main_precision::cusolverPrecType_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsSetSolverLowestPrecision(params,
                                                               solver_lowest_precision)
     initialize_context()
-    ccall((:cusolverDnIRSParamsSetSolverLowestPrecision, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSParams_t, cusolverPrecType_t),
-                   params, solver_lowest_precision)
+    @ccall libcusolver.cusolverDnIRSParamsSetSolverLowestPrecision(params::cusolverDnIRSParams_t,
+                                                                   solver_lowest_precision::cusolverPrecType_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsSetSolverPrecisions(params, solver_main_precision,
                                                          solver_lowest_precision)
     initialize_context()
-    ccall((:cusolverDnIRSParamsSetSolverPrecisions, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSParams_t, cusolverPrecType_t, cusolverPrecType_t),
-                   params, solver_main_precision, solver_lowest_precision)
+    @ccall libcusolver.cusolverDnIRSParamsSetSolverPrecisions(params::cusolverDnIRSParams_t,
+                                                              solver_main_precision::cusolverPrecType_t,
+                                                              solver_lowest_precision::cusolverPrecType_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsSetTol(params, val)
     initialize_context()
-    ccall((:cusolverDnIRSParamsSetTol, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSParams_t, Cdouble),
-                   params, val)
+    @ccall libcusolver.cusolverDnIRSParamsSetTol(params::cusolverDnIRSParams_t,
+                                                 val::Cdouble)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsSetTolInner(params, val)
     initialize_context()
-    ccall((:cusolverDnIRSParamsSetTolInner, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSParams_t, Cdouble),
-                   params, val)
+    @ccall libcusolver.cusolverDnIRSParamsSetTolInner(params::cusolverDnIRSParams_t,
+                                                      val::Cdouble)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsSetMaxIters(params, maxiters)
     initialize_context()
-    ccall((:cusolverDnIRSParamsSetMaxIters, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSParams_t, cusolver_int_t),
-                   params, maxiters)
+    @ccall libcusolver.cusolverDnIRSParamsSetMaxIters(params::cusolverDnIRSParams_t,
+                                                      maxiters::cusolver_int_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsSetMaxItersInner(params, maxiters_inner)
     initialize_context()
-    ccall((:cusolverDnIRSParamsSetMaxItersInner, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSParams_t, cusolver_int_t),
-                   params, maxiters_inner)
+    @ccall libcusolver.cusolverDnIRSParamsSetMaxItersInner(params::cusolverDnIRSParams_t,
+                                                           maxiters_inner::cusolver_int_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsGetMaxIters(params, maxiters)
     initialize_context()
-    ccall((:cusolverDnIRSParamsGetMaxIters, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSParams_t, Ptr{cusolver_int_t}),
-                   params, maxiters)
+    @ccall libcusolver.cusolverDnIRSParamsGetMaxIters(params::cusolverDnIRSParams_t,
+                                                      maxiters::Ptr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsEnableFallback(params)
     initialize_context()
-    ccall((:cusolverDnIRSParamsEnableFallback, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSParams_t,),
-                   params)
+    @ccall libcusolver.cusolverDnIRSParamsEnableFallback(params::cusolverDnIRSParams_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsDisableFallback(params)
     initialize_context()
-    ccall((:cusolverDnIRSParamsDisableFallback, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSParams_t,),
-                   params)
+    @ccall libcusolver.cusolverDnIRSParamsDisableFallback(params::cusolverDnIRSParams_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSInfosDestroy(infos)
     initialize_context()
-    ccall((:cusolverDnIRSInfosDestroy, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSInfos_t,),
-                   infos)
+    @ccall libcusolver.cusolverDnIRSInfosDestroy(infos::cusolverDnIRSInfos_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSInfosCreate(infos_ptr)
     initialize_context()
-    ccall((:cusolverDnIRSInfosCreate, libcusolver), cusolverStatus_t,
-                   (Ptr{cusolverDnIRSInfos_t},),
-                   infos_ptr)
+    @ccall libcusolver.cusolverDnIRSInfosCreate(infos_ptr::Ptr{cusolverDnIRSInfos_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSInfosGetNiters(infos, niters)
     initialize_context()
-    ccall((:cusolverDnIRSInfosGetNiters, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSInfos_t, Ptr{cusolver_int_t}),
-                   infos, niters)
+    @ccall libcusolver.cusolverDnIRSInfosGetNiters(infos::cusolverDnIRSInfos_t,
+                                                   niters::Ptr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSInfosGetOuterNiters(infos, outer_niters)
     initialize_context()
-    ccall((:cusolverDnIRSInfosGetOuterNiters, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSInfos_t, Ptr{cusolver_int_t}),
-                   infos, outer_niters)
+    @ccall libcusolver.cusolverDnIRSInfosGetOuterNiters(infos::cusolverDnIRSInfos_t,
+                                                        outer_niters::Ptr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSInfosRequestResidual(infos)
     initialize_context()
-    ccall((:cusolverDnIRSInfosRequestResidual, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSInfos_t,),
-                   infos)
+    @ccall libcusolver.cusolverDnIRSInfosRequestResidual(infos::cusolverDnIRSInfos_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSInfosGetResidualHistory(infos, residual_history)
     initialize_context()
-    ccall((:cusolverDnIRSInfosGetResidualHistory, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSInfos_t, Ptr{Ptr{Cvoid}}),
-                   infos, residual_history)
+    @ccall libcusolver.cusolverDnIRSInfosGetResidualHistory(infos::cusolverDnIRSInfos_t,
+                                                            residual_history::Ptr{Ptr{Cvoid}})::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSInfosGetMaxIters(infos, maxiters)
     initialize_context()
-    ccall((:cusolverDnIRSInfosGetMaxIters, libcusolver), cusolverStatus_t,
-                   (cusolverDnIRSInfos_t, Ptr{cusolver_int_t}),
-                   infos, maxiters)
+    @ccall libcusolver.cusolverDnIRSInfosGetMaxIters(infos::cusolverDnIRSInfos_t,
+                                                     maxiters::Ptr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZZgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnZZgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cusolver_int_t},
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{Cvoid}, Csize_t, Ptr{cusolver_int_t},
-                    CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnZZgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{cuDoubleComplex},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{cuDoubleComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuDoubleComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZCgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnZCgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cusolver_int_t},
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{Cvoid}, Csize_t, Ptr{cusolver_int_t},
-                    CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnZCgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{cuDoubleComplex},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{cuDoubleComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuDoubleComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZKgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnZKgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cusolver_int_t},
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{Cvoid}, Csize_t, Ptr{cusolver_int_t},
-                    CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnZKgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{cuDoubleComplex},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{cuDoubleComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuDoubleComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZEgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnZEgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cusolver_int_t},
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{Cvoid}, Csize_t, Ptr{cusolver_int_t},
-                    CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnZEgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{cuDoubleComplex},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{cuDoubleComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuDoubleComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZYgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnZYgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cusolver_int_t},
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{Cvoid}, Csize_t, Ptr{cusolver_int_t},
-                    CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnZYgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{cuDoubleComplex},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{cuDoubleComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuDoubleComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCCgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnCCgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Csize_t, Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnCCgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{cuComplex},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{cuComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCEgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnCEgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Csize_t, Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnCEgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{cuComplex},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{cuComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCKgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnCKgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Csize_t, Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnCKgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{cuComplex},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{cuComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCYgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnCYgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Csize_t, Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnCYgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{cuComplex},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{cuComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDDgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnDDgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cdouble},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnDDgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{Cdouble},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDSgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnDSgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cdouble},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnDSgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{Cdouble},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDHgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnDHgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cdouble},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnDHgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{Cdouble},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDBgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnDBgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cdouble},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnDBgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{Cdouble},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDXgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnDXgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cdouble},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnDXgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{Cdouble},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSSgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnSSgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cfloat},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnSSgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{Cfloat},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{Cfloat}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cfloat}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSHgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnSHgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cfloat},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnSHgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{Cfloat},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{Cfloat}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cfloat}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSBgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnSBgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cfloat},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnSBgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{Cfloat},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{Cfloat}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cfloat}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSXgesv(handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnSXgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cfloat},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnSXgesv(handle::cusolverDnHandle_t, n::cusolver_int_t,
+                                        nrhs::cusolver_int_t, dA::CuPtr{Cfloat},
+                                        ldda::cusolver_int_t, dipiv::CuPtr{cusolver_int_t},
+                                        dB::CuPtr{Cfloat}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cfloat}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZZgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnZZgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cusolver_int_t},
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnZZgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuDoubleComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{cuDoubleComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuDoubleComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZCgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnZCgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cusolver_int_t},
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnZCgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuDoubleComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{cuDoubleComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuDoubleComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZKgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnZKgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cusolver_int_t},
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnZKgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuDoubleComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{cuDoubleComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuDoubleComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZEgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnZEgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cusolver_int_t},
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnZEgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuDoubleComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{cuDoubleComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuDoubleComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZYgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnZYgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cusolver_int_t},
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnZYgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuDoubleComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{cuDoubleComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuDoubleComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCCgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnCCgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnCCgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{cuComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCKgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnCKgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnCKgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{cuComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCEgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnCEgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnCEgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{cuComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCYgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnCYgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{cuComplex},
-                    cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnCYgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{cuComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDDgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnDDgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cdouble},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnDDgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{Cdouble}, ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                                   dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDSgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnDSgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cdouble},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnDSgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{Cdouble}, ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                                   dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDHgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnDHgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cdouble},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnDHgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{Cdouble}, ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                                   dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDBgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnDBgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cdouble},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnDBgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{Cdouble}, ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                                   dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDXgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnDXgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cdouble},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnDXgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{Cdouble}, ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                                   dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSSgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnSSgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cfloat},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnSSgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{Cfloat}, ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{Cfloat}, lddb::cusolver_int_t,
+                                                   dX::CuPtr{Cfloat}, lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSHgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnSHgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cfloat},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnSHgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{Cfloat}, ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{Cfloat}, lddb::cusolver_int_t,
+                                                   dX::CuPtr{Cfloat}, lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSBgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnSBgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cfloat},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnSBgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{Cfloat}, ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{Cfloat}, lddb::cusolver_int_t,
+                                                   dX::CuPtr{Cfloat}, lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSXgesv_bufferSize(handle, n, nrhs, dA, ldda, dipiv, dB, lddb,
                                               dX, lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnSXgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, CuPtr{Cfloat},
-                    cusolver_int_t, CuPtr{cusolver_int_t}, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, n, nrhs, dA, ldda, dipiv, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnSXgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                   n::cusolver_int_t, nrhs::cusolver_int_t,
+                                                   dA::CuPtr{Cfloat}, ldda::cusolver_int_t,
+                                                   dipiv::CuPtr{cusolver_int_t},
+                                                   dB::CuPtr{Cfloat}, lddb::cusolver_int_t,
+                                                   dX::CuPtr{Cfloat}, lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZZgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnZZgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Csize_t, Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnZZgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{cuDoubleComplex}, ldda::cusolver_int_t,
+                                        dB::CuPtr{cuDoubleComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuDoubleComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZCgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnZCgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Csize_t, Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnZCgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{cuDoubleComplex}, ldda::cusolver_int_t,
+                                        dB::CuPtr{cuDoubleComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuDoubleComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZKgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnZKgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Csize_t, Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnZKgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{cuDoubleComplex}, ldda::cusolver_int_t,
+                                        dB::CuPtr{cuDoubleComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuDoubleComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZEgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnZEgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Csize_t, Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnZEgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{cuDoubleComplex}, ldda::cusolver_int_t,
+                                        dB::CuPtr{cuDoubleComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuDoubleComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZYgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnZYgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Csize_t, Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnZYgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{cuDoubleComplex}, ldda::cusolver_int_t,
+                                        dB::CuPtr{cuDoubleComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuDoubleComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCCgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnCCgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnCCgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{cuComplex}, ldda::cusolver_int_t,
+                                        dB::CuPtr{cuComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCKgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnCKgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnCKgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{cuComplex}, ldda::cusolver_int_t,
+                                        dB::CuPtr{cuComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCEgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnCEgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnCEgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{cuComplex}, ldda::cusolver_int_t,
+                                        dB::CuPtr{cuComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCYgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnCYgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnCYgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{cuComplex}, ldda::cusolver_int_t,
+                                        dB::CuPtr{cuComplex}, lddb::cusolver_int_t,
+                                        dX::CuPtr{cuComplex}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDDgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnDDgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnDDgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{Cdouble}, ldda::cusolver_int_t,
+                                        dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDSgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnDSgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnDSgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{Cdouble}, ldda::cusolver_int_t,
+                                        dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDHgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnDHgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnDHgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{Cdouble}, ldda::cusolver_int_t,
+                                        dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDBgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnDBgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnDBgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{Cdouble}, ldda::cusolver_int_t,
+                                        dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDXgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnDXgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnDXgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{Cdouble}, ldda::cusolver_int_t,
+                                        dB::CuPtr{Cdouble}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cdouble}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSSgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnSSgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnSSgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{Cfloat}, ldda::cusolver_int_t,
+                                        dB::CuPtr{Cfloat}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cfloat}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSHgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnSHgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnSHgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{Cfloat}, ldda::cusolver_int_t,
+                                        dB::CuPtr{Cfloat}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cfloat}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSBgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnSBgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnSBgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{Cfloat}, ldda::cusolver_int_t,
+                                        dB::CuPtr{Cfloat}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cfloat}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSXgels(handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx,
                                    dWorkspace, lwork_bytes, iter, d_info)
     initialize_context()
-    ccall((:cusolverDnSXgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Csize_t,
-                    Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes, iter, d_info)
+    @ccall libcusolver.cusolverDnSXgels(handle::cusolverDnHandle_t, m::cusolver_int_t,
+                                        n::cusolver_int_t, nrhs::cusolver_int_t,
+                                        dA::CuPtr{Cfloat}, ldda::cusolver_int_t,
+                                        dB::CuPtr{Cfloat}, lddb::cusolver_int_t,
+                                        dX::CuPtr{Cfloat}, lddx::cusolver_int_t,
+                                        dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                        iter::Ptr{cusolver_int_t},
+                                        d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZZgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnZZgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnZZgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuDoubleComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dB::CuPtr{cuDoubleComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuDoubleComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZCgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnZCgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnZCgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuDoubleComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dB::CuPtr{cuDoubleComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuDoubleComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZKgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnZKgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnZKgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuDoubleComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dB::CuPtr{cuDoubleComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuDoubleComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZEgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnZEgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnZEgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuDoubleComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dB::CuPtr{cuDoubleComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuDoubleComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnZYgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnZYgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{cuDoubleComplex},
-                    cusolver_int_t, CuPtr{cuDoubleComplex}, cusolver_int_t, CuPtr{Cvoid},
-                    Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnZYgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuDoubleComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dB::CuPtr{cuDoubleComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuDoubleComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCCgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnCCgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnCCgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dB::CuPtr{cuComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCKgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnCKgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnCKgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dB::CuPtr{cuComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCEgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnCEgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnCEgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dB::CuPtr{cuComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnCYgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnCYgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{cuComplex}, cusolver_int_t,
-                    CuPtr{cuComplex}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnCYgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t,
+                                                   dA::CuPtr{cuComplex},
+                                                   ldda::cusolver_int_t,
+                                                   dB::CuPtr{cuComplex},
+                                                   lddb::cusolver_int_t,
+                                                   dX::CuPtr{cuComplex},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDDgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnDDgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnDDgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t, dA::CuPtr{Cdouble},
+                                                   ldda::cusolver_int_t, dB::CuPtr{Cdouble},
+                                                   lddb::cusolver_int_t, dX::CuPtr{Cdouble},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDSgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnDSgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnDSgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t, dA::CuPtr{Cdouble},
+                                                   ldda::cusolver_int_t, dB::CuPtr{Cdouble},
+                                                   lddb::cusolver_int_t, dX::CuPtr{Cdouble},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDHgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnDHgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnDHgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t, dA::CuPtr{Cdouble},
+                                                   ldda::cusolver_int_t, dB::CuPtr{Cdouble},
+                                                   lddb::cusolver_int_t, dX::CuPtr{Cdouble},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDBgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnDBgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnDBgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t, dA::CuPtr{Cdouble},
+                                                   ldda::cusolver_int_t, dB::CuPtr{Cdouble},
+                                                   lddb::cusolver_int_t, dX::CuPtr{Cdouble},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDXgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnDXgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cdouble}, cusolver_int_t,
-                    CuPtr{Cdouble}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnDXgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t, dA::CuPtr{Cdouble},
+                                                   ldda::cusolver_int_t, dB::CuPtr{Cdouble},
+                                                   lddb::cusolver_int_t, dX::CuPtr{Cdouble},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSSgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnSSgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnSSgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t, dA::CuPtr{Cfloat},
+                                                   ldda::cusolver_int_t, dB::CuPtr{Cfloat},
+                                                   lddb::cusolver_int_t, dX::CuPtr{Cfloat},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSHgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnSHgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnSHgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t, dA::CuPtr{Cfloat},
+                                                   ldda::cusolver_int_t, dB::CuPtr{Cfloat},
+                                                   lddb::cusolver_int_t, dX::CuPtr{Cfloat},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSBgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnSBgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnSBgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t, dA::CuPtr{Cfloat},
+                                                   ldda::cusolver_int_t, dB::CuPtr{Cfloat},
+                                                   lddb::cusolver_int_t, dX::CuPtr{Cfloat},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSXgels_bufferSize(handle, m, n, nrhs, dA, ldda, dB, lddb, dX,
                                               lddx, dWorkspace, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnSXgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolver_int_t, cusolver_int_t, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cfloat}, cusolver_int_t,
-                    CuPtr{Cfloat}, cusolver_int_t, CuPtr{Cvoid}, Ptr{Csize_t}),
-                   handle, m, n, nrhs, dA, ldda, dB, lddb, dX, lddx, dWorkspace,
-                   lwork_bytes)
+    @ccall libcusolver.cusolverDnSXgels_bufferSize(handle::cusolverDnHandle_t,
+                                                   m::cusolver_int_t, n::cusolver_int_t,
+                                                   nrhs::cusolver_int_t, dA::CuPtr{Cfloat},
+                                                   ldda::cusolver_int_t, dB::CuPtr{Cfloat},
+                                                   lddb::cusolver_int_t, dX::CuPtr{Cfloat},
+                                                   lddx::cusolver_int_t,
+                                                   dWorkspace::CuPtr{Cvoid},
+                                                   lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSXgesv(handle, gesv_irs_params, gesv_irs_infos, n, nrhs, dA,
                                      ldda, dB, lddb, dX, lddx, dWorkspace, lwork_bytes,
                                      niters, d_info)
     initialize_context()
-    ccall((:cusolverDnIRSXgesv, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnIRSParams_t, cusolverDnIRSInfos_t,
-                    cusolver_int_t, cusolver_int_t, CuPtr{Cvoid}, cusolver_int_t,
-                    CuPtr{Cvoid}, cusolver_int_t, CuPtr{Cvoid}, cusolver_int_t,
-                    CuPtr{Cvoid}, Csize_t, Ptr{cusolver_int_t}, CuPtr{cusolver_int_t}),
-                   handle, gesv_irs_params, gesv_irs_infos, n, nrhs, dA, ldda, dB, lddb,
-                   dX, lddx, dWorkspace, lwork_bytes, niters, d_info)
+    @ccall libcusolver.cusolverDnIRSXgesv(handle::cusolverDnHandle_t,
+                                          gesv_irs_params::cusolverDnIRSParams_t,
+                                          gesv_irs_infos::cusolverDnIRSInfos_t,
+                                          n::cusolver_int_t, nrhs::cusolver_int_t,
+                                          dA::CuPtr{Cvoid}, ldda::cusolver_int_t,
+                                          dB::CuPtr{Cvoid}, lddb::cusolver_int_t,
+                                          dX::CuPtr{Cvoid}, lddx::cusolver_int_t,
+                                          dWorkspace::CuPtr{Cvoid}, lwork_bytes::Csize_t,
+                                          niters::Ptr{cusolver_int_t},
+                                          d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSXgesv_bufferSize(handle, params, n, nrhs, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnIRSXgesv_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnIRSParams_t, cusolver_int_t,
-                    cusolver_int_t, Ptr{Csize_t}),
-                   handle, params, n, nrhs, lwork_bytes)
+    @ccall libcusolver.cusolverDnIRSXgesv_bufferSize(handle::cusolverDnHandle_t,
+                                                     params::cusolverDnIRSParams_t,
+                                                     n::cusolver_int_t,
+                                                     nrhs::cusolver_int_t,
+                                                     lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSXgels(handle, gels_irs_params, gels_irs_infos, m, n, nrhs,
                                      dA, ldda, dB, lddb, dX, lddx, dWorkspace, lwork_bytes,
                                      niters, d_info)
     initialize_context()
-    ccall((:cusolverDnIRSXgels, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnIRSParams_t, cusolverDnIRSInfos_t,
-                    cusolver_int_t, cusolver_int_t, cusolver_int_t, CuPtr{Cvoid},
-                    cusolver_int_t, CuPtr{Cvoid}, cusolver_int_t, CuPtr{Cvoid},
-                    cusolver_int_t, CuPtr{Cvoid}, Csize_t, Ptr{cusolver_int_t},
-                    CuPtr{cusolver_int_t}),
-                   handle, gels_irs_params, gels_irs_infos, m, n, nrhs, dA, ldda, dB, lddb,
-                   dX, lddx, dWorkspace, lwork_bytes, niters, d_info)
+    @ccall libcusolver.cusolverDnIRSXgels(handle::cusolverDnHandle_t,
+                                          gels_irs_params::cusolverDnIRSParams_t,
+                                          gels_irs_infos::cusolverDnIRSInfos_t,
+                                          m::cusolver_int_t, n::cusolver_int_t,
+                                          nrhs::cusolver_int_t, dA::CuPtr{Cvoid},
+                                          ldda::cusolver_int_t, dB::CuPtr{Cvoid},
+                                          lddb::cusolver_int_t, dX::CuPtr{Cvoid},
+                                          lddx::cusolver_int_t, dWorkspace::CuPtr{Cvoid},
+                                          lwork_bytes::Csize_t, niters::Ptr{cusolver_int_t},
+                                          d_info::CuPtr{cusolver_int_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSXgels_bufferSize(handle, params, m, n, nrhs, lwork_bytes)
     initialize_context()
-    ccall((:cusolverDnIRSXgels_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnIRSParams_t, cusolver_int_t,
-                    cusolver_int_t, cusolver_int_t, Ptr{Csize_t}),
-                   handle, params, m, n, nrhs, lwork_bytes)
+    @ccall libcusolver.cusolverDnIRSXgels_bufferSize(handle::cusolverDnHandle_t,
+                                                     params::cusolverDnIRSParams_t,
+                                                     m::cusolver_int_t, n::cusolver_int_t,
+                                                     nrhs::cusolver_int_t,
+                                                     lwork_bytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSpotrf_bufferSize(handle, uplo, n, A, lda, Lwork)
     initialize_context()
-    ccall((:cusolverDnSpotrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    Ptr{Cint}),
-                   handle, uplo, n, A, lda, Lwork)
+    @ccall libcusolver.cusolverDnSpotrf_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cfloat}, lda::Cint,
+                                                   Lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDpotrf_bufferSize(handle, uplo, n, A, lda, Lwork)
     initialize_context()
-    ccall((:cusolverDnDpotrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    Ptr{Cint}),
-                   handle, uplo, n, A, lda, Lwork)
+    @ccall libcusolver.cusolverDnDpotrf_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cdouble}, lda::Cint,
+                                                   Lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCpotrf_bufferSize(handle, uplo, n, A, lda, Lwork)
     initialize_context()
-    ccall((:cusolverDnCpotrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    Ptr{Cint}),
-                   handle, uplo, n, A, lda, Lwork)
+    @ccall libcusolver.cusolverDnCpotrf_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuComplex}, lda::Cint,
+                                                   Lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZpotrf_bufferSize(handle, uplo, n, A, lda, Lwork)
     initialize_context()
-    ccall((:cusolverDnZpotrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, Ptr{Cint}),
-                   handle, uplo, n, A, lda, Lwork)
+    @ccall libcusolver.cusolverDnZpotrf_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   Lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSpotrf(handle, uplo, n, A, lda, Workspace, Lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnSpotrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, Workspace, Lwork, devInfo)
+    @ccall libcusolver.cusolverDnSpotrf(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                        Workspace::CuPtr{Cfloat}, Lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDpotrf(handle, uplo, n, A, lda, Workspace, Lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnDpotrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, Workspace, Lwork, devInfo)
+    @ccall libcusolver.cusolverDnDpotrf(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                        Workspace::CuPtr{Cdouble}, Lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCpotrf(handle, uplo, n, A, lda, Workspace, Lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnCpotrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, Workspace, Lwork, devInfo)
+    @ccall libcusolver.cusolverDnCpotrf(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                        Workspace::CuPtr{cuComplex}, Lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZpotrf(handle, uplo, n, A, lda, Workspace, Lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnZpotrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, Workspace, Lwork, devInfo)
+    @ccall libcusolver.cusolverDnZpotrf(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        Workspace::CuPtr{cuDoubleComplex}, Lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSpotrs(handle, uplo, n, nrhs, A, lda, B, ldb, devInfo)
     initialize_context()
-    ccall((:cusolverDnSpotrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, nrhs, A, lda, B, ldb, devInfo)
+    @ccall libcusolver.cusolverDnSpotrs(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, nrhs::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                        B::CuPtr{Cfloat}, ldb::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDpotrs(handle, uplo, n, nrhs, A, lda, B, ldb, devInfo)
     initialize_context()
-    ccall((:cusolverDnDpotrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint, CuPtr{Cdouble},
-                    Cint, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, nrhs, A, lda, B, ldb, devInfo)
+    @ccall libcusolver.cusolverDnDpotrs(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, nrhs::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                        B::CuPtr{Cdouble}, ldb::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCpotrs(handle, uplo, n, nrhs, A, lda, B, ldb, devInfo)
     initialize_context()
-    ccall((:cusolverDnCpotrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint, CuPtr{cuComplex},
-                    Cint, CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, nrhs, A, lda, B, ldb, devInfo)
+    @ccall libcusolver.cusolverDnCpotrs(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, nrhs::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                        B::CuPtr{cuComplex}, ldb::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZpotrs(handle, uplo, n, nrhs, A, lda, B, ldb, devInfo)
     initialize_context()
-    ccall((:cusolverDnZpotrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, nrhs, A, lda, B, ldb, devInfo)
+    @ccall libcusolver.cusolverDnZpotrs(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, nrhs::Cint, A::CuPtr{cuDoubleComplex},
+                                        lda::Cint, B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnSpotrfBatched(handle, uplo, n, Aarray, lda, infoArray, batchSize)
+@checked function cusolverDnSpotrfBatched(handle, uplo, n, Aarray, lda, infoArray,
+                                          batchSize)
     initialize_context()
-    ccall((:cusolverDnSpotrfBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Ptr{Cfloat}}, Cint,
-                    CuPtr{Cint}, Cint),
-                   handle, uplo, n, Aarray, lda, infoArray, batchSize)
+    @ccall libcusolver.cusolverDnSpotrfBatched(handle::cusolverDnHandle_t,
+                                               uplo::cublasFillMode_t, n::Cint,
+                                               Aarray::CuPtr{Ptr{Cfloat}}, lda::Cint,
+                                               infoArray::CuPtr{Cint},
+                                               batchSize::Cint)::cusolverStatus_t
 end
 
-@checked function cusolverDnDpotrfBatched(handle, uplo, n, Aarray, lda, infoArray, batchSize)
+@checked function cusolverDnDpotrfBatched(handle, uplo, n, Aarray, lda, infoArray,
+                                          batchSize)
     initialize_context()
-    ccall((:cusolverDnDpotrfBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Ptr{Cdouble}}, Cint,
-                    CuPtr{Cint}, Cint),
-                   handle, uplo, n, Aarray, lda, infoArray, batchSize)
+    @ccall libcusolver.cusolverDnDpotrfBatched(handle::cusolverDnHandle_t,
+                                               uplo::cublasFillMode_t, n::Cint,
+                                               Aarray::CuPtr{Ptr{Cdouble}}, lda::Cint,
+                                               infoArray::CuPtr{Cint},
+                                               batchSize::Cint)::cusolverStatus_t
 end
 
-@checked function cusolverDnCpotrfBatched(handle, uplo, n, Aarray, lda, infoArray, batchSize)
+@checked function cusolverDnCpotrfBatched(handle, uplo, n, Aarray, lda, infoArray,
+                                          batchSize)
     initialize_context()
-    ccall((:cusolverDnCpotrfBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Ptr{cuComplex}},
-                    Cint, CuPtr{Cint}, Cint),
-                   handle, uplo, n, Aarray, lda, infoArray, batchSize)
+    @ccall libcusolver.cusolverDnCpotrfBatched(handle::cusolverDnHandle_t,
+                                               uplo::cublasFillMode_t, n::Cint,
+                                               Aarray::CuPtr{Ptr{cuComplex}}, lda::Cint,
+                                               infoArray::CuPtr{Cint},
+                                               batchSize::Cint)::cusolverStatus_t
 end
 
-@checked function cusolverDnZpotrfBatched(handle, uplo, n, Aarray, lda, infoArray, batchSize)
+@checked function cusolverDnZpotrfBatched(handle, uplo, n, Aarray, lda, infoArray,
+                                          batchSize)
     initialize_context()
-    ccall((:cusolverDnZpotrfBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint,
-                    CuPtr{Ptr{cuDoubleComplex}}, Cint, CuPtr{Cint}, Cint),
-                   handle, uplo, n, Aarray, lda, infoArray, batchSize)
+    @ccall libcusolver.cusolverDnZpotrfBatched(handle::cusolverDnHandle_t,
+                                               uplo::cublasFillMode_t, n::Cint,
+                                               Aarray::CuPtr{Ptr{cuDoubleComplex}},
+                                               lda::Cint, infoArray::CuPtr{Cint},
+                                               batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnSpotrsBatched(handle, uplo, n, nrhs, A, lda, B, ldb, d_info,
                                           batchSize)
     initialize_context()
-    ccall((:cusolverDnSpotrsBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint, CuPtr{Ptr{Cfloat}},
-                    Cint, CuPtr{Ptr{Cfloat}}, Cint, CuPtr{Cint}, Cint),
-                   handle, uplo, n, nrhs, A, lda, B, ldb, d_info, batchSize)
+    @ccall libcusolver.cusolverDnSpotrsBatched(handle::cusolverDnHandle_t,
+                                               uplo::cublasFillMode_t, n::Cint, nrhs::Cint,
+                                               A::CuPtr{Ptr{Cfloat}}, lda::Cint,
+                                               B::CuPtr{Ptr{Cfloat}}, ldb::Cint,
+                                               d_info::CuPtr{Cint},
+                                               batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnDpotrsBatched(handle, uplo, n, nrhs, A, lda, B, ldb, d_info,
                                           batchSize)
     initialize_context()
-    ccall((:cusolverDnDpotrsBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint, CuPtr{Ptr{Cdouble}},
-                    Cint, CuPtr{Ptr{Cdouble}}, Cint, CuPtr{Cint}, Cint),
-                   handle, uplo, n, nrhs, A, lda, B, ldb, d_info, batchSize)
+    @ccall libcusolver.cusolverDnDpotrsBatched(handle::cusolverDnHandle_t,
+                                               uplo::cublasFillMode_t, n::Cint, nrhs::Cint,
+                                               A::CuPtr{Ptr{Cdouble}}, lda::Cint,
+                                               B::CuPtr{Ptr{Cdouble}}, ldb::Cint,
+                                               d_info::CuPtr{Cint},
+                                               batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnCpotrsBatched(handle, uplo, n, nrhs, A, lda, B, ldb, d_info,
                                           batchSize)
     initialize_context()
-    ccall((:cusolverDnCpotrsBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint,
-                    CuPtr{Ptr{cuComplex}}, Cint, CuPtr{Ptr{cuComplex}}, Cint, CuPtr{Cint},
-                    Cint),
-                   handle, uplo, n, nrhs, A, lda, B, ldb, d_info, batchSize)
+    @ccall libcusolver.cusolverDnCpotrsBatched(handle::cusolverDnHandle_t,
+                                               uplo::cublasFillMode_t, n::Cint, nrhs::Cint,
+                                               A::CuPtr{Ptr{cuComplex}}, lda::Cint,
+                                               B::CuPtr{Ptr{cuComplex}}, ldb::Cint,
+                                               d_info::CuPtr{Cint},
+                                               batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnZpotrsBatched(handle, uplo, n, nrhs, A, lda, B, ldb, d_info,
                                           batchSize)
     initialize_context()
-    ccall((:cusolverDnZpotrsBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint,
-                    CuPtr{Ptr{cuDoubleComplex}}, Cint, CuPtr{Ptr{cuDoubleComplex}}, Cint,
-                    CuPtr{Cint}, Cint),
-                   handle, uplo, n, nrhs, A, lda, B, ldb, d_info, batchSize)
+    @ccall libcusolver.cusolverDnZpotrsBatched(handle::cusolverDnHandle_t,
+                                               uplo::cublasFillMode_t, n::Cint, nrhs::Cint,
+                                               A::CuPtr{Ptr{cuDoubleComplex}}, lda::Cint,
+                                               B::CuPtr{Ptr{cuDoubleComplex}}, ldb::Cint,
+                                               d_info::CuPtr{Cint},
+                                               batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnSpotri_bufferSize(handle, uplo, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnSpotri_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    Ptr{Cint}),
-                   handle, uplo, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnSpotri_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cfloat}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDpotri_bufferSize(handle, uplo, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnDpotri_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    Ptr{Cint}),
-                   handle, uplo, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnDpotri_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cdouble}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCpotri_bufferSize(handle, uplo, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnCpotri_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    Ptr{Cint}),
-                   handle, uplo, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnCpotri_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuComplex}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZpotri_bufferSize(handle, uplo, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnZpotri_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, Ptr{Cint}),
-                   handle, uplo, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnZpotri_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSpotri(handle, uplo, n, A, lda, work, lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnSpotri, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnSpotri(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                        work::CuPtr{Cfloat}, lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDpotri(handle, uplo, n, A, lda, work, lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnDpotri, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnDpotri(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                        work::CuPtr{Cdouble}, lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCpotri(handle, uplo, n, A, lda, work, lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnCpotri, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnCpotri(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                        work::CuPtr{cuComplex}, lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZpotri(handle, uplo, n, A, lda, work, lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnZpotri, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnZpotri(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        work::CuPtr{cuDoubleComplex}, lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnStrtri_bufferSize(handle, uplo, diag, n, A, lda, lwork)
+@checked function cusolverDnXtrtri_bufferSize(handle, uplo, diag, n, dataTypeA, A, lda,
+                                              workspaceInBytesOnDevice,
+                                              workspaceInBytesOnHost)
     initialize_context()
-    ccall((:cusolverDnStrtri_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, cublasDiagType_t, Cint,
-                    CuPtr{Cfloat}, Cint, Ptr{Cint}),
-                   handle, uplo, diag, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnXtrtri_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t,
+                                                   diag::cublasDiagType_t, n::Int64,
+                                                   dataTypeA::cudaDataType, A::Ptr{Cvoid},
+                                                   lda::Int64,
+                                                   workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                   workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverDnDtrtri_bufferSize(handle, uplo, diag, n, A, lda, lwork)
+@checked function cusolverDnXtrtri(handle, uplo, diag, n, dataTypeA, A, lda, bufferOnDevice,
+                                   workspaceInBytesOnDevice, bufferOnHost,
+                                   workspaceInBytesOnHost, devInfo)
     initialize_context()
-    ccall((:cusolverDnDtrtri_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, cublasDiagType_t, Cint,
-                    CuPtr{Cdouble}, Cint, Ptr{Cint}),
-                   handle, uplo, diag, n, A, lda, lwork)
-end
-
-@checked function cusolverDnCtrtri_bufferSize(handle, uplo, diag, n, A, lda, lwork)
-    initialize_context()
-    ccall((:cusolverDnCtrtri_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, cublasDiagType_t, Cint,
-                    CuPtr{cuComplex}, Cint, Ptr{Cint}),
-                   handle, uplo, diag, n, A, lda, lwork)
-end
-
-@checked function cusolverDnZtrtri_bufferSize(handle, uplo, diag, n, A, lda, lwork)
-    initialize_context()
-    ccall((:cusolverDnZtrtri_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, cublasDiagType_t, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, Ptr{Cint}),
-                   handle, uplo, diag, n, A, lda, lwork)
-end
-
-@checked function cusolverDnStrtri(handle, uplo, diag, n, A, lda, work, lwork, devInfo)
-    initialize_context()
-    ccall((:cusolverDnStrtri, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, cublasDiagType_t, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, uplo, diag, n, A, lda, work, lwork, devInfo)
-end
-
-@checked function cusolverDnDtrtri(handle, uplo, diag, n, A, lda, work, lwork, devInfo)
-    initialize_context()
-    ccall((:cusolverDnDtrtri, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, cublasDiagType_t, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, uplo, diag, n, A, lda, work, lwork, devInfo)
-end
-
-@checked function cusolverDnCtrtri(handle, uplo, diag, n, A, lda, work, lwork, devInfo)
-    initialize_context()
-    ccall((:cusolverDnCtrtri, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, cublasDiagType_t, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, diag, n, A, lda, work, lwork, devInfo)
-end
-
-@checked function cusolverDnZtrtri(handle, uplo, diag, n, A, lda, work, lwork, devInfo)
-    initialize_context()
-    ccall((:cusolverDnZtrtri, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, cublasDiagType_t, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, diag, n, A, lda, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnXtrtri(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        diag::cublasDiagType_t, n::Int64,
+                                        dataTypeA::cudaDataType, A::Ptr{Cvoid}, lda::Int64,
+                                        bufferOnDevice::Ptr{Cvoid},
+                                        workspaceInBytesOnDevice::Csize_t,
+                                        bufferOnHost::Ptr{Cvoid},
+                                        workspaceInBytesOnHost::Csize_t,
+                                        devInfo::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSlauum_bufferSize(handle, uplo, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnSlauum_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    Ptr{Cint}),
-                   handle, uplo, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnSlauum_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cfloat}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDlauum_bufferSize(handle, uplo, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnDlauum_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    Ptr{Cint}),
-                   handle, uplo, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnDlauum_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cdouble}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnClauum_bufferSize(handle, uplo, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnClauum_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    Ptr{Cint}),
-                   handle, uplo, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnClauum_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuComplex}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZlauum_bufferSize(handle, uplo, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnZlauum_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, Ptr{Cint}),
-                   handle, uplo, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnZlauum_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSlauum(handle, uplo, n, A, lda, work, lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnSlauum, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnSlauum(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                        work::CuPtr{Cfloat}, lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDlauum(handle, uplo, n, A, lda, work, lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnDlauum, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnDlauum(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                        work::CuPtr{Cdouble}, lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnClauum(handle, uplo, n, A, lda, work, lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnClauum, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnClauum(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                        work::CuPtr{cuComplex}, lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZlauum(handle, uplo, n, A, lda, work, lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnZlauum, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnZlauum(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        work::CuPtr{cuDoubleComplex}, lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSgetrf_bufferSize(handle, m, n, A, lda, Lwork)
     initialize_context()
-    ccall((:cusolverDnSgetrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{Cfloat}, Cint, Ptr{Cint}),
-                   handle, m, n, A, lda, Lwork)
+    @ccall libcusolver.cusolverDnSgetrf_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                                   Lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDgetrf_bufferSize(handle, m, n, A, lda, Lwork)
     initialize_context()
-    ccall((:cusolverDnDgetrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{Cdouble}, Cint, Ptr{Cint}),
-                   handle, m, n, A, lda, Lwork)
+    @ccall libcusolver.cusolverDnDgetrf_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                                   Lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCgetrf_bufferSize(handle, m, n, A, lda, Lwork)
     initialize_context()
-    ccall((:cusolverDnCgetrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{cuComplex}, Cint, Ptr{Cint}),
-                   handle, m, n, A, lda, Lwork)
+    @ccall libcusolver.cusolverDnCgetrf_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                                   Lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZgetrf_bufferSize(handle, m, n, A, lda, Lwork)
     initialize_context()
-    ccall((:cusolverDnZgetrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    Ptr{Cint}),
-                   handle, m, n, A, lda, Lwork)
+    @ccall libcusolver.cusolverDnZgetrf_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint, A::CuPtr{cuDoubleComplex},
+                                                   lda::Cint,
+                                                   Lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSgetrf(handle, m, n, A, lda, Workspace, devIpiv, devInfo)
     initialize_context()
-    ccall((:cusolverDnSgetrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
-                    CuPtr{Cint}, CuPtr{Cint}),
-                   handle, m, n, A, lda, Workspace, devIpiv, devInfo)
+    @ccall libcusolver.cusolverDnSgetrf(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        A::CuPtr{Cfloat}, lda::Cint,
+                                        Workspace::CuPtr{Cfloat}, devIpiv::CuPtr{Cint},
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDgetrf(handle, m, n, A, lda, Workspace, devIpiv, devInfo)
     initialize_context()
-    ccall((:cusolverDnDgetrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble},
-                    CuPtr{Cint}, CuPtr{Cint}),
-                   handle, m, n, A, lda, Workspace, devIpiv, devInfo)
+    @ccall libcusolver.cusolverDnDgetrf(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        A::CuPtr{Cdouble}, lda::Cint,
+                                        Workspace::CuPtr{Cdouble}, devIpiv::CuPtr{Cint},
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCgetrf(handle, m, n, A, lda, Workspace, devIpiv, devInfo)
     initialize_context()
-    ccall((:cusolverDnCgetrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, CuPtr{Cint}, CuPtr{Cint}),
-                   handle, m, n, A, lda, Workspace, devIpiv, devInfo)
+    @ccall libcusolver.cusolverDnCgetrf(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        A::CuPtr{cuComplex}, lda::Cint,
+                                        Workspace::CuPtr{cuComplex}, devIpiv::CuPtr{Cint},
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZgetrf(handle, m, n, A, lda, Workspace, devIpiv, devInfo)
     initialize_context()
-    ccall((:cusolverDnZgetrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, CuPtr{Cint}, CuPtr{Cint}),
-                   handle, m, n, A, lda, Workspace, devIpiv, devInfo)
+    @ccall libcusolver.cusolverDnZgetrf(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        Workspace::CuPtr{cuDoubleComplex},
+                                        devIpiv::CuPtr{Cint},
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSlaswp(handle, n, A, lda, k1, k2, devIpiv, incx)
     initialize_context()
-    ccall((:cusolverDnSlaswp, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, CuPtr{Cfloat}, Cint, Cint, Cint,
-                    CuPtr{Cint}, Cint),
-                   handle, n, A, lda, k1, k2, devIpiv, incx)
+    @ccall libcusolver.cusolverDnSlaswp(handle::cusolverDnHandle_t, n::Cint,
+                                        A::CuPtr{Cfloat}, lda::Cint, k1::Cint, k2::Cint,
+                                        devIpiv::CuPtr{Cint}, incx::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnDlaswp(handle, n, A, lda, k1, k2, devIpiv, incx)
     initialize_context()
-    ccall((:cusolverDnDlaswp, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, CuPtr{Cdouble}, Cint, Cint, Cint,
-                    CuPtr{Cint}, Cint),
-                   handle, n, A, lda, k1, k2, devIpiv, incx)
+    @ccall libcusolver.cusolverDnDlaswp(handle::cusolverDnHandle_t, n::Cint,
+                                        A::CuPtr{Cdouble}, lda::Cint, k1::Cint, k2::Cint,
+                                        devIpiv::CuPtr{Cint}, incx::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnClaswp(handle, n, A, lda, k1, k2, devIpiv, incx)
     initialize_context()
-    ccall((:cusolverDnClaswp, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, CuPtr{cuComplex}, Cint, Cint, Cint,
-                    CuPtr{Cint}, Cint),
-                   handle, n, A, lda, k1, k2, devIpiv, incx)
+    @ccall libcusolver.cusolverDnClaswp(handle::cusolverDnHandle_t, n::Cint,
+                                        A::CuPtr{cuComplex}, lda::Cint, k1::Cint, k2::Cint,
+                                        devIpiv::CuPtr{Cint}, incx::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnZlaswp(handle, n, A, lda, k1, k2, devIpiv, incx)
     initialize_context()
-    ccall((:cusolverDnZlaswp, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, Cint, Cint,
-                    CuPtr{Cint}, Cint),
-                   handle, n, A, lda, k1, k2, devIpiv, incx)
+    @ccall libcusolver.cusolverDnZlaswp(handle::cusolverDnHandle_t, n::Cint,
+                                        A::CuPtr{cuDoubleComplex}, lda::Cint, k1::Cint,
+                                        k2::Cint, devIpiv::CuPtr{Cint},
+                                        incx::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnSgetrs(handle, trans, n, nrhs, A, lda, devIpiv, B, ldb, devInfo)
     initialize_context()
-    ccall((:cusolverDnSgetrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasOperation_t, Cint, Cint, CuPtr{Cfloat},
-                    Cint, CuPtr{Cint}, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, trans, n, nrhs, A, lda, devIpiv, B, ldb, devInfo)
+    @ccall libcusolver.cusolverDnSgetrs(handle::cusolverDnHandle_t,
+                                        trans::cublasOperation_t, n::Cint, nrhs::Cint,
+                                        A::CuPtr{Cfloat}, lda::Cint, devIpiv::CuPtr{Cint},
+                                        B::CuPtr{Cfloat}, ldb::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDgetrs(handle, trans, n, nrhs, A, lda, devIpiv, B, ldb, devInfo)
     initialize_context()
-    ccall((:cusolverDnDgetrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasOperation_t, Cint, Cint, CuPtr{Cdouble},
-                    Cint, CuPtr{Cint}, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, trans, n, nrhs, A, lda, devIpiv, B, ldb, devInfo)
+    @ccall libcusolver.cusolverDnDgetrs(handle::cusolverDnHandle_t,
+                                        trans::cublasOperation_t, n::Cint, nrhs::Cint,
+                                        A::CuPtr{Cdouble}, lda::Cint, devIpiv::CuPtr{Cint},
+                                        B::CuPtr{Cdouble}, ldb::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCgetrs(handle, trans, n, nrhs, A, lda, devIpiv, B, ldb, devInfo)
     initialize_context()
-    ccall((:cusolverDnCgetrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasOperation_t, Cint, Cint, CuPtr{cuComplex},
-                    Cint, CuPtr{Cint}, CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, trans, n, nrhs, A, lda, devIpiv, B, ldb, devInfo)
+    @ccall libcusolver.cusolverDnCgetrs(handle::cusolverDnHandle_t,
+                                        trans::cublasOperation_t, n::Cint, nrhs::Cint,
+                                        A::CuPtr{cuComplex}, lda::Cint,
+                                        devIpiv::CuPtr{Cint}, B::CuPtr{cuComplex},
+                                        ldb::Cint, devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZgetrs(handle, trans, n, nrhs, A, lda, devIpiv, B, ldb, devInfo)
     initialize_context()
-    ccall((:cusolverDnZgetrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasOperation_t, Cint, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{Cint}),
-                   handle, trans, n, nrhs, A, lda, devIpiv, B, ldb, devInfo)
+    @ccall libcusolver.cusolverDnZgetrs(handle::cusolverDnHandle_t,
+                                        trans::cublasOperation_t, n::Cint, nrhs::Cint,
+                                        A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        devIpiv::CuPtr{Cint}, B::CuPtr{cuDoubleComplex},
+                                        ldb::Cint, devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSgeqrf_bufferSize(handle, m, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnSgeqrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{Cfloat}, Cint, Ptr{Cint}),
-                   handle, m, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnSgeqrf_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDgeqrf_bufferSize(handle, m, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnDgeqrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{Cdouble}, Cint, Ptr{Cint}),
-                   handle, m, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnDgeqrf_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCgeqrf_bufferSize(handle, m, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnCgeqrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{cuComplex}, Cint, Ptr{Cint}),
-                   handle, m, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnCgeqrf_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZgeqrf_bufferSize(handle, m, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnZgeqrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    Ptr{Cint}),
-                   handle, m, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnZgeqrf_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint, A::CuPtr{cuDoubleComplex},
+                                                   lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSgeqrf(handle, m, n, A, lda, TAU, Workspace, Lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnSgeqrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
-                    CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, m, n, A, lda, TAU, Workspace, Lwork, devInfo)
+    @ccall libcusolver.cusolverDnSgeqrf(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        A::CuPtr{Cfloat}, lda::Cint, TAU::CuPtr{Cfloat},
+                                        Workspace::CuPtr{Cfloat}, Lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDgeqrf(handle, m, n, A, lda, TAU, Workspace, Lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnDgeqrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble},
-                    CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, m, n, A, lda, TAU, Workspace, Lwork, devInfo)
+    @ccall libcusolver.cusolverDnDgeqrf(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        A::CuPtr{Cdouble}, lda::Cint, TAU::CuPtr{Cdouble},
+                                        Workspace::CuPtr{Cdouble}, Lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCgeqrf(handle, m, n, A, lda, TAU, Workspace, Lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnCgeqrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, m, n, A, lda, TAU, Workspace, Lwork, devInfo)
+    @ccall libcusolver.cusolverDnCgeqrf(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        A::CuPtr{cuComplex}, lda::Cint,
+                                        TAU::CuPtr{cuComplex}, Workspace::CuPtr{cuComplex},
+                                        Lwork::Cint, devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZgeqrf(handle, m, n, A, lda, TAU, Workspace, Lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnZgeqrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, m, n, A, lda, TAU, Workspace, Lwork, devInfo)
+    @ccall libcusolver.cusolverDnZgeqrf(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        TAU::CuPtr{cuDoubleComplex},
+                                        Workspace::CuPtr{cuDoubleComplex}, Lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSorgqr_bufferSize(handle, m, n, k, A, lda, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnSorgqr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, Ptr{Cint}),
-                   handle, m, n, k, A, lda, tau, lwork)
+    @ccall libcusolver.cusolverDnSorgqr_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint, k::Cint, A::CuPtr{Cfloat},
+                                                   lda::Cint, tau::CuPtr{Cfloat},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDorgqr_bufferSize(handle, m, n, k, A, lda, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnDorgqr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, m, n, k, A, lda, tau, lwork)
+    @ccall libcusolver.cusolverDnDorgqr_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint, k::Cint, A::CuPtr{Cdouble},
+                                                   lda::Cint, tau::CuPtr{Cdouble},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCungqr_bufferSize(handle, m, n, k, A, lda, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnCungqr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, Ptr{Cint}),
-                   handle, m, n, k, A, lda, tau, lwork)
+    @ccall libcusolver.cusolverDnCungqr_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint, k::Cint, A::CuPtr{cuComplex},
+                                                   lda::Cint, tau::CuPtr{cuComplex},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZungqr_bufferSize(handle, m, n, k, A, lda, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnZungqr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Ptr{Cint}),
-                   handle, m, n, k, A, lda, tau, lwork)
+    @ccall libcusolver.cusolverDnZungqr_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint, k::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   tau::CuPtr{cuDoubleComplex},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSorgqr(handle, m, n, k, A, lda, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnSorgqr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, m, n, k, A, lda, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnSorgqr(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        k::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                        tau::CuPtr{Cfloat}, work::CuPtr{Cfloat},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDorgqr(handle, m, n, k, A, lda, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnDorgqr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, m, n, k, A, lda, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnDorgqr(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        k::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                        tau::CuPtr{Cdouble}, work::CuPtr{Cdouble},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCungqr(handle, m, n, k, A, lda, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnCungqr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, m, n, k, A, lda, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnCungqr(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        k::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                        tau::CuPtr{cuComplex}, work::CuPtr{cuComplex},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZungqr(handle, m, n, k, A, lda, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnZungqr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, m, n, k, A, lda, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnZungqr(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        k::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        tau::CuPtr{cuDoubleComplex},
+                                        work::CuPtr{cuDoubleComplex}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSormqr_bufferSize(handle, side, trans, m, n, k, A, lda, tau, C,
                                               ldc, lwork)
     initialize_context()
-    ccall((:cusolverDnSormqr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasOperation_t, Cint, Cint,
-                    Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint,
-                    Ptr{Cint}),
-                   handle, side, trans, m, n, k, A, lda, tau, C, ldc, lwork)
+    @ccall libcusolver.cusolverDnSormqr_bufferSize(handle::cusolverDnHandle_t,
+                                                   side::cublasSideMode_t,
+                                                   trans::cublasOperation_t, m::Cint,
+                                                   n::Cint, k::Cint, A::CuPtr{Cfloat},
+                                                   lda::Cint, tau::CuPtr{Cfloat},
+                                                   C::CuPtr{Cfloat}, ldc::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDormqr_bufferSize(handle, side, trans, m, n, k, A, lda, tau, C,
                                               ldc, lwork)
     initialize_context()
-    ccall((:cusolverDnDormqr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasOperation_t, Cint, Cint,
-                    Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
-                    Ptr{Cint}),
-                   handle, side, trans, m, n, k, A, lda, tau, C, ldc, lwork)
+    @ccall libcusolver.cusolverDnDormqr_bufferSize(handle::cusolverDnHandle_t,
+                                                   side::cublasSideMode_t,
+                                                   trans::cublasOperation_t, m::Cint,
+                                                   n::Cint, k::Cint, A::CuPtr{Cdouble},
+                                                   lda::Cint, tau::CuPtr{Cdouble},
+                                                   C::CuPtr{Cdouble}, ldc::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCunmqr_bufferSize(handle, side, trans, m, n, k, A, lda, tau, C,
                                               ldc, lwork)
     initialize_context()
-    ccall((:cusolverDnCunmqr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasOperation_t, Cint, Cint,
-                    Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, CuPtr{cuComplex}, Cint,
-                    Ptr{Cint}),
-                   handle, side, trans, m, n, k, A, lda, tau, C, ldc, lwork)
+    @ccall libcusolver.cusolverDnCunmqr_bufferSize(handle::cusolverDnHandle_t,
+                                                   side::cublasSideMode_t,
+                                                   trans::cublasOperation_t, m::Cint,
+                                                   n::Cint, k::Cint, A::CuPtr{cuComplex},
+                                                   lda::Cint, tau::CuPtr{cuComplex},
+                                                   C::CuPtr{cuComplex}, ldc::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZunmqr_bufferSize(handle, side, trans, m, n, k, A, lda, tau, C,
                                               ldc, lwork)
     initialize_context()
-    ccall((:cusolverDnZunmqr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasOperation_t, Cint, Cint,
-                    Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex},
-                    CuPtr{cuDoubleComplex}, Cint, Ptr{Cint}),
-                   handle, side, trans, m, n, k, A, lda, tau, C, ldc, lwork)
+    @ccall libcusolver.cusolverDnZunmqr_bufferSize(handle::cusolverDnHandle_t,
+                                                   side::cublasSideMode_t,
+                                                   trans::cublasOperation_t, m::Cint,
+                                                   n::Cint, k::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   tau::CuPtr{cuDoubleComplex},
+                                                   C::CuPtr{cuDoubleComplex}, ldc::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSormqr(handle, side, trans, m, n, k, A, lda, tau, C, ldc, work,
                                    lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnSormqr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasOperation_t, Cint, Cint,
-                    Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, side, trans, m, n, k, A, lda, tau, C, ldc, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnSormqr(handle::cusolverDnHandle_t, side::cublasSideMode_t,
+                                        trans::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                        A::CuPtr{Cfloat}, lda::Cint, tau::CuPtr{Cfloat},
+                                        C::CuPtr{Cfloat}, ldc::Cint, work::CuPtr{Cfloat},
+                                        lwork::Cint, devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDormqr(handle, side, trans, m, n, k, A, lda, tau, C, ldc, work,
                                    lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnDormqr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasOperation_t, Cint, Cint,
-                    Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, side, trans, m, n, k, A, lda, tau, C, ldc, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnDormqr(handle::cusolverDnHandle_t, side::cublasSideMode_t,
+                                        trans::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                        A::CuPtr{Cdouble}, lda::Cint, tau::CuPtr{Cdouble},
+                                        C::CuPtr{Cdouble}, ldc::Cint, work::CuPtr{Cdouble},
+                                        lwork::Cint, devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCunmqr(handle, side, trans, m, n, k, A, lda, tau, C, ldc, work,
                                    lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnCunmqr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasOperation_t, Cint, Cint,
-                    Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, side, trans, m, n, k, A, lda, tau, C, ldc, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnCunmqr(handle::cusolverDnHandle_t, side::cublasSideMode_t,
+                                        trans::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                        A::CuPtr{cuComplex}, lda::Cint,
+                                        tau::CuPtr{cuComplex}, C::CuPtr{cuComplex},
+                                        ldc::Cint, work::CuPtr{cuComplex}, lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZunmqr(handle, side, trans, m, n, k, A, lda, tau, C, ldc, work,
                                    lwork, devInfo)
     initialize_context()
-    ccall((:cusolverDnZunmqr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasOperation_t, Cint, Cint,
-                    Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex},
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, side, trans, m, n, k, A, lda, tau, C, ldc, work, lwork, devInfo)
+    @ccall libcusolver.cusolverDnZunmqr(handle::cusolverDnHandle_t, side::cublasSideMode_t,
+                                        trans::cublasOperation_t, m::Cint, n::Cint, k::Cint,
+                                        A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        tau::CuPtr{cuDoubleComplex},
+                                        C::CuPtr{cuDoubleComplex}, ldc::Cint,
+                                        work::CuPtr{cuDoubleComplex}, lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsytrf_bufferSize(handle, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnSsytrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, CuPtr{Cfloat}, Cint, Ptr{Cint}),
-                   handle, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnSsytrf_bufferSize(handle::cusolverDnHandle_t, n::Cint,
+                                                   A::CuPtr{Cfloat}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDsytrf_bufferSize(handle, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnDsytrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, CuPtr{Cdouble}, Cint, Ptr{Cint}),
-                   handle, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnDsytrf_bufferSize(handle::cusolverDnHandle_t, n::Cint,
+                                                   A::CuPtr{Cdouble}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCsytrf_bufferSize(handle, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnCsytrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, CuPtr{cuComplex}, Cint, Ptr{Cint}),
-                   handle, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnCsytrf_bufferSize(handle::cusolverDnHandle_t, n::Cint,
+                                                   A::CuPtr{cuComplex}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZsytrf_bufferSize(handle, n, A, lda, lwork)
     initialize_context()
-    ccall((:cusolverDnZsytrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, Ptr{Cint}),
-                   handle, n, A, lda, lwork)
+    @ccall libcusolver.cusolverDnZsytrf_bufferSize(handle::cusolverDnHandle_t, n::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsytrf(handle, uplo, n, A, lda, ipiv, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnSsytrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cint}, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, ipiv, work, lwork, info)
+    @ccall libcusolver.cusolverDnSsytrf(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                        ipiv::CuPtr{Cint}, work::CuPtr{Cfloat}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDsytrf(handle, uplo, n, A, lda, ipiv, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnDsytrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cint}, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, ipiv, work, lwork, info)
+    @ccall libcusolver.cusolverDnDsytrf(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                        ipiv::CuPtr{Cint}, work::CuPtr{Cdouble},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCsytrf(handle, uplo, n, A, lda, ipiv, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnCsytrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cint}, CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, ipiv, work, lwork, info)
+    @ccall libcusolver.cusolverDnCsytrf(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                        ipiv::CuPtr{Cint}, work::CuPtr{cuComplex},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZsytrf(handle, uplo, n, A, lda, ipiv, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnZsytrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{Cint}, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, ipiv, work, lwork, info)
+    @ccall libcusolver.cusolverDnZsytrf(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        ipiv::CuPtr{Cint}, work::CuPtr{cuDoubleComplex},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnSsytrs_bufferSize(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb,
-                                              lwork)
+@checked function cusolverDnXsytrs_bufferSize(handle, uplo, n, nrhs, dataTypeA, A, lda,
+                                              ipiv, dataTypeB, B, ldb,
+                                              workspaceInBytesOnDevice,
+                                              workspaceInBytesOnHost)
     initialize_context()
-    ccall((:cusolverDnSsytrs_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cint}, CuPtr{Cfloat}, Cint, Ptr{Cint}),
-                   handle, uplo, n, nrhs, A, lda, ipiv, B, ldb, lwork)
+    @ccall libcusolver.cusolverDnXsytrs_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Int64,
+                                                   nrhs::Int64, dataTypeA::cudaDataType,
+                                                   A::Ptr{Cvoid}, lda::Int64,
+                                                   ipiv::Ptr{Int64},
+                                                   dataTypeB::cudaDataType, B::Ptr{Cvoid},
+                                                   ldb::Int64,
+                                                   workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                   workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverDnDsytrs_bufferSize(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb,
-                                              lwork)
+@checked function cusolverDnXsytrs(handle, uplo, n, nrhs, dataTypeA, A, lda, ipiv,
+                                   dataTypeB, B, ldb, bufferOnDevice,
+                                   workspaceInBytesOnDevice, bufferOnHost,
+                                   workspaceInBytesOnHost, info)
     initialize_context()
-    ccall((:cusolverDnDsytrs_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint, CuPtr{Cdouble},
-                    Cint, CuPtr{Cint}, CuPtr{Cdouble}, Cint, Ptr{Cint}),
-                   handle, uplo, n, nrhs, A, lda, ipiv, B, ldb, lwork)
-end
-
-@checked function cusolverDnCsytrs_bufferSize(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb,
-                                              lwork)
-    initialize_context()
-    ccall((:cusolverDnCsytrs_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint, CuPtr{cuComplex},
-                    Cint, CuPtr{Cint}, CuPtr{cuComplex}, Cint, Ptr{Cint}),
-                   handle, uplo, n, nrhs, A, lda, ipiv, B, ldb, lwork)
-end
-
-@checked function cusolverDnZsytrs_bufferSize(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb,
-                                              lwork)
-    initialize_context()
-    ccall((:cusolverDnZsytrs_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}, CuPtr{cuDoubleComplex},
-                    Cint, Ptr{Cint}),
-                   handle, uplo, n, nrhs, A, lda, ipiv, B, ldb, lwork)
-end
-
-@checked function cusolverDnSsytrs(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb, work,
-                                   lwork, info)
-    initialize_context()
-    ccall((:cusolverDnSsytrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cint}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, nrhs, A, lda, ipiv, B, ldb, work, lwork, info)
-end
-
-@checked function cusolverDnDsytrs(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb, work,
-                                   lwork, info)
-    initialize_context()
-    ccall((:cusolverDnDsytrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint, CuPtr{Cdouble},
-                    Cint, CuPtr{Cint}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cint}),
-                   handle, uplo, n, nrhs, A, lda, ipiv, B, ldb, work, lwork, info)
-end
-
-@checked function cusolverDnCsytrs(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb, work,
-                                   lwork, info)
-    initialize_context()
-    ccall((:cusolverDnCsytrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint, CuPtr{cuComplex},
-                    Cint, CuPtr{Cint}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cint}),
-                   handle, uplo, n, nrhs, A, lda, ipiv, B, ldb, work, lwork, info)
-end
-
-@checked function cusolverDnZsytrs(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb, work,
-                                   lwork, info)
-    initialize_context()
-    ccall((:cusolverDnZsytrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, nrhs, A, lda, ipiv, B, ldb, work, lwork, info)
+    @ccall libcusolver.cusolverDnXsytrs(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Int64, nrhs::Int64, dataTypeA::cudaDataType,
+                                        A::Ptr{Cvoid}, lda::Int64, ipiv::Ptr{Int64},
+                                        dataTypeB::cudaDataType, B::Ptr{Cvoid}, ldb::Int64,
+                                        bufferOnDevice::Ptr{Cvoid},
+                                        workspaceInBytesOnDevice::Csize_t,
+                                        bufferOnHost::Ptr{Cvoid},
+                                        workspaceInBytesOnHost::Csize_t,
+                                        info::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsytri_bufferSize(handle, uplo, n, A, lda, ipiv, lwork)
     initialize_context()
-    ccall((:cusolverDnSsytri_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cint}, Ptr{Cint}),
-                   handle, uplo, n, A, lda, ipiv, lwork)
+    @ccall libcusolver.cusolverDnSsytri_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cfloat}, lda::Cint,
+                                                   ipiv::CuPtr{Cint},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDsytri_bufferSize(handle, uplo, n, A, lda, ipiv, lwork)
     initialize_context()
-    ccall((:cusolverDnDsytri_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cint}, Ptr{Cint}),
-                   handle, uplo, n, A, lda, ipiv, lwork)
+    @ccall libcusolver.cusolverDnDsytri_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cdouble}, lda::Cint,
+                                                   ipiv::CuPtr{Cint},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCsytri_bufferSize(handle, uplo, n, A, lda, ipiv, lwork)
     initialize_context()
-    ccall((:cusolverDnCsytri_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cint}, Ptr{Cint}),
-                   handle, uplo, n, A, lda, ipiv, lwork)
+    @ccall libcusolver.cusolverDnCsytri_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuComplex}, lda::Cint,
+                                                   ipiv::CuPtr{Cint},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZsytri_bufferSize(handle, uplo, n, A, lda, ipiv, lwork)
     initialize_context()
-    ccall((:cusolverDnZsytri_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{Cint}, Ptr{Cint}),
-                   handle, uplo, n, A, lda, ipiv, lwork)
+    @ccall libcusolver.cusolverDnZsytri_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   ipiv::CuPtr{Cint},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsytri(handle, uplo, n, A, lda, ipiv, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnSsytri, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cint}, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, ipiv, work, lwork, info)
+    @ccall libcusolver.cusolverDnSsytri(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                        ipiv::CuPtr{Cint}, work::CuPtr{Cfloat}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDsytri(handle, uplo, n, A, lda, ipiv, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnDsytri, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cint}, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, ipiv, work, lwork, info)
+    @ccall libcusolver.cusolverDnDsytri(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                        ipiv::CuPtr{Cint}, work::CuPtr{Cdouble},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCsytri(handle, uplo, n, A, lda, ipiv, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnCsytri, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cint}, CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, ipiv, work, lwork, info)
+    @ccall libcusolver.cusolverDnCsytri(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                        ipiv::CuPtr{Cint}, work::CuPtr{cuComplex},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZsytri(handle, uplo, n, A, lda, ipiv, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnZsytri, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{Cint}, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, ipiv, work, lwork, info)
+    @ccall libcusolver.cusolverDnZsytri(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        ipiv::CuPtr{Cint}, work::CuPtr{cuDoubleComplex},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSgebrd_bufferSize(handle, m, n, Lwork)
     initialize_context()
-    ccall((:cusolverDnSgebrd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Ptr{Cint}),
-                   handle, m, n, Lwork)
+    @ccall libcusolver.cusolverDnSgebrd_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint,
+                                                   Lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDgebrd_bufferSize(handle, m, n, Lwork)
     initialize_context()
-    ccall((:cusolverDnDgebrd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Ptr{Cint}),
-                   handle, m, n, Lwork)
+    @ccall libcusolver.cusolverDnDgebrd_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint,
+                                                   Lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCgebrd_bufferSize(handle, m, n, Lwork)
     initialize_context()
-    ccall((:cusolverDnCgebrd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Ptr{Cint}),
-                   handle, m, n, Lwork)
+    @ccall libcusolver.cusolverDnCgebrd_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint,
+                                                   Lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZgebrd_bufferSize(handle, m, n, Lwork)
     initialize_context()
-    ccall((:cusolverDnZgebrd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Ptr{Cint}),
-                   handle, m, n, Lwork)
+    @ccall libcusolver.cusolverDnZgebrd_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint,
+                                                   Lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSgebrd(handle, m, n, A, lda, D, E, TAUQ, TAUP, Work, Lwork,
                                    devInfo)
     initialize_context()
-    ccall((:cusolverDnSgebrd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
-                    CuPtr{Cfloat}, CuPtr{Cfloat}, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cint}),
-                   handle, m, n, A, lda, D, E, TAUQ, TAUP, Work, Lwork, devInfo)
+    @ccall libcusolver.cusolverDnSgebrd(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        A::CuPtr{Cfloat}, lda::Cint, D::CuPtr{Cfloat},
+                                        E::CuPtr{Cfloat}, TAUQ::CuPtr{Cfloat},
+                                        TAUP::CuPtr{Cfloat}, Work::CuPtr{Cfloat},
+                                        Lwork::Cint, devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDgebrd(handle, m, n, A, lda, D, E, TAUQ, TAUP, Work, Lwork,
                                    devInfo)
     initialize_context()
-    ccall((:cusolverDnDgebrd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble},
-                    CuPtr{Cdouble}, CuPtr{Cdouble}, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cint}),
-                   handle, m, n, A, lda, D, E, TAUQ, TAUP, Work, Lwork, devInfo)
+    @ccall libcusolver.cusolverDnDgebrd(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        A::CuPtr{Cdouble}, lda::Cint, D::CuPtr{Cdouble},
+                                        E::CuPtr{Cdouble}, TAUQ::CuPtr{Cdouble},
+                                        TAUP::CuPtr{Cdouble}, Work::CuPtr{Cdouble},
+                                        Lwork::Cint, devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCgebrd(handle, m, n, A, lda, D, E, TAUQ, TAUP, Work, Lwork,
                                    devInfo)
     initialize_context()
-    ccall((:cusolverDnCgebrd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{cuComplex}, Cint, CuPtr{Cfloat},
-                    CuPtr{Cfloat}, CuPtr{cuComplex}, CuPtr{cuComplex}, CuPtr{cuComplex},
-                    Cint, CuPtr{Cint}),
-                   handle, m, n, A, lda, D, E, TAUQ, TAUP, Work, Lwork, devInfo)
+    @ccall libcusolver.cusolverDnCgebrd(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        A::CuPtr{cuComplex}, lda::Cint, D::CuPtr{Cfloat},
+                                        E::CuPtr{Cfloat}, TAUQ::CuPtr{cuComplex},
+                                        TAUP::CuPtr{cuComplex}, Work::CuPtr{cuComplex},
+                                        Lwork::Cint, devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZgebrd(handle, m, n, A, lda, D, E, TAUQ, TAUP, Work, Lwork,
                                    devInfo)
     initialize_context()
-    ccall((:cusolverDnZgebrd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{Cdouble}, CuPtr{Cdouble}, CuPtr{cuDoubleComplex},
-                    CuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, m, n, A, lda, D, E, TAUQ, TAUP, Work, Lwork, devInfo)
+    @ccall libcusolver.cusolverDnZgebrd(handle::cusolverDnHandle_t, m::Cint, n::Cint,
+                                        A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        D::CuPtr{Cdouble}, E::CuPtr{Cdouble},
+                                        TAUQ::CuPtr{cuDoubleComplex},
+                                        TAUP::CuPtr{cuDoubleComplex},
+                                        Work::CuPtr{cuDoubleComplex}, Lwork::Cint,
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSorgbr_bufferSize(handle, side, m, n, k, A, lda, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnSorgbr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, Cint, Cint, Cint, CuPtr{Cfloat},
-                    Cint, CuPtr{Cfloat}, Ptr{Cint}),
-                   handle, side, m, n, k, A, lda, tau, lwork)
+    @ccall libcusolver.cusolverDnSorgbr_bufferSize(handle::cusolverDnHandle_t,
+                                                   side::cublasSideMode_t, m::Cint, n::Cint,
+                                                   k::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                                   tau::CuPtr{Cfloat},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDorgbr_bufferSize(handle, side, m, n, k, A, lda, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnDorgbr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, Cint, Cint, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, side, m, n, k, A, lda, tau, lwork)
+    @ccall libcusolver.cusolverDnDorgbr_bufferSize(handle::cusolverDnHandle_t,
+                                                   side::cublasSideMode_t, m::Cint, n::Cint,
+                                                   k::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                                   tau::CuPtr{Cdouble},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCungbr_bufferSize(handle, side, m, n, k, A, lda, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnCungbr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, Cint, Cint, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Ptr{Cint}),
-                   handle, side, m, n, k, A, lda, tau, lwork)
+    @ccall libcusolver.cusolverDnCungbr_bufferSize(handle::cusolverDnHandle_t,
+                                                   side::cublasSideMode_t, m::Cint, n::Cint,
+                                                   k::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                                   tau::CuPtr{cuComplex},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZungbr_bufferSize(handle, side, m, n, k, A, lda, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnZungbr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, Cint, Cint, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Ptr{Cint}),
-                   handle, side, m, n, k, A, lda, tau, lwork)
+    @ccall libcusolver.cusolverDnZungbr_bufferSize(handle::cusolverDnHandle_t,
+                                                   side::cublasSideMode_t, m::Cint, n::Cint,
+                                                   k::Cint, A::CuPtr{cuDoubleComplex},
+                                                   lda::Cint, tau::CuPtr{cuDoubleComplex},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSorgbr(handle, side, m, n, k, A, lda, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnSorgbr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, Cint, Cint, Cint, CuPtr{Cfloat},
-                    Cint, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, side, m, n, k, A, lda, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnSorgbr(handle::cusolverDnHandle_t, side::cublasSideMode_t,
+                                        m::Cint, n::Cint, k::Cint, A::CuPtr{Cfloat},
+                                        lda::Cint, tau::CuPtr{Cfloat}, work::CuPtr{Cfloat},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDorgbr(handle, side, m, n, k, A, lda, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnDorgbr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, Cint, Cint, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, side, m, n, k, A, lda, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnDorgbr(handle::cusolverDnHandle_t, side::cublasSideMode_t,
+                                        m::Cint, n::Cint, k::Cint, A::CuPtr{Cdouble},
+                                        lda::Cint, tau::CuPtr{Cdouble},
+                                        work::CuPtr{Cdouble}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCungbr(handle, side, m, n, k, A, lda, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnCungbr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, Cint, Cint, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cint}),
-                   handle, side, m, n, k, A, lda, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnCungbr(handle::cusolverDnHandle_t, side::cublasSideMode_t,
+                                        m::Cint, n::Cint, k::Cint, A::CuPtr{cuComplex},
+                                        lda::Cint, tau::CuPtr{cuComplex},
+                                        work::CuPtr{cuComplex}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZungbr(handle, side, m, n, k, A, lda, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnZungbr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, Cint, Cint, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex},
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, side, m, n, k, A, lda, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnZungbr(handle::cusolverDnHandle_t, side::cublasSideMode_t,
+                                        m::Cint, n::Cint, k::Cint,
+                                        A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        tau::CuPtr{cuDoubleComplex},
+                                        work::CuPtr{cuDoubleComplex}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsytrd_bufferSize(handle, uplo, n, A, lda, d, e, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnSsytrd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, CuPtr{Cfloat}, CuPtr{Cfloat}, Ptr{Cint}),
-                   handle, uplo, n, A, lda, d, e, tau, lwork)
+    @ccall libcusolver.cusolverDnSsytrd_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cfloat}, lda::Cint,
+                                                   d::CuPtr{Cfloat}, e::CuPtr{Cfloat},
+                                                   tau::CuPtr{Cfloat},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDsytrd_bufferSize(handle, uplo, n, A, lda, d, e, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnDsytrd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, CuPtr{Cdouble}, CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, uplo, n, A, lda, d, e, tau, lwork)
+    @ccall libcusolver.cusolverDnDsytrd_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cdouble}, lda::Cint,
+                                                   d::CuPtr{Cdouble}, e::CuPtr{Cdouble},
+                                                   tau::CuPtr{Cdouble},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnChetrd_bufferSize(handle, uplo, n, A, lda, d, e, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnChetrd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cfloat}, CuPtr{Cfloat}, CuPtr{cuComplex}, Ptr{Cint}),
-                   handle, uplo, n, A, lda, d, e, tau, lwork)
+    @ccall libcusolver.cusolverDnChetrd_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuComplex}, lda::Cint,
+                                                   d::CuPtr{Cfloat}, e::CuPtr{Cfloat},
+                                                   tau::CuPtr{cuComplex},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZhetrd_bufferSize(handle, uplo, n, A, lda, d, e, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnZhetrd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, CuPtr{cuDoubleComplex}, Ptr{Cint}),
-                   handle, uplo, n, A, lda, d, e, tau, lwork)
+    @ccall libcusolver.cusolverDnZhetrd_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   d::CuPtr{Cdouble}, e::CuPtr{Cdouble},
+                                                   tau::CuPtr{cuDoubleComplex},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsytrd(handle, uplo, n, A, lda, d, e, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnSsytrd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, CuPtr{Cfloat}, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cint}),
-                   handle, uplo, n, A, lda, d, e, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnSsytrd(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                        d::CuPtr{Cfloat}, e::CuPtr{Cfloat},
+                                        tau::CuPtr{Cfloat}, work::CuPtr{Cfloat},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDsytrd(handle, uplo, n, A, lda, d, e, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnDsytrd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, CuPtr{Cdouble}, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cint}),
-                   handle, uplo, n, A, lda, d, e, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnDsytrd(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                        d::CuPtr{Cdouble}, e::CuPtr{Cdouble},
+                                        tau::CuPtr{Cdouble}, work::CuPtr{Cdouble},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnChetrd(handle, uplo, n, A, lda, d, e, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnChetrd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cfloat}, CuPtr{Cfloat}, CuPtr{cuComplex}, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cint}),
-                   handle, uplo, n, A, lda, d, e, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnChetrd(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                        d::CuPtr{Cfloat}, e::CuPtr{Cfloat},
+                                        tau::CuPtr{cuComplex}, work::CuPtr{cuComplex},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZhetrd(handle, uplo, n, A, lda, d, e, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnZhetrd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, CuPtr{cuDoubleComplex},
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, d, e, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnZhetrd(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        d::CuPtr{Cdouble}, e::CuPtr{Cdouble},
+                                        tau::CuPtr{cuDoubleComplex},
+                                        work::CuPtr{cuDoubleComplex}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSorgtr_bufferSize(handle, uplo, n, A, lda, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnSorgtr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, Ptr{Cint}),
-                   handle, uplo, n, A, lda, tau, lwork)
+    @ccall libcusolver.cusolverDnSorgtr_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cfloat}, lda::Cint,
+                                                   tau::CuPtr{Cfloat},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDorgtr_bufferSize(handle, uplo, n, A, lda, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnDorgtr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, uplo, n, A, lda, tau, lwork)
+    @ccall libcusolver.cusolverDnDorgtr_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cdouble}, lda::Cint,
+                                                   tau::CuPtr{Cdouble},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCungtr_bufferSize(handle, uplo, n, A, lda, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnCungtr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, Ptr{Cint}),
-                   handle, uplo, n, A, lda, tau, lwork)
+    @ccall libcusolver.cusolverDnCungtr_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuComplex}, lda::Cint,
+                                                   tau::CuPtr{cuComplex},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZungtr_bufferSize(handle, uplo, n, A, lda, tau, lwork)
     initialize_context()
-    ccall((:cusolverDnZungtr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{cuDoubleComplex}, Ptr{Cint}),
-                   handle, uplo, n, A, lda, tau, lwork)
+    @ccall libcusolver.cusolverDnZungtr_bufferSize(handle::cusolverDnHandle_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   tau::CuPtr{cuDoubleComplex},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSorgtr(handle, uplo, n, A, lda, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnSorgtr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnSorgtr(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                        tau::CuPtr{Cfloat}, work::CuPtr{Cfloat},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDorgtr(handle, uplo, n, A, lda, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnDorgtr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnDorgtr(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                        tau::CuPtr{Cdouble}, work::CuPtr{Cdouble},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCungtr(handle, uplo, n, A, lda, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnCungtr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnCungtr(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                        tau::CuPtr{cuComplex}, work::CuPtr{cuComplex},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZungtr(handle, uplo, n, A, lda, tau, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnZungtr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, uplo, n, A, lda, tau, work, lwork, info)
+    @ccall libcusolver.cusolverDnZungtr(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
+                                        n::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        tau::CuPtr{cuDoubleComplex},
+                                        work::CuPtr{cuDoubleComplex}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSormtr_bufferSize(handle, side, uplo, trans, m, n, A, lda, tau,
                                               C, ldc, lwork)
     initialize_context()
-    ccall((:cusolverDnSormtr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasFillMode_t,
-                    cublasOperation_t, Cint, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
-                    CuPtr{Cfloat}, Cint, Ptr{Cint}),
-                   handle, side, uplo, trans, m, n, A, lda, tau, C, ldc, lwork)
+    @ccall libcusolver.cusolverDnSormtr_bufferSize(handle::cusolverDnHandle_t,
+                                                   side::cublasSideMode_t,
+                                                   uplo::cublasFillMode_t,
+                                                   trans::cublasOperation_t, m::Cint,
+                                                   n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                                   tau::CuPtr{Cfloat}, C::CuPtr{Cfloat},
+                                                   ldc::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDormtr_bufferSize(handle, side, uplo, trans, m, n, A, lda, tau,
                                               C, ldc, lwork)
     initialize_context()
-    ccall((:cusolverDnDormtr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasFillMode_t,
-                    cublasOperation_t, Cint, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble},
-                    CuPtr{Cdouble}, Cint, Ptr{Cint}),
-                   handle, side, uplo, trans, m, n, A, lda, tau, C, ldc, lwork)
+    @ccall libcusolver.cusolverDnDormtr_bufferSize(handle::cusolverDnHandle_t,
+                                                   side::cublasSideMode_t,
+                                                   uplo::cublasFillMode_t,
+                                                   trans::cublasOperation_t, m::Cint,
+                                                   n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                                   tau::CuPtr{Cdouble}, C::CuPtr{Cdouble},
+                                                   ldc::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCunmtr_bufferSize(handle, side, uplo, trans, m, n, A, lda, tau,
                                               C, ldc, lwork)
     initialize_context()
-    ccall((:cusolverDnCunmtr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasFillMode_t,
-                    cublasOperation_t, Cint, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, CuPtr{cuComplex}, Cint, Ptr{Cint}),
-                   handle, side, uplo, trans, m, n, A, lda, tau, C, ldc, lwork)
+    @ccall libcusolver.cusolverDnCunmtr_bufferSize(handle::cusolverDnHandle_t,
+                                                   side::cublasSideMode_t,
+                                                   uplo::cublasFillMode_t,
+                                                   trans::cublasOperation_t, m::Cint,
+                                                   n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                                   tau::CuPtr{cuComplex},
+                                                   C::CuPtr{cuComplex}, ldc::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZunmtr_bufferSize(handle, side, uplo, trans, m, n, A, lda, tau,
                                               C, ldc, lwork)
     initialize_context()
-    ccall((:cusolverDnZunmtr_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasFillMode_t,
-                    cublasOperation_t, Cint, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, Ptr{Cint}),
-                   handle, side, uplo, trans, m, n, A, lda, tau, C, ldc, lwork)
+    @ccall libcusolver.cusolverDnZunmtr_bufferSize(handle::cusolverDnHandle_t,
+                                                   side::cublasSideMode_t,
+                                                   uplo::cublasFillMode_t,
+                                                   trans::cublasOperation_t, m::Cint,
+                                                   n::Cint, A::CuPtr{cuDoubleComplex},
+                                                   lda::Cint, tau::CuPtr{cuDoubleComplex},
+                                                   C::CuPtr{cuDoubleComplex}, ldc::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSormtr(handle, side, uplo, trans, m, n, A, lda, tau, C, ldc,
                                    work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnSormtr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasFillMode_t,
-                    cublasOperation_t, Cint, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, side, uplo, trans, m, n, A, lda, tau, C, ldc, work, lwork, info)
+    @ccall libcusolver.cusolverDnSormtr(handle::cusolverDnHandle_t, side::cublasSideMode_t,
+                                        uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                        m::Cint, n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                        tau::CuPtr{Cfloat}, C::CuPtr{Cfloat}, ldc::Cint,
+                                        work::CuPtr{Cfloat}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDormtr(handle, side, uplo, trans, m, n, A, lda, tau, C, ldc,
                                    work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnDormtr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasFillMode_t,
-                    cublasOperation_t, Cint, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble},
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, side, uplo, trans, m, n, A, lda, tau, C, ldc, work, lwork, info)
+    @ccall libcusolver.cusolverDnDormtr(handle::cusolverDnHandle_t, side::cublasSideMode_t,
+                                        uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                        m::Cint, n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                        tau::CuPtr{Cdouble}, C::CuPtr{Cdouble}, ldc::Cint,
+                                        work::CuPtr{Cdouble}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCunmtr(handle, side, uplo, trans, m, n, A, lda, tau, C, ldc,
                                    work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnCunmtr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasFillMode_t,
-                    cublasOperation_t, Cint, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cint}),
-                   handle, side, uplo, trans, m, n, A, lda, tau, C, ldc, work, lwork, info)
+    @ccall libcusolver.cusolverDnCunmtr(handle::cusolverDnHandle_t, side::cublasSideMode_t,
+                                        uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                        m::Cint, n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                        tau::CuPtr{cuComplex}, C::CuPtr{cuComplex},
+                                        ldc::Cint, work::CuPtr{cuComplex}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZunmtr(handle, side, uplo, trans, m, n, A, lda, tau, C, ldc,
                                    work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnZunmtr, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cublasSideMode_t, cublasFillMode_t,
-                    cublasOperation_t, Cint, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, side, uplo, trans, m, n, A, lda, tau, C, ldc, work, lwork, info)
+    @ccall libcusolver.cusolverDnZunmtr(handle::cusolverDnHandle_t, side::cublasSideMode_t,
+                                        uplo::cublasFillMode_t, trans::cublasOperation_t,
+                                        m::Cint, n::Cint, A::CuPtr{cuDoubleComplex},
+                                        lda::Cint, tau::CuPtr{cuDoubleComplex},
+                                        C::CuPtr{cuDoubleComplex}, ldc::Cint,
+                                        work::CuPtr{cuDoubleComplex}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSgesvd_bufferSize(handle, m, n, lwork)
     initialize_context()
-    ccall((:cusolverDnSgesvd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Ptr{Cint}),
-                   handle, m, n, lwork)
+    @ccall libcusolver.cusolverDnSgesvd_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDgesvd_bufferSize(handle, m, n, lwork)
     initialize_context()
-    ccall((:cusolverDnDgesvd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Ptr{Cint}),
-                   handle, m, n, lwork)
+    @ccall libcusolver.cusolverDnDgesvd_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCgesvd_bufferSize(handle, m, n, lwork)
     initialize_context()
-    ccall((:cusolverDnCgesvd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Ptr{Cint}),
-                   handle, m, n, lwork)
+    @ccall libcusolver.cusolverDnCgesvd_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZgesvd_bufferSize(handle, m, n, lwork)
     initialize_context()
-    ccall((:cusolverDnZgesvd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, Cint, Cint, Ptr{Cint}),
-                   handle, m, n, lwork)
+    @ccall libcusolver.cusolverDnZgesvd_bufferSize(handle::cusolverDnHandle_t, m::Cint,
+                                                   n::Cint,
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSgesvd(handle, jobu, jobvt, m, n, A, lda, S, U, ldu, VT, ldvt,
                                    work, lwork, rwork, info)
     initialize_context()
-    ccall((:cusolverDnSgesvd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, UInt8, UInt8, Cint, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
-                    Cint, CuPtr{Cfloat}, CuPtr{Cint}),
-                   handle, jobu, jobvt, m, n, A, lda, S, U, ldu, VT, ldvt, work, lwork,
-                   rwork, info)
+    @ccall libcusolver.cusolverDnSgesvd(handle::cusolverDnHandle_t, jobu::Int8, jobvt::Int8,
+                                        m::Cint, n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                        S::CuPtr{Cfloat}, U::CuPtr{Cfloat}, ldu::Cint,
+                                        VT::CuPtr{Cfloat}, ldvt::Cint, work::CuPtr{Cfloat},
+                                        lwork::Cint, rwork::CuPtr{Cfloat},
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDgesvd(handle, jobu, jobvt, m, n, A, lda, S, U, ldu, VT, ldvt,
                                    work, lwork, rwork, info)
     initialize_context()
-    ccall((:cusolverDnDgesvd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, UInt8, UInt8, Cint, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, CuPtr{Cint}),
-                   handle, jobu, jobvt, m, n, A, lda, S, U, ldu, VT, ldvt, work, lwork,
-                   rwork, info)
+    @ccall libcusolver.cusolverDnDgesvd(handle::cusolverDnHandle_t, jobu::Int8, jobvt::Int8,
+                                        m::Cint, n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                        S::CuPtr{Cdouble}, U::CuPtr{Cdouble}, ldu::Cint,
+                                        VT::CuPtr{Cdouble}, ldvt::Cint,
+                                        work::CuPtr{Cdouble}, lwork::Cint,
+                                        rwork::CuPtr{Cdouble},
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCgesvd(handle, jobu, jobvt, m, n, A, lda, S, U, ldu, VT, ldvt,
                                    work, lwork, rwork, info)
     initialize_context()
-    ccall((:cusolverDnCgesvd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, UInt8, UInt8, Cint, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cfloat}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cfloat}, CuPtr{Cint}),
-                   handle, jobu, jobvt, m, n, A, lda, S, U, ldu, VT, ldvt, work, lwork,
-                   rwork, info)
+    @ccall libcusolver.cusolverDnCgesvd(handle::cusolverDnHandle_t, jobu::Int8, jobvt::Int8,
+                                        m::Cint, n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                        S::CuPtr{Cfloat}, U::CuPtr{cuComplex}, ldu::Cint,
+                                        VT::CuPtr{cuComplex}, ldvt::Cint,
+                                        work::CuPtr{cuComplex}, lwork::Cint,
+                                        rwork::CuPtr{Cfloat},
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZgesvd(handle, jobu, jobvt, m, n, A, lda, S, U, ldu, VT, ldvt,
                                    work, lwork, rwork, info)
     initialize_context()
-    ccall((:cusolverDnZgesvd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, UInt8, UInt8, Cint, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{Cdouble}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{Cdouble}, CuPtr{Cint}),
-                   handle, jobu, jobvt, m, n, A, lda, S, U, ldu, VT, ldvt, work, lwork,
-                   rwork, info)
+    @ccall libcusolver.cusolverDnZgesvd(handle::cusolverDnHandle_t, jobu::Int8, jobvt::Int8,
+                                        m::Cint, n::Cint, A::CuPtr{cuDoubleComplex},
+                                        lda::Cint, S::CuPtr{Cdouble},
+                                        U::CuPtr{cuDoubleComplex}, ldu::Cint,
+                                        VT::CuPtr{cuDoubleComplex}, ldvt::Cint,
+                                        work::CuPtr{cuDoubleComplex}, lwork::Cint,
+                                        rwork::CuPtr{Cdouble},
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsyevd_bufferSize(handle, jobz, uplo, n, A, lda, W, lwork)
     initialize_context()
-    ccall((:cusolverDnSsyevd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Ptr{Cint}),
-                   handle, jobz, uplo, n, A, lda, W, lwork)
+    @ccall libcusolver.cusolverDnSsyevd_bufferSize(handle::cusolverDnHandle_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cfloat}, lda::Cint,
+                                                   W::CuPtr{Cfloat},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDsyevd_bufferSize(handle, jobz, uplo, n, A, lda, W, lwork)
     initialize_context()
-    ccall((:cusolverDnDsyevd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, jobz, uplo, n, A, lda, W, lwork)
+    @ccall libcusolver.cusolverDnDsyevd_bufferSize(handle::cusolverDnHandle_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cdouble}, lda::Cint,
+                                                   W::CuPtr{Cdouble},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCheevd_bufferSize(handle, jobz, uplo, n, A, lda, W, lwork)
     initialize_context()
-    ccall((:cusolverDnCheevd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cfloat}, Ptr{Cint}),
-                   handle, jobz, uplo, n, A, lda, W, lwork)
+    @ccall libcusolver.cusolverDnCheevd_bufferSize(handle::cusolverDnHandle_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuComplex}, lda::Cint,
+                                                   W::CuPtr{Cfloat},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZheevd_bufferSize(handle, jobz, uplo, n, A, lda, W, lwork)
     initialize_context()
-    ccall((:cusolverDnZheevd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, jobz, uplo, n, A, lda, W, lwork)
+    @ccall libcusolver.cusolverDnZheevd_bufferSize(handle::cusolverDnHandle_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   W::CuPtr{Cdouble},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsyevd(handle, jobz, uplo, n, A, lda, W, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnSsyevd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, jobz, uplo, n, A, lda, W, work, lwork, info)
+    @ccall libcusolver.cusolverDnSsyevd(handle::cusolverDnHandle_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint, A::CuPtr{Cfloat},
+                                        lda::Cint, W::CuPtr{Cfloat}, work::CuPtr{Cfloat},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDsyevd(handle, jobz, uplo, n, A, lda, W, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnDsyevd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, jobz, uplo, n, A, lda, W, work, lwork, info)
+    @ccall libcusolver.cusolverDnDsyevd(handle::cusolverDnHandle_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint, A::CuPtr{Cdouble},
+                                        lda::Cint, W::CuPtr{Cdouble}, work::CuPtr{Cdouble},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCheevd(handle, jobz, uplo, n, A, lda, W, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnCheevd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cfloat}, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cint}),
-                   handle, jobz, uplo, n, A, lda, W, work, lwork, info)
+    @ccall libcusolver.cusolverDnCheevd(handle::cusolverDnHandle_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint,
+                                        A::CuPtr{cuComplex}, lda::Cint, W::CuPtr{Cfloat},
+                                        work::CuPtr{cuComplex}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZheevd(handle, jobz, uplo, n, A, lda, W, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnZheevd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{Cint}),
-                   handle, jobz, uplo, n, A, lda, W, work, lwork, info)
+    @ccall libcusolver.cusolverDnZheevd(handle::cusolverDnHandle_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint,
+                                        A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        W::CuPtr{Cdouble}, work::CuPtr{cuDoubleComplex},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnSsyevdx_bufferSize(handle, jobz, range, uplo, n, A, lda, vl,
-                                               vu, il, iu, meig, W, lwork)
+@checked function cusolverDnSsyevdx_bufferSize(handle, jobz, range, uplo, n, A, lda, vl, vu,
+                                               il, iu, meig, W, lwork)
     initialize_context()
-    ccall((:cusolverDnSsyevdx_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cusolverEigRange_t,
-                    cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint, Cfloat, Cfloat, Cint,
-                    Cint, Ptr{Cint}, CuPtr{Cfloat}, Ptr{Cint}),
-                   handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, meig, W, lwork)
+    @ccall libcusolver.cusolverDnSsyevdx_bufferSize(handle::cusolverDnHandle_t,
+                                                    jobz::cusolverEigMode_t,
+                                                    range::cusolverEigRange_t,
+                                                    uplo::cublasFillMode_t, n::Cint,
+                                                    A::CuPtr{Cfloat}, lda::Cint, vl::Cfloat,
+                                                    vu::Cfloat, il::Cint, iu::Cint,
+                                                    meig::Ptr{Cint}, W::CuPtr{Cfloat},
+                                                    lwork::Ptr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnDsyevdx_bufferSize(handle, jobz, range, uplo, n, A, lda, vl,
-                                               vu, il, iu, meig, W, lwork)
+@checked function cusolverDnDsyevdx_bufferSize(handle, jobz, range, uplo, n, A, lda, vl, vu,
+                                               il, iu, meig, W, lwork)
     initialize_context()
-    ccall((:cusolverDnDsyevdx_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cusolverEigRange_t,
-                    cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint, Cdouble, Cdouble, Cint,
-                    Cint, Ptr{Cint}, CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, meig, W, lwork)
+    @ccall libcusolver.cusolverDnDsyevdx_bufferSize(handle::cusolverDnHandle_t,
+                                                    jobz::cusolverEigMode_t,
+                                                    range::cusolverEigRange_t,
+                                                    uplo::cublasFillMode_t, n::Cint,
+                                                    A::CuPtr{Cdouble}, lda::Cint,
+                                                    vl::Cdouble, vu::Cdouble, il::Cint,
+                                                    iu::Cint, meig::Ptr{Cint},
+                                                    W::CuPtr{Cdouble},
+                                                    lwork::Ptr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnCheevdx_bufferSize(handle, jobz, range, uplo, n, A, lda, vl,
-                                               vu, il, iu, meig, W, lwork)
+@checked function cusolverDnCheevdx_bufferSize(handle, jobz, range, uplo, n, A, lda, vl, vu,
+                                               il, iu, meig, W, lwork)
     initialize_context()
-    ccall((:cusolverDnCheevdx_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cusolverEigRange_t,
-                    cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint, Cfloat, Cfloat, Cint,
-                    Cint, Ptr{Cint}, CuPtr{Cfloat}, Ptr{Cint}),
-                   handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, meig, W, lwork)
+    @ccall libcusolver.cusolverDnCheevdx_bufferSize(handle::cusolverDnHandle_t,
+                                                    jobz::cusolverEigMode_t,
+                                                    range::cusolverEigRange_t,
+                                                    uplo::cublasFillMode_t, n::Cint,
+                                                    A::CuPtr{cuComplex}, lda::Cint,
+                                                    vl::Cfloat, vu::Cfloat, il::Cint,
+                                                    iu::Cint, meig::Ptr{Cint},
+                                                    W::CuPtr{Cfloat},
+                                                    lwork::Ptr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnZheevdx_bufferSize(handle, jobz, range, uplo, n, A, lda, vl,
-                                               vu, il, iu, meig, W, lwork)
+@checked function cusolverDnZheevdx_bufferSize(handle, jobz, range, uplo, n, A, lda, vl, vu,
+                                               il, iu, meig, W, lwork)
     initialize_context()
-    ccall((:cusolverDnZheevdx_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cusolverEigRange_t,
-                    cublasFillMode_t, Cint, CuPtr{cuDoubleComplex}, Cint, Cdouble, Cdouble,
-                    Cint, Cint, Ptr{Cint}, CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, meig, W, lwork)
+    @ccall libcusolver.cusolverDnZheevdx_bufferSize(handle::cusolverDnHandle_t,
+                                                    jobz::cusolverEigMode_t,
+                                                    range::cusolverEigRange_t,
+                                                    uplo::cublasFillMode_t, n::Cint,
+                                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                    vl::Cdouble, vu::Cdouble, il::Cint,
+                                                    iu::Cint, meig::Ptr{Cint},
+                                                    W::CuPtr{Cdouble},
+                                                    lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsyevdx(handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu,
                                     meig, W, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnSsyevdx, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cusolverEigRange_t,
-                    cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint, Cfloat, Cfloat, Cint,
-                    Cint, Ptr{Cint}, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, meig, W, work,
-                   lwork, info)
+    @ccall libcusolver.cusolverDnSsyevdx(handle::cusolverDnHandle_t,
+                                         jobz::cusolverEigMode_t, range::cusolverEigRange_t,
+                                         uplo::cublasFillMode_t, n::Cint, A::CuPtr{Cfloat},
+                                         lda::Cint, vl::Cfloat, vu::Cfloat, il::Cint,
+                                         iu::Cint, meig::Ptr{Cint}, W::CuPtr{Cfloat},
+                                         work::CuPtr{Cfloat}, lwork::Cint,
+                                         info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDsyevdx(handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu,
                                     meig, W, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnDsyevdx, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cusolverEigRange_t,
-                    cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint, Cdouble, Cdouble, Cint,
-                    Cint, Ptr{Cint}, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, meig, W, work,
-                   lwork, info)
+    @ccall libcusolver.cusolverDnDsyevdx(handle::cusolverDnHandle_t,
+                                         jobz::cusolverEigMode_t, range::cusolverEigRange_t,
+                                         uplo::cublasFillMode_t, n::Cint, A::CuPtr{Cdouble},
+                                         lda::Cint, vl::Cdouble, vu::Cdouble, il::Cint,
+                                         iu::Cint, meig::Ptr{Cint}, W::CuPtr{Cdouble},
+                                         work::CuPtr{Cdouble}, lwork::Cint,
+                                         info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCheevdx(handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu,
                                     meig, W, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnCheevdx, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cusolverEigRange_t,
-                    cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint, Cfloat, Cfloat, Cint,
-                    Cint, Ptr{Cint}, CuPtr{Cfloat}, CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, meig, W, work,
-                   lwork, info)
+    @ccall libcusolver.cusolverDnCheevdx(handle::cusolverDnHandle_t,
+                                         jobz::cusolverEigMode_t, range::cusolverEigRange_t,
+                                         uplo::cublasFillMode_t, n::Cint,
+                                         A::CuPtr{cuComplex}, lda::Cint, vl::Cfloat,
+                                         vu::Cfloat, il::Cint, iu::Cint, meig::Ptr{Cint},
+                                         W::CuPtr{Cfloat}, work::CuPtr{cuComplex},
+                                         lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZheevdx(handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu,
                                     meig, W, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnZheevdx, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cusolverEigRange_t,
-                    cublasFillMode_t, Cint, CuPtr{cuDoubleComplex}, Cint, Cdouble, Cdouble,
-                    Cint, Cint, Ptr{Cint}, CuPtr{Cdouble}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{Cint}),
-                   handle, jobz, range, uplo, n, A, lda, vl, vu, il, iu, meig, W, work,
-                   lwork, info)
+    @ccall libcusolver.cusolverDnZheevdx(handle::cusolverDnHandle_t,
+                                         jobz::cusolverEigMode_t, range::cusolverEigRange_t,
+                                         uplo::cublasFillMode_t, n::Cint,
+                                         A::CuPtr{cuDoubleComplex}, lda::Cint, vl::Cdouble,
+                                         vu::Cdouble, il::Cint, iu::Cint, meig::Ptr{Cint},
+                                         W::CuPtr{Cdouble}, work::CuPtr{cuDoubleComplex},
+                                         lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsygvdx_bufferSize(handle, itype, jobz, range, uplo, n, A, lda,
                                                B, ldb, vl, vu, il, iu, meig, W, lwork)
     initialize_context()
-    ccall((:cusolverDnSsygvdx_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cusolverEigRange_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, Cint, Cfloat, Cfloat, Cint, Cint, Ptr{Cint},
-                    CuPtr{Cfloat}, Ptr{Cint}),
-                   handle, itype, jobz, range, uplo, n, A, lda, B, ldb, vl, vu, il, iu,
-                   meig, W, lwork)
+    @ccall libcusolver.cusolverDnSsygvdx_bufferSize(handle::cusolverDnHandle_t,
+                                                    itype::cusolverEigType_t,
+                                                    jobz::cusolverEigMode_t,
+                                                    range::cusolverEigRange_t,
+                                                    uplo::cublasFillMode_t, n::Cint,
+                                                    A::CuPtr{Cfloat}, lda::Cint,
+                                                    B::CuPtr{Cfloat}, ldb::Cint, vl::Cfloat,
+                                                    vu::Cfloat, il::Cint, iu::Cint,
+                                                    meig::Ptr{Cint}, W::CuPtr{Cfloat},
+                                                    lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDsygvdx_bufferSize(handle, itype, jobz, range, uplo, n, A, lda,
                                                B, ldb, vl, vu, il, iu, meig, W, lwork)
     initialize_context()
-    ccall((:cusolverDnDsygvdx_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cusolverEigRange_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Cint, Cdouble, Cdouble, Cint, Cint, Ptr{Cint},
-                    CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, itype, jobz, range, uplo, n, A, lda, B, ldb, vl, vu, il, iu,
-                   meig, W, lwork)
+    @ccall libcusolver.cusolverDnDsygvdx_bufferSize(handle::cusolverDnHandle_t,
+                                                    itype::cusolverEigType_t,
+                                                    jobz::cusolverEigMode_t,
+                                                    range::cusolverEigRange_t,
+                                                    uplo::cublasFillMode_t, n::Cint,
+                                                    A::CuPtr{Cdouble}, lda::Cint,
+                                                    B::CuPtr{Cdouble}, ldb::Cint,
+                                                    vl::Cdouble, vu::Cdouble, il::Cint,
+                                                    iu::Cint, meig::Ptr{Cint},
+                                                    W::CuPtr{Cdouble},
+                                                    lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnChegvdx_bufferSize(handle, itype, jobz, range, uplo, n, A, lda,
                                                B, ldb, vl, vu, il, iu, meig, W, lwork)
     initialize_context()
-    ccall((:cusolverDnChegvdx_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cusolverEigRange_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, Cint, Cfloat, Cfloat, Cint, Cint, Ptr{Cint},
-                    CuPtr{Cfloat}, Ptr{Cint}),
-                   handle, itype, jobz, range, uplo, n, A, lda, B, ldb, vl, vu, il, iu,
-                   meig, W, lwork)
+    @ccall libcusolver.cusolverDnChegvdx_bufferSize(handle::cusolverDnHandle_t,
+                                                    itype::cusolverEigType_t,
+                                                    jobz::cusolverEigMode_t,
+                                                    range::cusolverEigRange_t,
+                                                    uplo::cublasFillMode_t, n::Cint,
+                                                    A::CuPtr{cuComplex}, lda::Cint,
+                                                    B::CuPtr{cuComplex}, ldb::Cint,
+                                                    vl::Cfloat, vu::Cfloat, il::Cint,
+                                                    iu::Cint, meig::Ptr{Cint},
+                                                    W::CuPtr{Cfloat},
+                                                    lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZhegvdx_bufferSize(handle, itype, jobz, range, uplo, n, A, lda,
                                                B, ldb, vl, vu, il, iu, meig, W, lwork)
     initialize_context()
-    ccall((:cusolverDnZhegvdx_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cusolverEigRange_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{cuDoubleComplex}, Cint, Cdouble, Cdouble, Cint, Cint,
-                    Ptr{Cint}, CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, itype, jobz, range, uplo, n, A, lda, B, ldb, vl, vu, il, iu,
-                   meig, W, lwork)
+    @ccall libcusolver.cusolverDnZhegvdx_bufferSize(handle::cusolverDnHandle_t,
+                                                    itype::cusolverEigType_t,
+                                                    jobz::cusolverEigMode_t,
+                                                    range::cusolverEigRange_t,
+                                                    uplo::cublasFillMode_t, n::Cint,
+                                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                    B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                                    vl::Cdouble, vu::Cdouble, il::Cint,
+                                                    iu::Cint, meig::Ptr{Cint},
+                                                    W::CuPtr{Cdouble},
+                                                    lwork::Ptr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnSsygvdx(handle, itype, jobz, range, uplo, n, A, lda, B, ldb,
-                                    vl, vu, il, iu, meig, W, work, lwork, info)
+@checked function cusolverDnSsygvdx(handle, itype, jobz, range, uplo, n, A, lda, B, ldb, vl,
+                                    vu, il, iu, meig, W, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnSsygvdx, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cusolverEigRange_t, cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, Cint, Cfloat, Cfloat, Cint, Cint, Ptr{Cint},
-                    CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, itype, jobz, range, uplo, n, A, lda, B, ldb, vl, vu, il, iu,
-                   meig, W, work, lwork, info)
+    @ccall libcusolver.cusolverDnSsygvdx(handle::cusolverDnHandle_t,
+                                         itype::cusolverEigType_t, jobz::cusolverEigMode_t,
+                                         range::cusolverEigRange_t, uplo::cublasFillMode_t,
+                                         n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                         B::CuPtr{Cfloat}, ldb::Cint, vl::Cfloat,
+                                         vu::Cfloat, il::Cint, iu::Cint, meig::Ptr{Cint},
+                                         W::CuPtr{Cfloat}, work::CuPtr{Cfloat}, lwork::Cint,
+                                         info::CuPtr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnDsygvdx(handle, itype, jobz, range, uplo, n, A, lda, B, ldb,
-                                    vl, vu, il, iu, meig, W, work, lwork, info)
+@checked function cusolverDnDsygvdx(handle, itype, jobz, range, uplo, n, A, lda, B, ldb, vl,
+                                    vu, il, iu, meig, W, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnDsygvdx, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cusolverEigRange_t, cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Cint, Cdouble, Cdouble, Cint, Cint, Ptr{Cint},
-                    CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, itype, jobz, range, uplo, n, A, lda, B, ldb, vl, vu, il, iu,
-                   meig, W, work, lwork, info)
+    @ccall libcusolver.cusolverDnDsygvdx(handle::cusolverDnHandle_t,
+                                         itype::cusolverEigType_t, jobz::cusolverEigMode_t,
+                                         range::cusolverEigRange_t, uplo::cublasFillMode_t,
+                                         n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                         B::CuPtr{Cdouble}, ldb::Cint, vl::Cdouble,
+                                         vu::Cdouble, il::Cint, iu::Cint, meig::Ptr{Cint},
+                                         W::CuPtr{Cdouble}, work::CuPtr{Cdouble},
+                                         lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnChegvdx(handle, itype, jobz, range, uplo, n, A, lda, B, ldb,
-                                    vl, vu, il, iu, meig, W, work, lwork, info)
+@checked function cusolverDnChegvdx(handle, itype, jobz, range, uplo, n, A, lda, B, ldb, vl,
+                                    vu, il, iu, meig, W, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnChegvdx, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cusolverEigRange_t, cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, Cint, Cfloat, Cfloat, Cint, Cint, Ptr{Cint},
-                    CuPtr{Cfloat}, CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, itype, jobz, range, uplo, n, A, lda, B, ldb, vl, vu, il, iu,
-                   meig, W, work, lwork, info)
+    @ccall libcusolver.cusolverDnChegvdx(handle::cusolverDnHandle_t,
+                                         itype::cusolverEigType_t, jobz::cusolverEigMode_t,
+                                         range::cusolverEigRange_t, uplo::cublasFillMode_t,
+                                         n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                         B::CuPtr{cuComplex}, ldb::Cint, vl::Cfloat,
+                                         vu::Cfloat, il::Cint, iu::Cint, meig::Ptr{Cint},
+                                         W::CuPtr{Cfloat}, work::CuPtr{cuComplex},
+                                         lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnZhegvdx(handle, itype, jobz, range, uplo, n, A, lda, B, ldb,
-                                    vl, vu, il, iu, meig, W, work, lwork, info)
+@checked function cusolverDnZhegvdx(handle, itype, jobz, range, uplo, n, A, lda, B, ldb, vl,
+                                    vu, il, iu, meig, W, work, lwork, info)
     initialize_context()
-    ccall((:cusolverDnZhegvdx, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cusolverEigRange_t, cublasFillMode_t, Cint, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{cuDoubleComplex}, Cint, Cdouble, Cdouble, Cint, Cint,
-                    Ptr{Cint}, CuPtr{Cdouble}, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}),
-                   handle, itype, jobz, range, uplo, n, A, lda, B, ldb, vl, vu, il, iu,
-                   meig, W, work, lwork, info)
+    @ccall libcusolver.cusolverDnZhegvdx(handle::cusolverDnHandle_t,
+                                         itype::cusolverEigType_t, jobz::cusolverEigMode_t,
+                                         range::cusolverEigRange_t, uplo::cublasFillMode_t,
+                                         n::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                         B::CuPtr{cuDoubleComplex}, ldb::Cint, vl::Cdouble,
+                                         vu::Cdouble, il::Cint, iu::Cint, meig::Ptr{Cint},
+                                         W::CuPtr{Cdouble}, work::CuPtr{cuDoubleComplex},
+                                         lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsygvd_bufferSize(handle, itype, jobz, uplo, n, A, lda, B, ldb,
                                               W, lwork)
     initialize_context()
-    ccall((:cusolverDnSsygvd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, Ptr{Cint}),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, lwork)
+    @ccall libcusolver.cusolverDnSsygvd_bufferSize(handle::cusolverDnHandle_t,
+                                                   itype::cusolverEigType_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cfloat}, lda::Cint,
+                                                   B::CuPtr{Cfloat}, ldb::Cint,
+                                                   W::CuPtr{Cfloat},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDsygvd_bufferSize(handle, itype, jobz, uplo, n, A, lda, B, ldb,
                                               W, lwork)
     initialize_context()
-    ccall((:cusolverDnDsygvd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, lwork)
+    @ccall libcusolver.cusolverDnDsygvd_bufferSize(handle::cusolverDnHandle_t,
+                                                   itype::cusolverEigType_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cdouble}, lda::Cint,
+                                                   B::CuPtr{Cdouble}, ldb::Cint,
+                                                   W::CuPtr{Cdouble},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnChegvd_bufferSize(handle, itype, jobz, uplo, n, A, lda, B, ldb,
                                               W, lwork)
     initialize_context()
-    ccall((:cusolverDnChegvd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cfloat}, Ptr{Cint}),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, lwork)
+    @ccall libcusolver.cusolverDnChegvd_bufferSize(handle::cusolverDnHandle_t,
+                                                   itype::cusolverEigType_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuComplex}, lda::Cint,
+                                                   B::CuPtr{cuComplex}, ldb::Cint,
+                                                   W::CuPtr{Cfloat},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZhegvd_bufferSize(handle, itype, jobz, uplo, n, A, lda, B, ldb,
                                               W, lwork)
     initialize_context()
-    ccall((:cusolverDnZhegvd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, lwork)
+    @ccall libcusolver.cusolverDnZhegvd_bufferSize(handle::cusolverDnHandle_t,
+                                                   itype::cusolverEigType_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                                   W::CuPtr{Cdouble},
+                                                   lwork::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsygvd(handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work,
                                    lwork, info)
     initialize_context()
-    ccall((:cusolverDnSsygvd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cint}),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work, lwork, info)
+    @ccall libcusolver.cusolverDnSsygvd(handle::cusolverDnHandle_t,
+                                        itype::cusolverEigType_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint, A::CuPtr{Cfloat},
+                                        lda::Cint, B::CuPtr{Cfloat}, ldb::Cint,
+                                        W::CuPtr{Cfloat}, work::CuPtr{Cfloat}, lwork::Cint,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnDsygvd(handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work,
                                    lwork, info)
     initialize_context()
-    ccall((:cusolverDnDsygvd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cint}),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work, lwork, info)
+    @ccall libcusolver.cusolverDnDsygvd(handle::cusolverDnHandle_t,
+                                        itype::cusolverEigType_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint, A::CuPtr{Cdouble},
+                                        lda::Cint, B::CuPtr{Cdouble}, ldb::Cint,
+                                        W::CuPtr{Cdouble}, work::CuPtr{Cdouble},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnChegvd(handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work,
                                    lwork, info)
     initialize_context()
-    ccall((:cusolverDnChegvd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cfloat}, CuPtr{cuComplex}, Cint, CuPtr{Cint}),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work, lwork, info)
+    @ccall libcusolver.cusolverDnChegvd(handle::cusolverDnHandle_t,
+                                        itype::cusolverEigType_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint,
+                                        A::CuPtr{cuComplex}, lda::Cint, B::CuPtr{cuComplex},
+                                        ldb::Cint, W::CuPtr{Cfloat}, work::CuPtr{cuComplex},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnZhegvd(handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work,
                                    lwork, info)
     initialize_context()
-    ccall((:cusolverDnZhegvd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{Cint}),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work, lwork, info)
+    @ccall libcusolver.cusolverDnZhegvd(handle::cusolverDnHandle_t,
+                                        itype::cusolverEigType_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint,
+                                        A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                        W::CuPtr{Cdouble}, work::CuPtr{cuDoubleComplex},
+                                        lwork::Cint, info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnCreateSyevjInfo(info)
     initialize_context()
-    ccall((:cusolverDnCreateSyevjInfo, libcusolver), cusolverStatus_t,
-                   (Ptr{syevjInfo_t},),
-                   info)
+    @ccall libcusolver.cusolverDnCreateSyevjInfo(info::Ptr{syevjInfo_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDestroySyevjInfo(info)
     initialize_context()
-    ccall((:cusolverDnDestroySyevjInfo, libcusolver), cusolverStatus_t,
-                   (syevjInfo_t,),
-                   info)
+    @ccall libcusolver.cusolverDnDestroySyevjInfo(info::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnXsyevjSetTolerance(info, tolerance)
     initialize_context()
-    ccall((:cusolverDnXsyevjSetTolerance, libcusolver), cusolverStatus_t,
-                   (syevjInfo_t, Cdouble),
-                   info, tolerance)
+    @ccall libcusolver.cusolverDnXsyevjSetTolerance(info::syevjInfo_t,
+                                                    tolerance::Cdouble)::cusolverStatus_t
 end
 
 @checked function cusolverDnXsyevjSetMaxSweeps(info, max_sweeps)
     initialize_context()
-    ccall((:cusolverDnXsyevjSetMaxSweeps, libcusolver), cusolverStatus_t,
-                   (syevjInfo_t, Cint),
-                   info, max_sweeps)
+    @ccall libcusolver.cusolverDnXsyevjSetMaxSweeps(info::syevjInfo_t,
+                                                    max_sweeps::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnXsyevjSetSortEig(info, sort_eig)
     initialize_context()
-    ccall((:cusolverDnXsyevjSetSortEig, libcusolver), cusolverStatus_t,
-                   (syevjInfo_t, Cint),
-                   info, sort_eig)
+    @ccall libcusolver.cusolverDnXsyevjSetSortEig(info::syevjInfo_t,
+                                                  sort_eig::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnXsyevjGetResidual(handle, info, residual)
     initialize_context()
-    ccall((:cusolverDnXsyevjGetResidual, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, syevjInfo_t, Ptr{Cdouble}),
-                   handle, info, residual)
+    @ccall libcusolver.cusolverDnXsyevjGetResidual(handle::cusolverDnHandle_t,
+                                                   info::syevjInfo_t,
+                                                   residual::Ptr{Cdouble})::cusolverStatus_t
 end
 
 @checked function cusolverDnXsyevjGetSweeps(handle, info, executed_sweeps)
     initialize_context()
-    ccall((:cusolverDnXsyevjGetSweeps, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, syevjInfo_t, Ptr{Cint}),
-                   handle, info, executed_sweeps)
+    @ccall libcusolver.cusolverDnXsyevjGetSweeps(handle::cusolverDnHandle_t,
+                                                 info::syevjInfo_t,
+                                                 executed_sweeps::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsyevjBatched_bufferSize(handle, jobz, uplo, n, A, lda, W,
                                                      lwork, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnSsyevjBatched_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Ptr{Cint}, syevjInfo_t, Cint),
-                   handle, jobz, uplo, n, A, lda, W, lwork, params, batchSize)
+    @ccall libcusolver.cusolverDnSsyevjBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                          jobz::cusolverEigMode_t,
+                                                          uplo::cublasFillMode_t, n::Cint,
+                                                          A::CuPtr{Cfloat}, lda::Cint,
+                                                          W::CuPtr{Cfloat},
+                                                          lwork::Ptr{Cint},
+                                                          params::syevjInfo_t,
+                                                          batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnDsyevjBatched_bufferSize(handle, jobz, uplo, n, A, lda, W,
                                                      lwork, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnDsyevjBatched_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Ptr{Cint}, syevjInfo_t, Cint),
-                   handle, jobz, uplo, n, A, lda, W, lwork, params, batchSize)
+    @ccall libcusolver.cusolverDnDsyevjBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                          jobz::cusolverEigMode_t,
+                                                          uplo::cublasFillMode_t, n::Cint,
+                                                          A::CuPtr{Cdouble}, lda::Cint,
+                                                          W::CuPtr{Cdouble},
+                                                          lwork::Ptr{Cint},
+                                                          params::syevjInfo_t,
+                                                          batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnCheevjBatched_bufferSize(handle, jobz, uplo, n, A, lda, W,
                                                      lwork, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnCheevjBatched_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cfloat}, Ptr{Cint}, syevjInfo_t, Cint),
-                   handle, jobz, uplo, n, A, lda, W, lwork, params, batchSize)
+    @ccall libcusolver.cusolverDnCheevjBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                          jobz::cusolverEigMode_t,
+                                                          uplo::cublasFillMode_t, n::Cint,
+                                                          A::CuPtr{cuComplex}, lda::Cint,
+                                                          W::CuPtr{Cfloat},
+                                                          lwork::Ptr{Cint},
+                                                          params::syevjInfo_t,
+                                                          batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnZheevjBatched_bufferSize(handle, jobz, uplo, n, A, lda, W,
                                                      lwork, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnZheevjBatched_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, Ptr{Cint}, syevjInfo_t,
-                    Cint),
-                   handle, jobz, uplo, n, A, lda, W, lwork, params, batchSize)
+    @ccall libcusolver.cusolverDnZheevjBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                          jobz::cusolverEigMode_t,
+                                                          uplo::cublasFillMode_t, n::Cint,
+                                                          A::CuPtr{cuDoubleComplex},
+                                                          lda::Cint, W::CuPtr{Cdouble},
+                                                          lwork::Ptr{Cint},
+                                                          params::syevjInfo_t,
+                                                          batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnSsyevjBatched(handle, jobz, uplo, n, A, lda, W, work, lwork,
                                           info, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnSsyevjBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cint},
-                    syevjInfo_t, Cint),
-                   handle, jobz, uplo, n, A, lda, W, work, lwork, info, params, batchSize)
+    @ccall libcusolver.cusolverDnSsyevjBatched(handle::cusolverDnHandle_t,
+                                               jobz::cusolverEigMode_t,
+                                               uplo::cublasFillMode_t, n::Cint,
+                                               A::CuPtr{Cfloat}, lda::Cint,
+                                               W::CuPtr{Cfloat}, work::CuPtr{Cfloat},
+                                               lwork::Cint, info::CuPtr{Cint},
+                                               params::syevjInfo_t,
+                                               batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnDsyevjBatched(handle, jobz, uplo, n, A, lda, W, work, lwork,
                                           info, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnDsyevjBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cint}, syevjInfo_t, Cint),
-                   handle, jobz, uplo, n, A, lda, W, work, lwork, info, params, batchSize)
+    @ccall libcusolver.cusolverDnDsyevjBatched(handle::cusolverDnHandle_t,
+                                               jobz::cusolverEigMode_t,
+                                               uplo::cublasFillMode_t, n::Cint,
+                                               A::CuPtr{Cdouble}, lda::Cint,
+                                               W::CuPtr{Cdouble}, work::CuPtr{Cdouble},
+                                               lwork::Cint, info::CuPtr{Cint},
+                                               params::syevjInfo_t,
+                                               batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnCheevjBatched(handle, jobz, uplo, n, A, lda, W, work, lwork,
                                           info, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnCheevjBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cfloat}, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cint}, syevjInfo_t, Cint),
-                   handle, jobz, uplo, n, A, lda, W, work, lwork, info, params, batchSize)
+    @ccall libcusolver.cusolverDnCheevjBatched(handle::cusolverDnHandle_t,
+                                               jobz::cusolverEigMode_t,
+                                               uplo::cublasFillMode_t, n::Cint,
+                                               A::CuPtr{cuComplex}, lda::Cint,
+                                               W::CuPtr{Cfloat}, work::CuPtr{cuComplex},
+                                               lwork::Cint, info::CuPtr{Cint},
+                                               params::syevjInfo_t,
+                                               batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnZheevjBatched(handle, jobz, uplo, n, A, lda, W, work, lwork,
                                           info, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnZheevjBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{Cint}, syevjInfo_t, Cint),
-                   handle, jobz, uplo, n, A, lda, W, work, lwork, info, params, batchSize)
+    @ccall libcusolver.cusolverDnZheevjBatched(handle::cusolverDnHandle_t,
+                                               jobz::cusolverEigMode_t,
+                                               uplo::cublasFillMode_t, n::Cint,
+                                               A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                               W::CuPtr{Cdouble},
+                                               work::CuPtr{cuDoubleComplex}, lwork::Cint,
+                                               info::CuPtr{Cint}, params::syevjInfo_t,
+                                               batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnSsyevj_bufferSize(handle, jobz, uplo, n, A, lda, W, lwork,
                                               params)
     initialize_context()
-    ccall((:cusolverDnSsyevj_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Ptr{Cint}, syevjInfo_t),
-                   handle, jobz, uplo, n, A, lda, W, lwork, params)
+    @ccall libcusolver.cusolverDnSsyevj_bufferSize(handle::cusolverDnHandle_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cfloat}, lda::Cint,
+                                                   W::CuPtr{Cfloat}, lwork::Ptr{Cint},
+                                                   params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnDsyevj_bufferSize(handle, jobz, uplo, n, A, lda, W, lwork,
                                               params)
     initialize_context()
-    ccall((:cusolverDnDsyevj_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Ptr{Cint}, syevjInfo_t),
-                   handle, jobz, uplo, n, A, lda, W, lwork, params)
+    @ccall libcusolver.cusolverDnDsyevj_bufferSize(handle::cusolverDnHandle_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cdouble}, lda::Cint,
+                                                   W::CuPtr{Cdouble}, lwork::Ptr{Cint},
+                                                   params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnCheevj_bufferSize(handle, jobz, uplo, n, A, lda, W, lwork,
                                               params)
     initialize_context()
-    ccall((:cusolverDnCheevj_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cfloat}, Ptr{Cint}, syevjInfo_t),
-                   handle, jobz, uplo, n, A, lda, W, lwork, params)
+    @ccall libcusolver.cusolverDnCheevj_bufferSize(handle::cusolverDnHandle_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuComplex}, lda::Cint,
+                                                   W::CuPtr{Cfloat}, lwork::Ptr{Cint},
+                                                   params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnZheevj_bufferSize(handle, jobz, uplo, n, A, lda, W, lwork,
                                               params)
     initialize_context()
-    ccall((:cusolverDnZheevj_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, Ptr{Cint}, syevjInfo_t),
-                   handle, jobz, uplo, n, A, lda, W, lwork, params)
+    @ccall libcusolver.cusolverDnZheevj_bufferSize(handle::cusolverDnHandle_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   W::CuPtr{Cdouble}, lwork::Ptr{Cint},
+                                                   params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnSsyevj(handle, jobz, uplo, n, A, lda, W, work, lwork, info,
                                    params)
     initialize_context()
-    ccall((:cusolverDnSsyevj, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cint},
-                    syevjInfo_t),
-                   handle, jobz, uplo, n, A, lda, W, work, lwork, info, params)
+    @ccall libcusolver.cusolverDnSsyevj(handle::cusolverDnHandle_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint, A::CuPtr{Cfloat},
+                                        lda::Cint, W::CuPtr{Cfloat}, work::CuPtr{Cfloat},
+                                        lwork::Cint, info::CuPtr{Cint},
+                                        params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnDsyevj(handle, jobz, uplo, n, A, lda, W, work, lwork, info,
                                    params)
     initialize_context()
-    ccall((:cusolverDnDsyevj, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cint}, syevjInfo_t),
-                   handle, jobz, uplo, n, A, lda, W, work, lwork, info, params)
+    @ccall libcusolver.cusolverDnDsyevj(handle::cusolverDnHandle_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint, A::CuPtr{Cdouble},
+                                        lda::Cint, W::CuPtr{Cdouble}, work::CuPtr{Cdouble},
+                                        lwork::Cint, info::CuPtr{Cint},
+                                        params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnCheevj(handle, jobz, uplo, n, A, lda, W, work, lwork, info,
                                    params)
     initialize_context()
-    ccall((:cusolverDnCheevj, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cfloat}, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cint}, syevjInfo_t),
-                   handle, jobz, uplo, n, A, lda, W, work, lwork, info, params)
+    @ccall libcusolver.cusolverDnCheevj(handle::cusolverDnHandle_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint,
+                                        A::CuPtr{cuComplex}, lda::Cint, W::CuPtr{Cfloat},
+                                        work::CuPtr{cuComplex}, lwork::Cint,
+                                        info::CuPtr{Cint},
+                                        params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnZheevj(handle, jobz, uplo, n, A, lda, W, work, lwork, info,
                                    params)
     initialize_context()
-    ccall((:cusolverDnZheevj, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{Cint}, syevjInfo_t),
-                   handle, jobz, uplo, n, A, lda, W, work, lwork, info, params)
+    @ccall libcusolver.cusolverDnZheevj(handle::cusolverDnHandle_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint,
+                                        A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        W::CuPtr{Cdouble}, work::CuPtr{cuDoubleComplex},
+                                        lwork::Cint, info::CuPtr{Cint},
+                                        params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnSsygvj_bufferSize(handle, itype, jobz, uplo, n, A, lda, B, ldb,
                                               W, lwork, params)
     initialize_context()
-    ccall((:cusolverDnSsygvj_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, Ptr{Cint}, syevjInfo_t),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, lwork, params)
+    @ccall libcusolver.cusolverDnSsygvj_bufferSize(handle::cusolverDnHandle_t,
+                                                   itype::cusolverEigType_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cfloat}, lda::Cint,
+                                                   B::CuPtr{Cfloat}, ldb::Cint,
+                                                   W::CuPtr{Cfloat}, lwork::Ptr{Cint},
+                                                   params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnDsygvj_bufferSize(handle, itype, jobz, uplo, n, A, lda, B, ldb,
                                               W, lwork, params)
     initialize_context()
-    ccall((:cusolverDnDsygvj_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Ptr{Cint}, syevjInfo_t),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, lwork, params)
+    @ccall libcusolver.cusolverDnDsygvj_bufferSize(handle::cusolverDnHandle_t,
+                                                   itype::cusolverEigType_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{Cdouble}, lda::Cint,
+                                                   B::CuPtr{Cdouble}, ldb::Cint,
+                                                   W::CuPtr{Cdouble}, lwork::Ptr{Cint},
+                                                   params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnChegvj_bufferSize(handle, itype, jobz, uplo, n, A, lda, B, ldb,
                                               W, lwork, params)
     initialize_context()
-    ccall((:cusolverDnChegvj_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cfloat}, Ptr{Cint}, syevjInfo_t),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, lwork, params)
+    @ccall libcusolver.cusolverDnChegvj_bufferSize(handle::cusolverDnHandle_t,
+                                                   itype::cusolverEigType_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuComplex}, lda::Cint,
+                                                   B::CuPtr{cuComplex}, ldb::Cint,
+                                                   W::CuPtr{Cfloat}, lwork::Ptr{Cint},
+                                                   params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnZhegvj_bufferSize(handle, itype, jobz, uplo, n, A, lda, B, ldb,
                                               W, lwork, params)
     initialize_context()
-    ccall((:cusolverDnZhegvj_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, Ptr{Cint}, syevjInfo_t),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, lwork, params)
+    @ccall libcusolver.cusolverDnZhegvj_bufferSize(handle::cusolverDnHandle_t,
+                                                   itype::cusolverEigType_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Cint,
+                                                   A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                   B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                                   W::CuPtr{Cdouble}, lwork::Ptr{Cint},
+                                                   params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnSsygvj(handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work,
                                    lwork, info, params)
     initialize_context()
-    ccall((:cusolverDnSsygvj, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cint}, syevjInfo_t),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work, lwork, info,
-                   params)
+    @ccall libcusolver.cusolverDnSsygvj(handle::cusolverDnHandle_t,
+                                        itype::cusolverEigType_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint, A::CuPtr{Cfloat},
+                                        lda::Cint, B::CuPtr{Cfloat}, ldb::Cint,
+                                        W::CuPtr{Cfloat}, work::CuPtr{Cfloat}, lwork::Cint,
+                                        info::CuPtr{Cint},
+                                        params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnDsygvj(handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work,
                                    lwork, info, params)
     initialize_context()
-    ccall((:cusolverDnDsygvj, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cint}, syevjInfo_t),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work, lwork, info,
-                   params)
+    @ccall libcusolver.cusolverDnDsygvj(handle::cusolverDnHandle_t,
+                                        itype::cusolverEigType_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint, A::CuPtr{Cdouble},
+                                        lda::Cint, B::CuPtr{Cdouble}, ldb::Cint,
+                                        W::CuPtr{Cdouble}, work::CuPtr{Cdouble},
+                                        lwork::Cint, info::CuPtr{Cint},
+                                        params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnChegvj(handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work,
                                    lwork, info, params)
     initialize_context()
-    ccall((:cusolverDnChegvj, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{Cfloat}, CuPtr{cuComplex}, Cint, CuPtr{Cint}, syevjInfo_t),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work, lwork, info,
-                   params)
+    @ccall libcusolver.cusolverDnChegvj(handle::cusolverDnHandle_t,
+                                        itype::cusolverEigType_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint,
+                                        A::CuPtr{cuComplex}, lda::Cint, B::CuPtr{cuComplex},
+                                        ldb::Cint, W::CuPtr{Cfloat}, work::CuPtr{cuComplex},
+                                        lwork::Cint, info::CuPtr{Cint},
+                                        params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnZhegvj(handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work,
                                    lwork, info, params)
     initialize_context()
-    ccall((:cusolverDnZhegvj, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                    cublasFillMode_t, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{Cint}, syevjInfo_t),
-                   handle, itype, jobz, uplo, n, A, lda, B, ldb, W, work, lwork, info,
-                   params)
+    @ccall libcusolver.cusolverDnZhegvj(handle::cusolverDnHandle_t,
+                                        itype::cusolverEigType_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Cint,
+                                        A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                        B::CuPtr{cuDoubleComplex}, ldb::Cint,
+                                        W::CuPtr{Cdouble}, work::CuPtr{cuDoubleComplex},
+                                        lwork::Cint, info::CuPtr{Cint},
+                                        params::syevjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnCreateGesvdjInfo(info)
     initialize_context()
-    ccall((:cusolverDnCreateGesvdjInfo, libcusolver), cusolverStatus_t,
-                   (Ptr{gesvdjInfo_t},),
-                   info)
+    @ccall libcusolver.cusolverDnCreateGesvdjInfo(info::Ptr{gesvdjInfo_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDestroyGesvdjInfo(info)
     initialize_context()
-    ccall((:cusolverDnDestroyGesvdjInfo, libcusolver), cusolverStatus_t,
-                   (gesvdjInfo_t,),
-                   info)
+    @ccall libcusolver.cusolverDnDestroyGesvdjInfo(info::gesvdjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnXgesvdjSetTolerance(info, tolerance)
     initialize_context()
-    ccall((:cusolverDnXgesvdjSetTolerance, libcusolver), cusolverStatus_t,
-                   (gesvdjInfo_t, Cdouble),
-                   info, tolerance)
+    @ccall libcusolver.cusolverDnXgesvdjSetTolerance(info::gesvdjInfo_t,
+                                                     tolerance::Cdouble)::cusolverStatus_t
 end
 
 @checked function cusolverDnXgesvdjSetMaxSweeps(info, max_sweeps)
     initialize_context()
-    ccall((:cusolverDnXgesvdjSetMaxSweeps, libcusolver), cusolverStatus_t,
-                   (gesvdjInfo_t, Cint),
-                   info, max_sweeps)
+    @ccall libcusolver.cusolverDnXgesvdjSetMaxSweeps(info::gesvdjInfo_t,
+                                                     max_sweeps::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnXgesvdjSetSortEig(info, sort_svd)
     initialize_context()
-    ccall((:cusolverDnXgesvdjSetSortEig, libcusolver), cusolverStatus_t,
-                   (gesvdjInfo_t, Cint),
-                   info, sort_svd)
+    @ccall libcusolver.cusolverDnXgesvdjSetSortEig(info::gesvdjInfo_t,
+                                                   sort_svd::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnXgesvdjGetResidual(handle, info, residual)
     initialize_context()
-    ccall((:cusolverDnXgesvdjGetResidual, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, gesvdjInfo_t, Ptr{Cdouble}),
-                   handle, info, residual)
+    @ccall libcusolver.cusolverDnXgesvdjGetResidual(handle::cusolverDnHandle_t,
+                                                    info::gesvdjInfo_t,
+                                                    residual::Ptr{Cdouble})::cusolverStatus_t
 end
 
 @checked function cusolverDnXgesvdjGetSweeps(handle, info, executed_sweeps)
     initialize_context()
-    ccall((:cusolverDnXgesvdjGetSweeps, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, gesvdjInfo_t, Ptr{Cint}),
-                   handle, info, executed_sweeps)
+    @ccall libcusolver.cusolverDnXgesvdjGetSweeps(handle::cusolverDnHandle_t,
+                                                  info::gesvdjInfo_t,
+                                                  executed_sweeps::Ptr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnSgesvdjBatched_bufferSize(handle, jobz, m, n, A, lda, S, U,
-                                                      ldu, V, ldv, lwork, params, batchSize)
+@checked function cusolverDnSgesvdjBatched_bufferSize(handle, jobz, m, n, A, lda, S, U, ldu,
+                                                      V, ldv, lwork, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnSgesvdjBatched_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, CuPtr{Cfloat},
-                    Cint, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    Ptr{Cint}, gesvdjInfo_t, Cint),
-                   handle, jobz, m, n, A, lda, S, U, ldu, V, ldv, lwork, params, batchSize)
+    @ccall libcusolver.cusolverDnSgesvdjBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                           jobz::cusolverEigMode_t, m::Cint,
+                                                           n::Cint, A::CuPtr{Cfloat},
+                                                           lda::Cint, S::CuPtr{Cfloat},
+                                                           U::CuPtr{Cfloat}, ldu::Cint,
+                                                           V::CuPtr{Cfloat}, ldv::Cint,
+                                                           lwork::Ptr{Cint},
+                                                           params::gesvdjInfo_t,
+                                                           batchSize::Cint)::cusolverStatus_t
 end
 
-@checked function cusolverDnDgesvdjBatched_bufferSize(handle, jobz, m, n, A, lda, S, U,
-                                                      ldu, V, ldv, lwork, params, batchSize)
+@checked function cusolverDnDgesvdjBatched_bufferSize(handle, jobz, m, n, A, lda, S, U, ldu,
+                                                      V, ldv, lwork, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnDgesvdjBatched_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, CuPtr{Cdouble},
-                    Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    Ptr{Cint}, gesvdjInfo_t, Cint),
-                   handle, jobz, m, n, A, lda, S, U, ldu, V, ldv, lwork, params, batchSize)
+    @ccall libcusolver.cusolverDnDgesvdjBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                           jobz::cusolverEigMode_t, m::Cint,
+                                                           n::Cint, A::CuPtr{Cdouble},
+                                                           lda::Cint, S::CuPtr{Cdouble},
+                                                           U::CuPtr{Cdouble}, ldu::Cint,
+                                                           V::CuPtr{Cdouble}, ldv::Cint,
+                                                           lwork::Ptr{Cint},
+                                                           params::gesvdjInfo_t,
+                                                           batchSize::Cint)::cusolverStatus_t
 end
 
-@checked function cusolverDnCgesvdjBatched_bufferSize(handle, jobz, m, n, A, lda, S, U,
-                                                      ldu, V, ldv, lwork, params, batchSize)
+@checked function cusolverDnCgesvdjBatched_bufferSize(handle, jobz, m, n, A, lda, S, U, ldu,
+                                                      V, ldv, lwork, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnCgesvdjBatched_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, CuPtr{cuComplex},
-                    Cint, CuPtr{Cfloat}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    Ptr{Cint}, gesvdjInfo_t, Cint),
-                   handle, jobz, m, n, A, lda, S, U, ldu, V, ldv, lwork, params, batchSize)
+    @ccall libcusolver.cusolverDnCgesvdjBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                           jobz::cusolverEigMode_t, m::Cint,
+                                                           n::Cint, A::CuPtr{cuComplex},
+                                                           lda::Cint, S::CuPtr{Cfloat},
+                                                           U::CuPtr{cuComplex}, ldu::Cint,
+                                                           V::CuPtr{cuComplex}, ldv::Cint,
+                                                           lwork::Ptr{Cint},
+                                                           params::gesvdjInfo_t,
+                                                           batchSize::Cint)::cusolverStatus_t
 end
 
-@checked function cusolverDnZgesvdjBatched_bufferSize(handle, jobz, m, n, A, lda, S, U,
-                                                      ldu, V, ldv, lwork, params, batchSize)
+@checked function cusolverDnZgesvdjBatched_bufferSize(handle, jobz, m, n, A, lda, S, U, ldu,
+                                                      V, ldv, lwork, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnZgesvdjBatched_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{cuDoubleComplex}, Cint, Ptr{Cint}, gesvdjInfo_t, Cint),
-                   handle, jobz, m, n, A, lda, S, U, ldu, V, ldv, lwork, params, batchSize)
+    @ccall libcusolver.cusolverDnZgesvdjBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                           jobz::cusolverEigMode_t, m::Cint,
+                                                           n::Cint,
+                                                           A::CuPtr{cuDoubleComplex},
+                                                           lda::Cint, S::CuPtr{Cdouble},
+                                                           U::CuPtr{cuDoubleComplex},
+                                                           ldu::Cint,
+                                                           V::CuPtr{cuDoubleComplex},
+                                                           ldv::Cint, lwork::Ptr{Cint},
+                                                           params::gesvdjInfo_t,
+                                                           batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnSgesvdjBatched(handle, jobz, m, n, A, lda, S, U, ldu, V, ldv,
                                            work, lwork, info, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnSgesvdjBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, CuPtr{Cfloat},
-                    Cint, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cint}, gesvdjInfo_t, Cint),
-                   handle, jobz, m, n, A, lda, S, U, ldu, V, ldv, work, lwork, info,
-                   params, batchSize)
+    @ccall libcusolver.cusolverDnSgesvdjBatched(handle::cusolverDnHandle_t,
+                                                jobz::cusolverEigMode_t, m::Cint, n::Cint,
+                                                A::CuPtr{Cfloat}, lda::Cint,
+                                                S::CuPtr{Cfloat}, U::CuPtr{Cfloat},
+                                                ldu::Cint, V::CuPtr{Cfloat}, ldv::Cint,
+                                                work::CuPtr{Cfloat}, lwork::Cint,
+                                                info::CuPtr{Cint}, params::gesvdjInfo_t,
+                                                batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnDgesvdjBatched(handle, jobz, m, n, A, lda, S, U, ldu, V, ldv,
                                            work, lwork, info, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnDgesvdjBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, CuPtr{Cdouble},
-                    Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cint}, gesvdjInfo_t, Cint),
-                   handle, jobz, m, n, A, lda, S, U, ldu, V, ldv, work, lwork, info,
-                   params, batchSize)
+    @ccall libcusolver.cusolverDnDgesvdjBatched(handle::cusolverDnHandle_t,
+                                                jobz::cusolverEigMode_t, m::Cint, n::Cint,
+                                                A::CuPtr{Cdouble}, lda::Cint,
+                                                S::CuPtr{Cdouble}, U::CuPtr{Cdouble},
+                                                ldu::Cint, V::CuPtr{Cdouble}, ldv::Cint,
+                                                work::CuPtr{Cdouble}, lwork::Cint,
+                                                info::CuPtr{Cint}, params::gesvdjInfo_t,
+                                                batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnCgesvdjBatched(handle, jobz, m, n, A, lda, S, U, ldu, V, ldv,
                                            work, lwork, info, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnCgesvdjBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, CuPtr{cuComplex},
-                    Cint, CuPtr{Cfloat}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cint}, gesvdjInfo_t, Cint),
-                   handle, jobz, m, n, A, lda, S, U, ldu, V, ldv, work, lwork, info,
-                   params, batchSize)
+    @ccall libcusolver.cusolverDnCgesvdjBatched(handle::cusolverDnHandle_t,
+                                                jobz::cusolverEigMode_t, m::Cint, n::Cint,
+                                                A::CuPtr{cuComplex}, lda::Cint,
+                                                S::CuPtr{Cfloat}, U::CuPtr{cuComplex},
+                                                ldu::Cint, V::CuPtr{cuComplex}, ldv::Cint,
+                                                work::CuPtr{cuComplex}, lwork::Cint,
+                                                info::CuPtr{Cint}, params::gesvdjInfo_t,
+                                                batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnZgesvdjBatched(handle, jobz, m, n, A, lda, S, U, ldu, V, ldv,
                                            work, lwork, info, params, batchSize)
     initialize_context()
-    ccall((:cusolverDnZgesvdjBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{Cint}, gesvdjInfo_t, Cint),
-                   handle, jobz, m, n, A, lda, S, U, ldu, V, ldv, work, lwork, info,
-                   params, batchSize)
+    @ccall libcusolver.cusolverDnZgesvdjBatched(handle::cusolverDnHandle_t,
+                                                jobz::cusolverEigMode_t, m::Cint, n::Cint,
+                                                A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                S::CuPtr{Cdouble},
+                                                U::CuPtr{cuDoubleComplex}, ldu::Cint,
+                                                V::CuPtr{cuDoubleComplex}, ldv::Cint,
+                                                work::CuPtr{cuDoubleComplex}, lwork::Cint,
+                                                info::CuPtr{Cint}, params::gesvdjInfo_t,
+                                                batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnSgesvdj_bufferSize(handle, jobz, econ, m, n, A, lda, S, U, ldu,
                                                V, ldv, lwork, params)
     initialize_context()
-    ccall((:cusolverDnSgesvdj_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
-                    Cint, Ptr{Cint}, gesvdjInfo_t),
-                   handle, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv, lwork, params)
+    @ccall libcusolver.cusolverDnSgesvdj_bufferSize(handle::cusolverDnHandle_t,
+                                                    jobz::cusolverEigMode_t, econ::Cint,
+                                                    m::Cint, n::Cint, A::CuPtr{Cfloat},
+                                                    lda::Cint, S::CuPtr{Cfloat},
+                                                    U::CuPtr{Cfloat}, ldu::Cint,
+                                                    V::CuPtr{Cfloat}, ldv::Cint,
+                                                    lwork::Ptr{Cint},
+                                                    params::gesvdjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnDgesvdj_bufferSize(handle, jobz, econ, m, n, A, lda, S, U, ldu,
                                                V, ldv, lwork, params)
     initialize_context()
-    ccall((:cusolverDnDgesvdj_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Cint, Ptr{Cint}, gesvdjInfo_t),
-                   handle, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv, lwork, params)
+    @ccall libcusolver.cusolverDnDgesvdj_bufferSize(handle::cusolverDnHandle_t,
+                                                    jobz::cusolverEigMode_t, econ::Cint,
+                                                    m::Cint, n::Cint, A::CuPtr{Cdouble},
+                                                    lda::Cint, S::CuPtr{Cdouble},
+                                                    U::CuPtr{Cdouble}, ldu::Cint,
+                                                    V::CuPtr{Cdouble}, ldv::Cint,
+                                                    lwork::Ptr{Cint},
+                                                    params::gesvdjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnCgesvdj_bufferSize(handle, jobz, econ, m, n, A, lda, S, U, ldu,
                                                V, ldv, lwork, params)
     initialize_context()
-    ccall((:cusolverDnCgesvdj_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cfloat}, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, Cint, Ptr{Cint}, gesvdjInfo_t),
-                   handle, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv, lwork, params)
+    @ccall libcusolver.cusolverDnCgesvdj_bufferSize(handle::cusolverDnHandle_t,
+                                                    jobz::cusolverEigMode_t, econ::Cint,
+                                                    m::Cint, n::Cint, A::CuPtr{cuComplex},
+                                                    lda::Cint, S::CuPtr{Cfloat},
+                                                    U::CuPtr{cuComplex}, ldu::Cint,
+                                                    V::CuPtr{cuComplex}, ldv::Cint,
+                                                    lwork::Ptr{Cint},
+                                                    params::gesvdjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnZgesvdj_bufferSize(handle, jobz, econ, m, n, A, lda, S, U, ldu,
                                                V, ldv, lwork, params)
     initialize_context()
-    ccall((:cusolverDnZgesvdj_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{cuDoubleComplex}, Cint, Ptr{Cint}, gesvdjInfo_t),
-                   handle, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv, lwork, params)
+    @ccall libcusolver.cusolverDnZgesvdj_bufferSize(handle::cusolverDnHandle_t,
+                                                    jobz::cusolverEigMode_t, econ::Cint,
+                                                    m::Cint, n::Cint,
+                                                    A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                                    S::CuPtr{Cdouble},
+                                                    U::CuPtr{cuDoubleComplex}, ldu::Cint,
+                                                    V::CuPtr{cuDoubleComplex}, ldv::Cint,
+                                                    lwork::Ptr{Cint},
+                                                    params::gesvdjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnSgesvdj(handle, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
                                     work, lwork, info, params)
     initialize_context()
-    ccall((:cusolverDnSgesvdj, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
-                    Cint, CuPtr{Cfloat}, Cint, CuPtr{Cint}, gesvdjInfo_t),
-                   handle, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv, work, lwork, info,
-                   params)
+    @ccall libcusolver.cusolverDnSgesvdj(handle::cusolverDnHandle_t,
+                                         jobz::cusolverEigMode_t, econ::Cint, m::Cint,
+                                         n::Cint, A::CuPtr{Cfloat}, lda::Cint,
+                                         S::CuPtr{Cfloat}, U::CuPtr{Cfloat}, ldu::Cint,
+                                         V::CuPtr{Cfloat}, ldv::Cint, work::CuPtr{Cfloat},
+                                         lwork::Cint, info::CuPtr{Cint},
+                                         params::gesvdjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnDgesvdj(handle, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
                                     work, lwork, info, params)
     initialize_context()
-    ccall((:cusolverDnDgesvdj, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cint}, gesvdjInfo_t),
-                   handle, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv, work, lwork, info,
-                   params)
+    @ccall libcusolver.cusolverDnDgesvdj(handle::cusolverDnHandle_t,
+                                         jobz::cusolverEigMode_t, econ::Cint, m::Cint,
+                                         n::Cint, A::CuPtr{Cdouble}, lda::Cint,
+                                         S::CuPtr{Cdouble}, U::CuPtr{Cdouble}, ldu::Cint,
+                                         V::CuPtr{Cdouble}, ldv::Cint, work::CuPtr{Cdouble},
+                                         lwork::Cint, info::CuPtr{Cint},
+                                         params::gesvdjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnCgesvdj(handle, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
                                     work, lwork, info, params)
     initialize_context()
-    ccall((:cusolverDnCgesvdj, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cfloat}, CuPtr{cuComplex}, Cint,
-                    CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, CuPtr{Cint},
-                    gesvdjInfo_t),
-                   handle, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv, work, lwork, info,
-                   params)
+    @ccall libcusolver.cusolverDnCgesvdj(handle::cusolverDnHandle_t,
+                                         jobz::cusolverEigMode_t, econ::Cint, m::Cint,
+                                         n::Cint, A::CuPtr{cuComplex}, lda::Cint,
+                                         S::CuPtr{Cfloat}, U::CuPtr{cuComplex}, ldu::Cint,
+                                         V::CuPtr{cuComplex}, ldv::Cint,
+                                         work::CuPtr{cuComplex}, lwork::Cint,
+                                         info::CuPtr{Cint},
+                                         params::gesvdjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnZgesvdj(handle, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
                                     work, lwork, info, params)
     initialize_context()
-    ccall((:cusolverDnZgesvdj, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, CuPtr{Cdouble}, CuPtr{cuDoubleComplex},
-                    Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{Cint}, gesvdjInfo_t),
-                   handle, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv, work, lwork, info,
-                   params)
+    @ccall libcusolver.cusolverDnZgesvdj(handle::cusolverDnHandle_t,
+                                         jobz::cusolverEigMode_t, econ::Cint, m::Cint,
+                                         n::Cint, A::CuPtr{cuDoubleComplex}, lda::Cint,
+                                         S::CuPtr{Cdouble}, U::CuPtr{cuDoubleComplex},
+                                         ldu::Cint, V::CuPtr{cuDoubleComplex}, ldv::Cint,
+                                         work::CuPtr{cuDoubleComplex}, lwork::Cint,
+                                         info::CuPtr{Cint},
+                                         params::gesvdjInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnSgesvdaStridedBatched_bufferSize(handle, jobz, rank, m, n, d_A,
@@ -3223,13 +3632,23 @@ end
                                                              d_U, ldu, strideU, d_V, ldv,
                                                              strideV, lwork, batchSize)
     initialize_context()
-    ccall((:cusolverDnSgesvdaStridedBatched_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{Cfloat}, Cint, Clonglong, CuPtr{Cfloat}, Clonglong,
-                    CuPtr{Cfloat}, Cint, Clonglong, CuPtr{Cfloat}, Cint, Clonglong,
-                    Ptr{Cint}, Cint),
-                   handle, jobz, rank, m, n, d_A, lda, strideA, d_S, strideS, d_U, ldu,
-                   strideU, d_V, ldv, strideV, lwork, batchSize)
+    @ccall libcusolver.cusolverDnSgesvdaStridedBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                                  jobz::cusolverEigMode_t,
+                                                                  rank::Cint, m::Cint,
+                                                                  n::Cint,
+                                                                  d_A::CuPtr{Cfloat},
+                                                                  lda::Cint,
+                                                                  strideA::Clonglong,
+                                                                  d_S::CuPtr{Cfloat},
+                                                                  strideS::Clonglong,
+                                                                  d_U::CuPtr{Cfloat},
+                                                                  ldu::Cint,
+                                                                  strideU::Clonglong,
+                                                                  d_V::CuPtr{Cfloat},
+                                                                  ldv::Cint,
+                                                                  strideV::Clonglong,
+                                                                  lwork::Ptr{Cint},
+                                                                  batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnDgesvdaStridedBatched_bufferSize(handle, jobz, rank, m, n, d_A,
@@ -3237,13 +3656,23 @@ end
                                                              d_U, ldu, strideU, d_V, ldv,
                                                              strideV, lwork, batchSize)
     initialize_context()
-    ccall((:cusolverDnDgesvdaStridedBatched_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{Cdouble}, Cint, Clonglong, CuPtr{Cdouble}, Clonglong,
-                    CuPtr{Cdouble}, Cint, Clonglong, CuPtr{Cdouble}, Cint, Clonglong,
-                    Ptr{Cint}, Cint),
-                   handle, jobz, rank, m, n, d_A, lda, strideA, d_S, strideS, d_U, ldu,
-                   strideU, d_V, ldv, strideV, lwork, batchSize)
+    @ccall libcusolver.cusolverDnDgesvdaStridedBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                                  jobz::cusolverEigMode_t,
+                                                                  rank::Cint, m::Cint,
+                                                                  n::Cint,
+                                                                  d_A::CuPtr{Cdouble},
+                                                                  lda::Cint,
+                                                                  strideA::Clonglong,
+                                                                  d_S::CuPtr{Cdouble},
+                                                                  strideS::Clonglong,
+                                                                  d_U::CuPtr{Cdouble},
+                                                                  ldu::Cint,
+                                                                  strideU::Clonglong,
+                                                                  d_V::CuPtr{Cdouble},
+                                                                  ldv::Cint,
+                                                                  strideV::Clonglong,
+                                                                  lwork::Ptr{Cint},
+                                                                  batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnCgesvdaStridedBatched_bufferSize(handle, jobz, rank, m, n, d_A,
@@ -3251,13 +3680,23 @@ end
                                                              d_U, ldu, strideU, d_V, ldv,
                                                              strideV, lwork, batchSize)
     initialize_context()
-    ccall((:cusolverDnCgesvdaStridedBatched_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{cuComplex}, Cint, Clonglong, CuPtr{Cfloat}, Clonglong,
-                    CuPtr{cuComplex}, Cint, Clonglong, CuPtr{cuComplex}, Cint, Clonglong,
-                    Ptr{Cint}, Cint),
-                   handle, jobz, rank, m, n, d_A, lda, strideA, d_S, strideS, d_U, ldu,
-                   strideU, d_V, ldv, strideV, lwork, batchSize)
+    @ccall libcusolver.cusolverDnCgesvdaStridedBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                                  jobz::cusolverEigMode_t,
+                                                                  rank::Cint, m::Cint,
+                                                                  n::Cint,
+                                                                  d_A::CuPtr{cuComplex},
+                                                                  lda::Cint,
+                                                                  strideA::Clonglong,
+                                                                  d_S::CuPtr{Cfloat},
+                                                                  strideS::Clonglong,
+                                                                  d_U::CuPtr{cuComplex},
+                                                                  ldu::Cint,
+                                                                  strideU::Clonglong,
+                                                                  d_V::CuPtr{cuComplex},
+                                                                  ldv::Cint,
+                                                                  strideV::Clonglong,
+                                                                  lwork::Ptr{Cint},
+                                                                  batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnZgesvdaStridedBatched_bufferSize(handle, jobz, rank, m, n, d_A,
@@ -3265,13 +3704,23 @@ end
                                                              d_U, ldu, strideU, d_V, ldv,
                                                              strideV, lwork, batchSize)
     initialize_context()
-    ccall((:cusolverDnZgesvdaStridedBatched_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, Clonglong, CuPtr{Cdouble}, Clonglong,
-                    CuPtr{cuDoubleComplex}, Cint, Clonglong, CuPtr{cuDoubleComplex}, Cint,
-                    Clonglong, Ptr{Cint}, Cint),
-                   handle, jobz, rank, m, n, d_A, lda, strideA, d_S, strideS, d_U, ldu,
-                   strideU, d_V, ldv, strideV, lwork, batchSize)
+    @ccall libcusolver.cusolverDnZgesvdaStridedBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                                  jobz::cusolverEigMode_t,
+                                                                  rank::Cint, m::Cint,
+                                                                  n::Cint,
+                                                                  d_A::CuPtr{cuDoubleComplex},
+                                                                  lda::Cint,
+                                                                  strideA::Clonglong,
+                                                                  d_S::CuPtr{Cdouble},
+                                                                  strideS::Clonglong,
+                                                                  d_U::CuPtr{cuDoubleComplex},
+                                                                  ldu::Cint,
+                                                                  strideU::Clonglong,
+                                                                  d_V::CuPtr{cuDoubleComplex},
+                                                                  ldv::Cint,
+                                                                  strideV::Clonglong,
+                                                                  lwork::Ptr{Cint},
+                                                                  batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnSgesvdaStridedBatched(handle, jobz, rank, m, n, d_A, lda,
@@ -3279,13 +3728,20 @@ end
                                                   d_V, ldv, strideV, d_work, lwork, d_info,
                                                   h_R_nrmF, batchSize)
     initialize_context()
-    ccall((:cusolverDnSgesvdaStridedBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{Cfloat}, Cint, Clonglong, CuPtr{Cfloat}, Clonglong,
-                    CuPtr{Cfloat}, Cint, Clonglong, CuPtr{Cfloat}, Cint, Clonglong,
-                    CuPtr{Cfloat}, Cint, CuPtr{Cint}, Ptr{Cdouble}, Cint),
-                   handle, jobz, rank, m, n, d_A, lda, strideA, d_S, strideS, d_U, ldu,
-                   strideU, d_V, ldv, strideV, d_work, lwork, d_info, h_R_nrmF, batchSize)
+    @ccall libcusolver.cusolverDnSgesvdaStridedBatched(handle::cusolverDnHandle_t,
+                                                       jobz::cusolverEigMode_t, rank::Cint,
+                                                       m::Cint, n::Cint, d_A::CuPtr{Cfloat},
+                                                       lda::Cint, strideA::Clonglong,
+                                                       d_S::CuPtr{Cfloat},
+                                                       strideS::Clonglong,
+                                                       d_U::CuPtr{Cfloat}, ldu::Cint,
+                                                       strideU::Clonglong,
+                                                       d_V::CuPtr{Cfloat}, ldv::Cint,
+                                                       strideV::Clonglong,
+                                                       d_work::CuPtr{Cfloat}, lwork::Cint,
+                                                       d_info::CuPtr{Cint},
+                                                       h_R_nrmF::Ptr{Cdouble},
+                                                       batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnDgesvdaStridedBatched(handle, jobz, rank, m, n, d_A, lda,
@@ -3293,13 +3749,21 @@ end
                                                   d_V, ldv, strideV, d_work, lwork, d_info,
                                                   h_R_nrmF, batchSize)
     initialize_context()
-    ccall((:cusolverDnDgesvdaStridedBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{Cdouble}, Cint, Clonglong, CuPtr{Cdouble}, Clonglong,
-                    CuPtr{Cdouble}, Cint, Clonglong, CuPtr{Cdouble}, Cint, Clonglong,
-                    CuPtr{Cdouble}, Cint, CuPtr{Cint}, Ptr{Cdouble}, Cint),
-                   handle, jobz, rank, m, n, d_A, lda, strideA, d_S, strideS, d_U, ldu,
-                   strideU, d_V, ldv, strideV, d_work, lwork, d_info, h_R_nrmF, batchSize)
+    @ccall libcusolver.cusolverDnDgesvdaStridedBatched(handle::cusolverDnHandle_t,
+                                                       jobz::cusolverEigMode_t, rank::Cint,
+                                                       m::Cint, n::Cint,
+                                                       d_A::CuPtr{Cdouble}, lda::Cint,
+                                                       strideA::Clonglong,
+                                                       d_S::CuPtr{Cdouble},
+                                                       strideS::Clonglong,
+                                                       d_U::CuPtr{Cdouble}, ldu::Cint,
+                                                       strideU::Clonglong,
+                                                       d_V::CuPtr{Cdouble}, ldv::Cint,
+                                                       strideV::Clonglong,
+                                                       d_work::CuPtr{Cdouble}, lwork::Cint,
+                                                       d_info::CuPtr{Cint},
+                                                       h_R_nrmF::Ptr{Cdouble},
+                                                       batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnCgesvdaStridedBatched(handle, jobz, rank, m, n, d_A, lda,
@@ -3307,13 +3771,21 @@ end
                                                   d_V, ldv, strideV, d_work, lwork, d_info,
                                                   h_R_nrmF, batchSize)
     initialize_context()
-    ccall((:cusolverDnCgesvdaStridedBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{cuComplex}, Cint, Clonglong, CuPtr{Cfloat}, Clonglong,
-                    CuPtr{cuComplex}, Cint, Clonglong, CuPtr{cuComplex}, Cint, Clonglong,
-                    CuPtr{cuComplex}, Cint, CuPtr{Cint}, Ptr{Cdouble}, Cint),
-                   handle, jobz, rank, m, n, d_A, lda, strideA, d_S, strideS, d_U, ldu,
-                   strideU, d_V, ldv, strideV, d_work, lwork, d_info, h_R_nrmF, batchSize)
+    @ccall libcusolver.cusolverDnCgesvdaStridedBatched(handle::cusolverDnHandle_t,
+                                                       jobz::cusolverEigMode_t, rank::Cint,
+                                                       m::Cint, n::Cint,
+                                                       d_A::CuPtr{cuComplex}, lda::Cint,
+                                                       strideA::Clonglong,
+                                                       d_S::CuPtr{Cfloat},
+                                                       strideS::Clonglong,
+                                                       d_U::CuPtr{cuComplex}, ldu::Cint,
+                                                       strideU::Clonglong,
+                                                       d_V::CuPtr{cuComplex}, ldv::Cint,
+                                                       strideV::Clonglong,
+                                                       d_work::CuPtr{cuComplex},
+                                                       lwork::Cint, d_info::CuPtr{Cint},
+                                                       h_R_nrmF::Ptr{Cdouble},
+                                                       batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnZgesvdaStridedBatched(handle, jobz, rank, m, n, d_A, lda,
@@ -3321,171 +3793,193 @@ end
                                                   d_V, ldv, strideV, d_work, lwork, d_info,
                                                   h_R_nrmF, batchSize)
     initialize_context()
-    ccall((:cusolverDnZgesvdaStridedBatched, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, Clonglong, CuPtr{Cdouble}, Clonglong,
-                    CuPtr{cuDoubleComplex}, Cint, Clonglong, CuPtr{cuDoubleComplex}, Cint,
-                    Clonglong, CuPtr{cuDoubleComplex}, Cint, CuPtr{Cint}, Ptr{Cdouble},
-                    Cint),
-                   handle, jobz, rank, m, n, d_A, lda, strideA, d_S, strideS, d_U, ldu,
-                   strideU, d_V, ldv, strideV, d_work, lwork, d_info, h_R_nrmF, batchSize)
+    @ccall libcusolver.cusolverDnZgesvdaStridedBatched(handle::cusolverDnHandle_t,
+                                                       jobz::cusolverEigMode_t, rank::Cint,
+                                                       m::Cint, n::Cint,
+                                                       d_A::CuPtr{cuDoubleComplex},
+                                                       lda::Cint, strideA::Clonglong,
+                                                       d_S::CuPtr{Cdouble},
+                                                       strideS::Clonglong,
+                                                       d_U::CuPtr{cuDoubleComplex},
+                                                       ldu::Cint, strideU::Clonglong,
+                                                       d_V::CuPtr{cuDoubleComplex},
+                                                       ldv::Cint, strideV::Clonglong,
+                                                       d_work::CuPtr{cuDoubleComplex},
+                                                       lwork::Cint, d_info::CuPtr{Cint},
+                                                       h_R_nrmF::Ptr{Cdouble},
+                                                       batchSize::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnCreateParams(params)
     initialize_context()
-    ccall((:cusolverDnCreateParams, libcusolver), cusolverStatus_t,
-                   (Ptr{cusolverDnParams_t},),
-                   params)
+    @ccall libcusolver.cusolverDnCreateParams(params::Ptr{cusolverDnParams_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnDestroyParams(params)
     initialize_context()
-    ccall((:cusolverDnDestroyParams, libcusolver), cusolverStatus_t,
-                   (cusolverDnParams_t,),
-                   params)
+    @ccall libcusolver.cusolverDnDestroyParams(params::cusolverDnParams_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnSetAdvOptions(params, _function, algo)
     initialize_context()
-    ccall((:cusolverDnSetAdvOptions, libcusolver), cusolverStatus_t,
-                   (cusolverDnParams_t, cusolverDnFunction_t, cusolverAlgMode_t),
-                   params, _function, algo)
+    @ccall libcusolver.cusolverDnSetAdvOptions(params::cusolverDnParams_t,
+                                               _function::cusolverDnFunction_t,
+                                               algo::cusolverAlgMode_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnPotrf_bufferSize(handle, params, uplo, n, dataTypeA, A, lda,
                                              computeType, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverDnPotrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, cublasFillMode_t, Int64,
-                    cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, Ptr{Csize_t}),
-                   handle, params, uplo, n, dataTypeA, A, lda, computeType,
-                   workspaceInBytes)
+    @ccall libcusolver.cusolverDnPotrf_bufferSize(handle::cusolverDnHandle_t,
+                                                  params::cusolverDnParams_t,
+                                                  uplo::cublasFillMode_t, n::Int64,
+                                                  dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                                  lda::Int64, computeType::cudaDataType,
+                                                  workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnPotrf(handle, params, uplo, n, dataTypeA, A, lda, computeType,
                                   pBuffer, workspaceInBytes, info)
     initialize_context()
-    ccall((:cusolverDnPotrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, cublasFillMode_t, Int64,
-                    cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Csize_t,
-                    CuPtr{Cint}),
-                   handle, params, uplo, n, dataTypeA, A, lda, computeType, pBuffer,
-                   workspaceInBytes, info)
+    @ccall libcusolver.cusolverDnPotrf(handle::cusolverDnHandle_t,
+                                       params::cusolverDnParams_t, uplo::cublasFillMode_t,
+                                       n::Int64, dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                       lda::Int64, computeType::cudaDataType,
+                                       pBuffer::CuPtr{Cvoid}, workspaceInBytes::Csize_t,
+                                       info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnPotrs(handle, params, uplo, n, nrhs, dataTypeA, A, lda,
                                   dataTypeB, B, ldb, info)
     initialize_context()
-    ccall((:cusolverDnPotrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, cublasFillMode_t, Int64,
-                    Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid},
-                    Int64, CuPtr{Cint}),
-                   handle, params, uplo, n, nrhs, dataTypeA, A, lda, dataTypeB, B, ldb,
-                   info)
+    @ccall libcusolver.cusolverDnPotrs(handle::cusolverDnHandle_t,
+                                       params::cusolverDnParams_t, uplo::cublasFillMode_t,
+                                       n::Int64, nrhs::Int64, dataTypeA::cudaDataType,
+                                       A::CuPtr{Cvoid}, lda::Int64, dataTypeB::cudaDataType,
+                                       B::CuPtr{Cvoid}, ldb::Int64,
+                                       info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnGeqrf_bufferSize(handle, params, m, n, dataTypeA, A, lda,
-                                             dataTypeTau, tau, computeType, workspaceInBytes)
+                                             dataTypeTau, tau, computeType,
+                                             workspaceInBytes)
     initialize_context()
-    ccall((:cusolverDnGeqrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, Int64, Int64, cudaDataType,
-                    CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType,
-                    Ptr{Csize_t}),
-                   handle, params, m, n, dataTypeA, A, lda, dataTypeTau, tau, computeType,
-                   workspaceInBytes)
+    @ccall libcusolver.cusolverDnGeqrf_bufferSize(handle::cusolverDnHandle_t,
+                                                  params::cusolverDnParams_t, m::Int64,
+                                                  n::Int64, dataTypeA::cudaDataType,
+                                                  A::CuPtr{Cvoid}, lda::Int64,
+                                                  dataTypeTau::cudaDataType,
+                                                  tau::CuPtr{Cvoid},
+                                                  computeType::cudaDataType,
+                                                  workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverDnGeqrf(handle, params, m, n, dataTypeA, A, lda, dataTypeTau,
-                                  tau, computeType, pBuffer, workspaceInBytes, info)
+@checked function cusolverDnGeqrf(handle, params, m, n, dataTypeA, A, lda, dataTypeTau, tau,
+                                  computeType, pBuffer, workspaceInBytes, info)
     initialize_context()
-    ccall((:cusolverDnGeqrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, Int64, Int64, cudaDataType,
-                    CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType,
-                    CuPtr{Cvoid}, Csize_t, CuPtr{Cint}),
-                   handle, params, m, n, dataTypeA, A, lda, dataTypeTau, tau, computeType,
-                   pBuffer, workspaceInBytes, info)
+    @ccall libcusolver.cusolverDnGeqrf(handle::cusolverDnHandle_t,
+                                       params::cusolverDnParams_t, m::Int64, n::Int64,
+                                       dataTypeA::cudaDataType, A::CuPtr{Cvoid}, lda::Int64,
+                                       dataTypeTau::cudaDataType, tau::CuPtr{Cvoid},
+                                       computeType::cudaDataType, pBuffer::CuPtr{Cvoid},
+                                       workspaceInBytes::Csize_t,
+                                       info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnGetrf_bufferSize(handle, params, m, n, dataTypeA, A, lda,
                                              computeType, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverDnGetrf_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, Int64, Int64, cudaDataType,
-                    CuPtr{Cvoid}, Int64, cudaDataType, Ptr{Csize_t}),
-                   handle, params, m, n, dataTypeA, A, lda, computeType, workspaceInBytes)
+    @ccall libcusolver.cusolverDnGetrf_bufferSize(handle::cusolverDnHandle_t,
+                                                  params::cusolverDnParams_t, m::Int64,
+                                                  n::Int64, dataTypeA::cudaDataType,
+                                                  A::CuPtr{Cvoid}, lda::Int64,
+                                                  computeType::cudaDataType,
+                                                  workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnGetrf(handle, params, m, n, dataTypeA, A, lda, ipiv,
                                   computeType, pBuffer, workspaceInBytes, info)
     initialize_context()
-    ccall((:cusolverDnGetrf, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, Int64, Int64, cudaDataType,
-                    CuPtr{Cvoid}, Int64, CuPtr{Int64}, cudaDataType, CuPtr{Cvoid}, Csize_t,
-                    CuPtr{Cint}),
-                   handle, params, m, n, dataTypeA, A, lda, ipiv, computeType, pBuffer,
-                   workspaceInBytes, info)
+    @ccall libcusolver.cusolverDnGetrf(handle::cusolverDnHandle_t,
+                                       params::cusolverDnParams_t, m::Int64, n::Int64,
+                                       dataTypeA::cudaDataType, A::CuPtr{Cvoid}, lda::Int64,
+                                       ipiv::CuPtr{Int64}, computeType::cudaDataType,
+                                       pBuffer::CuPtr{Cvoid}, workspaceInBytes::Csize_t,
+                                       info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnGetrs(handle, params, trans, n, nrhs, dataTypeA, A, lda, ipiv,
                                   dataTypeB, B, ldb, info)
     initialize_context()
-    ccall((:cusolverDnGetrs, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, cublasOperation_t, Int64,
-                    Int64, cudaDataType, CuPtr{Cvoid}, Int64, CuPtr{Int64}, cudaDataType,
-                    CuPtr{Cvoid}, Int64, CuPtr{Cint}),
-                   handle, params, trans, n, nrhs, dataTypeA, A, lda, ipiv, dataTypeB, B,
-                   ldb, info)
+    @ccall libcusolver.cusolverDnGetrs(handle::cusolverDnHandle_t,
+                                       params::cusolverDnParams_t, trans::cublasOperation_t,
+                                       n::Int64, nrhs::Int64, dataTypeA::cudaDataType,
+                                       A::CuPtr{Cvoid}, lda::Int64, ipiv::CuPtr{Int64},
+                                       dataTypeB::cudaDataType, B::CuPtr{Cvoid}, ldb::Int64,
+                                       info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSyevd_bufferSize(handle, params, jobz, uplo, n, dataTypeA, A,
                                              lda, dataTypeW, W, computeType,
                                              workspaceInBytes)
     initialize_context()
-    ccall((:cusolverDnSyevd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t,
-                    cublasFillMode_t, Int64, cudaDataType, CuPtr{Cvoid}, Int64,
-                    cudaDataType, CuPtr{Cvoid}, cudaDataType, Ptr{Csize_t}),
-                   handle, params, jobz, uplo, n, dataTypeA, A, lda, dataTypeW, W,
-                   computeType, workspaceInBytes)
+    @ccall libcusolver.cusolverDnSyevd_bufferSize(handle::cusolverDnHandle_t,
+                                                  params::cusolverDnParams_t,
+                                                  jobz::cusolverEigMode_t,
+                                                  uplo::cublasFillMode_t, n::Int64,
+                                                  dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                                  lda::Int64, dataTypeW::cudaDataType,
+                                                  W::CuPtr{Cvoid},
+                                                  computeType::cudaDataType,
+                                                  workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSyevd(handle, params, jobz, uplo, n, dataTypeA, A, lda,
-                                  dataTypeW, W, computeType, pBuffer, workspaceInBytes, info)
+                                  dataTypeW, W, computeType, pBuffer, workspaceInBytes,
+                                  info)
     initialize_context()
-    ccall((:cusolverDnSyevd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t,
-                    cublasFillMode_t, Int64, cudaDataType, CuPtr{Cvoid}, Int64,
-                    cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Csize_t,
-                    CuPtr{Cint}),
-                   handle, params, jobz, uplo, n, dataTypeA, A, lda, dataTypeW, W,
-                   computeType, pBuffer, workspaceInBytes, info)
+    @ccall libcusolver.cusolverDnSyevd(handle::cusolverDnHandle_t,
+                                       params::cusolverDnParams_t, jobz::cusolverEigMode_t,
+                                       uplo::cublasFillMode_t, n::Int64,
+                                       dataTypeA::cudaDataType, A::CuPtr{Cvoid}, lda::Int64,
+                                       dataTypeW::cudaDataType, W::CuPtr{Cvoid},
+                                       computeType::cudaDataType, pBuffer::CuPtr{Cvoid},
+                                       workspaceInBytes::Csize_t,
+                                       info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSyevdx_bufferSize(handle, params, jobz, range, uplo, n,
                                               dataTypeA, A, lda, vl, vu, il, iu, h_meig,
                                               dataTypeW, W, computeType, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverDnSyevdx_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t,
-                    cusolverEigRange_t, cublasFillMode_t, Int64, cudaDataType,
-                    CuPtr{Cvoid}, Int64, Ptr{Cvoid}, Ptr{Cvoid}, Int64, Int64, Ptr{Int64},
-                    cudaDataType, CuPtr{Cvoid}, cudaDataType, Ptr{Csize_t}),
-                   handle, params, jobz, range, uplo, n, dataTypeA, A, lda, vl, vu, il, iu,
-                   h_meig, dataTypeW, W, computeType, workspaceInBytes)
+    @ccall libcusolver.cusolverDnSyevdx_bufferSize(handle::cusolverDnHandle_t,
+                                                   params::cusolverDnParams_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   range::cusolverEigRange_t,
+                                                   uplo::cublasFillMode_t, n::Int64,
+                                                   dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                                   lda::Int64, vl::Ptr{Cvoid},
+                                                   vu::Ptr{Cvoid}, il::Int64, iu::Int64,
+                                                   h_meig::Ptr{Int64},
+                                                   dataTypeW::cudaDataType, W::CuPtr{Cvoid},
+                                                   computeType::cudaDataType,
+                                                   workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnSyevdx(handle, params, jobz, range, uplo, n, dataTypeA, A, lda,
                                    vl, vu, il, iu, meig64, dataTypeW, W, computeType,
                                    pBuffer, workspaceInBytes, info)
     initialize_context()
-    ccall((:cusolverDnSyevdx, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t,
-                    cusolverEigRange_t, cublasFillMode_t, Int64, cudaDataType,
-                    CuPtr{Cvoid}, Int64, Ptr{Cvoid}, Ptr{Cvoid}, Int64, Int64, Ptr{Int64},
-                    cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Csize_t,
-                    CuPtr{Cint}),
-                   handle, params, jobz, range, uplo, n, dataTypeA, A, lda, vl, vu, il, iu,
-                   meig64, dataTypeW, W, computeType, pBuffer, workspaceInBytes, info)
+    @ccall libcusolver.cusolverDnSyevdx(handle::cusolverDnHandle_t,
+                                        params::cusolverDnParams_t, jobz::cusolverEigMode_t,
+                                        range::cusolverEigRange_t, uplo::cublasFillMode_t,
+                                        n::Int64, dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                        lda::Int64, vl::Ptr{Cvoid}, vu::Ptr{Cvoid},
+                                        il::Int64, iu::Int64, meig64::Ptr{Int64},
+                                        dataTypeW::cudaDataType, W::CuPtr{Cvoid},
+                                        computeType::cudaDataType, pBuffer::CuPtr{Cvoid},
+                                        workspaceInBytes::Csize_t,
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnGesvd_bufferSize(handle, params, jobu, jobvt, m, n, dataTypeA,
@@ -3493,1637 +3987,2219 @@ end
                                              dataTypeVT, VT, ldvt, computeType,
                                              workspaceInBytes)
     initialize_context()
-    ccall((:cusolverDnGesvd_bufferSize, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64,
-                    cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid},
-                    cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64,
-                    cudaDataType, Ptr{Csize_t}),
-                   handle, params, jobu, jobvt, m, n, dataTypeA, A, lda, dataTypeS, S,
-                   dataTypeU, U, ldu, dataTypeVT, VT, ldvt, computeType, workspaceInBytes)
+    @ccall libcusolver.cusolverDnGesvd_bufferSize(handle::cusolverDnHandle_t,
+                                                  params::cusolverDnParams_t, jobu::Int8,
+                                                  jobvt::Int8, m::Int64, n::Int64,
+                                                  dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                                  lda::Int64, dataTypeS::cudaDataType,
+                                                  S::CuPtr{Cvoid}, dataTypeU::cudaDataType,
+                                                  U::CuPtr{Cvoid}, ldu::Int64,
+                                                  dataTypeVT::cudaDataType,
+                                                  VT::CuPtr{Cvoid}, ldvt::Int64,
+                                                  computeType::cudaDataType,
+                                                  workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnGesvd(handle, params, jobu, jobvt, m, n, dataTypeA, A, lda,
                                   dataTypeS, S, dataTypeU, U, ldu, dataTypeVT, VT, ldvt,
                                   computeType, pBuffer, workspaceInBytes, info)
     initialize_context()
-    ccall((:cusolverDnGesvd, libcusolver), cusolverStatus_t,
-                   (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64,
-                    cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid},
-                    cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64,
-                    cudaDataType, CuPtr{Cvoid}, Csize_t, CuPtr{Cint}),
-                   handle, params, jobu, jobvt, m, n, dataTypeA, A, lda, dataTypeS, S,
-                   dataTypeU, U, ldu, dataTypeVT, VT, ldvt, computeType, pBuffer,
-                   workspaceInBytes, info)
+    @ccall libcusolver.cusolverDnGesvd(handle::cusolverDnHandle_t,
+                                       params::cusolverDnParams_t, jobu::Int8, jobvt::Int8,
+                                       m::Int64, n::Int64, dataTypeA::cudaDataType,
+                                       A::CuPtr{Cvoid}, lda::Int64, dataTypeS::cudaDataType,
+                                       S::CuPtr{Cvoid}, dataTypeU::cudaDataType,
+                                       U::CuPtr{Cvoid}, ldu::Int64,
+                                       dataTypeVT::cudaDataType, VT::CuPtr{Cvoid},
+                                       ldvt::Int64, computeType::cudaDataType,
+                                       pBuffer::CuPtr{Cvoid}, workspaceInBytes::Csize_t,
+                                       info::CuPtr{Cint})::cusolverStatus_t
 end
-# Julia wrapper for header: cusolverSp.h
-# Automatically generated using Clang.jl
+
+@checked function cusolverDnXpotrf_bufferSize(handle, params, uplo, n, dataTypeA, A, lda,
+                                              computeType, workspaceInBytesOnDevice,
+                                              workspaceInBytesOnHost)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXpotrf_bufferSize(handle::cusolverDnHandle_t,
+                                                   params::cusolverDnParams_t,
+                                                   uplo::cublasFillMode_t, n::Int64,
+                                                   dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                                   lda::Int64, computeType::cudaDataType,
+                                                   workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                   workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXpotrf(handle, params, uplo, n, dataTypeA, A, lda, computeType,
+                                   bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost,
+                                   workspaceInBytesOnHost, info)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXpotrf(handle::cusolverDnHandle_t,
+                                        params::cusolverDnParams_t, uplo::cublasFillMode_t,
+                                        n::Int64, dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                        lda::Int64, computeType::cudaDataType,
+                                        bufferOnDevice::CuPtr{Cvoid},
+                                        workspaceInBytesOnDevice::Csize_t,
+                                        bufferOnHost::Ptr{Cvoid},
+                                        workspaceInBytesOnHost::Csize_t,
+                                        info::CuPtr{Cint})::cusolverStatus_t
+end
+
+@checked function cusolverDnXpotrs(handle, params, uplo, n, nrhs, dataTypeA, A, lda,
+                                   dataTypeB, B, ldb, info)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXpotrs(handle::cusolverDnHandle_t,
+                                        params::cusolverDnParams_t, uplo::cublasFillMode_t,
+                                        n::Int64, nrhs::Int64, dataTypeA::cudaDataType,
+                                        A::CuPtr{Cvoid}, lda::Int64,
+                                        dataTypeB::cudaDataType, B::CuPtr{Cvoid},
+                                        ldb::Int64, info::CuPtr{Cint})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgeqrf_bufferSize(handle, params, m, n, dataTypeA, A, lda,
+                                              dataTypeTau, tau, computeType,
+                                              workspaceInBytesOnDevice,
+                                              workspaceInBytesOnHost)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXgeqrf_bufferSize(handle::cusolverDnHandle_t,
+                                                   params::cusolverDnParams_t, m::Int64,
+                                                   n::Int64, dataTypeA::cudaDataType,
+                                                   A::CuPtr{Cvoid}, lda::Int64,
+                                                   dataTypeTau::cudaDataType,
+                                                   tau::CuPtr{Cvoid},
+                                                   computeType::cudaDataType,
+                                                   workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                   workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgeqrf(handle, params, m, n, dataTypeA, A, lda, dataTypeTau,
+                                   tau, computeType, bufferOnDevice,
+                                   workspaceInBytesOnDevice, bufferOnHost,
+                                   workspaceInBytesOnHost, info)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXgeqrf(handle::cusolverDnHandle_t,
+                                        params::cusolverDnParams_t, m::Int64, n::Int64,
+                                        dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                        lda::Int64, dataTypeTau::cudaDataType,
+                                        tau::CuPtr{Cvoid}, computeType::cudaDataType,
+                                        bufferOnDevice::CuPtr{Cvoid},
+                                        workspaceInBytesOnDevice::Csize_t,
+                                        bufferOnHost::Ptr{Cvoid},
+                                        workspaceInBytesOnHost::Csize_t,
+                                        info::CuPtr{Cint})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgetrf_bufferSize(handle, params, m, n, dataTypeA, A, lda,
+                                              computeType, workspaceInBytesOnDevice,
+                                              workspaceInBytesOnHost)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXgetrf_bufferSize(handle::cusolverDnHandle_t,
+                                                   params::cusolverDnParams_t, m::Int64,
+                                                   n::Int64, dataTypeA::cudaDataType,
+                                                   A::CuPtr{Cvoid}, lda::Int64,
+                                                   computeType::cudaDataType,
+                                                   workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                   workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgetrf(handle, params, m, n, dataTypeA, A, lda, ipiv,
+                                   computeType, bufferOnDevice, workspaceInBytesOnDevice,
+                                   bufferOnHost, workspaceInBytesOnHost, info)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXgetrf(handle::cusolverDnHandle_t,
+                                        params::cusolverDnParams_t, m::Int64, n::Int64,
+                                        dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                        lda::Int64, ipiv::CuPtr{Int64},
+                                        computeType::cudaDataType,
+                                        bufferOnDevice::CuPtr{Cvoid},
+                                        workspaceInBytesOnDevice::Csize_t,
+                                        bufferOnHost::Ptr{Cvoid},
+                                        workspaceInBytesOnHost::Csize_t,
+                                        info::CuPtr{Cint})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgetrs(handle, params, trans, n, nrhs, dataTypeA, A, lda, ipiv,
+                                   dataTypeB, B, ldb, info)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXgetrs(handle::cusolverDnHandle_t,
+                                        params::cusolverDnParams_t,
+                                        trans::cublasOperation_t, n::Int64, nrhs::Int64,
+                                        dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                        lda::Int64, ipiv::CuPtr{Int64},
+                                        dataTypeB::cudaDataType, B::CuPtr{Cvoid},
+                                        ldb::Int64, info::CuPtr{Cint})::cusolverStatus_t
+end
+
+@checked function cusolverDnXsyevd_bufferSize(handle, params, jobz, uplo, n, dataTypeA, A,
+                                              lda, dataTypeW, W, computeType,
+                                              workspaceInBytesOnDevice,
+                                              workspaceInBytesOnHost)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXsyevd_bufferSize(handle::cusolverDnHandle_t,
+                                                   params::cusolverDnParams_t,
+                                                   jobz::cusolverEigMode_t,
+                                                   uplo::cublasFillMode_t, n::Int64,
+                                                   dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                                   lda::Int64, dataTypeW::cudaDataType,
+                                                   W::CuPtr{Cvoid},
+                                                   computeType::cudaDataType,
+                                                   workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                   workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXsyevd(handle, params, jobz, uplo, n, dataTypeA, A, lda,
+                                   dataTypeW, W, computeType, bufferOnDevice,
+                                   workspaceInBytesOnDevice, bufferOnHost,
+                                   workspaceInBytesOnHost, info)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXsyevd(handle::cusolverDnHandle_t,
+                                        params::cusolverDnParams_t, jobz::cusolverEigMode_t,
+                                        uplo::cublasFillMode_t, n::Int64,
+                                        dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                        lda::Int64, dataTypeW::cudaDataType,
+                                        W::CuPtr{Cvoid}, computeType::cudaDataType,
+                                        bufferOnDevice::CuPtr{Cvoid},
+                                        workspaceInBytesOnDevice::Csize_t,
+                                        bufferOnHost::Ptr{Cvoid},
+                                        workspaceInBytesOnHost::Csize_t,
+                                        info::CuPtr{Cint})::cusolverStatus_t
+end
+
+@checked function cusolverDnXsyevdx_bufferSize(handle, params, jobz, range, uplo, n,
+                                               dataTypeA, A, lda, vl, vu, il, iu, h_meig,
+                                               dataTypeW, W, computeType,
+                                               workspaceInBytesOnDevice,
+                                               workspaceInBytesOnHost)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXsyevdx_bufferSize(handle::cusolverDnHandle_t,
+                                                    params::cusolverDnParams_t,
+                                                    jobz::cusolverEigMode_t,
+                                                    range::cusolverEigRange_t,
+                                                    uplo::cublasFillMode_t, n::Int64,
+                                                    dataTypeA::cudaDataType,
+                                                    A::CuPtr{Cvoid}, lda::Int64,
+                                                    vl::CuPtr{Cvoid}, vu::CuPtr{Cvoid},
+                                                    il::Int64, iu::Int64,
+                                                    h_meig::CuPtr{Int64},
+                                                    dataTypeW::cudaDataType,
+                                                    W::CuPtr{Cvoid},
+                                                    computeType::cudaDataType,
+                                                    workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                    workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXsyevdx(handle, params, jobz, range, uplo, n, dataTypeA, A, lda,
+                                    vl, vu, il, iu, meig64, dataTypeW, W, computeType,
+                                    bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost,
+                                    workspaceInBytesOnHost, info)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXsyevdx(handle::cusolverDnHandle_t,
+                                         params::cusolverDnParams_t,
+                                         jobz::cusolverEigMode_t, range::cusolverEigRange_t,
+                                         uplo::cublasFillMode_t, n::Int64,
+                                         dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                         lda::Int64, vl::CuPtr{Cvoid}, vu::CuPtr{Cvoid},
+                                         il::Int64, iu::Int64, meig64::CuPtr{Int64},
+                                         dataTypeW::cudaDataType, W::CuPtr{Cvoid},
+                                         computeType::cudaDataType,
+                                         bufferOnDevice::CuPtr{Cvoid},
+                                         workspaceInBytesOnDevice::Csize_t,
+                                         bufferOnHost::Ptr{Cvoid},
+                                         workspaceInBytesOnHost::Csize_t,
+                                         info::CuPtr{Cint})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgesvd_bufferSize(handle, params, jobu, jobvt, m, n, dataTypeA,
+                                              A, lda, dataTypeS, S, dataTypeU, U, ldu,
+                                              dataTypeVT, VT, ldvt, computeType,
+                                              workspaceInBytesOnDevice,
+                                              workspaceInBytesOnHost)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXgesvd_bufferSize(handle::cusolverDnHandle_t,
+                                                   params::cusolverDnParams_t, jobu::Int8,
+                                                   jobvt::Int8, m::Int64, n::Int64,
+                                                   dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                                   lda::Int64, dataTypeS::cudaDataType,
+                                                   S::CuPtr{Cvoid}, dataTypeU::cudaDataType,
+                                                   U::CuPtr{Cvoid}, ldu::Int64,
+                                                   dataTypeVT::cudaDataType,
+                                                   VT::CuPtr{Cvoid}, ldvt::Int64,
+                                                   computeType::cudaDataType,
+                                                   workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                   workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgesvd(handle, params, jobu, jobvt, m, n, dataTypeA, A, lda,
+                                   dataTypeS, S, dataTypeU, U, ldu, dataTypeVT, VT, ldvt,
+                                   computeType, bufferOnDevice, workspaceInBytesOnDevice,
+                                   bufferOnHost, workspaceInBytesOnHost, info)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXgesvd(handle::cusolverDnHandle_t,
+                                        params::cusolverDnParams_t, jobu::Int8, jobvt::Int8,
+                                        m::Int64, n::Int64, dataTypeA::cudaDataType,
+                                        A::CuPtr{Cvoid}, lda::Int64,
+                                        dataTypeS::cudaDataType, S::CuPtr{Cvoid},
+                                        dataTypeU::cudaDataType, U::CuPtr{Cvoid},
+                                        ldu::Int64, dataTypeVT::cudaDataType,
+                                        VT::CuPtr{Cvoid}, ldvt::Int64,
+                                        computeType::cudaDataType,
+                                        bufferOnDevice::CuPtr{Cvoid},
+                                        workspaceInBytesOnDevice::Csize_t,
+                                        bufferOnHost::Ptr{Cvoid},
+                                        workspaceInBytesOnHost::Csize_t,
+                                        info::CuPtr{Cint})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgesvdp_bufferSize(handle, params, jobz, econ, m, n, dataTypeA,
+                                               A, lda, dataTypeS, S, dataTypeU, U, ldu,
+                                               dataTypeV, V, ldv, computeType,
+                                               workspaceInBytesOnDevice,
+                                               workspaceInBytesOnHost)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXgesvdp_bufferSize(handle::cusolverDnHandle_t,
+                                                    params::cusolverDnParams_t,
+                                                    jobz::cusolverEigMode_t, econ::Cint,
+                                                    m::Int64, n::Int64,
+                                                    dataTypeA::cudaDataType,
+                                                    A::CuPtr{Cvoid}, lda::Int64,
+                                                    dataTypeS::cudaDataType,
+                                                    S::CuPtr{Cvoid},
+                                                    dataTypeU::cudaDataType,
+                                                    U::CuPtr{Cvoid}, ldu::Int64,
+                                                    dataTypeV::cudaDataType,
+                                                    V::CuPtr{Cvoid}, ldv::Int64,
+                                                    computeType::cudaDataType,
+                                                    workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                    workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgesvdp(handle, params, jobz, econ, m, n, dataTypeA, A, lda,
+                                    dataTypeS, S, dataTypeU, U, ldu, dataTypeV, V, ldv,
+                                    computeType, bufferOnDevice, workspaceInBytesOnDevice,
+                                    bufferOnHost, workspaceInBytesOnHost, d_info,
+                                    h_err_sigma)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXgesvdp(handle::cusolverDnHandle_t,
+                                         params::cusolverDnParams_t,
+                                         jobz::cusolverEigMode_t, econ::Cint, m::Int64,
+                                         n::Int64, dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                         lda::Int64, dataTypeS::cudaDataType,
+                                         S::CuPtr{Cvoid}, dataTypeU::cudaDataType,
+                                         U::CuPtr{Cvoid}, ldu::Int64,
+                                         dataTypeV::cudaDataType, V::CuPtr{Cvoid},
+                                         ldv::Int64, computeType::cudaDataType,
+                                         bufferOnDevice::CuPtr{Cvoid},
+                                         workspaceInBytesOnDevice::Csize_t,
+                                         bufferOnHost::Ptr{Cvoid},
+                                         workspaceInBytesOnHost::Csize_t,
+                                         d_info::CuPtr{Cint},
+                                         h_err_sigma::Ptr{Cdouble})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgesvdr_bufferSize(handle, params, jobu, jobv, m, n, k, p,
+                                               niters, dataTypeA, A, lda, dataTypeSrand,
+                                               Srand, dataTypeUrand, Urand, ldUrand,
+                                               dataTypeVrand, Vrand, ldVrand, computeType,
+                                               workspaceInBytesOnDevice,
+                                               workspaceInBytesOnHost)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXgesvdr_bufferSize(handle::cusolverDnHandle_t,
+                                                    params::cusolverDnParams_t, jobu::Int8,
+                                                    jobv::Int8, m::Int64, n::Int64,
+                                                    k::Int64, p::Int64, niters::Int64,
+                                                    dataTypeA::cudaDataType,
+                                                    A::CuPtr{Cvoid}, lda::Int64,
+                                                    dataTypeSrand::cudaDataType,
+                                                    Srand::CuPtr{Cvoid},
+                                                    dataTypeUrand::cudaDataType,
+                                                    Urand::CuPtr{Cvoid}, ldUrand::Int64,
+                                                    dataTypeVrand::cudaDataType,
+                                                    Vrand::CuPtr{Cvoid}, ldVrand::Int64,
+                                                    computeType::cudaDataType,
+                                                    workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                    workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgesvdr(handle, params, jobu, jobv, m, n, k, p, niters,
+                                    dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand,
+                                    Urand, ldUrand, dataTypeVrand, Vrand, ldVrand,
+                                    computeType, bufferOnDevice, workspaceInBytesOnDevice,
+                                    bufferOnHost, workspaceInBytesOnHost, d_info)
+    initialize_context()
+    @ccall libcusolver.cusolverDnXgesvdr(handle::cusolverDnHandle_t,
+                                         params::cusolverDnParams_t, jobu::Int8, jobv::Int8,
+                                         m::Int64, n::Int64, k::Int64, p::Int64,
+                                         niters::Int64, dataTypeA::cudaDataType,
+                                         A::CuPtr{Cvoid}, lda::Int64,
+                                         dataTypeSrand::cudaDataType, Srand::CuPtr{Cvoid},
+                                         dataTypeUrand::cudaDataType, Urand::CuPtr{Cvoid},
+                                         ldUrand::Int64, dataTypeVrand::cudaDataType,
+                                         Vrand::CuPtr{Cvoid}, ldVrand::Int64,
+                                         computeType::cudaDataType,
+                                         bufferOnDevice::CuPtr{Cvoid},
+                                         workspaceInBytesOnDevice::Csize_t,
+                                         bufferOnHost::Ptr{Cvoid},
+                                         workspaceInBytesOnHost::Csize_t,
+                                         d_info::CuPtr{Cint})::cusolverStatus_t
+end
+
+# typedef void ( * cusolverDnLoggerCallback_t ) ( int logLevel , const char * functionName , const char * message )
+const cusolverDnLoggerCallback_t = Ptr{Cvoid}
+
+@checked function cusolverDnLoggerSetCallback(callback)
+    initialize_context()
+    @ccall libcusolver.cusolverDnLoggerSetCallback(callback::cusolverDnLoggerCallback_t)::cusolverStatus_t
+end
+
+@checked function cusolverDnLoggerSetFile(file)
+    initialize_context()
+    @ccall libcusolver.cusolverDnLoggerSetFile(file::Ptr{Libc.FILE})::cusolverStatus_t
+end
+
+@checked function cusolverDnLoggerOpenFile(logFile)
+    initialize_context()
+    @ccall libcusolver.cusolverDnLoggerOpenFile(logFile::Cstring)::cusolverStatus_t
+end
+
+@checked function cusolverDnLoggerSetLevel(level)
+    initialize_context()
+    @ccall libcusolver.cusolverDnLoggerSetLevel(level::Cint)::cusolverStatus_t
+end
+
+@checked function cusolverDnLoggerSetMask(mask)
+    initialize_context()
+    @ccall libcusolver.cusolverDnLoggerSetMask(mask::Cint)::cusolverStatus_t
+end
+
+# no prototype is found for this function at cusolverDn.h:4868:32, please use with caution
+@checked function cusolverDnLoggerForceDisable()
+    initialize_context()
+    @ccall libcusolver.cusolverDnLoggerForceDisable()::cusolverStatus_t
+end
+
+mutable struct cusolverSpContext end
+
+const cusolverSpHandle_t = Ptr{cusolverSpContext}
+
+mutable struct csrqrInfo end
+
+const csrqrInfo_t = Ptr{csrqrInfo}
 
 @checked function cusolverSpCreate(handle)
     initialize_context()
-    ccall((:cusolverSpCreate, libcusolver), cusolverStatus_t,
-                   (Ptr{cusolverSpHandle_t},),
-                   handle)
+    @ccall libcusolver.cusolverSpCreate(handle::Ptr{cusolverSpHandle_t})::cusolverStatus_t
 end
 
 @checked function cusolverSpDestroy(handle)
     initialize_context()
-    ccall((:cusolverSpDestroy, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t,),
-                   handle)
+    @ccall libcusolver.cusolverSpDestroy(handle::cusolverSpHandle_t)::cusolverStatus_t
 end
 
 @checked function cusolverSpSetStream(handle, streamId)
     initialize_context()
-    ccall((:cusolverSpSetStream, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, CUstream),
-                   handle, streamId)
+    @ccall libcusolver.cusolverSpSetStream(handle::cusolverSpHandle_t,
+                                           streamId::cudaStream_t)::cusolverStatus_t
 end
 
 @checked function cusolverSpGetStream(handle, streamId)
     initialize_context()
-    ccall((:cusolverSpGetStream, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Ptr{CUstream}),
-                   handle, streamId)
+    @ccall libcusolver.cusolverSpGetStream(handle::cusolverSpHandle_t,
+                                           streamId::Ptr{cudaStream_t})::cusolverStatus_t
 end
 
 @checked function cusolverSpXcsrissymHost(handle, m, nnzA, descrA, csrRowPtrA, csrEndPtrA,
                                           csrColIndA, issym)
     initialize_context()
-    ccall((:cusolverSpXcsrissymHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cint},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cint}),
-                   handle, m, nnzA, descrA, csrRowPtrA, csrEndPtrA, csrColIndA, issym)
+    @ccall libcusolver.cusolverSpXcsrissymHost(handle::cusolverSpHandle_t, m::Cint,
+                                               nnzA::Cint, descrA::cusparseMatDescr_t,
+                                               csrRowPtrA::Ptr{Cint}, csrEndPtrA::Ptr{Cint},
+                                               csrColIndA::Ptr{Cint},
+                                               issym::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrlsvluHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
                                           csrColIndA, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpScsrlsvluHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cfloat}, Cfloat, Cint, Ptr{Cfloat}, Ptr{Cint}),
-                   handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, b, tol,
-                   reorder, x, singularity)
+    @ccall libcusolver.cusolverSpScsrlsvluHost(handle::cusolverSpHandle_t, n::Cint,
+                                               nnzA::Cint, descrA::cusparseMatDescr_t,
+                                               csrValA::Ptr{Cfloat}, csrRowPtrA::Ptr{Cint},
+                                               csrColIndA::Ptr{Cint}, b::Ptr{Cfloat},
+                                               tol::Cfloat, reorder::Cint, x::Ptr{Cfloat},
+                                               singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrlsvluHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
                                           csrColIndA, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpDcsrlsvluHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Cdouble, Cint, Ptr{Cdouble},
-                    Ptr{Cint}),
-                   handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, b, tol,
-                   reorder, x, singularity)
+    @ccall libcusolver.cusolverSpDcsrlsvluHost(handle::cusolverSpHandle_t, n::Cint,
+                                               nnzA::Cint, descrA::cusparseMatDescr_t,
+                                               csrValA::Ptr{Cdouble}, csrRowPtrA::Ptr{Cint},
+                                               csrColIndA::Ptr{Cint}, b::Ptr{Cdouble},
+                                               tol::Cdouble, reorder::Cint, x::Ptr{Cdouble},
+                                               singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrlsvluHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
                                           csrColIndA, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpCcsrlsvluHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{cuComplex}, Cfloat, Cint, Ptr{cuComplex},
-                    Ptr{Cint}),
-                   handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, b, tol,
-                   reorder, x, singularity)
+    @ccall libcusolver.cusolverSpCcsrlsvluHost(handle::cusolverSpHandle_t, n::Cint,
+                                               nnzA::Cint, descrA::cusparseMatDescr_t,
+                                               csrValA::Ptr{cuComplex},
+                                               csrRowPtrA::Ptr{Cint}, csrColIndA::Ptr{Cint},
+                                               b::Ptr{cuComplex}, tol::Cfloat,
+                                               reorder::Cint, x::Ptr{cuComplex},
+                                               singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrlsvluHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
                                           csrColIndA, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpZcsrlsvluHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t,
-                    Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, Ptr{cuDoubleComplex},
-                    Cdouble, Cint, Ptr{cuDoubleComplex}, Ptr{Cint}),
-                   handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, b, tol,
-                   reorder, x, singularity)
+    @ccall libcusolver.cusolverSpZcsrlsvluHost(handle::cusolverSpHandle_t, n::Cint,
+                                               nnzA::Cint, descrA::cusparseMatDescr_t,
+                                               csrValA::Ptr{cuDoubleComplex},
+                                               csrRowPtrA::Ptr{Cint}, csrColIndA::Ptr{Cint},
+                                               b::Ptr{cuDoubleComplex}, tol::Cdouble,
+                                               reorder::Cint, x::Ptr{cuDoubleComplex},
+                                               singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrlsvqr(handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd,
                                       b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpScsrlsvqr, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, CuPtr{Cfloat},
-                    CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cfloat}, Cfloat, Cint, CuPtr{Cfloat},
-                    Ptr{Cint}),
-                   handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd, b, tol, reorder,
-                   x, singularity)
+    @ccall libcusolver.cusolverSpScsrlsvqr(handle::cusolverSpHandle_t, m::Cint, nnz::Cint,
+                                           descrA::cusparseMatDescr_t,
+                                           csrVal::CuPtr{Cfloat}, csrRowPtr::CuPtr{Cint},
+                                           csrColInd::CuPtr{Cint}, b::CuPtr{Cfloat},
+                                           tol::Cfloat, reorder::Cint, x::CuPtr{Cfloat},
+                                           singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrlsvqr(handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd,
                                       b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpDcsrlsvqr, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, CuPtr{Cdouble},
-                    CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, Cdouble, Cint,
-                    CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd, b, tol, reorder,
-                   x, singularity)
+    @ccall libcusolver.cusolverSpDcsrlsvqr(handle::cusolverSpHandle_t, m::Cint, nnz::Cint,
+                                           descrA::cusparseMatDescr_t,
+                                           csrVal::CuPtr{Cdouble}, csrRowPtr::CuPtr{Cint},
+                                           csrColInd::CuPtr{Cint}, b::CuPtr{Cdouble},
+                                           tol::Cdouble, reorder::Cint, x::CuPtr{Cdouble},
+                                           singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrlsvqr(handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd,
                                       b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpCcsrlsvqr, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, CuPtr{cuComplex},
-                    CuPtr{Cint}, CuPtr{Cint}, CuPtr{cuComplex}, Cfloat, Cint,
-                    CuPtr{cuComplex}, Ptr{Cint}),
-                   handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd, b, tol, reorder,
-                   x, singularity)
+    @ccall libcusolver.cusolverSpCcsrlsvqr(handle::cusolverSpHandle_t, m::Cint, nnz::Cint,
+                                           descrA::cusparseMatDescr_t,
+                                           csrVal::CuPtr{cuComplex}, csrRowPtr::CuPtr{Cint},
+                                           csrColInd::CuPtr{Cint}, b::CuPtr{cuComplex},
+                                           tol::Cfloat, reorder::Cint, x::CuPtr{cuComplex},
+                                           singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrlsvqr(handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd,
                                       b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpZcsrlsvqr, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t,
-                    CuPtr{cuDoubleComplex}, CuPtr{Cint}, CuPtr{Cint},
-                    CuPtr{cuDoubleComplex}, Cdouble, Cint, CuPtr{cuDoubleComplex},
-                    Ptr{Cint}),
-                   handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd, b, tol, reorder,
-                   x, singularity)
+    @ccall libcusolver.cusolverSpZcsrlsvqr(handle::cusolverSpHandle_t, m::Cint, nnz::Cint,
+                                           descrA::cusparseMatDescr_t,
+                                           csrVal::CuPtr{cuDoubleComplex},
+                                           csrRowPtr::CuPtr{Cint}, csrColInd::CuPtr{Cint},
+                                           b::CuPtr{cuDoubleComplex}, tol::Cdouble,
+                                           reorder::Cint, x::CuPtr{cuDoubleComplex},
+                                           singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrlsvqrHost(handle, m, nnz, descrA, csrValA, csrRowPtrA,
                                           csrColIndA, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpScsrlsvqrHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cfloat}, Cfloat, Cint, Ptr{Cfloat}, Ptr{Cint}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, tol,
-                   reorder, x, singularity)
+    @ccall libcusolver.cusolverSpScsrlsvqrHost(handle::cusolverSpHandle_t, m::Cint,
+                                               nnz::Cint, descrA::cusparseMatDescr_t,
+                                               csrValA::Ptr{Cfloat}, csrRowPtrA::Ptr{Cint},
+                                               csrColIndA::Ptr{Cint}, b::Ptr{Cfloat},
+                                               tol::Cfloat, reorder::Cint, x::Ptr{Cfloat},
+                                               singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrlsvqrHost(handle, m, nnz, descrA, csrValA, csrRowPtrA,
                                           csrColIndA, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpDcsrlsvqrHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Cdouble, Cint, Ptr{Cdouble},
-                    Ptr{Cint}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, tol,
-                   reorder, x, singularity)
+    @ccall libcusolver.cusolverSpDcsrlsvqrHost(handle::cusolverSpHandle_t, m::Cint,
+                                               nnz::Cint, descrA::cusparseMatDescr_t,
+                                               csrValA::Ptr{Cdouble}, csrRowPtrA::Ptr{Cint},
+                                               csrColIndA::Ptr{Cint}, b::Ptr{Cdouble},
+                                               tol::Cdouble, reorder::Cint, x::Ptr{Cdouble},
+                                               singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrlsvqrHost(handle, m, nnz, descrA, csrValA, csrRowPtrA,
                                           csrColIndA, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpCcsrlsvqrHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{cuComplex}, Cfloat, Cint, Ptr{cuComplex},
-                    Ptr{Cint}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, tol,
-                   reorder, x, singularity)
+    @ccall libcusolver.cusolverSpCcsrlsvqrHost(handle::cusolverSpHandle_t, m::Cint,
+                                               nnz::Cint, descrA::cusparseMatDescr_t,
+                                               csrValA::Ptr{cuComplex},
+                                               csrRowPtrA::Ptr{Cint}, csrColIndA::Ptr{Cint},
+                                               b::Ptr{cuComplex}, tol::Cfloat,
+                                               reorder::Cint, x::Ptr{cuComplex},
+                                               singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrlsvqrHost(handle, m, nnz, descrA, csrValA, csrRowPtrA,
                                           csrColIndA, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpZcsrlsvqrHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t,
-                    Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, Ptr{cuDoubleComplex},
-                    Cdouble, Cint, Ptr{cuDoubleComplex}, Ptr{Cint}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, tol,
-                   reorder, x, singularity)
+    @ccall libcusolver.cusolverSpZcsrlsvqrHost(handle::cusolverSpHandle_t, m::Cint,
+                                               nnz::Cint, descrA::cusparseMatDescr_t,
+                                               csrValA::Ptr{cuDoubleComplex},
+                                               csrRowPtrA::Ptr{Cint}, csrColIndA::Ptr{Cint},
+                                               b::Ptr{cuDoubleComplex}, tol::Cdouble,
+                                               reorder::Cint, x::Ptr{cuDoubleComplex},
+                                               singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrlsvcholHost(handle, m, nnz, descrA, csrVal, csrRowPtr,
                                             csrColInd, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpScsrlsvcholHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cfloat}, Cfloat, Cint, Ptr{Cfloat}, Ptr{Cint}),
-                   handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd, b, tol, reorder,
-                   x, singularity)
+    @ccall libcusolver.cusolverSpScsrlsvcholHost(handle::cusolverSpHandle_t, m::Cint,
+                                                 nnz::Cint, descrA::cusparseMatDescr_t,
+                                                 csrVal::Ptr{Cfloat}, csrRowPtr::Ptr{Cint},
+                                                 csrColInd::Ptr{Cint}, b::Ptr{Cfloat},
+                                                 tol::Cfloat, reorder::Cint, x::Ptr{Cfloat},
+                                                 singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrlsvcholHost(handle, m, nnz, descrA, csrVal, csrRowPtr,
                                             csrColInd, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpDcsrlsvcholHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Cdouble, Cint, Ptr{Cdouble},
-                    Ptr{Cint}),
-                   handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd, b, tol, reorder,
-                   x, singularity)
+    @ccall libcusolver.cusolverSpDcsrlsvcholHost(handle::cusolverSpHandle_t, m::Cint,
+                                                 nnz::Cint, descrA::cusparseMatDescr_t,
+                                                 csrVal::Ptr{Cdouble}, csrRowPtr::Ptr{Cint},
+                                                 csrColInd::Ptr{Cint}, b::Ptr{Cdouble},
+                                                 tol::Cdouble, reorder::Cint,
+                                                 x::Ptr{Cdouble},
+                                                 singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrlsvcholHost(handle, m, nnz, descrA, csrVal, csrRowPtr,
                                             csrColInd, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpCcsrlsvcholHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{cuComplex}, Cfloat, Cint, Ptr{cuComplex},
-                    Ptr{Cint}),
-                   handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd, b, tol, reorder,
-                   x, singularity)
+    @ccall libcusolver.cusolverSpCcsrlsvcholHost(handle::cusolverSpHandle_t, m::Cint,
+                                                 nnz::Cint, descrA::cusparseMatDescr_t,
+                                                 csrVal::Ptr{cuComplex},
+                                                 csrRowPtr::Ptr{Cint}, csrColInd::Ptr{Cint},
+                                                 b::Ptr{cuComplex}, tol::Cfloat,
+                                                 reorder::Cint, x::Ptr{cuComplex},
+                                                 singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrlsvcholHost(handle, m, nnz, descrA, csrVal, csrRowPtr,
                                             csrColInd, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpZcsrlsvcholHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t,
-                    Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, Ptr{cuDoubleComplex},
-                    Cdouble, Cint, Ptr{cuDoubleComplex}, Ptr{Cint}),
-                   handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd, b, tol, reorder,
-                   x, singularity)
+    @ccall libcusolver.cusolverSpZcsrlsvcholHost(handle::cusolverSpHandle_t, m::Cint,
+                                                 nnz::Cint, descrA::cusparseMatDescr_t,
+                                                 csrVal::Ptr{cuDoubleComplex},
+                                                 csrRowPtr::Ptr{Cint}, csrColInd::Ptr{Cint},
+                                                 b::Ptr{cuDoubleComplex}, tol::Cdouble,
+                                                 reorder::Cint, x::Ptr{cuDoubleComplex},
+                                                 singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrlsvchol(handle, m, nnz, descrA, csrVal, csrRowPtr,
                                         csrColInd, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpScsrlsvchol, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, CuPtr{Cfloat},
-                    CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cfloat}, Cfloat, Cint, CuPtr{Cfloat},
-                    Ptr{Cint}),
-                   handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd, b, tol, reorder,
-                   x, singularity)
+    @ccall libcusolver.cusolverSpScsrlsvchol(handle::cusolverSpHandle_t, m::Cint, nnz::Cint,
+                                             descrA::cusparseMatDescr_t,
+                                             csrVal::CuPtr{Cfloat}, csrRowPtr::CuPtr{Cint},
+                                             csrColInd::CuPtr{Cint}, b::CuPtr{Cfloat},
+                                             tol::Cfloat, reorder::Cint, x::CuPtr{Cfloat},
+                                             singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrlsvchol(handle, m, nnz, descrA, csrVal, csrRowPtr,
                                         csrColInd, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpDcsrlsvchol, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, CuPtr{Cdouble},
-                    CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, Cdouble, Cint,
-                    CuPtr{Cdouble}, Ptr{Cint}),
-                   handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd, b, tol, reorder,
-                   x, singularity)
+    @ccall libcusolver.cusolverSpDcsrlsvchol(handle::cusolverSpHandle_t, m::Cint, nnz::Cint,
+                                             descrA::cusparseMatDescr_t,
+                                             csrVal::CuPtr{Cdouble}, csrRowPtr::CuPtr{Cint},
+                                             csrColInd::CuPtr{Cint}, b::CuPtr{Cdouble},
+                                             tol::Cdouble, reorder::Cint, x::CuPtr{Cdouble},
+                                             singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrlsvchol(handle, m, nnz, descrA, csrVal, csrRowPtr,
                                         csrColInd, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpCcsrlsvchol, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, CuPtr{cuComplex},
-                    CuPtr{Cint}, CuPtr{Cint}, CuPtr{cuComplex}, Cfloat, Cint,
-                    CuPtr{cuComplex}, Ptr{Cint}),
-                   handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd, b, tol, reorder,
-                   x, singularity)
+    @ccall libcusolver.cusolverSpCcsrlsvchol(handle::cusolverSpHandle_t, m::Cint, nnz::Cint,
+                                             descrA::cusparseMatDescr_t,
+                                             csrVal::CuPtr{cuComplex},
+                                             csrRowPtr::CuPtr{Cint}, csrColInd::CuPtr{Cint},
+                                             b::CuPtr{cuComplex}, tol::Cfloat,
+                                             reorder::Cint, x::CuPtr{cuComplex},
+                                             singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrlsvchol(handle, m, nnz, descrA, csrVal, csrRowPtr,
                                         csrColInd, b, tol, reorder, x, singularity)
     initialize_context()
-    ccall((:cusolverSpZcsrlsvchol, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t,
-                    CuPtr{cuDoubleComplex}, CuPtr{Cint}, CuPtr{Cint},
-                    CuPtr{cuDoubleComplex}, Cdouble, Cint, CuPtr{cuDoubleComplex},
-                    Ptr{Cint}),
-                   handle, m, nnz, descrA, csrVal, csrRowPtr, csrColInd, b, tol, reorder,
-                   x, singularity)
+    @ccall libcusolver.cusolverSpZcsrlsvchol(handle::cusolverSpHandle_t, m::Cint, nnz::Cint,
+                                             descrA::cusparseMatDescr_t,
+                                             csrVal::CuPtr{cuDoubleComplex},
+                                             csrRowPtr::CuPtr{Cint}, csrColInd::CuPtr{Cint},
+                                             b::CuPtr{cuDoubleComplex}, tol::Cdouble,
+                                             reorder::Cint, x::CuPtr{cuDoubleComplex},
+                                             singularity::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrlsqvqrHost(handle, m, n, nnz, descrA, csrValA, csrRowPtrA,
                                            csrColIndA, b, tol, rankA, x, p, min_norm)
     initialize_context()
-    ccall((:cusolverSpScsrlsqvqrHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cfloat}, Cfloat, Ptr{Cint}, Ptr{Cfloat},
-                    Ptr{Cint}, Ptr{Cfloat}),
-                   handle, m, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, tol,
-                   rankA, x, p, min_norm)
+    @ccall libcusolver.cusolverSpScsrlsqvqrHost(handle::cusolverSpHandle_t, m::Cint,
+                                                n::Cint, nnz::Cint,
+                                                descrA::cusparseMatDescr_t,
+                                                csrValA::Ptr{Cfloat}, csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint}, b::Ptr{Cfloat},
+                                                tol::Cfloat, rankA::Ptr{Cint},
+                                                x::Ptr{Cfloat}, p::Ptr{Cint},
+                                                min_norm::Ptr{Cfloat})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrlsqvqrHost(handle, m, n, nnz, descrA, csrValA, csrRowPtrA,
                                            csrColIndA, b, tol, rankA, x, p, min_norm)
     initialize_context()
-    ccall((:cusolverSpDcsrlsqvqrHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t,
-                    Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Cdouble, Ptr{Cint},
-                    Ptr{Cdouble}, Ptr{Cint}, Ptr{Cdouble}),
-                   handle, m, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, tol,
-                   rankA, x, p, min_norm)
+    @ccall libcusolver.cusolverSpDcsrlsqvqrHost(handle::cusolverSpHandle_t, m::Cint,
+                                                n::Cint, nnz::Cint,
+                                                descrA::cusparseMatDescr_t,
+                                                csrValA::Ptr{Cdouble},
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint}, b::Ptr{Cdouble},
+                                                tol::Cdouble, rankA::Ptr{Cint},
+                                                x::Ptr{Cdouble}, p::Ptr{Cint},
+                                                min_norm::Ptr{Cdouble})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrlsqvqrHost(handle, m, n, nnz, descrA, csrValA, csrRowPtrA,
                                            csrColIndA, b, tol, rankA, x, p, min_norm)
     initialize_context()
-    ccall((:cusolverSpCcsrlsqvqrHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t,
-                    Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, Ptr{cuComplex}, Cfloat,
-                    Ptr{Cint}, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cfloat}),
-                   handle, m, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, tol,
-                   rankA, x, p, min_norm)
+    @ccall libcusolver.cusolverSpCcsrlsqvqrHost(handle::cusolverSpHandle_t, m::Cint,
+                                                n::Cint, nnz::Cint,
+                                                descrA::cusparseMatDescr_t,
+                                                csrValA::Ptr{cuComplex},
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint}, b::Ptr{cuComplex},
+                                                tol::Cfloat, rankA::Ptr{Cint},
+                                                x::Ptr{cuComplex}, p::Ptr{Cint},
+                                                min_norm::Ptr{Cfloat})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrlsqvqrHost(handle, m, n, nnz, descrA, csrValA, csrRowPtrA,
                                            csrColIndA, b, tol, rankA, x, p, min_norm)
     initialize_context()
-    ccall((:cusolverSpZcsrlsqvqrHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t,
-                    Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, Ptr{cuDoubleComplex},
-                    Cdouble, Ptr{Cint}, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cdouble}),
-                   handle, m, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, tol,
-                   rankA, x, p, min_norm)
+    @ccall libcusolver.cusolverSpZcsrlsqvqrHost(handle::cusolverSpHandle_t, m::Cint,
+                                                n::Cint, nnz::Cint,
+                                                descrA::cusparseMatDescr_t,
+                                                csrValA::Ptr{cuDoubleComplex},
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint},
+                                                b::Ptr{cuDoubleComplex}, tol::Cdouble,
+                                                rankA::Ptr{Cint}, x::Ptr{cuDoubleComplex},
+                                                p::Ptr{Cint},
+                                                min_norm::Ptr{Cdouble})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsreigvsiHost(handle, m, nnz, descrA, csrValA, csrRowPtrA,
                                            csrColIndA, mu0, x0, maxite, tol, mu, x)
     initialize_context()
-    ccall((:cusolverSpScsreigvsiHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat},
-                    Ptr{Cint}, Ptr{Cint}, Cfloat, Ptr{Cfloat}, Cint, Cfloat, Ptr{Cfloat},
-                    Ptr{Cfloat}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, mu0, x0,
-                   maxite, tol, mu, x)
+    @ccall libcusolver.cusolverSpScsreigvsiHost(handle::cusolverSpHandle_t, m::Cint,
+                                                nnz::Cint, descrA::cusparseMatDescr_t,
+                                                csrValA::Ptr{Cfloat}, csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint}, mu0::Cfloat,
+                                                x0::Ptr{Cfloat}, maxite::Cint, tol::Cfloat,
+                                                mu::Ptr{Cfloat},
+                                                x::Ptr{Cfloat})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsreigvsiHost(handle, m, nnz, descrA, csrValA, csrRowPtrA,
                                            csrColIndA, mu0, x0, maxite, tol, mu, x)
     initialize_context()
-    ccall((:cusolverSpDcsreigvsiHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble},
-                    Ptr{Cint}, Ptr{Cint}, Cdouble, Ptr{Cdouble}, Cint, Cdouble,
-                    Ptr{Cdouble}, Ptr{Cdouble}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, mu0, x0,
-                   maxite, tol, mu, x)
+    @ccall libcusolver.cusolverSpDcsreigvsiHost(handle::cusolverSpHandle_t, m::Cint,
+                                                nnz::Cint, descrA::cusparseMatDescr_t,
+                                                csrValA::Ptr{Cdouble},
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint}, mu0::Cdouble,
+                                                x0::Ptr{Cdouble}, maxite::Cint,
+                                                tol::Cdouble, mu::Ptr{Cdouble},
+                                                x::Ptr{Cdouble})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsreigvsiHost(handle, m, nnz, descrA, csrValA, csrRowPtrA,
                                            csrColIndA, mu0, x0, maxite, tol, mu, x)
     initialize_context()
-    ccall((:cusolverSpCcsreigvsiHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex},
-                    Ptr{Cint}, Ptr{Cint}, cuComplex, Ptr{cuComplex}, Cint, Cfloat,
-                    Ptr{cuComplex}, Ptr{cuComplex}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, mu0, x0,
-                   maxite, tol, mu, x)
+    @ccall libcusolver.cusolverSpCcsreigvsiHost(handle::cusolverSpHandle_t, m::Cint,
+                                                nnz::Cint, descrA::cusparseMatDescr_t,
+                                                csrValA::Ptr{cuComplex},
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint}, mu0::cuComplex,
+                                                x0::Ptr{cuComplex}, maxite::Cint,
+                                                tol::Cfloat, mu::Ptr{cuComplex},
+                                                x::Ptr{cuComplex})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsreigvsiHost(handle, m, nnz, descrA, csrValA, csrRowPtrA,
                                            csrColIndA, mu0, x0, maxite, tol, mu, x)
     initialize_context()
-    ccall((:cusolverSpZcsreigvsiHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t,
-                    Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, cuDoubleComplex,
-                    Ptr{cuDoubleComplex}, Cint, Cdouble, Ptr{cuDoubleComplex},
-                    Ptr{cuDoubleComplex}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, mu0, x0,
-                   maxite, tol, mu, x)
+    @ccall libcusolver.cusolverSpZcsreigvsiHost(handle::cusolverSpHandle_t, m::Cint,
+                                                nnz::Cint, descrA::cusparseMatDescr_t,
+                                                csrValA::Ptr{cuDoubleComplex},
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint}, mu0::cuDoubleComplex,
+                                                x0::Ptr{cuDoubleComplex}, maxite::Cint,
+                                                tol::Cdouble, mu::Ptr{cuDoubleComplex},
+                                                x::Ptr{cuDoubleComplex})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsreigvsi(handle, m, nnz, descrA, csrValA, csrRowPtrA,
                                        csrColIndA, mu0, x0, maxite, eps, mu, x)
     initialize_context()
-    ccall((:cusolverSpScsreigvsi, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, CuPtr{Cfloat},
-                    CuPtr{Cint}, CuPtr{Cint}, Cfloat, CuPtr{Cfloat}, Cint, Cfloat,
-                    CuPtr{Cfloat}, CuPtr{Cfloat}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, mu0, x0,
-                   maxite, eps, mu, x)
+    @ccall libcusolver.cusolverSpScsreigvsi(handle::cusolverSpHandle_t, m::Cint, nnz::Cint,
+                                            descrA::cusparseMatDescr_t,
+                                            csrValA::CuPtr{Cfloat}, csrRowPtrA::CuPtr{Cint},
+                                            csrColIndA::CuPtr{Cint}, mu0::Cfloat,
+                                            x0::CuPtr{Cfloat}, maxite::Cint, eps::Cfloat,
+                                            mu::CuPtr{Cfloat},
+                                            x::CuPtr{Cfloat})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsreigvsi(handle, m, nnz, descrA, csrValA, csrRowPtrA,
                                        csrColIndA, mu0, x0, maxite, eps, mu, x)
     initialize_context()
-    ccall((:cusolverSpDcsreigvsi, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, CuPtr{Cdouble},
-                    CuPtr{Cint}, CuPtr{Cint}, Cdouble, CuPtr{Cdouble}, Cint, Cdouble,
-                    CuPtr{Cdouble}, CuPtr{Cdouble}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, mu0, x0,
-                   maxite, eps, mu, x)
+    @ccall libcusolver.cusolverSpDcsreigvsi(handle::cusolverSpHandle_t, m::Cint, nnz::Cint,
+                                            descrA::cusparseMatDescr_t,
+                                            csrValA::CuPtr{Cdouble},
+                                            csrRowPtrA::CuPtr{Cint},
+                                            csrColIndA::CuPtr{Cint}, mu0::Cdouble,
+                                            x0::CuPtr{Cdouble}, maxite::Cint, eps::Cdouble,
+                                            mu::CuPtr{Cdouble},
+                                            x::CuPtr{Cdouble})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsreigvsi(handle, m, nnz, descrA, csrValA, csrRowPtrA,
                                        csrColIndA, mu0, x0, maxite, eps, mu, x)
     initialize_context()
-    ccall((:cusolverSpCcsreigvsi, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, CuPtr{cuComplex},
-                    CuPtr{Cint}, CuPtr{Cint}, cuComplex, CuPtr{cuComplex}, Cint, Cfloat,
-                    CuPtr{cuComplex}, CuPtr{cuComplex}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, mu0, x0,
-                   maxite, eps, mu, x)
+    @ccall libcusolver.cusolverSpCcsreigvsi(handle::cusolverSpHandle_t, m::Cint, nnz::Cint,
+                                            descrA::cusparseMatDescr_t,
+                                            csrValA::CuPtr{cuComplex},
+                                            csrRowPtrA::CuPtr{Cint},
+                                            csrColIndA::CuPtr{Cint}, mu0::cuComplex,
+                                            x0::CuPtr{cuComplex}, maxite::Cint, eps::Cfloat,
+                                            mu::CuPtr{cuComplex},
+                                            x::CuPtr{cuComplex})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsreigvsi(handle, m, nnz, descrA, csrValA, csrRowPtrA,
                                        csrColIndA, mu0, x0, maxite, eps, mu, x)
     initialize_context()
-    ccall((:cusolverSpZcsreigvsi, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t,
-                    CuPtr{cuDoubleComplex}, CuPtr{Cint}, CuPtr{Cint}, cuDoubleComplex,
-                    CuPtr{cuDoubleComplex}, Cint, Cdouble, CuPtr{cuDoubleComplex},
-                    CuPtr{cuDoubleComplex}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, mu0, x0,
-                   maxite, eps, mu, x)
+    @ccall libcusolver.cusolverSpZcsreigvsi(handle::cusolverSpHandle_t, m::Cint, nnz::Cint,
+                                            descrA::cusparseMatDescr_t,
+                                            csrValA::CuPtr{cuDoubleComplex},
+                                            csrRowPtrA::CuPtr{Cint},
+                                            csrColIndA::CuPtr{Cint}, mu0::cuDoubleComplex,
+                                            x0::CuPtr{cuDoubleComplex}, maxite::Cint,
+                                            eps::Cdouble, mu::CuPtr{cuDoubleComplex},
+                                            x::CuPtr{cuDoubleComplex})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsreigsHost(handle, m, nnz, descrA, csrValA, csrRowPtrA,
-                                         csrColIndA, left_bottom_corner,
-                                         right_upper_corner, num_eigs)
+                                         csrColIndA, left_bottom_corner, right_upper_corner,
+                                         num_eigs)
     initialize_context()
-    ccall((:cusolverSpScsreigsHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat},
-                    Ptr{Cint}, Ptr{Cint}, cuComplex, cuComplex, Ptr{Cint}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA,
-                   left_bottom_corner, right_upper_corner, num_eigs)
+    @ccall libcusolver.cusolverSpScsreigsHost(handle::cusolverSpHandle_t, m::Cint,
+                                              nnz::Cint, descrA::cusparseMatDescr_t,
+                                              csrValA::Ptr{Cfloat}, csrRowPtrA::Ptr{Cint},
+                                              csrColIndA::Ptr{Cint},
+                                              left_bottom_corner::cuComplex,
+                                              right_upper_corner::cuComplex,
+                                              num_eigs::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsreigsHost(handle, m, nnz, descrA, csrValA, csrRowPtrA,
-                                         csrColIndA, left_bottom_corner,
-                                         right_upper_corner, num_eigs)
+                                         csrColIndA, left_bottom_corner, right_upper_corner,
+                                         num_eigs)
     initialize_context()
-    ccall((:cusolverSpDcsreigsHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble},
-                    Ptr{Cint}, Ptr{Cint}, cuDoubleComplex, cuDoubleComplex, Ptr{Cint}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA,
-                   left_bottom_corner, right_upper_corner, num_eigs)
+    @ccall libcusolver.cusolverSpDcsreigsHost(handle::cusolverSpHandle_t, m::Cint,
+                                              nnz::Cint, descrA::cusparseMatDescr_t,
+                                              csrValA::Ptr{Cdouble}, csrRowPtrA::Ptr{Cint},
+                                              csrColIndA::Ptr{Cint},
+                                              left_bottom_corner::cuDoubleComplex,
+                                              right_upper_corner::cuDoubleComplex,
+                                              num_eigs::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsreigsHost(handle, m, nnz, descrA, csrValA, csrRowPtrA,
-                                         csrColIndA, left_bottom_corner,
-                                         right_upper_corner, num_eigs)
+                                         csrColIndA, left_bottom_corner, right_upper_corner,
+                                         num_eigs)
     initialize_context()
-    ccall((:cusolverSpCcsreigsHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex},
-                    Ptr{Cint}, Ptr{Cint}, cuComplex, cuComplex, Ptr{Cint}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA,
-                   left_bottom_corner, right_upper_corner, num_eigs)
+    @ccall libcusolver.cusolverSpCcsreigsHost(handle::cusolverSpHandle_t, m::Cint,
+                                              nnz::Cint, descrA::cusparseMatDescr_t,
+                                              csrValA::Ptr{cuComplex},
+                                              csrRowPtrA::Ptr{Cint}, csrColIndA::Ptr{Cint},
+                                              left_bottom_corner::cuComplex,
+                                              right_upper_corner::cuComplex,
+                                              num_eigs::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsreigsHost(handle, m, nnz, descrA, csrValA, csrRowPtrA,
-                                         csrColIndA, left_bottom_corner,
-                                         right_upper_corner, num_eigs)
+                                         csrColIndA, left_bottom_corner, right_upper_corner,
+                                         num_eigs)
     initialize_context()
-    ccall((:cusolverSpZcsreigsHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t,
-                    Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, cuDoubleComplex,
-                    cuDoubleComplex, Ptr{Cint}),
-                   handle, m, nnz, descrA, csrValA, csrRowPtrA, csrColIndA,
-                   left_bottom_corner, right_upper_corner, num_eigs)
+    @ccall libcusolver.cusolverSpZcsreigsHost(handle::cusolverSpHandle_t, m::Cint,
+                                              nnz::Cint, descrA::cusparseMatDescr_t,
+                                              csrValA::Ptr{cuDoubleComplex},
+                                              csrRowPtrA::Ptr{Cint}, csrColIndA::Ptr{Cint},
+                                              left_bottom_corner::cuDoubleComplex,
+                                              right_upper_corner::cuDoubleComplex,
+                                              num_eigs::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpXcsrsymrcmHost(handle, n, nnzA, descrA, csrRowPtrA, csrColIndA,
                                            p)
     initialize_context()
-    ccall((:cusolverSpXcsrsymrcmHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cint},
-                    Ptr{Cint}, Ptr{Cint}),
-                   handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, p)
+    @ccall libcusolver.cusolverSpXcsrsymrcmHost(handle::cusolverSpHandle_t, n::Cint,
+                                                nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint},
+                                                p::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpXcsrsymmdqHost(handle, n, nnzA, descrA, csrRowPtrA, csrColIndA,
                                            p)
     initialize_context()
-    ccall((:cusolverSpXcsrsymmdqHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cint},
-                    Ptr{Cint}, Ptr{Cint}),
-                   handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, p)
+    @ccall libcusolver.cusolverSpXcsrsymmdqHost(handle::cusolverSpHandle_t, n::Cint,
+                                                nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint},
+                                                p::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpXcsrsymamdHost(handle, n, nnzA, descrA, csrRowPtrA, csrColIndA,
                                            p)
     initialize_context()
-    ccall((:cusolverSpXcsrsymamdHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cint},
-                    Ptr{Cint}, Ptr{Cint}),
-                   handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, p)
+    @ccall libcusolver.cusolverSpXcsrsymamdHost(handle::cusolverSpHandle_t, n::Cint,
+                                                nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint},
+                                                p::Ptr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverSpXcsrmetisndHost(handle, n, nnzA, descrA, csrRowPtrA,
-                                            csrColIndA, options, p)
+@checked function cusolverSpXcsrmetisndHost(handle, n, nnzA, descrA, csrRowPtrA, csrColIndA,
+                                            options, p)
     initialize_context()
-    ccall((:cusolverSpXcsrmetisndHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cint},
-                    Ptr{Cint}, Ptr{Int64}, Ptr{Cint}),
-                   handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, options, p)
+    @ccall libcusolver.cusolverSpXcsrmetisndHost(handle::cusolverSpHandle_t, n::Cint,
+                                                 nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                 csrRowPtrA::Ptr{Cint},
+                                                 csrColIndA::Ptr{Cint}, options::Ptr{Int64},
+                                                 p::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrzfdHost(handle, n, nnz, descrA, csrValA, csrRowPtrA,
                                         csrColIndA, P, numnz)
     initialize_context()
-    ccall((:cusolverSpScsrzfdHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}),
-                   handle, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, P, numnz)
+    @ccall libcusolver.cusolverSpScsrzfdHost(handle::cusolverSpHandle_t, n::Cint, nnz::Cint,
+                                             descrA::cusparseMatDescr_t,
+                                             csrValA::Ptr{Cfloat}, csrRowPtrA::Ptr{Cint},
+                                             csrColIndA::Ptr{Cint}, P::Ptr{Cint},
+                                             numnz::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrzfdHost(handle, n, nnz, descrA, csrValA, csrRowPtrA,
                                         csrColIndA, P, numnz)
     initialize_context()
-    ccall((:cusolverSpDcsrzfdHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}),
-                   handle, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, P, numnz)
+    @ccall libcusolver.cusolverSpDcsrzfdHost(handle::cusolverSpHandle_t, n::Cint, nnz::Cint,
+                                             descrA::cusparseMatDescr_t,
+                                             csrValA::Ptr{Cdouble}, csrRowPtrA::Ptr{Cint},
+                                             csrColIndA::Ptr{Cint}, P::Ptr{Cint},
+                                             numnz::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrzfdHost(handle, n, nnz, descrA, csrValA, csrRowPtrA,
                                         csrColIndA, P, numnz)
     initialize_context()
-    ccall((:cusolverSpCcsrzfdHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}),
-                   handle, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, P, numnz)
+    @ccall libcusolver.cusolverSpCcsrzfdHost(handle::cusolverSpHandle_t, n::Cint, nnz::Cint,
+                                             descrA::cusparseMatDescr_t,
+                                             csrValA::Ptr{cuComplex}, csrRowPtrA::Ptr{Cint},
+                                             csrColIndA::Ptr{Cint}, P::Ptr{Cint},
+                                             numnz::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrzfdHost(handle, n, nnz, descrA, csrValA, csrRowPtrA,
                                         csrColIndA, P, numnz)
     initialize_context()
-    ccall((:cusolverSpZcsrzfdHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t,
-                    Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}),
-                   handle, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, P, numnz)
+    @ccall libcusolver.cusolverSpZcsrzfdHost(handle::cusolverSpHandle_t, n::Cint, nnz::Cint,
+                                             descrA::cusparseMatDescr_t,
+                                             csrValA::Ptr{cuDoubleComplex},
+                                             csrRowPtrA::Ptr{Cint}, csrColIndA::Ptr{Cint},
+                                             P::Ptr{Cint},
+                                             numnz::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpXcsrperm_bufferSizeHost(handle, m, n, nnzA, descrA, csrRowPtrA,
                                                     csrColIndA, p, q, bufferSizeInBytes)
     initialize_context()
-    ccall((:cusolverSpXcsrperm_bufferSizeHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cint},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Csize_t}),
-                   handle, m, n, nnzA, descrA, csrRowPtrA, csrColIndA, p, q,
-                   bufferSizeInBytes)
+    @ccall libcusolver.cusolverSpXcsrperm_bufferSizeHost(handle::cusolverSpHandle_t,
+                                                         m::Cint, n::Cint, nnzA::Cint,
+                                                         descrA::cusparseMatDescr_t,
+                                                         csrRowPtrA::Ptr{Cint},
+                                                         csrColIndA::Ptr{Cint},
+                                                         p::Ptr{Cint}, q::Ptr{Cint},
+                                                         bufferSizeInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpXcsrpermHost(handle, m, n, nnzA, descrA, csrRowPtrA,
-                                         csrColIndA, p, q, map, pBuffer)
+@checked function cusolverSpXcsrpermHost(handle, m, n, nnzA, descrA, csrRowPtrA, csrColIndA,
+                                         p, q, map, pBuffer)
     initialize_context()
-    ccall((:cusolverSpXcsrpermHost, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cint},
-                    Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cvoid}),
-                   handle, m, n, nnzA, descrA, csrRowPtrA, csrColIndA, p, q, map, pBuffer)
+    @ccall libcusolver.cusolverSpXcsrpermHost(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                              nnzA::Cint, descrA::cusparseMatDescr_t,
+                                              csrRowPtrA::Ptr{Cint}, csrColIndA::Ptr{Cint},
+                                              p::Ptr{Cint}, q::Ptr{Cint}, map::Ptr{Cint},
+                                              pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCreateCsrqrInfo(info)
     initialize_context()
-    ccall((:cusolverSpCreateCsrqrInfo, libcusolver), cusolverStatus_t,
-                   (Ptr{csrqrInfo_t},),
-                   info)
+    @ccall libcusolver.cusolverSpCreateCsrqrInfo(info::Ptr{csrqrInfo_t})::cusolverStatus_t
 end
 
 @checked function cusolverSpDestroyCsrqrInfo(info)
     initialize_context()
-    ccall((:cusolverSpDestroyCsrqrInfo, libcusolver), cusolverStatus_t,
-                   (csrqrInfo_t,),
-                   info)
+    @ccall libcusolver.cusolverSpDestroyCsrqrInfo(info::csrqrInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverSpXcsrqrAnalysisBatched(handle, m, n, nnzA, descrA, csrRowPtrA,
                                                   csrColIndA, info)
     initialize_context()
-    ccall((:cusolverSpXcsrqrAnalysisBatched, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, CuPtr{Cint},
-                    CuPtr{Cint}, csrqrInfo_t),
-                   handle, m, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+    @ccall libcusolver.cusolverSpXcsrqrAnalysisBatched(handle::cusolverSpHandle_t, m::Cint,
+                                                       n::Cint, nnzA::Cint,
+                                                       descrA::cusparseMatDescr_t,
+                                                       csrRowPtrA::CuPtr{Cint},
+                                                       csrColIndA::CuPtr{Cint},
+                                                       info::csrqrInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrqrBufferInfoBatched(handle, m, n, nnz, descrA, csrVal,
                                                     csrRowPtr, csrColInd, batchSize, info,
                                                     internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpScsrqrBufferInfoBatched, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t,
-                    CuPtr{Cfloat}, CuPtr{Cint}, CuPtr{Cint}, Cint, csrqrInfo_t,
-                    Ptr{Csize_t}, Ptr{Csize_t}),
-                   handle, m, n, nnz, descrA, csrVal, csrRowPtr, csrColInd, batchSize,
-                   info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpScsrqrBufferInfoBatched(handle::cusolverSpHandle_t,
+                                                         m::Cint, n::Cint, nnz::Cint,
+                                                         descrA::cusparseMatDescr_t,
+                                                         csrVal::CuPtr{Cfloat},
+                                                         csrRowPtr::CuPtr{Cint},
+                                                         csrColInd::CuPtr{Cint},
+                                                         batchSize::Cint, info::csrqrInfo_t,
+                                                         internalDataInBytes::Ptr{Csize_t},
+                                                         workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrqrBufferInfoBatched(handle, m, n, nnz, descrA, csrVal,
                                                     csrRowPtr, csrColInd, batchSize, info,
                                                     internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpDcsrqrBufferInfoBatched, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t,
-                    CuPtr{Cdouble}, CuPtr{Cint}, CuPtr{Cint}, Cint, csrqrInfo_t,
-                    Ptr{Csize_t}, Ptr{Csize_t}),
-                   handle, m, n, nnz, descrA, csrVal, csrRowPtr, csrColInd, batchSize,
-                   info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpDcsrqrBufferInfoBatched(handle::cusolverSpHandle_t,
+                                                         m::Cint, n::Cint, nnz::Cint,
+                                                         descrA::cusparseMatDescr_t,
+                                                         csrVal::CuPtr{Cdouble},
+                                                         csrRowPtr::CuPtr{Cint},
+                                                         csrColInd::CuPtr{Cint},
+                                                         batchSize::Cint, info::csrqrInfo_t,
+                                                         internalDataInBytes::Ptr{Csize_t},
+                                                         workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrqrBufferInfoBatched(handle, m, n, nnz, descrA, csrVal,
                                                     csrRowPtr, csrColInd, batchSize, info,
                                                     internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpCcsrqrBufferInfoBatched, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t,
-                    CuPtr{cuComplex}, CuPtr{Cint}, CuPtr{Cint}, Cint, csrqrInfo_t,
-                    Ptr{Csize_t}, Ptr{Csize_t}),
-                   handle, m, n, nnz, descrA, csrVal, csrRowPtr, csrColInd, batchSize,
-                   info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpCcsrqrBufferInfoBatched(handle::cusolverSpHandle_t,
+                                                         m::Cint, n::Cint, nnz::Cint,
+                                                         descrA::cusparseMatDescr_t,
+                                                         csrVal::CuPtr{cuComplex},
+                                                         csrRowPtr::CuPtr{Cint},
+                                                         csrColInd::CuPtr{Cint},
+                                                         batchSize::Cint, info::csrqrInfo_t,
+                                                         internalDataInBytes::Ptr{Csize_t},
+                                                         workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrqrBufferInfoBatched(handle, m, n, nnz, descrA, csrVal,
                                                     csrRowPtr, csrColInd, batchSize, info,
                                                     internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpZcsrqrBufferInfoBatched, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t,
-                    CuPtr{cuDoubleComplex}, CuPtr{Cint}, CuPtr{Cint}, Cint, csrqrInfo_t,
-                    Ptr{Csize_t}, Ptr{Csize_t}),
-                   handle, m, n, nnz, descrA, csrVal, csrRowPtr, csrColInd, batchSize,
-                   info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpZcsrqrBufferInfoBatched(handle::cusolverSpHandle_t,
+                                                         m::Cint, n::Cint, nnz::Cint,
+                                                         descrA::cusparseMatDescr_t,
+                                                         csrVal::CuPtr{cuDoubleComplex},
+                                                         csrRowPtr::CuPtr{Cint},
+                                                         csrColInd::CuPtr{Cint},
+                                                         batchSize::Cint, info::csrqrInfo_t,
+                                                         internalDataInBytes::Ptr{Csize_t},
+                                                         workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrqrsvBatched(handle, m, n, nnz, descrA, csrValA, csrRowPtrA,
                                             csrColIndA, b, x, batchSize, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpScsrqrsvBatched, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t,
-                    CuPtr{Cfloat}, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cfloat}, CuPtr{Cfloat},
-                    Cint, csrqrInfo_t, CuPtr{Cvoid}),
-                   handle, m, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, x,
-                   batchSize, info, pBuffer)
+    @ccall libcusolver.cusolverSpScsrqrsvBatched(handle::cusolverSpHandle_t, m::Cint,
+                                                 n::Cint, nnz::Cint,
+                                                 descrA::cusparseMatDescr_t,
+                                                 csrValA::CuPtr{Cfloat},
+                                                 csrRowPtrA::CuPtr{Cint},
+                                                 csrColIndA::CuPtr{Cint}, b::CuPtr{Cfloat},
+                                                 x::CuPtr{Cfloat}, batchSize::Cint,
+                                                 info::csrqrInfo_t,
+                                                 pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrqrsvBatched(handle, m, n, nnz, descrA, csrValA, csrRowPtrA,
                                             csrColIndA, b, x, batchSize, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpDcsrqrsvBatched, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t,
-                    CuPtr{Cdouble}, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble},
-                    CuPtr{Cdouble}, Cint, csrqrInfo_t, CuPtr{Cvoid}),
-                   handle, m, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, x,
-                   batchSize, info, pBuffer)
+    @ccall libcusolver.cusolverSpDcsrqrsvBatched(handle::cusolverSpHandle_t, m::Cint,
+                                                 n::Cint, nnz::Cint,
+                                                 descrA::cusparseMatDescr_t,
+                                                 csrValA::CuPtr{Cdouble},
+                                                 csrRowPtrA::CuPtr{Cint},
+                                                 csrColIndA::CuPtr{Cint}, b::CuPtr{Cdouble},
+                                                 x::CuPtr{Cdouble}, batchSize::Cint,
+                                                 info::csrqrInfo_t,
+                                                 pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrqrsvBatched(handle, m, n, nnz, descrA, csrValA, csrRowPtrA,
                                             csrColIndA, b, x, batchSize, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpCcsrqrsvBatched, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t,
-                    CuPtr{cuComplex}, CuPtr{Cint}, CuPtr{Cint}, CuPtr{cuComplex},
-                    CuPtr{cuComplex}, Cint, csrqrInfo_t, CuPtr{Cvoid}),
-                   handle, m, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, x,
-                   batchSize, info, pBuffer)
+    @ccall libcusolver.cusolverSpCcsrqrsvBatched(handle::cusolverSpHandle_t, m::Cint,
+                                                 n::Cint, nnz::Cint,
+                                                 descrA::cusparseMatDescr_t,
+                                                 csrValA::CuPtr{cuComplex},
+                                                 csrRowPtrA::CuPtr{Cint},
+                                                 csrColIndA::CuPtr{Cint},
+                                                 b::CuPtr{cuComplex}, x::CuPtr{cuComplex},
+                                                 batchSize::Cint, info::csrqrInfo_t,
+                                                 pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrqrsvBatched(handle, m, n, nnz, descrA, csrValA, csrRowPtrA,
                                             csrColIndA, b, x, batchSize, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpZcsrqrsvBatched, libcusolver), cusolverStatus_t,
-                   (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t,
-                    CuPtr{cuDoubleComplex}, CuPtr{Cint}, CuPtr{Cint},
-                    CuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, csrqrInfo_t,
-                    CuPtr{Cvoid}),
-                   handle, m, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, x,
-                   batchSize, info, pBuffer)
+    @ccall libcusolver.cusolverSpZcsrqrsvBatched(handle::cusolverSpHandle_t, m::Cint,
+                                                 n::Cint, nnz::Cint,
+                                                 descrA::cusparseMatDescr_t,
+                                                 csrValA::CuPtr{cuDoubleComplex},
+                                                 csrRowPtrA::CuPtr{Cint},
+                                                 csrColIndA::CuPtr{Cint},
+                                                 b::CuPtr{cuDoubleComplex},
+                                                 x::CuPtr{cuDoubleComplex}, batchSize::Cint,
+                                                 info::csrqrInfo_t,
+                                                 pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
-## Added in CUDA 11.1
+mutable struct csrluInfoHost end
 
-@checked function cusolverDnXpotrf_bufferSize(handle, params, uplo, n, dataTypeA, A, lda, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-    initialize_context()
-    ccall((:cusolverDnXpotrf_bufferSize, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cublasFillMode_t, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, uplo, n, dataTypeA, A, lda, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-end
+const csrluInfoHost_t = Ptr{csrluInfoHost}
 
-@checked function cusolverDnXgetrs(handle, params, trans, n, nrhs, dataTypeA, A, lda, ipiv, dataTypeB, B, ldb, info)
-    initialize_context()
-    ccall((:cusolverDnXgetrs, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cublasOperation_t, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, CuPtr{Int64}, cudaDataType, CuPtr{Cvoid}, Int64, CuPtr{Cint}), handle, params, trans, n, nrhs, dataTypeA, A, lda, ipiv, dataTypeB, B, ldb, info)
-end
+mutable struct csrqrInfoHost end
 
-@checked function cusolverDnXgesvdp(handle, params, jobz, econ, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeV, V, ldv, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, d_info, h_err_sigma)
-    initialize_context()
-    ccall((:cusolverDnXgesvdp, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t, Cint, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, CuPtr{Cint}, Ptr{Cdouble}), handle, params, jobz, econ, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeV, V, ldv, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, d_info, h_err_sigma)
-end
+const csrqrInfoHost_t = Ptr{csrqrInfoHost}
 
-@checked function cusolverDnXgesvd(handle, params, jobu, jobvt, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeVT, VT, ldvt, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
-    initialize_context()
-    ccall((:cusolverDnXgesvd, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, CuPtr{Cint}), handle, params, jobu, jobvt, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeVT, VT, ldvt, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
-end
+mutable struct csrcholInfoHost end
 
-@checked function cusolverDnXsyevdx_bufferSize(handle, params, jobz, range, uplo, n, dataTypeA, A, lda, vl, vu, il, iu, h_meig, dataTypeW, W, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-    initialize_context()
-    ccall((:cusolverDnXsyevdx_bufferSize, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t, cusolverEigRange_t, cublasFillMode_t, Int64, cudaDataType, CuPtr{Cvoid}, Int64, CuPtr{Cvoid}, CuPtr{Cvoid}, Int64, Int64, CuPtr{Int64}, cudaDataType, CuPtr{Cvoid}, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, jobz, range, uplo, n, dataTypeA, A, lda, vl, vu, il, iu, h_meig, dataTypeW, W, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-end
+const csrcholInfoHost_t = Ptr{csrcholInfoHost}
 
-@checked function cusolverDnXpotrs(handle, params, uplo, n, nrhs, dataTypeA, A, lda, dataTypeB, B, ldb, info)
-    initialize_context()
-    ccall((:cusolverDnXpotrs, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cublasFillMode_t, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, CuPtr{Cint}), handle, params, uplo, n, nrhs, dataTypeA, A, lda, dataTypeB, B, ldb, info)
-end
+mutable struct csrcholInfo end
 
-@checked function cusolverDnXgetrf_bufferSize(handle, params, m, n, dataTypeA, A, lda, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-    initialize_context()
-    ccall((:cusolverDnXgetrf_bufferSize, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, m, n, dataTypeA, A, lda, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-end
-
-@checked function cusolverDnXgesvdp_bufferSize(handle, params, jobz, econ, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeV, V, ldv, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-    initialize_context()
-    ccall((:cusolverDnXgesvdp_bufferSize, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t, Cint, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, jobz, econ, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeV, V, ldv, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-end
-
-@checked function cusolverDnXgesvd_bufferSize(handle, params, jobu, jobvt, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeVT, VT, ldvt, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-    initialize_context()
-    ccall((:cusolverDnXgesvd_bufferSize, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, jobu, jobvt, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeVT, VT, ldvt, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-end
-
-@checked function cusolverDnXgeqrf_bufferSize(handle, params, m, n, dataTypeA, A, lda, dataTypeTau, tau, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-    initialize_context()
-    ccall((:cusolverDnXgeqrf_bufferSize, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, m, n, dataTypeA, A, lda, dataTypeTau, tau, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-end
-
-@checked function cusolverDnXsyevdx(handle, params, jobz, range, uplo, n, dataTypeA, A, lda, vl, vu, il, iu, meig64, dataTypeW, W, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
-    initialize_context()
-    ccall((:cusolverDnXsyevdx, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t, cusolverEigRange_t, cublasFillMode_t, Int64, cudaDataType, CuPtr{Cvoid}, Int64, CuPtr{Cvoid}, CuPtr{Cvoid}, Int64, Int64, CuPtr{Int64}, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, CuPtr{Cint}), handle, params, jobz, range, uplo, n, dataTypeA, A, lda, vl, vu, il, iu, meig64, dataTypeW, W, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
-end
-
-@checked function cusolverDnXgetrf(handle, params, m, n, dataTypeA, A, lda, ipiv, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
-    initialize_context()
-    ccall((:cusolverDnXgetrf, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, CuPtr{Int64}, cudaDataType, CuPtr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, CuPtr{Cint}), handle, params, m, n, dataTypeA, A, lda, ipiv, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
-end
-
-@checked function cusolverDnXsyevd_bufferSize(handle, params, jobz, uplo, n, dataTypeA, A, lda, dataTypeW, W, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-    initialize_context()
-    ccall((:cusolverDnXsyevd_bufferSize, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t, cublasFillMode_t, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, jobz, uplo, n, dataTypeA, A, lda, dataTypeW, W, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-end
-
-@checked function cusolverDnXpotrf(handle, params, uplo, n, dataTypeA, A, lda, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
-    initialize_context()
-    ccall((:cusolverDnXpotrf, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cublasFillMode_t, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, CuPtr{Cint}), handle, params, uplo, n, dataTypeA, A, lda, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
-end
-
-@checked function cusolverDnXgeqrf(handle, params, m, n, dataTypeA, A, lda, dataTypeTau, tau, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
-    initialize_context()
-    ccall((:cusolverDnXgeqrf, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, CuPtr{Cint}), handle, params, m, n, dataTypeA, A, lda, dataTypeTau, tau, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
-end
-
-@checked function cusolverDnXsyevd(handle, params, jobz, uplo, n, dataTypeA, A, lda, dataTypeW, W, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
-    initialize_context()
-    ccall((:cusolverDnXsyevd, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t, cublasFillMode_t, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, CuPtr{Cint}), handle, params, jobz, uplo, n, dataTypeA, A, lda, dataTypeW, W, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
-end
-
-## Added in CUDA 11.2
-
-@checked function cusolverDnXgesvdr(handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, d_info)
-    initialize_context()
-    ccall((:cusolverDnXgesvdr, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, Int64, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, CuPtr{Cint}), handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, d_info)
-end
-
-@checked function cusolverDnXgesvdr_bufferSize(handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-    initialize_context()
-    ccall((:cusolverDnXgesvdr_bufferSize, libcusolver), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, Int64, Int64, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, CuPtr{Cvoid}, Int64, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, jobu, jobv, m, n, k, p, niters, dataTypeA, A, lda, dataTypeSrand, Srand, dataTypeUrand, Urand, ldUrand, dataTypeVrand, Vrand, ldVrand, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
-end
-
-## from cusolverMg.h
-
-@checked function cusolverMgCreate(handle)
-    initialize_context()
-    ccall((:cusolverMgCreate, libcusolverMg), cusolverStatus_t,
-                   (Ptr{cusolverMgHandle_t},),
-                   handle)
-end
-
-@checked function cusolverMgDestroy(handle)
-    initialize_context()
-    ccall((:cusolverMgDestroy, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t,),
-                   handle)
-end
-
-@checked function cusolverMgDeviceSelect(handle, nbDevices, deviceId)
-    initialize_context()
-    ccall((:cusolverMgDeviceSelect, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, Cint, Ptr{Cint}),
-                   handle, nbDevices, deviceId)
-end
-
-@checked function cusolverMgCreateDeviceGrid(grid, numRowDevices, numColDevices, deviceId,
-                                             mapping)
-    initialize_context()
-    ccall((:cusolverMgCreateDeviceGrid, libcusolverMg), cusolverStatus_t,
-                   (Ptr{cudaLibMgGrid_t}, Int32, Int32, Ptr{Int32},
-                    cusolverMgGridMapping_t),
-                   grid, numRowDevices, numColDevices, deviceId, mapping)
-end
-
-@checked function cusolverMgDestroyGrid(grid)
-    initialize_context()
-    ccall((:cusolverMgDestroyGrid, libcusolverMg), cusolverStatus_t,
-                   (cudaLibMgGrid_t,),
-                   grid)
-end
-
-@checked function cusolverMgCreateMatrixDesc(desc, numRows, numCols, rowBlockSize,
-                                             colBlockSize, dataType, grid)
-    initialize_context()
-    ccall((:cusolverMgCreateMatrixDesc, libcusolverMg), cusolverStatus_t,
-                   (Ptr{cudaLibMgMatrixDesc_t}, Int64, Int64, Int64, Int64, cudaDataType,
-                    cudaLibMgGrid_t),
-                   desc, numRows, numCols, rowBlockSize, colBlockSize, dataType, grid)
-end
-
-@checked function cusolverMgDestroyMatrixDesc(desc)
-    initialize_context()
-    ccall((:cusolverMgDestroyMatrixDesc, libcusolverMg), cusolverStatus_t,
-                   (cudaLibMgMatrixDesc_t,),
-                   desc)
-end
-
-@checked function cusolverMgSyevd_bufferSize(handle, jobz, uplo, N, array_d_A, IA, JA,
-                                             descrA, W, dataTypeW, computeType, lwork)
-    initialize_context()
-    ccall((:cusolverMgSyevd_bufferSize, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    Ptr{CuPtr{Cvoid}}, Cint, Cint, cudaLibMgMatrixDesc_t, Ptr{Cvoid},
-                    cudaDataType, cudaDataType, Ptr{Int64}),
-                   handle, jobz, uplo, N, array_d_A, IA, JA, descrA, W, dataTypeW,
-                   computeType, lwork)
-end
-
-@checked function cusolverMgSyevd(handle, jobz, uplo, N, array_d_A, IA, JA, descrA, W,
-                                  dataTypeW, computeType, array_d_work, lwork, info)
-    initialize_context()
-    ccall((:cusolverMgSyevd, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, cusolverEigMode_t, cublasFillMode_t, Cint,
-                    Ptr{CuPtr{Cvoid}}, Cint, Cint, cudaLibMgMatrixDesc_t, Ptr{Cvoid},
-                    cudaDataType, cudaDataType, Ptr{CuPtr{Cvoid}}, Int64, Ptr{Cint}),
-                   handle, jobz, uplo, N, array_d_A, IA, JA, descrA, W, dataTypeW,
-                   computeType, array_d_work, lwork, info)
-end
-
-@checked function cusolverMgGetrf_bufferSize(handle, M, N, array_d_A, IA, JA, descrA,
-                                             array_d_IPIV, computeType, lwork)
-    initialize_context()
-    ccall((:cusolverMgGetrf_bufferSize, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, Cint, Cint, Ptr{CuPtr{Cvoid}}, Cint, Cint,
-                    cudaLibMgMatrixDesc_t, Ptr{CuPtr{Cint}}, cudaDataType, Ptr{Int64}),
-                   handle, M, N, array_d_A, IA, JA, descrA, array_d_IPIV, computeType,
-                   lwork)
-end
-
-@checked function cusolverMgGetrf(handle, M, N, array_d_A, IA, JA, descrA, array_d_IPIV,
-                                  computeType, array_d_work, lwork, info)
-    initialize_context()
-    ccall((:cusolverMgGetrf, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, Cint, Cint, Ptr{CuPtr{Cvoid}}, Cint, Cint,
-                    cudaLibMgMatrixDesc_t, Ptr{CuPtr{Cint}}, cudaDataType, Ptr{CuPtr{Cvoid}},
-                    Int64, Ptr{Cint}),
-                   handle, M, N, array_d_A, IA, JA, descrA, array_d_IPIV, computeType,
-                   array_d_work, lwork, info)
-end
-
-@checked function cusolverMgGetrs_bufferSize(handle, TRANS, N, NRHS, array_d_A, IA, JA,
-                                             descrA, array_d_IPIV, array_d_B, IB, JB,
-                                             descrB, computeType, lwork)
-    initialize_context()
-    ccall((:cusolverMgGetrs_bufferSize, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, cublasOperation_t, Cint, Cint, Ptr{CuPtr{Cvoid}},
-                    Cint, Cint, cudaLibMgMatrixDesc_t, Ptr{CuPtr{Cint}}, Ptr{CuPtr{Cvoid}},
-                    Cint, Cint, cudaLibMgMatrixDesc_t, cudaDataType, Ptr{Int64}),
-                   handle, TRANS, N, NRHS, array_d_A, IA, JA, descrA, array_d_IPIV,
-                   array_d_B, IB, JB, descrB, computeType, lwork)
-end
-
-@checked function cusolverMgGetrs(handle, TRANS, N, NRHS, array_d_A, IA, JA, descrA,
-                                  array_d_IPIV, array_d_B, IB, JB, descrB, computeType,
-                                  array_d_work, lwork, info)
-    initialize_context()
-    ccall((:cusolverMgGetrs, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, cublasOperation_t, Cint, Cint, Ptr{CuPtr{Cvoid}},
-                    Cint, Cint, cudaLibMgMatrixDesc_t, Ptr{CuPtr{Cint}}, Ptr{CuPtr{Cvoid}},
-                    Cint, Cint, cudaLibMgMatrixDesc_t, cudaDataType, Ptr{CuPtr{Cvoid}},
-                    Int64, Ptr{Cint}),
-                   handle, TRANS, N, NRHS, array_d_A, IA, JA, descrA, array_d_IPIV,
-                   array_d_B, IB, JB, descrB, computeType, array_d_work, lwork, info)
-end
-
-@checked function cusolverMgPotrf_bufferSize(handle, uplo, N, array_d_A, IA, JA, descrA,
-                                             computeType, lwork)
-    initialize_context()
-    ccall((:cusolverMgPotrf_bufferSize, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, cublasFillMode_t, Cint, Ptr{CuPtr{Cvoid}}, Cint,
-                    Cint, cudaLibMgMatrixDesc_t, cudaDataType, Ptr{Int64}),
-                   handle, uplo, N, array_d_A, IA, JA, descrA, computeType, lwork)
-end
-
-@checked function cusolverMgPotrf(handle, uplo, N, array_d_A, IA, JA, descrA, computeType,
-                                  array_d_work, lwork, h_info)
-    initialize_context()
-    ccall((:cusolverMgPotrf, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, cublasFillMode_t, Cint, Ptr{CuPtr{Cvoid}}, Cint,
-                    Cint, cudaLibMgMatrixDesc_t, cudaDataType, Ptr{CuPtr{Cvoid}}, Int64,
-                    Ptr{Cint}),
-                   handle, uplo, N, array_d_A, IA, JA, descrA, computeType, array_d_work,
-                   lwork, h_info)
-end
-
-@checked function cusolverMgPotrs_bufferSize(handle, uplo, n, nrhs, array_d_A, IA, JA,
-                                             descrA, array_d_B, IB, JB, descrB,
-                                             computeType, lwork)
-    initialize_context()
-    ccall((:cusolverMgPotrs_bufferSize, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, cublasFillMode_t, Cint, Cint, Ptr{CuPtr{Cvoid}},
-                    Cint, Cint, cudaLibMgMatrixDesc_t, Ptr{CuPtr{Cvoid}}, Cint, Cint,
-                    cudaLibMgMatrixDesc_t, cudaDataType, Ptr{Int64}),
-                   handle, uplo, n, nrhs, array_d_A, IA, JA, descrA, array_d_B, IB, JB,
-                   descrB, computeType, lwork)
-end
-
-@checked function cusolverMgPotrs(handle, uplo, n, nrhs, array_d_A, IA, JA, descrA,
-                                  array_d_B, IB, JB, descrB, computeType, array_d_work,
-                                  lwork, h_info)
-    initialize_context()
-    ccall((:cusolverMgPotrs, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, cublasFillMode_t, Cint, Cint, Ptr{CuPtr{Cvoid}},
-                    Cint, Cint, cudaLibMgMatrixDesc_t, Ptr{CuPtr{Cvoid}}, Cint, Cint,
-                    cudaLibMgMatrixDesc_t, cudaDataType, Ptr{CuPtr{Cvoid}}, Int64, Ptr{Cint}),
-                   handle, uplo, n, nrhs, array_d_A, IA, JA, descrA, array_d_B, IB, JB,
-                   descrB, computeType, array_d_work, lwork, h_info)
-end
-
-@checked function cusolverMgPotri_bufferSize(handle, uplo, N, array_d_A, IA, JA, descrA,
-                                             computeType, lwork)
-    initialize_context()
-    ccall((:cusolverMgPotri_bufferSize, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, cublasFillMode_t, Cint, Ptr{CuPtr{Cvoid}}, Cint,
-                    Cint, cudaLibMgMatrixDesc_t, cudaDataType, Ptr{Int64}),
-                   handle, uplo, N, array_d_A, IA, JA, descrA, computeType, lwork)
-end
-
-@checked function cusolverMgPotri(handle, uplo, N, array_d_A, IA, JA, descrA, computeType,
-                                  array_d_work, lwork, h_info)
-    initialize_context()
-    ccall((:cusolverMgPotri, libcusolverMg), cusolverStatus_t,
-                   (cusolverMgHandle_t, cublasFillMode_t, Cint, Ptr{CuPtr{Cvoid}}, Cint,
-                    Cint, cudaLibMgMatrixDesc_t, cudaDataType, Ptr{CuPtr{Cvoid}}, Int64,
-                    Ptr{Cint}),
-                   handle, uplo, N, array_d_A, IA, JA, descrA, computeType, array_d_work,
-                   lwork, h_info)
-end
-
-# Julia wrapper for header: cusolverSp_LOWLEVEL_PREVIEW.h
-# Automatically generated using Clang.jl
+const csrcholInfo_t = Ptr{csrcholInfo}
 
 @checked function cusolverSpCreateCsrluInfoHost(info)
     initialize_context()
-    ccall((:cusolverSpCreateCsrluInfoHost, libcusolver), cusolverStatus_t, (Ptr{csrluInfoHost_t},), info)
+    @ccall libcusolver.cusolverSpCreateCsrluInfoHost(info::Ptr{csrluInfoHost_t})::cusolverStatus_t
 end
 
 @checked function cusolverSpDestroyCsrluInfoHost(info)
     initialize_context()
-    ccall((:cusolverSpDestroyCsrluInfoHost, libcusolver), cusolverStatus_t, (csrluInfoHost_t,), info)
+    @ccall libcusolver.cusolverSpDestroyCsrluInfoHost(info::csrluInfoHost_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpXcsrluAnalysisHost(handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+@checked function cusolverSpXcsrluAnalysisHost(handle, n, nnzA, descrA, csrRowPtrA,
+                                               csrColIndA, info)
     initialize_context()
-    ccall((:cusolverSpXcsrluAnalysisHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t), handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+    @ccall libcusolver.cusolverSpXcsrluAnalysisHost(handle::cusolverSpHandle_t, n::Cint,
+                                                    nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                    csrRowPtrA::Ptr{Cint},
+                                                    csrColIndA::Ptr{Cint},
+                                                    info::csrluInfoHost_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpScsrluBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpScsrluBufferInfoHost(handle, n, nnzA, descrA, csrValA,
+                                                 csrRowPtrA, csrColIndA, info,
+                                                 internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpScsrluBufferInfoHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpScsrluBufferInfoHost(handle::cusolverSpHandle_t, n::Cint,
+                                                      nnzA::Cint,
+                                                      descrA::cusparseMatDescr_t,
+                                                      csrValA::Ptr{Cfloat},
+                                                      csrRowPtrA::Ptr{Cint},
+                                                      csrColIndA::Ptr{Cint},
+                                                      info::csrluInfoHost_t,
+                                                      internalDataInBytes::Ptr{Csize_t},
+                                                      workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpDcsrluBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpDcsrluBufferInfoHost(handle, n, nnzA, descrA, csrValA,
+                                                 csrRowPtrA, csrColIndA, info,
+                                                 internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpDcsrluBufferInfoHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpDcsrluBufferInfoHost(handle::cusolverSpHandle_t, n::Cint,
+                                                      nnzA::Cint,
+                                                      descrA::cusparseMatDescr_t,
+                                                      csrValA::Ptr{Cdouble},
+                                                      csrRowPtrA::Ptr{Cint},
+                                                      csrColIndA::Ptr{Cint},
+                                                      info::csrluInfoHost_t,
+                                                      internalDataInBytes::Ptr{Csize_t},
+                                                      workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpCcsrluBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpCcsrluBufferInfoHost(handle, n, nnzA, descrA, csrValA,
+                                                 csrRowPtrA, csrColIndA, info,
+                                                 internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpCcsrluBufferInfoHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpCcsrluBufferInfoHost(handle::cusolverSpHandle_t, n::Cint,
+                                                      nnzA::Cint,
+                                                      descrA::cusparseMatDescr_t,
+                                                      csrValA::Ptr{cuComplex},
+                                                      csrRowPtrA::Ptr{Cint},
+                                                      csrColIndA::Ptr{Cint},
+                                                      info::csrluInfoHost_t,
+                                                      internalDataInBytes::Ptr{Csize_t},
+                                                      workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpZcsrluBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpZcsrluBufferInfoHost(handle, n, nnzA, descrA, csrValA,
+                                                 csrRowPtrA, csrColIndA, info,
+                                                 internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpZcsrluBufferInfoHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpZcsrluBufferInfoHost(handle::cusolverSpHandle_t, n::Cint,
+                                                      nnzA::Cint,
+                                                      descrA::cusparseMatDescr_t,
+                                                      csrValA::Ptr{cuDoubleComplex},
+                                                      csrRowPtrA::Ptr{Cint},
+                                                      csrColIndA::Ptr{Cint},
+                                                      info::csrluInfoHost_t,
+                                                      internalDataInBytes::Ptr{Csize_t},
+                                                      workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpScsrluFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+@checked function cusolverSpScsrluFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                             csrColIndA, info, pivot_threshold, pBuffer)
     initialize_context()
-    ccall((:cusolverSpScsrluFactorHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Cfloat, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+    @ccall libcusolver.cusolverSpScsrluFactorHost(handle::cusolverSpHandle_t, n::Cint,
+                                                  nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                  csrValA::Ptr{Cfloat},
+                                                  csrRowPtrA::Ptr{Cint},
+                                                  csrColIndA::Ptr{Cint},
+                                                  info::csrluInfoHost_t,
+                                                  pivot_threshold::Cfloat,
+                                                  pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpDcsrluFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+@checked function cusolverSpDcsrluFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                             csrColIndA, info, pivot_threshold, pBuffer)
     initialize_context()
-    ccall((:cusolverSpDcsrluFactorHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Cdouble, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+    @ccall libcusolver.cusolverSpDcsrluFactorHost(handle::cusolverSpHandle_t, n::Cint,
+                                                  nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                  csrValA::Ptr{Cdouble},
+                                                  csrRowPtrA::Ptr{Cint},
+                                                  csrColIndA::Ptr{Cint},
+                                                  info::csrluInfoHost_t,
+                                                  pivot_threshold::Cdouble,
+                                                  pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpCcsrluFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+@checked function cusolverSpCcsrluFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                             csrColIndA, info, pivot_threshold, pBuffer)
     initialize_context()
-    ccall((:cusolverSpCcsrluFactorHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Cfloat, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+    @ccall libcusolver.cusolverSpCcsrluFactorHost(handle::cusolverSpHandle_t, n::Cint,
+                                                  nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                  csrValA::Ptr{cuComplex},
+                                                  csrRowPtrA::Ptr{Cint},
+                                                  csrColIndA::Ptr{Cint},
+                                                  info::csrluInfoHost_t,
+                                                  pivot_threshold::Cfloat,
+                                                  pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpZcsrluFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+@checked function cusolverSpZcsrluFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                             csrColIndA, info, pivot_threshold, pBuffer)
     initialize_context()
-    ccall((:cusolverSpZcsrluFactorHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Cdouble, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pivot_threshold, pBuffer)
+    @ccall libcusolver.cusolverSpZcsrluFactorHost(handle::cusolverSpHandle_t, n::Cint,
+                                                  nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                  csrValA::Ptr{cuDoubleComplex},
+                                                  csrRowPtrA::Ptr{Cint},
+                                                  csrColIndA::Ptr{Cint},
+                                                  info::csrluInfoHost_t,
+                                                  pivot_threshold::Cdouble,
+                                                  pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrluZeroPivotHost(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpScsrluZeroPivotHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrluInfoHost_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpScsrluZeroPivotHost(handle::cusolverSpHandle_t,
+                                                     info::csrluInfoHost_t, tol::Cfloat,
+                                                     position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrluZeroPivotHost(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpDcsrluZeroPivotHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrluInfoHost_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpDcsrluZeroPivotHost(handle::cusolverSpHandle_t,
+                                                     info::csrluInfoHost_t, tol::Cdouble,
+                                                     position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrluZeroPivotHost(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpCcsrluZeroPivotHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrluInfoHost_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpCcsrluZeroPivotHost(handle::cusolverSpHandle_t,
+                                                     info::csrluInfoHost_t, tol::Cfloat,
+                                                     position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrluZeroPivotHost(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpZcsrluZeroPivotHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrluInfoHost_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpZcsrluZeroPivotHost(handle::cusolverSpHandle_t,
+                                                     info::csrluInfoHost_t, tol::Cdouble,
+                                                     position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrluSolveHost(handle, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpScsrluSolveHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrluInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpScsrluSolveHost(handle::cusolverSpHandle_t, n::Cint,
+                                                 b::Ptr{Cfloat}, x::Ptr{Cfloat},
+                                                 info::csrluInfoHost_t,
+                                                 pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrluSolveHost(handle, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpDcsrluSolveHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrluInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpDcsrluSolveHost(handle::cusolverSpHandle_t, n::Cint,
+                                                 b::Ptr{Cdouble}, x::Ptr{Cdouble},
+                                                 info::csrluInfoHost_t,
+                                                 pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrluSolveHost(handle, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpCcsrluSolveHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrluInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpCcsrluSolveHost(handle::cusolverSpHandle_t, n::Cint,
+                                                 b::Ptr{cuComplex}, x::Ptr{cuComplex},
+                                                 info::csrluInfoHost_t,
+                                                 pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrluSolveHost(handle, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpZcsrluSolveHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrluInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpZcsrluSolveHost(handle::cusolverSpHandle_t, n::Cint,
+                                                 b::Ptr{cuDoubleComplex},
+                                                 x::Ptr{cuDoubleComplex},
+                                                 info::csrluInfoHost_t,
+                                                 pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpXcsrluNnzHost(handle, nnzLRef, nnzURef, info)
     initialize_context()
-    ccall((:cusolverSpXcsrluNnzHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t), handle, nnzLRef, nnzURef, info)
+    @ccall libcusolver.cusolverSpXcsrluNnzHost(handle::cusolverSpHandle_t,
+                                               nnzLRef::Ptr{Cint}, nnzURef::Ptr{Cint},
+                                               info::csrluInfoHost_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpScsrluExtractHost(handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+@checked function cusolverSpScsrluExtractHost(handle, P, Q, descrL, csrValL, csrRowPtrL,
+                                              csrColIndL, descrU, csrValU, csrRowPtrU,
+                                              csrColIndU, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpScsrluExtractHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cvoid}), handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+    @ccall libcusolver.cusolverSpScsrluExtractHost(handle::cusolverSpHandle_t, P::Ptr{Cint},
+                                                   Q::Ptr{Cint}, descrL::cusparseMatDescr_t,
+                                                   csrValL::Ptr{Cfloat},
+                                                   csrRowPtrL::Ptr{Cint},
+                                                   csrColIndL::Ptr{Cint},
+                                                   descrU::cusparseMatDescr_t,
+                                                   csrValU::Ptr{Cfloat},
+                                                   csrRowPtrU::Ptr{Cint},
+                                                   csrColIndU::Ptr{Cint},
+                                                   info::csrluInfoHost_t,
+                                                   pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpDcsrluExtractHost(handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+@checked function cusolverSpDcsrluExtractHost(handle, P, Q, descrL, csrValL, csrRowPtrL,
+                                              csrColIndL, descrU, csrValU, csrRowPtrU,
+                                              csrColIndU, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpDcsrluExtractHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cvoid}), handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+    @ccall libcusolver.cusolverSpDcsrluExtractHost(handle::cusolverSpHandle_t, P::Ptr{Cint},
+                                                   Q::Ptr{Cint}, descrL::cusparseMatDescr_t,
+                                                   csrValL::Ptr{Cdouble},
+                                                   csrRowPtrL::Ptr{Cint},
+                                                   csrColIndL::Ptr{Cint},
+                                                   descrU::cusparseMatDescr_t,
+                                                   csrValU::Ptr{Cdouble},
+                                                   csrRowPtrU::Ptr{Cint},
+                                                   csrColIndU::Ptr{Cint},
+                                                   info::csrluInfoHost_t,
+                                                   pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpCcsrluExtractHost(handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+@checked function cusolverSpCcsrluExtractHost(handle, P, Q, descrL, csrValL, csrRowPtrL,
+                                              csrColIndL, descrU, csrValU, csrRowPtrU,
+                                              csrColIndU, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpCcsrluExtractHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cvoid}), handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+    @ccall libcusolver.cusolverSpCcsrluExtractHost(handle::cusolverSpHandle_t, P::Ptr{Cint},
+                                                   Q::Ptr{Cint}, descrL::cusparseMatDescr_t,
+                                                   csrValL::Ptr{cuComplex},
+                                                   csrRowPtrL::Ptr{Cint},
+                                                   csrColIndL::Ptr{Cint},
+                                                   descrU::cusparseMatDescr_t,
+                                                   csrValU::Ptr{cuComplex},
+                                                   csrRowPtrU::Ptr{Cint},
+                                                   csrColIndU::Ptr{Cint},
+                                                   info::csrluInfoHost_t,
+                                                   pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpZcsrluExtractHost(handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+@checked function cusolverSpZcsrluExtractHost(handle, P, Q, descrL, csrValL, csrRowPtrL,
+                                              csrColIndL, descrU, csrValU, csrRowPtrU,
+                                              csrColIndU, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpZcsrluExtractHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrluInfoHost_t, Ptr{Cvoid}), handle, P, Q, descrL, csrValL, csrRowPtrL, csrColIndL, descrU, csrValU, csrRowPtrU, csrColIndU, info, pBuffer)
+    @ccall libcusolver.cusolverSpZcsrluExtractHost(handle::cusolverSpHandle_t, P::Ptr{Cint},
+                                                   Q::Ptr{Cint}, descrL::cusparseMatDescr_t,
+                                                   csrValL::Ptr{cuDoubleComplex},
+                                                   csrRowPtrL::Ptr{Cint},
+                                                   csrColIndL::Ptr{Cint},
+                                                   descrU::cusparseMatDescr_t,
+                                                   csrValU::Ptr{cuDoubleComplex},
+                                                   csrRowPtrU::Ptr{Cint},
+                                                   csrColIndU::Ptr{Cint},
+                                                   info::csrluInfoHost_t,
+                                                   pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCreateCsrqrInfoHost(info)
     initialize_context()
-    ccall((:cusolverSpCreateCsrqrInfoHost, libcusolver), cusolverStatus_t, (Ptr{csrqrInfoHost_t},), info)
+    @ccall libcusolver.cusolverSpCreateCsrqrInfoHost(info::Ptr{csrqrInfoHost_t})::cusolverStatus_t
 end
 
 @checked function cusolverSpDestroyCsrqrInfoHost(info)
     initialize_context()
-    ccall((:cusolverSpDestroyCsrqrInfoHost, libcusolver), cusolverStatus_t, (csrqrInfoHost_t,), info)
+    @ccall libcusolver.cusolverSpDestroyCsrqrInfoHost(info::csrqrInfoHost_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpXcsrqrAnalysisHost(handle, m, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+@checked function cusolverSpXcsrqrAnalysisHost(handle, m, n, nnzA, descrA, csrRowPtrA,
+                                               csrColIndA, info)
     initialize_context()
-    ccall((:cusolverSpXcsrqrAnalysisHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cint}, Ptr{Cint}, csrqrInfoHost_t), handle, m, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+    @ccall libcusolver.cusolverSpXcsrqrAnalysisHost(handle::cusolverSpHandle_t, m::Cint,
+                                                    n::Cint, nnzA::Cint,
+                                                    descrA::cusparseMatDescr_t,
+                                                    csrRowPtrA::Ptr{Cint},
+                                                    csrColIndA::Ptr{Cint},
+                                                    info::csrqrInfoHost_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpScsrqrBufferInfoHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpScsrqrBufferInfoHost(handle, m, n, nnzA, descrA, csrValA,
+                                                 csrRowPtrA, csrColIndA, info,
+                                                 internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpScsrqrBufferInfoHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrqrInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpScsrqrBufferInfoHost(handle::cusolverSpHandle_t, m::Cint,
+                                                      n::Cint, nnzA::Cint,
+                                                      descrA::cusparseMatDescr_t,
+                                                      csrValA::Ptr{Cfloat},
+                                                      csrRowPtrA::Ptr{Cint},
+                                                      csrColIndA::Ptr{Cint},
+                                                      info::csrqrInfoHost_t,
+                                                      internalDataInBytes::Ptr{Csize_t},
+                                                      workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpDcsrqrBufferInfoHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpDcsrqrBufferInfoHost(handle, m, n, nnzA, descrA, csrValA,
+                                                 csrRowPtrA, csrColIndA, info,
+                                                 internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpDcsrqrBufferInfoHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrqrInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpDcsrqrBufferInfoHost(handle::cusolverSpHandle_t, m::Cint,
+                                                      n::Cint, nnzA::Cint,
+                                                      descrA::cusparseMatDescr_t,
+                                                      csrValA::Ptr{Cdouble},
+                                                      csrRowPtrA::Ptr{Cint},
+                                                      csrColIndA::Ptr{Cint},
+                                                      info::csrqrInfoHost_t,
+                                                      internalDataInBytes::Ptr{Csize_t},
+                                                      workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpCcsrqrBufferInfoHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpCcsrqrBufferInfoHost(handle, m, n, nnzA, descrA, csrValA,
+                                                 csrRowPtrA, csrColIndA, info,
+                                                 internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpCcsrqrBufferInfoHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrqrInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpCcsrqrBufferInfoHost(handle::cusolverSpHandle_t, m::Cint,
+                                                      n::Cint, nnzA::Cint,
+                                                      descrA::cusparseMatDescr_t,
+                                                      csrValA::Ptr{cuComplex},
+                                                      csrRowPtrA::Ptr{Cint},
+                                                      csrColIndA::Ptr{Cint},
+                                                      info::csrqrInfoHost_t,
+                                                      internalDataInBytes::Ptr{Csize_t},
+                                                      workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpZcsrqrBufferInfoHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpZcsrqrBufferInfoHost(handle, m, n, nnzA, descrA, csrValA,
+                                                 csrRowPtrA, csrColIndA, info,
+                                                 internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpZcsrqrBufferInfoHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrqrInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpZcsrqrBufferInfoHost(handle::cusolverSpHandle_t, m::Cint,
+                                                      n::Cint, nnzA::Cint,
+                                                      descrA::cusparseMatDescr_t,
+                                                      csrValA::Ptr{cuDoubleComplex},
+                                                      csrRowPtrA::Ptr{Cint},
+                                                      csrColIndA::Ptr{Cint},
+                                                      info::csrqrInfoHost_t,
+                                                      internalDataInBytes::Ptr{Csize_t},
+                                                      workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpScsrqrSetupHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+@checked function cusolverSpScsrqrSetupHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                            csrColIndA, mu, info)
     initialize_context()
-    ccall((:cusolverSpScsrqrSetupHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, Cfloat, csrqrInfoHost_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    @ccall libcusolver.cusolverSpScsrqrSetupHost(handle::cusolverSpHandle_t, m::Cint,
+                                                 n::Cint, nnzA::Cint,
+                                                 descrA::cusparseMatDescr_t,
+                                                 csrValA::Ptr{Cfloat},
+                                                 csrRowPtrA::Ptr{Cint},
+                                                 csrColIndA::Ptr{Cint}, mu::Cfloat,
+                                                 info::csrqrInfoHost_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpDcsrqrSetupHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+@checked function cusolverSpDcsrqrSetupHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                            csrColIndA, mu, info)
     initialize_context()
-    ccall((:cusolverSpDcsrqrSetupHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Cdouble, csrqrInfoHost_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    @ccall libcusolver.cusolverSpDcsrqrSetupHost(handle::cusolverSpHandle_t, m::Cint,
+                                                 n::Cint, nnzA::Cint,
+                                                 descrA::cusparseMatDescr_t,
+                                                 csrValA::Ptr{Cdouble},
+                                                 csrRowPtrA::Ptr{Cint},
+                                                 csrColIndA::Ptr{Cint}, mu::Cdouble,
+                                                 info::csrqrInfoHost_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpCcsrqrSetupHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+@checked function cusolverSpCcsrqrSetupHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                            csrColIndA, mu, info)
     initialize_context()
-    ccall((:cusolverSpCcsrqrSetupHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, cuComplex, csrqrInfoHost_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    @ccall libcusolver.cusolverSpCcsrqrSetupHost(handle::cusolverSpHandle_t, m::Cint,
+                                                 n::Cint, nnzA::Cint,
+                                                 descrA::cusparseMatDescr_t,
+                                                 csrValA::Ptr{cuComplex},
+                                                 csrRowPtrA::Ptr{Cint},
+                                                 csrColIndA::Ptr{Cint}, mu::cuComplex,
+                                                 info::csrqrInfoHost_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpZcsrqrSetupHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+@checked function cusolverSpZcsrqrSetupHost(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                            csrColIndA, mu, info)
     initialize_context()
-    ccall((:cusolverSpZcsrqrSetupHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, cuDoubleComplex, csrqrInfoHost_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    @ccall libcusolver.cusolverSpZcsrqrSetupHost(handle::cusolverSpHandle_t, m::Cint,
+                                                 n::Cint, nnzA::Cint,
+                                                 descrA::cusparseMatDescr_t,
+                                                 csrValA::Ptr{cuDoubleComplex},
+                                                 csrRowPtrA::Ptr{Cint},
+                                                 csrColIndA::Ptr{Cint}, mu::cuDoubleComplex,
+                                                 info::csrqrInfoHost_t)::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrqrFactorHost(handle, m, n, nnzA, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpScsrqrFactorHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpScsrqrFactorHost(handle::cusolverSpHandle_t, m::Cint,
+                                                  n::Cint, nnzA::Cint, b::Ptr{Cfloat},
+                                                  x::Ptr{Cfloat}, info::csrqrInfoHost_t,
+                                                  pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrqrFactorHost(handle, m, n, nnzA, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpDcsrqrFactorHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpDcsrqrFactorHost(handle::cusolverSpHandle_t, m::Cint,
+                                                  n::Cint, nnzA::Cint, b::Ptr{Cdouble},
+                                                  x::Ptr{Cdouble}, info::csrqrInfoHost_t,
+                                                  pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrqrFactorHost(handle, m, n, nnzA, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpCcsrqrFactorHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpCcsrqrFactorHost(handle::cusolverSpHandle_t, m::Cint,
+                                                  n::Cint, nnzA::Cint, b::Ptr{cuComplex},
+                                                  x::Ptr{cuComplex}, info::csrqrInfoHost_t,
+                                                  pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrqrFactorHost(handle, m, n, nnzA, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpZcsrqrFactorHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpZcsrqrFactorHost(handle::cusolverSpHandle_t, m::Cint,
+                                                  n::Cint, nnzA::Cint,
+                                                  b::Ptr{cuDoubleComplex},
+                                                  x::Ptr{cuDoubleComplex},
+                                                  info::csrqrInfoHost_t,
+                                                  pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrqrZeroPivotHost(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpScsrqrZeroPivotHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfoHost_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpScsrqrZeroPivotHost(handle::cusolverSpHandle_t,
+                                                     info::csrqrInfoHost_t, tol::Cfloat,
+                                                     position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrqrZeroPivotHost(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpDcsrqrZeroPivotHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfoHost_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpDcsrqrZeroPivotHost(handle::cusolverSpHandle_t,
+                                                     info::csrqrInfoHost_t, tol::Cdouble,
+                                                     position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrqrZeroPivotHost(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpCcsrqrZeroPivotHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfoHost_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpCcsrqrZeroPivotHost(handle::cusolverSpHandle_t,
+                                                     info::csrqrInfoHost_t, tol::Cfloat,
+                                                     position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrqrZeroPivotHost(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpZcsrqrZeroPivotHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfoHost_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpZcsrqrZeroPivotHost(handle::cusolverSpHandle_t,
+                                                     info::csrqrInfoHost_t, tol::Cdouble,
+                                                     position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrqrSolveHost(handle, m, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpScsrqrSolveHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpScsrqrSolveHost(handle::cusolverSpHandle_t, m::Cint,
+                                                 n::Cint, b::Ptr{Cfloat}, x::Ptr{Cfloat},
+                                                 info::csrqrInfoHost_t,
+                                                 pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrqrSolveHost(handle, m, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpDcsrqrSolveHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpDcsrqrSolveHost(handle::cusolverSpHandle_t, m::Cint,
+                                                 n::Cint, b::Ptr{Cdouble}, x::Ptr{Cdouble},
+                                                 info::csrqrInfoHost_t,
+                                                 pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrqrSolveHost(handle, m, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpCcsrqrSolveHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpCcsrqrSolveHost(handle::cusolverSpHandle_t, m::Cint,
+                                                 n::Cint, b::Ptr{cuComplex},
+                                                 x::Ptr{cuComplex}, info::csrqrInfoHost_t,
+                                                 pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrqrSolveHost(handle, m, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpZcsrqrSolveHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrqrInfoHost_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpZcsrqrSolveHost(handle::cusolverSpHandle_t, m::Cint,
+                                                 n::Cint, b::Ptr{cuDoubleComplex},
+                                                 x::Ptr{cuDoubleComplex},
+                                                 info::csrqrInfoHost_t,
+                                                 pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpXcsrqrAnalysis(handle, m, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+@checked function cusolverSpXcsrqrAnalysis(handle, m, n, nnzA, descrA, csrRowPtrA,
+                                           csrColIndA, info)
     initialize_context()
-    ccall((:cusolverSpXcsrqrAnalysis, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cint}, Ptr{Cint}, csrqrInfo_t), handle, m, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+    @ccall libcusolver.cusolverSpXcsrqrAnalysis(handle::cusolverSpHandle_t, m::Cint,
+                                                n::Cint, nnzA::Cint,
+                                                descrA::cusparseMatDescr_t,
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint},
+                                                info::csrqrInfo_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpScsrqrBufferInfo(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpScsrqrBufferInfo(handle, m, n, nnzA, descrA, csrValA,
+                                             csrRowPtrA, csrColIndA, info,
+                                             internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpScsrqrBufferInfo, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrqrInfo_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpScsrqrBufferInfo(handle::cusolverSpHandle_t, m::Cint,
+                                                  n::Cint, nnzA::Cint,
+                                                  descrA::cusparseMatDescr_t,
+                                                  csrValA::Ptr{Cfloat},
+                                                  csrRowPtrA::Ptr{Cint},
+                                                  csrColIndA::Ptr{Cint}, info::csrqrInfo_t,
+                                                  internalDataInBytes::Ptr{Csize_t},
+                                                  workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpDcsrqrBufferInfo(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpDcsrqrBufferInfo(handle, m, n, nnzA, descrA, csrValA,
+                                             csrRowPtrA, csrColIndA, info,
+                                             internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpDcsrqrBufferInfo, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrqrInfo_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpDcsrqrBufferInfo(handle::cusolverSpHandle_t, m::Cint,
+                                                  n::Cint, nnzA::Cint,
+                                                  descrA::cusparseMatDescr_t,
+                                                  csrValA::Ptr{Cdouble},
+                                                  csrRowPtrA::Ptr{Cint},
+                                                  csrColIndA::Ptr{Cint}, info::csrqrInfo_t,
+                                                  internalDataInBytes::Ptr{Csize_t},
+                                                  workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpCcsrqrBufferInfo(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpCcsrqrBufferInfo(handle, m, n, nnzA, descrA, csrValA,
+                                             csrRowPtrA, csrColIndA, info,
+                                             internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpCcsrqrBufferInfo, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrqrInfo_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpCcsrqrBufferInfo(handle::cusolverSpHandle_t, m::Cint,
+                                                  n::Cint, nnzA::Cint,
+                                                  descrA::cusparseMatDescr_t,
+                                                  csrValA::Ptr{cuComplex},
+                                                  csrRowPtrA::Ptr{Cint},
+                                                  csrColIndA::Ptr{Cint}, info::csrqrInfo_t,
+                                                  internalDataInBytes::Ptr{Csize_t},
+                                                  workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpZcsrqrBufferInfo(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpZcsrqrBufferInfo(handle, m, n, nnzA, descrA, csrValA,
+                                             csrRowPtrA, csrColIndA, info,
+                                             internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpZcsrqrBufferInfo, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrqrInfo_t, Ptr{Cint}, Ptr{Cint}), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpZcsrqrBufferInfo(handle::cusolverSpHandle_t, m::Cint,
+                                                  n::Cint, nnzA::Cint,
+                                                  descrA::cusparseMatDescr_t,
+                                                  csrValA::Ptr{cuDoubleComplex},
+                                                  csrRowPtrA::Ptr{Cint},
+                                                  csrColIndA::Ptr{Cint}, info::csrqrInfo_t,
+                                                  internalDataInBytes::Ptr{Csize_t},
+                                                  workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpScsrqrSetup(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+@checked function cusolverSpScsrqrSetup(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                        csrColIndA, mu, info)
     initialize_context()
-    ccall((:cusolverSpScsrqrSetup, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, Cfloat, csrqrInfo_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    @ccall libcusolver.cusolverSpScsrqrSetup(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                             nnzA::Cint, descrA::cusparseMatDescr_t,
+                                             csrValA::Ptr{Cfloat}, csrRowPtrA::Ptr{Cint},
+                                             csrColIndA::Ptr{Cint}, mu::Cfloat,
+                                             info::csrqrInfo_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpDcsrqrSetup(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+@checked function cusolverSpDcsrqrSetup(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                        csrColIndA, mu, info)
     initialize_context()
-    ccall((:cusolverSpDcsrqrSetup, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Cdouble, csrqrInfo_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    @ccall libcusolver.cusolverSpDcsrqrSetup(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                             nnzA::Cint, descrA::cusparseMatDescr_t,
+                                             csrValA::Ptr{Cdouble}, csrRowPtrA::Ptr{Cint},
+                                             csrColIndA::Ptr{Cint}, mu::Cdouble,
+                                             info::csrqrInfo_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpCcsrqrSetup(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+@checked function cusolverSpCcsrqrSetup(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                        csrColIndA, mu, info)
     initialize_context()
-    ccall((:cusolverSpCcsrqrSetup, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, cuComplex, csrqrInfo_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    @ccall libcusolver.cusolverSpCcsrqrSetup(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                             nnzA::Cint, descrA::cusparseMatDescr_t,
+                                             csrValA::Ptr{cuComplex}, csrRowPtrA::Ptr{Cint},
+                                             csrColIndA::Ptr{Cint}, mu::cuComplex,
+                                             info::csrqrInfo_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpZcsrqrSetup(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+@checked function cusolverSpZcsrqrSetup(handle, m, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                        csrColIndA, mu, info)
     initialize_context()
-    ccall((:cusolverSpZcsrqrSetup, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, cuDoubleComplex, csrqrInfo_t), handle, m, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, mu, info)
+    @ccall libcusolver.cusolverSpZcsrqrSetup(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                             nnzA::Cint, descrA::cusparseMatDescr_t,
+                                             csrValA::Ptr{cuDoubleComplex},
+                                             csrRowPtrA::Ptr{Cint}, csrColIndA::Ptr{Cint},
+                                             mu::cuDoubleComplex,
+                                             info::csrqrInfo_t)::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrqrFactor(handle, m, n, nnzA, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpScsrqrFactor, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpScsrqrFactor(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                              nnzA::Cint, b::Ptr{Cfloat}, x::Ptr{Cfloat},
+                                              info::csrqrInfo_t,
+                                              pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrqrFactor(handle, m, n, nnzA, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpDcsrqrFactor, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpDcsrqrFactor(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                              nnzA::Cint, b::Ptr{Cdouble}, x::Ptr{Cdouble},
+                                              info::csrqrInfo_t,
+                                              pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrqrFactor(handle, m, n, nnzA, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpCcsrqrFactor, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpCcsrqrFactor(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                              nnzA::Cint, b::Ptr{cuComplex},
+                                              x::Ptr{cuComplex}, info::csrqrInfo_t,
+                                              pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrqrFactor(handle, m, n, nnzA, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpZcsrqrFactor, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, nnzA, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpZcsrqrFactor(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                              nnzA::Cint, b::Ptr{cuDoubleComplex},
+                                              x::Ptr{cuDoubleComplex}, info::csrqrInfo_t,
+                                              pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrqrZeroPivot(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpScsrqrZeroPivot, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfo_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpScsrqrZeroPivot(handle::cusolverSpHandle_t,
+                                                 info::csrqrInfo_t, tol::Cfloat,
+                                                 position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrqrZeroPivot(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpDcsrqrZeroPivot, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfo_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpDcsrqrZeroPivot(handle::cusolverSpHandle_t,
+                                                 info::csrqrInfo_t, tol::Cdouble,
+                                                 position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrqrZeroPivot(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpCcsrqrZeroPivot, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfo_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpCcsrqrZeroPivot(handle::cusolverSpHandle_t,
+                                                 info::csrqrInfo_t, tol::Cfloat,
+                                                 position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrqrZeroPivot(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpZcsrqrZeroPivot, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrqrInfo_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpZcsrqrZeroPivot(handle::cusolverSpHandle_t,
+                                                 info::csrqrInfo_t, tol::Cdouble,
+                                                 position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrqrSolve(handle, m, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpScsrqrSolve, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpScsrqrSolve(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                             b::Ptr{Cfloat}, x::Ptr{Cfloat},
+                                             info::csrqrInfo_t,
+                                             pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrqrSolve(handle, m, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpDcsrqrSolve, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpDcsrqrSolve(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                             b::Ptr{Cdouble}, x::Ptr{Cdouble},
+                                             info::csrqrInfo_t,
+                                             pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrqrSolve(handle, m, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpCcsrqrSolve, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpCcsrqrSolve(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                             b::Ptr{cuComplex}, x::Ptr{cuComplex},
+                                             info::csrqrInfo_t,
+                                             pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrqrSolve(handle, m, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpZcsrqrSolve, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrqrInfo_t, Ptr{Cvoid}), handle, m, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpZcsrqrSolve(handle::cusolverSpHandle_t, m::Cint, n::Cint,
+                                             b::Ptr{cuDoubleComplex},
+                                             x::Ptr{cuDoubleComplex}, info::csrqrInfo_t,
+                                             pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCreateCsrcholInfoHost(info)
     initialize_context()
-    ccall((:cusolverSpCreateCsrcholInfoHost, libcusolver), cusolverStatus_t, (Ptr{csrcholInfoHost_t},), info)
+    @ccall libcusolver.cusolverSpCreateCsrcholInfoHost(info::Ptr{csrcholInfoHost_t})::cusolverStatus_t
 end
 
 @checked function cusolverSpDestroyCsrcholInfoHost(info)
     initialize_context()
-    ccall((:cusolverSpDestroyCsrcholInfoHost, libcusolver), cusolverStatus_t, (csrcholInfoHost_t,), info)
+    @ccall libcusolver.cusolverSpDestroyCsrcholInfoHost(info::csrcholInfoHost_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpXcsrcholAnalysisHost(handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+@checked function cusolverSpXcsrcholAnalysisHost(handle, n, nnzA, descrA, csrRowPtrA,
+                                                 csrColIndA, info)
     initialize_context()
-    ccall((:cusolverSpXcsrcholAnalysisHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t), handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+    @ccall libcusolver.cusolverSpXcsrcholAnalysisHost(handle::cusolverSpHandle_t, n::Cint,
+                                                      nnzA::Cint,
+                                                      descrA::cusparseMatDescr_t,
+                                                      csrRowPtrA::Ptr{Cint},
+                                                      csrColIndA::Ptr{Cint},
+                                                      info::csrcholInfoHost_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpScsrcholBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpScsrcholBufferInfoHost(handle, n, nnzA, descrA, csrValA,
+                                                   csrRowPtrA, csrColIndA, info,
+                                                   internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpScsrcholBufferInfoHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpScsrcholBufferInfoHost(handle::cusolverSpHandle_t, n::Cint,
+                                                        nnzA::Cint,
+                                                        descrA::cusparseMatDescr_t,
+                                                        csrValA::Ptr{Cfloat},
+                                                        csrRowPtrA::Ptr{Cint},
+                                                        csrColIndA::Ptr{Cint},
+                                                        info::csrcholInfoHost_t,
+                                                        internalDataInBytes::Ptr{Csize_t},
+                                                        workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpDcsrcholBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpDcsrcholBufferInfoHost(handle, n, nnzA, descrA, csrValA,
+                                                   csrRowPtrA, csrColIndA, info,
+                                                   internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpDcsrcholBufferInfoHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpDcsrcholBufferInfoHost(handle::cusolverSpHandle_t, n::Cint,
+                                                        nnzA::Cint,
+                                                        descrA::cusparseMatDescr_t,
+                                                        csrValA::Ptr{Cdouble},
+                                                        csrRowPtrA::Ptr{Cint},
+                                                        csrColIndA::Ptr{Cint},
+                                                        info::csrcholInfoHost_t,
+                                                        internalDataInBytes::Ptr{Csize_t},
+                                                        workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpCcsrcholBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpCcsrcholBufferInfoHost(handle, n, nnzA, descrA, csrValA,
+                                                   csrRowPtrA, csrColIndA, info,
+                                                   internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpCcsrcholBufferInfoHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpCcsrcholBufferInfoHost(handle::cusolverSpHandle_t, n::Cint,
+                                                        nnzA::Cint,
+                                                        descrA::cusparseMatDescr_t,
+                                                        csrValA::Ptr{cuComplex},
+                                                        csrRowPtrA::Ptr{Cint},
+                                                        csrColIndA::Ptr{Cint},
+                                                        info::csrcholInfoHost_t,
+                                                        internalDataInBytes::Ptr{Csize_t},
+                                                        workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpZcsrcholBufferInfoHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpZcsrcholBufferInfoHost(handle, n, nnzA, descrA, csrValA,
+                                                   csrRowPtrA, csrColIndA, info,
+                                                   internalDataInBytes, workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpZcsrcholBufferInfoHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpZcsrcholBufferInfoHost(handle::cusolverSpHandle_t, n::Cint,
+                                                        nnzA::Cint,
+                                                        descrA::cusparseMatDescr_t,
+                                                        csrValA::Ptr{cuDoubleComplex},
+                                                        csrRowPtrA::Ptr{Cint},
+                                                        csrColIndA::Ptr{Cint},
+                                                        info::csrcholInfoHost_t,
+                                                        internalDataInBytes::Ptr{Csize_t},
+                                                        workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpScsrcholFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+@checked function cusolverSpScsrcholFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                               csrColIndA, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpScsrcholFactorHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    @ccall libcusolver.cusolverSpScsrcholFactorHost(handle::cusolverSpHandle_t, n::Cint,
+                                                    nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                    csrValA::Ptr{Cfloat},
+                                                    csrRowPtrA::Ptr{Cint},
+                                                    csrColIndA::Ptr{Cint},
+                                                    info::csrcholInfoHost_t,
+                                                    pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpDcsrcholFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+@checked function cusolverSpDcsrcholFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                               csrColIndA, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpDcsrcholFactorHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    @ccall libcusolver.cusolverSpDcsrcholFactorHost(handle::cusolverSpHandle_t, n::Cint,
+                                                    nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                    csrValA::Ptr{Cdouble},
+                                                    csrRowPtrA::Ptr{Cint},
+                                                    csrColIndA::Ptr{Cint},
+                                                    info::csrcholInfoHost_t,
+                                                    pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpCcsrcholFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+@checked function cusolverSpCcsrcholFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                               csrColIndA, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpCcsrcholFactorHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    @ccall libcusolver.cusolverSpCcsrcholFactorHost(handle::cusolverSpHandle_t, n::Cint,
+                                                    nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                    csrValA::Ptr{cuComplex},
+                                                    csrRowPtrA::Ptr{Cint},
+                                                    csrColIndA::Ptr{Cint},
+                                                    info::csrcholInfoHost_t,
+                                                    pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpZcsrcholFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+@checked function cusolverSpZcsrcholFactorHost(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                               csrColIndA, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpZcsrcholFactorHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    @ccall libcusolver.cusolverSpZcsrcholFactorHost(handle::cusolverSpHandle_t, n::Cint,
+                                                    nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                    csrValA::Ptr{cuDoubleComplex},
+                                                    csrRowPtrA::Ptr{Cint},
+                                                    csrColIndA::Ptr{Cint},
+                                                    info::csrcholInfoHost_t,
+                                                    pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrcholZeroPivotHost(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpScsrcholZeroPivotHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfoHost_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpScsrcholZeroPivotHost(handle::cusolverSpHandle_t,
+                                                       info::csrcholInfoHost_t, tol::Cfloat,
+                                                       position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrcholZeroPivotHost(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpDcsrcholZeroPivotHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfoHost_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpDcsrcholZeroPivotHost(handle::cusolverSpHandle_t,
+                                                       info::csrcholInfoHost_t,
+                                                       tol::Cdouble,
+                                                       position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrcholZeroPivotHost(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpCcsrcholZeroPivotHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfoHost_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpCcsrcholZeroPivotHost(handle::cusolverSpHandle_t,
+                                                       info::csrcholInfoHost_t, tol::Cfloat,
+                                                       position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrcholZeroPivotHost(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpZcsrcholZeroPivotHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfoHost_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpZcsrcholZeroPivotHost(handle::cusolverSpHandle_t,
+                                                       info::csrcholInfoHost_t,
+                                                       tol::Cdouble,
+                                                       position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrcholSolveHost(handle, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpScsrcholSolveHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpScsrcholSolveHost(handle::cusolverSpHandle_t, n::Cint,
+                                                   b::Ptr{Cfloat}, x::Ptr{Cfloat},
+                                                   info::csrcholInfoHost_t,
+                                                   pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrcholSolveHost(handle, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpDcsrcholSolveHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpDcsrcholSolveHost(handle::cusolverSpHandle_t, n::Cint,
+                                                   b::Ptr{Cdouble}, x::Ptr{Cdouble},
+                                                   info::csrcholInfoHost_t,
+                                                   pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrcholSolveHost(handle, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpCcsrcholSolveHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpCcsrcholSolveHost(handle::cusolverSpHandle_t, n::Cint,
+                                                   b::Ptr{cuComplex}, x::Ptr{cuComplex},
+                                                   info::csrcholInfoHost_t,
+                                                   pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrcholSolveHost(handle, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpZcsrcholSolveHost, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrcholInfoHost_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpZcsrcholSolveHost(handle::cusolverSpHandle_t, n::Cint,
+                                                   b::Ptr{cuDoubleComplex},
+                                                   x::Ptr{cuDoubleComplex},
+                                                   info::csrcholInfoHost_t,
+                                                   pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCreateCsrcholInfo(info)
     initialize_context()
-    ccall((:cusolverSpCreateCsrcholInfo, libcusolver), cusolverStatus_t, (Ptr{csrcholInfo_t},), info)
+    @ccall libcusolver.cusolverSpCreateCsrcholInfo(info::Ptr{csrcholInfo_t})::cusolverStatus_t
 end
 
 @checked function cusolverSpDestroyCsrcholInfo(info)
     initialize_context()
-    ccall((:cusolverSpDestroyCsrcholInfo, libcusolver), cusolverStatus_t, (csrcholInfo_t,), info)
+    @ccall libcusolver.cusolverSpDestroyCsrcholInfo(info::csrcholInfo_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpXcsrcholAnalysis(handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+@checked function cusolverSpXcsrcholAnalysis(handle, n, nnzA, descrA, csrRowPtrA,
+                                             csrColIndA, info)
     initialize_context()
-    ccall((:cusolverSpXcsrcholAnalysis, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t), handle, n, nnzA, descrA, csrRowPtrA, csrColIndA, info)
+    @ccall libcusolver.cusolverSpXcsrcholAnalysis(handle::cusolverSpHandle_t, n::Cint,
+                                                  nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                  csrRowPtrA::Ptr{Cint},
+                                                  csrColIndA::Ptr{Cint},
+                                                  info::csrcholInfo_t)::cusolverStatus_t
 end
 
-@checked function cusolverSpScsrcholBufferInfo(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpScsrcholBufferInfo(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                               csrColIndA, info, internalDataInBytes,
+                                               workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpScsrcholBufferInfo, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpScsrcholBufferInfo(handle::cusolverSpHandle_t, n::Cint,
+                                                    nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                    csrValA::Ptr{Cfloat},
+                                                    csrRowPtrA::Ptr{Cint},
+                                                    csrColIndA::Ptr{Cint},
+                                                    info::csrcholInfo_t,
+                                                    internalDataInBytes::Ptr{Csize_t},
+                                                    workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpDcsrcholBufferInfo(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpDcsrcholBufferInfo(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                               csrColIndA, info, internalDataInBytes,
+                                               workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpDcsrcholBufferInfo, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpDcsrcholBufferInfo(handle::cusolverSpHandle_t, n::Cint,
+                                                    nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                    csrValA::Ptr{Cdouble},
+                                                    csrRowPtrA::Ptr{Cint},
+                                                    csrColIndA::Ptr{Cint},
+                                                    info::csrcholInfo_t,
+                                                    internalDataInBytes::Ptr{Csize_t},
+                                                    workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpCcsrcholBufferInfo(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpCcsrcholBufferInfo(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                               csrColIndA, info, internalDataInBytes,
+                                               workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpCcsrcholBufferInfo, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpCcsrcholBufferInfo(handle::cusolverSpHandle_t, n::Cint,
+                                                    nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                    csrValA::Ptr{cuComplex},
+                                                    csrRowPtrA::Ptr{Cint},
+                                                    csrColIndA::Ptr{Cint},
+                                                    info::csrcholInfo_t,
+                                                    internalDataInBytes::Ptr{Csize_t},
+                                                    workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpZcsrcholBufferInfo(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+@checked function cusolverSpZcsrcholBufferInfo(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                               csrColIndA, info, internalDataInBytes,
+                                               workspaceInBytes)
     initialize_context()
-    ccall((:cusolverSpZcsrcholBufferInfo, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cint}, Ptr{Cint}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, internalDataInBytes, workspaceInBytes)
+    @ccall libcusolver.cusolverSpZcsrcholBufferInfo(handle::cusolverSpHandle_t, n::Cint,
+                                                    nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                    csrValA::Ptr{cuDoubleComplex},
+                                                    csrRowPtrA::Ptr{Cint},
+                                                    csrColIndA::Ptr{Cint},
+                                                    info::csrcholInfo_t,
+                                                    internalDataInBytes::Ptr{Csize_t},
+                                                    workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverSpScsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+@checked function cusolverSpScsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                           csrColIndA, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpScsrcholFactor, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cfloat}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    @ccall libcusolver.cusolverSpScsrcholFactor(handle::cusolverSpHandle_t, n::Cint,
+                                                nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                csrValA::Ptr{Cfloat}, csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint}, info::csrcholInfo_t,
+                                                pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpDcsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+@checked function cusolverSpDcsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                           csrColIndA, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpDcsrcholFactor, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    @ccall libcusolver.cusolverSpDcsrcholFactor(handle::cusolverSpHandle_t, n::Cint,
+                                                nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                csrValA::Ptr{Cdouble},
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint}, info::csrcholInfo_t,
+                                                pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpCcsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+@checked function cusolverSpCcsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                           csrColIndA, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpCcsrcholFactor, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    @ccall libcusolver.cusolverSpCcsrcholFactor(handle::cusolverSpHandle_t, n::Cint,
+                                                nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                csrValA::Ptr{cuComplex},
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint}, info::csrcholInfo_t,
+                                                pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
-@checked function cusolverSpZcsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+@checked function cusolverSpZcsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
+                                           csrColIndA, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpZcsrcholFactor, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Cint, cusparseMatDescr_t, Ptr{cuDoubleComplex}, Ptr{Cint}, Ptr{Cint}, csrcholInfo_t, Ptr{Cvoid}), handle, n, nnzA, descrA, csrValA, csrRowPtrA, csrColIndA, info, pBuffer)
+    @ccall libcusolver.cusolverSpZcsrcholFactor(handle::cusolverSpHandle_t, n::Cint,
+                                                nnzA::Cint, descrA::cusparseMatDescr_t,
+                                                csrValA::Ptr{cuDoubleComplex},
+                                                csrRowPtrA::Ptr{Cint},
+                                                csrColIndA::Ptr{Cint}, info::csrcholInfo_t,
+                                                pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrcholZeroPivot(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpScsrcholZeroPivot, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpScsrcholZeroPivot(handle::cusolverSpHandle_t,
+                                                   info::csrcholInfo_t, tol::Cfloat,
+                                                   position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrcholZeroPivot(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpDcsrcholZeroPivot, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpDcsrcholZeroPivot(handle::cusolverSpHandle_t,
+                                                   info::csrcholInfo_t, tol::Cdouble,
+                                                   position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrcholZeroPivot(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpCcsrcholZeroPivot, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Cfloat, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpCcsrcholZeroPivot(handle::cusolverSpHandle_t,
+                                                   info::csrcholInfo_t, tol::Cfloat,
+                                                   position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrcholZeroPivot(handle, info, tol, position)
     initialize_context()
-    ccall((:cusolverSpZcsrcholZeroPivot, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Cdouble, Ptr{Cint}), handle, info, tol, position)
+    @ccall libcusolver.cusolverSpZcsrcholZeroPivot(handle::cusolverSpHandle_t,
+                                                   info::csrcholInfo_t, tol::Cdouble,
+                                                   position::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrcholSolve(handle, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpScsrcholSolve, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{Cfloat}, Ptr{Cfloat}, csrcholInfo_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpScsrcholSolve(handle::cusolverSpHandle_t, n::Cint,
+                                               b::Ptr{Cfloat}, x::Ptr{Cfloat},
+                                               info::csrcholInfo_t,
+                                               pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrcholSolve(handle, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpDcsrcholSolve, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{Cdouble}, Ptr{Cdouble}, csrcholInfo_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpDcsrcholSolve(handle::cusolverSpHandle_t, n::Cint,
+                                               b::Ptr{Cdouble}, x::Ptr{Cdouble},
+                                               info::csrcholInfo_t,
+                                               pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrcholSolve(handle, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpCcsrcholSolve, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{cuComplex}, Ptr{cuComplex}, csrcholInfo_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpCcsrcholSolve(handle::cusolverSpHandle_t, n::Cint,
+                                               b::Ptr{cuComplex}, x::Ptr{cuComplex},
+                                               info::csrcholInfo_t,
+                                               pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrcholSolve(handle, n, b, x, info, pBuffer)
     initialize_context()
-    ccall((:cusolverSpZcsrcholSolve, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, Cint, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex}, csrcholInfo_t, Ptr{Cvoid}), handle, n, b, x, info, pBuffer)
+    @ccall libcusolver.cusolverSpZcsrcholSolve(handle::cusolverSpHandle_t, n::Cint,
+                                               b::Ptr{cuDoubleComplex},
+                                               x::Ptr{cuDoubleComplex}, info::csrcholInfo_t,
+                                               pBuffer::Ptr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrcholDiag(handle, info, diag)
     initialize_context()
-    ccall((:cusolverSpScsrcholDiag, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Ptr{Cfloat}), handle, info, diag)
+    @ccall libcusolver.cusolverSpScsrcholDiag(handle::cusolverSpHandle_t,
+                                              info::csrcholInfo_t,
+                                              diag::Ptr{Cfloat})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrcholDiag(handle, info, diag)
     initialize_context()
-    ccall((:cusolverSpDcsrcholDiag, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Ptr{Cdouble}), handle, info, diag)
+    @ccall libcusolver.cusolverSpDcsrcholDiag(handle::cusolverSpHandle_t,
+                                              info::csrcholInfo_t,
+                                              diag::Ptr{Cdouble})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrcholDiag(handle, info, diag)
     initialize_context()
-    ccall((:cusolverSpCcsrcholDiag, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Ptr{Cfloat}), handle, info, diag)
+    @ccall libcusolver.cusolverSpCcsrcholDiag(handle::cusolverSpHandle_t,
+                                              info::csrcholInfo_t,
+                                              diag::Ptr{Cfloat})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrcholDiag(handle, info, diag)
     initialize_context()
-    ccall((:cusolverSpZcsrcholDiag, libcusolver), cusolverStatus_t, (cusolverSpHandle_t, csrcholInfo_t, Ptr{Cdouble}), handle, info, diag)
-end
-
-# Julia wrapper for header: cusolverRf.h
-# Automatically generated using Clang.jl
-
-
-@checked function cusolverRfBatchResetValues(batchSize, n, nnzA, csrRowPtrA, csrColIndA, csrValA_array, P, Q, handle)
-    initialize_context()
-    ccall((:cusolverRfBatchResetValues, libcusolver), cusolverStatus_t, (Cint, Cint, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Ptr{Cdouble}}, CuPtr{Cint}, CuPtr{Cint}, cusolverRfHandle_t), batchSize, n, nnzA, csrRowPtrA, csrColIndA, csrValA_array, P, Q, handle)
-end
-
-@checked function cusolverRfCreate(handle)
-    initialize_context()
-    ccall((:cusolverRfCreate, libcusolver), cusolverStatus_t, (Ptr{cusolverRfHandle_t},), handle)
-end
-
-@checked function cusolverRfBatchAnalyze(handle)
-    initialize_context()
-    ccall((:cusolverRfBatchAnalyze, libcusolver), cusolverStatus_t, (cusolverRfHandle_t,), handle)
-end
-
-@checked function cusolverRfSetNumericProperties(handle, zero, boost)
-    initialize_context()
-    ccall((:cusolverRfSetNumericProperties, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, Cdouble, Cdouble), handle, zero, boost)
-end
-
-@checked function cusolverRfSetMatrixFormat(handle, format, diag)
-    initialize_context()
-    ccall((:cusolverRfSetMatrixFormat, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, cusolverRfMatrixFormat_t, cusolverRfUnitDiagonal_t), handle, format, diag)
-end
-
-@checked function cusolverRfAccessBundledFactorsDevice(handle, nnzM, Mp, Mi, Mx)
-    initialize_context()
-    ccall((:cusolverRfAccessBundledFactorsDevice, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, Ptr{Cint}, CuPtr{Ptr{Cint}}, CuPtr{Ptr{Cint}}, CuPtr{Ptr{Cdouble}}), handle, nnzM, Mp, Mi, Mx)
-end
-
-@checked function cusolverRfGetMatrixFormat(handle, format, diag)
-    initialize_context()
-    ccall((:cusolverRfGetMatrixFormat, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, Ptr{cusolverRfMatrixFormat_t}, Ptr{cusolverRfUnitDiagonal_t}), handle, format, diag)
-end
-
-@checked function cusolverRfResetValues(n, nnzA, csrRowPtrA, csrColIndA, csrValA, P, Q, handle)
-    initialize_context()
-    ccall((:cusolverRfResetValues, libcusolver), cusolverStatus_t, (Cint, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, CuPtr{Cint}, CuPtr{Cint}, cusolverRfHandle_t), n, nnzA, csrRowPtrA, csrColIndA, csrValA, P, Q, handle)
-end
-
-@checked function cusolverRfBatchSetupHost(batchSize, n, nnzA, h_csrRowPtrA, h_csrColIndA, h_csrValA_array, nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, nnzU, h_csrRowPtrU, h_csrColIndU, h_csrValU, h_P, h_Q, handle)
-    initialize_context()
-    ccall((:cusolverRfBatchSetupHost, libcusolver), cusolverStatus_t, (Cint, Cint, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Ptr{Cdouble}}, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, cusolverRfHandle_t), batchSize, n, nnzA, h_csrRowPtrA, h_csrColIndA, h_csrValA_array, nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, nnzU, h_csrRowPtrU, h_csrColIndU, h_csrValU, h_P, h_Q, handle)
-end
-
-@checked function cusolverRfExtractBundledFactorsHost(handle, h_nnzM, h_Mp, h_Mi, h_Mx)
-    initialize_context()
-    ccall((:cusolverRfExtractBundledFactorsHost, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, Ptr{Cint}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cdouble}}), handle, h_nnzM, h_Mp, h_Mi, h_Mx)
-end
-
-@checked function cusolverRfGetAlgs(handle, factAlg, solveAlg)
-    initialize_context()
-    ccall((:cusolverRfGetAlgs, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, Ptr{cusolverRfFactorization_t}, Ptr{cusolverRfTriangularSolve_t}), handle, factAlg, solveAlg)
-end
-
-@checked function cusolverRfAnalyze(handle)
-    initialize_context()
-    ccall((:cusolverRfAnalyze, libcusolver), cusolverStatus_t, (cusolverRfHandle_t,), handle)
-end
-
-@checked function cusolverRfSetResetValuesFastMode(handle, fastMode)
-    initialize_context()
-    ccall((:cusolverRfSetResetValuesFastMode, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, cusolverRfResetValuesFastMode_t), handle, fastMode)
-end
-
-@checked function cusolverRfGetNumericProperties(handle, zero, boost)
-    initialize_context()
-    ccall((:cusolverRfGetNumericProperties, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, Ptr{Cdouble}, Ptr{Cdouble}), handle, zero, boost)
-end
-
-@checked function cusolverRfGetNumericBoostReport(handle, report)
-    initialize_context()
-    ccall((:cusolverRfGetNumericBoostReport, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, Ptr{cusolverRfNumericBoostReport_t}), handle, report)
-end
-
-@checked function cusolverRfSetupDevice(n, nnzA, csrRowPtrA, csrColIndA, csrValA, nnzL, csrRowPtrL, csrColIndL, csrValL, nnzU, csrRowPtrU, csrColIndU, csrValU, P, Q, handle)
-    initialize_context()
-    ccall((:cusolverRfSetupDevice, libcusolver), cusolverStatus_t, (Cint, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, Cint, CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, CuPtr{Cint}, CuPtr{Cint}, cusolverRfHandle_t), n, nnzA, csrRowCuPtrA, csrColIndA, csrValA, nnzL, csrRowCuPtrL, csrColIndL, csrValL, nnzU, csrRowCuPtrU, csrColIndU, csrValU, P, Q, handle)
-end
-
-@checked function cusolverRfSetupHost(n, nnzA, h_csrRowPtrA, h_csrColIndA, h_csrValA, nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, nnzU, h_csrRowPtrU, h_csrColIndU, h_csrValU, h_P, h_Q, handle)
-    initialize_context()
-    ccall((:cusolverRfSetupHost, libcusolver), cusolverStatus_t, (Cint, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, cusolverRfHandle_t), n, nnzA, h_csrRowPtrA, h_csrColIndA, h_csrValA, nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, nnzU, h_csrRowPtrU, h_csrColIndU, h_csrValU, h_P, h_Q, handle)
-end
-
-@checked function cusolverRfDestroy(handle)
-    initialize_context()
-    ccall((:cusolverRfDestroy, libcusolver), cusolverStatus_t, (cusolverRfHandle_t,), handle)
-end
-
-@checked function cusolverRfSetAlgs(handle, factAlg, solveAlg)
-    initialize_context()
-    ccall((:cusolverRfSetAlgs, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, cusolverRfFactorization_t, cusolverRfTriangularSolve_t), handle, factAlg, solveAlg)
-end
-
-@checked function cusolverRfBatchZeroPivot(handle, position)
-    initialize_context()
-    ccall((:cusolverRfBatchZeroPivot, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, CuPtr{Cint}), handle, position)
-end
-
-@checked function cusolverRfSolve(handle, P, Q, nrhs, Temp, ldt, XF, ldxf)
-    initialize_context()
-    ccall((:cusolverRfSolve, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, CuPtr{Cint}, CuPtr{Cint}, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint), handle, P, Q, nrhs, Temp, ldt, XF, ldxf)
-end
-
-@checked function cusolverRfBatchSolve(handle, P, Q, nrhs, Temp, ldt, XF_array, ldxf)
-    initialize_context()
-    ccall((:cusolverRfBatchSolve, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, CuPtr{Cint}, CuPtr{Cint}, Cint, CuPtr{Cdouble}, Cint, CuPtr{Ptr{Cdouble}}, Cint), handle, P, Q, nrhs, Temp, ldt, XF_array, ldxf)
-end
-
-@checked function cusolverRfBatchRefactor(handle)
-    initialize_context()
-    ccall((:cusolverRfBatchRefactor, libcusolver), cusolverStatus_t, (cusolverRfHandle_t,), handle)
-end
-
-@checked function cusolverRfRefactor(handle)
-    initialize_context()
-    ccall((:cusolverRfRefactor, libcusolver), cusolverStatus_t, (cusolverRfHandle_t,), handle)
-end
-
-@checked function cusolverRfGetResetValuesFastMode(handle, fastMode)
-    initialize_context()
-    ccall((:cusolverRfGetResetValuesFastMode, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, Ptr{cusolverRfResetValuesFastMode_t}), handle, fastMode)
-end
-
-@checked function cusolverRfExtractSplitFactorsHost(handle, h_nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, h_nnzU, h_csrRowPtrU, h_csrColIndU, h_csrValU)
-    initialize_context()
-    ccall((:cusolverRfExtractSplitFactorsHost, libcusolver), cusolverStatus_t, (cusolverRfHandle_t, Ptr{Cint}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cdouble}}, Ptr{Cint}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cint}}, Ptr{Ptr{Cdouble}}), handle, h_nnzL, h_csrRowPtrL, h_csrColIndL, h_csrValL, h_nnzU, h_csrRowPtrU, h_csrColIndU, h_csrValU)
+    @ccall libcusolver.cusolverSpZcsrcholDiag(handle::cusolverSpHandle_t,
+                                              info::csrcholInfo_t,
+                                              diag::Ptr{Cdouble})::cusolverStatus_t
 end

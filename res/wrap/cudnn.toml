@@ -1,0 +1,645 @@
+[general]
+library_name = "libcudnn"
+output_file_path = "../../lib/cudnn/src/libcudnn.jl"
+prologue_file_path = "./libcudnn_prologue.jl"
+
+output_ignorelist = [
+    # bitshift syntax with enums generates bad code
+    "^CUDNN_SEV_ERROR_EN$",
+    "^CUDNN_SEV_WARNING_EN$",
+    "^CUDNN_SEV_INFO_EN$",
+    # these change often
+    "^CUDNN.*_VERSION",
+    "^CUDNN.*_MAJOR",
+    "^CUDNN.*_MINOR",
+    "^CUDNN.*_PATCH",
+    "^CUDNN.*_PATCH",
+]
+
+
+[codegen]
+use_ccall_macro = true
+always_NUL_terminated_string = true
+
+
+[api]
+checked_rettypes = [ "cudnnStatus_t" ]
+
+[api.cudnnGetVersion]
+needs_context = false
+
+[api.cudnnGetCudartVersion]
+needs_context = false
+
+[api.cudnnGetMaxDeviceVersion]
+needs_context = false
+
+[api.cudnnGetErrorString]
+needs_context = false
+
+[api.cudnnGetProperty]
+needs_context = false
+
+[api.cudnnSetCallback]
+needs_context = false
+
+[api.cudnnGetCallback]
+needs_context = false
+
+[api.cudnnAddTensor.argtypes]
+4 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+
+[api.cudnnOpTensor.argtypes]
+5 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+
+[api.cudnnGetReductionWorkspaceSize.argtypes]
+5 = "Ref{Csize_t}"
+
+[api.cudnnReduceTensor.argtypes]
+5 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
+[api.cudnnSetTensor.argtypes]
+3 = "CuPtr{Cvoid}"
+
+[api.cudnnScaleTensor.argtypes]
+3 = "CuPtr{Cvoid}"
+
+[api.cudnnTransformFilter.argtypes]
+5 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+
+[api.cudnnReorderFilterAndBias.argtypes]
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+
+[api.cudnnFindConvolutionForwardAlgorithmEx.argtypes]
+3 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
+[api.cudnnGetConvolutionForwardWorkspaceSize.argtypes]
+7 = "Ref{Csize_t}"
+
+[api.cudnnConvolutionForward.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+
+[api.cudnnConvolutionBiasActivationForward.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+
+[api.cudnnConvolutionBackwardBias.argtypes]
+4 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+
+[api.cudnnFindConvolutionBackwardFilterAlgorithmEx.argtypes]
+3 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
+[api.cudnnGetConvolutionBackwardFilterWorkspaceSize.argtypes]
+7 = "Ref{Csize_t}"
+
+[api.cudnnConvolutionBackwardFilter.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+
+[api.cudnnFindConvolutionBackwardDataAlgorithmEx.argtypes]
+3 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
+[api.cudnnGetConvolutionBackwardDataWorkspaceSize.argtypes]
+7 = "Ref{Csize_t}"
+
+[api.cudnnConvolutionBackwardData.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+
+[api.cudnnIm2Col.argtypes]
+3 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+
+[api.cudnnSoftmaxForward.argtypes]
+6 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+
+[api.cudnnSoftmaxBackward.argtypes]
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+
+[api.cudnnPoolingForward.argtypes]
+5 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+
+[api.cudnnPoolingBackward.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
+[api.cudnnActivationForward.argtypes]
+5 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+
+[api.cudnnActivationBackward.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
+[api.cudnnLRNCrossChannelForward.argtypes]
+6 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+
+[api.cudnnLRNCrossChannelBackward.argtypes]
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+
+[api.cudnnDivisiveNormalizationForward.argtypes]
+6 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
+[api.cudnnDivisiveNormalizationBackward.argtypes]
+6 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+
+[api.cudnnGetBatchNormalizationForwardTrainingExWorkspaceSize.argtypes]
+9 = "Ref{Csize_t}"
+
+[api.cudnnGetBatchNormalizationBackwardExWorkspaceSize.argtypes]
+11 = "Ref{Csize_t}"
+
+[api.cudnnGetBatchNormalizationTrainingExReserveSpaceSize.argtypes]
+6 = "Ref{Csize_t}"
+
+[api.cudnnBatchNormalizationForwardTraining.argtypes]
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+17 = "CuPtr{Cvoid}"
+
+[api.cudnnBatchNormalizationForwardTrainingEx.argtypes]
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+17 = "CuPtr{Cvoid}"
+19 = "CuPtr{Cvoid}"
+20 = "CuPtr{Cvoid}"
+22 = "CuPtr{Cvoid}"
+24 = "CuPtr{Cvoid}"
+
+[api.cudnnBatchNormalizationForwardInference.argtypes]
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+
+[api.cudnnBatchNormalizationBackward.argtypes]
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+19 = "CuPtr{Cvoid}"
+
+[api.cudnnBatchNormalizationBackwardEx.argtypes]
+9 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+17 = "CuPtr{Cvoid}"
+19 = "CuPtr{Cvoid}"
+20 = "CuPtr{Cvoid}"
+21 = "CuPtr{Cvoid}"
+22 = "CuPtr{Cvoid}"
+24 = "CuPtr{Cvoid}"
+25 = "CuPtr{Cvoid}"
+27 = "CuPtr{Cvoid}"
+29 = "CuPtr{Cvoid}"
+
+[api.cudnnSpatialTfGridGeneratorForward.argtypes]
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+
+[api.cudnnSpatialTfGridGeneratorBackward.argtypes]
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+
+[api.cudnnSpatialTfSamplerForward.argtypes]
+5 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+
+[api.cudnnSpatialTfSamplerBackward.argtypes]
+5 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+
+[api.cudnnDropoutGetReserveSpaceSize.argtypes]
+2 = "Ref{Csize_t}"
+
+[api.cudnnSetDropoutDescriptor.argtypes]
+4 = "CuPtr{Cvoid}"
+
+[api.cudnnRestoreDropoutDescriptor.argtypes]
+4 = "CuPtr{Cvoid}"
+
+[api.cudnnGetDropoutDescriptor.argtypes]
+4 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cudnnDropoutForward.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+
+[api.cudnnDropoutBackward.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+
+[api.cudnnGetRNNWorkspaceSize.argtypes]
+5 = "Ref{Csize_t}"
+
+[api.cudnnGetRNNTrainingReserveSize.argtypes]
+5 = "Ref{Csize_t}"
+
+[api.cudnnGetRNNParamsSize.argtypes]
+4 = "Ref{Csize_t}"
+
+[api.cudnnGetRNNLinLayerMatrixParams.argtypes]
+6 = "CuPtr{Cvoid}"
+
+[api.cudnnGetRNNLinLayerBiasParams.argtypes]
+6 = "CuPtr{Cvoid}"
+
+[api.cudnnRNNForwardInference.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+17 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+
+[api.cudnnRNNForwardTraining.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+17 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+20 = "CuPtr{Cvoid}"
+
+[api.cudnnRNNBackwardData.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+17 = "CuPtr{Cvoid}"
+19 = "CuPtr{Cvoid}"
+21 = "CuPtr{Cvoid}"
+23 = "CuPtr{Cvoid}"
+24 = "CuPtr{Cvoid}"
+26 = "CuPtr{Cvoid}"
+
+[api.cudnnRNNBackwardWeights.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+
+[api.cudnnRNNForwardTrainingEx.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+20 = "CuPtr{Cvoid}"
+22 = "CuPtr{Cvoid}"
+24 = "CuPtr{Cvoid}"
+25 = "CuPtr{Cvoid}"
+27 = "CuPtr{Cvoid}"
+
+[api.cudnnRNNForwardInferenceEx.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+24 = "CuPtr{Cvoid}"
+25 = "CuPtr{Cvoid}"
+
+[api.cudnnRNNBackwardDataEx.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+20 = "CuPtr{Cvoid}"
+24 = "CuPtr{Cvoid}"
+27 = "CuPtr{Cvoid}"
+29 = "CuPtr{Cvoid}"
+
+[api.cudnnRNNBackwardWeightsEx.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+
+[api.cudnnFindRNNForwardInferenceAlgorithmEx.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+17 = "CuPtr{Cvoid}"
+22 = "CuPtr{Cvoid}"
+
+[api.cudnnFindRNNForwardTrainingAlgorithmEx.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+17 = "CuPtr{Cvoid}"
+22 = "CuPtr{Cvoid}"
+24 = "CuPtr{Cvoid}"
+
+[api.cudnnFindRNNBackwardDataAlgorithmEx.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+17 = "CuPtr{Cvoid}"
+19 = "CuPtr{Cvoid}"
+21 = "CuPtr{Cvoid}"
+23 = "CuPtr{Cvoid}"
+28 = "CuPtr{Cvoid}"
+30 = "CuPtr{Cvoid}"
+
+[api.cudnnFindRNNBackwardWeightsAlgorithmEx.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+17 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+
+[api.cudnnGetMultiHeadAttnWeights.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Ptr{Cvoid}}"
+
+[api.cudnnMultiHeadAttnForward.argtypes]
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+9 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+20 = "CuPtr{Cvoid}"
+22 = "CuPtr{Cvoid}"
+
+[api.cudnnMultiHeadAttnBackwardData.argtypes]
+5 = "CuPtr{Cint}"
+6 = "CuPtr{Cint}"
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+17 = "CuPtr{Cvoid}"
+19 = "CuPtr{Cvoid}"
+21 = "CuPtr{Cvoid}"
+23 = "CuPtr{Cvoid}"
+
+[api.cudnnMultiHeadAttnBackwardWeights.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+
+[api.cudnnCTCLoss.argtypes]
+3 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
+[api.cudnnGetCTCLossWorkspaceSize.argtypes]
+9 = "Ref{Csize_t}"
+
+[api.cudnnSetFusedOpsVariantParamPackAttribute.argtypes]
+3 = "PtrOrCuPtr{Cvoid}"
+
+[api.cudnnGetFusedOpsVariantParamPackAttribute.argtypes]
+3 = "PtrOrCuPtr{Cvoid}"
+
+[api.cudnnGetRNNWeightSpaceSize.argtypes]
+3 = "Ref{Csize_t}"
+
+[api.cudnnGetRNNDescriptor_v6.argtypes]
+3 = "Ref{Cint}"
+4 = "Ref{Cint}"
+5 = "Ref{cudnnDropoutDescriptor_t}"
+6 = "Ref{cudnnRNNInputMode_t}"
+7 = "Ref{cudnnDirectionMode_t}"
+8 = "Ref{cudnnRNNMode_t}"
+9 = "Ref{cudnnRNNAlgo_t}"
+10 = "Ref{cudnnDataType_t}"
+
+[api.cudnnGetCTCLossDescriptor_v8.argtypes]
+2 = "Ref{cudnnDataType_t}"
+3 = "Ref{cudnnLossNormalizationMode_t}"
+4 = "Ref{cudnnNanPropagation_t}"
+5 = "Ref{Cint}"
+
+[api.cudnnGetRNNTempSpaceSizes.argtypes]
+5 = "Ref{Csize_t}"
+6 = "Ref{Csize_t}"
+
+[api.cudnnCTCLoss_v8.argtypes]
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+13 = "CuPtr{Cvoid}"
+
+[api.cudnnGetNormalizationTrainingReserveSpaceSize.argtypes]
+7 = "Ref{Csize_t}"
+
+[api.cudnnGetRNNWeightParams.argtypes]
+5 = "CuPtr{Cvoid}"
+8 = "Ptr{CuPtr{Cvoid}}"
+10 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cudnnGetNormalizationForwardTrainingWorkspaceSize.argtypes]
+11 = "Ref{Csize_t}"
+
+[api.cudnnRNNBackwardWeights_v8.argtypes]
+4 = "CuPtr{Int32}"
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+
+[api.cudnnRNNGetClip_v8.argtypes]
+2 = "Ref{cudnnRNNClipMode_t}"
+3 = "Ref{cudnnNanPropagation_t}"
+4 = "Ref{Cdouble}"
+5 = "Ref{Cdouble}"
+
+[api.cudnnGetRNNDescriptor_v8.argtypes]
+2 = "Ref{cudnnRNNAlgo_t}"
+3 = "Ref{cudnnRNNMode_t}"
+4 = "Ref{cudnnRNNBiasMode_t}"
+5 = "Ref{cudnnDirectionMode_t}"
+6 = "Ref{cudnnRNNInputMode_t}"
+7 = "Ref{cudnnDataType_t}"
+8 = "Ref{cudnnDataType_t}"
+9 = "Ref{cudnnMathType_t}"
+10 = "Ref{Int32}"
+11 = "Ref{Int32}"
+12 = "Ref{Int32}"
+13 = "Ref{Int32}"
+14 = "Ref{cudnnDropoutDescriptor_t}"
+15 = "Ref{UInt32}"
+
+[api.cudnnGetNormalizationBackwardWorkspaceSize.argtypes]
+13 = "Ref{Csize_t}"
+
+[api.cudnnNormalizationForwardInference.argtypes]
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+19 = "CuPtr{Cvoid}"
+
+[api.cudnnNormalizationForwardTraining.argtypes]
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+17 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+21 = "CuPtr{Cvoid}"
+23 = "CuPtr{Cvoid}"
+24 = "CuPtr{Cvoid}"
+26 = "CuPtr{Cvoid}"
+
+[api.cudnnRNNForward.argtypes]
+4 = "CuPtr{Int32}"
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+20 = "CuPtr{Cvoid}"
+
+[api.cudnnRNNBackwardData_v8.argtypes]
+3 = "CuPtr{Int32}"
+5 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+20 = "CuPtr{Cvoid}"
+22 = "CuPtr{Cvoid}"
+
+[api.cudnnNormalizationBackward.argtypes]
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+20 = "CuPtr{Cvoid}"
+21 = "CuPtr{Cvoid}"
+22 = "CuPtr{Cvoid}"
+23 = "CuPtr{Cvoid}"
+26 = "CuPtr{Cvoid}"
+27 = "CuPtr{Cvoid}"
+29 = "CuPtr{Cvoid}"
+31 = "CuPtr{Cvoid}"

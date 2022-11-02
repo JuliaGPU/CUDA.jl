@@ -1,0 +1,15 @@
+[general]
+library_name = "libnvtoolsext"
+output_file_path = "../../lib/nvtx/libnvtx.jl"
+prologue_file_path = "./libnvtx_prologue.jl"
+
+output_ignorelist = [
+    "^CU",
+    "NVTX_DECLSPEC", "NVTX_INLINE_STATIC",
+    "NVTX_NO_PUSH_POP_TRACKING"
+]
+
+
+[codegen]
+use_ccall_macro = true
+always_NUL_terminated_string = true

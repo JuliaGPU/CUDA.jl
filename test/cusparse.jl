@@ -149,6 +149,13 @@ end
             @test similar(d_x, Float32) isa CuSparseMatrixCOO{Float32}
         end
     end
+
+    @testset "#1641: too strictly-typed constructors" begin
+        rows = CuVector{Int32}(undef, m)
+        cols = CuVector{Int32}(undef, m)
+        vals = CuVector{Float32}(undef, m)
+        @test sparse(rows, cols, vals, fmt=:coo) isa CuSparseMatrixCOO{Float32}
+    end
 end
 
 if capability(device()) >= v"5.3"

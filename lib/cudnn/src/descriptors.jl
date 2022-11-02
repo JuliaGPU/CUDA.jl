@@ -25,6 +25,7 @@ macro cudnnDescriptor(x, set = Symbol("cudnnSet$(x)Descriptor"))
         @__doc__ mutable struct $sname                      # needs to be mutable for finalizer
             ptr::$tname
             $sname(p::$tname) = new(p)                      # prevent $sname(::Any) default constructor
+            $sname(p::Ptr{Cvoid}) = new(p)                  # tests rely on passing C_NULL; why?
         end
         Base.unsafe_convert(::Type{<:Ptr}, d::$sname)=d.ptr # needed for ccalls
         const $cache = Dict{Tuple,$sname}()                 # Dict is 3x faster than IdDict!

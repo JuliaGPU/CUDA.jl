@@ -24,13 +24,3 @@ end
                    (Ptr{CUgraphExec}, CUgraph, Ptr{CUgraphNode}, Cstring, Csize_t),
                    phGraphExec, hGraph, phErrorNode, logBuffer, bufferSize)
 end
-
-## superseded in CUDA 11.1
-
-@checked function cuIpcOpenMemHandle(pdptr, handle, Flags)
-    ccall((:cuIpcOpenMemHandle, libcuda), CUresult,
-                   (Ptr{CUdeviceptr}, CUipcMemHandle, UInt32),
-                   pdptr, handle, Flags)
-end
-
-##

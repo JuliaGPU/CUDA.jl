@@ -26,11 +26,12 @@ end
 
 
 # core library
-include("libcusolver_common.jl")
-include("error.jl")
 include("libcusolver.jl")
+include("libcusolverMg.jl")
+include("libcusolverRF.jl")
 
 # low-level wrappers
+include("error.jl")
 include("base.jl")
 include("sparse.jl")
 include("dense.jl")

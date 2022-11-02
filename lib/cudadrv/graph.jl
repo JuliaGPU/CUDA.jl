@@ -119,7 +119,7 @@ instantiate
 
 function unsafe_destroy!(exec::CuGraphExec)
     context!(exec.ctx; skip_destroyed=true) do
-        cuGraphDestroy(exec)
+        cuGraphExecDestroy(exec)
     end
 end
 
