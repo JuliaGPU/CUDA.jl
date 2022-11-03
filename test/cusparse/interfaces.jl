@@ -52,20 +52,22 @@ using LinearAlgebra, SparseArrays
         end
     end
 
-    for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR)
-        @testset "$SparseMatrixType -- A * B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-            n = 10
-            k = 15
-            m = 20
-            A = sprand(elty, m, k, 0.2)
-            B = sprand(elty, k, n, 0.5)
+    if CUSPARSE.version() >= v"11.1.1"
+        for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR)
+            @testset "$SparseMatrixType -- A * B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+                n = 10
+                k = 15
+                m = 20
+                A = sprand(elty, m, k, 0.2)
+                B = sprand(elty, k, n, 0.5)
 
-            dA = SparseMatrixType(A)
-            dB = SparseMatrixType(B)
+                dA = SparseMatrixType(A)
+                dB = SparseMatrixType(B)
 
-            C = A * B
-            dC = dA * dB
-            @test C ≈ collect(dC)
+                C = A * B
+                dC = dA * dB
+                @test C ≈ collect(dC)
+            end
         end
     end
 
