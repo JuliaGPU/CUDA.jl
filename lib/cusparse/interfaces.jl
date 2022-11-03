@@ -112,7 +112,10 @@ end
 
 for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
     @eval begin
-        Base.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T <: BlasFloat} = gemm('N', 'N', one(T), A, B, 'O')
+        function Base.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T <: BlasFloat}
+            CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+            gemm('N', 'N', one(T), A, B, 'O')
+        end
     end
 end
 
