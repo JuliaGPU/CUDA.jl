@@ -308,9 +308,12 @@ end # CUSPARSE.version >= 11.3.0
 
 if CUSPARSE.version() >= v"11.1.1"
 
-    SPGEMM_ALGOS = Dict(CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPGEMM_DEFAULT])
+    SPGEMM_ALGOS = Dict(CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPGEMM_DEFAULT],
+                        CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPGEMM_DEFAULT])
     if CUSPARSE.version() >= v"11.6.0"
         push!(SPGEMM_ALGOS[CuSparseMatrixCSR], CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC,
+                                               CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC)
+        push!(SPGEMM_ALGOS[CuSparseMatrixCSC], CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC,
                                                CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC)
     end
 

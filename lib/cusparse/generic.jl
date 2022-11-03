@@ -365,6 +365,19 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
     return C
 end
 
+function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, B::CuSparseMatrixCSC{T},
+               beta::Number, C::CuSparseMatrixCSC{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+    # C = AB <---> Cᵀ = BᵀAᵀ
+    Aᵀ = CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, reverse(size(A)))
+    Bᵀ = CuSparseMatrixCSR(B.colPtr, B.rowVal, B.nzVal, reverse(size(B)))
+    Cᵀ = CuSparseMatrixCSR(C.colPtr, C.rowVal, C.nzVal, reverse(size(C)))
+    gemm!(transb, transa, alpha, Bᵀ, Aᵀ, beta, Cᵀ, index, algo)
+    # If BᵀAᵀ and Cᵀ have the same sparsity pattern, C is already updated after the gemm! call.
+    # If BᵀAᵀ and Cᵀ doesn't the same sparsity pattern, Cᵀ was reallocated and C must be updated.
+    C = CuSparseMatrixCSC(Cᵀ.rowPtr, Cᵀ.colVal, Cᵀ.nzVal, size(C))
+    return C
+end
+
 function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
               B::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
     m,k = size(A)
@@ -424,17 +437,30 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     return C
 end
 
-function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T},
-              beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT; same_pattern::Bool=false) where {T}
+function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
+              B::CuSparseMatrixCSC{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+    # C = AB <---> Cᵀ = BᵀAᵀ
+    Aᵀ = CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, reverse(size(A)))
+    Bᵀ = CuSparseMatrixCSR(B.colPtr, B.rowVal, B.nzVal, reverse(size(B)))
+    Cᵀ = gemm(transb, transa, alpha, Bᵀ, Aᵀ, index, algo)
+    C = CuSparseMatrixCSC(Cᵀ.rowPtr, Cᵀ.colVal, Cᵀ.nzVal, reverse(size(Cᵀ)))
+    return C
+end
 
-    if same_pattern
-        D = copy(C)
-        gemm!(transa, transb, alpha, A, B, beta, D, index, algo)
-    else
-        AB = gemm(transa, transb, one(T), A, B, index, algo)
-        D = geam(alpha, AB, beta, C, index)
+for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
+    @eval begin
+        function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::$SparseMatrixType{T}, B::$SparseMatrixType{T},
+                      beta::Number, C::$SparseMatrixType{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT; same_pattern::Bool=false) where {T}
+            if same_pattern
+                D = copy(C)
+                gemm!(transa, transb, alpha, A, B, beta, D, index, algo)
+            else
+                AB = gemm(transa, transb, one(T), A, B, index, algo)
+                D = geam(alpha, AB, beta, C, index)
+            end
+            return D
+        end
     end
-    return D
 end
 
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
