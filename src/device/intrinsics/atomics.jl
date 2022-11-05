@@ -111,6 +111,59 @@ function atomic_thread_fence(order, scope::System=System())
     end
 end
 
+__load(ptr, ::Acquire, scope) = nothing # {asm volatile("ld.acquire.cta.b64 %0,[%1];" : "=l"(__dst) : "l"(__ptr) : "memory"); }
+__load(ptr, ::Relaxed, scope) = nothing # {asm volatile("ld.relaxed.cta.b64 %0,[%1];" : "=l"(__dst) : "l"(__ptr) : "memory"); }
+# volatile can be done through LLVM
+__load_volatile(ptr) = nothing # {asm volatile("ld.volatile.b64 %0,[%1];" : "=l"(__dst) : "l"(__ptr) : "memory"); }
+
+function atomic_load(ptr::LLVMPtr{T}, order, scope::System=System()) where T
+    if order == Acq_Rel() || order == Release()
+        assert(false)
+    end
+    if compute_capability() >= sv"7.0"
+        if order == Relaxed()
+            val = __load(ptr, Relaxed(), scope)
+            return val
+        end
+        if order == Seq_Cst()
+            atomic_thread_fence(Seq_Cst(), scope)
+        end
+        val = __load(ptr, Acquire(), scope)
+        return val
+    else
+        if order == Seq_Cst()
+            atomic_thread_fence(Seq_Cst(), scope)
+        end
+        val = __load_volatile(ptr)
+        if order == Relaxed()
+            return val
+        end
+        atomic_thread_fence(order, scope)
+        return val
+    end
+end
+
+function atomic_store!(ptr::LLVMPtr{T}, val::T, order, scope::System=System()) where T
+    if order == Acq_Rel() || order == Consume() || order == Acquire()
+        assert(false)
+    end
+    if compute_capability() >= sv"7.0"
+        if order == Release()
+            __store!(ptr, val, Release(), scope)
+            return
+        end
+        if order == Seq_Cst()
+            atomic_thread_fence(Seq_Cst(), scope)
+        end
+        __store!(ptr, val, Relaxed(), scope)
+    else
+        if order == Seq_Cst()
+            atomic_thread_fence(Seq_Cst(), scope)
+        end
+        __store_volatile!(ptr, val)
+    end
+end
+
 # TODO:
 # - scoped atomics: _system and _block versions (see CUDA programming guide, sm_60+)
 #   https://github.com/Microsoft/clang/blob/86d4513d3e0daa4d5a29b0b1de7c854ca15f9fe5/test/CodeGen/builtins-nvptx.c#L293
