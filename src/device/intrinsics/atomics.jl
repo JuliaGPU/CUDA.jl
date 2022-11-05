@@ -111,10 +111,43 @@ function atomic_thread_fence(order, scope::System=System())
     end
 end
 
-__load(ptr, ::Acquire, scope) = nothing # {asm volatile("ld.acquire.cta.b64 %0,[%1];" : "=l"(__dst) : "l"(__ptr) : "memory"); }
-__load(ptr, ::Relaxed, scope) = nothing # {asm volatile("ld.relaxed.cta.b64 %0,[%1];" : "=l"(__dst) : "l"(__ptr) : "memory"); }
-# volatile can be done through LLVM
-__load_volatile(ptr) = nothing # {asm volatile("ld.volatile.b64 %0,[%1];" : "=l"(__dst) : "l"(__ptr) : "memory"); }
+__load_b64(ptr::LLVMPtr{T}, ::Acquire, scope::Block)  where T = @asmcall("ld.acquire.cta.b64 %0, [%1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+__load_b32(ptr::LLVMPtr{T}, ::Acquire, scope::Block)  where T = @asmcall("ld.acquire.cta.b32 %0, [%1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+__load_b64(ptr::LLVMPtr{T}, ::Acquire, scope::Device) where T = @asmcall("ld.acquire.gpu.b64 %0, [%1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+__load_b32(ptr::LLVMPtr{T}, ::Acquire, scope::Device) where T = @asmcall("ld.acquire.gpu.b32 %0, [%1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+__load_b64(ptr::LLVMPtr{T}, ::Acquire, scope::System) where T = @asmcall("ld.acquire.sys.b64 %0, [%1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+__load_b32(ptr::LLVMPtr{T}, ::Acquire, scope::System) where T = @asmcall("ld.acquire.sys.b32 %0, [%1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+
+__load_b64(ptr::LLVMPtr{T}, ::Relaxed, scope::Block)  where T = @asmcall("ld.relaxed.cta.b64 %0, [%1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+__load_b32(ptr::LLVMPtr{T}, ::Relaxed, scope::Block)  where T = @asmcall("ld.relaxed.cta.b32 %0, [%1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+__load_b64(ptr::LLVMPtr{T}, ::Relaxed, scope::Device) where T = @asmcall("ld.relaxed.cta.b64 %0, [%1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+__load_b32(ptr::LLVMPtr{T}, ::Relaxed, scope::Device) where T = @asmcall("ld.relaxed.cta.b32 %0, [%1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+__load_b64(ptr::LLVMPtr{T}, ::Relaxed, scope::System) where T = @asmcall("ld.relaxed.sys.b64 %0, [%1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+__load_b32(ptr::LLVMPtr{T}, ::Relaxed, scope::System) where T = @asmcall("ld.relaxed.sys.b32 %0, [%1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+
+function __load(ptr::LLVMPtr{T}, order, scope) where T
+    if sizeof(T) == 4
+        __load_b32(ptr, order, scope)
+    elseif sizeof(T) == 8
+        __load_b64(ptr, order, scope)
+    else
+        assert(false)
+    end
+end
+
+# Could be done using LLVM.
+__load_volatile_b64(ptr::LLVMPtr{T}) where T = @asmcall("ld.volatile.b64 %0, [%1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T}})
+__load_volatile_b32(ptr::LLVMPtr{T}) where T = @asmcall("ld.volatile.b32 %0, [%1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T}})
+
+function __load_volatile(ptr::LLVMPtr{T}) where T
+    if sizeof(T) == 4
+        __load_volatile_b32(ptr, order, scope)
+    elseif sizeof(T) == 8
+        __load_volatile_b64(ptr, order, scope)
+    else
+        assert(false)
+    end
+end
 
 function atomic_load(ptr::LLVMPtr{T}, order, scope::System=System()) where T
     if order == Acq_Rel() || order == Release()
@@ -140,6 +173,44 @@ function atomic_load(ptr::LLVMPtr{T}, order, scope::System=System()) where T
         end
         atomic_thread_fence(order, scope)
         return val
+    end
+end
+
+__store_b32!(ptr::LLVMPtr{T}, val::T, order::Relaxed, scope::Block)  where T = @asmcall("st.relaxed.cta.b32 [%0], %1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+__store_b64!(ptr::LLVMPtr{T}, val::T, order::Relaxed, scope::Block)  where T = @asmcall("st.relaxed.cta.b64 [%0], %1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+__store_b32!(ptr::LLVMPtr{T}, val::T, order::Relaxed, scope::Device) where T = @asmcall("st.relaxed.gpu.b32 [%0], %1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+__store_b64!(ptr::LLVMPtr{T}, val::T, order::Relaxed, scope::Device) where T = @asmcall("st.relaxed.gpu.b64 [%0], %1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+__store_b32!(ptr::LLVMPtr{T}, val::T, order::Relaxed, scope::System) where T = @asmcall("st.relaxed.sys.b32 [%0], %1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+__store_b64!(ptr::LLVMPtr{T}, val::T, order::Relaxed, scope::System) where T = @asmcall("st.relaxed.sys.b64 [%0], %1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+
+__store_b32!(ptr::LLVMPtr{T}, val::T, order::Release, scope::Block)  where T = @asmcall("st.release.cta.b32 [%0], %1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+__store_b64!(ptr::LLVMPtr{T}, val::T, order::Release, scope::Block)  where T = @asmcall("st.release.cta.b64 [%0], %1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+__store_b32!(ptr::LLVMPtr{T}, val::T, order::Release, scope::Device) where T = @asmcall("st.release.gpu.b32 [%0], %1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+__store_b64!(ptr::LLVMPtr{T}, val::T, order::Release, scope::Device) where T = @asmcall("st.release.gpu.b64 [%0], %1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+__store_b32!(ptr::LLVMPtr{T}, val::T, order::Release, scope::System) where T = @asmcall("st.release.sys.b32 [%0], %1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+__store_b64!(ptr::LLVMPtr{T}, val::T, order::Release, scope::System) where T = @asmcall("st.release.sys.b64 [%0], %1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+
+function __store!(ptr::LLVMPtr{T}, val::T, order, scope) where T
+    if sizeof(T) == 4
+        __store_b32!(ptr, val, order, scope)
+    elseif sizeof(T) == 8
+        __store_b64!(ptr, val, order, scope)
+    else
+        assert(false)
+    end
+end
+
+# Could be done using LLVM.
+__store_volatile_b32!(ptr::LLVMPtr{T}, val::T)  where T = @asmcall("st.volatile.b32 [%0], %1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+__store_volatile_b64!(ptr::LLVMPtr{T}, val::T)  where T = @asmcall("st.volatile.b64 [%0], %1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, val, ptr)
+
+function __store_volatile!(ptr::LLVMPtr{T}, val::T) where T
+    if sizeof(T) == 4
+        __store_volatile_b32!(ptr, val)
+    elseif sizeof(T) == 8
+        __store_volatile_b64!(ptr, val)
+    else
+        assert(false)
     end
 end
 
