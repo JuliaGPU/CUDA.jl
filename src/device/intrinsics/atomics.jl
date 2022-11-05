@@ -43,7 +43,7 @@ function atomic_thread_fence(order, scope::Block)
            order == Acq_Rel() ||
            order == Release()
 
-           threadfence_block()
+            threadfence_block()
         else
             assert(false)
         end
