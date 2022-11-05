@@ -235,6 +235,17 @@ function atomic_store!(ptr::LLVMPtr{T}, val::T, order, scope::System=System()) w
     end
 end
 
+# TODO: These have assembly representations
+# - compare_exchange
+# - exchange
+# - fetch_add/fetch_sub
+# - fetch_and
+# - fetch_max
+# - fetch_min
+# - fetch_xor
+
+# TODO: "Derived" implementations for `sizeof(T) <= 2`
+
 # TODO:
 # - scoped atomics: _system and _block versions (see CUDA programming guide, sm_60+)
 #   https://github.com/Microsoft/clang/blob/86d4513d3e0daa4d5a29b0b1de7c854ca15f9fe5/test/CodeGen/builtins-nvptx.c#L293
