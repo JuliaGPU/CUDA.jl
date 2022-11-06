@@ -4,6 +4,8 @@
 # Low-level intrinsics
 #
 
+# TODO: We should use LLVM intrinsics wherever possible.
+
 abstract type ThreadScope end
 struct System <: ThreadScope end
 struct Device <: ThreadScope end
@@ -27,6 +29,34 @@ asm(::Type{Acquire}) = "acquire"
 asm(::Type{Release}) = "release"
 asm(::Type{Acq_Rel}) = "acq_rel"
 asm(::Type{Seq_Cst}) = "seq_cst"
+
+order(::Relaxed) = 1
+order(::Consume) = 2
+order(::Acquire) = 3
+order(::Release) = 4
+order(::Acq_Rel) = 5
+order(::Seq_Cst) = 6
+
+Base.isless(a::MemoryOrder, b::MemoryOrder) = isless(order(a), order(b))
+
+function stronger_order(a::MemoryOrder, b::MemoryOrder)
+    m = max(a, b)
+    if m != Release()
+        return m
+    end
+    # maximum is release, what is the other one?
+    other = min(a, b)
+    if other == Relaxed()
+        return Release()
+    elseif other == Consume()
+        return Acq_Rel()
+    elseif other == Acquire()
+        return Acq_Rel()
+    elseif other == Release()
+        return Release()
+    end
+    assert(false)
+end
 
 threadfence_sc_block() =
     @asmcall("fence.sc.cta;", "~{memory}", true, Cvoid, Tuple{})
@@ -126,29 +156,29 @@ for (order, scope) in Iterators.product((Acquire, Relaxed),
                                         (Block, Device, System))
     asm_b64 = "ld.$(asm(order)).$(asm(scope)).b64 %0, [%1];"
     asm_b32 = "ld.$(asm(order)).$(asm(scope)).b32 %0, [%1];"
-    @eval __load_b64(ptr::LLVMPtr{T}, ::$order, ::$scope) where T =  @asmcall($asm_b64, "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
-    @eval __load_b32(ptr::LLVMPtr{T}, ::$order, ::$scope) where T =  @asmcall($asm_b32, "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+    @eval __load_64(ptr::LLVMPtr{T}, ::$order, ::$scope) where T =  @asmcall($asm_b64, "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+    @eval __load_32(ptr::LLVMPtr{T}, ::$order, ::$scope) where T =  @asmcall($asm_b32, "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
 end
 
 function __load(ptr::LLVMPtr{T}, order, scope) where T
     if sizeof(T) == 4
-        __load_b32(ptr, order, scope)
+        __load_32(ptr, order, scope)
     elseif sizeof(T) == 8
-        __load_b64(ptr, order, scope)
+        __load_64(ptr, order, scope)
     else
         assert(false)
     end
 end
 
 # Could be done using LLVM.
-__load_volatile_b64(ptr::LLVMPtr{T}) where T = @asmcall("ld.volatile.b64 %0, [%1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T}})
-__load_volatile_b32(ptr::LLVMPtr{T}) where T = @asmcall("ld.volatile.b32 %0, [%1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T}})
+__load_volatile_64(ptr::LLVMPtr{T}) where T = @asmcall("ld.volatile.b64 %0, [%1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T}})
+__load_volatile_32(ptr::LLVMPtr{T}) where T = @asmcall("ld.volatile.b32 %0, [%1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T}})
 
 function __load_volatile(ptr::LLVMPtr{T}) where T
     if sizeof(T) == 4
-        __load_volatile_b32(ptr, order, scope)
+        __load_volatile_32(ptr, order, scope)
     elseif sizeof(T) == 8
-        __load_volatile_b64(ptr, order, scope)
+        __load_volatile_64(ptr, order, scope)
     else
         assert(false)
     end
@@ -185,29 +215,29 @@ for (order, scope) in Iterators.product((Acquire, Relaxed),
                                         (Block, Device, System))
     asm_b64 = "st.$(asm(order)).$(asm(scope)).b64 [%0], %1;"
     asm_b32 = "st.$(asm(order)).$(asm(scope)).b32 [%0], %1;"
-    @eval __store_b64!(ptr::LLVMPtr{T}, val::T, ::$order, ::$scope) where T =  @asmcall($asm_b64, "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, ptr, val)
-    @eval __store_b32!(ptr::LLVMPtr{T}, val::T, ::$order, ::$scope) where T =  @asmcall($asm_b32, "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, ptr, val)
+    @eval __store_64!(ptr::LLVMPtr{T}, val::T, ::$order, ::$scope) where T =  @asmcall($asm_b64, "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, ptr, val)
+    @eval __store_32!(ptr::LLVMPtr{T}, val::T, ::$order, ::$scope) where T =  @asmcall($asm_b32, "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, ptr, val)
 end
 
 function __store!(ptr::LLVMPtr{T}, val::T, order, scope) where T
     if sizeof(T) == 4
-        __store_b32!(ptr, val, order, scope)
+        __store_32!(ptr, val, order, scope)
     elseif sizeof(T) == 8
-        __store_b64!(ptr, val, order, scope)
+        __store_64!(ptr, val, order, scope)
     else
         assert(false)
     end
 end
 
 # Could be done using LLVM.
-__store_volatile_b32!(ptr::LLVMPtr{T}, val::T)  where T = @asmcall("st.volatile.b32 [%0], %1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, ptr, val)
-__store_volatile_b64!(ptr::LLVMPtr{T}, val::T)  where T = @asmcall("st.volatile.b64 [%0], %1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, ptr, val)
+__store_volatile_32!(ptr::LLVMPtr{T}, val::T)  where T = @asmcall("st.volatile.b32 [%0], %1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, ptr, val)
+__store_volatile_64!(ptr::LLVMPtr{T}, val::T)  where T = @asmcall("st.volatile.b64 [%0], %1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T}, T}, ptr, val)
 
 function __store_volatile!(ptr::LLVMPtr{T}, val::T) where T
     if sizeof(T) == 4
-        __store_volatile_b32!(ptr, val)
+        __store_volatile_32!(ptr, val)
     elseif sizeof(T) == 8
-        __store_volatile_b64!(ptr, val)
+        __store_volatile_64!(ptr, val)
     else
         assert(false)
     end
@@ -234,23 +264,78 @@ function atomic_store!(ptr::LLVMPtr{T}, val::T, order, scope::System=System()) w
     end
 end
 
-# TODO: These have assembly representations
-# - compare_exchange
-# - exchange
+for (order, scope) in Iterators.product((Acq_Rel, Acquire, Relaxed, Release), 
+                                        (Block, Device, System))
+    asm_b64 = "atom.cas.$(asm(order)).$(asm(scope)).b64 %0,[%1],%2,%3;"
+    asm_b32 = "atom.cas.$(asm(order)).$(asm(scope)).b32 %0,[%1],%2,%3;"
+    @eval __cas_64!(ptr::LLVMPtr{T}, old::T, new::T, ::$order, ::$scope) where T =  @asmcall($asm_b64, "=l,l,l,l,~{memory}", true, T, Tuple{LLVMPtr{T}, T, T}, ptr, old, new)
+    @eval __cas_32!(ptr::LLVMPtr{T}, old::T, new::T, ::$order, ::$scope) where T =  @asmcall($asm_b32, "=r,l,r,r,~{memory}", true, T, Tuple{LLVMPtr{T}, T, T}, ptr, old, new)
+end
 
-const OPS = ("add", "and", "or", "xor", "max", "min")
+function __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T
+    if sizeof(T) == 4
+        __cas_32!(ptr, old, new, order, scope)
+    elseif sizeof(T) == 8
+        __cas_64!(ptr, old, new, order, scope)
+    else
+        assert(false)
+    end
+end
+
+for scope in (Block, Device, System
+    asm_b64 = "atom.cas.$(asm(scope)).b64 %0,[%1],%2,%3;"
+    asm_b32 = "atom.cas.$(asm(scope)).b32 %0,[%1],%2,%3;"
+    @eval __cas_volatile_64!(ptr::LLVMPtr{T}, old::T, new::T, ::$order, ::$scope) where T =  @asmcall($asm_b64, "=l,l,l,l,~{memory}", true, T, Tuple{LLVMPtr{T}, T, T}, ptr, old, new)
+    @eval __cas_volatile_32!(ptr::LLVMPtr{T}, old::T, new::T, ::$order, ::$scope) where T =  @asmcall($asm_b32, "=r,l,r,r,~{memory}", true, T, Tuple{LLVMPtr{T}, T, T}, ptr, old, new)
+end
+
+function __cas_volatile!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T
+    if sizeof(T) == 4
+        __cas__volatile_32!(ptr, old, new, order, scope)
+    elseif sizeof(T) == 8
+        __cas__volatile_64!(ptr, old, new, order, scope)
+    else
+        assert(false)
+    end
+end
+
+function atomic_cas!(ptr::LLVMPtr{T}, old::T, new::T, success_order, failure_order, scope::System=System()) where T
+    order = stronger_order(success_order, failure_order)
+    if compute_capability() >= sv"7.0"
+        if order == Seq_Cst()
+            atomic_thread_fence(Seq_Cst(), scope)
+        end
+        if order == Consume() || order == Seq_Cst()
+            order = Acquire()
+        end
+        val = __cas!(ptr, old, new, order, scope)
+    else
+        if order == Seq_Cst() || order == Acq_Rel() || order == Release()
+            atomic_thread_fence(Seq_Cst(), scope)
+        end
+        val = __cas_volatile!(ptr, old, new, order, scope)
+        if order == Seq_Cst() || order == Acq_Rel() || order == Consume() || order == Acquire()
+            atomic_thread_fence(Seq_Cst(), scope)
+        end
+    end
+    success = val == old
+    return success => val
+end
+
+const OPS = ("exch", "add", "and", "or", "xor", "fmax", "min")
 const OPS_SUFFIX = Dict(
+    "exch" => "b",
     "add" => "u",
     "and" => "b",
     "or"  => "b",
-    "xor" => "b"
+    "xor" => "b",
     "max" => "u",
     "min" => "u"
 )
 
 for (bits, op) in Iterators.product((64, 32), OPS)
-    op_sym = Symbol("__fetch_$(op)_$(bits)!")
-    op_volatile_sym = Symbol("__fetch_$(op)_volatile_$(bits)!")
+    op_sym = Symbol("__$(op)_$(bits)!")
+    op_volatile_sym = Symbol("__$(op)_volatile_$(bits)!")
     ub = OPS_SUFFIX[op]
     if bits == 32
         constraints = "=r,l,r,~{memory}"
@@ -271,12 +356,12 @@ for (bits, op) in Iterators.product((64, 32), OPS)
 end
 
 for op in OPS
-    op_sym = Symbol("__fetch_$(op)!")
-    op32_sym = Symbol("__fetch_$(op)_32!")
-    op64_sym = Symbol("__fetch_$(op)_64!")
-    op_volatile_sym = Symbol("__fetch_$(op)_volatile!")
-    op32_volatile_sym = Symbol("__fetch_$(op)_volatile_32!")
-    op64_volatile_sym = Symbol("__fetch_$(op)_volatile_64!")
+    op_sym = Symbol("__$(op)!")
+    op32_sym = Symbol("__$(op)_32!")
+    op64_sym = Symbol("__$(op)_64!")
+    op_volatile_sym = Symbol("__$(op)_volatile!")
+    op32_volatile_sym = Symbol("__$(op)_volatile_32!")
+    op64_volatile_sym = Symbol("__$(op)_volatile_64!")
 
     @eval function $op_sym!(ptr::LLVMPtr{T}, val::T, order, scope) where T
         if sizeof(T) == 4
@@ -298,7 +383,7 @@ for op in OPS
         end
     end
 
-    atomic_op_sym = Symbol("atomic_fetch_$op!")
+    atomic_op_sym = Symbol("atomic_$op!")
 
     @eval function $atomic_op_sym(ptr::LLVMPtr{T}, val::T, order, scope::System=System()) where T
         if compute_capability() >= sv"7.0"
@@ -306,12 +391,9 @@ for op in OPS
                 atomic_thread_fence(Seq_Cst(), scope)
             end
             if order == Seq_Cst() || order == Consume()
-                val = $op_sym(ptr, val, Acquire(), scope)
-                return val
-            else
-                val = $op_sym(ptr, val, order, scope)
-                return val
+                order = Acquire()
             end
+            val = $op_sym(ptr, val, order, scope)
         else
             if order == Seq_Cst() || order == Acq_Rel() || order == Release()
                 atomic_thread_fence(Seq_Cst(), scope)
@@ -320,16 +402,16 @@ for op in OPS
             if order == Seq_Cst() || order === Acq_Rel() || order == Consume() || order == Acquire()
                 atomic_thread_fence(Seq_Cst(), scope)
             end
-            return val
         end
+        return val
     end
 end
 
-# TODO: "Derived" implementations for `sizeof(T) <= 2`
+function atomic_fetch_sub!(ptr::LLVMPtr{T}, val::T, order, scope::System=System()) where T
+    atomic_fetch_add!(ptr, -val, order, scope)
+end
 
-# TODO:
-# - scoped atomics: _system and _block versions (see CUDA programming guide, sm_60+)
-#   https://github.com/Microsoft/clang/blob/86d4513d3e0daa4d5a29b0b1de7c854ca15f9fe5/test/CodeGen/builtins-nvptx.c#L293
+# TODO: "Derived" implementations for `sizeof(T) <= 2`
 
 ## LLVM
 
