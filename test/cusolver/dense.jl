@@ -421,9 +421,7 @@ k = 1
         @test Array(h_q) ≈ Array(q)
         @test collect(CuArray(h_q)) ≈ Array(q)
         @test Array(h_r) ≈ Array(r)
-        if VERSION >= v"1.8-"
-            @test CuArray(h_q) ≈ convert(typeof(d_A), h_q)
-        end
+        @test CuArray(h_q) ≈ convert(typeof(d_A), h_q)
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
         h_q, h_r       = qr(d_A) # FixMe! Use iteration protocol when implemented
