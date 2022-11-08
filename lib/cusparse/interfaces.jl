@@ -119,46 +119,22 @@ for op in (:(+), :(-))
     for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
         @eval begin
             Base.$op(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T <: BlasFloat} = geam(one(T), A, $(op)(one(T)), B, 'O')
+
+            Base.$op(A::$SparseMatrixType{T}, B::Adjoint{T,<:$SparseMatrixType}) where {T <: BlasFloat} = geam(one(T), A, $(op)(one(T)), _spadjoint(parent(B)), 'O')
+            Base.$op(A::Adjoint{T,<:$SparseMatrixType}, B::$SparseMatrixType{T}) where {T <: BlasFloat} = geam(one(T), _spadjoint(parent(A)), $(op)(one(T)), B, 'O')
+            Base.$op(A::Adjoint{T,<:$SparseMatrixType}, B::Adjoint{T,<:$SparseMatrixType}) where {T <: BlasFloat} = geam(one(T), _spadjoint(parent(A)), $(op)(one(T)), _spadjoint(parent(B)), 'O')
+
+            Base.$op(A::$SparseMatrixType{T}, B::Transpose{T,<:$SparseMatrixType}) where {T <: BlasFloat} = geam(one(T), A, $(op)(one(T)), _sptranspose(parent(B)), 'O')
+            Base.$op(A::Transpose{T,<:$SparseMatrixType}, B::$SparseMatrixType{T}) where {T <: BlasFloat} = geam(one(T), _sptranspose(parent(A)), $(op)(one(T)), B, 'O')
+            Base.$op(A::Transpose{T,<:$SparseMatrixType}, B::Transpose{T,<:$SparseMatrixType}) where {T <: BlasFloat} = geam(one(T), _sptranspose(parent(A)), $(op)(one(T)), _sptranspose(parent(B)), 'O')
         end
     end
+
+    Base.$op(A::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}, 
+          B::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}) where {T} =
+    CuSparseMatrixCOO($(op)(CuSparseMatrixCSR(A), CuSparseMatrixCSR(B)))
 end
 
-Base.:(+)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = A + _spadjoint(parent(B))
-Base.:(-)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = A - _spadjoint(parent(B))
-Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = _spadjoint(parent(A)) + B
-Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = _spadjoint(parent(A)) - B
-Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} =
-    _spadjoint(parent(A)) + _spadjoint(parent(B))
-Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} =
-    _spadjoint(parent(A)) - _spadjoint(parent(B))
-
-Base.:(+)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = A + _sptranspose(parent(B))
-Base.:(-)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = A - _sptranspose(parent(B))
-Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = _sptranspose(parent(A)) + B
-Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = _sptranspose(parent(A)) - B
-Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = 
-    _sptranspose(parent(A)) + _sptranspose(parent(B))
-Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T} = 
-    _sptranspose(parent(A)) - _sptranspose(parent(B))
-
-Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrix) = A + CuSparseMatrixCSR(B)
-Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrix) = A - CuSparseMatrixCSR(B)
-Base.:(+)(A::CuSparseMatrix, B::CuSparseMatrixCSR) = CuSparseMatrixCSR(A) + B
-Base.:(-)(A::CuSparseMatrix, B::CuSparseMatrixCSR) = CuSparseMatrixCSR(A) - B
-
-Base.:(+)(A::Union{CuSparseMatrixCSC{T}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}, 
-          B::Union{CuSparseMatrixCSC{T}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}) where {T} =
-    CuSparseMatrixCSC(CuSparseMatrixCSR(A) + CuSparseMatrixCSR(B))
-Base.:(-)(A::Union{CuSparseMatrixCSC{T}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}, 
-          B::Union{CuSparseMatrixCSC{T}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}) where {T} =
-    CuSparseMatrixCSC(CuSparseMatrixCSR(A) - CuSparseMatrixCSR(B))
-
-Base.:(+)(A::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}, 
-          B::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}) where {T} =
-    CuSparseMatrixCOO(CuSparseMatrixCSR(A) + CuSparseMatrixCSR(B))
-Base.:(-)(A::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}, 
-          B::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}) where {T} =
-    CuSparseMatrixCOO(CuSparseMatrixCSR(A) - CuSparseMatrixCSR(B))
 
 function Base.reshape(A::CuSparseMatrixCOO{T,M}, dims::NTuple{N,Int}) where {T,N,M}
     nrows, ncols = size(A)
