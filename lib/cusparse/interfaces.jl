@@ -133,6 +133,53 @@ for op in (:(+), :(-))
             Base.$op(A::Transpose{T,<:$SparseMatrixType}, B::Transpose{T,<:$SparseMatrixType}) where {T <: BlasFloat} = geam(one(T), _sptranspose(parent(A)), $(op)(one(T)), _sptranspose(parent(B)), 'O')
         end
     end
+
+    for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCOO, :CuSparseMatrixBSR)
+        @eval begin
+            function Base.$op(A::CuSparseMatrixCSR{T}, B::$SparseMatrixType{T}) where {T}
+                csrB = CuSparseMatrixCSR(B)
+                return geam(one(T), A, $(op)(one(T)), csrB, 'O')
+            end
+            function Base.$op(A::$SparseMatrixType{T}, B::CuSparseMatrixCSR{T}) where {T}
+                csrA = CuSparseMatrixCSR(A)
+                return geam(one(T), csrA, $(op)(one(T)), B, 'O')
+            end
+            function Base.$op(A::Transpose{T, CuSparseMatrixCSR{T}}, B::$SparseMatrixType{T}) where {T}
+                csrB = CuSparseMatrixCSR(B)
+                return geam(one(T), _sptranspose(parent(A)), $(op)(one(T)), csrB, 'O')
+            end
+            function Base.$op(A::$SparseMatrixType{T}, B::Transpose{T, CuSparseMatrixCSR{T}}) where {T}
+                csrA = CuSparseMatrixCSR(A)
+                return geam(one(T), csrA, $(op)(one(T)), _sptranspose(parent(B)), 'O')
+            end
+            function Base.$op(A::Adjoint{T, CuSparseMatrixCSR{T}}, B::$SparseMatrixType{T}) where {T}
+                csrB = CuSparseMatrixCSR(B)
+                return geam(one(T), _spadjoint(parent(A)), $(op)(one(T)), csrB, 'O')
+            end
+            function Base.$op(A::$SparseMatrixType{T}, B::Adjoint{T, CuSparseMatrixCSR{T}}) where {T}
+                csrA = CuSparseMatrixCSR(A)
+                return geam(one(T), csrA, $(op)(one(T)), _spadjoint(parent(B)), 'O')
+            end
+
+            function Base.$op(A::CuSparseMatrixCSR{T}, B::Transpose{T, $SparseMatrixType}) where {T}
+                csrB = CuSparseMatrixCSR(_sptranspose(parent(B)))
+                return geam(one(T), A, $(op)(one(T)), csrB, 'O')
+            end
+            function Base.$op(A::Transpose{T, $SparseMatrixType}, B::CuSparseMatrixCSR{T}) where {T}
+                csrA = CuSparseMatrixCSR(_sptranspose(parent(A)))
+                return geam(one(T), csrA, $(op)(one(T)), B, 'O')
+            end
+
+            function Base.$op(A::CuSparseMatrixCSR{T}, B::Adjoint{T, $SparseMatrixType}) where {T}
+                csrB = CuSparseMatrixCSR(_spadjoint(parent(B)))
+                return geam(one(T), A, $(op)(one(T)), csrB, 'O')
+            end
+            function Base.$op(A::Adjoint{T, $SparseMatrixType}, B::CuSparseMatrixCSR{T}) where {T}
+                csrA = CuSparseMatrixCSR(_spadjoint(parent(A)))
+                return geam(one(T), csrA, $(op)(one(T)), B, 'O')
+            end
+        end
+    end
 end
 
 
