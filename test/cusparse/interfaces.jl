@@ -52,6 +52,7 @@ using LinearAlgebra, SparseArrays
         end
     end
 
+    # SpGEMM was added in CUSPARSE v"11.1.1"
     if CUSPARSE.version() >= v"11.1.1"
         for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR)
             @testset "$SparseMatrixType -- A * B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
