@@ -110,6 +110,15 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     end
 end
 
+for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
+    @eval begin
+        function Base.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T <: BlasFloat}
+            CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+            gemm('N', 'N', one(T), A, B, 'O')
+        end
+    end
+end
+
 for op in (:(+), :(-))
     @eval begin
         Base.$op(A::CuSparseVector{T}, B::CuSparseVector{T}) where {T <: BlasFloat} = axpby(one(T), A, $(op)(one(T)), B, 'O')

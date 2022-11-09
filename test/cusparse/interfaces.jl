@@ -52,6 +52,26 @@ using LinearAlgebra, SparseArrays
         end
     end
 
+    # SpGEMM was added in CUSPARSE v"11.1.1"
+    if CUSPARSE.version() >= v"11.1.1"
+        for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR)
+            @testset "$SparseMatrixType -- A * B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+                n = 10
+                k = 15
+                m = 20
+                A = sprand(elty, m, k, 0.2)
+                B = sprand(elty, k, n, 0.5)
+
+                dA = SparseMatrixType(A)
+                dB = SparseMatrixType(B)
+
+                C = A * B
+                dC = dA * dB
+                @test C ≈ collect(dC)
+            end
+        end
+    end
+
     @testset "$f(A)±$h(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
                                      f in (identity, transpose), #adjoint),
                                      h in (identity, transpose)#, adjoint)
