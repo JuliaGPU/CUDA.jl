@@ -288,6 +288,31 @@ using LinearAlgebra, SparseArrays
         @test dD - dA isa typ
     end
 
+    @testset "Sparse-Sparse $typ multiplication and kronecker product" for
+        typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
+
+        a = sprand(ComplexF32, 100, 100, 0.1)
+        b = sprand(ComplexF32, 100, 100, 0.1)
+        A = typ(a)
+        B = typ(b)
+        if CUSPARSE.version() > v"11.4.1"
+            @test Array(A * B) ≈ a * b
+        end
+        @test Array(kron(A, B)) ≈ kron(a, b)
+    end
+
+    @testset "Reshape $typ (100,100) -> (20, 500) and droptol" for
+        typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
+
+        a = sprand(ComplexF32, 100, 100, 0.1)
+        dims = (20, 500)
+        A = typ(a)
+        @test Array(reshape(A, dims)) ≈ reshape(a, dims)
+        droptol!(a, 0.4)
+        droptol!(A, 0.4)
+        @test Array(A) ≈ a
+    end
+  
     @testset "dot(CuVector, CuSparseVector) and dot(CuSparseVector, CuVector) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
         n = 10
         x = sprand(elty, n, 0.5)

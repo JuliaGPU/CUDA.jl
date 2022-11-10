@@ -1,6 +1,7 @@
 # implementation of LinearAlgebra interfaces
 
 using LinearAlgebra
+using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
 using ..CUBLAS: CublasFloat
 
 function copy_cublasfloat(As...)
@@ -66,6 +67,25 @@ function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
     # the complete rhs
     return LinearAlgebra._cut_B(BB, 1:n)
 end
+end
+
+# eigenvalues
+
+function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
+    A2 = copy(A)
+    Eigen(syevd!('V', 'U', A2)...)
+end
+function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasFloat}
+    A2 = copy(A)
+    Eigen(heevd!('V', 'U', A2)...)
+end
+function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
+    A2 = copy(A)
+    issymmetric(A) ? Eigen(syevd!('V', 'U', A2)...) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
+end
+function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasComplex}
+    A2 = copy(A)
+    ishermitian(A) ? Eigen(heevd!('V', 'U', A2)...) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
 end
 
 

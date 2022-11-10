@@ -2,6 +2,7 @@
 
 using LinearAlgebra
 using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
+export _spadjoint, _sptranspose
 
 function mv_wrapper(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::DenseCuVector{T},
                     beta::Number, Y::CuVector{T}) where {T}
@@ -122,79 +123,199 @@ end
 for op in (:(+), :(-))
     @eval begin
         Base.$op(A::CuSparseVector{T}, B::CuSparseVector{T}) where {T <: BlasFloat} = axpby(one(T), A, $(op)(one(T)), B, 'O')
+
+        Base.$op(A::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}, 
+                B::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}) where {T} =
+            CuSparseMatrixCOO($(op)(CuSparseMatrixCSR(A), CuSparseMatrixCSR(B)))
     end
 
     for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
         @eval begin
             Base.$op(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T <: BlasFloat} = geam(one(T), A, $(op)(one(T)), B, 'O')
+
+            Base.$op(A::$SparseMatrixType{T}, B::Adjoint{T,<:$SparseMatrixType}) where {T <: BlasFloat} = geam(one(T), A, $(op)(one(T)), _spadjoint(parent(B)), 'O')
+            Base.$op(A::Adjoint{T,<:$SparseMatrixType}, B::$SparseMatrixType{T}) where {T <: BlasFloat} = geam(one(T), _spadjoint(parent(A)), $(op)(one(T)), B, 'O')
+            Base.$op(A::Adjoint{T,<:$SparseMatrixType}, B::Adjoint{T,<:$SparseMatrixType}) where {T <: BlasFloat} = geam(one(T), _spadjoint(parent(A)), $(op)(one(T)), _spadjoint(parent(B)), 'O')
+
+            Base.$op(A::$SparseMatrixType{T}, B::Transpose{T,<:$SparseMatrixType}) where {T <: BlasFloat} = geam(one(T), A, $(op)(one(T)), _sptranspose(parent(B)), 'O')
+            Base.$op(A::Transpose{T,<:$SparseMatrixType}, B::$SparseMatrixType{T}) where {T <: BlasFloat} = geam(one(T), _sptranspose(parent(A)), $(op)(one(T)), B, 'O')
+            Base.$op(A::Transpose{T,<:$SparseMatrixType}, B::Transpose{T,<:$SparseMatrixType}) where {T <: BlasFloat} = geam(one(T), _sptranspose(parent(A)), $(op)(one(T)), _sptranspose(parent(B)), 'O')
+        end
+    end
+
+    for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCOO, :CuSparseMatrixBSR)
+        @eval begin
+            function Base.$op(A::CuSparseMatrixCSR{T}, B::$SparseMatrixType{T}) where {T}
+                csrB = CuSparseMatrixCSR(B)
+                return geam(one(T), A, $(op)(one(T)), csrB, 'O')
+            end
+            function Base.$op(A::$SparseMatrixType{T}, B::CuSparseMatrixCSR{T}) where {T}
+                csrA = CuSparseMatrixCSR(A)
+                return geam(one(T), csrA, $(op)(one(T)), B, 'O')
+            end
+            function Base.$op(A::Transpose{T, CuSparseMatrixCSR{T}}, B::$SparseMatrixType{T}) where {T}
+                csrB = CuSparseMatrixCSR(B)
+                return geam(one(T), _sptranspose(parent(A)), $(op)(one(T)), csrB, 'O')
+            end
+            function Base.$op(A::$SparseMatrixType{T}, B::Transpose{T, CuSparseMatrixCSR{T}}) where {T}
+                csrA = CuSparseMatrixCSR(A)
+                return geam(one(T), csrA, $(op)(one(T)), _sptranspose(parent(B)), 'O')
+            end
+            function Base.$op(A::Adjoint{T, CuSparseMatrixCSR{T}}, B::$SparseMatrixType{T}) where {T}
+                csrB = CuSparseMatrixCSR(B)
+                return geam(one(T), _spadjoint(parent(A)), $(op)(one(T)), csrB, 'O')
+            end
+            function Base.$op(A::$SparseMatrixType{T}, B::Adjoint{T, CuSparseMatrixCSR{T}}) where {T}
+                csrA = CuSparseMatrixCSR(A)
+                return geam(one(T), csrA, $(op)(one(T)), _spadjoint(parent(B)), 'O')
+            end
+
+            function Base.$op(A::CuSparseMatrixCSR{T}, B::Transpose{T, $SparseMatrixType}) where {T}
+                csrB = CuSparseMatrixCSR(_sptranspose(parent(B)))
+                return geam(one(T), A, $(op)(one(T)), csrB, 'O')
+            end
+            function Base.$op(A::Transpose{T, $SparseMatrixType}, B::CuSparseMatrixCSR{T}) where {T}
+                csrA = CuSparseMatrixCSR(_sptranspose(parent(A)))
+                return geam(one(T), csrA, $(op)(one(T)), B, 'O')
+            end
+
+            function Base.$op(A::CuSparseMatrixCSR{T}, B::Adjoint{T, $SparseMatrixType}) where {T}
+                csrB = CuSparseMatrixCSR(_spadjoint(parent(B)))
+                return geam(one(T), A, $(op)(one(T)), csrB, 'O')
+            end
+            function Base.$op(A::Adjoint{T, $SparseMatrixType}, B::CuSparseMatrixCSR{T}) where {T}
+                csrA = CuSparseMatrixCSR(_spadjoint(parent(A)))
+                return geam(one(T), csrA, $(op)(one(T)), B, 'O')
+            end
         end
     end
 end
 
-Base.:(+)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = A + Transpose(conj(B.parent))
-Base.:(-)(A::CuSparseMatrixCSR, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} = A - Transpose(conj(B.parent))
-Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = Transpose(conj(A.parent)) + B
-Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T} = Transpose(conj(A.parent)) - B
-Base.:(+)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} =
-    Transpose(conj(A.parent)) + B
-Base.:(-)(A::Adjoint{T,<:CuSparseMatrixCSR}, B::Adjoint{T,<:CuSparseMatrixCSR}) where {T} =
-    Transpose(conj(A.parent)) - B
 
-function Base.:(+)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
-    cscB = CuSparseMatrixCSC(B.parent)
-    transB = CuSparseMatrixCSR(cscB.colPtr, cscB.rowVal, cscB.nzVal, size(cscB))
-    return geam(one(T), A, one(T), transB, 'O')
+function Base.reshape(A::CuSparseMatrixCOO{T,M}, dims::NTuple{N,Int}) where {T,N,M}
+    nrows, ncols = size(A)
+    flat_indices = nrows .* (A.colInd .- 1) .+ A.rowInd .- 1
+    new_col, new_row = div.(flat_indices, dims[1]) .+ 1, rem.(flat_indices, dims[1]) .+ 1
+    sparse(new_row, new_col, A.nzVal, dims[1], length(dims) == 1 ? 1 : dims[2], fmt = :coo)
 end
 
-function Base.:(-)(A::CuSparseMatrixCSR, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
-    cscB = CuSparseMatrixCSC(B.parent)
-    transB = CuSparseMatrixCSR(cscB.colPtr, cscB.rowVal, cscB.nzVal, size(cscB))
-    return geam(one(T), A, -one(T), transB, 'O')
+function LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::CuSparseMatrixCSR{T,M}, 
+    B::CuSparseMatrixCSR{T,M}, alpha::Number, beta::Number) where {T,M}
+    CUSPARSE.version() < v"11.5.1" && throw(ErrorException("This operation is not 
+                                        supported by the current CUDA version."))
+    gemm!('N', 'N', alpha, A, B, beta, Y, 'O')
+end
+LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::CuSparseMatrixCSR{T,M}, 
+    B::CuSparseMatrixCSR{T,M}) where {T,M} = mul!(Y, A, B, one(T), zero(T))
+
+LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::Transpose{T,<:CuSparseMatrixCSR}, 
+    B::CuSparseMatrixCSR{T,M}) where {T,M} = mul!(Y, _sptranspose(parent(A)), B, one(T), zero(T))
+LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::Transpose{T,<:CuSparseMatrixCSR}, 
+    B::Transpose{T,<:CuSparseMatrixCSR}) where {T,M} = mul!(Y, _sptranspose(parent(A)), _sptranspose(parent(B)), one(T), zero(T))
+LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::CuSparseMatrixCSR{T,M}, 
+    B::Transpose{T,<:CuSparseMatrixCSR}) where {T,M} = mul!(Y, A, _sptranspose(parent(B)), one(t), zero(T))
+
+LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::Adjoint{T,<:CuSparseMatrixCSR}, 
+    B::CuSparseMatrixCSR{T,M}) where {T,M} = mul!(Y, _spadjoint(parent(A)), B, one(T), zero(T))
+LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::Adjoint{T,<:CuSparseMatrixCSR}, 
+    B::Adjoint{T,<:CuSparseMatrixCSR}) where {T,M} = mul!(Y, _spadjoint(parent(A)), _spadjoint(parent(B)), one(T), zero(T))
+LinearAlgebra.mul!(Y::CuSparseMatrixCSR{T,M}, A::CuSparseMatrixCSR{T,M}, 
+    B::Adjoint{T,<:CuSparseMatrixCSR}) where {T,M} = mul!(Y, A, _spadjoint(parent(B)), one(t), zero(T))
+
+function LinearAlgebra.mul!(Y::CuSparseMatrixCOO{T,M}, A::Union{CuSparseMatrixCOO{T,M}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}, 
+    B::Union{CuSparseMatrixCOO{T,M}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}, alpha::Number, beta::Number) where {T,M}
+    
+    Y2 = CuSparseMatrixCSR(Y)
+    A2 = CuSparseMatrixCSR(A)
+    B2 = CuSparseMatrixCSR(B)
+    mul!(Y2, A2, B2, alpha, beta)
+    copyto!(Y, CuSparseMatrixCOO(Y2))
+end
+function LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T,M}, A::Union{CuSparseMatrixCSC{T,M}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}, 
+    B::Union{CuSparseMatrixCSC{T,M}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}, alpha::Number, beta::Number) where {T,M}
+    
+    Y2 = CuSparseMatrixCSR(Y)
+    A2 = CuSparseMatrixCSR(A)
+    B2 = CuSparseMatrixCSR(B)
+    mul!(Y2, A2, B2, alpha, beta)
+    copyto!(Y, CuSparseMatrixCSC(Y2))
 end
 
-function Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T}
-    cscA = CuSparseMatrixCSC(A.parent)
-    transA = CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, size(cscA))
-    geam(one(T), transA, one(T), B, 'O')
+LinearAlgebra.mul!(Y::CuSparseMatrixCOO{T,M}, A::Union{CuSparseMatrixCOO{T,M}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}, 
+    B::Union{CuSparseMatrixCOO{T,M}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}) where {T,M} = mul!(Y, A, B, one(T), zero(T))
+LinearAlgebra.mul!(Y::CuSparseMatrixCSC{T,M}, A::Union{CuSparseMatrixCSC{T,M}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}, 
+    B::Union{CuSparseMatrixCSC{T,M}, Transpose{T,<:CuSparseMatrixCSC}, Adjoint{T,<:CuSparseMatrixCSC}}) where {T,M} = mul!(Y, A, B, one(T), zero(T))
+
+function LinearAlgebra.:(*)(A::CuSparseMatrixCSR{T,M}, B::CuSparseMatrixCSR{T,M}) where {T,M}
+    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not 
+                                        supported by the current CUDA version."))
+    gemm('N', 'N', one(T), A, B, 'O')
+end
+function LinearAlgebra.:(*)(A::CuSparseMatrixCSC{T,M}, B::CuSparseMatrixCSC{T,M}) where {T,M}
+    A2 = CuSparseMatrixCSR(A)
+    B2 = CuSparseMatrixCSR(B)
+    CuSparseMatrixCSC(gemm('N', 'N', one(T), A2, B2, 'O'))
+end
+function LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
+    A2 = CuSparseMatrixCSR(A)
+    B2 = CuSparseMatrixCSR(B)
+    CuSparseMatrixCOO(gemm('N', 'N', one(T), A2, B2, 'O'))
 end
 
-function Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::CuSparseMatrixCSR) where {T}
-    cscA = CuSparseMatrixCSC(A.parent)
-    transA = CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, size(cscA))
-    geam(one(T), transA, -one(T), B, 'O')
+function SparseArrays.droptol!(A::CuSparseMatrixCOO{T,M}, tol::Real) where {T,M}
+    mask = abs.(A.nzVal) .> tol
+    rows = A.rowInd[mask]
+    cols = A.colInd[mask]
+    datas = A.nzVal[mask]
+    B = sparse(rows, cols, datas, size(A)..., fmt = :coo)
+    copyto!(A, B)
 end
 
-function Base.:(+)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
-    C = geam(one(T), A.parent, one(T), B.parent, 'O')
-    cscC = CuSparseMatrixCSC(C)
-    return CuSparseMatrixCSR(cscC.colPtr, cscC.rowVal, cscC.nzVal, size(cscC))
+for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR, :CuSparseMatrixCOO]
+    @eval begin
+        if $SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
+
+            Base.reshape(A::$SparseMatrixType{T,M}, dims::NTuple{N,Int}) where {T,N,M} = 
+            $SparseMatrixType( reshape(CuSparseMatrixCOO(A), dims) )
+
+            function SparseArrays.droptol!(A::$SparseMatrixType{T,M}, tol::Real) where {T,M}
+                B = copy(CuSparseMatrixCOO(A))
+                droptol!(B, tol)
+                copyto!(A, $SparseMatrixType(B))
+            end
+            
+        end
+
+        LinearAlgebra.:(*)(A::Transpose{T,<:$SparseMatrixType}, B::$SparseMatrixType{T,M}) where {T,M} = _sptranspose(parent(A)) * B
+        LinearAlgebra.:(*)(A::Transpose{T,<:$SparseMatrixType}, B::Transpose{T,<:$SparseMatrixType}) where {T} = _sptranspose(parent(A)) * _sptranspose(parent(B))
+        LinearAlgebra.:(*)(A::$SparseMatrixType{T,M}, B::Transpose{T,<:$SparseMatrixType}) where {T,M} = A * _sptranspose(parent(B))
+        LinearAlgebra.:(*)(A::Adjoint{T,<:$SparseMatrixType}, B::$SparseMatrixType{T,M}) where {T,M} = _spadjoint(parent(A)) * B
+        LinearAlgebra.:(*)(A::Adjoint{T,<:$SparseMatrixType}, B::Adjoint{T,<:$SparseMatrixType}) where {T} = _spadjoint(parent(A)) * _spadjoint(parent(B))
+        LinearAlgebra.:(*)(A::$SparseMatrixType{T,M}, B::Adjoint{T,<:$SparseMatrixType}) where {T,M} = A * _spadjoint(parent(B))
+    end
 end
 
-function Base.:(-)(A::Transpose{T,<:CuSparseMatrixCSR}, B::Transpose{T,<:CuSparseMatrixCSR}) where {T}
-    C = geam(one(T), A.parent, -one(T), B.parent, 'O')
-    cscC = CuSparseMatrixCSC(C)
-    return CuSparseMatrixCSR(cscC.colPtr, cscC.rowVal, cscC.nzVal, size(cscC))
+function _spadjoint(A::CuSparseMatrixCSR{T,M}) where {T,M}
+    cscA = CuSparseMatrixCSC(conj(A))
+    CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA)))
+end
+function _sptranspose(A::CuSparseMatrixCSR{T,M}) where {T,M}
+    cscA = CuSparseMatrixCSC(A)
+    CuSparseMatrixCSR(cscA.colPtr, cscA.rowVal, cscA.nzVal, reverse(size(cscA)))
+end
+function _spadjoint(A::CuSparseMatrixCSC{T,M}) where {T,M}
+    CuSparseMatrixCSC(CuSparseMatrixCSR(A.colPtr, A.rowVal, conj(A.nzVal), reverse(size(A))))
+end
+function _sptranspose(A::CuSparseMatrixCSC{T,M}) where {T,M}
+    CuSparseMatrixCSC(CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, reverse(size(A))))
+end
+function _spadjoint(A::CuSparseMatrixCOO{T,M}) where {T,M}
+    sparse(A.colInd, A.rowInd, conj(A.nzVal), size(A)..., fmt = :coo)
+end
+function _sptranspose(A::CuSparseMatrixCOO{T,M}) where {T,M}
+    sparse(A.colInd, A.rowInd, A.nzVal, size(A)..., fmt = :coo)
 end
 
-function Base.:(+)(A::CuSparseMatrixCSR, B::CuSparseMatrix)
-    csrB = CuSparseMatrixCSR(B)
-    return geam(one(eltype(A)), A, one(eltype(A)), csrB, 'O')
-end
-
-function Base.:(-)(A::CuSparseMatrixCSR, B::CuSparseMatrix)
-    csrB = CuSparseMatrixCSR(B)
-    return geam(one(eltype(A)), A, -one(eltype(A)), csrB, 'O')
-end
-
-function Base.:(+)(A::CuSparseMatrix, B::CuSparseMatrixCSR)
-    csrA = CuSparseMatrixCSR(A)
-    return geam(one(eltype(A)), csrA, one(eltype(A)), B, 'O')
-end
-
-function Base.:(-)(A::CuSparseMatrix, B::CuSparseMatrixCSR)
-    csrA = CuSparseMatrixCSR(A)
-    return geam(one(eltype(A)), csrA, -one(eltype(A)), B, 'O')
-end
 
 # triangular
 for SparseMatrixType in (:CuSparseMatrixBSR, :CuSparseMatrixCSC, :CuSparseMatrixCSR)
