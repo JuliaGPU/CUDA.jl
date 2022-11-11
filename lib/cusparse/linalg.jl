@@ -38,7 +38,7 @@ function sum_dim2(A::CuSparseMatrixCSR{T,N}) where {T,N}
 
     A = CuSparseMatrixCSC(A)
     m, n = size(A)
-    colsum = CuArray{Float64}(undef, n)
+    colsum = CuVector{Float64}(undef, n) # Float64?
     kernel_f = @cuda launch=false kernel(T, colsum, A)
     
     config = launch_configuration(kernel_f.fun)
@@ -72,26 +72,23 @@ function LinearAlgebra.norm(A::AbstractCuSparseMatrix{T,M}, p::Real=2) where {T,
     end
 end
 
-function LinearAlgebra.triu(A::CuSparseMatrixCOO{T,M}, k::Integer) where {T,M}
+function LinearAlgebra.triu(A::CuSparseMatrixCOO, k::Integer=0)
     mask = A.rowInd .+ k .<= A.colInd
     rows = A.rowInd[mask]
     cols = A.colInd[mask]
-    datas = A.nzVal[mask]
-    sparse(rows, cols, datas, size(A)..., fmt = :coo)
+    vals = A.nzVal[mask]
+    sparse(rows, cols, vals, size(A)..., fmt = :coo)
 end
 
-function LinearAlgebra.tril(A::CuSparseMatrixCOO{T,M}, k::Integer) where {T,M}
+function LinearAlgebra.tril(A::CuSparseMatrixCOO, k::Integer=0)
     mask = A.rowInd .+ k .>= A.colInd
     rows = A.rowInd[mask]
     cols = A.colInd[mask]
-    datas = A.nzVal[mask]
-    sparse(rows, cols, datas, size(A)..., fmt = :coo)
+    vals = A.nzVal[mask]
+    sparse(rows, cols, vals, size(A)..., fmt = :coo)
 end
 
-LinearAlgebra.triu(A::CuSparseMatrixCOO{T,M}) where {T,M} = triu(A, 0)
-LinearAlgebra.tril(A::CuSparseMatrixCOO{T,M}) where {T,M} = tril(A, 0)
-
-function LinearAlgebra.kron(A::CuSparseMatrixCOO{T,M}, B::CuSparseMatrixCOO{T,M}) where {T,M}
+function LinearAlgebra.kron(A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}) where {T}
     mA,nA = size(A)
     mB,nB = size(B)
     out_shape = (mA * mB, nA * nB)
@@ -183,5 +180,39 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
             P
         end
         
+    end
+end
+
+function Base.reshape(A::CuSparseMatrixCOO, dims::NTuple{N,Int}) where {N}
+    nrows, ncols = size(A)
+    flat_indices = nrows .* (A.colInd .- 1) .+ A.rowInd .- 1
+    new_col, new_row = div.(flat_indices, dims[1]) .+ 1, rem.(flat_indices, dims[1]) .+ 1
+    sparse(new_row, new_col, A.nzVal, dims[1], length(dims) == 1 ? 1 : dims[2], fmt = :coo)
+end
+
+function SparseArrays.droptol!(A::CuSparseMatrixCOO, tol::Real)
+    mask = abs.(A.nzVal) .> tol
+    rows = A.rowInd[mask]
+    cols = A.colInd[mask]
+    vals = A.nzVal[mask]
+    B = sparse(rows, cols, vals, size(A)..., fmt = :coo)
+    copyto!(A, B)
+end
+
+for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR, :CuSparseMatrixCOO]
+    @eval begin
+        if $SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
+
+            function Base.reshape(A::$SparseMatrixType, dims::NTuple{N,Int}) where {N}
+                B = CuSparseMatrixCOO(A)
+                $SparseMatrixType(reshape(B, dims))
+            end
+
+            function SparseArrays.droptol!(A::$SparseMatrixType, tol::Real)
+                B = CuSparseMatrixCOO(A)
+                droptol!(B, tol)
+                copyto!(A, $SparseMatrixType(B))
+            end
+        end
     end
 end

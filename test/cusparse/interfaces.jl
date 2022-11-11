@@ -1,9 +1,10 @@
+using CUDA
 using Adapt
 using CUDA.CUSPARSE
 using LinearAlgebra, SparseArrays
 
 @testset "LinearAlgebra" begin
-    @testset "CuSparseVector -- A ± B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "CuSparseVector -- axpby -- A ± B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         n = 10
         alpha = rand()
         beta = rand()
@@ -27,7 +28,7 @@ using LinearAlgebra, SparseArrays
     end
 
     for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR)
-        @testset "$SparseMatrixType -- A ± B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "$SparseMatrixType -- geam $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
             n = 10
             m = 20
             alpha = rand()
@@ -41,64 +42,41 @@ using LinearAlgebra, SparseArrays
             C = alpha * A + beta * B
             dC = geam(alpha, dA, beta, dB, 'O')
             @test C ≈ collect(dC)
-
-            C = A + B
-            dC = dA + dB
-            @test C ≈ collect(dC)
-
-            C = A - B
-            dC = dA - dB
-            @test C ≈ collect(dC)
         end
     end
 
-    # SpGEMM was added in CUSPARSE v"11.1.1"
-    if CUSPARSE.version() >= v"11.1.1"
-        for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR)
-            @testset "$SparseMatrixType -- A * B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-                n = 10
-                k = 15
-                m = 20
-                A = sprand(elty, m, k, 0.2)
-                B = sprand(elty, k, n, 0.5)
+    for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+        @testset "$SparseMatrixType -- A ± B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            for opa in (identity, transpose, adjoint)
+                for opb in (identity, transpose, adjoint)
+                    n = 10
+                    m = 20
+                    A = opa == identity ? sprand(elty, n, m, 0.2) : sprand(elty, m, n, 0.2)
+                    B = opb == identity ? sprand(elty, n, m, 0.5) : sprand(elty, m, n, 0.5)
 
-                dA = SparseMatrixType(A)
-                dB = SparseMatrixType(B)
+                    dA = SparseMatrixType(A)
+                    dB = SparseMatrixType(B)
 
-                C = A * B
-                dC = dA * dB
-                @test C ≈ collect(dC)
+                    C = opa(A) + opb(B)
+                    dC = opa(dA) + opb(dB)
+                    @test C ≈ collect(dC)
+
+                    C = opa(A) - opb(B)
+                    dC = opa(dA) - opb(dB)
+                    @test C ≈ collect(dC)
+                end
             end
         end
     end
 
-    @testset "$f(A)±$h(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
-                                     f in (identity, transpose), #adjoint),
-                                     h in (identity, transpose)#, adjoint)
-        # adjoint need the support of broadcast for `conj()` to work with `CuSparseMatrix`.
+    @testset "$g(A) ± $f(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
+        g in (CuSparseMatrixCSR, CuSparseMatrixCSC),
+        f in (CuSparseMatrixCSR, CuSparseMatrixCSC, CuSparseMatrixCOO, x->CuSparseMatrixBSR(x,1))
+
+        f == g && continue
         n = 10
-        alpha = rand()
-        beta = rand()
-        A = sprand(elty, n, n, rand())
-        B = sprand(elty, n, n, rand())
-
-        dA = CuSparseMatrixCSR(A)
-        dB = CuSparseMatrixCSR(B)
-
-        C = f(A) + h(B)
-        dC = f(dA) + h(dB)
-        @test C ≈ collect(dC)
-
-        C = f(A) - h(B)
-        dC = f(dA) - h(dB)
-        @test C ≈ collect(dC)
-    end
-
-    @testset "A±$f(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
-                                 f in (CuSparseMatrixCSR, CuSparseMatrixCSC, x->CuSparseMatrixBSR(x,1))
-        n = 10
-        A = sprand(elty, n, n, rand())
-        B = sprand(elty, n, n, rand())
+        A = sprand(elty, n, n, 0.4)
+        B = sprand(elty, n, n, 0.6)
 
         dA = CuSparseMatrixCSR(A)
         dB = CuSparseMatrixCSR(B)
@@ -118,6 +96,30 @@ using LinearAlgebra, SparseArrays
         C = B - A
         dC = f(dB) - dA
         @test C ≈ collect(dC)
+    end
+
+    # SpGEMM was added in CUSPARSE v"11.1.1"
+    if CUSPARSE.version() >= v"11.1.1"
+        for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+            @testset "$SparseMatrixType -- A * B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+                for opa in (identity, transpose, adjoint)
+                    for opb in (identity, transpose, adjoint)
+                        n = 10
+                        k = 15
+                        m = 20
+                        A = opa == identity ? sprand(elty, m, k, 0.2) : sprand(elty, k, m, 0.2)
+                        B = opb == identity ? sprand(elty, k, n, 0.5) : sprand(elty, n, k, 0.5)
+
+                        dA = SparseMatrixType(A)
+                        dB = SparseMatrixType(B)
+
+                        C = opa(A) * opb(B)
+                        dC = opa(dA) * opb(dB)
+                        @test C ≈ collect(dC)
+                    end
+                end
+            end
+        end
     end
 
     @testset "$f(A)*b $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
@@ -288,31 +290,6 @@ using LinearAlgebra, SparseArrays
         @test dD - dA isa typ
     end
 
-    @testset "Sparse-Sparse $typ multiplication and kronecker product" for
-        typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
-
-        a = sprand(ComplexF32, 100, 100, 0.1)
-        b = sprand(ComplexF32, 100, 100, 0.1)
-        A = typ(a)
-        B = typ(b)
-        if CUSPARSE.version() > v"11.4.1"
-            @test Array(A * B) ≈ a * b
-        end
-        @test Array(kron(A, B)) ≈ kron(a, b)
-    end
-
-    @testset "Reshape $typ (100,100) -> (20, 500) and droptol" for
-        typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
-
-        a = sprand(ComplexF32, 100, 100, 0.1)
-        dims = (20, 500)
-        A = typ(a)
-        @test Array(reshape(A, dims)) ≈ reshape(a, dims)
-        droptol!(a, 0.4)
-        droptol!(A, 0.4)
-        @test Array(A) ≈ a
-    end
-  
     @testset "dot(CuVector, CuSparseVector) and dot(CuSparseVector, CuVector) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
         n = 10
         x = sprand(elty, n, 0.5)

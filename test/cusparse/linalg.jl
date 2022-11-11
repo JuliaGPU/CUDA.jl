@@ -1,7 +1,7 @@
 using CUDA.CUSPARSE
 using LinearAlgebra, SparseArrays
 
-@testset "opnorm and norm" for T in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "opnorm and norm $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
     S = sprand(T, 10, 10, 0.1)
     dS_csc = CuSparseMatrixCSC(S)
     dS_csr = CuSparseMatrixCSR(S)
@@ -33,4 +33,26 @@ end
     if CUSPARSE.version() > v"11.4.1"
         @test Array(exp(A)) ≈ exp(collect(a))
     end
+end
+
+@testset "$typ kronecker product" for
+    typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
+
+    a = sprand(ComplexF32, 100, 100, 0.1)
+    b = sprand(ComplexF32, 100, 100, 0.1)
+    A = typ(a)
+    B = typ(b)
+    @test collect(kron(A, B)) ≈ kron(a, b)
+end
+
+@testset "Reshape $typ (100,100) -> (20, 500) and droptol" for
+    typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
+
+    a = sprand(ComplexF32, 100, 100, 0.1)
+    dims = (20, 500)
+    A = typ(a)
+    @test Array(reshape(A, dims)) ≈ reshape(a, dims)
+    droptol!(a, 0.4)
+    droptol!(A, 0.4)
+    @test collect(A) ≈ a
 end
