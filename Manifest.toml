@@ -284,9 +284,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[TimerOutputs]]
 deps = ["ExprTools", "Printf"]
-git-tree-sha1 = "9dfcb767e17b0849d6aaf85997c98a5aea292513"
+git-tree-sha1 = "f2fd3f288dfc6f507b0c3a2eb3bac009251e548b"
 uuid = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
-version = "0.5.21"
+version = "0.5.22"
 
 [[UUIDs]]
 deps = ["Random", "SHA"]
