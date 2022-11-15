@@ -102,7 +102,11 @@ function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}, type::SparseChar='R') where {Tv,T
     sorted_rowInd = copy(A.rowInd)
     sorted_colInd = copy(A.colInd)
     function bufferSize()
-        out = Ref{Csize_t}()
+        # It seems that in some cases `out` is not updated
+        # and we have the following error in the tests:
+        # "Out of GPU memory trying to allocate 127.781 TiB".
+        # We set 0 as default value to avoid it.
+        out = Ref{Csize_t}(0)
         cusparseXcoosort_bufferSizeExt(handle(), m, n, nnz(A), A.rowInd, A.colInd, out)
         return out[]
     end
