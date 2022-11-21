@@ -72,13 +72,17 @@ end
 # eigenvalues
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
-    A2 = copy(A)
+    A2 = copy(A.data)
     Eigen(syevd!('V', 'U', A2)...)
 end
-function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasFloat}
-    A2 = copy(A)
+function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasComplex}
+    A2 = copy(A.data)
     Eigen(heevd!('V', 'U', A2)...)
 end
+function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasReal}
+    eigen(Symmetric(A))
+end
+
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
     A2 = copy(A)
     issymmetric(A) ? Eigen(syevd!('V', 'U', A2)...) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
