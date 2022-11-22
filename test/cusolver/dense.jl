@@ -222,6 +222,23 @@ k = 1
         end
         h_W            = collect(d_W)
         @test Eig.values ≈ h_W
+
+        A              = rand(elty,m,m)
+        A             += A'
+        d_A            = CuArray(A)
+        Eig            = eigen(LinearAlgebra.Hermitian(A))
+        d_eig          = eigen(LinearAlgebra.Hermitian(d_A))
+        @test Eig.values ≈ collect(d_eig.values)
+        h_V            = collect(d_eig.vectors)
+        @test abs.(Eig.vectors'*h_V) ≈ I
+        if elty <: Real
+            Eig            = eigen(LinearAlgebra.Symmetric(A))
+            d_eig          = eigen(LinearAlgebra.Symmetric(d_A))
+            @test Eig.values ≈ collect(d_eig.values)
+            h_V            = collect(d_eig.vectors)
+            @test abs.(Eig.vectors'*h_V) ≈ I
+        end
+
     end
 
     @testset "sygvd!" begin
