@@ -211,3 +211,22 @@ Base._accumulate!(op, output::AnyCuArray, input::AnyCuArray, dims::Integer, init
     scan!(op, output, input; dims=dims, init=init)
 
 Base.accumulate_pairwise!(op, result::AnyCuVector, v::AnyCuVector) = accumulate!(op, result, v)
+
+# default behavior unless dims are specified by the user
+function Base.accumulate(op, A::AnyCuArray;
+                         dims::Union{Nothing,Integer}=nothing, kw...)
+    if dims === nothing && !(A isa AbstractVector)
+        # This branch takes care of the cases not handled by `_accumulate!`.
+        return reshape(accumulate(op, A[:]; kw...), size(A))
+    end
+    nt = values(kw)
+    if isempty(kw)
+        out = similar(A, Base.promote_op(op, eltype(A), eltype(A)))
+    elseif keys(nt) === (:init,)
+        out = similar(A, Base.promote_op(op, typeof(nt.init), eltype(A)))
+    else
+        throw(ArgumentError("accumulate does not support the keyword arguments $(setdiff(keys(nt), (:init,)))"))
+    end
+    accumulate!(op, out, A; dims=dims, kw...)
+end
+

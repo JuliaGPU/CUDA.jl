@@ -326,6 +326,7 @@ end
                         (3,4,5) => 2,
                         (1, 70, 50, 20) => 3)
     @test testf(x->accumulate(+, x; dims=dims), rand(Int, sizes))
+    @test testf(x->accumulate(+, x), rand(Int, sizes))
   end
 
   # using initializer
@@ -333,6 +334,7 @@ end
                         (3,4,5) => 2,
                         (1, 70, 50, 20) => 3)
     @test testf((x,y)->accumulate(+, x; dims=dims, init=y), rand(Int, sizes), rand(Int))
+    @test testf((x,y)->accumulate(+, x; init=y), rand(Int, sizes), rand(Int))
   end
 
   # in place
