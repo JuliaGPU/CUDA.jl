@@ -1019,6 +1019,18 @@ end
             end
         end
 
+        @testset "Diagonal rdiv!" begin
+            A = rand(elty, m,m)
+            B = Diagonal(rand(elty, m))
+
+            dA = CuArray(A)
+            dB = CuArray(B)
+
+            C = A / B
+            rdiv!(dA, dB)
+            @test C ≈ Array(dA)
+        end
+
         @testset "triangular-dense mul!" begin
             A = triu(rand(elty, m, m))
             B = rand(elty,m,n)
