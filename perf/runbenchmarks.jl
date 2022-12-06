@@ -121,7 +121,7 @@ if real_run
     end
     flatten(results)
 
-    HTTP.post("$(ENV["CODESPEED_SERVER"])/result/add/json/",
+    HTTP.post("https://$(ENV["CODESPEED_USERNAME"]):$(ENV["CODESPEED_PASSWORD"])@$(ENV["CODESPEED_SERVER"])/result/add/json/",
                 ["Content-Type" => "application/x-www-form-urlencoded"],
                 HTTP.URIs.escapeuri(Dict("json" => JSON.json(flat_results))))
 end

@@ -1,0 +1,17 @@
+# this mirrors the configuration used in the webui,
+# and makes sure that cryptic tools know about our pipelines
+
+steps:
+  - label: ":rocket: launch pipelines"
+    plugins:
+      - staticfloat/cryptic:
+          unsigned_pipelines:
+            - .buildkite/pipeline.yml
+          signed_pipelines:
+            - pipeline: .buildkite/secure_pipeline.yml
+              signature_file: .buildkite/secure_pipeline.yml.signature
+              allow_hash_override: true
+    command: "true"
+    branches: "!gh-pages"
+    agents:
+      queue: "juliagpu"
