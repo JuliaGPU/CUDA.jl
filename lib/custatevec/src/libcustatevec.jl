@@ -70,7 +70,8 @@ end
     CUSTATEVEC_STATUS_INSUFFICIENT_WORKSPACE = 8
     CUSTATEVEC_STATUS_SAMPLER_NOT_PREPROCESSED = 9
     CUSTATEVEC_STATUS_NO_DEVICE_ALLOCATOR = 10
-    CUSTATEVEC_STATUS_MAX_VALUE = 11
+    CUSTATEVEC_STATUS_DEVICE_ALLOCATOR_ERROR = 11
+    CUSTATEVEC_STATUS_MAX_VALUE = 12
 end
 
 @cenum custatevecPauli_t::UInt32 begin
@@ -151,7 +152,7 @@ end
                                                value::Ptr{Int32})::custatevecStatus_t
 end
 
-# no prototype is found for this function at custatevec.h:519:8, please use with caution
+# no prototype is found for this function at custatevec.h:520:8, please use with caution
 function custatevecGetVersion()
     @ccall libcustatevec.custatevecGetVersion()::Csize_t
 end
@@ -195,7 +196,7 @@ end
     @ccall libcustatevec.custatevecLoggerSetMask(mask::Int32)::custatevecStatus_t
 end
 
-# no prototype is found for this function at custatevec.h:619:1, please use with caution
+# no prototype is found for this function at custatevec.h:620:1, please use with caution
 @checked function custatevecLoggerForceDisable()
     @ccall libcustatevec.custatevecLoggerForceDisable()::custatevecStatus_t
 end

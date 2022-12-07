@@ -9,4 +9,4 @@ CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 cuQuantum_jll = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
 
 [compat]
-cuQuantum_jll = "~22.7"
+cuQuantum_jll = "~22.11"
