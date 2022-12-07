@@ -20,7 +20,7 @@ interpolation that happens when indexing into this texture. The source memory of
 texture is specified by the `M` parameter, either linear memory or a texture array.
 
 Device-side texture objects cannot be created directly, but should be created host-side
-using [`CuTexture{T,N,P}`](@ref) and passed to the kernal as an argument.
+using [`CuTexture{T,N,P}`](@ref) and passed to the kernel as an argument.
 
 !!! warning
     Experimental API. Subject to change without deprecation.
