@@ -6,7 +6,7 @@ using ..CUSPARSE: CuSparseMatrixCSR, CuSparseMatrixCSC, CuMatrixDescriptor
 
 function cusolverSpCreate()
   handle_ref = Ref{cusolverSpHandle_t}()
-  @check unsafe_cusolverSpCreate(handle_ref) CUSOLVER_STATUS_NOT_INITIALIZED
+  @check unsafe_cusolverSpCreate(handle_ref) CUSOLVER_STATUS_NOT_INITIALIZED CUSOLVER_STATUS_INTERNAL_ERROR
   return handle_ref[]
 end
 
