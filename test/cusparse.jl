@@ -151,9 +151,9 @@ end
     end
 
     @testset "#1641: too strictly-typed constructors" begin
-        rows = CuVector{Int32}(undef, m)
-        cols = CuVector{Int32}(undef, m)
-        vals = CuVector{Float32}(undef, m)
+        rows = CuVector{Int32}([3, 1, 2, 3, 2, 1])
+        cols = CuVector{Int32}([3, 2, 1, 2, 3, 1])
+        vals = CuVector{Float32}([9, 7, 8, 4, 6, 5])
         @test sparse(rows, cols, vals, fmt=:coo) isa CuSparseMatrixCOO{Float32}
     end
 end
