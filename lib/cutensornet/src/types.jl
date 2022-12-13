@@ -45,13 +45,12 @@ end
 mutable struct CuTensorNetworkDescriptor
     handle::cutensornetNetworkDescriptor_t
     function CuTensorNetworkDescriptor(numInputs::Int32, numModesIn::Vector{Int32}, extentsIn::Vector{Vector{Int64}},
-                                       stridesIn, modesIn::Vector{Vector{Int32}},
-                                       alignmentRequirementsIn::Vector{UInt32}, numModesOut::Int32,
-                                       extentsOut::Vector{Int64}, stridesOut::Union{Ptr{Nothing}, Vector{Int64}}, modesOut::Vector{Int32},
-                                       alignmentRequirementsOut::UInt32, dataType::Type, computeType::Type)
+                                       stridesIn, modesIn::Vector{Vector{Int32}}, qualifiersIn::Vector{Int32},
+                                       numModesOut::Int32, extentsOut::Vector{Int64}, stridesOut::Union{Ptr{Nothing}, Vector{Int64}},
+                                       modesOut::Vector{Int32}, dataType::Type, computeType::Type)
         desc_ref = Ref{cutensornetNetworkDescriptor_t}()
-        cutensornetCreateNetworkDescriptor(handle(), numInputs, numModesIn, extentsIn, stridesIn, modesIn, alignmentRequirementsIn, numModesOut,
-                                           extentsOut, stridesOut, modesOut, alignmentRequirementsOut, dataType, computeType, desc_ref)
+        cutensornetCreateNetworkDescriptor(handle(), numInputs, numModesIn, extentsIn, stridesIn, modesIn, qualifiersIn, numModesOut,
+                                           extentsOut, stridesOut, modesOut, dataType, computeType, desc_ref)
         obj = new(desc_ref[])
         finalizer(cutensornetDestroyNetworkDescriptor, obj)
         obj
@@ -74,20 +73,19 @@ mutable struct CuTensorNetwork{T}
     input_modes::Vector{Vector{Int32}}
     input_extents::Vector{Vector{Int32}}
     input_strides::Vector{<:Union{Ptr{Nothing}, Vector{Int32}}}
-    input_alignment_reqs::Vector{Int32}
+    input_qualifiers::Vector{cutensornetTensorQualifiers_t}
     input_arrs::Vector{CuArray{T}}
     output_modes::Vector{Int32}
     output_extents::Vector{Int32}
     output_strides::Union{Ptr{Nothing}, Vector{Int32}}
-    output_alignment_reqs::Int32
     output_arr::CuArray{T}
 end
-function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides, input_alignment_reqs, output_modes, output_extents, output_strides, output_alignment_reqs)
-    desc = CuTensorNetworkDescriptor(Int32(length(input_modes)), Int32.(length.(input_modes)), input_extents, input_strides, input_modes, input_alignment_reqs,
-                                     Int32(length(output_modes)), output_extents, output_strides, output_modes, output_alignment_reqs, T, compute_type(real(T)))
+function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides, input_qualifiers, output_modes, output_extents, output_strides)
+    desc = CuTensorNetworkDescriptor(Int32(length(input_modes)), Int32.(length.(input_modes)), input_extents, input_strides, input_modes, input_qualifiers,
+                                     Int32(length(output_modes)), output_extents, output_strides, output_modes, T, compute_type(real(T)))
 
-    return CuTensorNetwork{T}(desc, input_modes, input_extents, input_strides, input_alignment_reqs, Vector{CuArray{T}}(undef, 0),
-                              output_modes, output_extents, output_strides, output_alignment_reqs, CUDA.zeros(T, 0))
+    return CuTensorNetwork{T}(desc, input_modes, input_extents, input_strides, cutensornetTensorQualifiers_t.(input_qualifiers), Vector{CuArray{T}}(undef, 0),
+                              output_modes, output_extents, output_strides, CUDA.zeros(T, 0))
 end
 
 mutable struct CuTensorNetworkContractionOptimizerInfo
