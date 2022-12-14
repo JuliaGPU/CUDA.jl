@@ -203,13 +203,17 @@ steps:
             println("--- :julia: Instantiating project")
             if "{{matrix}}" == "CUTENSORNET"
               # HACK: CUTENSORNET depends on CUTENSOR
-              Pkg.develop(; path=joinpath(pwd(), "lib", "cutensor"))
+              Pkg.develop([Pkg.PackageSpec(path=joinpath(pwd(), "lib", "cutensor")), Pkg.PackageSpec(path=joinpath(pwd(), "lib", "cutensornet"))])
               Pkg.status()
+            else
+              Pkg.develop(; path=joinpath(pwd(), "lib", lowercase("{{matrix}}")))
             end
-            Pkg.develop(; path=joinpath(pwd(), "lib", lowercase("{{matrix}}")))
             Pkg.activate("{{matrix}}")
             Pkg.status()
 
+            if "{{matrix}}" == "CUTENSORNET"
+              Pkg.develop(path=joinpath(pwd(), "lib", "cutensor"))
+            end
             Pkg.develop(; path=pwd())
             using CUDA
             CUDA.set_runtime_version!(v"11.8")
