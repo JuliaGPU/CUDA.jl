@@ -372,6 +372,32 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
     end
 end
 
+# Diagonal
+Base.Array(D::Diagonal{T, <:CuArray{T}}) where {T} = Diagonal(Array(D.diag))
+CuArray(D::Diagonal{T, <:Vector{T}}) where {T} = Diagonal(CuArray(D.diag))
+
+function LinearAlgebra.inv(D::Diagonal{T, <:CuArray{T}}) where {T}
+    Di = map(inv, D.diag)
+    if any(isinf, Di)
+        error("Singular Exception")
+    end
+    Diagonal(Di)
+end
+
+LinearAlgebra.rdiv!(A::CuArray, D::Diagonal) =  _rdiv!(A, A, D)
+
+Base.:/(A::CuArray, D::Diagonal) = _rdiv!(similar(A, typeof(oneunit(eltype(A)) / oneunit(eltype(D)))), A, D)
+
+function _rdiv!(B::CuArray, A::CuArray, D::Diagonal)
+    m, n = size(A, 1), size(A, 2)
+    if (k = length(D.diag)) != n
+        throw(DimensionMismatch("left hand side has $n columns but D is $k by $k"))
+    end
+    B .= A*inv(D)
+    B
+end
+
+
 ## adjoint/transpose multiplication ('uploc' reversed)
 for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
                             (:UnitLowerTriangular, 'U', 'U'),
