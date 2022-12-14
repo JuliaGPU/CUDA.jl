@@ -35,11 +35,7 @@ end
     end
 end
 
-# @testset "$typ kronecker product" for
-@testitem "prova" begin
-    using CUDA.CUSPARSE
-    using LinearAlgebra, SparseArrays
-    for
+@testset "$typ kronecker product" for
     typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
 
     a = sprand(ComplexF32, 100, 100, 0.1)
@@ -54,7 +50,6 @@ end
     @test collect(kron(C, A)) ≈ kron(C, a)
     @test collect(kron(A', C)) ≈ kron(a', C)
     @test collect(kron(C, A')) ≈ kron(C, a')
-end
 end
 
 @testset "Reshape $typ (100,100) -> (20, 500) and droptol" for
