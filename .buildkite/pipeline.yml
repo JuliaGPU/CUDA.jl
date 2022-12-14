@@ -145,44 +145,41 @@ steps:
   - group: ":nesting_dolls: Subpackages"
     # depends_on: "cuda"
     steps:
-      - label: "{{matrix}} on CUDA 10"
-        matrix:
-            - "CUDNN"
-            - "CUTENSOR"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: 1.6
-          - JuliaCI/julia-coverage#v1:
-              codecov: true
-              dirs:
-                - src
-                - lib
-                - examples
-        agents:
-          queue: "juliagpu"
-          cuda: "10.2"
-          cap: "sm_75"
-        if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
-        timeout_in_minutes: 120
-        commands: |
-          julia -e '
-            using Pkg
+      # - label: "{{matrix}} on CUDA 10"
+      #   matrix:
+      #       - "CUDNN"
+      #       - "CUTENSOR"
+      #   plugins:
+      #     - JuliaCI/julia#v1:
+      #         version: 1.6
+      #     - JuliaCI/julia-coverage#v1:
+      #         codecov: true
+      #         dirs:
+      #           - src
+      #           - lib
+      #           - examples
+      #   agents:
+      #     queue: "juliagpu"
+      #     cuda: "10.2"
+      #     cap: "sm_75"
+      #   if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+      #   timeout_in_minutes: 120
+      #   commands: |
+      #     julia -e '
+      #       using Pkg
 
-            println("--- :julia: Instantiating project")
-            Pkg.develop(; path=joinpath(pwd(), "lib", lowercase("{{matrix}}")))
-            Pkg.activate("{{matrix}}")
+      #       println("--- :julia: Instantiating project")
+      #       Pkg.develop(; path=joinpath(pwd(), "lib", lowercase("{{matrix}}")))
+      #       Pkg.activate("{{matrix}}")
 
-            Pkg.develop(; path=pwd())
-            using CUDA
-            CUDA.set_runtime_version!(v"10.2")
+      #       Pkg.develop(; path=pwd())
+      #       using CUDA
+      #       CUDA.set_runtime_version!(v"10.2")
 
-            println("+++ :julia: Running tests")
-            Pkg.test()'
+      #       println("+++ :julia: Running tests")
+      #       Pkg.test()'
       - label: "{{matrix}} on CUDA 11"
         matrix:
-            - "CUDNN"
-            - "CUTENSOR"
-            - "CUSTATEVEC"
             - "CUTENSORNET"
         plugins:
           - JuliaCI/julia#v1:
@@ -207,9 +204,11 @@ steps:
             if "{{matrix}}" == "CUTENSORNET"
               # HACK: CUTENSORNET depends on CUTENSOR
               Pkg.develop(; path=joinpath(pwd(), "lib", "cutensor"))
+              Pkg.status()
             end
             Pkg.develop(; path=joinpath(pwd(), "lib", lowercase("{{matrix}}")))
             Pkg.activate("{{matrix}}")
+            Pkg.status()
 
             Pkg.develop(; path=pwd())
             using CUDA
