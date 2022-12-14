@@ -213,9 +213,9 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
             $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(_sptranspose(parent(B)))) )
         LinearAlgebra.kron(A::Transpose{T,<:$SparseMatrixType}, B::Transpose{T,<:$SparseMatrixType}) where {T} = 
             $SparseMatrixType( kron(CuSparseMatrixCOO(_sptranspose(parent(A))), CuSparseMatrixCOO(_sptranspose(parent(B)))) )
-        LinearAlgebra.kron(A::Transpose{T,<:$SparseMatrixType}, B::Diagonal) where {T,M} = 
+        LinearAlgebra.kron(A::Transpose{T,<:$SparseMatrixType}, B::Diagonal) where {T} = 
             $SparseMatrixType( kron(CuSparseMatrixCOO(_sptranspose(parent(A))), B) )
-        LinearAlgebra.kron(A::Diagonal, B::Transpose{T,<:$SparseMatrixType}) where {T,M} = 
+        LinearAlgebra.kron(A::Diagonal, B::Transpose{T,<:$SparseMatrixType}) where {T} = 
             $SparseMatrixType( kron(A, CuSparseMatrixCOO(_sptranspose(parent(B)))) )
 
         LinearAlgebra.kron(A::Adjoint{T,<:$SparseMatrixType}, B::$SparseMatrixType{T,M}) where {T,M} = 
@@ -224,9 +224,9 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
             $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(_spadjoint(parent(B)))) )
         LinearAlgebra.kron(A::Adjoint{T,<:$SparseMatrixType}, B::Adjoint{T,<:$SparseMatrixType}) where {T} = 
             $SparseMatrixType( kron(CuSparseMatrixCOO(_spadjoint(parent(A))), CuSparseMatrixCOO(_spadjoint(parent(B)))) )
-        LinearAlgebra.kron(A::Adjoint{T,<:$SparseMatrixType}, B::Diagonal) where {T,M} = 
+        LinearAlgebra.kron(A::Adjoint{T,<:$SparseMatrixType}, B::Diagonal) where {T} = 
             $SparseMatrixType( kron(CuSparseMatrixCOO(_spadjoint(parent(A))), B) )
-        LinearAlgebra.kron(A::Diagonal, B::Adjoint{T,<:$SparseMatrixType}) where {T,M} = 
+        LinearAlgebra.kron(A::Diagonal, B::Adjoint{T,<:$SparseMatrixType}) where {T} = 
             $SparseMatrixType( kron(A, CuSparseMatrixCOO(_spadjoint(parent(B)))) )
 
 
