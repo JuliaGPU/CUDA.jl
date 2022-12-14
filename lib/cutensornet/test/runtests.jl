@@ -13,11 +13,14 @@ end
 using CUDA
 @info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
 
+using LinearAlgebra
+using CUTENSOR
 using CUTENSORNET
+@test CUTENSOR.has_cutensor()
 @test CUTENSORNET.has_cutensornet()
 @info "CUTENSORNET version: $(CUTENSORNET.version()) (built for CUDA $(CUTENSORNET.cuda_version()))"
 
-import CUTENSORNET: CuTensorNetwork, rehearse_contraction, perform_contraction!, AutoTune, NoAutoTune
+import CUTENSORNET: CuTensorNetwork, rehearse_contraction, perform_contraction!, gateSplit!, AutoTune, NoAutoTune
 
 using TensorOperations
 
@@ -70,6 +73,54 @@ using TensorOperations
                     @test D ≈ hD
                 end
             end
+        end
+        @testset "QR" begin
+            A = CUDA.rand(elty, n, m)
+            modesA = ['n','m']
+            Q = CUDA.zeros(elty, n, n)
+            R = CUDA.zeros(elty, n, m)
+            Q, R = qr!(CuTensor(A, modesA), CuTensor(Q, ['n', 'o']), CuTensor(R, ['o', 'm']))
+            @test collect(Q*R) ≈ collect(A) 
+        end
+        @testset "SVD" begin
+            A = CUDA.rand(elty, n, n)
+            modesA = ['n','m']
+            U = CUDA.zeros(elty, n, n)
+            S = CUDA.zeros(real(elty), n)
+            V = CUDA.zeros(elty, n, n)
+            config = CUTENSORNET.SVDConfig(abs_cutoff=0.0, rel_cutoff=0.0)
+            U, S, V, info = svd!(CuTensor(A, modesA), CuTensor(U, ['n', 'o']), S, CuTensor(V, ['o', 'm']), svd_config=config)
+            @test CUTENSORNET.full_extent(info)      == n
+            @test CUTENSORNET.reduced_extent(info)   == n
+            @test CUTENSORNET.discarded_weight(info) ≈ 0.0
+            @test collect(U)*diagm(collect(S))*collect(V) ≈ collect(A)
+        end
+        @testset "GateSplit" begin
+            a = 16
+            b = 16
+            c = 16
+            d = 2
+            f = 2
+            i = 2
+            j = 2
+            g = 16
+            h = 16
+            A = CUDA.rand(elty, a, b, c, d)
+            B = CUDA.rand(elty, c, f, g, h)
+            G = CUDA.rand(elty, i, j, d, f)
+            modesA = ['a','b','c','d']
+            modesB = ['c','f','g','h']
+            modesG = ['i','j','d','f']
+            z = 16
+            Aout = CUDA.zeros(elty, a, b, z, i)
+            modesAout = ['a','b','z','i']
+            S    = CUDA.zeros(real(elty), z)
+            Bout = CUDA.zeros(elty, z, j, g, h)
+            modesBout = ['z','j','g','h']
+            config = CUTENSORNET.SVDConfig(abs_cutoff=0.0, rel_cutoff=0.0)
+            Aout, S, Bout, info = gateSplit!(CuTensor(A, modesA), CuTensor(B, modesB), CuTensor(G, modesG), CuTensor(Aout, modesAout), S, CuTensor(Bout, modesBout), svd_config=config)
+            @test CUTENSORNET.full_extent(info)      == z*z*2
+            @test CUTENSORNET.reduced_extent(info)   == z
         end
     end
 end
