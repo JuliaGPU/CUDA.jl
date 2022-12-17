@@ -212,9 +212,9 @@ steps:
             Pkg.activate("{{matrix}}")
             Pkg.status()
 
-            if "{{matrix}}" == "CUTENSORNET"
-              Pkg.develop(path=joinpath(pwd(), "lib", "cutensor"))
-            end
+            #if "{{matrix}}" == "CUTENSORNET"
+            #  Pkg.develop(path=joinpath(pwd(), "lib", "cutensor"))
+            #end
             Pkg.develop(; path=pwd())
             using CUDA
             CUDA.set_runtime_version!(v"11.8")
