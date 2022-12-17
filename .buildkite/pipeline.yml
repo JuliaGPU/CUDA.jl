@@ -203,7 +203,7 @@ steps:
             println("--- :julia: Instantiating project")
             if "{{matrix}}" == "CUTENSORNET"
               # HACK: CUTENSORNET depends on CUTENSOR
-              Pkg.develop([Pkg.PackageSpec(path=joinpath(pwd(), "lib", "cutensor")), Pkg.PackageSpec(path=joinpath(pwd(), "lib", "cutensornet"))])
+              Pkg.develop(path=joinpath(pwd(), "lib", "cutensor"))
               Pkg.status()
             else
               Pkg.develop(; path=joinpath(pwd(), "lib", lowercase("{{matrix}}")))
