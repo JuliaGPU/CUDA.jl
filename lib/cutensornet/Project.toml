@@ -6,7 +6,9 @@ version = "0.1.0"
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUTENSOR = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 cuQuantum_jll = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
 
 [compat]
-cuQuantum_jll = "~22.7"
+cuQuantum_jll = "~22.11"

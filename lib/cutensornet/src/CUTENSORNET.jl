@@ -1,8 +1,12 @@
 module CUTENSORNET
 
+using LinearAlgebra
 using CUDA
 using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace
 using CUDA: @retry_reclaim, initialize_context, isdebug
+
+using CUTENSOR
+using CUTENSOR: CuTensor
 
 using CEnum: @cenum
 

@@ -58,3 +58,22 @@ needs_context = false
 [api.cutensornetContraction.argtypes]
 3 = "Ptr{CuPtr{Cvoid}}"
 4 = "CuPtr{Cvoid}"
+
+[api.cutensornetTensorSVD.argtypes]
+3 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+
+[api.cutensornetTensorQR.argtypes]
+3 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+
+[api.cutensornetGateSplit.argtypes]
+3 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"

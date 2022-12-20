@@ -34,6 +34,8 @@ function description(err)
         "the sampler was called prior to preprocessing."
     elseif err.code == CUSTATEVEC_STATUS_NO_DEVICE_ALLOCATOR
         "the device memory pool was not set."
+    elseif err.code == CUSTATEVEC_STATUS_DEVICE_ALLOCATOR_ERROR
+        "operation with the device memory pool failed"
     else
         "no description for this error"
     end

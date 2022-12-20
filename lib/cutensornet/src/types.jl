@@ -42,16 +42,51 @@ function Base.convert(::Type{Type}, T::cutensornetComputeType_t)
     end
 end
 
+mutable struct CuTensorDescriptor{T}
+    handle::cutensornetTensorDescriptor_t
+    function CuTensorDescriptor{T}(extents, strides, modes) where {T}
+        desc_ref = Ref{cutensornetTensorDescriptor_t}()
+        cutensornetCreateTensorDescriptor(handle(), Int32(length(extents)), convert(Vector{Int64},  collect(extents)),
+                                          convert(Vector{Int64}, collect(strides)), convert(Vector{Int32}, collect(modes)),
+                                          T, desc_ref)
+        obj = new{T}(desc_ref[])
+        finalizer(cutensornetDestroyTensorDescriptor, obj)
+        obj
+    end
+end
+CuTensorDescriptor(T::DataType, extents, strides, modes) = CuTensorDescriptor{T}(extents, strides, modes)
+CuTensorDescriptor(a::AbstractArray{T, N}, modes) where {T, N} = CuTensorDescriptor{T}(size(a), strides(a), modes)
+CuTensorDescriptor(t::CuTensor{T, N}) where {T, N} = CuTensorDescriptor{T}(size(t), stride(t), t.inds)
+
+function Base.ndims(desc::CuTensorDescriptor)
+    numModes = Ref{Int32}(C_NULL)
+    cutensornetGetTensorDetails(handle(), desc, numModes, C_NULL, C_NULL, C_NULL, C_NULL)
+    return numModes[]
+end
+
+function Base.size(desc::CuTensorDescriptor)
+    extents  = Vector{Int64}(undef, ndims(desc))
+    cutensornetGetTensorDetails(handle(), desc, numModes, C_NULL, C_NULL, extents, C_NULL)
+    return tuple(extents...)
+end
+
+function Base.strides(desc::CuTensorDescriptor)
+    strides  = Vector{Int64}(undef, ndims(desc))
+    cutensornetGetTensorDetails(handle(), desc, numModes, C_NULL, C_NULL, C_NULL, strides)
+    return tuple(strides...)
+end
+
+Base.unsafe_convert(::Type{cutensornetTensorDescriptor_t}, desc::CuTensorDescriptor) = desc.handle
+
 mutable struct CuTensorNetworkDescriptor
     handle::cutensornetNetworkDescriptor_t
     function CuTensorNetworkDescriptor(numInputs::Int32, numModesIn::Vector{Int32}, extentsIn::Vector{Vector{Int64}},
-                                       stridesIn, modesIn::Vector{Vector{Int32}},
-                                       alignmentRequirementsIn::Vector{UInt32}, numModesOut::Int32,
-                                       extentsOut::Vector{Int64}, stridesOut::Union{Ptr{Nothing}, Vector{Int64}}, modesOut::Vector{Int32},
-                                       alignmentRequirementsOut::UInt32, dataType::Type, computeType::Type)
+                                       stridesIn, modesIn::Vector{Vector{Int32}}, qualifiersIn::Vector{Int32},
+                                       numModesOut::Int32, extentsOut::Vector{Int64}, stridesOut::Union{Ptr{Nothing}, Vector{Int64}},
+                                       modesOut::Vector{Int32}, dataType::Type, computeType::Type)
         desc_ref = Ref{cutensornetNetworkDescriptor_t}()
-        cutensornetCreateNetworkDescriptor(handle(), numInputs, numModesIn, extentsIn, stridesIn, modesIn, alignmentRequirementsIn, numModesOut,
-                                           extentsOut, stridesOut, modesOut, alignmentRequirementsOut, dataType, computeType, desc_ref)
+        cutensornetCreateNetworkDescriptor(handle(), numInputs, numModesIn, extentsIn, stridesIn, modesIn, qualifiersIn, numModesOut,
+                                           extentsOut, stridesOut, modesOut, dataType, computeType, desc_ref)
         obj = new(desc_ref[])
         finalizer(cutensornetDestroyNetworkDescriptor, obj)
         obj
@@ -74,20 +109,48 @@ mutable struct CuTensorNetwork{T}
     input_modes::Vector{Vector{Int32}}
     input_extents::Vector{Vector{Int32}}
     input_strides::Vector{<:Union{Ptr{Nothing}, Vector{Int32}}}
-    input_alignment_reqs::Vector{Int32}
+    input_qualifiers::Vector{cutensornetTensorQualifiers_t}
     input_arrs::Vector{CuArray{T}}
     output_modes::Vector{Int32}
     output_extents::Vector{Int32}
     output_strides::Union{Ptr{Nothing}, Vector{Int32}}
-    output_alignment_reqs::Int32
     output_arr::CuArray{T}
 end
-function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides, input_alignment_reqs, output_modes, output_extents, output_strides, output_alignment_reqs)
-    desc = CuTensorNetworkDescriptor(Int32(length(input_modes)), Int32.(length.(input_modes)), input_extents, input_strides, input_modes, input_alignment_reqs,
-                                     Int32(length(output_modes)), output_extents, output_strides, output_modes, output_alignment_reqs, T, compute_type(real(T)))
+function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides, input_qualifiers, output_modes, output_extents, output_strides)
+    desc = CuTensorNetworkDescriptor(Int32(length(input_modes)), Int32.(length.(input_modes)), input_extents, input_strides, input_modes, input_qualifiers,
+                                     Int32(length(output_modes)), output_extents, output_strides, output_modes, T, compute_type(real(T)))
 
-    return CuTensorNetwork{T}(desc, input_modes, input_extents, input_strides, input_alignment_reqs, Vector{CuArray{T}}(undef, 0),
-                              output_modes, output_extents, output_strides, output_alignment_reqs, CUDA.zeros(T, 0))
+    return CuTensorNetwork{T}(desc, input_modes, input_extents, input_strides, cutensornetTensorQualifiers_t.(input_qualifiers), Vector{CuArray{T}}(undef, 0),
+                              output_modes, output_extents, output_strides, CUDA.zeros(T, 0))
+end
+
+mutable struct CuTensorSVDInfo
+    handle::cutensornetTensorSVDInfo_t
+    function CuTensorSVDInfo()
+        info_ref = Ref{cutensornetTensorSVDInfo_t}()
+        cutensornetCreateTensorSVDInfo(handle(), info_ref)
+        obj = new(info_ref[])
+        finalizer(cutensornetDestroyTensorSVDInfo, obj)
+        obj
+    end
+end
+Base.unsafe_convert(::Type{cutensornetTensorSVDInfo_t}, info::CuTensorSVDInfo) = info.handle
+function full_extent(info::CuTensorSVDInfo)
+    extent = Ref{Int64}()
+    cutensornetTensorSVDInfoGetAttribute(handle(), info, CUTENSORNET_TENSOR_SVD_INFO_FULL_EXTENT, extent, sizeof(Int64))
+    return extent[]
+end
+
+function reduced_extent(info::CuTensorSVDInfo)
+    extent = Ref{Int64}()
+    cutensornetTensorSVDInfoGetAttribute(handle(), info, CUTENSORNET_TENSOR_SVD_INFO_REDUCED_EXTENT, extent, sizeof(Int64))
+    return extent[]
+end
+
+function discarded_weight(info::CuTensorSVDInfo)
+    weight = Ref{Float64}()
+    cutensornetTensorSVDInfoGetAttribute(handle(), info, CUTENSORNET_TENSOR_SVD_INFO_DISCARDED_WEIGHT, weight, sizeof(Float64))
+    return weight[]
 end
 
 mutable struct CuTensorNetworkContractionOptimizerInfo
@@ -190,6 +253,57 @@ mutable struct CuTensorNetworkContractionOptimizerConfig
 end
 
 Base.unsafe_convert(::Type{cutensornetContractionOptimizerConfig_t}, desc::CuTensorNetworkContractionOptimizerConfig) = desc.handle
+
+Base.@kwdef struct SVDConfig
+    abs_cutoff::Float64=0.0
+    rel_cutoff::Float64=0.0
+    s_normalization::cutensornetTensorSVDNormalization_t=CUTENSORNET_TENSOR_SVD_NORMALIZATION_NONE
+    s_partition::cutensornetTensorSVDPartition_t=CUTENSORNET_TENSOR_SVD_PARTITION_NONE
+end
+
+mutable struct CuTensorSVDConfig
+    handle::cutensornetTensorSVDConfig_t
+    function CuTensorSVDConfig()
+        desc_ref = Ref{cutensornetTensorSVDConfig_t}()
+        cutensornetCreateTensorSVDConfig(handle(), desc_ref)
+        obj = new(desc_ref[])
+        finalizer(cutensornetDestroyTensorSVDConfig, obj)
+        obj
+    end
+    function CuTensorSVDConfig(prefs::SVDConfig)
+        desc_ref = Ref{cutensornetTensorSVDConfig_t}()
+        cutensornetCreateTensorSVDConfig(handle(), desc_ref)
+        obj = new(desc_ref[])
+        finalizer(cutensornetDestroyTensorSVDConfig, obj)
+        # apply preference options
+        for attr in (
+            :abs_cutoff=>CUTENSORNET_TENSOR_SVD_CONFIG_ABS_CUTOFF,
+            :rel_cutoff=>CUTENSORNET_TENSOR_SVD_CONFIG_REL_CUTOFF,
+            :s_normalization=>CUTENSORNET_TENSOR_SVD_CONFIG_S_NORMALIZATION,
+            :s_partition=>CUTENSORNET_TENSOR_SVD_CONFIG_S_PARTITION,
+        )
+            attr_buf = Ref(Base.getproperty(prefs, attr[1]))
+            cutensornetTensorSVDConfigSetAttribute(handle(), desc_ref[], attr[2], attr_buf, sizeof(attr_buf))
+        end
+        obj
+    end
+end
+function abs_cutoff(conf::CuTensorSVDConfig)
+    attr_buf = Ref{Float64}(0.0)
+    cutensornetTensorSVDConfigGetAttribute(handle(), conf, CUTENSORNET_TENSOR_SVD_CONFIG_ABS_CUTOFF, attr_buf, sizeof(attr_buf))
+    return attr_buf[]
+end
+function rel_cutoff(conf::CuTensorSVDConfig)
+    attr_buf = Ref{Float64}(0.0)
+    cutensornetTensorSVDConfigGetAttribute(handle(), conf, CUTENSORNET_TENSOR_SVD_CONFIG_REL_CUTOFF, attr_buf, sizeof(attr_buf))
+    return attr_buf[]
+end
+function normalization(conf::CuTensorSVDConfig)
+    attr_buf = Ref{cutensornetTensorSVDNormalization_t}()
+    cutensornetTensorSVDConfigGetAttribute(handle(), conf, CUTENSORNET_TENSOR_SVD_CONFIG_S_NORMALIZATION, attr_buf, sizeof(attr_buf))
+    return attr_buf[]
+end
+Base.unsafe_convert(::Type{cutensornetTensorSVDConfig_t}, desc::CuTensorSVDConfig) = desc.handle
 
 Base.@kwdef struct AutotunePreferences
     max_iterations::Int32=3

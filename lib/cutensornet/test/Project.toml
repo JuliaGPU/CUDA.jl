@@ -2,5 +2,7 @@
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+CUTENSOR = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
