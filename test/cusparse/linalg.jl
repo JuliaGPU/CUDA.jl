@@ -43,6 +43,15 @@ end
     A = typ(a)
     B = typ(b)
     @test collect(kron(A, B)) ≈ kron(a, b)
+    @test collect(kron(A', B)) ≈ kron(a', b)
+
+    C = I(50)
+    @test collect(kron(A, C)) ≈ kron(a, C)
+    @test collect(kron(C, A)) ≈ kron(C, a)
+    @test collect(kron(transpose(A), C)) ≈ kron(transpose(a), C)
+    @test collect(kron(C, transpose(A))) ≈ kron(C, transpose(a))
+    @test collect(kron(A', C)) ≈ kron(a', C)
+    @test collect(kron(C, A')) ≈ kron(C, a')
 end
 
 @testset "Reshape $typ (100,100) -> (20, 500) and droptol" for

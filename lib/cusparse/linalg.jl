@@ -121,10 +121,60 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}) wh
     col = repeat(col, inner = Bnnz)
     data = repeat(A.nzVal, inner = Bnnz)
 
-    row .+= repeat(reverse(B.rowInd) .- 1, outer = Annz) .+ 1
-    col .+= repeat(reverse(B.colInd) .- 1, outer = Annz) .+ 1
+    row .+= repeat(B.rowInd .- 1, outer = Annz) .+ 1
+    col .+= repeat(B.colInd .- 1, outer = Annz) .+ 1
 
-    data .*= repeat(reverse(B.nzVal), outer = Annz)
+    data .*= repeat(B.nzVal, outer = Annz)
+    
+    sparse(row, col, data, out_shape..., fmt = :coo)
+end
+
+function LinearAlgebra.kron(A::CuSparseMatrixCOO{T}, B::Diagonal) where {T}
+    mA,nA = size(A)
+    mB,nB = size(B)
+    out_shape = (mA * mB, nA * nB)
+    Annz = Int64(A.nnz)
+    Bnnz = nB
+
+    if Annz == 0 || Bnnz == 0
+        return CuSparseMatrixCOO(CuVector{T}(undef, 0), CuVector{T}(undef, 0), CuVector{T}(undef, 0), out_shape)
+    end
+
+    row = (A.rowInd .- 1) .* mB
+    row = repeat(row, inner = Bnnz)
+    col = (A.colInd .- 1) .* nB
+    col = repeat(col, inner = Bnnz)
+    data = repeat(A.nzVal, inner = Bnnz)
+
+    row .+= CuVector(repeat(0:nB-1, outer = Annz)) .+ 1
+    col .+= CuVector(repeat(0:nB-1, outer = Annz)) .+ 1
+
+    data .*= repeat(CUDA.ones(T, nB), outer = Annz)
+    
+    sparse(row, col, data, out_shape..., fmt = :coo)
+end
+
+function LinearAlgebra.kron(A::Diagonal, B::CuSparseMatrixCOO{T}) where {T}
+    mA,nA = size(A)
+    mB,nB = size(B)
+    out_shape = (mA * mB, nA * nB)
+    Annz = nA
+    Bnnz = Int64(B.nnz)
+
+    if Annz == 0 || Bnnz == 0
+        return CuSparseMatrixCOO(CuVector{T}(undef, 0), CuVector{T}(undef, 0), CuVector{T}(undef, 0), out_shape)
+    end
+
+    row = (0:nA-1) .* mB
+    row = CuVector(repeat(row, inner = Bnnz))
+    col = (0:nA-1) .* nB
+    col = CuVector(repeat(col, inner = Bnnz))
+    data = repeat(CUDA.ones(T, nA), inner = Bnnz)
+
+    row .+= repeat(B.rowInd .- 1, outer = Annz) .+ 1
+    col .+= repeat(B.colInd .- 1, outer = Annz) .+ 1
+
+    data .*= repeat(B.nzVal, outer = Annz)
     
     sparse(row, col, data, out_shape..., fmt = :coo)
 end
@@ -152,6 +202,10 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
 
         LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::$SparseMatrixType{T,M}) where {T,M} = 
             $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(B)) )
+        LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::Diagonal) where {T,M} = 
+            $SparseMatrixType( kron(CuSparseMatrixCOO(A), B) )
+        LinearAlgebra.kron(A::Diagonal, B::$SparseMatrixType{T,M}) where {T,M} = 
+            $SparseMatrixType( kron(A, CuSparseMatrixCOO(B)) )
         
         LinearAlgebra.kron(A::Transpose{T,<:$SparseMatrixType}, B::$SparseMatrixType{T,M}) where {T,M} = 
             $SparseMatrixType( kron(CuSparseMatrixCOO(_sptranspose(parent(A))), CuSparseMatrixCOO(B)) )
@@ -159,13 +213,22 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
             $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(_sptranspose(parent(B)))) )
         LinearAlgebra.kron(A::Transpose{T,<:$SparseMatrixType}, B::Transpose{T,<:$SparseMatrixType}) where {T} = 
             $SparseMatrixType( kron(CuSparseMatrixCOO(_sptranspose(parent(A))), CuSparseMatrixCOO(_sptranspose(parent(B)))) )
-        
+        LinearAlgebra.kron(A::Transpose{T,<:$SparseMatrixType}, B::Diagonal) where {T} = 
+            $SparseMatrixType( kron(CuSparseMatrixCOO(_sptranspose(parent(A))), B) )
+        LinearAlgebra.kron(A::Diagonal, B::Transpose{T,<:$SparseMatrixType}) where {T} = 
+            $SparseMatrixType( kron(A, CuSparseMatrixCOO(_sptranspose(parent(B)))) )
+
         LinearAlgebra.kron(A::Adjoint{T,<:$SparseMatrixType}, B::$SparseMatrixType{T,M}) where {T,M} = 
             $SparseMatrixType( kron(CuSparseMatrixCOO(_spadjoint(parent(A))), CuSparseMatrixCOO(B)) )
         LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::Adjoint{T,<:$SparseMatrixType}) where {T,M} = 
             $SparseMatrixType( kron(CuSparseMatrixCOO(A), CuSparseMatrixCOO(_spadjoint(parent(B)))) )
         LinearAlgebra.kron(A::Adjoint{T,<:$SparseMatrixType}, B::Adjoint{T,<:$SparseMatrixType}) where {T} = 
             $SparseMatrixType( kron(CuSparseMatrixCOO(_spadjoint(parent(A))), CuSparseMatrixCOO(_spadjoint(parent(B)))) )
+        LinearAlgebra.kron(A::Adjoint{T,<:$SparseMatrixType}, B::Diagonal) where {T} = 
+            $SparseMatrixType( kron(CuSparseMatrixCOO(_spadjoint(parent(A))), B) )
+        LinearAlgebra.kron(A::Diagonal, B::Adjoint{T,<:$SparseMatrixType}) where {T} = 
+            $SparseMatrixType( kron(A, CuSparseMatrixCOO(_spadjoint(parent(B)))) )
+
 
         function Base.reshape(A::$SparseMatrixType, dims::NTuple{N,Int}) where {N}
             B = CuSparseMatrixCOO(A)
