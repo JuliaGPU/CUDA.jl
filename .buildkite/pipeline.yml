@@ -169,10 +169,10 @@ steps:
             using Pkg
 
             println("--- :julia: Instantiating project")
-            Pkg.develop(; path=joinpath(pwd(), "lib", lowercase("{{matrix}}")))
-            Pkg.activate("{{matrix}}")
+            Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix}}")))
+            Pkg.develop(path=pwd())
+            Pkg.instantiate()
 
-            Pkg.develop(; path=pwd())
             using CUDA
             CUDA.set_runtime_version!(v"10.2")
 
@@ -180,6 +180,9 @@ steps:
             Pkg.test()'
       - label: "{{matrix}} on CUDA 11"
         matrix:
+            - "CUDNN"
+            - "CUTENSOR"
+            - "CUSTATEVEC"
             - "CUTENSORNET"
         plugins:
           - JuliaCI/julia#v1:
@@ -201,21 +204,14 @@ steps:
             using Pkg
 
             println("--- :julia: Instantiating project")
+            Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix}}")))
             if "{{matrix}}" == "CUTENSORNET"
-              # HACK: CUTENSORNET depends on CUTENSOR
-              Pkg.develop(; path=joinpath(pwd(), "lib", "cutensor"))
-              Pkg.develop(; path=joinpath(pwd(), "lib", lowercase("{{matrix}}")))
-              Pkg.status()
-            else
-              Pkg.develop(; path=joinpath(pwd(), "lib", lowercase("{{matrix}}")))
-            end
-            Pkg.activate("{{matrix}}")
-            Pkg.status()
-
-            if "{{matrix}}" == "CUTENSORNET"
+              # HACK: CUTENSORNET depends on a development version of CUTENSOR
               Pkg.develop(path=joinpath(pwd(), "lib", "cutensor"))
             end
-            Pkg.develop(; path=pwd())
+            Pkg.develop(path=pwd())
+            Pkg.instantiate()
+
             using CUDA
             CUDA.set_runtime_version!(v"11.8")
 
@@ -237,15 +233,15 @@ steps:
                 - examples
         command: |
           julia -e '
-            using Pkg;
+            using Pkg
 
-            println("--- :julia: Instantiating project");
-            Pkg.develop(PackageSpec(path=pwd()));
-            Pkg.add(PackageSpec(name="NNlibCUDA", rev="master"));
-            Pkg.instantiate();
+            println("--- :julia: Instantiating project")
+            Pkg.develop(path=pwd())
+            Pkg.add(name="NNlibCUDA", rev="master")
+            Pkg.instantiate()
 
-            println("+++ :julia: Running tests");
-            Pkg.test("NNlibCUDA"; coverage=true);'
+            println("+++ :julia: Running tests")
+            Pkg.test("NNlibCUDA"; coverage=true)'
         agents:
           queue: "juliagpu"
           cuda: "*"
