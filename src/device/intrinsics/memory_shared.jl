@@ -10,7 +10,8 @@ pointing to a statically-allocated piece of shared memory. The type should be st
 inferable and the dimensions should be constant, or an error will be thrown and the
 generator function will be called dynamically.
 """
-@inline function CuStaticSharedArray(::Type{T}, dims::NTuple{N,<:Integer}) where {T,N}
+@inline function CuStaticSharedArray(::Type{T}, dims::Tuple) where {T}
+    N = length(dims)
     len = prod(dims)
     # NOTE: this relies on const-prop to forward the literal length to the generator.
     #       maybe we should include the size in the type, like StaticArrays does?
@@ -39,7 +40,8 @@ Optionally, an offset parameter indicating how many bytes to add to the base sha
 pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
 shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
 """
-@inline function CuDynamicSharedArray(::Type{T}, dims::NTuple{N,<:Integer}, offset) where {T,N}
+@inline function CuDynamicSharedArray(::Type{T}, dims::Tuple, offset) where {T}
+    N = length(dims)
     @boundscheck begin
         len = prod(dims)
         sz = len*sizeof(T)
