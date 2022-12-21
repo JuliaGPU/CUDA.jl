@@ -64,7 +64,7 @@ script = """
     bar(a) = (foo(a, 42); nothing)
 
     ptr = reinterpret(Core.LLVMPtr{Int,AS.Global}, C_NULL)
-    arr = CuDeviceArray{Int,1,AS.Global}((0,), ptr)
+    arr = CuDeviceArray{Int,1,AS.Global}(ptr, (0,))
 
     CUDA.@sync @cuda bar(arr)
 """
