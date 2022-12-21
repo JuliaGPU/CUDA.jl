@@ -252,7 +252,7 @@ function Base.reshape(a::CuDeviceArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
 end
 
 # create a derived device array (reinterpreted or reshaped) that's still a CuDeviceArray
-@inline function _derived_array(::Type{T}, N::Int, a::CuDeviceArray{T,M,A}, osize::Dims) where {T, M, A}
-  return CuDeviceArray{T,N,A}(osize, a.ptr, a.maxsize)
+@inline function _derived_array(::Type{T}, N::Int, a::CuDeviceArray{T,M,A},
+                                osize::Dims) where {T, M, A}
+  return CuDeviceArray{T,N,A}(a.ptr, osize, a.maxsize)
 end
-
