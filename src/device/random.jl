@@ -190,10 +190,10 @@ end
 for var in [:ki, :wi, :fi, :ke, :we, :fe]
     val = getfield(Random, var)
     gpu_var = Symbol("gpu_$var")
+    arr_typ = :(CuDeviceArray{$(eltype(val)),$(ndims(val)),AS.Constant})
     @eval @inline @generated function $gpu_var()
         ptr = emit_constant_array($(QuoteNode(var)), $val)
-        Expr(:call, :(CuDeviceArray{$(eltype(val)),$(ndims(val)),AS.Constant}),
-             ptr, $(size(val)))
+        Expr(:call, $arr_typ, ptr, $(size(val)))
     end
 end
 
