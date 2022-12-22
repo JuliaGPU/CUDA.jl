@@ -740,10 +740,14 @@ end
 end
 
 @testset "error log" begin
-    @test_throws_message contains("ptxas fatal") CuError CuModule(".version 3.1")
+    invalid_code = """
+        .version 3.1
+        .target sm_999
+        .address_size 64"""
+    @test_throws_message contains("ptxas fatal") CuError CuModule(invalid_code)
 
     link = CuLink()
-    @test_throws_message contains("ptxas fatal") CuError add_data!(link, "dummy", ".version 3.1")
+    @test_throws_message contains("ptxas fatal") CuError add_data!(link, "dummy", invalid_code)
 end
 
 let
