@@ -43,11 +43,11 @@ The following keyword arguments are supported:
 See also: [`@device_code_sass`](@ref)
 """
 function code_sass(io::IO, @nospecialize(func), @nospecialize(types), kernel::Bool=true;
-                   verbose::Bool=false, kwargs...)
+                   verbose::Bool=false, always_inline::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
     target = CUDACompilerTarget(device(); kwargs...)
     params = CUDACompilerParams()
-    job = CompilerJob(target, FunctionSpec(func, tt, kernel), params)
+    job = CompilerJob(target, FunctionSpec(func, tt, kernel), params; always_inline)
     code_sass(io, job; verbose=verbose)
 end
 
@@ -117,12 +117,12 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
     @eval begin
         function $method(io::IO, @nospecialize(func), @nospecialize(types);
                          kernel::Bool=false, minthreads=nothing, maxthreads=nothing,
-                         blocks_per_sm=nothing, maxregs=nothing, always_inline=false,
+                         blocks_per_sm=nothing, maxregs=nothing, always_inline::Bool=false,
                          kwargs...)
             source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
-            target = CUDACompilerTarget(device(); minthreads, maxthreads, blocks_per_sm, maxregs, always_inline)
+            target = CUDACompilerTarget(device(); minthreads, maxthreads, blocks_per_sm, maxregs)
             params = CUDACompilerParams()
-            job = CompilerJob(target, source, params)
+            job = CompilerJob(target, source, params; always_inline)
             GPUCompiler.$method($(args...); kwargs...)
         end
         $method(@nospecialize(func), @nospecialize(types); kwargs...) =
