@@ -36,7 +36,7 @@ const map_frag_sizes = Dict(
                             "a.s8.m16n16k16"  => 2,
                             "a.s8.m8n32k16"   => 1,
                             "a.s8.m32n8k16"   => 4,
-                            
+
                             "a.f16.m16n16k16" => 8,
                             "a.f16.m8n32k16"  => 8,
                             "a.f16.m32n8k16"  => 8,
@@ -52,7 +52,7 @@ const map_frag_sizes = Dict(
                             "b.f16.m16n16k16" => 8,
                             "b.f16.m8n32k16"  => 8,
                             "b.f16.m32n8k16"  => 8,
-                            # C                            
+                            # C
                             "c.s32.m16n16k16" => 8,
                             "c.s32.m8n32k16"  => 8,
                             "c.s32.m32n8k16"  => 8,
@@ -163,7 +163,7 @@ Wrapper around the LLVM intrinsic `@llvm.nvvm.wmma.load.{matrix}.sync.{layout}.{
 - `{shape}`: The overall shape of the MAC operation. Valid values are `m16n16k16`, `m32n8k16`, and `m8n32k16`.
 - `{addr_space}`: The address space of `src_addr`. Can be empty (generic addressing), `shared` or `global`.
 - `{elem_type}`: The type of each element in the matrix. For `a` and `b` matrices, valid values are `u8` (byte unsigned integer),
-                `s8` (byte signed integer), and `f16` (half precision floating point). For `c` and `d` matrices, valid values are 
+                `s8` (byte signed integer), and `f16` (half precision floating point). For `c` and `d` matrices, valid values are
                 `s32` (32-bit signed integer), `f16` (half precision floating point), and `f32` (full precision floating point).
 """
 llvm_wmma_load() = error("Cannot call llvm_wmma_load without values for placeholders!")
@@ -194,9 +194,13 @@ for ops in all_ldst_ops,
     ccall_name = "$llvm_intr"
 
     ptr_ty = LLVMPtr{arr_ty, addr_space_int}
-    struct_ty = Symbol("LLVMStruct$sz")
 
-    @eval $func_name(src_addr, stride) = convert(NTuple{$sz, $frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$frag_ty}, ($ptr_ty, Int32), src_addr, stride))
+    if sz == 1
+        @eval $func_name(src_addr, stride) = tuple(ccall($ccall_name, llvmcall, $frag_ty, ($ptr_ty, Int32), src_addr, stride))
+    else
+        struct_ty = Symbol("LLVMStruct$sz")
+        @eval $func_name(src_addr, stride) = convert(NTuple{$sz, $frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$frag_ty}, ($ptr_ty, Int32), src_addr, stride))
+    end
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_load) $func_name
 end
@@ -220,7 +224,7 @@ Wrapper around the LLVM intrinsic `@llvm.nvvm.wmma.store.d.sync.{layout}.{shape}
 - `{shape}`: The overall shape of the MAC operation. Valid values are `m16n16k16`, `m32n8k16`, and `m8n32k16`.
 - `{addr_space}`: The address space of `src_addr`. Can be empty (generic addressing), `shared` or `global`.
 - `{elem_type}`: The type of each element in the matrix. For `a` and `b` matrices, valid values are `u8` (byte unsigned integer),
-                `s8` (byte signed integer), and `f16` (half precision floating point). For `c` and `d` matrices, valid values are 
+                `s8` (byte signed integer), and `f16` (half precision floating point). For `c` and `d` matrices, valid values are
                 `s32` (32-bit signed integer), `f16` (half precision floating point), and `f32` (full precision floating point).
 """
 llvm_wmma_store() = error("Cannot call llvm_wmma_store without values for placeholders!")
@@ -335,9 +339,12 @@ for ops in all_wmma_ops,
     b_vars = ntuple(i -> :(b[$i]), b_sz)
     c_vars = ntuple(i -> :(c[$i]), c_sz)
 
-    struct_ty = Symbol("LLVMStruct$d_sz")
-
-    @eval $func_name(a, b, c) = convert(NTuple{$d_sz, $d_frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$d_frag_ty}, ($(a_types...), $(b_types...), $(c_types...)), $(a_vars...), $(b_vars...), $(c_vars...)))
+    if d_sz == 1
+        @eval $func_name(a, b, c) = tuple(ccall($ccall_name, llvmcall, $d_frag_ty, ($(a_types...), $(b_types...), $(c_types...)), $(a_vars...), $(b_vars...), $(c_vars...)))
+    else
+        struct_ty = Symbol("LLVMStruct$d_sz")
+        @eval $func_name(a, b, c) = convert(NTuple{$d_sz, $d_frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$d_frag_ty}, ($(a_types...), $(b_types...), $(c_types...)), $(a_vars...), $(b_vars...), $(c_vars...)))
+    end
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_mma) $func_name
 end
@@ -647,7 +654,7 @@ mma
     _, c_frag_sz, c_frag_ty, c_arr_str = get_hl_frag_info("c", C_T, shape)
     d_num_els, _, _, d_arr_str         = get_hl_frag_info("d", D_T, shape)
 
-    
+
 
     # Name of the Julia wrapper
     wrapper = Symbol(join(filter(!isempty, ["llvm", "wmma", "mma", a_layout, b_layout, shape, d_arr_str, c_arr_str]), "_"))
