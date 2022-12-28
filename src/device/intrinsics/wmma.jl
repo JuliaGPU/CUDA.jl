@@ -191,7 +191,7 @@ for ops in all_ldst_ops,
     # Determine types + size for this (matrix, elem_type) combination
     arr_ty, frag_ty, sz = get_frag_info(mat, elem_type, shape)
 
-    ccall_name = "extern $llvm_intr"
+    ccall_name = "$llvm_intr"
 
     ptr_ty = LLVMPtr{arr_ty, addr_space_int}
 
@@ -257,7 +257,7 @@ export llvm_wmma_store
     # Determine types + size for this (matrix, elem_type) combination
     arr_ty, frag_ty, sz = get_frag_info(mat, elem_type, shape)
 
-    ccall_name = "extern $llvm_intr"
+    ccall_name = "$llvm_intr"
     frag_types = ntuple(i -> frag_ty, sz)
     frag_vars = ntuple(i -> :(data[$i]), sz)
 
@@ -329,7 +329,7 @@ for ops in all_wmma_ops,
     c_arr_ty, c_frag_ty, c_sz = get_frag_info("c", c_elem_type, shape)
     d_arr_ty, d_frag_ty, d_sz = get_frag_info("d", d_elem_type, shape)
 
-    ccall_name = "extern $llvm_intr"
+    ccall_name = "$llvm_intr"
 
     a_types = ntuple(i -> a_frag_ty, a_sz)
     b_types = ntuple(i -> b_frag_ty, b_sz)
