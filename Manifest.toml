@@ -40,9 +40,9 @@ version = "0.2.0+0"
 
 [[CUDA_Runtime_Discovery]]
 deps = ["Libdl"]
-git-tree-sha1 = "48f9cafc6de19b30163da26ae81f0d96acd410d9"
+git-tree-sha1 = "58dd8ec29f54f08c04b052d2c2fa6760b4f4b3a4"
 uuid = "1af6417a-86b4-443c-805f-a4643ffb695f"
-version = "0.1.0"
+version = "0.1.1"
 
 [[CUDA_Runtime_jll]]
 deps = ["Artifacts", "CUDA_Driver_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg", "TOML"]
