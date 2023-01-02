@@ -29,8 +29,8 @@ k = 13
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
         @test testf(BLAS.asum, rand(T, m))
-        @test testf(BLAS.axpy!, Ref(rand()), rand(T, m), rand(T, m))
-        @test testf(BLAS.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
+        @test testf(axpy!, Ref(rand()), rand(T, m), rand(T, m))
+        @test testf(axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
 
         if T <: Complex
             @test testf(dot, rand(T, m), rand(T, m))
@@ -62,7 +62,7 @@ k = 13
 
         a = convert.(T, [1.0, 2.0, -0.8, 5.0, 3.0])
         ca = CuArray(a)
-        @test BLAS.iamax(a)  == CUBLAS.iamax(ca)
+        @test BLAS.iamax(a) == CUBLAS.iamax(ca)
         @test CUBLAS.iamin(ca) == 3
     end # level 1 testset
     @testset for T in [Float16, ComplexF16]
@@ -75,8 +75,8 @@ k = 13
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
-        @test testf(BLAS.axpy!, Ref(rand()), rand(T, m), rand(T, m))
-        @test testf(BLAS.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
+        @test testf(axpy!, Ref(rand()), rand(T, m), rand(T, m))
+        @test testf(axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
 
         if T <: Complex
             @test testf(dot, rand(T, m), rand(T, m))
