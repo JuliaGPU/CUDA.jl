@@ -402,4 +402,7 @@ if VERSION >= v"1.8-"
         C, info = LinearAlgebra._chol!(copy(parent(A)), A.uplo == 'U' ? UpperTriangular : LowerTriangular)
         return Cholesky(C.data, A.uplo, info)
     end
+
+    LinearAlgebra.cholcopy(A::LinearAlgebra.RealHermSymComplexHerm{<:Any,<:CuArray}) =
+        copyto!(similar(A, LinearAlgebra.choltype(A)), A)
 end
