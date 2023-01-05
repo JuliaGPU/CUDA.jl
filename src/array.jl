@@ -56,6 +56,14 @@ function explain_eltype(@nospecialize(T), depth=0; maxdepth=10)
     return msg
 end
 
+# CuArray only supports element types that are allocated inline (`Base.allocatedinline`).
+# These come in three forms:
+# 1. plain bitstypes (`Int`, `(Float32, Float64)`, plain immutable structs, etc).
+#    these are simply stored contiguously in the buffer.
+# 2. structs of unions (`struct Foo; x::Union{Int, Float32}; end`)
+#    these are stored with a selector at the end (handled by Julia).
+# 3. bitstype unions (`Union{Int, Float32}`, etc)
+#    these are stored contiguously and require a selector array (handled by us)
 function check_eltype(T)
   if !Base.allocatedinline(T)
     explanation = explain_eltype(T)
@@ -76,11 +84,11 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
   function CuArray{T,N,B}(::UndefInitializer, dims::Dims{N}) where {T,N,B}
     check_eltype(T)
     maxsize = prod(dims) * sizeof(T)
-    bufsize = if isbitstype(T)
-      maxsize
-    else # isbitsunion etc
+    bufsize = if Base.isbitsunion(T)
       # type tag array past the data
       maxsize + prod(dims)
+    else
+      maxsize
     end
     buf = alloc(B, bufsize)
     storage = ArrayStorage(buf, 1)
@@ -438,7 +446,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
 
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if !isbitstype(T)
+      if Base.isbitsunion(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
     end
@@ -456,7 +464,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
 
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if !isbitstype(T)
+      if Base.isbitsunion(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
     end
@@ -472,7 +480,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
   context!(context(src)) do
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if !isbitstype(T)
+      if Base.isbitsunion(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
     end
@@ -494,7 +502,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffe
   GC.@preserve src dest begin
     cpu_ptr = pointer(src, soffs)
     unsafe_copyto!(host_pointer(pointer(dest, doffs)), cpu_ptr, n)
-    if !isbitstype(T)
+    if Base.isbitsunion(T)
       cpu_ptr = typetagdata(src, soffs)
       unsafe_copyto!(host_pointer(typetagdata(dest, doffs)), cpu_ptr, n)
     end
@@ -510,7 +518,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
   GC.@preserve src dest begin
     cpu_ptr = pointer(dest, doffs)
     unsafe_copyto!(cpu_ptr, host_pointer(pointer(src, soffs)), n)
-    if !isbitstype(T)
+    if Base.isbitsunion(T)
       cpu_ptr = typetagdata(dest, doffs)
       unsafe_copyto!(cpu_ptr, host_pointer(typetagdata(src, soffs)), n)
     end
@@ -526,7 +534,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffe
   context!(context(src)) do
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if !isbitstype(T)
+      if Base.isbitsunion(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
     end
@@ -539,7 +547,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
   context!(context(dest)) do
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if !isbitstype(T)
+      if Base.isbitsunion(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
     end
@@ -551,7 +559,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffe
                              src::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, soffs, n) where T
   GC.@preserve src dest begin
     unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-    if !isbitstype(T)
+    if Base.isbitsunion(T)
       unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
     end
   end
