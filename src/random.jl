@@ -23,11 +23,14 @@ mutable struct RNG <: AbstractRNG
     function RNG(seed::Integer)
         new(seed%UInt32, 0)
     end
+    RNG(seed::UInt32, counter::UInt32) = new(seed, counter)
 end
 
 make_seed() = Base.rand(RandomDevice(), UInt32)
 
 RNG() = RNG(make_seed())
+
+Base.copy(rng::RNG) = RNG(rng.seed, rng.counter)
 
 function Random.seed!(rng::RNG, seed::Integer)
     rng.seed = seed % UInt32
