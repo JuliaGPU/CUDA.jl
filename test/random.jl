@@ -153,3 +153,31 @@ end
     end
     @test fetch(t)
 end
+
+@testset "copy RNGs" begin
+    r1 = CUDA.default_rng()
+    r2 = copy(CUDA.default_rng())
+    @test r2 isa CUDA.RNG
+    @test r1 == r2
+    @test rand(r1, 3) == rand(r2, 3)
+    # Before CUDA 3.12.1, size 3 worked, size 30_000 failed:
+    @test rand(r1, 30_000) == rand(r2, 30_000)
+    @test r1 == r2
+    rand(r1, 3)
+    @test r1 != r2
+
+    r3 = copy(CUDA.default_rng())
+    r4 = copy(CUDA.default_rng())
+
+    x3 = rand(r3, ComplexF32, 30, 10, 100)
+    sum(rand(r3, 30) .+ x3 .+ CUDA.randn(30))  # do some other work
+    x4 = rand(r4, ComplexF32, 30, 10, 100)
+    @test x3 == x4
+
+    t3 = @async rand(r3, ComplexF32, 3, 4)
+    t0 = @async rand(r1, 10)
+    t4 = @async rand(r4, ComplexF32, 3, 4)
+    @test fetch(t0) isa CuArray
+    @test_skip fetch(t3) == fetch(t4)
+end
+
