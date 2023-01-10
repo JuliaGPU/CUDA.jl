@@ -70,12 +70,15 @@ end
             return nothing
         end
 
-        tx, ty, tz, bx, by, bz = [dim == active_dim ? 2 : 1 for dim in 1:6]
-        a = CUDA.zeros(T, 2)
+        tx, ty, tz, bx, by, bz = [dim == active_dim ? 3 : 1 for dim in 1:6]
+        a = CUDA.zeros(T, 3)
 
         @cuda threads=(tx, ty, tz) blocks=(bx, by, bz) kernel(a, seed)
 
-        @test Array(a)[1] != Array(a)[2]
+        # NOTE: we don't just generate two numbers and compare them, instead generating a
+        #       couple more and checking they're not all the same, in order to avoid
+        #       occasional collisions with lower-precision types (i.e., Float16).
+        @test length(unique(Array(a))) > 1
     end
 end
 
