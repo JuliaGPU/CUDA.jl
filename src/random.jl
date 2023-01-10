@@ -31,7 +31,8 @@ make_seed() = Base.rand(RandomDevice(), UInt32)
 RNG() = RNG(make_seed())
 
 Base.copy(rng::RNG) = RNG(rng.seed, rng.counter)
-Base.:(==)(r::RNG, s::RNG) = (r.seed == s.seed) && (r.counter == s.counter)
+Base.hash(rng::RNG, h::UInt) = hash(rng.seed, hash(rng.counter, h))
+Base.:(==)(a::RNG, b::RNG) = (a.seed == b.seed) && (a.counter == b.counter)
 
 function Random.seed!(rng::RNG, seed::Integer)
     rng.seed = seed % UInt32

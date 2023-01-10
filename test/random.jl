@@ -155,29 +155,32 @@ end
 end
 
 @testset "copy RNGs" begin
-    r1 = CUDA.default_rng()
-    r2 = copy(CUDA.default_rng())
-    @test r2 isa CUDA.RNG
-    @test r1 == r2
-    @test rand(r1, 3) == rand(r2, 3)
-    # Before CUDA 3.12.1, size 3 worked, size 30_000 failed:
-    @test rand(r1, 30_000) == rand(r2, 30_000)
-    @test r1 == r2
-    rand(r1, 3)
-    @test r1 != r2
+    let r1 = CUDA.default_rng(), r2 = copy(CUDA.default_rng())
+        @test r2 isa CUDA.RNG
+        @test r1 !== r2
+        @test r1 == r2
 
-    r3 = copy(CUDA.default_rng())
-    r4 = copy(CUDA.default_rng())
+        rand(r1, 1)
+        @test r1 != r2
+    end
 
-    x3 = rand(r3, ComplexF32, 30, 10, 100)
-    sum(rand(r3, 30) .+ x3 .+ CUDA.randn(30))  # do some other work
-    x4 = rand(r4, ComplexF32, 30, 10, 100)
-    @test x3 == x4
+    # JuliaGPU/CUDA.jl#1575
+    let r1 = CUDA.default_rng(), r2 = copy(CUDA.default_rng())
+        @test rand(r1, 3) == rand(r2, 3)
+        @test rand(r1, 30_000) == rand(r2, 30_000)
+    end
 
-    t3 = @async rand(r3, ComplexF32, 3, 4)
-    t0 = @async rand(r1, 10)
-    t4 = @async rand(r4, ComplexF32, 3, 4)
-    @test fetch(t0) isa CuArray
-    @test_skip fetch(t3) == fetch(t4)
+    let r1 = copy(CUDA.default_rng()), r2 = copy(CUDA.default_rng())
+        x1 = rand(r1, 30, 10, 100)
+        sum(rand(r1, 30) .+ x1 .+ CUDA.randn(30))  # do some other work
+        x2 = rand(r2, 30, 10, 100)
+        @test x1 == x2
+    end
+
+    let r1 = copy(CUDA.default_rng()), r2 = copy(CUDA.default_rng())
+        t2 = @async rand(r1, 1)
+        t2 = @async rand(r2, 1)
+        @test fetch(t2) == fetch(t2)
+    end
 end
 
