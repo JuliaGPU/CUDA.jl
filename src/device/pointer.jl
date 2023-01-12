@@ -37,7 +37,7 @@ for T in LDGTypes
                                           ::Val{align}) where align
         offset = i-one(i) # in elements
         ptr = base_ptr + offset*sizeof($T)
-        @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,AS.Global}, Int32), ptr, align)
+        @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,AS.Global}, Int32), ptr, Val(align))
     end
 end
 

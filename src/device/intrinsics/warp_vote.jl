@@ -6,41 +6,13 @@ for mode in (:all, :any, :uni)
     @eval export $fname, $fname_sync
 
     intrinsic = "llvm.nvvm.vote.$mode"
-    @eval begin
-        # FIXME: ccall($intrinsic, llvmcall, $rettyp, (Bool,), pred)
-        #        doesn't use i1 for Bool
-        @inline $fname(pred) =
-            Base.llvmcall($("""
-                declare i1 @$intrinsic(i1)
-
-                define i8 @entry(i8) #0 {
-                    %predicate = icmp eq i8 %0, 1
-                    %llvmbool = call i1 @$intrinsic(i1 %predicate)
-                    %jlbool = zext i1 %llvmbool to i8
-                    ret i8 %jlbool
-                }
-
-                attributes #0 = { alwaysinline }""", "entry"),
-            Bool, Tuple{Bool}, pred)
-    end
+    @eval @inline $fname(pred) =
+        @typed_ccall($intrinsic, llvmcall, Bool, (Bool,), pred)
 
     # warp-synchronous
     intrinsic = "llvm.nvvm.vote.$mode.sync"
-    @eval begin
-        @inline $fname_sync(mask, pred) =
-            Base.llvmcall($("""
-                declare i1 @$intrinsic(i32, i1)
-
-                define i8 @entry(i32 %mask, i8) #0 {
-                    %predicate = icmp eq i8 %0, 1
-                    %llvmbool = call i1 @$intrinsic(i32 %mask, i1 %predicate)
-                    %jlbool = zext i1 %llvmbool to i8
-                    ret i8 %jlbool
-                }
-
-                attributes #0 = { alwaysinline }""", "entry"),
-            Bool, Tuple{UInt32, Bool}, mask, pred)
-    end
+    @eval @inline $fname_sync(mask, pred) =
+        @typed_ccall($intrinsic, llvmcall, Bool, (UInt32, Bool), mask, pred)
 end
 
 # ballot returns an integer, so we need to repeat the above
@@ -50,37 +22,13 @@ for mode in (:ballot, )
     @eval export $fname, $fname_sync
 
     intrinsic = "llvm.nvvm.vote.$mode"
-    @eval begin
-        @inline $fname(pred) =
-            Base.llvmcall($("""
-                declare i32 @$intrinsic(i1)
-
-                define i32 @entry(i8) #0 {
-                    %predicate = icmp eq i8 %0, 1
-                    %ret = call i32 @$intrinsic(i1 %predicate)
-                    ret i32 %ret
-                }
-
-                attributes #0 = { alwaysinline }""", "entry"),
-            UInt32, Tuple{Bool}, pred)
-    end
+    @eval @inline $fname(pred) =
+        @typed_ccall($intrinsic, llvmcall, UInt32, (Bool,), pred)
 
     # warp-synchronous
     intrinsic = "llvm.nvvm.vote.$mode.sync"
-    @eval begin
-        @inline $fname_sync(mask, pred) =
-            Base.llvmcall($("""
-                declare i32 @$intrinsic(i32, i1)
-
-                define i32 @entry(i32 %mask, i8) #0 {
-                    %predicate = icmp eq i8 %0, 1
-                    %ret = call i32 @$intrinsic(i32 %mask, i1 %predicate)
-                    ret i32 %ret
-                }
-
-                attributes #0 = { alwaysinline }""", "entry"),
-            UInt32, Tuple{UInt32, Bool}, mask, pred)
-    end
+    @eval @inline $fname_sync(mask, pred) =
+        @typed_ccall($intrinsic, llvmcall, UInt32, (UInt32, Bool), mask, pred)
 end
 
 
