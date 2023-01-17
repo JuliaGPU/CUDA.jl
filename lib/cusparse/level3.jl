@@ -356,35 +356,16 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
         end
     end
 end
-
-for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
-    @eval begin
-        function sm2(transa::SparseChar,
-                     transxy::SparseChar,
-                     uplo::SparseChar,
-                     diag::SparseChar,
-                     alpha::Number,
-                     A::CuSparseMatrix{$elty},
-                     X::StridedCuMatrix{$elty},
-                     index::SparseChar)
-            sm2!(transa,transxy,uplo,diag,alpha,A,copy(X),index)
-        end
-        function sm2(transa::SparseChar,
-                     transxy::SparseChar,
-                     uplo::SparseChar,
-                     diag::SparseChar,
-                     A::CuSparseMatrix{$elty},
-                     X::StridedCuMatrix{$elty},
-                     index::SparseChar)
-            sm2!(transa,transxy,uplo,diag,one($elty),A,copy(X),index)
-        end
-        function sm2(transa::SparseChar,
-                     transxy::SparseChar,
-                     uplo::SparseChar,
-                     A::CuSparseMatrix{$elty},
-                     X::StridedCuMatrix{$elty},
-                     index::SparseChar)
-            sm2!(transa,transxy,uplo,'N',one($elty),A,copy(X),index)
-        end
-    end
+function sm2(transa::SparseChar, transxy::SparseChar, uplo::SparseChar, diag::SparseChar,
+             alpha::Number, A::CuSparseMatrix{T}, X::StridedCuMatrix{T},
+             index::SparseChar) where T
+    sm2!(transa,transxy,uplo,diag,alpha,A,copy(X),index)
+end
+function sm2(transa::SparseChar, transxy::SparseChar, uplo::SparseChar, diag::SparseChar,
+              A::CuSparseMatrix{T}, X::StridedCuMatrix{T}, index::SparseChar) where T
+    sm2!(transa,transxy,uplo,diag,one(T),A,copy(X),index)
+end
+function sm2(transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
+             A::CuSparseMatrix{T}, X::StridedCuMatrix{T}, index::SparseChar) where T
+    sm2!(transa,transxy,uplo,'N',one(T),A,copy(X),index)
 end
