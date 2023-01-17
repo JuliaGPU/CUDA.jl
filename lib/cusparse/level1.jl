@@ -21,18 +21,13 @@ for (fname,elty) in ((:cusparseSaxpyi, :Float32),
             $fname(handle(), nnz(X), alpha, nonzeros(X), nonzeroinds(X), Y, index)
             Y
         end
-        function axpyi(alpha::Number,
-                       X::CuSparseVector{$elty},
-                       Y::CuVector{$elty},
-                       index::SparseChar)
-            axpyi!(alpha,X,copy(Y),index)
-        end
-        function axpyi(X::CuSparseVector{$elty},
-                       Y::CuVector{$elty},
-                       index::SparseChar)
-            axpyi!(one($elty),X,copy(Y),index)
-        end
     end
+end
+function axpyi(alpha::Number, X::CuSparseVector, Y::CuVector, index::SparseChar)
+    axpyi!(alpha, X, copy(Y), index)
+end
+function axpyi(X::CuSparseVector{T}, Y::CuVector{T}, index::SparseChar) where T
+    axpyi!(one(T), X, copy(Y), index)
 end
 
 """
@@ -52,12 +47,10 @@ for (fname,elty) in ((:cusparseSgthr, :Float32),
             $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
             X
         end
-        function gthr(X::CuSparseVector{$elty},
-                      Y::CuVector{$elty},
-                      index::SparseChar)
-            gthr!(copy(X),Y,index)
-        end
     end
+end
+function gthr(X::CuSparseVector, Y::CuVector, index::SparseChar)
+    gthr!(copy(X), Y, index)
 end
 
 """
@@ -77,12 +70,10 @@ for (fname,elty) in ((:cusparseSgthrz, :Float32),
             $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
             X,Y
         end
-        function gthrz(X::CuSparseVector{$elty},
-                       Y::CuVector{$elty},
-                       index::SparseChar)
-            gthrz!(copy(X),copy(Y),index)
-        end
     end
+end
+function gthrz(X::CuSparseVector, Y::CuVector, index::SparseChar)
+    gthrz!(copy(X), copy(Y), index)
 end
 
 """
@@ -102,14 +93,14 @@ for (fname,elty) in ((:cusparseSroti, :Float32),
             $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, c, s, index)
             X,Y
         end
-        function roti(X::CuSparseVector{$elty},
-                      Y::CuVector{$elty},
-                      c::Number,
-                      s::Number,
-                      index::SparseChar)
-            roti!(copy(X),copy(Y),c,s,index)
-        end
     end
+end
+function roti(X::CuSparseVector,
+              Y::CuVector,
+              c::Number,
+              s::Number,
+              index::SparseChar)
+    roti!(copy(X),copy(Y),c,s,index)
 end
 
 """
@@ -129,9 +120,8 @@ for (fname,elty) in ((:cusparseSsctr, :Float32),
             $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, index)
             Y
         end
-        function sctr(X::CuSparseVector{$elty},
-                      index::SparseChar)
-            sctr!(X, CUDA.zeros($elty, size(X)[1]),index)
-        end
     end
+end
+function sctr(X::CuSparseVector{T}, index::SparseChar) where T
+    sctr!(X, CUDA.zeros(T, size(X)[1]),index)
 end

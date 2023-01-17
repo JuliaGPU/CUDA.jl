@@ -234,34 +234,17 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
         end
     end
 end
-
-for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
-    @eval begin
-        function sv2(transa::SparseChar,
-                     uplo::SparseChar,
-                     diag::SparseChar,
-                     alpha::Number,
-                     A::CuSparseMatrix{$elty},
-                     X::CuVector{$elty},
-                     index::SparseChar)
-            sv2!(transa,uplo,diag,alpha,A,copy(X),index)
-        end
-        function sv2(transa::SparseChar,
-                     uplo::SparseChar,
-                     diag::SparseChar,
-                     A::CuSparseMatrix{$elty},
-                     X::CuVector{$elty},
-                     index::SparseChar)
-            sv2!(transa,uplo,diag,one($elty),A,copy(X),index)
-        end
-        function sv2(transa::SparseChar,
-                     uplo::SparseChar,
-                     A::CuSparseMatrix{$elty},
-                     X::CuVector{$elty},
-                     index::SparseChar)
-            sv2!(transa,uplo,'N',one($elty),A,copy(X),index)
-        end
-    end
+function sv2(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
+             A::CuSparseMatrix{T}, X::CuVector{T}, index::SparseChar) where T
+    sv2!(transa,uplo,diag,alpha,A,copy(X),index)
+end
+function sv2(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
+             A::CuSparseMatrix{T}, X::CuVector{T}, index::SparseChar) where T
+    sv2!(transa,uplo,diag,one(T),A,copy(X),index)
+end
+function sv2(transa::SparseChar, uplo::SparseChar,
+             A::CuSparseMatrix{T}, X::CuVector{T}, index::SparseChar) where T
+    sv2!(transa,uplo,'N',one(T),A,copy(X),index)
 end
 
 # gemvi!
