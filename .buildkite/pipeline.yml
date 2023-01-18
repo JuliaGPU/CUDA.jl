@@ -61,6 +61,25 @@ steps:
         if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
         timeout_in_minutes: 120
 
+      - label: "Julia 1.9"
+        plugins:
+          - JuliaCI/julia#v1:
+              version: 1.9-nightly
+          - JuliaCI/julia-test#v1: ~
+          - JuliaCI/julia-coverage#v1:
+              codecov: true
+              dirs:
+                - src
+                - lib
+                - examples
+        agents:
+          queue: "juliagpu"
+          cuda: "*"
+        commands: |
+          julia --project -e 'using CUDA; CUDA.set_runtime_version!("local")'
+        if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+        timeout_in_minutes: 120
+
       - label: "Julia nightly"
         plugins:
           - JuliaCI/julia#v1:
