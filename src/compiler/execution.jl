@@ -40,7 +40,7 @@ macro cuda(ex...)
     macro_kwargs, compiler_kwargs, call_kwargs, other_kwargs =
         split_kwargs(kwargs,
                      [:dynamic, :launch],
-                     [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name],
+                     [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name, :always_inline],
                      [:cooperative, :blocks, :threads, :shmem, :stream])
     if !isempty(other_kwargs)
         key,val = first(other_kwargs).args
@@ -284,18 +284,19 @@ The following keyword arguments are supported:
 - `maxregs`: the maximum number of registers to be allocated to a single thread (only
   supported on LLVM 4.0+)
 - `name`: override the name that the kernel will have in the generated code
+- `always_inline`: inline all function calls in the kernel
 
 The output of this function is automatically cached, i.e. you can simply call `cufunction`
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-@timeit_ci function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
+@timeit_ci function cufunction(f::F, tt::TT=Tuple{}; name=nothing, always_inline=false, kwargs...) where {F,TT}
     cuda = active_state()
     cache = cufunction_cache(cuda.context)
     source = FunctionSpec(f, tt, true, name)
     target = CUDACompilerTarget(cuda.device; kwargs...)
     params = CUDACompilerParams()
-    job = CompilerJob(target, source, params)
+    job = CompilerJob(target, source, params; always_inline)
     fun = GPUCompiler.cached_compilation(cache, job,
                                          cufunction_compile,
                                          cufunction_link)

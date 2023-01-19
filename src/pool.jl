@@ -34,6 +34,8 @@ AllocStats(b::AllocStats, a::AllocStats) =
 
 @timeit_ci function actual_alloc(bytes::Integer; async::Bool=false,
                                  stream::Union{CuStream,Nothing}=nothing)
+  memory_limit_exceeded(bytes) && return nothing
+
   # try the actual allocation
   buf = try
     time = Base.@elapsed begin
@@ -62,6 +64,77 @@ end
 end
 
 
+## memory limits
+
+# to enforce a hard memory limit, we need to keep track of the amount currently allocated.
+const memory_use = Threads.Atomic{Int}(0)
+
+# parse a memory limit, e.g. "1.5GiB" or "50%, to the number of bytes
+function parse_limit(str::AbstractString)
+    if endswith(str, "%")
+        str = str[1:end-1]
+        return round(UInt, parse(Float64, str) / 100 * total_memory())
+    end
+
+    si_units = [("k", "kB", "K", "KB"), ("M", "MB"), ("G", "GB")]
+    for (i, units) in enumerate(si_units), unit in units
+        if endswith(str, unit)
+            multiplier = 1000^i
+            str = str[1:end-length(unit)]
+            return round(UInt, parse(Float64, str) * multiplier)
+        end
+    end
+
+    iec_units = ["KiB", "MiB", "GiB"]
+    for (i, unit) in enumerate(iec_units)
+        if endswith(str, unit)
+            multiplier = 1024^i
+            str = str[1:end-length(unit)]
+            return round(UInt, parse(Float64, str) * multiplier)
+        end
+    end
+
+    return parse(UInt, str)
+end
+
+function memory_limits()
+  @memoize begin
+    soft = if haskey(ENV, "JULIA_CUDA_SOFT_MEMORY_LIMIT")
+      parse_limit(ENV["JULIA_CUDA_SOFT_MEMORY_LIMIT"])
+    else
+      UInt(0)
+    end
+
+    hard = if haskey(ENV, "JULIA_CUDA_HARD_MEMORY_LIMIT")
+      parse_limit(ENV["JULIA_CUDA_HARD_MEMORY_LIMIT"])
+    else
+      UInt(0)
+    end
+
+    (; soft, hard)
+  end::NamedTuple{(:soft, :hard), Tuple{UInt,UInt}}
+end
+
+function memory_limit_exceeded(bytes::Integer)
+  limit = memory_limits()
+  limit.hard > 0 || return false
+
+  dev = device()
+  used_bytes = if stream_ordered(dev) && version() >= v"11.3"
+    # XXX: this should be done by the allocator itself (NVIDIA bug #3503815).
+    pool = memory_pool(dev)
+    Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
+  else
+    # NOTE: cannot use `Mem.info()`, because it only reports total & free memory, not used.
+    #       computing `total - free` would include memory allocated by other processes.
+    #       NVML does report used memory, but is slow, and not available on all platforms.
+    memory_use[]
+  end
+
+  return used_bytes + bytes > limit.hard
+end
+
+
 ## stream-ordered memory pool
 
 # TODO: extract this into a @device_memoize macro, or teach @memoize about CuDevice?
@@ -85,7 +158,9 @@ function pool_mark(dev::CuDevice)
       pool = memory_pool(dev)
 
       # allow the pool to use up all memory of this device
-      attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD, typemax(UInt64))
+      limits = memory_limits()
+      attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD,
+                 limits.soft == 0 ? typemax(UInt64) : limits.soft)
 
       # launch a task to periodically trim the pool
       if isinteractive() && !isassigned(__pool_cleanup)
@@ -191,6 +266,21 @@ function memory_status(io::IO=stdout, info::MemoryInfo=MemoryInfo())
                 Base.format_bytes(info.pool_used_bytes),
                 Base.format_bytes(info.pool_reserved_bytes))
 
+  end
+
+  limits = memory_limits()
+  if limits.soft > 0 || limits.hard > 0
+    print(io, "Memory limit: ")
+    if limits.soft > 0
+      print(io, "soft = $(Base.format_bytes(limits.soft))")
+    end
+    if limits.hard > 0
+      if limits.soft > 0
+        print(io, ", ")
+      end
+      print(io, "hard = $(Base.format_bytes(limits.hard))")
+    end
+    println(io)
   end
 end
 
@@ -298,6 +388,7 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   # (and using Base.@timed/gc_num to exclude that time is too expensive)
   buf, time = _alloc(B, sz; stream)
 
+  memory_use[] += sz
   alloc_stats.alloc_count += 1
   alloc_stats.alloc_bytes += sz
   alloc_stats.total_time += time
@@ -339,7 +430,8 @@ Releases a buffer `buf` to the memory pool.
   # XXX: have @timeit use the root timer, since we may be called from a finalizer
 
   # 0-byte allocations shouldn't hit the pool
-  sizeof(buf) == 0 && return
+  sz = sizeof(buf)
+  sz == 0 && return
 
   # this function is typically called from a finalizer, where we can't switch tasks,
   # so perform our own error handling.
@@ -348,8 +440,9 @@ Releases a buffer `buf` to the memory pool.
       _free(buf; stream)
     end
 
+    memory_use[] -= sz
     alloc_stats.free_count += 1
-    alloc_stats.free_bytes += sizeof(buf)
+    alloc_stats.free_bytes += sz
     alloc_stats.total_time += time
   catch ex
     Base.showerror_nostdio(ex, "WARNING: Error while freeing $buf")
