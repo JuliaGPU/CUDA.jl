@@ -250,11 +250,10 @@ the API calls that have been made:
 ## Source-code annotations
 
 If you want to put additional information in the profile, e.g. phases of your application,
-or expensive CPU operations, you can use the NVTX library. Wrappers for this library are
-included in recent versions of CUDA.jl:
+or expensive CPU operations, you can use the NVTX library via the NVTX.jl package:
 
 ```julia
-using CUDA
+using CUDA, NVTX
 
 NVTX.@range "doing X" begin
     ...

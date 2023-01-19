@@ -356,10 +356,11 @@ end
     stream = CuStream()
 
     # register the name of this task
-    t = current_task()
-    tptr = pointer_from_objref(current_task())
-    tptrstr = string(convert(UInt, tptr), base=16, pad=Sys.WORD_SIZE>>2)
-    NVTX.nvtxNameCuStreamA(stream, "Task(0x$tptrstr)")
+    # XXX: do this when the user has imported NVTX.jl (using weak dependencies?)
+    #t = current_task()
+    #tptr = pointer_from_objref(current_task())
+    #tptrstr = string(convert(UInt, tptr), base=16, pad=Sys.WORD_SIZE>>2)
+    #NVTX.nvtxNameCuStreamA(stream, "Task(0x$tptrstr)")
 
     stream
 end
