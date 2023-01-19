@@ -188,9 +188,9 @@ if do_sanitize
     # XXX: some library tests fail under compute-sanitizer
     append!(skip_tests, ["cutensor"])
     # XXX: others take absurdly long
-    append!(skip_tests, ["cusolver"])
+    append!(skip_tests, ["cusolver", "cusparse"])
     # XXX: these hang for some reason
-    append!(skip_tests, ["sorting", "cusparse/generic"])
+    append!(skip_tests, ["sorting"])
 end
 if first(picks).cap < v"7.0"
     push!(skip_tests, "device/intrinsics/wmma")
