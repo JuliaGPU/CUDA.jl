@@ -53,7 +53,6 @@ function wrap(name, headers; targets=headers, defines=[], include_dirs=[])
 end
 
 cuda_version_alias(lhs, rhs) = occursin(Regex("$(lhs)_v\\d"), rhs)
-nvtx_string_alias(lhs, rhs) = occursin(Regex("$(lhs)(A|W|Ex)"), rhs)
 
 function rewriter!(ctx, options)
     for node in get_nodes(ctx.dag)
@@ -77,8 +76,7 @@ function rewriter!(ctx, options)
                 if Meta.isexpr(rhs, :call) && rhs.args[1] in (:__CUDA_API_PTDS, :__CUDA_API_PTSZ)
                     rhs = rhs.args[2]
                 end
-                if isa(rhs, Symbol) && (cuda_version_alias(String(lhs), String(rhs)) ||
-                                        nvtx_string_alias(String(lhs), String(rhs)))
+                if isa(rhs, Symbol) && cuda_version_alias(String(lhs), String(rhs)) |
                     @debug "Removing version alias: `$expr`"
                     empty!(node.exprs)
                 end
@@ -137,11 +135,6 @@ function main(name="all")
     if name == "all" || name == "cudadrv"
         wrap("cuda", ["$cuda/cuda.h","$cuda/cudaGL.h","$cuda/cudaProfiler.h"];
             include_dirs=[cuda, opengl])
-    end
-
-    if name == "all" || name == "nvtx"
-        wrap("nvtx", ["$cuda/nvtx3/nvToolsExt.h", "$cuda/nvtx3/nvToolsExtCuda.h"];
-            include_dirs=[cuda])
     end
 
     if name == "all" || name == "nvml"

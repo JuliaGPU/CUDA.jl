@@ -17,8 +17,8 @@ Be sure to activate the project environment in this folder, which will download 
 artifacts (if you want to upgrade the headers, be sure to update the relevant JLLs in the
 project environment).
 You can also call `main(library)` if you want to generate the wrapper for a specific `library`.
-The possible values for `library` are `"all"` (default), `"cuda"`, `"nvtx"`, `"nvml"`,
-`"cupti"`, `"cublas"`, `"cufft"`, `"curand"`, `"cusparse"`, `"cusolver"`, `"cudnn"`, `"cutensor"`,
+The possible values for `library` are `"all"` (default), `"cuda"`, `"nvml"`, `"cupti"`,
+`"cublas"`, `"cufft"`, `"curand"`, `"cusparse"`, `"cusolver"`, `"cudnn"`, `"cutensor"`,
 `"cutensornet"` or `"custatevec"`.
 
 For each library, the script performs the following steps:
