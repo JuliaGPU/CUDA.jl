@@ -220,45 +220,45 @@ end
 # RNG interface
 
 # GPU arrays
-Random.rand(rng::Union{RNG,GPUArrays.RNG}, T::Type, dims::Dims) =
+Random.rand(rng::RNG, T::Type, dims::Dims) =
     rand!(rng, CuArray{T}(undef, dims))
-Random.randn(rng::Union{RNG,GPUArrays.RNG}, T::Type, dims::Dims) =
+Random.randn(rng::RNG, T::Type, dims::Dims) =
     randn!(rng, CuArray{T}(undef, dims))
 
 # specify default types
-Random.rand(rng::Union{RNG,GPUArrays.RNG}, dims::Dims) =
+Random.rand(rng::RNG, dims::Dims) =
     Random.rand(rng, Float32, dims)
-Random.randn(rng::Union{RNG,GPUArrays.RNG}, dims::Dims) =
+Random.randn(rng::RNG, dims::Dims) =
     Random.randn(rng, Float32, dims)
 
 # support all dimension specifications
-Random.rand(rng::Union{RNG,GPUArrays.RNG}, dim1::Integer, dims::Integer...) =
+Random.rand(rng::RNG, dim1::Integer, dims::Integer...) =
     Random.rand(rng, Dims((dim1, dims...)))
-Random.randn(rng::Union{RNG,GPUArrays.RNG}, dim1::Integer, dims::Integer...) =
+Random.randn(rng::RNG, dim1::Integer, dims::Integer...) =
     Random.randn(rng, Dims((dim1, dims...)))
 # ... and with a type
-Random.rand(rng::Union{RNG,GPUArrays.RNG}, T::Type, dim1::Integer, dims::Integer...) =
+Random.rand(rng::RNG, T::Type, dim1::Integer, dims::Integer...) =
     Random.rand(rng, T, Dims((dim1, dims...)))
-Random.randn(rng::Union{RNG,GPUArrays.RNG}, T::Type, dim1::Integer, dims::Integer...) =
+Random.randn(rng::RNG, T::Type, dim1::Integer, dims::Integer...) =
     Random.randn(rng, T, Dims((dim1, dims...)))
 
 # CPU arrays
-function Random.rand!(rng::Union{RNG,GPUArrays.RNG}, A::AbstractArray{T}) where {T}
+function Random.rand!(rng::RNG, A::AbstractArray{T}) where {T}
     B = CuArray{T}(undef, size(A))
     rand!(rng, B)
     copyto!(A, B)
 end
-function Random.randn!(rng::Union{RNG,GPUArrays.RNG}, A::AbstractArray{T}) where {T}
+function Random.randn!(rng::RNG, A::AbstractArray{T}) where {T}
     B = CuArray{T}(undef, size(A))
     randn!(rng, B)
     copyto!(A, B)
 end
 
 # scalars
-Random.rand(rng::Union{RNG,GPUArrays.RNG}, T::Type=Float32) = Random.rand(rng, T, 1)[]
-Random.randn(rng::Union{RNG,GPUArrays.RNG}, T::Type=Float32) = Random.randn(rng, T, 1)[]
+Random.rand(rng::RNG, T::Type=Float32) = Random.rand(rng, T, 1)[]
+Random.randn(rng::RNG, T::Type=Float32) = Random.randn(rng, T, 1)[]
 # resolve ambiguities
-Random.randn(rng::Union{RNG,GPUArrays.RNG}, T::Random.BitFloatType) = Random.randn(rng, T, 1)[]
+Random.randn(rng::RNG, T::Random.BitFloatType) = Random.randn(rng, T, 1)[]
 
 
 # RNG-less API
