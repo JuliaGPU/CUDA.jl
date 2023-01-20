@@ -152,17 +152,30 @@ end
 
 # multiplication by Q
 LinearAlgebra.lmul!(A::QRPackedQ{T,<:CuArray,<:CuArray},
-                    B::CuVecOrMat{T}) where {T<:Number} =
+                    B::CuVecOrMat{T}) where {T<:BlasFloat} =
     ormqr!('L', 'N', A.factors, A.τ, B)
 LinearAlgebra.lmul!(adjA::Adjoint{T,<:QRPackedQ{T,<:CuArray,<:CuArray}},
-                    B::CuVecOrMat{T}) where {T<:Real} =
+                    B::CuVecOrMat{T}) where {T<:BlasReal} =
     ormqr!('L', 'T', parent(adjA).factors, parent(adjA).τ, B)
 LinearAlgebra.lmul!(adjA::Adjoint{T,<:QRPackedQ{T,<:CuArray,<:CuArray}},
-                    B::CuVecOrMat{T}) where {T<:Complex} =
+                    B::CuVecOrMat{T}) where {T<:BlasComplex} =
     ormqr!('L', 'C', parent(adjA).factors, parent(adjA).τ, B)
 LinearAlgebra.lmul!(trA::Transpose{T,<:QRPackedQ{T,<:CuArray,<:CuArray}},
-                    B::CuVecOrMat{T}) where {T<:Number} =
+                    B::CuVecOrMat{T}) where {T<:BlasFloat} =
     ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
+
+LinearAlgebra.rmul!(A::CuVecOrMat{T},
+                    B::QRPackedQ{T,<:CuArray,<:CuArray}) where {T<:BlasFloat} =
+    ormqr!('R', 'N', B.factors, B.τ, A)
+LinearAlgebra.rmul!(A::CuVecOrMat{T},
+                    adjB::Adjoint{<:Any,<:QRPackedQ{T,<:CuArray,<:CuArray}}) where {T<:BlasReal} =
+    ormqr!('R', 'T', parent(adjB).factors, parent(adjB).τ, A)
+LinearAlgebra.rmul!(A::CuVecOrMat{T},
+                    adjB::Adjoint{<:Any,<:QRPackedQ{T,<:CuArray,<:CuArray}}) where {T<:BlasComplex} =
+    ormqr!('R', 'C', parent(adjB).factors, parent(adjB).τ, A)
+LinearAlgebra.rmul!(A::CuVecOrMat{T},
+                    trA::Transpose{<:Any,<:QRPackedQ{T,<:CuArray,<:CuArray}}) where {T<:BlasFloat} =
+    ormqr!('R', 'T', parent(trA).factors, parent(adjB).τ, A)
 
 else
 
@@ -216,14 +229,28 @@ Base.iterate(S::CuQR, ::Val{:R}) = (S.R, Val(:done))
 Base.iterate(S::CuQR, ::Val{:done}) = nothing
 
 # Apply changes Q from the left
-LinearAlgebra.lmul!(A::CuQRPackedQ{T,S}, B::CuVecOrMat{T}) where {T<:Number, S<:CuMatrix} =
+LinearAlgebra.lmul!(A::CuQRPackedQ{T,S}, B::CuVecOrMat{T}) where {T<:BlasFloat, S<:CuMatrix} =
     ormqr!('L', 'N', A.factors, A.τ, B)
-LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:Real, S<:CuMatrix} =
+LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:BlasReal, S<:CuMatrix} =
     ormqr!('L', 'T', parent(adjA).factors, parent(adjA).τ, B)
-LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:Complex, S<:CuMatrix} =
+LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:BlasComplex, S<:CuMatrix} =
     ormqr!('L', 'C', parent(adjA).factors, parent(adjA).τ, B)
-LinearAlgebra.lmul!(trA::Transpose{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:Number, S<:CuMatrix} =
+LinearAlgebra.lmul!(trA::Transpose{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:BlasFloat, S<:CuMatrix} =
     ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
+
+# Apply changes Q from the right
+LinearAlgebra.rmul!(A::CuVecOrMat{T},
+                    B::CuQRPackedQ{T,S}) where {T<:BlasFloat} =
+    ormqr!('R', 'N', B.factors, B.τ, A)
+LinearAlgebra.rmul!(A::CuVecOrMat{T},
+                    adjB::Adjoint{<:Any,<:CuQRPackedQ{T,S}}) where {T<:BlasReal, S<:CuMatrix} =
+    ormqr!('R', 'T', parent(adjB).factors, parent(adjB).τ, A)
+LinearAlgebra.rmul!(A::CuVecOrMat{T},
+                    adjB::Adjoint{<:Any,<:CuQRPackedQ{T,S}}) where {T<:BlasComplex, S<:CuMatrix} =
+    ormqr!('R', 'C', parent(adjB).factors, parent(adjB).τ, A)
+LinearAlgebra.rmul!(A::CuVecOrMat{T},
+                    trA::Transpose{<:Any,<:CuQRPackedQ{T,S}}) where {T<:BlasFloat, S<:CuMatrix} =
+    ormqr!('R', 'T', parent(trA).factors, parent(adjB).τ, A)
 
 function Base.getindex(A::CuQRPackedQ{T, S}, i::Int, j::Int) where {T, S}
     assertscalar("CuQRPackedQ getindex")
