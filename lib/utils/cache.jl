@@ -1,5 +1,11 @@
 # a cache for library handles
 
+# TODO:
+# - keep track of the (estimated?) size of cache contents
+# - clean the caches when memory is needed. this will require registering the destructor
+#   upfront, so that it can set the environment (e.g. switch to the appropriate context).
+#   alternatively, register the `unsafe_free!`` methods with the pool instead of the cache.
+
 export HandleCache
 
 struct HandleCache{K,V}
@@ -58,5 +64,22 @@ function Base.push!(f::Function, cache::HandleCache{K,V}, key::K, handle::V) whe
         else
             cache.idle_handles[key] = [handle]
         end
+    end
+end
+
+# shorthand version to put a handle back without having to remember the key
+function Base.push!(f::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
+    lock(cache.lock) do
+        key = nothing
+        for entry in cache.active_handles
+            if entry[2] == handle
+                key = entry[1]
+                break
+            end
+        end
+        if key === nothing
+            error("Attempt to cache handle $handle that was not created by the handle cache")
+        end
+        push!(f, cache, key, handle)
     end
 end
