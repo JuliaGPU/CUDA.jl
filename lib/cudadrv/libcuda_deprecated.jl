@@ -24,3 +24,14 @@ end
                    (Ptr{CUgraphExec}, CUgraph, Ptr{CUgraphNode}, Cstring, Csize_t),
                    phGraphExec, hGraph, phErrorNode, logBuffer, bufferSize)
 end
+
+
+## superseded in CUDA 12.0
+
+@checked function cuGraphInstantiate_v2(phGraphExec, hGraph, phErrorNode, logBuffer,
+                                        bufferSize)
+    initialize_context()
+    @ccall libcuda.cuGraphInstantiate_v2(phGraphExec::Ptr{CUgraphExec}, hGraph::CUgraph,
+                                         phErrorNode::Ptr{CUgraphNode}, logBuffer::Cstring,
+                                         bufferSize::Csize_t)::CUresult
+end

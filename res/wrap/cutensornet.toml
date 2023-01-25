@@ -5,10 +5,10 @@ prologue_file_path = "./libcutensornet_prologue.jl"
 
 output_ignorelist = [
     # these change often
-    "^CUTENSORNET_VERSION$",
-    "^CUTENSORNET_MAJOR",
-    "^CUTENSORNET_MINOR",
-    "^CUTENSORNET_PATCH",
+    "CUTENSORNET_VERSION",
+    "CUTENSORNET_MAJOR",
+    "CUTENSORNET_MINOR",
+    "CUTENSORNET_PATCH",
 ]
 
 

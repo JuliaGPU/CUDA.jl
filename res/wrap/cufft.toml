@@ -5,8 +5,8 @@ prologue_file_path = "./libcufft_prologue.jl"
 
 output_ignorelist = [
     # these change often
-    "^CUFFT_VERSION$",
-    "^CUFFT_VER_",
+    "CUFFT_VERSION",
+    "CUFFT_VER_.*",
 ]
 
 

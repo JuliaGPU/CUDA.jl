@@ -5,11 +5,11 @@ prologue_file_path = "./libcuda_prologue.jl"
 
 output_ignorelist = [
     # we'll be using our own pointer types
-    "^CUdeviceptr",
-    "^CUarray$",
-    "^CUstream$", "^CUstream_st$",
+    "CUdeviceptr.*",
+    "CUarray",
+    "CUstream", "CUstream_st",
     # these change often
-    "^CUDA_VERSION$",
+    "CUDA_VERSION",
 ]
 
 
