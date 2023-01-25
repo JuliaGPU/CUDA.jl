@@ -248,23 +248,23 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
                         A::CuMatrix{$elty},
                         tau::CuVector{$elty},
                         C::CuVecOrMat{$elty})
-            if side == 'L'
-                m   = size(A, 1)
-                ldc = size(C, 1)
-                n   = size(C, 2)
-                if m > ldc
-                    Ctemp = CUDA.zeros($elty, m - ldc, n)
-                    C = [C; Ctemp]
-                    ldc = m
-                end
-                lda = m
-            else
-                m   = size(C, 1)
-                n   = size(C, 2)
-                ldc = m
-                lda = n
+            m,n = ndims(C) == 2 ? size(C) : (size(C, 1), 1)
+            mA  = size(A, 1)
+            k   = length(tau)
+            if side == 'L' && m != mA
+                throw(DimensionMismatch("for a left-sided multiplication, the first dimension of C, $m, must equal the second dimension of A, $mA"))
             end
-            k       = length(tau)
+            if side == 'R' && n != mA
+                throw(DimensionMismatch("for a right-sided multiplication, the second dimension of C, $m, must equal the second dimension of A, $mA"))
+            end
+            if side == 'L' && k > m
+                throw(DimensionMismatch("invalid number of reflectors: k = $k should be <= m = $m"))
+            end
+            if side == 'R' && k > n
+                throw(DimensionMismatch("invalid number of reflectors: k = $k should be <= n = $n"))
+            end
+            lda = max(1, stride(A, 2))
+            ldc = max(1, stride(C, 2))
 
             function bufferSize()
                 out = Ref{Cint}(0)
@@ -282,7 +282,7 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
             unsafe_free!(devinfo)
             chkargsok(BlasInt(info))
 
-            side == 'L' ? C : C[:, 1:minimum(size(A))]
+            C
         end
     end
 end

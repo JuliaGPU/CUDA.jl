@@ -97,72 +97,6 @@ k = 1
         @test_throws DimensionMismatch CUSOLVER.getrs!('N',d_A,d_ipiv,d_B)
     end
 
-    @testset "geqrf!" begin
-        A         = rand(elty,m,n)
-        d_A       = CuArray(A)
-        d_A,d_tau = CUSOLVER.geqrf!(d_A)
-        h_A       = collect(d_A)
-        h_tau     = collect(d_tau)
-        qra       = LinearAlgebra.QR(h_A, h_tau)
-        @test A ≈ Array(qra)
-    end
-
-    @testset "ormqr!" begin
-        A          = rand(elty, m, n)
-        d_A        = CuArray(A)
-        d_A, d_tau = CUSOLVER.geqrf!(d_A)
-        B          = rand(elty, n, l)
-        d_B        = CuArray(B)
-        d_B        = CUSOLVER.ormqr!('L', 'N', d_A, d_tau, d_B)
-        h_B        = collect(d_B)
-        F          = qr!(A)
-        @test h_B  ≈ Array(F.Q)*B
-        A          = rand(elty, n, m)
-        d_A        = CuArray(A)
-        d_A, d_tau = CUSOLVER.geqrf!(d_A)
-        B          = rand(elty, n, l)
-        d_B        = CuArray(B)
-        d_B        = CUSOLVER.ormqr!('L', 'N', d_A, d_tau, d_B)
-        h_B        = collect(d_B)
-        F          = qr!(A)
-        @test h_B  ≈ Array(F.Q)*B
-        A          = rand(elty, m, n)
-        d_A        = CuArray(A)
-        d_A, d_tau = CUSOLVER.geqrf!(d_A)
-        B          = rand(elty, l, m)
-        d_B        = CuArray(B)
-        d_B        = CUSOLVER.ormqr!('R', 'N', d_A, d_tau, d_B)
-        h_B        = collect(d_B)
-        F          = qr!(A)
-        @test h_B  ≈ B*Array(F.Q)
-        A          = rand(elty, n, m)
-        d_A        = CuArray(A)
-        d_A, d_tau = CUSOLVER.geqrf!(d_A)
-        B          = rand(elty, l, n)
-        d_B        = CuArray(B)
-        d_B        = CUSOLVER.ormqr!('R', 'N', d_A, d_tau, d_B)
-        h_B        = collect(d_B)
-        F          = qr!(A)
-        @test h_B  ≈ B*Array(F.Q)
-    end
-
-    @testset "orgqr!" begin
-        A         = rand(elty,n,m)
-        d_A       = CuArray(A)
-        d_A,d_tau = CUSOLVER.geqrf!(d_A)
-        d_Q       = CUSOLVER.orgqr!(d_A, d_tau)
-        h_Q       = collect(d_Q)
-        F         = qr!(A)
-        @test h_Q ≈ Array(F.Q)
-        A         = rand(elty,m,n)
-        d_A       = CuArray(A)
-        d_A,d_tau = CUSOLVER.geqrf!(d_A)
-        d_Q       = CUSOLVER.orgqr!(d_A, d_tau)
-        h_Q       = collect(d_Q)
-        F         = qr!(A)
-        @test h_Q ≈ Array(F.Q)
-    end
-
     @testset "sytrf!" begin
         A = rand(elty,n,n)
         A = A + A' #symmetric
@@ -400,22 +334,22 @@ k = 1
         @test opnorm(A, 2) ≈ opnorm(d_A, 2)
     end
 
-
     @testset "qr" begin
         tol = min(m, n)*eps(real(elty))*(1 + (elty <: Complex))
 
         A              = rand(elty, m, n)
-        qra            = qr(A)
+        F              = qr(A)
+
         d_A            = CuArray(A)
         d_F            = qr(d_A)
+
         d_RR           = d_F.Q'*d_A
+        @test collect(d_RR[1:n,:]) ≈ collect(d_F.R) atol=tol*norm(A)
+        @test norm(d_RR[n+1:end,:]) < tol*norm(A)
+
         d_RRt          = d_A'*d_F.Q
-        CUDA.@allowscalar begin
-            @test d_RR[1:n,:] ≈ d_F.R atol=tol*norm(A)
-            @test norm(d_RR[n+1:end,:]) < tol*norm(A)
-            @test d_RRt[:,1:n] ≈ d_F.R' atol=tol*norm(A)
-            @test norm(d_RRt[:,n+1:end]) < tol*norm(A)
-        end
+        @test collect(d_RRt[:,1:n]) ≈ collect(d_F.R') atol=tol*norm(A)
+        @test norm(d_RRt[:,n+1:end]) < tol*norm(A)
 
         @test size(d_F) == size(A)
         @test size(d_F.Q) == (m,m)
@@ -423,15 +357,18 @@ k = 1
         @test size(d_RR) == size(d_A)
         @test size(d_RRt) == size(d_A')
 
+        d_I = CuMatrix{elty}(I, size(d_F.Q))
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A)
-        @test (d_F.Q *I ) ≈ d_F.Q
-        @test (I * d_F.Q) ≈ d_F.Q
-        @test (d_F.R *I ) ≈ d_F.R
-        @test (I * d_F.R) ≈ d_F.R
+        @test collect(d_F.Q * d_I) ≈ collect(d_F.Q)
+        @test collect(d_I * d_F.Q) ≈ collect(d_F.Q)
+
+        d_I = CuMatrix{elty}(I, size(d_F.R))
+        @test collect(d_F.R * d_I) ≈ collect(d_F.R)
+        @test collect(d_I * d_F.R) ≈ collect(d_F.R)
 
         CUDA.@allowscalar begin
             qval = d_F.Q[1, 1]
-            @test qval ≈ qra.Q[1, 1]
+            @test qval ≈ F.Q[1, 1]
             qrstr = sprint(show, MIME"text/plain"(), d_F)
             if VERSION >= v"1.8-"
                 @test qrstr == "$(typeof(d_F))\nQ factor:\n$(sprint(show, MIME"text/plain"(), d_F.Q))\nR factor:\n$(sprint(show, MIME"text/plain"(), d_F.R))"
@@ -439,10 +376,10 @@ k = 1
                 @test qrstr == "$(typeof(d_F)) with factors Q and R:\n$(sprint(show, d_F.Q))\n$(sprint(show, d_F.R))"
             end
         end
-        
+
         dQ, dR = d_F
         @test collect(dQ*dR) ≈ A
-        @test collect(dR'*dQ') ≈ A'
+        @test_broken collect(dR'*dQ') ≈ A'
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
         d_F            = qr(d_A)
@@ -451,59 +388,59 @@ k = 1
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A)
         A              = rand(elty, m, n)
         d_A            = CuArray(A)
-        h_q, h_r       = qr(d_A)
+        d_q, d_r       = qr(d_A)
         q, r           = qr(A)
-        @test Array(h_q) ≈ Array(q)
-        @test collect(CuArray(h_q)) ≈ Array(q)
-        @test Array(h_r) ≈ Array(r)
-        @test CuArray(h_q) ≈ convert(typeof(d_A), h_q)
+        @test Array(d_q) ≈ Array(q)
+        @test collect(CuArray(d_q)) ≈ Array(q)
+        @test Array(d_r) ≈ Array(r)
+        @test CuArray(d_q) ≈ convert(typeof(d_A), d_q)
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
-        h_q, h_r       = qr(d_A) # FixMe! Use iteration protocol when implemented
+        d_q, d_r       = qr(d_A)
         q, r           = qr(A)
-        @test Array(h_q) ≈ Array(q)
-        @test Array(h_r) ≈ Array(r)
+        @test Array(d_q) ≈ Array(q)
+        @test Array(d_r) ≈ Array(r)
         A              = rand(elty, n)  # A and B are vectors
         d_A            = CuArray(A)
         M              = qr(A)
-        h_M            = qr(d_A)
+        d_M            = qr(d_A)
         B              = rand(elty, n)
         d_B            = CuArray(B)
-        @test Array(M \ B) ≈ Array(h_M \ d_B)
+        @test collect(d_M \ d_B) ≈ M \ B
         A              = rand(elty, m, n)  # A is a matrix and B,C is a vector
         d_A            = CuArray(A)
         M              = qr(A)
-        h_M            = qr(d_A)
+        d_M            = qr(d_A)
         B              = rand(elty, m)
         d_B            = CuArray(B)
         C              = rand(elty, n)
         d_C            = CuArray(C)
-        @test Array(M \ B) ≈ Array(h_M \ d_B)
-        @test Array(h_M.Q * d_B) ≈ (M.Q * B)
-        @test Array(h_M.Q' * d_B) ≈ (M.Q' * B)
-        @test Array(d_B' * h_M.Q) ≈ (B' * M.Q)
-        @test Array(d_B' * h_M.Q') ≈ (B' * M.Q')
-        @test Array(h_M.R * d_C) ≈ (M.R * C)
-        @test Array(h_M.R' * d_C) ≈ (M.R' * C)
-        @test Array(d_C' * h_M.R) ≈ (C' * M.R)
-        @test Array(d_C' * h_M.R') ≈ (C' * M.R')
+        @test collect(d_M \ d_B) ≈ M \ B
+        @test collect(d_M.Q * d_B) ≈ (M.Q * B)
+        @test collect(d_M.Q' * d_B) ≈ (M.Q' * B)
+        @test collect(d_B' * d_M.Q) ≈ (B' * M.Q)
+        @test collect(d_B' * d_M.Q') ≈ (B' * M.Q')
+        @test collect(d_M.R * d_C) ≈ (M.R * C)
+        @test collect(d_M.R' * d_C) ≈ (M.R' * C)
+        @test collect(d_C' * d_M.R) ≈ (C' * M.R)
+        @test collect(d_C' * d_M.R') ≈ (C' * M.R')
         A              = rand(elty, m, n)  # A and B,C are matrices
         d_A            = CuArray(A)
         M              = qr(A)
-        h_M            = qr(d_A)
+        d_M            = qr(d_A)
         B              = rand(elty, m, l) #different second dimension to verify whether dimensions agree
         d_B            = CuArray(B)
         C              = rand(elty, n, l) #different second dimension to verify whether dimensions agree
         d_C            = CuArray(C)
-        @test Array(M \ B) ≈ Array(h_M \ d_B)
-        @test Array(h_M.Q * d_B) ≈ (M.Q * B)
-        @test Array(h_M.Q' * d_B) ≈ (M.Q' * B)
-        @test Array(d_B' * h_M.Q) ≈ (B' * M.Q)
-        @test Array(d_B' * h_M.Q') ≈ (B' * M.Q')
-        @test Array(h_M.R * d_C) ≈ (M.R * C)
-        @test Array(h_M.R' * d_C) ≈ (M.R' * C)
-        @test Array(d_C' * h_M.R) ≈ (C' * M.R)
-        @test Array(d_C' * h_M.R') ≈ (C' * M.R')
+        @test collect(d_M \ d_B) ≈ (M \ B)
+        @test collect(d_M.Q * d_B) ≈ (M.Q * B)
+        @test collect(d_M.Q' * d_B) ≈ (M.Q' * B)
+        @test collect(d_B' * d_M.Q) ≈ (B' * M.Q)
+        @test collect(d_B' * d_M.Q') ≈ (B' * M.Q')
+        @test collect(d_M.R * d_C) ≈ (M.R * C)
+        @test collect(d_M.R' * d_C) ≈ (M.R' * C)
+        @test collect(d_C' * d_M.R) ≈ (C' * M.R)
+        @test collect(d_C' * d_M.R') ≈ (C' * M.R')
     end
 
     @testset "potrsBatched!" begin

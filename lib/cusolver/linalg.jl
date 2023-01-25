@@ -132,7 +132,9 @@ function LinearAlgebra.ldiv!(x::CuArray, _qr::QR, b::CuArray)
     return x
 end
 
-# conversions of factorizations
+# AbstractQ's `size` is the size of the full matrix,
+# while `Matrix(Q)` only gives the compact Q.
+# See JuliaLang/julia#26591 and JuliaGPU/CUDA.jl#969.
 CuArray(Q::AbstractQ) = CuMatrix(Q)
 CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
 CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
@@ -143,6 +145,21 @@ CuMatrix{T}(Q::QRCompactWYQ) where {T} = error("QRCompactWY format is not suppor
 # avoid the CPU array in the above mul!
 Matrix{T}(Q::QRPackedQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
 Matrix{T}(Q::QRCompactWYQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
+
+# extracting the full matrix can be done with `collect` (which defaults to `Array`)
+function Base.collect(src::Union{QRPackedQ{<:Any,<:CuArray,<:CuArray},
+                                 QRCompactWYQ{<:Any,<:CuArray,<:CuArray}})
+    dest = similar(src)
+    copyto!(dest, I)
+    lmul!(src, dest)
+    collect(dest)
+end
+
+# avoid the generic similar fallback that returns a CPU array
+Base.similar(Q::Union{QRPackedQ{<:Any,<:CuArray,<:CuArray},
+                      QRCompactWYQ{<:Any,<:CuArray,<:CuArray}},
+             ::Type{T}, dims::Dims{N}) where {T,N} =
+    CuArray{T,N}(undef, dims)
 
 function Base.getindex(Q::QRPackedQ{<:Any, <:CuArray}, ::Colon, j::Int)
     y = CUDA.zeros(eltype(Q), size(Q, 2))
@@ -179,22 +196,22 @@ LinearAlgebra.rmul!(A::CuVecOrMat{T},
 
 else
 
-struct CuQR{T,S<:AbstractMatrix} <: Factorization{T}
-    factors::S
+struct CuQR{T} <: Factorization{T}
+    factors::CuMatrix
     τ::CuVector{T}
-    CuQR{T,S}(factors::AbstractMatrix{T}, τ::CuVector{T}) where {T,S<:AbstractMatrix} = new(factors, τ)
+    CuQR{T}(factors::CuMatrix{T}, τ::CuVector{T}) where {T} = new(factors, τ)
 end
 
-struct CuQRPackedQ{T,S<:AbstractMatrix} <: AbstractQ{T}
+struct CuQRPackedQ{T} <: AbstractQ{T}
     factors::CuMatrix{T}
     τ::CuVector{T}
-    CuQRPackedQ{T,S}(factors::AbstractMatrix{T}, τ::CuVector{T}) where {T,S<:AbstractMatrix} = new(factors, τ)
+    CuQRPackedQ{T}(factors::CuMatrix{T}, τ::CuVector{T}) where {T} = new(factors, τ)
 end
 
-CuQR(factors::AbstractMatrix{T}, τ::CuVector{T}) where {T} =
-    CuQR{T,typeof(factors)}(factors, τ)
-CuQRPackedQ(factors::AbstractMatrix{T}, τ::CuVector{T}) where {T} =
-    CuQRPackedQ{T,typeof(factors)}(factors, τ)
+CuQR(factors::CuMatrix{T}, τ::CuVector{T}) where {T} =
+    CuQR{T}(factors, τ)
+CuQRPackedQ(factors::CuMatrix{T}, τ::CuVector{T}) where {T} =
+    CuQRPackedQ{T}(factors, τ)
 
 # AbstractQ's `size` is the size of the full matrix,
 # while `Matrix(Q)` only gives the compact Q.
@@ -204,6 +221,18 @@ CuMatrix{T, B}(Q::AbstractQ{S}) where {T, B, S} = CuMatrix{T}(Q)
 CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
 CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
 CuArray(Q::AbstractQ) = CuMatrix(Q)
+
+# extracting the full matrix can be done with `collect` (which defaults to `Array`)
+function Base.collect(src::CuQRPackedQ)
+    dest = similar(src)
+    copyto!(dest, I)
+    lmul!(src, dest)
+    collect(dest)
+end
+
+# avoid the generic similar fallback that returns a CPU array
+Base.similar(Q::CuQRPackedQ, ::Type{T}, dims::Dims{N}) where {T,N} =
+    CuArray{T,N}(undef, dims)
 
 LinearAlgebra.qr!(A::CuMatrix{T}) where T = CuQR(geqrf!(A::CuMatrix{T})...)
 Base.size(A::CuQR) = size(A.factors)
@@ -229,30 +258,29 @@ Base.iterate(S::CuQR, ::Val{:R}) = (S.R, Val(:done))
 Base.iterate(S::CuQR, ::Val{:done}) = nothing
 
 # Apply changes Q from the left
-LinearAlgebra.lmul!(A::CuQRPackedQ{T,S}, B::CuVecOrMat{T}) where {T<:BlasFloat, S<:CuMatrix} =
+LinearAlgebra.lmul!(A::CuQRPackedQ{T}, B::CuVecOrMat{T}) where {T<:BlasFloat} =
     ormqr!('L', 'N', A.factors, A.τ, B)
-LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:BlasReal, S<:CuMatrix} =
+LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T}}, B::CuVecOrMat{T}) where {T<:BlasReal} =
     ormqr!('L', 'T', parent(adjA).factors, parent(adjA).τ, B)
-LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:BlasComplex, S<:CuMatrix} =
+LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T}}, B::CuVecOrMat{T}) where {T<:BlasComplex} =
     ormqr!('L', 'C', parent(adjA).factors, parent(adjA).τ, B)
-LinearAlgebra.lmul!(trA::Transpose{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:BlasFloat, S<:CuMatrix} =
+LinearAlgebra.lmul!(trA::Transpose{T,<:CuQRPackedQ{T}}, B::CuVecOrMat{T}) where {T<:BlasFloat} =
     ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
 
 # Apply changes Q from the right
-LinearAlgebra.rmul!(A::CuVecOrMat{T},
-                    B::CuQRPackedQ{T,S}) where {T<:BlasFloat} =
+LinearAlgebra.rmul!(A::CuVecOrMat{T}, B::CuQRPackedQ{T}) where {T<:BlasFloat} =
     ormqr!('R', 'N', B.factors, B.τ, A)
 LinearAlgebra.rmul!(A::CuVecOrMat{T},
-                    adjB::Adjoint{<:Any,<:CuQRPackedQ{T,S}}) where {T<:BlasReal, S<:CuMatrix} =
+                    adjB::Adjoint{<:Any,<:CuQRPackedQ{T}}) where {T<:BlasReal} =
     ormqr!('R', 'T', parent(adjB).factors, parent(adjB).τ, A)
 LinearAlgebra.rmul!(A::CuVecOrMat{T},
-                    adjB::Adjoint{<:Any,<:CuQRPackedQ{T,S}}) where {T<:BlasComplex, S<:CuMatrix} =
+                    adjB::Adjoint{<:Any,<:CuQRPackedQ{T}}) where {T<:BlasComplex} =
     ormqr!('R', 'C', parent(adjB).factors, parent(adjB).τ, A)
 LinearAlgebra.rmul!(A::CuVecOrMat{T},
-                    trA::Transpose{<:Any,<:CuQRPackedQ{T,S}}) where {T<:BlasFloat, S<:CuMatrix} =
+                    trA::Transpose{<:Any,<:CuQRPackedQ{T}}) where {T<:BlasFloat} =
     ormqr!('R', 'T', parent(trA).factors, parent(adjB).τ, A)
 
-function Base.getindex(A::CuQRPackedQ{T, S}, i::Int, j::Int) where {T, S}
+function Base.getindex(A::CuQRPackedQ{T}, i::Int, j::Int) where {T}
     assertscalar("CuQRPackedQ getindex")
     x = CUDA.zeros(T, size(A, 2))
     x[j] = 1
