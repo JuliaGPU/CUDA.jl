@@ -377,14 +377,13 @@ k = 1
             end
         end
 
+        Q, R = F
         dQ, dR = d_F
         @test collect(dQ*dR) ≈ A
-        @test_broken collect(dR'*dQ') ≈ A'
+        @test collect(dR * dQ') ≈ (R * Q')
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
         d_F            = qr(d_A)
-        #the line below is deleted and replaced by the lines added above, as the size of d_F.Q'*d_A is (m,n)
-        #@test d_F.Q'*d_A ≈ d_F.R atol=tol*norm(A)
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A)
         A              = rand(elty, m, n)
         d_A            = CuArray(A)
