@@ -5,8 +5,8 @@ prologue_file_path = "./libcurand_prologue.jl"
 
 output_ignorelist = [
     # these change often
-    "^CURAND_VERSION$",
-    "^CURAND_VER_",
+    "CURAND_VERSION",
+    "CURAND_VER_.*",
 ]
 
 

@@ -6,8 +6,8 @@ epilogue_file_path = "./libcublas_epilogue.jl"
 
 output_ignorelist = [
     # these change often
-    "^CUBLAS_VERSION$",
-    "^CUBLAS_VER_",
+    "CUBLAS_VERSION",
+    "CUBLAS_VER_.*",
 ]
 
 

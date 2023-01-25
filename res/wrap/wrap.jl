@@ -52,17 +52,15 @@ function wrap(name, headers; targets=headers, defines=[], include_dirs=[])
     return
 end
 
-cuda_version_alias(lhs, rhs) = occursin(Regex("$(lhs)_v\\d"), rhs)
-
 function rewriter!(ctx, options)
     for node in get_nodes(ctx.dag)
-        # remove aliases that are used to version functions
+        # remove aliases for function names
         #
         # when NVIDIA changes the behavior of an API, they version the function
-        # (`cuFunction_v2`). To maintain backwards compatibility, they ship aliases with
-        # their headers such that compiled binaries will keep using the old version, and
-        # newly-compiled ones will use the developer's CUDA version. remove those, since we
-        # target multiple CUDA versions.
+        # (`cuFunction_v2`), and sometimes even change function names. To maintain backwards
+        # compatibility, they ship aliases with their headers such that compiled binaries
+        # will keep using the old version, and newly-compiled ones will use the developer's
+        # CUDA version. remove those, since we target multiple CUDA versions.
         #
         # remove this if we ever decide to support a single supported version of CUDA.
         if node isa ExprNode{<:AbstractMacroNodeType}
@@ -72,12 +70,29 @@ function rewriter!(ctx, options)
                 expr = expr.args[1]
             end
             if Meta.isexpr(expr, :(=))
-                lhs, rhs = expr.args
+                @show lhs, rhs = expr.args
+                isa(lhs, Symbol) || continue
                 if Meta.isexpr(rhs, :call) && rhs.args[1] in (:__CUDA_API_PTDS, :__CUDA_API_PTSZ)
                     rhs = rhs.args[2]
                 end
-                if isa(rhs, Symbol) && cuda_version_alias(String(lhs), String(rhs)) |
-                    @debug "Removing version alias: `$expr`"
+                isa(rhs, Symbol) || continue
+                lhs, rhs = String(lhs), String(rhs)
+                function get_prefix(str)
+                    # cuFooBar -> cu
+                    isempty(str) && return nothing
+                    islowercase(str[1]) || return nothing
+                    for i in 2:length(str)
+                        if isuppercase(str[i])
+                            return str[1:i-1]
+                        end
+                    end
+                    return nothing
+                end
+                lhs_prefix = get_prefix(lhs)
+                lhs_prefix === nothing && continue
+                rhs_prefix = get_prefix(rhs)
+                if lhs_prefix == rhs_prefix
+                    @debug "Removing function alias: `$expr`"
                     empty!(node.exprs)
                 end
             end
@@ -126,11 +141,10 @@ end
 
 function main(name="all")
     cuda = joinpath(CUDA_full_jll.artifact_dir, "cuda", "include")
-    cupti = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
-    cudnn = joinpath(CUDNN_jll.artifact_dir, "include")
-    cutensor = joinpath(CUTENSOR_jll.artifact_dir, "include")
-    cuquantum = joinpath(cuQuantum_jll.artifact_dir, "include")
+    @assert CUDA_full_jll.is_available()
+
     opengl = joinpath(Libglvnd_jll.artifact_dir, "include")
+    @assert Libglvnd_jll.is_available()
 
     if name == "all" || name == "cudadrv"
         wrap("cuda", ["$cuda/cuda.h","$cuda/cudaGL.h","$cuda/cudaProfiler.h"];
@@ -142,6 +156,8 @@ function main(name="all")
     end
 
     if name == "all" || name == "cupti"
+        cupti = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
+
         wrap("cupti", ["$cupti/cupti.h", "$cupti/cupti_profiler_target.h"];
             include_dirs=[cuda, cupti],
             targets=[r"cupti_.*.h"])
@@ -178,7 +194,8 @@ function main(name="all")
         wrap("cusolverMg", ["$cuda/cusolverMg.h"]; include_dirs=[cuda])
     end
 
-    if name == "all" || name == "cudnn"
+    if (name == "all" || name == "cudnn") && CUDNN_jll.is_available()
+        cudnn = joinpath(CUDNN_jll.artifact_dir, "include")
         wrap("cudnn",
             ["$cudnn/cudnn_version.h", "$cudnn/cudnn_ops_infer.h",
              "$cudnn/cudnn_ops_train.h", "$cudnn/cudnn_adv_infer.h",
@@ -187,23 +204,29 @@ function main(name="all")
              include_dirs=[cuda, cudnn])
     end
 
-    if name == "all" || name == "cutensor"
+    if (name == "all" || name == "cutensor") && CUTENSOR_jll.is_available()
+        cutensor = joinpath(CUTENSOR_jll.artifact_dir, "include")
         wrap("cutensor", ["$cutensor/cutensor.h"];
             targets=["cutensor.h", "cutensor/types.h"],
             include_dirs=[cuda, cutensor])
     end
 
-    if name == "all" || name == "cutensornet"
-        wrap("cutensornet", ["$cuquantum/cutensornet.h"];
-            targets=["cutensornet.h", "cutensornet/types.h"],
-            include_dirs=[cuda, cuquantum])
+    if cuQuantum_jll.is_available()
+        cuquantum = joinpath(cuQuantum_jll.artifact_dir, "include")
+
+        if name == "all" || name == "cutensornet"
+            wrap("cutensornet", ["$cuquantum/cutensornet.h"];
+                targets=["cutensornet.h", "cutensornet/types.h"],
+                include_dirs=[cuda, cuquantum])
+        end
+
+        if name == "all" || name == "custatevec"
+            wrap("custatevec", ["$cuquantum/custatevec.h"];
+                targets=["custatevec.h", "custatevec/types.h"],
+                include_dirs=[cuda, cuquantum])
+        end
     end
 
-    if name == "all" || name == "custatevec"
-        wrap("custatevec", ["$cuquantum/custatevec.h"];
-            targets=["custatevec.h", "custatevec/types.h"],
-            include_dirs=[cuda, cuquantum])
-    end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
