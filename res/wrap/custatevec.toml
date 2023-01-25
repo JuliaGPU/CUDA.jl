@@ -5,8 +5,8 @@ prologue_file_path = "./libcustatevec_prologue.jl"
 
 output_ignorelist = [
     # these change often
-    "^CUSTATEVEC_VERSION$",
-    "^CUSTATEVEC_VER_",
+    "CUSTATEVEC_VERSION",
+    "CUSTATEVEC_VER_.*",
 ]
 
 
