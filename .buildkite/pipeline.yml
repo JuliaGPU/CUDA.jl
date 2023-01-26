@@ -105,7 +105,6 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "11.0"
-          cap: "sm_80"
         if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
         timeout_in_minutes: 120
         matrix:
@@ -122,63 +121,9 @@ steps:
         commands: |
           julia --project -e 'using CUDA; CUDA.set_runtime_version!(v"{{matrix}}")'
 
-      # XXX: we cannot set an agents key (cap: "sm_75") via a build matrix
-      - label: "CUDA 10.2"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: 1.6
-          - JuliaCI/julia-test#v1: ~
-          - JuliaCI/julia-coverage#v1:
-              codecov: true
-              dirs:
-                - src
-                - lib
-                - examples
-        agents:
-          queue: "juliagpu"
-          cuda: "10.2"
-          cap: "sm_75"
-        if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
-        timeout_in_minutes: 120
-        commands: |
-          julia --project -e 'using CUDA; CUDA.set_runtime_version!(v"10.2")'
-
   - group: ":nesting_dolls: Subpackages"
     depends_on: "cuda"
     steps:
-      - label: "{{matrix}} on CUDA 10"
-        matrix:
-            - "cuDNN"
-            - "cuTENSOR"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: 1.6
-          - JuliaCI/julia-coverage#v1:
-              codecov: true
-              dirs:
-                - src
-                - lib
-                - examples
-        agents:
-          queue: "juliagpu"
-          cuda: "10.2"
-          cap: "sm_75"
-        if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
-        timeout_in_minutes: 120
-        commands: |
-          julia -e '
-            using Pkg
-
-            println("--- :julia: Instantiating project")
-            Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix}}")))
-            Pkg.develop(path=pwd())
-            Pkg.instantiate()
-
-            using CUDA
-            CUDA.set_runtime_version!(v"10.2")
-
-            println("+++ :julia: Running tests")
-            Pkg.test()'
       - label: "{{matrix}} on CUDA 11"
         matrix:
             - "cuDNN"
@@ -197,7 +142,6 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "11.0"
-          cap: "sm_80"
         if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
         timeout_in_minutes: 120
         commands: |
@@ -340,7 +284,6 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "11.0"
-          cap: "sm_80"
         env:
           JULIA_CUDA_USE_COMPAT: 'false'  # NVIDIA bug #3418723: injection tools prevent probing libcuda
         commands: |

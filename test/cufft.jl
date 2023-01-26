@@ -141,7 +141,7 @@ end
     @test_throws ArgumentError batched(X,(3,1))
 end
 
-CUFFT.version() >= v"10.2" && @testset "Batch 2D (in 4D)" begin
+@testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
     for region in [(1,2),(1,4),(3,4)]
         X = rand(T, dims)
