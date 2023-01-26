@@ -125,6 +125,9 @@ if CUSPARSE.version() >= v"11.7.4"
                         C = rand(T, 10, 2)
                         dA = CuArray(A)
                         dB = SparseMatrixType(B)
+                        if SparseMatrixType == CuSparseMatrixCOO
+                            dB = sort_coo(dB, 'C')
+                        end
                         dC = CuArray(C)
 
                         alpha = rand(T)
