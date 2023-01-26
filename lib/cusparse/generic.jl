@@ -71,20 +71,35 @@ function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cus
     return B
 end
 
-function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
+"""
+    gather!(Y::CuVector, X::CuSparseVector, index::SparseChar)
+
+Sets the nonzero elements of `X` equal to the nonzero elements of `Y` at the same indices.
+"""
+function gather!(Y::CuVector, X::CuSparseVector, index::SparseChar)
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     cusparseGather(handle(), descY, descX)
     return X
 end
 
-function scatter!(Y::CuVector, X::CuSparseVector, index::SparseChar)
+"""
+    scatter!(X::CuSparseVector, Y::CuVector, index::SparseChar)
+
+Set `Y[:] = X[:]` for dense `Y` and sparse `X`.
+"""
+function scatter!(X::CuSparseVector, Y::CuVector, index::SparseChar)
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     cusparseScatter(handle(), descX, descY)
     return Y
 end
 
+"""
+    axpby!(alpha::Number, X::CuSparseVector, beta::Number, Y::CuVector, index::SparseChar)
+
+Computes `alpha * X + beta * Y` for sparse `X` and dense `Y`.
+"""
 function axpby!(alpha::Number, X::CuSparseVector{T}, beta::Number, Y::CuVector{T}, index::SparseChar) where {T}
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
@@ -92,6 +107,11 @@ function axpby!(alpha::Number, X::CuSparseVector{T}, beta::Number, Y::CuVector{T
     return Y
 end
 
+"""
+    rot!(X::CuSparseVector, Y::CuVector, c::Number, s::Number, index::SparseChar)
+
+Performs the Givens rotation specified by `c` and `s` to sparse `X` and dense `Y`.
+"""
 function rot!(X::CuSparseVector{T}, Y::CuVector{T}, c::Number, s::Number, index::SparseChar) where {T}
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
@@ -116,7 +136,7 @@ function vv!(transx::SparseChar, X::CuSparseVector{T}, Y::DenseCuVector{T}, inde
 end
 
 function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},CuSparseMatrixCSR{TA},CuSparseMatrixCOO{TA}}, X::DenseCuVector{T},
-             beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
+             beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_SPMV_ALG_DEFAULT) where {TA, T}
 
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
@@ -175,7 +195,7 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
 end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}},
-             B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
+             B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
 
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
@@ -296,6 +316,9 @@ end
 # AB and C must have the same sparsity pattern if β ≠ 0.
 function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T},
                beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+
+    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+
     m,k = size(A)
     n = size(C)[2]
 
@@ -380,6 +403,9 @@ end
 
 function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
               B::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+
+    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+
     m,k = size(A)
     l,n = size(B)
 
@@ -569,6 +595,8 @@ end
 
 function sddmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::DenseCuMatrix{T},
                 beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSDDMMAlg_t=CUSPARSE_SDDMM_ALG_DEFAULT) where {T}
+
+    CUSPARSE.version() < v"11.4.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa

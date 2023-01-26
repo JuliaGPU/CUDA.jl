@@ -138,7 +138,7 @@ if CUSPARSE.version() >= v"11.7.4"
     end
 end
 
-if CUSPARSE.version() >= v"11.7.0"
+if CUSPARSE.version() >= v"12.0"
 
     SPSV_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT],
                       CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT],
@@ -156,7 +156,7 @@ if CUSPARSE.version() >= v"11.7.0"
                     for uplo in ('L', 'U')
                         for diag in ('U', 'N')
                             # They forgot to conjugate the diagonal of A.
-                            # It should be fixed with versions > v"11.7.3".
+                            # It should be fixed with versions >= v"12.0".
                             T <: Complex && transa == 'C' && diag == 'N' && continue
 
                             A = rand(T, 10, 10)
@@ -178,7 +178,7 @@ if CUSPARSE.version() >= v"11.7.0"
             end
         end
 
-        @testset "$SparseMatrixType -- mv! algo=$algo" for algo in SPSM_ALGOS[SparseMatrixType]
+        @testset "$SparseMatrixType -- sm! algo=$algo" for algo in SPSM_ALGOS[SparseMatrixType]
             @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
@@ -186,7 +186,7 @@ if CUSPARSE.version() >= v"11.7.0"
                         for uplo in ('L', 'U')
                             for diag in ('U', 'N')
                                 # They forgot to conjugate the diagonal of A.
-                                # It should be fixed with versions > v"11.7.3".
+                                # It should be fixed with versions >= v"12.0".
                                 T <: Complex && transa == 'C' && diag == 'N' && continue
 
                                 A = rand(T, 10, 10)
@@ -209,7 +209,7 @@ if CUSPARSE.version() >= v"11.7.0"
             end
         end
     end
-end # CUSPARSE.version >= 11.7.0
+end # CUSPARSE.version >= 12.0
 
 if CUSPARSE.version() >= v"11.3.0" # lower CUDA version doesn't support these algorithms
 
@@ -255,7 +255,7 @@ if CUSPARSE.version() >= v"11.3.0" # lower CUDA version doesn't support these al
         dX = CuSparseVector{T}(X)
         Y = rand(T, 20)
         dY = CuVector{T}(Y)
-        CUSPARSE.gather!(dX, dY, 'O')
+        CUSPARSE.gather!(dY, dX, 'O')
         Z = copy(X)
         for i = 1:nnz(X)
             Z[X.nzind[i]] = Y[X.nzind[i]]
@@ -268,7 +268,7 @@ if CUSPARSE.version() >= v"11.3.0" # lower CUDA version doesn't support these al
         dX = CuSparseVector{T}(X)
         Y = rand(T, 20)
         dY = CuVector{T}(Y)
-        CUSPARSE.scatter!(dY, dX, 'O')
+        CUSPARSE.scatter!(dX, dY, 'O')
         Z = copy(Y)
         for i = 1:nnz(X)
             Z[X.nzind[i]] = X.nzval[i]
