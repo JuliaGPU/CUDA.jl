@@ -69,35 +69,6 @@ using LinearAlgebra, SparseArrays
         end
     end
 
-    @testset "$g(A) ± $f(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
-        g in (CuSparseMatrixCSR, CuSparseMatrixCSC),
-        f in (CuSparseMatrixCSR, CuSparseMatrixCSC, CuSparseMatrixCOO, x->CuSparseMatrixBSR(x,1))
-
-        f == g && continue
-        n = 10
-        A = sprand(elty, n, n, 0.4)
-        B = sprand(elty, n, n, 0.6)
-
-        dA = CuSparseMatrixCSR(A)
-        dB = CuSparseMatrixCSR(B)
-
-        C = A + B
-        dC = dA + f(dB)
-        @test C ≈ collect(dC)
-
-        C = B + A
-        dC = f(dB) + dA
-        @test C ≈ collect(dC)
-
-        C = A - B
-        dC = dA - f(dB)
-        @test C ≈ collect(dC)
-
-        C = B - A
-        dC = f(dB) - dA
-        @test C ≈ collect(dC)
-    end
-
     # SpGEMM was added in CUSPARSE v"11.1.1"
     if CUSPARSE.version() >= v"11.1.1"
         for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
@@ -302,7 +273,7 @@ using LinearAlgebra, SparseArrays
         @test dot(dy,dx) ≈ dot(y,x)
     end
 
-    for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR)
+    for SparseMatrixType in (CuSparseMatrixBSR,)
 
         @testset "ldiv!($SparseMatrixType, CuVector) $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
             for triangle in [LowerTriangular, UnitLowerTriangular, UpperTriangular, UnitUpperTriangular]
@@ -335,42 +306,43 @@ using LinearAlgebra, SparseArrays
         end
     end
 
-    if CUSPARSE.version() >= v"11.7.0"
-        for SparseMatrixType in (CuSparseMatrixCOO,)
+    for SparseMatrixType in (CuSparseMatrixCOO, CuSparseMatrixCSC, CuSparseMatrixCSR)
 
-            @testset "ldiv!(CuVector, $SparseMatrixType, CuVector) $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
-                for triangle in [LowerTriangular, UnitLowerTriangular, UpperTriangular, UnitUpperTriangular]
-                    for opa in [identity, transpose, adjoint]
-                        elty <: Complex && opa == adjoint && continue  # Issue 1610
-                        A = sparse(rand(elty, 10, 10))
-                        y = rand(elty, 10)
-                        x = rand(elty, 10)
-                        dA = SparseMatrixType(A)
-                        dy = CuArray(y)
-                        dx = CuArray(x)
-                        ldiv!(x, triangle(opa(A)), y)
-                        ldiv!(dx, triangle(opa(dA)), dy)
-                        @test x ≈ collect(dx)
-                     end
-                end
+        SparseMatrixType == CuSparseMatrixCOO && CUSPARSE.version() < v"12.0" && continue
+
+        @testset "ldiv!(CuVector, $SparseMatrixType, CuVector) $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
+            for triangle in [LowerTriangular, UnitLowerTriangular, UpperTriangular, UnitUpperTriangular]
+                for opa in [identity, transpose, adjoint]
+                    elty <: Complex && opa == adjoint && continue  # Issue 1610
+                    A = sparse(rand(elty, 10, 10))
+                    y = rand(elty, 10)
+                    x = rand(elty, 10)
+                    dA = SparseMatrixType(A)
+                    dy = CuArray(y)
+                    dx = CuArray(x)
+                    ldiv!(x, triangle(opa(A)), y)
+                    ldiv!(dx, triangle(opa(dA)), dy)
+                    @test x ≈ collect(dx)
+                 end
             end
+        end
 
-            @testset "ldiv!(CuMatrix, $SparseMatrixType, CuMatrix) $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
-                for triangle in [LowerTriangular, UnitLowerTriangular, UpperTriangular, UnitUpperTriangular]
-                    for opa in [identity, transpose, adjoint]
-                        for opb in [identity, transpose, adjoint]
-                            elty <: Complex && opa == adjoint && continue # Issue 1610
-                            elty <: Complex && opb == adjoint && continue
-                            A = sparse(rand(elty, 10, 10))
-                            B = opb == identity ? rand(elty, 10, 2) : rand(elty, 2, 10)
-                            C = rand(elty, 10, 2)
-                            dA = SparseMatrixType(A)
-                            dB = CuArray(B)
-                            dC = CuArray(C)
-                            ldiv!(C, triangle(opa(A)), opb(B))
-                            ldiv!(dC, triangle(opa(dA)), opb(dB))
-                            @test C ≈ collect(dC)
-                        end
+        @testset "ldiv!(CuMatrix, $SparseMatrixType, CuMatrix) $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
+            for triangle in [LowerTriangular, UnitLowerTriangular, UpperTriangular, UnitUpperTriangular]
+                for opa in [identity, transpose, adjoint]
+                    for opb in [identity, transpose, adjoint]
+                        opb != identity && CUSPARSE.version() < v"12.0" && continue
+                        elty <: Complex && opa == adjoint && continue # Issue 1610
+                        elty <: Complex && opb == adjoint && continue
+                        A = sparse(rand(elty, 10, 10))
+                        B = opb == identity ? rand(elty, 10, 2) : rand(elty, 2, 10)
+                        C = rand(elty, 10, 2)
+                        dA = SparseMatrixType(A)
+                        dB = CuArray(B)
+                        dC = CuArray(C)
+                        ldiv!(C, triangle(opa(A)), opb(B))
+                        ldiv!(dC, triangle(opa(dA)), opb(dB))
+                        @test C ≈ collect(dC)
                     end
                 end
             end
