@@ -72,11 +72,11 @@ function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cus
 end
 
 """
-    gather!(Y::CuVector, X::CuSparseVector, index::SparseChar)
+    gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
 
 Sets the nonzero elements of `X` equal to the nonzero elements of `Y` at the same indices.
 """
-function gather!(Y::CuVector, X::CuSparseVector, index::SparseChar)
+function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     cusparseGather(handle(), descY, descX)
@@ -84,11 +84,11 @@ function gather!(Y::CuVector, X::CuSparseVector, index::SparseChar)
 end
 
 """
-    scatter!(X::CuSparseVector, Y::CuVector, index::SparseChar)
+    scatter!(Y::CuVector, X::CuSparseVector, index::SparseChar)
 
 Set `Y[:] = X[:]` for dense `Y` and sparse `X`.
 """
-function scatter!(X::CuSparseVector, Y::CuVector, index::SparseChar)
+function scatter!(Y::CuVector, X::CuSparseVector, index::SparseChar)
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     cusparseScatter(handle(), descX, descY)

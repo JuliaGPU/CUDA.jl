@@ -246,7 +246,7 @@ if CUSPARSE.version() >= v"11.3.0" # lower CUDA version doesn't support these al
         dX = CuSparseVector{T}(X)
         Y = rand(T, 20)
         dY = CuVector{T}(Y)
-        CUSPARSE.gather!(dY, dX, 'O')
+        CUSPARSE.gather!(dX, dY, 'O')
         Z = copy(X)
         for i = 1:nnz(X)
             Z[X.nzind[i]] = Y[X.nzind[i]]
@@ -259,7 +259,7 @@ if CUSPARSE.version() >= v"11.3.0" # lower CUDA version doesn't support these al
         dX = CuSparseVector{T}(X)
         Y = rand(T, 20)
         dY = CuVector{T}(Y)
-        CUSPARSE.scatter!(dX, dY, 'O')
+        CUSPARSE.scatter!(dY, dX, 'O')
         Z = copy(Y)
         for i = 1:nnz(X)
             Z[X.nzind[i]] = X.nzval[i]
