@@ -136,22 +136,37 @@ function rewriter!(ctx, options)
             target_expr = call_expr.args[1].args[1]
             fn = String(target_expr.args[2].value)
 
-            # rewrite pointer argument types
-            arg_exprs = call_expr.args[1].args[2:end]
-            if haskey(options, "api") && haskey(options["api"], fn)
-                argtypes = get(options["api"][fn], "argtypes", Dict())
-                for (arg, typ) in argtypes
-                    i = parse(Int, arg)
-                    arg_exprs[i].args[2] = Meta.parse(typ)
+            # look up API options for this function
+            fn_options = Dict{String,Any}()
+            if haskey(options, "api")
+                names = [fn]
+
+                # _64 aliases are used by CUBLAS with Int64 arguments. they otherwise have
+                # an idential signature, so we can reuse the same type rewrites.
+                if endswith(fn, "_64")
+                    push!(names, fn[1:end-3])
+                end
+
+                # the exact name is always checked first, so it's always possible to
+                # override the type rewrites for a specific function
+                # (e.g. if a _64 function ever passes a `Ptr{Cint}` index).
+                for name in names
+                    if haskey(options["api"], name)
+                        fn_options = options["api"][name]
+                        break
+                    end
                 end
             end
 
-            # insert `initialize_context()` before each function with a `ccall`
-            fn_options = if haskey(options, "api")
-                get(options["api"], fn, Dict())
-            else
-                Dict{String,Any}()
+            # rewrite pointer argument types
+            arg_exprs = call_expr.args[1].args[2:end]
+            argtypes = get(fn_options, "argtypes", Dict())
+            for (arg, typ) in argtypes
+                i = parse(Int, arg)
+                arg_exprs[i].args[2] = Meta.parse(typ)
             end
+
+            # insert `initialize_context()` before each function with a `ccall`
             if get(fn_options, "needs_context", true)
                 pushfirst!(expr.args[2].args, :(initialize_context()))
             end
