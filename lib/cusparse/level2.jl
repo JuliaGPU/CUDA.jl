@@ -1,7 +1,7 @@
 # sparse linear algebra functions that perform operations between sparse matrices and dense
 # vectors
 
-export sv2!, sv2, mv!, gemvi!
+export mv!, sv2!, sv2, gemvi!
 
 """
     mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::CuVector, beta::Number, Y::CuVector, index::SparseChar)
