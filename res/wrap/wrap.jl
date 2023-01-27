@@ -8,6 +8,35 @@ using JuliaFormatter
 using CUDA_full_jll, CUDNN_jll, CUTENSOR_jll, cuQuantum_jll
 using Libglvnd_jll
 
+# a pass that removes macro definitions that are also function definitions.
+#
+# this sometimes happens with NVIDIA's headers, either because of typos, or because they are
+# reserving identifiers for future use:
+#   #define cuStreamGetCaptureInfo_v2 __CUDA_API_PTSZ(cuStreamGetCaptureInfo_v2)
+mutable struct AvoidDuplicates <: Clang.AbstractPass end
+function (x::AvoidDuplicates)(dag::ExprDAG, options::Dict)
+    # collect macro definitions
+    macro_definitions = Dict()
+    for (i, node) in enumerate(dag.nodes)
+        if node isa ExprNode{<:AbstractMacroNodeType}
+            macro_definitions[node.id] = (i, node)
+        end
+    end
+
+    # scan function definitions
+    for (i, node) in enumerate(dag.nodes)
+        if Generators.is_function(node) && !Generators.is_variadic_function(node)
+            if haskey(macro_definitions, node.id)
+                @info "Removing macro definition for $(node.id)"
+                j, duplicate_node  = macro_definitions[node.id]
+                dag.nodes[j] = ExprNode(node.id, Clang.Generators.Skip(), duplicate_node.cursor, duplicate_node.exprs, duplicate_node.adj)
+            end
+        end
+    end
+
+    return dag
+end
+
 function wrap(name, headers; targets=headers, defines=[], include_dirs=[])
     @info "Wrapping $name"
 
@@ -25,6 +54,8 @@ function wrap(name, headers; targets=headers, defines=[], include_dirs=[])
 
     # create context
     ctx = create_context([headers...], args, options)
+
+    insert!(ctx.passes, 2, AvoidDuplicates())
 
     # run generator
     build!(ctx, BUILDSTAGE_NO_PRINTING)
