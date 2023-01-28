@@ -226,52 +226,45 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
     end
 end
 
-
 # by flipping rows and columns, we can use that to get CSC to CSR too
 for elty in (Float32, Float64, ComplexF32, ComplexF64)
     @eval begin
-        function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O')
+        function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1)
             m,n = size(csr)
             colPtr = CUDA.zeros(Cint, n+1)
             rowVal = CUDA.zeros(Cint, nnz(csr))
             nzVal = CUDA.zeros($elty, nnz(csr))
-            # TODO: algorithm configuratibility?
             function bufferSize()
                 out = Ref{Csize_t}(1)
                 cusparseCsr2cscEx2_bufferSize(handle(), m, n, nnz(csr), nonzeros(csr),
                     csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
-                    $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                    CUSPARSE_CSR2CSC_ALG1, out)
+                    $elty, action, inda, algo, out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 cusparseCsr2cscEx2(handle(), m, n, nnz(csr), nonzeros(csr),
                     csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
-                    $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                    CUSPARSE_CSR2CSC_ALG1, buffer)
+                    $elty, action, inda, algo, buffer)
             end
             CuSparseMatrixCSC(colPtr,rowVal,nzVal,size(csr))
         end
 
-        function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O')
+        function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1)
             m,n    = size(csc)
             rowPtr = CUDA.zeros(Cint,m+1)
             colVal = CUDA.zeros(Cint,nnz(csc))
             nzVal  = CUDA.zeros($elty,nnz(csc))
-            # TODO: algorithm configuratibility?
             function bufferSize()
                 out = Ref{Csize_t}(1)
                 cusparseCsr2cscEx2_bufferSize(handle(), n, m, nnz(csc), nonzeros(csc),
                     csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
-                    $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                    CUSPARSE_CSR2CSC_ALG1, out)
+                    $elty, action, inda, algo, out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 cusparseCsr2cscEx2(handle(), n, m, nnz(csc), nonzeros(csc),
                     csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
-                    $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                    CUSPARSE_CSR2CSC_ALG1, buffer)
+                    $elty, action, inda, algo, buffer)
             end
             CuSparseMatrixCSR(rowPtr,colVal,nzVal,size(csc))
         end
@@ -283,26 +276,23 @@ end
 for (elty, welty) in ((:Float16, :Float32),
                       (:ComplexF16, :ComplexF32))
     @eval begin
-        function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O')
+        function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1)
             m,n = size(csr)
             colPtr = CUDA.zeros(Cint, n+1)
             rowVal = CUDA.zeros(Cint, nnz(csr))
             nzVal = CUDA.zeros($elty, nnz(csr))
-            # TODO: algorithm configuratibility?
             if $elty == Float16 #broken for ComplexF16?
                 function bufferSize()
                     out = Ref{Csize_t}(1)
                     cusparseCsr2cscEx2_bufferSize(handle(), m, n, nnz(csr), nonzeros(csr),
                         csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
-                        $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                        CUSPARSE_CSR2CSC_ALG1, out)
+                        $elty, action, inda, algo, out)
                     return out[]
                 end
                 with_workspace(bufferSize) do buffer
                     cusparseCsr2cscEx2(handle(), m, n, nnz(csr), nonzeros(csr),
                         csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
-                        $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                        CUSPARSE_CSR2CSC_ALG1, buffer)
+                        $elty, action, inda, algo, buffer)
                 end
                 return CuSparseMatrixCSC(colPtr,rowVal,nzVal,size(csr))
             else
@@ -312,26 +302,23 @@ for (elty, welty) in ((:Float16, :Float32),
             end
         end
 
-        function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O')
+        function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1)
             m,n    = size(csc)
             rowPtr = CUDA.zeros(Cint,m+1)
             colVal = CUDA.zeros(Cint,nnz(csc))
             nzVal  = CUDA.zeros($elty,nnz(csc))
             if $elty == Float16 #broken for ComplexF16?
-                # TODO: algorithm configuratibility?
                 function bufferSize()
                     out = Ref{Csize_t}(1)
                     cusparseCsr2cscEx2_bufferSize(handle(), n, m, nnz(csc), nonzeros(csc),
                         csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
-                        $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                        CUSPARSE_CSR2CSC_ALG1, out)
+                        $elty, action, inda, algo, out)
                     return out[]
                 end
                 with_workspace(bufferSize) do buffer
                     cusparseCsr2cscEx2(handle(), n, m, nnz(csc), nonzeros(csc),
                         csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
-                        $elty, CUSPARSE_ACTION_NUMERIC, inda,
-                        CUSPARSE_CSR2CSC_ALG1, buffer)
+                        $elty, action, inda, algo, buffer)
                 end
                 return CuSparseMatrixCSR(rowPtr,colVal,nzVal,size(csc))
             else
