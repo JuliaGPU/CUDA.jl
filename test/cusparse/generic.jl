@@ -307,6 +307,8 @@ if CUSPARSE.version() >= v"11.1.1"
         push!(SPGEMM_ALGOS[CuSparseMatrixCSC], CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC,
                                                CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC)
     end
+    # Test the new algorithms in the future (CUSPARSE > v"12.0"):
+    # CUSPARSE.CUSPARSE_SPGEMM_ALG1, CUSPARSE.CUSPARSE_SPGEMM_ALG2, CUSPARSE.CUSPARSE_SPGEMM_ALG3
 
     for SparseMatrixType in keys(SPGEMM_ALGOS)
         @testset "$SparseMatrixType -- gemm -- gemm! algo=$algo" for algo in SPGEMM_ALGOS[SparseMatrixType]
