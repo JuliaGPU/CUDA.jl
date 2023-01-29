@@ -54,7 +54,7 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
         @testset "$SparseMatrixType -- mv! algo=$algo" for algo in SPMV_ALGOS[SparseMatrixType]
             @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                    SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                    CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
                     A = sprand(T, 20, 10, 0.1)
                     B = transa == 'N' ? rand(T, 10) : rand(T, 20)
                     C = transa == 'N' ? rand(T, 20) : rand(T, 10)
@@ -76,7 +76,7 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
             @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                        SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                        CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
                         algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 && (transa != 'N' || transb != 'N') && continue
                         A = sprand(T, 10, 10, 0.1)
                         B = transb == 'N' ? rand(T, 10, 2) : rand(T, 2, 10)
@@ -116,7 +116,7 @@ if CUSPARSE.version() >= v"11.7.4"
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     transb_opb = CUSPARSE.version() < v"12.0" ? [('N', identity), ('T', transpose), ('C', adjoint)] : [('N', identity)]
                     for (transb, opb) in transb_opb
-                        SparseMatrixType == CuSparseMatrixCSR && T <: Complex && transb == 'C' && continue
+                        CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && T <: Complex && transb == 'C' && continue
                         algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 && (transa != 'N' || transb != 'N') && continue
                         A = rand(T, 10, 10)
                         B = transb == 'N' ? sprand(T, 10, 2, 0.5) : sprand(T, 2, 10, 0.5)

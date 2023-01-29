@@ -141,18 +141,14 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
 
-    # Issue # 1610
-    if isa(A, CuSparseMatrixCSC) && transa == 'C' && TA <: Complex
+    if CUSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC) && transa == 'C' && TA <: Complex
         throw(ArgumentError("Matrix-vector multiplication with the adjoint of a complex CSC matrix" *
-                            " is not supported. Use a CSR or COO matrix instead."))
+                            " is not supported by the current CUDA version. Use a CSR or COO matrix instead."))
     end
 
-    if isa(A, CuSparseMatrixCSC)
-        # cusparseSpMV doesn't support CSC matrices with CUSPARSE.version() < v"11.6.1".
-        # cusparseSpMV supports the CSC matrices with CUSPARSE.version() ≥ v"11.6.1"
-        # but it doesn't work for complex numbers when transa == 'C'.
-        # We use Aᵀ to model them as CSR matrices for now.
-        # It should be fixed with CUDA toolkit v"12.0".
+    if CUSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC)
+        # cusparseSpMV completely supports CSC matrices with CUSPARSE.version() ≥ v"12.0".
+        # We use Aᵀ to model them as CSR matrices for older versions of CUSPARSE.
         descA = CuSparseMatrixDescriptor(A, index, transposed=true)
         n,m = size(A)
         transa = transa == 'N' ? 'T' : 'N'
@@ -201,18 +197,14 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
 
-    # Issue # 1610
-    if isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
+    if CUSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
         throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSC matrix" *
-                            " is not supported. Use a CSR or COO matrix instead."))
+                            " is not supported by the current CUDA version. Use a CSR or COO matrix instead."))
     end
 
-    if isa(A, CuSparseMatrixCSC)
-        # cusparseSpMM doesn't support CSC matrices with CUSPARSE.version() < v"11.6.1".
-        # cusparseSpMM supports the CSC matrices with CUSPARSE.version() ≥ v"11.6.1"
-        # but it doesn't work for complex numbers when transa == 'C'.
-        # We use Aᵀ to model them as CSR matrices for now.
-        # It should be fixed with CUDA toolkit v"12.0".
+    if CUSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC)
+        # cusparseSpMM completely supports CSC matrices with CUSPARSE.version() ≥ v"12.0".
+        # We use Aᵀ to model them as CSR matrices for older versions of CUSPARSE.
         descA = CuSparseMatrixDescriptor(A, index, transposed=true)
         k,m = size(A)
         transa = transa == 'N' ? 'T' : 'N'
@@ -271,9 +263,9 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
     # Cc = α * Ac * Bᴴ + β * Cc → α * B̅  * Ar + β * Cr
     # where B is a sparse matrix, Ac and Cc indicate column-major layout, while Ar and Cr refer to row-major layout.
 
-    # Issue # 1610
-    if isa(B, CuSparseMatrixCSR) && transb == 'C' && T <: Complex
-        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSR matrix is not supported. Use a CSC or COO matrix instead."))
+    if CUSPARSE.version() < v"12.0" && isa(B, CuSparseMatrixCSR) && transb == 'C' && T <: Complex
+        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSR matrix" *
+                            " is not supported by the current CUDA version. Use a CSC or COO matrix instead."))
     end
 
     m,k = size(A)
