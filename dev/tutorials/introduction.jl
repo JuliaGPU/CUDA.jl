@@ -219,7 +219,7 @@ end
 # On Unix systems, launch Julia this way:
 #
 # ```sh
-# $ nvprof --profile-from-start off -openacc-profiling off /path/to/julia
+# $ nvprof --profile-from-start off --openacc-profiling off /path/to/julia
 # ```
 #
 # replacing the `/path/to/julia` with the path to your Julia binary. Note that we don't
