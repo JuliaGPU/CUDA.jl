@@ -106,7 +106,7 @@ Memory pool usage: 0 bytes (0 bytes reserved)
 
 !!! note
 
-    It is should never be required to manually reclaim memory before performing any
+    It should never be required to manually reclaim memory before performing any
     high-level GPU array operation: Functionality that allocates should itself call into the
     memory pool and free any cached memory if necessary. It is a bug if that operation
     runs into an out-of-memory situation only if not manually reclaiming memory beforehand.
