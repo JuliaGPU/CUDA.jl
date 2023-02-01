@@ -8,6 +8,23 @@ n = 10
 l = 13
 k = 1
 
+m_sub_length = 7
+n_sub_length = 3
+l_sub_length= 11
+m_sub_start = 4
+n_sub_start = 2
+l_sub_start = 1
+m_subrange = (1:m_sub_length) .+ (m_sub_start-1)
+n_subrange = (1:n_sub_length) .+ (n_sub_start -1)
+l_subrange = (1:l_sub_length) .+ (l_sub_start -1)
+
+m_large=50
+n_large=30
+l_large=20
+m_range = (1:m) .+ (m_sub_start-1)
+n_range = (1:n) .+ (n_sub_start -1)
+l_range = (1:l) .+ (l_sub_start -1)
+
 @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     @testset "Cholesky (po)" begin
         A    = rand(elty,n,n)
@@ -377,6 +394,47 @@ k = 1
             end
         end
 
+        A_view         = view(A, m_sub_range, n_sub_range)
+        F              = qr(A_view)
+
+        d_A_view       = view(d_A, m_sub_range, n_sub_range)
+        d_F            = qr(d_A_view)
+        
+        d_RR           = d_F.Q'*d_A_view
+        @test collect(d_RR[1:n,:]) ≈ collect(d_F.R) atol=tol*norm(A_view)
+        @test norm(d_RR[n+1:end,:]) < tol*norm(A_view)
+
+        d_RRt          = d_A_view'*d_F.Q
+        @test collect(d_RRt[:,1:n]) ≈ collect(d_F.R') atol=tol*norm(A_view)
+        @test norm(d_RRt[:,n+1:end]) < tol*norm(A_view)
+
+        @test size(d_F) == size(A_view)
+        @test size(d_F.Q) == (m,m)
+        @test size(d_F.R) == (n,n)
+        @test size(d_RR) == size(d_A_view)
+        @test size(d_RRt) == size(d_A_view')
+
+        d_I = CuMatrix{elty}(I, size(d_F.Q))
+        @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A_view)
+        @test collect(d_F.Q * d_I) ≈ collect(d_F.Q)
+        @test collect(d_I * d_F.Q) ≈ collect(d_F.Q)
+
+        d_I = CuMatrix{elty}(I, size(d_F.R))
+        @test collect(d_F.R * d_I) ≈ collect(d_F.R)
+        @test collect(d_I * d_F.R) ≈ collect(d_F.R)
+
+        CUDA.@allowscalar begin
+            qval = d_F.Q[1, 1]
+            @test qval ≈ F.Q[1, 1]
+            qrstr = sprint(show, MIME"text/plain"(), d_F)
+            if VERSION >= v"1.8-"
+                @test qrstr == "$(typeof(d_F))\nQ factor:\n$(sprint(show, MIME"text/plain"(), d_F.Q))\nR factor:\n$(sprint(show, MIME"text/plain"(), d_F.R))"
+            else
+                @test qrstr == "$(typeof(d_F)) with factors Q and R:\n$(sprint(show, d_F.Q))\n$(sprint(show, d_F.R))"
+            end
+        end
+
+
         Q, R = F
         dQ, dR = d_F
         @test collect(dQ*dR) ≈ A
@@ -385,6 +443,11 @@ k = 1
         d_A            = CuArray(A)
         d_F            = qr(d_A)
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A)
+        A_view          = view(A, m_sub_range, n_sub_range)
+        d_A_view        = view(d_A, m_sub_range, n_sub_range)
+        d_F             = qr(d_A_view)
+        @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A_view)
+
         A              = rand(elty, m, n)
         d_A            = CuArray(A)
         d_q, d_r       = qr(d_A)
@@ -393,12 +456,28 @@ k = 1
         @test collect(CuArray(d_q)) ≈ Array(q)
         @test Array(d_r) ≈ Array(r)
         @test CuArray(d_q) ≈ convert(typeof(d_A), d_q)
+        A_view         = view(A, m_sub_range, n_sub_range)
+        d_A_view       = view(d_A, m_sub_range, n_sub_range)
+        d_q, d_r       = qr(d_A_view)
+        q, r           = qr(A_view)
+        @test Array(d_q) ≈ Array(q)
+        @test collect(CuArray(d_q)) ≈ Array(q)
+        @test Array(d_r) ≈ Array(r)
+        @test CuArray(d_q) ≈ convert(typeof(d_A), d_q)
+
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
         d_q, d_r       = qr(d_A)
         q, r           = qr(A)
         @test Array(d_q) ≈ Array(q)
         @test Array(d_r) ≈ Array(r)
+        A_view         = view(A, m_sub_range, n_sub_range)
+        d_A_view       = view(d_A, m_sub_range, n_sub_range)
+        d_q, d_r       = qr(d_A_view)
+        q, r           = qr(A_view)
+        @test Array(d_q) ≈ Array(q)
+        @test Array(d_r) ≈ Array(r)
+
         A              = rand(elty, n)  # A and B are vectors
         d_A            = CuArray(A)
         M              = qr(A)
@@ -406,6 +485,19 @@ k = 1
         B              = rand(elty, n)
         d_B            = CuArray(B)
         @test collect(d_M \ d_B) ≈ M \ B
+        A_view         = view(A, n_sub_range) 
+        d_A_view       = view(d_A, n_sub_range)
+        M_view         = qr(A_view)
+        d_M_view       = qr(d_A_view)
+        B_view         = view(B, n_subrange)
+        d_B_view       = view(d_B, n_subrange)
+        @test collect(d_M_view \ d_B_view) ≈ M_view \ B_view
+        B_large        = rand(elty, n_large) 
+        B              = view(B_large, n_range)
+        d_B_large      = CuArray(B_large)
+        d_B            = view(d_B_large, n_range)
+        @test collect(d_M \ d_B) ≈ M \ B
+
         A              = rand(elty, m, n)  # A is a matrix and B,C is a vector
         d_A            = CuArray(A)
         M              = qr(A)
@@ -423,6 +515,41 @@ k = 1
         @test collect(d_M.R' * d_C) ≈ (M.R' * C)
         @test collect(d_C' * d_M.R) ≈ (C' * M.R)
         @test collect(d_C' * d_M.R') ≈ (C' * M.R')
+        A_view         = view(A, m_sub_range, n_sub_range)
+        d_A_view       = view(d_A, m_sub_range, n_sub_range)
+        M_view         = qr(A_view)
+        d_M_view       = qr(d_A_view)
+        B_view         = view(B, m_subrange)
+        d_B_view       = view(d_B, m_subrange)
+        C_view         = view(C, n_subrange)
+        d_C_view       = view(d_C, n_subrange)
+        @test collect(d_M_view \ d_B_view) ≈ M_view \ B_view
+        @test collect(d_M_view.Q * d_B_view) ≈ (M_view.Q * B_view)
+        @test collect(d_M_view.Q' * d_B_view) ≈ (M_view.Q' * B_view)
+        @test collect(d_B_view' * d_M_view.Q) ≈ (B_view' * M_view.Q)
+        @test collect(d_B_view' * d_M_view.Q') ≈ (B_view' * M_view.Q')
+        @test collect(d_M_view.R * d_C_view) ≈ (M_view.R * C_view)
+        @test collect(d_M_view.R' * d_C_view) ≈ (M_view.R' * C_view)
+        @test collect(d_C_view' * d_M_view.R) ≈ (C_view' * M_view.R)
+        @test collect(d_C_view' * d_M_view.R') ≈ (C_view' * M_view.R')
+        B_large        = rand(elty, m_large) 
+        B              = view(B_large, m_range)
+        d_B_large      = CuArray(B_large)
+        d_B            = view(d_B_large, m_range)
+        C_large        = rand(elty, n_large) 
+        C              = view(C_large, n_range)
+        d_C_large      = CuArray(C_large)
+        d_C            = view(d_C_large, n_range)
+        @test collect(d_M \ d_B) ≈ M \ B
+        @test collect(d_M.Q * d_B) ≈ (M.Q * B)
+        @test collect(d_M.Q' * d_B) ≈ (M.Q' * B)
+        @test collect(d_B' * d_M.Q) ≈ (B' * M.Q)
+        @test collect(d_B' * d_M.Q') ≈ (B' * M.Q')
+        @test collect(d_M.R * d_C) ≈ (M.R * C)
+        @test collect(d_M.R' * d_C) ≈ (M.R' * C)
+        @test collect(d_C' * d_M.R) ≈ (C' * M.R)
+        @test collect(d_C' * d_M.R') ≈ (C' * M.R')
+
         A              = rand(elty, m, n)  # A and B,C are matrices
         d_A            = CuArray(A)
         M              = qr(A)
@@ -440,6 +567,41 @@ k = 1
         @test collect(d_M.R' * d_C) ≈ (M.R' * C)
         @test collect(d_C' * d_M.R) ≈ (C' * M.R)
         @test collect(d_C' * d_M.R') ≈ (C' * M.R')
+        A_view         = view(A, m_sub_range, n_sub_range)
+        d_A_view       = view(d_A, m_sub_range, n_sub_range)
+        M_view         = qr(A_view)
+        d_M_view       = qr(d_A_view)
+        B_view         = view(B, m_subrange, l_subrange)
+        d_B_view       = view(d_B, m_subrange, l_subrange)
+        C_view         = view(C, n_subrange, l_subrange)
+        d_C_view       = view(d_C, n_subrange, l_subrange)
+        @test collect(d_M_view \ d_B_view) ≈ M_view \ B_view
+        @test collect(d_M_view.Q * d_B_view) ≈ (M_view.Q * B_view)
+        @test collect(d_M_view.Q' * d_B_view) ≈ (M_view.Q' * B_view)
+        @test collect(d_B_view' * d_M_view.Q) ≈ (B_view' * M_view.Q)
+        @test collect(d_B_view' * d_M_view.Q') ≈ (B_view' * M_view.Q')
+        @test collect(d_M_view.R * d_C_view) ≈ (M_view.R * C_view)
+        @test collect(d_M_view.R' * d_C_view) ≈ (M_view.R' * C_view)
+        @test collect(d_C_view' * d_M_view.R) ≈ (C_view' * M_view.R)
+        @test collect(d_C_view' * d_M_view.R') ≈ (C_view' * M_view.R')
+        B_large        = rand(elty, m_large, l_large) 
+        B              = view(B_large, m_range, l_range)
+        d_B_large      = CuArray(B_large)
+        d_B            = view(d_B_large, m_range, l_range)
+        C_large        = rand(elty, n_large, l_large) 
+        C              = view(C_large, n_range, l_range)
+        d_C_large      = CuArray(C_large)
+        d_C            = view(d_C_large, n_range, l_range)
+        @test collect(d_M \ d_B) ≈ M \ B
+        @test collect(d_M.Q * d_B) ≈ (M.Q * B)
+        @test collect(d_M.Q' * d_B) ≈ (M.Q' * B)
+        @test collect(d_B' * d_M.Q) ≈ (B' * M.Q)
+        @test collect(d_B' * d_M.Q') ≈ (B' * M.Q')
+        @test collect(d_M.R * d_C) ≈ (M.R * C)
+        @test collect(d_M.R' * d_C) ≈ (M.R' * C)
+        @test collect(d_C' * d_M.R) ≈ (C' * M.R)
+        @test collect(d_C' * d_M.R') ≈ (C' * M.R')
+
     end
 
     @testset "potrsBatched!" begin
