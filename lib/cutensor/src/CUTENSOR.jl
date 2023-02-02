@@ -13,7 +13,7 @@ using CUTENSOR_jll
 export has_cutensor
 
 function has_cutensor(show_reason::Bool=false)
-    if !isdefined(CUTENSOR_jll, :libcutensor)
+    if !CUTENSOR_jll.is_available()
         show_reason && error("CUTENSOR library not found")
         return false
     end
@@ -90,6 +90,11 @@ function log_message(log_level, function_name, message)
 end
 
 function __init__()
+    if !CUTENSOR_jll.is_available()
+        @error "CUTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
+        return
+    end
+
     # register a log callback
     if isdebug(:init, CUTENSOR) || Base.JLOptions().debug_level >= 2
         callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))

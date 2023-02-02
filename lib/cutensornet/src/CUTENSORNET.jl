@@ -16,7 +16,7 @@ using cuQuantum_jll
 export has_cutensornet
 
 function has_cutensornet(show_reason::Bool=false)
-    if !isdefined(cuQuantum_jll, :libcutensornet)
+    if !cuQuantum_jll.is_available()
         show_reason && error("cuTensorNet library not found")
         return false
     end
@@ -107,6 +107,11 @@ function log_message(log_level, function_name, message)
 end
 
 function __init__()
+    if !cuQuantum_jll.is_available()
+        @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
+        return
+    end
+
     # register a log callback
     if isdebug(:init, CUTENSORNET) || Base.JLOptions().debug_level >= 2
         callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))

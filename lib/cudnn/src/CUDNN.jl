@@ -20,7 +20,7 @@ using CUDNN_jll
 export has_cudnn
 
 function has_cudnn(show_reason::Bool=false)
-    if !isdefined(CUDNN_jll, :libcudnn)
+    if !CUDNN_jll.is_available()
         show_reason && error("CUDNN library not found")
         return false
     end
@@ -155,13 +155,13 @@ function _log_message(sev, dbg, str)
 end
 
 function __init__()
-    if version() < v"8.0"
-        @warn "This version of CUDA.jl only supports CUDNN 8.0 or higher"
+    if !CUDNN_jll.is_available()
+        @error "CUDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform)))"
+        return
     end
 
     # register a log callback
-    if (isdebug(:init, CUDNN) || Base.JLOptions().debug_level >= 2) &&
-       version() >= v"8.2"  # NVIDIA bug #3256123
+    if isdebug(:init, CUDNN) || Base.JLOptions().debug_level >= 2
         log_cond[] = Base.AsyncCondition() do async_cond
             message = Base.@lock log_lock popfirst!(log_messages)
             _log_message(message...)

@@ -12,7 +12,7 @@ using cuQuantum_jll
 export has_custatevec
 
 function has_custatevec(show_reason::Bool=false)
-    if !isdefined(cuQuantum_jll, :libcustatevec)
+    if !cuQuantum_jll.is_available()
         show_reason && error("cuStateVec library not found")
         return false
     end
@@ -106,6 +106,11 @@ function log_message(log_level, function_name, message)
 end
 
 function __init__()
+    if !cuQuantum_jll.is_available()
+        @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
+        return
+    end
+
     # register a log callback
     if isdebug(:init, CUSTATEVEC) || Base.JLOptions().debug_level >= 2
         callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
