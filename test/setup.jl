@@ -244,17 +244,6 @@ function julia_exec(args::Cmd, env...)
     proc, read(out, String), read(err, String)
 end
 
-# tests that are conditionall broken
-macro test_broken_if(cond, ex...)
-    quote
-        if $(esc(cond))
-            @test_broken $(map(esc, ex)...)
-        else
-            @test $(map(esc, ex)...)
-        end
-    end
-end
-
 # some tests are mysteriously broken with certain hardware/software.
 # use a horrible macro to mark those tests as "potentially broken"
 @eval Test begin
