@@ -1,6 +1,6 @@
 using CUDA, Random
 import NNlib
-using CUDNN:
+using cuDNN:
     cudnnPoolingForward,
     cudnnPoolingForward!,
     cudnnPoolingBackward,

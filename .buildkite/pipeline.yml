@@ -145,8 +145,8 @@ steps:
     steps:
       - label: "{{matrix}} on CUDA 10"
         matrix:
-            - "CUDNN"
-            - "CUTENSOR"
+            - "cuDNN"
+            - "cuTENSOR"
         plugins:
           - JuliaCI/julia#v1:
               version: 1.6
@@ -178,10 +178,10 @@ steps:
             Pkg.test()'
       - label: "{{matrix}} on CUDA 11"
         matrix:
-            - "CUDNN"
-            - "CUTENSOR"
-            - "CUSTATEVEC"
-            - "CUTENSORNET"
+            - "cuDNN"
+            - "cuTENSOR"
+            - "cuStateVec"
+            - "cuTensorNet"
         plugins:
           - JuliaCI/julia#v1:
               version: 1.6
@@ -203,8 +203,8 @@ steps:
 
             println("--- :julia: Instantiating project")
             Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix}}")))
-            if "{{matrix}}" == "CUTENSORNET"
-              # HACK: CUTENSORNET depends on a development version of CUTENSOR
+            if "{{matrix}}" == "cuTensorNet"
+              # HACK: cuTensorNet depends on a development version of cuTENSOR
               Pkg.develop(path=joinpath(pwd(), "lib", "cutensor"))
             end
             Pkg.develop(path=pwd())

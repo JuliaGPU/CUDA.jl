@@ -1,6 +1,6 @@
 using CEnum
 
-# CUTENSOR uses CUDA runtime objects, which are compatible with our driver usage
+# cuTENSOR uses CUDA runtime objects, which are compatible with our driver usage
 const cudaStream_t = CUstream
 
 # outlined functionality to avoid GC frame allocation

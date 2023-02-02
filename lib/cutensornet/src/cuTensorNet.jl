@@ -1,19 +1,23 @@
-module CUSTATEVEC
+module cuTensorNet
 
+using LinearAlgebra
 using CUDA
-using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace, libraryPropertyType
-using CUDA: unsafe_free!, @retry_reclaim, initialize_context, isdebug
+using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace
+using CUDA: @retry_reclaim, initialize_context, isdebug
+
+using cuTENSOR
+using cuTENSOR: CuTensor
 
 using CEnum: @cenum
 
 using cuQuantum_jll
 
 
-export has_custatevec
+export has_cutensornet
 
-function has_custatevec(show_reason::Bool=false)
+function has_cutensornet(show_reason::Bool=false)
     if !cuQuantum_jll.is_available()
-        show_reason && error("cuStateVec library not found")
+        show_reason && error("cuTensorNet library not found")
         return false
     end
     return true
@@ -23,64 +27,61 @@ end
 const cudaDataType_t = cudaDataType
 
 # core library
-include("libcustatevec.jl")
+include("libcutensornet.jl")
 
 include("error.jl")
 include("types.jl")
-include("statevec.jl")
+include("tensornet.jl")
 
 # cache for created, but unused handles
-const idle_handles  = HandleCache{CuContext,custatevecHandle_t}()
+const idle_handles = HandleCache{CuContext,cutensornetHandle_t}()
 
 function handle()
     cuda = CUDA.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::custatevecHandle_t, stream::CuStream}
-    states = get!(task_local_storage(), :CUQUANTUM) do
+    LibraryState = @NamedTuple{handle::cutensornetHandle_t}
+    states = get!(task_local_storage(), :cuTensorNet) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
 
     # get library state
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context) do
-            handle = Ref{custatevecHandle_t}()
-            custatevecCreate(handle)
+            handle = Ref{cutensornetHandle_t}()
+            cutensornetCreate(handle)
             handle[]
         end
 
         finalizer(current_task()) do task
             push!(idle_handles, cuda.context, new_handle) do
                 context!(cuda.context; skip_destroyed=true) do
-                    custatevecDestroy(new_handle)
+                    cutensornetDestroy(new_handle)
                 end
             end
         end
 
-        custatevecSetStream(new_handle, cuda.stream)
-
-        (; handle=new_handle, cuda.stream)
+        (; handle=new_handle)
     end
     state = get!(states, cuda.context) do
         new_state(cuda)
-    end
-
-    # update stream
-    @noinline function update_stream(cuda, state)
-        custatevecSetStream(state.handle, cuda.stream)
-        (; state.handle, cuda.stream)
-    end
-    if state.stream != cuda.stream
-        states[cuda.context] = state = update_stream(cuda, state)
     end
 
     return state.handle
 end
 
 function version()
-  ver = custatevecGetVersion()
-  major, ver = divrem(ver, 1000)
+  ver = cutensornetGetVersion()
+  major, ver = divrem(ver, 10000)
   minor, patch = divrem(ver, 100)
+
+  VersionNumber(major, minor, patch)
+end
+
+function cuda_version()
+  ver = cutensornetGetCudartVersion()
+  major, ver = divrem(ver, 1000)
+  minor, patch = divrem(ver, 10)
 
   VersionNumber(major, minor, patch)
 end
@@ -112,11 +113,11 @@ function __init__()
     end
 
     # register a log callback
-    if isdebug(:init, CUSTATEVEC) || Base.JLOptions().debug_level >= 2
+    if isdebug(:init, cuTensorNet) || Base.JLOptions().debug_level >= 2
         callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
-        custatevecLoggerSetCallback(callback)
-        custatevecLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")
-        custatevecLoggerSetLevel(5)
+        cutensornetLoggerSetCallback(callback)
+        cutensornetLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")
+        cutensornetLoggerSetLevel(5)
     end
 end
 

@@ -1,4 +1,4 @@
-using CUDNN:
+using cuDNN:
     cudnnTensorDescriptor,
     cudnnCreateTensorDescriptor,
     cudnnTensorDescriptor_t,

@@ -1,6 +1,6 @@
 using CEnum
 
-# CUDNN uses CUDA runtime objects, which are compatible with our driver usage
+# cuDNN uses CUDA runtime objects, which are compatible with our driver usage
 const cudaStream_t = CUstream
 
 # outlined functionality to avoid GC frame allocation

@@ -18,7 +18,7 @@ function Base.convert(::Type{custatevecComputeType_t}, T::DataType)
     elseif T == Int32
         return CUSTATEVEC_COMPUTE_32I
     else
-        throw(ArgumentError("CUSTATEVEC type equivalent for compute type $T does not exist!"))
+        throw(ArgumentError("cuStateVec type equivalent for compute type $T does not exist!"))
     end
 end
 

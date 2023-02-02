@@ -40,7 +40,7 @@ Keyword arguments describing the convolution when `d` is not given:
 * `stride = 1`: how far to shift the convolution window at each step
 * `dilation = 1`: dilation factor
 * `group = 1`: number of groups to be used
-* `mathType = CUDNN.math_mode()`: whether or not the use of tensor op is permitted
+* `mathType = cuDNN.math_mode()`: whether or not the use of tensor op is permitted
 * `reorderType = CUDNN_DEFAULT_REORDER`: convolution reorder type
 """
 cudnnConvolutionForward, cudnnConvolutionForward!

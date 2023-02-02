@@ -1,4 +1,4 @@
-name = "CUTENSOR"
+name = "cuTENSOR"
 uuid = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
 authors = ["Tim Besard <tim.besard@gmail.com>"]
 version = "1.0.0"

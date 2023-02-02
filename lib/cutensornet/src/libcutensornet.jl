@@ -1,6 +1,6 @@
 using CEnum
 
-# CUTENSORNET uses CUDA runtime objects, which are compatible with our driver usage
+# cuTensorNet uses CUDA runtime objects, which are compatible with our driver usage
 const cudaStream_t = CUstream
 
 # outlined functionality to avoid GC frame allocation

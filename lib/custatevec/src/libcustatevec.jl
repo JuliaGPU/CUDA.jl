@@ -1,6 +1,6 @@
 using CEnum
 
-# CUSTATEVEC uses CUDA runtime objects, which are compatible with our driver usage
+# cuStateVec uses CUDA runtime objects, which are compatible with our driver usage
 const cudaStream_t = CUstream
 
 # vector types

@@ -1,4 +1,4 @@
-using CUDNN:
+using cuDNN:
     cudnnOpTensor,
     cudnnOpTensor!,
     cudnnOpTensorDescriptor,

@@ -1,4 +1,4 @@
-import CUDNN:
+import cuDNN:
     cudnnSetTensor!,
     cudnnScaleTensor!,
     cudnnScaleTensor,

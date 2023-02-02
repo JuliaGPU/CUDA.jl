@@ -1,4 +1,4 @@
-using CUDNN:
+using cuDNN:
     cudnnActivationForward,
     cudnnActivationForward!,
     cudnnActivationBackward,

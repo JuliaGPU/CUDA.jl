@@ -13,11 +13,11 @@ end
 using CUDA
 @info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
 
-using CUTENSOR
-@test CUTENSOR.has_cutensor()
-@info "CUTENSOR version: $(CUTENSOR.version()) (built for CUDA $(CUTENSOR.cuda_version()))"
+using cuTENSOR
+@test cuTENSOR.has_cutensor()
+@info "cuTENSOR version: $(cuTENSOR.version()) (built for CUDA $(cuTENSOR.cuda_version()))"
 
-@testset "CUTENSOR" begin
+@testset "cuTENSOR" begin
 
 # include all tests
 for entry in readdir(@__DIR__)
