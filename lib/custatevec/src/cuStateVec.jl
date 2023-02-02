@@ -106,6 +106,9 @@ function log_message(log_level, function_name, message)
 end
 
 function __init__()
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    precompiling && return
+
     if !cuQuantum_jll.is_available()
         @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
         return

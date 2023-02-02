@@ -20,6 +20,9 @@ using CUDNN_jll
 export has_cudnn
 
 function has_cudnn(show_reason::Bool=false)
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    precompiling && return
+
     if !CUDNN_jll.is_available()
         show_reason && error("cuDNN library not found")
         return false

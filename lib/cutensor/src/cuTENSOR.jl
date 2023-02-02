@@ -90,6 +90,9 @@ function log_message(log_level, function_name, message)
 end
 
 function __init__()
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    precompiling && return
+
     if !CUTENSOR_jll.is_available()
         @error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
         return
