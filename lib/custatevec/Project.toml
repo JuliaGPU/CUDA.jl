@@ -10,3 +10,6 @@ cuQuantum_jll = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
 
 [compat]
 cuQuantum_jll = "~22.11"
+CUDA = "~4.0"
+CEnum = "0.2, 0.3, 0.4"
+julia = "1.6"
