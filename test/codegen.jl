@@ -167,8 +167,10 @@ end
     valid_kernel() = return
     invalid_kernel() = 1
 
-    @not_if_sanitize @test CUDA.code_sass(devnull, valid_kernel, Tuple{}) == nothing
-    @not_if_sanitize @test_throws CUDA.KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
+    if can_use_cupti()
+        @test CUDA.code_sass(devnull, valid_kernel, Tuple{}) == nothing
+        @test_throws CUDA.KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
+    end
 end
 
 @testset "function name mangling" begin
@@ -176,13 +178,17 @@ end
 
     @eval kernel_341(ptr) = (@inbounds unsafe_store!(ptr, $(Symbol("dummy_^"))(unsafe_load(ptr))); nothing)
 
-    @not_if_sanitize CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
+    if can_use_cupti()
+        CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
+    end
 end
 
 @testset "device runtime" begin
     kernel() = (CUDA.cudaGetLastError(); return)
 
-    @not_if_sanitize CUDA.code_sass(devnull, kernel, Tuple{})
+    if can_use_cupti()
+        CUDA.code_sass(devnull, kernel, Tuple{})
+    end
 end
 
 end

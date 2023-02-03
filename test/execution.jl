@@ -58,14 +58,18 @@ end
     CUDA.code_warntype(devnull, dummy, Tuple{})
     CUDA.code_llvm(devnull, dummy, Tuple{})
     CUDA.code_ptx(devnull, dummy, Tuple{})
-    @not_if_sanitize CUDA.code_sass(devnull, dummy, Tuple{})
+    if can_use_cupti()
+        CUDA.code_sass(devnull, dummy, Tuple{})
+    end
 
     @device_code_lowered @cuda dummy()
     @device_code_typed @cuda dummy()
     @device_code_warntype io=devnull @cuda dummy()
     @device_code_llvm io=devnull @cuda dummy()
     @device_code_ptx io=devnull @cuda dummy()
-    @not_if_sanitize @device_code_sass io=devnull @cuda dummy()
+    if can_use_cupti()
+        @device_code_sass io=devnull @cuda dummy()
+    end
 
     mktempdir() do dir
         @device_code dir=dir @cuda dummy()
@@ -77,7 +81,9 @@ end
     @test occursin("julia_dummy", sprint(io->(@device_code_llvm io=io optimize=false @cuda dummy())))
     @test occursin("julia_dummy", sprint(io->(@device_code_llvm io=io @cuda dummy())))
     @test occursin("julia_dummy", sprint(io->(@device_code_ptx io=io @cuda dummy())))
-    @not_if_sanitize @test occursin("julia_dummy", sprint(io->(@device_code_sass io=io @cuda dummy())))
+    if can_use_cupti()
+        @test occursin("julia_dummy", sprint(io->(@device_code_sass io=io @cuda dummy())))
+    end
 
     # make sure invalid kernels can be partially reflected upon
     let

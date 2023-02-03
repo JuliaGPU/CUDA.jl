@@ -59,6 +59,13 @@ function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
         error("Can only generate SASS code for kernel functions")
     end
 
+    # NVIDIA bug #3964667: CUPTI in CUDA 11.7+ broken for sm_35 devices
+    if runtime_version() >= v"11.7" && capability(device()) <= v"3.7"
+        @error """SASS code generation is not supported on this device.
+                  Please downgrade to CUDA 11.6 or lower, or use a more recent device."""
+        return
+    end
+
     compiled = cufunction_compile(job)
 
     cubin = Ref{Any}()
