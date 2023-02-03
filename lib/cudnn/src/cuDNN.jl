@@ -158,8 +158,11 @@ function _log_message(sev, dbg, str)
 end
 
 function __init__()
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    precompiling && return
+
     if !CUDNN_jll.is_available()
-        @error "cuDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform)))"
+        #@error "cuDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform)))"
         return
     end
 

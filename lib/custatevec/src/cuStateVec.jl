@@ -110,7 +110,7 @@ function __init__()
     precompiling && return
 
     if !cuQuantum_jll.is_available()
-        @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
+        #@error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
         return
     end
 
