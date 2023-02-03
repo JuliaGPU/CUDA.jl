@@ -1,7 +1,7 @@
 name = "cuStateVec"
 uuid = "92f7fd98-d22e-4c0d-85a8-6ade11b672fb"
 authors = ["Katharine Hyatt <kslimes@gmail.com>"]
-version = "1.0.0"
+version = "1.0.1"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
