@@ -249,7 +249,7 @@ end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T},
              B::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}},
-             beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
+             beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
 
     CUSPARSE.version() < v"11.7.4" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
