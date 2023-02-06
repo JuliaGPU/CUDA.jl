@@ -114,9 +114,9 @@ if CUSPARSE.version() >= v"11.7.4"
         @testset "CuMatrix * $SparseMatrixType -- mm! algo=$algo" for algo in SPMM_ALGOS[SparseMatrixType]
             @testset "$T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                    transb_opb = CUSPARSE.version() < v"12.0" ? [('N', identity), ('T', transpose), ('C', adjoint)] : [('N', identity)]
-                    for (transb, opb) in transb_opb
+                    for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
                         CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && T <: Complex && transb == 'C' && continue
+                        CUSPARSE.version() ≥ v"12.0" && transb != 'N' && continue
                         algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 && (transa != 'N' || transb != 'N') && continue
                         A = rand(T, 10, 10)
                         B = transb == 'N' ? sprand(T, 10, 2, 0.5) : sprand(T, 2, 10, 0.5)
@@ -301,14 +301,16 @@ if CUSPARSE.version() >= v"11.1.1"
 
     SPGEMM_ALGOS = Dict(CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPGEMM_DEFAULT],
                         CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPGEMM_DEFAULT])
-    if CUSPARSE.version() >= v"11.6.0" && CUSPARSE.version() < v"12.0"
-        push!(SPGEMM_ALGOS[CuSparseMatrixCSR], CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC,
-                                               CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC)
-        push!(SPGEMM_ALGOS[CuSparseMatrixCSC], CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC,
-                                               CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC)
+    if CUSPARSE.version() >= v"12.0"
+        push!(SPGEMM_ALGOS[CuSparseMatrixCSR], CUSPARSE.CUSPARSE_SPGEMM_ALG1)
+                                               # CUSPARSE.CUSPARSE_SPGEMM_ALG2
+                                               # CUSPARSE.CUSPARSE_SPGEMM_ALG3
+        push!(SPGEMM_ALGOS[CuSparseMatrixCSC], CUSPARSE.CUSPARSE_SPGEMM_ALG1)
+                                               # CUSPARSE.CUSPARSE_SPGEMM_ALG2
+                                               # CUSPARSE.CUSPARSE_SPGEMM_ALG3
     end
-    # Test the new algorithms in the future (CUSPARSE > v"12.0"):
-    # CUSPARSE.CUSPARSE_SPGEMM_ALG1, CUSPARSE.CUSPARSE_SPGEMM_ALG2, CUSPARSE.CUSPARSE_SPGEMM_ALG3
+    # Algorithms CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC and
+    # CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC are dedicated to the cusparseSpGEMMreuse routine.
 
     for SparseMatrixType in keys(SPGEMM_ALGOS)
         @testset "$SparseMatrixType -- gemm -- gemm! algo=$algo" for algo in SPGEMM_ALGOS[SparseMatrixType]

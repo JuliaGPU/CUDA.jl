@@ -253,6 +253,7 @@ for SparseMatrixType in (:CuSparseMatrixCOO, :CuSparseMatrixCSR, :CuSparseMatrix
                 if CUSPARSE.version() ≥ v"12.0"
                     sv!('N', $uploc, $isunitc, one(T), parent(A), B, C, 'O')
                 else
+                    $SparseMatrixType == CuSparseMatrixCOO && throw(ErrorException("This operation is not supported by the current CUDA version."))
                     copyto!(C, B)
                     sv2!('N', $uploc, $isunitc, one(T), parent(A), C, 'O')
                 end
@@ -265,6 +266,7 @@ for SparseMatrixType in (:CuSparseMatrixCOO, :CuSparseMatrixCSR, :CuSparseMatrix
                 if CUSPARSE.version() ≥ v"12.0"
                     sm!('N', 'N', $uploc, $isunitc, one(T), parent(A), B, C, 'O')
                 else
+                    $SparseMatrixType == CuSparseMatrixCOO && throw(ErrorException("This operation is not supported by the current CUDA version."))
                     copyto!(C, B)
                     sm2!('N', 'N', $uploc, $isunitc, one(T), parent(A), C, 'O')
                 end
