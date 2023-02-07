@@ -129,7 +129,7 @@ This generates the following `LocalPreferences.toml` file in your active environ
 version = "11.8"
 ```
 
-This preference is compatible with other CUDA JLLs, e.g., if you load CUDNN_jll it will
+This preference is compatible with other CUDA JLLs, e.g., if you load `CUDNN_jll` it will
 only select artifacts that are compatible with the configured CUDA runtime.
 
 ### Using a local CUDA
@@ -175,7 +175,7 @@ binaries aren't on a globally-discoverable path. For more information, run Julia
 `JULIA_DEBUG` environment variable set to `CUDA_Runtime_Discovery`.
 
 Note that setting the version to `"local"` disables use of *any* CUDA-related JLL, not just
-of CUDA_Runtime_jll. This is out of necessity: JLLs are baked in the precompilation image at
+of `CUDA_Runtime_jll`. This is out of necessity: JLLs are baked in the precompilation image at
 compile time, while local toolkit discovery happens at run time; this inconsistency makes it
 impossible to select a compatible artifact for the JLLs. If you care about other JLLs, use
 CUDA from artifacts.
