@@ -328,7 +328,7 @@ using LinearAlgebra, SparseArrays
 
     @testset "Diagonal with $typ(10, 10)" for
         typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
-        
+
         S = sprand(Float32, 10, 10, 0.8)
         D = Diagonal(rand(Float32, 10))
         dA = typ(S)
@@ -371,7 +371,7 @@ using LinearAlgebra, SparseArrays
              end
         end
 
-        @testset "$triangle(CuSparseMatrixBSR) \ CuVector -- $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        @testset "$triangle(CuSparseMatrixBSR) \\ CuVector -- $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
             for opa in [identity, transpose, adjoint]
                 A = sparse(rand(elty, 10, 10))
                 y = rand(elty, 10)
@@ -395,7 +395,7 @@ using LinearAlgebra, SparseArrays
             end
         end
 
-        @testset "$triangle(CuSparseMatrixBSR) \ CuMatrix -- $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        @testset "$triangle(CuSparseMatrixBSR) \\ CuMatrix -- $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
             for opa in [identity, transpose, adjoint]
                 A = sparse(rand(elty, 10, 10))
                 B = rand(elty, 10, 2)
@@ -426,7 +426,7 @@ using LinearAlgebra, SparseArrays
                  end
             end
 
-            @testset "$triangle($SparseMatrixType) \ CuVector -- $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
+            @testset "$triangle($SparseMatrixType) \\ CuVector -- $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
                 for opa in [identity, transpose, adjoint]
                     SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
                     A = sparse(rand(elty, 10, 10))
@@ -458,7 +458,7 @@ using LinearAlgebra, SparseArrays
                 end
             end
 
-            @testset "$triangle($SparseMatrixType) \ CuMatrix -- $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
+            @testset "$triangle($SparseMatrixType) \\ CuMatrix -- $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
                 for opa in [identity, transpose, adjoint]
                     for opb in [identity, transpose, adjoint]
                         SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
