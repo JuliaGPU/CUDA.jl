@@ -263,6 +263,7 @@ for (bname,fname,elty) in ((:cusparseSgemvi_bufferSize, :cusparseSgemvi, :Float3
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            $elty <: Complex && transa == 'C' && throw(ArgumentError("Dense matrix - sparse vector multiplication with the adjoint of a complex matrix is not supported."))
 
             m,n = size(A)
             lda = max(1,stride(A,2))
