@@ -370,6 +370,14 @@ for (elty, felty) in ((:Int16, :Float16),
     end
 end
 
+## CuSparseVector to CuVector
+
+function CuVector(sv::CuSparseVector{T}) where {T}
+    n = length(sv)
+    dv = CUDA.zeros(T, n)
+    scatter!(dv, sv, 'O')
+end
+
 ## CSR to BSR and vice-versa
 
 for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
