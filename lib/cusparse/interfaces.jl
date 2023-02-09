@@ -74,10 +74,7 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
 
         function LinearAlgebra.mul!(C::CuVector{T}, A::$TypeA, B::CuSparseVector{T},
                                     alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-            n = length(B)
-            B_dense = CUDA.zeros(T, n)
-            scatter!(B_dense, B, 'O')
-            mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), B_dense, beta, C)
+            mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), CuVector(B), beta, C)
         end
 
         function LinearAlgebra.:(*)(A::$TypeA, x::CuSparseVector{T}) where {T <: Union{Float16, ComplexF16, BlasFloat}}
