@@ -649,6 +649,15 @@ julia> CuArray(1:3)
 
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
+## unsafe_free!
+# This allows adapt(unsafe_free!, obj) to go whereever adapt(CuArray, obj) went,
+# so that for example CuIterator can free arrays within Adjoint.
+
+function Adapt.adapt_storage(::typeof(unsafe_free!), x::CuArray)
+  unsafe_free!(x)
+  return x
+end
+
 
 ## utilities
 
