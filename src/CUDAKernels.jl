@@ -12,12 +12,11 @@ export CUDADevice
 # Import through parent
 import KernelAbstractions: StaticArrays, Adapt
 import .StaticArrays: MArray
-import KernelAbstractions: synchronize
 
 KernelAbstractions.get_device(::CUDA.CuArray) = CUDADevice()
 KernelAbstractions.get_device(::CUDA.CUSPARSE.AbstractCuSparseArray) = CUDADevice()
 
-synchronize(::CUDADevice) = CUDA.synchronize()
+KernelAbstractions.synchronize(::CUDADevice) = CUDA.synchronize()
 
 ###
 # async_copy

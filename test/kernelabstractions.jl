@@ -1,7 +1,7 @@
-using KernelAbstractions
+import KernelAbstractions
 using Test
 
-include(joinpath(dirname(pathof(KernelAbstractions)), "..", "test", "testsuite.jl")
+include(joinpath(dirname(pathof(KernelAbstractions)), "..", "test", "testsuite.jl"))
 
 using CUDA
 using CUDA.CUDAKernels
