@@ -3,7 +3,7 @@ module CUDAKernels
 import KernelAbstractions
 import CUDA
 
-struct CUDADevice{PreferBlocks, AlwaysInline} <: GPU end
+struct CUDADevice{PreferBlocks, AlwaysInline} <: KernelAbstractions.GPU end
 CUDADevice(;prefer_blocks=false, always_inline=false) = CUDADevice{prefer_blocks, always_inline}()
 CUDADevice{PreferBlocks}() where PreferBlocks = CUDADevice{PreferBlocks, false}()
 
