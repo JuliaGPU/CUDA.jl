@@ -179,14 +179,7 @@ end
     end
 end
 
-import KernelAbstractions: groupsize, __groupsize, __workitems_iterspace, add_float_contract, sub_float_contract, mul_float_contract
-
-@static if Base.isbindingresolved(CUDA, :emit_shmem) && Base.isdefined(CUDA, :emit_shmem)
-    const emit_shmem = CUDA.emit_shmem
-else
-    const emit_shmem = CUDA._shmem
-end
-
+import KernelAbstractions: groupsize, __groupsize, __workitems_iterspace
 import KernelAbstractions: ConstAdaptor, SharedMemory, Scratchpad, __synchronize, __size
 
 ###
