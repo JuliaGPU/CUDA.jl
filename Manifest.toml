@@ -138,7 +138,7 @@ version = "1.4.1"
 
 [[KernelAbstractions]]
 deps = ["Adapt", "Atomix", "InteractiveUtils", "LinearAlgebra", "MacroTools", "SparseArrays", "StaticArrays", "UUIDs", "UnsafeAtomics", "UnsafeAtomicsLLVM"]
-git-tree-sha1 = "2e3d6f4af076bed5cb529489de06ca3ae3956eb4"
+git-tree-sha1 = "9687f6699e0a9883a0e5da86a2886eae77af2cd7"
 repo-rev = "vc/nix_dependencies"
 repo-url = "https://github.com/JuliaGPU/KernelAbstractions.jl.git"
 uuid = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
