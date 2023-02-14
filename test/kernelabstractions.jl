@@ -9,8 +9,8 @@ using CUDA.CUDAKernels
 if CUDA.functional()
     CUDA.versioninfo()
     CUDA.allowscalar(false)
-    Testsuite.testsuite(CUDADevice{false, false}, backend, CUDA, CuArray, CUDA.CuDeviceArray)
+    Testsuite.testsuite(CUDADevice{false, false}, "CUDA", CUDA, CuArray, CUDA.CuDeviceArray)
     for (PreferBlocks, AlwaysInline) in Iterators.product((true, false), (true, false))
-        Testsuite.unittest_testsuite(CUDADevice{true, false}, backend, CUDA, CuArray, CUDA.CuDeviceArray)
+        Testsuite.unittest_testsuite(CUDADevice{true, false}, "CUDA", CUDA, CuArray, CUDA.CuDeviceArray)
     end
 end
