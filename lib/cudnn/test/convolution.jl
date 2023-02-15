@@ -1,5 +1,5 @@
 import NNlib
-using CUDNN:
+using cuDNN:
     cudnnConvolutionForward,
     cudnnConvolutionForward!,
     cudnnConvolutionBackwardFilter,

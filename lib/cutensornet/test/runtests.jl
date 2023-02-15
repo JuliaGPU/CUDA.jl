@@ -14,17 +14,17 @@ using CUDA
 @info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
 
 using LinearAlgebra
-using CUTENSOR
-using CUTENSORNET
-@test CUTENSOR.has_cutensor()
-@test CUTENSORNET.has_cutensornet()
-@info "CUTENSORNET version: $(CUTENSORNET.version()) (built for CUDA $(CUTENSORNET.cuda_version()))"
+using cuTENSOR
+using cuTensorNet
+@test cuTENSOR.has_cutensor()
+@test cuTensorNet.has_cutensornet()
+@info "cuTensorNet version: $(cuTensorNet.version()) (built for CUDA $(cuTensorNet.cuda_version()))"
 
-import CUTENSORNET: CuTensorNetwork, rehearse_contraction, perform_contraction!, gateSplit!, AutoTune, NoAutoTune
+import cuTensorNet: CuTensorNetwork, rehearse_contraction, perform_contraction!, gateSplit!, AutoTune, NoAutoTune
 
 using TensorOperations
 
-@testset "CUTENSORNET" begin
+@testset "cuTensorNet" begin
     n = 8
     m = 16
     k = 32
@@ -88,11 +88,11 @@ using TensorOperations
             U = CUDA.zeros(elty, n, n)
             S = CUDA.zeros(real(elty), n)
             V = CUDA.zeros(elty, n, n)
-            config = CUTENSORNET.SVDConfig(abs_cutoff=0.0, rel_cutoff=0.0)
+            config = cuTensorNet.SVDConfig(abs_cutoff=0.0, rel_cutoff=0.0)
             U, S, V, info = svd!(CuTensor(A, modesA), CuTensor(U, ['n', 'o']), S, CuTensor(V, ['o', 'm']), svd_config=config)
-            @test CUTENSORNET.full_extent(info)      == n
-            @test CUTENSORNET.reduced_extent(info)   == n
-            @test CUTENSORNET.discarded_weight(info) ≈ 0.0
+            @test cuTensorNet.full_extent(info)      == n
+            @test cuTensorNet.reduced_extent(info)   == n
+            @test cuTensorNet.discarded_weight(info) ≈ 0.0
             @test collect(U)*diagm(collect(S))*collect(V) ≈ collect(A)
         end
         @testset "GateSplit" begin
@@ -117,10 +117,10 @@ using TensorOperations
             S    = CUDA.zeros(real(elty), z)
             Bout = CUDA.zeros(elty, z, j, g, h)
             modesBout = ['z','j','g','h']
-            config = CUTENSORNET.SVDConfig(abs_cutoff=0.0, rel_cutoff=0.0)
+            config = cuTensorNet.SVDConfig(abs_cutoff=0.0, rel_cutoff=0.0)
             Aout, S, Bout, info = gateSplit!(CuTensor(A, modesA), CuTensor(B, modesB), CuTensor(G, modesG), CuTensor(Aout, modesAout), S, CuTensor(Bout, modesBout), svd_config=config)
-            @test CUTENSORNET.full_extent(info)      == z*z*2
-            @test CUTENSORNET.reduced_extent(info)   == z
+            @test cuTensorNet.full_extent(info)      == z*z*2
+            @test cuTensorNet.reduced_extent(info)   == z
         end
     end
 end

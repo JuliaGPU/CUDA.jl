@@ -13,7 +13,7 @@ the same values deterministically for debugging. Note that this slows down the o
 about 40x.
 
 The global constant `cudnnDropoutState::Dict` holds the random number generator state for
-each CUDNN handle.
+each cuDNN handle.
 """
 cudnnDropoutForward, cudnnDropoutForward!, cudnnDropoutSeed, cudnnDropoutState
 

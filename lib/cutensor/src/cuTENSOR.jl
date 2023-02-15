@@ -1,4 +1,4 @@
-module CUTENSOR
+module cuTENSOR
 
 using CUDA
 using CUDA.APIUtils
@@ -13,8 +13,8 @@ using CUTENSOR_jll
 export has_cutensor
 
 function has_cutensor(show_reason::Bool=false)
-    if !isdefined(CUTENSOR_jll, :libcutensor)
-        show_reason && error("CUTENSOR library not found")
+    if !CUTENSOR_jll.is_available()
+        show_reason && error("cuTENSOR library not found")
         return false
     end
     return true
@@ -42,7 +42,7 @@ function handle()
 
     # every task maintains library state per device
     LibraryState = @NamedTuple{handle::Base.RefValue{cutensorHandle_t}}
-    states = get!(task_local_storage(), :CUTENSOR) do
+    states = get!(task_local_storage(), :cuTENSOR) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
 
@@ -56,7 +56,7 @@ function handle()
 
         finalizer(current_task()) do task
             push!(idle_handles, cuda.context, new_handle) do
-                # CUTENSOR doesn't need to actively destroy its handle
+                # cuTENSOR doesn't need to actively destroy its handle
             end
         end
 
@@ -90,8 +90,16 @@ function log_message(log_level, function_name, message)
 end
 
 function __init__()
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    precompiling && return
+
+    if !CUTENSOR_jll.is_available()
+        #@error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
+        return
+    end
+
     # register a log callback
-    if isdebug(:init, CUTENSOR) || Base.JLOptions().debug_level >= 2
+    if isdebug(:init, cuTENSOR) || Base.JLOptions().debug_level >= 2
         callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
         cutensorLoggerSetCallback(callback)
         cutensorLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")

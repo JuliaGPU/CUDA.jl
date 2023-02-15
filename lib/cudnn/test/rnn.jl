@@ -1,4 +1,4 @@
-using CUDNN:
+using cuDNN:
     cudnnRNNForward,
     cudnnRNNForward!,
     cudnnRNNBackwardData_v8,

@@ -18,7 +18,7 @@ function Base.convert(::Type{cutensornetComputeType_t}, T::DataType)
     elseif T == Int32
         return CUTENSORNET_COMPUTE_32I
     else
-        throw(ArgumentError("CUTENSORNET type equivalent for compute type $T does not exist!"))
+        throw(ArgumentError("cuTensorNet type equivalent for compute type $T does not exist!"))
     end
 end
 

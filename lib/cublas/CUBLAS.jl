@@ -2,11 +2,12 @@ module CUBLAS
 
 using ..APIUtils
 
-using ..CUDA_Runtime
-
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, i32
 using ..CUDA: unsafe_free!, @retry_reclaim, isdebug, @sync, initialize_context
+
+using ..CUDA: CUDA_Runtime
+using ..CUDA_Runtime
 
 using GPUArrays
 
@@ -235,6 +236,14 @@ function _log_message(blob)
 end
 
 function __init__()
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    precompiling && return
+
+    if !CUDA_Runtime.is_available()
+        #@error "cuBLAS is not available"
+        return
+    end
+
     # register a log callback
     log_cond[] = Base.AsyncCondition() do async_cond
         blob = ""

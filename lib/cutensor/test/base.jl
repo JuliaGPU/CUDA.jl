@@ -1,8 +1,8 @@
-using CUDA, CUTENSOR
+using CUDA, cuTENSOR
 using LinearAlgebra, Random
 
 @test has_cutensor()
-@test CUTENSOR.version() isa VersionNumber
+@test cuTENSOR.version() isa VersionNumber
 
 @testset "type basics" begin
     N = 2

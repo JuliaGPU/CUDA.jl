@@ -13,12 +13,12 @@ end
 using CUDA
 @info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
 
-using CUSTATEVEC
-@test CUSTATEVEC.has_custatevec()
-@info "CUSTATEVEC version: $(CUSTATEVEC.version())"
+using cuStateVec
+@test cuStateVec.has_custatevec()
+@info "cuStateVec version: $(cuStateVec.version())"
 
-@testset "CUSTATEVEC" begin
-    import CUSTATEVEC: CuStateVec, applyMatrix!, applyPauliExp!, applyGeneralizedPermutationMatrix!, expectation, expectationsOnPauliBasis, sample, testMatrixType, Pauli, PauliX, PauliY, PauliZ, PauliI, measureOnZBasis!, swapIndexBits!
+@testset "cuStateVec" begin
+    import cuStateVec: CuStateVec, applyMatrix!, applyPauliExp!, applyGeneralizedPermutationMatrix!, expectation, expectationsOnPauliBasis, sample, testMatrixType, Pauli, PauliX, PauliY, PauliZ, PauliI, measureOnZBasis!, swapIndexBits!
 
     @testset "applyMatrix! and expectation" begin
         # build a simple state and compute expectations
@@ -89,7 +89,7 @@ using CUSTATEVEC
             h_sv = 1.0/√8 .* elty[0.0, im, 0.0, im, 0.0, im, 0.0, im]
             h_sv_result = 1.0/√2 * elty[0.0, 0.0, 0.0, im, 0.0, 0.0, 0.0, im]
             sv   = CuStateVec(h_sv)
-            sv, parity = measureOnZBasis!(sv, [0, 1, 2], 0.2, CUSTATEVEC.CUSTATEVEC_COLLAPSE_NORMALIZE_AND_ZERO)
+            sv, parity = measureOnZBasis!(sv, [0, 1, 2], 0.2, cuStateVec.CUSTATEVEC_COLLAPSE_NORMALIZE_AND_ZERO)
             sv_result  = collect(sv.data)
             @test sv_result ≈ h_sv_result
         end
@@ -110,17 +110,17 @@ using CUSTATEVEC
         @testset "Hermitian matrix" begin
             A = rand(elty, n, n)
             A = A + A'
-            @test testMatrixType(A, false, CUSTATEVEC.CUSTATEVEC_MATRIX_TYPE_HERMITIAN) <= 200 * eps(real(elty))
-            @test testMatrixType(A, true, CUSTATEVEC.CUSTATEVEC_MATRIX_TYPE_HERMITIAN) <= 200 * eps(real(elty))
-            @test testMatrixType(CuMatrix{elty}(A), false, CUSTATEVEC.CUSTATEVEC_MATRIX_TYPE_HERMITIAN) <= 200 * eps(real(elty))
-            @test testMatrixType(CuMatrix{elty}(A), true, CUSTATEVEC.CUSTATEVEC_MATRIX_TYPE_HERMITIAN) <= 200 * eps(real(elty))
+            @test testMatrixType(A, false, cuStateVec.CUSTATEVEC_MATRIX_TYPE_HERMITIAN) <= 200 * eps(real(elty))
+            @test testMatrixType(A, true, cuStateVec.CUSTATEVEC_MATRIX_TYPE_HERMITIAN) <= 200 * eps(real(elty))
+            @test testMatrixType(CuMatrix{elty}(A), false, cuStateVec.CUSTATEVEC_MATRIX_TYPE_HERMITIAN) <= 200 * eps(real(elty))
+            @test testMatrixType(CuMatrix{elty}(A), true, cuStateVec.CUSTATEVEC_MATRIX_TYPE_HERMITIAN) <= 200 * eps(real(elty))
         end
         @testset "Unitary matrix" begin
             A = elty <: Real ? diagm(ones(elty, n)) : exp(im * 0.2 * diagm(ones(elty, n)))
-            @test testMatrixType(A, false, CUSTATEVEC.CUSTATEVEC_MATRIX_TYPE_UNITARY) <= 200 * eps(real(elty))
-            @test testMatrixType(A, true, CUSTATEVEC.CUSTATEVEC_MATRIX_TYPE_UNITARY) <= 200 * eps(real(elty))
-            @test testMatrixType(CuMatrix{elty}(A), false, CUSTATEVEC.CUSTATEVEC_MATRIX_TYPE_UNITARY) <= 200 * eps(real(elty))
-            @test testMatrixType(CuMatrix{elty}(A), true, CUSTATEVEC.CUSTATEVEC_MATRIX_TYPE_UNITARY) <= 200 * eps(real(elty))
+            @test testMatrixType(A, false, cuStateVec.CUSTATEVEC_MATRIX_TYPE_UNITARY) <= 200 * eps(real(elty))
+            @test testMatrixType(A, true, cuStateVec.CUSTATEVEC_MATRIX_TYPE_UNITARY) <= 200 * eps(real(elty))
+            @test testMatrixType(CuMatrix{elty}(A), false, cuStateVec.CUSTATEVEC_MATRIX_TYPE_UNITARY) <= 200 * eps(real(elty))
+            @test testMatrixType(CuMatrix{elty}(A), true, cuStateVec.CUSTATEVEC_MATRIX_TYPE_UNITARY) <= 200 * eps(real(elty))
         end
     end
 end

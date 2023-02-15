@@ -65,8 +65,8 @@ adjtrans_wrappers = ((identity, identity),
                      (M -> :(Adjoint{T, <:$M}), M -> :(_spadjoint(parent($M)))))
 
 op_wrappers = ((identity, T -> 'N', identity),
-               (T -> :(Transpose{<:T, <:$T}), T -> 'T', A -> :(parent($A))),
-               (T -> :(Adjoint{<:T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A))))
+               (T -> :(Transpose{T, <:$T}), T -> 'T', A -> :(parent($A))),
+               (T -> :(Adjoint{T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A))))
 
 for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     TypeA = wrapa(taga(:(CuSparseMatrix{T})))

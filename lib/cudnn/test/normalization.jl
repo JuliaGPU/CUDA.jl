@@ -1,6 +1,6 @@
 using Statistics, Random
 
-using CUDNN:
+using cuDNN:
     cudnnNormalizationForward,
     cudnnNormalizationForward!,
     cudnnNormalizationForwardInference,

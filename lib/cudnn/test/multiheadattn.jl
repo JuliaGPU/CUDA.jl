@@ -1,4 +1,4 @@
-using CUDNN:
+using cuDNN:
     cudnnMultiHeadAttnForward,
     cudnnMultiHeadAttnForward!,
     cudnnMultiHeadAttnBackwardData,

@@ -1,5 +1,5 @@
 using Statistics
-using CUDNN:
+using cuDNN:
     cudnnReduceTensor,
     cudnnReduceTensor!,
     cudnnGetReductionIndicesSize,

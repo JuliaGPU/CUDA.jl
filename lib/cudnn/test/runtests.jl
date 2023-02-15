@@ -13,11 +13,11 @@ end
 using CUDA
 @info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
 
-using CUDNN
-@test CUDNN.has_cudnn()
-@info "CUDNN version: $(CUDNN.version()) (built for CUDA $(CUDNN.cuda_version()))"
+using cuDNN
+@test cuDNN.has_cudnn()
+@info "cuDNN version: $(cuDNN.version()) (built for CUDA $(cuDNN.cuda_version()))"
 
-@testset "CUDNN" begin
+@testset "cuDNN" begin
 
 # include all tests
 for entry in readdir(@__DIR__)

@@ -1,4 +1,4 @@
-using CUDNN:
+using cuDNN:
     cudnnSoftmaxForward,
     cudnnSoftmaxForward!,
     cudnnSoftmaxBackward,

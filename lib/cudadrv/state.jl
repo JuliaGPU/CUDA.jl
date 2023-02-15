@@ -213,9 +213,19 @@ function context(dev::CuDevice)
     end
 
     if capability(dev) < v"3.5"
-        @warn("""Your $(name(dev)) GPU does not meet the minimal required compute capability ($(capability(dev)) < 3.5).
-                 Some functionality might be unavailable.""",
-              maxlog=1, _id=devidx)
+        @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported by CUDA.jl.
+                  Please use a device with at least capability 3.5.""",
+               maxlog=1, _id=devidx)
+    elseif runtime_version() >= v"12" && capability(dev) <= v"3.7"
+        @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported on CUDA 12+.
+                  Please use CUDA 11.8 or earlier (by calling `CUDA.set_runtime_version!`), or switch to a different device.""",
+               maxlog=1, _id=devidx)
+    elseif runtime_version() >= v"11" && capability(dev) <= v"3.7"
+        # XXX: the 10.2 release notes mention that even sm_50 is deprecated,
+        #      but that isn't repeated in more recent release notes...
+        @warn("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is deprecated on CUDA 11+.
+                  Some functionality may be broken; It's recommended to switch to a different device.""",
+               maxlog=1, _id=devidx)
     end
 
     # configure the primary context

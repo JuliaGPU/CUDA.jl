@@ -1,11 +1,11 @@
 """
-    CUDNN
+    cuDNN
 
 High level interface to cuDNN functions. See
 [README.md](https://github.com/JuliaGPU/CUDA.jl/blob/master/lib/cudnn/README.md) for a
 design overview.
 """
-module CUDNN
+module cuDNN
 
 using CUDA
 using CUDA.APIUtils
@@ -20,8 +20,11 @@ using CUDNN_jll
 export has_cudnn
 
 function has_cudnn(show_reason::Bool=false)
-    if !isdefined(CUDNN_jll, :libcudnn)
-        show_reason && error("CUDNN library not found")
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    precompiling && return
+
+    if !CUDNN_jll.is_available()
+        show_reason && error("cuDNN library not found")
         return false
     end
     return true
@@ -72,7 +75,7 @@ function handle()
 
     # every task maintains library state per device
     LibraryState = @NamedTuple{handle::cudnnHandle_t, stream::CuStream}
-    states = get!(task_local_storage(), :CUDNN) do
+    states = get!(task_local_storage(), :cuDNN) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
 
@@ -155,13 +158,16 @@ function _log_message(sev, dbg, str)
 end
 
 function __init__()
-    if version() < v"8.0"
-        @warn "This version of CUDA.jl only supports CUDNN 8.0 or higher"
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    precompiling && return
+
+    if !CUDNN_jll.is_available()
+        #@error "cuDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform)))"
+        return
     end
 
     # register a log callback
-    if (isdebug(:init, CUDNN) || Base.JLOptions().debug_level >= 2) &&
-       version() >= v"8.2"  # NVIDIA bug #3256123
+    if isdebug(:init, cuDNN) || Base.JLOptions().debug_level >= 2
         log_cond[] = Base.AsyncCondition() do async_cond
             message = Base.@lock log_lock popfirst!(log_messages)
             _log_message(message...)
