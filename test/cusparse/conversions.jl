@@ -75,8 +75,9 @@ end
 end
 
 @testset "conversions between CuSparseMatrices" begin
-    A = sprand(100, 100, 0.02)
-    blockdim = 5
+    for (n, bd, p) in [(100, 5, 0.02), (4, 2, 0.5)]
+    A = sprand(n, n, p)
+    blockdim = bd
     for CuSparseMatrixType1 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
         if CuSparseMatrixType1 == CuSparseMatrixBSR
             dA1 = CuSparseMatrixType1(A, blockdim)

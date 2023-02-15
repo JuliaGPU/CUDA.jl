@@ -254,17 +254,30 @@ for elty in (Float32, Float64, ComplexF32, ComplexF64)
             rowPtr = CUDA.zeros(Cint,m+1)
             colVal = CUDA.zeros(Cint,nnz(csc))
             nzVal  = CUDA.zeros($elty,nnz(csc))
+            if inda == 'O' && CUSPARSE.version() >= v"12.0"
+                csc.colPtr .-= one(Cint)
+                csc.rowVal .-= one(Cint)
+                ind = 'Z'
+            else
+                ind = inda
+            end
             function bufferSize()
                 out = Ref{Csize_t}(1)
                 cusparseCsr2cscEx2_bufferSize(handle(), n, m, nnz(csc), nonzeros(csc),
                     csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
-                    $elty, action, inda, algo, out)
+                    $elty, action, ind, algo, out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 cusparseCsr2cscEx2(handle(), n, m, nnz(csc), nonzeros(csc),
                     csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
-                    $elty, action, inda, algo, buffer)
+                    $elty, action, ind, algo, buffer)
+            end
+            if inda == 'O' && CUSPARSE.version() >= v"12.0"
+                csc.colPtr .+= one(Cint)
+                csc.rowVal .+= one(Cint)
+                rowPtr .+= one(Cint)
+                colVal .+= one(Cint)
             end
             CuSparseMatrixCSR(rowPtr,colVal,nzVal,size(csc))
         end
