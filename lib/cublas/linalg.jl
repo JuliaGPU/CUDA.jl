@@ -591,3 +591,15 @@ end
         error("only supports BLAS type, got $T")
     end
 end
+
+op_wrappers = ((identity, T -> 'N', identity),
+               (T -> :(Transpose{T, <:$T}), T -> 'T', A -> :(parent($A))),
+               (T -> :(Adjoint{T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A))))
+
+for op in (:(+), :(-))
+    for (wrapa, transa, unwrapa) in op_wrappers, (wrapb, transb, unwrapb) in op_wrappers
+        TypeA = wrapa(:(CuMatrix{T}))
+        TypeB = wrapb(:(CuMatrix{T}))
+        @eval Base.$op(A::$TypeA, B::$TypeB) where {T <: CublasFloat} = CUBLAS.geam($transa(T), $transb(T), one(T), $(unwrapa(:A)), $(op)(one(T)), $(unwrapb(:B)))
+    end
+end
