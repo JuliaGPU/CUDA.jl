@@ -434,18 +434,23 @@ l_range = (1:l) .+ (l_sub_start -1)
             end
         end
 
-
-        Q, R = F
-        dQ, dR = d_F
-        @test collect(dQ*dR) ≈ A
-        @test collect(dR * dQ') ≈ (R * Q')
         A              = rand(elty, n, m)
+        F              = qr(A)
         d_A            = CuArray(A)
         d_F            = qr(d_A)
+        Q, R           = F
+        dQ, dR         = d_F
+        @test collect(dQ*dR) ≈ A
+        @test collect(dR * dQ') ≈ (R * Q')
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A)
         A_view          = view(A, m_subrange, n_subrange)
+        F               = qr(A_view)
         d_A_view        = view(d_A, m_subrange, n_subrange)
         d_F             = qr(d_A_view)
+        Q, R            = F
+        dQ, dR          = d_F
+        @test collect(dQ*dR) ≈ A_view
+        @test collect(dR * dQ') ≈ (R * Q')
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A_view)
 
         A              = rand(elty, m, n)
