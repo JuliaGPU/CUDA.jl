@@ -1198,6 +1198,27 @@ end
             h_C = Array(d_C)
             @test D ≈ h_C
         end
+        @testset "CuMatrix -- A ± B -- $elty" begin
+            for opa in (identity, transpose, adjoint)
+                for opb in (identity, transpose, adjoint)
+                    n = 10
+                    m = 20
+                    geam_A = opa == identity ? rand(elty, n, m) : rand(elty, m, n)
+                    geam_B = opb == identity ? rand(elty, n, m) : rand(elty, m, n)
+
+                    geam_dA = CuMatrix{elty}(geam_A)
+                    geam_dB = CuMatrix{elty}(geam_B)
+
+                    geam_C = opa(geam_A) + opb(geam_B)
+                    geam_dC = opa(geam_dA) + opb(geam_dB)
+                    @test geam_C ≈ collect(geam_dC)
+
+                    geam_C = opa(geam_A) - opb(geam_B)
+                    geam_dC = opa(geam_dA) - opb(geam_dB)
+                    @test geam_C ≈ collect(geam_dC)
+                end
+            end
+        end
         A = rand(elty,m,k)
         d_A = CuArray(A)
         @testset "syrkx!" begin
