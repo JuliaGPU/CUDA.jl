@@ -116,7 +116,6 @@ if CUSPARSE.version() >= v"11.7.4"
                 for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
                         CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && T <: Complex && transb == 'C' && continue
-                        CUSPARSE.version() ≥ v"12.0" && transb != 'N' && continue
                         algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 && (transa != 'N' || transb != 'N') && continue
                         A = rand(T, 10, 10)
                         B = transb == 'N' ? sprand(T, 10, 2, 0.5) : sprand(T, 2, 10, 0.5)

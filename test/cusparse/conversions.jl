@@ -85,8 +85,8 @@ for (n, bd, p) in [(100, 5, 0.02), (4, 2, 0.5)]
             end
             for CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
                 CuSparseMatrixType1 == CuSparseMatrixType2 && continue
+                dA2 = CuSparseMatrixType2 == CuSparseMatrixBSR ? CuSparseMatrixType2(dA1, blockdim) : CuSparseMatrixType2(dA1)
                 @testset "conversion $CuSparseMatrixType1 --> $CuSparseMatrixType2" begin
-                    dA2 = CuSparseMatrixType2 == CuSparseMatrixBSR ? CuSparseMatrixType2(dA1, blockdim) : CuSparseMatrixType2(dA1)
                     @test collect(dA1) ≈ collect(dA2)
                 end
             end
