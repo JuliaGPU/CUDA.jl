@@ -45,7 +45,7 @@ function explain_eltype(@nospecialize(T), depth=0; maxdepth=10)
       msg = "  "^depth * "$T is a mutable type\n"
     elseif hasfieldcount(T)
       msg = "  "^depth * "$T is a struct that's not allocated inline\n"
-      for U in fieldtypes(T)
+      for U in fieldtypes(dt)
           if !Base.allocatedinline(U)
               msg *= explain_nonisbits(U, depth+1)
           end
@@ -300,7 +300,8 @@ end
 
 export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,
        StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat,
-       AnyCuArray, AnyCuVector, AnyCuMatrix, AnyCuVecOrMat
+       AnyCuArray, AnyCuVector, AnyCuMatrix, AnyCuVecOrMat,
+       StridedGeneralArray, StridedGeneralMatrix, StridedGeneralVector
 
 # dense arrays: stored contiguously in memory
 #
@@ -323,6 +324,11 @@ const StridedCuArray{T,N} = Union{CuArray{T,N}, StridedSubCuArray{T,N}}
 const StridedCuVector{T} = StridedCuArray{T,1}
 const StridedCuMatrix{T} = StridedCuArray{T,2}
 const StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
+
+#union of strided CuArrays and Arrays
+const StridedGeneralArray{T,N} = Union{StridedCuArray{T,N}, StridedArray{T,N}}
+const StridedGeneralVector{T} = StridedGeneralArray{T,1}
+const StridedGeneralMatrix{T} = StridedGeneralArray{T,2}
 
 Base.pointer(x::StridedCuArray{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
 @inline function Base.pointer(x::StridedCuArray{T}, i::Integer) where T
@@ -430,6 +436,93 @@ end
 
 Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
     copyto!(dest, 1, src, 1, length(src))
+
+
+#TO DO: expand this for StridedMatrices of different shapes, currently the src needs to fit in the destination
+#TO DO: add parameters doffs, soffs, n
+function copyto_views!(dest::StridedGeneralMatrix{T},src::StridedGeneralMatrix{T}, 
+                                dest_location, src_location) where T #to do: locations need to be typed as Type{<:AbstractBuffer} from CUDA.jl/lib/cudadrv/memory.jl
+  src_step_x=step(src.indices[1])
+  dest_step_x=step(dest.indices[1])
+  src_step_height=step(src.indices[2])
+  dest_step_height=step(dest.indices[2])
+  src_parent_size=size(parent(src))
+  dest_parent_size=size(parent(dest))
+
+  @boundscheck checkbounds(view(dest,1,:), 1:length(src.indices[2]))
+  @boundscheck checkbounds(view(dest,:,1), 1: length(src.indices[1]))
+
+  #Non-contigous views can be accomodated by copy3d in certain cases
+  if isinteger(src_parent_size[1]*src_step_height/src_step_x) && isinteger(dest_parent_size[1]*dest_step_height/dest_step_x) 
+    Mem.unsafe_copy3d!(pointer(dest), dest_location, pointer(src), src_location,
+                              1, size(src,1), size(src,2);
+                              srcPos=(1,1,1), dstPos=(1,1,1),
+                              srcPitch=src_step_x*sizeof(T),srcHeight=Int(src_parent_size[1]*src_step_height/src_step_x),
+                              dstPitch=dest_step_x*sizeof(T), dstHeight=Int(dest_parent_size[1]*dest_step_height/dest_step_x))
+  #In other cases, use parallel threads
+  else
+    CUDA.synchronize()
+    @sync for col in 1:length(src.indices[2])
+      Threads.@spawn begin
+        println(" Thread index "*string(col))
+        Mem.unsafe_copy3d!(pointer(view(dest,:,col)), dest_location, pointer(view(src,:,col)), src_location,
+                            1, 1, size(src,1);
+                            srcPos=(1,1,1), dstPos=(1,1,1),
+                            srcPitch=sizeof(T)*src_step_x,srcHeight=1,
+                            dstPitch=sizeof(T)*dest_step_x, dstHeight=1)
+        CUDA.synchronize()
+      end
+    end
+  end
+  return dest
+end
+
+Base.copyto!(dest::StridedCuMatrix{T}, src::StridedMatrix{T} ) where {T} = 
+  copyto_views!(dest,src,Mem.Device,Mem.Host)
+
+Base.copyto!(dest::StridedCuMatrix{T}, src::StridedMatrix{T} ) where {T} = 
+  copyto_views!(dest,src,Mem.Host,Mem.Device)
+
+Base.copyto!(dest::StridedCuMatrix{T}, src::StridedCuMatrix{T} ) where {T} = 
+  copyto_views!(dest,src,Mem.Device,Mem.Device)
+
+function copyto_views!(dest::StridedGeneralVector{T},doffs::Integer,src::StridedGeneralVector{T},  soffs::Integer,
+                              n::Integer,dest_location, src_location) where T #to do: locations need to be typed as Type{<:AbstractBuffer} from CUDA.jl/lib/cudadrv/memory.jl
+  n==0 && return dest
+  @boundscheck checkbounds(dest, doffs)
+  @boundscheck checkbounds(dest, doffs+n-1)
+  @boundscheck checkbounds(src, soffs)
+  @boundscheck checkbounds(src, soffs+n-1)
+
+  src_step=step(src.indices)
+  dest_step=step(dest.indices)
+
+  Mem.unsafe_copy3d!(pointer(dest), dest_location, pointer(src), src_location,
+                            1, n, 1;
+                            srcPos=(1,soffs,1), dstPos=(1,doffs,1),
+                            srcPitch=src_step*sizeof(T),srcHeight=1,
+                            dstPitch=dest_step*sizeof(T), dstHeight=1)
+  return dest
+end
+
+Base.copyto!(dest::StridedCuVector{T}, doffs::Integer, src::StridedVector{T}, soffs::Integer, n::Integer) where {T} = 
+  copyto_views!(dest,doffs,src,soffs,n,Mem.Device,Mem.Host)
+
+Base.copyto!(dest::StridedVector{T}, doffs::Integer, src::StridedCuVector{T}, soffs::Integer, n::Integer) where {T} = 
+  copyto_views!(dest,doffs,src,soffs,n,Mem.Host,Mem.Device)
+
+Base.copyto!(dest::StridedCuVector{T}, doffs::Integer, src::StridedCuVector{T}, soffs::Integer, n::Integer) where {T} = 
+  copyto_views!(dest,doffs,src,soffs,n,Mem.Device,Mem.Device)
+
+Base.copyto!(dest::StridedCuArray{T}, src::StridedArray{T}) where {T} =
+  copyto!(dest, 1, src, 1, length(src))
+
+Base.copyto!(dest::StridedArray{T}, src::StridedCuArray{T}) where {T} =
+copyto!(dest, 1, src, 1, length(src))
+
+Base.copyto!(dest::StridedCuArray{T}, src::StridedCuArray{T}) where {T} =
+copyto!(dest, 1, src, 1, length(src))
+
 
 # general case: use CUDA APIs
 

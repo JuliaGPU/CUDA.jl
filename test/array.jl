@@ -315,6 +315,103 @@ end
   @test view(b, :, 1, :) isa StridedCuArray
 end
 
+@testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+  @testset "copyto StridedCuArray" begin
+    n=17
+    m=11
+    k=23
+    l=19
+
+    #From GPU to CPU
+    gpu_matrix = CUDA.rand(elty, m,n)
+    cpu_matrix = rand(elty,l,k)
+    gpu_view= view(gpu_matrix, 2:3:11, 3:2:11)
+    cpu_view= view(cpu_matrix,1:5:16, 4:4:20)
+    copyto!(cpu_view,gpu_view)
+    @test collect(gpu_view) == cpu_view
+
+    gpu_matrix = CUDA.rand(elty, m,n)
+    cpu_matrix = rand(elty,l,k)
+    gpu_view= view(gpu_matrix, :, :)
+    cpu_view= view(cpu_matrix,1:m, 1:n)
+    copyto!(cpu_view,gpu_view)
+    @test collect(gpu_view) == cpu_view
+
+    gpu_vec = CUDA.rand(elty, m)
+    cpu_vec = rand(elty,l)
+    gpu_view= view(gpu_vec, 2:3:11)
+    cpu_view= view(cpu_vec,1:5:16)
+    copyto!(cpu_view,gpu_view)
+    @test collect(gpu_view) == cpu_view
+
+    gpu_vec = CUDA.rand(elty, m)
+    cpu_vec = rand(elty,l)
+    gpu_view= view(gpu_vec, :)
+    cpu_view= view(cpu_vec,1:m)
+    copyto!(cpu_view,gpu_view)
+    @test collect(gpu_view) == cpu_view
+
+    #From CPU to GPU
+    gpu_matrix = CUDA.rand(elty, m,n)
+    cpu_matrix = rand(elty,l,k)
+    gpu_view= view(gpu_matrix, 2:3:11, 3:2:11)
+    cpu_view= view(cpu_matrix,1:5:16, 4:4:20)
+    copyto!(gpu_view,cpu_view)
+    @test collect(gpu_view) == cpu_view
+
+    gpu_matrix = CUDA.rand(elty, m,n)
+    cpu_matrix = rand(elty,l,k)
+    gpu_view= view(gpu_matrix, :, :)
+    cpu_view= view(cpu_matrix,1:m, 1:n)
+    copyto!(gpu_view,cpu_view)
+    @test collect(gpu_view) == cpu_view
+
+    gpu_vec = CUDA.rand(elty, m)
+    cpu_vec = rand(elty,l)
+    gpu_view= view(gpu_vec, 2:3:11)
+    cpu_view= view(cpu_vec,1:5:16)
+    copyto!(gpu_view,cpu_view)
+    @test collect(gpu_view) == cpu_view
+
+    gpu_vec = CUDA.rand(elty, m)
+    cpu_vec = rand(elty,l)
+    gpu_view= view(gpu_vec, :)
+    cpu_view= view(cpu_vec,1:m)
+    copyto!(gpu_view,cpu_view)
+    @test collect(gpu_view) == cpu_view
+
+    #From GPU to GPU
+    gpu_matrix = CUDA.rand(elty, m,n)
+    gpu_matrix2 = CUDA.rand(elty,l,k)
+    gpu_view= view(gpu_matrix, 2:3:11, 3:2:11)
+    gpu_view2= view(gpu_matrix2,1:5:16, 4:4:20)
+    copyto!(gpu_view,gpu_view2)
+    @test collect(gpu_view) == cpu_view
+
+    gpu_matrix = CUDA.rand(elty, m,n)
+    gpu_matrix2 = CUDA.rand(elty,l,k)
+    gpu_view= view(gpu_matrix,:, :)
+    gpu_view2= view(gpu_matrix2,1:m, 1:n)
+    copyto!(gpu_view,gpu_view2)
+    @test collect(gpu_view) == cpu_view
+
+    gpu_vec = CUDA.rand(elty, m)
+    gpu_vec2 = CUDA.rand(elty,l)
+    gpu_view= view(gpu_vec, 2:3:11)
+    gpu_view2= view(gpu_vec2,1:5:16)
+    copyto!(gpu_view,gpu_view2)
+    @test collect(gpu_view) == cpu_view
+
+    gpu_vec = CUDA.rand(elty, m)
+    gpu_vec2 = CUDA.rand(elty,l)
+    gpu_view= view(gpu_vec, :)
+    gpu_view2= view(gpu_vec2,1:m)
+    copyto!(gpu_view,gpu_view2)
+    @test collect(gpu_view) == cpu_view
+
+  end
+end
+
 @testset "accumulate" begin
   for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
     @test testf(x->accumulate(+, x), rand(n))
