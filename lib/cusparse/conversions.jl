@@ -497,7 +497,7 @@ end
 
 ## CSR to COO and vice-versa
 
-function CuSparseMatrixCSR(coo::CuSparseMatrixCOO{Tv}, index::SparseChar='O') where {Tv}
+function CuSparseMatrixCSR(coo::CuSparseMatrixCOO{Tv}; index::SparseChar='O') where {Tv}
     m,n = size(coo)
     coo = sort_coo(coo, 'R')
     csrRowPtr = CuVector{Cint}(undef, m+1)
@@ -505,7 +505,7 @@ function CuSparseMatrixCSR(coo::CuSparseMatrixCOO{Tv}, index::SparseChar='O') wh
     CuSparseMatrixCSR{Tv}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
 end
 
-function CuSparseMatrixCOO(csr::CuSparseMatrixCSR{Tv}, index::SparseChar='O') where {Tv}
+function CuSparseMatrixCOO(csr::CuSparseMatrixCSR{Tv}; index::SparseChar='O') where {Tv}
     m,n = size(csr)
     cooRowInd = CuVector{Cint}(undef, nnz(csr))
     cusparseXcsr2coo(handle(), csr.rowPtr, nnz(csr), m, cooRowInd, index)
@@ -514,7 +514,7 @@ end
 
 ### CSC to COO and viceversa
 
-function CuSparseMatrixCSC(coo::CuSparseMatrixCOO{Tv}, index::SparseChar='O') where {Tv}
+function CuSparseMatrixCSC(coo::CuSparseMatrixCOO{Tv}; index::SparseChar='O') where {Tv}
     m,n = size(coo)
     coo = sort_coo(coo, 'C')
     cscColPtr = CuVector{Cint}(undef, n+1)
@@ -522,7 +522,7 @@ function CuSparseMatrixCSC(coo::CuSparseMatrixCOO{Tv}, index::SparseChar='O') wh
     CuSparseMatrixCSC{Tv}(cscColPtr, coo.rowInd, nonzeros(coo), size(coo))
 end
 
-function CuSparseMatrixCOO(csc::CuSparseMatrixCSC{Tv}, index::SparseChar='O') where {Tv}
+function CuSparseMatrixCOO(csc::CuSparseMatrixCSC{Tv}; index::SparseChar='O') where {Tv}
     m,n = size(csc)
     cooColInd = CuVector{Cint}(undef, nnz(csc))
     cusparseXcsr2coo(handle(), csc.colPtr, nnz(csc), n, cooColInd, index)
