@@ -384,8 +384,9 @@ for (elty, felty) in ((:Int16, :Float16),
 end
 
 ## CuSparseVector to CuVector
+CuVector(x::CuSparseVector{T}) where {T} = CuVector{T}(x)
 
-function CuVector(sv::CuSparseVector{T}) where {T}
+function CuVector{T}(sv::CuSparseVector{T}) where {T}
     n = length(sv)
     dv = CUDA.zeros(T, n)
     scatter!(dv, sv, 'O')

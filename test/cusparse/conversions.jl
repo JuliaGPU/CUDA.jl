@@ -74,27 +74,19 @@ end
     end
 end
 
-@testset "conversions between CuSparseMatrices" begin
-    for (n, bd, p) in [(100, 5, 0.02), (4, 2, 0.5)]
+for (n, bd, p) in [(100, 5, 0.02), (4, 2, 0.5)]
+    @testset "conversions between CuSparseMatrices (n, bd, p) = ($n, $bd, $p)" begin
         A = sprand(n, n, p)
         blockdim = bd
         for CuSparseMatrixType1 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
-            if CuSparseMatrixType1 == CuSparseMatrixBSR
-                dA1 = CuSparseMatrixType1(A, blockdim)
-            else
-                dA1 = CuSparseMatrixType1(A)
-            end
-            @testset "conversion SparseMatrixCSC --> $CuSparseMatrixType1" begin
-                @test collect(dA1) ≈ A
+            dA1 = CuSparseMatrixType1 == CuSparseMatrixBSR ? CuSparseMatrixType1(A, blockdim) : CuSparseMatrixType1(A)
+            @testset "conversion $CuSparseMatrixType1 --> SparseMatrixCSC" begin
+                @test SparseMatrixCSC(dA1) ≈ A
             end
             for CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
                 CuSparseMatrixType1 == CuSparseMatrixType2 && continue
                 @testset "conversion $CuSparseMatrixType1 --> $CuSparseMatrixType2" begin
-                    if CuSparseMatrixType2 == CuSparseMatrixBSR
-                        dA2 = CuSparseMatrixType2(dA1, blockdim)
-                    else
-                        dA2 = CuSparseMatrixType2(dA1)
-                    end
+                    dA2 = CuSparseMatrixType2 == CuSparseMatrixBSR ? CuSparseMatrixType2(dA1, blockdim) : CuSparseMatrixType2(dA1)
                     @test collect(dA1) ≈ collect(dA2)
                 end
             end
