@@ -45,7 +45,7 @@ function explain_eltype(@nospecialize(T), depth=0; maxdepth=10)
       msg = "  "^depth * "$T is a mutable type\n"
     elseif hasfieldcount(T)
       msg = "  "^depth * "$T is a struct that's not allocated inline\n"
-      for U in fieldtypes(dt)
+      for U in fieldtypes(T)
           if !Base.allocatedinline(U)
               msg *= explain_nonisbits(U, depth+1)
           end
