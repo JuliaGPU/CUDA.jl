@@ -67,7 +67,7 @@ function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::L
     invoke(GPUCompiler.link_libraries!,
            Tuple{CompilerJob{PTXCompilerTarget}, typeof(mod), typeof(undefined_fns)},
            job, mod, undefined_fns)
-    link_libdevice!(mod, job.target.cap, undefined_fns)
+    link_libdevice!(mod, job.config.target.cap, undefined_fns)
 end
 
 GPUCompiler.method_table(@nospecialize(job::CUDACompilerJob)) = method_table

@@ -44,10 +44,11 @@ See also: [`@device_code_sass`](@ref)
 """
 function code_sass(io::IO, @nospecialize(func), @nospecialize(types), kernel::Bool=true;
                    verbose::Bool=false, always_inline::Bool=false, kwargs...)
-    tt = Base.to_tuple_type(types)
+    source = FunctionSpec(typeof(func), Base.to_tuple_type(types))
     target = CUDACompilerTarget(device(); kwargs...)
     params = CUDACompilerParams()
-    job = CompilerJob(target, FunctionSpec(func, tt, kernel), params; always_inline)
+    config = CompilerConfig(target, params; kernel)
+    job = CompilerJob(source, config)
     code_sass(io, job; verbose=verbose)
 end
 
@@ -55,7 +56,7 @@ end
 const cupti_lock = ReentrantLock()
 
 function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
-    if !job.source.kernel
+    if !job.config.kernel
         error("Can only generate SASS code for kernel functions")
     end
 
@@ -126,10 +127,11 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
                          kernel::Bool=false, minthreads=nothing, maxthreads=nothing,
                          blocks_per_sm=nothing, maxregs=nothing, always_inline::Bool=false,
                          kwargs...)
-            source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
+            source = FunctionSpec(typeof(func), Base.to_tuple_type(types))
             target = CUDACompilerTarget(device(); minthreads, maxthreads, blocks_per_sm, maxregs)
             params = CUDACompilerParams()
-            job = CompilerJob(target, source, params; always_inline)
+            config = CompilerConfig(target, params; kernel, always_inline)
+            job = CompilerJob(source, config)
             GPUCompiler.$method($(args...); kwargs...)
         end
         $method(@nospecialize(func), @nospecialize(types); kwargs...) =
@@ -145,10 +147,11 @@ const code_ptx = code_native
 Return a type `r` such that `f(args...)::r` where `args::tt`.
 """
 function return_type(@nospecialize(func), @nospecialize(tt))
-    source = FunctionSpec(func, tt, true)
+    source = FunctionSpec(typeof(func), tt)
     target = CUDACompilerTarget(device())
     params = CUDACompilerParams()
-    job = CompilerJob(target, source, params)
+    config = CompilerConfig(target, params; kernel=true)
+    job = CompilerJob(source, config)
     interp = GPUCompiler.get_interpreter(job)
     if VERSION >= v"1.8-"
         sig = Base.signature_type(func, tt)

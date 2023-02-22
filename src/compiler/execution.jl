@@ -299,11 +299,10 @@ when function changes, or when different types or keyword arguments are provided
 function cufunction(f::F, tt::TT=Tuple{}; name=nothing, always_inline=false, kwargs...) where {F,TT}
     cuda = active_state()
     cache = cufunction_cache(cuda.context)
-    source = FunctionSpec(f, tt, true, name)
     target = CUDACompilerTarget(cuda.device; kwargs...)
     params = CUDACompilerParams()
-    job = CompilerJob(target, source, params; always_inline)
-    fun = GPUCompiler.cached_compilation(cache, job,
+    config = CompilerConfig(target, params; kernel=true, name, always_inline)
+    fun = GPUCompiler.cached_compilation(cache, config, F, tt,
                                          cufunction_compile,
                                          cufunction_link)
     # compilation is cached on the function type, so we can only create a kernel object here
@@ -400,7 +399,7 @@ function cufunction_compile(@nospecialize(job::CompilerJob), ctx)
         push!(ptxas_opts, "--compile-only")
     end
 
-    arch = "sm_$(job.target.cap.major)$(job.target.cap.minor)"
+    arch = "sm_$(job.config.target.cap.major)$(job.config.target.cap.minor)"
 
     # compile to machine code
     # NOTE: we use tempname since mktemp doesn't support suffixes, and mktempdir is slow
@@ -516,7 +515,7 @@ a callable kernel object. Device-side equivalent of [`CUDA.cufunction`](@ref).
 No keyword arguments are supported.
 """
 @inline function dynamic_cufunction(f::F, tt::Type=Tuple{}) where {F <: Function}
-    fptr = GPUCompiler.deferred_codegen(Val(f), Val(tt))
+    fptr = GPUCompiler.deferred_codegen(Val(F), Val(tt))
     fun = CuDeviceFunction(fptr)
     DeviceKernel{F,tt}(f, fun, kernel_state())
 end
