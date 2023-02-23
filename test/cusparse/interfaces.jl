@@ -137,8 +137,7 @@ using LinearAlgebra, SparseArrays
             @testset "CuMatrix * $SparseMatrixType -- A * B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
                 for opa in (identity, transpose, adjoint)
                     for opb in (identity, transpose, adjoint)
-                        CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && elty <: Complex && opa == adjoint && continue
-                        CUSPARSE.version() ≥ v"12.0" && opb != identity && continue
+                        CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && elty <: Complex && opb == adjoint && continue
                         n = 10
                         k = 15
                         m = 20
@@ -161,8 +160,7 @@ using LinearAlgebra, SparseArrays
             @testset "CuMatrix * $SparseMatrixType -- mul!(C, A, B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
                 for opa in (identity, transpose, adjoint)
                     for opb in (identity, transpose, adjoint)
-                        CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && elty <: Complex && opa == adjoint && continue
-                        CUSPARSE.version() ≥ v"12.0" && opb != identity && continue
+                        CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && elty <: Complex && opb == adjoint && continue
                         n = 10
                         k = 15
                         m = 20

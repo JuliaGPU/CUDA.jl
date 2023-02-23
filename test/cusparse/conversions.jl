@@ -74,27 +74,22 @@ end
     end
 end
 
-@testset "conversions between CuSparseMatrices" begin
-    A = sprand(100, 100, 0.02)
-    blockdim = 5
-    for CuSparseMatrixType1 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
-        if CuSparseMatrixType1 == CuSparseMatrixBSR
-            dA1 = CuSparseMatrixType1(A, blockdim)
-        else
-            dA1 = CuSparseMatrixType1(A)
-        end
-        @testset "conversion SparseMatrixCSC --> $CuSparseMatrixType1" begin
-            @test collect(dA1) ≈ A
-        end
-        for CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
-            CuSparseMatrixType1 == CuSparseMatrixType2 && continue
-            @testset "conversion $CuSparseMatrixType1 --> $CuSparseMatrixType2" begin
-                if CuSparseMatrixType2 == CuSparseMatrixBSR
-                    dA2 = CuSparseMatrixType2(dA1, blockdim)
-                else
-                    dA2 = CuSparseMatrixType2(dA1)
+for (n, bd, p) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5)]
+    CUSPARSE.version() ≥ v"12.0" && n == 4 && continue
+    @testset "conversions between CuSparseMatrices (n, bd, p) = ($n, $bd, $p)" begin
+        A = sprand(n, n, p)
+        blockdim = bd
+        for CuSparseMatrixType1 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
+            dA1 = CuSparseMatrixType1 == CuSparseMatrixBSR ? CuSparseMatrixType1(A, blockdim) : CuSparseMatrixType1(A)
+            @testset "conversion $CuSparseMatrixType1 --> SparseMatrixCSC" begin
+                @test SparseMatrixCSC(dA1) ≈ A
+            end
+            for CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
+                CuSparseMatrixType1 == CuSparseMatrixType2 && continue
+                dA2 = CuSparseMatrixType2 == CuSparseMatrixBSR ? CuSparseMatrixType2(dA1, blockdim) : CuSparseMatrixType2(dA1)
+                @testset "conversion $CuSparseMatrixType1 --> $CuSparseMatrixType2" begin
+                    @test collect(dA1) ≈ collect(dA2)
                 end
-                @test collect(dA1) ≈ collect(dA2)
             end
         end
     end
@@ -133,13 +128,119 @@ end
     end
     @testset "sort_csr" begin
         crows = [1, 3, 5, 7] |> cu
-        cols = [2, 1, 1, 2, 3, 2] |> cu
+        cols = [2, 1, 1, 3, 3, 2] |> cu
         vals = [7, 5, 8, 6, 9, 4] |> cu
         csr = CuSparseMatrixCSR(crows, cols, vals, (3,3))
 
         sorted_csr = sort_csr(csr)
         @test collect(sorted_csr.rowPtr) ≈ [1, 3, 5, 7]
-        @test collect(sorted_csr.colVal) ≈ [1, 2, 1, 2, 2, 3]
+        @test collect(sorted_csr.colVal) ≈ [1, 2, 1, 3, 2, 3]
         @test collect(sorted_csr.nzVal)  ≈ [5, 7, 8, 6, 4, 9]
+    end
+end
+
+if CUSPARSE.version() < v"12.0"
+    @testset "conversion CuSparseMatrix" begin
+        # A = [ 0 0 5 ]
+        #     [ 0 6 7 ]
+        @testset "1-based indexing" begin
+            # COO format
+            rows_O = [1, 2, 2] |> cu
+            cols_O = [3, 2, 3] |> cu
+            vals_O = [5, 6, 7] |> cu
+            coo_O  = CuSparseMatrixCOO{Float64}(rows_O, cols_O, vals_O, (2,3))
+
+            # CSC format
+            rows_O  = [2, 1, 2]    |> cu
+            ccols_O = [1, 1, 2, 4] |> cu
+            vals_O  = [6, 5, 7]    |> cu
+            csc_O   = CuSparseMatrixCSC{Float64}(ccols_O, rows_O, vals_O, (2,3))
+
+            # CSR format
+            crows_O = [1, 2, 4] |> cu
+            cols_O  = [3, 2, 3] |> cu
+            vals_O  = [5, 6, 7] |> cu
+            csr_O   = CuSparseMatrixCSR{Float64}(crows_O, cols_O, vals_O, (2,3))
+
+            csr_to_csc_O = CuSparseMatrixCSC{Float64}(csr_O, index='O')
+            @test csr_to_csc_O.colPtr ≈ csc_O.colPtr
+            @test csr_to_csc_O.rowVal ≈ csc_O.rowVal
+            @test csr_to_csc_O.nzVal  ≈ csc_O.nzVal
+
+            csc_to_csr_O = CuSparseMatrixCSR{Float64}(csc_O, index='O')
+            @test csc_to_csr_O.rowPtr ≈ csr_O.rowPtr
+            @test csc_to_csr_O.colVal ≈ csr_O.colVal
+            @test csc_to_csr_O.nzVal  ≈ csr_O.nzVal
+
+            csr_to_coo_O = CuSparseMatrixCOO{Float64}(csr_O, index='O')
+            @test csr_to_coo_O.rowInd ≈ coo_O.rowInd
+            @test csr_to_coo_O.colInd ≈ coo_O.colInd
+            @test csr_to_coo_O.nzVal  ≈ coo_O.nzVal
+
+            coo_to_csr_O = CuSparseMatrixCSR{Float64}(coo_O, index='O')
+            @test coo_to_csr_O.rowPtr ≈ csr_O.rowPtr
+            @test coo_to_csr_O.colVal ≈ csr_O.colVal
+            @test coo_to_csr_O.nzVal  ≈ csr_O.nzVal
+
+            csc_to_coo_O = CuSparseMatrixCOO{Float64}(csc_O, index='O')
+            @test csc_to_coo_O.rowInd ≈ coo_O.rowInd
+            @test csc_to_coo_O.colInd ≈ coo_O.colInd
+            @test csc_to_coo_O.nzVal  ≈ coo_O.nzVal
+
+            coo_to_csc_O = CuSparseMatrixCSC{Float64}(coo_O, index='O')
+            @test coo_to_csc_O.colPtr ≈ csc_O.colPtr
+            @test coo_to_csc_O.rowVal ≈ csc_O.rowVal
+            @test coo_to_csc_O.nzVal  ≈ csc_O.nzVal
+        end
+
+        @testset "0-based indexing" begin
+            # COO format
+            rows_Z = [0, 1, 1] |> cu
+            cols_Z = [2, 1, 2] |> cu
+            vals_Z = [5, 6, 7] |> cu
+            coo_Z  = CuSparseMatrixCOO{Float64}(rows_Z, cols_Z, vals_Z, (2,3))
+
+            # CSC format
+            rows_Z  = [1, 0, 1]    |> cu
+            ccols_Z = [0, 0, 1, 3] |> cu
+            vals_Z  = [6, 5, 7]    |> cu
+            csc_Z   = CuSparseMatrixCSC{Float64}(ccols_Z, rows_Z, vals_Z, (2,3))
+
+            # CSR format
+            crows_Z = [0, 1, 3] |> cu
+            cols_Z  = [2, 1, 2] |> cu
+            vals_Z  = [5, 6, 7] |> cu
+            csr_Z   = CuSparseMatrixCSR{Float64}(crows_Z, cols_Z, vals_Z, (2,3))
+
+            csr_to_csc_Z = CuSparseMatrixCSC{Float64}(csr_Z, index='Z')
+            @test csr_to_csc_Z.colPtr ≈ csc_Z.colPtr
+            @test csr_to_csc_Z.rowVal ≈ csc_Z.rowVal
+            @test csr_to_csc_Z.nzVal  ≈ csc_Z.nzVal
+
+            csc_to_csr_Z = CuSparseMatrixCSR{Float64}(csc_Z, index='Z')
+            @test csc_to_csr_Z.rowPtr ≈ csr_Z.rowPtr
+            @test csc_to_csr_Z.colVal ≈ csr_Z.colVal
+            @test csc_to_csr_Z.nzVal  ≈ csr_Z.nzVal
+
+            csr_to_coo_Z = CuSparseMatrixCOO{Float64}(csr_Z, index='Z')
+            @test csr_to_coo_Z.rowInd ≈ coo_Z.rowInd
+            @test csr_to_coo_Z.colInd ≈ coo_Z.colInd
+            @test csr_to_coo_Z.nzVal  ≈ coo_Z.nzVal
+
+            coo_to_csr_Z = CuSparseMatrixCSR{Float64}(coo_Z, index='Z')
+            @test coo_to_csr_Z.rowPtr ≈ csr_Z.rowPtr
+            @test coo_to_csr_Z.colVal ≈ csr_Z.colVal
+            @test coo_to_csr_Z.nzVal  ≈ csr_Z.nzVal
+
+            csc_to_coo_Z = CuSparseMatrixCOO{Float64}(csc_Z, index='Z')
+            @test csc_to_coo_Z.rowInd ≈ coo_Z.rowInd
+            @test csc_to_coo_Z.colInd ≈ coo_Z.colInd
+            @test csc_to_coo_Z.nzVal  ≈ coo_Z.nzVal
+
+            coo_to_csc_Z = CuSparseMatrixCSC{Float64}(coo_Z, index='Z')
+            @test coo_to_csc_Z.colPtr ≈ csc_Z.colPtr
+            @test coo_to_csc_Z.rowVal ≈ csc_Z.rowVal
+            @test coo_to_csc_Z.nzVal  ≈ csc_Z.nzVal
+        end
     end
 end
