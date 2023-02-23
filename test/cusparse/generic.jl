@@ -118,7 +118,6 @@ if CUSPARSE.version() >= v"11.7.4"
                         CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && T <: Complex && transb == 'C' && continue
                         algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 && (transa != 'N' || transb != 'N') && continue
                         A = rand(T, 10, 10)
-                        # CUDA ≥ v"12.0": It's not working with transb ≠ 'N' if the number of column of C is 2.
                         B = transb == 'N' ? sprand(T, 10, 5, 0.5) : sprand(T, 5, 10, 0.5)
                         C = rand(T, 10, 5)
                         dA = CuArray(A)
