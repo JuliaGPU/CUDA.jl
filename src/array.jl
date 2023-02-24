@@ -461,8 +461,7 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) ,
       #In other cases, use parallel threads
       else
         CUDA.synchronize()
-        @sync 
-        for col in 1:length(src.indices[2])
+        @sync for col in 1:length(src.indices[2])
           Threads.@spawn begin
             Mem.unsafe_copy3d!(pointer(view(dest,:,col)),destLocation, pointer(view(src,:,col)),  srcLocation,
                                 1, 1, size(src,1);
