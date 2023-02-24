@@ -434,9 +434,9 @@ copyto!(dest, 1, src, 1, length(src))
 #TO DO: expand this for StridedMatrices of different shapes, currently the src needs to fit in the destination
 #TO DO: add parameters doffs, soffs, n
 
-for (destType,srcType, destLocation, SrcLocation) in ((StridedSubCuArray, SubArray,  Mem.Device,Mem.Host) ,
-                                                    (SubArray, StridedSubCuArray,  Mem.Host,Mem.Device), 
-                                                    (StridedSubCuArray, StridedSubCuArray,  Mem.Device,Mem.Device) )
+for (destType,srcType) in ((StridedSubCuArray, SubArray) ,
+                                                    (SubArray, StridedSubCuArray), 
+                                                    (StridedSubCuArray, StridedSubCuArray) )
   @eval begin
     function Base.copyto!(dest::$destType{T,2,args1},src::$srcType{T,2,args2}) where {T,args1,args2} 
       src_step_x=step(src.indices[1])
@@ -445,6 +445,8 @@ for (destType,srcType, destLocation, SrcLocation) in ((StridedSubCuArray, SubArr
       dest_step_height=step(dest.indices[2])
       src_parent_size=size(parent(src))
       dest_parent_size=size(parent(dest))
+      destLocation= (dest isa StridedSubCuArray) ? Mem.Device : Mem.Host
+      srcLocation= (src isa StridedSubCuArray) ? Mem.Device : Mem.Host
 
       @boundscheck checkbounds(view(dest,1,:), 1:length(src.indices[2]))
       @boundscheck checkbounds(view(dest,:,1), 1: length(src.indices[1]))
@@ -459,16 +461,16 @@ for (destType,srcType, destLocation, SrcLocation) in ((StridedSubCuArray, SubArr
       #In other cases, use parallel threads
       else
         CUDA.synchronize()
-        #@sync 
+        @sync 
         for col in 1:length(src.indices[2])
-          #Threads.@spawn begin
+          Threads.@spawn begin
             Mem.unsafe_copy3d!(pointer(view(dest,:,col)),destLocation, pointer(view(src,:,col)),  srcLocation,
                                 1, 1, size(src,1);
                                 srcPos=(1,1,1), dstPos=(1,1,1),
                                 srcPitch=sizeof(T)*src_step_x,srcHeight=1,
                                 dstPitch=sizeof(T)*dest_step_x, dstHeight=1)
             CUDA.synchronize()
-          #end
+          end
         end
       end
       return dest
@@ -481,6 +483,8 @@ for (destType,srcType, destLocation, SrcLocation) in ((StridedSubCuArray, SubArr
       @boundscheck checkbounds(dest, doffs+n-1)
       @boundscheck checkbounds(src, soffs)
       @boundscheck checkbounds(src, soffs+n-1)
+      destLocation= (dest isa StridedSubCuArray) ? Mem.Device : Mem.Host
+      srcLocation= (src isa StridedSubCuArray) ? Mem.Device : Mem.Host
 
       Mem.unsafe_copy3d!(pointer(dest), destLocation, pointer(src), srcLocation,
                                 1, n, 1;
