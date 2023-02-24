@@ -443,14 +443,14 @@ l_range = (1:l) .+ (l_sub_start -1)
         @test collect(dQ*dR) ≈ A
         @test collect(dR' * dQ') ≈ A'
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A)
-        A_view          = view(A, m_subrange, n_subrange)
+        A_view          = view(A, n_subrange, m_subrange)
         F               = qr(A_view)
-        d_A_view        = view(d_A, m_subrange, n_subrange)
+        d_A_view        = view(d_A, n_subrange, m_subrange)
         d_F             = qr(d_A_view)
         Q, R            = F
         dQ, dR          = d_F
         @test collect(dQ*dR) ≈ A_view
-        #@test collect(dR' * dQ') ≈ A_view' #TO DO: resolve this bug
+        @test collect(dR' * dQ') ≈ A_view' 
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A_view)
 
         A              = rand(elty, m, n)
