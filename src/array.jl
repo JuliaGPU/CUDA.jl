@@ -476,7 +476,7 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) ,
       return dest
     end
 
-    function copyto_views!(dest::$destType{T,1,args1},doffs::Integer,src::$srcType{T,1,args2},  soffs::Integer,
+    function Base.copyto!(dest::$destType{T,1,args1},doffs::Integer,src::$srcType{T,1,args2},  soffs::Integer,
                                   n::Integer) where {T,args1,args2} 
       n==0 && return dest
       @boundscheck checkbounds(dest, doffs)
