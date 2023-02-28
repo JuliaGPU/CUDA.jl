@@ -434,22 +434,38 @@ copyto!(dest, 1, src, 1, length(src))
 #TO DO: expand this for StridedMatrices of different shapes, currently the src needs to fit in the destination
 #TO DO: add parameters doffs, soffs, n
 
-for (destType,srcType) in ((StridedSubCuArray, SubArray) ,
-                                                    (SubArray, StridedSubCuArray), 
-                                                    (StridedSubCuArray, StridedSubCuArray) )
+for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSubCuArray), 
+                            (StridedSubCuArray, StridedSubCuArray),
+                            (StridedSubCuArray, Array) ,  (Array, StridedSubCuArray), 
+                            (CuArray, StridedSubCuArray) , ( StridedSubCuArray, CuArray),
+                            (CuArray, SubArray) , (SubArray, CuArray) 
+                          )
   @eval begin
-    function Base.copyto!(dest::$destType{T,2,args1},src::$srcType{T,2,args2}) where {T,args1,args2} 
-      src_step_x=step(src.indices[1])
-      dest_step_x=step(dest.indices[1])
-      src_step_height=step(src.indices[2])
-      dest_step_height=step(dest.indices[2])
-      src_parent_size=size(parent(src))
-      dest_parent_size=size(parent(dest))
-      destLocation= (dest isa StridedSubCuArray) ? Mem.Device : Mem.Host
-      srcLocation= (src isa StridedSubCuArray) ? Mem.Device : Mem.Host
-
-      @boundscheck checkbounds(view(dest,1,:), 1:length(src.indices[2]))
-      @boundscheck checkbounds(view(dest,:,1), 1: length(src.indices[1]))
+    function Base.copyto!(dest::$destType{T,2},src::$srcType{T,2}) where {T} 
+      if (dest isa StridedSubCuArray) || (dest isa SubArray) 
+        dest_step_x=step(dest.indices[1])
+        dest_step_height=step(dest.indices[2])
+        dest_parent_size=size(parent(dest))
+      else
+        dest_step_x=1
+        dest_step_height=1
+        dest_parent_size=size(dest)
+      end
+      if (src isa StridedSubCuArray) || (src isa SubArray)
+        src_step_x=step(src.indices[1])
+        src_step_height=step(src.indices[2])
+        src_parent_size=size(parent(src)) 
+      else
+        src_step_x=1
+        src_step_height=1
+        src_parent_size=size(src) 
+        
+      end
+      destLocation= ((dest isa StridedSubCuArray) || (dest isa CuArray)) ? Mem.Device : Mem.Host
+      srcLocation= ((src isa StridedSubCuArray) || (src isa CuArray)) ? Mem.Device : Mem.Host
+      @boundscheck checkbounds(view(dest,1,:), 1:size(src,2))
+      @boundscheck checkbounds(view(dest,:,1), 1:size(src,1))
+      
 
       #Non-contigous views can be accomodated by copy3d in certain cases
       if isinteger(src_parent_size[1]*src_step_height/src_step_x) && isinteger(dest_parent_size[1]*dest_step_height/dest_step_x) 
@@ -476,18 +492,20 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) ,
       return dest
     end
 
-    function Base.copyto!(dest::$destType{T,1,args1},doffs::Integer,src::$srcType{T,1,args2},  soffs::Integer,
-                                  n::Integer) where {T,args1,args2} 
+    function Base.copyto!(dest::$destType{T,1},doffs::Integer,src::$srcType{T,1},  soffs::Integer,
+                                  n::Integer) where {T} 
       n==0 && return dest
       @boundscheck checkbounds(dest, doffs)
       @boundscheck checkbounds(dest, doffs+n-1)
       @boundscheck checkbounds(src, soffs)
       @boundscheck checkbounds(src, soffs+n-1)
-      destLocation= (dest isa StridedSubCuArray) ? Mem.Device : Mem.Host
-      srcLocation= (src isa StridedSubCuArray) ? Mem.Device : Mem.Host
+      src_step= ((src isa StridedSubCuArray) || (src isa SubArray)) ? step(src.indices[1]) : 1
+      dest_step= ((dest isa StridedSubCuArray) || (dest isa SubArray) ) ? step(dest.indices[1]) : 1
+      destLocation= ((dest isa StridedSubCuArray) || (dest isa CuArray)) ? Mem.Device : Mem.Host
+      srcLocation= ((src isa StridedSubCuArray) || (src isa CuArray)) ? Mem.Device : Mem.Host
 
       Mem.unsafe_copy3d!(pointer(dest), destLocation, pointer(src), srcLocation,
-                                1, n, 1;
+                                1, 1, n;
                                 srcPos=(1,soffs,1), dstPos=(1,doffs,1),
                                 srcPitch=src_step*sizeof(T),srcHeight=1,
                                 dstPitch=dest_step*sizeof(T), dstHeight=1)
@@ -501,7 +519,6 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) ,
 
   end
 end
-
 
 # general case: use CUDA APIs
 
