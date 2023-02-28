@@ -442,49 +442,60 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
                           )
   @eval begin
     function Base.copyto!(dest::$destType{T,2},src::$srcType{T,2}) where {T} 
-      if (dest isa StridedSubCuArray) || (dest isa SubArray) 
-        dest_step_x=step(dest.indices[1])
-        dest_step_height=step(dest.indices[2])
+      if (dest isa StridedSubCuArray) || (dest isa SubArray)
+        dest_index1=findfirst(length.(dest.indices).>1)
+        dest_index2=findnext(length.(dest.indices).>1, dest_index1+1)
+        dest_step_x=step(dest.indices[dest_index1])
+        dest_step_height=step(dest.indices[dest_index2])
         dest_parent_size=size(parent(dest))
+        dest_pitch1= (dest_index1==1) ? 1 :  prod(dest_parent_size[1:(dest_index1-1)])
+        dest_pitch2=  prod(dest_parent_size[dest_index1:(dest_index2-1)])
       else
+        dest_index1=1
+        dest_index2=2
         dest_step_x=1
         dest_step_height=1
         dest_parent_size=size(dest)
       end
       if (src isa StridedSubCuArray) || (src isa SubArray)
-        src_step_x=step(src.indices[1])
-        src_step_height=step(src.indices[2])
+        src_index1=findfirst(length.(src.indices).>1)
+        src_index2=findnext(length.(src.indices).>1, src_index1+1)
+        src_step_x=step(src.indices[src_index1])
+        src_step_height=step(src.indices[src_index2])
         src_parent_size=size(parent(src)) 
+        src_pitch1= (src_index1==1) ? 1 :  prod(src_parent_size[1:(src_index1-1)])
+        src_pitch2= prod(src_parent_size[src_index1:(src_index2-1)])
       else
+        src_index1=1
+        src_index2=2
         src_step_x=1
         src_step_height=1
         src_parent_size=size(src) 
-        
       end
       destLocation= ((dest isa StridedSubCuArray) || (dest isa CuArray)) ? Mem.Device : Mem.Host
       srcLocation= ((src isa StridedSubCuArray) || (src isa CuArray)) ? Mem.Device : Mem.Host
-      @boundscheck checkbounds(view(dest,1,:), 1:size(src,2))
-      @boundscheck checkbounds(view(dest,:,1), 1:size(src,1))
+      @boundscheck checkbounds(1:size(dest, dest_index1), 1:size(src,src_index1))
+      @boundscheck checkbounds(1:size(dest, dest_index2), 1:size(src,src_index2))
       
 
       #Non-contigous views can be accomodated by copy3d in certain cases
-      if isinteger(src_parent_size[1]*src_step_height/src_step_x) && isinteger(dest_parent_size[1]*dest_step_height/dest_step_x) 
+      if isinteger(src_pitch2*src_step_height/src_step_x/src_pitch1) && isinteger(dest_pitch2*dest_step_height/dest_step_x/dest_pitch1) 
         Mem.unsafe_copy3d!(pointer(dest), destLocation, pointer(src), srcLocation,
-                                  1, size(src,1), size(src,2);
+                                  1, size(src,src_index1), size(src,src_index2);
                                   srcPos=(1,1,1), dstPos=(1,1,1),
-                                  srcPitch=src_step_x*sizeof(T),srcHeight=Int(src_parent_size[1]*src_step_height/src_step_x),
-                                  dstPitch=dest_step_x*sizeof(T), dstHeight=Int(dest_parent_size[1]*dest_step_height/dest_step_x))
+                                  srcPitch=src_step_x*sizeof(T)*src_pitch1,srcHeight=Int(src_pitch2*src_step_height/src_step_x/src_pitch1),
+                                  dstPitch=dest_step_x*sizeof(T)*dest_pitch1, dstHeight=Int(dest_pitch2*dest_step_height/dest_step_x/dest_pitch1))
       #In other cases, use parallel threads
       else
         CUDA.synchronize()
         #@sync 
-        for col in 1:length(src.indices[2])
+        for col in 1:length(src.indices[src_index2])
           #Threads.@spawn begin
             Mem.unsafe_copy3d!(pointer(view(dest,:,col)),destLocation, pointer(view(src,:,col)),  srcLocation,
-                                1, 1, size(src,1);
+                                1, 1, size(src,src_index1);
                                 srcPos=(1,1,1), dstPos=(1,1,1),
-                                srcPitch=sizeof(T)*src_step_x,srcHeight=1,
-                                dstPitch=sizeof(T)*dest_step_x, dstHeight=1)
+                                srcPitch=sizeof(T)*src_step_x*src_pitch1,srcHeight=1,
+                                dstPitch=sizeof(T)*dest_step_x*dest_pitch1, dstHeight=1)
             CUDA.synchronize()
           #end
         end
@@ -499,16 +510,33 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
       @boundscheck checkbounds(dest, doffs+n-1)
       @boundscheck checkbounds(src, soffs)
       @boundscheck checkbounds(src, soffs+n-1)
-      src_step= ((src isa StridedSubCuArray) || (src isa SubArray)) ? step(src.indices[1]) : 1
-      dest_step= ((dest isa StridedSubCuArray) || (dest isa SubArray) ) ? step(dest.indices[1]) : 1
+      if (dest isa StridedSubCuArray) || (dest isa SubArray)
+        dest_index=findfirst(length.(dest.indices).>1)
+        dest_step=step(dest.indices[dest_index])
+        dest_pitch=(dest_index==1) ? 1 : prod(size(parent(dest))[1:(dest_index-1)])
+      else
+        dest_index=1
+        dest_step=1
+        dest_pitch=1
+      end
+
+      if (src isa StridedSubCuArray) || (src isa SubArray)
+        src_index=findfirst(length.(src.indices).>1)
+        src_step=step(src.indices[src_index])
+        src_pitch= (src_index==1) ? 1 : prod(size(parent(src))[1:(src_index-1)])
+      else
+        src_index=1
+        src_step=1
+        src_pitch=1
+      end
       destLocation= ((dest isa StridedSubCuArray) || (dest isa CuArray)) ? Mem.Device : Mem.Host
       srcLocation= ((src isa StridedSubCuArray) || (src isa CuArray)) ? Mem.Device : Mem.Host
 
       Mem.unsafe_copy3d!(pointer(dest), destLocation, pointer(src), srcLocation,
                                 1, 1, n;
-                                srcPos=(1,soffs,1), dstPos=(1,doffs,1),
-                                srcPitch=src_step*sizeof(T),srcHeight=1,
-                                dstPitch=dest_step*sizeof(T), dstHeight=1)
+                                srcPos=(1,1,soffs), dstPos=(1,1,doffs),
+                                srcPitch=src_step*sizeof(T)*src_pitch,srcHeight=1,
+                                dstPitch=dest_step*sizeof(T)*dest_pitch, dstHeight=1)
       return dest
     end
 

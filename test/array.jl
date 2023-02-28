@@ -321,12 +321,16 @@ end
     m=11
     k=23
     l=19
+    range1=2:3:11
+    range2=3:2:11
+    range3=1:5:16
+    range4=4:4:20
 
     #From GPU to CPU
     gpu_matrix = CUDA.rand(elty, m,n)
     cpu_matrix = rand(elty,l,k)
-    gpu_view= view(gpu_matrix, 2:3:11, 3:2:11)
-    cpu_view= view(cpu_matrix,1:5:16, 4:4:20)
+    gpu_view= view(gpu_matrix,range1 , range2)
+    cpu_view= view(cpu_matrix, range3, range4)
     copyto!(cpu_view,gpu_view)
     @test collect(gpu_view) == cpu_view
 
@@ -339,8 +343,8 @@ end
 
     gpu_vec = CUDA.rand(elty, m)
     cpu_vec = rand(elty,l)
-    gpu_view= view(gpu_vec, 2:3:11)
-    cpu_view= view(cpu_vec,1:5:16)
+    gpu_view= view(gpu_vec, range1)
+    cpu_view= view(cpu_vec,range3)
     copyto!(cpu_view,gpu_view)
     @test collect(gpu_view) == cpu_view
 
@@ -354,8 +358,8 @@ end
     #From CPU to GPU
     gpu_matrix = CUDA.rand(elty, m,n)
     cpu_matrix = rand(elty,l,k)
-    gpu_view= view(gpu_matrix, 2:3:11, 3:2:11)
-    cpu_view= view(cpu_matrix,1:5:16, 4:4:20)
+    gpu_view= view(gpu_matrix,range1 , range2)
+    cpu_view= view(cpu_matrix, range3, range4)
     copyto!(gpu_view,cpu_view)
     @test collect(gpu_view) == cpu_view
 
@@ -368,8 +372,8 @@ end
 
     gpu_vec = CUDA.rand(elty, m)
     cpu_vec = rand(elty,l)
-    gpu_view= view(gpu_vec, 2:3:11)
-    cpu_view= view(cpu_vec,1:5:16)
+    gpu_view= view(gpu_vec, range1)
+    cpu_view= view(cpu_vec,range3)
     copyto!(gpu_view,cpu_view)
     @test collect(gpu_view) == cpu_view
 
@@ -383,8 +387,8 @@ end
     #From GPU to GPU
     gpu_matrix = CUDA.rand(elty, m,n)
     gpu_matrix2 = CUDA.rand(elty,l,k)
-    gpu_view= view(gpu_matrix, 2:3:11, 3:2:11)
-    gpu_view2= view(gpu_matrix2,1:5:16, 4:4:20)
+    gpu_view= view(gpu_matrix,range1 , range2)
+    gpu_view2= view(gpu_matrix2,range3, range4)
     copyto!(gpu_view,gpu_view2)
     @test collect(gpu_view) == gpu_view2
 
@@ -397,8 +401,8 @@ end
 
     gpu_vec = CUDA.rand(elty, m)
     gpu_vec2 = CUDA.rand(elty,l)
-    gpu_view= view(gpu_vec, 2:3:11)
-    gpu_view2= view(gpu_vec2,1:5:16)
+    gpu_view= view(gpu_vec, range1)
+    gpu_view2= view(gpu_vec2, range3)
     copyto!(gpu_view,gpu_view2)
     @test collect(gpu_view) == gpu_view2
 
@@ -408,6 +412,39 @@ end
     gpu_view2= view(gpu_vec2,1:m)
     copyto!(gpu_view,gpu_view2)
     @test collect(gpu_view) == gpu_view2
+
+    #testing higher dimensional views
+
+    for gpu_indices in ( (range1, range2, 3, 7) , (range1, 3, range2, 7), 
+                        (range1, 3, 7, range2), (3, range1, range2, 7),  
+                        (3, range1, 7, range2), (3,7, range1, range2) )
+      for cpu_indices in ( (range3, range4, 11, 5) , (range3, 11, range4, 5), 
+                          (range3, 11, 5, range4), (11, range3, range4, 5),  
+                         (11, range3, 5, range4), (11,5, range3, range4)   )
+        gpu_matrix = CUDA.rand(elty, m*3,n*3, k*3,l*3)
+        cpu_matrix = rand(elty,m*2,n*2, k*2, l*2)
+        gpu_view= view(gpu_matrix, gpu_indices...)
+        cpu_view= view(cpu_matrix, cpu_indices...) 
+        copyto!(gpu_view,cpu_view)
+        @test collect(gpu_view) == cpu_view
+
+      end
+    end
+    
+    for gpu_indices in ( (range1, 13, 3, 7) , (3, range1, 7, 13), 
+                        (3,7, range1, 13),  (3,7, 13, range1))
+      for cpu_indices in ( (range3, 11, 2, 5) , (3, range3, 2, 11), 
+                          (2,5, range3, 11),  (2,5, 11, range3))
+        gpu_matrix = CUDA.rand(elty, m*3,n*3, k*3,l*3)
+        cpu_matrix = rand(elty,m*2,n*2, k*2, l*2)
+        gpu_view= view(gpu_matrix, gpu_indices...)
+        cpu_view= view(cpu_matrix, cpu_indices...) 
+        copyto!(gpu_view,cpu_view)
+        @test collect(gpu_view) == cpu_view
+
+      end
+    end
+
 
   end
 end
