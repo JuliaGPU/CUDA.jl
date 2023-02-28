@@ -448,8 +448,6 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
         dest_step_x=step(dest.indices[dest_index1])
         dest_step_height=step(dest.indices[dest_index2])
         dest_parent_size=size(parent(dest))
-        dest_pitch1= (dest_index1==1) ? 1 :  prod(dest_parent_size[1:(dest_index1-1)])
-        dest_pitch2=  prod(dest_parent_size[dest_index1:(dest_index2-1)])
       else
         dest_index1=1
         dest_index2=2
@@ -463,8 +461,6 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
         src_step_x=step(src.indices[src_index1])
         src_step_height=step(src.indices[src_index2])
         src_parent_size=size(parent(src)) 
-        src_pitch1= (src_index1==1) ? 1 :  prod(src_parent_size[1:(src_index1-1)])
-        src_pitch2= prod(src_parent_size[src_index1:(src_index2-1)])
       else
         src_index1=1
         src_index2=2
@@ -472,6 +468,10 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
         src_step_height=1
         src_parent_size=size(src) 
       end
+      dest_pitch1= (dest_index1==1) ? 1 :  prod(dest_parent_size[1:(dest_index1-1)])
+      dest_pitch2=  prod(dest_parent_size[dest_index1:(dest_index2-1)])
+      src_pitch1= (src_index1==1) ? 1 :  prod(src_parent_size[1:(src_index1-1)])
+      src_pitch2= prod(src_parent_size[src_index1:(src_index2-1)])
       destLocation= ((dest isa StridedSubCuArray) || (dest isa CuArray)) ? Mem.Device : Mem.Host
       srcLocation= ((src isa StridedSubCuArray) || (src isa CuArray)) ? Mem.Device : Mem.Host
       @boundscheck checkbounds(1:size(dest, dest_index1), 1:size(src,src_index1))
