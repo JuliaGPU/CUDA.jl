@@ -386,28 +386,28 @@ end
     gpu_view= view(gpu_matrix, 2:3:11, 3:2:11)
     gpu_view2= view(gpu_matrix2,1:5:16, 4:4:20)
     copyto!(gpu_view,gpu_view2)
-    @test collect(gpu_view) == cpu_view
+    @test collect(gpu_view) == gpu_view2
 
     gpu_matrix = CUDA.rand(elty, m,n)
     gpu_matrix2 = CUDA.rand(elty,l,k)
     gpu_view= view(gpu_matrix,:, :)
     gpu_view2= view(gpu_matrix2,1:m, 1:n)
     copyto!(gpu_view,gpu_view2)
-    @test collect(gpu_view) == cpu_view
+    @test collect(gpu_view) == gpu_view2
 
     gpu_vec = CUDA.rand(elty, m)
     gpu_vec2 = CUDA.rand(elty,l)
     gpu_view= view(gpu_vec, 2:3:11)
     gpu_view2= view(gpu_vec2,1:5:16)
     copyto!(gpu_view,gpu_view2)
-    @test collect(gpu_view) == cpu_view
+    @test collect(gpu_view) == gpu_view2
 
     gpu_vec = CUDA.rand(elty, m)
     gpu_vec2 = CUDA.rand(elty,l)
     gpu_view= view(gpu_vec, :)
     gpu_view2= view(gpu_vec2,1:m)
     copyto!(gpu_view,gpu_view2)
-    @test collect(gpu_view) == cpu_view
+    @test collect(gpu_view) == gpu_view2
 
   end
 end
