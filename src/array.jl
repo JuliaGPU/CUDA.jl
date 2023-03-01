@@ -488,7 +488,7 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
         #In other cases, use parallel threads
         else
           CUDA.synchronize()
-          @sync for col in 1:length(src.indices[src_index2])
+          Base.@sync for col in 1:length(src.indices[src_index2])
             Threads.@spawn begin
               Mem.unsafe_copy3d!(pointer(view(dest,:,col)),destLocation, pointer(view(src,:,col)),  srcLocation,
                                   1, 1, size(src,1);
@@ -507,7 +507,7 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
         split_col=start_indices[1:end-1].>start_indices[2:end]
 
         CUDA.synchronize()
-        @sync for col in 1:length(src.indices[src_index2])
+        Base.@sync for col in 1:length(src.indices[src_index2])
           Threads.@spawn begin
             n= split_col[col] ? (size(dest,1)-start_indices[col]+1) : size(src,1)
             Mem.unsafe_copy3d!(pointer(view(dest,:,dest_col[col])),destLocation, pointer(view(src,:,col)),  srcLocation,
