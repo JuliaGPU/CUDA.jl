@@ -438,13 +438,12 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
                             (StridedSubCuArray, StridedSubCuArray),
                             (StridedSubCuArray, Array) ,  (Array, StridedSubCuArray), 
                             (CuArray, StridedSubCuArray) , ( StridedSubCuArray, CuArray),
-                            (CuArray, SubArray) , (SubArray, CuArray) 
-                          )
+                            (CuArray, SubArray) , (SubArray, CuArray) )
   @eval begin
     function Base.copyto!(dest::$destType{T,2},src::$srcType{T,2}, Copy2D::Bool=false) where {T} 
       if (dest isa StridedSubCuArray) || (dest isa SubArray)
-        dest_index1=findfirst(length.(dest.indices).>1)
-        dest_index2=findnext(length.(dest.indices).>1, dest_index1+1)
+        dest_index1=findfirst((typeof.(dest.indices) .<: Int).==0)
+        dest_index2=findnext((typeof.(dest.indices) .<: Int).==0, dest_index1+1)
         dest_step_x=step(dest.indices[dest_index1])
         dest_step_height=step(dest.indices[dest_index2])
         dest_parent_size=size(parent(dest))
@@ -456,8 +455,8 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
         dest_parent_size=size(dest)
       end
       if (src isa StridedSubCuArray) || (src isa SubArray)
-        src_index1=findfirst(length.(src.indices).>1)
-        src_index2=findnext(length.(src.indices).>1, src_index1+1)
+        src_index1=findfirst((typeof.(src.indices) .<: Int).==0)
+        src_index2=findnext((typeof.(src.indices) .<: Int).==0, src_index1+1)
         src_step_x=step(src.indices[src_index1])
         src_step_height=step(src.indices[src_index2])
         src_parent_size=size(parent(src)) 
@@ -541,7 +540,7 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
       @boundscheck checkbounds(src, soffs)
       @boundscheck checkbounds(src, soffs+n-1)
       if (dest isa StridedSubCuArray) || (dest isa SubArray)
-        dest_index=findfirst(length.(dest.indices).>1)
+        dest_index=findfirst((typeof.(dest.indices) .<: Int).==0)
         dest_step=step(dest.indices[dest_index])
         dest_pitch=(dest_index==1) ? 1 : prod(size(parent(dest))[1:(dest_index-1)])
       else
@@ -551,7 +550,7 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
       end
 
       if (src isa StridedSubCuArray) || (src isa SubArray)
-        src_index=findfirst(length.(src.indices).>1)
+        src_index=findfirst((typeof.(dest.indices) .<: Int).==0)
         src_step=step(src.indices[src_index])
         src_pitch= (src_index==1) ? 1 : prod(size(parent(src))[1:(src_index-1)])
       else
