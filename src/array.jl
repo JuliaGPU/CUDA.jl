@@ -550,7 +550,7 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
       end
 
       if (src isa StridedSubCuArray) || (src isa SubArray)
-        src_index=findfirst((typeof.(dest.indices) .<: Int).==0)
+        src_index=findfirst((typeof.(src.indices) .<: Int).==0)
         src_step=step(src.indices[src_index])
         src_pitch= (src_index==1) ? 1 : prod(size(parent(src))[1:(src_index-1)])
       else
