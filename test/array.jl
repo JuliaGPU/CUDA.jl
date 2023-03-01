@@ -390,28 +390,28 @@ end
     gpu_view= view(gpu_matrix,range1 , range2)
     gpu_view2= view(gpu_matrix2,range3, range4)
     copyto!(gpu_view,gpu_view2)
-    @test collect(gpu_view) == gpu_view2
+    @test collect(gpu_view) == collect(gpu_view2)
 
     gpu_matrix = CUDA.rand(elty, m,n)
     gpu_matrix2 = CUDA.rand(elty,l,k)
     gpu_view= view(gpu_matrix,:, :)
     gpu_view2= view(gpu_matrix2,1:m, 1:n)
     copyto!(gpu_view,gpu_view2)
-    @test collect(gpu_view) == gpu_view2
+    @test collect(gpu_view) == collect(gpu_view2)
 
     gpu_vec = CUDA.rand(elty, m)
     gpu_vec2 = CUDA.rand(elty,l)
     gpu_view= view(gpu_vec, range1)
     gpu_view2= view(gpu_vec2, range3)
     copyto!(gpu_view,gpu_view2)
-    @test collect(gpu_view) == gpu_view2
+    @test collect(gpu_view) == collect(gpu_view2)
 
     gpu_vec = CUDA.rand(elty, m)
     gpu_vec2 = CUDA.rand(elty,l)
     gpu_view= view(gpu_vec, :)
     gpu_view2= view(gpu_vec2,1:m)
     copyto!(gpu_view,gpu_view2)
-    @test collect(gpu_view) == gpu_view2
+    @test collect(gpu_view) == collect(gpu_view2)
 
     #testing higher dimensional views
 
