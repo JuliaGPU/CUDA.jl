@@ -441,7 +441,7 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
                             (CuArray, SubArray) , (SubArray, CuArray) 
                           )
   @eval begin
-    function Base.copyto!(dest::$destType{T,2},src::$srcType{T,2}) where {T} 
+    function Base.copyto!(dest::$destType{T,2},src::$srcType{T,2}, Copy2D::Bool=false) where {T} 
       if (dest isa StridedSubCuArray) || (dest isa SubArray)
         dest_index1=findfirst(length.(dest.indices).>1)
         dest_index2=findnext(length.(dest.indices).>1, dest_index1+1)
@@ -468,38 +468,68 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
         src_step_height=1
         src_parent_size=size(src) 
       end
+
       dest_pitch1= (dest_index1==1) ? 1 :  prod(dest_parent_size[1:(dest_index1-1)])
       dest_pitch2=  prod(dest_parent_size[dest_index1:(dest_index2-1)])
       src_pitch1= (src_index1==1) ? 1 :  prod(src_parent_size[1:(src_index1-1)])
       src_pitch2= prod(src_parent_size[src_index1:(src_index2-1)])
       destLocation= ((dest isa StridedSubCuArray) || (dest isa CuArray)) ? Mem.Device : Mem.Host
       srcLocation= ((src isa StridedSubCuArray) || (src isa CuArray)) ? Mem.Device : Mem.Host
-      @boundscheck checkbounds(1:size(dest, dest_index1), 1:size(src,src_index1))
-      @boundscheck checkbounds(1:size(dest, dest_index2), 1:size(src,src_index2))
+      @boundscheck checkbounds(1:size(dest, 1), 1:size(src,1))
+      @boundscheck checkbounds(1:size(dest, 2), 1:size(src,2))
       
-
+      if (size(dest,1)==size(src,1) || (Copy2D))
       #Non-contigous views can be accomodated by copy3d in certain cases
-      if isinteger(src_pitch2*src_step_height/src_step_x/src_pitch1) && isinteger(dest_pitch2*dest_step_height/dest_step_x/dest_pitch1) 
-        Mem.unsafe_copy3d!(pointer(dest), destLocation, pointer(src), srcLocation,
-                                  1, size(src,src_index1), size(src,src_index2);
+        if isinteger(src_pitch2*src_step_height/src_step_x/src_pitch1) && isinteger(dest_pitch2*dest_step_height/dest_step_x/dest_pitch1) 
+          Mem.unsafe_copy3d!(pointer(dest), destLocation, pointer(src), srcLocation,
+                                    1, size(src,1), size(src,2);
+                                    srcPos=(1,1,1), dstPos=(1,1,1),
+                                    srcPitch=src_step_x*sizeof(T)*src_pitch1,srcHeight=Int(src_pitch2*src_step_height/src_step_x/src_pitch1),
+                                    dstPitch=dest_step_x*sizeof(T)*dest_pitch1, dstHeight=Int(dest_pitch2*dest_step_height/dest_step_x/dest_pitch1))
+        #In other cases, use parallel threads
+        else
+          CUDA.synchronize()
+          #@sync 
+          for col in 1:length(src.indices[src_index2])
+            #Threads.@spawn begin
+              Mem.unsafe_copy3d!(pointer(view(dest,:,col)),destLocation, pointer(view(src,:,col)),  srcLocation,
+                                  1, 1, size(src,1);
                                   srcPos=(1,1,1), dstPos=(1,1,1),
-                                  srcPitch=src_step_x*sizeof(T)*src_pitch1,srcHeight=Int(src_pitch2*src_step_height/src_step_x/src_pitch1),
-                                  dstPitch=dest_step_x*sizeof(T)*dest_pitch1, dstHeight=Int(dest_pitch2*dest_step_height/dest_step_x/dest_pitch1))
-      #In other cases, use parallel threads
-      else
+                                  srcPitch=sizeof(T)*src_step_x*src_pitch1,srcHeight=1,
+                                  dstPitch=sizeof(T)*dest_step_x*dest_pitch1, dstHeight=1)
+              CUDA.synchronize()
+            #end
+          end
+        end
+      else  #Ensure same behavior as Base copying from smaller to bigger matrix if copy2D is false
+        start_indices=(1:size(src,1):size(src,1)*(size(src,2)+1))
+        dest_col=div.(start_indices.-1,size(dest,1)).+1
+        start_indices=mod.(start_indices,size(dest,1))
+        replace!(start_indices,0=>size(dest,1))
+        split_col=start_indices[1:end-1].>start_indices[2:end]
+
         CUDA.synchronize()
         #@sync 
         for col in 1:length(src.indices[src_index2])
           #Threads.@spawn begin
-            Mem.unsafe_copy3d!(pointer(view(dest,:,col)),destLocation, pointer(view(src,:,col)),  srcLocation,
-                                1, 1, size(src,src_index1);
-                                srcPos=(1,1,1), dstPos=(1,1,1),
+            n= split_col[col] ? (size(dest,1)-start_indices[col]+1) : size(src,1)
+            Mem.unsafe_copy3d!(pointer(view(dest,:,dest_col[col])),destLocation, pointer(view(src,:,col)),  srcLocation,
+                                1, 1, n;
+                                srcPos=(1,1,1), dstPos=(1,1,start_indices[col]),
                                 srcPitch=sizeof(T)*src_step_x*src_pitch1,srcHeight=1,
                                 dstPitch=sizeof(T)*dest_step_x*dest_pitch1, dstHeight=1)
+            if split_col[col]
+              Mem.unsafe_copy3d!(pointer(view(dest,:,dest_col[col]+1)),destLocation, pointer(view(src,:,col)),  srcLocation,
+                                1, 1, size(src,1)-n;
+                                srcPos=(1,1,n+1), dstPos=(1,1,1),
+                                srcPitch=sizeof(T)*src_step_x*src_pitch1,srcHeight=1,
+                                dstPitch=sizeof(T)*dest_step_x*dest_pitch1, dstHeight=1)
+            end
             CUDA.synchronize()
           #end
         end
       end
+
       return dest
     end
 
