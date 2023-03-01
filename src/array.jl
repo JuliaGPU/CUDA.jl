@@ -488,16 +488,16 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
         #In other cases, use parallel threads
         else
           CUDA.synchronize()
-          #@sync 
+          @sync 
           for col in 1:length(src.indices[src_index2])
-            #Threads.@spawn begin
+            Threads.@spawn begin
               Mem.unsafe_copy3d!(pointer(view(dest,:,col)),destLocation, pointer(view(src,:,col)),  srcLocation,
                                   1, 1, size(src,1);
                                   srcPos=(1,1,1), dstPos=(1,1,1),
                                   srcPitch=sizeof(T)*src_step_x*src_pitch1,srcHeight=1,
                                   dstPitch=sizeof(T)*dest_step_x*dest_pitch1, dstHeight=1)
               CUDA.synchronize()
-            #end
+            end
           end
         end
       else  #Ensure same behavior as Base copying from smaller to bigger matrix if copy2D is false
@@ -508,9 +508,9 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
         split_col=start_indices[1:end-1].>start_indices[2:end]
 
         CUDA.synchronize()
-        #@sync 
+        @sync 
         for col in 1:length(src.indices[src_index2])
-          #Threads.@spawn begin
+          Threads.@spawn begin
             n= split_col[col] ? (size(dest,1)-start_indices[col]+1) : size(src,1)
             Mem.unsafe_copy3d!(pointer(view(dest,:,dest_col[col])),destLocation, pointer(view(src,:,col)),  srcLocation,
                                 1, 1, n;
@@ -525,7 +525,7 @@ for (destType,srcType) in ((StridedSubCuArray, SubArray) , (SubArray, StridedSub
                                 dstPitch=sizeof(T)*dest_step_x*dest_pitch1, dstHeight=1)
             end
             CUDA.synchronize()
-          #end
+          end
         end
       end
 
