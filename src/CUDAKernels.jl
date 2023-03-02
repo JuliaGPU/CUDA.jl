@@ -3,7 +3,7 @@ module CUDAKernels
 import KernelAbstractions
 import CUDA
 
-struct CUDABakend <: KernelAbstractions.GPU
+struct CUDABackend <: KernelAbstractions.GPU
     prefer_blocks::Bool
     always_inline::Bool
 end
