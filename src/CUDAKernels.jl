@@ -3,23 +3,29 @@ module CUDAKernels
 import KernelAbstractions
 import CUDA
 
-struct CUDADevice{PreferBlocks, AlwaysInline} <: KernelAbstractions.GPU end
-CUDADevice(;prefer_blocks=false, always_inline=false) = CUDADevice{prefer_blocks, always_inline}()
-CUDADevice{PreferBlocks}() where PreferBlocks = CUDADevice{PreferBlocks, false}()
+struct CUDABakend <: KernelAbstractions.GPU
+    prefer_blocks::Bool
+    always_inline::Bool
+end
+CUDABackend(;prefer_blocks=false, always_inline=false) = CUDABackend(prefer_blocks, always_inline)
 
-export CUDADevice
+export CUDABackend
+
+KernelAbstractions.allocate(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.CuArray{T}(undef, dims)
+KernelAbstractions.zeros(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.zeros(T, dims)
+KernelAbstractions.ones(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.ones(T, dims)
 
 # Import through parent
 import KernelAbstractions: StaticArrays, Adapt
 import .StaticArrays: MArray
 
-KernelAbstractions.get_device(::CUDA.CuArray) = CUDADevice()
-KernelAbstractions.get_device(::CUDA.CUSPARSE.AbstractCuSparseArray) = CUDADevice()
+KernelAbstractions.get_backend(::CUDA.CuArray) = CUDABackend()
+KernelAbstractions.get_backend(::CUDA.CUSPARSE.AbstractCuSparseArray) = CUDABackend()
 
-KernelAbstractions.synchronize(::CUDADevice) = CUDA.synchronize()
+KernelAbstractions.synchronize(::CUDABackend) = CUDA.synchronize()
 
 ###
-# async_copy
+# copyto! 
 ###
 # - IdDict does not free the memory
 # - WeakRef dict does not unique the key by objectid
@@ -37,7 +43,7 @@ function __pin!(a)
     return nothing
 end
 
-function KernelAbstractions.async_copy!(::CUDADevice, A, B, progress=yield)
+function KernelAbstractions.copyto!(::CUDABackend, A, B)
     A isa Array && __pin!(A)
     B isa Array && __pin!(B)
 
@@ -54,7 +60,7 @@ import KernelAbstractions: Kernel, StaticSize, DynamicSize, partition, blocks, w
 ###
 # Kernel launch
 ###
-function launch_config(kernel::Kernel{<:CUDADevice}, ndrange, workgroupsize)
+function launch_config(kernel::Kernel{CUDABackend}, ndrange, workgroupsize)
     if ndrange isa Integer
         ndrange = (ndrange,)
     end
@@ -87,7 +93,8 @@ function threads_to_workgroupsize(threads, ndrange)
     end
 end
 
-function (obj::Kernel{CUDADevice{PreferBlocks,AlwaysInline}})(args...; ndrange=nothing, workgroupsize=nothing, progress=yield) where {PreferBlocks,AlwaysInline}
+function (obj::Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=nothing)
+    backend = KernelAbstractions.backend(obj)
 
     ndrange, workgroupsize, iterspace, dynamic = launch_config(obj, ndrange, workgroupsize)
     # this might not be the final context, since we may tune the workgroupsize
@@ -100,12 +107,12 @@ function (obj::Kernel{CUDADevice{PreferBlocks,AlwaysInline}})(args...; ndrange=n
         maxthreads = nothing
     end
 
-    kernel = CUDA.@cuda launch=false always_inline=AlwaysInline maxthreads=maxthreads obj.f(ctx, args...)
+    kernel = CUDA.@cuda launch=false always_inline=backend.always_inline maxthreads=maxthreads obj.f(ctx, args...)
 
     # figure out the optimal workgroupsize automatically
     if KernelAbstractions.workgroupsize(obj) <: DynamicSize && workgroupsize === nothing
         config = CUDA.launch_configuration(kernel.fun; max_threads=prod(ndrange))
-        if PreferBlocks
+        if backend.prefer_blocks
             # Prefer blocks over threads
             threads = min(prod(ndrange), config.threads)
             # XXX: Some kernels performs much better with all blocks active
@@ -139,7 +146,7 @@ import KernelAbstractions: CompilerMetadata, DynamicCheck, LinearIndices
 import KernelAbstractions: __index_Local_Linear, __index_Group_Linear, __index_Global_Linear, __index_Local_Cartesian, __index_Group_Cartesian, __index_Global_Cartesian, __validindex, __print
 import KernelAbstractions: mkcontext, expand, __iterspace, __ndrange, __dynamic_checkbounds
 
-function mkcontext(kernel::Kernel{<:CUDADevice}, _ndrange, iterspace)
+function mkcontext(kernel::Kernel{CUDABackend}, _ndrange, iterspace)
     CompilerMetadata{KernelAbstractions.ndrange(kernel), DynamicCheck}(_ndrange, iterspace)
 end
 
@@ -213,6 +220,6 @@ end
 Adapt.adapt_storage(to::ConstAdaptor, a::CUDA.CuDeviceArray) = Base.Experimental.Const(a)
 
 # Argument conversion
-KernelAbstractions.argconvert(k::Kernel{<:CUDADevice}, arg) = CUDA.cudaconvert(arg)
+KernelAbstractions.argconvert(k::Kernel{CUDABackend}, arg) = CUDA.cudaconvert(arg)
 
 end
