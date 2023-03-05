@@ -53,6 +53,7 @@ function KernelAbstractions.copyto!(::CUDABackend, A, B)
         N       = length(A)
         unsafe_copyto!(destptr, srcptr, N, async=true)
     end
+    return A
 end
 
 import KernelAbstractions: Kernel, StaticSize, DynamicSize, partition, blocks, workitems, launch_config
