@@ -2,6 +2,7 @@ module CUDAKernels
 
 import KernelAbstractions
 import CUDA
+import UnsafeAtomicsLLVM
 
 struct CUDABackend <: KernelAbstractions.GPU
     prefer_blocks::Bool
