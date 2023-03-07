@@ -13,7 +13,7 @@ A = rand(n, n)
 A = SparseMatrixCSC(A)
 
 @testset "symrcm" begin
-    p = symrcm(A, 'O')
+    p = symrcm(A)
     p .+= 1
     @test minimum(p) == 1
     @test maximum(p) == n
@@ -21,7 +21,7 @@ A = SparseMatrixCSC(A)
 end
 
 @testset "symmdq" begin
-    p = symmdq(A, 'O')
+    p = symmdq(A)
     p .+= 1
     @test minimum(p) == 1
     @test maximum(p) == n
@@ -29,7 +29,7 @@ end
 end
 
 @testset "symamd" begin
-    p = symamd(A, 'O')
+    p = symamd(A)
     p .+= 1
     @test minimum(p) == 1
     @test maximum(p) == n
@@ -37,7 +37,7 @@ end
 end
 
 @testset "metisnd" begin
-    p = metisnd(A, 'O')
+    p = metisnd(A)
     p .+= 1
     @test minimum(p) == 1
     @test maximum(p) == n
@@ -51,12 +51,12 @@ end
             A[i,i] = 0
         end
         A = SparseMatrixCSC(A)
-        p = zfd(A, 'O')
+        p = zfd(A)
         p .+= 1
         @test minimum(p) == 1
         @test maximum(p) == n
         @test isperm(p)
-        @test 0 ∉ diag(A[p,:])
+        @test 0 ∉ diag(A[:,p])
     end
 
     @testset "csrlsvlu!" begin
