@@ -167,7 +167,6 @@ function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
     precompiling && return
     # register device overrides
-    @show overrides
     eval(Expr(:block, overrides...))
     empty!(overrides)
 end
