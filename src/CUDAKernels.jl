@@ -3,6 +3,7 @@ module CUDAKernels
 import KernelAbstractions
 import CUDA
 import UnsafeAtomicsLLVM
+import GPUCompiler
 
 struct CUDABackend <: KernelAbstractions.GPU
     prefer_blocks::Bool
@@ -26,7 +27,7 @@ KernelAbstractions.get_backend(::CUDA.CUSPARSE.AbstractCuSparseArray) = CUDABack
 KernelAbstractions.synchronize(::CUDABackend) = CUDA.synchronize()
 
 ###
-# copyto! 
+# copyto!
 ###
 # - IdDict does not free the memory
 # - WeakRef dict does not unique the key by objectid
@@ -133,7 +134,7 @@ function (obj::Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=noth
     threads = length(workitems(iterspace))
 
     if nblocks == 0
-        return nothing 
+        return nothing
     end
 
     # Launch kernel
@@ -142,7 +143,34 @@ function (obj::Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=noth
     return nothing
 end
 
-import CUDA: @device_override
+# list of overrides (only for Julia 1.6)
+const overrides = Expr[]
+
+macro device_override(ex)
+    ex = macroexpand(__module__, ex)
+    if Meta.isexpr(ex, :call)
+        @show ex = eval(ex)
+        error()
+    end
+    code = quote
+        $GPUCompiler.@override($CUDA.method_table, $ex)
+    end
+    if isdefined(Base.Experimental, Symbol("@overlay"))
+        return esc(code)
+    else
+        push!(overrides, code)
+        return
+    end
+end
+
+function __init__()
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    precompiling && return
+    # register device overrides
+    @show overrides
+    eval(Expr(:block, overrides...))
+    empty!(overrides)
+end
 
 import KernelAbstractions: CompilerMetadata, DynamicCheck, LinearIndices
 import KernelAbstractions: __index_Local_Linear, __index_Group_Linear, __index_Global_Linear, __index_Local_Cartesian, __index_Group_Cartesian, __index_Global_Cartesian, __validindex, __print
