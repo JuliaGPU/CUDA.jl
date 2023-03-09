@@ -24,7 +24,8 @@ import .StaticArrays: MArray
 KernelAbstractions.get_backend(::CUDA.CuArray) = CUDABackend()
 KernelAbstractions.get_backend(::CUDA.CUSPARSE.AbstractCuSparseArray) = CUDABackend()
 
-Adapt.adapt_storage(::CUDABackend, a::Array) = adapt(CuArray, a)
+Adapt.adapt_storage(::KernelAbstractions, a::CUDA.CuArray) = Adapt.adapt(Array, a)
+Adapt.adapt_storage(::CUDABackend, a::Array) = Adapt.adapt(CuArray, a)
 Adapt.adapt_storage(::CUDABackend, a::CUDA.CuArray) = a
 # TODO sparse
 
