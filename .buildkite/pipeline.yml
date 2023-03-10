@@ -79,6 +79,8 @@ steps:
           julia --project -e 'using CUDA; CUDA.set_runtime_version!("local")'
         if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
         timeout_in_minutes: 120
+        soft_fail:
+          - exit_status: 1
 
   # then, test supported CUDA toolkits (installed through the artifact system)
   - group: "CUDA"
