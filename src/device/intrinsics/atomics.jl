@@ -525,7 +525,7 @@ function __cas_volatile!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T
     end
 end
 
-function atomic_cas!(ptr::LLVMPtr{T}, old::T, new::T, success_order, failure_order, scope::SyncScope=device_scope) where T
+function atomic_cas!(ptr::LLVMPtr{T}, expected::T, new::T, success_order, failure_order, scope::SyncScope=device_scope) where T
     order = stronger_order(success_order, failure_order)
     if compute_capability() >= sv"7.0"
         if order == seq_cst
@@ -534,17 +534,17 @@ function atomic_cas!(ptr::LLVMPtr{T}, old::T, new::T, success_order, failure_ord
         if order == seq_cst # order == consume
             order = Acquire()
         end
-        val = __cas!(ptr, old, new, order, scope)
+        old = __cas!(ptr, expected, new, order, scope)
     else
         if order == seq_cst || order == acq_rel || order == release
             atomic_thread_fence(seq_cst, scope)
         end
-        val = __cas_volatile!(ptr, old, new, scope)
+        old = __cas_volatile!(ptr, expected, new, scope)
         if order == seq_cst || order == acq_rel || order == acquire # order == consume
             atomic_thread_fence(seq_cst, scope)
         end
     end
-    success = val == old
+    success = expected == old
     return (; old, success)
 end
 
@@ -581,12 +581,12 @@ end
 
 @inline function modify!(ptr, op::OP, x, order) where {OP}
     success = false
+    expected = atomic_load(ptr, order)
     while !success
-        expected = atomic_load(ptr, order)
-        new = op(expected, new)
-        old, succss = atomic_cas!(ptr, old, new, order, relaxed)
+        new = op(expected, x)
+        expected, success = atomic_cas!(ptr, expected, new, order, relaxed)
     end
-    return old => new
+    return expected => new
 end
 
 @inline function Atomix.modify!(ref::CuIndexableRef, op::OP, x, order) where {OP}
