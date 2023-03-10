@@ -486,6 +486,34 @@ end
     end
 end
 
+order(::LLVMOrdering{:monotonic}) = 1
+# order(::Consume) = 2
+order(::LLVMOrdering{:acquire}) = 3
+order(::LLVMOrdering{:release}) = 4
+order(::LLVMOrdering{:acq_rel}) = 5
+order(::LLVMOrdering{:seq_cst}) = 6
+
+Base.isless(a::LLVMOrdering, b::LLVMOrdering) = isless(order(a), order(b))
+
+function stronger_order(a::LLVMOrdering, b::LLVMOrdering)
+    m = max(a, b)
+    if m != release
+        return m
+    end
+    # maximum is release, what is the other one?
+    other = min(a, b)
+    if other == monotonic
+        return release
+    # elseif other == Consume()
+    #     return Acq_Rel()
+    elseif other == acquire
+        return acq_rel
+    elseif other == release
+        return release
+    end
+    @assert(false)
+end
+
 for (order, scope) in Iterators.product((LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
                                         (BlockScope, DeviceScope, SystemScope))
     asm_b64 = "atom.cas.$(asm(order)).$(asm(scope)).b64 \$0,[\$1],\$2,\$3;"
@@ -506,6 +534,7 @@ function __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T
     end
 end
 
+# TODO: Volatile cas for 16/8
 for scope in (BlockScope, DeviceScope, SystemScope)
     asm_b64 = "atom.cas.$(asm(scope)).b64 \$0,[\$1],\$2,\$3;"
     asm_b32 = "atom.cas.$(asm(scope)).b32 \$0,[\$1],\$2,\$3;"
@@ -532,7 +561,7 @@ function atomic_cas!(ptr::LLVMPtr{T}, expected::T, new::T, success_order, failur
             atomic_thread_fence(seq_cst, scope)
         end
         if order == seq_cst # order == consume
-            order = Acquire()
+            order = acquire
         end
         old = __cas!(ptr, expected, new, order, scope)
     else
@@ -584,7 +613,7 @@ end
     expected = atomic_load(ptr, order)
     while !success
         new = op(expected, x)
-        expected, success = atomic_cas!(ptr, expected, new, order, relaxed)
+        expected, success = atomic_cas!(ptr, expected, new, order, monotonic)
     end
     return expected => new
 end
