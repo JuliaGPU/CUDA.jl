@@ -485,6 +485,68 @@ end
         __store_volatile!(ptr, val)
     end
 end
+,
+for (order, scope) in Iterators.product((LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
+                                        (BlockScope, DeviceScope, SystemScope))
+    asm_b64 = "atom.cas.$(asm(order)).$(asm(scope)).b64 \$0,[\$1],\$2,\$3;"
+    asm_b32 = "atom.cas.$(asm(order)).$(asm(scope)).b32 \$0,[\$1],\$2,\$3;"
+    @eval @inline __cas_64!(ptr::LLVMPtr{T, AS}, old::T, new::T, ::$order, ::$scope) where {T, AS} =
+        @asmcall($asm_b64, "=l,l,l,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}, T, T}, ptr, old, new)
+    @eval @inline __cas_32!(ptr::LLVMPtr{T, AS}, old::T, new::T, ::$order, ::$scope) where {T, AS} =
+        @asmcall($asm_b32, "=r,l,r,r,~{memory}", true, T, Tuple{LLVMPtr{T, AS}, T, T}, ptr, old, new)
+end
+
+function __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T
+    if sizeof(T) == 4
+        __cas_32!(ptr, old, new, order, scope)
+    elseif sizeof(T) == 8
+        __cas_64!(ptr, old, new, order, scope)
+    else
+        assert(false)
+    end
+end
+
+for scope in (Block, Device, System)
+    asm_b64 = "atom.cas.$(asm(scope)).b64 \$0,[\$1],\$2,\$3;"
+    asm_b32 = "atom.cas.$(asm(scope)).b32 \$0,[\$1],\$2,\$3;"
+    @eval __cas_volatile_64!(ptr::LLVMPtr{T, AS}, old::T, new::T, ::$scope) where T =
+        @asmcall($asm_b64, "=l,l,l,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}, T, T}, ptr, old, new)
+    @eval __cas_volatile_32!(ptr::LLVMPtr{T, AS}, old::T, new::T, ::$scope) where T =
+        @asmcall($asm_b32, "=r,l,r,r,~{memory}", true, T, Tuple{LLVMPtr{T, AS}, T, T}, ptr, old, new)
+end
+
+function __cas_volatile!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T
+    if sizeof(T) == 4
+        __cas__volatile_32!(ptr, old, new, scope)
+    elseif sizeof(T) == 8
+        __cas__volatile_64!(ptr, old, new, scope)
+    else
+        assert(false)
+    end
+end
+
+function atomic_cas!(ptr::LLVMPtr{T}, old::T, new::T, success_order, failure_order, scope::System=System()) where T
+    order = stronger_order(success_order, failure_order)
+    if compute_capability() >= sv"7.0"
+        if order == seq_cst
+            atomic_thread_fence(seq_cst, scope)
+        end
+        if order == seq_cst # order == consume
+            order = Acquire()
+        end
+        val = __cas!(ptr, old, new, order, scope)
+    else
+        if order == seq_cst || order == acq_rel || order == release
+            atomic_thread_fence(seq_cst, scope)
+        end
+        val = __cas_volatile!(ptr, old, new, scope)
+        if order == seq_cst || order == acq_rel || order == acquire # order == consume
+            atomic_thread_fence(seq_cst, scope)
+        end
+    end
+    success = val == old
+    return (; old, success)
+end
 
 #
 # High-level interface
@@ -508,44 +570,44 @@ end
     atomic_store!(Atomix.pointer(ref), v, order)
 end
 
-@inline function Atomix.replace!(
-    ref::CuIndexableRef,
-    expected,
-    desired,
-    success_ordering,
-    failure_ordering,
-)
-    # TODO success_ordering and failure
+@inline function Atomix.replace!(ref::CuIndexableRef,expected,desired,
+                                 success_ordering,failure_ordering)
     ptr = Atomix.pointer(ref)
     expected = convert(eltype(ref), expected)
     desired = convert(eltype(ref), desired)
-    begin
-        old = atomic_cas!(ptr, expected, desired)
+    return atomic_cas!(ptr, expected, desired, success_ordering, failure_ordering)
+end
+
+@inline modify!(ptr, op::OP, x, order) where {OP}
+    success = false
+    while !success
+        expected = atomic_load(ptr, order)
+        new = op(expected, new)
+        old, succss = atomic_cas!(ptr, old, new, order, relaxed)
     end
-    return (; old = old, success = old === expected)
+    return old => new
 end
 
 @inline function Atomix.modify!(ref::CuIndexableRef, op::OP, x, order) where {OP}
     x = convert(eltype(ref), x)
     ptr = Atomix.pointer(ref)
-    begin
-        old = if op === (+)
-            atomic_add!(ptr, x)
-        elseif op === (-)
-            atomic_sub!(ptr, x)
-        elseif op === (&)
-            atomic_and!(ptr, x)
-        elseif op === (|)
-            atomic_or!(ptr, x)
-        elseif op === xor
-            atomic_xor!(ptr, x)
-        elseif op === min
-            atomic_min!(ptr, x)
-        elseif op === max
-            atomic_max!(ptr, x)
-        else
-            error("not implemented")
-        end
-    end
+    # TODO: Support hardware variants
+    # old = if op === (+)
+    #     atomic_add!(ptr, x)
+    # elseif op === (-)
+    #     atomic_sub!(ptr, x)
+    # elseif op === (&)
+    #     atomic_and!(ptr, x)
+    # elseif op === (|)
+    #     atomic_or!(ptr, x)
+    # elseif op === xor
+    #     atomic_xor!(ptr, x)
+    # elseif op === min
+    #     atomic_min!(ptr, x)
+    # elseif op === max
+    #     atomic_max!(ptr, x)
+    # else
+        modify!(ptr, op, x, ord)
+    # end
     return old => op(old, x)
 end
