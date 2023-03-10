@@ -83,7 +83,7 @@ uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 version = "0.9.3"
 
 [[Downloads]]
-deps = ["ArgTools", "LibCURL", "NetworkOptions"]
+deps = ["ArgTools","LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 
 [[ExprTools]]
@@ -93,13 +93,17 @@ version = "0.1.8"
 
 [[GPUArrays]]
 deps = ["Adapt", "GPUArraysCore", "LLVM", "LinearAlgebra", "Printf", "Random", "Reexport", "Serialization", "Statistics"]
-git-tree-sha1 = "a28f752ffab0ccd6660fc7af5ad1c9ad176f45f7"
+git-tree-sha1 = "01f58909a0fc17890e586d1873426d5b9f211c8c"
+repo-rev = "QR_views"
+repo-url = "https://github.com/evelyne-ringoot/GPUArrays.jl"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 version = "8.6.3"
 
 [[GPUArraysCore]]
 deps = ["Adapt"]
-git-tree-sha1 = "1cd7f0af1aa58abc02ea1d872953a97359cb87fa"
+git-tree-sha1 = "8b526908028c5d7a0e2ac340b99f6cbd170ae370"
+repo-rev = "QR_views:lib/GPUArraysCore"
+repo-url = "https://github.com/evelyne-ringoot/GPUArrays.jl"
 uuid = "46192b85-c4d5-4398-a991-12ede77f4527"
 version = "0.1.4"
 
