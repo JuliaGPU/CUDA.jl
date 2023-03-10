@@ -245,9 +245,9 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
     @eval begin
         function ormqr!(side::Char,
                         trans::Char,
-                        A::CuMatrix{$elty},
-                        tau::CuVector{$elty},
-                        C::CuVecOrMat{$elty})
+                        A::StridedCuMatrix{$elty},
+                        tau::StridedCuVector{$elty},
+                        C::StridedCuVecOrMat{$elty})
             m,n = ndims(C) == 2 ? size(C) : (size(C, 1), 1)
             mA  = size(A, 1)
             k   = length(tau)
