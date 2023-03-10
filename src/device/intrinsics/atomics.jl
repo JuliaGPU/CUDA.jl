@@ -382,11 +382,11 @@ end
     elseif sizeof(T) == 8
         __load_64(ptr, order, scope)
     else
-        assert(false)
+        @assert(false)
     end
 end
 
-__supports_atomic(::Type{T}) where T = sizeof(T) == 2 || sizeof(T) ==4
+__supports_atomic(::Type{T}) where T = sizeof(T) == 4 || sizeof(T) == 8
 
 # Could be done using LLVM  
 @inline function __load_volatile(ptr::LLVMPtr{T, AS}) where {T, AS}
@@ -399,13 +399,13 @@ __supports_atomic(::Type{T}) where T = sizeof(T) == 2 || sizeof(T) ==4
     elseif sizeof(T) == 8
         @asmcall("ld.volatile.b64 \$0, [\$1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}})
     else
-        assert(false)
+        @assert(false)
     end
 end
 
 @inline function atomic_load(ptr::LLVMPtr{T}, order, scope::SyncScope=device_scope) where T
     if order == acq_rel || order == release
-        assert(false)
+        @assert(false)
     end
     if compute_capability() >= sv"7.0" && __supports_atomic(T)
         if order == monotonic
@@ -446,7 +446,7 @@ end
     elseif sizeof(T) == 8
         __store_64!(ptr, val, order, scope)
     else
-        assert(false)
+        @assert(false)
     end
 end
 
@@ -461,13 +461,13 @@ end
     elseif sizeof(T) == 8
         @asmcall("st.volatile.b64 [\$0], \$1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
     else
-        assert(false)
+        @assert(false)
     end
 end
 
 @inline function atomic_store!(ptr::LLVMPtr{T}, val::T, order, scope::SyncScope=device_scope) where T
     if order == acq_rel || order == acquire # || order == consume
-        assert(false)
+        @assert(false)
     end
     if compute_capability() >= sv"7.0" && __supports_atomic(T)
         if order == release
@@ -502,7 +502,7 @@ function __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T
     elseif sizeof(T) == 8
         __cas_64!(ptr, old, new, order, scope)
     else
-        assert(false)
+        @assert(false)
     end
 end
 
@@ -521,7 +521,7 @@ function __cas_volatile!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T
     elseif sizeof(T) == 8
         __cas__volatile_64!(ptr, old, new, scope)
     else
-        assert(false)
+        @assert(false)
     end
 end
 
@@ -567,6 +567,7 @@ const CuIndexableRef{Indexable<:CuDeviceArray} = IndexableRef{Indexable}
 end
 
 @inline function Atomix.set!(ref::CuIndexableRef, v, order)
+    v = convert(eltype(ref), v)
     atomic_store!(Atomix.pointer(ref), v, order)
 end
 
