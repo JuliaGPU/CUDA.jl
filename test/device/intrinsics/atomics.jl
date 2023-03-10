@@ -1,5 +1,5 @@
 # TODO: unify with Base.@atomic
-using CUDA: @atomic
+using CUDA: @atomic, @atomicswap, @atomicreplace
 using BFloat16s: BFloat16
 
 @testset "atomics (low-level)" begin
