@@ -697,16 +697,16 @@ function CUDA.CuMatrix{T}(coo::CuSparseMatrixCOO{T}; index::SparseChar='O') wher
     if version() >= v"11.3"
         sparsetodense(coo, index)
     else
-        csr = CuSparseMatrixCSR(coo, index)
+        csr = CuSparseMatrixCSR{T}(coo, index=index)
         CuMatrix{T}(csr, index=index)
     end
 end
 
-function CuSparseMatrixCOO(A::CuMatrix; index::SparseChar='O')
+function CuSparseMatrixCOO(A::CuMatrix{T}; index::SparseChar='O') where {T}
     if version() >= v"11.3"
         densetosparse(A, :coo, index)
     else
         csr = CuSparseMatrixCSR(A, index=index)
-        CuSparseMatrixCOO(csr, index)
+        CuSparseMatrixCOO{T}(csr, index=index)
     end
 end
