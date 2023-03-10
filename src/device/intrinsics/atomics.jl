@@ -485,7 +485,7 @@ end
         __store_volatile!(ptr, val)
     end
 end
-,
+
 for (order, scope) in Iterators.product((LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
                                         (BlockScope, DeviceScope, SystemScope))
     asm_b64 = "atom.cas.$(asm(order)).$(asm(scope)).b64 \$0,[\$1],\$2,\$3;"
@@ -506,12 +506,12 @@ function __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T
     end
 end
 
-for scope in (Block, Device, System)
+for scope in (BlockScope, DeviceScope, SystemScope)
     asm_b64 = "atom.cas.$(asm(scope)).b64 \$0,[\$1],\$2,\$3;"
     asm_b32 = "atom.cas.$(asm(scope)).b32 \$0,[\$1],\$2,\$3;"
-    @eval __cas_volatile_64!(ptr::LLVMPtr{T, AS}, old::T, new::T, ::$scope) where T =
+    @eval __cas_volatile_64!(ptr::LLVMPtr{T, AS}, old::T, new::T, ::$scope) where {T, AS} =
         @asmcall($asm_b64, "=l,l,l,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}, T, T}, ptr, old, new)
-    @eval __cas_volatile_32!(ptr::LLVMPtr{T, AS}, old::T, new::T, ::$scope) where T =
+    @eval __cas_volatile_32!(ptr::LLVMPtr{T, AS}, old::T, new::T, ::$scope) where {T, AS} =
         @asmcall($asm_b32, "=r,l,r,r,~{memory}", true, T, Tuple{LLVMPtr{T, AS}, T, T}, ptr, old, new)
 end
 
@@ -525,7 +525,7 @@ function __cas_volatile!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T
     end
 end
 
-function atomic_cas!(ptr::LLVMPtr{T}, old::T, new::T, success_order, failure_order, scope::System=System()) where T
+function atomic_cas!(ptr::LLVMPtr{T}, old::T, new::T, success_order, failure_order, scope::SyncScope=device_scope) where T
     order = stronger_order(success_order, failure_order)
     if compute_capability() >= sv"7.0"
         if order == seq_cst
@@ -578,7 +578,7 @@ end
     return atomic_cas!(ptr, expected, desired, success_ordering, failure_ordering)
 end
 
-@inline modify!(ptr, op::OP, x, order) where {OP}
+@inline function modify!(ptr, op::OP, x, order) where {OP}
     success = false
     while !success
         expected = atomic_load(ptr, order)
