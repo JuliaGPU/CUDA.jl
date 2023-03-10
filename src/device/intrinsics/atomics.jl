@@ -608,7 +608,7 @@ end
     # elseif op === max
     #     atomic_max!(ptr, x)
     # else
-        modify!(ptr, op, x, ord)
+        modify!(ptr, op, x, order)
     # end
     return old => op(old, x)
 end
