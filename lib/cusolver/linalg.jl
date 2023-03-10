@@ -20,12 +20,15 @@ _copywitheltype(::Type{T}, As...) where {T} = map(A -> copyto!(similar(A, T), A)
 
 # matrix division
 
-const CuMatOrAdj{T} = Union{CuMatrix,
-                            LinearAlgebra.Adjoint{T, <:CuMatrix{T}},
-                            LinearAlgebra.Transpose{T, <:CuMatrix{T}}}
-const CuOrAdj{T} = Union{CuVecOrMat,
-                         LinearAlgebra.Adjoint{T, <:CuVecOrMat{T}},
-                         LinearAlgebra.Transpose{T, <:CuVecOrMat{T}}}
+const CuMatOrAdj{T} = Union{StridedCuMatrix,
+                            LinearAlgebra.Adjoint{T, <:StridedCuMatrix{T}},
+                            LinearAlgebra.Transpose{T, <:StridedCuMatrix{T}}}
+const CuOrAdj{T} = Union{StridedCuVector,
+                         LinearAlgebra.Adjoint{T, <:StridedCuVector{T}},
+                         LinearAlgebra.Transpose{T, <:StridedCuVector{T}},
+                         StridedCuMatrix,
+                            LinearAlgebra.Adjoint{T, <:StridedCuMatrix{T}},
+                            LinearAlgebra.Transpose{T, <:StridedCuMatrix{T}}}
 
 function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
     A, B = copy_cublasfloat(_A, _B)
@@ -101,7 +104,10 @@ using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPack
 
 if VERSION >= v"1.8-"
 
+
+
 LinearAlgebra.qr!(A::StridedCuMatrix{T}) where T = QR(geqrf!(A::StridedCuMatrix{T})...)
+
 
 # conversions
 CuMatrix(F::Union{QR,QRCompactWY}) = CuArray(AbstractArray(F))
@@ -109,7 +115,7 @@ CuArray(F::Union{QR,QRCompactWY}) = CuMatrix(F)
 CuMatrix(F::QRPivoted) = CuArray(AbstractArray(F))
 CuArray(F::QRPivoted) = CuMatrix(F)
 
-function LinearAlgebra.ldiv!(_qr::QR, b::CuVector)
+function LinearAlgebra.ldiv!(_qr::QR, b::StridedCuVector)
     m,n = size(_qr)
     _x = UpperTriangular(_qr.R[1:min(m,n), 1:n]) \ ((_qr.Q' * b)[1:n])
     b[1:n] .= _x
@@ -117,7 +123,7 @@ function LinearAlgebra.ldiv!(_qr::QR, b::CuVector)
     return b[1:n]
 end
 
-function LinearAlgebra.ldiv!(_qr::QR, B::CuMatrix)
+function LinearAlgebra.ldiv!(_qr::QR, B::StridedCuMatrix)
     m,n = size(_qr)
     _x = UpperTriangular(_qr.R[1:min(m,n), 1:n]) \ ((_qr.Q' * B)[1:n, 1:size(B, 2)])
     B[1:n, 1:size(B, 2)] .= _x
@@ -125,7 +131,7 @@ function LinearAlgebra.ldiv!(_qr::QR, B::CuMatrix)
     return B[1:n, 1:size(B, 2)]
 end
 
-function LinearAlgebra.ldiv!(x::CuArray, _qr::QR, b::CuArray)
+function LinearAlgebra.ldiv!(x::StridedCuArray, _qr::QR, b::StridedCuArray)
     _x = ldiv!(_qr, b)
     x .= vec(_x)
     unsafe_free!(_x)
@@ -146,9 +152,11 @@ CuMatrix{T}(Q::QRCompactWYQ) where {T} = error("QRCompactWY format is not suppor
 Matrix{T}(Q::QRPackedQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
 Matrix{T}(Q::QRCompactWYQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
 
+
+
 # extracting the full matrix can be done with `collect` (which defaults to `Array`)
-function Base.collect(src::Union{QRPackedQ{<:Any,<:CuArray,<:CuArray},
-                                 QRCompactWYQ{<:Any,<:CuArray,<:CuArray}})
+function Base.collect(src::Union{QRPackedQ{<:Any,<:StridedCuArray,<:StridedCuArray},
+                                 QRCompactWYQ{<:Any,<:StridedCuArray,<:StridedCuArray}})
     dest = similar(src)
     copyto!(dest, I)
     lmul!(src, dest)
@@ -156,61 +164,62 @@ function Base.collect(src::Union{QRPackedQ{<:Any,<:CuArray,<:CuArray},
 end
 
 # avoid the generic similar fallback that returns a CPU array
-Base.similar(Q::Union{QRPackedQ{<:Any,<:CuArray,<:CuArray},
-                      QRCompactWYQ{<:Any,<:CuArray,<:CuArray}},
+Base.similar(Q::Union{QRPackedQ{<:Any,<:StridedCuArray,<:StridedCuArray},
+                      QRCompactWYQ{<:Any,<:StridedCuArray,<:StridedCuArray}},
              ::Type{T}, dims::Dims{N}) where {T,N} =
     CuArray{T,N}(undef, dims)
 
-function Base.getindex(Q::QRPackedQ{<:Any, <:CuArray}, ::Colon, j::Int)
+function Base.getindex(Q::QRPackedQ{<:Any, <:StridedCuArray}, ::Colon, j::Int)
     y = CUDA.zeros(eltype(Q), size(Q, 2))
     y[j] = 1
     lmul!(Q, y)
 end
 
+
 # multiplication by Q
-LinearAlgebra.lmul!(A::QRPackedQ{T,<:CuArray,<:CuArray},
+LinearAlgebra.lmul!(A::QRPackedQ{T,<:StridedCuArray,<:StridedCuArray},
                     B::CuVecOrMat{T}) where {T<:BlasFloat} =
     ormqr!('L', 'N', A.factors, A.τ, B)
-LinearAlgebra.lmul!(adjA::Adjoint{T,<:QRPackedQ{T,<:CuArray,<:CuArray}},
+LinearAlgebra.lmul!(adjA::Adjoint{T,<:QRPackedQ{T,<:StridedCuArray,<:StridedCuArray}},
                     B::CuVecOrMat{T}) where {T<:BlasReal} =
     ormqr!('L', 'T', parent(adjA).factors, parent(adjA).τ, B)
-LinearAlgebra.lmul!(adjA::Adjoint{T,<:QRPackedQ{T,<:CuArray,<:CuArray}},
+LinearAlgebra.lmul!(adjA::Adjoint{T,<:QRPackedQ{T,<:StridedCuArray,<:StridedCuArray}},
                     B::CuVecOrMat{T}) where {T<:BlasComplex} =
     ormqr!('L', 'C', parent(adjA).factors, parent(adjA).τ, B)
-LinearAlgebra.lmul!(trA::Transpose{T,<:QRPackedQ{T,<:CuArray,<:CuArray}},
+LinearAlgebra.lmul!(trA::Transpose{T,<:QRPackedQ{T,<:StridedCuArray,<:StridedCuArray}},
                     B::CuVecOrMat{T}) where {T<:BlasFloat} =
     ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
 
 LinearAlgebra.rmul!(A::CuVecOrMat{T},
-                    B::QRPackedQ{T,<:CuArray,<:CuArray}) where {T<:BlasFloat} =
+                    B::QRPackedQ{T,<:StridedCuArray,<:StridedCuArray}) where {T<:BlasFloat} =
     ormqr!('R', 'N', B.factors, B.τ, A)
 LinearAlgebra.rmul!(A::CuVecOrMat{T},
-                    adjB::Adjoint{<:Any,<:QRPackedQ{T,<:CuArray,<:CuArray}}) where {T<:BlasReal} =
+                    adjB::Adjoint{<:Any,<:QRPackedQ{T,<:StridedCuArray,<:StridedCuArray}}) where {T<:BlasReal} =
     ormqr!('R', 'T', parent(adjB).factors, parent(adjB).τ, A)
 LinearAlgebra.rmul!(A::CuVecOrMat{T},
-                    adjB::Adjoint{<:Any,<:QRPackedQ{T,<:CuArray,<:CuArray}}) where {T<:BlasComplex} =
+                    adjB::Adjoint{<:Any,<:QRPackedQ{T,<:StridedCuArray,<:StridedCuArray}}) where {T<:BlasComplex} =
     ormqr!('R', 'C', parent(adjB).factors, parent(adjB).τ, A)
 LinearAlgebra.rmul!(A::CuVecOrMat{T},
-                    trA::Transpose{<:Any,<:QRPackedQ{T,<:CuArray,<:CuArray}}) where {T<:BlasFloat} =
+                    trA::Transpose{<:Any,<:QRPackedQ{T,<:StridedCuArray,<:StridedCuArray}}) where {T<:BlasFloat} =
     ormqr!('R', 'T', parent(trA).factors, parent(adjB).τ, A)
 
 else
 
 struct CuQR{T} <: Factorization{T}
-    factors::CuMatrix
-    τ::CuVector{T}
-    CuQR{T}(factors::CuMatrix{T}, τ::CuVector{T}) where {T} = new(factors, τ)
+    factors::StridedCuMatrix
+    τ::StridedCuVector{T}
+    CuQR{T}(factors::StridedCuMatrix{T}, τ::StridedCuVector{T}) where {T} = new(factors, τ)
 end
 
 struct CuQRPackedQ{T} <: AbstractQ{T}
-    factors::CuMatrix{T}
-    τ::CuVector{T}
-    CuQRPackedQ{T}(factors::CuMatrix{T}, τ::CuVector{T}) where {T} = new(factors, τ)
+    factors::StridedCuMatrix{T}
+    τ::StridedCuVector{T}
+    CuQRPackedQ{T}(factors::StridedCuMatrix{T}, τ::StridedCuVector{T}) where {T} = new(factors, τ)
 end
 
-CuQR(factors::CuMatrix{T}, τ::CuVector{T}) where {T} =
+CuQR(factors::StridedCuMatrix{T}, τ::StridedCuVector{T}) where {T} =
     CuQR{T}(factors, τ)
-CuQRPackedQ(factors::CuMatrix{T}, τ::CuVector{T}) where {T} =
+CuQRPackedQ(factors::StridedCuMatrix{T}, τ::StridedCuVector{T}) where {T} =
     CuQRPackedQ{T}(factors, τ)
 
 # AbstractQ's `size` is the size of the full matrix,
@@ -245,7 +254,7 @@ Base.Matrix(A::CuQRPackedQ) = Matrix(CuMatrix(A))
 function Base.getproperty(A::CuQR, d::Symbol)
     m, n = size(getfield(A, :factors))
     if d == :R
-        return triu!(A.factors[1:min(m, n), 1:n])
+        return triu!(view(A.factors,1:min(m, n), 1:n))
     elseif d == :Q
         return CuQRPackedQ(A.factors, A.τ)
     else
@@ -259,25 +268,25 @@ Base.iterate(S::CuQR, ::Val{:R}) = (S.R, Val(:done))
 Base.iterate(S::CuQR, ::Val{:done}) = nothing
 
 # Apply changes Q from the left
-LinearAlgebra.lmul!(A::CuQRPackedQ{T}, B::CuVecOrMat{T}) where {T<:BlasFloat} =
+LinearAlgebra.lmul!(A::CuQRPackedQ{T}, B::StridedCuVecOrMat{T}) where {T<:BlasFloat} =
     ormqr!('L', 'N', A.factors, A.τ, B)
-LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T}}, B::CuVecOrMat{T}) where {T<:BlasReal} =
+LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T}}, B::StridedCuVecOrMat{T}) where {T<:BlasReal} =
     ormqr!('L', 'T', parent(adjA).factors, parent(adjA).τ, B)
-LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T}}, B::CuVecOrMat{T}) where {T<:BlasComplex} =
+LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T}}, B::StridedCuVecOrMat{T}) where {T<:BlasComplex} =
     ormqr!('L', 'C', parent(adjA).factors, parent(adjA).τ, B)
-LinearAlgebra.lmul!(trA::Transpose{T,<:CuQRPackedQ{T}}, B::CuVecOrMat{T}) where {T<:BlasFloat} =
+LinearAlgebra.lmul!(trA::Transpose{T,<:CuQRPackedQ{T}}, B::StridedCuVecOrMat{T}) where {T<:BlasFloat} =
     ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
 
 # Apply changes Q from the right
-LinearAlgebra.rmul!(A::CuVecOrMat{T}, B::CuQRPackedQ{T}) where {T<:BlasFloat} =
+LinearAlgebra.rmul!(A::StridedCuVecOrMat{T}, B::CuQRPackedQ{T}) where {T<:BlasFloat} =
     ormqr!('R', 'N', B.factors, B.τ, A)
-LinearAlgebra.rmul!(A::CuVecOrMat{T},
+LinearAlgebra.rmul!(A::StridedCuVecOrMat{T},
                     adjB::Adjoint{<:Any,<:CuQRPackedQ{T}}) where {T<:BlasReal} =
     ormqr!('R', 'T', parent(adjB).factors, parent(adjB).τ, A)
-LinearAlgebra.rmul!(A::CuVecOrMat{T},
+LinearAlgebra.rmul!(A::StridedCuVecOrMat{T},
                     adjB::Adjoint{<:Any,<:CuQRPackedQ{T}}) where {T<:BlasComplex} =
     ormqr!('R', 'C', parent(adjB).factors, parent(adjB).τ, A)
-LinearAlgebra.rmul!(A::CuVecOrMat{T},
+LinearAlgebra.rmul!(A::StridedCuVecOrMat{T},
                     trA::Transpose{<:Any,<:CuQRPackedQ{T}}) where {T<:BlasFloat} =
     ormqr!('R', 'T', parent(trA).factors, parent(adjB).τ, A)
 
@@ -300,7 +309,7 @@ end
 LinearAlgebra.det(Q::CuQRPackedQ{<:Real}) = isodd(count(!iszero, Q.τ)) ? -1 : 1
 LinearAlgebra.det(Q::CuQRPackedQ) = prod(τ -> iszero(τ) ? one(τ) : -sign(τ)^2, Q.τ)
 
-function LinearAlgebra.ldiv!(_qr::CuQR, b::CuVector)
+function LinearAlgebra.ldiv!(_qr::CuQR, b::StridedCuVector)
     m,n = size(_qr)
     _x = UpperTriangular(_qr.R[1:min(m,n), 1:n]) \ ((_qr.Q' * b)[1:n])
     b[1:n] .= _x
@@ -308,7 +317,7 @@ function LinearAlgebra.ldiv!(_qr::CuQR, b::CuVector)
     return b[1:n]
 end
 
-function LinearAlgebra.ldiv!(_qr::CuQR, B::CuMatrix)
+function LinearAlgebra.ldiv!(_qr::CuQR, B::StridedCuMatrix)
     m,n = size(_qr)
     _x = UpperTriangular(_qr.R[1:min(m,n), 1:n]) \ ((_qr.Q' * B)[1:n, 1:size(B, 2)])
     B[1:n, 1:size(B, 2)] .= _x
@@ -316,7 +325,7 @@ function LinearAlgebra.ldiv!(_qr::CuQR, B::CuMatrix)
     return B[1:n, 1:size(B, 2)]
 end
 
-function LinearAlgebra.ldiv!(x::CuArray,_qr::CuQR, b::CuArray)
+function LinearAlgebra.ldiv!(x::StridedCuArray,_qr::CuQR, b::StridedCuArray)
     _x = ldiv!(_qr, b)
     x .= vec(_x)
     unsafe_free!(_x)
