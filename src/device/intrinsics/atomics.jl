@@ -386,17 +386,18 @@ end
     end
 end
 
-# Could be done using LLVM.
-@inline __load_volatile_64(ptr::LLVMPtr{T, AS}) where {T, AS} =
-    @asmcall("ld.volatile.b64 \$0, [\$1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}})
-@inline __load_volatile_32(ptr::LLVMPtr{T, AS}) where {T, AS} =
-    @asmcall("ld.volatile.b32 \$0, [\$1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}})
+__supports_atomic(::Type{T}) where T = sizeof(T) == 2 || sizeof(T) ==4
 
-@inline function __load_volatile(ptr::LLVMPtr{T}) where T
-    if sizeof(T) == 4
-        __load_volatile_32(ptr)
+# Could be done using LLVM  
+@inline function __load_volatile(ptr::LLVMPtr{T, AS}) where {T, AS}
+    if sizeof(T) == 1
+        @asmcall("ld.volatile.b8  \$0, [\$1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}})
+    elseif sizeof(T) == 2
+        @asmcall("ld.volatile.b16 \$0, [\$1];", "=h,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}})
+    elseif sizeof(T) == 4
+        @asmcall("ld.volatile.b32 \$0, [\$1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}})
     elseif sizeof(T) == 8
-        __load_volatile_64(ptr)
+        @asmcall("ld.volatile.b64 \$0, [\$1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}})
     else
         assert(false)
     end
@@ -406,7 +407,7 @@ end
     if order == acq_rel || order == release
         assert(false)
     end
-    if compute_capability() >= sv"7.0"
+    if compute_capability() >= sv"7.0" && __supports_atomic(T)
         if order == monotonic
             val = __load(ptr, monotonic, scope)
             return val
@@ -450,16 +451,15 @@ end
 end
 
 # Could be done using LLVM.
-@inline __store_volatile_32!(ptr::LLVMPtr{T, AS}, val::T) where {T, AS} =
-    @asmcall("st.volatile.b32 [\$0], \$1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
-@inline __store_volatile_64!(ptr::LLVMPtr{T, AS}, val::T) where {T, AS} =
-    @asmcall("st.volatile.b64 [\$0], \$1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
-
-@inline function __store_volatile!(ptr::LLVMPtr{T}, val::T) where T
-    if sizeof(T) == 4
-        __store_volatile_32!(ptr, val)
+@inline function __store_volatile!(ptr::LLVMPtr{T, AS}, val::T) where {T, AS}
+    if sizeof(T) == 1
+        @asmcall("st.volatile.b8 [\$0], \$1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
+    elseif sizeof(T) == 2
+        @asmcall("st.volatile.b16 [\$0], \$1;", "l,h,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
+    elseif sizeof(T) == 4
+        @asmcall("st.volatile.b32 [\$0], \$1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
     elseif sizeof(T) == 8
-        __store_volatile_64!(ptr, val)
+        @asmcall("st.volatile.b64 [\$0], \$1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
     else
         assert(false)
     end
@@ -469,7 +469,7 @@ end
     if order == acq_rel || order == acquire # || order == consume
         assert(false)
     end
-    if compute_capability() >= sv"7.0"
+    if compute_capability() >= sv"7.0" && __supports_atomic(T)
         if order == release
             __store!(ptr, val, release, scope)
             return
