@@ -417,7 +417,7 @@ end
         end
         val = __load(ptr, acquire, scope)
         return val
-    else
+    elseif compute_capability() >= sv"6.0"
         if order == seq_cst
             atomic_thread_fence(seq_cst, scope)
         end
@@ -427,6 +427,8 @@ end
         end
         atomic_thread_fence(order, scope)
         return val
+    else
+        error("Atomics are only supported on SM_60")
     end
 end
 
@@ -478,11 +480,13 @@ end
             atomic_thread_fence(seq_cst, scope)
         end
         __store!(ptr, val, monotonic, scope)
-    else
+    elseif compute_capability() >= sv"6.0"
         if order == seq_cst
             atomic_thread_fence(seq_cst, scope)
         end
         __store_volatile!(ptr, val)
+    else
+        error("Atomics are only supported on SM_60")
     end
 end
 
@@ -556,7 +560,7 @@ end
 
 function atomic_cas!(ptr::LLVMPtr{T}, expected::T, new::T, success_order, failure_order, scope::SyncScope=device_scope) where T
     order = stronger_order(success_order, failure_order)
-    if compute_capability() >= sv"7.0"
+    if compute_capability() >= sv"7.0" && __supports_atomic(T)
         if order == seq_cst
             atomic_thread_fence(seq_cst, scope)
         end
@@ -564,7 +568,7 @@ function atomic_cas!(ptr::LLVMPtr{T}, expected::T, new::T, success_order, failur
             order = acquire
         end
         old = __cas!(ptr, expected, new, order, scope)
-    else
+    elseif compute_capability() >= sv"6.0"
         if order == seq_cst || order == acq_rel || order == release
             atomic_thread_fence(seq_cst, scope)
         end
@@ -572,6 +576,8 @@ function atomic_cas!(ptr::LLVMPtr{T}, expected::T, new::T, success_order, failur
         if order == seq_cst || order == acq_rel || order == acquire # order == consume
             atomic_thread_fence(seq_cst, scope)
         end
+    else
+        error("Atomics are only supported on SM_60")
     end
     success = expected == old
     return (; old, success)
