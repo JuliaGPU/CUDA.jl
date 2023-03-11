@@ -317,7 +317,7 @@ end
         @testset "bsric02!" begin
             d_A = CuSparseMatrixCSR(sparse(tril(A)))
             d_A = CuSparseMatrixBSR(d_A, blockdim)
-            d_A = CUSPARSE.ic02!(d_A,'O')
+            d_A = CUSPARSE.ic02!(d_A)
             h_A = SparseMatrixCSC(CuSparseMatrixCSR(d_A))
             Ac = sparse(Array(cholesky(Hermitian(A))))
             h_A = transpose(h_A) * h_A
@@ -325,13 +325,13 @@ end
             @test reduce(&, isfinite.(nonzeros(h_A)))
             d_A = CuSparseMatrixCSR(sparse(tril(rand(elty,m,n))))
             d_A = CuSparseMatrixBSR(d_A, blockdim)
-            @test_throws DimensionMismatch CUSPARSE.ic02!(d_A,'O')
+            @test_throws DimensionMismatch CUSPARSE.ic02!(d_A)
         end
 
         @testset "bsric02" begin
             d_A = CuSparseMatrixCSR(sparse(tril(A)))
             d_A = CuSparseMatrixBSR(d_A, blockdim)
-            d_B = CUSPARSE.ic02(d_A,'O')
+            d_B = CUSPARSE.ic02(d_A)
             h_A = SparseMatrixCSC(CuSparseMatrixCSR(d_B))
             Ac = sparse(Array(cholesky(Hermitian(A))))
             h_A = transpose(h_A) * h_A
@@ -349,7 +349,7 @@ end
         @testset "bsrilu02!" begin
             d_A = CuSparseMatrixCSR(sparse(A))
             d_A = CuSparseMatrixBSR(d_A, blockdim)
-            d_A = CUSPARSE.ilu02!(d_A,'O')
+            d_A = CUSPARSE.ilu02!(d_A)
             h_A = SparseMatrixCSC(CuSparseMatrixCSR(d_A))
             pivot = VERSION >= v"1.7" ? NoPivot() : Val(false)
             Alu = lu(Array(A), pivot)
@@ -359,13 +359,13 @@ end
             @test reduce(&, isfinite.(nonzeros(h_A)))
             d_A = CuSparseMatrixCSR(sparse(rand(elty,m,n)))
             d_A = CuSparseMatrixBSR(d_A, blockdim)
-            @test_throws DimensionMismatch CUSPARSE.ilu02!(d_A,'O')
+            @test_throws DimensionMismatch CUSPARSE.ilu02!(d_A)
         end
 
         @testset "bsrilu02" begin
             d_A = CuSparseMatrixCSR(sparse(A))
             d_A = CuSparseMatrixBSR(d_A, blockdim)
-            d_B = CUSPARSE.ilu02(d_A,'O')
+            d_B = CUSPARSE.ilu02(d_A)
             h_A = SparseMatrixCSC(CuSparseMatrixCSR(d_B))
             pivot = VERSION >= v"1.7" ? NoPivot() : Val(false)
             Alu = lu(Array(A),pivot)
@@ -534,7 +534,7 @@ end
             A += transpose(A)
             A += m * Diagonal{elty}(I, m)
             d_A = CuSparseMatrixCSR(sparse(A))
-            d_B = CUSPARSE.ilu02(d_A,'O')
+            d_B = CUSPARSE.ilu02(d_A)
             h_A = SparseMatrixCSC(d_B)
             pivot = VERSION >= v"1.7" ? NoPivot() : Val(false)
             Alu = lu(Array(A),pivot)
@@ -548,7 +548,7 @@ end
             A += transpose(A)
             A += m * Diagonal{elty}(I, m)
             d_A = CuSparseMatrixCSC(sparse(A))
-            d_B = CUSPARSE.ilu02(d_A,'O')
+            d_B = CUSPARSE.ilu02(d_A)
             h_A = SparseMatrixCSC(d_B)
             pivot = VERSION >= v"1.7" ? NoPivot() : Val(false)
             Alu = lu(Array(A),pivot)
@@ -567,7 +567,7 @@ end
             A  += adjoint(A)
             A  += m * Diagonal{elty}(I, m)
             d_A = CuSparseMatrixCSR(sparse(tril(A)))
-            d_B = CUSPARSE.ic02(d_A, 'O')
+            d_B = CUSPARSE.ic02(d_A)
             h_A = SparseMatrixCSC(d_B)
             Ac  = sparse(Array(cholesky(Hermitian(A))))
             h_A = transpose(h_A) * h_A
@@ -575,14 +575,14 @@ end
             @test reduce(&, isfinite.(nonzeros(h_A)))
             A   = rand(elty,m,n)
             d_A = CuSparseMatrixCSR(sparse(tril(A)))
-            @test_throws DimensionMismatch CUSPARSE.ic02(d_A, 'O')
+            @test_throws DimensionMismatch CUSPARSE.ic02(d_A)
         end
         @testset "csc" begin
             A   = rand(elty, m, m)
             A  += adjoint(A)
             A  += m * Diagonal{elty}(I, m)
             d_A = CuSparseMatrixCSC(sparse(tril(A)))
-            d_B = CUSPARSE.ic02(d_A, 'O')
+            d_B = CUSPARSE.ic02(d_A)
             h_A = SparseMatrixCSC(d_B)
             Ac  = sparse(Array(cholesky(Hermitian(A))))
             h_A = transpose(h_A) * h_A
@@ -590,7 +590,7 @@ end
             @test reduce(&, isfinite.(nonzeros(h_A)))
             A   = rand(elty,m,n)
             d_A = CuSparseMatrixCSC(sparse(tril(A)))
-            @test_throws DimensionMismatch CUSPARSE.ic02(d_A, 'O')
+            @test_throws DimensionMismatch CUSPARSE.ic02(d_A)
         end
     end
 end
