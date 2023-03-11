@@ -25,6 +25,51 @@ using BFloat16s: BFloat16
         end
     end
 end
+
+@testset "atomic_store!" begin
+    if capability(device()) >= v"6.0"
+        types = [Int8, Int16, Int32, Int64, 
+                 UInt8, UInt16, UInt32, UInt64,
+                 Float64, Float32]
+        scopes = [CUDA.block_scope, CUDA.device_scope, CUDA.system_scope]
+        # TODO unordered
+        supported_orders = [CUDA.monotonic, CUDA.release, CUDA.seq_cst]
+        unsupported_orders = [CUDA.acquire, CUDA.acq_rel]
+
+        function kernel(a, val, order, scope)
+            CUDA.atomic_store!(pointer(a), val, order, scope)
+            return
+        end
+
+        for (T, order, scope) in Iterators.product(types, supported_orders, scopes)
+            a = CuArray(T[0])
+            @cuda threads=1 kernel(a, one(T), order, scope)
+        end
+    end
+end
+
+@testset "atomic_cas!" begin
+    if capability(device()) >= v"6.0"
+        # TODO size(T) in (1, 2)
+        types = [Int32, Int64, 
+                 UInt32, UInt64,
+                 Float64, Float32]
+        scopes = [CUDA.block_scope, CUDA.device_scope, CUDA.system_scope]
+        # TODO unordered
+        orders = [CUDA.monotonic, CUDA.release, CUDA.seq_cst, CUDA.acquire, CUDA.acq_rel]
+
+        function kernel(a, expected, desired, success_order, failure_order, scope)
+            CUDA.atomic_cas!(pointer(a), expected, desired, success_order, failure_order, scope)
+            return
+        end
+
+        for (T, success_order, failure_order, scope) in Iterators.product(types, orders, orders, scopes)
+            a = CuArray(T[0])
+            @cuda threads=1 kernel(a, zero(T), one(T), success_order, failure_order, scope)
+        end
+    end
+end
+
 end # atomics (low-level) with order
 
 @testset "atomics (low-level)" begin

@@ -542,7 +542,6 @@ function __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T
     end
 end
 
-# TODO: Volatile cas for 16/8
 for scope in (BlockScope, DeviceScope, SystemScope)
     asm_b64 = "atom.cas.$(asm(scope)).b64 \$0,[\$1],\$2,\$3;"
     asm_b32 = "atom.cas.$(asm(scope)).b32 \$0,[\$1],\$2,\$3;"
