@@ -116,6 +116,42 @@ steps:
             println("+++ :julia: Running tests")
             Pkg.test()'
 
+      - label: "{{matrix}} on CUDA 12"
+        matrix:
+            - "cuDNN"
+        plugins:
+          - JuliaCI/julia#v1:
+              version: 1.6
+          - JuliaCI/julia-coverage#v1:
+              codecov: true
+              dirs:
+                - src
+                - lib
+                - examples
+        agents:
+          queue: "juliagpu"
+          cuda: "12.0"
+        if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+        timeout_in_minutes: 120
+        commands: |
+          julia -e '
+            using Pkg
+
+            println("--- :julia: Instantiating project")
+            Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix}}")))
+            if "{{matrix}}" == "cuTensorNet"
+              # HACK: cuTensorNet depends on a development version of cuTENSOR
+              Pkg.develop(path=joinpath(pwd(), "lib", "cutensor"))
+            end
+            Pkg.develop(path=pwd())
+            Pkg.instantiate()
+
+            using CUDA
+            CUDA.set_runtime_version!(v"12.0")
+
+            println("+++ :julia: Running tests")
+            Pkg.test()'
+
   - group: ":telescope: Downstream"
     depends_on: "cuda"
     steps:
