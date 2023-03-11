@@ -57,7 +57,7 @@ steps:
                 - examples
         agents:
           queue: "juliagpu"
-          cuda: "11.0"
+          cuda: "*"
         if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
         timeout_in_minutes: 120
         matrix:
@@ -94,7 +94,7 @@ steps:
                 - examples
         agents:
           queue: "juliagpu"
-          cuda: "11.0"
+          cuda: "*"
         if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
         timeout_in_minutes: 120
         commands: |
@@ -130,7 +130,7 @@ steps:
                 - examples
         agents:
           queue: "juliagpu"
-          cuda: "12.0"
+          cuda: "*"
         if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
         timeout_in_minutes: 120
         commands: |
@@ -251,7 +251,7 @@ steps:
                 - examples
         agents:
           queue: "juliagpu"
-          cuda: "11.0"
+          cuda: "*"
         env:
           JULIA_CUDA_USE_COMPAT: 'false'  # NVIDIA bug #3418723: injection tools prevent probing libcuda
         commands: |
