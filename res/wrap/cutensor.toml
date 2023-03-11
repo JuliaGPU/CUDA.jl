@@ -5,10 +5,10 @@ prologue_file_path = "./libcutensor_prologue.jl"
 
 output_ignorelist = [
     # these change often
-    "^CUTENSOR_VERSION$",
-    "^CUTENSOR_MAJOR",
-    "^CUTENSOR_MINOR",
-    "^CUTENSOR_PATCH",
+    "CUTENSOR_VERSION",
+    "CUTENSOR_MAJOR",
+    "CUTENSOR_MINOR",
+    "CUTENSOR_PATCH",
 ]
 
 

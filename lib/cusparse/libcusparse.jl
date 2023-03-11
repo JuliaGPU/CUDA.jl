@@ -36,14 +36,6 @@ mutable struct cusparseMatDescr end
 
 const cusparseMatDescr_t = Ptr{cusparseMatDescr}
 
-mutable struct csrsv2Info end
-
-const csrsv2Info_t = Ptr{csrsv2Info}
-
-mutable struct csrsm2Info end
-
-const csrsm2Info_t = Ptr{csrsm2Info}
-
 mutable struct bsrsv2Info end
 
 const bsrsv2Info_t = Ptr{bsrsv2Info}
@@ -67,10 +59,6 @@ const csrilu02Info_t = Ptr{csrilu02Info}
 mutable struct bsrilu02Info end
 
 const bsrilu02Info_t = Ptr{bsrilu02Info}
-
-mutable struct csrgemm2Info end
-
-const csrgemm2Info_t = Ptr{csrgemm2Info}
 
 mutable struct csru2csrInfo end
 
@@ -150,10 +138,6 @@ end
 @cenum cusparseColorAlg_t::UInt32 begin
     CUSPARSE_COLOR_ALG0 = 0
     CUSPARSE_COLOR_ALG1 = 1
-end
-
-@cenum cusparseAlgMode_t::UInt32 begin
-    CUSPARSE_ALG_MERGE_PATH = 0
 end
 
 @checked function cusparseCreate(handle)
@@ -251,12 +235,6 @@ end
     @ccall libcusparse.cusparseDestroyMatDescr(descrA::cusparseMatDescr_t)::cusparseStatus_t
 end
 
-@checked function cusparseCopyMatDescr(dest, src)
-    initialize_context()
-    @ccall libcusparse.cusparseCopyMatDescr(dest::cusparseMatDescr_t,
-                                            src::cusparseMatDescr_t)::cusparseStatus_t
-end
-
 @checked function cusparseSetMatType(descrA, type)
     initialize_context()
     @ccall libcusparse.cusparseSetMatType(descrA::cusparseMatDescr_t,
@@ -299,16 +277,6 @@ end
 function cusparseGetMatIndexBase(descrA)
     initialize_context()
     @ccall libcusparse.cusparseGetMatIndexBase(descrA::cusparseMatDescr_t)::cusparseIndexBase_t
-end
-
-@checked function cusparseCreateCsrsv2Info(info)
-    initialize_context()
-    @ccall libcusparse.cusparseCreateCsrsv2Info(info::Ptr{csrsv2Info_t})::cusparseStatus_t
-end
-
-@checked function cusparseDestroyCsrsv2Info(info)
-    initialize_context()
-    @ccall libcusparse.cusparseDestroyCsrsv2Info(info::csrsv2Info_t)::cusparseStatus_t
 end
 
 @checked function cusparseCreateCsric02Info(info)
@@ -413,148 +381,6 @@ end
     @ccall libcusparse.cusparseDestroyPruneInfo(info::pruneInfo_t)::cusparseStatus_t
 end
 
-@checked function cusparseSaxpyi(handle, nnz, alpha, xVal, xInd, y, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseSaxpyi(handle::cusparseHandle_t, nnz::Cint,
-                                      alpha::Ref{Cfloat}, xVal::CuPtr{Cfloat},
-                                      xInd::CuPtr{Cint}, y::CuPtr{Cfloat},
-                                      idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseDaxpyi(handle, nnz, alpha, xVal, xInd, y, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseDaxpyi(handle::cusparseHandle_t, nnz::Cint,
-                                      alpha::Ref{Cdouble}, xVal::CuPtr{Cdouble},
-                                      xInd::CuPtr{Cint}, y::CuPtr{Cdouble},
-                                      idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseCaxpyi(handle, nnz, alpha, xVal, xInd, y, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseCaxpyi(handle::cusparseHandle_t, nnz::Cint,
-                                      alpha::Ref{cuComplex}, xVal::CuPtr{cuComplex},
-                                      xInd::CuPtr{Cint}, y::CuPtr{cuComplex},
-                                      idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseZaxpyi(handle, nnz, alpha, xVal, xInd, y, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseZaxpyi(handle::cusparseHandle_t, nnz::Cint,
-                                      alpha::Ref{cuDoubleComplex},
-                                      xVal::CuPtr{cuDoubleComplex}, xInd::CuPtr{Cint},
-                                      y::CuPtr{cuDoubleComplex},
-                                      idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseSgthr(handle, nnz, y, xVal, xInd, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseSgthr(handle::cusparseHandle_t, nnz::Cint, y::CuPtr{Cfloat},
-                                     xVal::CuPtr{Cfloat}, xInd::CuPtr{Cint},
-                                     idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseDgthr(handle, nnz, y, xVal, xInd, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseDgthr(handle::cusparseHandle_t, nnz::Cint, y::CuPtr{Cdouble},
-                                     xVal::CuPtr{Cdouble}, xInd::CuPtr{Cint},
-                                     idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseCgthr(handle, nnz, y, xVal, xInd, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseCgthr(handle::cusparseHandle_t, nnz::Cint,
-                                     y::CuPtr{cuComplex}, xVal::CuPtr{cuComplex},
-                                     xInd::CuPtr{Cint},
-                                     idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseZgthr(handle, nnz, y, xVal, xInd, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseZgthr(handle::cusparseHandle_t, nnz::Cint,
-                                     y::CuPtr{cuDoubleComplex},
-                                     xVal::CuPtr{cuDoubleComplex}, xInd::CuPtr{Cint},
-                                     idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseSgthrz(handle, nnz, y, xVal, xInd, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseSgthrz(handle::cusparseHandle_t, nnz::Cint, y::CuPtr{Cfloat},
-                                      xVal::CuPtr{Cfloat}, xInd::CuPtr{Cint},
-                                      idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseDgthrz(handle, nnz, y, xVal, xInd, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseDgthrz(handle::cusparseHandle_t, nnz::Cint,
-                                      y::CuPtr{Cdouble}, xVal::CuPtr{Cdouble},
-                                      xInd::CuPtr{Cint},
-                                      idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseCgthrz(handle, nnz, y, xVal, xInd, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseCgthrz(handle::cusparseHandle_t, nnz::Cint,
-                                      y::CuPtr{cuComplex}, xVal::CuPtr{cuComplex},
-                                      xInd::CuPtr{Cint},
-                                      idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseZgthrz(handle, nnz, y, xVal, xInd, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseZgthrz(handle::cusparseHandle_t, nnz::Cint,
-                                      y::CuPtr{cuDoubleComplex},
-                                      xVal::CuPtr{cuDoubleComplex}, xInd::CuPtr{Cint},
-                                      idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseSsctr(handle, nnz, xVal, xInd, y, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseSsctr(handle::cusparseHandle_t, nnz::Cint,
-                                     xVal::CuPtr{Cfloat}, xInd::CuPtr{Cint},
-                                     y::CuPtr{Cfloat},
-                                     idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseDsctr(handle, nnz, xVal, xInd, y, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseDsctr(handle::cusparseHandle_t, nnz::Cint,
-                                     xVal::CuPtr{Cdouble}, xInd::CuPtr{Cint},
-                                     y::CuPtr{Cdouble},
-                                     idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseCsctr(handle, nnz, xVal, xInd, y, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseCsctr(handle::cusparseHandle_t, nnz::Cint,
-                                     xVal::CuPtr{cuComplex}, xInd::CuPtr{Cint},
-                                     y::CuPtr{cuComplex},
-                                     idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseZsctr(handle, nnz, xVal, xInd, y, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseZsctr(handle::cusparseHandle_t, nnz::Cint,
-                                     xVal::CuPtr{cuDoubleComplex}, xInd::CuPtr{Cint},
-                                     y::CuPtr{cuDoubleComplex},
-                                     idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseSroti(handle, nnz, xVal, xInd, y, c, s, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseSroti(handle::cusparseHandle_t, nnz::Cint,
-                                     xVal::CuPtr{Cfloat}, xInd::CuPtr{Cint},
-                                     y::CuPtr{Cfloat}, c::Ref{Cfloat}, s::Ref{Cfloat},
-                                     idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
-@checked function cusparseDroti(handle, nnz, xVal, xInd, y, c, s, idxBase)
-    initialize_context()
-    @ccall libcusparse.cusparseDroti(handle::cusparseHandle_t, nnz::Cint,
-                                     xVal::CuPtr{Cdouble}, xInd::CuPtr{Cint},
-                                     y::CuPtr{Cdouble}, c::Ref{Cdouble}, s::Ref{Cdouble},
-                                     idxBase::cusparseIndexBase_t)::cusparseStatus_t
-end
-
 @checked function cusparseSgemvi(handle, transA, m, n, alpha, A, lda, nnz, xVal, xInd, beta,
                                  y, idxBase, pBuffer)
     initialize_context()
@@ -633,46 +459,6 @@ end
                                                  transA::cusparseOperation_t, m::Cint,
                                                  n::Cint, nnz::Cint,
                                                  pBufferSize::Ptr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseCsrmvEx_bufferSize(handle, alg, transA, m, n, nnz, alpha,
-                                             alphatype, descrA, csrValA, csrValAtype,
-                                             csrRowPtrA, csrColIndA, x, xtype, beta,
-                                             betatype, y, ytype, executiontype,
-                                             bufferSizeInBytes)
-    initialize_context()
-    @ccall libcusparse.cusparseCsrmvEx_bufferSize(handle::cusparseHandle_t,
-                                                  alg::cusparseAlgMode_t,
-                                                  transA::cusparseOperation_t, m::Cint,
-                                                  n::Cint, nnz::Cint, alpha::Ptr{Cvoid},
-                                                  alphatype::cudaDataType,
-                                                  descrA::cusparseMatDescr_t,
-                                                  csrValA::CuPtr{Cvoid},
-                                                  csrValAtype::cudaDataType,
-                                                  csrRowPtrA::CuPtr{Cint},
-                                                  csrColIndA::CuPtr{Cint}, x::CuPtr{Cvoid},
-                                                  xtype::cudaDataType, beta::Ptr{Cvoid},
-                                                  betatype::cudaDataType, y::CuPtr{Cvoid},
-                                                  ytype::cudaDataType,
-                                                  executiontype::cudaDataType,
-                                                  bufferSizeInBytes::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseCsrmvEx(handle, alg, transA, m, n, nnz, alpha, alphatype, descrA,
-                                  csrValA, csrValAtype, csrRowPtrA, csrColIndA, x, xtype,
-                                  beta, betatype, y, ytype, executiontype, buffer)
-    initialize_context()
-    @ccall libcusparse.cusparseCsrmvEx(handle::cusparseHandle_t, alg::cusparseAlgMode_t,
-                                       transA::cusparseOperation_t, m::Cint, n::Cint,
-                                       nnz::Cint, alpha::Ptr{Cvoid},
-                                       alphatype::cudaDataType, descrA::cusparseMatDescr_t,
-                                       csrValA::CuPtr{Cvoid}, csrValAtype::cudaDataType,
-                                       csrRowPtrA::CuPtr{Cint}, csrColIndA::CuPtr{Cint},
-                                       x::CuPtr{Cvoid}, xtype::cudaDataType,
-                                       beta::Ptr{Cvoid}, betatype::cudaDataType,
-                                       y::CuPtr{Cvoid}, ytype::cudaDataType,
-                                       executiontype::cudaDataType,
-                                       buffer::CuPtr{Cvoid})::cusparseStatus_t
 end
 
 @checked function cusparseSbsrmv(handle, dirA, transA, mb, nb, nnzb, alpha, descrA,
@@ -807,253 +593,6 @@ end
                                        x::CuPtr{cuDoubleComplex},
                                        beta::Ref{cuDoubleComplex},
                                        y::CuPtr{cuDoubleComplex})::cusparseStatus_t
-end
-
-@checked function cusparseXcsrsv2_zeroPivot(handle, info, position)
-    initialize_context()
-    @ccall libcusparse.cusparseXcsrsv2_zeroPivot(handle::cusparseHandle_t,
-                                                 info::csrsv2Info_t,
-                                                 position::Ptr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseScsrsv2_bufferSize(handle, transA, m, nnz, descrA, csrSortedValA,
-                                             csrSortedRowPtrA, csrSortedColIndA, info,
-                                             pBufferSizeInBytes)
-    initialize_context()
-    @ccall libcusparse.cusparseScsrsv2_bufferSize(handle::cusparseHandle_t,
-                                                  transA::cusparseOperation_t, m::Cint,
-                                                  nnz::Cint, descrA::cusparseMatDescr_t,
-                                                  csrSortedValA::CuPtr{Cfloat},
-                                                  csrSortedRowPtrA::CuPtr{Cint},
-                                                  csrSortedColIndA::CuPtr{Cint},
-                                                  info::csrsv2Info_t,
-                                                  pBufferSizeInBytes::Ptr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseDcsrsv2_bufferSize(handle, transA, m, nnz, descrA, csrSortedValA,
-                                             csrSortedRowPtrA, csrSortedColIndA, info,
-                                             pBufferSizeInBytes)
-    initialize_context()
-    @ccall libcusparse.cusparseDcsrsv2_bufferSize(handle::cusparseHandle_t,
-                                                  transA::cusparseOperation_t, m::Cint,
-                                                  nnz::Cint, descrA::cusparseMatDescr_t,
-                                                  csrSortedValA::CuPtr{Cdouble},
-                                                  csrSortedRowPtrA::CuPtr{Cint},
-                                                  csrSortedColIndA::CuPtr{Cint},
-                                                  info::csrsv2Info_t,
-                                                  pBufferSizeInBytes::Ptr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseCcsrsv2_bufferSize(handle, transA, m, nnz, descrA, csrSortedValA,
-                                             csrSortedRowPtrA, csrSortedColIndA, info,
-                                             pBufferSizeInBytes)
-    initialize_context()
-    @ccall libcusparse.cusparseCcsrsv2_bufferSize(handle::cusparseHandle_t,
-                                                  transA::cusparseOperation_t, m::Cint,
-                                                  nnz::Cint, descrA::cusparseMatDescr_t,
-                                                  csrSortedValA::CuPtr{cuComplex},
-                                                  csrSortedRowPtrA::CuPtr{Cint},
-                                                  csrSortedColIndA::CuPtr{Cint},
-                                                  info::csrsv2Info_t,
-                                                  pBufferSizeInBytes::Ptr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseZcsrsv2_bufferSize(handle, transA, m, nnz, descrA, csrSortedValA,
-                                             csrSortedRowPtrA, csrSortedColIndA, info,
-                                             pBufferSizeInBytes)
-    initialize_context()
-    @ccall libcusparse.cusparseZcsrsv2_bufferSize(handle::cusparseHandle_t,
-                                                  transA::cusparseOperation_t, m::Cint,
-                                                  nnz::Cint, descrA::cusparseMatDescr_t,
-                                                  csrSortedValA::CuPtr{cuDoubleComplex},
-                                                  csrSortedRowPtrA::CuPtr{Cint},
-                                                  csrSortedColIndA::CuPtr{Cint},
-                                                  info::csrsv2Info_t,
-                                                  pBufferSizeInBytes::Ptr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseScsrsv2_bufferSizeExt(handle, transA, m, nnz, descrA,
-                                                csrSortedValA, csrSortedRowPtrA,
-                                                csrSortedColIndA, info, pBufferSize)
-    initialize_context()
-    @ccall libcusparse.cusparseScsrsv2_bufferSizeExt(handle::cusparseHandle_t,
-                                                     transA::cusparseOperation_t, m::Cint,
-                                                     nnz::Cint, descrA::cusparseMatDescr_t,
-                                                     csrSortedValA::CuPtr{Cfloat},
-                                                     csrSortedRowPtrA::CuPtr{Cint},
-                                                     csrSortedColIndA::CuPtr{Cint},
-                                                     info::csrsv2Info_t,
-                                                     pBufferSize::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseDcsrsv2_bufferSizeExt(handle, transA, m, nnz, descrA,
-                                                csrSortedValA, csrSortedRowPtrA,
-                                                csrSortedColIndA, info, pBufferSize)
-    initialize_context()
-    @ccall libcusparse.cusparseDcsrsv2_bufferSizeExt(handle::cusparseHandle_t,
-                                                     transA::cusparseOperation_t, m::Cint,
-                                                     nnz::Cint, descrA::cusparseMatDescr_t,
-                                                     csrSortedValA::CuPtr{Cdouble},
-                                                     csrSortedRowPtrA::CuPtr{Cint},
-                                                     csrSortedColIndA::CuPtr{Cint},
-                                                     info::csrsv2Info_t,
-                                                     pBufferSize::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseCcsrsv2_bufferSizeExt(handle, transA, m, nnz, descrA,
-                                                csrSortedValA, csrSortedRowPtrA,
-                                                csrSortedColIndA, info, pBufferSize)
-    initialize_context()
-    @ccall libcusparse.cusparseCcsrsv2_bufferSizeExt(handle::cusparseHandle_t,
-                                                     transA::cusparseOperation_t, m::Cint,
-                                                     nnz::Cint, descrA::cusparseMatDescr_t,
-                                                     csrSortedValA::CuPtr{cuComplex},
-                                                     csrSortedRowPtrA::CuPtr{Cint},
-                                                     csrSortedColIndA::CuPtr{Cint},
-                                                     info::csrsv2Info_t,
-                                                     pBufferSize::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseZcsrsv2_bufferSizeExt(handle, transA, m, nnz, descrA,
-                                                csrSortedValA, csrSortedRowPtrA,
-                                                csrSortedColIndA, info, pBufferSize)
-    initialize_context()
-    @ccall libcusparse.cusparseZcsrsv2_bufferSizeExt(handle::cusparseHandle_t,
-                                                     transA::cusparseOperation_t, m::Cint,
-                                                     nnz::Cint, descrA::cusparseMatDescr_t,
-                                                     csrSortedValA::CuPtr{cuDoubleComplex},
-                                                     csrSortedRowPtrA::CuPtr{Cint},
-                                                     csrSortedColIndA::CuPtr{Cint},
-                                                     info::csrsv2Info_t,
-                                                     pBufferSize::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseScsrsv2_analysis(handle, transA, m, nnz, descrA, csrSortedValA,
-                                           csrSortedRowPtrA, csrSortedColIndA, info, policy,
-                                           pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseScsrsv2_analysis(handle::cusparseHandle_t,
-                                                transA::cusparseOperation_t, m::Cint,
-                                                nnz::Cint, descrA::cusparseMatDescr_t,
-                                                csrSortedValA::CuPtr{Cfloat},
-                                                csrSortedRowPtrA::CuPtr{Cint},
-                                                csrSortedColIndA::CuPtr{Cint},
-                                                info::csrsv2Info_t,
-                                                policy::cusparseSolvePolicy_t,
-                                                pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseDcsrsv2_analysis(handle, transA, m, nnz, descrA, csrSortedValA,
-                                           csrSortedRowPtrA, csrSortedColIndA, info, policy,
-                                           pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseDcsrsv2_analysis(handle::cusparseHandle_t,
-                                                transA::cusparseOperation_t, m::Cint,
-                                                nnz::Cint, descrA::cusparseMatDescr_t,
-                                                csrSortedValA::CuPtr{Cdouble},
-                                                csrSortedRowPtrA::CuPtr{Cint},
-                                                csrSortedColIndA::CuPtr{Cint},
-                                                info::csrsv2Info_t,
-                                                policy::cusparseSolvePolicy_t,
-                                                pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseCcsrsv2_analysis(handle, transA, m, nnz, descrA, csrSortedValA,
-                                           csrSortedRowPtrA, csrSortedColIndA, info, policy,
-                                           pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseCcsrsv2_analysis(handle::cusparseHandle_t,
-                                                transA::cusparseOperation_t, m::Cint,
-                                                nnz::Cint, descrA::cusparseMatDescr_t,
-                                                csrSortedValA::CuPtr{cuComplex},
-                                                csrSortedRowPtrA::CuPtr{Cint},
-                                                csrSortedColIndA::CuPtr{Cint},
-                                                info::csrsv2Info_t,
-                                                policy::cusparseSolvePolicy_t,
-                                                pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseZcsrsv2_analysis(handle, transA, m, nnz, descrA, csrSortedValA,
-                                           csrSortedRowPtrA, csrSortedColIndA, info, policy,
-                                           pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseZcsrsv2_analysis(handle::cusparseHandle_t,
-                                                transA::cusparseOperation_t, m::Cint,
-                                                nnz::Cint, descrA::cusparseMatDescr_t,
-                                                csrSortedValA::CuPtr{cuDoubleComplex},
-                                                csrSortedRowPtrA::CuPtr{Cint},
-                                                csrSortedColIndA::CuPtr{Cint},
-                                                info::csrsv2Info_t,
-                                                policy::cusparseSolvePolicy_t,
-                                                pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseScsrsv2_solve(handle, transA, m, nnz, alpha, descrA,
-                                        csrSortedValA, csrSortedRowPtrA, csrSortedColIndA,
-                                        info, f, x, policy, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseScsrsv2_solve(handle::cusparseHandle_t,
-                                             transA::cusparseOperation_t, m::Cint,
-                                             nnz::Cint, alpha::Ref{Cfloat},
-                                             descrA::cusparseMatDescr_t,
-                                             csrSortedValA::CuPtr{Cfloat},
-                                             csrSortedRowPtrA::CuPtr{Cint},
-                                             csrSortedColIndA::CuPtr{Cint},
-                                             info::csrsv2Info_t, f::CuPtr{Cfloat},
-                                             x::CuPtr{Cfloat},
-                                             policy::cusparseSolvePolicy_t,
-                                             pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseDcsrsv2_solve(handle, transA, m, nnz, alpha, descrA,
-                                        csrSortedValA, csrSortedRowPtrA, csrSortedColIndA,
-                                        info, f, x, policy, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseDcsrsv2_solve(handle::cusparseHandle_t,
-                                             transA::cusparseOperation_t, m::Cint,
-                                             nnz::Cint, alpha::Ref{Cdouble},
-                                             descrA::cusparseMatDescr_t,
-                                             csrSortedValA::CuPtr{Cdouble},
-                                             csrSortedRowPtrA::CuPtr{Cint},
-                                             csrSortedColIndA::CuPtr{Cint},
-                                             info::csrsv2Info_t, f::CuPtr{Cdouble},
-                                             x::CuPtr{Cdouble},
-                                             policy::cusparseSolvePolicy_t,
-                                             pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseCcsrsv2_solve(handle, transA, m, nnz, alpha, descrA,
-                                        csrSortedValA, csrSortedRowPtrA, csrSortedColIndA,
-                                        info, f, x, policy, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseCcsrsv2_solve(handle::cusparseHandle_t,
-                                             transA::cusparseOperation_t, m::Cint,
-                                             nnz::Cint, alpha::Ref{cuComplex},
-                                             descrA::cusparseMatDescr_t,
-                                             csrSortedValA::CuPtr{cuComplex},
-                                             csrSortedRowPtrA::CuPtr{Cint},
-                                             csrSortedColIndA::CuPtr{Cint},
-                                             info::csrsv2Info_t, f::CuPtr{cuComplex},
-                                             x::CuPtr{cuComplex},
-                                             policy::cusparseSolvePolicy_t,
-                                             pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseZcsrsv2_solve(handle, transA, m, nnz, alpha, descrA,
-                                        csrSortedValA, csrSortedRowPtrA, csrSortedColIndA,
-                                        info, f, x, policy, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseZcsrsv2_solve(handle::cusparseHandle_t,
-                                             transA::cusparseOperation_t, m::Cint,
-                                             nnz::Cint, alpha::Ref{cuDoubleComplex},
-                                             descrA::cusparseMatDescr_t,
-                                             csrSortedValA::CuPtr{cuDoubleComplex},
-                                             csrSortedRowPtrA::CuPtr{Cint},
-                                             csrSortedColIndA::CuPtr{Cint},
-                                             info::csrsv2Info_t, f::CuPtr{cuDoubleComplex},
-                                             x::CuPtr{cuDoubleComplex},
-                                             policy::cusparseSolvePolicy_t,
-                                             pBuffer::CuPtr{Cvoid})::cusparseStatus_t
 end
 
 @checked function cusparseXbsrsv2_zeroPivot(handle, info, position)
@@ -1394,295 +933,6 @@ end
                                       B::CuPtr{cuDoubleComplex}, ldb::Cint,
                                       beta::Ref{cuDoubleComplex}, C::CuPtr{cuDoubleComplex},
                                       ldc::Cint)::cusparseStatus_t
-end
-
-@checked function cusparseSgemmi(handle, m, n, k, nnz, alpha, A, lda, cscValB, cscColPtrB,
-                                 cscRowIndB, beta, C, ldc)
-    initialize_context()
-    @ccall libcusparse.cusparseSgemmi(handle::cusparseHandle_t, m::Cint, n::Cint, k::Cint,
-                                      nnz::Cint, alpha::Ref{Cfloat}, A::CuPtr{Cfloat},
-                                      lda::Cint, cscValB::CuPtr{Cfloat},
-                                      cscColPtrB::CuPtr{Cint}, cscRowIndB::CuPtr{Cint},
-                                      beta::Ref{Cfloat}, C::CuPtr{Cfloat},
-                                      ldc::Cint)::cusparseStatus_t
-end
-
-@checked function cusparseDgemmi(handle, m, n, k, nnz, alpha, A, lda, cscValB, cscColPtrB,
-                                 cscRowIndB, beta, C, ldc)
-    initialize_context()
-    @ccall libcusparse.cusparseDgemmi(handle::cusparseHandle_t, m::Cint, n::Cint, k::Cint,
-                                      nnz::Cint, alpha::Ref{Cdouble}, A::CuPtr{Cdouble},
-                                      lda::Cint, cscValB::CuPtr{Cdouble},
-                                      cscColPtrB::CuPtr{Cint}, cscRowIndB::CuPtr{Cint},
-                                      beta::Ref{Cdouble}, C::CuPtr{Cdouble},
-                                      ldc::Cint)::cusparseStatus_t
-end
-
-@checked function cusparseCgemmi(handle, m, n, k, nnz, alpha, A, lda, cscValB, cscColPtrB,
-                                 cscRowIndB, beta, C, ldc)
-    initialize_context()
-    @ccall libcusparse.cusparseCgemmi(handle::cusparseHandle_t, m::Cint, n::Cint, k::Cint,
-                                      nnz::Cint, alpha::Ref{cuComplex}, A::CuPtr{cuComplex},
-                                      lda::Cint, cscValB::CuPtr{cuComplex},
-                                      cscColPtrB::CuPtr{Cint}, cscRowIndB::CuPtr{Cint},
-                                      beta::Ref{cuComplex}, C::CuPtr{cuComplex},
-                                      ldc::Cint)::cusparseStatus_t
-end
-
-@checked function cusparseZgemmi(handle, m, n, k, nnz, alpha, A, lda, cscValB, cscColPtrB,
-                                 cscRowIndB, beta, C, ldc)
-    initialize_context()
-    @ccall libcusparse.cusparseZgemmi(handle::cusparseHandle_t, m::Cint, n::Cint, k::Cint,
-                                      nnz::Cint, alpha::Ref{cuDoubleComplex},
-                                      A::CuPtr{cuDoubleComplex}, lda::Cint,
-                                      cscValB::CuPtr{cuDoubleComplex},
-                                      cscColPtrB::CuPtr{Cint}, cscRowIndB::CuPtr{Cint},
-                                      beta::Ref{cuDoubleComplex}, C::CuPtr{cuDoubleComplex},
-                                      ldc::Cint)::cusparseStatus_t
-end
-
-@checked function cusparseCreateCsrsm2Info(info)
-    initialize_context()
-    @ccall libcusparse.cusparseCreateCsrsm2Info(info::Ptr{csrsm2Info_t})::cusparseStatus_t
-end
-
-@checked function cusparseDestroyCsrsm2Info(info)
-    initialize_context()
-    @ccall libcusparse.cusparseDestroyCsrsm2Info(info::csrsm2Info_t)::cusparseStatus_t
-end
-
-@checked function cusparseXcsrsm2_zeroPivot(handle, info, position)
-    initialize_context()
-    @ccall libcusparse.cusparseXcsrsm2_zeroPivot(handle::cusparseHandle_t,
-                                                 info::csrsm2Info_t,
-                                                 position::Ptr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseScsrsm2_bufferSizeExt(handle, algo, transA, transB, m, nrhs, nnz,
-                                                alpha, descrA, csrSortedValA,
-                                                csrSortedRowPtrA, csrSortedColIndA, B, ldb,
-                                                info, policy, pBufferSize)
-    initialize_context()
-    @ccall libcusparse.cusparseScsrsm2_bufferSizeExt(handle::cusparseHandle_t, algo::Cint,
-                                                     transA::cusparseOperation_t,
-                                                     transB::cusparseOperation_t, m::Cint,
-                                                     nrhs::Cint, nnz::Cint,
-                                                     alpha::Ref{Cfloat},
-                                                     descrA::cusparseMatDescr_t,
-                                                     csrSortedValA::CuPtr{Cfloat},
-                                                     csrSortedRowPtrA::CuPtr{Cint},
-                                                     csrSortedColIndA::CuPtr{Cint},
-                                                     B::CuPtr{Cfloat}, ldb::Cint,
-                                                     info::csrsm2Info_t,
-                                                     policy::cusparseSolvePolicy_t,
-                                                     pBufferSize::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseDcsrsm2_bufferSizeExt(handle, algo, transA, transB, m, nrhs, nnz,
-                                                alpha, descrA, csrSortedValA,
-                                                csrSortedRowPtrA, csrSortedColIndA, B, ldb,
-                                                info, policy, pBufferSize)
-    initialize_context()
-    @ccall libcusparse.cusparseDcsrsm2_bufferSizeExt(handle::cusparseHandle_t, algo::Cint,
-                                                     transA::cusparseOperation_t,
-                                                     transB::cusparseOperation_t, m::Cint,
-                                                     nrhs::Cint, nnz::Cint,
-                                                     alpha::Ref{Cdouble},
-                                                     descrA::cusparseMatDescr_t,
-                                                     csrSortedValA::CuPtr{Cdouble},
-                                                     csrSortedRowPtrA::CuPtr{Cint},
-                                                     csrSortedColIndA::CuPtr{Cint},
-                                                     B::CuPtr{Cdouble}, ldb::Cint,
-                                                     info::csrsm2Info_t,
-                                                     policy::cusparseSolvePolicy_t,
-                                                     pBufferSize::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseCcsrsm2_bufferSizeExt(handle, algo, transA, transB, m, nrhs, nnz,
-                                                alpha, descrA, csrSortedValA,
-                                                csrSortedRowPtrA, csrSortedColIndA, B, ldb,
-                                                info, policy, pBufferSize)
-    initialize_context()
-    @ccall libcusparse.cusparseCcsrsm2_bufferSizeExt(handle::cusparseHandle_t, algo::Cint,
-                                                     transA::cusparseOperation_t,
-                                                     transB::cusparseOperation_t, m::Cint,
-                                                     nrhs::Cint, nnz::Cint,
-                                                     alpha::Ref{cuComplex},
-                                                     descrA::cusparseMatDescr_t,
-                                                     csrSortedValA::CuPtr{cuComplex},
-                                                     csrSortedRowPtrA::CuPtr{Cint},
-                                                     csrSortedColIndA::CuPtr{Cint},
-                                                     B::CuPtr{cuComplex}, ldb::Cint,
-                                                     info::csrsm2Info_t,
-                                                     policy::cusparseSolvePolicy_t,
-                                                     pBufferSize::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseZcsrsm2_bufferSizeExt(handle, algo, transA, transB, m, nrhs, nnz,
-                                                alpha, descrA, csrSortedValA,
-                                                csrSortedRowPtrA, csrSortedColIndA, B, ldb,
-                                                info, policy, pBufferSize)
-    initialize_context()
-    @ccall libcusparse.cusparseZcsrsm2_bufferSizeExt(handle::cusparseHandle_t, algo::Cint,
-                                                     transA::cusparseOperation_t,
-                                                     transB::cusparseOperation_t, m::Cint,
-                                                     nrhs::Cint, nnz::Cint,
-                                                     alpha::Ref{cuDoubleComplex},
-                                                     descrA::cusparseMatDescr_t,
-                                                     csrSortedValA::CuPtr{cuDoubleComplex},
-                                                     csrSortedRowPtrA::CuPtr{Cint},
-                                                     csrSortedColIndA::CuPtr{Cint},
-                                                     B::CuPtr{cuDoubleComplex}, ldb::Cint,
-                                                     info::csrsm2Info_t,
-                                                     policy::cusparseSolvePolicy_t,
-                                                     pBufferSize::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseScsrsm2_analysis(handle, algo, transA, transB, m, nrhs, nnz,
-                                           alpha, descrA, csrSortedValA, csrSortedRowPtrA,
-                                           csrSortedColIndA, B, ldb, info, policy, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseScsrsm2_analysis(handle::cusparseHandle_t, algo::Cint,
-                                                transA::cusparseOperation_t,
-                                                transB::cusparseOperation_t, m::Cint,
-                                                nrhs::Cint, nnz::Cint, alpha::Ref{Cfloat},
-                                                descrA::cusparseMatDescr_t,
-                                                csrSortedValA::CuPtr{Cfloat},
-                                                csrSortedRowPtrA::CuPtr{Cint},
-                                                csrSortedColIndA::CuPtr{Cint},
-                                                B::CuPtr{Cfloat}, ldb::Cint,
-                                                info::csrsm2Info_t,
-                                                policy::cusparseSolvePolicy_t,
-                                                pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseDcsrsm2_analysis(handle, algo, transA, transB, m, nrhs, nnz,
-                                           alpha, descrA, csrSortedValA, csrSortedRowPtrA,
-                                           csrSortedColIndA, B, ldb, info, policy, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseDcsrsm2_analysis(handle::cusparseHandle_t, algo::Cint,
-                                                transA::cusparseOperation_t,
-                                                transB::cusparseOperation_t, m::Cint,
-                                                nrhs::Cint, nnz::Cint, alpha::Ref{Cdouble},
-                                                descrA::cusparseMatDescr_t,
-                                                csrSortedValA::CuPtr{Cdouble},
-                                                csrSortedRowPtrA::CuPtr{Cint},
-                                                csrSortedColIndA::CuPtr{Cint},
-                                                B::CuPtr{Cdouble}, ldb::Cint,
-                                                info::csrsm2Info_t,
-                                                policy::cusparseSolvePolicy_t,
-                                                pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseCcsrsm2_analysis(handle, algo, transA, transB, m, nrhs, nnz,
-                                           alpha, descrA, csrSortedValA, csrSortedRowPtrA,
-                                           csrSortedColIndA, B, ldb, info, policy, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseCcsrsm2_analysis(handle::cusparseHandle_t, algo::Cint,
-                                                transA::cusparseOperation_t,
-                                                transB::cusparseOperation_t, m::Cint,
-                                                nrhs::Cint, nnz::Cint,
-                                                alpha::Ref{cuComplex},
-                                                descrA::cusparseMatDescr_t,
-                                                csrSortedValA::CuPtr{cuComplex},
-                                                csrSortedRowPtrA::CuPtr{Cint},
-                                                csrSortedColIndA::CuPtr{Cint},
-                                                B::CuPtr{cuComplex}, ldb::Cint,
-                                                info::csrsm2Info_t,
-                                                policy::cusparseSolvePolicy_t,
-                                                pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseZcsrsm2_analysis(handle, algo, transA, transB, m, nrhs, nnz,
-                                           alpha, descrA, csrSortedValA, csrSortedRowPtrA,
-                                           csrSortedColIndA, B, ldb, info, policy, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseZcsrsm2_analysis(handle::cusparseHandle_t, algo::Cint,
-                                                transA::cusparseOperation_t,
-                                                transB::cusparseOperation_t, m::Cint,
-                                                nrhs::Cint, nnz::Cint,
-                                                alpha::Ref{cuDoubleComplex},
-                                                descrA::cusparseMatDescr_t,
-                                                csrSortedValA::CuPtr{cuDoubleComplex},
-                                                csrSortedRowPtrA::CuPtr{Cint},
-                                                csrSortedColIndA::CuPtr{Cint},
-                                                B::CuPtr{cuDoubleComplex}, ldb::Cint,
-                                                info::csrsm2Info_t,
-                                                policy::cusparseSolvePolicy_t,
-                                                pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseScsrsm2_solve(handle, algo, transA, transB, m, nrhs, nnz, alpha,
-                                        descrA, csrSortedValA, csrSortedRowPtrA,
-                                        csrSortedColIndA, B, ldb, info, policy, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseScsrsm2_solve(handle::cusparseHandle_t, algo::Cint,
-                                             transA::cusparseOperation_t,
-                                             transB::cusparseOperation_t, m::Cint,
-                                             nrhs::Cint, nnz::Cint, alpha::Ref{Cfloat},
-                                             descrA::cusparseMatDescr_t,
-                                             csrSortedValA::CuPtr{Cfloat},
-                                             csrSortedRowPtrA::CuPtr{Cint},
-                                             csrSortedColIndA::CuPtr{Cint},
-                                             B::CuPtr{Cfloat}, ldb::Cint,
-                                             info::csrsm2Info_t,
-                                             policy::cusparseSolvePolicy_t,
-                                             pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseDcsrsm2_solve(handle, algo, transA, transB, m, nrhs, nnz, alpha,
-                                        descrA, csrSortedValA, csrSortedRowPtrA,
-                                        csrSortedColIndA, B, ldb, info, policy, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseDcsrsm2_solve(handle::cusparseHandle_t, algo::Cint,
-                                             transA::cusparseOperation_t,
-                                             transB::cusparseOperation_t, m::Cint,
-                                             nrhs::Cint, nnz::Cint, alpha::Ref{Cdouble},
-                                             descrA::cusparseMatDescr_t,
-                                             csrSortedValA::CuPtr{Cdouble},
-                                             csrSortedRowPtrA::CuPtr{Cint},
-                                             csrSortedColIndA::CuPtr{Cint},
-                                             B::CuPtr{Cdouble}, ldb::Cint,
-                                             info::csrsm2Info_t,
-                                             policy::cusparseSolvePolicy_t,
-                                             pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseCcsrsm2_solve(handle, algo, transA, transB, m, nrhs, nnz, alpha,
-                                        descrA, csrSortedValA, csrSortedRowPtrA,
-                                        csrSortedColIndA, B, ldb, info, policy, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseCcsrsm2_solve(handle::cusparseHandle_t, algo::Cint,
-                                             transA::cusparseOperation_t,
-                                             transB::cusparseOperation_t, m::Cint,
-                                             nrhs::Cint, nnz::Cint, alpha::Ref{cuComplex},
-                                             descrA::cusparseMatDescr_t,
-                                             csrSortedValA::CuPtr{cuComplex},
-                                             csrSortedRowPtrA::CuPtr{Cint},
-                                             csrSortedColIndA::CuPtr{Cint},
-                                             B::CuPtr{cuComplex}, ldb::Cint,
-                                             info::csrsm2Info_t,
-                                             policy::cusparseSolvePolicy_t,
-                                             pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseZcsrsm2_solve(handle, algo, transA, transB, m, nrhs, nnz, alpha,
-                                        descrA, csrSortedValA, csrSortedRowPtrA,
-                                        csrSortedColIndA, B, ldb, info, policy, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseZcsrsm2_solve(handle::cusparseHandle_t, algo::Cint,
-                                             transA::cusparseOperation_t,
-                                             transB::cusparseOperation_t, m::Cint,
-                                             nrhs::Cint, nnz::Cint,
-                                             alpha::Ref{cuDoubleComplex},
-                                             descrA::cusparseMatDescr_t,
-                                             csrSortedValA::CuPtr{cuDoubleComplex},
-                                             csrSortedRowPtrA::CuPtr{Cint},
-                                             csrSortedColIndA::CuPtr{Cint},
-                                             B::CuPtr{cuDoubleComplex}, ldb::Cint,
-                                             info::csrsm2Info_t,
-                                             policy::cusparseSolvePolicy_t,
-                                             pBuffer::CuPtr{Cvoid})::cusparseStatus_t
 end
 
 @checked function cusparseXbsrsm2_zeroPivot(handle, info, position)
@@ -3465,263 +2715,6 @@ end
                                                      pBuffer::CuPtr{Cvoid})::cusparseStatus_t
 end
 
-@checked function cusparseCreateCsrgemm2Info(info)
-    initialize_context()
-    @ccall libcusparse.cusparseCreateCsrgemm2Info(info::Ptr{csrgemm2Info_t})::cusparseStatus_t
-end
-
-@checked function cusparseDestroyCsrgemm2Info(info)
-    initialize_context()
-    @ccall libcusparse.cusparseDestroyCsrgemm2Info(info::csrgemm2Info_t)::cusparseStatus_t
-end
-
-@checked function cusparseScsrgemm2_bufferSizeExt(handle, m, n, k, alpha, descrA, nnzA,
-                                                  csrSortedRowPtrA, csrSortedColIndA,
-                                                  descrB, nnzB, csrSortedRowPtrB,
-                                                  csrSortedColIndB, beta, descrD, nnzD,
-                                                  csrSortedRowPtrD, csrSortedColIndD, info,
-                                                  pBufferSizeInBytes)
-    initialize_context()
-    @ccall libcusparse.cusparseScsrgemm2_bufferSizeExt(handle::cusparseHandle_t, m::Cint,
-                                                       n::Cint, k::Cint, alpha::Ref{Cfloat},
-                                                       descrA::cusparseMatDescr_t,
-                                                       nnzA::Cint,
-                                                       csrSortedRowPtrA::CuPtr{Cint},
-                                                       csrSortedColIndA::CuPtr{Cint},
-                                                       descrB::cusparseMatDescr_t,
-                                                       nnzB::Cint,
-                                                       csrSortedRowPtrB::CuPtr{Cint},
-                                                       csrSortedColIndB::CuPtr{Cint},
-                                                       beta::Ref{Cfloat},
-                                                       descrD::cusparseMatDescr_t,
-                                                       nnzD::Cint,
-                                                       csrSortedRowPtrD::CuPtr{Cint},
-                                                       csrSortedColIndD::CuPtr{Cint},
-                                                       info::csrgemm2Info_t,
-                                                       pBufferSizeInBytes::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseDcsrgemm2_bufferSizeExt(handle, m, n, k, alpha, descrA, nnzA,
-                                                  csrSortedRowPtrA, csrSortedColIndA,
-                                                  descrB, nnzB, csrSortedRowPtrB,
-                                                  csrSortedColIndB, beta, descrD, nnzD,
-                                                  csrSortedRowPtrD, csrSortedColIndD, info,
-                                                  pBufferSizeInBytes)
-    initialize_context()
-    @ccall libcusparse.cusparseDcsrgemm2_bufferSizeExt(handle::cusparseHandle_t, m::Cint,
-                                                       n::Cint, k::Cint,
-                                                       alpha::Ref{Cdouble},
-                                                       descrA::cusparseMatDescr_t,
-                                                       nnzA::Cint,
-                                                       csrSortedRowPtrA::CuPtr{Cint},
-                                                       csrSortedColIndA::CuPtr{Cint},
-                                                       descrB::cusparseMatDescr_t,
-                                                       nnzB::Cint,
-                                                       csrSortedRowPtrB::CuPtr{Cint},
-                                                       csrSortedColIndB::CuPtr{Cint},
-                                                       beta::Ref{Cdouble},
-                                                       descrD::cusparseMatDescr_t,
-                                                       nnzD::Cint,
-                                                       csrSortedRowPtrD::CuPtr{Cint},
-                                                       csrSortedColIndD::CuPtr{Cint},
-                                                       info::csrgemm2Info_t,
-                                                       pBufferSizeInBytes::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseCcsrgemm2_bufferSizeExt(handle, m, n, k, alpha, descrA, nnzA,
-                                                  csrSortedRowPtrA, csrSortedColIndA,
-                                                  descrB, nnzB, csrSortedRowPtrB,
-                                                  csrSortedColIndB, beta, descrD, nnzD,
-                                                  csrSortedRowPtrD, csrSortedColIndD, info,
-                                                  pBufferSizeInBytes)
-    initialize_context()
-    @ccall libcusparse.cusparseCcsrgemm2_bufferSizeExt(handle::cusparseHandle_t, m::Cint,
-                                                       n::Cint, k::Cint,
-                                                       alpha::Ref{cuComplex},
-                                                       descrA::cusparseMatDescr_t,
-                                                       nnzA::Cint,
-                                                       csrSortedRowPtrA::CuPtr{Cint},
-                                                       csrSortedColIndA::CuPtr{Cint},
-                                                       descrB::cusparseMatDescr_t,
-                                                       nnzB::Cint,
-                                                       csrSortedRowPtrB::CuPtr{Cint},
-                                                       csrSortedColIndB::CuPtr{Cint},
-                                                       beta::Ref{cuComplex},
-                                                       descrD::cusparseMatDescr_t,
-                                                       nnzD::Cint,
-                                                       csrSortedRowPtrD::CuPtr{Cint},
-                                                       csrSortedColIndD::CuPtr{Cint},
-                                                       info::csrgemm2Info_t,
-                                                       pBufferSizeInBytes::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseZcsrgemm2_bufferSizeExt(handle, m, n, k, alpha, descrA, nnzA,
-                                                  csrSortedRowPtrA, csrSortedColIndA,
-                                                  descrB, nnzB, csrSortedRowPtrB,
-                                                  csrSortedColIndB, beta, descrD, nnzD,
-                                                  csrSortedRowPtrD, csrSortedColIndD, info,
-                                                  pBufferSizeInBytes)
-    initialize_context()
-    @ccall libcusparse.cusparseZcsrgemm2_bufferSizeExt(handle::cusparseHandle_t, m::Cint,
-                                                       n::Cint, k::Cint,
-                                                       alpha::Ref{cuDoubleComplex},
-                                                       descrA::cusparseMatDescr_t,
-                                                       nnzA::Cint,
-                                                       csrSortedRowPtrA::CuPtr{Cint},
-                                                       csrSortedColIndA::CuPtr{Cint},
-                                                       descrB::cusparseMatDescr_t,
-                                                       nnzB::Cint,
-                                                       csrSortedRowPtrB::CuPtr{Cint},
-                                                       csrSortedColIndB::CuPtr{Cint},
-                                                       beta::Ref{cuDoubleComplex},
-                                                       descrD::cusparseMatDescr_t,
-                                                       nnzD::Cint,
-                                                       csrSortedRowPtrD::CuPtr{Cint},
-                                                       csrSortedColIndD::CuPtr{Cint},
-                                                       info::csrgemm2Info_t,
-                                                       pBufferSizeInBytes::Ptr{Csize_t})::cusparseStatus_t
-end
-
-@checked function cusparseXcsrgemm2Nnz(handle, m, n, k, descrA, nnzA, csrSortedRowPtrA,
-                                       csrSortedColIndA, descrB, nnzB, csrSortedRowPtrB,
-                                       csrSortedColIndB, descrD, nnzD, csrSortedRowPtrD,
-                                       csrSortedColIndD, descrC, csrSortedRowPtrC,
-                                       nnzTotalDevHostPtr, info, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseXcsrgemm2Nnz(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                            k::Cint, descrA::cusparseMatDescr_t, nnzA::Cint,
-                                            csrSortedRowPtrA::CuPtr{Cint},
-                                            csrSortedColIndA::CuPtr{Cint},
-                                            descrB::cusparseMatDescr_t, nnzB::Cint,
-                                            csrSortedRowPtrB::CuPtr{Cint},
-                                            csrSortedColIndB::CuPtr{Cint},
-                                            descrD::cusparseMatDescr_t, nnzD::Cint,
-                                            csrSortedRowPtrD::CuPtr{Cint},
-                                            csrSortedColIndD::CuPtr{Cint},
-                                            descrC::cusparseMatDescr_t,
-                                            csrSortedRowPtrC::CuPtr{Cint},
-                                            nnzTotalDevHostPtr::PtrOrCuPtr{Cint},
-                                            info::csrgemm2Info_t,
-                                            pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseScsrgemm2(handle, m, n, k, alpha, descrA, nnzA, csrSortedValA,
-                                    csrSortedRowPtrA, csrSortedColIndA, descrB, nnzB,
-                                    csrSortedValB, csrSortedRowPtrB, csrSortedColIndB, beta,
-                                    descrD, nnzD, csrSortedValD, csrSortedRowPtrD,
-                                    csrSortedColIndD, descrC, csrSortedValC,
-                                    csrSortedRowPtrC, csrSortedColIndC, info, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseScsrgemm2(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                         k::Cint, alpha::Ref{Cfloat},
-                                         descrA::cusparseMatDescr_t, nnzA::Cint,
-                                         csrSortedValA::CuPtr{Cfloat},
-                                         csrSortedRowPtrA::CuPtr{Cint},
-                                         csrSortedColIndA::CuPtr{Cint},
-                                         descrB::cusparseMatDescr_t, nnzB::Cint,
-                                         csrSortedValB::CuPtr{Cfloat},
-                                         csrSortedRowPtrB::CuPtr{Cint},
-                                         csrSortedColIndB::CuPtr{Cint}, beta::Ref{Cfloat},
-                                         descrD::cusparseMatDescr_t, nnzD::Cint,
-                                         csrSortedValD::CuPtr{Cfloat},
-                                         csrSortedRowPtrD::CuPtr{Cint},
-                                         csrSortedColIndD::CuPtr{Cint},
-                                         descrC::cusparseMatDescr_t,
-                                         csrSortedValC::CuPtr{Cfloat},
-                                         csrSortedRowPtrC::CuPtr{Cint},
-                                         csrSortedColIndC::CuPtr{Cint},
-                                         info::csrgemm2Info_t,
-                                         pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseDcsrgemm2(handle, m, n, k, alpha, descrA, nnzA, csrSortedValA,
-                                    csrSortedRowPtrA, csrSortedColIndA, descrB, nnzB,
-                                    csrSortedValB, csrSortedRowPtrB, csrSortedColIndB, beta,
-                                    descrD, nnzD, csrSortedValD, csrSortedRowPtrD,
-                                    csrSortedColIndD, descrC, csrSortedValC,
-                                    csrSortedRowPtrC, csrSortedColIndC, info, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseDcsrgemm2(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                         k::Cint, alpha::Ref{Cdouble},
-                                         descrA::cusparseMatDescr_t, nnzA::Cint,
-                                         csrSortedValA::CuPtr{Cdouble},
-                                         csrSortedRowPtrA::CuPtr{Cint},
-                                         csrSortedColIndA::CuPtr{Cint},
-                                         descrB::cusparseMatDescr_t, nnzB::Cint,
-                                         csrSortedValB::CuPtr{Cdouble},
-                                         csrSortedRowPtrB::CuPtr{Cint},
-                                         csrSortedColIndB::CuPtr{Cint}, beta::Ref{Cdouble},
-                                         descrD::cusparseMatDescr_t, nnzD::Cint,
-                                         csrSortedValD::CuPtr{Cdouble},
-                                         csrSortedRowPtrD::CuPtr{Cint},
-                                         csrSortedColIndD::CuPtr{Cint},
-                                         descrC::cusparseMatDescr_t,
-                                         csrSortedValC::CuPtr{Cdouble},
-                                         csrSortedRowPtrC::CuPtr{Cint},
-                                         csrSortedColIndC::CuPtr{Cint},
-                                         info::csrgemm2Info_t,
-                                         pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseCcsrgemm2(handle, m, n, k, alpha, descrA, nnzA, csrSortedValA,
-                                    csrSortedRowPtrA, csrSortedColIndA, descrB, nnzB,
-                                    csrSortedValB, csrSortedRowPtrB, csrSortedColIndB, beta,
-                                    descrD, nnzD, csrSortedValD, csrSortedRowPtrD,
-                                    csrSortedColIndD, descrC, csrSortedValC,
-                                    csrSortedRowPtrC, csrSortedColIndC, info, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseCcsrgemm2(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                         k::Cint, alpha::Ref{cuComplex},
-                                         descrA::cusparseMatDescr_t, nnzA::Cint,
-                                         csrSortedValA::CuPtr{cuComplex},
-                                         csrSortedRowPtrA::CuPtr{Cint},
-                                         csrSortedColIndA::CuPtr{Cint},
-                                         descrB::cusparseMatDescr_t, nnzB::Cint,
-                                         csrSortedValB::CuPtr{cuComplex},
-                                         csrSortedRowPtrB::CuPtr{Cint},
-                                         csrSortedColIndB::CuPtr{Cint},
-                                         beta::Ref{cuComplex}, descrD::cusparseMatDescr_t,
-                                         nnzD::Cint, csrSortedValD::CuPtr{cuComplex},
-                                         csrSortedRowPtrD::CuPtr{Cint},
-                                         csrSortedColIndD::CuPtr{Cint},
-                                         descrC::cusparseMatDescr_t,
-                                         csrSortedValC::CuPtr{cuComplex},
-                                         csrSortedRowPtrC::CuPtr{Cint},
-                                         csrSortedColIndC::CuPtr{Cint},
-                                         info::csrgemm2Info_t,
-                                         pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseZcsrgemm2(handle, m, n, k, alpha, descrA, nnzA, csrSortedValA,
-                                    csrSortedRowPtrA, csrSortedColIndA, descrB, nnzB,
-                                    csrSortedValB, csrSortedRowPtrB, csrSortedColIndB, beta,
-                                    descrD, nnzD, csrSortedValD, csrSortedRowPtrD,
-                                    csrSortedColIndD, descrC, csrSortedValC,
-                                    csrSortedRowPtrC, csrSortedColIndC, info, pBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseZcsrgemm2(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                         k::Cint, alpha::Ref{cuDoubleComplex},
-                                         descrA::cusparseMatDescr_t, nnzA::Cint,
-                                         csrSortedValA::CuPtr{cuDoubleComplex},
-                                         csrSortedRowPtrA::CuPtr{Cint},
-                                         csrSortedColIndA::CuPtr{Cint},
-                                         descrB::cusparseMatDescr_t, nnzB::Cint,
-                                         csrSortedValB::CuPtr{cuDoubleComplex},
-                                         csrSortedRowPtrB::CuPtr{Cint},
-                                         csrSortedColIndB::CuPtr{Cint},
-                                         beta::Ref{cuDoubleComplex},
-                                         descrD::cusparseMatDescr_t, nnzD::Cint,
-                                         csrSortedValD::CuPtr{cuDoubleComplex},
-                                         csrSortedRowPtrD::CuPtr{Cint},
-                                         csrSortedColIndD::CuPtr{Cint},
-                                         descrC::cusparseMatDescr_t,
-                                         csrSortedValC::CuPtr{cuDoubleComplex},
-                                         csrSortedRowPtrC::CuPtr{Cint},
-                                         csrSortedColIndC::CuPtr{Cint},
-                                         info::csrgemm2Info_t,
-                                         pBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
 @checked function cusparseScsrgeam2_bufferSizeExt(handle, m, n, alpha, descrA, nnzA,
                                                   csrSortedValA, csrSortedRowPtrA,
                                                   csrSortedColIndA, beta, descrB, nnzB,
@@ -4146,186 +3139,6 @@ end
                                                  csrSortedColIndC::CuPtr{Cint},
                                                  csrSortedRowPtrC::CuPtr{Cint},
                                                  tol::cuDoubleComplex)::cusparseStatus_t
-end
-
-@checked function cusparseSdense2csr(handle, m, n, descrA, A, lda, nnzPerRow, csrSortedValA,
-                                     csrSortedRowPtrA, csrSortedColIndA)
-    initialize_context()
-    @ccall libcusparse.cusparseSdense2csr(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t, A::CuPtr{Cfloat},
-                                          lda::Cint, nnzPerRow::CuPtr{Cint},
-                                          csrSortedValA::CuPtr{Cfloat},
-                                          csrSortedRowPtrA::CuPtr{Cint},
-                                          csrSortedColIndA::CuPtr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseDdense2csr(handle, m, n, descrA, A, lda, nnzPerRow, csrSortedValA,
-                                     csrSortedRowPtrA, csrSortedColIndA)
-    initialize_context()
-    @ccall libcusparse.cusparseDdense2csr(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t, A::CuPtr{Cdouble},
-                                          lda::Cint, nnzPerRow::CuPtr{Cint},
-                                          csrSortedValA::CuPtr{Cdouble},
-                                          csrSortedRowPtrA::CuPtr{Cint},
-                                          csrSortedColIndA::CuPtr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseCdense2csr(handle, m, n, descrA, A, lda, nnzPerRow, csrSortedValA,
-                                     csrSortedRowPtrA, csrSortedColIndA)
-    initialize_context()
-    @ccall libcusparse.cusparseCdense2csr(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t, A::CuPtr{cuComplex},
-                                          lda::Cint, nnzPerRow::CuPtr{Cint},
-                                          csrSortedValA::CuPtr{cuComplex},
-                                          csrSortedRowPtrA::CuPtr{Cint},
-                                          csrSortedColIndA::CuPtr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseZdense2csr(handle, m, n, descrA, A, lda, nnzPerRow, csrSortedValA,
-                                     csrSortedRowPtrA, csrSortedColIndA)
-    initialize_context()
-    @ccall libcusparse.cusparseZdense2csr(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t,
-                                          A::CuPtr{cuDoubleComplex}, lda::Cint,
-                                          nnzPerRow::CuPtr{Cint},
-                                          csrSortedValA::CuPtr{cuDoubleComplex},
-                                          csrSortedRowPtrA::CuPtr{Cint},
-                                          csrSortedColIndA::CuPtr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseScsr2dense(handle, m, n, descrA, csrSortedValA, csrSortedRowPtrA,
-                                     csrSortedColIndA, A, lda)
-    initialize_context()
-    @ccall libcusparse.cusparseScsr2dense(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t,
-                                          csrSortedValA::CuPtr{Cfloat},
-                                          csrSortedRowPtrA::CuPtr{Cint},
-                                          csrSortedColIndA::CuPtr{Cint}, A::CuPtr{Cfloat},
-                                          lda::Cint)::cusparseStatus_t
-end
-
-@checked function cusparseDcsr2dense(handle, m, n, descrA, csrSortedValA, csrSortedRowPtrA,
-                                     csrSortedColIndA, A, lda)
-    initialize_context()
-    @ccall libcusparse.cusparseDcsr2dense(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t,
-                                          csrSortedValA::CuPtr{Cdouble},
-                                          csrSortedRowPtrA::CuPtr{Cint},
-                                          csrSortedColIndA::CuPtr{Cint}, A::CuPtr{Cdouble},
-                                          lda::Cint)::cusparseStatus_t
-end
-
-@checked function cusparseCcsr2dense(handle, m, n, descrA, csrSortedValA, csrSortedRowPtrA,
-                                     csrSortedColIndA, A, lda)
-    initialize_context()
-    @ccall libcusparse.cusparseCcsr2dense(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t,
-                                          csrSortedValA::CuPtr{cuComplex},
-                                          csrSortedRowPtrA::CuPtr{Cint},
-                                          csrSortedColIndA::CuPtr{Cint},
-                                          A::CuPtr{cuComplex}, lda::Cint)::cusparseStatus_t
-end
-
-@checked function cusparseZcsr2dense(handle, m, n, descrA, csrSortedValA, csrSortedRowPtrA,
-                                     csrSortedColIndA, A, lda)
-    initialize_context()
-    @ccall libcusparse.cusparseZcsr2dense(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t,
-                                          csrSortedValA::CuPtr{cuDoubleComplex},
-                                          csrSortedRowPtrA::CuPtr{Cint},
-                                          csrSortedColIndA::CuPtr{Cint},
-                                          A::CuPtr{cuDoubleComplex},
-                                          lda::Cint)::cusparseStatus_t
-end
-
-@checked function cusparseSdense2csc(handle, m, n, descrA, A, lda, nnzPerCol, cscSortedValA,
-                                     cscSortedRowIndA, cscSortedColPtrA)
-    initialize_context()
-    @ccall libcusparse.cusparseSdense2csc(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t, A::CuPtr{Cfloat},
-                                          lda::Cint, nnzPerCol::CuPtr{Cint},
-                                          cscSortedValA::CuPtr{Cfloat},
-                                          cscSortedRowIndA::CuPtr{Cint},
-                                          cscSortedColPtrA::CuPtr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseDdense2csc(handle, m, n, descrA, A, lda, nnzPerCol, cscSortedValA,
-                                     cscSortedRowIndA, cscSortedColPtrA)
-    initialize_context()
-    @ccall libcusparse.cusparseDdense2csc(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t, A::CuPtr{Cdouble},
-                                          lda::Cint, nnzPerCol::CuPtr{Cint},
-                                          cscSortedValA::CuPtr{Cdouble},
-                                          cscSortedRowIndA::CuPtr{Cint},
-                                          cscSortedColPtrA::CuPtr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseCdense2csc(handle, m, n, descrA, A, lda, nnzPerCol, cscSortedValA,
-                                     cscSortedRowIndA, cscSortedColPtrA)
-    initialize_context()
-    @ccall libcusparse.cusparseCdense2csc(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t, A::CuPtr{cuComplex},
-                                          lda::Cint, nnzPerCol::CuPtr{Cint},
-                                          cscSortedValA::CuPtr{cuComplex},
-                                          cscSortedRowIndA::CuPtr{Cint},
-                                          cscSortedColPtrA::CuPtr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseZdense2csc(handle, m, n, descrA, A, lda, nnzPerCol, cscSortedValA,
-                                     cscSortedRowIndA, cscSortedColPtrA)
-    initialize_context()
-    @ccall libcusparse.cusparseZdense2csc(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t,
-                                          A::CuPtr{cuDoubleComplex}, lda::Cint,
-                                          nnzPerCol::CuPtr{Cint},
-                                          cscSortedValA::CuPtr{cuDoubleComplex},
-                                          cscSortedRowIndA::CuPtr{Cint},
-                                          cscSortedColPtrA::CuPtr{Cint})::cusparseStatus_t
-end
-
-@checked function cusparseScsc2dense(handle, m, n, descrA, cscSortedValA, cscSortedRowIndA,
-                                     cscSortedColPtrA, A, lda)
-    initialize_context()
-    @ccall libcusparse.cusparseScsc2dense(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t,
-                                          cscSortedValA::CuPtr{Cfloat},
-                                          cscSortedRowIndA::CuPtr{Cint},
-                                          cscSortedColPtrA::CuPtr{Cint}, A::CuPtr{Cfloat},
-                                          lda::Cint)::cusparseStatus_t
-end
-
-@checked function cusparseDcsc2dense(handle, m, n, descrA, cscSortedValA, cscSortedRowIndA,
-                                     cscSortedColPtrA, A, lda)
-    initialize_context()
-    @ccall libcusparse.cusparseDcsc2dense(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t,
-                                          cscSortedValA::CuPtr{Cdouble},
-                                          cscSortedRowIndA::CuPtr{Cint},
-                                          cscSortedColPtrA::CuPtr{Cint}, A::CuPtr{Cdouble},
-                                          lda::Cint)::cusparseStatus_t
-end
-
-@checked function cusparseCcsc2dense(handle, m, n, descrA, cscSortedValA, cscSortedRowIndA,
-                                     cscSortedColPtrA, A, lda)
-    initialize_context()
-    @ccall libcusparse.cusparseCcsc2dense(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t,
-                                          cscSortedValA::CuPtr{cuComplex},
-                                          cscSortedRowIndA::CuPtr{Cint},
-                                          cscSortedColPtrA::CuPtr{Cint},
-                                          A::CuPtr{cuComplex}, lda::Cint)::cusparseStatus_t
-end
-
-@checked function cusparseZcsc2dense(handle, m, n, descrA, cscSortedValA, cscSortedRowIndA,
-                                     cscSortedColPtrA, A, lda)
-    initialize_context()
-    @ccall libcusparse.cusparseZcsc2dense(handle::cusparseHandle_t, m::Cint, n::Cint,
-                                          descrA::cusparseMatDescr_t,
-                                          cscSortedValA::CuPtr{cuDoubleComplex},
-                                          cscSortedRowIndA::CuPtr{Cint},
-                                          cscSortedColPtrA::CuPtr{Cint},
-                                          A::CuPtr{cuDoubleComplex},
-                                          lda::Cint)::cusparseStatus_t
 end
 
 @checked function cusparseXcoo2csr(handle, cooRowInd, nnz, m, csrSortedRowPtr, idxBase)
@@ -5850,8 +4663,8 @@ end
 end
 
 @cenum cusparseCsr2CscAlg_t::UInt32 begin
+    CUSPARSE_CSR2CSC_ALG_DEFAULT = 1
     CUSPARSE_CSR2CSC_ALG1 = 1
-    CUSPARSE_CSR2CSC_ALG2 = 2
 end
 
 @checked function cusparseCsr2cscEx2(handle, m, n, nnz, csrVal, csrRowPtr, csrColInd,
@@ -5893,7 +4706,6 @@ end
     CUSPARSE_FORMAT_CSR = 1
     CUSPARSE_FORMAT_CSC = 2
     CUSPARSE_FORMAT_COO = 3
-    CUSPARSE_FORMAT_COO_AOS = 4
     CUSPARSE_FORMAT_BLOCKED_ELL = 5
 end
 
@@ -5924,6 +4736,14 @@ const cusparseSpMatDescr_t = Ptr{cusparseSpMatDescr}
 
 const cusparseDnMatDescr_t = Ptr{cusparseDnMatDescr}
 
+const cusparseConstSpVecDescr_t = Ptr{cusparseSpVecDescr}
+
+const cusparseConstDnVecDescr_t = Ptr{cusparseDnVecDescr}
+
+const cusparseConstSpMatDescr_t = Ptr{cusparseSpMatDescr}
+
+const cusparseConstDnMatDescr_t = Ptr{cusparseDnMatDescr}
+
 @checked function cusparseCreateSpVec(spVecDescr, size, nnz, indices, values, idxType,
                                       idxBase, valueType)
     initialize_context()
@@ -5935,9 +4755,20 @@ const cusparseDnMatDescr_t = Ptr{cusparseDnMatDescr}
                                            valueType::cudaDataType)::cusparseStatus_t
 end
 
+@checked function cusparseCreateConstSpVec(spVecDescr, size, nnz, indices, values, idxType,
+                                           idxBase, valueType)
+    initialize_context()
+    @ccall libcusparse.cusparseCreateConstSpVec(spVecDescr::Ptr{cusparseConstSpVecDescr_t},
+                                                size::Int64, nnz::Int64,
+                                                indices::Ptr{Cvoid}, values::Ptr{Cvoid},
+                                                idxType::cusparseIndexType_t,
+                                                idxBase::cusparseIndexBase_t,
+                                                valueType::cudaDataType)::cusparseStatus_t
+end
+
 @checked function cusparseDestroySpVec(spVecDescr)
     initialize_context()
-    @ccall libcusparse.cusparseDestroySpVec(spVecDescr::cusparseSpVecDescr_t)::cusparseStatus_t
+    @ccall libcusparse.cusparseDestroySpVec(spVecDescr::cusparseConstSpVecDescr_t)::cusparseStatus_t
 end
 
 @checked function cusparseSpVecGet(spVecDescr, size, nnz, indices, values, idxType, idxBase,
@@ -5951,9 +4782,21 @@ end
                                         valueType::Ptr{cudaDataType})::cusparseStatus_t
 end
 
+@checked function cusparseConstSpVecGet(spVecDescr, size, nnz, indices, values, idxType,
+                                        idxBase, valueType)
+    initialize_context()
+    @ccall libcusparse.cusparseConstSpVecGet(spVecDescr::cusparseConstSpVecDescr_t,
+                                             size::Ptr{Int64}, nnz::Ptr{Int64},
+                                             indices::Ptr{Ptr{Cvoid}},
+                                             values::Ptr{Ptr{Cvoid}},
+                                             idxType::Ptr{cusparseIndexType_t},
+                                             idxBase::Ptr{cusparseIndexBase_t},
+                                             valueType::Ptr{cudaDataType})::cusparseStatus_t
+end
+
 @checked function cusparseSpVecGetIndexBase(spVecDescr, idxBase)
     initialize_context()
-    @ccall libcusparse.cusparseSpVecGetIndexBase(spVecDescr::cusparseSpVecDescr_t,
+    @ccall libcusparse.cusparseSpVecGetIndexBase(spVecDescr::cusparseConstSpVecDescr_t,
                                                  idxBase::Ptr{cusparseIndexBase_t})::cusparseStatus_t
 end
 
@@ -5961,6 +4804,12 @@ end
     initialize_context()
     @ccall libcusparse.cusparseSpVecGetValues(spVecDescr::cusparseSpVecDescr_t,
                                               values::CuPtr{Ptr{Cvoid}})::cusparseStatus_t
+end
+
+@checked function cusparseConstSpVecGetValues(spVecDescr, values)
+    initialize_context()
+    @ccall libcusparse.cusparseConstSpVecGetValues(spVecDescr::cusparseConstSpVecDescr_t,
+                                                   values::Ptr{Ptr{Cvoid}})::cusparseStatus_t
 end
 
 @checked function cusparseSpVecSetValues(spVecDescr, values)
@@ -5976,9 +4825,16 @@ end
                                            valueType::cudaDataType)::cusparseStatus_t
 end
 
+@checked function cusparseCreateConstDnVec(dnVecDescr, size, values, valueType)
+    initialize_context()
+    @ccall libcusparse.cusparseCreateConstDnVec(dnVecDescr::Ptr{cusparseConstDnVecDescr_t},
+                                                size::Int64, values::Ptr{Cvoid},
+                                                valueType::cudaDataType)::cusparseStatus_t
+end
+
 @checked function cusparseDestroyDnVec(dnVecDescr)
     initialize_context()
-    @ccall libcusparse.cusparseDestroyDnVec(dnVecDescr::cusparseDnVecDescr_t)::cusparseStatus_t
+    @ccall libcusparse.cusparseDestroyDnVec(dnVecDescr::cusparseConstDnVecDescr_t)::cusparseStatus_t
 end
 
 @checked function cusparseDnVecGet(dnVecDescr, size, values, valueType)
@@ -5988,10 +4844,23 @@ end
                                         valueType::Ptr{cudaDataType})::cusparseStatus_t
 end
 
+@checked function cusparseConstDnVecGet(dnVecDescr, size, values, valueType)
+    initialize_context()
+    @ccall libcusparse.cusparseConstDnVecGet(dnVecDescr::cusparseConstDnVecDescr_t,
+                                             size::Ptr{Int64}, values::Ptr{Ptr{Cvoid}},
+                                             valueType::Ptr{cudaDataType})::cusparseStatus_t
+end
+
 @checked function cusparseDnVecGetValues(dnVecDescr, values)
     initialize_context()
     @ccall libcusparse.cusparseDnVecGetValues(dnVecDescr::cusparseDnVecDescr_t,
                                               values::CuPtr{Ptr{Cvoid}})::cusparseStatus_t
+end
+
+@checked function cusparseConstDnVecGetValues(dnVecDescr, values)
+    initialize_context()
+    @ccall libcusparse.cusparseConstDnVecGetValues(dnVecDescr::cusparseConstDnVecDescr_t,
+                                                   values::Ptr{Ptr{Cvoid}})::cusparseStatus_t
 end
 
 @checked function cusparseDnVecSetValues(dnVecDescr, values)
@@ -6002,18 +4871,18 @@ end
 
 @checked function cusparseDestroySpMat(spMatDescr)
     initialize_context()
-    @ccall libcusparse.cusparseDestroySpMat(spMatDescr::cusparseSpMatDescr_t)::cusparseStatus_t
+    @ccall libcusparse.cusparseDestroySpMat(spMatDescr::cusparseConstSpMatDescr_t)::cusparseStatus_t
 end
 
 @checked function cusparseSpMatGetFormat(spMatDescr, format)
     initialize_context()
-    @ccall libcusparse.cusparseSpMatGetFormat(spMatDescr::cusparseSpMatDescr_t,
+    @ccall libcusparse.cusparseSpMatGetFormat(spMatDescr::cusparseConstSpMatDescr_t,
                                               format::Ptr{cusparseFormat_t})::cusparseStatus_t
 end
 
 @checked function cusparseSpMatGetIndexBase(spMatDescr, idxBase)
     initialize_context()
-    @ccall libcusparse.cusparseSpMatGetIndexBase(spMatDescr::cusparseSpMatDescr_t,
+    @ccall libcusparse.cusparseSpMatGetIndexBase(spMatDescr::cusparseConstSpMatDescr_t,
                                                  idxBase::Ptr{cusparseIndexBase_t})::cusparseStatus_t
 end
 
@@ -6021,6 +4890,12 @@ end
     initialize_context()
     @ccall libcusparse.cusparseSpMatGetValues(spMatDescr::cusparseSpMatDescr_t,
                                               values::CuPtr{Ptr{Cvoid}})::cusparseStatus_t
+end
+
+@checked function cusparseConstSpMatGetValues(spMatDescr, values)
+    initialize_context()
+    @ccall libcusparse.cusparseConstSpMatGetValues(spMatDescr::cusparseConstSpMatDescr_t,
+                                                   values::Ptr{Ptr{Cvoid}})::cusparseStatus_t
 end
 
 @checked function cusparseSpMatSetValues(spMatDescr, values)
@@ -6031,20 +4906,14 @@ end
 
 @checked function cusparseSpMatGetSize(spMatDescr, rows, cols, nnz)
     initialize_context()
-    @ccall libcusparse.cusparseSpMatGetSize(spMatDescr::cusparseSpMatDescr_t,
+    @ccall libcusparse.cusparseSpMatGetSize(spMatDescr::cusparseConstSpMatDescr_t,
                                             rows::Ptr{Int64}, cols::Ptr{Int64},
                                             nnz::Ptr{Int64})::cusparseStatus_t
 end
 
-@checked function cusparseSpMatSetStridedBatch(spMatDescr, batchCount)
-    initialize_context()
-    @ccall libcusparse.cusparseSpMatSetStridedBatch(spMatDescr::cusparseSpMatDescr_t,
-                                                    batchCount::Cint)::cusparseStatus_t
-end
-
 @checked function cusparseSpMatGetStridedBatch(spMatDescr, batchCount)
     initialize_context()
-    @ccall libcusparse.cusparseSpMatGetStridedBatch(spMatDescr::cusparseSpMatDescr_t,
+    @ccall libcusparse.cusparseSpMatGetStridedBatch(spMatDescr::cusparseConstSpMatDescr_t,
                                                     batchCount::Ptr{Cint})::cusparseStatus_t
 end
 
@@ -6071,7 +4940,7 @@ end
 
 @checked function cusparseSpMatGetAttribute(spMatDescr, attribute, data, dataSize)
     initialize_context()
-    @ccall libcusparse.cusparseSpMatGetAttribute(spMatDescr::cusparseSpMatDescr_t,
+    @ccall libcusparse.cusparseSpMatGetAttribute(spMatDescr::cusparseConstSpMatDescr_t,
                                                  attribute::cusparseSpMatAttribute_t,
                                                  data::Ptr{Cvoid},
                                                  dataSize::Csize_t)::cusparseStatus_t
@@ -6099,6 +4968,20 @@ end
                                          valueType::cudaDataType)::cusparseStatus_t
 end
 
+@checked function cusparseCreateConstCsr(spMatDescr, rows, cols, nnz, csrRowOffsets,
+                                         csrColInd, csrValues, csrRowOffsetsType,
+                                         csrColIndType, idxBase, valueType)
+    initialize_context()
+    @ccall libcusparse.cusparseCreateConstCsr(spMatDescr::Ptr{cusparseConstSpMatDescr_t},
+                                              rows::Int64, cols::Int64, nnz::Int64,
+                                              csrRowOffsets::Ptr{Cvoid},
+                                              csrColInd::Ptr{Cvoid}, csrValues::Ptr{Cvoid},
+                                              csrRowOffsetsType::cusparseIndexType_t,
+                                              csrColIndType::cusparseIndexType_t,
+                                              idxBase::cusparseIndexBase_t,
+                                              valueType::cudaDataType)::cusparseStatus_t
+end
+
 @checked function cusparseCreateCsc(spMatDescr, rows, cols, nnz, cscColOffsets, cscRowInd,
                                     cscValues, cscColOffsetsType, cscRowIndType, idxBase,
                                     valueType)
@@ -6111,6 +4994,20 @@ end
                                          cscRowIndType::cusparseIndexType_t,
                                          idxBase::cusparseIndexBase_t,
                                          valueType::cudaDataType)::cusparseStatus_t
+end
+
+@checked function cusparseCreateConstCsc(spMatDescr, rows, cols, nnz, cscColOffsets,
+                                         cscRowInd, cscValues, cscColOffsetsType,
+                                         cscRowIndType, idxBase, valueType)
+    initialize_context()
+    @ccall libcusparse.cusparseCreateConstCsc(spMatDescr::Ptr{cusparseConstSpMatDescr_t},
+                                              rows::Int64, cols::Int64, nnz::Int64,
+                                              cscColOffsets::Ptr{Cvoid},
+                                              cscRowInd::Ptr{Cvoid}, cscValues::Ptr{Cvoid},
+                                              cscColOffsetsType::cusparseIndexType_t,
+                                              cscRowIndType::cusparseIndexType_t,
+                                              idxBase::cusparseIndexBase_t,
+                                              valueType::cudaDataType)::cusparseStatus_t
 end
 
 @checked function cusparseCsrGet(spMatDescr, rows, cols, nnz, csrRowOffsets, csrColInd,
@@ -6128,6 +5025,21 @@ end
                                       valueType::Ptr{cudaDataType})::cusparseStatus_t
 end
 
+@checked function cusparseConstCsrGet(spMatDescr, rows, cols, nnz, csrRowOffsets, csrColInd,
+                                      csrValues, csrRowOffsetsType, csrColIndType, idxBase,
+                                      valueType)
+    initialize_context()
+    @ccall libcusparse.cusparseConstCsrGet(spMatDescr::cusparseConstSpMatDescr_t,
+                                           rows::Ptr{Int64}, cols::Ptr{Int64},
+                                           nnz::Ptr{Int64}, csrRowOffsets::Ptr{Ptr{Cvoid}},
+                                           csrColInd::Ptr{Ptr{Cvoid}},
+                                           csrValues::Ptr{Ptr{Cvoid}},
+                                           csrRowOffsetsType::Ptr{cusparseIndexType_t},
+                                           csrColIndType::Ptr{cusparseIndexType_t},
+                                           idxBase::Ptr{cusparseIndexBase_t},
+                                           valueType::Ptr{cudaDataType})::cusparseStatus_t
+end
+
 @checked function cusparseCscGet(spMatDescr, rows, cols, nnz, cscColOffsets, cscRowInd,
                                  cscValues, cscColOffsetsType, cscRowIndType, idxBase,
                                  valueType)
@@ -6141,6 +5053,21 @@ end
                                       cscRowIndType::Ptr{cusparseIndexType_t},
                                       idxBase::Ptr{cusparseIndexBase_t},
                                       valueType::Ptr{cudaDataType})::cusparseStatus_t
+end
+
+@checked function cusparseConstCscGet(spMatDescr, rows, cols, nnz, cscColOffsets, cscRowInd,
+                                      cscValues, cscColOffsetsType, cscRowIndType, idxBase,
+                                      valueType)
+    initialize_context()
+    @ccall libcusparse.cusparseConstCscGet(spMatDescr::cusparseConstSpMatDescr_t,
+                                           rows::Ptr{Int64}, cols::Ptr{Int64},
+                                           nnz::Ptr{Int64}, cscColOffsets::Ptr{Ptr{Cvoid}},
+                                           cscRowInd::Ptr{Ptr{Cvoid}},
+                                           cscValues::Ptr{Ptr{Cvoid}},
+                                           cscColOffsetsType::Ptr{cusparseIndexType_t},
+                                           cscRowIndType::Ptr{cusparseIndexType_t},
+                                           idxBase::Ptr{cusparseIndexBase_t},
+                                           valueType::Ptr{cudaDataType})::cusparseStatus_t
 end
 
 @checked function cusparseCsrSetPointers(spMatDescr, csrRowOffsets, csrColInd, csrValues)
@@ -6170,15 +5097,16 @@ end
                                          valueType::cudaDataType)::cusparseStatus_t
 end
 
-@checked function cusparseCreateCooAoS(spMatDescr, rows, cols, nnz, cooInd, cooValues,
-                                       cooIdxType, idxBase, valueType)
+@checked function cusparseCreateConstCoo(spMatDescr, rows, cols, nnz, cooRowInd, cooColInd,
+                                         cooValues, cooIdxType, idxBase, valueType)
     initialize_context()
-    @ccall libcusparse.cusparseCreateCooAoS(spMatDescr::Ptr{cusparseSpMatDescr_t},
-                                            rows::Int64, cols::Int64, nnz::Int64,
-                                            cooInd::CuPtr{Cvoid}, cooValues::CuPtr{Cvoid},
-                                            cooIdxType::cusparseIndexType_t,
-                                            idxBase::cusparseIndexBase_t,
-                                            valueType::cudaDataType)::cusparseStatus_t
+    @ccall libcusparse.cusparseCreateConstCoo(spMatDescr::Ptr{cusparseConstSpMatDescr_t},
+                                              rows::Int64, cols::Int64, nnz::Int64,
+                                              cooRowInd::Ptr{Cvoid}, cooColInd::Ptr{Cvoid},
+                                              cooValues::Ptr{Cvoid},
+                                              cooIdxType::cusparseIndexType_t,
+                                              idxBase::cusparseIndexBase_t,
+                                              valueType::cudaDataType)::cusparseStatus_t
 end
 
 @checked function cusparseCooGet(spMatDescr, rows, cols, nnz, cooRowInd, cooColInd,
@@ -6194,16 +5122,17 @@ end
                                       valueType::Ptr{cudaDataType})::cusparseStatus_t
 end
 
-@checked function cusparseCooAoSGet(spMatDescr, rows, cols, nnz, cooInd, cooValues, idxType,
-                                    idxBase, valueType)
+@checked function cusparseConstCooGet(spMatDescr, rows, cols, nnz, cooRowInd, cooColInd,
+                                      cooValues, idxType, idxBase, valueType)
     initialize_context()
-    @ccall libcusparse.cusparseCooAoSGet(spMatDescr::cusparseSpMatDescr_t, rows::Ptr{Int64},
-                                         cols::Ptr{Int64}, nnz::Ptr{Int64},
-                                         cooInd::CuPtr{Ptr{Cvoid}},
-                                         cooValues::CuPtr{Ptr{Cvoid}},
-                                         idxType::Ptr{cusparseIndexType_t},
-                                         idxBase::Ptr{cusparseIndexBase_t},
-                                         valueType::Ptr{cudaDataType})::cusparseStatus_t
+    @ccall libcusparse.cusparseConstCooGet(spMatDescr::cusparseConstSpMatDescr_t,
+                                           rows::Ptr{Int64}, cols::Ptr{Int64},
+                                           nnz::Ptr{Int64}, cooRowInd::Ptr{Ptr{Cvoid}},
+                                           cooColInd::Ptr{Ptr{Cvoid}},
+                                           cooValues::Ptr{Ptr{Cvoid}},
+                                           idxType::Ptr{cusparseIndexType_t},
+                                           idxBase::Ptr{cusparseIndexBase_t},
+                                           valueType::Ptr{cudaDataType})::cusparseStatus_t
 end
 
 @checked function cusparseCooSetPointers(spMatDescr, cooRows, cooColumns, cooValues)
@@ -6228,6 +5157,20 @@ end
                                                 valueType::cudaDataType)::cusparseStatus_t
 end
 
+@checked function cusparseCreateConstBlockedEll(spMatDescr, rows, cols, ellBlockSize,
+                                                ellCols, ellColInd, ellValue, ellIdxType,
+                                                idxBase, valueType)
+    initialize_context()
+    @ccall libcusparse.cusparseCreateConstBlockedEll(spMatDescr::Ptr{cusparseConstSpMatDescr_t},
+                                                     rows::Int64, cols::Int64,
+                                                     ellBlockSize::Int64, ellCols::Int64,
+                                                     ellColInd::Ptr{Cvoid},
+                                                     ellValue::Ptr{Cvoid},
+                                                     ellIdxType::cusparseIndexType_t,
+                                                     idxBase::cusparseIndexBase_t,
+                                                     valueType::cudaDataType)::cusparseStatus_t
+end
+
 @checked function cusparseBlockedEllGet(spMatDescr, rows, cols, ellBlockSize, ellCols,
                                         ellColInd, ellValue, ellIdxType, idxBase, valueType)
     initialize_context()
@@ -6241,6 +5184,21 @@ end
                                              valueType::Ptr{cudaDataType})::cusparseStatus_t
 end
 
+@checked function cusparseConstBlockedEllGet(spMatDescr, rows, cols, ellBlockSize, ellCols,
+                                             ellColInd, ellValue, ellIdxType, idxBase,
+                                             valueType)
+    initialize_context()
+    @ccall libcusparse.cusparseConstBlockedEllGet(spMatDescr::cusparseConstSpMatDescr_t,
+                                                  rows::Ptr{Int64}, cols::Ptr{Int64},
+                                                  ellBlockSize::Ptr{Int64},
+                                                  ellCols::Ptr{Int64},
+                                                  ellColInd::Ptr{Ptr{Cvoid}},
+                                                  ellValue::Ptr{Ptr{Cvoid}},
+                                                  ellIdxType::Ptr{cusparseIndexType_t},
+                                                  idxBase::Ptr{cusparseIndexBase_t},
+                                                  valueType::Ptr{cudaDataType})::cusparseStatus_t
+end
+
 @checked function cusparseCreateDnMat(dnMatDescr, rows, cols, ld, values, valueType, order)
     initialize_context()
     @ccall libcusparse.cusparseCreateDnMat(dnMatDescr::Ptr{cusparseDnMatDescr_t},
@@ -6249,9 +5207,18 @@ end
                                            order::cusparseOrder_t)::cusparseStatus_t
 end
 
+@checked function cusparseCreateConstDnMat(dnMatDescr, rows, cols, ld, values, valueType,
+                                           order)
+    initialize_context()
+    @ccall libcusparse.cusparseCreateConstDnMat(dnMatDescr::Ptr{cusparseConstDnMatDescr_t},
+                                                rows::Int64, cols::Int64, ld::Int64,
+                                                values::Ptr{Cvoid}, valueType::cudaDataType,
+                                                order::cusparseOrder_t)::cusparseStatus_t
+end
+
 @checked function cusparseDestroyDnMat(dnMatDescr)
     initialize_context()
-    @ccall libcusparse.cusparseDestroyDnMat(dnMatDescr::cusparseDnMatDescr_t)::cusparseStatus_t
+    @ccall libcusparse.cusparseDestroyDnMat(dnMatDescr::cusparseConstDnMatDescr_t)::cusparseStatus_t
 end
 
 @checked function cusparseDnMatGet(dnMatDescr, rows, cols, ld, values, type, order)
@@ -6262,10 +5229,25 @@ end
                                         order::Ptr{cusparseOrder_t})::cusparseStatus_t
 end
 
+@checked function cusparseConstDnMatGet(dnMatDescr, rows, cols, ld, values, type, order)
+    initialize_context()
+    @ccall libcusparse.cusparseConstDnMatGet(dnMatDescr::cusparseConstDnMatDescr_t,
+                                             rows::Ptr{Int64}, cols::Ptr{Int64},
+                                             ld::Ptr{Int64}, values::Ptr{Ptr{Cvoid}},
+                                             type::Ptr{cudaDataType},
+                                             order::Ptr{cusparseOrder_t})::cusparseStatus_t
+end
+
 @checked function cusparseDnMatGetValues(dnMatDescr, values)
     initialize_context()
     @ccall libcusparse.cusparseDnMatGetValues(dnMatDescr::cusparseDnMatDescr_t,
                                               values::CuPtr{Ptr{Cvoid}})::cusparseStatus_t
+end
+
+@checked function cusparseConstDnMatGetValues(dnMatDescr, values)
+    initialize_context()
+    @ccall libcusparse.cusparseConstDnMatGetValues(dnMatDescr::cusparseConstDnMatDescr_t,
+                                                   values::Ptr{Ptr{Cvoid}})::cusparseStatus_t
 end
 
 @checked function cusparseDnMatSetValues(dnMatDescr, values)
@@ -6283,7 +5265,7 @@ end
 
 @checked function cusparseDnMatGetStridedBatch(dnMatDescr, batchCount, batchStride)
     initialize_context()
-    @ccall libcusparse.cusparseDnMatGetStridedBatch(dnMatDescr::cusparseDnMatDescr_t,
+    @ccall libcusparse.cusparseDnMatGetStridedBatch(dnMatDescr::cusparseConstDnMatDescr_t,
                                                     batchCount::Ptr{Cint},
                                                     batchStride::Ptr{Int64})::cusparseStatus_t
 end
@@ -6291,19 +5273,22 @@ end
 @checked function cusparseAxpby(handle, alpha, vecX, beta, vecY)
     initialize_context()
     @ccall libcusparse.cusparseAxpby(handle::cusparseHandle_t, alpha::PtrOrCuPtr{Cvoid},
-                                     vecX::cusparseSpVecDescr_t, beta::PtrOrCuPtr{Cvoid},
+                                     vecX::cusparseConstSpVecDescr_t,
+                                     beta::PtrOrCuPtr{Cvoid},
                                      vecY::cusparseDnVecDescr_t)::cusparseStatus_t
 end
 
 @checked function cusparseGather(handle, vecY, vecX)
     initialize_context()
-    @ccall libcusparse.cusparseGather(handle::cusparseHandle_t, vecY::cusparseDnVecDescr_t,
+    @ccall libcusparse.cusparseGather(handle::cusparseHandle_t,
+                                      vecY::cusparseConstDnVecDescr_t,
                                       vecX::cusparseSpVecDescr_t)::cusparseStatus_t
 end
 
 @checked function cusparseScatter(handle, vecX, vecY)
     initialize_context()
-    @ccall libcusparse.cusparseScatter(handle::cusparseHandle_t, vecX::cusparseSpVecDescr_t,
+    @ccall libcusparse.cusparseScatter(handle::cusparseHandle_t,
+                                       vecX::cusparseConstSpVecDescr_t,
                                        vecY::cusparseDnVecDescr_t)::cusparseStatus_t
 end
 
@@ -6319,8 +5304,8 @@ end
     initialize_context()
     @ccall libcusparse.cusparseSpVV_bufferSize(handle::cusparseHandle_t,
                                                opX::cusparseOperation_t,
-                                               vecX::cusparseSpVecDescr_t,
-                                               vecY::cusparseDnVecDescr_t,
+                                               vecX::cusparseConstSpVecDescr_t,
+                                               vecY::cusparseConstDnVecDescr_t,
                                                result::PtrOrCuPtr{Cvoid},
                                                computeType::cudaDataType,
                                                bufferSize::Ptr{Csize_t})::cusparseStatus_t
@@ -6329,7 +5314,8 @@ end
 @checked function cusparseSpVV(handle, opX, vecX, vecY, result, computeType, externalBuffer)
     initialize_context()
     @ccall libcusparse.cusparseSpVV(handle::cusparseHandle_t, opX::cusparseOperation_t,
-                                    vecX::cusparseSpVecDescr_t, vecY::cusparseDnVecDescr_t,
+                                    vecX::cusparseConstSpVecDescr_t,
+                                    vecY::cusparseConstDnVecDescr_t,
                                     result::PtrOrCuPtr{Cvoid}, computeType::cudaDataType,
                                     externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
 end
@@ -6341,7 +5327,7 @@ end
 @checked function cusparseSparseToDense_bufferSize(handle, matA, matB, alg, bufferSize)
     initialize_context()
     @ccall libcusparse.cusparseSparseToDense_bufferSize(handle::cusparseHandle_t,
-                                                        matA::cusparseSpMatDescr_t,
+                                                        matA::cusparseConstSpMatDescr_t,
                                                         matB::cusparseDnMatDescr_t,
                                                         alg::cusparseSparseToDenseAlg_t,
                                                         bufferSize::Ptr{Csize_t})::cusparseStatus_t
@@ -6350,7 +5336,7 @@ end
 @checked function cusparseSparseToDense(handle, matA, matB, alg, externalBuffer)
     initialize_context()
     @ccall libcusparse.cusparseSparseToDense(handle::cusparseHandle_t,
-                                             matA::cusparseSpMatDescr_t,
+                                             matA::cusparseConstSpMatDescr_t,
                                              matB::cusparseDnMatDescr_t,
                                              alg::cusparseSparseToDenseAlg_t,
                                              externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
@@ -6363,7 +5349,7 @@ end
 @checked function cusparseDenseToSparse_bufferSize(handle, matA, matB, alg, bufferSize)
     initialize_context()
     @ccall libcusparse.cusparseDenseToSparse_bufferSize(handle::cusparseHandle_t,
-                                                        matA::cusparseDnMatDescr_t,
+                                                        matA::cusparseConstDnMatDescr_t,
                                                         matB::cusparseSpMatDescr_t,
                                                         alg::cusparseDenseToSparseAlg_t,
                                                         bufferSize::Ptr{Csize_t})::cusparseStatus_t
@@ -6372,7 +5358,7 @@ end
 @checked function cusparseDenseToSparse_analysis(handle, matA, matB, alg, externalBuffer)
     initialize_context()
     @ccall libcusparse.cusparseDenseToSparse_analysis(handle::cusparseHandle_t,
-                                                      matA::cusparseDnMatDescr_t,
+                                                      matA::cusparseConstDnMatDescr_t,
                                                       matB::cusparseSpMatDescr_t,
                                                       alg::cusparseDenseToSparseAlg_t,
                                                       externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
@@ -6381,17 +5367,13 @@ end
 @checked function cusparseDenseToSparse_convert(handle, matA, matB, alg, externalBuffer)
     initialize_context()
     @ccall libcusparse.cusparseDenseToSparse_convert(handle::cusparseHandle_t,
-                                                     matA::cusparseDnMatDescr_t,
+                                                     matA::cusparseConstDnMatDescr_t,
                                                      matB::cusparseSpMatDescr_t,
                                                      alg::cusparseDenseToSparseAlg_t,
                                                      externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
 end
 
 @cenum cusparseSpMVAlg_t::UInt32 begin
-    CUSPARSE_MV_ALG_DEFAULT = 0
-    CUSPARSE_COOMV_ALG = 1
-    CUSPARSE_CSRMV_ALG1 = 2
-    CUSPARSE_CSRMV_ALG2 = 3
     CUSPARSE_SPMV_ALG_DEFAULT = 0
     CUSPARSE_SPMV_CSR_ALG1 = 2
     CUSPARSE_SPMV_CSR_ALG2 = 3
@@ -6403,10 +5385,11 @@ end
                                externalBuffer)
     initialize_context()
     @ccall libcusparse.cusparseSpMV(handle::cusparseHandle_t, opA::cusparseOperation_t,
-                                    alpha::PtrOrCuPtr{Cvoid}, matA::cusparseSpMatDescr_t,
-                                    vecX::cusparseDnVecDescr_t, beta::PtrOrCuPtr{Cvoid},
-                                    vecY::cusparseDnVecDescr_t, computeType::cudaDataType,
-                                    alg::cusparseSpMVAlg_t,
+                                    alpha::PtrOrCuPtr{Cvoid},
+                                    matA::cusparseConstSpMatDescr_t,
+                                    vecX::cusparseConstDnVecDescr_t,
+                                    beta::PtrOrCuPtr{Cvoid}, vecY::cusparseDnVecDescr_t,
+                                    computeType::cudaDataType, alg::cusparseSpMVAlg_t,
                                     externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
 end
 
@@ -6415,9 +5398,9 @@ end
     initialize_context()
     @ccall libcusparse.cusparseSpMV_bufferSize(handle::cusparseHandle_t,
                                                opA::cusparseOperation_t, alpha::Ptr{Cvoid},
-                                               matA::cusparseSpMatDescr_t,
-                                               vecX::cusparseDnVecDescr_t, beta::Ptr{Cvoid},
-                                               vecY::cusparseDnVecDescr_t,
+                                               matA::cusparseConstSpMatDescr_t,
+                                               vecX::cusparseConstDnVecDescr_t,
+                                               beta::Ptr{Cvoid}, vecY::cusparseDnVecDescr_t,
                                                computeType::cudaDataType,
                                                alg::cusparseSpMVAlg_t,
                                                bufferSize::Ptr{Csize_t})::cusparseStatus_t
@@ -6446,8 +5429,8 @@ end
     initialize_context()
     @ccall libcusparse.cusparseSpSV_bufferSize(handle::cusparseHandle_t,
                                                opA::cusparseOperation_t, alpha::Ptr{Cvoid},
-                                               matA::cusparseSpMatDescr_t,
-                                               vecX::cusparseDnVecDescr_t,
+                                               matA::cusparseConstSpMatDescr_t,
+                                               vecX::cusparseConstDnVecDescr_t,
                                                vecY::cusparseDnVecDescr_t,
                                                computeType::cudaDataType,
                                                alg::cusparseSpSVAlg_t,
@@ -6460,8 +5443,8 @@ end
     initialize_context()
     @ccall libcusparse.cusparseSpSV_analysis(handle::cusparseHandle_t,
                                              opA::cusparseOperation_t, alpha::Ptr{Cvoid},
-                                             matA::cusparseSpMatDescr_t,
-                                             vecX::cusparseDnVecDescr_t,
+                                             matA::cusparseConstSpMatDescr_t,
+                                             vecX::cusparseConstDnVecDescr_t,
                                              vecY::cusparseDnVecDescr_t,
                                              computeType::cudaDataType,
                                              alg::cusparseSpSVAlg_t,
@@ -6474,8 +5457,8 @@ end
     initialize_context()
     @ccall libcusparse.cusparseSpSV_solve(handle::cusparseHandle_t,
                                           opA::cusparseOperation_t, alpha::Ptr{Cvoid},
-                                          matA::cusparseSpMatDescr_t,
-                                          vecX::cusparseDnVecDescr_t,
+                                          matA::cusparseConstSpMatDescr_t,
+                                          vecX::cusparseConstDnVecDescr_t,
                                           vecY::cusparseDnVecDescr_t,
                                           computeType::cudaDataType, alg::cusparseSpSVAlg_t,
                                           spsvDescr::cusparseSpSVDescr_t)::cusparseStatus_t
@@ -6505,8 +5488,8 @@ end
     @ccall libcusparse.cusparseSpSM_bufferSize(handle::cusparseHandle_t,
                                                opA::cusparseOperation_t,
                                                opB::cusparseOperation_t, alpha::Ptr{Cvoid},
-                                               matA::cusparseSpMatDescr_t,
-                                               matB::cusparseDnMatDescr_t,
+                                               matA::cusparseConstSpMatDescr_t,
+                                               matB::cusparseConstDnMatDescr_t,
                                                matC::cusparseDnMatDescr_t,
                                                computeType::cudaDataType,
                                                alg::cusparseSpSMAlg_t,
@@ -6520,8 +5503,8 @@ end
     @ccall libcusparse.cusparseSpSM_analysis(handle::cusparseHandle_t,
                                              opA::cusparseOperation_t,
                                              opB::cusparseOperation_t, alpha::Ptr{Cvoid},
-                                             matA::cusparseSpMatDescr_t,
-                                             matB::cusparseDnMatDescr_t,
+                                             matA::cusparseConstSpMatDescr_t,
+                                             matB::cusparseConstDnMatDescr_t,
                                              matC::cusparseDnMatDescr_t,
                                              computeType::cudaDataType,
                                              alg::cusparseSpSMAlg_t,
@@ -6535,19 +5518,14 @@ end
     @ccall libcusparse.cusparseSpSM_solve(handle::cusparseHandle_t,
                                           opA::cusparseOperation_t,
                                           opB::cusparseOperation_t, alpha::Ptr{Cvoid},
-                                          matA::cusparseSpMatDescr_t,
-                                          matB::cusparseDnMatDescr_t,
+                                          matA::cusparseConstSpMatDescr_t,
+                                          matB::cusparseConstDnMatDescr_t,
                                           matC::cusparseDnMatDescr_t,
                                           computeType::cudaDataType, alg::cusparseSpSMAlg_t,
                                           spsmDescr::cusparseSpSMDescr_t)::cusparseStatus_t
 end
 
 @cenum cusparseSpMMAlg_t::UInt32 begin
-    CUSPARSE_MM_ALG_DEFAULT = 0
-    CUSPARSE_COOMM_ALG1 = 1
-    CUSPARSE_COOMM_ALG2 = 2
-    CUSPARSE_COOMM_ALG3 = 3
-    CUSPARSE_CSRMM_ALG1 = 4
     CUSPARSE_SPMM_ALG_DEFAULT = 0
     CUSPARSE_SPMM_COO_ALG1 = 1
     CUSPARSE_SPMM_COO_ALG2 = 2
@@ -6566,8 +5544,8 @@ end
                                                opA::cusparseOperation_t,
                                                opB::cusparseOperation_t,
                                                alpha::PtrOrCuPtr{Cvoid},
-                                               matA::cusparseSpMatDescr_t,
-                                               matB::cusparseDnMatDescr_t,
+                                               matA::cusparseConstSpMatDescr_t,
+                                               matB::cusparseConstDnMatDescr_t,
                                                beta::PtrOrCuPtr{Cvoid},
                                                matC::cusparseDnMatDescr_t,
                                                computeType::cudaDataType,
@@ -6582,8 +5560,8 @@ end
                                                opA::cusparseOperation_t,
                                                opB::cusparseOperation_t,
                                                alpha::PtrOrCuPtr{Cvoid},
-                                               matA::cusparseSpMatDescr_t,
-                                               matB::cusparseDnMatDescr_t,
+                                               matA::cusparseConstSpMatDescr_t,
+                                               matB::cusparseConstDnMatDescr_t,
                                                beta::PtrOrCuPtr{Cvoid},
                                                matC::cusparseDnMatDescr_t,
                                                computeType::cudaDataType,
@@ -6596,7 +5574,8 @@ end
     initialize_context()
     @ccall libcusparse.cusparseSpMM(handle::cusparseHandle_t, opA::cusparseOperation_t,
                                     opB::cusparseOperation_t, alpha::PtrOrCuPtr{Cvoid},
-                                    matA::cusparseSpMatDescr_t, matB::cusparseDnMatDescr_t,
+                                    matA::cusparseConstSpMatDescr_t,
+                                    matB::cusparseConstDnMatDescr_t,
                                     beta::PtrOrCuPtr{Cvoid}, matC::cusparseDnMatDescr_t,
                                     computeType::cudaDataType, alg::cusparseSpMMAlg_t,
                                     externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
@@ -6606,6 +5585,9 @@ end
     CUSPARSE_SPGEMM_DEFAULT = 0
     CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC = 1
     CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC = 2
+    CUSPARSE_SPGEMM_ALG1 = 3
+    CUSPARSE_SPGEMM_ALG2 = 4
+    CUSPARSE_SPGEMM_ALG3 = 5
 end
 
 mutable struct cusparseSpGEMMDescr end
@@ -6630,8 +5612,8 @@ end
                                                      opA::cusparseOperation_t,
                                                      opB::cusparseOperation_t,
                                                      alpha::PtrOrCuPtr{Cvoid},
-                                                     matA::cusparseSpMatDescr_t,
-                                                     matB::cusparseSpMatDescr_t,
+                                                     matA::cusparseConstSpMatDescr_t,
+                                                     matB::cusparseConstSpMatDescr_t,
                                                      beta::PtrOrCuPtr{Cvoid},
                                                      matC::cusparseSpMatDescr_t,
                                                      computeType::cudaDataType,
@@ -6639,6 +5621,34 @@ end
                                                      spgemmDescr::cusparseSpGEMMDescr_t,
                                                      bufferSize1::Ptr{Csize_t},
                                                      externalBuffer1::CuPtr{Cvoid})::cusparseStatus_t
+end
+
+@checked function cusparseSpGEMM_getNumProducts(spgemmDescr, num_prods)
+    initialize_context()
+    @ccall libcusparse.cusparseSpGEMM_getNumProducts(spgemmDescr::cusparseSpGEMMDescr_t,
+                                                     num_prods::Ptr{Int64})::cusparseStatus_t
+end
+
+@checked function cusparseSpGEMM_estimateMemory(handle, opA, opB, alpha, matA, matB, beta,
+                                                matC, computeType, alg, spgemmDescr,
+                                                chunk_fraction, bufferSize3,
+                                                externalBuffer3, bufferSize2)
+    initialize_context()
+    @ccall libcusparse.cusparseSpGEMM_estimateMemory(handle::cusparseHandle_t,
+                                                     opA::cusparseOperation_t,
+                                                     opB::cusparseOperation_t,
+                                                     alpha::Ptr{Cvoid},
+                                                     matA::cusparseConstSpMatDescr_t,
+                                                     matB::cusparseConstSpMatDescr_t,
+                                                     beta::Ptr{Cvoid},
+                                                     matC::cusparseSpMatDescr_t,
+                                                     computeType::cudaDataType,
+                                                     alg::cusparseSpGEMMAlg_t,
+                                                     spgemmDescr::cusparseSpGEMMDescr_t,
+                                                     chunk_fraction::Cfloat,
+                                                     bufferSize3::Ptr{Csize_t},
+                                                     externalBuffer3::Ptr{Cvoid},
+                                                     bufferSize2::Ptr{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSpGEMM_compute(handle, opA, opB, alpha, matA, matB, beta, matC,
@@ -6649,8 +5659,8 @@ end
                                               opA::cusparseOperation_t,
                                               opB::cusparseOperation_t,
                                               alpha::PtrOrCuPtr{Cvoid},
-                                              matA::cusparseSpMatDescr_t,
-                                              matB::cusparseSpMatDescr_t,
+                                              matA::cusparseConstSpMatDescr_t,
+                                              matB::cusparseConstSpMatDescr_t,
                                               beta::PtrOrCuPtr{Cvoid},
                                               matC::cusparseSpMatDescr_t,
                                               computeType::cudaDataType,
@@ -6667,8 +5677,8 @@ end
                                            opA::cusparseOperation_t,
                                            opB::cusparseOperation_t,
                                            alpha::PtrOrCuPtr{Cvoid},
-                                           matA::cusparseSpMatDescr_t,
-                                           matB::cusparseSpMatDescr_t,
+                                           matA::cusparseConstSpMatDescr_t,
+                                           matB::cusparseConstSpMatDescr_t,
                                            beta::PtrOrCuPtr{Cvoid},
                                            matC::cusparseSpMatDescr_t,
                                            computeType::cudaDataType,
@@ -6683,8 +5693,8 @@ end
     @ccall libcusparse.cusparseSpGEMMreuse_workEstimation(handle::cusparseHandle_t,
                                                           opA::cusparseOperation_t,
                                                           opB::cusparseOperation_t,
-                                                          matA::cusparseSpMatDescr_t,
-                                                          matB::cusparseSpMatDescr_t,
+                                                          matA::cusparseConstSpMatDescr_t,
+                                                          matB::cusparseConstSpMatDescr_t,
                                                           matC::cusparseSpMatDescr_t,
                                                           alg::cusparseSpGEMMAlg_t,
                                                           spgemmDescr::cusparseSpGEMMDescr_t,
@@ -6700,8 +5710,8 @@ end
     @ccall libcusparse.cusparseSpGEMMreuse_nnz(handle::cusparseHandle_t,
                                                opA::cusparseOperation_t,
                                                opB::cusparseOperation_t,
-                                               matA::cusparseSpMatDescr_t,
-                                               matB::cusparseSpMatDescr_t,
+                                               matA::cusparseConstSpMatDescr_t,
+                                               matB::cusparseConstSpMatDescr_t,
                                                matC::cusparseSpMatDescr_t,
                                                alg::cusparseSpGEMMAlg_t,
                                                spgemmDescr::cusparseSpGEMMDescr_t,
@@ -6719,8 +5729,8 @@ end
     @ccall libcusparse.cusparseSpGEMMreuse_copy(handle::cusparseHandle_t,
                                                 opA::cusparseOperation_t,
                                                 opB::cusparseOperation_t,
-                                                matA::cusparseSpMatDescr_t,
-                                                matB::cusparseSpMatDescr_t,
+                                                matA::cusparseConstSpMatDescr_t,
+                                                matB::cusparseConstSpMatDescr_t,
                                                 matC::cusparseSpMatDescr_t,
                                                 alg::cusparseSpGEMMAlg_t,
                                                 spgemmDescr::cusparseSpGEMMDescr_t,
@@ -6735,43 +5745,13 @@ end
                                                    opA::cusparseOperation_t,
                                                    opB::cusparseOperation_t,
                                                    alpha::Ptr{Cvoid},
-                                                   matA::cusparseSpMatDescr_t,
-                                                   matB::cusparseSpMatDescr_t,
+                                                   matA::cusparseConstSpMatDescr_t,
+                                                   matB::cusparseConstSpMatDescr_t,
                                                    beta::Ptr{Cvoid},
                                                    matC::cusparseSpMatDescr_t,
                                                    computeType::cudaDataType,
                                                    alg::cusparseSpGEMMAlg_t,
                                                    spgemmDescr::cusparseSpGEMMDescr_t)::cusparseStatus_t
-end
-
-@checked function cusparseConstrainedGeMM(handle, opA, opB, alpha, matA, matB, beta, matC,
-                                          computeType, externalBuffer)
-    initialize_context()
-    @ccall libcusparse.cusparseConstrainedGeMM(handle::cusparseHandle_t,
-                                               opA::cusparseOperation_t,
-                                               opB::cusparseOperation_t,
-                                               alpha::PtrOrCuPtr{Cvoid},
-                                               matA::cusparseDnMatDescr_t,
-                                               matB::cusparseDnMatDescr_t,
-                                               beta::PtrOrCuPtr{Cvoid},
-                                               matC::cusparseSpMatDescr_t,
-                                               computeType::cudaDataType,
-                                               externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
-end
-
-@checked function cusparseConstrainedGeMM_bufferSize(handle, opA, opB, alpha, matA, matB,
-                                                     beta, matC, computeType, bufferSize)
-    initialize_context()
-    @ccall libcusparse.cusparseConstrainedGeMM_bufferSize(handle::cusparseHandle_t,
-                                                          opA::cusparseOperation_t,
-                                                          opB::cusparseOperation_t,
-                                                          alpha::Ptr{Cvoid},
-                                                          matA::cusparseDnMatDescr_t,
-                                                          matB::cusparseDnMatDescr_t,
-                                                          beta::Ptr{Cvoid},
-                                                          matC::cusparseSpMatDescr_t,
-                                                          computeType::cudaDataType,
-                                                          bufferSize::Ptr{Csize_t})::cusparseStatus_t
 end
 
 @cenum cusparseSDDMMAlg_t::UInt32 begin
@@ -6785,8 +5765,8 @@ end
                                                 opA::cusparseOperation_t,
                                                 opB::cusparseOperation_t,
                                                 alpha::PtrOrCuPtr{Cvoid},
-                                                matA::cusparseDnMatDescr_t,
-                                                matB::cusparseDnMatDescr_t,
+                                                matA::cusparseConstDnMatDescr_t,
+                                                matB::cusparseConstDnMatDescr_t,
                                                 beta::PtrOrCuPtr{Cvoid},
                                                 matC::cusparseSpMatDescr_t,
                                                 computeType::cudaDataType,
@@ -6801,8 +5781,8 @@ end
                                                 opA::cusparseOperation_t,
                                                 opB::cusparseOperation_t,
                                                 alpha::PtrOrCuPtr{Cvoid},
-                                                matA::cusparseDnMatDescr_t,
-                                                matB::cusparseDnMatDescr_t,
+                                                matA::cusparseConstDnMatDescr_t,
+                                                matB::cusparseConstDnMatDescr_t,
                                                 beta::PtrOrCuPtr{Cvoid},
                                                 matC::cusparseSpMatDescr_t,
                                                 computeType::cudaDataType,
@@ -6815,7 +5795,8 @@ end
     initialize_context()
     @ccall libcusparse.cusparseSDDMM(handle::cusparseHandle_t, opA::cusparseOperation_t,
                                      opB::cusparseOperation_t, alpha::PtrOrCuPtr{Cvoid},
-                                     matA::cusparseDnMatDescr_t, matB::cusparseDnMatDescr_t,
+                                     matA::cusparseConstDnMatDescr_t,
+                                     matB::cusparseConstDnMatDescr_t,
                                      beta::PtrOrCuPtr{Cvoid}, matC::cusparseSpMatDescr_t,
                                      computeType::cudaDataType, alg::cusparseSDDMMAlg_t,
                                      externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
@@ -6839,8 +5820,8 @@ end
                                                  plan::Ptr{cusparseSpMMOpPlan_t},
                                                  opA::cusparseOperation_t,
                                                  opB::cusparseOperation_t,
-                                                 matA::cusparseSpMatDescr_t,
-                                                 matB::cusparseDnMatDescr_t,
+                                                 matA::cusparseConstSpMatDescr_t,
+                                                 matB::cusparseConstDnMatDescr_t,
                                                  matC::cusparseDnMatDescr_t,
                                                  computeType::cudaDataType,
                                                  alg::cusparseSpMMOpAlg_t,

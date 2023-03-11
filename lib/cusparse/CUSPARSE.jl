@@ -33,7 +33,6 @@ include("linalg.jl")
 # low-level wrappers
 include("helpers.jl")
 include("management.jl")
-include("level1.jl")
 include("level2.jl")
 include("level3.jl")
 include("extra.jl")

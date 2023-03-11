@@ -2,7 +2,7 @@ using CUDA.CUSPARSE, SparseArrays
 
 if VERSION >= v"1.7"
 
-m,n = 2,3
+m,n = 5,6
 p = 0.5
 
 for elty in [Int32, Int64, Float32, Float64]
