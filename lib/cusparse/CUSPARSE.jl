@@ -37,6 +37,7 @@ include("level2.jl")
 include("level3.jl")
 include("extra.jl")
 include("preconditioners.jl")
+include("reorderings.jl")
 include("conversions.jl")
 include("generic.jl")
 
