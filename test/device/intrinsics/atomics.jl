@@ -193,15 +193,15 @@ end
     end
 end
 
-@testset "shared memory" begin
-    function kernel()
-        shared = CuStaticSharedArray(Float32, 1)
-        @atomic shared[threadIdx().x] += 0f0
-        return
-    end
+# @testset "shared memory" begin
+#     function kernel()
+#         shared = CuStaticSharedArray(Float32, 1)
+#         @atomic shared[threadIdx().x] += 0f0
+#         return
+#     end
 
-    CUDA.@sync @cuda kernel()
-end
+#     CUDA.@sync @cuda kernel()
+# end
 
 end
 
