@@ -371,9 +371,9 @@ for (order, scope) in Iterators.product((LLVMOrdering{:acquire}, LLVMOrdering{:m
     asm_b64 = "ld.$(asm(order)).$(asm(scope)).b64 \$0, [\$1];"
     asm_b32 = "ld.$(asm(order)).$(asm(scope)).b32 \$0, [\$1];"
     @eval @inline __load_64(ptr::LLVMPtr{T, AS}, ::$order, ::$scope) where {T, AS} =
-        @asmcall($asm_b64, "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+        @asmcall($asm_b64, "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}}, ptr)
     @eval @inline __load_32(ptr::LLVMPtr{T, AS}, ::$order, ::$scope) where {T, AS} =
-        @asmcall($asm_b32, "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T}}, ptr)
+        @asmcall($asm_b32, "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}}, ptr)
 end
 
 @inline function __load(ptr::LLVMPtr{T}, order, scope) where T
@@ -600,8 +600,8 @@ end
     atomic_store!(Atomix.pointer(ref), v, order)
 end
 
-@inline function Atomix.replace!(ref::CuIndexableRef,expected,desired,
-                                 success_ordering,failure_ordering)
+@inline function Atomix.replace!(ref::CuIndexableRef, expected, desired,
+                                 success_ordering, failure_ordering)
     ptr = Atomix.pointer(ref)
     expected = convert(eltype(ref), expected)
     desired = convert(eltype(ref), desired)
