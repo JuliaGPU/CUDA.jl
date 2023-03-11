@@ -14,8 +14,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
                                  (:cusparseCcsric02_bufferSize, :cusparseCcsric02_analysis, :cusparseCcsric02, :ComplexF32),
                                  (:cusparseZcsric02_bufferSize, :cusparseZcsric02_analysis, :cusparseZcsric02, :ComplexF64))
     @eval begin
-        function ic02!(A::CuSparseMatrixCSR{$elty},
-                       index::SparseChar)
+        function ic02!(A::CuSparseMatrixCSR{$elty}, index::SparseChar='O')
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -55,8 +54,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
                                  (:cusparseCcsric02_bufferSize, :cusparseCcsric02_analysis, :cusparseCcsric02, :ComplexF32),
                                  (:cusparseZcsric02_bufferSize, :cusparseZcsric02_analysis, :cusparseZcsric02, :ComplexF64))
     @eval begin
-        function ic02!(A::CuSparseMatrixCSC{$elty},
-                       index::SparseChar)
+        function ic02!(A::CuSparseMatrixCSC{$elty}, index::SparseChar='O')
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -102,8 +100,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
                                  (:cusparseCcsrilu02_bufferSize, :cusparseCcsrilu02_analysis, :cusparseCcsrilu02, :ComplexF32),
                                  (:cusparseZcsrilu02_bufferSize, :cusparseZcsrilu02_analysis, :cusparseZcsrilu02, :ComplexF64))
     @eval begin
-        function ilu02!(A::CuSparseMatrixCSR{$elty},
-                        index::SparseChar)
+        function ilu02!(A::CuSparseMatrixCSR{$elty}, index::SparseChar='O')
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -144,8 +141,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
                                  (:cusparseCcsrilu02_bufferSize, :cusparseCcsrilu02_analysis, :cusparseCcsrilu02, :ComplexF32),
                                  (:cusparseZcsrilu02_bufferSize, :cusparseZcsrilu02_analysis, :cusparseZcsrilu02, :ComplexF64))
     @eval begin
-        function ilu02!(A::CuSparseMatrixCSC{$elty},
-                        index::SparseChar)
+        function ilu02!(A::CuSparseMatrixCSC{$elty}, index::SparseChar='O')
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -186,8 +182,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
                                  (:cusparseCbsric02_bufferSize, :cusparseCbsric02_analysis, :cusparseCbsric02, :ComplexF32),
                                  (:cusparseZbsric02_bufferSize, :cusparseZbsric02_analysis, :cusparseZbsric02, :ComplexF64))
     @eval begin
-        function ic02!(A::CuSparseMatrixBSR{$elty},
-                       index::SparseChar)
+        function ic02!(A::CuSparseMatrixBSR{$elty}, index::SparseChar='O')
             desc = CuMatrixDescriptor('G', 'U', 'N', index)
             m,n = size(A)
             if m != n
@@ -229,8 +224,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
                                  (:cusparseCbsrilu02_bufferSize, :cusparseCbsrilu02_analysis, :cusparseCbsrilu02, :ComplexF32),
                                  (:cusparseZbsrilu02_bufferSize, :cusparseZbsrilu02_analysis, :cusparseZbsrilu02, :ComplexF64))
     @eval begin
-        function ilu02!(A::CuSparseMatrixBSR{$elty},
-                        index::SparseChar)
+        function ilu02!(A::CuSparseMatrixBSR{$elty}, index::SparseChar='O')
             desc = CuMatrixDescriptor('G', 'U', 'N', index)
             m,n = size(A)
             if m != n
@@ -268,20 +262,20 @@ end
 
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
-        function ilu02(A::CuSparseMatrix{$elty},
-                       index::SparseChar)
+        function ilu02(A::CuSparseMatrix{$elty}, index::SparseChar='O')
+            isa(A, CuSparseMatrixCOO) && throw(ErrorException("ILU(0) decomposition of CuSparseMatrixCOO is not supported by the current CUDA version."))
             ilu02!(copy(A),index)
         end
-        function ic02(A::CuSparseMatrix{$elty},
-                      index::SparseChar)
+        function ic02(A::CuSparseMatrix{$elty}, index::SparseChar='O')
+            isa(A, CuSparseMatrixCOO) && throw(ErrorException("IC(0) decomposition of CuSparseMatrixCOO is not supported by the current CUDA version."))
             ic02!(copy(A),index)
         end
-        function ilu02(A::HermOrSym{$elty,CuSparseMatrix{$elty}},
-                       index::SparseChar)
+        function ilu02(A::HermOrSym{$elty,CuSparseMatrix{$elty}}, index::SparseChar='O')
+            isa(A, CuSparseMatrixCOO) && throw(ErrorException("ILU(0) decomposition of CuSparseMatrixCOO is not supported by the current CUDA version."))
             ilu02!(copy(A.data),index)
         end
-        function ic02(A::HermOrSym{$elty,CuSparseMatrix{$elty}},
-                      index::SparseChar)
+        function ic02(A::HermOrSym{$elty,CuSparseMatrix{$elty}}, index::SparseChar='O')
+            isa(A, CuSparseMatrixCOO) && throw(ErrorException("IC(0) decomposition of CuSparseMatrixCOO is not supported by the current CUDA version."))
             ic02!(copy(A.data),index)
         end
     end
