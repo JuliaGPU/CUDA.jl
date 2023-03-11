@@ -95,7 +95,7 @@ function atomic_thread_fence(order, scope::BlockScope)
         elseif order == acquire || order == acq_rel || order == release # || order == consume
             threadfence_acq_rel_block()
         else
-            @assert(false)
+            throw(AtomicOrderUnsupported(order))
         end
     else
         if order == seq_cst ||
@@ -106,7 +106,7 @@ function atomic_thread_fence(order, scope::BlockScope)
 
             threadfence_block()
         else
-            @assert(false)
+            throw(AtomicOrderUnsupported(order))
         end
     end
 end
@@ -128,7 +128,7 @@ function atomic_thread_fence(order, scope::DeviceScope=device_scope)
 
             threadfence_acq_rel_device()
         else
-            @assert(false)
+            throw(AtomicOrderUnsupported(order))
         end
     else
         if order == seq_cst() ||
@@ -139,7 +139,7 @@ function atomic_thread_fence(order, scope::DeviceScope=device_scope)
 
             threadfence_device()
         else
-            @assert(false)
+            throw(AtomicOrderUnsupported(order))
         end
     end
 end
@@ -161,7 +161,7 @@ function atomic_thread_fence(order, scope::SystemScope)
 
             threadfence_acq_rel_system()
         else
-            @assert(false)
+            throw(AtomicOrderUnsupported(order))
         end
     else
         if order == seq_cst ||
@@ -172,7 +172,7 @@ function atomic_thread_fence(order, scope::SystemScope)
 
             threadfence_system()
         else
-            @assert(false)
+            throw(AtomicOrderUnsupported(order))
         end
     end
 end

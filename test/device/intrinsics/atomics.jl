@@ -2,6 +2,31 @@
 using CUDA: @atomic, @atomicswap, @atomicreplace
 using BFloat16s: BFloat16
 
+@testset "atomics (low-level) with order" begin
+
+@testset "atomic_load" begin
+    if capability(device()) >= v"6.0"
+        types = [Int8, Int16, Int32, Int64, 
+                 UInt8, UInt16, UInt32, UInt64,
+                 Float64, Float32]
+        scopes = [CUDA.block_scope, CUDA.device_scope, CUDA.system_scope]
+        # TODO unordered
+        supported_orders = [CUDA.monotonic, CUDA.acquire, CUDA.seq_cst]
+        unsupported_orders = [CUDA.release, CUDA.acq_rel]
+
+        function kernel(a, order, scope)
+            CUDA.atomic_load(pointer(a), order, scope)
+            return
+        end
+
+        for (T, order, scope) in Iterators.product(types, supported_orders, scopes)
+            a = CuArray(T[0])
+            @cuda threads=1 kernel(a, order, scope)
+        end
+    end
+end
+end # atomics (low-level) with order
+
 @testset "atomics (low-level)" begin
 
 # tested on all natively-supported atomics

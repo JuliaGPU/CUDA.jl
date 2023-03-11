@@ -15,6 +15,12 @@ const block_scope = BlockScope()
 import UnsafeAtomics
 using UnsafeAtomics.Internal: LLVMOrdering
 using UnsafeAtomics: unordered, monotonic, acquire, release, acq_rel, seq_cst
+
+struct AtomicUnsupported{T} <: Exception end
+struct AtomicOrderUnsupported{Ordering} <: Exception
+    order::Ordering
+end
+
 # Note CUDA C++ has also consume ordering which LLVM does not support
 # monotonic -> relaxed
 # unordered -> ??? maybe weak

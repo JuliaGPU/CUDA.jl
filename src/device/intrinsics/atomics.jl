@@ -382,30 +382,33 @@ end
     elseif sizeof(T) == 8
         __load_64(ptr, order, scope)
     else
-        @assert(false)
+        throw(AtomicUnsupported{T}())
     end
 end
 
 __supports_atomic(::Type{T}) where T = sizeof(T) == 4 || sizeof(T) == 8
 
-# Could be done using LLVM  
+# Could be done using LLVM
+# TODO: Register choice for Float32/Float64
 @inline function __load_volatile(ptr::LLVMPtr{T, AS}) where {T, AS}
     if sizeof(T) == 1
-        @asmcall("ld.volatile.b8  \$0, [\$1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}})
+        val = @asmcall("ld.volatile.b8  \$0, [\$1];", "=r,l,~{memory}", true, UInt32, Tuple{LLVMPtr{T, AS}}, ptr)
+        return val % T
     elseif sizeof(T) == 2
-        @asmcall("ld.volatile.b16 \$0, [\$1];", "=h,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}})
+        val = @asmcall("ld.volatile.b16 \$0, [\$1];", "=h,l,~{memory}", true, UInt16, Tuple{LLVMPtr{T, AS}}, ptr)
+        return Core.bitcast(T, val) # Float16 otherwise complaints
     elseif sizeof(T) == 4
-        @asmcall("ld.volatile.b32 \$0, [\$1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}})
+        @asmcall("ld.volatile.b32 \$0, [\$1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}}, ptr)
     elseif sizeof(T) == 8
-        @asmcall("ld.volatile.b64 \$0, [\$1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}})
+        @asmcall("ld.volatile.b64 \$0, [\$1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}}, ptr)
     else
-        @assert(false)
+        throw(AtomicUnsupported{T}())
     end
 end
 
 @inline function atomic_load(ptr::LLVMPtr{T}, order, scope::SyncScope=device_scope) where T
     if order == acq_rel || order == release
-        @assert(false)
+        throw(AtomicOrderUnsupported(order))
     end
     if compute_capability() >= sv"7.0" && __supports_atomic(T)
         if order == monotonic
@@ -448,7 +451,7 @@ end
     elseif sizeof(T) == 8
         __store_64!(ptr, val, order, scope)
     else
-        @assert(false)
+        throw(AtomicUnsupported{T}())
     end
 end
 
@@ -463,13 +466,13 @@ end
     elseif sizeof(T) == 8
         @asmcall("st.volatile.b64 [\$0], \$1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
     else
-        @assert(false)
+        throw(AtomicUnsupported{T}())
     end
 end
 
 @inline function atomic_store!(ptr::LLVMPtr{T}, val::T, order, scope::SyncScope=device_scope) where T
     if order == acq_rel || order == acquire # || order == consume
-        @assert(false)
+        throw(AtomicOrderUnsupported(order))
     end
     if compute_capability() >= sv"7.0" && __supports_atomic(T)
         if order == release
@@ -515,6 +518,7 @@ function stronger_order(a::LLVMOrdering, b::LLVMOrdering)
     elseif other == release
         return release
     end
+    Base.llvmcall("unreachable", Cvoid, Tuple{})
     @assert(false)
 end
 
@@ -534,7 +538,7 @@ function __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T
     elseif sizeof(T) == 8
         __cas_64!(ptr, old, new, order, scope)
     else
-        @assert(false)
+        throw(AtomicUnsupported{T}())
     end
 end
 
@@ -554,7 +558,7 @@ function __cas_volatile!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T
     elseif sizeof(T) == 8
         __cas_volatile_64!(ptr, old, new, scope)
     else
-        @assert(false)
+        throw(AtomicUnsupported{T}())
     end
 end
 
