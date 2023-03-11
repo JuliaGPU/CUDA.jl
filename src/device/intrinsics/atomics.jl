@@ -550,9 +550,9 @@ end
 
 function __cas_volatile!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T
     if sizeof(T) == 4
-        __cas__volatile_32!(ptr, old, new, scope)
+        __cas_volatile_32!(ptr, old, new, scope)
     elseif sizeof(T) == 8
-        __cas__volatile_64!(ptr, old, new, scope)
+        __cas_volatile_64!(ptr, old, new, scope)
     else
         @assert(false)
     end
@@ -614,9 +614,10 @@ end
     return atomic_cas!(ptr, expected, desired, success_ordering, failure_ordering)
 end
 
-@inline function modify!(ptr, op::OP, x, order) where {OP}
+@inline function modify!(ptr::LLVMPtr{T}, op::OP, x, order) where {T, OP}
     success = false
     expected = atomic_load(ptr, order)
+    local new::T
     while !success
         new = op(expected, x)
         expected, success = atomic_cas!(ptr, expected, new, order, monotonic)
@@ -643,7 +644,7 @@ end
     # elseif op === max
     #     atomic_max!(ptr, x)
     # else
-        modify!(ptr, op, x, order)
+        return modify!(ptr, op, x, order)
     # end
-    return old => op(old, x)
+    # return old => op(old, x)
 end
