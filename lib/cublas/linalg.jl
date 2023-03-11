@@ -44,7 +44,7 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
         val = CUDA.reduce_block(+, local_val, zero(T), shuffle)
         if threadIdx().x == 1i32
             # NOTE: introduces nondeterminism
-            @inbounds CUDA.@atomic res[] += val
+            @inbounds CUDA.@atomic res[1i32] += val
         end
 
         return
