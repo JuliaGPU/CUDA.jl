@@ -418,7 +418,7 @@ for (order, scope, A) in Iterators.product(
                             (AS.Generic, AS.Global, AS.Shared))
     instruction = "ld$(addr_space(A)).$(asm(order)).$(asm(scope)).b8 \$0, [\$1];"
     constraint  = "=r,l,~{memory}"
-    @eval function @inline __load(::Val{$sz}, ptr::LLVMPtr{T, $A}, ::$order, ::$scope) where {T}
+    @eval @inline function __load(::Val{1}, ptr::LLVMPtr{T, $A}, ::$order, ::$scope) where {T}
         val = @asmcall($instruction, $constraint, true, UInt32, Tuple{LLVMPtr{T, $A}}, ptr)
         return Core.bitcast(T, val % UInt8)
     end
@@ -502,8 +502,6 @@ end
     __store!(Val(sizeof(T)), ptr, val, order, scope)
 
 for (A, sz) in Iterators.product(
-                (LLVMOrdering{:release}, LLVMOrdering{:monotonic}),
-                (BlockScope, DeviceScope, SystemScope),
                 (AS.Generic, AS.Global, AS.Shared),
                 (1, 2, 4, 8))
     instruction = "st$(addr_space(A)).volatile.$(suffix(sz)) [\$0], \$1;"
