@@ -502,7 +502,7 @@ order(::LLVMOrdering{:seq_cst}) = 6
 
 Base.isless(a::LLVMOrdering, b::LLVMOrdering) = isless(order(a), order(b))
 
-function stronger_order(a::LLVMOrdering, b::LLVMOrdering)
+@inline function stronger_order(a::LLVMOrdering, b::LLVMOrdering)
     m = max(a, b)
     if m != release
         return m
@@ -532,7 +532,7 @@ for (order, scope) in Iterators.product((LLVMOrdering{:acq_rel}, LLVMOrdering{:a
         @asmcall($asm_b32, "=r,l,r,r,~{memory}", true, T, Tuple{LLVMPtr{T, AS}, T, T}, ptr, old, new)
 end
 
-function __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T
+@inline function __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T
     if sizeof(T) == 4
         __cas_32!(ptr, old, new, order, scope)
     elseif sizeof(T) == 8
@@ -545,13 +545,13 @@ end
 for scope in (BlockScope, DeviceScope, SystemScope)
     asm_b64 = "atom.cas.$(asm(scope)).b64 \$0,[\$1],\$2,\$3;"
     asm_b32 = "atom.cas.$(asm(scope)).b32 \$0,[\$1],\$2,\$3;"
-    @eval __cas_volatile_64!(ptr::LLVMPtr{T, AS}, old::T, new::T, ::$scope) where {T, AS} =
+    @eval @inline __cas_volatile_64!(ptr::LLVMPtr{T, AS}, old::T, new::T, ::$scope) where {T, AS} =
         @asmcall($asm_b64, "=l,l,l,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}, T, T}, ptr, old, new)
-    @eval __cas_volatile_32!(ptr::LLVMPtr{T, AS}, old::T, new::T, ::$scope) where {T, AS} =
+    @eval @inline __cas_volatile_32!(ptr::LLVMPtr{T, AS}, old::T, new::T, ::$scope) where {T, AS} =
         @asmcall($asm_b32, "=r,l,r,r,~{memory}", true, T, Tuple{LLVMPtr{T, AS}, T, T}, ptr, old, new)
 end
 
-function __cas_volatile!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T
+@inline function __cas_volatile!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T
     if sizeof(T) == 4
         __cas_volatile_32!(ptr, old, new, scope)
     elseif sizeof(T) == 8
@@ -561,7 +561,7 @@ function __cas_volatile!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T
     end
 end
 
-function atomic_cas!(ptr::LLVMPtr{T}, expected::T, new::T, success_order, failure_order, scope::SyncScope=device_scope) where T
+@inline function atomic_cas!(ptr::LLVMPtr{T}, expected::T, new::T, success_order, failure_order, scope::SyncScope=device_scope) where T
     order = stronger_order(success_order, failure_order)
     if compute_capability() >= sv"7.0" && __supports_atomic(T)
         if order == seq_cst
@@ -582,7 +582,7 @@ function atomic_cas!(ptr::LLVMPtr{T}, expected::T, new::T, success_order, failur
     else
         error("Atomics are only supported on SM_60")
     end
-    success = expected == old
+    success = expected === old # egal since otherwise NaN's won't work.
     return (; old, success)
 end
 
