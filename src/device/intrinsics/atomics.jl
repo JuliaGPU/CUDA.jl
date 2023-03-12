@@ -431,7 +431,16 @@ end
         atomic_thread_fence(order, scope)
         return val
     else
-        error("Atomics are only supported on SM_60")
+        # Fallback to threadfence w/o order + load_volatile
+        if order == seq_cst
+            threadfence(scope)
+        end
+        val = __load_volatile(ptr)
+        if order == monotonic
+            return val
+        end
+        threadfence(scope)
+        return val
     end
 end
 
@@ -489,7 +498,11 @@ end
         end
         __store_volatile!(ptr, val)
     else
-        error("Atomics are only supported on SM_60")
+        # Fallback to threadfence w/o order + store_volatile
+        if order == seq_cst
+            threadfence(scope)
+        end
+        __store_volatile!(ptr, val)
     end
 end
 
@@ -580,7 +593,15 @@ end
             atomic_thread_fence(seq_cst, scope)
         end
     else
-        error("Atomics are only supported on SM_60")
+        # Fallback to atomic_cas w/o scope on pre SM_60
+        if order == seq_cst || order == acq_rel || order == release
+            threadfence(scope)
+        end
+        val = atomic_cas!(ptr, expected, new)
+        if order == seq_cst || order == acq_rel || order == acquire # order == consume
+            threadfence(scope)
+        end
+        return val
     end
     success = expected === old # egal since otherwise NaN's won't work.
     return (; old, success)
