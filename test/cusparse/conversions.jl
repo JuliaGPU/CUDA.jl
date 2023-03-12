@@ -75,7 +75,7 @@ end
 end
 
 for (n, bd, p) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5)]
-    CUSPARSE.version() ≥ v"12.0" && n == 4 && continue
+    v"12.0" <= CUSPARSE.version() < v"12.1" && n == 4 && continue
     @testset "conversions between CuSparseMatrices (n, bd, p) = ($n, $bd, $p)" begin
         A = sprand(n, n, p)
         blockdim = bd
@@ -139,7 +139,7 @@ end
     end
 end
 
-if CUSPARSE.version() < v"12.0"
+if !(v"12.0" <= CUSPARSE.version() < v"12.1")
     @testset "conversion CuSparseMatrix" begin
         # A = [ 0 0 5 ]
         #     [ 0 6 7 ]
