@@ -405,7 +405,7 @@ for (order, scope, A, sz) in Iterators.product(
                                 (BlockScope, DeviceScope, SystemScope),
                                 (AS.Generic, AS.Global, AS.Shared),
                                 (2,4,8))
-    instruction = "ld$(addr_space(A)).$(asm(order)).$(asm(scope)).$(suffix(sz)) \$0, [\$1];"
+    instruction = "ld.$(asm(order)).$(asm(scope))$(addr_space(A)).$(suffix(sz)) \$0, [\$1];"
     constraint  = "=$(reg(sz)),l,~{memory}"
     @eval @inline __load(::Val{$sz}, ptr::LLVMPtr{T, $A}, ::$order, ::$scope) where {T} =
         @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}}, ptr)
@@ -416,7 +416,7 @@ for (order, scope, A) in Iterators.product(
                             (LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}),
                             (BlockScope, DeviceScope, SystemScope),
                             (AS.Generic, AS.Global, AS.Shared))
-    instruction = "ld$(addr_space(A)).$(asm(order)).$(asm(scope)).b8 \$0, [\$1];"
+    instruction = "ld.$(asm(order)).$(asm(scope))$(addr_space(A)).b8 \$0, [\$1];"
     constraint  = "=r,l,~{memory}"
     @eval @inline function __load(::Val{1}, ptr::LLVMPtr{T, $A}, ::$order, ::$scope) where {T}
         val = @asmcall($instruction, $constraint, true, UInt32, Tuple{LLVMPtr{T, $A}}, ptr)
@@ -430,7 +430,7 @@ end
 for (A, sz) in Iterators.product(
                     (AS.Generic, AS.Global, AS.Shared),
                     (2,4,8))
-    instruction = "ld$(addr_space(A)).volatile.$(suffix(sz)) \$0, [\$1];"
+    instruction = "ld.volatile$(addr_space(A)).$(suffix(sz)) \$0, [\$1];"
     constraint  = "=$(reg(sz)),l,~{memory}"
     @eval @inline __load_volatile(::Val{$sz}, ptr::LLVMPtr{T, $A}) where {T} =
         @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}}, ptr)
@@ -438,7 +438,7 @@ end
 
 # Handle byte sized load
 for (A) in (AS.Generic, AS.Global, AS.Shared)
-    instruction = "ld$(addr_space(A)).volatile.b8 \$0, [\$1];"
+    instruction = "ld.volatile$(addr_space(A)).b8 \$0, [\$1];"
     constraint  = "=r,l,~{memory}"
     @eval @inline function __load_volatile(::Val{1}, ptr::LLVMPtr{T, $A}) where {T}
         val = @asmcall($instruction, $constraint, true, UInt32, Tuple{LLVMPtr{T, $A}}, ptr)
