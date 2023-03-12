@@ -366,51 +366,94 @@ asm(::Type{SystemScope}) = :sys
 asm(::Type{DeviceScope}) = :gpu
 asm(::Type{BlockScope}) = :cta
 
-for (order, scope) in Iterators.product((LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}),
-                                        (BlockScope, DeviceScope, SystemScope))
-    asm_b64 = "ld.$(asm(order)).$(asm(scope)).b64 \$0, [\$1];"
-    asm_b32 = "ld.$(asm(order)).$(asm(scope)).b32 \$0, [\$1];"
-    @eval @inline __load_64(ptr::LLVMPtr{T, AS}, ::$order, ::$scope) where {T, AS} =
-        @asmcall($asm_b64, "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}}, ptr)
-    @eval @inline __load_32(ptr::LLVMPtr{T, AS}, ::$order, ::$scope) where {T, AS} =
-        @asmcall($asm_b32, "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}}, ptr)
-end
-
-@inline function __load(ptr::LLVMPtr{T}, order, scope) where T
-    if sizeof(T) == 4
-        __load_32(ptr, order, scope)
-    elseif sizeof(T) == 8
-        __load_64(ptr, order, scope)
-    else
-        throw(AtomicUnsupported{T}())
+function suffix(sz)
+    if sz == 1
+        "b8"
+    elseif sz == 2
+        "b16"
+    elseif sz == 4
+        "b32"
+    elseif sz == 8
+        "b64"
     end
 end
 
-__supports_atomic(::Type{T}) where T = sizeof(T) == 4 || sizeof(T) == 8
-
-# Could be done using LLVM
-# TODO: Register choice for Float32/Float64
-@inline function __load_volatile(ptr::LLVMPtr{T, AS}) where {T, AS}
-    if sizeof(T) == 1
-        val = @asmcall("ld.volatile.b8  \$0, [\$1];", "=r,l,~{memory}", true, UInt32, Tuple{LLVMPtr{T, AS}}, ptr)
-        return val % T
-    elseif sizeof(T) == 2
-        val = @asmcall("ld.volatile.b16 \$0, [\$1];", "=h,l,~{memory}", true, UInt16, Tuple{LLVMPtr{T, AS}}, ptr)
-        return Core.bitcast(T, val) # Float16 otherwise complaints
-    elseif sizeof(T) == 4
-        @asmcall("ld.volatile.b32 \$0, [\$1];", "=r,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}}, ptr)
-    elseif sizeof(T) == 8
-        @asmcall("ld.volatile.b64 \$0, [\$1];", "=l,l,~{memory}", true, T, Tuple{LLVMPtr{T, AS}}, ptr)
-    else
-        throw(AtomicUnsupported{T}())
+function reg(sz)
+    if sz == 1
+        "r"
+    elseif sz == 2
+        "h"
+    elseif sz == 4
+        "r"
+    elseif sz == 8
+        "l"
     end
 end
+
+function addr_space(A)
+    if A == AS.Global
+        as = ".global"
+    elseif A == AS.Shared
+        as = ".shared"
+    else
+        as = ""
+    end
+end
+
+for (order, scope, A, sz) in Iterators.product(
+                                (LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}),
+                                (BlockScope, DeviceScope, SystemScope),
+                                (AS.Generic, AS.Global, AS.Shared),
+                                (2,4,8))
+    instruction = "ld$(addr_space(A)).$(asm(order)).$(asm(scope)).$(suffix(sz)) \$0, [\$1];"
+    constraint  = "=$(reg(sz)),l,~{memory}"
+    @eval @inline __load(::Val{$sz}, ptr::LLVMPtr{T, $A}, ::$order, ::$scope) where {T} =
+        @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}}, ptr)
+end
+
+# Handle byte sized load
+for (order, scope, A) in Iterators.product(
+                            (LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}),
+                            (BlockScope, DeviceScope, SystemScope),
+                            (AS.Generic, AS.Global, AS.Shared))
+    instruction = "ld$(addr_space(A)).$(asm(order)).$(asm(scope)).b8 \$0, [\$1];"
+    constraint  = "=r,l,~{memory}"
+    @eval function @inline __load(::Val{$sz}, ptr::LLVMPtr{T, $A}, ::$order, ::$scope) where {T}
+        val = @asmcall($instruction, $constraint, true, UInt32, Tuple{LLVMPtr{T, $A}}, ptr)
+        return Core.bitcast(T, val % UInt8)
+    end
+end
+
+@inline __load(ptr::LLVMPtr{T}, order, scope) where T =
+    __load(Val(sizeof(T)), ptr, order, scope)
+
+for (A, sz) in Iterators.product(
+                    (AS.Generic, AS.Global, AS.Shared),
+                    (2,4,8))
+    instruction = "ld$(addr_space(A)).volatile.$(suffix(sz)) \$0, [\$1];"
+    constraint  = "=$(reg(sz)),l,~{memory}"
+    @eval @inline __load_volatile(::Val{$sz}, ptr::LLVMPtr{T, $A}) where {T} =
+        @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}}, ptr)
+end
+
+# Handle byte sized load
+for (A) in (AS.Generic, AS.Global, AS.Shared)
+    instruction = "ld$(addr_space(A)).volatile.b8 \$0, [\$1];"
+    constraint  = "=r,l,~{memory}"
+    @eval @inline function __load_volatile(::Val{1}, ptr::LLVMPtr{T, $A}) where {T}
+        val = @asmcall($instruction, $constraint, true, UInt32, Tuple{LLVMPtr{T, $A}}, ptr)
+        return Core.bitcast(T, val % UInt8)
+    end
+end
+
+@inline __load_volatile(ptr::LLVMPtr{T}) where {T} =
+    __load_volatile(Val(sizeof(T)), ptr)
 
 @inline function atomic_load(ptr::LLVMPtr{T}, order, scope::SyncScope=device_scope) where T
     if order == acq_rel || order == release
         throw(AtomicOrderUnsupported(order))
     end
-    if compute_capability() >= sv"7.0" && __supports_atomic(T)
+    if compute_capability() >= sv"7.0"
         if order == monotonic
             val = __load(ptr, monotonic, scope)
             return val
@@ -444,46 +487,40 @@ end
     end
 end
 
-for (order, scope) in Iterators.product((LLVMOrdering{:release}, LLVMOrdering{:monotonic}),
-                                        (BlockScope, DeviceScope, SystemScope))
-    asm_b64 = "st.$(asm(order)).$(asm(scope)).b64 [\$0], \$1;"
-    asm_b32 = "st.$(asm(order)).$(asm(scope)).b32 [\$0], \$1;"
-    @eval @inline __store_64!(ptr::LLVMPtr{T, AS}, val::T, ::$order, ::$scope) where {T, AS} =
-        @asmcall($asm_b64, "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
-    @eval @inline __store_32!(ptr::LLVMPtr{T, AS}, val::T, ::$order, ::$scope) where {T, AS} =
-        @asmcall($asm_b32, "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
+for (order, scope, A, sz) in Iterators.product(
+                            (LLVMOrdering{:release}, LLVMOrdering{:monotonic}),
+                            (BlockScope, DeviceScope, SystemScope),
+                            (AS.Generic, AS.Global, AS.Shared),
+                            (1, 2, 4, 8))
+    instruction = "st$(addr_space(A)).$(asm(order)).$(asm(scope)).$(suffix(sz)) [\$0], \$1;"
+    constraint  = "l,$(reg(sz)),~{memory}"
+    @eval @inline __store!(::Val{$sz}, ptr::LLVMPtr{T, $A}, val::T, ::$order, ::$scope) where {T} =
+        @asmcall($instruction, $constraint, true, Cvoid, Tuple{LLVMPtr{T, $A}, T}, ptr, val)
 end
 
-@inline function __store!(ptr::LLVMPtr{T}, val::T, order, scope) where T
-    if sizeof(T) == 4
-        __store_32!(ptr, val, order, scope)
-    elseif sizeof(T) == 8
-        __store_64!(ptr, val, order, scope)
-    else
-        throw(AtomicUnsupported{T}())
-    end
+@inline __store!(ptr::LLVMPtr{T}, val::T, order, scope) where T =
+    __store!(Val(sizeof(T)), ptr, val, order, scope)
+
+for (A, sz) in Iterators.product(
+                (LLVMOrdering{:release}, LLVMOrdering{:monotonic}),
+                (BlockScope, DeviceScope, SystemScope),
+                (AS.Generic, AS.Global, AS.Shared),
+                (1, 2, 4, 8))
+    instruction = "st$(addr_space(A)).volatile.$(suffix(sz)) [\$0], \$1;"
+    constraint  = "l,$(reg(sz)),~{memory}"
+    @eval @inline __store_volatile!(::Val{$sz}, ptr::LLVMPtr{T, $A}, val::T) where {T} =
+        @asmcall($instruction, $constraint, true, Cvoid, Tuple{LLVMPtr{T, $A}, T}, ptr, val)
 end
 
 # Could be done using LLVM.
-@inline function __store_volatile!(ptr::LLVMPtr{T, AS}, val::T) where {T, AS}
-    if sizeof(T) == 1
-        @asmcall("st.volatile.b8 [\$0], \$1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
-    elseif sizeof(T) == 2
-        @asmcall("st.volatile.b16 [\$0], \$1;", "l,h,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
-    elseif sizeof(T) == 4
-        @asmcall("st.volatile.b32 [\$0], \$1;", "l,r,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
-    elseif sizeof(T) == 8
-        @asmcall("st.volatile.b64 [\$0], \$1;", "l,l,~{memory}", true, Cvoid, Tuple{LLVMPtr{T, AS}, T}, ptr, val)
-    else
-        throw(AtomicUnsupported{T}())
-    end
-end
+@inline __store_volatile!(ptr::LLVMPtr{T}, val::T) where {T} =
+    __store_volatile(Val(sizeof(T)), ptr, val)
 
 @inline function atomic_store!(ptr::LLVMPtr{T}, val::T, order, scope::SyncScope=device_scope) where T
     if order == acq_rel || order == acquire # || order == consume
         throw(AtomicOrderUnsupported(order))
     end
-    if compute_capability() >= sv"7.0" && __supports_atomic(T)
+    if compute_capability() >= sv"7.0"
         if order == release
             __store!(ptr, val, release, scope)
             return
@@ -581,7 +618,7 @@ for (scope, A) in Iterators.product((BlockScope, DeviceScope, SystemScope),
     @eval @inline __cas_volatile_32!(ptr::LLVMPtr{T, $A}, old::T, new::T, ::$scope) where {T} =
         @asmcall($asm_b32, "=r,l,r,r,~{memory}", true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
     @eval @inline __cas_volatile_16!(ptr::LLVMPtr{T, $A}, old::T, new::T, ::$scope) where {T} =
-        @asmcall($asm_b32, "=h,l,h,h,~{memory}", true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
+        @asmcall($asm_b16, "=h,l,h,h,~{memory}", true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
 end
 
 @inline function __cas_volatile!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T
@@ -598,7 +635,7 @@ end
 
 @inline function atomic_cas!(ptr::LLVMPtr{T}, expected::T, new::T, success_order, failure_order, scope::SyncScope=device_scope) where T
     order = stronger_order(success_order, failure_order)
-    if compute_capability() >= sv"7.0" && __supports_atomic(T)
+    if compute_capability() >= sv"7.0" && 2 <= sizeof(T) <= 4
         if order == seq_cst
             atomic_thread_fence(seq_cst, scope)
         end
@@ -619,11 +656,10 @@ end
         if order == seq_cst || order == acq_rel || order == release
             threadfence(scope)
         end
-        val = atomic_cas!(ptr, expected, new)
+        old = atomic_cas!(ptr, expected, new)
         if order == seq_cst || order == acq_rel || order == acquire # order == consume
             threadfence(scope)
         end
-        return val
     end
     success = expected === old # egal since otherwise NaN's won't work.
     return (; old, success)
