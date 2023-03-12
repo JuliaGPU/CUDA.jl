@@ -171,6 +171,7 @@ steps:
 
             println("--- :julia: Instantiating project")
             Pkg.develop(path=pwd())
+            Pkg.develop(path=joinpath(pwd(), "lib", "cudnn"))
             Pkg.add(name="NNlibCUDA", rev="master")
             Pkg.instantiate()
 
