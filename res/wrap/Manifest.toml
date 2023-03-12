@@ -35,9 +35,9 @@ version = "0.3.0+0"
 
 [[CUDA_full_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "69a1423e0bf501e85ab89961c6388d06b92ddf49"
+git-tree-sha1 = "15a29535dcbc3a90000853213daaccc595db5e35"
 uuid = "4f82f1eb-248c-5f56-a42e-99106d144614"
-version = "12.0.0+2"
+version = "12.1.0+0"
 
 [[CUDNN_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg", "TOML"]
@@ -53,9 +53,9 @@ version = "1.6.1+1"
 
 [[Clang]]
 deps = ["CEnum", "Clang_jll", "Downloads", "Pkg", "TOML"]
-git-tree-sha1 = "9c5e5bf14878315b43ae322fe2f2a5080c827a27"
+git-tree-sha1 = "ac81f3ea7c53b20d64ad1609a0298d9731fbdcf8"
 uuid = "40e3b903-d033-50b4-a0cc-940c62c95e31"
-version = "0.17.2"
+version = "0.17.3"
 
 [[Clang_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "TOML", "Zlib_jll", "libLLVM_jll"]
@@ -126,9 +126,9 @@ version = "0.21.3"
 
 [[JuliaFormatter]]
 deps = ["CSTParser", "CommonMark", "DataStructures", "Glob", "Pkg", "SnoopPrecompile", "Tokenize"]
-git-tree-sha1 = "94ce68aee6dbc066e39d5d2ca0b6b1ccd38d7e04"
+git-tree-sha1 = "04c4f16ef537e7b5fe0998e507cfeedc5b95b01d"
 uuid = "98e50ef6-434e-11e9-1051-2b60c6c9e899"
-version = "1.0.20"
+version = "1.0.24"
 
 [[LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
@@ -194,7 +194,7 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 [[MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.0+0"
+version = "2.28.2+0"
 
 [[Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
@@ -210,7 +210,7 @@ version = "1.2.0"
 [[OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.21+0"
+version = "0.3.21+4"
 
 [[OrderedCollections]]
 git-tree-sha1 = "85f8e6578bf1f9ee0d11e7bb1b1456435479d47c"
@@ -357,12 +357,12 @@ version = "22.11.13+0"
 [[libLLVM_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8f36deef-c2a5-5394-99ed-8e07531fb29a"
-version = "14.0.6+0"
+version = "14.0.6+2"
 
 [[libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.2.0+0"
+version = "5.4.0+0"
 
 [[nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
