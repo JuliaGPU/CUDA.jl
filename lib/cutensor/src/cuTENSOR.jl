@@ -14,7 +14,7 @@ export has_cutensor
 
 function has_cutensor(show_reason::Bool=false)
     if !CUTENSOR_jll.is_available()
-        show_reason && error("cuTENSOR library not found")
+        show_reason && error("cuTENSOR JLL not available")
         return false
     end
     return true
@@ -93,8 +93,10 @@ function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
     precompiling && return
 
+    CUDA.functional() || return
+
     if !CUTENSOR_jll.is_available()
-        #@error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
+        @error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
         return
     end
 

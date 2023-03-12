@@ -17,7 +17,7 @@ export has_cutensornet
 
 function has_cutensornet(show_reason::Bool=false)
     if !cuQuantum_jll.is_available()
-        show_reason && error("cuTensorNet library not found")
+        show_reason && error("cuTensorNet JLL not available")
         return false
     end
     return true
@@ -110,8 +110,10 @@ function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
     precompiling && return
 
+    CUDA.functional() || return
+
     if !cuQuantum_jll.is_available()
-        #@error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
+        @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
         return
     end
 

@@ -13,7 +13,7 @@ export has_custatevec
 
 function has_custatevec(show_reason::Bool=false)
     if !cuQuantum_jll.is_available()
-        show_reason && error("cuStateVec library not found")
+        show_reason && error("cuStateVec JLL not available")
         return false
     end
     return true
@@ -109,8 +109,10 @@ function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
     precompiling && return
 
+    CUDA.functional() || return
+
     if !cuQuantum_jll.is_available()
-        #@error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
+        @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
         return
     end
 
