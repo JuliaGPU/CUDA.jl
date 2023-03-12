@@ -164,6 +164,7 @@ const cudnnTensorTransformDescriptor_t = Ptr{cudnnTensorTransformStruct}
     CUDNN_DATA_BOOLEAN = 11
     CUDNN_DATA_FP8_E4M3 = 12
     CUDNN_DATA_FP8_E5M2 = 13
+    CUDNN_DATA_FAST_FLOAT_FOR_FP8 = 14
 end
 
 @cenum cudnnMathType_t::UInt32 begin
@@ -3553,6 +3554,38 @@ end
     initialize_context()
     @ccall libcudnn.cudnnCnnTrainVersionCheck()::cudnnStatus_t
 end
+
+const CUDNN_MAX_SM_MAJOR_NUMBER = 9
+
+const CUDNN_MAX_SM_MINOR_NUMBER = 0
+
+const CUDNN_SM_50 = 500
+
+const CUDNN_SM_52 = 520
+
+const CUDNN_SM_53 = 530
+
+const CUDNN_SM_60 = 600
+
+const CUDNN_SM_61 = 610
+
+const CUDNN_SM_62 = 620
+
+const CUDNN_SM_70 = 700
+
+const CUDNN_SM_72 = 720
+
+const CUDNN_SM_75 = 750
+
+const CUDNN_SM_80 = 800
+
+const CUDNN_SM_86 = 860
+
+const CUDNN_SM_87 = 870
+
+const CUDNN_SM_89 = 890
+
+const CUDNN_SM_90 = 900
 
 const CUDNN_DIM_MAX = 8
 
