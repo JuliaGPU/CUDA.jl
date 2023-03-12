@@ -570,66 +570,32 @@ Base.isless(a::LLVMOrdering, b::LLVMOrdering) = isless(order(a), order(b))
     @assert(false)
 end
 
-for (order, scope, A) in Iterators.product((LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
-                                           (BlockScope, DeviceScope, SystemScope),
-                                           (AS.Generic, AS.Global, AS.Shared))
-    if A == AS.Global
-        as = ".global"
-    elseif A == AS.Shared
-        as = ".shared"
-    else
-        as = ""
-    end
-    asm_b64 = "atom$(as).cas.$(asm(order)).$(asm(scope)).b64 \$0,[\$1],\$2,\$3;"
-    asm_b32 = "atom$(as).cas.$(asm(order)).$(asm(scope)).b32 \$0,[\$1],\$2,\$3;"
-    @eval @inline __cas_64!(ptr::LLVMPtr{T, $A}, old::T, new::T, ::$order, ::$scope) where {T} =
-        @asmcall($asm_b64, "=l,l,l,l,~{memory}", true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
-    @eval @inline __cas_32!(ptr::LLVMPtr{T, $A}, old::T, new::T, ::$order, ::$scope) where {T} =
-        @asmcall($asm_b32, "=r,l,r,r,~{memory}", true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
+for (order, scope, A, sz) in Iterators.product(
+                                (LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
+                                (BlockScope, DeviceScope, SystemScope),
+                                (AS.Generic, AS.Global, AS.Shared),
+                                (4, 8))
+    instruction = "atom$(addr_space(A)).cas.$(asm(order)).$(asm(scope)).$(suffix(sz)) \$0, [\$1], \$2, \$3;"
+    constraint  = "=$(reg(sz)),l,$(reg(sz)),$(reg(sz)),~{memory}"
+    @eval @inline __cas!(::Val{$sz}, ptr::LLVMPtr{T, $A}, old::T, new::T, ::$order, ::$scope) where {T} =
+        @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
 end
 
-@inline function __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T
-    if sizeof(T) == 4
-        __cas_32!(ptr, old, new, order, scope)
-    elseif sizeof(T) == 8
-        __cas_64!(ptr, old, new, order, scope)
-    else
-        throw(AtomicUnsupported{T}())
-    end
+@inline __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T =
+    __cas(sizeof(T), ptr, old, new, order, scope)
+
+for (scope, A, sz) in Iterators.product(
+                                (LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
+                                (AS.Generic, AS.Global, AS.Shared),
+                                (2, 4, 8))
+    instruction = "atom$(addr_space(A)).cas.$(asm(scope)).$(suffix(sz)) \$0, [\$1], \$2, \$3;"
+    constraint  = "=$(reg(sz)),l,$(reg(sz)),$(reg(sz)),~{memory}"
+    @eval @inline __cas!(::Val{$sz}, ptr::LLVMPtr{T, $A}, old::T, new::T, ::$scope) where {T} =
+        @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
 end
 
-for (scope, A) in Iterators.product((BlockScope, DeviceScope, SystemScope),
-                                     (AS.Generic, AS.Global, AS.Shared))
-    if A == AS.Global
-        as = ".global"
-    elseif A == AS.Shared
-        as = ".shared"
-    else
-        as = ""
-    end
-
-    asm_b64 = "atom$(as).cas.$(asm(scope)).b64 \$0,[\$1],\$2,\$3;"
-    asm_b32 = "atom$(as).cas.$(asm(scope)).b32 \$0,[\$1],\$2,\$3;"
-    asm_b16 = "atom$(as).cas.$(asm(scope)).b16 \$0,[\$1],\$2,\$3;"
-    @eval @inline __cas_volatile_64!(ptr::LLVMPtr{T, $A}, old::T, new::T, ::$scope) where {T} =
-        @asmcall($asm_b64, "=l,l,l,l,~{memory}", true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
-    @eval @inline __cas_volatile_32!(ptr::LLVMPtr{T, $A}, old::T, new::T, ::$scope) where {T} =
-        @asmcall($asm_b32, "=r,l,r,r,~{memory}", true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
-    @eval @inline __cas_volatile_16!(ptr::LLVMPtr{T, $A}, old::T, new::T, ::$scope) where {T} =
-        @asmcall($asm_b16, "=h,l,h,h,~{memory}", true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
-end
-
-@inline function __cas_volatile!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T
-    if sizeof(T) == 2
-        __cas_volatile_16!(ptr, old, new, scope)
-    elseif sizeof(T) == 4
-        __cas_volatile_32!(ptr, old, new, scope)
-    elseif sizeof(T) == 8
-        __cas_volatile_64!(ptr, old, new, scope)
-    else
-        throw(AtomicUnsupported{T}())
-    end
-end
+@inline __cas!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T =
+    __cas!(Val(sizeof(T)), ptr, old, new, scope)
 
 @inline function atomic_cas!(ptr::LLVMPtr{T}, expected::T, new::T, success_order, failure_order, scope::SyncScope=device_scope) where T
     order = stronger_order(success_order, failure_order)
@@ -645,7 +611,7 @@ end
         if order == seq_cst || order == acq_rel || order == release
             atomic_thread_fence(seq_cst, scope)
         end
-        old = __cas_volatile!(ptr, expected, new, scope)
+        old = __cas!(ptr, expected, new, scope)
         if order == seq_cst || order == acq_rel || order == acquire # order == consume
             atomic_thread_fence(seq_cst, scope)
         end
@@ -659,8 +625,7 @@ end
             threadfence(scope)
         end
     end
-    success = expected === old # egal since otherwise NaN's won't work.
-    return (; old, success)
+    return old
 end
 
 #
@@ -695,14 +660,15 @@ end
 end
 
 @inline function modify!(ptr::LLVMPtr{T}, op::OP, x, order) where {T, OP}
-    success = false
-    expected = atomic_load(ptr, order)
-    local new::T
-    while !success
+    old = atomic_load(ptr, order)
+    while true
+        expected = old
         new = op(expected, x)
-        expected, success = atomic_cas!(ptr, expected, new, order, monotonic)
+        old = atomic_cas!(ptr, expected, new, order, monotonic)
+        if old === expected
+            return expected => new
+        end
     end
-    return expected => new
 end
 
 @inline function Atomix.modify!(ref::CuIndexableRef, op::OP, x, order) where {OP}
