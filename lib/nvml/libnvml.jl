@@ -504,6 +504,7 @@ const nvmlGpuTopologyLevel_t = nvmlGpuLevel_enum
 @cenum nvmlGpuP2PStatus_enum::UInt32 begin
     NVML_P2P_STATUS_OK = 0
     NVML_P2P_STATUS_CHIPSET_NOT_SUPPORED = 1
+    NVML_P2P_STATUS_CHIPSET_NOT_SUPPORTED = 1
     NVML_P2P_STATUS_GPU_NOT_SUPPORTED = 2
     NVML_P2P_STATUS_IOH_TOPOLOGY_NOT_SUPPORTED = 3
     NVML_P2P_STATUS_DISABLED_BY_REGKEY = 4
@@ -659,14 +660,14 @@ end
     NVML_THERMAL_CONTROLLER_UNKNOWN = -1
 end
 
-struct var"##Ctag#5897"
+struct var"##Ctag#378"
     controller::nvmlThermalController_t
     defaultMinTemp::Cint
     defaultMaxTemp::Cint
     currentTemp::Cint
     target::nvmlThermalTarget_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#5897"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#378"}, f::Symbol)
     f === :controller && return Ptr{nvmlThermalController_t}(x + 0)
     f === :defaultMinTemp && return Ptr{Cint}(x + 4)
     f === :defaultMaxTemp && return Ptr{Cint}(x + 8)
@@ -675,14 +676,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#5897"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#5897", f::Symbol)
-    r = Ref{var"##Ctag#5897"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#5897"}, r)
+function Base.getproperty(x::var"##Ctag#378", f::Symbol)
+    r = Ref{var"##Ctag#378"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#378"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#5897"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#378"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -692,7 +693,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol)
     f === :count && return Ptr{Cuint}(x + 0)
-    f === :sensor && return Ptr{NTuple{3,var"##Ctag#5897"}}(x + 4)
+    f === :sensor && return Ptr{NTuple{3,var"##Ctag#378"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -941,7 +942,9 @@ const nvmlVgpuDriverCapability_t = nvmlVgpuDriverCapability_enum
     NVML_DEVICE_VGPU_CAP_FRACTIONAL_MULTI_VGPU = 0
     NVML_DEVICE_VGPU_CAP_HETEROGENEOUS_TIMESLICE_PROFILES = 1
     NVML_DEVICE_VGPU_CAP_HETEROGENEOUS_TIMESLICE_SIZES = 2
-    NVML_DEVICE_VGPU_CAP_COUNT = 3
+    NVML_DEVICE_VGPU_CAP_READ_DEVICE_BUFFER_BW = 3
+    NVML_DEVICE_VGPU_CAP_WRITE_DEVICE_BUFFER_BW = 4
+    NVML_DEVICE_VGPU_CAP_COUNT = 5
 end
 
 const nvmlDeviceVgpuCapability_t = nvmlDeviceVgpuCapability_enum
@@ -972,99 +975,6 @@ end
 
 const nvmlVgpuProcessUtilizationSample_t = nvmlVgpuProcessUtilizationSample_st
 
-struct nvmlVgpuSchedulerParams_t
-    data::NTuple{8,UInt8}
-end
-
-function Base.getproperty(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#5895"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#5896"}(x + 0)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::nvmlVgpuSchedulerParams_t, f::Symbol)
-    r = Ref{nvmlVgpuSchedulerParams_t}(x)
-    ptr = Base.unsafe_convert(Ptr{nvmlVgpuSchedulerParams_t}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct nvmlVgpuSchedulerLogEntries_st
-    timestamp::Culonglong
-    timeRunTotal::Culonglong
-    timeRun::Culonglong
-    swRunlistId::Cuint
-    targetTimeSlice::Culonglong
-    cumulativePreemptionTime::Culonglong
-end
-
-const nvmlVgpuSchedulerLogEntry_t = nvmlVgpuSchedulerLogEntries_st
-
-struct nvmlVgpuSchedulerLog_st
-    engineId::Cuint
-    schedulerPolicy::Cuint
-    isEnabledARR::Cuint
-    schedulerParams::nvmlVgpuSchedulerParams_t
-    entriesCount::Cuint
-    logEntries::NTuple{200,nvmlVgpuSchedulerLogEntry_t}
-end
-
-const nvmlVgpuSchedulerLog_t = nvmlVgpuSchedulerLog_st
-
-struct nvmlVgpuSchedulerGetState_st
-    schedulerPolicy::Cuint
-    isEnabledARR::Cuint
-    schedulerParams::nvmlVgpuSchedulerParams_t
-end
-
-const nvmlVgpuSchedulerGetState_t = nvmlVgpuSchedulerGetState_st
-
-struct nvmlVgpuSchedulerSetParams_t
-    data::NTuple{8,UInt8}
-end
-
-function Base.getproperty(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#5898"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#5899"}(x + 0)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::nvmlVgpuSchedulerSetParams_t, f::Symbol)
-    r = Ref{nvmlVgpuSchedulerSetParams_t}(x)
-    ptr = Base.unsafe_convert(Ptr{nvmlVgpuSchedulerSetParams_t}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct nvmlVgpuSchedulerSetState_st
-    schedulerPolicy::Cuint
-    enableARRMode::Cuint
-    schedulerParams::nvmlVgpuSchedulerSetParams_t
-end
-
-const nvmlVgpuSchedulerSetState_t = nvmlVgpuSchedulerSetState_st
-
-struct nvmlVgpuSchedulerCapabilities_st
-    supportedSchedulers::NTuple{3,Cuint}
-    maxTimeslice::Cuint
-    minTimeslice::Cuint
-    isArrModeSupported::Cuint
-    maxFrequencyForARR::Cuint
-    minFrequencyForARR::Cuint
-    maxAvgFactorForARR::Cuint
-    minAvgFactorForARR::Cuint
-end
-
-const nvmlVgpuSchedulerCapabilities_t = nvmlVgpuSchedulerCapabilities_st
-
 struct nvmlProcessUtilizationSample_st
     pid::Cuint
     timeStamp::Culonglong
@@ -1091,13 +1001,13 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"##Ctag#5900"
+struct var"##Ctag#379"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
     decThreshold::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#5900"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#379"}, f::Symbol)
     f === :bIsPresent && return Ptr{Cuint}(x + 0)
     f === :percentage && return Ptr{Cuint}(x + 4)
     f === :incThreshold && return Ptr{Cuint}(x + 8)
@@ -1105,14 +1015,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#5900"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#5900", f::Symbol)
-    r = Ref{var"##Ctag#5900"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#5900"}, r)
+function Base.getproperty(x::var"##Ctag#379", f::Symbol)
+    r = Ref{var"##Ctag#379"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#379"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#5900"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#379"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1122,7 +1032,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
-    f === :utilization && return Ptr{NTuple{8,var"##Ctag#5900"}}(x + 4)
+    f === :utilization && return Ptr{NTuple{8,var"##Ctag#379"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -2714,30 +2624,6 @@ end
                                                        bufferSize::Ptr{Cuint})::nvmlReturn_t
 end
 
-@checked function nvmlDeviceGetVgpuSchedulerLog(device, pSchedulerLog)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceGetVgpuSchedulerLog(device::nvmlDevice_t,
-                                                     pSchedulerLog::Ptr{nvmlVgpuSchedulerLog_t})::nvmlReturn_t
-end
-
-@checked function nvmlDeviceGetVgpuSchedulerState(device, pSchedulerState)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceGetVgpuSchedulerState(device::nvmlDevice_t,
-                                                       pSchedulerState::Ptr{nvmlVgpuSchedulerGetState_t})::nvmlReturn_t
-end
-
-@checked function nvmlDeviceSetVgpuSchedulerState(device, pSchedulerState)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceSetVgpuSchedulerState(device::nvmlDevice_t,
-                                                       pSchedulerState::Ptr{nvmlVgpuSchedulerSetState_t})::nvmlReturn_t
-end
-
-@checked function nvmlDeviceGetVgpuSchedulerCapabilities(device, pCapabilities)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceGetVgpuSchedulerCapabilities(device::nvmlDevice_t,
-                                                              pCapabilities::Ptr{nvmlVgpuSchedulerCapabilities_t})::nvmlReturn_t
-end
-
 @checked function nvmlGetVgpuVersion(supported, current)
     initialize_context()
     @ccall (libnvml()).nvmlGetVgpuVersion(supported::Ptr{nvmlVgpuVersion_t},
@@ -3207,26 +3093,26 @@ mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"##Ctag#5901"
+struct var"##Ctag#380"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
 end
-function Base.getproperty(x::Ptr{var"##Ctag#5901"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#380"}, f::Symbol)
     f === :shortName && return Ptr{Cstring}(x + 0)
     f === :longName && return Ptr{Cstring}(x + 8)
     f === :unit && return Ptr{Cstring}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#5901", f::Symbol)
-    r = Ref{var"##Ctag#5901"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#5901"}, r)
+function Base.getproperty(x::var"##Ctag#380", f::Symbol)
+    r = Ref{var"##Ctag#380"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#380"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#5901"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#380"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3238,7 +3124,7 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :metricId && return Ptr{Cuint}(x + 0)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
-    f === :metricInfo && return Ptr{var"##Ctag#5901"}(x + 16)
+    f === :metricInfo && return Ptr{var"##Ctag#380"}(x + 16)
     return getfield(x, f)
 end
 
@@ -3323,89 +3209,9 @@ const nvmlNvLinkPowerThres_t = nvmlNvLinkPowerThres_st
                                                                   info::Ptr{nvmlNvLinkPowerThres_t})::nvmlReturn_t
 end
 
-struct var"##Ctag#5895"
-    avgFactor::Cuint
-    timeslice::Cuint
-end
-function Base.getproperty(x::Ptr{var"##Ctag#5895"}, f::Symbol)
-    f === :avgFactor && return Ptr{Cuint}(x + 0)
-    f === :timeslice && return Ptr{Cuint}(x + 4)
-    return getfield(x, f)
-end
+const NVML_API_VERSION = 12
 
-function Base.getproperty(x::var"##Ctag#5895", f::Symbol)
-    r = Ref{var"##Ctag#5895"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#5895"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#5895"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#5896"
-    timeslice::Cuint
-end
-function Base.getproperty(x::Ptr{var"##Ctag#5896"}, f::Symbol)
-    f === :timeslice && return Ptr{Cuint}(x + 0)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#5896", f::Symbol)
-    r = Ref{var"##Ctag#5896"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#5896"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#5896"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#5898"
-    avgFactor::Cuint
-    frequency::Cuint
-end
-function Base.getproperty(x::Ptr{var"##Ctag#5898"}, f::Symbol)
-    f === :avgFactor && return Ptr{Cuint}(x + 0)
-    f === :frequency && return Ptr{Cuint}(x + 4)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#5898", f::Symbol)
-    r = Ref{var"##Ctag#5898"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#5898"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#5898"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#5899"
-    timeslice::Cuint
-end
-function Base.getproperty(x::Ptr{var"##Ctag#5899"}, f::Symbol)
-    f === :timeslice && return Ptr{Cuint}(x + 0)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#5899", f::Symbol)
-    r = Ref{var"##Ctag#5899"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#5899"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#5899"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-const NVML_API_VERSION = 11
-
-const NVML_API_VERSION_STR = "11"
+const NVML_API_VERSION_STR = "12"
 
 const NVML_VALUE_NOT_AVAILABLE = -1
 
@@ -3468,18 +3274,6 @@ const NVML_VGPU_PGPU_VIRTUALIZATION_CAP_MIGRATION = 0:0
 const NVML_VGPU_PGPU_VIRTUALIZATION_CAP_MIGRATION_NO = 0x00
 
 const NVML_VGPU_PGPU_VIRTUALIZATION_CAP_MIGRATION_YES = 0x01
-
-const NVML_VGPU_SCHEDULER_POLICY_UNKNOWN = 0
-
-const NVML_VGPU_SCHEDULER_POLICY_BEST_EFFORT = 1
-
-const NVML_VGPU_SCHEDULER_POLICY_EQUAL_SHARE = 2
-
-const NVML_VGPU_SCHEDULER_POLICY_FIXED_SHARE = 3
-
-const NVML_SUPPORTED_VGPU_SCHEDULER_POLICY_COUNT = 3
-
-const NVML_SCHEDULER_SW_MAX_LOG_ENTRIES = 200
 
 const NVML_GRID_LICENSE_STATE_UNKNOWN = 0
 
@@ -3889,7 +3683,7 @@ const NVML_FI_DEV_NVLINK_GET_POWER_THRESHOLD = 168
 
 const NVML_FI_DEV_PCIE_L0_TO_RECOVERY_COUNTER = 169
 
-const NVML_FI_MAX = 170
+const NVML_FI_MAX = 173
 
 const nvmlEventTypeSingleBitEccError = Clonglong(0x0000000000000001)
 
