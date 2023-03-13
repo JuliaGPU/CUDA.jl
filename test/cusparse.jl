@@ -937,7 +937,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
             A = sprand(T, 50, 50, 0.03)
             A = A + A'
             dA = SparseMatrixType(A)
-            ncolors, coloring, reordering = color(dA)
+            ncolors, coloring, reordering = color(dA, 'O')
             @test 1 ≤ ncolors ≤ 50
             @test maximum(coloring) == ncolors
             @test minimum(reordering) == 1
@@ -958,7 +958,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
             # {1, 3, 4} and another one for {2, 5}.
             @testset "5x5 example -- color $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 dA = SparseMatrixType{T}(A)
-                ncolors, coloring, reordering = color(dA)
+                ncolors, coloring, reordering = color(dA, 'O')
                 @test ncolors == 2
                 @test minimum(reordering) == 1
                 @test maximum(reordering) == 5

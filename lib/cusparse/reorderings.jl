@@ -3,8 +3,8 @@
 export color
 
 """
-    color(A::CuSparseMatrixCSC, index::SparseChar='O'; percentage::Number=1.0)
-    color(A::CuSparseMatrixCSR, index::SparseChar='O'; percentage::Number=1.0)
+    color(A::CuSparseMatrixCSC, index::SparseChar; percentage::Number=1.0)
+    color(A::CuSparseMatrixCSR, index::SparseChar; percentage::Number=1.0)
 
 This function performs the coloring of the adjacency graph associated with the matrix A.
 The coloring is an assignment of colors (integer numbers) to nodes, such that neighboring nodes have distinct colors.
@@ -22,7 +22,7 @@ for (fname, subty, elty) in ((:cusparseScsrcolor, :Float32, :Float32),
                              (:cusparseCcsrcolor, :Float32, :ComplexF32),
                              (:cusparseZcsrcolor, :Float64, :ComplexF64))
     @eval begin
-        function color(A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}}, index::SparseChar='O'; percentage::Number=1.0)
+        function color(A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}}, index::SparseChar; percentage::Number=1.0)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m, n = size(A)
             (m != n) && throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
