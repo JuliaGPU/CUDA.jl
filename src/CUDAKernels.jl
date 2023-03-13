@@ -251,4 +251,38 @@ Adapt.adapt_storage(to::ConstAdaptor, a::CUDA.CuDeviceArray) = Base.Experimental
 # Argument conversion
 KernelAbstractions.argconvert(k::Kernel{CUDABackend}, arg) = CUDA.cudaconvert(arg)
 
+##
+# Priority
+##
+
+function KernelAbstractions.priority!(::CUDABackend, prio::Symbol)
+    if !(prio in (:high, :normal, :low))
+        error("priority must be one of :high, :normal, :low")
+    end
+    return nothing
+
+    range = CUDA.priority_range()
+    # 0:-1:-5
+    # lower number is higher priority, default is 0
+    # there is no "low"
+    if prio === :high
+        priority = last(range)
+    elseif prio === :normal || prio === :low
+        priority = first(range)
+    end
+
+    old_stream = stream()
+    r_flags = Ref{Cuint}()
+    CUDA.cuStreamGetFlags(old_stream, r_flags)
+    flags = r_flags[]
+
+    event = CUDA.CuEvent(CUDA.EVENT_DISABLE_TIMING)
+    CUDA.record(event, old_stream)
+
+    @debug "Switching default stream" flags priority
+    new_stream = CuStream(; flags, priority))
+    CUDA.wait(event, new_stream)
+    stream!(new_stream)
+end
+
 end
