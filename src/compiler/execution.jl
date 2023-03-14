@@ -296,17 +296,17 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function cufunction(f::F, tt::TT=Tuple{}; name=nothing, always_inline=false, kwargs...) where {F,TT}
+function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
     cuda = active_state()
+
+    # compile the function
     cache = cufunction_cache(cuda.context)
-    target = CUDACompilerTarget(cuda.device; kwargs...)
-    params = CUDACompilerParams()
-    config = CompilerConfig(target, params; kernel=true, name, always_inline)
+    config = cufunction_compiler(cuda.device; kwargs...)::CUDACompilerConfig
     fun = GPUCompiler.cached_compilation(cache, config, F, tt,
-                                         cufunction_compile,
-                                         cufunction_link)
-    # compilation is cached on the function type, so we can only create a kernel object here
-    # (as it captures the function _instance_). this allocates, so use another cache level.
+                                         cufunction_compile, cufunction_link)
+
+    # create a callable object that captures the function instance. we don't need to think
+    # about world age here, as GPUCompiler already does and will return a different object
     h = hash(fun, hash(f, hash(tt)))
     kernel = get(_cufunction_kernel_cache, h, nothing)
     if kernel === nothing
@@ -329,6 +329,23 @@ function cufunction_cache(ctx::CuContext)
         _cufunction_cache[ctx] = subcache
     end
     return subcache
+end
+
+const _cufunction_compiler_cache = Dict{UInt, CUDACompilerConfig}()
+function cufunction_compiler(dev; kwargs...)
+    h = hash(dev, hash(kwargs))
+    config = get(_cufunction_compiler_cache, h, nothing)
+    if config === nothing
+        config = cufunction_compiler_create(dev; kwargs...)
+        _cufunction_compiler_cache[h] = config
+    end
+    return config
+end
+@noinline function cufunction_compiler_create(dev; name=nothing, always_inline=false, kwargs...)
+    # TODO: merge with `device_properties`
+    target = CUDACompilerTarget(dev; kwargs...)
+    params = CUDACompilerParams()
+    CompilerConfig(target, params; kernel=true, name, always_inline)
 end
 
 const _cufunction_kernel_cache = Dict{UInt, Any}();

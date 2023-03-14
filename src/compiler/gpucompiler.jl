@@ -51,7 +51,8 @@ end
 
 struct CUDACompilerParams <: AbstractCompilerParams end
 
-CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
+const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
+const CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
 
 GPUCompiler.runtime_module(@nospecialize(job::CUDACompilerJob)) = CUDA
 
