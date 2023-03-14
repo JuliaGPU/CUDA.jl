@@ -131,11 +131,11 @@ function atomic_thread_fence(order, scope::DeviceScope=device_scope)
             throw(AtomicOrderUnsupported(order))
         end
     else
-        if order == seq_cst() ||
-           order == consume() ||
-           order == acquire() ||
-           order == acq_rel() ||
-           order == release()
+        if order == seq_cst ||
+           order == consume ||
+           order == acquire ||
+           order == acq_rel ||
+           order == release
 
             threadfence_device()
         else
