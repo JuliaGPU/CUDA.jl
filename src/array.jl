@@ -355,9 +355,9 @@ CuArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(xs)
 (::Type{CuArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = CuArray{S,N}(x)
 CuArray(A::AbstractArray{T,N}) where {T,N} = CuArray{T,N}(A)
 
-# idempotency
-CuArray{T,N,B}(xs::CuArray{T,N,B}) where {T,N,B} = xs
-CuArray{T,N}(xs::CuArray{T,N,B}) where {T,N,B} = xs
+# copy xs to match Array behavior
+CuArray{T,N,B}(xs::CuArray{T,N,B}) where {T,N,B} = copy(xs)
+CuArray{T,N}(xs::CuArray{T,N,B}) where {T,N,B} = copy(xs)
 
 
 ## conversions
