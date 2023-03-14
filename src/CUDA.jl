@@ -67,7 +67,7 @@ include("../lib/cupti/CUPTI.jl")
 export CUPTI
 
 # compiler implementation
-include("compiler/gpucompiler.jl")
+include("compiler/compilation.jl")
 include("compiler/execution.jl")
 include("compiler/exceptions.jl")
 include("compiler/reflection.jl")
