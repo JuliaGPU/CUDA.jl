@@ -259,7 +259,6 @@ function KernelAbstractions.priority!(::CUDABackend, prio::Symbol)
     if !(prio in (:high, :normal, :low))
         error("priority must be one of :high, :normal, :low")
     end
-    return nothing
 
     range = CUDA.priority_range()
     # 0:-1:-5
@@ -280,9 +279,10 @@ function KernelAbstractions.priority!(::CUDABackend, prio::Symbol)
     CUDA.record(event, old_stream)
 
     @debug "Switching default stream" flags priority
-    new_stream = CuStream(; flags, priority))
+    new_stream = CuStream(; flags, priority)
     CUDA.wait(event, new_stream)
     stream!(new_stream)
+    return nothing
 end
 
 end
