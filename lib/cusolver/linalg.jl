@@ -2,7 +2,7 @@
 
 using LinearAlgebra
 using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
-using ..CUBLAS: CublasFloat, trsm!
+using ..CUBLAS: CublasFloat
 
 function copy_cublasfloat(As...)
     eltypes = eltype.(As)
@@ -53,7 +53,7 @@ function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
     else
         # QR decomposition
         F, tau = CUSOLVER.geqrf!(A)  # A = QR
-        CUSOLVER.ormqr!('L', T <: Real ? 'T' : 'C', F, tau, B)
+        CUSOLVER.ormqr!('L', 'C', F, tau, B)
         if B isa CuVector{T}
             X = B[1:m]
             CUBLAS.trsv!('U', 'N', 'N', view(F,1:m,1:m), X)
