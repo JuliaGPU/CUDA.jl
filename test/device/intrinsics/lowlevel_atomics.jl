@@ -6,8 +6,7 @@ using BFloat16s: BFloat16
     if capability(device()) >= v"6.0"
         types = [Int8, Int16, Int32, Int64, 
                  UInt8, UInt16, UInt32, UInt64,
-                 Float64, Float32]
-        # TODO Float16
+                 BFloat16, Float16, Float64, Float32]
         scopes = [CUDA.block_scope, CUDA.device_scope, CUDA.system_scope]
         orders = [CUDA.monotonic, CUDA.acquire, CUDA.seq_cst]
 
@@ -28,8 +27,7 @@ end
     if capability(device()) >= v"6.0"
         types = [Int8, Int16, Int32, Int64, 
                  UInt8, UInt16, UInt32, UInt64,
-                 Float64, Float32]
-        # TODO Float16
+                 BFloat16, Float16, Float64, Float32]
         scopes = [CUDA.block_scope, CUDA.device_scope, CUDA.system_scope]
         orders = [CUDA.monotonic, CUDA.release, CUDA.seq_cst]
 
