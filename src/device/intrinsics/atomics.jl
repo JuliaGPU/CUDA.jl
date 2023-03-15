@@ -453,6 +453,9 @@ end
     if order == acq_rel || order == release
         throw(AtomicOrderUnsupported(order))
     end
+    if sizeof(T) > 8
+        throw(AtomicUnsupported{T}())
+    end
     if compute_capability() >= sv"7.0"
         if order == monotonic
             val = __load(ptr, monotonic, scope)
@@ -508,6 +511,9 @@ end
 @inline function atomic_store!(ptr::LLVMPtr{T}, val::T, order, scope::SyncScope=device_scope) where T
     if order == acq_rel || order == acquire # || order == consume
         throw(AtomicOrderUnsupported(order))
+    end
+    if sizeof(T) > 8
+        throw(AtomicUnsupported{T}())
     end
     if compute_capability() >= sv"7.0"
         if order == release
@@ -577,16 +583,19 @@ for (scope, A, sz) in Iterators.product(
                                 (2, 4, 8))
     instruction = "atom$(addr_space(A)).cas.$(asm(scope)).$(suffix(sz)) \$0, [\$1], \$2, \$3;"
     constraint  = "=$(reg(sz)),l,$(reg(sz)),$(reg(sz)),~{memory}"
-    @eval @inline __cas!(::Val{$sz}, ptr::LLVMPtr{T, $A}, old::T, new::T, ::$scope) where {T} =
+    @eval @inline __cas_old!(::Val{$sz}, ptr::LLVMPtr{T, $A}, old::T, new::T, ::$scope) where {T} =
         @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
 end
 
-@inline __cas!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T =
-    __cas!(Val(sizeof(T)), ptr, old, new, scope)
+@inline __cas_old!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T =
+    __cas_old!(Val(sizeof(T)), ptr, old, new, scope)
 
 @inline function atomic_cas!(ptr::LLVMPtr{T}, expected::T, new::T, success_order, failure_order, scope::SyncScope=device_scope) where T
     order = stronger_order(success_order, failure_order)
-    if compute_capability() >= sv"7.0" && 2 <= sizeof(T) <= 4
+    if sizeof(T) > 8 || sizeof(T) < 2
+        throw(AtomicUnsupported{T}())
+    end
+    if compute_capability() >= sv"7.0" && 4 <= sizeof(T) <= 8
         if order == seq_cst
             atomic_thread_fence(seq_cst, scope)
         end
@@ -598,7 +607,7 @@ end
         if order == seq_cst || order == acq_rel || order == release
             atomic_thread_fence(seq_cst, scope)
         end
-        old = __cas!(ptr, expected, new, scope)
+        old = __cas_old!(ptr, expected, new, scope)
         if order == seq_cst || order == acq_rel || order == acquire # order == consume
             atomic_thread_fence(seq_cst, scope)
         end

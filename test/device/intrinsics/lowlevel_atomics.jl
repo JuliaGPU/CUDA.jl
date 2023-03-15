@@ -51,7 +51,6 @@ end
                  UInt32, UInt64,
                  Float64, Float32]
         scopes = [CUDA.block_scope, CUDA.device_scope, CUDA.system_scope]
-        # TODO unordered
         orders = [CUDA.monotonic, CUDA.release, CUDA.seq_cst, CUDA.acquire, CUDA.acq_rel]
 
         function kernel(a, expected, desired, success_order, failure_order, scope)
