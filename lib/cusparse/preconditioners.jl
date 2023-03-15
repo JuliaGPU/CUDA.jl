@@ -1,14 +1,34 @@
 # routines that implement different preconditioners
 
-export ic02!, ic02, ilu02!, ilu02
+export ic02!, ic02, ilu02!, ilu02, gtsv2!, gtsv2
 
 """
-    ic02!(A::CuSparseMatrix, index::SparseChar)
+    ic02!(A::CuSparseMatrix, index::SparseChar='O')
 
 Incomplete Cholesky factorization with no pivoting.
 Preserves the sparse layout of matrix `A`.
 """
-ic02!(A::CuSparseMatrix, index::SparseChar)
+function ic02! end
+
+"""
+    ilu02!(A::CuSparseMatrix, index::SparseChar='O')
+
+Incomplete LU factorization with no pivoting.
+Preserves the sparse layout of matrix `A`.
+"""
+function ilu02! end
+
+"""
+    gtsv2!(dl::CuVector, d::CuVector, du::CuVector, B::CuVecOrMat, index::SparseChar='O'; pivoting::Bool=true)
+
+Solve the linear system `A * X = B` where `A` is a tridiagonal matrix defined
+by three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) diagonals.
+With `pivoting`, the solution is more accurate but also more expensive.
+Note that the solution `X` overwrites the right-hand side `B`.
+"""
+function gtsv2! end
+
+# csric02
 for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric02_analysis, :cusparseScsric02, :Float32),
                                  (:cusparseDcsric02_bufferSize, :cusparseDcsric02_analysis, :cusparseDcsric02, :Float64),
                                  (:cusparseCcsric02_bufferSize, :cusparseCcsric02_analysis, :cusparseCcsric02, :ComplexF32),
@@ -88,13 +108,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
     end
 end
 
-"""
-    ilu02!(A::CuSparseMatrix, index::SparseChar)
-
-Incomplete LU factorization with no pivoting.
-Preserves the sparse layout of matrix `A`.
-"""
-ilu02!(A::CuSparseMatrix, index::SparseChar)
+# csrilu02
 for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsrilu02_analysis, :cusparseScsrilu02, :Float32),
                                  (:cusparseDcsrilu02_bufferSize, :cusparseDcsrilu02_analysis, :cusparseDcsrilu02, :Float64),
                                  (:cusparseCcsrilu02_bufferSize, :cusparseCcsrilu02_analysis, :cusparseCcsrilu02, :ComplexF32),
@@ -277,6 +291,52 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         function ic02(A::HermOrSym{$elty,CuSparseMatrix{$elty}}, index::SparseChar='O')
             isa(A, CuSparseMatrixCOO) && throw(ErrorException("IC(0) decomposition of CuSparseMatrixCOO is not supported by the current CUDA version."))
             ic02!(copy(A.data),index)
+        end
+    end
+end
+
+# gtsv2
+for (bname_pivot,fname_pivot,bname_nopivot,fname_nopivot,elty) in ((:cusparseSgtsv2_bufferSizeExt, :cusparseSgtsv2, :cusparseSgtsv2_nopivot_bufferSizeExt, :cusparseSgtsv2_nopivot, :Float32),
+                                                                   (:cusparseDgtsv2_bufferSizeExt, :cusparseDgtsv2, :cusparseDgtsv2_nopivot_bufferSizeExt, :cusparseDgtsv2_nopivot, :Float64),
+                                                                   (:cusparseCgtsv2_bufferSizeExt, :cusparseCgtsv2, :cusparseCgtsv2_nopivot_bufferSizeExt, :cusparseCgtsv2_nopivot, :ComplexF32),
+                                                                   (:cusparseZgtsv2_bufferSizeExt, :cusparseZgtsv2, :cusparseZgtsv2_nopivot_bufferSizeExt, :cusparseZgtsv2_nopivot, :ComplexF64))
+    @eval begin
+        function gtsv2!(dl::CuVector{$elty}, d::CuVector{$elty}, du::CuVector{$elty}, B::CuVecOrMat{$elty}, index::SparseChar='O'; pivoting::Bool=true)
+            ml = length(dl)
+            m = length(d)
+            mu = length(du)
+            mB = size(B,1)
+            (m ≤ 2) && throw(DimensionMismatch("The size of the linear system must be at least 3."))
+            !(ml == m == mu) && throw(DimensionMismatch("(dl, d, du) must have the same length, the size of the vectors is ($ml,$m,$mu)!"))
+            (m != mB) && throw(DimensionMismatch("The tridiagonal matrix and the right-hand side B have inconsistent dimensions ($m != $mB)!"))
+            n = size(B,2)
+            ldb = max(1,stride(B,2))
+
+            function bufferSize()
+                out = Ref{Csize_t}(1)
+                if pivoting
+                    $bname_pivot(handle(), m, n, dl, d, du, B, ldb, out)
+                else
+                    $bname_nopivot(handle(), m, n, dl, d, du, B, ldb, out)
+                end
+                return out[]
+            end
+            with_workspace(bufferSize) do buffer
+                if pivoting
+                    $fname_pivot(handle(), m, n, dl, d, du, B, ldb, buffer)
+                else
+                    $fname_nopivot(handle(), m, n, dl, d, du, B, ldb, buffer)
+                end
+            end
+            B
+        end
+    end
+end
+
+for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
+    @eval begin
+        function gtsv2(dl::CuVector{$elty}, d::CuVector{$elty}, du::CuVector{$elty}, B::CuVecOrMat{$elty}, index::SparseChar='O'; pivoting::Bool=true)
+            gtsv2!(dl, d, du, copy(B), index; pivoting)
         end
     end
 end
