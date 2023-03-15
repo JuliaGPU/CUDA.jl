@@ -503,7 +503,7 @@ end
 
 # Could be done using LLVM.
 @inline __store_volatile!(ptr::LLVMPtr{T}, val::T) where {T} =
-    __store_volatile(Val(sizeof(T)), ptr, val)
+    __store_volatile!(Val(sizeof(T)), ptr, val)
 
 @inline function atomic_store!(ptr::LLVMPtr{T}, val::T, order, scope::SyncScope=device_scope) where T
     if order == acq_rel || order == acquire # || order == consume
