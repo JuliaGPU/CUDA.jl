@@ -761,7 +761,7 @@ end
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
         LinearAlgebra.LAPACK.potrf!(uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.potrf!(uplo, A)
-        LinearAlgebra.LAPACK.potrs!(uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuVecOrMat{$elty}) = CUSOLVER.potrs!(uplo, A)
+        LinearAlgebra.LAPACK.potrs!(uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuVecOrMat{$elty}) = CUSOLVER.potrs!(uplo, A, B)
         LinearAlgebra.LAPACK.potri!(uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.potri!(uplo, A)
         LinearAlgebra.LAPACK.getrf!(A::StridedCuMatrix{$elty}) = CUSOLVER.getrf!(A)
         LinearAlgebra.LAPACK.geqrf!(A::StridedCuMatrix{$elty}) = CUSOLVER.geqrf!(A)
