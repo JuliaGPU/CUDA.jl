@@ -1,7 +1,6 @@
 
 using LinearAlgebra
 using LinearAlgebra: BlasInt, checksquare
-using LinearAlgebra.BLAS: chkuplo
 using LinearAlgebra.LAPACK: chkargsok, chklapackerror, chktrans, chkside, chkdiag
 
 using ..CUBLAS: unsafe_batch
@@ -22,7 +21,6 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
         function potrf!(uplo::Char,
                         A::StridedCuMatrix{$elty})
             n = checksquare(A)
-            chkuplo(uplo)
             lda = max(1, stride(A, 2))
 
             function bufferSize()
@@ -55,7 +53,6 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
                         A::StridedCuMatrix{$elty},
                         B::StridedCuVecOrMat{$elty})
             n = checksquare(A)
-            chkuplo(uplo)
             if size(B, 1) != n
                 throw(DimensionMismatch("first dimension of B, $(size(B,1)), must match second dimension of A, $n"))
             end
@@ -83,7 +80,6 @@ for (bname, fname,elty) in ((:cusolverDnSpotri_bufferSize, :cusolverDnSpotri, :F
         function potri!(uplo::Char,
                         A::StridedCuMatrix{$elty})
             n = checksquare(A)
-            chkuplo(uplo)
             lda = max(1, stride(A, 2))
 
             function bufferSize()
@@ -177,7 +173,6 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
         function sytrf!(uplo::Char,
                         A::StridedCuMatrix{$elty})
             n = checksquare(A)
-            chkuplo(uplo)
             lda = max(1, stride(A, 2))
 
             function bufferSize()
@@ -492,7 +487,6 @@ for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSiz
         function $jname(jobz::Char,
                         uplo::Char,
                         A::StridedCuMatrix{$elty})
-            chkuplo(uplo)
             n       = checksquare(A)
             lda     = max(1, stride(A, 2))
             W       = CuArray{$relty}(undef, n)
@@ -532,7 +526,6 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
                         uplo::Char,
                         A::StridedCuMatrix{$elty},
                         B::StridedCuMatrix{$elty})
-            chkuplo(uplo)
             nA, nB  = checksquare(A, B)
             if nB != nA
                 throw(DimensionMismatch("Dimensions of A ($nA, $nA) and B ($nB, $nB) must match!"))
@@ -579,7 +572,6 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
                         B::StridedCuMatrix{$elty};
                         tol::$relty=eps($relty),
                         max_sweeps::Int=100)
-            chkuplo(uplo)
             nA, nB  = checksquare(A, B)
             if nB != nA
                 throw(DimensionMismatch("Dimensions of A ($nA, $nA) and B ($nB, $nB) must match!"))
@@ -634,7 +626,6 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
 
             # Set up information for the solver arguments
             n       = checksquare(A)
-            chkuplo(uplo)
             lda     = max(1, stride(A, 2))
             batchSize = size(A,3)
             W       = CuArray{$relty}(undef, n,batchSize)
@@ -691,7 +682,6 @@ for (fname, elty) in ((:cusolverDnSpotrsBatched, :Float32),
             end
             # Set up information for the solver arguments
             n = checksquare(A[1])
-            chkuplo(uplo)
             if size(B[1], 1) != n
                 throw(DimensionMismatch("first dimension of B[i], $(size(B[1],1)), must match second dimension of A, $n"))
             end
@@ -730,7 +720,6 @@ for (fname, elty) in ((:cusolverDnSpotrfBatched, :Float32),
 
             # Set up information for the solver arguments
             n = checksquare(A[1])
-            chkuplo(uplo)
             lda = max(1, stride(A[1], 2))
             batchSize = length(A)
             devinfo = CuArray{Cint}(undef, batchSize)
