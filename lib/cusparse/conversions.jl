@@ -227,7 +227,7 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
 end
 
 # by flipping rows and columns, we can use that to get CSC to CSR too
-for elty in (Float32, Float64, ComplexF32, ComplexF64)
+for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
         function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; index::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1)
             m,n = size(csr)

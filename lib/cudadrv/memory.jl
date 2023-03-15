@@ -388,8 +388,8 @@ end
 
 ## copy operations
 
-for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", CuPtr, Ptr),
-                                 ("cuMemcpyHtoDAsync_v2", Ptr,   CuPtr),
+for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", :CuPtr, :Ptr),
+                                 ("cuMemcpyHtoDAsync_v2", :Ptr,   :CuPtr),
                                  )
     @eval function Base.unsafe_copyto!(dst::$dstPtrTy{T}, src::$srcPtrTy{T}, N::Integer;
                                        stream::CuStream=stream(),

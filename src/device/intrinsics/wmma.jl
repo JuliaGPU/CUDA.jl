@@ -193,7 +193,7 @@ for ops in all_ldst_ops,
 
     ccall_name = "$llvm_intr"
 
-    ptr_ty = LLVMPtr{arr_ty, addr_space_int}
+    ptr_ty = :(LLVMPtr{$arr_ty, $addr_space_int})
 
     if sz == 1
         @eval $func_name(src_addr, stride) = tuple(ccall($ccall_name, llvmcall, $frag_ty, ($ptr_ty, Int32), src_addr, stride))
@@ -261,7 +261,7 @@ export llvm_wmma_store
     frag_types = ntuple(i -> frag_ty, sz)
     frag_vars = ntuple(i -> :(data[$i]), sz)
 
-    ptr_ty = LLVMPtr{arr_ty, addr_space_int}
+    ptr_ty = :(LLVMPtr{$arr_ty, $addr_space_int})
 
     @eval $func_name(dst_addr, data, stride) = ccall($ccall_name, llvmcall, Nothing, ($ptr_ty, $(frag_types...), Int32), dst_addr, $(frag_vars...), stride)
     @eval export $func_name

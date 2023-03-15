@@ -85,7 +85,7 @@ for T in (Int32, Int64, UInt32, UInt64)
     end
 end
 
-for T in (Float32, Float64)
+for T in (:Float32, :Float64)
     ops = [:add]
 
     for op in ops
@@ -135,13 +135,13 @@ end
     end
 end
 
-for T in (Int32, Int64, UInt32, UInt64)
+for T in (:Int32, :Int64, :UInt32, :UInt64)
     @eval @inline atomic_cas!(ptr::LLVMPtr{$T}, cmp::$T, val::$T) =
         llvm_atomic_cas(ptr, cmp, val)
 end
 
 # NVPTX doesn't support cmpxchg with i16 yet
-for A in (AS.Generic, AS.Global, AS.Shared), T in (Int16, UInt16)
+for A in (AS.Generic, AS.Global, AS.Shared), T in (:Int16, :UInt16)
     if A == AS.Global
         scope = ".global"
     elseif A == AS.Shared
@@ -182,7 +182,7 @@ end
 
 # half-precision atomics using PTX instruction
 
-for A in (AS.Generic, AS.Global, AS.Shared), T in (Float16,)
+for A in (AS.Generic, AS.Global, AS.Shared), T in (:Float16,)
     if A == AS.Global
         scope = ".global"
     elseif A == AS.Shared
@@ -207,7 +207,7 @@ inttype(::Type{Float32}) = Int32
 inttype(::Type{Float64}) = Int64
 inttype(::Type{BFloat16}) = Int16
 
-for T in [Float16, Float32, Float64, BFloat16]
+for T in [:Float16, :Float32, :Float64, :BFloat16]
     @eval @inline function atomic_cas!(ptr::LLVMPtr{$T,A}, cmp::$T, new::$T) where {A}
         IT = inttype($T)
         cmp_i = reinterpret(IT, cmp)
@@ -445,13 +445,13 @@ end
     atomic_arrayset(A, Base._to_linear_index(A, Is...), op, convert(T, val))
 
 # native atomics
-for (op,impl,typ) in [(+,   atomic_add!, [UInt32,Int32,UInt64,Int64,Float32]),
-                      (-,   atomic_sub!, [UInt32,Int32,UInt64,Int64,Float32]),
-                      (&,   atomic_and!, [UInt32,Int32,UInt64,Int64]),
-                      (|,   atomic_or!,  [UInt32,Int32,UInt64,Int64]),
-                      (⊻,   atomic_xor!, [UInt32,Int32,UInt64,Int64]),
-                      (max, atomic_max!, [UInt32,Int32,UInt64,Int64]),
-                      (min, atomic_min!, [UInt32,Int32,UInt64,Int64])]
+for (op,impl,typ) in [(:(+), :(atomic_add!), [:UInt32,:Int32,:UInt64,:Int64,:Float32]),
+                      (:(-), :(atomic_sub!), [:UInt32,:Int32,:UInt64,:Int64,:Float32]),
+                      (:(&), :(atomic_and!), [:UInt32,:Int32,:UInt64,:Int64]),
+                      (:(|), :(atomic_or!),  [:UInt32,:Int32,:UInt64,:Int64]),
+                      (:(⊻), :(atomic_xor!), [:UInt32,:Int32,:UInt64,:Int64]),
+                      (:max, :(atomic_max!), [:UInt32,:Int32,:UInt64,:Int64]),
+                      (:min, :(atomic_min!), [:UInt32,:Int32,:UInt64,:Int64])]
     @eval @inline atomic_arrayset(A::AbstractArray{T}, I::Integer, ::typeof($op),
                                   val::T) where {T<:Union{$(typ...)}} =
         $impl(pointer(A, I), val)
