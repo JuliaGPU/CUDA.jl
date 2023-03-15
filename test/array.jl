@@ -11,7 +11,7 @@ import Adapt
   @test testf(vec, rand(5,3))
   @test cu(1:3) === 1:3
   @test Base.elsize(xs) == sizeof(Int)
-  @test CuArray{Int, 2}(xs) === xs
+  @test pointer(CuArray{Int, 2}(xs)) != pointer(xs)
 
   # test aggressive conversion to Float32, but only for floats, and only with `cu`
   @test cu([1]) isa CuArray{Int}
