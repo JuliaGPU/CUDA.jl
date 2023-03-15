@@ -2,7 +2,7 @@
 
 using LinearAlgebra
 using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
-using ..CUBLAS: CublasFloat
+using ..CUBLAS: CublasFloat, trsm!
 
 function copy_cublasfloat(As...)
     eltypes = eltype.(As)
@@ -20,17 +20,49 @@ _copywitheltype(::Type{T}, As...) where {T} = map(A -> copyto!(similar(A, T), A)
 
 # matrix division
 
-const CuMatOrAdj{T} = Union{CuMatrix,
+const CuMatOrAdj{T} = Union{CuMatrix{T},
                             LinearAlgebra.Adjoint{T, <:CuMatrix{T}},
                             LinearAlgebra.Transpose{T, <:CuMatrix{T}}}
-const CuOrAdj{T} = Union{CuVecOrMat,
+const CuOrAdj{T} = Union{CuVecOrMat{T},
                          LinearAlgebra.Adjoint{T, <:CuVecOrMat{T}},
                          LinearAlgebra.Transpose{T, <:CuVecOrMat{T}}}
 
 function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
     A, B = copy_cublasfloat(_A, _B)
-    A, ipiv = CUSOLVER.getrf!(A)
-    return CUSOLVER.getrs!('N', A, ipiv, B)
+    T = eltype(A)
+    n,m = size(A)
+    if n < m
+        # LQ decomposition
+        At = CuMatrix(A')
+        F, tau = CUSOLVER.geqrf!(At)  # A = RᴴQᴴ
+        if B isa CuVector{T}
+            CUBLAS.trsv!('U', 'C', 'N', view(F,1:n,1:n), B)
+            X = CUDA.zeros(T, m)
+            view(X, 1:n) .= B
+        else
+            CUBLAS.trsm!('L', 'U', 'C', 'N', one(T), view(F,1:n,1:n), B)
+            p = size(B, 2)
+            X = CUDA.zeros(T, m, p)
+            view(X, 1:n, :) .= B
+        end
+        CUSOLVER.ormqr!('L', 'N', F, tau, X)
+    elseif n == m
+        # LU decomposition with partial pivoting
+        F, p, info = CUSOLVER.getrf!(A)  # PA = LU
+        X = CUSOLVER.getrs!('N', F, p, B)
+    else
+        # QR decomposition
+        F, tau = CUSOLVER.geqrf!(A)  # A = QR
+        CUSOLVER.ormqr!('L', T <: Real ? 'T' : 'C', F, tau, B)
+        if B isa CuVector{T}
+            X = B[1:m]
+            CUBLAS.trsv!('U', 'N', 'N', view(F,1:m,1:m), X)
+        else
+            X = B[1:m,:]
+            CUBLAS.trsm!('L', 'U', 'N', 'N', one(T), view(F,1:m,1:m), X)
+        end
+    end
+    return X
 end
 
 # patch JuliaLang/julia#40899 to create a CuArray
