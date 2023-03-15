@@ -474,16 +474,7 @@ end
         atomic_thread_fence(order, scope)
         return val
     else
-        # Fallback to threadfence w/o order + load_volatile
-        if order == seq_cst
-            threadfence(scope)
-        end
-        val = __load_volatile(ptr)
-        if order == monotonic
-            return val
-        end
-        threadfence(scope)
-        return val
+        throw(AtomicUnsupported{T}())
     end
 end
 
@@ -533,11 +524,7 @@ end
         end
         __store_volatile!(ptr, val)
     else
-        # Fallback to threadfence w/o order + store_volatile
-        if order == seq_cst
-            threadfence(scope)
-        end
-        __store_volatile!(ptr, val)
+        throw(AtomicUnsupported{T}())
     end
 end
 
@@ -616,14 +603,7 @@ end
             atomic_thread_fence(seq_cst, scope)
         end
     else
-        # Fallback to atomic_cas w/o scope on pre SM_60
-        if order == seq_cst || order == acq_rel || order == release
-            threadfence(scope)
-        end
-        old = atomic_cas!(ptr, expected, new)
-        if order == seq_cst || order == acq_rel || order == acquire # order == consume
-            threadfence(scope)
-        end
+        throw(AtomicUnsupported{T}())
     end
     return old
 end

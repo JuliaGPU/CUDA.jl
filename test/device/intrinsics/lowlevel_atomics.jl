@@ -1,32 +1,15 @@
 using BFloat16s: BFloat16
 
-function atomic_types(cap)
-    types = [
-        Int32, Int64, 
-        UInt32, UInt64,
-        Float64, Float32]
-    if cap >= v"6.0"
-        append!(types, [
-            Int8, Int16,
-            UInt8, UInt16,
-            Float16])
-    end
-    return types
-end
-
 @testset "atomics (low-level) with order" begin
 
 @testset "atomic_load" begin
-    capabilities = (v"3.5", v"6.0", v"7.0")
-    current_cap = capability(device())
-
-    capabilities = filter(c->c<=current_cap, capabilities)
-
-    @testset for cap in capabilities
-        types = atomic_types(cap)
+    if capability(device()) >= v"6.0"
+        types = [Int8, Int16, Int32, Int64, 
+                 UInt8, UInt16, UInt32, UInt64,
+                 Float64, Float32]
+        # TODO Float16
         scopes = [CUDA.block_scope, CUDA.device_scope, CUDA.system_scope]
         orders = [CUDA.monotonic, CUDA.acquire, CUDA.seq_cst]
-        # unsupported_orders = [CUDA.release, CUDA.acq_rel]
 
         function kernel(a, order, scope)
             CUDA.atomic_load(pointer(a), order, scope)
@@ -35,7 +18,7 @@ end
 
         @testset for (T, order, scope) in Iterators.product(types, orders, scopes)
             a = CuArray(T[0])
-            @cuda cap=cap threads=1 kernel(a, order, scope)
+            @cuda threads=1 kernel(a, order, scope)
             @test Array(a)[1] == 0
         end
     end
@@ -46,17 +29,16 @@ end
         types = [Int8, Int16, Int32, Int64, 
                  UInt8, UInt16, UInt32, UInt64,
                  Float64, Float32]
+        # TODO Float16
         scopes = [CUDA.block_scope, CUDA.device_scope, CUDA.system_scope]
-        # TODO unordered
-        supported_orders = [CUDA.monotonic, CUDA.release, CUDA.seq_cst]
-        unsupported_orders = [CUDA.acquire, CUDA.acq_rel]
+        orders = [CUDA.monotonic, CUDA.release, CUDA.seq_cst]
 
         function kernel(a, val, order, scope)
             CUDA.atomic_store!(pointer(a), val, order, scope)
             return
         end
 
-        @testset for (T, order, scope) in Iterators.product(types, supported_orders, scopes)
+        @testset for (T, order, scope) in Iterators.product(types, orders, scopes)
             a = CuArray(T[0])
             @cuda threads=1 kernel(a, one(T), order, scope)
             @test Array(a)[1] == one(T)

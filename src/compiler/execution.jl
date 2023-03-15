@@ -40,7 +40,7 @@ macro cuda(ex...)
     macro_kwargs, compiler_kwargs, call_kwargs, other_kwargs =
         split_kwargs(kwargs,
                      [:dynamic, :launch],
-                     [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name, :always_inline, :cap],
+                     [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name, :always_inline],
                      [:cooperative, :blocks, :threads, :shmem, :stream])
     if !isempty(other_kwargs)
         key,val = first(other_kwargs).args
