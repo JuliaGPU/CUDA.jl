@@ -3,10 +3,10 @@ steps:
   - group: ":julia: Julia"
     key: "julia"
     steps:
-      - label: "Julia {{matrix.version}}"
+      - label: "Julia {{matrix.julia}}"
         plugins:
           - JuliaCI/julia#v1:
-              version: "{{matrix.version}}"
+              version: "{{matrix.julia}}"
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail"
           - JuliaCI/julia-coverage#v1:
@@ -24,7 +24,7 @@ steps:
         timeout_in_minutes: 120
         matrix:
           setup:
-            version:
+            julia:
               - "1.6"
               - "1.7"
               - "1.8"
@@ -32,7 +32,7 @@ steps:
               #- "nightly"
           adjustments:
             - with:
-                version: "1.9-nightly"
+                julia: "1.9-nightly"
               soft_fail: true
 
   # then, test supported CUDA toolkits (installed through the artifact system)
@@ -43,10 +43,10 @@ steps:
       # NOTE: we support those CUDA versions for which the latest cuDNN is available
       #       https://developer.nvidia.com/rdp/cudnn-archive
 
-      - label: "CUDA {{matrix}}"
+      - label: "CUDA {{matrix.cuda}}"
         plugins:
           - JuliaCI/julia#v1:
-              version: 1.6
+              version: 1.8
           - JuliaCI/julia-test#v1:
               test_args: "--thorough"
           - JuliaCI/julia-coverage#v1:
@@ -61,32 +61,42 @@ steps:
         if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
         timeout_in_minutes: 120
         matrix:
-          - "12.1"
-          - "12.0"
-          - "11.8"
-          - "11.7"
-          - "11.6"
-          - "11.5"
-          - "11.4"
-          - "11.3"
-          - "11.2"
-          - "11.1"
-          - "11.0"
+          setup:
+            cuda:
+              - "12.1"
+              - "12.0"
+              - "11.8"
+              - "11.7"
+              - "11.6"
+              - "11.5"
+              - "11.4"
+              - "11.3"
+              - "11.2"
+              - "11.1"
+              - "11.0"
         commands: |
-          julia --project -e 'using CUDA; CUDA.set_runtime_version!(v"{{matrix}}")'
+          julia --project -e 'using CUDA; CUDA.set_runtime_version!(v"{{matrix.cuda}}")'
 
   - group: ":nesting_dolls: Subpackages"
     depends_on: "cuda"
     steps:
-      - label: "{{matrix}} on CUDA 11"
+      - label: "{{matrix.package}} on CUDA {{matrix.cuda}}"
         matrix:
-            - "cuDNN"
-            - "cuTENSOR"
-            - "cuStateVec"
-            - "cuTensorNet"
+          setup:
+            cuda:
+              - "11.0"
+            package:
+              - "cuDNN"
+              - "cuTENSOR"
+              - "cuStateVec"
+              - "cuTensorNet"
+          adjustments:
+            - with:
+                cuda: "12.0"
+                package: "cuDNN"
         plugins:
           - JuliaCI/julia#v1:
-              version: 1.6
+              version: "1.8"
           - JuliaCI/julia-coverage#v1:
               codecov: true
               dirs:
@@ -103,8 +113,8 @@ steps:
             using Pkg
 
             println("--- :julia: Instantiating project")
-            Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix}}")))
-            if "{{matrix}}" == "cuTensorNet"
+            Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix.package}}")))
+            if "{{matrix.package}}" == "cuTensorNet"
               # HACK: cuTensorNet depends on a development version of cuTENSOR
               Pkg.develop(path=joinpath(pwd(), "lib", "cutensor"))
             end
@@ -112,43 +122,7 @@ steps:
             Pkg.instantiate()
 
             using CUDA
-            CUDA.set_runtime_version!(v"11.8")
-
-            println("+++ :julia: Running tests")
-            Pkg.test()'
-
-      - label: "{{matrix}} on CUDA 12"
-        matrix:
-            - "cuDNN"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: 1.6
-          - JuliaCI/julia-coverage#v1:
-              codecov: true
-              dirs:
-                - src
-                - lib
-                - examples
-        agents:
-          queue: "juliagpu"
-          cuda: "*"
-        if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
-        timeout_in_minutes: 120
-        commands: |
-          julia -e '
-            using Pkg
-
-            println("--- :julia: Instantiating project")
-            Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix}}")))
-            if "{{matrix}}" == "cuTensorNet"
-              # HACK: cuTensorNet depends on a development version of cuTENSOR
-              Pkg.develop(path=joinpath(pwd(), "lib", "cutensor"))
-            end
-            Pkg.develop(path=pwd())
-            Pkg.instantiate()
-
-            using CUDA
-            CUDA.set_runtime_version!(v"12.0")
+            CUDA.set_runtime_version!(v"{{matrix.cuda}}")
 
             println("+++ :julia: Running tests")
             Pkg.test()'
@@ -159,7 +133,7 @@ steps:
       - label: "NNlibCUDA.jl on CUDA 12"
         plugins:
           - JuliaCI/julia#v1:
-              version: 1.6
+              version: 1.8
           - JuliaCI/julia-coverage#v1:
               codecov: true
               dirs:
@@ -193,7 +167,7 @@ steps:
       - label: "GPU-less environment"
         plugins:
           - JuliaCI/julia#v1:
-              version: 1.6
+              version: 1.8
           - JuliaCI/julia-coverage#v1:
               codecov: true
               dirs:
@@ -242,7 +216,7 @@ steps:
       - label: "Compute sanitizer"
         plugins:
           - JuliaCI/julia#v1:
-              version: 1.6
+              version: 1.8
           - JuliaCI/julia-test#v1:
               julia_args: "-g2"
               test_args: "--sanitize --quickfail --jobs=2"
@@ -269,74 +243,12 @@ steps:
 
   - group: ":racehorse: Benchmarks"
     steps:
-      # if we will submit results, use the benchmark queue so that we will
-      # be running on the same system each time
-      - label: "Benchmarks on 1.6"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: 1.6
-        env:
-          BENCHMARKS: "true"
-          CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
-          CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
-          CODESPEED_COMMIT: "$BUILDKITE_COMMIT"
-          CODESPEED_EXECUTABLE: "Julia 1.6"
-        command: |
-          julia --project -e '
-            ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
-
-            println("--- :julia: Instantiating project")
-            using Pkg
-            Pkg.instantiate()
-            Pkg.activate("perf")
-            Pkg.instantiate()
-            push!(LOAD_PATH, @__DIR__)
-
-            println("+++ :julia: Benchmarking")
-            include("perf/runbenchmarks.jl")'
-        agents:
-          queue: "benchmark"
-          cuda: "*"
-        if: build.message !~ /\[skip benchmarks\]/ &&
-            build.branch =~ /^master$$/
-        timeout_in_minutes: 30
-
-      - label: "Benchmarks on 1.7"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: 1.7
-        env:
-          BENCHMARKS: "true"
-          CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
-          CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
-          CODESPEED_COMMIT: "$BUILDKITE_COMMIT"
-          CODESPEED_EXECUTABLE: "Julia 1.7"
-        command: |
-          julia --project -e '
-            ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
-
-            println("--- :julia: Instantiating project")
-            using Pkg
-            Pkg.instantiate()
-            Pkg.activate("perf")
-            Pkg.instantiate()
-            push!(LOAD_PATH, @__DIR__)
-
-            println("+++ :julia: Benchmarking")
-            include("perf/runbenchmarks.jl")'
-        agents:
-          queue: "benchmark"
-          cuda: "*"
-        if: build.message !~ /\[skip benchmarks\]/ &&
-            build.branch =~ /^master$$/
-        timeout_in_minutes: 30
-
       # benchmarks outside of the master branch don't submit their results,
       # so they can run on any system in the juliagpu queue.
       - label: "Benchmarks (dry run)"
         plugins:
           - JuliaCI/julia#v1:
-              version: 1.6
+              version: 1.8
         command: |
           julia --project -e '
             println("--- :julia: Instantiating project")
@@ -354,6 +266,43 @@ steps:
         if: build.message !~ /\[skip benchmarks\]/ &&
             build.branch !~ /^master$$/ &&
             !build.pull_request.draft
+        timeout_in_minutes: 30
+
+      # if we will submit results, use the benchmark queue so that we will
+      # be running on the same system each time
+      - label: "Benchmarks on Julia {{matrix.julia}}"
+        plugins:
+          - JuliaCI/julia#v1:
+              version: "{{matrix.julia}}"
+        env:
+          BENCHMARKS: "true"
+          CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
+          CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
+          CODESPEED_COMMIT: "$BUILDKITE_COMMIT"
+          CODESPEED_EXECUTABLE: "Julia {{matrix.julia}}"
+        command: |
+          julia --project -e '
+            ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
+
+            println("--- :julia: Instantiating project")
+            using Pkg
+            Pkg.instantiate()
+            Pkg.activate("perf")
+            Pkg.instantiate()
+            push!(LOAD_PATH, @__DIR__)
+
+            println("+++ :julia: Benchmarking")
+            include("perf/runbenchmarks.jl")'
+        agents:
+          queue: "benchmark"
+          cuda: "*"
+        if: build.message !~ /\[skip benchmarks\]/ &&
+            build.branch =~ /^master$$/
+        matrix:
+          setup:
+            julia:
+              - "1.6"
+              - "1.7"
         timeout_in_minutes: 30
 
 env:
