@@ -569,7 +569,7 @@ for (order, scope, A, sz) in Iterators.product(
 end
 
 @inline __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T =
-    __cas(sizeof(T), ptr, old, new, order, scope)
+    __cas!(sizeof(T), ptr, old, new, order, scope)
 
 for (scope, A, sz) in Iterators.product(
                                 (LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
