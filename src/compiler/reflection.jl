@@ -29,33 +29,31 @@ function code_sass_callback(userdata::Ptr{Cvoid}, domain::CUpti_CallbackDomain,
 end
 
 """
-    code_sass([io], f, types, cap::VersionNumber)
+    code_sass([io], f, types; verbose=false)
 
 Prints the SASS code generated for the method matching the given generic function and type
 signature to `io` which defaults to `stdout`.
 
 The following keyword arguments are supported:
 
-- `cap` which device to generate code for
-- `kernel`: treat the function as an entry-point kernel
 - `verbose`: enable verbose mode, which displays code generation statistics
+- all keyword arguments from [`cufunction`](@ref)
 
 See also: [`@device_code_sass`](@ref)
 """
-function code_sass(io::IO, @nospecialize(func), @nospecialize(types), kernel::Bool=true;
-                   verbose::Bool=false, always_inline::Bool=false, kwargs...)
-    tt = Base.to_tuple_type(types)
-    target = CUDACompilerTarget(device(); kwargs...)
-    params = CUDACompilerParams()
-    job = CompilerJob(target, FunctionSpec(func, tt, kernel), params; always_inline)
-    code_sass(io, job; verbose=verbose)
+function code_sass(io::IO, @nospecialize(func), @nospecialize(types); kwargs...)
+    compiler_kwargs, kwargs = split_kwargs_runtime(kwargs, COMPILER_KWARGS)
+    source = FunctionSpec(typeof(func), Base.to_tuple_type(types))
+    config = compiler_config(device(); compiler_kwargs...)
+    job = CompilerJob(source, config)
+    code_sass(io, job; kwargs...)
 end
 
 # multiple subscribers aren't supported, so make sure we only call CUPTI once
 const cupti_lock = ReentrantLock()
 
-function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
-    if !job.source.kernel
+function code_sass(io::IO, job::CompilerJob; verbose::Bool=false)
+    if !job.config.kernel
         error("Can only generate SASS code for kernel functions")
     end
 
@@ -66,7 +64,7 @@ function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
         return
     end
 
-    compiled = cufunction_compile(job)
+    compiled = compile(job)
 
     cubin = Ref{Any}()
     callback = @cfunction(code_sass_callback, Cvoid,
@@ -85,7 +83,7 @@ function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
         subscriber = subscriber_ref[]
         try
             CUPTI.cuptiEnableDomain(1, subscriber, CUPTI.CUPTI_CB_DOMAIN_RESOURCE)
-            cufunction_link(job, compiled)
+            link(job, compiled)
         finally
             CUPTI.cuptiUnsubscribe(subscriber)
         end
@@ -117,19 +115,32 @@ code_sass(@nospecialize(func), @nospecialize(types); kwargs...) =
 
 # forward the rest to GPUCompiler with an appropriate CompilerJob
 
+# function to split off certain kwargs for selective forwarding, at run time.
+# `@cuda` does something similar at parse time, using `GPUCompiler.split_kwargs`.
+function split_kwargs_runtime(kwargs, wanted::Vector{Symbol})
+    remaining = Dict{Symbol, Any}()
+    extracted = Dict{Symbol, Any}()
+    for (key, value) in kwargs
+        if key in wanted
+            extracted[key] = value
+        else
+            remaining[key] = value
+        end
+    end
+    return extracted, remaining
+end
+
 for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
     # only code_typed doesn't take a io argument
     args = method == :code_typed ? (:job,) : (:io, :job)
 
     @eval begin
         function $method(io::IO, @nospecialize(func), @nospecialize(types);
-                         kernel::Bool=false, minthreads=nothing, maxthreads=nothing,
-                         blocks_per_sm=nothing, maxregs=nothing, always_inline::Bool=false,
-                         kwargs...)
-            source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
-            target = CUDACompilerTarget(device(); minthreads, maxthreads, blocks_per_sm, maxregs)
-            params = CUDACompilerParams()
-            job = CompilerJob(target, source, params; always_inline)
+                         kernel=false, kwargs...)
+            compiler_kwargs, kwargs = split_kwargs_runtime(kwargs, COMPILER_KWARGS)
+            source = FunctionSpec(typeof(func), Base.to_tuple_type(types))
+            config = compiler_config(device(); kernel, compiler_kwargs...)
+            job = CompilerJob(source, config)
             GPUCompiler.$method($(args...); kwargs...)
         end
         $method(@nospecialize(func), @nospecialize(types); kwargs...) =
@@ -145,10 +156,9 @@ const code_ptx = code_native
 Return a type `r` such that `f(args...)::r` where `args::tt`.
 """
 function return_type(@nospecialize(func), @nospecialize(tt))
-    source = FunctionSpec(func, tt, true)
-    target = CUDACompilerTarget(device())
-    params = CUDACompilerParams()
-    job = CompilerJob(target, source, params)
+    source = FunctionSpec(typeof(func), tt)
+    config = compiler_config(device())
+    job = CompilerJob(source, config)
     interp = GPUCompiler.get_interpreter(job)
     if VERSION >= v"1.8-"
         sig = Base.signature_type(func, tt)
@@ -175,7 +185,7 @@ Evaluates the expression `ex` and prints the result of [`CUDA.code_sass`](@ref) 
 [`CUDA.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
-    function hook(job::CUDACompilerJob; io::IO=stdout, kwargs...)
+    function hook(job::CompilerJob; io::IO=stdout, kwargs...)
         println(io, "// $job")
         println(io)
         code_sass(io, job; kwargs...)
