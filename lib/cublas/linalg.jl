@@ -182,7 +182,7 @@ function gemv_dispatch!(Y::CuVector, A, B, alpha::Number=true, beta::Number=fals
     end
 end
 
-for NT in (Number, Real)
+for NT in (:Number, :Real)
     # NOTE: alpha/beta also ::Real to avoid ambiguities with certain Base methods
     @eval begin
         LinearAlgebra.mul!(Y::CuVector, A::StridedCuMatrix, B::StridedCuVector, a::$NT, b::$NT) =
@@ -303,7 +303,7 @@ function gemm_dispatch!(C::CuVecOrMat, A, B, alpha::Number=true, beta::Number=fa
     end
 end
 
-for NT in (Number, Real)
+for NT in (:Number, :Real)
     # NOTE: alpha/beta also ::Real to avoid ambiguities with certain Base methods
     @eval begin
         LinearAlgebra.mul!(C::CuMatrix, A::StridedCuVecOrMat, B::StridedCuVecOrMat, a::$NT, b::$NT) =

@@ -20,7 +20,7 @@ end
 
 # HACK: module-local versions of core arithmetic; needed to get FMA
 for (jlf, f) in zip((:+, :*, :-), (:add, :mul, :sub))
-    for (T, llvmT) in ((Float32, "float"), (Float64, "double"))
+    for (T, llvmT) in ((:Float32, "float"), (:Float64, "double"))
         ir = """
             %x = f$f contract nsz $llvmT %0, %1
             ret $llvmT %x
@@ -38,7 +38,7 @@ for (jlf, f) in zip((:+, :*, :-), (:add, :mul, :sub))
 end
 
 let (jlf, f) = (:div_arcp, :div)
-    for (T, llvmT) in ((Float32, "float"), (Float64, "double"))
+    for (T, llvmT) in ((:Float32, "float"), (:Float64, "double"))
         ir = """
             %x = f$f fast $llvmT %0, %1
             ret $llvmT %x
