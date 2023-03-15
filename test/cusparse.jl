@@ -930,3 +930,45 @@ end
         end
     end
 end
+
+for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
+    @testset "$SparseMatrixType -- color" begin
+        @testset "color $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            A = sprand(T, 50, 50, 0.03)
+            A = A + A'
+            dA = SparseMatrixType(A)
+            ncolors, coloring, reordering = color(dA, 'O')
+            @test 1 ≤ ncolors ≤ 50
+            @test maximum(coloring) == ncolors
+            @test minimum(reordering) == 1
+            @test maximum(reordering) == 50
+            @test CUDA.@allowscalar isperm(reordering)
+        end
+
+        # The routine color returns the wrong result with small sparse matrices.
+        # NVIDIA investigates the issue.
+        if false
+            A = [ 1 1 0 0 0 ;
+                  1 1 1 1 0 ;
+                  0 1 1 0 1 ;
+                  0 1 0 1 0 ;
+                  0 0 1 0 1 ]
+            A = sparse(A)
+            # The adjacency graph of A has at least two colors, one color for
+            # {1, 3, 4} and another one for {2, 5}.
+            @testset "5x5 example -- color $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+                dA = SparseMatrixType{T}(A)
+                ncolors, coloring, reordering = color(dA, 'O')
+                @test ncolors == 2
+                @test minimum(reordering) == 1
+                @test maximum(reordering) == 5
+                CUDA.allowscalar() do
+                    @test isperm(reordering)
+                    @test coloring[1] == coloring[3]  == coloring[4]
+                    @test coloring[2] == coloring[5]
+                    @test coloring[1] != coloring[2]
+                end
+            end
+        end
+    end
+end
