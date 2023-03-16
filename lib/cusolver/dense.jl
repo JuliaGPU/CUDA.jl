@@ -20,6 +20,7 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
     @eval begin
         function potrf!(uplo::Char,
                         A::StridedCuMatrix{$elty})
+            VERSION >= v"1.8" && LinearAlgebra.BLAS.chkuplo(uplo)
             n = checksquare(A)
             lda = max(1, stride(A, 2))
 
@@ -52,6 +53,7 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
         function potrs!(uplo::Char,
                         A::StridedCuMatrix{$elty},
                         B::StridedCuVecOrMat{$elty})
+            VERSION >= v"1.8" && LinearAlgebra.BLAS.chkuplo(uplo)
             n = checksquare(A)
             if size(B, 1) != n
                 throw(DimensionMismatch("first dimension of B, $(size(B,1)), must match second dimension of A, $n"))
@@ -79,6 +81,7 @@ for (bname, fname,elty) in ((:cusolverDnSpotri_bufferSize, :cusolverDnSpotri, :F
     @eval begin
         function potri!(uplo::Char,
                         A::StridedCuMatrix{$elty})
+            VERSION >= v"1.8" && LinearAlgebra.BLAS.chkuplo(uplo)
             n = checksquare(A)
             lda = max(1, stride(A, 2))
 
@@ -172,6 +175,7 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
     @eval begin
         function sytrf!(uplo::Char,
                         A::StridedCuMatrix{$elty})
+            VERSION >= v"1.8" && LinearAlgebra.BLAS.chkuplo(uplo)
             n = checksquare(A)
             lda = max(1, stride(A, 2))
 
@@ -487,6 +491,7 @@ for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSiz
         function $jname(jobz::Char,
                         uplo::Char,
                         A::StridedCuMatrix{$elty})
+            VERSION >= v"1.8" && LinearAlgebra.BLAS.chkuplo(uplo)
             n       = checksquare(A)
             lda     = max(1, stride(A, 2))
             W       = CuArray{$relty}(undef, n)
@@ -526,6 +531,7 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
                         uplo::Char,
                         A::StridedCuMatrix{$elty},
                         B::StridedCuMatrix{$elty})
+            VERSION >= v"1.8" && LinearAlgebra.BLAS.chkuplo(uplo)
             nA, nB  = checksquare(A, B)
             if nB != nA
                 throw(DimensionMismatch("Dimensions of A ($nA, $nA) and B ($nB, $nB) must match!"))
@@ -572,6 +578,7 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
                         B::StridedCuMatrix{$elty};
                         tol::$relty=eps($relty),
                         max_sweeps::Int=100)
+            VERSION >= v"1.8" && LinearAlgebra.BLAS.chkuplo(uplo)
             nA, nB  = checksquare(A, B)
             if nB != nA
                 throw(DimensionMismatch("Dimensions of A ($nA, $nA) and B ($nB, $nB) must match!"))
@@ -625,6 +632,7 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
                         max_sweeps::Int=100)
 
             # Set up information for the solver arguments
+            VERSION >= v"1.8" && LinearAlgebra.BLAS.chkuplo(uplo)
             n       = checksquare(A)
             lda     = max(1, stride(A, 2))
             batchSize = size(A,3)
@@ -681,6 +689,7 @@ for (fname, elty) in ((:cusolverDnSpotrsBatched, :Float32),
                 throw(DimensionMismatch(""))
             end
             # Set up information for the solver arguments
+            VERSION >= v"1.8" && LinearAlgebra.BLAS.chkuplo(uplo)
             n = checksquare(A[1])
             if size(B[1], 1) != n
                 throw(DimensionMismatch("first dimension of B[i], $(size(B[1],1)), must match second dimension of A, $n"))
@@ -719,6 +728,7 @@ for (fname, elty) in ((:cusolverDnSpotrfBatched, :Float32),
         function potrfBatched!(uplo::Char, A::Vector{<:StridedCuMatrix{$elty}})
 
             # Set up information for the solver arguments
+            VERSION >= v"1.8" && LinearAlgebra.BLAS.chkuplo(uplo)
             n = checksquare(A[1])
             lda = max(1, stride(A[1], 2))
             batchSize = length(A)
