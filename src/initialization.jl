@@ -62,7 +62,7 @@ function __init__()
     driver = driver_version()
 
     if driver < v"11"
-        @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 11 or higher (yours is for CUDA $driver)"
+        @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 11.x or higher (yours is for CUDA $driver)"
         _initialization_error[] = "CUDA driver too old"
         return
     end
@@ -74,14 +74,22 @@ function __init__()
 
     # check that we have a runtime
     if !CUDA_Runtime.is_available()
-        @error """No CUDA Runtime library found. This can have several reasons:
-                  * you are using an unsupported platform: CUDA.jl only supports Linux (x86_64, aarch64, ppc64le), and Windows (x86_64).
-                    refer to the documentation for instructions on how to use a custom CUDA runtime.
-                  * you precompiled CUDA.jl in an environment where the CUDA driver was not available.
-                    in that case, you need to specify (during pre compilation) which version of CUDA to use.
-                    refer to the documentation for instructions on how to use `CUDA.set_runtime_version!`.
-                  * you requested use of a local CUDA toolkit, but not all components were discovered.
-                    try running with JULIA_DEBUG=CUDA_Runtime_Discovery for more information."""
+        @error """CUDA.jl could not find an appropriate CUDA runtime to use.
+
+                  This can have several reasons:
+                  * you are using an unsupported platform: this version of CUDA.jl
+                    only supports Linux (x86_64, aarch64, ppc64le) and Windows (x86_64),
+                    while your platform was identified as $(Base.BinaryPlatforms.triplet(CUDA_Runtime_jll.host_platform));
+                  * you precompiled CUDA.jl in an environment where the CUDA driver
+                    was not available (i.e., a container, or an HPC login node).
+                    in that case, you need to specify which CUDA version to use
+                    by calling `CUDA.set_runtime_version!`;
+                  * you requested use of a local CUDA toolkit, but not all
+                    required components were discovered. try running with
+                    JULIA_DEBUG=all in your environment for more details.
+
+                  For more details, refer to the CUDA.jl documentation at
+                  https://cuda.juliagpu.org/stable/installation/overview/"""
         _initialization_error[] = "CUDA runtime not found"
         return
     end
