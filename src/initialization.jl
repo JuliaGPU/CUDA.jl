@@ -38,7 +38,7 @@ function __init__()
     # check that we have a driver
     global libcuda = nothing
     if CUDA_Driver_jll.is_available()
-        if isdefined(CUDA_Driver_jll, :libcuda) && !isnothing(CUDA_Driver_jll.libcuda)
+        if !isnothing(CUDA_Driver_jll.libcuda)
             libcuda = CUDA_Driver_jll.libcuda
         else
             _initialization_error[] = "CUDA driver not found"
