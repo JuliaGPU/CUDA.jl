@@ -680,4 +680,27 @@ end
         @inferred d_A \ d_B
         @inferred d_A \ d_b
     end
+
+    @testset "decompositions" begin
+        A = CuMatrix(rand(1024, 1024))
+        lua = lu(A)
+        @test Matrix(lua.L) * Matrix(lua.U) ≈ Matrix(lua.P) * Matrix(A)
+
+        A = CuMatrix(rand(1024, 512))
+        lua = lu(A)
+        @test Matrix(lua.L) * Matrix(lua.U) ≈ Matrix(lua.P) * Matrix(A)
+    
+        A = CuMatrix(rand(512, 1024))
+        lua = lu(A)
+        @test Matrix(lua.L) * Matrix(lua.U) ≈ Matrix(lua.P) * Matrix(A)
+
+        a = rand(1024, 1024)
+        A = CuMatrix(a)
+        B = CuMatrix(a)
+        lua = lu!(A)
+        @test Matrix(lua.L) * Matrix(lua.U) ≈ Matrix(lua.P) * Matrix(B)
+
+        A = CuMatrix{Float32}([1 2; 0 0])
+        @test_throws SingularException lu(A)
+    end
 end
