@@ -274,9 +274,9 @@ function KernelAbstractions.priority!(::CUDABackend, prio::Symbol)
     end
 
     old_stream = CUDA.stream()
-    r_flags = Ref{CUDA.CUstream_flags_enum}()
+    r_flags = Ref{Cuint}()
     CUDA.cuStreamGetFlags(old_stream, r_flags)
-    flags = r_flags[]
+    flags = CUDA.CUstream_flags_enum(r_flags[])
 
     event = CUDA.CuEvent(CUDA.EVENT_DISABLE_TIMING)
     CUDA.record(event, old_stream)
