@@ -282,7 +282,7 @@ function KernelAbstractions.priority!(::CUDABackend, prio::Symbol)
     CUDA.record(event, old_stream)
 
     @debug "Switching default stream" flags priority
-    new_stream = CuStream(; flags, priority)
+    new_stream = CUDA.CuStream(; flags, priority)
     CUDA.wait(event, new_stream)
     CUDA.stream!(new_stream)
     return nothing
