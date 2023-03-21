@@ -274,7 +274,7 @@ function KernelAbstractions.priority!(::CUDABackend, prio::Symbol)
     end
 
     old_stream = CUDA.stream()
-    r_flags = Ref{Cuint}()
+    r_flags = Ref{CUDA.CUstream_flags_enum}()
     CUDA.cuStreamGetFlags(old_stream, r_flags)
     flags = r_flags[]
 
