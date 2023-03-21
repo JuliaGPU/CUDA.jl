@@ -158,22 +158,20 @@ for (index,dev) in enumerate(devices())
 
     # NOTE: we don't use NVML here because it doesn't respect CUDA_VISIBLE_DEVICES
 end
-## only consider devices that are fully supported by our CUDA toolkit, or tools can fail.
-## NOTE: we don't reuse supported_toolchain() which is also bounded by LLVM support,
-#        and is used to pick a codegen target regardless of the actual device.
-cuda_support = CUDA.cuda_compat()
-filter!(x->x.cap in cuda_support.cap, candidates)
-## only consider recent devices if we want testing to be thorough
-if do_thorough
-    filter!(x->x.cap >= v"6.0", candidates)
-end
-isempty(candidates) && error("Could not find any suitable device for this configuration")
 ## order by available memory, but also by capability if testing needs to be thorough
 sort!(candidates, by=x->x.mem)
 ## apply
 picks = reverse(candidates[end-gpus+1:end])   # best GPU first
 ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"$(pick.mig ? "MIG" : "GPU")-$(pick.uuid)", picks), ",")
 @info "Testing using $(length(picks)) device(s): " * join(map(pick->"$(pick.id). $(pick.name) (UUID $(pick.uuid))", picks), ", ")
+## warn if any of these devices aren't fully supported (or tools like `nvdisasm` might fail)
+cuda_support = CUDA.cuda_compat()
+for pick in picks
+    if pick.cap ∉ cuda_support.cap
+        @warn """Device $(pick.id) ($(pick.name)) is not fully supported by CUDA $(toolkit_release).
+                 This may lead to test failures."""
+    end
+end
 
 @info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the JULIA_CPU_THREADS environment variable."
 
