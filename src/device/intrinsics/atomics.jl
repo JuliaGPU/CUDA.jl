@@ -1,5 +1,7 @@
 # Atomic Functions (B.12)
 
+# TODO replace the below with UnsafeAtomicsLLVM if possible
+
 #
 # Low-level intrinsics
 #
@@ -357,117 +359,352 @@ This operation is only supported for values of type Int32.
 """
 atomic_dec!
 
+asm(::Type{LLVMOrdering{:monotonic}}) = :relaxed
+asm(::Type{LLVMOrdering{Order}}) where Order = Order
 
+asm(::Type{SystemScope}) = :sys
+asm(::Type{DeviceScope}) = :gpu
+asm(::Type{BlockScope}) = :cta
+
+function suffix(sz)
+    if sz == 1
+        "b8"
+    elseif sz == 2
+        "b16"
+    elseif sz == 4
+        "b32"
+    elseif sz == 8
+        "b64"
+    end
+end
+
+function reg(sz)
+    if sz == 1
+        "r"
+    elseif sz == 2
+        "h"
+    elseif sz == 4
+        "r"
+    elseif sz == 8
+        "l"
+    end
+end
+
+function addr_space(A)
+    if A == AS.Global
+        as = ".global"
+    elseif A == AS.Shared
+        as = ".shared"
+    else
+        as = ""
+    end
+end
+
+for (order, scope, A, sz) in Iterators.product(
+                                (LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}),
+                                (BlockScope, DeviceScope, SystemScope),
+                                (AS.Generic, AS.Global, AS.Shared),
+                                (2,4,8))
+    instruction = "ld.$(asm(order)).$(asm(scope))$(addr_space(A)).$(suffix(sz)) \$0, [\$1];"
+    constraint  = "=$(reg(sz)),l,~{memory}"
+    @eval @inline __load(::Val{$sz}, ptr::LLVMPtr{T, $A}, ::$order, ::$scope) where {T} =
+        @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}}, ptr)
+end
+
+# Handle byte sized load
+for (order, scope, A) in Iterators.product(
+                            (LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}),
+                            (BlockScope, DeviceScope, SystemScope),
+                            (AS.Generic, AS.Global, AS.Shared))
+    instruction = "ld.$(asm(order)).$(asm(scope))$(addr_space(A)).b8 \$0, [\$1];"
+    constraint  = "=r,l,~{memory}"
+    @eval @inline function __load(::Val{1}, ptr::LLVMPtr{T, $A}, ::$order, ::$scope) where {T}
+        val = @asmcall($instruction, $constraint, true, UInt32, Tuple{LLVMPtr{T, $A}}, ptr)
+        return Core.bitcast(T, val % UInt8)
+    end
+end
+
+@inline __load(ptr::LLVMPtr{T}, order, scope) where T =
+    __load(Val(sizeof(T)), ptr, order, scope)
+
+for (A, sz) in Iterators.product(
+                    (AS.Generic, AS.Global, AS.Shared),
+                    (2,4,8))
+    instruction = "ld.volatile$(addr_space(A)).$(suffix(sz)) \$0, [\$1];"
+    constraint  = "=$(reg(sz)),l,~{memory}"
+    @eval @inline __load_volatile(::Val{$sz}, ptr::LLVMPtr{T, $A}) where {T} =
+        @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}}, ptr)
+end
+
+# Handle byte sized load
+for (A) in (AS.Generic, AS.Global, AS.Shared)
+    instruction = "ld.volatile$(addr_space(A)).b8 \$0, [\$1];"
+    constraint  = "=r,l,~{memory}"
+    @eval @inline function __load_volatile(::Val{1}, ptr::LLVMPtr{T, $A}) where {T}
+        val = @asmcall($instruction, $constraint, true, UInt32, Tuple{LLVMPtr{T, $A}}, ptr)
+        return Core.bitcast(T, val % UInt8)
+    end
+end
+
+@inline __load_volatile(ptr::LLVMPtr{T}) where {T} =
+    __load_volatile(Val(sizeof(T)), ptr)
+
+@inline function atomic_load(ptr::LLVMPtr{T}, order, scope::SyncScope=device_scope) where T
+    if order == acq_rel || order == release
+        throw(AtomicOrderUnsupported(order))
+    end
+    if sizeof(T) > 8
+        throw(AtomicUnsupported{T}())
+    end
+    if compute_capability() >= sv"7.0"
+        if order == monotonic
+            val = __load(ptr, monotonic, scope)
+            return val
+        end
+        if order == seq_cst
+            atomic_thread_fence(seq_cst, scope)
+        end
+        val = __load(ptr, acquire, scope)
+        return val
+    elseif compute_capability() >= sv"6.0"
+        if order == seq_cst
+            atomic_thread_fence(seq_cst, scope)
+        end
+        val = __load_volatile(ptr)
+        if order == monotonic
+            return val
+        end
+        atomic_thread_fence(order, scope)
+        return val
+    else
+        throw(AtomicUnsupported{T}())
+    end
+end
+
+for (order, scope, A, sz) in Iterators.product(
+                            (LLVMOrdering{:release}, LLVMOrdering{:monotonic}),
+                            (BlockScope, DeviceScope, SystemScope),
+                            (AS.Generic, AS.Global, AS.Shared),
+                            (1, 2, 4, 8))
+    instruction = "st$(addr_space(A)).$(asm(order)).$(asm(scope)).$(suffix(sz)) [\$0], \$1;"
+    constraint  = "l,$(reg(sz)),~{memory}"
+    @eval @inline __store!(::Val{$sz}, ptr::LLVMPtr{T, $A}, val::T, ::$order, ::$scope) where {T} =
+        @asmcall($instruction, $constraint, true, Cvoid, Tuple{LLVMPtr{T, $A}, T}, ptr, val)
+end
+
+@inline __store!(ptr::LLVMPtr{T}, val::T, order, scope) where T =
+    __store!(Val(sizeof(T)), ptr, val, order, scope)
+
+for (A, sz) in Iterators.product(
+                (AS.Generic, AS.Global, AS.Shared),
+                (1, 2, 4, 8))
+    instruction = "st$(addr_space(A)).volatile.$(suffix(sz)) [\$0], \$1;"
+    constraint  = "l,$(reg(sz)),~{memory}"
+    @eval @inline __store_volatile!(::Val{$sz}, ptr::LLVMPtr{T, $A}, val::T) where {T} =
+        @asmcall($instruction, $constraint, true, Cvoid, Tuple{LLVMPtr{T, $A}, T}, ptr, val)
+end
+
+# Could be done using LLVM.
+@inline __store_volatile!(ptr::LLVMPtr{T}, val::T) where {T} =
+    __store_volatile!(Val(sizeof(T)), ptr, val)
+
+@inline function atomic_store!(ptr::LLVMPtr{T}, val::T, order, scope::SyncScope=device_scope) where T
+    if order == acq_rel || order == acquire # || order == consume
+        throw(AtomicOrderUnsupported(order))
+    end
+    if sizeof(T) > 8
+        throw(AtomicUnsupported{T}())
+    end
+    if compute_capability() >= sv"7.0"
+        if order == release
+            __store!(ptr, val, release, scope)
+            return
+        end
+        if order == seq_cst
+            atomic_thread_fence(seq_cst, scope)
+        end
+        __store!(ptr, val, monotonic, scope)
+    elseif compute_capability() >= sv"6.0"
+        if order == seq_cst
+            atomic_thread_fence(seq_cst, scope)
+        end
+        __store_volatile!(ptr, val)
+    else
+        throw(AtomicUnsupported{T}())
+    end
+end
+
+order(::LLVMOrdering{:monotonic}) = 1
+# order(::Consume) = 2
+order(::LLVMOrdering{:acquire}) = 3
+order(::LLVMOrdering{:release}) = 4
+order(::LLVMOrdering{:acq_rel}) = 5
+order(::LLVMOrdering{:seq_cst}) = 6
+
+Base.isless(a::LLVMOrdering, b::LLVMOrdering) = isless(order(a), order(b))
+
+@inline function stronger_order(a::LLVMOrdering, b::LLVMOrdering)
+    m = max(a, b)
+    if m != release
+        return m
+    end
+    # maximum is release, what is the other one?
+    other = min(a, b)
+    if other == monotonic
+        return release
+    # elseif other == Consume()
+    #     return Acq_Rel()
+    elseif other == acquire
+        return acq_rel
+    elseif other == release
+        return release
+    end
+    Base.llvmcall("unreachable", Cvoid, Tuple{})
+    @assert(false)
+end
+
+for (order, scope, A, sz) in Iterators.product(
+                                (LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
+                                (BlockScope, DeviceScope, SystemScope),
+                                (AS.Generic, AS.Global, AS.Shared),
+                                (2, 4, 8))
+    instruction = "atom$(addr_space(A)).cas.$(asm(order)).$(asm(scope)).$(suffix(sz)) \$0, [\$1], \$2, \$3;"
+    constraint  = "=$(reg(sz)),l,$(reg(sz)),$(reg(sz)),~{memory}"
+    @eval @inline __cas!(::Val{$sz}, ptr::LLVMPtr{T, $A}, old::T, new::T, ::$order, ::$scope) where {T} =
+        @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
+end
+
+# Handle byte sized cas
+for (order, scope, A) in Iterators.product(
+                            (LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
+                            (BlockScope, DeviceScope, SystemScope),
+                            (AS.Generic, AS.Global, AS.Shared))
+    instruction = "atom.$(addr_space(A)).cas.$(asm(order)).$(asm(scope)).b8 \$0, [\$1];"
+    constraint  = "=r,l,r,r,~{memory}"
+    @eval @inline function __cas!(::Val{1}, ptr::LLVMPtr{T, $A}, old::T, new::T, ::$order, ::$scope) where {T}
+        val = @asmcall($instruction, $constraint, true, UInt32, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
+        return Core.bitcast(T, val % UInt8)
+    end
+end
+
+@inline __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T =
+    __cas!(Val(sizeof(T)), ptr, old, new, order, scope)
+
+for (order, A, sz) in Iterators.product(
+                                (LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
+                                (AS.Generic, AS.Global, AS.Shared),
+                                (2, 4, 8))
+    instruction = "atom$(addr_space(A)).cas.$(asm(order)).$(suffix(sz)) \$0, [\$1], \$2, \$3;"
+    constraint  = "=$(reg(sz)),l,$(reg(sz)),$(reg(sz)),~{memory}"
+    @eval @inline __cas_old!(::Val{$sz}, ptr::LLVMPtr{T, $A}, old::T, new::T, ::$scope) where {T} =
+        @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
+end
+
+# Handle byte sized cas
+for (order, A) in Iterators.product(
+                            (LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
+                            (AS.Generic, AS.Global, AS.Shared))
+    instruction = "atom.$(addr_space(A)).cas.$(asm(order)).b8 \$0, [\$1];"
+    constraint  = "=r,l,r,r,~{memory}"
+    @eval @inline function __cas_old!(::Val{1}, ptr::LLVMPtr{T, $A}, old::T, new::T, ::$order, ::$scope) where {T}
+        val = @asmcall($instruction, $constraint, true, UInt32, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
+        return Core.bitcast(T, val % UInt8)
+    end
+end
+
+@inline __cas_old!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T =
+    __cas_old!(Val(sizeof(T)), ptr, old, new, scope)
+
+@inline function atomic_cas!(ptr::LLVMPtr{T}, expected::T, new::T, success_order, failure_order, scope::SyncScope=device_scope) where T
+    order = stronger_order(success_order, failure_order)
+    if sizeof(T) > 8 || sizeof(T) < 2
+        throw(AtomicUnsupported{T}())
+    end
+    if compute_capability() >= sv"7.0"
+        if order == seq_cst
+            atomic_thread_fence(seq_cst, scope)
+        end
+        if order == seq_cst # order == consume
+            order = acquire
+        end
+        old = __cas!(ptr, expected, new, order, scope)
+    elseif compute_capability() >= sv"6.0"
+        if order == seq_cst || order == acq_rel || order == release
+            atomic_thread_fence(seq_cst, scope)
+        end
+        old = __cas_old!(ptr, expected, new, scope)
+        if order == seq_cst || order == acq_rel || order == acquire # order == consume
+            atomic_thread_fence(seq_cst, scope)
+        end
+    else
+        throw(AtomicUnsupported{T}())
+    end
+    return old
+end
 
 #
 # High-level interface
 #
+import Atomix: @atomic, @atomicswap, @atomicreplace
+# import UnsafeAtomicsLLVM
 
-# prototype of a high-level interface for performing atomic operations on arrays
-#
-# this design could be generalized by having atomic {field,array}{set,ref} accessors, as
-# well as acquire/release operations to implement the fallback functionality where any
-# operation can be applied atomically.
-
-if VERSION <= v"1.7-"
-export @atomic
+if VERSION <= v"1.7"
+    export @atomic
 end
 
-const inplace_ops = Dict(
-    :(+=)   => :(+),
-    :(-=)   => :(-),
-    :(*=)   => :(*),
-    :(/=)   => :(/),
-    :(\=)   => :(\),
-    :(%=)   => :(%),
-    :(^=)   => :(^),
-    :(&=)   => :(&),
-    :(|=)   => :(|),
-    :(⊻=)   => :(⊻),
-    :(>>>=) => :(>>>),
-    :(>>=)  => :(>>),
-    :(<<=)  => :(<<),
-)
+using Atomix: Atomix, IndexableRef
 
-struct AtomicError <: Exception
-    msg::AbstractString
+const CuIndexableRef{Indexable<:CuDeviceArray} = IndexableRef{Indexable}
+
+@inline function Atomix.get(ref::CuIndexableRef, order)
+    atomic_load(Atomix.pointer(ref), order)
 end
 
-Base.showerror(io::IO, err::AtomicError) =
-    print(io, "AtomicError: ", err.msg)
+@inline function Atomix.set!(ref::CuIndexableRef, v, order)
+    v = convert(eltype(ref), v)
+    atomic_store!(Atomix.pointer(ref), v, order)
+end
 
-"""
-    @atomic a[I] = op(a[I], val)
-    @atomic a[I] ...= val
+@inline function Atomix.replace!(ref::CuIndexableRef, expected, desired,
+                                 success_ordering, failure_ordering)
+    ptr = Atomix.pointer(ref)
+    expected = convert(eltype(ref), expected)
+    desired = convert(eltype(ref), desired)
+    return atomic_cas!(ptr, expected, desired, success_ordering, failure_ordering)
+end
 
-Atomically perform a sequence of operations that loads an array element `a[I]`, performs the
-operation `op` on that value and a second value `val`, and writes the result back to the
-array. This sequence can be written out as a regular assignment, in which case the same
-array element should be used in the left and right hand side of the assignment, or as an
-in-place application of a known operator. In both cases, the array reference should be pure
-and not induce any side-effects.
-
-!!! warn
-    This interface is experimental, and might change without warning.  Use the lower-level
-    `atomic_...!` functions for a stable API, albeit one limited to natively-supported ops.
-"""
-macro atomic(ex)
-    # decode assignment and call
-    if ex.head == :(=)
-        ref = ex.args[1]
-        rhs = ex.args[2]
-        Meta.isexpr(rhs, :call) || throw(AtomicError("right-hand side of an @atomic assignment should be a call"))
-        op = rhs.args[1]
-        if rhs.args[2] != ref
-            throw(AtomicError("right-hand side of a non-inplace @atomic assignment should reference the left-hand side"))
+@inline function modify!(ptr::LLVMPtr{T}, op::OP, x, order) where {T, OP}
+    old = atomic_load(ptr, order)
+    while true
+        expected = old
+        new = op(expected, x)
+        old = atomic_cas!(ptr, expected, new, order, monotonic)
+        if old === expected
+            return expected => new
         end
-        val = rhs.args[3]
-    elseif haskey(inplace_ops, ex.head)
-        op = inplace_ops[ex.head]
-        ref = ex.args[1]
-        val = ex.args[2]
-    else
-        throw(AtomicError("unknown @atomic expression"))
-    end
-
-    # decode array expression
-    Meta.isexpr(ref, :ref) || throw(AtomicError("@atomic should be applied to an array reference expression"))
-    array = ref.args[1]
-    indices = Expr(:tuple, ref.args[2:end]...)
-
-    esc(quote
-        $atomic_arrayset($array, $indices, $op, $val)
-    end)
-end
-
-# FIXME: make this respect the indexing style
-@inline atomic_arrayset(A::AbstractArray{T}, Is::Tuple, op::Function, val) where {T} =
-    atomic_arrayset(A, Base._to_linear_index(A, Is...), op, convert(T, val))
-
-# native atomics
-for (op,impl,typ) in [(+,   atomic_add!, [UInt32,Int32,UInt64,Int64,Float32]),
-                      (-,   atomic_sub!, [UInt32,Int32,UInt64,Int64,Float32]),
-                      (&,   atomic_and!, [UInt32,Int32,UInt64,Int64]),
-                      (|,   atomic_or!,  [UInt32,Int32,UInt64,Int64]),
-                      (⊻,   atomic_xor!, [UInt32,Int32,UInt64,Int64]),
-                      (max, atomic_max!, [UInt32,Int32,UInt64,Int64]),
-                      (min, atomic_min!, [UInt32,Int32,UInt64,Int64])]
-    @eval @inline atomic_arrayset(A::AbstractArray{T}, I::Integer, ::typeof($op),
-                                  val::T) where {T<:Union{$(typ...)}} =
-        $impl(pointer(A, I), val)
-end
-
-# native atomics that are not supported on all devices
-@inline function atomic_arrayset(A::AbstractArray{T}, I::Integer, op::typeof(+),
-                                 val::T) where {T <: Union{Float64}}
-    ptr = pointer(A, I)
-    if compute_capability() >= sv"6.0"
-        atomic_add!(ptr, val)
-    else
-        atomic_op!(ptr, op, val)
     end
 end
 
-# fallback using compare-and-swap
-@inline atomic_arrayset(A::AbstractArray{T}, I::Integer, op::Function, val) where {T} =
-    atomic_op!(pointer(A, I), op, val)
+@inline function Atomix.modify!(ref::CuIndexableRef, op::OP, x, order) where {OP}
+    x = convert(eltype(ref), x)
+    ptr = Atomix.pointer(ref)
+    # TODO: Support hardware variants
+    # old = if op === (+)
+    #     atomic_add!(ptr, x)
+    # elseif op === (-)
+    #     atomic_sub!(ptr, x)
+    # elseif op === (&)
+    #     atomic_and!(ptr, x)
+    # elseif op === (|)
+    #     atomic_or!(ptr, x)
+    # elseif op === xor
+    #     atomic_xor!(ptr, x)
+    # elseif op === min
+    #     atomic_min!(ptr, x)
+    # elseif op === max
+    #     atomic_max!(ptr, x)
+    # else
+        return modify!(ptr, op, x, order)
+    # end
+    # return old => op(old, x)
+end

@@ -15,7 +15,7 @@ function device_properties(dev)
             cap = maximum(caps)
 
             # select the PTX ISA we assume to be available
-            # (we actually only need 6.2, but NVPTX doesn't support that)
+            # 6.3 introduced `atom.cas.b16`
             ptx = v"6.3"
 
             # we need to take care emitting LLVM instructions like `unreachable`, which

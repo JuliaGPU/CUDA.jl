@@ -83,39 +83,126 @@ the warp.
              Cvoid, Tuple{UInt32}, convert(UInt32, mask))
 end
 
+@inline threadfence(::BlockScope) = threadfence_block()
+@inline threadfence_block() = ccall("llvm.nvvm.membar.cta", llvmcall, Cvoid, ())
+@inline threadfence_sc_block() = @asmcall("fence.sc.cta;", "~{memory}", true, Cvoid, Tuple{})
+@inline threadfence_acq_rel_block() = @asmcall("fence.acq_rel.cta;", "~{memory}", true, Cvoid, Tuple{})
+
+function atomic_thread_fence(order, scope::BlockScope)
+    if compute_capability() >= sv"7.0"
+        if order == seq_cst
+            threadfence_sc_block()
+        elseif order == acquire || order == acq_rel || order == release # || order == consume
+            threadfence_acq_rel_block()
+        else
+            throw(AtomicOrderUnsupported(order))
+        end
+    else
+        if order == seq_cst ||
+         # order == consume ||
+           order == acquire ||
+           order == acq_rel ||
+           order == release
+
+            threadfence_block()
+        else
+            throw(AtomicOrderUnsupported(order))
+        end
+    end
+end
+
+@inline threadfence(::DeviceScope=device_scope) = threadfence_device()
+@inline threadfence_device() = ccall("llvm.nvvm.membar.gl", llvmcall, Cvoid, ())
+@inline threadfence_sc_device() = @asmcall("fence.sc.gpu;", "~{memory}", true, Cvoid, Tuple{})
+@inline threadfence_acq_rel_device() = @asmcall("fence.acq_rel.gpu;", "~{memory}", true, Cvoid, Tuple{})
+
+function atomic_thread_fence(order, scope::DeviceScope=device_scope)
+    if compute_capability() >= sv"7.0"
+        if order == seq_cst
+
+            threadfence_sc_device()
+        elseif order == acquire ||
+             # order == consume ||
+               order == acq_rel ||
+               order == release
+
+            threadfence_acq_rel_device()
+        else
+            throw(AtomicOrderUnsupported(order))
+        end
+    else
+        if order == seq_cst ||
+           # order == consume ||
+           order == acquire ||
+           order == acq_rel ||
+           order == release
+
+            threadfence_device()
+        else
+            throw(AtomicOrderUnsupported(order))
+        end
+    end
+end
+
+@inline threadfence(::SystemScope) = threadfence_system()
+@inline threadfence_system() = ccall("llvm.nvvm.membar.sys", llvmcall, Cvoid, ())
+@inline threadfence_sc_system() = @asmcall("fence.sc.sys;", "~{memory}", true, Cvoid, Tuple{})
+@inline threadfence_acq_rel_system() = @asmcall("fence.acq_rel.sys;", "~{memory}", true, Cvoid, Tuple{})
+
+function atomic_thread_fence(order, scope::SystemScope)
+    if compute_capability() >= sv"7.0"
+        if order == seq_cst
+
+            threadfence_sc_system()
+        elseif order == acquire ||
+            #  order == consume ||
+               order == acq_rel ||
+               order == release
+
+            threadfence_acq_rel_system()
+        else
+            throw(AtomicOrderUnsupported(order))
+        end
+    else
+        if order == seq_cst ||
+         # order == consume ||
+           order == acquire ||
+           order == acq_rel ||
+           order == release
+
+            threadfence_system()
+        else
+            throw(AtomicOrderUnsupported(order))
+        end
+    end
+end
+
 """
-    threadfence_block()
+    threadfence(::SyncScope=device_scope)
 
 A memory fence that ensures that:
-- All writes to all memory made by the calling thread before the call to `threadfence_block()`
-  are observed by all threads in the block of the calling thread as occurring before all writes
-  to all memory made by the calling thread after the call to `threadfence_block()`
-- All reads from all memory made by the calling thread before the call to `threadfence_block()`
-  are ordered before all reads from all memory made by the calling thread after the call to `threadfence_block()`.
-"""
-@inline threadfence_block() = ccall("llvm.nvvm.membar.cta", llvmcall, Cvoid, ())
+- All writes to all memory made by the calling thread before the call to `threadfence(scope)`
+  are observed by all threads in the scope of the calling thread as occurring before all writes
+  to all memory made by the calling thread after the call to `threadfence(scope)`
+- All reads from all memory made by the calling thread before the call to `threadfence(scope)`
+  are ordered before all reads from all memory made by the calling thread after the call to `threadfence(scope)`.
+
+SyncScope can be one of `block_scope`, `device_scope`, or `system_scope`.
+  - `block_scope` orders reads and write on the *same* block.
+  - `device_scope` orders reads and write on the *same* device.
+  - `system_scope` orders reads and writes across all threads in the device,
+    host threads, and all threads in peer devices.
+
+See [`atomic_thread_fence`](@ref) for a variant that takes atomic orderings.
+
+!!! note
+  Note that for this ordering guarantee to be true, the observing threads must truly observe the
+  memory and not cached versions of it; this is requires the use of atomic loads and stores.
 
 """
-    threadfence()
-
-A memory fence that acts as [`threadfence_block`](@ref) for all threads in the block of the
-calling thread and also ensures that no writes to all memory made by the calling thread after
-the call to `threadfence()` are observed by any thread in the device as occurring before any
-write to all memory made by the calling thread before the call to `threadfence()`.
-
-Note that for this ordering guarantee to be true, the observing threads must truly observe the
-memory and not cached versions of it; this is requires the use of volatile loads and stores,
-which is not available from Julia right now.
-"""
-@inline threadfence() = ccall("llvm.nvvm.membar.gl", llvmcall, Cvoid, ())
+function threadfence end
 
 """
-    threadfence_system()
-
-A memory fence that acts as [`threadfence_block`](@ref) for all threads in the block of the
-calling thread and also ensures that all writes to all memory made by the calling thread
-before the call to `threadfence_system()` are observed by all threads in the device,
-host threads, and all threads in peer devices as occurring before all writes to all
-memory made by the calling thread after the call to `threadfence_system()`.
+    atomic_thread_fence(order::Atomicx.Ordering, ::SyncScope=device)
 """
-@inline threadfence_system() = ccall("llvm.nvvm.membar.sys", llvmcall, Cvoid, ())
+function atomic_thread_fence end

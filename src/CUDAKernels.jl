@@ -2,8 +2,6 @@ module CUDAKernels
 
 import KernelAbstractions
 import CUDA
-import UnsafeAtomicsLLVM
-import GPUCompiler
 
 struct CUDABackend <: KernelAbstractions.GPU
     prefer_blocks::Bool
@@ -146,6 +144,7 @@ end
 # list of overrides (only for Julia 1.6)
 const overrides = Expr[]
 
+import GPUCompiler
 macro device_override(ex)
     ex = macroexpand(__module__, ex)
     if Meta.isexpr(ex, :call)

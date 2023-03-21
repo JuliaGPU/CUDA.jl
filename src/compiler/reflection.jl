@@ -125,7 +125,7 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
         function $method(io::IO, @nospecialize(func), @nospecialize(types);
                          kernel::Bool=false, minthreads=nothing, maxthreads=nothing,
                          blocks_per_sm=nothing, maxregs=nothing, always_inline::Bool=false,
-                         kwargs...)
+                         cap=capability(device()), kwargs...)
             source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
             target = CUDACompilerTarget(device(); minthreads, maxthreads, blocks_per_sm, maxregs)
             params = CUDACompilerParams()

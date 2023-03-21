@@ -3,6 +3,28 @@
 # special intrinsics for writing version-dependent code
 include("intrinsics/version.jl")
 
+abstract type SyncScope end
+struct SystemScope <: SyncScope end
+struct DeviceScope <: SyncScope end
+struct BlockScope <: SyncScope end
+
+const system_scope = SystemScope()
+const device_scope = DeviceScope()
+const block_scope = BlockScope()
+
+import UnsafeAtomics
+using UnsafeAtomics.Internal: LLVMOrdering
+using UnsafeAtomics: unordered, monotonic, acquire, release, acq_rel, seq_cst
+
+struct AtomicUnsupported{T} <: Exception end
+struct AtomicOrderUnsupported{Ordering} <: Exception
+    order::Ordering
+end
+
+# Note CUDA C++ has also consume ordering which LLVM does not support
+# monotonic -> relaxed
+# unordered -> ??? maybe weak
+
 # extensions to the C language
 include("intrinsics/memory_shared.jl")
 include("intrinsics/indexing.jl")
