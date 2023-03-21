@@ -567,24 +567,49 @@ for (order, scope, A, sz) in Iterators.product(
                                 (LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
                                 (BlockScope, DeviceScope, SystemScope),
                                 (AS.Generic, AS.Global, AS.Shared),
-                                (4, 8))
+                                (2, 4, 8))
     instruction = "atom$(addr_space(A)).cas.$(asm(order)).$(asm(scope)).$(suffix(sz)) \$0, [\$1], \$2, \$3;"
     constraint  = "=$(reg(sz)),l,$(reg(sz)),$(reg(sz)),~{memory}"
     @eval @inline __cas!(::Val{$sz}, ptr::LLVMPtr{T, $A}, old::T, new::T, ::$order, ::$scope) where {T} =
         @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
 end
 
+# Handle byte sized cas
+for (order, scope, A) in Iterators.product(
+                            (LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
+                            (BlockScope, DeviceScope, SystemScope),
+                            (AS.Generic, AS.Global, AS.Shared))
+    instruction = "atom.$(addr_space(A)).cas.$(asm(order)).$(asm(scope)).b8 \$0, [\$1];"
+    constraint  = "=r,l,r,r,~{memory}"
+    @eval @inline function __cas!(::Val{1}, ptr::LLVMPtr{T, $A}, old::T, new::T, ::$order, ::$scope) where {T}
+        val = @asmcall($instruction, $constraint, true, UInt32, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
+        return Core.bitcast(T, val % UInt8)
+    end
+end
+
 @inline __cas!(ptr::LLVMPtr{T}, old::T, new::T, order, scope) where T =
     __cas!(Val(sizeof(T)), ptr, old, new, order, scope)
 
-for (scope, A, sz) in Iterators.product(
+for (order, A, sz) in Iterators.product(
                                 (LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
                                 (AS.Generic, AS.Global, AS.Shared),
                                 (2, 4, 8))
-    instruction = "atom$(addr_space(A)).cas.$(asm(scope)).$(suffix(sz)) \$0, [\$1], \$2, \$3;"
+    instruction = "atom$(addr_space(A)).cas.$(asm(order)).$(suffix(sz)) \$0, [\$1], \$2, \$3;"
     constraint  = "=$(reg(sz)),l,$(reg(sz)),$(reg(sz)),~{memory}"
     @eval @inline __cas_old!(::Val{$sz}, ptr::LLVMPtr{T, $A}, old::T, new::T, ::$scope) where {T} =
         @asmcall($instruction, $constraint, true, T, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
+end
+
+# Handle byte sized cas
+for (order, A) in Iterators.product(
+                            (LLVMOrdering{:acq_rel}, LLVMOrdering{:acquire}, LLVMOrdering{:monotonic}, LLVMOrdering{:release}),
+                            (AS.Generic, AS.Global, AS.Shared))
+    instruction = "atom.$(addr_space(A)).cas.$(asm(order)).b8 \$0, [\$1];"
+    constraint  = "=r,l,r,r,~{memory}"
+    @eval @inline function __cas_old!(::Val{1}, ptr::LLVMPtr{T, $A}, old::T, new::T, ::$order, ::$scope) where {T}
+        val = @asmcall($instruction, $constraint, true, UInt32, Tuple{LLVMPtr{T, $A}, T, T}, ptr, old, new)
+        return Core.bitcast(T, val % UInt8)
+    end
 end
 
 @inline __cas_old!(ptr::LLVMPtr{T}, old::T, new::T, scope) where T =
@@ -595,7 +620,7 @@ end
     if sizeof(T) > 8 || sizeof(T) < 2
         throw(AtomicUnsupported{T}())
     end
-    if compute_capability() >= sv"7.0" && 4 <= sizeof(T) <= 8
+    if compute_capability() >= sv"7.0"
         if order == seq_cst
             atomic_thread_fence(seq_cst, scope)
         end
