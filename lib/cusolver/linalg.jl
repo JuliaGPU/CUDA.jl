@@ -455,7 +455,7 @@ function Base.getproperty(F::LU{T,<:StridedCuMatrix}, d::Symbol) where T
     m, n = size(F)
     if d === :L
         L = tril!(getfield(F, :factors)[1:m, 1:min(m,n)])
-        L[1:min(m,n)+1:end] .= one(T)   # set the diagonal (linear indexing trick)
+        L[1:m+1:end] .= one(T)   # set the diagonal (linear indexing trick)
         return L
     elseif VERSION >= v"1.9.0-DEV.1775"
         invoke(getproperty, Tuple{LU{T}, Symbol}, F, d)

@@ -602,6 +602,18 @@ k = 1
             lu_gpu = lu(A_d)
             @test ldiv!(lu_cpu, B) ≈ collect(ldiv!(lu_gpu, B_d))
         end
+        
+        A = CuMatrix(rand(1024, 1024))
+        lua = lu(A)
+        @test Matrix(lua.L) * Matrix(lua.U) ≈ Matrix(lua.P) * Matrix(A)
+
+        A = CuMatrix(rand(1024, 512))
+        lua = lu(A)
+        @test Matrix(lua.L) * Matrix(lua.U) ≈ Matrix(lua.P) * Matrix(A)
+    
+        A = CuMatrix(rand(512, 1024))
+        lua = lu(A)
+        @test Matrix(lua.L) * Matrix(lua.U) ≈ Matrix(lua.P) * Matrix(A)
     end
 end
 
