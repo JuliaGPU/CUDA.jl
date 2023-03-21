@@ -270,7 +270,7 @@ function KernelAbstractions.priority!(::CUDABackend, prio::Symbol)
         priority = first(range)
     end
 
-    old_stream = stream()
+    old_stream = CUDA.stream()
     r_flags = Ref{Cuint}()
     CUDA.cuStreamGetFlags(old_stream, r_flags)
     flags = r_flags[]
@@ -281,7 +281,7 @@ function KernelAbstractions.priority!(::CUDABackend, prio::Symbol)
     @debug "Switching default stream" flags priority
     new_stream = CuStream(; flags, priority)
     CUDA.wait(event, new_stream)
-    stream!(new_stream)
+    CUDA.stream!(new_stream)
     return nothing
 end
 
