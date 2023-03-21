@@ -84,7 +84,7 @@ function handle()
 
     # update stream
     @noinline function update_stream(cuda, state)
-        cusparseSetStream_v2(state.handle, cuda.stream)
+        cusparseSetStream(state.handle, cuda.stream)
         (; state.handle, cuda.stream)
     end
     if state.stream != cuda.stream
