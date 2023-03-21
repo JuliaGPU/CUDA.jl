@@ -23,8 +23,11 @@ import .StaticArrays: MArray
 
 KernelAbstractions.get_backend(::CUDA.CuArray) = CUDABackend()
 KernelAbstractions.get_backend(::CUDA.CUSPARSE.AbstractCuSparseArray) = CUDABackend()
-
 KernelAbstractions.synchronize(::CUDABackend) = CUDA.synchronize()
+
+Adapt.adapt_storage(::CUDABackend, a::Array) = Adapt.adapt(CUDA.CuArray, a)
+Adapt.adapt_storage(::CUDABackend, a::CUDA.CuArray) = a
+Adapt.adapt_storage(::KernelAbstractions.CPU, a::CUDA.CuArray) = convert(Array, a)
 
 ###
 # copyto!
