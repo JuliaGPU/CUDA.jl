@@ -64,7 +64,8 @@ include("array.jl")
 
 # compiler libraries
 include("../lib/cupti/CUPTI.jl")
-export CUPTI
+include("../lib/nvperf/NVPERF.jl")
+export CUPTI, NVPERF
 
 # compiler implementation
 include("compiler/compilation.jl")

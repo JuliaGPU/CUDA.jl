@@ -4,8 +4,6 @@ output_file_path = "../../lib/cupti/libcupti.jl"
 prologue_file_path = "./libcupti_prologue.jl"
 
 output_ignorelist = [
-    # unexpanded macro (TODO: expand during rewrite?)
-    ".*_STRUCT_SIZE$",
     # these change often
     "^CUPTI_API_VERSION$",
 ]

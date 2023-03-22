@@ -102,6 +102,14 @@ function rewriter!(ctx, options)
             end
             if Meta.isexpr(expr, :(=))
                 lhs, rhs = expr.args
+                if rhs isa Expr && rhs.head == :call
+                    name = string(rhs.args[1])
+                    if endswith(name, "STRUCT_SIZE")
+                        rhs.head = :macrocall
+                        rhs.args[1] = Symbol("@", name)
+                        insert!(rhs.args, 2, nothing)
+                    end
+                end
                 isa(lhs, Symbol) || continue
                 if Meta.isexpr(rhs, :call) && rhs.args[1] in (:__CUDA_API_PTDS, :__CUDA_API_PTSZ)
                     rhs = rhs.args[2]
@@ -207,6 +215,14 @@ function main(name="all")
         wrap("cupti", ["$cupti/cupti.h", "$cupti/cupti_profiler_target.h"];
             include_dirs=[cuda, cupti],
             targets=[r"cupti_.*.h"])
+    end
+
+    if name == "all" || name == "nvperf_host"
+        nvperf_host = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
+
+        wrap("nvperf_host", ["$nvperf_host/nvperf_common.h", "$nvperf_host/nvperf_host.h",  "$nvperf_host/nvperf_cuda_host.h"];
+            include_dirs=[cuda, nvperf_host],
+            targets=[r"nvperf_.*.h"])
     end
 
     if name == "all" || name == "cublas"
