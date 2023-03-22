@@ -107,6 +107,10 @@ include("../lib/nvml/NVML.jl")
 const has_nvml = NVML.has_nvml
 export NVML, has_nvml
 
+# KernelAbstractions
+include("CUDAKernels.jl")
+export CUDABackend
+
 include("precompile.jl")
 
 end
