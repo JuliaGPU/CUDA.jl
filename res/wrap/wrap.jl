@@ -102,6 +102,14 @@ function rewriter!(ctx, options)
             end
             if Meta.isexpr(expr, :(=))
                 lhs, rhs = expr.args
+                if rhs isa Expr && rhs.head == :call
+                    name = string(rhs.args[1])
+                    if endswith(name, "STRUCT_SIZE")
+                        rhs.head = :macrocall
+                        rhs.args[1] = Symbol("@", name)
+                        insert!(rhs.args, 2, nothing)
+                    end
+                end
                 isa(lhs, Symbol) || continue
                 if Meta.isexpr(rhs, :call) && rhs.args[1] in (:__CUDA_API_PTDS, :__CUDA_API_PTSZ)
                     rhs = rhs.args[2]
