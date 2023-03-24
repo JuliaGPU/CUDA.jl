@@ -1,7 +1,7 @@
 name = "cuTensorNet"
 uuid = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
 authors = ["Katharine Hyatt <kshyatt@gmail.com>"]
-version = "1.0.1"
+version = "1.0.2"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
@@ -13,6 +13,6 @@ cuQuantum_jll = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
 [compat]
 cuQuantum_jll = "~22.11"
 cuTENSOR = "~1.0"
-CUDA = "~4.0"
+CUDA = "~4.0, ~4.1"
 CEnum = "0.2, 0.3, 0.4"
 julia = "1.6"
