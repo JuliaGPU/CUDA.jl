@@ -40,21 +40,21 @@ version = "0.4.2"
 
 [[CUDA_Driver_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
-git-tree-sha1 = "a1efe2bfb96c10906dede10f1580aca0ae6d092f"
+git-tree-sha1 = "10ca2b63b496edc09258b3de5d1aa64094b18b1d"
 uuid = "4ee394cb-3365-5eb0-8335-949819d2adfc"
-version = "0.4.0+2"
+version = "0.5.0+0"
 
 [[CUDA_Runtime_Discovery]]
 deps = ["Libdl"]
-git-tree-sha1 = "58dd8ec29f54f08c04b052d2c2fa6760b4f4b3a4"
+git-tree-sha1 = "6c8fceaaa6850dea627288ac3bb86fdcdf05e326"
 uuid = "1af6417a-86b4-443c-805f-a4643ffb695f"
-version = "0.1.1"
+version = "0.2.0"
 
 [[CUDA_Runtime_jll]]
 deps = ["Artifacts", "CUDA_Driver_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "96e06a24c89a9945c57278fd09fb717f71476d87"
+git-tree-sha1 = "802b1f2220fd43251d343219adf478e6b7992bd4"
 uuid = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
-version = "0.4.0+2"
+version = "0.5.0+0"
 
 [[ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
