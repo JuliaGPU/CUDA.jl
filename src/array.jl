@@ -386,10 +386,11 @@ end
 ## memory copying
 
 typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
+typetagdata(a::SubArray, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a.parent) + i - 1
 typetagdata(a::CuArray, i=1) =
   convert(CuPtr{UInt8}, a.storage.buffer) + a.maxsize + a.offset + i - 1
 
-function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
+function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Union{Array{T}, SubArray{T, 1, Vector{T}, Tuple{UnitRange{<:Integer}}, true}}, soffs::Integer,
                       n::Integer) where T
   n==0 && return dest
   @boundscheck checkbounds(dest, doffs)
@@ -400,7 +401,7 @@ function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soff
   return dest
 end
 
-Base.copyto!(dest::DenseCuArray{T}, src::Array{T}) where {T} =
+Base.copyto!(dest::DenseCuArray{T}, src::Union{Array{T}, SubArray{T, 1, Vector{T}, Tuple{UnitRange{<:Integer}}, true}}) where {T} =
     copyto!(dest, 1, src, 1, length(src))
 
 function Base.copyto!(dest::Array{T}, doffs::Integer, src::DenseCuArray{T}, soffs::Integer,
@@ -431,11 +432,48 @@ end
 Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
     copyto!(dest, 1, src, 1, length(src))
 
+# Views:
+
+
 # general case: use CUDA APIs
 
 # NOTE: we only switch contexts here to avoid illegal memory accesses. synchronization is
 #       best-effort, since we don't keep track of streams using each array.
 
+function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
+                             src::Array{T}, soffs, n) where T
+  context!(context(dest)) do
+    # operations on unpinned memory cannot be executed asynchronously, and synchronize
+    # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
+    s = stream()
+    is_pinned(pointer(src)) || nonblocking_synchronize(s)
+
+    GC.@preserve src dest begin
+      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+      if Base.isbitsunion(T)
+        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+      end
+    end
+  end
+  return dest
+end
+function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
+                             src::SubArray{T, 1, Vector{T}, Tuple{UnitRange{<:Integer}}, true}, soffs, n) where T
+  context!(context(dest)) do
+    # operations on unpinned memory cannot be executed asynchronously, and synchronize
+    # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
+    s = stream()
+    is_pinned(pointer(src)) || nonblocking_synchronize(s)
+
+    GC.@preserve src dest begin
+      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+      if Base.isbitsunion(T)
+        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+      end
+    end
+  end
+  return dest
+end
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::Array{T}, soffs, n) where T
   context!(context(dest)) do
