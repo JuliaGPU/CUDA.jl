@@ -109,6 +109,7 @@ export NVML, has_nvml
 
 # KernelAbstractions
 include("CUDAKernels.jl")
+import .CUDAKernels: CUDABackend
 export CUDABackend
 
 include("precompile.jl")
