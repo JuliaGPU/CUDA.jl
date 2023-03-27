@@ -138,9 +138,9 @@ version = "1.4.1"
 
 [[KernelAbstractions]]
 deps = ["Adapt", "Atomix", "InteractiveUtils", "LinearAlgebra", "MacroTools", "SnoopPrecompile", "SparseArrays", "StaticArrays", "UUIDs", "UnsafeAtomics", "UnsafeAtomicsLLVM"]
-git-tree-sha1 = "17d0bb94eef881b09c57967be12cca70fefb3304"
+git-tree-sha1 = "350a880e80004f4d5d82a17f737d8fcdc56c3462"
 uuid = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
-version = "0.9.0"
+version = "0.9.1"
 
 [[LLVM]]
 deps = ["CEnum", "LLVMExtra_jll", "Libdl", "Printf", "Unicode"]
