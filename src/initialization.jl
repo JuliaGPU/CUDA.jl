@@ -38,12 +38,11 @@ function __init__()
     # check that we have a driver
     global libcuda
     if CUDA_Driver_jll.is_available()
-        if isdefined(CUDA_Driver_jll, :libcuda)
-            libcuda = CUDA_Driver_jll.libcuda
-        else
+        if isnothing(CUDA_Driver_jll.libcuda)
             _initialization_error[] = "CUDA driver not found"
             return
         end
+        libcuda = CUDA_Driver_jll.libcuda
     else
         # CUDA_Driver_jll only kicks in for supported platforms, so fall back to
         # a system search if the artifact isn't available (JLLWrappers.jl#50)

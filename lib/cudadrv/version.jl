@@ -22,7 +22,6 @@ Returns the latest version of CUDA supported by the original system driver, or
 `nothing` if the driver was not upgraded.
 """
 function system_driver_version()
-    isdefined(CUDA_Driver_jll, :libcuda_original_version) || return nothing
     CUDA_Driver_jll.libcuda_original_version
 end
 
