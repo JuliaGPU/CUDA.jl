@@ -217,6 +217,14 @@ function main(name="all")
             targets=[r"cupti_.*.h"])
     end
 
+    if name == "all" || name == "nvperf_host"
+        nvperf_host = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
+
+        wrap("nvperf_host", ["$nvperf_host/nvperf_common.h", "$nvperf_host/nvperf_host.h",  "$nvperf_host/nvperf_cuda_host.h"];
+            include_dirs=[cuda, nvperf_host],
+            targets=[r"nvperf_.*.h"])
+    end
+
     if name == "all" || name == "cublas"
         wrap("cublas", ["$cuda/cublas_v2.h", "$cuda/cublasXt.h"];
             targets=[r"cublas.*.h"],

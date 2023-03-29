@@ -19,7 +19,7 @@ project environment).
 You can also call `main(library)` if you want to generate the wrapper for a specific `library`.
 The possible values for `library` are `"all"` (default), `"cuda"`, `"nvml"`, `"cupti"`,
 `"cublas"`, `"cufft"`, `"curand"`, `"cusparse"`, `"cusolver"`, `"cudnn"`, `"cutensor"`,
-`"cutensornet"` or `"custatevec"`.
+`"nvperf_host"`, `"cutensornet"` or `"custatevec"`.
 
 For each library, the script performs the following steps:
 

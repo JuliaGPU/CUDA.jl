@@ -1,0 +1,18 @@
+[general]
+library_name = "libnvperf_host"
+output_file_path = "../../lib/nvperf/libnvperf_host.jl"
+prologue_file_path = "./libnvperf_host_prologue.jl"
+
+output_ignorelist = [
+    "NVPA_STRUCT_SIZE"
+]
+
+
+[codegen]
+use_ccall_macro = true
+always_NUL_terminated_string = true
+
+
+[api]
+checked_rettypes = [ "NVPA_Status" ]
+needs_context = false
