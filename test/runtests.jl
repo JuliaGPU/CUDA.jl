@@ -44,7 +44,7 @@ if do_help
                --list             List all available tests.
                --thorough         Don't allow skipping tests that are not supported.
                --quickfail        Fail the entire run as soon as a single test errored.
-               --jobs=N           Launch `N` processes to perform tests (default: Threads.nthreads()).
+               --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS).
                --gpus=N           Expose `N` GPUs to test processes (default: 1).
                --sanitize[=tool]  Run the tests under `compute-sanitizer`.
                --snoop=FILE       Snoop on compiled methods and save to `FILE`.
@@ -52,16 +52,11 @@ if do_help
                Remaining arguments filter the tests that will be executed.""")
     exit(0)
 end
-set_jobs, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
+set_jobs, jobs = extract_flag!(ARGS, "--jobs", Sys.CPU_THREADS)
 do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
 do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
 do_thorough, _ = extract_flag!(ARGS, "--thorough")
 do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
-
-if !set_jobs && jobs == 1
-    @warn """You are running the CUDA.jl test suite with only a single thread; this will take a long time.
-           Consider launching Julia with `--threads auto` to run tests in parallel."""
-end
 
 include("setup.jl")     # make sure everything is precompiled
 _, gpus = extract_flag!(ARGS, "--gpus", ndevices())
@@ -179,6 +174,8 @@ sort!(candidates, by=x->x.mem)
 picks = reverse(candidates[end-gpus+1:end])   # best GPU first
 ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"$(pick.mig ? "MIG" : "GPU")-$(pick.uuid)", picks), ",")
 @info "Testing using $(length(picks)) device(s): " * join(map(pick->"$(pick.id). $(pick.name) (UUID $(pick.uuid))", picks), ", ")
+
+@info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the JULIA_CPU_THREADS environment variable."
 
 # determine tests to skip
 skip_tests = []
