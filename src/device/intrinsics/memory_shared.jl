@@ -121,11 +121,11 @@ dynamic_smem_size() =
         alignment!(gv, align)
 
         # generate IR
-        @dispose builder=Builder(ctx) begin
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
-            ptr = gep!(builder, gv, [ConstantInt(0; ctx), ConstantInt(0; ctx)])
+            ptr = gep!(builder, gv_typ, gv, [ConstantInt(0; ctx), ConstantInt(0; ctx)])
 
             untyped_ptr = bitcast!(builder, ptr, T_ptr)
 

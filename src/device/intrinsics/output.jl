@@ -46,11 +46,11 @@ end
 
         # create functions
         param_types = LLVMType[convert(LLVMType, typ; ctx) for typ in arg_types]
-        llvm_f, _ = create_function(T_int32, param_types)
+        llvm_f, llvm_ft = create_function(T_int32, param_types)
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        @dispose builder=Builder(ctx) begin
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
@@ -65,7 +65,7 @@ end
 
                 args = alloca!(builder, argtypes)
                 for (i, param) in enumerate(parameters(llvm_f))
-                    p = struct_gep!(builder, args, i-1)
+                    p = struct_gep!(builder, argtypes, args, i-1)
                     store!(builder, param, p)
                 end
 
@@ -75,7 +75,7 @@ end
             # invoke vprintf and return
             vprintf_typ = LLVM.FunctionType(T_int32, [T_pint8, T_pint8])
             vprintf = LLVM.Function(mod, "vprintf", vprintf_typ)
-            chars = call!(builder, vprintf, [str, buffer])
+            chars = call!(builder, vprintf_typ, vprintf, [str, buffer])
 
             ret!(builder, chars)
         end

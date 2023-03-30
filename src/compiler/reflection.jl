@@ -43,7 +43,7 @@ See also: [`@device_code_sass`](@ref)
 """
 function code_sass(io::IO, @nospecialize(func), @nospecialize(types); kwargs...)
     compiler_kwargs, kwargs = split_kwargs_runtime(kwargs, COMPILER_KWARGS)
-    source = FunctionSpec(typeof(func), Base.to_tuple_type(types))
+    source = methodinstance(typeof(func), Base.to_tuple_type(types))
     config = compiler_config(device(); compiler_kwargs...)
     job = CompilerJob(source, config)
     code_sass(io, job; kwargs...)
@@ -138,7 +138,7 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
         function $method(io::IO, @nospecialize(func), @nospecialize(types);
                          kernel=false, kwargs...)
             compiler_kwargs, kwargs = split_kwargs_runtime(kwargs, COMPILER_KWARGS)
-            source = FunctionSpec(typeof(func), Base.to_tuple_type(types))
+            source = methodinstance(typeof(func), Base.to_tuple_type(types))
             config = compiler_config(device(); kernel, compiler_kwargs...)
             job = CompilerJob(source, config)
             GPUCompiler.$method($(args...); kwargs...)
@@ -156,7 +156,7 @@ const code_ptx = code_native
 Return a type `r` such that `f(args...)::r` where `args::tt`.
 """
 function return_type(@nospecialize(func), @nospecialize(tt))
-    source = FunctionSpec(typeof(func), tt)
+    source = methodinstance(typeof(func), tt)
     config = compiler_config(device())
     job = CompilerJob(source, config)
     interp = GPUCompiler.get_interpreter(job)

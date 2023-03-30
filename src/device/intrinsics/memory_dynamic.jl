@@ -14,7 +14,8 @@ export malloc
 
         # get the intrinsic
         # NOTE: LLVM doesn't have void*, Clang uses i8* for malloc too
-        intr = LLVM.Function(mod, "malloc", LLVM.FunctionType(T_pint8, [T_size]))
+        intr_typ = LLVM.FunctionType(T_pint8, [T_size])
+        intr = LLVM.Function(mod, "malloc", intr_typ)
         # should we attach some metadata here? julia.gc_alloc_obj has the following:
         #let attrs = function_attributes(intr)
         #    AllocSizeNumElemsNotPresent = reinterpret(Cuint, Cint(-1))
@@ -27,11 +28,11 @@ export malloc
         #end
 
         # generate IR
-        @dispose builder=Builder(ctx) begin
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
-            ptr = call!(builder, intr, [parameters(llvm_f)[1]])
+            ptr = call!(builder, intr_typ, intr, [parameters(llvm_f)[1]])
 
             jlptr = ptrtoint!(builder, ptr, T_ptr)
 
