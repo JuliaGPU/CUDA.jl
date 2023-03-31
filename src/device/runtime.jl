@@ -11,7 +11,7 @@ GPUCompiler.reset_runtime()
 # load or build the runtime for the most likely compilation job given a compute capability
 function precompile_runtime(caps=CUDA.llvm_compat(LLVM.version()).cap)
     f = ()->return
-    dummy_source = FunctionSpec(typeof(f), Tuple{})
+    mi = methodinstance(typeof(f), Tuple{})
     params = CUDACompilerParams()
     JuliaContext() do ctx
         for cap in caps
@@ -19,7 +19,7 @@ function precompile_runtime(caps=CUDA.llvm_compat(LLVM.version()).cap)
             #       so we don't use `compiler_config` which requires NVML
             target = PTXCompilerTarget(; cap)
             config = CompilerConfig(target, params)
-            job = CompilerJob(dummy_source, config)
+            job = CompilerJob(mi, config)
             GPUCompiler.load_runtime(job; ctx)
         end
     end

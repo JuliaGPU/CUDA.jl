@@ -78,11 +78,11 @@ end
     @test_throws ErrorException @device_code_lowered nothing
 
     # make sure kernel name aliases are preserved in the generated code
-    @test occursin("julia_dummy", sprint(io->(@device_code_llvm io=io optimize=false @cuda dummy())))
-    @test occursin("julia_dummy", sprint(io->(@device_code_llvm io=io @cuda dummy())))
-    @test occursin("julia_dummy", sprint(io->(@device_code_ptx io=io @cuda dummy())))
+    @test occursin("dummy", sprint(io->(@device_code_llvm io=io optimize=false @cuda dummy())))
+    @test occursin("dummy", sprint(io->(@device_code_llvm io=io @cuda dummy())))
+    @test occursin("dummy", sprint(io->(@device_code_ptx io=io @cuda dummy())))
     if can_use_cupti()
-        @test occursin("julia_dummy", sprint(io->(@device_code_sass io=io @cuda dummy())))
+        @test occursin("dummy", sprint(io->(@device_code_sass io=io @cuda dummy())))
     end
 
     # make sure invalid kernels can be partially reflected upon
@@ -100,7 +100,7 @@ end
     end
 
     # set name of kernel
-    @test occursin("julia_mykernel", sprint(io->(@device_code_llvm io=io begin
+    @test occursin("mykernel", sprint(io->(@device_code_llvm io=io begin
         k = cufunction(dummy, name="mykernel")
         k()
     end)))

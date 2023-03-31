@@ -12,14 +12,14 @@ export
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        @dispose builder=Builder(ctx) begin
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
             # call the indexing intrinsic
             intr_typ = LLVM.FunctionType(T_int32)
             intr = LLVM.Function(mod, "llvm.nvvm.read.ptx.sreg.$name", intr_typ)
-            idx = call!(builder, intr)
+            idx = call!(builder, intr_typ, intr)
 
             # attach range metadata
             range_metadata = MDNode([ConstantInt(Int32(range.start); ctx),

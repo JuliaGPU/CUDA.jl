@@ -172,11 +172,11 @@ function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
         initializer!(gv, ConstantArray(data; ctx))
 
         # generate IR
-        @dispose builder=Builder(ctx) begin
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
-            ptr = gep!(builder, gv, [ConstantInt(0; ctx), ConstantInt(0; ctx)])
+            ptr = gep!(builder, T_global, gv, [ConstantInt(0; ctx), ConstantInt(0; ctx)])
 
             untyped_ptr = bitcast!(builder, ptr, T_ptr)
 

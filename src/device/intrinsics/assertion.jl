@@ -49,7 +49,7 @@ assert_counter = 0
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        @dispose builder=Builder(ctx) begin
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
@@ -66,9 +66,9 @@ assert_counter = 0
             # NOTE: we don't mark noreturn since that control flow might confuse ptxas
             assertfail_typ =
                 LLVM.FunctionType(T_void,
-                                [T_pint8, T_pint8, T_int32, T_pint8, llvmtype(charSize)])
+                                [T_pint8, T_pint8, T_int32, T_pint8, value_type(charSize)])
             assertfail = LLVM.Function(mod, "__assertfail", assertfail_typ)
-            call!(builder, assertfail, [message, file, line, func, charSize])
+            call!(builder, assertfail_typ, assertfail, [message, file, line, func, charSize])
 
             ret!(builder)
         end

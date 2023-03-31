@@ -102,9 +102,7 @@ function compile(@nospecialize(job::CompilerJob))
 end
 function compile(@nospecialize(job::CompilerJob), ctx)
     # lower to PTX
-    mi, mi_meta = GPUCompiler.emit_julia(job)
-    ir, ir_meta = GPUCompiler.emit_llvm(job, mi; ctx)
-    asm, asm_meta = GPUCompiler.emit_asm(job, ir; format=LLVM.API.LLVMAssemblyFile)
+    asm, meta = GPUCompiler.compile(:asm, job; ctx)
 
     # remove extraneous debug info on lower debug levels
     if Base.JLOptions().debug_level < 2
@@ -121,7 +119,7 @@ function compile(@nospecialize(job::CompilerJob), ctx)
     end
 
     # check if we'll need the device runtime
-    undefined_fs = filter(collect(functions(ir))) do f
+    undefined_fs = filter(collect(functions(meta.ir))) do f
         isdeclaration(f) && !LLVM.isintrinsic(f)
     end
     intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
@@ -129,7 +127,7 @@ function compile(@nospecialize(job::CompilerJob), ctx)
     needs_cudadevrt = !isempty(setdiff(LLVM.name.(undefined_fs), intrinsic_fns))
 
     # find externally-initialized global variables; we'll access those using CUDA APIs.
-    external_gvars = filter(isextinit, collect(globals(ir))) .|> LLVM.name
+    external_gvars = filter(isextinit, collect(globals(meta.ir))) .|> LLVM.name
 
     # prepare invocations of CUDA compiler tools
     ptxas_opts = String[]
@@ -224,7 +222,7 @@ function compile(@nospecialize(job::CompilerJob), ctx)
         rm(ptxas_output)
     end
 
-    return (image, entry=LLVM.name(ir_meta.entry), external_gvars)
+    return (image, entry=LLVM.name(meta.entry), external_gvars)
 end
 
 # link into an executable kernel
