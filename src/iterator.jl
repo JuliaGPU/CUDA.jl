@@ -20,10 +20,10 @@ end
 
 function Base.iterate(c::CuIterator, state...)
     item = iterate(c.batches, state...)
-    isdefined(c, :previous) && adapt(unsafe_free!, c.previous)
+    isdefined(c, :previous) && adapt(CuIteratorFree, c.previous)
     item === nothing && return nothing
     batch, next_state = item
-    cubatch = adapt(CuArray, batch)
+    cubatch = adapt(CuIterator, batch)
     c.previous = cubatch
     return cubatch, next_state
 end
@@ -35,3 +35,19 @@ Base.axes(c::CuIterator) = axes(c.batches)  # required for HasShape{N}
 Base.IteratorEltype(::Type{CuIterator{B}}) where {B} = Base.IteratorEltype(B)
 Base.eltype(c::CuIterator) = eltype(c.batches)  # required for HasEltype
 
+# This struct exists to control adapt for clean-up-afterwards step:
+struct CuIteratorFree end
+Adapt.adapt_storage(::Type{CuIteratorFree}, x::CuArray) = unsafe_free!(x)
+
+# We re-purpose struct CuIterator for the matching transfer-before-use step,
+# mostly fall back to adapt(CuArray, x) which recurses into Tuples etc:
+Adapt.adapt_storage(::Type{<:CuIterator}, x) = adapt(CuArray, x)
+
+# But unlike adapt(CuArray, x), returse into arrays of arrays:
+function Adapt.adapt_storage(::Type{<:CuIterator}, xs::AbstractArray{T}) where T
+    isbitstype(T) ? adapt(CuArray, xs) : map(adapt(CuArray), xs)
+end
+function Adapt.adapt_storage(::Type{CuIteratorFree}, xs::AbstractArray{T}) where T
+    foreach(adapt(CuIteratorFree), xs)
+    xs
+end
