@@ -5,8 +5,10 @@ export CuIterator
 
 Return a `CuIterator` that can iterate through the provided `batches` via `Base.iterate`.
 
-Upon each iteration, the current `batch` is adapted to the GPU (via `map(x -> adapt(CuArray, x), batch)`)
+Upon each iteration, the current `batch` is copied to the GPU,
 and the previous iteration is marked as freeable from GPU memory (via `unsafe_free!`).
+Both of these use `adapt`, so that each `batch` can be an array, an array of arrays,
+or a more complex object such as a nested set of NamedTuples, which is explored recursively.
 
 This abstraction is useful for batching data into GPU memory in a manner that
 allows old iterations to potentially be freed (or marked as reusable) earlier
