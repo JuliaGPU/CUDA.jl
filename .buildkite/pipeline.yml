@@ -28,10 +28,10 @@ steps:
               - "1.7"
               - "1.8"
               - "1.9-nightly"
-              #- "nightly"
+              - "nightly"
           adjustments:
             - with:
-                julia: "1.9-nightly"
+                julia: "nightly"
               soft_fail: true
 
   # then, test supported CUDA toolkits (installed through the artifact system)
