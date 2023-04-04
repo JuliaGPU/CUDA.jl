@@ -18,7 +18,14 @@ steps:
           queue: "juliagpu"
           cuda: "*"
         commands: |
-          julia --project -e 'using CUDA; CUDA.set_runtime_version!("local")'
+          julia --project -e '
+              # make sure the 1.6-era Manifest works on this Julia version
+              using Pkg
+              Pkg.resolve()
+
+              # use the CUDA installation from the CI image
+              using CUDA
+              CUDA.set_runtime_version!("local")'
         if: build.message !~ /\[skip tests\]/
         timeout_in_minutes: 120
         matrix:
