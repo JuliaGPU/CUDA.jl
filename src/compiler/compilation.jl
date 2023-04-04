@@ -425,3 +425,121 @@ function run_and_collect(cmd)
 
     return proc, log
 end
+
+
+
+## opaque closures
+
+# TODO: once stabilised, move bits of this into GPUCompiler.jl
+
+using Core.Compiler: IRCode
+using Core: CodeInfo, MethodInstance, CodeInstance, LineNumberNode
+
+struct OpaqueClosure{F, E, A, R}    # func, env, args, ret
+    env::E
+end
+
+# XXX: because we can't call functions from other CUDA modules, we effectively need to
+#      recompile when the target function changes. this, and because of how GPUCompiler's
+#      deferred compilation mechanism currently works, is why we have `F` as a type param.
+
+# XXX: because of GPU code requiring specialized signatures, we also need to recompile
+#      when the environment or argument types change. together with the above, this
+#      negates much of the benefit of opaque closures.
+
+# TODO: support for constructing an opaque closure from source code
+
+# TODO: complete support for passing an environment. this probably requires a split into
+#       host and device structures to, e.g., root a CuArray and pass a CuDeviceArray.
+
+function compute_ir_rettype(ir::IRCode)
+    rt = Union{}
+    for i = 1:length(ir.stmts)
+        stmt = ir.stmts[i][:inst]
+        if isa(stmt, Core.Compiler.ReturnNode) && isdefined(stmt, :val)
+            rt = Core.Compiler.tmerge(Core.Compiler.argextype(stmt.val, ir), rt)
+        end
+    end
+    return Core.Compiler.widenconst(rt)
+end
+
+function compute_oc_signature(ir::IRCode, nargs::Int, isva::Bool)
+    argtypes = Vector{Any}(undef, nargs)
+    for i = 1:nargs
+        argtypes[i] = Core.Compiler.widenconst(ir.argtypes[i+1])
+    end
+    if isva
+        lastarg = pop!(argtypes)
+        if lastarg <: Tuple
+            append!(argtypes, lastarg.parameters)
+        else
+            push!(argtypes, Vararg{Any})
+        end
+    end
+    return Tuple{argtypes...}
+end
+
+function OpaqueClosure(ir::IRCode, @nospecialize env...; isva::Bool = false)
+    # NOTE: we need ir.argtypes[1] == typeof(env)
+    ir = Core.Compiler.copy(ir)
+    nargs = length(ir.argtypes)-1
+    sig = compute_oc_signature(ir, nargs, isva)
+    rt = compute_ir_rettype(ir)
+    src = ccall(:jl_new_code_info_uninit, Ref{CodeInfo}, ())
+    src.slotnames = Base.fill(:none, nargs+1)
+    src.slotflags = Base.fill(zero(UInt8), length(ir.argtypes))
+    src.slottypes = copy(ir.argtypes)
+    src.rettype = rt
+    src = Core.Compiler.ir_to_codeinf!(src, ir)
+    config = compiler_config(device(); kernel=false)
+    return generate_opaque_closure(config, src, sig, rt, nargs, isva, env...)
+end
+
+function OpaqueGPUClosure(src::CodeInfo, @nospecialize env...)
+    src.inferred || throw(ArgumentError("Expected inferred src::CodeInfo"))
+    mi = src.parent::Core.MethodInstance
+    sig = Base.tuple_type_tail(mi.specTypes)
+    method = mi.def::Method
+    nargs = method.nargs-1
+    isva = method.isva
+    return generate_opaque_closure(config, src, sig, src.rettype, nargs, isva, env...)
+end
+
+function generate_opaque_closure(config::CompilerConfig, src::CodeInfo,
+                                 @nospecialize(sig), @nospecialize(rt),
+                                 nargs::Int, isva::Bool, @nospecialize env...;
+                                 mod::Module=@__MODULE__,
+                                 file::Union{Nothing,Symbol}=nothing, line::Int=0)
+    # create a method (like `jl_make_opaque_closure_method`)
+    meth = ccall(:jl_new_method_uninit, Ref{Method}, (Any,), Main)
+    meth.sig = Tuple
+    meth.isva = isva                # XXX: probably not supported?
+    meth.is_for_opaque_closure = 0  # XXX: do we want this?
+    meth.name = Symbol("opaque gpu closure")
+    meth.nargs = nargs + 1
+    meth.file = something(file, Symbol())
+    meth.line = line
+    ccall(:jl_method_set_source, Nothing, (Any, Any), meth, src)
+
+    # look up a method instance and create a compiler job
+    full_sig = Tuple{typeof(env), sig.parameters...}
+    mi = ccall(:jl_specializations_get_linfo, Ref{MethodInstance},
+               (Any, Any, Any), meth, full_sig, Core.svec())
+    job = CompilerJob(mi, config)   # this captures the current world age
+
+    # create a code instance and store it in the cache
+    ci = CodeInstance(mi, rt, C_NULL, src, Int32(0), meth.primary_world, typemax(UInt),
+                      UInt32(0), UInt32(0), nothing, UInt8(0))
+    Core.Compiler.setindex!(GPUCompiler.ci_cache(job), ci, mi)
+
+    id = length(GPUCompiler.deferred_codegen_jobs) + 1
+    GPUCompiler.deferred_codegen_jobs[id] = job
+    return OpaqueClosure{id, typeof(env), sig, rt}(env)
+end
+
+# device-side call to an opaque closure
+function (oc::OpaqueClosure{F})(a, b) where F
+    ptr = ccall("extern deferred_codegen", llvmcall, Ptr{Cvoid}, (Int,), F)
+    assume(ptr != C_NULL)
+    return ccall(ptr, Int, (Int, Int), a, b)
+end
