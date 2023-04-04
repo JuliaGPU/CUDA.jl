@@ -22,6 +22,10 @@ Returns the latest version of CUDA supported by the original system driver, or
 `nothing` if the driver was not upgraded.
 """
 function system_driver_version()
+    # on unsupported platforms, CUDA_Driver_jll's init function does not run
+    if !isdefined(CUDA_Driver_jll, :libcuda_original_version)
+        return nothing
+    end
     CUDA_Driver_jll.libcuda_original_version
 end
 
