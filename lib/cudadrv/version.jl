@@ -50,16 +50,15 @@ which case such a versioned artifact will be attempted to be used; or "local" fo
 runtime from the local system. Invoke this function without an argument to reset the
 preference, in which case CUDA.jl will use the most recent compatible runtime available.
 """
-function set_runtime_version!(version)
-    if version isa VersionNumber
-        version = "$(version.major).$(version.minor)"
-    end
+function set_runtime_version!(version::String)
     Preferences.set_preferences!(CUDA_Runtime_jll, "version" => version; force=true)
     @info "Set CUDA Runtime version preference to $version, please re-start Julia for this to take effect."
     if VERSION <= v"1.6.5" || VERSION == v"1.7.0"
         @warn """Due to a bug in Julia (until 1.6.5 and 1.7.1) your environment needs to directly include CUDA_Runtime_jll for this to work."""
     end
 end
+set_runtime_version!(version::VersionNumber) =
+    set_runtime_version!("$(version.major).$(version.minor)")
 function set_runtime_version!()
     Preferences.delete_preferences!(CUDA_Runtime_jll, "version"; force=true)
     @info "Reset CUDA Runtime version preference, please re-start Julia for this to take effect."
