@@ -11,11 +11,11 @@ using CUDA
 using CUDA.APIUtils
 using CUDA: CUstream, libraryPropertyType
 using CUDA: @retry_reclaim, isdebug, initialize_context
+using CUDA: CUDA_Runtime, CUDA_Runtime_jll
 
 using CEnum: @cenum
 
 using CUDNN_jll
-
 
 export has_cudnn
 
@@ -23,13 +23,12 @@ function has_cudnn(show_reason::Bool=false)
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
     precompiling && return
 
-    if !CUDNN_jll.is_available()
+    if !CUDNN_jll.is_available() && CUDA_Runtime == CUDA_Runtime_jll
         show_reason && error("cuDNN JLL not available")
         return false
     end
     return true
 end
-
 
 # core library
 include("libcudnn.jl")
@@ -163,10 +162,16 @@ function __init__()
 
     CUDA.functional() || return
 
-    if !CUDNN_jll.is_available()
+    if !CUDNN_jll.is_available() && CUDA_Runtime == CUDA_Runtime_jll
         @error "cuDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform)))"
         return
     end
+    
+    if CUDA_Runtime != CUDA_Runtime_jll
+        dirs = CUDA_Runtime.find_toolkit()
+        global libcudnn = CUDA_Runtime.get_library(dirs, "cudnn")
+    end
+
 
     # register a log callback
     if isdebug(:init, cuDNN) || Base.JLOptions().debug_level >= 2
