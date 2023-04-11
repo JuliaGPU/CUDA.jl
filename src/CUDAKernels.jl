@@ -13,6 +13,7 @@ CUDABackend(;prefer_blocks=false, always_inline=false) = CUDABackend(prefer_bloc
 
 export CUDABackend
 
+KernelAbstractions.unsafe_free!(x::CUDA.CuArray, stream::CUDA.CuStream=CUDA.stream()) = CUDA.unsafe_free!(x, stream)
 KernelAbstractions.allocate(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.CuArray{T}(undef, dims)
 KernelAbstractions.zeros(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.zeros(T, dims)
 KernelAbstractions.ones(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.ones(T, dims)
