@@ -4,21 +4,17 @@ using CUDA
 using CUDA.APIUtils
 using CUDA: CUstream, cudaDataType
 using CUDA: @retry_reclaim, initialize_context, isdebug
+using CUDA: CUDA_Runtime, CUDA_Runtime_jll
 
 using CEnum: @cenum
 
-using CUTENSOR_jll
+import CUTENSOR_jll
 
 
 export has_cutensor
 
-function has_cutensor(show_reason::Bool=false)
-    if !CUTENSOR_jll.is_available()
-        show_reason && error("cuTENSOR JLL not available")
-        return false
-    end
-    return true
-end
+const _initialized = Ref{Bool}(false)
+has_cutensor() = _initialized[]
 
 
 const cudaDataType_t = cudaDataType
@@ -95,9 +91,21 @@ function __init__()
 
     CUDA.functional() || return
 
-    if !CUTENSOR_jll.is_available()
-        @error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
-        return
+    global libcutensor
+    if CUDA_Runtime == CUDA_Runtime_jll
+        if !CUTENSOR_jll.is_available()
+            @error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
+            return
+        end
+        libcutensor = CUTENSOR_jll.libcutensor
+    else
+        dirs = CUDA_Runtime.find_toolkit()
+        path = CUDA_Runtime.get_library(dirs, "cutensor"; optional=true)
+        if path === nothing
+            @error "cuTENSOR is not available on your system (looked in $(join(dirs, ", ")))"
+            return
+        end
+        libcutensor = path
     end
 
     # register a log callback
@@ -107,6 +115,8 @@ function __init__()
         cutensorLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")
         cutensorLoggerSetLevel(5)
     end
+
+    _initialized[] = true
 end
 
 end

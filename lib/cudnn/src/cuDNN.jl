@@ -166,7 +166,7 @@ function __init__()
         dirs = CUDA_Runtime.find_toolkit()
         path = CUDA_Runtime.get_library(dirs, "cudnn"; optional=true)
         if path === nothing
-            @error "cuDNN is not available on your system (looked in $(join(dirs, ", "))))"
+            @error "cuDNN is not available on your system (looked in $(join(dirs, ", ")))"
             return
         end
         libcudnn = path
