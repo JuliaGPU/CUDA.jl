@@ -87,14 +87,13 @@ end
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    precompiling && return
 
     CUDA.functional() || return
 
     global libcutensor
     if CUDA_Runtime == CUDA_Runtime_jll
         if !CUTENSOR_jll.is_available()
-            @error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
+            precompiling || @error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
             return
         end
         libcutensor = CUTENSOR_jll.libcutensor
@@ -102,7 +101,7 @@ function __init__()
         dirs = CUDA_Runtime.find_toolkit()
         path = CUDA_Runtime.get_library(dirs, "cutensor"; optional=true)
         if path === nothing
-            @error "cuTENSOR is not available on your system (looked in $(join(dirs, ", ")))"
+            precompiling || @error "cuTENSOR is not available on your system (looked in $(join(dirs, ", ")))"
             return
         end
         libcutensor = path
