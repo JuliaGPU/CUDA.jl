@@ -3,21 +3,17 @@ module cuStateVec
 using CUDA
 using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace, libraryPropertyType
 using CUDA: unsafe_free!, @retry_reclaim, initialize_context, isdebug
+using CUDA: CUDA_Runtime, CUDA_Runtime_jll
 
 using CEnum: @cenum
 
-using cuQuantum_jll
+import cuQuantum_jll
 
 
 export has_custatevec
 
-function has_custatevec(show_reason::Bool=false)
-    if !cuQuantum_jll.is_available()
-        show_reason && error("cuStateVec JLL not available")
-        return false
-    end
-    return true
-end
+const _initialized = Ref{Bool}(false)
+has_custatevec() = _initialized[]
 
 
 const cudaDataType_t = cudaDataType
@@ -111,9 +107,21 @@ function __init__()
 
     CUDA.functional() || return
 
-    if !cuQuantum_jll.is_available()
-        @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
-        return
+    global libcustatevec
+    if CUDA_Runtime == CUDA_Runtime_jll
+        if !cuQuantum_jll.is_available()
+            @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
+            return
+        end
+        libcustatevec = cuQuantum_jll.libcustatevec
+    else
+        dirs = CUDA_Runtime.find_toolkit()
+        path = CUDA_Runtime.get_library(dirs, "custatevec"; optional=true)
+        if path === nothing
+            @error "cuQuantum is not available on your system (looked for custatevec in $(join(dirs, ", ")))"
+            return
+        end
+        libcustatevec = path
     end
 
     # register a log callback
@@ -123,6 +131,8 @@ function __init__()
         custatevecLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")
         custatevecLoggerSetLevel(5)
     end
+
+    _initialized[] = true
 end
 
 end
