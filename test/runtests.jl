@@ -158,16 +158,6 @@ for (index,dev) in enumerate(devices())
 
     # NOTE: we don't use NVML here because it doesn't respect CUDA_VISIBLE_DEVICES
 end
-## only consider devices that are fully supported by our CUDA toolkit, or tools can fail.
-## NOTE: we don't reuse supported_toolchain() which is also bounded by LLVM support,
-#        and is used to pick a codegen target regardless of the actual device.
-cuda_support = CUDA.cuda_compat()
-filter!(x->x.cap in cuda_support.cap, candidates)
-## only consider recent devices if we want testing to be thorough
-if do_thorough
-    filter!(x->x.cap >= v"6.0", candidates)
-end
-isempty(candidates) && error("Could not find any suitable device for this configuration")
 ## order by available memory, but also by capability if testing needs to be thorough
 sort!(candidates, by=x->x.mem)
 ## apply
