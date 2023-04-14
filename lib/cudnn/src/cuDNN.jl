@@ -151,14 +151,13 @@ end
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    precompiling && return
 
     CUDA.functional() || return
 
     global libcudnn
     if CUDA_Runtime == CUDA_Runtime_jll
         if !CUDNN_jll.is_available()
-            @error "cuDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform)))"
+            precompiling || @error "cuDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform)))"
             return
         end
         libcudnn = CUDNN_jll.libcudnn
@@ -166,7 +165,7 @@ function __init__()
         dirs = CUDA_Runtime.find_toolkit()
         path = CUDA_Runtime.get_library(dirs, "cudnn"; optional=true)
         if path === nothing
-            @error "cuDNN is not available on your system (looked in $(join(dirs, ", ")))"
+            precompiling || @error "cuDNN is not available on your system (looked in $(join(dirs, ", ")))"
             return
         end
         libcudnn = path

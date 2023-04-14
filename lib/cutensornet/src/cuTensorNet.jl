@@ -104,14 +104,13 @@ end
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    precompiling && return
 
     CUDA.functional() || return
 
     global libcutensornet
     if CUDA_Runtime == CUDA_Runtime_jll
         if !cuQuantum_jll.is_available()
-            @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
+            precompiling || @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
             return
         end
         libcutensornet = cuQuantum_jll.libcutensornet
@@ -119,7 +118,7 @@ function __init__()
         dirs = CUDA_Runtime.find_toolkit()
         path = CUDA_Runtime.get_library(dirs, "cutensornet"; optional=true)
         if path === nothing
-            @error "cuQuantum is not available on your system (looked for cutensornet in $(join(dirs, ", ")))"
+            precompiling || @error "cuQuantum is not available on your system (looked for cutensornet in $(join(dirs, ", ")))"
             return
         end
         libcutensornet = path
