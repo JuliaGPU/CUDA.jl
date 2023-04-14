@@ -495,13 +495,14 @@ function OpaqueClosure(ir::IRCode, @nospecialize env...; isva::Bool = false)
     return generate_opaque_closure(config, src, sig, rt, nargs, isva, env...)
 end
 
-function OpaqueGPUClosure(src::CodeInfo, @nospecialize env...)
+function OpaqueClosure(src::CodeInfo, @nospecialize env...)
     src.inferred || throw(ArgumentError("Expected inferred src::CodeInfo"))
     mi = src.parent::Core.MethodInstance
     sig = Base.tuple_type_tail(mi.specTypes)
     method = mi.def::Method
     nargs = method.nargs-1
     isva = method.isva
+    config = compiler_config(device(); kernel=false)
     return generate_opaque_closure(config, src, sig, src.rettype, nargs, isva, env...)
 end
 
