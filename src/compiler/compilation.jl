@@ -570,7 +570,10 @@ end
 end
 
 # device-side call to an opaque closure
-function (oc::OpaqueClosure{F,E,A,R})(args...) where {F,E,A,R}
+(oc::OpaqueClosure)(args...) = call(oc, args...)
+## NOTE: split into two to make `SciML.isinplace(oc)` work.
+##       it also resembles how kernels are called.
+@inline function call(oc::OpaqueClosure{F,E,A,R}, args...) where {F,E,A,R}
     ptr = ccall("extern deferred_codegen", llvmcall, Ptr{Cvoid}, (Int,), F)
     assume(ptr != C_NULL)
     #ccall(ptr, R, (A...), args...)
