@@ -538,9 +538,41 @@ function generate_opaque_closure(config::CompilerConfig, src::CodeInfo,
     return OpaqueClosure{id, typeof(env), sig, rt}(env)
 end
 
+# generated function `ccall`, working around the restriction that ccall type
+# tuples need to be literals. this relies on ccall internals...
+@inline @generated function generated_ccall(f::Ptr, _rettyp, _types, vals...)
+    ex = quote end
+
+    rettyp = _rettyp.parameters[1]
+    types = _types.parameters[1].parameters
+    args = [:(vals[$i]) for i in 1:length(vals)]
+
+    # cconvert
+    cconverted = [Symbol("cconverted_$i") for i in 1:length(vals)]
+    for (dst, typ, src) in zip(cconverted, types, args)
+      append!(ex.args, (quote
+         $dst = Base.cconvert($typ, $src)
+      end).args)
+    end
+
+    # unsafe_convert
+    unsafe_converted = [Symbol("unsafe_converted_$i") for i in 1:length(vals)]
+    for (dst, typ, src) in zip(unsafe_converted, types, cconverted)
+      append!(ex.args, (quote
+         $dst = Base.unsafe_convert($typ, $src)
+      end).args)
+    end
+
+    call = Expr(:foreigncall, :f, rettyp, Core.svec(types...), 0,
+                QuoteNode(:ccall), unsafe_converted..., cconverted...)
+    push!(ex.args, call)
+    return ex
+end
+
 # device-side call to an opaque closure
-function (oc::OpaqueClosure{F})(a, b) where F
+function (oc::OpaqueClosure{F,E,A,R})(args...) where {F,E,A,R}
     ptr = ccall("extern deferred_codegen", llvmcall, Ptr{Cvoid}, (Int,), F)
     assume(ptr != C_NULL)
-    return ccall(ptr, Int, (Int, Int), a, b)
+    #ccall(ptr, R, (A...), args...)
+    generated_ccall(ptr, R, A, args...)
 end
