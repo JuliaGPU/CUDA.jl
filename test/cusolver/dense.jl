@@ -359,8 +359,8 @@ k = 1
 
         d_I = CuMatrix{elty}(I, size(d_F.Q))
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A)
-        @test collect(d_F.Q * d_I) ≈ collect(d_F.Q)
-        @test collect(d_I * d_F.Q) ≈ collect(d_F.Q)
+        @test collect(d_F.Q * d_I) ≈ Matrix(d_F.Q)
+        @test collect(d_I * d_F.Q) ≈ Matrix(d_F.Q)
 
         d_I = CuMatrix{elty}(I, size(d_F.R))
         @test collect(d_F.R * d_I) ≈ collect(d_F.R)
