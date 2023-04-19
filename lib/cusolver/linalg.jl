@@ -178,6 +178,7 @@ CuMatrix{T}(Q::QRCompactWYQ) where {T} = error("QRCompactWY format is not suppor
 Matrix{T}(Q::QRPackedQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
 Matrix{T}(Q::QRCompactWYQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
 
+if VERSION < v"1.10-"
 # extracting the full matrix can be done with `collect` (which defaults to `Array`)
 function Base.collect(src::Union{QRPackedQ{<:Any,<:CuArray,<:CuArray},
                                  QRCompactWYQ{<:Any,<:CuArray,<:CuArray}})
@@ -197,6 +198,7 @@ function Base.getindex(Q::QRPackedQ{<:Any, <:CuArray}, ::Colon, j::Int)
     y = CUDA.zeros(eltype(Q), size(Q, 2))
     y[j] = 1
     lmul!(Q, y)
+end
 end
 
 # multiplication by Q
