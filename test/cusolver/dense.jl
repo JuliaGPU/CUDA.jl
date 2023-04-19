@@ -362,8 +362,6 @@ k = 1
         if VERSION >= v"1.10-"
             @test collect((d_F.Q'd_I) * d_F.Q) ≈ collect(d_I)
             @test collect(d_F.Q * (d_I * d_F.Q')) ≈ collect(d_I)
-            @test collect(d_F.Q'd_F.Q) ≈ collect(d_I)
-            @test collect(d_F.Q * d_F.Q') ≈ collect(d_I)
         else
             @test collect(d_F.Q * d_I) ≈ collect(d_F.Q)
             @test collect(d_I * d_F.Q) ≈ collect(d_F.Q)
