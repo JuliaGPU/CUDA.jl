@@ -194,11 +194,12 @@ Base.similar(Q::Union{QRPackedQ{<:Any,<:CuArray,<:CuArray},
              ::Type{T}, dims::Dims{N}) where {T,N} =
     CuArray{T,N}(undef, dims)
 
+end
+
 function Base.getindex(Q::QRPackedQ{<:Any, <:CuArray}, ::Colon, j::Int)
     y = CUDA.zeros(eltype(Q), size(Q, 2))
     y[j] = 1
     lmul!(Q, y)
-end
 end
 
 # multiplication by Q
