@@ -57,7 +57,14 @@ function __init__()
             return
         end
     end
-    driver = driver_version()
+
+    driver = try
+        driver_version()
+    catch err
+        @debug "CUDA driver failed to report a version" exception=(err, catch_backtrace())
+        _initialization_error[] = "CUDA driver not functional"
+        return
+    end
 
     if driver < v"11"
         @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 11.x or higher (yours is for CUDA $driver)"
