@@ -393,10 +393,10 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   # (and using Base.@timed/gc_num to exclude that time is too expensive)
   buf, time = _alloc(B, sz; stream)
 
-  memory_use[] += sz
-  alloc_stats.alloc_count[] += 1
-  alloc_stats.alloc_bytes[] += sz
-  alloc_stats.total_time[] += time
+  Threads.atomic_add!(memory_use, sz)
+  Threads.atomic_add!(alloc_stats.alloc_count, 1)
+  Threads.atomic_add!(alloc_stats.alloc_bytes, sz)
+  Threads.atomic_add!(alloc_stats.total_time, time)
   # NOTE: total_time might be an over-estimation if we trigger GC somewhere else
 
   return buf
@@ -445,10 +445,10 @@ Releases a buffer `buf` to the memory pool.
       _free(buf; stream)
     end
 
-    memory_use[] -= sz
-    alloc_stats.free_count[] += 1
-    alloc_stats.free_bytes[] += sz
-    alloc_stats.total_time[] += time
+    Threads.atomic_sub!(memory_use, sz)
+    Threads.atomic_add!(alloc_stats.free_count, 1)
+    Threads.atomic_add!(alloc_stats.free_bytes, sz)
+    Threads.atomic_add!(alloc_stats.total_time, time)
   catch ex
     Base.showerror_nostdio(ex, "WARNING: Error while freeing $buf")
     Base.show_backtrace(Core.stdout, catch_backtrace())
