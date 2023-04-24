@@ -7,27 +7,42 @@ using Logging
 ## allocation statistics
 
 mutable struct AllocStats
-  alloc_count::Int
-  alloc_bytes::Int
+  alloc_count::Threads.Atomic{Int}
+  alloc_bytes::Threads.Atomic{Int}
 
-  free_count::Int
-  free_bytes::Int
+  free_count::Threads.Atomic{Int}
+  free_bytes::Threads.Atomic{Int}
 
-  total_time::Float64
+  total_time::Threads.Atomic{Float64}
+
+  function AllocStats()
+    new(Threads.Atomic{Int}(0), Threads.Atomic{Int}(0),
+        Threads.Atomic{Int}(0), Threads.Atomic{Int}(0),
+        Threads.Atomic{Float64}(0.0))
+  end
+
+  function AllocStats(alloc_count::Integer, alloc_bytes::Integer,
+                      free_count::Integer, free_bytes::Integer,
+                      total_time::Float64)
+    new(Threads.Atomic{Int}(alloc_count), Threads.Atomic{Int}(alloc_bytes),
+        Threads.Atomic{Int}(free_count), Threads.Atomic{Int}(free_bytes),
+        Threads.Atomic{Float64}(total_time))
+  end
 end
 
-const alloc_stats = AllocStats(0, 0, 0, 0, 0.0)
-
 Base.copy(alloc_stats::AllocStats) =
-  AllocStats((getfield(alloc_stats, field) for field in fieldnames(AllocStats))...)
+  AllocStats(alloc_stats.alloc_count[], alloc_stats.alloc_bytes[],
+             alloc_stats.free_count[], alloc_stats.free_bytes[],
+             alloc_stats.total_time[])
 
-AllocStats(b::AllocStats, a::AllocStats) =
-  AllocStats(
-    b.alloc_count - a.alloc_count,
-    b.alloc_bytes - a.alloc_bytes,
-    b.free_count - a.free_count,
-    b.free_bytes - a.free_bytes,
-    b.total_time - a.total_time)
+Base.:(-)(a::AllocStats, b::AllocStats) = (;
+    alloc_count = a.alloc_count[] - b.alloc_count[],
+    alloc_bytes = a.alloc_bytes[] - b.alloc_bytes[],
+    free_count  = a.free_count[]  - b.free_count[],
+    free_bytes  = a.free_bytes[]  - b.free_bytes[],
+    total_time  = a.total_time[]  - b.total_time[])
+
+const alloc_stats = AllocStats()
 
 
 ## CUDA allocator
@@ -379,9 +394,9 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   buf, time = _alloc(B, sz; stream)
 
   memory_use[] += sz
-  alloc_stats.alloc_count += 1
-  alloc_stats.alloc_bytes += sz
-  alloc_stats.total_time += time
+  alloc_stats.alloc_count[] += 1
+  alloc_stats.alloc_bytes[] += sz
+  alloc_stats.total_time[] += time
   # NOTE: total_time might be an over-estimation if we trigger GC somewhere else
 
   return buf
@@ -431,9 +446,9 @@ Releases a buffer `buf` to the memory pool.
     end
 
     memory_use[] -= sz
-    alloc_stats.free_count += 1
-    alloc_stats.free_bytes += sz
-    alloc_stats.total_time += time
+    alloc_stats.free_count[] += 1
+    alloc_stats.free_bytes[] += sz
+    alloc_stats.total_time[] += time
   catch ex
     Base.showerror_nostdio(ex, "WARNING: Error while freeing $buf")
     Base.show_backtrace(Core.stdout, catch_backtrace())
@@ -495,9 +510,9 @@ macro allocated(ex)
         let
             local f
             function f()
-                b0 = alloc_stats.alloc_bytes
+                b0 = alloc_stats.alloc_bytes[]
                 $(esc(ex))
-                alloc_stats.alloc_bytes - b0
+                alloc_stats.alloc_bytes[] - b0
             end
             f()
         end
@@ -579,7 +594,7 @@ macro timed(ex)
         local cpu_time = (cpu_time1 - cpu_time0) / 1e9
 
         local cpu_mem_stats = Base.GC_Diff(cpu_mem_stats1, cpu_mem_stats0)
-        local gpu_mem_stats = AllocStats(gpu_mem_stats1, gpu_mem_stats0)
+        local gpu_mem_stats = gpu_mem_stats1 - gpu_mem_stats0
 
         (value=val, time=cpu_time,
          cpu_bytes=cpu_mem_stats.allocd, cpu_gctime=cpu_mem_stats.total_time / 1e9, cpu_gcstats=cpu_mem_stats,
