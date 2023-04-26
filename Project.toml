@@ -1,6 +1,6 @@
 name = "CUDA"
 uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
-version = "4.1.3"
+version = "4.1.4"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -38,7 +38,7 @@ BFloat16s = "0.2, 0.3, 0.4"
 CEnum = "0.2, 0.3, 0.4"
 CUDA_Driver_jll = "0.5"
 CUDA_Runtime_Discovery = "0.2"
-CUDA_Runtime_jll = "0.5"
+CUDA_Runtime_jll = "0.6"
 ExprTools = "0.1"
 GPUArrays = "8.6"
 GPUCompiler = "0.19"

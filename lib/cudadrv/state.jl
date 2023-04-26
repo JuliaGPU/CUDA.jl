@@ -71,6 +71,11 @@ function task_local_state!(args...)
     if haskey(tls, :CUDA)
         validate_task_local_state(@inbounds(tls[:CUDA]))
     else
+        # verify that CUDA.jl is functional. this doesn't belong here, but since we can't
+        # error during `__init__`, we do it here instead as this is the first function
+        # that's likely executed when using CUDA.jl
+        @assert functional(true)
+
         tls[:CUDA] = TaskLocalState(args...)
     end::TaskLocalState
 end
@@ -212,6 +217,7 @@ function context(dev::CuDevice)
         return ctx
     end
 
+    # check if the device isn't too old
     if capability(dev) < v"3.5"
         @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported by CUDA.jl.
                   Please use a device with at least capability 3.5.""",
@@ -225,7 +231,14 @@ function context(dev::CuDevice)
         #      but that isn't repeated in more recent release notes...
         @warn("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is deprecated on CUDA 11+.
                   Some functionality may be broken; It's recommended to switch to a different device.""",
-               maxlog=1, _id=devidx)
+              maxlog=1, _id=devidx)
+    end
+    # ... or too new
+    if !in(capability(dev), cuda_compat().cap)
+        @warn("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not fully supported by CUDA $(runtime_version()).
+                 Some functionality may be broken. Ensure you are using the latest version of CUDA.jl in combination with an up-to-date NVIDIA driver.
+                 If that does not help, please file an issue to add support for the latest CUDA toolkit.""",
+              maxlog=1, _id=devidx)
     end
 
     # configure the primary context

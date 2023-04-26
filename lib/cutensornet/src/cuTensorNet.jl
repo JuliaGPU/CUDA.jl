@@ -4,24 +4,20 @@ using LinearAlgebra
 using CUDA
 using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace
 using CUDA: @retry_reclaim, initialize_context, isdebug
+using CUDA: CUDA_Runtime, CUDA_Runtime_jll
 
 using cuTENSOR
 using cuTENSOR: CuTensor
 
 using CEnum: @cenum
 
-using cuQuantum_jll
+import cuQuantum_jll
 
 
 export has_cutensornet
 
-function has_cutensornet(show_reason::Bool=false)
-    if !cuQuantum_jll.is_available()
-        show_reason && error("cuTensorNet JLL not available")
-        return false
-    end
-    return true
-end
+const _initialized = Ref{Bool}(false)
+has_cutensornet() = _initialized[]
 
 
 const cudaDataType_t = cudaDataType
@@ -108,13 +104,24 @@ end
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    precompiling && return
 
     CUDA.functional() || return
 
-    if !cuQuantum_jll.is_available()
-        @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
-        return
+    global libcutensornet
+    if CUDA_Runtime == CUDA_Runtime_jll
+        if !cuQuantum_jll.is_available()
+            precompiling || @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
+            return
+        end
+        libcutensornet = cuQuantum_jll.libcutensornet
+    else
+        dirs = CUDA_Runtime.find_toolkit()
+        path = CUDA_Runtime.get_library(dirs, "cutensornet"; optional=true)
+        if path === nothing
+            precompiling || @error "cuQuantum is not available on your system (looked for cutensornet in $(join(dirs, ", ")))"
+            return
+        end
+        libcutensornet = path
     end
 
     # register a log callback
@@ -124,6 +131,8 @@ function __init__()
         cutensornetLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")
         cutensornetLoggerSetLevel(5)
     end
+
+    _initialized[] = true
 end
 
 end

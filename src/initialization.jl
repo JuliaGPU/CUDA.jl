@@ -30,7 +30,6 @@ end
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    precompiling && return
 
     # TODO: make errors here (and in submodules/subpackages like cuBLAS and cuDNN) fatal,
     #       and remove functional(), once people sufficiently use weak dependencies.
@@ -58,7 +57,14 @@ function __init__()
             return
         end
     end
-    driver = driver_version()
+
+    driver = try
+        driver_version()
+    catch err
+        @debug "CUDA driver failed to report a version" exception=(err, catch_backtrace())
+        _initialization_error[] = "CUDA driver not functional"
+        return
+    end
 
     if driver < v"11"
         @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 11.x or higher (yours is for CUDA $driver)"
@@ -124,12 +130,15 @@ function __init__()
     end
 
     # register device overrides
-    eval(Expr(:block, overrides...))
-    empty!(overrides)
-    @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" begin
-        include("device/intrinsics/special_math.jl")
+    if !precompiling
         eval(Expr(:block, overrides...))
         empty!(overrides)
+
+        @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" begin
+            include("device/intrinsics/special_math.jl")
+            eval(Expr(:block, overrides...))
+            empty!(overrides)
+        end
     end
 
     # ensure that operations executed by the REPL back-end finish before returning,

@@ -359,8 +359,13 @@ k = 1
 
         d_I = CuMatrix{elty}(I, size(d_F.Q))
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A)
-        @test collect(d_F.Q * d_I) ≈ collect(d_F.Q)
-        @test collect(d_I * d_F.Q) ≈ collect(d_F.Q)
+        if VERSION >= v"1.10-"
+            @test collect((d_F.Q'd_I) * d_F.Q) ≈ collect(d_I)
+            @test collect(d_F.Q * (d_I * d_F.Q')) ≈ collect(d_I)
+        else
+            @test collect(d_F.Q * d_I) ≈ collect(d_F.Q)
+            @test collect(d_I * d_F.Q) ≈ collect(d_F.Q)
+        end
 
         d_I = CuMatrix{elty}(I, size(d_F.R))
         @test collect(d_F.R * d_I) ≈ collect(d_F.R)

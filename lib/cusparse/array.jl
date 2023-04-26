@@ -221,11 +221,9 @@ Base.similar(Mat::CuSparseMatrixCOO, T::Type, N::Int, M::Int) =  CuSparseMatrixC
 
 Base.length(g::CuSparseVector) = g.len
 Base.size(g::CuSparseVector) = (g.len,)
-Base.ndims(g::CuSparseVector) = 1
 
 Base.length(g::CuSparseMatrix) = prod(g.dims)
 Base.size(g::CuSparseMatrix) = g.dims
-Base.ndims(g::CuSparseMatrix) = 2
 
 function Base.size(g::CuSparseVector, d::Integer)
     if d == 1
@@ -246,8 +244,6 @@ function Base.size(g::CuSparseMatrix, d::Integer)
         throw(ArgumentError("dimension must be ≥ 1, got $d"))
     end
 end
-
-Base.eltype(g::CuSparseMatrix{T}) where T = T
 
 
 ## sparse array interface
