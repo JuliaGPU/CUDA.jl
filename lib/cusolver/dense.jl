@@ -410,7 +410,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace($elty, bufferSize) do work
                 $fname(dense_handle(), jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt,
-                    work, sizeof(work), rwork, devinfo)
+                    work, length(work), rwork, devinfo)
             end
             unsafe_free!(rwork)
 
@@ -469,7 +469,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace($elty, bufferSize) do work
                 $fname(dense_handle(), jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
-                       work, sizeof(work), devinfo, params[])
+                       work, length(work), devinfo, params[])
             end
 
             info = @allowscalar devinfo[1]
