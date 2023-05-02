@@ -1,7 +1,7 @@
 name = "cuDNN"
 uuid = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
 authors = ["Tim Besard <tim.besard@gmail.com>"]
-version = "1.0.2"
+version = "1.0.3"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
@@ -10,6 +10,6 @@ CUDNN_jll = "62b44479-cb7b-5706-934f-f13b2eb2e645"
 
 [compat]
 CUDNN_jll = "~8.8"
-CUDA = "~4.0, ~4.1"
+CUDA = "~4.0, ~4.1, ~4.2"
 CEnum = "0.2, 0.3, 0.4"
 julia = "1.6"
