@@ -867,6 +867,7 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false)
     else
         16
     end
+    blocks_per_mp = 16   # XXX: JuliaGPU/CUDA.jl#1874
     threads = min(threads1, threads2)
     min_pseudo_block = threads ÷ blocks_per_mp
     log_threads = threads |> log2 |> Int
