@@ -342,7 +342,7 @@ end
             return
         end
 
-        ptx = sprint(io -> CUDA.code_ptx(io, kernel, (CuDeviceArray{Float32,1,CUDA.AS.Global},)))
+        ptx = sprint(io -> CUDA.code_ptx(io, kernel, (CuDeviceArray{Float32,1,CUDA.AS.Global,Int32},)))
 
         @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
         @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.global.f32", ptx)

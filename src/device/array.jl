@@ -6,31 +6,38 @@ export CuDeviceArray, CuDeviceVector, CuDeviceMatrix, ldg
 ## construction
 
 """
-    CuDeviceArray{T,N,A}(ptr, dims, [maxsize])
+    CuDeviceArray{T,N,A,I}(ptr, dims, [maxsize])
 
 Construct an `N`-dimensional dense CUDA device array with element type `T` wrapping a
-pointer, where `N` is determined from the length of `dims` and `T` is determined from the
-type of `ptr`. `dims` may be a single scalar, or a tuple of integers corresponding to the
-lengths in each dimension). If the rank `N` is supplied explicitly as in `Array{T,N}(dims)`,
-then it must match the length of `dims`. The same applies to the element type `T`, which
-should match the type of the pointer `ptr`.
+pointer `ptr` in address space `A`. `dims` should be a tuple of `N` integers corresponding
+to the lengths in each dimension. `maxsize` is the maximum number of bytes that can be
+stored in the array, and is determined automatically if not specified. `I` is the integer
+type used to store the size of the array, and is determined automatically if not specified.
 """
 CuDeviceArray
 
-# NOTE: we can't support the typical `tuple or series of integer` style construction,
-#       because we're currently requiring a trailing pointer argument.
-
-struct CuDeviceArray{T,N,A} <: DenseArray{T,N}
+struct CuDeviceArray{T,N,A,I} <: DenseArray{T,N}
     ptr::LLVMPtr{T,A}
-    maxsize::Int
+    maxsize::I
 
-    dims::Dims{N}
-    len::Int
+    dims::NTuple{N,I}
+    len::I
 
-    # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
-    CuDeviceArray{T,N,A}(ptr::LLVMPtr{T,A}, dims::Tuple,
-                         maxsize::Int=prod(dims)*sizeof(T)) where {T,A,N} =
-        new(ptr, maxsize, dims, prod(dims))
+    # determine an index type based on the size of the array.
+    # this is type unstable, so only use this constructor from the host side.
+    function CuDeviceArray{T,N,A}(ptr::LLVMPtr{T,A}, dims::Tuple,
+                                  maxsize::Integer=prod(dims)*sizeof(T)) where {T,A,N}
+        if maxsize <= typemax(Int32)
+            CuDeviceArray{T,N,A,Int32}(ptr, dims, maxsize)
+        else
+            CuDeviceArray{T,N,A,Int64}(ptr, dims, maxsize)
+        end
+    end
+
+    # fully typed, for use in device code
+    CuDeviceArray{T,N,A,I}(ptr::LLVMPtr{T,A}, dims::Tuple,
+                           maxsize::Integer=prod(dims)*sizeof(T)) where {T,A,N,I} =
+        new{T,N,A,I}(ptr, convert(I, maxsize), map(I, dims), convert(I, prod(dims)))
 end
 
 const CuDeviceVector = CuDeviceArray{T,1,A} where {T,A}
@@ -224,18 +231,18 @@ Base.show(io::IO, mime::MIME"text/plain", a::CuDeviceArray) = show(io, a)
     end
 end
 
-function Base.reinterpret(::Type{T}, a::CuDeviceArray{S,N,A}) where {T,S,N,A}
+function Base.reinterpret(::Type{T}, a::CuDeviceArray{S,N,A,I}) where {T,S,N,A,I}
   err = GPUArrays._reinterpret_exception(T, a)
   err === nothing || throw(err)
 
   if sizeof(T) == sizeof(S) # fast case
-    return CuDeviceArray{T,N,A}(reinterpret(LLVMPtr{T,A}, a.ptr), size(a), a.maxsize)
+    return CuDeviceArray{T,N,A,I}(reinterpret(LLVMPtr{T,A}, a.ptr), size(a), a.maxsize)
   end
 
   isize = size(a)
   size1 = div(isize[1]*sizeof(S), sizeof(T))
   osize = tuple(size1, Base.tail(isize)...)
-  return CuDeviceArray{T,N,A}(reinterpret(LLVMPtr{T,A}, a.ptr), osize, a.maxsize)
+  return CuDeviceArray{T,N,A,I}(reinterpret(LLVMPtr{T,A}, a.ptr), osize, a.maxsize)
 end
 
 
@@ -252,7 +259,7 @@ function Base.reshape(a::CuDeviceArray{T,M,A}, dims::NTuple{N,Int}) where {T,N,M
 end
 
 # create a derived device array (reinterpreted or reshaped) that's still a CuDeviceArray
-@inline function _derived_array(a::CuDeviceArray{<:Any,<:Any,A}, ::Type{T},
+@inline function _derived_array(a::CuDeviceArray{<:Any,<:Any,A,I}, ::Type{T},
                                 osize::Dims{N}) where {T, N, A}
-  return CuDeviceArray{T,N,A}(a.ptr, osize, a.maxsize)
+  return CuDeviceArray{T,N,A,I}(a.ptr, osize, a.maxsize)
 end
