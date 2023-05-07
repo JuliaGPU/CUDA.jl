@@ -7,11 +7,6 @@
 # out-of-place version, copying a single value per thread from input to output
 function _reverse(data::AnyCuArray{T, N}, data_out::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
     rev_dims = ntuple((d)-> d in dims && size(data, d) > 1, N)
-    first_dim = findfirst(rev_dims)
-    if isnothing(first_dim)
-        # no reverse operation needed at all in this case.
-        return
-    end
     ref = size(data) .+ 1
     # converts an ND-index in the data array to the linear index
     lin_idx = LinearIndices(data)
@@ -121,10 +116,14 @@ function Base.reverse(input::AnyCuArray{T, N}; dims=:) where {T, N}
         throw(ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $(ndims(input))"))
     end
 
-    output = similar(input)
-    _reverse(input, output; dims=dims)
-
-    return output
+    if all(size(input)[dims].==1) 
+        # no reverse operation needed at all in this case.
+        return copy(input)
+    else
+        output = similar(input)
+        _reverse(input, output; dims=dims)
+        return output
+    end
 end
 
 
