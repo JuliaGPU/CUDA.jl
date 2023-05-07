@@ -5,7 +5,7 @@
 # pos [i1, i2, i3, ... , d{x} - i{x} + 1, ..., i{n}] where d{x} is the size of dimension x
 
 # out-of-place version, copying a single value per thread from input to output
-function _reverse_nd(data::AnyCuArray{T, N}, data_out::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
+function _reverse(data::AnyCuArray{T, N}, data_out::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
     rev_dims = ntuple((d)-> d in dims && size(data, d) > 1, N)
     first_dim = findfirst(rev_dims)
     if isnothing(first_dim)
@@ -41,7 +41,7 @@ function _reverse_nd(data::AnyCuArray{T, N}, data_out::AnyCuArray{T, N}; dims=1:
 end
 
 # in-place version for multiple dimensions
-function _reverse_nd!(data::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
+function _reverse(data::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
     rev_dims = ntuple((d)-> d in dims && size(data, d) > 1, N)
     half_dim = findlast(rev_dims)
     if isnothing(half_dim)
@@ -104,7 +104,7 @@ function Base.reverse!(data::AnyCuArray{T, N}; dims=:) where {T, N}
         throw(ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $(ndims(data))"))
     end
 
-    _reverse_nd!(data; dims=dims);
+    _reverse(data; dims=dims);
 
     return data
 end
@@ -122,7 +122,7 @@ function Base.reverse(input::AnyCuArray{T, N}; dims=:) where {T, N}
     end
 
     output = similar(input)
-    _reverse_nd(input, output; dims=dims)
+    _reverse(input, output; dims=dims)
 
     return output
 end
