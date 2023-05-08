@@ -36,7 +36,7 @@ function _reverse(input::AnyCuArray{T, N}, output::AnyCuArray{T, N}; dims=1:ndim
     @cuda threads=nthreads blocks=nblocks kernel(input, output)
 end
 
-# in-place version for multiple dimensions
+# in-place version, swapping elements on half the number of threads
 function _reverse!(data::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
     rev_dims = ntuple((d)-> d in dims && size(data, d) > 1, N)
     half_dim = findlast(rev_dims)
