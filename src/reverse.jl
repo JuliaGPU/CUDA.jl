@@ -117,7 +117,7 @@ function Base.reverse(input::AnyCuArray{T, N}; dims=:) where {T, N}
         throw(ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $(ndims(input))"))
     end
 
-    if all(size(input)[dims].==1) 
+    if all(size(input)[[dims...]].==1) 
         # no reverse operation needed at all in this case.
         return copy(input)
     else
