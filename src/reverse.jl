@@ -76,7 +76,7 @@ function _reverse!(data::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
     end
 
     # NOTE: we launch slightly more than half the number of elements in the array as threads.
-    # The last non-singleton dimension along which to revert is used to define how the array is split.
+    # The last non-singleton dimension along which to reverse is used to define how the array is split.
     # Only the middle row in case of an odd array dimension could cause trouble, but this is prevented by
     # ignoring the threads that cross the mid-point
 
