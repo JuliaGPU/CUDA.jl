@@ -399,7 +399,7 @@ end
       @test Array(gpu) == reverse(cpu; dims=dim)
     end
 
-    # supports multidimensional reverse as of Version 1.6 (minimum Version for Cuda.jl)
+    # supports multidimensional reverse
     for shape in ([1, 2, 4, 3], [2^5, 2^5, 2^5]),
         dim in ((1,2),(2,3),(1,3),:)
       @test testf(x->reverse(x; dims=dim), rand(shape...))
