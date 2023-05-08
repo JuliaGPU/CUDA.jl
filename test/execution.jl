@@ -326,12 +326,12 @@ end
     @cuda kernel(arr)
     @test Array(arr)[] == 1
 
-    function kernel2(ptr)
+    function kernel(ptr)
         ptr[] = 2
         return
     end
 
-    @cuda kernel2(arr)
+    @cuda kernel(arr)
     @test Array(arr)[] == 2
 end
 
@@ -363,11 +363,11 @@ end
     end
     @cuda kernel1(Int, 1)
 
-    function kernel2(T, i)
+    function kernel(T, i)
         sink(unsafe_trunc(T,i))
         return
     end
-    @cuda kernel2(Int, 1.)
+    @cuda kernel(Int, 1.)
 end
 
 

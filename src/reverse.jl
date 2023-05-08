@@ -19,10 +19,10 @@ function _reverse(input::AnyCuArray{T, N}, output::AnyCuArray{T, N}; dims=1:ndim
         index_in = offset_in + threadIdx().x
 
         if index_in <= length(input)
-            idx = Tuple(nd_idx[index_in])
-            idx = ifelse.(rev_dims, ref .- idx, idx)
-            index_out =  lin_idx[idx...]
             @inbounds begin 
+                idx = Tuple(nd_idx[index_in])
+                idx = ifelse.(rev_dims, ref .- idx, idx)
+                index_out =  lin_idx[idx...]
                 output[index_out] = input[index_in]
             end
         end
@@ -58,13 +58,13 @@ function _reverse!(data::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
         index_in = offset_in + threadIdx().x
 
         if index_in <= reduced_length 
-            idx = Tuple(nd_idx[index_in])
-            index_in = lin_idx[idx...]
-            idx = ifelse.(rev_dims, ref .- idx, idx)
-            index_out =  lin_idx[idx...] 
+            @inbounds begin
+                idx = Tuple(nd_idx[index_in])
+                index_in = lin_idx[idx...]
+                idx = ifelse.(rev_dims, ref .- idx, idx)
+                index_out =  lin_idx[idx...] 
 
-            if index_in < index_out
-                @inbounds begin
+                if index_in < index_out
                     temp = data[index_out]
                     data[index_out] = data[index_in]
                     data[index_in] = temp
@@ -100,7 +100,7 @@ function Base.reverse!(data::AnyCuArray{T, N}; dims=:) where {T, N}
         throw(ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $(ndims(data))"))
     end
 
-    _reverse!(data; dims=dims);
+    _reverse!(data; dims=dims)
 
     return data
 end
