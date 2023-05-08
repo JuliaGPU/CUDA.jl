@@ -5,24 +5,25 @@
 # pos [i1, i2, i3, ... , d{x} - i{x} + 1, ..., i{n}] where d{x} is the size of dimension x
 
 # out-of-place version, copying a single value per thread from input to output
-function _reverse(data::AnyCuArray{T, N}, data_out::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
-    rev_dims = ntuple((d)-> d in dims && size(data, d) > 1, N)
-    ref = size(data) .+ 1
+function _reverse(input::AnyCuArray{T, N}, output::AnyCuArray{T, N}; dims=1:ndims(input)) where {T, N}
+    @assert size(input) == size(output)
+    rev_dims = ntuple((d)-> d in dims && size(input, d) > 1, N)
+    ref = size(input) .+ 1
     # converts an ND-index in the data array to the linear index
-    lin_idx = LinearIndices(data)
+    lin_idx = LinearIndices(input)
     # converts a linear index in a reduced array to an ND-index, but using the reduced size
-    nd_idx = CartesianIndices(data)
+    nd_idx = CartesianIndices(input)
 
-    function kernel(data::AbstractArray{T, N}) where {T, N}
+    function kernel(input::AbstractArray{T, N}, output::AbstractArray{T, N}) where {T, N}
         offset_in = blockDim().x * (blockIdx().x - 1i32)
         index_in = offset_in + threadIdx().x
 
-        if index_in <= length(data)
+        if index_in <= length(input)
             idx = Tuple(nd_idx[index_in])
             idx = ifelse.(rev_dims, ref .- idx, idx)
             index_out =  lin_idx[idx...]
-            @inbounds begin
-                data_out[index_out] = data[index_in]
+            @inbounds begin 
+                output[index_out] = input[index_in]
             end
         end
 
@@ -30,13 +31,13 @@ function _reverse(data::AnyCuArray{T, N}, data_out::AnyCuArray{T, N}; dims=1:ndi
     end
 
     nthreads = 256
-    nblocks = cld(length(data), nthreads)
+    nblocks = cld(length(input), nthreads)
 
-    @cuda threads=nthreads blocks=nblocks kernel(data)
+    @cuda threads=nthreads blocks=nblocks kernel(input, output)
 end
 
 # in-place version for multiple dimensions
-function _reverse(data::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
+function _reverse!(data::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
     rev_dims = ntuple((d)-> d in dims && size(data, d) > 1, N)
     half_dim = findlast(rev_dims)
     if isnothing(half_dim)
@@ -99,7 +100,7 @@ function Base.reverse!(data::AnyCuArray{T, N}; dims=:) where {T, N}
         throw(ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $(ndims(data))"))
     end
 
-    _reverse(data; dims=dims);
+    _reverse!(data; dims=dims);
 
     return data
 end
@@ -132,7 +133,7 @@ end
 # in-place
 Base.@propagate_inbounds function Base.reverse!(data::AnyCuVector{T}, start::Integer,
                                                 stop::Integer=length(data)) where {T}
-    _reverse(view(data, start:stop))
+    _reverse!(view(data, start:stop))
     return data
 end
 

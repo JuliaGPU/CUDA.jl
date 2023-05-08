@@ -326,12 +326,12 @@ end
     @cuda kernel(arr)
     @test Array(arr)[] == 1
 
-    function kernel(ptr)
+    function kernel2(ptr)
         ptr[] = 2
         return
     end
 
-    @cuda kernel(arr)
+    @cuda kernel2(arr)
     @test Array(arr)[] == 2
 end
 
