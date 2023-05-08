@@ -137,7 +137,7 @@ Base.@propagate_inbounds function Base.reverse!(data::AnyCuVector{T}, start::Int
     return data
 end
 
-Base.reverse(data::AnyCuVector{T}) where {T} = @inbounds reverse(data, 1, length(data))
+Base.reverse!(data::AnyCuVector{T}) where {T} = @inbounds reverse!(data, 1, length(data))
 
 # out-of-place
 Base.@propagate_inbounds function Base.reverse(input::AnyCuVector{T}, start::Integer,
@@ -151,4 +151,4 @@ Base.@propagate_inbounds function Base.reverse(input::AnyCuVector{T}, start::Int
     return output
 end
 
-Base.reverse!(data::AnyCuVector{T}) where {T} = @inbounds reverse!(data, 1, length(data))
+Base.reverse(data::AnyCuVector{T}) where {T} = @inbounds reverse(data, 1, length(data))
