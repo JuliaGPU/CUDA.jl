@@ -363,11 +363,11 @@ end
     end
     @cuda kernel1(Int, 1)
 
-    function kernel(T, i)
+    function kernel2(T, i)
         sink(unsafe_trunc(T,i))
         return
     end
-    @cuda kernel(Int, 1.)
+    @cuda kernel2(Int, 1.)
 end
 
 
