@@ -45,6 +45,8 @@ CURAND. For example, multiplying matrices or generating random numbers will auto
 dispatch to these high-quality libraries, if types are supported, and fall back to generic
 implementations otherwise.
 
+For more details, refer to the section on [Array programming](@ref).
+
 
 ## Kernel programming with `@cuda`
 
