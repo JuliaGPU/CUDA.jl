@@ -52,7 +52,7 @@ if do_help
                Remaining arguments filter the tests that will be executed.""")
     exit(0)
 end
-set_jobs, jobs = extract_flag!(ARGS, "--jobs", Sys.CPU_THREADS)
+set_jobs, jobs = extract_flag!(ARGS, "--jobs")
 do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
 do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
 do_thorough, _ = extract_flag!(ARGS, "--thorough")
@@ -60,6 +60,11 @@ do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
 
 include("setup.jl")     # make sure everything is precompiled
 _, gpus = extract_flag!(ARGS, "--gpus", ndevices())
+if !set_jobs
+    cpu_jobs = Sys.CPU_THREADS
+    memory_jobs = Int(Sys.free_memory()) ÷ (2 * 2^30)
+    jobs = min(cpu_jobs, memory_jobs)
+end
 
 # choose tests
 const tests = ["initialization"]    # needs to run first
