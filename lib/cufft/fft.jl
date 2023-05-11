@@ -33,16 +33,6 @@ function CUDA.unsafe_free!(plan::CuFFTPlan)
     end
 end
 
-# stores multiple plans which are to be executed in succession
-# mutable struct mCuFFTPlan{T<:cufftNumber,K,inplace,M} <: CuFFTPlan{T,K,inplace}
-#     plans::CuFFTPlan[]
-#     permutes::NTuple{M,Int}[]
-#     pinv::ScaledPlan # required by AbstractFFT API
-#     function mCuFFTPlan{T,K,inplace,M}(p::CuFFTPlan{T,K,inplace}[], perm::NTuple{M,Int}[], X::DenseCuArray{T,N})  where {T<:cufftNumber,K,inplace,M}
-#         return new(p, perm)
-#     end
-# end
-
 mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     handle::cufftHandle
     ctx::CuContext
