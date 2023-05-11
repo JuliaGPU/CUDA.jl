@@ -80,34 +80,40 @@ function with_workspace(f::Function, eltyp::Type{T}, size::Union{Integer,Functio
     end
 end
 
-macro debug_ccall(target, rettyp, argtyps, args...)
-    @assert Meta.isexpr(target, :tuple)
-    f, lib = target.args
+macro debug_ccall(ex)
+    @assert Meta.isexpr(ex, :(::))
+    call, ret = ex.args
+    @assert Meta.isexpr(call, :call)
+    target, argexprs... = call.args
+    args = map(argexprs) do argexpr
+        @assert Meta.isexpr(argexpr, :(::))
+        argexpr.args[1]
+    end
+
+    ex = Expr(:macrocall, Symbol("@ccall"), __source__, ex)
+
+    # avoid task switches
+    io = :(Core.stdout)
 
     quote
-        # get the call target, as e.g. libcuda() triggers initialization, even though we
-        # can't use the result in the ccall expression below as it's supposed to be constant
-        $(esc(target))
-
-        # printing without task switches
-        io = Core.stdout
-
-        print(io, $f, '(')
+        print($io, $(string(target)), '(')
         for (i, arg) in enumerate(($(map(esc, args)...),))
-            i > 1 && Core.print(io, ", ")
-            render_arg(io, arg)
+            i > 1 && print($io, ", ")
+            render_arg($io, arg)
         end
-        Core.print(io, ')')
-        rv = ccall($(esc(target)), $(esc(rettyp)), $(esc(argtyps)), $(map(esc, args)...))
-        Core.println(io, " = ", rv)
+        print($io, ')')
+
+        rv = $(esc(ex))
+
+        println($io, " = ", rv)
         for (i, arg) in enumerate(($(map(esc, args)...),))
             if arg isa Base.RefValue
-                Core.println(io, " $i: ", arg[])
+                println($io, " $i: ", arg[])
             end
         end
         rv
     end
 end
 
-render_arg(io, arg) = Core.print(io, arg)
+render_arg(io, arg) = print(io, arg)
 render_arg(io, arg::Union{<:Base.RefValue, AbstractArray}) = summary(io, arg)
