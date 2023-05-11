@@ -90,7 +90,9 @@ end
 function Base.show(io::IO, stream::CuStream)
     print(io, "CuStream(")
     @printf(io, "%p", stream.handle)
-    print(io, ", ", stream.ctx, ")")
+    if isdefined(stream, :ctx)
+        print(io, ", ", stream.ctx)
+    end
 end
 
 """
