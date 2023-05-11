@@ -143,11 +143,11 @@ end
 
 @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
-    for region in [(1,2),(1,4),(3,4)]
+    for region in [(1,2),(1,4),(3,4),(1,3),(2,3),(2,),(3,)]
         X = rand(T, dims)
         batched(X,region)
     end
-    for region in [(1,3),(2,3),(2,4)]
+    for region in [(2,4)]
         X = rand(T, dims)
         @test_throws ArgumentError batched(X,region)
     end
@@ -236,11 +236,11 @@ end
 
 @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
-    for region in [(1,2),(1,4),(3,4)]
+    for region in [(1,2),(1,4),(3,4),(1,3),(2,3)]
         X = rand(T, dims)
         batched(X,region)
     end
-    for region in [(1,3),(2,3),(2,4)]
+    for region in [(2,4)]
         X = rand(T, dims)
         @test_throws ArgumentError batched(X,region)
     end
