@@ -15,14 +15,14 @@ if VERSION < v"1.8"
 end
 
 # parse some command-line arguments
-function extract_flag!(args, flag, default=nothing)
+function extract_flag!(args, flag, default=nothing; typ=typeof(default))
     for f in args
         if startswith(f, flag)
             # Check if it's just `--flag` or if it's `--flag=foo`
             if f != flag
                 val = split(f, '=')[2]
-                if default !== nothing && !(typeof(default) <: AbstractString)
-                  val = parse(typeof(default), val)
+                if !(typ === Nothing || typ <: AbstractString)
+                  val = parse(typ, val)
                 end
             else
                 val = default
@@ -52,7 +52,7 @@ if do_help
                Remaining arguments filter the tests that will be executed.""")
     exit(0)
 end
-set_jobs, jobs = extract_flag!(ARGS, "--jobs")
+set_jobs, jobs = extract_flag!(ARGS, "--jobs"; typ=Int)
 do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
 do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
 do_thorough, _ = extract_flag!(ARGS, "--thorough")
