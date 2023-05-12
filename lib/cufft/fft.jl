@@ -164,10 +164,11 @@ function plan_fft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     region = Tuple(region)
 
     md = plan_max_dims(region, size(X))
-    X = front_view(X, md)
-    handle = cufftGetPlan(xtype, size(X), region)
+    # X = front_view(X, md)
+    sizex = size(X)[1:md]
+    handle = cufftGetPlan(xtype, sizex, region)
 
-    cCuFFTPlan{T,K,inplace,md}(handle, X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,md}(handle, sizex, sizex, region, xtype)
 end
 
 
@@ -178,10 +179,12 @@ function plan_bfft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     region = Tuple(region)
 
     md = plan_max_dims(region, size(X))
-    X = front_view(X, md)
-    handle = cufftGetPlan(xtype, size(X), region)
+    # X = front_view(X, md)
+    sizex = size(X)[1:md]
 
-    cCuFFTPlan{T,K,inplace,md}(handle, X, size(X), region, xtype)
+    handle = cufftGetPlan(xtype, sizex, region)
+
+    cCuFFTPlan{T,K,inplace,md}(handle, sizex, sizex, region, xtype)
 end
 
 # out-of-place complex
@@ -192,10 +195,11 @@ function plan_fft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     region = Tuple(region)
 
     md = plan_max_dims(region,size(X))
-    X = front_view(X, md)
-    handle = cufftGetPlan(xtype, size(X), region)
+    # X = front_view(X, md)
+    sizex = size(X)[1:md]
+    handle = cufftGetPlan(xtype, sizex, region)
 
-    cCuFFTPlan{T,K,inplace,md}(handle, X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,md}(handle,sizex, sizex, region, xtype)
 end
 
 function plan_bfft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
@@ -205,10 +209,11 @@ function plan_bfft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     region = Tuple(region)
 
     md = plan_max_dims(region,size(X))
-    X = front_view(X, md)
-    handle = cufftGetPlan(xtype, size(X), region)
+    # X = front_view(X, md)
+    sizex = size(X)[1:md]
+    handle = cufftGetPlan(xtype, sizex, region)
 
-    cCuFFTPlan{T,K,inplace,md}(handle, X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,md}(handle, sizex, sizex, region, xtype)
 end
 
 # out-of-place real-to-complex
@@ -219,13 +224,15 @@ function plan_rfft(X::DenseCuArray{T,N}, region) where {T<:cufftReals,N}
     region = Tuple(region)
 
     md = plan_max_dims(region,size(X))
-    X = front_view(X, md)
-    handle = cufftGetPlan(xtype, size(X), region)
+    # X = front_view(X, md)
+    sizex = size(X)[1:md]
 
-    ydims = collect(size(X))
+    handle = cufftGetPlan(xtype, sizex, region)
+
+    ydims = collect(sizex)
     ydims[region[1]] = div(ydims[region[1]],2)+1
 
-    rCuFFTPlan{T,K,inplace,md}(handle, X, (ydims...,), region, xtype)
+    rCuFFTPlan{T,K,inplace,md}(handle, sizex, (ydims...,), region, xtype)
 end
 
 function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::Any) where {T<:cufftComplexes,N}
@@ -235,14 +242,15 @@ function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::Any) where {T<:cuf
     region = Tuple(region)
 
     md = plan_max_dims(region,size(X))
-    X = front_view(X, md)
+    sizex = size(X)[1:md]
+    # X = front_view(X, md)
 
-    ydims = collect(size(X))
+    ydims = collect(sizex)
     ydims[region[1]] = d
 
     handle = cufftGetPlan(xtype, (ydims...,), region)
 
-    rCuFFTPlan{T,K,inplace,md}(handle, X, (ydims...,), region, xtype)
+    rCuFFTPlan{T,K,inplace,md}(handle, sizex, (ydims...,), region, xtype)
 end
 
 
@@ -253,18 +261,18 @@ function plan_inv(p::cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}) where {T,N,inplace}
     md = plan_max_dims(p.region, p.sz)
     sizex = p.sz[1:md]
     handle = cufftGetPlan(p.xtype, sizex, p.region)
-    ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,md}(handle, X, sizex, p.region,
+    ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,md}(handle, sizex, sizex, p.region,
                                                      p.xtype),
-               normalization(X, p.region))
+                        normalization(real(T), sizex, p.region))
 end
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}) where {T,N,inplace}
     md = plan_max_dims(p.region,p.sz)
     sizex = p.sz[1:md]
     handle = cufftGetPlan(p.xtype, sizex, p.region)
-    ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,md}(handle, X, sizex, p.region,
+    ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,md}(handle, sizex, sizex, p.region,
                                                      p.xtype),
-               normalization(X, p.region))
+                        normalization(real(T), sizex, p.region))
 end
 
 function plan_inv(p::rCuFFTPlan{T,CUFFT_INVERSE,inplace,N}
@@ -277,7 +285,7 @@ function plan_inv(p::rCuFFTPlan{T,CUFFT_INVERSE,inplace,N}
     xtype = p.xtype == CUFFT_C2R ? CUFFT_R2C : CUFFT_D2Z
     handle = cufftGetPlan(xtype, sz_X, p.region)
     ScaledPlan(rCuFFTPlan{real(T),CUFFT_FORWARD,inplace,md_sz}(handle, sz_X, sz_Y, p.region, xtype),
-               normalization(X, p.region))
+                        normalization(real(T), sz_X, p.region))
 end
 
 function plan_inv(p::rCuFFTPlan{T,CUFFT_FORWARD,inplace,N}
