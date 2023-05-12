@@ -1,5 +1,28 @@
 # interfacing with LinearAlgebra standard library
 
+using LinearAlgebra: MulAddMul
+
+if isdefined(LinearAlgebra, :wrap) # i.e., VERSION >= v"1.10.0-DEV.1365"
+    using LinearAlgebra: wrap
+else
+    function wrap(A::AbstractVecOrMat, tA::AbstractChar)
+        if tA == 'N'
+            return A
+        elseif tA == 'T'
+            return transpose(A)
+        elseif tA == 'C'
+            return adjoint(A)
+        elseif tA == 'H'
+            return Hermitian(A, :U)
+        elseif tA == 'h'
+            return Hermitian(A, :L)
+        elseif tA == 'S'
+            return Symmetric(A, :U)
+        else # tA == 's'
+            return Symmetric(A, :L)
+        end
+    end
+end
 
 #
 # BLAS 1
@@ -147,8 +170,8 @@ end
 
 # GEMV
 
-function gemv_dispatch!(Y::CuVector, A, B, alpha::Number=true, beta::Number=false)
-    mA, nA = size(A)
+function LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, _add::MulAddMul)
+    mA, nA = tA == 'N' ? size(A) : reverse(size(A))
 
     if nA != length(B)
         throw(DimensionMismatch("second dimension of A, $nA, does not match length of B, $(length(B))"))
@@ -166,32 +189,30 @@ function gemv_dispatch!(Y::CuVector, A, B, alpha::Number=true, beta::Number=fals
         return rmul!(Y, 0)
     end
 
-    tA, dA = if A isa Transpose
-        'T', parent(A)
-    elseif A isa Adjoint
-        'C', parent(A)
-    else
-        'N', A
-    end
-
     T = eltype(Y)
-    if T <: CublasFloat && A isa StridedCuArray{T} && B isa StridedCuArray{T}
-        gemv!(tA, alpha, dA, B, beta, Y)
+    alpha, beta = promote(_add.alpha, _add.beta, zero(T))
+    if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
+        if T <: CublasFloat && eltype(A) == eltype(B) == T
+            if tA in ('N', 'T', 'C')
+                gemv!(tA, alpha, A, B, beta, Y)
+            elseif tA in ('S', 's')
+                return CUBLAS.symv!(tA == 'S' ? 'U' : 'L', alpha, A, x, beta, y)
+            elseif tA in ('H', 'h')
+                return CUBLAS.hemv!(tA == 'H' ? 'U' : 'L', alpha, A, x, beta, y)
+            end
+        end
     else
-        gemm_dispatch!(Y, A, B, alpha, beta)
+        error("only supports BLAS type, got $T") # error if alpha or beta are too big
     end
+    LinearAlgebra.generic_matmatmul!(Y, tA, 'N', A, B, MulAddMul(alpha, beta))
 end
 
-for NT in (:Number, :Real)
-    # NOTE: alpha/beta also ::Real to avoid ambiguities with certain Base methods
-    @eval begin
-        LinearAlgebra.mul!(Y::CuVector, A::StridedCuMatrix, B::StridedCuVector, a::$NT, b::$NT) =
-            gemv_dispatch!(Y, A, B, a, b)
-        LinearAlgebra.mul!(Y::CuVector, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::StridedCuVector, a::$NT, b::$NT) =
-            gemv_dispatch!(Y, A, B, a, b)
-        LinearAlgebra.mul!(Y::CuVector, A::Adjoint{<:Any, <:StridedCuVecOrMat}, B::StridedCuVector, a::$NT, b::$NT) =
-            gemv_dispatch!(Y, A, B, a, b)
-    end
+if VERSION < v"1.10.0-DEV.1365"
+@inline LinearAlgebra.gemv!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, a::Number, b::Number) =
+    LinearAlgebra.generic_matvecmul!(Y, tA, A, B, MulAddMul(a, b))
+# disambiguation with LinearAlgebra.jl
+@inline LinearAlgebra.gemv!(Y::CuVector{T}, tA::AbstractChar, A::StridedCuMatrix{T}, B::StridedCuVector{T}, a::Number, b::Number) where {T<:CublasFloat} =
+    LinearAlgebra.generic_matvecmul!(Y, tA, A, B, MulAddMul(a, b))
 end
 
 # triangular
@@ -252,14 +273,11 @@ end
 
 # GEMM
 
-function gemm_dispatch!(C::CuVecOrMat, A, B, alpha::Number=true, beta::Number=false)
-    if ndims(A) > 2
-        throw(ArgumentError("A has more than 2 dimensions"))
-    elseif ndims(B) > 2
-        throw(ArgumentError("B has more than 2 dimensions"))
-    end
-    mA, nA = size(A,1), size(A,2)
-    mB, nB = size(B,1), size(B,2)
+function LinearAlgebra.generic_matmatmul!(C::CuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul)
+    T = eltype(C)
+    alpha, beta = promote(_add.alpha, _add.beta, zero(T))
+    mA, nA = size(A, tA == 'N' ? 1 : 2), size(A, tA == 'N' ? 2 : 1)
+    mB, nB = size(B, tB == 'N' ? 1 : 2), size(B, tB == 'N' ? 2 : 1)
 
     if nA != mB
         throw(DimensionMismatch("A has dimensions ($mA,$nA) but B has dimensions ($mB,$nB)"))
@@ -276,58 +294,51 @@ function gemm_dispatch!(C::CuVecOrMat, A, B, alpha::Number=true, beta::Number=fa
         return LinearAlgebra.rmul!(C, 0)
     end
 
-    tA, dA = if A isa Transpose
-        'T', parent(A)
-    elseif A isa Adjoint
-        'C', parent(A)
-    else
-        'N', A
+    if all(in(('N', 'T', 'C')), (tA, tB))
+        if A isa DenseCuArray && B isa DenseCuArray &&
+        gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
+            return gemmEx!(tA, tB, alpha, A, B, beta, C)
+        elseif T <: CublasFloat && A isa DenseCuArray{T} && B isa DenseCuArray{T}
+            return gemm!(tA, tB, alpha, A, B, beta, C)
+        end
     end
-
-    tB, dB = if B isa Transpose
-        'T', parent(B)
-    elseif B isa Adjoint
-        'C', parent(B)
+    if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
+        # TODO: should the gemm part above be included in this branch?
+        if (tA == 'S' || tA == 's') && tB == 'N'
+            return CUBLAS.symm!('L', tA == 'S' ? 'U' : 'L', alpha, A, B, beta, C)
+        elseif (tB == 'S' || tB == 's') && tA == 'N'
+            return CUBLAS.symm!('R', tB == 'S' ? 'U' : 'L', alpha, B, A, beta, C)
+        elseif (tA == 'H' || tA == 'h') && tB == 'N'
+            return CUBLAS.hemm!('L', tA == 'H' ? 'U' : 'L', alpha, A, B, beta, C)
+        elseif (tB == 'H' || tB == 'h') && tA == 'N'
+            return CUBLAS.hemm!('R', tB == 'H' ? 'U' : 'L', alpha, B, A, beta, C)
+        end
     else
-        'N', B
+        error("only supports BLAS type, got $T")
     end
-
-    T = eltype(C)
-    if dA isa DenseCuArray && dB isa DenseCuArray &&
-       gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
-        gemmEx!(tA, tB, alpha, dA, dB, beta, C)
-    elseif T <: CublasFloat && dA isa DenseCuArray{T} && dB isa DenseCuArray{T}
-        gemm!(tA, tB, alpha, dA, dB, beta, C)
-    else
-        GPUArrays.generic_matmatmul!(C, A, B, alpha, beta)
-    end
+    GPUArrays.generic_matmatmul!(C, wrap(A, tA), wrap(B, tB), alpha, beta)
 end
 
-for NT in (:Number, :Real)
-    # NOTE: alpha/beta also ::Real to avoid ambiguities with certain Base methods
-    @eval begin
-        LinearAlgebra.mul!(C::CuMatrix, A::StridedCuVecOrMat, B::StridedCuVecOrMat, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-
-        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::StridedCuMatrix, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::StridedCuMatrix, B::Transpose{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::Transpose{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-
-        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:StridedCuVecOrMat}, B::StridedCuMatrix, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::StridedCuMatrix, B::Adjoint{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:StridedCuVecOrMat}, B::Adjoint{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-
-        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::Adjoint{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:StridedCuVecOrMat}, B::Transpose{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
+if VERSION < v"1.10.0-DEV.1365"
+# catch other functions that are called by LinearAlgebra's mul!
+LinearAlgebra.gemm_wrapper!(C::CuMatrix, tA::AbstractChar, tB::AbstractChar, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul) =
+    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add)
+LinearAlgebra.gemm_wrapper!(C::CuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuVecOrMat{T}, B::StridedCuVecOrMat{T}, _add::MulAddMul) where {T<:LinearAlgebra.BlasFloat} =
+    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add)
+function LinearAlgebra.syrk_wrapper!(C::CuMatrix, tA::AbstractChar, A::StridedCuVecOrMat, _add::MulAddMul)
+    if tA == 'T'
+        LinearAlgebra.generic_matmatmul!(C, 'T', 'N', A, A, _add)
+    else # tA == 'N'
+        LinearAlgebra.generic_matmatmul!(C, 'N', 'T', A, A, _add)
     end
+end
+function LinearAlgebra.herk_wrapper!(C::CuMatrix, tA::AbstractChar, A::StridedCuVecOrMat, _add::MulAddMul)
+    if tA == 'C'
+        LinearAlgebra.generic_matmatmul!(C, 'C', 'N', A, A, _add)
+    else # tA == 'N'
+        LinearAlgebra.generic_matmatmul!(C, 'N', 'C', A, A, _add)
+    end
+end
 end
 
 # triangular
@@ -533,6 +544,7 @@ end
 
 # symmetric mul!
 # level 2
+if VERSION < v"1.10.0-DEV.1365"
 @inline function LinearAlgebra.mul!(y::CuVector{T}, A::Hermitian{T,<:CuMatrix}, x::CuVector{T},
              α::Number, β::Number) where {T<:CublasReal}
     alpha, beta = promote(α, β, zero(T))
@@ -590,6 +602,7 @@ end
     else
         error("only supports BLAS type, got $T")
     end
+end
 end
 
 op_wrappers = ((identity, T -> 'N', identity),

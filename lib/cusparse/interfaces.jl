@@ -1,7 +1,7 @@
 # interfacing with other packages
 
 using LinearAlgebra
-using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
+using LinearAlgebra: BlasComplex, BlasFloat, BlasReal, MulAddMul
 export _spadjoint, _sptranspose
 
 function _spadjoint(A::CuSparseMatrixCSR)
@@ -63,49 +63,58 @@ op_wrappers = ((identity, T -> 'N', identity),
                (T -> :(Transpose{T, <:$T}), T -> 'T', A -> :(parent($A))),
                (T -> :(Adjoint{T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A))))
 
+function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::CuSparseMatrix{T}, B::DenseCuVector{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    mv_wrapper(tA, _add.alpha, A, B, _add.beta, C)
+end
+function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::CuSparseMatrix{T}, B::CuSparseVector{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    mv_wrapper(tA, _add.alpha, A, CuVector{T}(B), _add.beta, C)
+end
+
+function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::CuSparseMatrix{T}, B::DenseCuMatrix{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm_wrapper(tA, tB, _add.alpha, A, B, beta, C)
+end
+            
 for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     TypeA = wrapa(taga(:(CuSparseMatrix{T})))
 
-    @eval begin
-        function LinearAlgebra.mul!(C::CuVector{T}, A::$TypeA, B::DenseCuVector{T},
-                                    alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-            mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), B, beta, C)
-        end
-
-        function LinearAlgebra.mul!(C::CuVector{T}, A::$TypeA, B::CuSparseVector{T},
-                                    alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-            mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), CuVector{T}(B), beta, C)
-        end
-
-        function LinearAlgebra.:(*)(A::$TypeA, x::CuSparseVector{T}) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-            m, n = size(A)
-            length(x) == n || throw(DimensionMismatch())
-            y = CuVector{T}(undef, m)
-            mul!(y, A, x)
-        end
+    @eval function LinearAlgebra.:(*)(A::$TypeA, x::CuSparseVector{T}) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+        m, n = size(A)
+        length(x) == n || throw(DimensionMismatch())
+        y = CuVector{T}(undef, m)
+        mul!(y, A, x)
     end
+end
 
-    for (tagb, untagb) in tag_wrappers, (wrapb, transb, unwrapb) in op_wrappers
-        TypeB = wrapb(tagb(:(DenseCuMatrix{T})))
+function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::DenseCuMatrix{T}, B::CuSparseVector{T}, _add::MulAddMul) where {T <: BlasFloat}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    gemvi!(tA, alpha, A, B, beta, C, 'O')
+end
 
-        @eval begin
-            function LinearAlgebra.mul!(C::CuMatrix{T}, A::$TypeA, B::$TypeB,
-                                        alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-                mm_wrapper($transa(T), $transb(T), alpha, $(untaga(unwrapa(:A))), $(untagb(unwrapb(:B))), beta, C)
-            end
-        end
-    end
+function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCSC{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, _add.alpha, A, B, beta, C, 'O')
+end
+function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCSR{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, _add.alpha, A, B, beta, C, 'O')
+end
+function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCOO{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, _add.alpha, A, B, beta, C, 'O')
 end
 
 for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     TypeA = wrapa(taga(:(DenseCuMatrix{T})))
 
     @eval begin
-        function LinearAlgebra.mul!(C::CuVector{T}, A::$TypeA, B::CuSparseVector{T}, alpha::Number, beta::Number) where {T <: BlasFloat}
-            gemvi!($transa(T), alpha, $(untaga(unwrapa(:A))), B, beta, C, 'O')
-        end
-
-        function SparseArrays.:(*)(A::$TypeA, x::CuSparseVector{T}) where {T <: BlasFloat}
+        function Base.:(*)(A::$TypeA, x::CuSparseVector{T}) where {T <: BlasFloat}
             m, n = size(A)
             length(x) == n || throw(DimensionMismatch())
             y = CuVector{T}(undef, m)
@@ -117,35 +126,44 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
         for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
             TypeB = wrapb(tagb(SparseMatrixType))
 
-            @eval begin
-                function LinearAlgebra.mul!(C::CuMatrix{T}, A::$TypeA, B::$TypeB,
-                                        alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-                    mm!($transa(T), $transb(T), alpha, $(untaga(unwrapa(:A))), $(untagb(unwrapb(:B))), beta, C, 'O')
-                end
-
-                function LinearAlgebra.:(*)(A::$TypeA, B::$TypeB) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-                    m, n = size(A)
-                    k, p = size(B)
-                    n == k || throw(DimensionMismatch())
-                    C = CuMatrix{T}(undef, m, p)
-                    mul!(C, A, B)
-                end
+            @eval function Base.:(*)(A::$TypeA, B::$TypeB) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+                m, n = size(A)
+                k, p = size(B)
+                n == k || throw(DimensionMismatch())
+                C = CuMatrix{T}(undef, m, p)
+                mul!(C, A, B)
             end
         end
     end
 end
 
-for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
-    @eval begin
-        function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T <: BlasFloat}
-            CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
-            gemm('N', 'N', one(T), A, B, 'O')
-        end
+function LinearAlgebra.generic_matmatmul!(C::CuSparseMatrixCSC{T}, tA, tB, A::CuSparseMatrixCSC{T}, B::CuSparseMatrixCSC{T}, _add::MulAddMul) where {T <: BlasFloat}
+    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    gemm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
+end
+function LinearAlgebra.generic_matmatmul!(C::CuSparseMatrixCSR{T}, tA, tB, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T}, _add::MulAddMul) where {T <: BlasFloat}
+    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    gemm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
+end
+function LinearAlgebra.generic_matmatmul!(C::CuSparseMatrixCOO{T}, tA, tB, A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}, _add::MulAddMul) where {T <: BlasFloat}
+    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    A_csr = CuSparseMatrixCSR(A)
+    B_csr = CuSparseMatrixCSR(B)
+    C_csr = CuSparseMatrixCSR(C)
+    generic_matmatmul!(C_csr, tA, tB, A_csr, B_csr, _add.alpha, _add.beta)
+    C = CuSparseMatrixCOO(C_csr) # is this in-place of the original C?
+end
 
-        function LinearAlgebra.mul!(C::$SparseMatrixType{T}, A::$SparseMatrixType{T}, B::$SparseMatrixType{T}, alpha::Number, beta::Number) where {T <: BlasFloat}
-            CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
-            gemm!('N', 'N', alpha, A, B, beta, C, 'O')
-        end
+for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
+    @eval function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T <: BlasFloat}
+        CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+        gemm('N', 'N', one(T), A, B, 'O')
     end
 end
 
@@ -156,24 +174,12 @@ function LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}) wh
     CuSparseMatrixCOO(A_csr * B_csr)
 end
 
-function LinearAlgebra.mul!(C::CuSparseMatrixCOO{T}, A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}, alpha::Number, beta::Number) where {T <: BlasFloat}
-    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
-    A_csr = CuSparseMatrixCSR(A)
-    B_csr = CuSparseMatrixCSR(B)
-    C_csr = CuSparseMatrixCSR(C)
-    mul!(C_csr, A_csr, B_csr, alpha, beta)
-    C = CuSparseMatrixCOO(C_csr)
-end
-
 for (wrapa, unwrapa) in adjtrans_wrappers, (wrapb, unwrapb) in adjtrans_wrappers
     for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
         TypeA = wrapa(SparseMatrixType)
         TypeB = wrapb(SparseMatrixType)
         wrapa == identity && wrapb == identity && continue
-        @eval begin
-            LinearAlgebra.:(*)(A::$TypeA, B::$TypeB) where {T <: BlasFloat} = $(unwrapa(:A)) * $(unwrapb(:B))
-            LinearAlgebra.mul!(C::$SparseMatrixType, A::$TypeA, B::$TypeB, alpha::Number, beta::Number) where {T <: BlasFloat} = mul!(C, $(unwrapa(:A)), $(unwrapb(:B)), alpha, beta)
-        end
+        @eval Base.:(*)(A::$TypeA, B::$TypeB) where {T <: BlasFloat} = $(unwrapa(:A)) * $(unwrapb(:B))
     end
 end
 
