@@ -3,7 +3,7 @@
 @reexport using AbstractFFTs
 
 import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!, plan_ifft,
-    plan_rfft, plan_brfft, plan_inv, normalization, fft, bfft, ifft, rfft,
+    plan_rfft, plan_brfft, plan_inv, normalization, fft, bfft, ifft, rfft, irfft,
     Plan, ScaledPlan
 
 using LinearAlgebra
@@ -43,13 +43,19 @@ mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     region::Any
     pinv::ScaledPlan # required by AbstractFFT API
 
-    function cCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, X::DenseCuArray{T,N},
+    function cCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, sizex::NTuple{N, Int},
                                        sizey::Tuple, region, xtype
                                       ) where {T<:cufftNumber,K,inplace,N}
         # TODO: enforce consistency of sizey
-        p = new(handle, context(), stream(), size(X), sizey, xtype, region)
+        p = new(handle, context(), stream(), sizex, sizey, xtype, region)
         finalizer(unsafe_free!, p)
         p
+    end
+
+    function cCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, X::DenseCuArray{T,N},
+        sizey::Tuple, region, xtype
+       ) where {T<:cufftNumber,K,inplace,N}
+       cCuFFTPlan{T,K,inplace,N}(handle, size(X), sizey, region, xtype)
     end
 end
 
@@ -63,13 +69,17 @@ mutable struct rCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     region::Any
     pinv::ScaledPlan # required by AbstractFFT API
 
-    function rCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, X::DenseCuArray{T,N},
+    function rCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, sizex::NTuple{N, Int},
                                        sizey::Tuple, region, xtype
                                       ) where {T<:cufftNumber,K,inplace,N}
         # TODO: enforce consistency of sizey
-        p = new(handle, context(), stream(), size(X), sizey, xtype, region)
+        p = new(handle, context(), stream(), sizex, sizey, xtype, region)
         finalizer(unsafe_free!, p)
         p
+    end
+    function rCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, X::DenseCuArray{T,N},
+            sizey::Tuple, region, xtype) where {T<:cufftNumber,K,inplace,N}
+       rCuFFTPlan{T,K,inplace,N}(handle, size(X), sizey, region, xtype)
     end
 end
 
@@ -129,7 +139,7 @@ for f in (:fft, :bfft, :ifft)
 end
 rfft(x::DenseCuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
 plan_rfft(x::DenseCuArray{<:Real}, region) = plan_rfft(realfloat(x), region)
-
+irfft(x::DenseCuArray{<:Union{Real,Integer,Rational}}, d::Integer, region=1:ndims(x)) = irfft(complexfloat(x), d, region)
 
 # yields the maximal dimensions of the plan, for plans starting at dim 1 or ending at the size vector, this is always the full input size
 plan_max_dims(region, sz) = ifelse(region[1] == 1 && (length(region) <=1 || all(diff(collect(region)) .== 1)), length(sz), region[end])
@@ -235,23 +245,24 @@ function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::Any) where {T<:cuf
     rCuFFTPlan{T,K,inplace,md}(handle, X, (ydims...,), region, xtype)
 end
 
+
 # FIXME: plan_inv methods allocate needlessly (to provide type parameters)
 # Perhaps use FakeArray types to avoid this.
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}) where {T,N,inplace}
     md = plan_max_dims(p.region, p.sz)
-    X = CuArray{T}(undef, p.sz[1:md])
-    handle = cufftGetPlan(p.xtype, size(X), p.region)
-    ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,md}(handle, X, size(X), p.region,
+    sizex = p.sz[1:md]
+    handle = cufftGetPlan(p.xtype, sizex, p.region)
+    ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,md}(handle, X, sizex, p.region,
                                                      p.xtype),
                normalization(X, p.region))
 end
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}) where {T,N,inplace}
     md = plan_max_dims(p.region,p.sz)
-    X = CuArray{T}(undef, p.sz[1:md])
-    handle = cufftGetPlan(p.xtype, size(X), p.region)
-    ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,md}(handle, X, size(X), p.region,
+    sizex = p.sz[1:md]
+    handle = cufftGetPlan(p.xtype, sizex, p.region)
+    ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,md}(handle, X, sizex, p.region,
                                                      p.xtype),
                normalization(X, p.region))
 end
@@ -260,13 +271,12 @@ function plan_inv(p::rCuFFTPlan{T,CUFFT_INVERSE,inplace,N}
                   ) where {T<:cufftComplexes,N,inplace}
     md_osz = plan_max_dims(p.region, p.osz)
     sz_X = p.osz[1:md_osz]
-    X = CuArray{real(T)}(undef, sz_X)
     md_sz = plan_max_dims(p.region, p.sz)
     sz_Y = p.sz[1:md_sz]
     # Y = CuArray{T}(undef, sz_Y)
     xtype = p.xtype == CUFFT_C2R ? CUFFT_R2C : CUFFT_D2Z
-    handle = cufftGetPlan(xtype, size(X), p.region)
-    ScaledPlan(rCuFFTPlan{real(T),CUFFT_FORWARD,inplace,md_sz}(handle, X, sz_Y, p.region, xtype),
+    handle = cufftGetPlan(xtype, sz_X, p.region)
+    ScaledPlan(rCuFFTPlan{real(T),CUFFT_FORWARD,inplace,md_sz}(handle, sz_X, sz_Y, p.region, xtype),
                normalization(X, p.region))
 end
 
@@ -274,15 +284,13 @@ function plan_inv(p::rCuFFTPlan{T,CUFFT_FORWARD,inplace,N}
                   ) where {T<:cufftReals,N,inplace}
     md_osz = plan_max_dims(p.region,p.osz)
     sz_X = p.osz[1:md_osz]
-    X = CuArray{complex(T)}(undef, sz_X)
     md_sz = plan_max_dims(p.region,p.sz)
     sz_Y = p.sz[1:md_sz]
-    Y = CuArray{T}(undef, sz_Y)
     xtype = p.xtype == CUFFT_R2C ? CUFFT_C2R : CUFFT_Z2D
-    handle = cufftGetPlan(xtype, size(Y), p.region)
-    ScaledPlan(rCuFFTPlan{complex(T),CUFFT_INVERSE,inplace,md_sz}(handle, X, size(Y),
+    handle = cufftGetPlan(xtype, sz_Y, p.region)
+    ScaledPlan(rCuFFTPlan{complex(T),CUFFT_INVERSE,inplace,md_sz}(handle, sz_X, sz_Y,
                                                               p.region, xtype),
-               normalization(Y, p.region))
+                        normalization(real(T), sz_Y, p.region))
 end
 
 
@@ -427,6 +435,12 @@ function Base.:(*)(p::rCuFFTPlan{T,CUFFT_INVERSE,false,N}, x::DenseCuArray{T,M}
     y = CuArray{real(T),M}(undef, osz)
     unsafe_execute_trailing!(p,x, y)
     y
+end
+
+function Base.:(*)(p::rCuFFTPlan{T,CUFFT_INVERSE,false,N}, x::DenseCuArray{T2,M}
+    ) where {T<:cufftComplexes,N,M, T2<:cufftReals}
+    x = complex.(x)
+    p*x
 end
 
 function Base.:(*)(p::cCuFFTPlan{T,K,false,N}, x::DenseCuArray{T,M}) where {T,K,N,M}
