@@ -27,8 +27,12 @@ end
     CUDA.reclaim(1024)
     CUDA.reclaim()
 
-    @test CUDA.@retry_reclaim(isequal(42), 42) == 42
-    @test CUDA.@retry_reclaim(isequal(42), 41) == 41
+    @test CUDA.retry_reclaim(isequal(42)) do
+            42
+        end == 42
+    @test CUDA.retry_reclaim(isequal(42)) do
+            41
+        end == 41
 end
 
 @testset "memory_status" begin

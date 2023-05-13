@@ -6,8 +6,7 @@ using cuDNN:
     cudnnDataType,
     cudnnDataType_t,
     CUDNN_TENSOR_NCHW,
-    CUDNN_STATUS_SUCCESS,
-    @retry_reclaim
+    CUDNN_STATUS_SUCCESS
 
 x = CUDA.rand(1,1,1,2)
 
@@ -29,4 +28,6 @@ fd = FD(x)
 
 @test DT(Float32) isa cudnnDataType_t
 
-@test (@retry_reclaim(x->(x!==CUDNN_STATUS_SUCCESS),cudnnCreateTensorDescriptor(Ref{cudnnTensorDescriptor_t}(C_NULL)))) isa Nothing
+@test (CUDA.retry_reclaim(x->(x!==CUDNN_STATUS_SUCCESS)) do
+        cudnnCreateTensorDescriptor(Ref{cudnnTensorDescriptor_t}(C_NULL))
+    end) isa Nothing

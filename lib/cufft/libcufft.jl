@@ -19,7 +19,9 @@ macro check(ex, errs...)
     end
 
     quote
-        res = @retry_reclaim err -> $check $(esc(ex))
+        res = retry_reclaim(err -> $check) do
+            $(esc(ex))
+        end
         if res != CUFFT_SUCCESS
             throw_api_error(res)
         end

@@ -2,7 +2,7 @@ module cuStateVec
 
 using CUDA
 using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace, libraryPropertyType
-using CUDA: unsafe_free!, @retry_reclaim, initialize_context, isdebug
+using CUDA: unsafe_free!, retry_reclaim, initialize_context, isdebug
 using CUDA: CUDA_Runtime, CUDA_Runtime_jll
 
 using CEnum: @cenum

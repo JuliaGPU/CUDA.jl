@@ -12,8 +12,8 @@ end
 
 function cusolverMgCreate()
   handle_ref = Ref{cusolverMgHandle_t}()
-  res = @retry_reclaim err->isequal(err, CUSOLVER_STATUS_ALLOC_FAILED) ||
-                            isequal(err, CUSOLVER_STATUS_NOT_INITIALIZED) begin
+  res = retry_reclaim(err->isequal(err, CUSOLVER_STATUS_ALLOC_FAILED) ||
+                           isequal(err, CUSOLVER_STATUS_NOT_INITIALIZED)) do
     unsafe_cusolverMgCreate(handle_ref)
   end
   if res != CUSOLVER_STATUS_SUCCESS
