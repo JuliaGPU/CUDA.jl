@@ -5,13 +5,17 @@
 
 function cublasCreate()
   handle_ref = Ref{cublasHandle_t}()
-  @check unsafe_cublasCreate_v2(handle_ref) CUBLAS_STATUS_NOT_INITIALIZED
+  check(CUBLAS_STATUS_NOT_INITIALIZED) do
+    unsafe_cublasCreate_v2(handle_ref)
+  end
   handle_ref[]
 end
 
 function cublasXtCreate()
   handle_ref = Ref{cublasXtHandle_t}()
-  @check unsafe_cublasXtCreate(handle_ref) CUBLAS_STATUS_NOT_INITIALIZED
+  check(CUBLAS_STATUS_NOT_INITIALIZED) do
+    unsafe_cublasXtCreate(handle_ref)
+  end
   handle_ref[]
 end
 

@@ -10,20 +10,14 @@ const cudaStream_t = CUstream
     end
 end
 
-macro check(ex, errs...)
-    check = :(isequal(err, CURAND_STATUS_ALLOCATION_FAILED))
-    for err in errs
-        check = :($check || isequal(err, $(esc(err))))
+function check(f, errs...)
+    res = retry_reclaim(in((CURAND_STATUS_ALLOCATION_FAILED, errs...))) do
+        f()
     end
 
-    quote
-        res = retry_reclaim(err -> $check) do
-            $(esc(ex))
-        end
-        if res != CURAND_STATUS_SUCCESS
-            throw_api_error(res)
-        end
-
-        nothing
+    if res != CURAND_STATUS_SUCCESS
+        throw_api_error(res)
     end
+
+    return
 end

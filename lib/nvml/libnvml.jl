@@ -20,15 +20,13 @@ function initialize_context()
     end
 end
 
-macro check(ex)
-    quote
-        res = $(esc(ex))
-        if res != NVML_SUCCESS
-            throw_api_error(res)
-        end
-
-        nothing
+function check(f)
+    res = f()
+    if res != NVML_SUCCESS
+        throw_api_error(res)
     end
+
+    return
 end
 
 @cenum nvmlReturn_enum::UInt32 begin

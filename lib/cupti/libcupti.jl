@@ -12,22 +12,16 @@ const uint32_t = UInt32
     end
 end
 
-macro check(ex, errs...)
-    check = :(isequal(err, CUPTI_ERROR_OUT_OF_MEMORY))
-    for err in errs
-        check = :($check || isequal(err, $(esc(err))))
+function check(f, errs...)
+    res = retry_reclaim(in((CUPTI_ERROR_OUT_OF_MEMORY, errs...))) do
+        f()
     end
 
-    quote
-        res = retry_reclaim(err -> $check) do
-            $(esc(ex))
-        end
-        if res != CUPTI_SUCCESS
-            throw_api_error(res)
-        end
-
-        nothing
+    if res != CUPTI_SUCCESS
+        throw_api_error(res)
     end
+
+    return
 end
 
 macro CUPTI_PROFILER_STRUCT_SIZE(type, lastfield)
