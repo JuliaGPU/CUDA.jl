@@ -64,12 +64,12 @@ function batched(X::AbstractArray{T,N},region) where {T <: Complex,N}
     Y = collect(d_Y)
     @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
 
-    ldiv!(d_Z, p, d_Y)
+    pinv = plan_ifft(d_Y,region)
+    d_Z = pinv * d_Y
     Z = collect(d_Z)
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 
-    pinv = plan_ifft(d_Y,region)
-    d_Z = pinv * d_Y
+    ldiv!(d_Z, p, d_Y)
     Z = collect(d_Z)
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 end
