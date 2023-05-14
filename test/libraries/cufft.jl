@@ -39,6 +39,7 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     d_Z = pinv2 * d_Y
     Z = collect(d_Z)
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
+
 end
 
 function in_place(X::AbstractArray{T,N}) where {T <: Complex,N}
@@ -62,6 +63,10 @@ function batched(X::AbstractArray{T,N},region) where {T <: Complex,N}
     d_Y = p * d_X
     Y = collect(d_Y)
     @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
+
+    ldiv!(d_Z, p, d_Y)
+    Z = collect(d_Z)
+    @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 
     pinv = plan_ifft(d_Y,region)
     d_Z = pinv * d_Y

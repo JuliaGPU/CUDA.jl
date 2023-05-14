@@ -316,7 +316,7 @@ end
 function assert_applicable(p::CuFFTPlan{T,K,inplace}, X::DenseCuArray{T},
                            Y::DenseCuArray) where {T,K,inplace}
     assert_applicable(p, X)
-    if size(Y) != p.osz
+    if size(Y)[1:length(p.osz)] != p.osz
         throw(ArgumentError("CuFFT plan applied to wrong-size output"))
     elseif inplace != (pointer(X) == pointer(Y))
         throw(ArgumentError(string("CuFFT ",
