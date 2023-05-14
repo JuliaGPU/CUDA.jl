@@ -9,9 +9,9 @@ export @checked, with_workspace, @debug_ccall
     end
 
 Macro for wrapping a function definition returning a status code. Two versions of the
-function will be generated: `foo`, with the function body wrapped by an invocation of the
-`@check` macro (to be implemented by the caller of this macro), and `unsafe_foo` where no
-such invocation is present and the status code is returned to the caller.
+function will be generated: `foo`, with the function execution wrapped by an invocation of
+the `check` function (to be implemented by the caller of this macro), and `unsafe_foo` where
+no such invocation is present and the status code is returned to the caller.
 """
 macro checked(ex)
     # parse the function definition
@@ -23,7 +23,9 @@ macro checked(ex)
 
     # generate a "safe" version that performs a check
     safe_body = quote
-        @check $body
+        check() do
+            $body
+        end
     end
     safe_sig = Expr(:call, sig.args[1], sig.args[2:end]...)
     safe_def = Expr(:function, safe_sig, safe_body)

@@ -3,7 +3,7 @@ module cuTensorNet
 using LinearAlgebra
 using CUDA
 using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace
-using CUDA: @retry_reclaim, initialize_context, isdebug
+using CUDA: retry_reclaim, initialize_context, isdebug
 using CUDA: CUDA_Runtime, CUDA_Runtime_jll
 
 using cuTENSOR

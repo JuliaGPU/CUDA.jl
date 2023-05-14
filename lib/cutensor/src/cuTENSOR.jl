@@ -3,7 +3,7 @@ module cuTENSOR
 using CUDA
 using CUDA.APIUtils
 using CUDA: CUstream, cudaDataType
-using CUDA: @retry_reclaim, initialize_context, isdebug
+using CUDA: retry_reclaim, initialize_context, isdebug
 using CUDA: CUDA_Runtime, CUDA_Runtime_jll
 
 using CEnum: @cenum

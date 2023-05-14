@@ -2,7 +2,9 @@
 
 function curandCreateGenerator(typ)
   handle_ref = Ref{curandGenerator_t}()
-  @check unsafe_curandCreateGenerator(handle_ref, typ) CURAND_STATUS_INITIALIZATION_FAILED
+  check(CURAND_STATUS_INITIALIZATION_FAILED) do
+    unsafe_curandCreateGenerator(handle_ref, typ)
+  end
   handle_ref[]
 end
 

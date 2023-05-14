@@ -10,7 +10,7 @@ module cuDNN
 using CUDA
 using CUDA.APIUtils
 using CUDA: CUstream, libraryPropertyType
-using CUDA: @retry_reclaim, isdebug, initialize_context
+using CUDA: retry_reclaim, isdebug, initialize_context
 using CUDA: CUDA_Runtime, CUDA_Runtime_jll
 
 using CEnum: @cenum

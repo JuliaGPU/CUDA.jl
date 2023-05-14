@@ -312,70 +312,65 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
 end
 
 """
-    @retry_reclaim isfailed(ret) ex
+    retry_reclaim(isfailed) do
+        # code that may fail due to insufficient GPU memory
+    end
 
-Run a block of code `ex` repeatedly until it successfully allocates the memory it needs.
+Run a block of code repeatedly until it successfully allocates the memory it needs.
 Retries are only attempted when calling `isfailed` with the current return value is true.
 At each try, more and more memory is freed from the CUDA memory pool. When that is not
 possible anymore, the latest returned value will be returned.
 
-This macro is intended for use with CUDA APIs, which sometimes allocate (outside of the
+This function is intended for use with CUDA APIs, which sometimes allocate (outside of the
 CUDA memory pool) and return a specific error code when failing to.
 """
-macro retry_reclaim(isfailed, ex)
-  quote
-    ret = $(esc(ex))
+function retry_reclaim(f, isfailed)
+  ret = f()
 
-    # slow path, incrementally reclaiming more memory until we succeed
-    if $(esc(isfailed))(ret)
-      state = active_state()
-      is_stream_ordered = stream_ordered(state.device)
+  # slow path, incrementally reclaiming more memory until we succeed
+  if isfailed(ret)
+    state = active_state()
+    is_stream_ordered = stream_ordered(state.device)
 
-      phase = 1
-      while true
-        if is_stream_ordered
-          # NOTE: the stream-ordered allocator only releases memory on actual API calls,
-          #       and not when our synchronization routines query the relevant streams.
-          #       we do still call our routines to minimize the time we block in libcuda.
-          if phase == 1
-            synchronize(state.stream)
-          elseif phase == 2
-            device_synchronize()
-          elseif phase == 3
-            GC.gc(false)
-            device_synchronize()
-          elseif phase == 4
-            GC.gc(true)
-            device_synchronize()
-          elseif phase == 5
-            # in case we had a release threshold configured
-            trim(memory_pool(state.device))
-          else
-            break
-          end
+    phase = 1
+    while true
+      if is_stream_ordered
+        # NOTE: the stream-ordered allocator only releases memory on actual API calls,
+        #       and not when our synchronization routines query the relevant streams.
+        #       we do still call our routines to minimize the time we block in libcuda.
+        if phase == 1
+          synchronize(state.stream)
+        elseif phase == 2
+          device_synchronize()
+        elseif phase == 3
+          GC.gc(false)
+          device_synchronize()
+        elseif phase == 4
+          GC.gc(true)
+          device_synchronize()
+        elseif phase == 5
+          # in case we had a release threshold configured
+          trim(memory_pool(state.device))
         else
-          if phase == 1
-            GC.gc(false)
-          elseif phase == 2
-            GC.gc(true)
-          else
-            break
-          end
+          break
         end
-        phase += 1
-
-        ret = $(esc(ex))
-        $(esc(isfailed))(ret) || break
+      else
+        if phase == 1
+          GC.gc(false)
+        elseif phase == 2
+          GC.gc(true)
+        else
+          break
+        end
       end
+      phase += 1
+
+      ret = f()
+      isfailed(ret) || break
     end
-
-    ret
   end
-end
 
-# XXX: function version for use in CUDAdrv where we haven't loaded pool.jl yet
-function retry_reclaim(f, check)
-  @retry_reclaim check f()
+  ret
 end
 
 """
@@ -409,9 +404,13 @@ end
     time = Base.@elapsed begin
       buf = if stream_ordered(state.device)
         pool_mark(state.device) # mark the pool as active
-        @retry_reclaim isnothing actual_alloc(sz; async=true, stream)
+        retry_reclaim(isnothing) do
+          actual_alloc(sz; async=true, stream)
+        end
       else
-        @retry_reclaim isnothing actual_alloc(sz; async=false, stream)
+        retry_reclaim(isnothing) do
+          actual_alloc(sz; async=false, stream)
+        end
       end
       buf === nothing && throw(OutOfGPUMemoryError(sz))
     end

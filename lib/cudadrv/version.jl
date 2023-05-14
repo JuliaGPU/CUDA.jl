@@ -36,7 +36,9 @@ Returns the CUDA Runtime version.
 """
 function runtime_version()
     version_ref = Ref{Cint}()
-    @check @ccall libcudart.cudaRuntimeGetVersion(version_ref::Ptr{Cint})::CUresult
+    check() do
+        @ccall libcudart.cudaRuntimeGetVersion(version_ref::Ptr{Cint})::CUresult
+    end
     major, ver = divrem(version_ref[], 1000)
     minor, patch = divrem(ver, 10)
     return VersionNumber(major, minor, patch)

@@ -6,7 +6,7 @@ using ..CUDA_Runtime
 
 using ..CUDA
 using ..CUDA: CUstream, libraryPropertyType, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK
-using ..CUDA: @retry_reclaim, initialize_context
+using ..CUDA: retry_reclaim, initialize_context
 
 using CEnum: @cenum
 

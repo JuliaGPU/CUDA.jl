@@ -6,14 +6,16 @@ using ..CUSPARSE: CuSparseMatrixCSR, CuSparseMatrixCSC, CuMatrixDescriptor
 
 function cusolverSpCreate()
   handle_ref = Ref{cusolverSpHandle_t}()
-  @check unsafe_cusolverSpCreate(handle_ref) CUSOLVER_STATUS_NOT_INITIALIZED CUSOLVER_STATUS_INTERNAL_ERROR
+  check(CUSOLVER_STATUS_NOT_INITIALIZED, CUSOLVER_STATUS_INTERNAL_ERROR) do
+    unsafe_cusolverSpCreate(handle_ref)
+  end
   return handle_ref[]
 end
 
 function cusolverMgCreate()
   handle_ref = Ref{cusolverMgHandle_t}()
-  res = @retry_reclaim err->isequal(err, CUSOLVER_STATUS_ALLOC_FAILED) ||
-                            isequal(err, CUSOLVER_STATUS_NOT_INITIALIZED) begin
+  res = retry_reclaim(err->isequal(err, CUSOLVER_STATUS_ALLOC_FAILED) ||
+                           isequal(err, CUSOLVER_STATUS_NOT_INITIALIZED)) do
     unsafe_cusolverMgCreate(handle_ref)
   end
   if res != CUSOLVER_STATUS_SUCCESS

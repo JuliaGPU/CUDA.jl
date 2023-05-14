@@ -12,20 +12,16 @@ const cudaStream_t = CUstream
     end
 end
 
-macro check(ex, errs...)
-    check = :(isequal(err, CUFFT_ALLOC_FAILED))
-    for err in errs
-        check = :($check || isequal(err, $(esc(err))))
+function check(f, errs...)
+    res = retry_reclaim(in((CUFFT_ALLOC_FAILED, errs...))) do
+        f()
     end
 
-    quote
-        res = @retry_reclaim err -> $check $(esc(ex))
-        if res != CUFFT_SUCCESS
-            throw_api_error(res)
-        end
-
-        nothing
+    if res != CUFFT_SUCCESS
+        throw_api_error(res)
     end
+
+    return
 end
 
 @cenum cufftResult_t::UInt32 begin

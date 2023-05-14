@@ -15,11 +15,9 @@ end
         using CUDA.APIUtils
 
         const checks = Ref(0)
-        macro check(ex)
-            esc(quote
-                $checks[] += 1
-                $ex
-            end)
+        function check(f)
+            checks[] += 1
+            f()
         end
 
         @checked function foo()
