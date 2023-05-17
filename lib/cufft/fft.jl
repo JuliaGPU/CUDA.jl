@@ -139,10 +139,16 @@ for f in (:fft, :bfft, :ifft)
 end
 rfft(x::DenseCuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
 plan_rfft(x::DenseCuArray{<:Real}, region) = plan_rfft(realfloat(x), region)
-irfft(x::DenseCuArray{<:Union{Real,Integer,Rational}}, d::Integer, region=1:ndims(x)) = irfft(complexfloat(x), d, region)
 
-# yields the maximal dimensions of the plan, for plans starting at dim 1 or ending at the size vector, this is always the full input size
-plan_max_dims(region, sz) = ifelse(region[1] == 1 && (length(region) <=1 || all(diff(collect(region)) .== 1)), length(sz), region[end])
+function irfft(x::DenseCuArray{<:Union{Real,Integer,Rational}}, d::Integer, region=1:ndims(x))
+    irfft(complexfloat(x), d, region)
+end
+
+# yields the maximal dimensions of the plan, for plans starting at dim 1 or ending at the size vector, 
+# this is always the full input size
+function plan_max_dims(region, sz) 
+    ifelse(region[1] == 1 && (length(region) <=1 || all(diff(collect(region)) .== 1)), length(sz), region[end])
+end
 
 # retrieves the size to allocate even if the trailing dimensions do no transform
 get_osz(osz, x) = ntuple((d)->(d>length(osz) ? size(x, d) : osz[d]), ndims(x))
