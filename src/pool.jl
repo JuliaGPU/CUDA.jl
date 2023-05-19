@@ -6,6 +6,15 @@ using Logging
 
 ## allocation statistics
 
+# PPC doesn't support floating-point atomics, so use a ref (which behaves mostly similar)
+if Float64 <: Threads.AtomicTypes
+const MaybeAtomicFloat64 = Threads.Atomic{Float64}
+_add_total_time!(stats, time) = Threads.atomic_add!(stats.total_time, time)
+else
+const MaybeAtomicFloat64 = Base.RefValue{Float64}
+_add_total_time!(stats, time) = (stats.total_time[] += time)
+end
+
 mutable struct AllocStats
   alloc_count::Threads.Atomic{Int}
   alloc_bytes::Threads.Atomic{Int}
@@ -13,12 +22,12 @@ mutable struct AllocStats
   free_count::Threads.Atomic{Int}
   free_bytes::Threads.Atomic{Int}
 
-  total_time::Threads.Atomic{Float64}
+  total_time::MaybeAtomicFloat64
 
   function AllocStats()
     new(Threads.Atomic{Int}(0), Threads.Atomic{Int}(0),
         Threads.Atomic{Int}(0), Threads.Atomic{Int}(0),
-        Threads.Atomic{Float64}(0.0))
+        MaybeAtomicFloat64(0.0))
   end
 
   function AllocStats(alloc_count::Integer, alloc_bytes::Integer,
@@ -26,7 +35,7 @@ mutable struct AllocStats
                       total_time::Float64)
     new(Threads.Atomic{Int}(alloc_count), Threads.Atomic{Int}(alloc_bytes),
         Threads.Atomic{Int}(free_count), Threads.Atomic{Int}(free_bytes),
-        Threads.Atomic{Float64}(total_time))
+        MaybeAtomicFloat64(total_time))
   end
 end
 
@@ -391,7 +400,7 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   Threads.atomic_add!(memory_use, sz)
   Threads.atomic_add!(alloc_stats.alloc_count, 1)
   Threads.atomic_add!(alloc_stats.alloc_bytes, sz)
-  Threads.atomic_add!(alloc_stats.total_time, time)
+  _add_total_time!(alloc_stats, time)
   # NOTE: total_time might be an over-estimation if we trigger GC somewhere else
 
   return buf
@@ -447,7 +456,7 @@ Releases a buffer `buf` to the memory pool.
     Threads.atomic_sub!(memory_use, sz)
     Threads.atomic_add!(alloc_stats.free_count, 1)
     Threads.atomic_add!(alloc_stats.free_bytes, sz)
-    Threads.atomic_add!(alloc_stats.total_time, time)
+    _add_total_time!(alloc_stats, time)
   catch ex
     Base.showerror_nostdio(ex, "WARNING: Error while freeing $buf")
     Base.show_backtrace(Core.stdout, catch_backtrace())
