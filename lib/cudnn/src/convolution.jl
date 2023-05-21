@@ -192,7 +192,7 @@ function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, bia
         with_workspace(workspaceSize) do workspace
             cudnnFindConvolutionForwardAlgorithmEx(handle(),xDesc,x,wDesc,w,convDesc,yDesc,yTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
-        val = cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
+        val = cudnnConvolutionAlgoPerfChoose(convDesc, perfResults, returnedAlgoCount[1])
         lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
             cudnnConvolutionFwdAlgoPerfCache[key] = val
         end
@@ -223,7 +223,7 @@ function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc,
         with_workspace(workspaceSize) do workspace
             cudnnFindConvolutionBackwardDataAlgorithmEx(handle(),wDesc,w,dyDesc,dy,convDesc,dxDesc,dxTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
-        val = cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
+        val = cudnnConvolutionAlgoPerfChoose(convDesc, perfResults, returnedAlgoCount[1])
         lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
             cudnnConvolutionBwdDataAlgoPerfCache[key] = val
         end
@@ -254,7 +254,7 @@ function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDes
         with_workspace(workspaceSize) do workspace
             cudnnFindConvolutionBackwardFilterAlgorithmEx(handle(),xDesc,x,dyDesc,dy,convDesc,dwDesc,dwTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
-        val = cudnnConvolutionAlgoPerfChoose(perfResults, returnedAlgoCount[1])
+        val = cudnnConvolutionAlgoPerfChoose(convDesc, perfResults, returnedAlgoCount[1])
         lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
             cudnnConvolutionBwdFilterAlgoPerfCache[key] = val
         end
@@ -264,20 +264,24 @@ end
 
 
 # Return algorithm with best memory that is within 10% of best time
-function cudnnConvolutionAlgoPerfChoose(ps, n)
-    (ibest,mbest,tbest) = (0,Inf,Inf)
-    for i in 1:n
+function cudnnConvolutionAlgoPerfChoose(convDesc, perfResults, n)
+    mathType = Ref{cudnnMathType_t}(CUDNN_DEFAULT_MATH)
+    cudnnGetConvolutionMathType(convDesc, mathType)
+
+    ibest, mbest, tbest = 0, Inf, Inf
+    for (i, ps) in enumerate(perfResults)
+        i > n && break
         # These metrics are written in a sorted fashion where the first element has the lowest compute time.
-        if ps[i].status == CUDNN_STATUS_SUCCESS && ps[i].memory < mbest && ps[i].time < tbest * 1.1
-            (ibest,mbest,tbest) = (i,ps[i].memory,ps[i].time)
+        if ps.status == CUDNN_STATUS_SUCCESS && ps.mathType == mathType[] && ps.memory < mbest && ps.time < tbest * 1.1
+            ibest, mbest, tbest = i, ps.memory, ps.time
         end
     end
     if ibest == 0
         @warn "No valid algorithm found, probably bad params for convolution." maxlog=1
-        ibest = findfirst(p->p.algo==0, ps)
+        ibest = findfirst(p->p.algo==0, perfResults)
         ibest === nothing && error("Cannot find backup algorithm for convolution, giving up.")
     end
-    return ps[ibest]
+    return perfResults[ibest]
 end
 
 
