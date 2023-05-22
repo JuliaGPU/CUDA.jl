@@ -168,6 +168,7 @@ function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
         T_global = LLVM.ArrayType(T_val, length(data))
         # XXX: why can't we use a single name like emit_shmem
         gv = GlobalVariable(mod, T_global, "gpu_$(name)_data", AS.Constant)
+        alignment!(gv, 16)
         linkage!(gv, LLVM.API.LLVMInternalLinkage)
         initializer!(gv, ConstantArray(data; ctx))
 
