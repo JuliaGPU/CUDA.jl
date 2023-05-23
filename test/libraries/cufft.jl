@@ -61,6 +61,9 @@ function batched(X::AbstractArray{T,N},region) where {T <: Complex,N}
     d_X = CuArray(X)
     p = plan_fft(d_X,region)
     d_Y = p * d_X
+    d_X2 = reshape(d_X, (size(d_X)..., 1))
+    @test_throws ArgumentError p * d_X2
+
     Y = collect(d_Y)
     @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
 
