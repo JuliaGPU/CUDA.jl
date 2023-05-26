@@ -20,66 +20,93 @@ struct HandleCache{K,V}
     end
 end
 
+# take and release a lock in a way that won't ever cause it to be locked during GC.
+# this ensures that we don't have to worry about task switches during finalizers.
+# note that the scope of this operation should be limited to the minimum possible.
+macro safe_lock(l, ex)
+    quote
+        GC.enable(false)
+        lock($(esc(l)))
+        try
+            $(esc(ex))
+        finally
+            unlock($(esc(l)))
+            GC.enable(true)
+        end
+    end
+end
+
 # remove a handle from the cache, or create a new one
-function Base.pop!(f::Function, cache::HandleCache{K,V}, key) where {K,V}
-    function check_cache(f::Function=()->nothing)
-        lock(cache.lock) do
-            handle = if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
-                f()
+function Base.pop!(ctor::Function, cache::HandleCache{K,V}, key) where {K,V}
+    # try to find an idle handle
+    function check_cache()
+        @safe_lock cache.lock begin
+            if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
+                nothing
             else
                 pop!(cache.idle_handles[key])
             end
-
-            if handle !== nothing
-                push!(cache.active_handles, key=>handle)
-            end
-
-            return handle
         end
     end
-
     handle = check_cache()
-
     if handle === nothing
-        # if we didn't find anything, perform a quick GC collection to free up old handles.
         GC.gc(false)
-
-        handle = check_cache(f)
+        handle = check_cache()
     end
 
-    return handle::V
+    # if we didn't find anything, create a new handle
+    if handle === nothing
+        # `ctor` is an expensive function, and may trigger a GC collection,
+        # so be sure to execute it outside of the lock.
+        handle = ctor()::V
+    end
+
+    # mark the handle as active
+    @safe_lock cache.lock begin
+        push!(cache.active_handles, key=>handle)
+    end
+
+    return handle
 end
 
 # put a handle in the cache, or destroy it if it doesn't fit
-function Base.push!(f::Function, cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
-    lock(cache.lock) do
+function Base.push!(dtor::Function, cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
+    should_destroy = @safe_lock cache.lock begin
+        in(key=>handle, cache.active_handles) || error("Cannot cache unknown handle $handle (key $key)")
         delete!(cache.active_handles, key=>handle)
 
         if haskey(cache.idle_handles, key)
             if length(cache.idle_handles[key]) > cache.max_entries
-                f()
+                true
             else
                 push!(cache.idle_handles[key], handle)
+                false
             end
         else
             cache.idle_handles[key] = [handle]
+            false
         end
     end
+    if should_destroy
+        dtor()
+    end
+    return
 end
 
 # shorthand version to put a handle back without having to remember the key
 function Base.push!(f::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
-    lock(cache.lock) do
-        key = nothing
+    key = nothing
+    @safe_lock cache.lock begin
         for entry in cache.active_handles
             if entry[2] == handle
                 key = entry[1]
                 break
             end
         end
-        if key === nothing
-            error("Attempt to cache handle $handle that was not created by the handle cache")
-        end
-        push!(f, cache, key, handle)
     end
+    if key === nothing
+        error("Cannot cache unknown handle $handle")
+    end
+    push!(f, cache, key, handle)
+    return
 end
