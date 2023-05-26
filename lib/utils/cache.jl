@@ -94,7 +94,7 @@ function Base.push!(dtor::Function, cache::HandleCache{K,V}, key::K, handle::V) 
 end
 
 # shorthand version to put a handle back without having to remember the key
-function Base.push!(f::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
+function Base.push!(dtor::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
     key = nothing
     @safe_lock cache.lock begin
         for entry in cache.active_handles
@@ -107,6 +107,6 @@ function Base.push!(f::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
     if key === nothing
         error("Cannot cache unknown handle $handle")
     end
-    push!(f, cache, key, handle)
+    push!(dtor, cache, key, handle)
     return
 end
