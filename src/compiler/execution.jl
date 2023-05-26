@@ -182,6 +182,13 @@ The following keyword arguments are supported:
 """
 AbstractKernel
 
+function Base.show(io::IO, k::AbstractKernel{F,TT}) where {F,TT}
+    print(io, "CUDA.$(nameof(typeof(k)))($(k.f))")
+end
+function Base.show(io::IO, ::MIME"text/plain", k::AbstractKernel{F,TT}) where {F,TT}
+    print(io, "CUDA.$(nameof(typeof(k))) for $(k.f)($(join(TT.parameters, ", ")))")
+end
+
 @inline @generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
     sig = Tuple{F, TT.parameters...}    # Base.signature_type with a function type
     args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
