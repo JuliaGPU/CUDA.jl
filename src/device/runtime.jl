@@ -73,32 +73,3 @@ function report_exception_frame(idx, func, file, line)
     @cuprintf(" [%i] %s at %s:%i\n", idx, func, file, line)
     return
 end
-
-
-## CUDA device library
-
-function load_libdevice(cap; ctx)
-    parse(LLVM.Module, read(libdevice); ctx)
-end
-
-function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)
-    ctx = LLVM.context(mod)
-
-    # only link if there's undefined __nv_ functions
-    if !any(fn->startswith(fn, "__nv_"), undefined_fns)
-        return
-    end
-    lib::LLVM.Module = load_libdevice(cap; ctx)
-
-    # override libdevice's triple and datalayout to avoid warnings
-    triple!(lib, triple(mod))
-    datalayout!(lib, datalayout(mod))
-
-    GPUCompiler.link_library!(mod, lib)
-
-    @dispose pm=ModulePassManager() begin
-        push!(metadata(mod)["nvvm-reflect-ftz"],
-              MDNode([ConstantInt(Int32(1); ctx)]; ctx))
-        run!(pm, mod)
-    end
-end

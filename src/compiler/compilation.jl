@@ -13,12 +13,30 @@ GPUCompiler.isintrinsic(@nospecialize(job::CUDACompilerJob), fn::String) =
            job, fn) ||
     fn == "__nvvm_reflect" || startswith(fn, "cuda")
 
+# link libdevice
 function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module,
                                      undefined_fns::Vector{String})
-    invoke(GPUCompiler.link_libraries!,
-           Tuple{CompilerJob{PTXCompilerTarget}, typeof(mod), typeof(undefined_fns)},
-           job, mod, undefined_fns)
-    link_libdevice!(mod, job.config.target.cap, undefined_fns)
+    # only link if there's undefined __nv_ functions
+    if !any(fn->startswith(fn, "__nv_"), undefined_fns)
+        return
+    end
+
+    ctx = LLVM.context(mod)
+    lib = parse(LLVM.Module, read(libdevice); ctx)
+
+    # override libdevice's triple and datalayout to avoid warnings
+    triple!(lib, triple(mod))
+    datalayout!(lib, datalayout(mod))
+
+    GPUCompiler.link_library!(mod, lib) # note: destroys lib
+
+    @dispose pm=ModulePassManager() begin
+        push!(metadata(mod)["nvvm-reflect-ftz"],
+              MDNode([ConstantInt(Int32(1); ctx)]; ctx))
+        run!(pm, mod)
+    end
+
+    return
 end
 
 GPUCompiler.method_table(@nospecialize(job::CUDACompilerJob)) = method_table
