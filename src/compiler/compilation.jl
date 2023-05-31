@@ -76,10 +76,12 @@ end
     end
     toolchain = _toolchain[]::@NamedTuple{cap::Vector{VersionNumber}, ptx::Vector{VersionNumber}}
 
-    # select the highest capability that is supported by both the toolchain and device
+    # select the highest capability that is supported by both the entire toolchain, and our
+    # device. this is allowed to be lower than the actual device capability (e.g. `sm_89`
+    # for a `sm_90` device), because we'll invoke `ptxas` using a higher capability later.
     caps = filter(toolchain_cap -> toolchain_cap <= capability(dev), toolchain.cap)
     isempty(caps) &&
-        error("Your $(name(dev)) GPU with capability v$(capability(dev)) is not supported by the available toolchain")
+        error("Your $(CUDA.name(dev)) GPU with capability v$(capability(dev)) is not supported anymore")
     cap = maximum(caps)
 
     # select the PTX ISA we assume to be available
@@ -162,7 +164,16 @@ function compile(@nospecialize(job::CompilerJob), ctx)
         push!(ptxas_opts, "--compile-only")
     end
 
-    arch = "sm_$(job.config.target.cap.major)$(job.config.target.cap.minor)"
+    # use the highest device capability that's supported by CUDA. note that we're allowed
+    # to query this because the compilation cache is sharded by the device context.
+    # XXX: put this in the CompilerTarget to avoid device introspection?
+    #      on the other hand, GPUCompiler doesn't care about the actual device capability...
+    dev = device()
+    caps = filter(toolchain_cap -> toolchain_cap <= capability(dev), cuda_compat().cap)
+    cap = maximum(caps)
+    # NOTE: we should already have warned about compute compatibility mismatches
+    #       during TLS state set-up.
+    arch = "sm_$(cap.major)$(cap.minor)"
 
     # compile to machine code
     # NOTE: we use tempname since mktemp doesn't support suffixes, and mktempdir is slow
