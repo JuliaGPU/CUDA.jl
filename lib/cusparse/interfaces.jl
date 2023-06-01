@@ -75,9 +75,9 @@ end
 function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::CuSparseMatrix{T}, B::DenseCuMatrix{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
-    mm_wrapper(tA, tB, _add.alpha, A, B, beta, C)
+    mm_wrapper(tA, tB, _add.alpha, A, B, _add.beta, C)
 end
-            
+
 for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     TypeA = wrapa(taga(:(CuSparseMatrix{T})))
 
@@ -91,23 +91,23 @@ end
 
 function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::DenseCuMatrix{T}, B::CuSparseVector{T}, _add::MulAddMul) where {T <: BlasFloat}
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
-    gemvi!(tA, alpha, A, B, beta, C, 'O')
+    gemvi!(tA, _add.alpha, A, B, _add.beta, C, 'O')
 end
 
 function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCSC{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
-    mm!(tA, tB, _add.alpha, A, B, beta, C, 'O')
+    mm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
 end
 function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCSR{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
-    mm!(tA, tB, _add.alpha, A, B, beta, C, 'O')
+    mm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
 end
 function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCOO{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
-    mm!(tA, tB, _add.alpha, A, B, beta, C, 'O')
+    mm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
 end
 
 for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
