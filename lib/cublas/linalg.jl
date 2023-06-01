@@ -194,15 +194,13 @@ function LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::Stri
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
         if T <: CublasFloat && eltype(A) == eltype(B) == T
             if tA in ('N', 'T', 'C')
-                gemv!(tA, alpha, A, B, beta, Y)
+                return gemv!(tA, alpha, A, B, beta, Y)
             elseif tA in ('S', 's')
                 return symv!(tA == 'S' ? 'U' : 'L', alpha, A, x, beta, y)
             elseif tA in ('H', 'h')
                 return hemv!(tA == 'H' ? 'U' : 'L', alpha, A, x, beta, y)
             end
         end
-    else
-        error("only supports BLAS type, got $T") # error if alpha or beta are too big
     end
     LinearAlgebra.generic_matmatmul!(Y, tA, 'N', A, B, MulAddMul(alpha, beta))
 end
@@ -313,8 +311,6 @@ function LinearAlgebra.generic_matmatmul!(C::CuVecOrMat, tA, tB, A::StridedCuVec
         elseif (tB == 'H' || tB == 'h') && tA == 'N'
             return hemm!('R', tB == 'H' ? 'U' : 'L', alpha, B, A, beta, C)
         end
-    else
-        error("only supports BLAS type, got $T")
     end
     GPUArrays.generic_matmatmul!(C, wrap(A, tA), wrap(B, tB), alpha, beta)
 end
