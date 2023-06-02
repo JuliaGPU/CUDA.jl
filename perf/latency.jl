@@ -25,12 +25,6 @@ function main()
         `$base_cmd -e "using CUDA"`
     results["import"] = @benchmark run($import_cmd) evals=1 seconds=30
 
-    # time to initialize CUDA and all other libraries
-    initialize_time =
-        `$base_cmd -e "using CUDA
-                       CUDA.driver_version()"`
-    results["initialize"] = @benchmark run($initialize_time) evals=1 seconds=30
-
     # time to actually compile a kernel
     ttfp_cmd =
         `$base_cmd -e "using CUDA
