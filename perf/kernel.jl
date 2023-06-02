@@ -2,15 +2,11 @@ using CUDA: i32
 
 group = addgroup!(SUITE, "kernel")
 
-dummy_kernel() = nothing
-group["launch"] = @benchmarkable @cuda dummy_kernel()
+group["launch"] = @benchmarkable @cuda identity(nothing)
 
-wanted_threads = 10000
 group["occupancy"] = @benchmarkable begin
-    kernel = @cuda launch=false dummy_kernel()
-    config = launch_configuration(kernel.fun)
-    threads = min($wanted_threads, config.threads)
-    blocks = cld($wanted_threads, threads)
+    kernel = @cuda launch=false identity(nothing)
+    launch_configuration(kernel.fun)
 end
 
 src = CUDA.rand(Float32, 512, 1000)
