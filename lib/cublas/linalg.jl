@@ -1,5 +1,28 @@
 # interfacing with LinearAlgebra standard library
 
+using LinearAlgebra: MulAddMul
+
+if isdefined(LinearAlgebra, :wrap) # i.e., VERSION >= v"1.10.0-DEV.1365"
+    using LinearAlgebra: wrap
+else
+    function wrap(A::AbstractVecOrMat, tA::AbstractChar)
+        if tA == 'N'
+            return A
+        elseif tA == 'T'
+            return transpose(A)
+        elseif tA == 'C'
+            return adjoint(A)
+        elseif tA == 'H'
+            return Hermitian(A, :U)
+        elseif tA == 'h'
+            return Hermitian(A, :L)
+        elseif tA == 'S'
+            return Symmetric(A, :U)
+        else # tA == 's'
+            return Symmetric(A, :L)
+        end
+    end
+end
 
 #
 # BLAS 1
@@ -147,8 +170,8 @@ end
 
 # GEMV
 
-function gemv_dispatch!(Y::CuVector, A, B, alpha::Number=true, beta::Number=false)
-    mA, nA = size(A)
+function LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, _add::MulAddMul)
+    mA, nA = tA == 'N' ? size(A) : reverse(size(A))
 
     if nA != length(B)
         throw(DimensionMismatch("second dimension of A, $nA, does not match length of B, $(length(B))"))
@@ -166,32 +189,28 @@ function gemv_dispatch!(Y::CuVector, A, B, alpha::Number=true, beta::Number=fals
         return rmul!(Y, 0)
     end
 
-    tA, dA = if A isa Transpose
-        'T', parent(A)
-    elseif A isa Adjoint
-        'C', parent(A)
-    else
-        'N', A
-    end
-
     T = eltype(Y)
-    if T <: CublasFloat && A isa StridedCuArray{T} && B isa StridedCuArray{T}
-        gemv!(tA, alpha, dA, B, beta, Y)
-    else
-        gemm_dispatch!(Y, A, B, alpha, beta)
+    alpha, beta = promote(_add.alpha, _add.beta, zero(T))
+    if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
+        if T <: CublasFloat && eltype(A) == eltype(B) == T
+            if tA in ('N', 'T', 'C')
+                return gemv!(tA, alpha, A, B, beta, Y)
+            elseif tA in ('S', 's')
+                return symv!(tA == 'S' ? 'U' : 'L', alpha, A, B, beta, Y)
+            elseif tA in ('H', 'h')
+                return hemv!(tA == 'H' ? 'U' : 'L', alpha, A, B, beta, Y)
+            end
+        end
     end
+    LinearAlgebra.generic_matmatmul!(Y, tA, 'N', A, B, MulAddMul(alpha, beta))
 end
 
-for NT in (:Number, :Real)
-    # NOTE: alpha/beta also ::Real to avoid ambiguities with certain Base methods
-    @eval begin
-        LinearAlgebra.mul!(Y::CuVector, A::StridedCuMatrix, B::StridedCuVector, a::$NT, b::$NT) =
-            gemv_dispatch!(Y, A, B, a, b)
-        LinearAlgebra.mul!(Y::CuVector, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::StridedCuVector, a::$NT, b::$NT) =
-            gemv_dispatch!(Y, A, B, a, b)
-        LinearAlgebra.mul!(Y::CuVector, A::Adjoint{<:Any, <:StridedCuVecOrMat}, B::StridedCuVector, a::$NT, b::$NT) =
-            gemv_dispatch!(Y, A, B, a, b)
-    end
+if VERSION < v"1.10.0-DEV.1365"
+@inline LinearAlgebra.gemv!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, a::Number, b::Number) =
+    LinearAlgebra.generic_matvecmul!(Y, tA, A, B, MulAddMul(a, b))
+# disambiguation with LinearAlgebra.jl
+@inline LinearAlgebra.gemv!(Y::CuVector{T}, tA::AbstractChar, A::StridedCuMatrix{T}, B::StridedCuVector{T}, a::Number, b::Number) where {T<:CublasFloat} =
+    LinearAlgebra.generic_matvecmul!(Y, tA, A, B, MulAddMul(a, b))
 end
 
 # triangular
@@ -205,12 +224,12 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
         # Multiplication
         LinearAlgebra.lmul!(A::$t{T,<:DenseCuMatrix},
                             b::StridedCuVector{T}) where {T<:CublasFloat} =
-            CUBLAS.trmv!($uploc, 'N', $isunitc, parent(A), b)
+            trmv!($uploc, 'N', $isunitc, parent(A), b)
 
         # Left division
         LinearAlgebra.ldiv!(A::$t{T,<:DenseCuMatrix},
                             B::StridedCuVector{T}) where {T<:CublasFloat} =
-            CUBLAS.trsv!($uploc, 'N', $isunitc, parent(A), B)
+            trsv!($uploc, 'N', $isunitc, parent(A), B)
     end
 end
 
@@ -223,24 +242,24 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
         # Multiplication
         LinearAlgebra.lmul!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
                             b::DenseCuVector{T}) where {T<:CublasFloat} =
-            CUBLAS.trmv!($uploc, 'T', $isunitc, parent(parent(A)), b)
+            trmv!($uploc, 'T', $isunitc, parent(parent(A)), b)
         LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
                             b::DenseCuVector{T}) where {T<:CublasReal} =
-            CUBLAS.trmv!($uploc, 'T', $isunitc, parent(parent(A)), b)
+            trmv!($uploc, 'T', $isunitc, parent(parent(A)), b)
         LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
                             b::DenseCuVector{T}) where {T<:CublasComplex} =
-            CUBLAS.trmv!($uploc, 'C', $isunitc, parent(parent(A)), b)
+            trmv!($uploc, 'C', $isunitc, parent(parent(A)), b)
 
         # Left division
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
                             B::StridedCuVector{T}) where {T<:CublasFloat} =
-            CUBLAS.trsv!($uploc, 'T', $isunitc, parent(parent(A)), B)
+            trsv!($uploc, 'T', $isunitc, parent(parent(A)), B)
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
                             B::StridedCuVector{T}) where {T<:CublasReal} =
-            CUBLAS.trsv!($uploc, 'T', $isunitc, parent(parent(A)), B)
+            trsv!($uploc, 'T', $isunitc, parent(parent(A)), B)
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
                             B::StridedCuVector{T}) where {T<:CublasComplex} =
-            CUBLAS.trsv!($uploc, 'C', $isunitc, parent(parent(A)), B)
+            trsv!($uploc, 'C', $isunitc, parent(parent(A)), B)
     end
 end
 
@@ -252,14 +271,11 @@ end
 
 # GEMM
 
-function gemm_dispatch!(C::CuVecOrMat, A, B, alpha::Number=true, beta::Number=false)
-    if ndims(A) > 2
-        throw(ArgumentError("A has more than 2 dimensions"))
-    elseif ndims(B) > 2
-        throw(ArgumentError("B has more than 2 dimensions"))
-    end
-    mA, nA = size(A,1), size(A,2)
-    mB, nB = size(B,1), size(B,2)
+function LinearAlgebra.generic_matmatmul!(C::CuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul)
+    T = eltype(C)
+    alpha, beta = promote(_add.alpha, _add.beta, zero(T))
+    mA, nA = size(A, tA == 'N' ? 1 : 2), size(A, tA == 'N' ? 2 : 1)
+    mB, nB = size(B, tB == 'N' ? 1 : 2), size(B, tB == 'N' ? 2 : 1)
 
     if nA != mB
         throw(DimensionMismatch("A has dimensions ($mA,$nA) but B has dimensions ($mB,$nB)"))
@@ -276,58 +292,49 @@ function gemm_dispatch!(C::CuVecOrMat, A, B, alpha::Number=true, beta::Number=fa
         return LinearAlgebra.rmul!(C, 0)
     end
 
-    tA, dA = if A isa Transpose
-        'T', parent(A)
-    elseif A isa Adjoint
-        'C', parent(A)
-    else
-        'N', A
+    if all(in(('N', 'T', 'C')), (tA, tB))
+        if A isa DenseCuArray && B isa DenseCuArray &&
+        gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
+            return gemmEx!(tA, tB, alpha, A, B, beta, C)
+        elseif T <: CublasFloat && A isa DenseCuArray{T} && B isa DenseCuArray{T}
+            return gemm!(tA, tB, alpha, A, B, beta, C)
+        end
     end
-
-    tB, dB = if B isa Transpose
-        'T', parent(B)
-    elseif B isa Adjoint
-        'C', parent(B)
-    else
-        'N', B
+    if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
+        # TODO: should the gemm part above be included in this branch?
+        if (tA == 'S' || tA == 's') && tB == 'N'
+            return symm!('L', tA == 'S' ? 'U' : 'L', alpha, A, B, beta, C)
+        elseif (tB == 'S' || tB == 's') && tA == 'N'
+            return symm!('R', tB == 'S' ? 'U' : 'L', alpha, B, A, beta, C)
+        elseif (tA == 'H' || tA == 'h') && tB == 'N'
+            return hemm!('L', tA == 'H' ? 'U' : 'L', alpha, A, B, beta, C)
+        elseif (tB == 'H' || tB == 'h') && tA == 'N'
+            return hemm!('R', tB == 'H' ? 'U' : 'L', alpha, B, A, beta, C)
+        end
     end
-
-    T = eltype(C)
-    if dA isa DenseCuArray && dB isa DenseCuArray &&
-       gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
-        gemmEx!(tA, tB, alpha, dA, dB, beta, C)
-    elseif T <: CublasFloat && dA isa DenseCuArray{T} && dB isa DenseCuArray{T}
-        gemm!(tA, tB, alpha, dA, dB, beta, C)
-    else
-        GPUArrays.generic_matmatmul!(C, A, B, alpha, beta)
-    end
+    GPUArrays.generic_matmatmul!(C, wrap(A, tA), wrap(B, tB), alpha, beta)
 end
 
-for NT in (:Number, :Real)
-    # NOTE: alpha/beta also ::Real to avoid ambiguities with certain Base methods
-    @eval begin
-        LinearAlgebra.mul!(C::CuMatrix, A::StridedCuVecOrMat, B::StridedCuVecOrMat, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-
-        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::StridedCuMatrix, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::StridedCuMatrix, B::Transpose{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::Transpose{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-
-        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:StridedCuVecOrMat}, B::StridedCuMatrix, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::StridedCuMatrix, B::Adjoint{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:StridedCuVecOrMat}, B::Adjoint{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-
-        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::Adjoint{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:StridedCuVecOrMat}, B::Transpose{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
+if VERSION < v"1.10.0-DEV.1365"
+# catch other functions that are called by LinearAlgebra's mul!
+LinearAlgebra.gemm_wrapper!(C::CuMatrix, tA::AbstractChar, tB::AbstractChar, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul) =
+    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add)
+LinearAlgebra.gemm_wrapper!(C::CuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuVecOrMat{T}, B::StridedCuVecOrMat{T}, _add::MulAddMul) where {T<:LinearAlgebra.BlasFloat} =
+    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add)
+function LinearAlgebra.syrk_wrapper!(C::CuMatrix, tA::AbstractChar, A::StridedCuVecOrMat, _add::MulAddMul)
+    if tA == 'T'
+        LinearAlgebra.generic_matmatmul!(C, 'T', 'N', A, A, _add)
+    else # tA == 'N'
+        LinearAlgebra.generic_matmatmul!(C, 'N', 'T', A, A, _add)
     end
+end
+function LinearAlgebra.herk_wrapper!(C::CuMatrix, tA::AbstractChar, A::StridedCuVecOrMat, _add::MulAddMul)
+    if tA == 'C'
+        LinearAlgebra.generic_matmatmul!(C, 'C', 'N', A, A, _add)
+    else # tA == 'N'
+        LinearAlgebra.generic_matmatmul!(C, 'N', 'C', A, A, _add)
+    end
+end
 end
 
 # triangular
@@ -341,28 +348,28 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
         # Multiplication
         LinearAlgebra.lmul!(A::$t{T,<:DenseCuMatrix},
                             B::DenseCuMatrix{T}) where {T<:CublasFloat} =
-            CUBLAS.trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B, B)
+            trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B, B)
         LinearAlgebra.rmul!(A::DenseCuMatrix{T},
                             B::$t{T,<:DenseCuMatrix}) where {T<:CublasFloat} =
-            CUBLAS.trmm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A, A)
+            trmm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A, A)
 
         # optimization: Base.mul! uses lmul!/rmul! with a copy (because of BLAS)
         LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{T,<:DenseCuMatrix},
                            B::DenseCuMatrix{T}) where {T<:CublasFloat} =
-            CUBLAS.trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B, X)
+            trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B, X)
         LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
                            B::$t{T,<:DenseCuMatrix}) where {T<:CublasFloat} =
-            CUBLAS.trmm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A, X)
+            trmm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A, X)
 
         # Left division
         LinearAlgebra.ldiv!(A::$t{T,<:DenseCuMatrix},
                             B::DenseCuMatrix{T}) where {T<:CublasFloat} =
-            CUBLAS.trsm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B)
+            trsm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B)
 
         # Right division
         LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
                             B::$t{T,<:DenseCuMatrix}) where {T<:CublasFloat} =
-            CUBLAS.trsm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A)
+            trsm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A)
 
         # Matrix inverse
         function LinearAlgebra.inv(x::$t{T, <:CuMatrix{T}}) where T<:CublasFloat
@@ -407,65 +414,65 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
         # Multiplication
         LinearAlgebra.lmul!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
                             B::DenseCuMatrix{T}) where {T<:CublasFloat} =
-            CUBLAS.trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
+            trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
         LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
                             B::DenseCuMatrix{T}) where {T<:CublasComplex} =
-            CUBLAS.trmm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B, B)
+            trmm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B, B)
         LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
                             B::DenseCuMatrix{T}) where {T<:CublasReal} =
-            CUBLAS.trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
+            trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
 
         LinearAlgebra.rmul!(A::DenseCuMatrix{T},
                             B::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}}) where {T<:CublasFloat} =
-            CUBLAS.trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, A)
+            trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, A)
         LinearAlgebra.rmul!(A::DenseCuMatrix{T},
                             B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasComplex} =
-            CUBLAS.trmm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A, A)
+            trmm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A, A)
         LinearAlgebra.rmul!(A::DenseCuMatrix{T},
                             B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasReal} =
-            CUBLAS.trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, A)
+            trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, A)
 
         # optimization: Base.mul! uses lmul!/rmul! with a copy (because of BLAS)
         LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
                            B::DenseCuMatrix{T}) where {T<:CublasFloat} =
-            CUBLAS.trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, X)
+            trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, X)
         LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
                            B::DenseCuMatrix{T}) where {T<:CublasComplex} =
-            CUBLAS.trmm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B, X)
+            trmm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B, X)
         LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
                            B::DenseCuMatrix{T}) where {T<:CublasReal} =
-            CUBLAS.trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, X)
+            trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, X)
         LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
                            B::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}}) where {T<:CublasFloat} =
-            CUBLAS.trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, X)
+            trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, X)
         LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
                            B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasComplex} =
-            CUBLAS.trmm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A, X)
+            trmm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A, X)
         LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
                            B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasReal} =
-            CUBLAS.trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, X)
+            trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, X)
 
         # Left division
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
                             B::DenseCuMatrix{T}) where {T<:CublasFloat} =
-            CUBLAS.trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
+            trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
                             B::DenseCuMatrix{T}) where {T<:CublasReal} =
-            CUBLAS.trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
+            trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
                             B::DenseCuMatrix{T}) where {T<:CublasComplex} =
-            CUBLAS.trsm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B)
+            trsm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B)
 
         # Right division
         LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
                             B::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}}) where {T<:CublasFloat} =
-            CUBLAS.trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
+            trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
         LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
                             B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasReal} =
-            CUBLAS.trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
+            trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
         LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
                             B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasComplex} =
-            CUBLAS.trsm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A)
+            trsm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A)
     end
 end
 
@@ -497,7 +504,7 @@ for (trtype, valtype) in ((:Transpose, :CublasFloat),
                                     ) where {T<:$valtype}
             # operation is reversed to avoid executing the tranpose
             triu!(parent(A))
-            CUBLAS.trmm!('R', 'U', 'T', 'N', one(T), parent(parent(B)), parent(A), parent(X))
+            trmm!('R', 'U', 'T', 'N', one(T), parent(parent(B)), parent(A), parent(X))
             X
         end
 
@@ -506,7 +513,7 @@ for (trtype, valtype) in ((:Transpose, :CublasFloat),
                                     B::LowerTriangular{T,<:DenseCuMatrix},
                                     ) where {T<:$valtype}
             tril!(parent(B))
-            CUBLAS.trmm!('L', 'L', 'T', 'N', one(T), parent(parent(A)), parent(B), parent(X))
+            trmm!('L', 'L', 'T', 'N', one(T), parent(parent(A)), parent(B), parent(X))
             X
         end
 
@@ -515,7 +522,7 @@ for (trtype, valtype) in ((:Transpose, :CublasFloat),
                                     B::UpperTriangular{T,<:DenseCuMatrix},
                                     ) where {T<:$valtype}
             triu!(parent(B))
-            CUBLAS.trmm!('L', 'U', 'T', 'N', one(T), parent(parent(A)), parent(B), parent(X))
+            trmm!('L', 'U', 'T', 'N', one(T), parent(parent(A)), parent(B), parent(X))
             X
         end
 
@@ -525,7 +532,7 @@ for (trtype, valtype) in ((:Transpose, :CublasFloat),
                                     ) where {T<:$valtype}
             # operation is reversed to avoid executing the tranpose
             tril!(parent(A))
-            CUBLAS.trmm!('R', 'L', 'T', 'N', one(T), parent(parent(B)), parent(A), parent(X))
+            trmm!('R', 'L', 'T', 'N', one(T), parent(parent(B)), parent(A), parent(X))
             X
         end
     end
@@ -533,11 +540,12 @@ end
 
 # symmetric mul!
 # level 2
+if VERSION < v"1.10.0-DEV.1365"
 @inline function LinearAlgebra.mul!(y::CuVector{T}, A::Hermitian{T,<:CuMatrix}, x::CuVector{T},
              α::Number, β::Number) where {T<:CublasReal}
     alpha, beta = promote(α, β, zero(T))
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
-        return CUBLAS.symv!(A.uplo, alpha, A.data, x, beta, y)
+        return symv!(A.uplo, alpha, A.data, x, beta, y)
     else
         error("only supports BLAS type, got $T")
     end
@@ -547,7 +555,7 @@ end
              α::Number, β::Number) where {T<:CublasComplex}
     alpha, beta = promote(α, β, zero(T))
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
-        return CUBLAS.hemv!(A.uplo, alpha, A.data, x, beta, y)
+        return hemv!(A.uplo, alpha, A.data, x, beta, y)
     else
         error("only supports BLAS type, got $T")
     end
@@ -559,7 +567,7 @@ end
              α::Number, β::Number) where {T<:CublasReal}
     alpha, beta = promote(α, β, zero(T))
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
-        return CUBLAS.symm!('L', A.uplo, alpha, A.data, B, beta, C)
+        return symm!('L', A.uplo, alpha, A.data, B, beta, C)
     else
         error("only supports BLAS type, got $T")
     end
@@ -568,7 +576,7 @@ end
              α::Number, β::Number) where {T<:CublasReal}
     alpha, beta = promote(α, β, zero(T))
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
-        return CUBLAS.symm!('R', B.uplo, alpha, B.data, A, beta, C)
+        return symm!('R', B.uplo, alpha, B.data, A, beta, C)
     else
         error("only supports BLAS type, got $T")
     end
@@ -577,7 +585,7 @@ end
              α::Number, β::Number) where {T<:CublasComplex}
     alpha, beta = promote(α, β, zero(T))
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
-        return CUBLAS.hemm!('L', A.uplo, alpha, A.data, B, beta, C)
+        return hemm!('L', A.uplo, alpha, A.data, B, beta, C)
     else
         error("only supports BLAS type, got $T")
     end
@@ -586,10 +594,11 @@ end
              α::Number, β::Number) where {T<:CublasComplex}
     alpha, beta = promote(α, β, zero(T))
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
-        return CUBLAS.hemm!('R', B.uplo, alpha, B.data, A, beta, C)
+        return hemm!('R', B.uplo, alpha, B.data, A, beta, C)
     else
         error("only supports BLAS type, got $T")
     end
+end
 end
 
 op_wrappers = ((identity, T -> 'N', identity),
@@ -600,6 +609,6 @@ for op in (:(+), :(-))
     for (wrapa, transa, unwrapa) in op_wrappers, (wrapb, transb, unwrapb) in op_wrappers
         TypeA = wrapa(:(CuMatrix{T}))
         TypeB = wrapb(:(CuMatrix{T}))
-        @eval Base.$op(A::$TypeA, B::$TypeB) where {T <: CublasFloat} = CUBLAS.geam($transa(T), $transb(T), one(T), $(unwrapa(:A)), $(op)(one(T)), $(unwrapb(:B)))
+        @eval Base.$op(A::$TypeA, B::$TypeB) where {T <: CublasFloat} = geam($transa(T), $transb(T), one(T), $(unwrapa(:A)), $(op)(one(T)), $(unwrapb(:B)))
     end
 end
