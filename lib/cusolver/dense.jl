@@ -217,12 +217,12 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
             trans = $elty <: Real && trans == 'C' ? 'T' : trans
 
             chktrans(trans)
-            n = size(A, 1)
-            if size(A, 2) != n
-                throw(DimensionMismatch("LU factored matrix A must be square!"))
-            end
+            n = checksquare(A)
             if size(B, 1) != n
-                throw(DimensionMismatch("first dimension of B, $(size(B,1)), must match second dimension of A, $n"))
+                throw(DimensionMismatch("first dimension of B, $(size(B,1)), must match dimension of A, $n"))
+            end
+            if length(ipiv) != n
+                throw(DimensionMismatch("length of ipiv, $(length(ipiv)), must match dimension of A, $n"))
             end
             nrhs = size(B, 2)
             lda  = max(1, stride(A, 2))
@@ -677,6 +677,8 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
             for i = 1:batchSize
                 chkargsok(BlasInt(info[i]))
             end
+
+            cusolverDnDestroySyevjInfo(params[])
 
             # Return eigenvalues (in W) and possibly eigenvectors (in A)
             if jobz == 'N'
