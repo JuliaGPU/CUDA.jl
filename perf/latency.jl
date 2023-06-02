@@ -15,7 +15,7 @@ function main()
 
     # time to precompile the package and its dependencies
     precompile_cmd =
-        `$base_cmd -e "pkg = Base.identify_package("CUDA")
+        `$base_cmd -e "pkg = Base.identify_package(\"CUDA\")
                        Base.compilecache(pkg)"`
     results["precompile"] = @benchmark run($precompile_cmd) evals=1 seconds=60
 
