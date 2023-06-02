@@ -69,7 +69,7 @@ end
 function task_local_state!(args...)
     tls = task_local_storage()
     if haskey(tls, :CUDA)
-        validate_task_local_state(@inbounds(tls[:CUDA]))
+        validate_task_local_state(@inbounds(tls[:CUDA])::TaskLocalState)
     else
         # verify that CUDA.jl is functional. this doesn't belong here, but since we can't
         # error during `__init__`, we do it here instead as this is the first function
