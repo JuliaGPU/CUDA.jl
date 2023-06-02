@@ -162,6 +162,20 @@ function __init__()
         @error """JULIA_CUDA_VERSION is deprecated. Call `CUDA.jl.set_runtime_version!` to use a different version instead."""
     end
 
+    # scan for CUDA libraries that may have been loaded from system paths
+    if CUDA_Runtime == CUDA_Runtime_jll
+        runtime_libraries = ["cudart",
+                             "nvperf", "nvvm", "nvrtc", "nvJitLink",
+                             "cublas", "cupti", "cusparse", "cufft", "curand", "cusolver"]
+        for lib in Libdl.dllist()
+            contains(lib, "artifacts") && continue
+            if any(rtlib -> contains(lib, rtlib), runtime_libraries)
+                @warn """CUDA runtime library $(basename(lib)) was loaded from a system path. This may cause errors.
+                         Ensure that you have not set the LD_LIBRARY_PATH environment variable, or that it does not contain paths to CUDA libraries."""
+            end
+        end
+    end
+
     _initialized[] = true
 end
 
