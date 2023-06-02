@@ -319,22 +319,22 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
 
         # create a callable object that captures the function instance. we don't need to think
         # about world age here, as GPUCompiler already does and will return a different object
-        h = hash(fun, hash(f, hash(tt)))
-        kernel = get(_kernel_instances, h, nothing)
+        key = (objectid(source), hash(fun), f)
+        kernel = get(_kernel_instances, key, nothing)
         if kernel === nothing
             # create the kernel state object
             exception_ptr = create_exceptions!(fun.mod)
             state = KernelState(exception_ptr)
 
             kernel = HostKernel{F,tt}(f, fun, state)
-            _kernel_instances[h] = kernel
+            _kernel_instances[key] = kernel
         end
         return kernel::HostKernel{F,tt}
     end
 end
 
 # cache of kernel instances
-const _kernel_instances = Dict{UInt, Any}()
+const _kernel_instances = Dict{Any, Any}()
 
 function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)

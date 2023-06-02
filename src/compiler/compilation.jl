@@ -47,11 +47,11 @@ GPUCompiler.kernel_state_type(job::CUDACompilerJob) = KernelState
 ## compiler implementation (cache, configure, compile, and link)
 
 # cache of compilation caches, per context
-const _compiler_caches = Dict{CuContext, Dict{Any, Any}}();
+const _compiler_caches = Dict{CuContext, Dict{Any, CuFunction}}();
 function compiler_cache(ctx::CuContext)
     cache = get(_compiler_caches, ctx, nothing)
     if cache === nothing
-        cache = Dict{Any, Any}()
+        cache = Dict{Any, CuFunction}()
         _compiler_caches[ctx] = cache
     end
     return cache
