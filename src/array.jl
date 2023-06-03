@@ -649,6 +649,22 @@ julia> CuArray(1:3)
 
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
+## show
+
+function Base.show(io::IO, A::AnyCuArray{T}) where {T}
+  if T <: Union{Float32, ComplexF32}
+    # then no need to write cu(Float32[1.0])
+    io = IOContext(io, :typeinfo => Vector{Float32})
+    print(io, "cu(")
+  elseif T <: Union{AbstractFloat, Complex{<:AbstractFloat}}
+    # then cu(collect(A)) wouldn't produce A, so print CuArray?
+    print(io, "CuArray(")
+  else
+    print(io, "cu(")
+  end
+  invoke(show, Tuple{IO, AbstractArray}, io, A)
+  print(io, ")")
+end
 
 ## utilities
 
