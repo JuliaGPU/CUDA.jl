@@ -217,12 +217,12 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
             trans = $elty <: Real && trans == 'C' ? 'T' : trans
 
             chktrans(trans)
-            n = size(A, 1)
-            if size(A, 2) != n
-                throw(DimensionMismatch("LU factored matrix A must be square!"))
-            end
+            n = checksquare(A)
             if size(B, 1) != n
-                throw(DimensionMismatch("first dimension of B, $(size(B,1)), must match second dimension of A, $n"))
+                throw(DimensionMismatch("first dimension of B, $(size(B,1)), must match dimension of A, $n"))
+            end
+            if length(ipiv) != n
+                throw(DimensionMismatch("length of ipiv, $(length(ipiv)), must match dimension of A, $n"))
             end
             nrhs = size(B, 2)
             lda  = max(1, stride(A, 2))
@@ -379,28 +379,37 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             m, n = size(A)
             if m < n
                 throw(ArgumentError("CUSOLVER's gesvd currently requires m >= n"))
+                # XXX: is this documented?
             end
             lda     = max(1, stride(A, 2))
 
-            U = if jobu === 'S' && m > n
-                CuArray{$elty}(undef, m, n)
-            elseif jobu === 'N'
-                CuArray{$elty}(undef, m, 0)
-            else
+            U = if jobu === 'A'
                 CuArray{$elty}(undef, m, m)
+            elseif jobu == 'S'
+                CuArray{$elty}(undef, m, min(m, n))
+            elseif jobu === 'O'
+                CuArray{$elty}(undef, m, min(m, n))
+            elseif jobu === 'N'
+                CU_NULL
+            else
+                error("jobu must be one of 'A', 'S', 'O', or 'N'")
             end
-            ldu     = max(1, stride(U, 2))
+            ldu     = U == CU_NULL ? 1 : max(1, stride(U, 2))
 
             S       = CuArray{$relty}(undef, min(m, n))
 
-            Vt = if jobvt === 'S' && m < n
-                CuArray{$elty}(undef, m, n)
-            elseif jobvt === 'N'
-                CuArray{$elty}(undef, 0, n)
-            else
+            Vt = if jobvt === 'A'
                 CuArray{$elty}(undef, n, n)
+            elseif jobu === 'S'
+                CuArray{$elty}(undef, min(m, n), n)
+            elseif jobu === 'O'
+                CuArray{$elty}(undef, min(m, n), n)
+            elseif jobvt === 'N'
+                CU_NULL
+            else
+                error("jobvt must be one of 'A', 'S', 'O', or 'N'")
             end
-            ldvt    = max(1, stride(Vt, 2))
+            ldvt    = Vt == CU_NULL ? 1 : max(1, stride(Vt, 2))
 
             function bufferSize()
                 out = Ref{Cint}(0)
@@ -668,6 +677,8 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
             for i = 1:batchSize
                 chkargsok(BlasInt(info[i]))
             end
+
+            cusolverDnDestroySyevjInfo(params[])
 
             # Return eigenvalues (in W) and possibly eigenvectors (in A)
             if jobz == 'N'
