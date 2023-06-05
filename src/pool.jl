@@ -306,9 +306,18 @@ handle properly.
 """
 struct OutOfGPUMemoryError <: Exception
   sz::Int
-  info::MemoryInfo
+  info::Union{Nothing,MemoryInfo}
 
-  OutOfGPUMemoryError(sz::Integer=0) = new(sz, MemoryInfo())
+  function OutOfGPUMemoryError(sz::Integer=0)
+    info = if task_local_state() === nothing
+      # if this error was triggered before the TLS was initialized, we should not try to
+      # fetch memory info as those API calls will just trigger TLS initialization again.
+      nothing
+    else
+      MemoryInfo()
+    end
+    new(sz, info)
+  end
 end
 
 function Base.showerror(io::IO, err::OutOfGPUMemoryError)
@@ -316,8 +325,10 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
     if err.sz > 0
       print(io, " trying to allocate $(Base.format_bytes(err.sz))")
     end
-    println(io)
-    memory_status(io, err.info)
+    if err.info !== nothing
+      println(io)
+      memory_status(io, err.info)
+    end
 end
 
 """
