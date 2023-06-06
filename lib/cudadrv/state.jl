@@ -208,6 +208,8 @@ end
 device_context(dev::CuDevice) = device_context(deviceid(dev)+1)
 device_context!(dev::CuDevice, ctx) = device_context!(deviceid(dev)+1, ctx)
 
+const llvm_block_workaround_applied = Ref(false)
+
 function context(dev::CuDevice)
     devidx = deviceid(dev)+1
 
@@ -239,6 +241,16 @@ function context(dev::CuDevice)
                  Some functionality may be broken. Ensure you are using the latest version of CUDA.jl in combination with an up-to-date NVIDIA driver.
                  If that does not help, please file an issue to add support for the latest CUDA toolkit.""",
               maxlog=1, _id=devidx)
+    end
+
+    # work around bad block layout in LLVM for Pascal GPUs or earlier
+    if capability(dev) <= v"6.0" && !llvm_block_workaround_applied[]
+        @warn """Applying workaround for LLVM bug affecting Pascal GPUs and earlier.
+                 This may affect host code performance. If this is a problem, upgrade your GPU,
+                 or avoid loading CUDA.jl. Also ensure you are using the latest version of CUDA.jl.
+                 For more information, see https://github.com/JuliaGPU/CUDA.jl/issues/1746"""
+        LLVM.clopts("--disable-branch-fold", "--disable-block-placement")
+        llvm_block_workaround_applied[] = true
     end
 
     # configure the primary context
