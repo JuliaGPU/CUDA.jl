@@ -287,8 +287,10 @@ steps:
 
             println("--- :julia: Instantiating project")
             using Pkg
+            Pkg.resolve()
             Pkg.instantiate()
             Pkg.activate("perf")
+            Pkg.resolve()
             Pkg.instantiate()
             push!(LOAD_PATH, @__DIR__)
 
@@ -306,6 +308,11 @@ steps:
               - "1.7"
               - "1.8"
               - "1.9"
+              - "nightly"
+          adjustments:
+            - with:
+                julia: "nightly"
+              soft_fail: true
         timeout_in_minutes: 30
 
 env:
