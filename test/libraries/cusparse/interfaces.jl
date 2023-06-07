@@ -319,18 +319,29 @@ using LinearAlgebra, SparseArrays
         @test SparseMatrixCSC(CuSparseMatrixCSR(T)) ≈ f(S)
     end
 
-    VERSION >= v"1.7" && @testset "UniformScaling and Diagonal" begin
+    VERSION >= v"1.7" && @testset "UniformScaling basic operations" begin
         for elty in (Float32, Float64, ComplexF32, ComplexF64)
             A = sprand(elty, 100, 100, 0.1)
             U1 = 2*I
-            U2 = 2*I(100)
             for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
                 B = SparseMatrixType(A)
-                for op in (+, *)
-                    @test Array(op(B, U1)) ≈ op(A, U1)
-                    @test Array(op(U1, B)) ≈ op(U1, A)
-                    @test Array(op(B, U2)) ≈ op(A, U2)
-                    @test Array(op(U2, B)) ≈ op(U2, A)
+                for op in (+, -, *)
+                    @test Array(op(B, U3)) ≈ op(A, U3) && Array(op(U3, B)) ≈ op(U3, A)
+                end
+            end
+        end
+    end
+
+    @testset "Diagonal basic operations" begin
+        for elty in (Float32, Float64, ComplexF32, ComplexF64)
+            A = sprand(elty, 100, 100, 0.1)
+            U2 = 2*I(100)
+            U3 = Diagonal(rand(elty, 100))
+            for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+                B = SparseMatrixType(A)
+                for op in (+, -, *)
+                    @test Array(op(B, U2)) ≈ op(A, U2) && Array(op(U2, B)) ≈ op(U2, A)
+                    @test Array(op(B, U3)) ≈ op(A, U3) && Array(op(U3, B)) ≈ op(U3, A)
                 end
             end
         end

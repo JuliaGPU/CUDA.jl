@@ -225,14 +225,14 @@ function CuSparseMatrixCSR{T}(S::Adjoint{T, <:CuSparseMatrixCSC{T}}) where {T <:
     return CuSparseMatrixCSR{T}(csc.colPtr, csc.rowVal, conj.(csc.nzVal), size(csc))
 end
 
-for SparseMatrixType in (:(CuSparseMatrixCSC), :(CuSparseMatrixCSR), :(CuSparseMatrixCOO))
+for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR, :CuSparseMatrixCOO)
     @eval begin
         $SparseMatrixType(S::Diagonal{Tv, <:AbstractVector}) where {Tv} = $SparseMatrixType(cu(S))
         $SparseMatrixType(S::Diagonal{Tv, <:CuArray}) where Tv = $SparseMatrixType{Tv}(S)
         $SparseMatrixType{Tv}(S::Diagonal) where {Tv} = $SparseMatrixType{Tv, Cint}(S)
     end
     
-    if SparseMatrixType == :(CuSparseMatrixCOO)
+    if SparseMatrixType == :CuSparseMatrixCOO
         @eval function $SparseMatrixType{Tv, Ti}(S::Diagonal) where {Tv, Ti}
             m = size(S, 1)
             return $SparseMatrixType{Tv, Ti}(CuVector(1:m), CuVector(1:m), convert(CuVector{Tv}, S.diag), (m, m))

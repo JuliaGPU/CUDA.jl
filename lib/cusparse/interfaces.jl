@@ -410,7 +410,7 @@ function _sparse_identity(::Type{<:CuSparseMatrixCSC{<:Any,Ti}},
 end
 
 function _sparse_identity(::Type{<:CuSparseMatrixCOO{Tv,Ti}},
-    I::UniformScaling, dims::Dims) where {Tv,Ti}
+                        I::UniformScaling, dims::Dims) where {Tv,Ti}
     len = min(dims[1], dims[2])
     rowInd = CuVector{Ti}(1:len)
     colInd = CuVector{Ti}(1:len)
