@@ -326,7 +326,7 @@ using LinearAlgebra, SparseArrays
             for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
                 B = SparseMatrixType(A)
                 for op in (+, -, *)
-                    @test Array(op(B, U3)) ≈ op(A, U3) && Array(op(U3, B)) ≈ op(U3, A)
+                    @test Array(op(B, U1)) ≈ op(A, U1) && Array(op(U1, B)) ≈ op(U1, A)
                 end
             end
         end
