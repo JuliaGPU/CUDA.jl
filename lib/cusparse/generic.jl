@@ -2,6 +2,7 @@
 
 export gather!, scatter!, axpby!, rot!
 export vv!, sv!, sm!, gemm, gemm!, sddmm!
+export bmm!
 
 ## API functions
 
@@ -226,6 +227,70 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
 
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
+
+    # cusparseDnMatSetStridedBatch(descB, size(B,3), size(B,1)*size(B,2))
+    # cusparseDnMatSetStridedBatch(descB, size(B,3), size(B,1)*size(B,2))
+    # batchsize = length(nonzeros(A)) ÷ nnz(A)
+    # if batchsize > 1
+    #     cusparseCsrSetStridedBatch(obj, batchsize, 0, nnz(A))
+    # end
+
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cusparseSpMM_bufferSize(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, algo, out)
+        return out[]
+    end
+    with_workspace(bufferSize) do buffer
+        # Uncomment if we find a way to reuse the buffer (issue #1362)
+        # cusparseSpMM_preprocess(
+        #     handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+        #     descC, T, algo, buffer)
+        # end
+        cusparseSpMM(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, algo, buffer)
+    end
+    return C
+end
+
+function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseArrayCSR{T},
+              B::DenseCuArray{T,3}, beta::Number, C::DenseCuArray{T,3}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
+
+    # Support transa = 'C' and `transb = 'C' for real matrices
+    transa = T <: Real && transa == 'C' ? 'T' : transa
+    transb = T <: Real && transb == 'C' ? 'T' : transb
+
+    m, k = size(A)[1:2]
+    n, bc = size(C)[2:3]
+    b = max(size(A, 3), size(B, 3))
+
+    if b != bc
+        throw(ArgumentError("C must have same batch-dimension as max(size(A,3)=$(size(A,3)), size(B,3)=$(size(B,3))), got $(size(C,3))."))
+    end
+
+    if transa == 'N' && transb == 'N'
+        chkbmmdims(B,C,k,n,m,n)
+    elseif transa == 'N' && transb != 'N'
+        chkbmmdims(B,C,n,k,m,n)
+    elseif transa != 'N' && transb == 'N'
+        chkbmmdims(B,C,m,n,k,n)
+    elseif transa != 'N' && transb != 'N'
+        chkbmmdims(B,C,n,m,k,n)
+    end
+
+    descA = CuSparseMatrixDescriptor(A, index)
+    descB = CuDenseMatrixDescriptor(B)
+    descC = CuDenseMatrixDescriptor(C)
+
+    cusparseCsrSetStridedBatch(descA, b, ptrstride(A), valstride(A))
+
+    strideB = size(B, 3) > 1 ? stride(B, 3) : 0
+    cusparseDnMatSetStridedBatch(descB, b, strideB)
+
+    strideC = size(C, 3) > 1 ? stride(C, 3) : 0
+    cusparseDnMatSetStridedBatch(descC, b, strideC)
 
     function bufferSize()
         out = Ref{Csize_t}()

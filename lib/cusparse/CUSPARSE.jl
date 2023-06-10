@@ -30,6 +30,7 @@ include("util.jl")
 include("types.jl")
 include("linalg.jl")
 
+
 # low-level wrappers
 include("helpers.jl")
 include("management.jl")
@@ -47,6 +48,8 @@ include("interfaces.jl")
 # native functionality
 include("device.jl")
 include("broadcast.jl")
+
+include("batched.jl")
 
 # cache for created, but unused handles
 const idle_handles = HandleCache{CuContext,cusparseHandle_t}()

@@ -72,6 +72,17 @@ Base.length(g::CuSparseDeviceMatrixCOO) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixCOO) = g.dims
 SparseArrays.nnz(g::CuSparseDeviceMatrixCOO) = g.nnz
 
+struct CuSparseDeviceArrayCSR{Tv, Ti, A} <: AbstractSparseArray{Tv, Ti, 3}
+    rowPtr::CuDeviceMatrix{Ti, A}
+    colVal::CuDeviceMatrix{Ti, A}
+    nzVal::CuDeviceMatrix{Tv, A}
+    dims::NTuple{3, Int}
+    nnz::Ti
+end
+
+Base.length(g::CuSparseDeviceArrayCSR) = prod(g.dims)
+Base.size(g::CuSparseDeviceArrayCSR) = g.dims
+SparseArrays.nnz(g::CuSparseDeviceArrayCSR) = g.nnz
 
 # input/output
 
