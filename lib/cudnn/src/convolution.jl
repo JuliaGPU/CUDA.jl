@@ -169,6 +169,12 @@ end
 
 ## Utilities to find a fast algorithm
 
+# Helper fct to recover cudnn descriptor tuples from cudnn descriptor pointers
+# so that we can cache algorithms based on data descriptors.
+# Actually just reverses the cache dict and returns the descriptor as a tuple.
+map_cudnn_ptr_to_jl_tuple(cache_dict, desc_ptr) = Dict(zip(values(cache_dict),
+                                                           keys(cache_dict)))[desc_ptr]
+
 const cudnnConvolutionFwdAlgoPerfCache = Dict{Tuple,cudnnConvolutionFwdAlgoPerf_t}()
 const cudnnConvolutionFwdAlgoPerfCacheLock = ReentrantLock()
 
@@ -179,11 +185,19 @@ const cudnnConvolutionFwdAlgoPerfCacheLock = ReentrantLock()
 It can be set to false when beta is zero to save an allocation and must otherwise be set to true.
 """
 function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation, allocateTmpBuf=true)
-    key = (xDesc, wDesc, convDesc, biasDesc, activation)
+    xDesc_native = map_cudnn_ptr_to_jl_tuple(cudnnTensorDescriptorCache, xDesc)
+    wDesc_native = map_cudnn_ptr_to_jl_tuple(cudnnFilterDescriptorCache, wDesc)
+    convDesc_native = map_cudnn_ptr_to_jl_tuple(cudnnConvolutionDescriptorCache, convDesc)
+    biasDesc_native = (isnothing(biasDesc) ? nothing
+                                           : map_cudnn_ptr_to_jl_tuple(cudnnTensorDescriptorCache, biasDesc))
+
+    key = (xDesc_native, wDesc_native, convDesc_native, biasDesc, activation)
     val = lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
-         get(cudnnConvolutionFwdAlgoPerfCache, key, nothing)
+        @debug "cudnnConvolutionFwdAlgoPerf: Checking if performance results are cached."
+        get(cudnnConvolutionFwdAlgoPerfCache, key, nothing)
     end
     if val === nothing
+        @debug "Running cudnnConvolutionFwdAlgoPerf."
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_FWD_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
         perfResults = Array{cudnnConvolutionFwdAlgoPerf_t}(undef,requestedAlgoCount)
@@ -196,7 +210,10 @@ function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, bia
         lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
             cudnnConvolutionFwdAlgoPerfCache[key] = val
         end
+    else
+        @debug "Loading cudnnConvolutionFwdAlgoPerf."
     end
+    @debug "Done."
     return val
 end
 
@@ -210,11 +227,17 @@ const cudnnConvolutionBwdDataAlgoPerfCacheLock = ReentrantLock()
 It can be set to false when beta is zero to save an allocation and must otherwise be set to true.
 """
 function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc, dx, allocateTmpBuf=true)
-    key = (wDesc, dyDesc, convDesc)
+    wDesc_native = map_cudnn_ptr_to_jl_tuple(cudnnFilterDescriptorCache, wDesc)
+    dyDesc_native = map_cudnn_ptr_to_jl_tuple(cudnnTensorDescriptorCache, dyDesc)
+    convDesc_native = map_cudnn_ptr_to_jl_tuple(cudnnConvolutionDescriptorCache, convDesc)
+
+    key = (wDesc_native, dyDesc_native, convDesc_native)
     val = lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
+        @debug "cudnnConvolutionBwdDataAlgoPerf: Checking if performance results are cached."
         get(cudnnConvolutionBwdDataAlgoPerfCache, key, nothing)
     end
     if val === nothing
+        @debug "Running cudnnConvolutionBwdDataAlgoPerf."
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
         perfResults = Array{cudnnConvolutionBwdDataAlgoPerf_t}(undef,requestedAlgoCount)
@@ -227,7 +250,10 @@ function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc,
         lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
             cudnnConvolutionBwdDataAlgoPerfCache[key] = val
         end
+    else
+        @debug "Loading cudnnConvolutionBwdDataAlgoPerf."
     end
+    @debug "Done."
     val
 end
 
@@ -241,11 +267,17 @@ const cudnnConvolutionBwdFilterAlgoPerfCacheLock = ReentrantLock()
 It can be set to false when beta is zero to save an allocation and must otherwise be set to true.
 """
 function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDesc, dw, allocateTmpBuf=true)
-    key = (xDesc, dyDesc, convDesc)
+    xDesc_native = map_cudnn_ptr_to_jl_tuple(cudnnTensorDescriptorCache, xDesc)
+    dyDesc_native = map_cudnn_ptr_to_jl_tuple(cudnnTensorDescriptorCache, dyDesc)
+    convDesc_native = map_cudnn_ptr_to_jl_tuple(cudnnConvolutionDescriptorCache, convDesc)
+
+    key = (xDesc_native, dyDesc_native, convDesc_native)
     val = lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
+        @debug "cudnnConvolutionBwdFilterAlgoPerf: Checking if performance results are cached."
         get(cudnnConvolutionBwdFilterAlgoPerfCache, (xDesc, dyDesc, convDesc), nothing)
     end
     if val === nothing
+        @debug "Running cudnnConvolutionBwdFilterAlgoPerf."
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
         perfResults = Array{cudnnConvolutionBwdFilterAlgoPerf_t}(undef,requestedAlgoCount)
@@ -258,7 +290,10 @@ function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDes
         lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
             cudnnConvolutionBwdFilterAlgoPerfCache[key] = val
         end
+    else
+        @debug "Loading cudnnConvolutionBwdFilterAlgoPerf."
     end
+    @debug "Done."
     val
 end
 
