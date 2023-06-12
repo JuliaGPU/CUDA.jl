@@ -88,27 +88,11 @@ end
     # (we actually only need 6.2, but NVPTX doesn't support that)
     ptx = v"6.3"
 
-    # we need to take care emitting LLVM instructions like `unreachable`, which
-    # may result in thread-divergent control flow that older `ptxas` doesn't like.
-    # see e.g. JuliaGPU/CUDAnative.jl#4
-    unreachable = true
-    if cap < v"7" || runtime_version() < v"11.3"
-        unreachable = false
-    end
-
-    # there have been issues with emitting PTX `exit` instead of `trap` as well,
-    # see e.g. JuliaGPU/CUDA.jl#431 and NVIDIA bug #3231266 (but since switching
-    # to the toolkit's `ptxas` that specific machine/GPU now _requires_ exit...)
-    exitable = true
-    if cap < v"7"
-        exitable = false
-    end
-
     # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
     debuginfo = runtime_version() >= v"11.7"
 
     # create GPUCompiler objects
-    target = PTXCompilerTarget(; cap, ptx, debuginfo, unreachable, exitable, kwargs...)
+    target = PTXCompilerTarget(; cap, ptx, debuginfo, kwargs...)
     params = CUDACompilerParams()
     CompilerConfig(target, params; kernel, name, always_inline)
 end
