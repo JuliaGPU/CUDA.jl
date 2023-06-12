@@ -120,6 +120,28 @@ function cudnnConvolutionForwardAD(w, x, bias, z; y, activation, convDesc, wDesc
     return y
 end
 
+function cudnnGetConvolutionDescriptor(d::cudnnConvolutionDescriptor)
+    # we don't know the dimension of the convolution, so we start by
+    # allocating the maximum size it can be.
+    nbDimsRequested = CUDNN_DIM_MAX - 2
+    # later, here we get the actual dimensionality of the convolution
+    arrlen = Ref{Cint}(nbDimsRequested)
+    padding = Array{Cint}(undef, nbDimsRequested)
+    stride = Array{Cint}(undef, nbDimsRequested)
+    dilation = Array{Cint}(undef, nbDimsRequested)
+    mode = Ref{cuDNN.cudnnConvolutionMode_t}(CUDNN_CONVOLUTION)
+    dataType = Ref{cuDNN.cudnnDataType_t}(cuDNN.CUDNN_DATA_FLOAT)
+
+    cudnnGetConvolutionNdDescriptor(d, nbDimsRequested, arrlen, padding, stride, dilation,
+                                    mode, dataType)
+    T = juliaDataType(dataType[])
+    SZ = arrlen[]
+    P = (padding[1:SZ]..., )
+    S = (stride[1:SZ]..., )
+    D = (dilation[1:SZ]..., )
+    return T, mode[], SZ, P, S, D
+end
+
 # Helper for cudnnConvolutionDescriptor
 function cudnnSetConvolutionDescriptor(
     ptr::cudnnConvolutionDescriptor_t,
