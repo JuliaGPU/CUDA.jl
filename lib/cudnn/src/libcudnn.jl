@@ -1916,12 +1916,12 @@ end
                                                    sizeInBytes::Ref{Csize_t})::cudnnStatus_t
 end
 
-@checked function cudnnGetRNNTempSpaceSizes(handle, rnnDesc, fMode, xDesc, workSpaceSize,
+@checked function cudnnGetRNNTempSpaceSizes(handle, rnnDesc, fwdMode, xDesc, workSpaceSize,
                                             reserveSpaceSize)
     initialize_context()
     @ccall libcudnn.cudnnGetRNNTempSpaceSizes(handle::cudnnHandle_t,
                                               rnnDesc::cudnnRNNDescriptor_t,
-                                              fMode::cudnnForwardMode_t,
+                                              fwdMode::cudnnForwardMode_t,
                                               xDesc::cudnnRNNDataDescriptor_t,
                                               workSpaceSize::Ref{Csize_t},
                                               reserveSpaceSize::Ref{Csize_t})::cudnnStatus_t
@@ -3582,6 +3582,8 @@ const CUDNN_SM_87 = 870
 const CUDNN_SM_89 = 890
 
 const CUDNN_SM_90 = 900
+
+const CUDNN_SM_9X_END = 999
 
 const CUDNN_DIM_MAX = 8
 
