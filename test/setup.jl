@@ -24,8 +24,18 @@ end
 # in addition, CUPTI is not available on older GPUs with recent CUDA toolkits
 function can_use_cupti()
     sanitize && return false
+
     # NVIDIA bug #3964667: CUPTI in CUDA 11.7+ broken for sm_35 devices
-    capability(device()) > v"3.7" || CUDA.runtime_version() < v"11.7"
+    if CUDA.runtime_version() >= v"11.7" && capability(device()) <= v"3.7"
+        return false
+    end
+
+    # Tegra requires running as root and and modifying the device tree
+    if CUDA.is_tegra()
+        return false
+    end
+
+    return true
 end
 
 # precompile the runtime library

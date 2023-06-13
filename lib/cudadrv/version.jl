@@ -1,7 +1,5 @@
 # Version management
 
-# TODO: get rid of release getters
-
 """
     driver_version()
 
@@ -68,3 +66,8 @@ function set_runtime_version!()
         @warn """Due to a bug in Julia (until 1.6.5 and 1.7.1) your environment needs to directly include CUDA_Runtime_jll for this to work."""
     end
 end
+
+
+## helpers
+
+is_tegra() = Sys.islinux() && isfile("/etc/nv_tegra_release")
