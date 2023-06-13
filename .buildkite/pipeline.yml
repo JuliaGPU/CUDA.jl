@@ -99,6 +99,9 @@ steps:
             - with:
                 cuda: "12.0"
                 package: "cuDNN"
+            - with:
+                cuda: "12.0"
+                package: "cuTENSOR"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.8"
