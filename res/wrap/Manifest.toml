@@ -46,10 +46,10 @@ uuid = "62b44479-cb7b-5706-934f-f13b2eb2e645"
 version = "8.8.1+0"
 
 [[CUTENSOR_jll]]
-deps = ["Artifacts", "CUDA_Runtime_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg", "TOML"]
-git-tree-sha1 = "cd25ea92f25cc47e92e366f2a7a337eae897cd68"
+deps = ["Artifacts", "CUDA_Runtime_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
+git-tree-sha1 = "d2c1a1de70a8716acaeee873def6608d854212d5"
 uuid = "35b6c64b-1ee1-5834-92a3-3f624899209a"
-version = "1.6.1+1"
+version = "1.7.0+0"
 
 [[Clang]]
 deps = ["CEnum", "Clang_jll", "Downloads", "Pkg", "TOML"]
