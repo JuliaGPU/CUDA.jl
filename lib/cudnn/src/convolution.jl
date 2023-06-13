@@ -209,11 +209,9 @@ function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, bia
 
     key = (xDesc_native, wDesc_native, convDesc_native, biasDesc, activation)
     val = lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
-        @debug "cudnnConvolutionFwdAlgoPerf: Checking if performance results are cached."
         get(cudnnConvolutionFwdAlgoPerfCache, key, nothing)
     end
     if val === nothing
-        @debug "Running cudnnConvolutionFwdAlgoPerf."
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_FWD_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
         perfResults = Array{cudnnConvolutionFwdAlgoPerf_t}(undef,requestedAlgoCount)
@@ -226,10 +224,7 @@ function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, bia
         lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
             cudnnConvolutionFwdAlgoPerfCache[key] = val
         end
-    else
-        @debug "Loading cudnnConvolutionFwdAlgoPerf."
     end
-    @debug "Done."
     return val
 end
 
@@ -249,11 +244,9 @@ function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc,
 
     key = (wDesc_native, dyDesc_native, convDesc_native)
     val = lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
-        @debug "cudnnConvolutionBwdDataAlgoPerf: Checking if performance results are cached."
         get(cudnnConvolutionBwdDataAlgoPerfCache, key, nothing)
     end
     if val === nothing
-        @debug "Running cudnnConvolutionBwdDataAlgoPerf."
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
         perfResults = Array{cudnnConvolutionBwdDataAlgoPerf_t}(undef,requestedAlgoCount)
@@ -266,10 +259,7 @@ function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc,
         lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
             cudnnConvolutionBwdDataAlgoPerfCache[key] = val
         end
-    else
-        @debug "Loading cudnnConvolutionBwdDataAlgoPerf."
     end
-    @debug "Done."
     val
 end
 
@@ -289,11 +279,9 @@ function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDes
 
     key = (xDesc_native, dyDesc_native, convDesc_native)
     val = lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
-        @debug "cudnnConvolutionBwdFilterAlgoPerf: Checking if performance results are cached."
         get(cudnnConvolutionBwdFilterAlgoPerfCache, (xDesc, dyDesc, convDesc), nothing)
     end
     if val === nothing
-        @debug "Running cudnnConvolutionBwdFilterAlgoPerf."
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
         perfResults = Array{cudnnConvolutionBwdFilterAlgoPerf_t}(undef,requestedAlgoCount)
@@ -306,10 +294,7 @@ function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDes
         lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
             cudnnConvolutionBwdFilterAlgoPerfCache[key] = val
         end
-    else
-        @debug "Loading cudnnConvolutionBwdFilterAlgoPerf."
     end
-    @debug "Done."
     val
 end
 
