@@ -1,5 +1,6 @@
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 BFloat16s = "ab4f0b2a-ad5b-11e8-123f-65d77653426b"
 CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
