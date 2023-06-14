@@ -120,9 +120,28 @@ if !isempty(optlike_args)
 end
 ## the remaining args filter tests
 if !isempty(ARGS)
-  filter!(tests) do test
-    any(arg->startswith(test, arg), ARGS)
-  end
+    # some are known 'groups' of tests
+    groups = Dict()
+    remaining_tests = copy(tests)
+    groups["gpuarrays"] = filter(startswith("gpuarrays"), remaining_tests)
+    filter!(!in(groups["gpuarrays"]), remaining_tests)
+    groups["libraries"] = filter(startswith(r"(cusolver|cusparse|curand|cufft|cublas)"), remaining_tests)
+    filter!(!in(groups["libraries"]), remaining_tests)
+    groups["base"] = filter(in(["array", "broadcast", "iterator", "linalg",
+                                "sorting", "random", "texture",
+                                "examples", "exceptions"]),
+                            remaining_tests)
+    filter!(!in(groups["base"]), remaining_tests)
+    groups["core"] = remaining_tests
+    # ... these expand into the list of tests to consider
+    filters = map(ARGS) do filter
+        get(groups, filter, [filter])
+    end
+    filters = collect(Iterators.flatten(filters))
+
+    filter!(tests) do test
+        any(arg->startswith(test, arg), filters)
+    end
 end
 
 # check that CI is using the requested toolkit
