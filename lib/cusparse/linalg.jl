@@ -195,9 +195,13 @@ for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
         LinearAlgebra.tril(A::Adjoint{T,<:$SparseMatrixType}, k::Integer) where {T} = 
             $SparseMatrixType( tril(CuSparseMatrixCOO(_spadjoint(parent(A))), k) )
         
-        LinearAlgebra.triu(A::Union{$SparseMatrixType{T,M}, Transpose{T,<:$SparseMatrixType}, Adjoint{T,<:$SparseMatrixType}}) where {T,M} = 
+        LinearAlgebra.triu(A::$SparseMatrixType{T,M}) where {T,M} = 
             $SparseMatrixType( triu(CuSparseMatrixCOO(A), 0) )
-        LinearAlgebra.tril(A::Union{$SparseMatrixType{T,M}, Transpose{T,<:$SparseMatrixType}, Adjoint{T,<:$SparseMatrixType}}) where {T,M} = 
+        LinearAlgebra.triu(A::Union{Transpose{T,<:$SparseMatrixType}, Adjoint{T,<:$SparseMatrixType}}) where {T} = 
+            $SparseMatrixType( triu(CuSparseMatrixCOO(A), 0) )
+        LinearAlgebra.tril(A::$SparseMatrixType{T,M}) where {T,M} = 
+            $SparseMatrixType( tril(CuSparseMatrixCOO(A), 0) )
+        LinearAlgebra.tril(A::Union{Transpose{T,<:$SparseMatrixType}, Adjoint{T,<:$SparseMatrixType}}) where {T} = 
             $SparseMatrixType( tril(CuSparseMatrixCOO(A), 0) )
 
         LinearAlgebra.kron(A::$SparseMatrixType{T,M}, B::$SparseMatrixType{T,M}) where {T,M} = 

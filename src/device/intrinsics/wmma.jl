@@ -362,7 +362,7 @@ flatten_recurse(typ::Type{VecElement{T}}, e) where T = [:($e.value)]
 unflatten_recurse(typ::Type{VecElement{T}}, e, idx) where T = :(VecElement{$T}($e[$idx])), idx + 1
 
 # NTuples
-function flatten_recurse(typ::Type{NTuple{N, T}}, e) where {N, T}
+function flatten_recurse(typ::Type{T}, e) where {T <: NTuple}
     ret = Expr[]
 
     for (i, eltyp) in enumerate(typ.types)
@@ -372,7 +372,7 @@ function flatten_recurse(typ::Type{NTuple{N, T}}, e) where {N, T}
     return ret
 end
 
-function unflatten_recurse(typ::Type{NTuple{N, T}}, e, idx) where {N, T}
+function unflatten_recurse(typ::Type{T}, e, idx) where {T<:NTuple}
     ret = Expr(:tuple)
 
     for (i, eltyp) in enumerate(typ.types)

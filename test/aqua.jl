@@ -8,7 +8,7 @@ using Aqua
     # Aqua.test_unbound_args(CUDA)
     ua = Aqua.detect_unbound_args_recursively(CUDA)
     @info "Number of unbound argument methods: $(length(ua))"
-    @test length(ua) ≤ 26
+    @test length(ua) ≤ 16
 
     # See: https://github.com/SciML/OrdinaryDiffEq.jl/issues/1750
     # Test that we're not introducing method ambiguities across deps
