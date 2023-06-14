@@ -16,6 +16,14 @@ function cuda_version()
   VersionNumber(major, minor, patch)
 end
 
+function cutensorCreate()
+  handle_ref = Ref{Ptr{cutensorHandle_t}}()
+  check(CUTENSOR_STATUS_NOT_INITIALIZED) do
+    unsafe_cutensorCreate(handle_ref)
+  end
+  handle_ref[]
+end
+
 
 abstract type CuTensorPlan end
 

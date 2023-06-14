@@ -26,7 +26,8 @@ steps:
               # use the CUDA installation from the CI image
               using CUDA
               CUDA.set_runtime_version!("local")'
-        if: build.message !~ /\[skip tests\]/
+        if: build.message !~ /\[skip tests\]/ &&
+            build.message !~ /\[skip julia\]/
         timeout_in_minutes: 120
         matrix:
           setup:
@@ -63,7 +64,9 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "*"
-        if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+        if: build.message !~ /\[skip tests\]/ &&
+            build.message !~ /\[skip cuda\]/ &&
+            !build.pull_request.draft
         timeout_in_minutes: 120
         matrix:
           setup:
@@ -99,6 +102,9 @@ steps:
             - with:
                 cuda: "12.0"
                 package: "cuDNN"
+            - with:
+                cuda: "12.0"
+                package: "cuTENSOR"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.8"
@@ -110,7 +116,9 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "*"
-        if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+        if: build.message !~ /\[skip tests\]/ &&
+            build.message !~ /\[skip subpackages\]/ &&
+            !build.pull_request.draft
         timeout_in_minutes: 120
         commands: |
           julia -e '
@@ -161,7 +169,9 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "*"
-        if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+        if: build.message !~ /\[skip tests\]/ &&
+            build.message !~ /\[skip downstream\]/ &&
+            !build.pull_request.draft
         timeout_in_minutes: 60
 
   - group: ":eyes: Special"
@@ -212,7 +222,8 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "*"
-        if: build.message !~ /\[skip docs\]/ && !build.pull_request.draft
+        if: build.message !~ /\[skip docs\]/ &&
+            !build.pull_request.draft
         timeout_in_minutes: 30
 
       # XXX: fails often, and is very slow
