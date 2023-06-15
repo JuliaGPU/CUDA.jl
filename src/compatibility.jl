@@ -50,7 +50,7 @@ const cuda_cap_db = Dict(
     v"7.5" => v"10.0":highest,
     v"8.0" => v"11.0":highest,
     v"8.6" => v"11.1":highest,
-    v"8.7" => v"11.5":highest,
+    v"8.7" => v"11.4":highest,
     v"8.9" => v"11.8":highest,
     v"9.0" => v"11.8":highest,
 )
