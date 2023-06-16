@@ -3,8 +3,6 @@ using Dates
 import REPL
 using Printf: @sprintf
 
-include("aqua.jl")
-
 # work around JuliaLang/Pkg.jl#2500
 if VERSION < v"1.8"
     test_project = first(Base.load_path())
