@@ -44,14 +44,9 @@ CUDA.precompile_runtime()
 
 ## entry point
 
-function runtests(f, name, time_source=:cuda, snoop=nothing)
+function runtests(f, name, time_source=:cuda)
     old_print_setting = Test.TESTSET_PRINT_ENABLE[]
     Test.TESTSET_PRINT_ENABLE[] = false
-
-    if snoop !== nothing
-        io = open(snoop, "w")
-        ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), io.handle)
-    end
 
     try
         # generate a temporary module to execute the tests in
@@ -123,11 +118,6 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
         CUDA.can_reset_device() && device_reset!()
         res
     finally
-        if snoop !== nothing
-            ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), C_NULL)
-            close(io)
-        end
-
         Test.TESTSET_PRINT_ENABLE[] = old_print_setting
     end
 end

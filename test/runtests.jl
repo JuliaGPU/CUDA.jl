@@ -2,7 +2,6 @@ using Distributed
 using Dates
 import REPL
 using Printf: @sprintf
-using TimerOutputs
 
 # work around JuliaLang/Pkg.jl#2500
 if VERSION < v"1.8"
@@ -47,14 +46,12 @@ if do_help
                --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS).
                --gpus=N           Expose `N` GPUs to test processes (default: 1).
                --sanitize[=tool]  Run the tests under `compute-sanitizer`.
-               --snoop=FILE       Snoop on compiled methods and save to `FILE`.
 
                Remaining arguments filter the tests that will be executed.""")
     exit(0)
 end
 set_jobs, jobs = extract_flag!(ARGS, "--jobs"; typ=Int)
 do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
-do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
 do_thorough, _ = extract_flag!(ARGS, "--thorough")
 do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
 
@@ -240,12 +237,6 @@ function addworker(X; kwargs...)
 end
 addworker(min(jobs, length(tests)))
 
-# prepare to snoop on the compiler
-if do_snoop
-    @info "Writing trace of compiled methods to '$snoop_path'"
-    snoop_io = open(snoop_path, "w")
-end
-
 # pretty print information about gc and mem usage
 testgroupheader = "Test"
 workerheader = "(Worker)"
@@ -327,7 +318,6 @@ end
 t0 = now()
 results = []
 all_tasks = Task[]
-timings = TimerOutput[]
 try
     # Monitor stdin and kill this task on ^C
     # but don't do this on Windows, because it may deadlock in the kernel
@@ -385,7 +375,6 @@ try
                     wrkr = p
 
                     local resp
-                    snoop = do_snoop ? mktemp() : (nothing, nothing)
 
                     # tests that muck with the context should not be timed with CUDA events,
                     # since they won't be valid at the end of the test anymore.
@@ -394,7 +383,7 @@ try
                     # run the test
                     running_tests[test] = now()
                     try
-                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, time_source, snoop[1])
+                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, time_source)
                     catch e
                         isa(e, InterruptException) && return
                         resp = Any[e]
@@ -412,15 +401,6 @@ try
                         p = recycle_worker(p)
                     else
                         print_testworker_stats(test, wrkr, resp)
-                    end
-
-                    # aggregate the snooped compiler invocations
-                    if do_snoop
-                        for line in eachline(snoop[2])
-                            println(snoop_io, line)
-                        end
-                        close(snoop[2])
-                        rm(snoop[1])
                     end
                 end
 
@@ -460,17 +440,6 @@ end
 t1 = now()
 elapsed = canonicalize(Dates.CompoundPeriod(t1-t0))
 println("Testing finished in $elapsed")
-
-# report work timings
-if isdefined(CUDA, :to)
-    println()
-    for to in timings
-        TimerOutputs.merge!(CUDA.to, to)
-    end
-    TimerOutputs.complement!(CUDA.to)
-    show(CUDA.to, sortby=:name)
-    println()
-end
 
 # construct a testset to render the test results
 o_ts = Test.DefaultTestSet("Overall")
