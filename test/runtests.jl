@@ -144,7 +144,7 @@ else
     # find all GPUs
     map(gpu_entry, CUDA.devices())
 end
-@info("Testing using device(s) " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
+@info("Testing using device " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
       ". To change this, specify the `--gpus` argument to the test, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
 ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")
 
@@ -152,14 +152,6 @@ ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")
 skip_tests = []
 has_cusolvermg() || push!(skip_tests, "libraries/cusolver/multigpu")
 has_nvml() || push!(skip_tests, "core/nvml")
-if do_sanitize
-    # XXX: some library tests fail under compute-sanitizer
-    append!(skip_tests, ["libraries/cutensor"])
-    # XXX: others take absurdly long
-    append!(skip_tests, ["libraries/cusolver", "libraries/cusparse"])
-    # XXX: these hang for some reason
-    append!(skip_tests, ["base/sorting"])
-end
 if first(gpus).cap < v"7.0"
     push!(skip_tests, "core/device/intrinsics/wmma")
 end
