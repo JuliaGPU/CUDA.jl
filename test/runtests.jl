@@ -44,7 +44,7 @@ if do_help
                --thorough         Don't allow skipping tests that are not supported.
                --quickfail        Fail the entire run as soon as a single test errored.
                --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS).
-               --gpus=N           Expose `N` GPUs to test processes (default: 1).
+               --gpu=1,2,...      Which GPUs to use (comma-separated list of indices, default: all)
                --sanitize[=tool]  Run the tests under `compute-sanitizer`.
 
                Remaining arguments filter the tests that will be executed.""")
@@ -54,14 +54,15 @@ set_jobs, jobs = extract_flag!(ARGS, "--jobs"; typ=Int)
 do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
 do_thorough, _ = extract_flag!(ARGS, "--thorough")
 do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
+do_gpu_list, gpu_list = extract_flag!(ARGS, "--gpu")
+do_list, _ = extract_flag!(ARGS, "--list")
+## no options should remain
+optlike_args = filter(startswith("-"), ARGS)
+if !isempty(optlike_args)
+    error("Unknown test options `$(join(optlike_args, " "))` (try `--help` for usage instructions)")
+end
 
 include("setup.jl")     # make sure everything is precompiled
-_, gpus = extract_flag!(ARGS, "--gpus", ndevices())
-if !set_jobs
-    cpu_jobs = Sys.CPU_THREADS
-    memory_jobs = Int(Sys.free_memory()) ÷ (2 * 2^30)
-    jobs = min(cpu_jobs, memory_jobs)
-end
 
 # choose tests
 const tests = ["core/initialization"]    # needs to run first
@@ -100,9 +101,7 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
 end
 unique!(tests)
 
-# parse some more command-line arguments
-## --list to list all available tests
-do_list, _ = extract_flag!(ARGS, "--list")
+# list tests, if requested
 if do_list
     println("Available tests:")
     for test in sort(tests)
@@ -110,12 +109,8 @@ if do_list
     end
     exit(0)
 end
-## no options should remain
-optlike_args = filter(startswith("-"), ARGS)
-if !isempty(optlike_args)
-    error("Unknown test options `$(join(optlike_args, " "))` (try `--help` for usage instructions)")
-end
-## the remaining args filter tests
+
+# filter tests
 if !isempty(ARGS)
   filter!(tests) do test
     any(arg->startswith(test, arg), ARGS)
@@ -128,46 +123,30 @@ label_match = match(r"^CUDA ([\d.]+)$", get(ENV, "BUILDKITE_LABEL", ""))
 if label_match !== nothing
   @test toolkit_release == VersionNumber(label_match.captures[1])
 end
-
-# find suitable devices
 @info "System information:\n" * sprint(io->CUDA.versioninfo(io))
-candidates = []
-for (index,dev) in enumerate(devices())
-    # fetch info that doesn't require a context
+
+# select devices
+function gpu_entry(dev)
     id = deviceid(dev)
-    mig = CUDA.uuid(dev) != CUDA.parent_uuid(dev)
-    uuid = CUDA.uuid(dev)
     name = CUDA.name(dev)
-    cap = capability(dev)
-
-    mem = try
-        device!(dev)
-        mem = CUDA.available_memory()
-        # immediately reset the device. this helps to reduce memory usage,
-        # and is needed for systems that only provide exclusive access to the GPUs
-        CUDA.device_reset!()
-        mem
-    catch err
-        if isa(err, OutOfGPUMemoryError)
-            # the device doesn't even have enough memory left to instantiate a context...
-            0
-        else
-            rethrow()
-        end
-    end
-
-    push!(candidates, (; id, uuid, mig, name, cap, mem))
-
-    # NOTE: we don't use NVML here because it doesn't respect CUDA_VISIBLE_DEVICES
+    uuid = CUDA.uuid(dev)
+    cap = CUDA.capability(dev)
+    mig = uuid != CUDA.parent_uuid(dev)
+    (; id, name, cap, uuid="$(mig ? "MIG" : "GPU")-$uuid")
 end
-## order by available memory, but also by capability if testing needs to be thorough
-sort!(candidates, by=x->x.mem)
-## apply
-picks = reverse(candidates[end-gpus+1:end])   # best GPU first
-ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"$(pick.mig ? "MIG" : "GPU")-$(pick.uuid)", picks), ",")
-@info "Testing using $(length(picks)) device(s): " * join(map(pick->"$(pick.id). $(pick.name) (UUID $(pick.uuid))", picks), ", ")
-
-@info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the JULIA_CPU_THREADS environment variable."
+gpus = if do_gpu_list
+    # parse the list of GPUs
+    map(gpu_list) do str
+        id = parse(Int, str)
+        gpu_entry(CuDevice(id))
+    end
+else
+    # find all GPUs
+    map(gpu_entry, CUDA.devices())
+end
+@info("Testing using device(s) " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
+      ". To change this, specify the `--gpus` argument to the test, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
+ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")
 
 # determine tests to skip
 skip_tests = []
@@ -181,7 +160,7 @@ if do_sanitize
     # XXX: these hang for some reason
     append!(skip_tests, ["base/sorting"])
 end
-if first(picks).cap < v"7.0"
+if first(gpus).cap < v"7.0"
     push!(skip_tests, "core/device/intrinsics/wmma")
 end
 if Sys.ARCH == :aarch64
@@ -211,6 +190,14 @@ else
     end
     all_tests = copy(tests)
 end
+
+# determine parallelism
+if !set_jobs
+    cpu_jobs = Sys.CPU_THREADS
+    memory_jobs = Int(Sys.free_memory()) ÷ (2 * 2^30)
+    jobs = min(cpu_jobs, memory_jobs)
+end
+@info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the JULIA_CPU_THREADS environment variable."
 
 # add workers
 const test_exeflags = Base.julia_cmd()
