@@ -10,6 +10,10 @@ macro maybe_unsupported(ex)
     end
 end
 
+if !has_nvml()
+@warn "NVML not available, skipping tests"
+else
+
 @testset "system" begin
     @test NVML.version() isa VersionNumber
     @test NVML.driver_version() isa VersionNumber
@@ -56,4 +60,6 @@ end
         #@test getpid() in keys(NVML.compute_processes(dev))
         NVML.compute_processes(dev)
     end
+end
+
 end

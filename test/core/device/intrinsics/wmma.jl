@@ -1,3 +1,7 @@
+if capability(device()) < v"7.0"
+@warn "Device capability too low, skipping WMMA tests"
+else
+
 using CUDA.WMMA
 
 map_ptx_to_jl_frag = Dict(
@@ -362,4 +366,6 @@ end
         @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
         @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.shared.f32", ptx)
     end
+end
+
 end

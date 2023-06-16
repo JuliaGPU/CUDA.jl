@@ -9,7 +9,7 @@ function find_sources(path::String, sources=String[])
     sources
 end
 
-examples_dir = joinpath(@__DIR__, "..", "examples")
+examples_dir = joinpath(@__DIR__, "..", "..", "examples")
 examples = find_sources(examples_dir)
 filter!(file -> readline(file) != "# EXCLUDE FROM TESTING", examples)
 
