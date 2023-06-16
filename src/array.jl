@@ -240,14 +240,14 @@ take ownership of the memory, calling `cudaFree` when the array is no longer ref
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
-  buf = _unsafe_wrapped_buff(T, ptr, dims; own, ctx)
+  buf = _unsafe_wrap(T, ptr, dims; own, ctx)
   storage = ArrayStorage(buf, own ? 1 : -1)
   CuArray{T, length(dims)}(storage, dims)
 end
 function Base.unsafe_wrap(::Type{CuArray{T,N,B}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N,B}
-  buf = _unsafe_wrapped_buff(T, ptr, dims; own, ctx)
+  buf = _unsafe_wrap(T, ptr, dims; own, ctx)
   if typeof(buf) !== B
     error("Declared buffer type does not match inferred buffer type.")
   end
@@ -255,9 +255,8 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,B}},
   CuArray{T, length(dims)}(storage, dims)
 end
 
-function _unsafe_wrapped_buff(::Type{T},
-    ptr::CuPtr{T}, dims::NTuple{N,Int};
-    own::Bool=false, ctx::CuContext=context()) where {T,N}
+function _unsafe_wrap(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int};
+                      own::Bool=false, ctx::CuContext=context()) where {T,N}
   isbitstype(T) || error("Can only unsafe_wrap a pointer to a bits type")
   sz = prod(dims) * sizeof(T)
 
