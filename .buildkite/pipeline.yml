@@ -47,14 +47,12 @@ steps:
     key: "cuda"
     depends_on: "julia"
     steps:
-      # NOTE: we support those CUDA versions for which the latest cuDNN is available
-      #       https://developer.nvidia.com/rdp/cudnn-archive
-
       - label: "CUDA {{matrix.cuda}}"
         plugins:
           - JuliaCI/julia#v1:
               version: 1.8
-          - JuliaCI/julia-test#v1: ~
+          - JuliaCI/julia-test#v1:
+              test_args: "core base libraries"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
