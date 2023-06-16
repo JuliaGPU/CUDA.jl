@@ -1,6 +1,10 @@
-using LinearAlgebra, Test
-using CUDA
+using CUDA.CUSOLVER
 
+if !has_cusolvermg()
+@warn "CUSOLVERMG not available, skipping tests"
+else
+
+using LinearAlgebra
 import LinearAlgebra: BlasInt
 
 m = 256
@@ -106,4 +110,6 @@ if CUSOLVER.version() >= v"10.3"
             @test B ≈ h_A\h_B  rtol=tol
         end
     end
+end
+
 end

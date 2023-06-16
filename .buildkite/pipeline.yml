@@ -54,8 +54,7 @@ steps:
         plugins:
           - JuliaCI/julia#v1:
               version: 1.8
-          - JuliaCI/julia-test#v1:
-              test_args: "--thorough"
+          - JuliaCI/julia-test#v1: ~
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src

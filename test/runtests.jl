@@ -41,7 +41,6 @@ if do_help
 
                --help             Show this text.
                --list             List all available tests.
-               --thorough         Don't allow skipping tests that are not supported.
                --quickfail        Fail the entire run as soon as a single test errored.
                --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS).
                --gpu=1,2,...      Which GPUs to use (comma-separated list of indices, default: all)
@@ -52,7 +51,6 @@ if do_help
 end
 set_jobs, jobs = extract_flag!(ARGS, "--jobs"; typ=Int)
 do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
-do_thorough, _ = extract_flag!(ARGS, "--thorough")
 do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
 do_gpu_list, gpu_list = extract_flag!(ARGS, "--gpu")
 do_list, _ = extract_flag!(ARGS, "--list")
@@ -145,43 +143,8 @@ else
     map(gpu_entry, CUDA.devices())
 end
 @info("Testing using device " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
-      ". To change this, specify the `--gpus` argument to the test, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
+      ". To change this, specify the `--gpus` argument to the tests, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
 ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")
-
-# determine tests to skip
-skip_tests = []
-has_cusolvermg() || push!(skip_tests, "libraries/cusolver/multigpu")
-has_nvml() || push!(skip_tests, "core/nvml")
-if first(gpus).cap < v"7.0"
-    push!(skip_tests, "core/device/intrinsics/wmma")
-end
-if Sys.ARCH == :aarch64
-    # CUFFT segfaults on ARM
-    push!(skip_tests, "libraries/cufft")
-end
-if VERSION < v"1.6.1-"
-    push!(skip_tests, "core/device/random")
-end
-for (i, test) in enumerate(skip_tests)
-    # we find tests by scanning the file system, so make sure the path separator matches
-    skip_tests[i] = replace(test, '/'=>Base.Filesystem.path_separator)
-end
-# skip_tests is a list of patterns, expand it to actual tests we were going to run
-skip_tests = filter(test->any(skip->occursin(skip,test), skip_tests), tests)
-if do_thorough
-    # we're not allowed to skip tests, so make sure we will mark them as such
-    all_tests = copy(tests)
-    if !isempty(skip_tests)
-        @error "Skipping the following tests: $(join(skip_tests, ", "))"
-        filter!(!in(skip_tests), tests)
-    end
-else
-    if !isempty(skip_tests)
-        @info "Skipping the following tests: $(join(skip_tests, ", "))"
-        filter!(!in(skip_tests), tests)
-    end
-    all_tests = copy(tests)
-end
 
 # determine parallelism
 if !set_jobs
@@ -189,7 +152,7 @@ if !set_jobs
     memory_jobs = Int(Sys.free_memory()) ÷ (2 * 2^30)
     jobs = min(cpu_jobs, memory_jobs)
 end
-@info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the JULIA_CPU_THREADS environment variable."
+@info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the `JULIA_CPU_THREADS` environment variable."
 
 # add workers
 const test_exeflags = Base.julia_cmd()
@@ -481,7 +444,7 @@ for (testname, (resp,)) in results
         Test.pop_testset()
     end
 end
-for test in all_tests
+for test in tests
     (test in completed_tests) && continue
     fake = Test.DefaultTestSet(test)
     Test.record(fake, Test.Error(:test_interrupted, test, nothing,
