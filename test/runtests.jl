@@ -67,7 +67,7 @@ if !set_jobs
 end
 
 # choose tests
-const tests = ["initialization"]    # needs to run first
+const tests = ["core/initialization"]    # needs to run first
 const test_runners = Dict()
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)
@@ -174,25 +174,25 @@ ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"$(pick.mig ? "MIG" : "GPU")-$(pick
 
 # determine tests to skip
 skip_tests = []
-has_cusolvermg() || push!(skip_tests, "cusolver/multigpu")
-has_nvml() || push!(skip_tests, "nvml")
+has_cusolvermg() || push!(skip_tests, "libraries/cusolver/multigpu")
+has_nvml() || push!(skip_tests, "core/nvml")
 if do_sanitize
     # XXX: some library tests fail under compute-sanitizer
-    append!(skip_tests, ["cutensor"])
+    append!(skip_tests, ["libraries/cutensor"])
     # XXX: others take absurdly long
-    append!(skip_tests, ["cusolver", "cusparse"])
+    append!(skip_tests, ["libraries/cusolver", "libraries/cusparse"])
     # XXX: these hang for some reason
-    append!(skip_tests, ["sorting"])
+    append!(skip_tests, ["base/sorting"])
 end
 if first(picks).cap < v"7.0"
-    push!(skip_tests, "device/intrinsics/wmma")
+    push!(skip_tests, "core/device/intrinsics/wmma")
 end
 if Sys.ARCH == :aarch64
     # CUFFT segfaults on ARM
-    push!(skip_tests, "cufft")
+    push!(skip_tests, "libraries/cufft")
 end
 if VERSION < v"1.6.1-"
-    push!(skip_tests, "device/random")
+    push!(skip_tests, "core/device/random")
 end
 for (i, test) in enumerate(skip_tests)
     # we find tests by scanning the file system, so make sure the path separator matches
@@ -389,7 +389,7 @@ try
 
                     # tests that muck with the context should not be timed with CUDA events,
                     # since they won't be valid at the end of the test anymore.
-                    time_source = in(test, ["initialization", "examples", "exceptions"]) ? :julia : :cuda
+                    time_source = in(test, ["core/initialization", "base/examples", "base/exceptions"]) ? :julia : :cuda
 
                     # run the test
                     running_tests[test] = now()
