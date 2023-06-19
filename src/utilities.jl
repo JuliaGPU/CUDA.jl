@@ -60,19 +60,29 @@ function versioninfo(io::IO=stdout)
     println(io)
 
     println(io, "Julia packages: ")
-    ## get a hold of Pkg without adding a dependency on the package
-    Pkg = let
-        id = Base.PkgId(Base.UUID("44cfe95a-1eb2-52ea-b672-e2afdf69b78f"), "Pkg")
-        Base.loaded_modules[id]
-    end
-    ## look at the Project.toml to determine our version
-    project = Pkg.Operations.read_project(Pkg.Types.projectfile_path(pkgdir(CUDA)))
-    println(io, "- CUDA.jl: $(project.version)")
-    ## dependencies
-    deps = Pkg.dependencies()
-    versions = Dict(map(uuid->deps[uuid].name => deps[uuid].version, collect(keys(deps))))
-    for dep in ["CUDA_Driver_jll", "CUDA_Runtime_jll", "CUDA_Runtime_Discovery"]
-        println(io, "- $dep: $(versions[dep])")
+    if VERSION >= v"1.9"
+        println(io, "- CUDA: $(Base.pkgversion(CUDA))")
+        for name in [:CUDA_Driver_jll, :CUDA_Runtime_jll, :CUDA_Runtime_Discovery]
+            isdefined(CUDA, name) || continue
+            mod = getfield(CUDA, name)
+            println(io, "- $(name): $(Base.pkgversion(mod))")
+        end
+    else
+        ## get a hold of Pkg without adding a dependency on the package
+        Pkg = let
+            id = Base.PkgId(Base.UUID("44cfe95a-1eb2-52ea-b672-e2afdf69b78f"), "Pkg")
+            Base.loaded_modules[id]
+        end
+        ## look at the Project.toml to determine our version
+        project = Pkg.Operations.read_project(Pkg.Types.projectfile_path(pkgdir(CUDA)))
+        println(io, "- CUDA.jl: $(project.version)")
+        ## dependencies
+        ## XXX: Pkg.dependencies uses the active project, so may be inaccurate
+        deps = Pkg.dependencies()
+        versions = Dict(map(uuid->deps[uuid].name => deps[uuid].version, collect(keys(deps))))
+        for dep in ["CUDA_Driver_jll", "CUDA_Runtime_jll", "CUDA_Runtime_Discovery"]
+            haskey(versions, dep) && println(io, "- $dep: $(versions[dep])")
+        end
     end
     println(io)
 
