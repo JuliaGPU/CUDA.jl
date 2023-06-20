@@ -909,6 +909,51 @@ function gemmEx!(transA::Char, transB::Char,
     C
 end
 
+function gemmBatchedEx!(transA::Char, transB::Char,
+                 @nospecialize(alpha::Number),
+                 @nospecialize(A::Vector{<:StridedCuVecOrMat}),
+                 @nospecialize(B::Vector{<:StridedCuVecOrMat}),
+                 @nospecialize(beta::Number),
+                 @nospecialize(C::Vector{<:StridedCuVecOrMat});
+                 algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
+    if length(A) != length(B) || length(A) != length(C)
+        throw(DimensionMismatch(""))
+    end
+    for (As,Bs,Cs) in zip(A,B,C)
+        m = size(As, transA == 'N' ? 1 : 2)
+        k = size(As, transA == 'N' ? 2 : 1)
+        n = size(Bs, transB == 'N' ? 2 : 1)
+        if m != size(Cs,1) || n != size(Cs,2) || k != size(Bs, transB == 'N' ? 1 : 2)
+            throw(DimensionMismatch(""))
+        end
+    end
+    m = size(A[1], transA == 'N' ? 1 : 2)
+    k = size(A[1], transA == 'N' ? 2 : 1)
+    n = size(B[1], transB == 'N' ? 2 : 1)
+    lda = max(1,stride(A[1],2))
+    ldb = max(1,stride(B[1],2))
+    ldc = max(1,stride(C[1],2))
+    computeType = gemmExComputeType(eltype(A[1]), eltype(B[1]), eltype(C[1]), m, k, n)
+    isnothing(computeType) &&
+    throw(ArgumentError("gemmEx does not support $(eltype(C))=$(eltype(A))*$(eltype(B))"))
+    computeT = juliaStorageType(eltype(C[1]), computeType)
+    Aptrs = unsafe_batch(A)
+    Bptrs = unsafe_batch(B)
+    Cptrs = unsafe_batch(C)
+    if version() >= v"11.0"
+        # with CUDA 11, the compute type encodes the math mode.
+        cublasGemmBatchedEx(handle(), transA, transB, m, n, k, Ref{computeT}(alpha), Aptrs, eltype(A[1]), lda, Bptrs,
+                            eltype(B[1]), ldb, Ref{computeT}(beta), Cptrs, eltype(C[1]), ldc, length(A), computeType, algo)
+    else
+        throw("Not implemented for CUDA versio <11")
+    end
+    unsafe_free!(Cptrs)
+    unsafe_free!(Bptrs)
+    unsafe_free!(Aptrs)
+
+    C
+end
+
 # create a batch of pointers in device memory from a batch of device arrays
 @inline function unsafe_batch(batch::Vector{<:CuArray{T}}) where {T}
     ptrs = pointer.(batch)
@@ -969,6 +1014,7 @@ for (fname, elty) in
         end
     end
 end
+
 function gemm_batched(transA::Char, transB::Char, alpha::Number,
                       A::Vector{<:StridedCuMatrix{T}}, B::Vector{<:StridedCuMatrix{T}}) where T
     C = CuMatrix{T}[similar(B[1], (size(A[1], transA == 'N' ? 1 : 2),size(B[1], transB == 'N' ? 2 : 1))) for i in 1:length(A)]
