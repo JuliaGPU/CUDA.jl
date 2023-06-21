@@ -409,20 +409,52 @@ function _sparse_identity(::Type{<:CuSparseMatrixCSC{<:Any,Ti}},
     CuSparseMatrixCSC{Tv,Ti}(colPtr, rowVal, nzVal, dims)
 end
 
-Base.:(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}, J::UniformScaling) =
-    A .+ _sparse_identity(typeof(A), J, size(A))
+function _sparse_identity(::Type{<:CuSparseMatrixCOO{Tv,Ti}},
+                        I::UniformScaling, dims::Dims) where {Tv,Ti}
+    len = min(dims[1], dims[2])
+    rowInd = CuVector{Ti}(1:len)
+    colInd = CuVector{Ti}(1:len)
+    nzVal = CUDA.fill(I.λ, len)
+    CuSparseMatrixCOO{Tv,Ti}(rowInd, colInd, nzVal, dims)
+end
 
-Base.:(-)(J::UniformScaling, A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) =
-    _sparse_identity(typeof(A), J, size(A)) .- A
+for (wrapa, unwrapa) in adjtrans_wrappers
+    for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
+        TypeA = wrapa(SparseMatrixType)
+        @eval begin
+            Base.:(+)(A::$TypeA, J::UniformScaling) where {T} = $(unwrapa(:A)) + _sparse_identity(typeof(A), J, size(A))
+            Base.:(+)(J::UniformScaling, A::$TypeA) where {T} = _sparse_identity(typeof(A), J, size(A)) + $(unwrapa(:A))
+
+            Base.:(-)(A::$TypeA, J::UniformScaling) where {T} = $(unwrapa(:A)) - _sparse_identity(typeof(A), J, size(A))
+            Base.:(-)(J::UniformScaling, A::$TypeA) where {T} = _sparse_identity(typeof(A), J, size(A)) - $(unwrapa(:A))
+        end
+
+        # Broadcasting is not yet supported for COO matrices
+        if SparseMatrixType != :(CuSparseMatrixCOO{T})
+            @eval begin
+                Base.:(*)(A::$TypeA, J::UniformScaling) where {T} = $(unwrapa(:A)) * J.λ
+                Base.:(*)(J::UniformScaling, A::$TypeA) where {T} = J.λ * $(unwrapa(:A))
+            end
+        else
+            @eval begin
+                Base.:(*)(A::$TypeA, J::UniformScaling) where {T} = $(unwrapa(:A)) * _sparse_identity(typeof(A), J, size(A))
+                Base.:(*)(J::UniformScaling, A::$TypeA) where {T} = _sparse_identity(typeof(A), J, size(A)) * $(unwrapa(:A))
+            end
+        end
+    end
+end
 
 # TODO: let Broadcast handle this automatically (a la SparseArrays.PromoteToSparse)
-for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR], op in [:(+), :(-)]
-    @eval begin
-        function Base.$op(lhs::Diagonal{T,<:CuArray}, rhs::$SparseMatrixType{T}) where {T}
-            return $op($SparseMatrixType(lhs), rhs)
-        end
-        function Base.$op(lhs::$SparseMatrixType{T}, rhs::Diagonal{T,<:CuArray}) where {T}
-            return $op(lhs, $SparseMatrixType(rhs))
+for (wrapa, unwrapa) in adjtrans_wrappers, op in (:(+), :(-), :(*))
+    for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
+        TypeA = wrapa(SparseMatrixType)
+        @eval begin
+            function Base.$op(lhs::Diagonal, rhs::$TypeA) where {T}
+                return $op($SparseMatrixType(lhs), $(unwrapa(:rhs)))
+            end
+            function Base.$op(lhs::$TypeA, rhs::Diagonal) where {T}
+                return $op($(unwrapa(:lhs)), $SparseMatrixType(rhs))
+            end
         end
     end
 end
