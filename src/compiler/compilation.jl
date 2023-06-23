@@ -21,8 +21,7 @@ function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::L
         return
     end
 
-    ctx = LLVM.context(mod)
-    lib = parse(LLVM.Module, read(libdevice); ctx)
+    lib = parse(LLVM.Module, read(libdevice))
 
     # override libdevice's triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
@@ -32,7 +31,7 @@ function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::L
 
     @dispose pm=ModulePassManager() begin
         push!(metadata(mod)["nvvm-reflect-ftz"],
-              MDNode([ConstantInt(Int32(1); ctx)]; ctx))
+              MDNode([ConstantInt(Int32(1))]))
         run!(pm, mod)
     end
 
@@ -99,14 +98,11 @@ end
 
 # compile to executable machine code
 function compile(@nospecialize(job::CompilerJob))
-    # TODO: on 1.9, this actually creates a context. cache those.
-    JuliaContext() do ctx
-        compile(job, ctx)
-    end
-end
-function compile(@nospecialize(job::CompilerJob), ctx)
     # lower to PTX
-    asm, meta = GPUCompiler.compile(:asm, job; ctx)
+    # TODO: on 1.9, this actually creates a context. cache those.
+    asm, meta = JuliaContext() do ctx
+        GPUCompiler.compile(:asm, job)
+    end
 
     # remove extraneous debug info on lower debug levels
     if Base.JLOptions().debug_level < 2

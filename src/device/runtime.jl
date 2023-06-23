@@ -20,7 +20,7 @@ function precompile_runtime(caps=CUDA.llvm_compat(LLVM.version()).cap)
             target = PTXCompilerTarget(; cap)
             config = CompilerConfig(target, params)
             job = CompilerJob(mi, config)
-            GPUCompiler.load_runtime(job; ctx)
+            GPUCompiler.load_runtime(job)
         end
     end
     return

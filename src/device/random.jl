@@ -156,8 +156,8 @@ end
 # a hacky method of exposing constant tables as constant GPU memory
 function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
     @dispose ctx=Context() begin
-        T_val = convert(LLVMType, T; ctx)
-        T_ptr = convert(LLVMType, LLVMPtr{T,AS.Constant}; ctx)
+        T_val = convert(LLVMType, T)
+        T_ptr = convert(LLVMType, LLVMPtr{T,AS.Constant})
 
         # define function and get LLVM module
         llvm_f, _ = create_function(T_ptr)
@@ -170,14 +170,14 @@ function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
         gv = GlobalVariable(mod, T_global, "gpu_$(name)_data", AS.Constant)
         alignment!(gv, 16)
         linkage!(gv, LLVM.API.LLVMInternalLinkage)
-        initializer!(gv, ConstantArray(data; ctx))
+        initializer!(gv, ConstantArray(data))
 
         # generate IR
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
-            ptr = gep!(builder, T_global, gv, [ConstantInt(0; ctx), ConstantInt(0; ctx)])
+            ptr = gep!(builder, T_global, gv, [ConstantInt(0), ConstantInt(0)])
 
             untyped_ptr = bitcast!(builder, ptr, T_ptr)
 
