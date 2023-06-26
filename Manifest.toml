@@ -111,9 +111,9 @@ version = "0.1.5"
 
 [[GPUCompiler]]
 deps = ["ExprTools", "InteractiveUtils", "LLVM", "Libdl", "Logging", "Scratch", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "0c21d9b7ff70859bdb2ca7dab814e144676c31db"
+git-tree-sha1 = "69a9aa4346bca723e46769ff6b6277e597c969b1"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.21.1"
+version = "0.21.2"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
@@ -292,9 +292,9 @@ uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [[SpecialFunctions]]
 deps = ["ChainRulesCore", "IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
-git-tree-sha1 = "ef28127915f4229c971eb43f3fc075dd3fe91880"
+git-tree-sha1 = "7beb031cf8145577fbccacd94b8a8f4ce78428d3"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
-version = "2.2.0"
+version = "2.3.0"
 
 [[StaticArrays]]
 deps = ["LinearAlgebra", "Random", "StaticArraysCore", "Statistics"]
