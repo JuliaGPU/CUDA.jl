@@ -2111,3 +2111,42 @@ function xt_trsm(side::Char, uplo::Char, transa::Char, diag::Char, alpha::Number
     # TODO: better way to perform synchronous copy
     xt_trsm!(side, uplo, transa, diag, alpha, A, @sync(copy(B)))
 end
+
+for (fname, elty) in
+    ((:cublasDgemvBatched,:Float64),
+     (:cublasSgemvBatched,:Float32),
+     (:cublasHgemvBatched,:Float16),
+     (:cublasZgemvBatched,:ComplexF64),
+     (:cublasCgemvBatched,:ComplexF32))
+    @eval begin
+        function gemv_batched!(trans::Char,
+                            alpha::Number,
+                            A::Vector{<:StridedCuMatrix{$elty}},
+                            X::Vector{<:StridedCuVector{$elty}},
+                            beta::Number,
+                            Y::Vector{<:StridedCuVector{$elty}})
+            if length(A) != length(X) || length(A) != length(Y)
+                throw(DimensionMismatch(""))
+            end
+            for (As,Xs,Ys) in zip(A,X,Y)
+                m,n = size(As)
+                length(Xs) == (trans == 'N' ? n : m) && length(Ys) == (trans == 'N' ? m : n) || throw(DimensionMismatch(""))
+            end
+
+            m = size(A[1], trans == 'N' ? 1 : 2)
+            n = size(A[1], trans == 'N' ? 2 : 1)
+            lda = max(1,stride(A[1],2))
+            incx = stride(X[1],1)
+            incy = stride(Y[1],1)
+            Aptrs = unsafe_batch(A)
+            Xptrs = unsafe_batch(X)
+            Yptrs = unsafe_batch(Y)
+            $fname(handle(), trans, m, n, alpha, Aptrs, lda, Xptrs, incx, beta, Yptrs, incy, length(A))
+            unsafe_free!(Yptrs)
+            unsafe_free!(Xptrs)
+            unsafe_free!(Aptrs)
+
+            Y
+        end
+    end
+end

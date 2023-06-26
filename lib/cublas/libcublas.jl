@@ -3262,10 +3262,10 @@ end
                                      beta, yarray, incy, batchCount)
     initialize_context()
     @ccall libcublas.cublasSgemvBatched(handle::cublasHandle_t, trans::cublasOperation_t,
-                                        m::Cint, n::Cint, alpha::Ptr{Cfloat},
-                                        Aarray::Ptr{Ptr{Cfloat}}, lda::Cint,
-                                        xarray::Ptr{Ptr{Cfloat}}, incx::Cint,
-                                        beta::Ptr{Cfloat}, yarray::Ptr{Ptr{Cfloat}},
+                                        m::Cint, n::Cint, alpha::RefOrCuRef{Cfloat},
+                                        Aarray::CuPtr{Ptr{Cfloat}}, lda::Cint,
+                                        xarray::CuPtr{Ptr{Cfloat}}, incx::Cint,
+                                        beta::RefOrCuRef{Cfloat}, yarray::CuPtr{Ptr{Cfloat}},
                                         incy::Cint, batchCount::Cint)::cublasStatus_t
 end
 
@@ -3273,10 +3273,10 @@ end
                                         incx, beta, yarray, incy, batchCount)
     initialize_context()
     @ccall libcublas.cublasSgemvBatched_64(handle::cublasHandle_t, trans::cublasOperation_t,
-                                           m::Int64, n::Int64, alpha::Ptr{Cfloat},
-                                           Aarray::Ptr{Ptr{Cfloat}}, lda::Int64,
-                                           xarray::Ptr{Ptr{Cfloat}}, incx::Int64,
-                                           beta::Ptr{Cfloat}, yarray::Ptr{Ptr{Cfloat}},
+                                           m::Int64, n::Int64, alpha::RefOrCuRef{Cfloat},
+                                           Aarray::CuPtr{Ptr{Cfloat}}, lda::Int64,
+                                           xarray::CuPtr{Ptr{Cfloat}}, incx::Int64,
+                                           beta::RefOrCuRef{Cfloat}, yarray::CuPtr{Ptr{Cfloat}},
                                            incy::Int64, batchCount::Int64)::cublasStatus_t
 end
 
@@ -3284,10 +3284,10 @@ end
                                      beta, yarray, incy, batchCount)
     initialize_context()
     @ccall libcublas.cublasDgemvBatched(handle::cublasHandle_t, trans::cublasOperation_t,
-                                        m::Cint, n::Cint, alpha::Ptr{Cdouble},
-                                        Aarray::Ptr{Ptr{Cdouble}}, lda::Cint,
-                                        xarray::Ptr{Ptr{Cdouble}}, incx::Cint,
-                                        beta::Ptr{Cdouble}, yarray::Ptr{Ptr{Cdouble}},
+                                        m::Cint, n::Cint, alpha::RefOrCuRef{Cdouble},
+                                        Aarray::CuPtr{Ptr{Cdouble}}, lda::Cint,
+                                        xarray::CuPtr{Ptr{Cdouble}}, incx::Cint,
+                                        beta::RefOrCuRef{Cdouble}, yarray::CuPtr{Ptr{Cdouble}},
                                         incy::Cint, batchCount::Cint)::cublasStatus_t
 end
 
@@ -3295,10 +3295,10 @@ end
                                         incx, beta, yarray, incy, batchCount)
     initialize_context()
     @ccall libcublas.cublasDgemvBatched_64(handle::cublasHandle_t, trans::cublasOperation_t,
-                                           m::Int64, n::Int64, alpha::Ptr{Cdouble},
-                                           Aarray::Ptr{Ptr{Cdouble}}, lda::Int64,
-                                           xarray::Ptr{Ptr{Cdouble}}, incx::Int64,
-                                           beta::Ptr{Cdouble}, yarray::Ptr{Ptr{Cdouble}},
+                                           m::Int64, n::Int64, alpha::RefOrCuRef{Cdouble},
+                                           Aarray::CuPtr{Ptr{Cdouble}}, lda::Int64,
+                                           xarray::CuPtr{Ptr{Cdouble}}, incx::Int64,
+                                           beta::RefOrCuRef{Cdouble}, yarray::CuPtr{Ptr{Cdouble}},
                                            incy::Int64, batchCount::Int64)::cublasStatus_t
 end
 
@@ -3306,10 +3306,10 @@ end
                                      beta, yarray, incy, batchCount)
     initialize_context()
     @ccall libcublas.cublasCgemvBatched(handle::cublasHandle_t, trans::cublasOperation_t,
-                                        m::Cint, n::Cint, alpha::Ptr{cuComplex},
-                                        Aarray::Ptr{Ptr{cuComplex}}, lda::Cint,
-                                        xarray::Ptr{Ptr{cuComplex}}, incx::Cint,
-                                        beta::Ptr{cuComplex}, yarray::Ptr{Ptr{cuComplex}},
+                                        m::Cint, n::Cint, alpha::RefOrCuRef{cuComplex},
+                                        Aarray::CuPtr{Ptr{cuComplex}}, lda::Cint,
+                                        xarray::CuPtr{Ptr{cuComplex}}, incx::Cint,
+                                        beta::RefOrCuRef{cuComplex}, yarray::CuPtr{Ptr{cuComplex}},
                                         incy::Cint, batchCount::Cint)::cublasStatus_t
 end
 
@@ -3317,11 +3317,11 @@ end
                                         incx, beta, yarray, incy, batchCount)
     initialize_context()
     @ccall libcublas.cublasCgemvBatched_64(handle::cublasHandle_t, trans::cublasOperation_t,
-                                           m::Int64, n::Int64, alpha::Ptr{cuComplex},
-                                           Aarray::Ptr{Ptr{cuComplex}}, lda::Int64,
-                                           xarray::Ptr{Ptr{cuComplex}}, incx::Int64,
-                                           beta::Ptr{cuComplex},
-                                           yarray::Ptr{Ptr{cuComplex}}, incy::Int64,
+                                           m::Int64, n::Int64, alpha::RefOrCuRef{cuComplex},
+                                           Aarray::CuPtr{Ptr{cuComplex}}, lda::Int64,
+                                           xarray::CuPtr{Ptr{cuComplex}}, incx::Int64,
+                                           beta::RefOrCuRef{cuComplex},
+                                           yarray::CuPtr{Ptr{cuComplex}}, incy::Int64,
                                            batchCount::Int64)::cublasStatus_t
 end
 
@@ -3329,11 +3329,11 @@ end
                                      beta, yarray, incy, batchCount)
     initialize_context()
     @ccall libcublas.cublasZgemvBatched(handle::cublasHandle_t, trans::cublasOperation_t,
-                                        m::Cint, n::Cint, alpha::Ptr{cuDoubleComplex},
-                                        Aarray::Ptr{Ptr{cuDoubleComplex}}, lda::Cint,
-                                        xarray::Ptr{Ptr{cuDoubleComplex}}, incx::Cint,
-                                        beta::Ptr{cuDoubleComplex},
-                                        yarray::Ptr{Ptr{cuDoubleComplex}}, incy::Cint,
+                                        m::Cint, n::Cint, alpha::RefOrCuRef{cuDoubleComplex},
+                                        Aarray::CuPtr{Ptr{cuDoubleComplex}}, lda::Cint,
+                                        xarray::CuPtr{Ptr{cuDoubleComplex}}, incx::Cint,
+                                        beta::RefOrCuRef{cuDoubleComplex},
+                                        yarray::CuPtr{Ptr{cuDoubleComplex}}, incy::Cint,
                                         batchCount::Cint)::cublasStatus_t
 end
 
@@ -3341,11 +3341,11 @@ end
                                         incx, beta, yarray, incy, batchCount)
     initialize_context()
     @ccall libcublas.cublasZgemvBatched_64(handle::cublasHandle_t, trans::cublasOperation_t,
-                                           m::Int64, n::Int64, alpha::Ptr{cuDoubleComplex},
-                                           Aarray::Ptr{Ptr{cuDoubleComplex}}, lda::Int64,
-                                           xarray::Ptr{Ptr{cuDoubleComplex}}, incx::Int64,
-                                           beta::Ptr{cuDoubleComplex},
-                                           yarray::Ptr{Ptr{cuDoubleComplex}}, incy::Int64,
+                                           m::Int64, n::Int64, alpha::RefOrCuRef{cuDoubleComplex},
+                                           Aarray::CuPtr{Ptr{cuDoubleComplex}}, lda::Int64,
+                                           xarray::CuPtr{Ptr{cuDoubleComplex}}, incx::Int64,
+                                           beta::RefOrCuRef{cuDoubleComplex},
+                                           yarray::CuPtr{Ptr{cuDoubleComplex}}, incy::Int64,
                                            batchCount::Int64)::cublasStatus_t
 end
 
