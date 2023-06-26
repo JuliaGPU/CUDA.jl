@@ -4,6 +4,7 @@ using CUDA.CUBLAS: band, bandex
 using LinearAlgebra
 
 using BFloat16s
+using StaticArrays
 
 @test CUBLAS.version() isa VersionNumber
 @test CUBLAS.version().major == CUBLAS.cublasGetProperty(CUDA.MAJOR_VERSION)
@@ -605,6 +606,14 @@ end
             W = @view p[reshape(1:(16),4,4)]
             W*b
         end
+    end
+
+    @testset "StaticArray eltype" begin
+       A = CuArray(rand(SVector{2, Float64}, 3, 3))
+       B = CuArray(rand(Float64, 3, 1))
+       C = A * B
+       hC = Array(A) * Array(B)
+       @test Array(C) ≈ hC
     end
 end
 
@@ -2015,4 +2024,12 @@ end
             @test C ≈ h_C
         end
     end # extensions
+
+    @testset "StaticArray eltype" begin
+       A = CuArray(rand(SVector{2, Float32}, 3, 3))
+       B = CuArray(rand(Float32, 3, 3))
+       C = A * B
+       hC = Array(A) * Array(B)
+       @test Array(C) ≈ hC
+    end
 end # elty
