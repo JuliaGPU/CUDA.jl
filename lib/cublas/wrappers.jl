@@ -887,7 +887,7 @@ function gemmEx!(transA::Char, transB::Char,
     k = size(A, transA == 'N' ? 2 : 1)
     n = size(B, transB == 'N' ? 2 : 1)
     if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
-        throw(DimensionMismatch(""))
+        throw(DimensionMismatch("A has dimension $(size(A)), B has dimension $(size(B)) and C has dimension $(size(C))"))
     end
     lda = max(1,stride(A,2))
     ldb = max(1,stride(B,2))
@@ -917,14 +917,14 @@ function gemmBatchedEx!(transA::Char, transB::Char,
                  @nospecialize(C::Vector{<:StridedCuVecOrMat});
                  algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
     if length(A) != length(B) || length(A) != length(C)
-        throw(DimensionMismatch(""))
+        throw(DimensionMismatch("Lengths of inputs must be the same"))
     end
-    for (As,Bs,Cs) in zip(A,B,C)
+    for (i, (As,Bs,Cs)) in enumerate(zip(A,B,C))
         m = size(As, transA == 'N' ? 1 : 2)
         k = size(As, transA == 'N' ? 2 : 1)
         n = size(Bs, transB == 'N' ? 2 : 1)
         if m != size(Cs,1) || n != size(Cs,2) || k != size(Bs, transB == 'N' ? 1 : 2)
-            throw(DimensionMismatch(""))
+            throw(DimensionMismatch("Input $i: A has dimension $(size(As)), B has dimension $(size(Bs)), C has dimension $(size(Cs))"))
         end
     end
     m = size(A[1], transA == 'N' ? 1 : 2)
