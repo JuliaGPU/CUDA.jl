@@ -5302,10 +5302,10 @@ end
                                        incx, beta, yarray, incy, batchCount)
     initialize_context()
     @ccall libcublas.cublasHSHgemvBatched(handle::cublasHandle_t, trans::cublasOperation_t,
-                                          m::Cint, n::Cint, alpha::Ptr{Cfloat},
-                                          Aarray::Ptr{Ptr{Float16}}, lda::Cint,
-                                          xarray::Ptr{Ptr{Float16}}, incx::Cint,
-                                          beta::Ptr{Cfloat}, yarray::Ptr{Ptr{Float16}},
+                                          m::Cint, n::Cint, alpha::RefOrCuRef{Cfloat},
+                                          Aarray::CuPtr{Ptr{Float16}}, lda::Cint,
+                                          xarray::CuPtr{Ptr{Float16}}, incx::Cint,
+                                          beta::RefOrCuRef{Cfloat}, yarray::CuPtr{Ptr{Float16}},
                                           incy::Cint, batchCount::Cint)::cublasStatus_t
 end
 
@@ -5313,10 +5313,10 @@ end
                                        incx, beta, yarray, incy, batchCount)
     initialize_context()
     @ccall libcublas.cublasHSSgemvBatched(handle::cublasHandle_t, trans::cublasOperation_t,
-                                          m::Cint, n::Cint, alpha::Ptr{Cfloat},
-                                          Aarray::Ptr{Ptr{Float16}}, lda::Cint,
-                                          xarray::Ptr{Ptr{Float16}}, incx::Cint,
-                                          beta::Ptr{Cfloat}, yarray::Ptr{Ptr{Cfloat}},
+                                          m::Cint, n::Cint, alpha::RefOrCuRef{Cfloat},
+                                          Aarray::CuPtr{Ptr{Float16}}, lda::Cint,
+                                          xarray::CuPtr{Ptr{Float16}}, incx::Cint,
+                                          beta::RefOrCuRef{Cfloat}, yarray::CuPtr{Ptr{Cfloat}},
                                           incy::Cint, batchCount::Cint)::cublasStatus_t
 end
 
