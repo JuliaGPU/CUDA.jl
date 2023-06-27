@@ -887,7 +887,7 @@ function gemmEx!(transA::Char, transB::Char,
     k = size(A, transA == 'N' ? 2 : 1)
     n = size(B, transB == 'N' ? 2 : 1)
     if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
-        throw(DimensionMismatch(""))
+        throw(DimensionMismatch("A has dimension $(size(A)), B has dimension $(size(B)) and C has dimension $(size(C))"))
     end
     lda = max(1,stride(A,2))
     ldb = max(1,stride(B,2))
@@ -917,14 +917,14 @@ function gemmBatchedEx!(transA::Char, transB::Char,
                  @nospecialize(C::Vector{<:StridedCuVecOrMat});
                  algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
     if length(A) != length(B) || length(A) != length(C)
-        throw(DimensionMismatch(""))
+        throw(DimensionMismatch("Lengths of inputs must be the same"))
     end
-    for (As,Bs,Cs) in zip(A,B,C)
+    for (i, (As,Bs,Cs)) in enumerate(zip(A,B,C))
         m = size(As, transA == 'N' ? 1 : 2)
         k = size(As, transA == 'N' ? 2 : 1)
         n = size(Bs, transB == 'N' ? 2 : 1)
         if m != size(Cs,1) || n != size(Cs,2) || k != size(Bs, transB == 'N' ? 1 : 2)
-            throw(DimensionMismatch(""))
+            throw(DimensionMismatch("Input $i: A has dimension $(size(As)), B has dimension $(size(Bs)), C has dimension $(size(Cs))"))
         end
     end
     m = size(A[1], transA == 'N' ? 1 : 2)
@@ -945,12 +945,52 @@ function gemmBatchedEx!(transA::Char, transB::Char,
         cublasGemmBatchedEx(handle(), transA, transB, m, n, k, Ref{computeT}(alpha), Aptrs, eltype(A[1]), lda, Bptrs,
                             eltype(B[1]), ldb, Ref{computeT}(beta), Cptrs, eltype(C[1]), ldc, length(A), computeType, algo)
     else
-        throw("Not implemented for CUDA versio <11")
+        error("Not implemented for CUDA 11 and below.")
     end
     unsafe_free!(Cptrs)
     unsafe_free!(Bptrs)
     unsafe_free!(Aptrs)
 
+    C
+end
+
+function gemmStridedBatchedEx!(transA::Char, transB::Char,
+                 @nospecialize(alpha::Number),
+                 @nospecialize(A::AbstractArray{Ta, 3}),
+                 @nospecialize(B::AbstractArray{Tb, 3}),
+                 @nospecialize(beta::Number),
+                 @nospecialize(C::AbstractArray{Tc, 3});
+                 algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT) where {Ta, Tb, Tc}
+    if size(A, 3) != size(B, 3) || size(A, 3) != size(C, 3)
+        throw(DimensionMismatch("Batch sizes must be equal for all inputs"))
+    end
+    m = size(A, transA == 'N' ? 1 : 2)
+    k = size(A, transA == 'N' ? 2 : 1)
+    n = size(B, transB == 'N' ? 2 : 1)
+    if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
+        throw(DimensionMismatch("A has dimension $(size(A)), B has dimension $(size(B)), C has dimension $(size(C))"))
+    end
+    lda = max(1,stride(A,2))
+    ldb = max(1,stride(B,2))
+    ldc = max(1,stride(C,2))
+
+    strideA = size(A, 3) == 1 ? 0 : stride(A, 3)
+    strideB = size(B, 3) == 1 ? 0 : stride(B, 3)
+    strideC = stride(C, 3)
+    batchCount = size(C, 3)
+
+    computeType = gemmExComputeType(eltype(A), eltype(B), eltype(C), m, k, n)
+    isnothing(computeType) &&
+    throw(ArgumentError("gemmEx does not support $(eltype(C))=$(eltype(A))*$(eltype(B))"))
+    computeT = juliaStorageType(eltype(C), computeType)
+    if version() >= v"11.0"
+        # with CUDA 11, the compute type encodes the math mode.
+        cublasGemmStridedBatchedEx(handle(), transA, transB, m, n, k, Ref{computeT}(alpha), A, eltype(A), lda, strideA,
+                                   B, eltype(B), ldb, strideB, Ref{computeT}(beta), C, eltype(C), ldc, strideC,
+                                   batchCount, computeType, algo)
+    else
+        error("Not implemented for CUDA 11 and below.")
+    end
     C
 end
 
