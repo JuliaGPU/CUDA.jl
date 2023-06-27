@@ -945,7 +945,7 @@ function gemmBatchedEx!(transA::Char, transB::Char,
         cublasGemmBatchedEx(handle(), transA, transB, m, n, k, Ref{computeT}(alpha), Aptrs, eltype(A[1]), lda, Bptrs,
                             eltype(B[1]), ldb, Ref{computeT}(beta), Cptrs, eltype(C[1]), ldc, length(A), computeType, algo)
     else
-        throw("Not implemented for CUDA versio <11")
+        error("Not implemented for CUDA 11 and below.")
     end
     unsafe_free!(Cptrs)
     unsafe_free!(Bptrs)
