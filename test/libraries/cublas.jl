@@ -1604,6 +1604,16 @@ end
             @test_throws DimensionMismatch CUBLAS.gemm_strided_batched!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
         end
 
+        @testset "gemmStridedBatchedEx!" begin
+            CUBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, bd_B, beta, bd_C)
+            for i in 1:nbatch
+                bC[:, :, i] = (alpha * bA[:, :, i]) * bB[:, :, i] + beta * bC[:, :, i]
+            end
+            h_C = Array(bd_C)
+            @test bC ≈ h_C
+            @test_throws DimensionMismatch CUBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
+        end
+
         @testset "gemm_strided_batched" begin
             bd_C = CUBLAS.gemm_strided_batched('N', 'N', bd_A, bd_B)
 
