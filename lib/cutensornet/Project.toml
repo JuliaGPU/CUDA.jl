@@ -1,7 +1,7 @@
 authors = ["Katharine Hyatt <kshyatt@gmail.com>"]
 name = "cuTensorNet"
 uuid = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
-version = "1.0.4"
+version = "1.0.5"
 
 [compat]
 CEnum = "0.2, 0.3, 0.4"
