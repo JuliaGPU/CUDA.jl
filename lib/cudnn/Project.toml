@@ -10,6 +10,6 @@ CUDNN_jll = "62b44479-cb7b-5706-934f-f13b2eb2e645"
 
 [compat]
 CUDNN_jll = "~8.9"
-CUDA = "~4.3"
+CUDA = "~4.4"
 CEnum = "0.2, 0.3, 0.4"
 julia = "1.6"
