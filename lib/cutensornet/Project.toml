@@ -5,7 +5,7 @@ version = "1.0.4"
 
 [compat]
 CEnum = "0.2, 0.3, 0.4"
-CUDA = "~4.3"
+CUDA = "~4.4"
 cuQuantum_jll = "~22.11"
 cuTENSOR = "~1.0, ~1.1"
 julia = "1.6"

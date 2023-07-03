@@ -162,8 +162,8 @@ function __init__()
         @error """JULIA_CUDA_VERSION is deprecated. Call `CUDA.jl.set_runtime_version!` to use a different version instead."""
     end
 
-    # scan for CUDA libraries that may have been loaded from system paths
     if CUDA_Runtime == CUDA_Runtime_jll
+        # scan for CUDA libraries that may have been loaded from system paths
         runtime_libraries = ["cudart",
                              "nvperf", "nvvm", "nvrtc", "nvJitLink",
                              "cublas", "cupti", "cusparse", "cufft", "curand", "cusolver"]
@@ -173,6 +173,13 @@ function __init__()
                 @warn """CUDA runtime library $(basename(lib)) was loaded from a system path. This may cause errors.
                          Ensure that you have not set the LD_LIBRARY_PATH environment variable, or that it does not contain paths to CUDA libraries."""
             end
+        end
+
+        # warn about Tegra being incompatible with our artifacts
+        if is_tegra()
+            @warn """You are using a Tegra device, which is currently not supported by the CUDA.jl artifacts.
+                     Please install the CUDA toolkit, and call `CUDA.set_runtime_version!("local")` to use it.
+                     For more information, see JuliaGPU/CUDA.jl#1978."""
         end
     end
 
