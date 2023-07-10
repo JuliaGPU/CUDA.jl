@@ -192,7 +192,7 @@ function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, bia
         with_workspace(workspaceSize) do workspace
             cudnnFindConvolutionForwardAlgorithmEx(handle(),xDesc,x,wDesc,w,convDesc,yDesc,yTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
-        val = cudnnConvolutionAlgoPerfChoose(convDesc, perfResults, returnedAlgoCount[1])
+        val = cudnnConvolutionAlgoPerfChoose(convDesc, xDesc, perfResults, returnedAlgoCount[1])
         lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
             cudnnConvolutionFwdAlgoPerfCache[key] = val
         end
@@ -223,7 +223,7 @@ function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc,
         with_workspace(workspaceSize) do workspace
             cudnnFindConvolutionBackwardDataAlgorithmEx(handle(),wDesc,w,dyDesc,dy,convDesc,dxDesc,dxTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
-        val = cudnnConvolutionAlgoPerfChoose(convDesc, perfResults, returnedAlgoCount[1])
+        val = cudnnConvolutionAlgoPerfChoose(convDesc, dyDesc, perfResults, returnedAlgoCount[1])
         lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
             cudnnConvolutionBwdDataAlgoPerfCache[key] = val
         end
@@ -254,7 +254,7 @@ function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDes
         with_workspace(workspaceSize) do workspace
             cudnnFindConvolutionBackwardFilterAlgorithmEx(handle(),xDesc,x,dyDesc,dy,convDesc,dwDesc,dwTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
         end
-        val = cudnnConvolutionAlgoPerfChoose(convDesc, perfResults, returnedAlgoCount[1])
+        val = cudnnConvolutionAlgoPerfChoose(convDesc, xDesc, perfResults, returnedAlgoCount[1])
         lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
             cudnnConvolutionBwdFilterAlgoPerfCache[key] = val
         end
@@ -264,15 +264,20 @@ end
 
 
 # Return algorithm with best memory that is within 10% of best time
-function cudnnConvolutionAlgoPerfChoose(convDesc, perfResults, n)
+function cudnnConvolutionAlgoPerfChoose(convDesc, tensorDesc, perfResults, n)
     mathType = Ref{cudnnMathType_t}(CUDNN_DEFAULT_MATH)
     cudnnGetConvolutionMathType(convDesc, mathType)
+    skipMathTypeCheck = let  # See https://github.com/JuliaGPU/CUDA.jl/pull/1943#issuecomment-1605267932
+        dtype, _ = cudnnGetTensorDescriptor(tensorDesc)
+        dtype == Float32
+    end
 
     ibest, mbest, tbest = 0, Inf, Inf
     for (i, ps) in enumerate(perfResults)
         i > n && break
         # These metrics are written in a sorted fashion where the first element has the lowest compute time.
-        if ps.status == CUDNN_STATUS_SUCCESS && ps.mathType == mathType[] && ps.memory < mbest && ps.time < tbest * 1.1
+        if ((skipMathTypeCheck || ps.mathType == mathType[])
+            && ps.status == CUDNN_STATUS_SUCCESS && ps.memory < mbest && ps.time < tbest * 1.1)
             ibest, mbest, tbest = i, ps.memory, ps.time
         end
     end
