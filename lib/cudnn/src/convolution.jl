@@ -267,7 +267,7 @@ end
 function cudnnConvolutionAlgoPerfChoose(convDesc, tensorDesc, perfResults, n)
     mathType = Ref{cudnnMathType_t}(CUDNN_DEFAULT_MATH)
     cudnnGetConvolutionMathType(convDesc, mathType)
-    skipMathTypeCheck = begin  # See https://github.com/JuliaGPU/CUDA.jl/pull/1943#issuecomment-1605267932
+    skipMathTypeCheck = let  # See https://github.com/JuliaGPU/CUDA.jl/pull/1943#issuecomment-1605267932
         dtype, _ = cudnnGetTensorDescriptor(tensorDesc)
         dtype == Float32
     end
