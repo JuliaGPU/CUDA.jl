@@ -286,10 +286,12 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
 
     cusparseCsrSetStridedBatch(descA, b, ptrstride(A), valstride(A))
 
-    strideB = size(B, 3) > 1 ? stride(B, 3) : 0
+    # strideB = size(B, 3) > 1 ? stride(B, 3) : 0
+    strideB = stride(B, 3) 
     cusparseDnMatSetStridedBatch(descB, b, strideB)
 
-    strideC = size(C, 3) > 1 ? stride(C, 3) : 0
+    # strideC = size(C, 3) > 1 ? stride(C, 3) : 0
+    strideC = stride(C, 3)
     cusparseDnMatSetStridedBatch(descC, b, strideC)
 
     function bufferSize()
