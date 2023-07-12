@@ -321,28 +321,28 @@ for (fname, elty) in ((:cublasDgemv_v2,:Float64),
         function gemv!(trans::Char,
                        alpha::Number,
                        A::StridedCuMatrix{$elty},
-                       X::StridedCuVector{$elty},
+                       x::StridedCuVector{$elty},
                        beta::Number,
                        y::StridedCuVector{$elty})
             # handle trans
             m,n = size(A)
             # check dimensions
-            length(X) == (trans == 'N' ? n : m) && length(y) == (trans == 'N' ? m : n) || throw(DimensionMismatch(""))
+            length(x) == (trans == 'N' ? n : m) && length(y) == (trans == 'N' ? m : n) || throw(DimensionMismatch(""))
             # compute increments
             lda = max(1,stride(A,2))
-            incx = stride(X,1)
+            incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), trans, m, n, alpha, A, lda, X, incx, beta, y, incy)
+            $fname(handle(), trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
             y
         end
     end
 end
 function gemv(trans::Char, alpha::Number,
-              A::StridedCuMatrix{T}, X::StridedCuVector{T}) where T
-    gemv!(trans, alpha, A, X, zero(T), similar(X, size(A, (trans == 'N' ? 1 : 2))))
+              A::StridedCuMatrix{T}, x::StridedCuVector{T}) where T
+    gemv!(trans, alpha, A, x, zero(T), similar(x, size(A, (trans == 'N' ? 1 : 2))))
 end
-function gemv(trans::Char, A::StridedCuMatrix{T}, X::StridedCuVector{T}) where T
-    gemv!(trans, one(T), A, X, zero(T), similar(X, T, size(A, (trans == 'N' ? 1 : 2))))
+function gemv(trans::Char, A::StridedCuMatrix{T}, x::StridedCuVector{T}) where T
+    gemv!(trans, one(T), A, x, zero(T), similar(x, T, size(A, (trans == 'N' ? 1 : 2))))
 end
 
 for (fname, eltyin, eltyout) in
