@@ -24,8 +24,18 @@ end
 # in addition, CUPTI is not available on older GPUs with recent CUDA toolkits
 function can_use_cupti()
     sanitize && return false
+
     # NVIDIA bug #3964667: CUPTI in CUDA 11.7+ broken for sm_35 devices
-    capability(device()) > v"3.7" || CUDA.runtime_version() < v"11.7"
+    if CUDA.runtime_version() >= v"11.7" && capability(device()) <= v"3.7"
+        return false
+    end
+
+    # Tegra requires running as root and and modifying the device tree
+    if CUDA.is_tegra()
+        return false
+    end
+
+    return true
 end
 
 # precompile the runtime library
@@ -34,14 +44,9 @@ CUDA.precompile_runtime()
 
 ## entry point
 
-function runtests(f, name, time_source=:cuda, snoop=nothing)
+function runtests(f, name, time_source=:cuda)
     old_print_setting = Test.TESTSET_PRINT_ENABLE[]
     Test.TESTSET_PRINT_ENABLE[] = false
-
-    if snoop !== nothing
-        io = open(snoop, "w")
-        ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), io.handle)
-    end
 
     try
         # generate a temporary module to execute the tests in
@@ -113,11 +118,6 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
         CUDA.can_reset_device() && device_reset!()
         res
     finally
-        if snoop !== nothing
-            ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), C_NULL)
-            close(io)
-        end
-
         Test.TESTSET_PRINT_ENABLE[] = old_print_setting
     end
 end

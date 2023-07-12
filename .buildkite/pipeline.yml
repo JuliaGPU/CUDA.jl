@@ -26,7 +26,8 @@ steps:
               # use the CUDA installation from the CI image
               using CUDA
               CUDA.set_runtime_version!("local")'
-        if: build.message !~ /\[skip tests\]/
+        if: build.message !~ /\[skip tests\]/ &&
+            build.message !~ /\[skip julia\]/
         timeout_in_minutes: 120
         matrix:
           setup:
@@ -35,26 +36,23 @@ steps:
               - "1.7"
               - "1.8"
               - "1.9"
-              - "nightly"
-          adjustments:
-            - with:
-                julia: "nightly"
-              soft_fail: true
+          #     - "nightly"
+          # adjustments:
+          #   - with:
+          #       julia: "nightly"
+          #     soft_fail: true
 
   # then, test supported CUDA toolkits (installed through the artifact system)
   - group: "CUDA"
     key: "cuda"
     depends_on: "julia"
     steps:
-      # NOTE: we support those CUDA versions for which the latest cuDNN is available
-      #       https://developer.nvidia.com/rdp/cudnn-archive
-
       - label: "CUDA {{matrix.cuda}}"
         plugins:
           - JuliaCI/julia#v1:
               version: 1.8
           - JuliaCI/julia-test#v1:
-              test_args: "--thorough"
+              test_args: "core base libraries"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -63,7 +61,9 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "*"
-        if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+        if: build.message !~ /\[skip tests\]/ &&
+            build.message !~ /\[skip cuda\]/ &&
+            !build.pull_request.draft
         timeout_in_minutes: 120
         matrix:
           setup:
@@ -99,6 +99,9 @@ steps:
             - with:
                 cuda: "12.0"
                 package: "cuDNN"
+            - with:
+                cuda: "12.0"
+                package: "cuTENSOR"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.8"
@@ -110,7 +113,9 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "*"
-        if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+        if: build.message !~ /\[skip tests\]/ &&
+            build.message !~ /\[skip subpackages\]/ &&
+            !build.pull_request.draft
         timeout_in_minutes: 120
         commands: |
           julia -e '
@@ -161,7 +166,9 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "*"
-        if: build.message !~ /\[skip tests\]/ && !build.pull_request.draft
+        if: build.message !~ /\[skip tests\]/ &&
+            build.message !~ /\[skip downstream\]/ &&
+            !build.pull_request.draft
         timeout_in_minutes: 60
 
   - group: ":eyes: Special"
@@ -212,31 +219,30 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "*"
-        if: build.message !~ /\[skip docs\]/ && !build.pull_request.draft
+        if: build.message !~ /\[skip docs\]/ &&
+            !build.pull_request.draft
         timeout_in_minutes: 30
 
-      # XXX: fails often, and is very slow
-      #- label: "Compute sanitizer"
-      #  plugins:
-      #    - JuliaCI/julia#v1:
-      #        version: 1.8
-      #    - JuliaCI/julia-test#v1:
-      #        julia_args: "-g2"
-      #        test_args: "--sanitize --quickfail --jobs=2"
-      #    - JuliaCI/julia-coverage#v1:
-      #        dirs:
-      #          - src
-      #          - lib
-      #          - examples
-      #  agents:
-      #    queue: "juliagpu"
-      #    cuda: "*"
-      #  env:
-      #    JULIA_CUDA_USE_COMPAT: 'false'  # NVIDIA bug #3418723: injection tools prevent probing libcuda
-      #  commands: |
-      #    julia --project -e 'using CUDA; CUDA.set_runtime_version!(v"11.6")'
-      #  if: build.message !~ /\[skip tests\]/
-      #  timeout_in_minutes: 240
+      - label: "Compute sanitizer"
+        plugins:
+          - JuliaCI/julia#v1:
+              version: 1.8
+          - JuliaCI/julia-test#v1:
+              test_args: "--sanitize core"
+          - JuliaCI/julia-coverage#v1:
+              dirs:
+                - src
+                - lib
+                - examples
+        agents:
+          queue: "juliagpu"
+          cuda: "*"
+        env:
+          JULIA_CUDA_USE_COMPAT: 'false'  # NVIDIA bug #3418723: injection tools prevent probing libcuda
+        if: build.message !~ /\[skip tests\]/ &&
+            build.message !~ /\[skip sanitizer\]/ &&
+            !build.pull_request.draft
+        timeout_in_minutes: 10
 
   # we want to benchmark every commit on the master branch, even if it failed CI
   - wait: ~

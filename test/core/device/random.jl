@@ -1,3 +1,7 @@
+if VERSION < v"1.6.1"
+@warn "Julia version too old, skipping random tests"
+else
+
 using Random
 
 n = 256
@@ -124,4 +128,6 @@ end
     else
         @test Array(a) == Array(b)
     end
+end
+
 end

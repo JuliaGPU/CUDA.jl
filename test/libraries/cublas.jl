@@ -4,6 +4,7 @@ using CUDA.CUBLAS: band, bandex
 using LinearAlgebra
 
 using BFloat16s
+using StaticArrays
 
 @test CUBLAS.version() isa VersionNumber
 @test CUBLAS.version().major == CUBLAS.cublasGetProperty(CUDA.MAJOR_VERSION)
@@ -605,6 +606,14 @@ end
             W = @view p[reshape(1:(16),4,4)]
             W*b
         end
+    end
+
+    @testset "StaticArray eltype" begin
+       A = CuArray(rand(SVector{2, Float64}, 3, 3))
+       B = CuArray(rand(Float64, 3, 1))
+       C = A * B
+       hC = Array(A) * Array(B)
+       @test Array(C) ≈ hC
     end
 end
 
@@ -1564,11 +1573,23 @@ end
         @testset "gemm_batched" begin
             bd_C = CUBLAS.gemm_batched('N','N',bd_A,bd_B)
             for i in 1:length(bA)
-                bC = bA[i]*bB[i]
+                bC[i] = bA[i]*bB[i]
                 h_C = Array(bd_C[i])
-                @test bC ≈ h_C
+                @test bC[i] ≈ h_C
             end
             @test_throws DimensionMismatch CUBLAS.gemm_batched('N','N',alpha,bd_A,bd_bad)
+        end
+
+        @testset "gemmBatchedEx!" begin
+            # C = (alpha*A)*B + beta*C
+            CUBLAS.gemmBatchedEx!('N','N',alpha,bd_A,bd_B,beta,bd_C)
+            for i in 1:length(bd_C)
+                bC[i] = (alpha*bA[i])*bB[i] + beta*bC[i]
+                h_C = Array(bd_C[i])
+                #compare
+                @test bC[i] ≈ h_C
+            end
+            @test_throws DimensionMismatch CUBLAS.gemmBatchedEx!('N','N',alpha,bd_A,bd_bad,beta,bd_C)
         end
 
         nbatch = 10
@@ -1590,6 +1611,16 @@ end
             h_C = Array(bd_C)
             @test bC ≈ h_C
             @test_throws DimensionMismatch CUBLAS.gemm_strided_batched!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
+        end
+
+        @testset "gemmStridedBatchedEx!" begin
+            CUBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, bd_B, beta, bd_C)
+            for i in 1:nbatch
+                bC[:, :, i] = (alpha * bA[:, :, i]) * bB[:, :, i] + beta * bC[:, :, i]
+            end
+            h_C = Array(bd_C)
+            @test bC ≈ h_C
+            @test_throws DimensionMismatch CUBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
         end
 
         @testset "gemm_strided_batched" begin
@@ -2015,4 +2046,12 @@ end
             @test C ≈ h_C
         end
     end # extensions
+
+    @testset "StaticArray eltype" begin
+       A = CuArray(rand(SVector{2, Float32}, 3, 3))
+       B = CuArray(rand(Float32, 3, 3))
+       C = A * B
+       hC = Array(A) * Array(B)
+       @test Array(C) ≈ hC
+    end
 end # elty

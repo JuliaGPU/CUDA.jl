@@ -319,37 +319,32 @@ using LinearAlgebra, SparseArrays
         @test SparseMatrixCSC(CuSparseMatrixCSR(T)) ≈ f(S)
     end
 
-    VERSION >= v"1.7" && @testset "UniformScaling with $typ($dims)" for
-            typ in [CuSparseMatrixCSR, CuSparseMatrixCSC],
-            dims in [(10, 10), (5, 10), (10, 5)]
-        S = sprand(Float32, dims..., 0.1)
-        dA = typ(S)
-
-        @test Array(dA + I) == S + I
-        @test Array(I + dA) == I + S
-
-        @test Array(dA - I) == S - I
-        @test Array(I - dA) == I - S
+    VERSION >= v"1.7" && @testset "UniformScaling basic operations" begin
+        for elty in (Float32, Float64, ComplexF32, ComplexF64)
+            A = sprand(elty, 100, 100, 0.1)
+            U1 = 2*I
+            for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+                B = SparseMatrixType(A)
+                for op in (+, -, *)
+                    @test Array(op(B, U1)) ≈ op(A, U1) && Array(op(U1, B)) ≈ op(U1, A)
+                end
+            end
+        end
     end
 
-    @testset "Diagonal with $typ(10, 10)" for
-        typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
-
-        S = sprand(Float32, 10, 10, 0.8)
-        D = Diagonal(rand(Float32, 10))
-        dA = typ(S)
-        dD = adapt(CuArray, D)
-
-        @test Array(dA + dD) == S + D
-        @test Array(dD + dA) == D + S
-
-        @test Array(dA - dD) == S - D
-        @test Array(dD - dA) == D - S
-
-        @test dA + dD isa typ
-        @test dD + dA isa typ
-        @test dA - dD isa typ
-        @test dD - dA isa typ
+    @testset "Diagonal basic operations" begin
+        for elty in (Float32, Float64, ComplexF32, ComplexF64)
+            A = sprand(elty, 100, 100, 0.1)
+            U2 = 2*I(100)
+            U3 = Diagonal(rand(elty, 100))
+            for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+                B = SparseMatrixType(A)
+                for op in (+, -, *)
+                    @test Array(op(B, U2)) ≈ op(A, U2) && Array(op(U2, B)) ≈ op(U2, A)
+                    @test Array(op(B, U3)) ≈ op(A, U3) && Array(op(U3, B)) ≈ op(U3, A)
+                end
+            end
+        end
     end
 
     @testset "dot(CuVector, CuSparseVector) and dot(CuSparseVector, CuVector) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],

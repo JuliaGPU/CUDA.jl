@@ -640,8 +640,7 @@ than the size of block allows (eg, 1 <--> 10000)
 The grid index directly maps to the index of `c` that will be used in the swap.
 
 Note that to avoid synchronization issues, only one thread from each pair of
-indices being swapped will actually move data. This does mean half of the threads
-do nothing, but it works for non-power2 arrays while allowing direct indexing.
+indices being swapped will actually move data.
 """
 function comparator_kernel(vals, length_vals::I, k::I, j::I, by::F1, lt::F2,
                            rev) where {I,F1,F2}
@@ -793,7 +792,12 @@ swaps in shared mem.
 Note that the x dimension of a thread block is treated as a comparator,
 so when the maximum size of a comparator in this kernel is small, multiple
 may be executed along the block y dimension, allowing for higher occupancy.
-This is captured by `pseudo_block_idx`.
+These threads in a block with the same threadIdx().x are a 'pseudo-block',
+and are indexed by `pseudo_block_idx`.
+
+Unlike `comparator_kernel`, a thread's grid_index does not directly map to the
+index of `c` it will read from. `block_range` gives gives each pseudo-block
+a unique  range of indices corresponding to a comparator in the sorting network.
 
 Note that this moves the array values copied within shmem, but doesn't copy them
 back to global the way it does for indices.
@@ -859,18 +863,11 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false)
     args2 = (c, I(c_len), one(I), one(I), by, lt, Val(rev))
     kernel2 = @cuda launch=false comparator_kernel(args2...)
     config2 = launch_configuration(kernel2.fun, shmem = threads -> bitonic_shmem(c, threads))
+    # blocksize for kernel2 MUST be a power of 2
     threads2 = prevpow(2, config2.threads)
 
-    # determine launch configuration
-    blocks_per_mp = if CUDA.driver_version() >= v"11.0"
-        CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_BLOCKS_PER_MULTIPROCESSOR)
-    else
-        16
-    end
-    blocks_per_mp = 16   # XXX: JuliaGPU/CUDA.jl#1874
-    threads = min(threads1, threads2)
-    min_pseudo_block = threads ÷ blocks_per_mp
-    log_threads = threads |> log2 |> Int
+    # determines cutoff for when to use kernel1 vs kernel2
+    log_threads = threads2 |> log2 |> Int
 
     # These two outer loops are the same as the serial version outlined here:
     # https://en.wikipedia.org/wiki/Bitonic_sorter#Example_code
@@ -882,19 +879,22 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false)
             args1 = (c, I.((c_len, k, j, j_final))..., by, lt, Val(rev))
             args2 = (c, I.((c_len, k, j))..., by, lt, Val(rev))
             if k0 - k - j + 2 <= log_threads
-                pseudo_block_size = 1 << abs(j_final + 1 - j)
-                block_size = if pseudo_block_size <= min_pseudo_block
-                    (pseudo_block_size, min_pseudo_block ÷ pseudo_block_size)
-                else
-                    (pseudo_block_size, 1)
-                end
-                b = nextpow(2, cld(c_len, prod(block_size)))
-                kernel1(args1...; blocks=b, threads=block_size,
+                # pseudo_block_length = max(nextpow(2, length(comparator)) for all comparators in this layer of the network)
+                pseudo_block_length = 1 << abs(j_final + 1 - j)
+                # N_pseudo_blocks = how many pseudo-blocks are in this layer of the network
+                N_pseudo_blocks = nextpow(2, c_len) ÷ pseudo_block_length
+                pseudo_blocks_per_block = threads2 ÷ pseudo_block_length
+           
+                # grid dimensions
+                N_blocks = max(1, N_pseudo_blocks ÷ pseudo_blocks_per_block)
+                block_size = pseudo_block_length, threads2 ÷ pseudo_block_length
+                
+                kernel1(args1...; blocks=N_blocks, threads=block_size,
                         shmem=bitonic_shmem(c, block_size))
                 break
             else
-                b = nextpow(2, cld(c_len, threads))
-                kernel2(args2...; blocks = b, threads)
+                N_blocks = cld(c_len, threads1)
+                kernel2(args2...; blocks = N_blocks, threads=threads1)
             end
         end
     end

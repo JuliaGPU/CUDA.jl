@@ -237,9 +237,26 @@ array) or a tuple of the array dimensions. `own` optionally specified whether Ju
 take ownership of the memory, calling `cudaFree` when the array is no longer referenced. The
 `ctx` argument determines the CUDA context where the data is allocated in.
 """
-function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}},Type{CuArray{T,N,B}}},
+function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
+                          ptr::CuPtr{T}, dims::NTuple{N,Int};
+                          own::Bool=false, ctx::CuContext=context()) where {T,N}
+  buf = _unsafe_wrap(T, ptr, dims; own, ctx)
+  storage = ArrayStorage(buf, own ? 1 : -1)
+  CuArray{T, length(dims)}(storage, dims)
+end
+function Base.unsafe_wrap(::Type{CuArray{T,N,B}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N,B}
+  buf = _unsafe_wrap(T, ptr, dims; own, ctx)
+  if typeof(buf) !== B
+    error("Declared buffer type does not match inferred buffer type.")
+  end
+  storage = ArrayStorage(buf, own ? 1 : -1)
+  CuArray{T, length(dims)}(storage, dims)
+end
+
+function _unsafe_wrap(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int};
+                      own::Bool=false, ctx::CuContext=context()) where {T,N}
   isbitstype(T) || error("Can only unsafe_wrap a pointer to a bits type")
   sz = prod(dims) * sizeof(T)
 
@@ -259,16 +276,15 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
   catch err
       error("Could not identify the buffer type; are you passing a valid CUDA pointer to unsafe_wrap?")
   end
-
-  if @isdefined(B) && typeof(buf) !== B
-    error("Declared buffer type does not match inferred buffer type.")
-  end
-
-  storage = ArrayStorage(buf, own ? 1 : -1)
-  CuArray{T, length(dims)}(storage, dims)
+  return buf
 end
 
-function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}},Type{CuArray{T,1,B}}},
+function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
+                          p::CuPtr{T}, dim::Int;
+                          own::Bool=false, ctx::CuContext=context()) where {T}
+  unsafe_wrap(Atype, p, (dim,); own, ctx)
+end
+function Base.unsafe_wrap(Atype::Type{CuArray{T,1,B}},
                           p::CuPtr{T}, dim::Int;
                           own::Bool=false, ctx::CuContext=context()) where {T,B}
   unsafe_wrap(Atype, p, (dim,); own, ctx)

@@ -190,7 +190,7 @@ function LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::Stri
     end
 
     T = eltype(Y)
-    alpha, beta = promote(_add.alpha, _add.beta, zero(T))
+    alpha, beta = _add.alpha, _add.beta
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
         if T <: CublasFloat && eltype(A) == eltype(B) == T
             if tA in ('N', 'T', 'C')
@@ -273,7 +273,7 @@ end
 
 function LinearAlgebra.generic_matmatmul!(C::CuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul)
     T = eltype(C)
-    alpha, beta = promote(_add.alpha, _add.beta, zero(T))
+    alpha, beta = _add.alpha, _add.beta
     mA, nA = size(A, tA == 'N' ? 1 : 2), size(A, tA == 'N' ? 2 : 1)
     mB, nB = size(B, tB == 'N' ? 1 : 2), size(B, tB == 'N' ? 2 : 1)
 
