@@ -1,34 +1,37 @@
 # # Performance Tips
 
+# Profile your code. See the [Profiling](../development/profiling.md) page for more details.
+
 # ### Resources
-# See https://github.com/maleadt/juliacon21-gpu_workshop/blob/main/deep_dive/CUDA.ipynb
-# https://github.com/JuliaComputing/Training/tree/master/AdvancedGPU
 
-# See [perf](../../../perf) for some optimised code examples
+# NVidia's technical blog has a lot of good tips: [Pro-Tips](https://developer.nvidia.com/blog/tag/pro-tip/), [Optimization](https://developer.nvidia.com/blog/tag/optimization/).
 
-# Profile
+# The following notebooks also have some good tips: [JuliaCon 2021 GPU Workshop](https://github.com/maleadt/juliacon21-gpu_workshop/blob/main/deep_dive/CUDA.ipynb), [Advanced Julia GPU Training](https://github.com/JuliaComputing/Training/tree/master/AdvancedGPU)
 
+# Also see the [perf](https://github.com/JuliaGPU/CUDA.jl/tree/master/perf) folder for some optimised code examples.
 
-### Julia Specific Tips
+# ### Julia Specific Tips
 
-##### Minimise Runtime Exceptions
+# #### Minimise Runtime Exceptions
 
 # Many common operations can throw errors at runtime in Julia, they often do this by branching and calling a function in that branch both of which are slow on GPUs. Using `@inbounds` when indexing into arrays will eliminate exceptions due to bounds checking. You can also use `assume` from the package LLVM.jl to get rid of exceptions
 
-using LLVM, LLVM.Interop
+# ```julia
+# using LLVM, LLVM.Interop
 
-function test(x, y)
-    assume(x > 0)
-    div(y, x)
-end
+# function test(x, y)
+#     assume(x > 0)
+#     div(y, x)
+# end
+# ```
 
-# The assume(x > 0) tells the compiler that there cannot be a divide by 0 error.
+# The `assume(x > 0)` tells the compiler that there cannot be a divide by 0 error.
 
-# For more information and examples check out https://github.com/JuliaComputing/Training/blob/master/AdvancedGPU/2-2-kernel_analysis_optimization.ipynb.
+# For more information and examples check out [Kernel analysis and optimization](https://github.com/JuliaComputing/Training/blob/master/AdvancedGPU/2-2-kernel_analysis_optimization.ipynb).
 
-##### 32-bit Integers
+# #### 32-bit Integers
 
-# Use 32-bit integers where possible, e.g. in indexing. A common source of register pressure is the use of 64-bit integers when only 32-bits are required. For example, the hardware's indices are 32-bit integers, but Julia's literals are Int64's which results in expressions like blockIdx().x-1 to be promoted to 64-bit integers. We can instead replace the `1` to a 32-bit integer with `Int32(1)` or more succintly `1i32` if you run `using CUDA: i32`
+# Use 32-bit integers where possible. A common source of register pressure is the use of 64-bit integers when only 32-bits are required. For example, the hardware's indices are 32-bit integers, but Julia's literals are Int64's which results in expressions like blockIdx().x-1 to be promoted to 64-bit integers. We can instead replace the `1` to a 32-bit integer with `Int32(1)` or more succintly `1i32` if you run `using CUDA: i32`
 
 # To see how much of a difference this actually makes lets use a kernel introduced in the introduction for inplace addition.
 
@@ -95,7 +98,7 @@ end
 
 # As we can see from the benchmarks we only get a small performance benefit but there can be larger differences for more complex kernels.
 
-##### Avoiding StepRange
+# #### Avoiding StepRange
 
 # In the previous kernel in the for loop we iterated over `index:stride:length(y)`, this is a `StepRange`. Unfortunately, constructing a `StepRange` is slow as they can throw errors and there is some unnecessary calculation when we just want to loop over them. Instead it is faster to use a while loop like so:
 
@@ -111,7 +114,7 @@ function gpu_add5!(y, x)
     return
 end
 
-# The benchmark^[Conducted on Julia Version 1.9.2, the benefit of this technique should be reduced on version 1.10 or by using the `always_inline=true` keyword for the `@cuda` macro.]:
+# The benchmark[^1]:
 
 function bench_gpu5!(y, x)
     kernel = @cuda launch=false gpu_add5!(y, x)
@@ -147,3 +150,5 @@ end
 # ```
 #   12
 # ```
+
+# [^1]: Conducted on Julia Version 1.9.2, the benefit of this technique should be reduced on version 1.10 or by using `always_inline=true` on the `@cuda` macro, e.g. `@cuda always_inline=true launch=false gpu_add4!(y, x)`.
