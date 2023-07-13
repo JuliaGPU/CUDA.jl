@@ -1,6 +1,6 @@
 # # Performance Tips
 
-# Profile your code. See the [Profiling](../development/profiling.md) page for more details.
+# Profile your code! See the [Profiling](../development/profiling.md) page for more details.
 
 # ### Resources
 
@@ -11,6 +11,10 @@
 # Also see the [perf](https://github.com/JuliaGPU/CUDA.jl/tree/master/perf) folder for some optimised code examples.
 
 # ### Julia Specific Tips
+
+# #### Inlinining
+
+# Inlining can reduce register usage and thus speed up kernels. To force inlining of all functions use `@cuda always_inline=true`.
 
 # #### Minimise Runtime Exceptions
 
