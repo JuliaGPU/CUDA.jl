@@ -13,7 +13,3 @@ Base.similar(bc::Broadcasted{CuArrayStyle{N}}, ::Type{T}) where {N,T} =
 
 Base.similar(bc::Broadcasted{CuArrayStyle{N}}, ::Type{T}, dims) where {N,T} =
     CuArray{T}(undef, dims)
-
-# broadcasting type ctors isn't GPU compatible
-Broadcast.broadcasted(::CuArrayStyle{N}, f::Type{T}, args...) where {N, T} =
-    Broadcasted{CuArrayStyle{N}}((x...) -> T(x...), args, nothing)
