@@ -40,12 +40,6 @@ end
   @test eltype(convert.(ComplexF32, A)) == ComplexF32
 end
 
-# https://github.com/JuliaGPU/CUDA.jl/issues/261
-@testset "Broadcast Ref{<:Type}" begin
-  A = CuArray{ComplexF64}(undef, (2,2))
-  @test eltype(convert.(ComplexF32, A)) == ComplexF32
-end
-
 # https://github.com/JuliaGPU/CUDA.jl/issues/1761
 @testset "Broadcast Type(args)" begin
   A = CuArray{ComplexF64}(undef, (2,2))
