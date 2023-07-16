@@ -125,49 +125,53 @@ end
             @test hy ≈ A * x
         end
 
-        @testset "gemv_batched" begin
-            x = [rand(elty, m) for i=1:10]
-            A = [rand(elty, n, m) for i=1:10]
-            y = [rand(elty, n) for i=1:10]
-            dx = CuArray{elty, 1}[]
-            dA = CuArray{elty, 2}[]
-            dy = CuArray{elty, 1}[]
-            dbad = CuArray{elty, 1}[]
-            for i=1:length(A)
-                push!(dA, CuArray(A[i]))
-                push!(dx, CuArray(x[i]))
-                push!(dy, CuArray(y[i]))
-                if i < length(A) - 2
-                    push!(dbad,CuArray(dx[i]))
+        if CUBLAS.version() >= v"11.9"
+            @testset "gemv_batched" begin
+                x = [rand(elty, m) for i=1:10]
+                A = [rand(elty, n, m) for i=1:10]
+                y = [rand(elty, n) for i=1:10]
+                dx = CuArray{elty, 1}[]
+                dA = CuArray{elty, 2}[]
+                dy = CuArray{elty, 1}[]
+                dbad = CuArray{elty, 1}[]
+                for i=1:length(A)
+                    push!(dA, CuArray(A[i]))
+                    push!(dx, CuArray(x[i]))
+                    push!(dy, CuArray(y[i]))
+                    if i < length(A) - 2
+                        push!(dbad,CuArray(dx[i]))
+                    end
                 end
-            end
-            @test_throws DimensionMismatch CUBLAS.gemv_batched!('N', alpha, dA, dx, beta, dbad)
-            CUBLAS.gemv_batched!('N', alpha, dA, dx, beta, dy)
-            for i=1:length(A)
-                hy = collect(dy[i])
-                y[i] = alpha * A[i] * x[i] + beta * y[i]
-                @test y[i] ≈ hy
+                @test_throws DimensionMismatch CUBLAS.gemv_batched!('N', alpha, dA, dx, beta, dbad)
+                CUBLAS.gemv_batched!('N', alpha, dA, dx, beta, dy)
+                for i=1:length(A)
+                    hy = collect(dy[i])
+                    y[i] = alpha * A[i] * x[i] + beta * y[i]
+                    @test y[i] ≈ hy
+                end
             end
         end
 
-        @testset "gemv_strided_batched" begin
-            x = rand(elty, m, 10)
-            A = rand(elty, n, m, 10)
-            y = rand(elty, n, 10)
-            bad = rand(elty, m, 10)
-            dx = CuArray(x)
-            dA = CuArray(A)
-            dy = CuArray(y)
-            dbad = CuArray(bad)
-            @test_throws DimensionMismatch CUBLAS.gemv_strided_batched!('N', alpha, dA, dx, beta, dbad)
-            bad = rand(elty, n, 2)
-            dbad = CuArray(bad)
-            @test_throws DimensionMismatch CUBLAS.gemv_strided_batched!('N', alpha, dA, dx, beta, dbad)
-            CUBLAS.gemv_strided_batched!('N', alpha, dA, dx, beta, dy)
-            for i=1:size(A, 3)
-                hy = collect(dy[:, i])
-                y[:, i] = alpha * A[:, :, i] * x[:, i] + beta * y[:, i]
-                @test y[:, i] ≈ hy
+        if CUBLAS.version() >= v"11.9"
+            @testset "gemv_strided_batched" begin
+                x = rand(elty, m, 10)
+                A = rand(elty, n, m, 10)
+                y = rand(elty, n, 10)
+                bad = rand(elty, m, 10)
+                dx = CuArray(x)
+                dA = CuArray(A)
+                dy = CuArray(y)
+                dbad = CuArray(bad)
+                @test_throws DimensionMismatch CUBLAS.gemv_strided_batched!('N', alpha, dA, dx, beta, dbad)
+                bad = rand(elty, n, 2)
+                dbad = CuArray(bad)
+                @test_throws DimensionMismatch CUBLAS.gemv_strided_batched!('N', alpha, dA, dx, beta, dbad)
+                CUBLAS.gemv_strided_batched!('N', alpha, dA, dx, beta, dy)
+                for i=1:size(A, 3)
+                    hy = collect(dy[:, i])
+                    y[:, i] = alpha * A[:, :, i] * x[:, i] + beta * y[:, i]
+                    @test y[:, i] ≈ hy
+                end
             end
         end
 
