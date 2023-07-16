@@ -1,7 +1,7 @@
 using LinearAlgebra
 using LinearAlgebra: BlasComplex, BlasFloat, BlasReal, BlasInt
 
-function sum_dim1(A::CuSparseMatrixCSR{T}; f=identity) where {T}
+function sum_dim2(A::CuSparseMatrixCSR{T}; f=identity) where {T}
     function kernel(T, out, dA, f)
         idx = (blockIdx().x-1) * blockDim().x + threadIdx().x
         idx < length(dA.rowPtr) || return
@@ -24,7 +24,7 @@ function sum_dim1(A::CuSparseMatrixCSR{T}; f=identity) where {T}
     return rowsum
 end
 
-function sum_dim2(A::CuSparseMatrixCSR{T}; f=identity) where {T}
+function sum_dim1(A::CuSparseMatrixCSR{T}; f=identity) where {T}
     function kernel(T, out, dA, f)
         idx = (blockIdx().x-1) * blockDim().x + threadIdx().x
         idx < length(dA.colPtr) || return
@@ -50,9 +50,9 @@ end
 
 function LinearAlgebra.opnorm(A::CuSparseMatrixCSR, p::Real=2)
     if p == Inf
-        return maximum(sum_dim1(A, f=abs))
-    elseif p == 1
         return maximum(sum_dim2(A, f=abs))
+    elseif p == 1
+        return maximum(sum_dim1(A, f=abs))
     else
         error("p=$p is not supported")
     end
