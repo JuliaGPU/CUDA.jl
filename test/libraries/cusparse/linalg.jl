@@ -65,3 +65,19 @@ end
     droptol!(A, 0.4)
     @test collect(A) ≈ a
 end
+
+@testset "Generalized dot product for $typ and $elty" for
+    typ in [CuSparseMatrixCSR, CuSparseMatrixCSC], elty in [Int64, Float32, Float64, ComplexF64]
+
+    N1 = 1000*2
+    N2 = 1000*3
+    x = rand(elty, N1)
+    y = rand(elty, N2)
+    A = sprand(elty, N1, N2, 1/N1)
+
+    x2 = CuArray(x)
+    y2 = CuArray(y)
+    A2 = typ(A)
+
+    @test dot(x, A, y) ≈ dot(x2, A2, y2)
+end

@@ -1,5 +1,5 @@
 using LinearAlgebra
-using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
+using LinearAlgebra: BlasComplex, BlasFloat, BlasReal, BlasInt
 
 function sum_dim1(A::CuSparseMatrixCSR{T}) where {T}
     function kernel(T, out, dA)
@@ -46,6 +46,66 @@ function sum_dim2(A::CuSparseMatrixCSR{T}) where {T}
     blocks = cld(m, threads)
     kernel_f(T, colsum, A; threads, blocks)
     return colsum
+end
+
+function compute_threads(max_threads, wanted_threads, shuffle, dev)
+    if wanted_threads > max_threads
+        shuffle ? prevwarp(dev, max_threads) : max_threads
+    else
+        wanted_threads
+    end
+end
+
+function kernel_dot_csc(y::CuDeviceVector{T1}, colPtr::CuDeviceVector{T2}, rowVal::CuDeviceVector{T2},
+    nzVal::CuDeviceVector{T1}, x::CuDeviceVector{T1}, result::CuDeviceVector{T1}, n::Integer, shuffle) where {T1,T2}
+
+    thread_idx = threadIdx().x
+    index = (blockIdx().x-1) * blockDim().x + thread_idx
+    stride = blockDim().x * gridDim().x
+
+    tmp = zero(T1)
+    if index <=n
+        @inbounds for col in index:stride:n
+            for j in (colPtr[col]):(colPtr[col+1]-1)
+                row = rowVal[j]
+                val = nzVal[j]
+                tmp += dot(y[row], val, x[col])
+            end
+        end
+    end
+
+    reduced_val = CUDA.reduce_block(+, tmp, zero(T1), shuffle)
+
+    if thread_idx == 1
+        @inbounds result[blockIdx().x] = reduced_val
+    end
+    return
+end
+
+function kernel_dot_csr(y::CuDeviceVector{T1}, rowPtr::CuDeviceVector{T2}, colVal::CuDeviceVector{T2},
+    nzVal::CuDeviceVector{T1}, x::CuDeviceVector{T1}, result::CuDeviceVector{T1}, n::Integer, shuffle) where {T1,T2}
+
+    thread_idx = threadIdx().x
+    index = (blockIdx().x-1) * blockDim().x + thread_idx
+    stride = blockDim().x * gridDim().x
+
+    tmp = zero(T1)
+    if index <= n
+        @inbounds for row in index:stride:n
+            for j in rowPtr[row]:(rowPtr[row+1]-1)
+                col = colVal[j]
+                val = nzVal[j]
+                tmp += dot(y[row], val, x[col])
+            end
+        end
+    end
+
+    reduced_val = CUDA.reduce_block(+, tmp, zero(T1), shuffle)
+
+    if thread_idx == 1
+        @inbounds result[blockIdx().x] = reduced_val
+    end
+    return
 end
 
 function LinearAlgebra.opnorm(A::CuSparseMatrixCSR, p::Real=2)
@@ -177,6 +237,44 @@ function LinearAlgebra.kron(A::Diagonal, B::CuSparseMatrixCOO{T}) where {T}
     data .*= repeat(B.nzVal, outer = Annz)
 
     sparse(row, col, data, out_shape..., fmt = :coo)
+end
+
+function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{T}) where {T<:Union{BlasInt, BlasFloat}}
+    if length(y) != size(A, 1) || length(x) != size(A, 2)
+        throw(DimensionMismatch("dimensions must match"))
+    end
+    n = size(A, 2)
+
+    shuffle = true
+
+    result = CuArray{T}(undef, 1)
+    kernel = @cuda launch=false kernel_dot_csc(y, A.colPtr, A.rowVal, A.nzVal, x, result, n, Val(shuffle))
+    config = launch_configuration(kernel.fun)
+    threads = compute_threads(config.threads, n, shuffle, CUDA.device())
+    blocks = min(config.blocks, cld(n, threads))
+    result = CuArray{T}(undef, blocks)
+    kernel(y, A.colPtr, A.rowVal, A.nzVal, x, result, n, Val(shuffle); threads=threads, blocks=blocks, shmem=0)
+
+    return sum(result)
+end
+
+function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{T}) where {T<:Union{BlasInt, BlasFloat}}
+    if length(y) != size(A, 1) || length(x) != size(A, 2)
+        throw(DimensionMismatch("dimensions must match"))
+    end
+    n = size(A, 1)
+
+    shuffle = true
+
+    result = CuArray{T}(undef, 1)
+    kernel = @cuda launch=false kernel_dot_csr(y, A.rowPtr, A.colVal, A.nzVal, x, result, n, Val(shuffle))
+    config = launch_configuration(kernel.fun)
+    threads = compute_threads(config.threads, n, shuffle, CUDA.device())
+    blocks = min(config.blocks, cld(n, threads))
+    result = CuArray{T}(undef, blocks)
+    kernel(y, A.rowPtr, A.colVal, A.nzVal, x, result, n, Val(shuffle); threads=threads, blocks=blocks, shmem=0)
+
+    return sum(result)
 end
 
 for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
