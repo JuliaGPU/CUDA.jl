@@ -48,66 +48,6 @@ function sum_dim2(A::CuSparseMatrixCSR{T}) where {T}
     return colsum
 end
 
-function compute_threads(max_threads, wanted_threads, shuffle, dev)
-    if wanted_threads > max_threads
-        shuffle ? prevwarp(dev, max_threads) : max_threads
-    else
-        wanted_threads
-    end
-end
-
-function kernel_dot_csc(y::CuDeviceVector{T1}, colPtr::CuDeviceVector{T2}, rowVal::CuDeviceVector{T2},
-    nzVal::CuDeviceVector{T1}, x::CuDeviceVector{T1}, result::CuDeviceVector{T1}, n::Integer, shuffle) where {T1,T2}
-
-    thread_idx = threadIdx().x
-    index = (blockIdx().x-1) * blockDim().x + thread_idx
-    stride = blockDim().x * gridDim().x
-
-    tmp = zero(T1)
-    if index <=n
-        @inbounds for col in index:stride:n
-            for j in (colPtr[col]):(colPtr[col+1]-1)
-                row = rowVal[j]
-                val = nzVal[j]
-                tmp += dot(y[row], val, x[col])
-            end
-        end
-    end
-
-    reduced_val = CUDA.reduce_block(+, tmp, zero(T1), shuffle)
-
-    if thread_idx == 1
-        @inbounds result[blockIdx().x] = reduced_val
-    end
-    return
-end
-
-function kernel_dot_csr(y::CuDeviceVector{T1}, rowPtr::CuDeviceVector{T2}, colVal::CuDeviceVector{T2},
-    nzVal::CuDeviceVector{T1}, x::CuDeviceVector{T1}, result::CuDeviceVector{T1}, n::Integer, shuffle) where {T1,T2}
-
-    thread_idx = threadIdx().x
-    index = (blockIdx().x-1) * blockDim().x + thread_idx
-    stride = blockDim().x * gridDim().x
-
-    tmp = zero(T1)
-    if index <= n
-        @inbounds for row in index:stride:n
-            for j in rowPtr[row]:(rowPtr[row+1]-1)
-                col = colVal[j]
-                val = nzVal[j]
-                tmp += dot(y[row], val, x[col])
-            end
-        end
-    end
-
-    reduced_val = CUDA.reduce_block(+, tmp, zero(T1), shuffle)
-
-    if thread_idx == 1
-        @inbounds result[blockIdx().x] = reduced_val
-    end
-    return
-end
-
 function LinearAlgebra.opnorm(A::CuSparseMatrixCSR, p::Real=2)
     if p == Inf
         return maximum(sum_dim1(A))
@@ -245,15 +185,49 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{
     end
     n = size(A, 2)
 
+    function kernel(y::CuDeviceVector{T1}, colPtr::CuDeviceVector{T2}, rowVal::CuDeviceVector{T2},
+        nzVal::CuDeviceVector{T1}, x::CuDeviceVector{T1}, result::CuDeviceVector{T1}, n::Integer, shuffle) where {T1,T2}
+    
+        thread_idx = threadIdx().x
+        index = (blockIdx().x-1) * blockDim().x + thread_idx
+        stride = blockDim().x * gridDim().x
+    
+        tmp = zero(T1)
+        if index <=n
+            @inbounds for col in index:stride:n
+                for j in (colPtr[col]):(colPtr[col+1]-1)
+                    row = rowVal[j]
+                    val = nzVal[j]
+                    tmp += dot(y[row], val, x[col])
+                end
+            end
+        end
+    
+        reduced_val = CUDA.reduce_block(+, tmp, zero(T1), shuffle)
+    
+        if thread_idx == 1
+            @inbounds result[blockIdx().x] = reduced_val
+        end
+        return
+    end
+
+    function compute_threads(max_threads, wanted_threads, shuffle, dev)
+        if wanted_threads > max_threads
+            shuffle ? prevwarp(dev, max_threads) : max_threads
+        else
+            wanted_threads
+        end
+    end
+
     shuffle = true
 
     result = CuArray{T}(undef, 1)
-    kernel = @cuda launch=false kernel_dot_csc(y, A.colPtr, A.rowVal, A.nzVal, x, result, n, Val(shuffle))
+    kernel = @cuda launch=false kernel(y, A.colPtr, A.rowVal, A.nzVal, x, result, n, Val(shuffle))
     config = launch_configuration(kernel.fun)
-    threads = compute_threads(config.threads, n, shuffle, CUDA.device())
+    threads = compute_threads(config.threads, n, shuffle, device())
     blocks = min(config.blocks, cld(n, threads))
     result = CuArray{T}(undef, blocks)
-    kernel(y, A.colPtr, A.rowVal, A.nzVal, x, result, n, Val(shuffle); threads=threads, blocks=blocks, shmem=0)
+    kernel(y, A.colPtr, A.rowVal, A.nzVal, x, result, n, Val(shuffle); threads, blocks)
 
     return sum(result)
 end
@@ -264,15 +238,49 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{
     end
     n = size(A, 1)
 
+    function kernel(y::CuDeviceVector{T1}, rowPtr::CuDeviceVector{T2}, colVal::CuDeviceVector{T2},
+        nzVal::CuDeviceVector{T1}, x::CuDeviceVector{T1}, result::CuDeviceVector{T1}, n::Integer, shuffle) where {T1,T2}
+    
+        thread_idx = threadIdx().x
+        index = (blockIdx().x-1) * blockDim().x + thread_idx
+        stride = blockDim().x * gridDim().x
+    
+        tmp = zero(T1)
+        if index <= n
+            @inbounds for row in index:stride:n
+                for j in rowPtr[row]:(rowPtr[row+1]-1)
+                    col = colVal[j]
+                    val = nzVal[j]
+                    tmp += dot(y[row], val, x[col])
+                end
+            end
+        end
+    
+        reduced_val = CUDA.reduce_block(+, tmp, zero(T1), shuffle)
+    
+        if thread_idx == 1
+            @inbounds result[blockIdx().x] = reduced_val
+        end
+        return
+    end
+
+    function compute_threads(max_threads, wanted_threads, shuffle, dev)
+        if wanted_threads > max_threads
+            shuffle ? prevwarp(dev, max_threads) : max_threads
+        else
+            wanted_threads
+        end
+    end
+
     shuffle = true
 
     result = CuArray{T}(undef, 1)
-    kernel = @cuda launch=false kernel_dot_csr(y, A.rowPtr, A.colVal, A.nzVal, x, result, n, Val(shuffle))
+    kernel = @cuda launch=false kernel(y, A.rowPtr, A.colVal, A.nzVal, x, result, n, Val(shuffle))
     config = launch_configuration(kernel.fun)
-    threads = compute_threads(config.threads, n, shuffle, CUDA.device())
+    threads = compute_threads(config.threads, n, shuffle, device())
     blocks = min(config.blocks, cld(n, threads))
     result = CuArray{T}(undef, blocks)
-    kernel(y, A.rowPtr, A.colVal, A.nzVal, x, result, n, Val(shuffle); threads=threads, blocks=blocks, shmem=0)
+    kernel(y, A.rowPtr, A.colVal, A.nzVal, x, result, n, Val(shuffle); threads, blocks)
 
     return sum(result)
 end
