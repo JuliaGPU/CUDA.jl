@@ -1,58 +1,11 @@
 using LinearAlgebra
 using LinearAlgebra: BlasComplex, BlasFloat, BlasReal, BlasInt
 
-function sum_dim1(A::CuSparseMatrixCSR{T}) where {T}
-    function kernel(T, out, dA)
-        idx = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        idx < length(dA.rowPtr) || return
-        s = zero(T)
-        for k in dA.rowPtr[idx]:dA.rowPtr[idx+1]-1
-            s += abs(dA.nzVal[k])
-        end
-        out[idx] = s
-        return
-    end
-
-    m, n = size(A)
-    rowsum = CuVector{Float64}(undef, m)
-    kernel_f = @cuda launch=false kernel(T, rowsum, A)
-
-    config = launch_configuration(kernel_f.fun)
-    threads = min(n, config.threads)
-    blocks = cld(n, threads)
-    kernel_f(T, rowsum, A; threads, blocks)
-    return rowsum
-end
-
-function sum_dim2(A::CuSparseMatrixCSR{T}) where {T}
-    function kernel(T, out, dA)
-        idx = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        idx < length(dA.colPtr) || return
-        s = zero(T)
-        for k in dA.colPtr[idx]:dA.colPtr[idx+1]-1
-            s += abs(dA.nzVal[k])
-        end
-        out[idx] = s
-        return
-    end
-
-    A = CuSparseMatrixCSC(A)
-    m, n = size(A)
-    colsum = CuVector{Float64}(undef, n)
-    kernel_f = @cuda launch=false kernel(T, colsum, A)
-
-    config = launch_configuration(kernel_f.fun)
-    threads = min(m, config.threads)
-    blocks = cld(m, threads)
-    kernel_f(T, colsum, A; threads, blocks)
-    return colsum
-end
-
 function LinearAlgebra.opnorm(A::CuSparseMatrixCSR, p::Real=2)
     if p == Inf
-        return maximum(sum_dim1(A))
+        return maximum(sum(abs, A; dims=2))
     elseif p == 1
-        return maximum(sum_dim2(A))
+        return maximum(sum(abs, A; dims=1))
     else
         error("p=$p is not supported")
     end
@@ -187,11 +140,11 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{
 
     function kernel(y::CuDeviceVector{T1}, colPtr::CuDeviceVector{T2}, rowVal::CuDeviceVector{T2},
         nzVal::CuDeviceVector{T1}, x::CuDeviceVector{T1}, result::CuDeviceVector{T1}, n::Integer, shuffle) where {T1,T2}
-    
+
         thread_idx = threadIdx().x
         index = (blockIdx().x-1) * blockDim().x + thread_idx
         stride = blockDim().x * gridDim().x
-    
+
         tmp = zero(T1)
         if index <=n
             @inbounds for col in index:stride:n
@@ -202,9 +155,9 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{
                 end
             end
         end
-    
+
         reduced_val = CUDA.reduce_block(+, tmp, zero(T1), shuffle)
-    
+
         if thread_idx == 1
             @inbounds result[blockIdx().x] = reduced_val
         end
@@ -240,11 +193,11 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{
 
     function kernel(y::CuDeviceVector{T1}, rowPtr::CuDeviceVector{T2}, colVal::CuDeviceVector{T2},
         nzVal::CuDeviceVector{T1}, x::CuDeviceVector{T1}, result::CuDeviceVector{T1}, n::Integer, shuffle) where {T1,T2}
-    
+
         thread_idx = threadIdx().x
         index = (blockIdx().x-1) * blockDim().x + thread_idx
         stride = blockDim().x * gridDim().x
-    
+
         tmp = zero(T1)
         if index <= n
             @inbounds for row in index:stride:n
@@ -255,9 +208,9 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{
                 end
             end
         end
-    
+
         reduced_val = CUDA.reduce_block(+, tmp, zero(T1), shuffle)
-    
+
         if thread_idx == 1
             @inbounds result[blockIdx().x] = reduced_val
         end

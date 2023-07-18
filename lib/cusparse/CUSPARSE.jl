@@ -8,6 +8,8 @@ using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
 using ..CUDA: unsafe_free!, retry_reclaim, initialize_context, i32, @allowscalar
 
+using ..CUDA.GPUArrays
+
 using CEnum: @cenum
 
 using LinearAlgebra
@@ -47,6 +49,7 @@ include("interfaces.jl")
 # native functionality
 include("device.jl")
 include("broadcast.jl")
+include("reduce.jl")
 
 # cache for created, but unused handles
 const idle_handles = HandleCache{CuContext,cusparseHandle_t}()
