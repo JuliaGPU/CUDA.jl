@@ -76,6 +76,9 @@ end
     _, out = @grab_output @on_device @cuprint(4, 2)
     @test out == "42"
 
+    _, out = @grab_output @on_device @cuprint(Any)
+    @test out == "Any"
+
     # bug: @cuprintln failed to invokce @cuprint with endline in the case of interpolation
     _, out = @grab_output @on_device @cuprintln("foobar $(42)")
     @test out == "foobar 42$endline"
