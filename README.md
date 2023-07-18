@@ -41,11 +41,14 @@ or higher, and an accompanying NVIDIA driver with support for **CUDA 11.0** or n
 requirements are not enforced by the Julia package manager when installing CUDA.jl.
 Depending on your system and GPU, you may need to install an older version of the package.
 
+Finally, you should be using a platform **supported by NVIDIA**. Currently, that means using
+64-bit Linux or Windows, with an X86, ARM, or PowerPC host processor.
+
 
 ## Quick start
 
-Before all, make sure you have a recent NVIDIA driver. On Windows, make sure you have the
-[Visual C++ redistributable](https://aka.ms/vs/16/release/vc_redist.x64.exe) installed.
+Before all, make sure you have a recent NVIDIA driver. On Windows, also make sure you have
+the [Visual C++ redistributable](https://aka.ms/vs/16/release/vc_redist.x64.exe) installed.
 You do not need to install the CUDA Toolkit.
 
 CUDA.jl can be installed with the Julia package manager. From the Julia REPL, type `]` to
