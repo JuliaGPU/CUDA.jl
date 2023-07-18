@@ -164,8 +164,11 @@ const cuprint_specifiers = Dict(
             fmt *= ")"
         elseif T <: String
             @error("@cuprint does not support non-literal strings")
+        elseif T <: Type
+            fmt *= string(T.parameters[1])
         else
-            @error("@cuprint does not support values of type $T")
+            @warn("@cuprint does not support values of type $T")
+            fmt *= "$(string(T.parameters[1]))(...)"
         end
     end
 
