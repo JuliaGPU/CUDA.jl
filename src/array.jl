@@ -789,11 +789,11 @@ function Base.reshape(a::CuArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
       return a
   end
 
-  _derived_array(T, N, a, dims)
+  _derived_array(a, T, dims)
 end
 
 # create a derived array (reinterpreted or reshaped) that's still a CuArray
-@inline function _derived_array(::Type{T}, N::Int, a::CuArray, osize::Dims) where {T}
+@inline function _derived_array(a::CuArray, ::Type{T}, osize::Dims{N}) where {T,N}
   refcount = a.storage.refcount[]
   @assert refcount != 0
   if refcount > 0
@@ -824,7 +824,7 @@ function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
     osize = tuple(size1, Base.tail(isize)...)
   end
 
-  return _derived_array(T, N, a, osize)
+  return _derived_array(a, T, osize)
 end
 
 function _reinterpret_exception(::Type{T}, a::AbstractArray{S,N}) where {T,S,N}
@@ -880,7 +880,7 @@ end
 
 function Base.reinterpret(::typeof(reshape), ::Type{T}, a::CuArray) where {T}
   N, osize = _base_check_reshape_reinterpret(T, a)
-  return _derived_array(T, N, a, osize)
+  return _derived_array(a, T, osize)
 end
 
 # taken from reinterpretarray.jl
