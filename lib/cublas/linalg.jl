@@ -1,9 +1,9 @@
 # interfacing with LinearAlgebra standard library
 
-using LinearAlgebra: MulAddMul
+using LinearAlgebra: MulAddMul, AdjOrTrans
 
 if isdefined(LinearAlgebra, :wrap) # i.e., VERSION >= v"1.10.0-DEV.1365"
-    using LinearAlgebra: wrap
+    using LinearAlgebra: wrap, UpperOrLowerTriangular
 else
     function wrap(A::AbstractVecOrMat, tA::AbstractChar)
         if tA == 'N'
@@ -22,6 +22,10 @@ else
             return Symmetric(A, :L)
         end
     end
+    const UpperOrLowerTriangular{T,S} = Union{UpperTriangular{T,S},
+                                                UnitUpperTriangular{T,S},
+                                                LowerTriangular{T,S},
+                                                UnitLowerTriangular{T,S}}
 end
 
 #
@@ -353,31 +357,33 @@ LinearAlgebra.generic_trimatmul!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Func
 LinearAlgebra.generic_mattrimul!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Function, A::DenseCuMatrix{T}, B::DenseCuMatrix{T}) where {T<:CublasFloat} =
     trmm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), B, A, C)
 # tri-tri-mul!
-function LinearAlgebra.generic_trimatmul!(C::DenseCuMatrix{T}, uplocA, isunitcA, tfunA::Function, A::DenseCuMatrix{T}, B::LinearAlgebra.UpperOrLowerTriangular{T,<:DenseCuMatrix}) where {T<:CublasFloat}
-    uplocB = LinearAlgebra.uplo_char(B)
-    isunitcB = LinearAlgebra.isunit_char(B)
+const AdjOrTransOrCuMatrix{T} = Union{DenseCuMatrix{T}, AdjOrTrans{<:T,<:DenseCuMatrix}}
+function LinearAlgebra.generic_trimatmul!(C::DenseCuMatrix{T}, uplocA, isunitcA, tfunA::Function, A::DenseCuMatrix{T}, triB::UpperOrLowerTriangular{T,<:AdjOrTransOrCuMatrix{T}}) where {T<:CublasFloat}
+    uplocB = LinearAlgebra.uplo_char(triB)
+    isunitcB = LinearAlgebra.isunit_char(triB)
+    B = parent(triB)
     tfunB = LinearAlgebra.wrapperop(B)
     transa = tfunA === identity ? 'N' : tfunA === transpose ? 'T' : 'C'
     transb = tfunB === identity ? 'N' : tfunB === transpose ? 'T' : 'C'
     if uplocA == 'L' && tfunA === identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N' # lower * upper
-        triu!(parent(B))
-        trmm!('L', uplocA, transa, isunitcA, one(T), A, parent(B), C)
+        triu!(B)
+        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
     elseif uplocA == 'U' && tfunA === identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N' # upper * lower
-        tril!(parent(B))
-        trmm!('L', uplocA, transa, isunitcA, one(T), A, parent(B), C)
+        tril!(B)
+        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
     elseif uplocA == 'U' && tfunA === identity && tfunB !== identity && uplocB == 'U' && isunitcA == 'N'
         # operation is reversed to avoid executing the tranpose
         triu!(A)
-        trmm!('R', uplocB, transb, isunitcB, one(T), parent(parent(B)), A, C)
+        trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
     elseif uplocA == 'L' && tfunA !== identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N'
-        tril!(parent(B))
-        trmm!('L', uplocA, transa, isunitcA, one(T), A, parent(B), C)
+        tril!(B)
+        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
     elseif uplocA == 'U' && tfunA !== identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N'
-        triu!(parent(B))
-        trmm!('L', uplocA, transa, isunitcA, one(T), A, parent(B), C)
+        triu!(B)
+        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
     elseif uplocA == 'L' && tfunA === identity && tfunB !== identity && uplocB == 'L' && isunitcA == 'N'
         tril!(A)
-        trmm!('R', uplocB, transb, isunitcB, one(T), parent(parent(B)), A, C)
+        trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
     else
         throw("mixed triangular-triangular multiplication") # TODO: rethink
     end
