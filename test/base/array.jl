@@ -318,6 +318,7 @@ end
 @testset "accumulate" begin
   for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
     @test testf(x->accumulate(+, x), rand(n))
+    @test testf(x->accumulate(+, x), rand(n,2))
     @test testf((x,y)->accumulate(+, x; init=y), rand(n), rand())
   end
 
