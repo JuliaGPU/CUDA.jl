@@ -127,7 +127,9 @@ function synchronize(stream::CuStream=stream(); blocking=nothing)
 
     # perform as much of the sync as possible without blocking in CUDA.
     # XXX: remove this using a yield callback, or by synchronizing on a dedicated stream?
-    nonblocking_synchronize(stream)
+    if CUDA._use_nonblocking_synchronize[]
+        nonblocking_synchronize(stream)
+    end
 
     # even though the GPU should be idle now, CUDA hooks work to the actual API call.
     # see NVIDIA bug #3383169 for more details.

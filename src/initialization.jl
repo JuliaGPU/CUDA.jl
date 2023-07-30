@@ -28,6 +28,8 @@ function functional(show_reason::Bool=false)
     return false
 end
 
+const _use_nonblocking_synchronize = Ref{Bool}(true)
+
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
@@ -181,6 +183,10 @@ function __init__()
                      Please install the CUDA toolkit, and call `CUDA.set_runtime_version!("local")` to use it.
                      For more information, see JuliaGPU/CUDA.jl#1978."""
         end
+    end
+
+    if haskey(ENV, "JULIA_CUDA_NONBLOCKING_SYNCHRONIZE")
+        _use_nonblocking_synchronize[] = parse(Bool, ENV["JULIA_CUDA_NONBLOCKING_SYNCHRONIZE"])
     end
 
     _initialized[] = true

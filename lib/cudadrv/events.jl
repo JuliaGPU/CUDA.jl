@@ -52,7 +52,9 @@ Waits for an event to complete.
 function synchronize(e::CuEvent)
     # perform as much of the sync as possible without blocking in CUDA.
     # XXX: remove this using a yield callback, or by synchronizing on a dedicated thread?
-    nonblocking_synchronize(e)
+    if CUDA._use_nonblocking_synchronize[]
+        nonblocking_synchronize(e)
+    end
 
     # even though the GPU should be idle now, CUDA hooks work to the actual API call.
     # see NVIDIA bug #3383169 for more details.
