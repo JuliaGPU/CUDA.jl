@@ -51,7 +51,7 @@ steps:
       - label: "CUDA {{matrix.cuda}}"
         plugins:
           - JuliaCI/julia#v1:
-              version: 1.8
+              version: 1.9
           - JuliaCI/julia-test#v1:
               test_args: "core base libraries"
           - JuliaCI/julia-coverage#v1:
