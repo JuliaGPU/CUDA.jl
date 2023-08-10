@@ -357,9 +357,8 @@ function render_traces(host_trace, device_trace, details;
     trace_first_sync == trace_last_sync && error("Could not find the end of the profiling trace.")
     ## truncate the trace
     if !raw
-        # exclusive bounds
         trace_begin = host_trace.stop[trace_first_sync]
-        trace_end = host_trace.start[trace_last_sync]
+        trace_end = host_trace.stop[trace_last_sync]
 
         trace_first_call = copy(host_trace[trace_first_sync+1, :])
         trace_last_call = copy(host_trace[trace_last_sync-1, :])
