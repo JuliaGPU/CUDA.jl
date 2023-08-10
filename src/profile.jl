@@ -407,6 +407,7 @@ function render_traces(host_trace, device_trace, details;
         ## filter out entries that execute _very_ quickly (like calls to cuCtxGetCurrent)
         relevant_times = df[df.time .>= 1e-8, :time]
 
+        isempty(relevant_times) && return ()
         p75 = quantile(relevant_times, 0.75)
         p95 = quantile(relevant_times, 0.95)
 
