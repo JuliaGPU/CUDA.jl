@@ -339,7 +339,7 @@ function generate_traces(cfg)
                                    grid, block, registers,
                                    static_shmem, dynamic_shmem); cols=:union)
         else
-            @warn "Unsupported CUPTI activity record kind: $(record.kind)"
+            error("Unexpected CUPTI activity kind: $(record.kind). Please file an issue.")
         end
     end
 
