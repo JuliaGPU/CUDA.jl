@@ -29,3 +29,6 @@ include("graph.jl")
 
 # global state (CUDA.jl's driver wrappers behave like CUDA's runtime library)
 include("state.jl")
+
+# support for concurrent programming
+include("synchronization.jl")
