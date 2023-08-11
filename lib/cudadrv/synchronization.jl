@@ -64,7 +64,7 @@ Base.unlock(c::BidirectionalChannel) = unlock(c.cond_take)
 # nonblocking sync
 #
 
-@static if VERSION >= v"1.9.3"
+@static if VERSION >= v"1.9.2"
 
 # if we support foreign threads, perform the synchronization on a separate thread.
 
@@ -252,8 +252,6 @@ function synchronize(e::CuEvent)
     end
 
     cuEventSynchronize(e)
-
-    return
 end
 
 end
