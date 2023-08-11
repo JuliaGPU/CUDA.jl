@@ -78,22 +78,17 @@ function synchronization_worker(data)
 
     while true
         # wait for work
-        lock(chan)
-        try
-            take!(chan) do v
-                if v isa CuContext
-                    context!(v)
-                    unsafe_cuCtxSynchronize()
-                elseif v isa CuStream
-                    context!(v.ctx)
-                    unsafe_cuStreamSynchronize(v)
-                elseif v isa CuEvent
-                    context!(v.ctx)
-                    unsafe_cuEventSynchronize(v)
-                end
+        take!(chan) do v
+            if v isa CuContext
+                context!(v)
+                unsafe_cuCtxSynchronize()
+            elseif v isa CuStream
+                context!(v.ctx)
+                unsafe_cuStreamSynchronize(v)
+            elseif v isa CuEvent
+                context!(v.ctx)
+                unsafe_cuEventSynchronize(v)
             end
-        finally
-            unlock(chan)
         end
     end
 end
@@ -122,16 +117,11 @@ function nonblocking_synchronize(val)
     chan = @inbounds sync_channels[i]
 
     # submit the object to synchronize
-    lock(chan)
-    try
-        res = put!(chan, val)
-        # this `put!` blocks until the worker has finished processing and returned value
-        # (which is different from regular channels)
-        if res != SUCCESS
-            throw_api_error(res)
-        end
-    finally
-        unlock(chan)
+    res = put!(chan, val)
+    # this `put!` blocks until the worker has finished processing and returned value
+    # (which is different from regular channels)
+    if res != SUCCESS
+        throw_api_error(res)
     end
 
     return
