@@ -81,7 +81,6 @@ function synchronization_worker(data)
         lock(chan)
         try
             take!(chan) do v
-                # TODO: don't use `context!`, but use raw API calls that don't require TLS
                 if v isa CuContext
                     context!(v)
                     unsafe_cuCtxSynchronize()
