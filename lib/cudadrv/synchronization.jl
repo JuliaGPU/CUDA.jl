@@ -64,7 +64,7 @@ Base.unlock(c::BidirectionalChannel) = unlock(c.cond_take)
 # nonblocking sync
 #
 
-if VERSION >= v"1.9.3"
+@static if VERSION >= v"1.9.3"
 
 # if we support foreign threads, perform the synchronization on a separate thread.
 
@@ -138,24 +138,24 @@ function nonblocking_synchronize(val)
     return
 end
 
-@inline function device_synchronize()
+function device_synchronize()
     nonblocking_synchronize(context())
     check_exceptions()
 end
 
 function synchronize(stream::CuStream=stream())
-    # fast path
-    isdone(stream) && return
-
-    nonblocking_synchronize(stream)
+    if !isdone(stream)
+        # slow path
+        nonblocking_synchronize(stream)
+    end
     check_exceptions()
 end
 
 function synchronize(event::CuEvent)
-    # fast path
-    isdone(event) && return
-
-    nonblocking_synchronize(event)
+    if !isdone(event)
+        # slow path
+        nonblocking_synchronize(event)
+    end
 end
 
 else
@@ -165,7 +165,7 @@ else
 # furthermore, they do not trigger CUDA's synchronization hooks (see NVIDIA bug #3383169)
 # requiring us to perform the actual API call again after nonblocking synchronization.
 
-@inline function nonblocking_synchronize(stream::CuStream)
+function nonblocking_synchronize(stream::CuStream)
     # fast path
     isdone(stream) && return
 
@@ -219,7 +219,7 @@ else
     return
 end
 
-@inline function device_synchronize()
+function device_synchronize()
     nonblocking_synchronize(legacy_stream())
     cuCtxSynchronize()
 
