@@ -1,5 +1,9 @@
 # support for nonblocking synchronization
 
+const use_nonblocking_synchronization =
+    Preferences.@load_preference("nonblocking_synchronization", true)
+
+
 #
 # bidirectional channel
 #
@@ -128,22 +132,34 @@ function nonblocking_synchronize(val)
 end
 
 function device_synchronize()
-    nonblocking_synchronize(context())
+    if use_nonblocking_synchronization
+        nonblocking_synchronize(context())
+    else
+        cuCtxSynchronize()
+    end
     check_exceptions()
 end
 
 function synchronize(stream::CuStream=stream())
-    if !isdone(stream)
-        # slow path
-        nonblocking_synchronize(stream)
+    if use_nonblocking_synchronization
+        if !isdone(stream)
+            # slow path
+            nonblocking_synchronize(stream)
+        end
+    else
+        cuStreamSynchronize(stream)
     end
     check_exceptions()
 end
 
 function synchronize(event::CuEvent)
-    if !isdone(event)
-        # slow path
-        nonblocking_synchronize(event)
+    if use_nonblocking_synchronization
+        if !isdone(event)
+            # slow path
+            nonblocking_synchronize(event)
+        end
+    else
+        cuEventSynchronize(event)
     end
 end
 
@@ -209,35 +225,41 @@ function nonblocking_synchronize(stream::CuStream)
 end
 
 function device_synchronize()
-    nonblocking_synchronize(legacy_stream())
+    if use_nonblocking_synchronization
+        nonblocking_synchronize(legacy_stream())
+    end
     cuCtxSynchronize()
 
     check_exceptions()
 end
 
 function synchronize(stream::CuStream=stream())
-    nonblocking_synchronize(stream)
+    if use_nonblocking_synchronization
+        nonblocking_synchronize(stream)
+    end
     cuStreamSynchronize(stream)
 
     check_exceptions()
 end
 
 function synchronize(e::CuEvent)
-    # fast path
-    isdone(e) && return
-
-    # spin (initially without yielding to minimize latency)
-    spins = 0
-    while spins < 256
-        if spins < 32
-            ccall(:jl_cpu_pause, Cvoid, ())
-            # Temporary solution before we have gc transition support in codegen.
-            ccall(:jl_gc_safepoint, Cvoid, ())
-        else
-            yield()
-        end
+    if use_nonblocking_synchronization
+        # fast path
         isdone(e) && return
-        spins += 1
+
+        # spin (initially without yielding to minimize latency)
+        spins = 0
+        while spins < 256
+            if spins < 32
+                ccall(:jl_cpu_pause, Cvoid, ())
+                # Temporary solution before we have gc transition support in codegen.
+                ccall(:jl_gc_safepoint, Cvoid, ())
+            else
+                yield()
+            end
+            isdone(e) && return
+            spins += 1
+        end
     end
 
     cuEventSynchronize(e)
