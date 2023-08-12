@@ -47,8 +47,7 @@ the tutorials in this manual. **It is highly recommended that new users start wi
 [Introduction](@ref) tutorial**. For an overview of the available functionality, read the
 [Usage](@ref UsageOverview) section. The following resources may also be of interest:
 
-- Effectively using GPUs with Julia: [video](https://www.youtube.com/watch?v=7Yq1UyncDNc),
-  [slides](https://docs.google.com/presentation/d/1l-BuAtyKgoVYakJSijaSqaTL3friESDyTOnU2OLqGoA/)
+- Effectively using GPUs with Julia: [slides](https://docs.google.com/presentation/d/1l-BuAtyKgoVYakJSijaSqaTL3friESDyTOnU2OLqGoA/)
 - How Julia is compiled to GPUs: [video](https://www.youtube.com/watch?v=Fz-ogmASMAE)
 
 
