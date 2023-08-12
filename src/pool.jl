@@ -355,9 +355,6 @@ function retry_reclaim(f, isfailed)
     phase = 1
     while true
       if is_stream_ordered
-        # NOTE: the stream-ordered allocator only releases memory on actual API calls,
-        #       and not when our synchronization routines query the relevant streams.
-        #       we do still call our routines to minimize the time we block in libcuda.
         if phase == 1
           synchronize(state.stream)
         elseif phase == 2

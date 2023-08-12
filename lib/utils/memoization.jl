@@ -40,6 +40,9 @@ macro memoize(ex...)
     # anything, that entry will be the memoized new_value, or else a dictionary of values.
     @gensym global_cache
 
+    # in the presence of thread adoption, we need to use the maximum thread ID
+    nthreads = :( VERSION >= v"1.9" ? Threads.maxthreadid() : Threads.nthreads() )
+
     # generate code to access memoized values
     # (assuming the global_cache can be indexed with the thread ID)
     if key === nothing
@@ -47,7 +50,7 @@ macro memoize(ex...)
         global_cache_eltyp = :(Union{Nothing,$rettyp})
         ex = quote
             cache = get!($(esc(global_cache))) do
-                $global_cache_eltyp[nothing for _ in 1:Threads.nthreads()]
+                $global_cache_eltyp[nothing for _ in 1:$nthreads]
             end
             cached_value = @inbounds cache[Threads.threadid()]
             if cached_value !== nothing
@@ -64,7 +67,7 @@ macro memoize(ex...)
         global_init = :(Union{Nothing,$rettyp}[nothing for _ in 1:$(esc(options[:maxlen]))])
         ex = quote
             cache = get!($(esc(global_cache))) do
-                $global_cache_eltyp[$global_init for _ in 1:Threads.nthreads()]
+                $global_cache_eltyp[$global_init for _ in 1:$nthreads]
             end
             local_cache = @inbounds begin
                 tid = Threads.threadid()
@@ -86,7 +89,7 @@ macro memoize(ex...)
         global_init = :(Dict{$(key.typ),$rettyp}())
         ex = quote
             cache = get!($(esc(global_cache))) do
-                $global_cache_eltyp[$global_init for _ in 1:Threads.nthreads()]
+                $global_cache_eltyp[$global_init for _ in 1:$nthreads]
             end
             local_cache = @inbounds begin
                 tid = Threads.threadid()
@@ -106,7 +109,9 @@ macro memoize(ex...)
 
     # define the per-thread cache
     @eval __module__ begin
-        const $global_cache = LazyInitialized{Vector{$(global_cache_eltyp)}}()
+        const $global_cache = LazyInitialized{Vector{$(global_cache_eltyp)}}() do cache
+            length(cache) == $nthreads
+        end
     end
 
     quote

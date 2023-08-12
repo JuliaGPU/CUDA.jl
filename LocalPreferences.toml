@@ -1,0 +1,9 @@
+[CUDA_Runtime_jll]
+# which CUDA runtime to use; can be set to a supported
+# version number or to "local" for a local installation.
+#version = "11.8"
+
+[CUDA]
+# whether to use a nonblocking synchronization mechanism,
+# making it possible to do use cooperative multitasking.
+#nonblocking_synchronization = true
