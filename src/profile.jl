@@ -183,9 +183,11 @@ function emit_native_profile(code, kwargs)
         # memory operations
         CUPTI.CUPTI_ACTIVITY_KIND_MEMCPY,
         CUPTI.CUPTI_ACTIVITY_KIND_MEMSET,
-        # additional information for API host calls
-        CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2,
     ]
+    if CUDA.runtime_version() >= v"11.2"
+        # additional information for API host calls
+        push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2)
+    end
 
     quote
         cfg = CUPTI.ActivityConfig($activity_kinds)
@@ -262,17 +264,25 @@ function generate_traces(cfg)
             id = record.correlationId
             t0, t1 = record.start/1e9, record._end/1e9
 
-            name = if record.kind == CUPTI.CUPTI_ACTIVITY_KIND_DRIVER
-                ref = Ref{Cstring}(C_NULL)
-                CUPTI.cuptiGetCallbackName(CUPTI.CUPTI_CB_DOMAIN_DRIVER_API,
-                                            record.cbid, ref)
-                unsafe_string(ref[])
-            elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_RUNTIME
-                ref = Ref{Cstring}(C_NULL)
-                CUPTI.cuptiGetCallbackName(CUPTI.CUPTI_CB_DOMAIN_RUNTIME_API,
-                                            record.cbid, ref)
-                unsafe_string(ref[])
-            else
+            name = try
+                if record.kind == CUPTI.CUPTI_ACTIVITY_KIND_DRIVER
+                    ref = Ref{Cstring}(C_NULL)
+                    CUPTI.cuptiGetCallbackName(CUPTI.CUPTI_CB_DOMAIN_DRIVER_API,
+                                                record.cbid, ref)
+                    unsafe_string(ref[])
+                elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_RUNTIME
+                    ref = Ref{Cstring}(C_NULL)
+                    CUPTI.cuptiGetCallbackName(CUPTI.CUPTI_CB_DOMAIN_RUNTIME_API,
+                                                record.cbid, ref)
+                    unsafe_string(ref[])
+                else
+                    "<unknown>"
+                end
+            catch err
+                # XXX: as observed on CUDA 11.0
+                (isa(err, CUPTIError) &&
+                 err.code == CUPTI.CUPTI_ERROR_INVALID_PARAMETER) ||
+                    rethrow()
                 "<unknown>"
             end
 

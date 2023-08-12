@@ -163,7 +163,7 @@ function process(f, cfg::ActivityConfig)
         elseif cuda_version >= v"11.1"
             CUpti_ActivityMemcpy4
         else # v"11.0"
-            CUpti_ActivityMemset3
+            CUpti_ActivityMemcpy3
         end
     activity_types[CUPTI_ACTIVITY_KIND_MEMSET] =
         if cuda_version >= v"11.6"
