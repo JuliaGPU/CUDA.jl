@@ -118,22 +118,24 @@ streams) when calling this function from a finalizer. For simplicity, the `unsaf
 function does exactly that.
 """
 function unsafe_free!(xs::CuArray, stream::CuStream=stream())
-  # this call should only have an effect once, because both the user and the GC can call it
-  if xs.storage === nothing
-    return
-  elseif (xs.storage::ArrayStorage).refcount[] < 0
-    throw(ArgumentError("Cannot free an unmanaged buffer."))
-  end
-
-  refcount = Threads.atomic_add!((xs.storage::ArrayStorage).refcount, -1)
-  if refcount == 1
-    context!(context(xs); skip_destroyed=true) do
-      free((xs.storage::ArrayStorage).buffer; stream)
+  Base.@lock xs.lock begin
+    # this call should only have an effect once, because both the user and the GC can call it
+    if xs.storage === nothing
+      return
+    elseif (xs.storage::ArrayStorage).refcount[] < 0
+      throw(ArgumentError("Cannot free an unmanaged buffer."))
     end
-  end
 
-  # this array object is now dead, so replace its storage by a dummy one
-  xs.storage = nothing
+    refcount = Threads.atomic_add!((xs.storage::ArrayStorage).refcount, -1)
+    if refcount == 1
+      context!(context(xs); skip_destroyed=true) do
+        free((xs.storage::ArrayStorage).buffer; stream)
+      end
+    end
+
+    # this array object is now dead, so replace its storage by a dummy one
+    xs.storage = nothing
+  end
 
   return
 end
