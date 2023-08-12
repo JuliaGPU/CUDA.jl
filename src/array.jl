@@ -75,6 +75,7 @@ end
 
 mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
   storage::Union{Nothing,ArrayStorage{B}}
+  lock::ReentrantLock
 
   maxsize::Int  # maximum data size; excluding any selector bytes
   offset::Int   # offset of the data in the buffer, in number of elements
@@ -92,14 +93,14 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
     end
     buf = alloc(B, bufsize)
     storage = ArrayStorage(buf, 1)
-    obj = new{T,N,B}(storage, maxsize, 0, dims)
+    obj = new{T,N,B}(storage, ReentrantLock(), maxsize, 0, dims)
     finalizer(unsafe_finalize!, obj)
   end
 
   function CuArray{T,N}(storage::ArrayStorage{B}, dims::Dims{N};
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,B}
     check_eltype(T)
-    return new{T,N,B}(storage, maxsize, offset, dims)
+    return new{T,N,B}(storage, ReentrantLock(), maxsize, offset, dims)
   end
 end
 
