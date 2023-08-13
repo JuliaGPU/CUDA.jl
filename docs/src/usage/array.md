@@ -376,12 +376,12 @@ julia> b = CUDA.rand(2,2)
 
 julia> a \ b
 2×2 CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}:
-  1.29018    0.942772
+  1.29018    0.942773
  -0.765663  -0.782648
 
 julia> Array(a) \ Array(b)
 2×2 Matrix{Float32}:
-  1.29018    0.942772
+  1.29018    0.942773
  -0.765663  -0.782648
 ```
 
