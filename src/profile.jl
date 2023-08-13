@@ -8,7 +8,7 @@ Profile the GPU execution of `code`.
 
 There are two modes of operation, depending on whether `external` is `true` or `false`.
 
-## Native profiling (`external=false`, the default)
+## Integrated profiler (`external=false`, the default)
 
 In this mode, CUDA.jl will profile the execution of `code` and display the result. By
 default, both host-side and device-side activity is captured; this can be controlled with
@@ -24,7 +24,11 @@ slowest 25%, while entries colored in red are among the slowest 5% of all operat
 !!! compat "Julia 1.9"
     This functionality is only available on Julia 1.9 and later.
 
-## External profiling (`external=true`)
+!!! compat "CUDA 11.2"
+    Older versions of CUDA, before 11.2, contain bugs that may prevent the
+    `CUDA.@profile` macro to work. It is recommended to use a newer runtime.
+
+## External profilers (`external=true`)
 
 For more advanced profiling, it is possible to use an external profiling tool, such as
 NSight Systems or NSight Compute. When doing so, it is often advisable to only enable the
@@ -56,7 +60,7 @@ macro profile(ex...)
     if external
         Profile.emit_external_profile(code, remaining_kwargs)
     else
-        Profile.emit_native_profile(code, remaining_kwargs)
+        Profile.emit_integrated_profile(code, remaining_kwargs)
     end
 end
 
@@ -169,10 +173,10 @@ end
 
 
 #
-# native profiler
+# integrated profiler
 #
 
-function emit_native_profile(code, kwargs)
+function emit_integrated_profile(code, kwargs)
     activity_kinds = [
         # API calls
         CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,
@@ -187,6 +191,8 @@ function emit_native_profile(code, kwargs)
     if CUDA.runtime_version() >= v"11.2"
         # additional information for API host calls
         push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2)
+    else
+        @warn "The integrated profiler is not supported on CUDA <11.2" maxlog=1
     end
 
     quote
@@ -264,25 +270,17 @@ function generate_traces(cfg)
             id = record.correlationId
             t0, t1 = record.start/1e9, record._end/1e9
 
-            name = try
-                if record.kind == CUPTI.CUPTI_ACTIVITY_KIND_DRIVER
-                    ref = Ref{Cstring}(C_NULL)
-                    CUPTI.cuptiGetCallbackName(CUPTI.CUPTI_CB_DOMAIN_DRIVER_API,
-                                                record.cbid, ref)
-                    unsafe_string(ref[])
-                elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_RUNTIME
-                    ref = Ref{Cstring}(C_NULL)
-                    CUPTI.cuptiGetCallbackName(CUPTI.CUPTI_CB_DOMAIN_RUNTIME_API,
-                                                record.cbid, ref)
-                    unsafe_string(ref[])
-                else
-                    "<unknown>"
-                end
-            catch err
-                # XXX: as observed on CUDA 11.0
-                (isa(err, CUPTIError) &&
-                 err.code == CUPTI.CUPTI_ERROR_INVALID_PARAMETER) ||
-                    rethrow()
+            name = if record.kind == CUPTI.CUPTI_ACTIVITY_KIND_DRIVER
+                ref = Ref{Cstring}(C_NULL)
+                CUPTI.cuptiGetCallbackName(CUPTI.CUPTI_CB_DOMAIN_DRIVER_API,
+                                            record.cbid, ref)
+                unsafe_string(ref[])
+            elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_RUNTIME
+                ref = Ref{Cstring}(C_NULL)
+                CUPTI.cuptiGetCallbackName(CUPTI.CUPTI_CB_DOMAIN_RUNTIME_API,
+                                            record.cbid, ref)
+                unsafe_string(ref[])
+            else
                 "<unknown>"
             end
 

@@ -13,7 +13,8 @@ end
 
 ############################################################################################
 
-VERSION >= v"1.9" && @testset "native" begin
+if VERSION >= v"1.9" && CUDA.runtime_version() >= v"11.2"
+@testset "integrated" begin
 
 # smoke test
 let
@@ -76,6 +77,7 @@ let
     @test occursin("cuCtxSynchronize", str)
 end
 
+end
 end
 
 end
