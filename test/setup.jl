@@ -11,15 +11,8 @@ testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
 
 using Random
 
-# detect compute-sanitizer, to disable incompatible tests (e.g. using CUPTI),
-# and to skip tests that are known to generate innocuous API errors
+# detect compute-sanitizer, to disable incompatible tests (e.g. using CUPTI)
 const sanitize = any(contains("NV_SANITIZER"), keys(ENV))
-macro not_if_sanitize(ex)
-    sanitize || return esc(ex)
-    quote
-        @test_skip $ex
-    end
-end
 
 # in addition, CUPTI is not available on older GPUs with recent CUDA toolkits
 function can_use_cupti()
