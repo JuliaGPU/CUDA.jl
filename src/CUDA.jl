@@ -85,6 +85,7 @@ include("accumulate.jl")
 include("reverse.jl")
 include("iterator.jl")
 include("sorting.jl")
+include("profile.jl")
 
 # array libraries
 include("../lib/complex.jl")
