@@ -6,7 +6,7 @@ export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch]
-const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs]
+const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath]
 const LAUNCH_KWARGS = [:cooperative, :blocks, :threads, :shmem, :stream]
 
 
