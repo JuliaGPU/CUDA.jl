@@ -1,6 +1,6 @@
 # CUDA programming in Julia
 
-The CUDA.jl package is the main entrypoint for programming NVIDIA GPUs in Julia. The package
+The [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) package is the main entrypoint for programming NVIDIA GPUs in Julia. The package
 makes it possible to do so at various abstraction levels, from easy-to-use arrays down to
 hand-written kernels using low-level CUDA APIs.
 
