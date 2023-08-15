@@ -141,7 +141,7 @@ Base.getindex(r::CuRefType{T}) where T = T
 Adapt.adapt_structure(to::Adaptor, r::Base.RefValue{<:Union{DataType,Type}}) = CuRefType{r[]}()
 
 # case where type is the function being broadcasted
-Adapt.adapt_structure(to::Adaptor, bc::Base.Broadcast.Broadcasted{Style, <:Any, Type{T}}) where {Style, T} = 
+Adapt.adapt_structure(to::Adaptor, bc::Base.Broadcast.Broadcasted{Style, <:Any, Type{T}}) where {Style, T} =
     Base.Broadcast.Broadcasted{Style}((x...) -> T(x...), adapt(to, bc.args), bc.axes)
 
 Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
