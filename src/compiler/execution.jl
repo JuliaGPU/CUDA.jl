@@ -306,6 +306,7 @@ The following keyword arguments are supported:
   supported on LLVM 4.0+)
 - `name`: override the name that the kernel will have in the generated code
 - `always_inline`: inline all function calls in the kernel
+- `fastmath`: use less precise square roots and flush denormals
 
 The output of this function is automatically cached, i.e. you can simply call `cufunction`
 in a hot path without degrading performance. New code will be generated automatically, when
