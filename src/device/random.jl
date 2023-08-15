@@ -6,19 +6,7 @@ import RandomNumbers
 
 # global state
 
-# shared memory with the actual seed, per warp, loaded lazily or overridden by calling `seed!`
-@eval @inline function global_random_keys()
-    ptr = Base.llvmcall(
-        $("""@global_random_keys = weak addrspace($(AS.Shared)) global [32 x i32] zeroinitializer, align 32
-             define i8 addrspace($(AS.Shared))* @entry() #0 {
-                 %ptr = getelementptr inbounds [32 x i32], [32 x i32] addrspace($(AS.Shared))* @global_random_keys, i64 0, i64 0
-                 %untyped_ptr = bitcast i32 addrspace($(AS.Shared))* %ptr to i8 addrspace($(AS.Shared))*
-                 ret i8 addrspace($(AS.Shared))* %untyped_ptr
-             }
-             attributes #0 = { alwaysinline }
-          """, "entry"), LLVMPtr{UInt32, AS.Shared}, Tuple{})
-    CuDeviceArray{UInt32,1,AS.Shared}(ptr, (32,))
-end
+# XXX: sharing state means that with multiple generators we can't guarantee determinism.
 
 # shared memory with per-warp counters, incremented when generating numbers
 @eval @inline function global_random_counters()
@@ -43,19 +31,6 @@ using Random123: philox2x_round, philox2x_bumpkey
 
 # GPU-compatible/optimized version of the generator from Random123.jl
 struct Philox2x32{R} <: RandomNumbers.AbstractRNG{UInt64}
-    @inline function Philox2x32{R}() where R
-        rng = new{R}()
-        if rng.key == 0
-            # initialize the key. this happens when first accessing the (0-initialized)
-            # shared memory key from each block. if we ever want to make the device seed
-            # controlable from the host, this would be the place to read a global seed.
-            #
-            # note however that it is undefined how shared memory persists across e.g.
-            # launches, so we may not be able to rely on the zero initalization then.
-            rng.key = Random.make_seed()
-        end
-        return rng
-    end
 end
 
 # default to 7 rounds; enough to pass SmallCrush
@@ -69,7 +44,7 @@ end
     if field === :seed
         @inbounds global_random_seed()[1]
     elseif field === :key
-        @inbounds global_random_keys()[warpId]
+        kernel_state().random_seed
     elseif field === :ctr1
         @inbounds global_random_counters()[warpId]
     elseif field === :ctr2
@@ -85,9 +60,7 @@ end
                                (threadIdx().z - 1i32) * blockDim().x * blockDim().y
     warpId = (threadId - 1i32) >> 0x5 + 1i32  # fld1
 
-    if field === :key
-        @inbounds global_random_keys()[warpId] = x
-    elseif field === :ctr1
+    if field === :ctr1
         @inbounds global_random_counters()[warpId] = x
     end
 end
@@ -139,7 +112,9 @@ function Random.rand(rng::Philox2x32{R},::Type{UInt64}) where {R}
     # update the warp counter
     # NOTE: this performs the same update on every thread in the warp, but each warp writes
     #       to a unique location so the duplicate writes are innocuous
-    # XXX: what if this overflows? we can't increment ctr2. bump the key?
+    # NOTE: this update is not guaranteed to be visible in subsequent kernel launche,
+    #       e.g., see JuliaGPU/CUDA.jl#2008
+    # XXX: what if this overflows? we can't increment ctr2, and the key is immutable.
     rng.ctr1 += 1i32
 
     # NOTE: it's too expensive to keep both numbers around in case the user only wanted one,
