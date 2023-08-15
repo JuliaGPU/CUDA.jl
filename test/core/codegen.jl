@@ -157,6 +157,29 @@ end
     @test !occursin(".local", asm)
 end
 
+@testset "fastmath" begin
+    function sqrt_kernel(x)
+        i = threadIdx().x
+        @inbounds x[i] = sqrt(x[i])
+        return
+    end
+
+    function div_kernel(x)
+        i = threadIdx().x
+        @fastmath @inbounds x[i] = 1 / x[i]
+        return
+    end
+
+    asm = sprint(io->CUDA.code_ptx(io, sqrt_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}))
+    @test occursin("sqrt.r", asm)
+
+    asm = sprint(io->CUDA.code_ptx(io, sqrt_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}; fastmath=true))
+    @test occursin("sqrt.approx.ftz", asm)
+
+    asm = sprint(io->CUDA.code_ptx(io, div_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}; fastmath=true))
+    @test occursin("div.approx.ftz", asm)
+end
+
 end
 
 ############################################################################################
