@@ -6,10 +6,12 @@ import RandomNumbers
 
 # global state
 
-# XXX: sharing state means that with multiple generators we can't guarantee determinism.
+# we cannot store RNG state in thread-local memory (i.e. in the `rng` object) because that
+# inflate register usage. instead, we store it in shared memory, with one entry per warp.
+#
+# XXX: this implies that state is shared between `rng` objects, which can be surprising.
 
-# shared memory with the actual seed, per warp, initialized upon RNG construction
-# or by calling `seed!`
+# array with seeds, per warp, initialized on kernel start or by calling `seed!`
 @eval @inline function global_random_keys()
     ptr = Base.llvmcall(
         $("""@global_random_keys = weak addrspace($(AS.Shared)) global [32 x i32] zeroinitializer, align 32
@@ -23,7 +25,7 @@ import RandomNumbers
     CuDeviceArray{UInt32,1,AS.Shared}(ptr, (32,))
 end
 
-# shared memory with per-warp counters, incremented when generating numbers
+# array with per-warp counters, incremented when generating numbers
 @eval @inline function global_random_counters()
     ptr = Base.llvmcall(
         $("""@global_random_counters = weak addrspace($(AS.Shared)) global [32 x i32] zeroinitializer, align 32
@@ -37,6 +39,17 @@ end
     CuDeviceArray{UInt32,1,AS.Shared}(ptr, (32,))
 end
 
+# initialization function, called automatically at the start of each kernel because
+# there's no reliable way to detect uninitialized shared memory (see JuliaGPU/CUDA.jl#2008)
+function initialize_rng_state()
+    threadId = threadIdx().x + (threadIdx().y - 1i32) * blockDim().x +
+                               (threadIdx().z - 1i32) * blockDim().x * blockDim().y
+    warpId = (threadId - 1i32) >> 0x5 + 1i32  # fld1
+
+    @inbounds global_random_keys()[warpId] = kernel_state().random_seed
+    @inbounds global_random_counters()[warpId] = 0
+end
+
 @device_override Random.make_seed() = clock(UInt32)
 
 
@@ -46,11 +59,7 @@ using Random123: philox2x_round, philox2x_bumpkey
 
 # GPU-compatible/optimized version of the generator from Random123.jl
 struct Philox2x32{R} <: RandomNumbers.AbstractRNG{UInt64}
-    @inline function Philox2x32{R}() where R
-        rng = new{R}()
-        rng.key = kernel_state().random_seed
-        return rng
-    end
+    # NOTE: the state is stored globally; see comments at the top of this file.
 end
 
 # default to 7 rounds; enough to pass SmallCrush
