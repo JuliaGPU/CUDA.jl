@@ -482,7 +482,7 @@ end
       error("Trying to free $buf from an unrelated context")
     end
 
-    dev = current_device()
+    dev = device()
     if stream_ordered(dev)
       # mark the pool as active
       pool_mark(dev)
