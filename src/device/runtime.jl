@@ -28,6 +28,7 @@ end
 
 struct KernelState
     exception_flag::Ptr{Cvoid}
+    random_seed::UInt32
 end
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(KernelState)
