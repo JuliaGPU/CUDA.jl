@@ -1,6 +1,8 @@
 ## gpucompiler interface implementation
 
-struct CUDACompilerParams <: AbstractCompilerParams end
+Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
+    contract::Bool=false
+end
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
 const CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
 
@@ -38,7 +40,18 @@ function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::L
     return
 end
 
-GPUCompiler.method_table(@nospecialize(job::CUDACompilerJob)) = method_table
+import FastmathOverlay
+if FastmathOverlay.functional()
+    function GPUCompiler.method_table_view(@nospecialize(job::CUDACompilerJob))
+        if job.params.contract
+            return FastmathOverlay.contract(job.world, method_table)
+        else
+            return Core.Compiler.OverlayMethodTable(job.world, method_table)
+        end
+    end
+else
+    GPUCompiler.method_table(@nospecialize(job::CUDACompilerJob)) = method_table
+end
 
 GPUCompiler.kernel_state_type(job::CUDACompilerJob) = KernelState
 
@@ -68,7 +81,7 @@ function compiler_config(dev; kwargs...)
     end
     return config
 end
-@noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false, kwargs...)
+@noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false, contract=false, kwargs...)
     # determine the toolchain (cached, because this is slow)
     if !isassigned(_toolchain)
         _toolchain[] = supported_toolchain()
@@ -92,7 +105,7 @@ end
 
     # create GPUCompiler objects
     target = PTXCompilerTarget(; cap, ptx, debuginfo, kwargs...)
-    params = CUDACompilerParams()
+    params = CUDACompilerParams(; contract)
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
