@@ -14,7 +14,7 @@ end
 
 function check(f, errs...)
     res = retry_reclaim(in((CUSPARSE_STATUS_ALLOC_FAILED, errs...))) do
-        f()
+        return f()
     end
 
     if res != CUSPARSE_STATUS_SUCCESS
@@ -353,18 +353,6 @@ end
 @checked function cusparseDestroyColorInfo(info)
     initialize_context()
     @ccall libcusparse.cusparseDestroyColorInfo(info::cusparseColorInfo_t)::cusparseStatus_t
-end
-
-@checked function cusparseSetColorAlgs(info, alg)
-    initialize_context()
-    @ccall libcusparse.cusparseSetColorAlgs(info::cusparseColorInfo_t,
-                                            alg::cusparseColorAlg_t)::cusparseStatus_t
-end
-
-@checked function cusparseGetColorAlgs(info, alg)
-    initialize_context()
-    @ccall libcusparse.cusparseGetColorAlgs(info::cusparseColorInfo_t,
-                                            alg::Ptr{cusparseColorAlg_t})::cusparseStatus_t
 end
 
 @checked function cusparseCreatePruneInfo(info)
@@ -4703,6 +4691,8 @@ end
     CUSPARSE_FORMAT_CSC = 2
     CUSPARSE_FORMAT_COO = 3
     CUSPARSE_FORMAT_BLOCKED_ELL = 5
+    CUSPARSE_FORMAT_BSR = 6
+    CUSPARSE_FORMAT_SLICED_ELLPACK = 7
 end
 
 @cenum cusparseOrder_t::UInt32 begin
@@ -4929,6 +4919,16 @@ end
                                                   columnsValuesBatchStride::Int64)::cusparseStatus_t
 end
 
+@checked function cusparseBsrSetStridedBatch(spMatDescr, batchCount, offsetsBatchStride,
+                                             columnsBatchStride, ValuesBatchStride)
+    initialize_context()
+    @ccall libcusparse.cusparseBsrSetStridedBatch(spMatDescr::cusparseSpMatDescr_t,
+                                                  batchCount::Cint,
+                                                  offsetsBatchStride::Int64,
+                                                  columnsBatchStride::Int64,
+                                                  ValuesBatchStride::Int64)::cusparseStatus_t
+end
+
 @cenum cusparseSpMatAttribute_t::UInt32 begin
     CUSPARSE_SPMAT_FILL_MODE = 0
     CUSPARSE_SPMAT_DIAG_TYPE = 1
@@ -5082,6 +5082,40 @@ end
                                               cscValues::CuPtr{Cvoid})::cusparseStatus_t
 end
 
+@checked function cusparseCreateBsr(spMatDescr, brows, bcols, bnnz, rowBlockSize,
+                                    colBlockSize, bsrRowOffsets, bsrColInd, bsrValues,
+                                    bsrRowOffsetsType, bsrColIndType, idxBase, valueType,
+                                    order)
+    initialize_context()
+    @ccall libcusparse.cusparseCreateBsr(spMatDescr::Ptr{cusparseSpMatDescr_t},
+                                         brows::Int64, bcols::Int64, bnnz::Int64,
+                                         rowBlockSize::Int64, colBlockSize::Int64,
+                                         bsrRowOffsets::Ptr{Cvoid}, bsrColInd::Ptr{Cvoid},
+                                         bsrValues::Ptr{Cvoid},
+                                         bsrRowOffsetsType::cusparseIndexType_t,
+                                         bsrColIndType::cusparseIndexType_t,
+                                         idxBase::cusparseIndexBase_t,
+                                         valueType::cudaDataType,
+                                         order::cusparseOrder_t)::cusparseStatus_t
+end
+
+@checked function cusparseCreateConstBsr(spMatDescr, brows, bcols, bnnz, rowBlockDim,
+                                         colBlockDim, bsrRowOffsets, bsrColInd, bsrValues,
+                                         bsrRowOffsetsType, bsrColIndType, idxBase,
+                                         valueType, order)
+    initialize_context()
+    @ccall libcusparse.cusparseCreateConstBsr(spMatDescr::Ptr{cusparseConstSpMatDescr_t},
+                                              brows::Int64, bcols::Int64, bnnz::Int64,
+                                              rowBlockDim::Int64, colBlockDim::Int64,
+                                              bsrRowOffsets::Ptr{Cvoid},
+                                              bsrColInd::Ptr{Cvoid}, bsrValues::Ptr{Cvoid},
+                                              bsrRowOffsetsType::cusparseIndexType_t,
+                                              bsrColIndType::cusparseIndexType_t,
+                                              idxBase::cusparseIndexBase_t,
+                                              valueType::cudaDataType,
+                                              order::cusparseOrder_t)::cusparseStatus_t
+end
+
 @checked function cusparseCreateCoo(spMatDescr, rows, cols, nnz, cooRowInd, cooColInd,
                                     cooValues, cooIdxType, idxBase, valueType)
     initialize_context()
@@ -5193,6 +5227,40 @@ end
                                                   ellIdxType::Ptr{cusparseIndexType_t},
                                                   idxBase::Ptr{cusparseIndexBase_t},
                                                   valueType::Ptr{cudaDataType})::cusparseStatus_t
+end
+
+@checked function cusparseCreateSlicedEll(spMatDescr, rows, cols, nnz, sellValuesSize,
+                                          sliceSize, sellSliceOffsets, sellColInd,
+                                          sellValues, sellSliceOffsetsType, sellColIndType,
+                                          idxBase, valueType)
+    initialize_context()
+    @ccall libcusparse.cusparseCreateSlicedEll(spMatDescr::Ptr{cusparseSpMatDescr_t},
+                                               rows::Int64, cols::Int64, nnz::Int64,
+                                               sellValuesSize::Int64, sliceSize::Int64,
+                                               sellSliceOffsets::Ptr{Cvoid},
+                                               sellColInd::Ptr{Cvoid},
+                                               sellValues::Ptr{Cvoid},
+                                               sellSliceOffsetsType::cusparseIndexType_t,
+                                               sellColIndType::cusparseIndexType_t,
+                                               idxBase::cusparseIndexBase_t,
+                                               valueType::cudaDataType)::cusparseStatus_t
+end
+
+@checked function cusparseCreateConstSlicedEll(spMatDescr, rows, cols, nnz, sellValuesSize,
+                                               sliceSize, sellSliceOffsets, sellColInd,
+                                               sellValues, sellSliceOffsetsType,
+                                               sellColIndType, idxBase, valueType)
+    initialize_context()
+    @ccall libcusparse.cusparseCreateConstSlicedEll(spMatDescr::Ptr{cusparseConstSpMatDescr_t},
+                                                    rows::Int64, cols::Int64, nnz::Int64,
+                                                    sellValuesSize::Int64, sliceSize::Int64,
+                                                    sellSliceOffsets::Ptr{Cvoid},
+                                                    sellColInd::Ptr{Cvoid},
+                                                    sellValues::Ptr{Cvoid},
+                                                    sellSliceOffsetsType::cusparseIndexType_t,
+                                                    sellColIndType::cusparseIndexType_t,
+                                                    idxBase::cusparseIndexBase_t,
+                                                    valueType::cudaDataType)::cusparseStatus_t
 end
 
 @checked function cusparseCreateDnMat(dnMatDescr, rows, cols, ld, values, valueType, order)
@@ -5375,6 +5443,7 @@ end
     CUSPARSE_SPMV_CSR_ALG2 = 3
     CUSPARSE_SPMV_COO_ALG1 = 1
     CUSPARSE_SPMV_COO_ALG2 = 4
+    CUSPARSE_SPMV_SELL_ALG1 = 5
 end
 
 @checked function cusparseSpMV(handle, opA, alpha, matA, vecX, beta, vecY, computeType, alg,
@@ -5404,6 +5473,11 @@ end
 
 @cenum cusparseSpSVAlg_t::UInt32 begin
     CUSPARSE_SPSV_ALG_DEFAULT = 0
+end
+
+@cenum cusparseSpSVUpdate_t::UInt32 begin
+    CUSPARSE_SPSV_UPDATE_GENERAL = 0
+    CUSPARSE_SPSV_UPDATE_DIAGONAL = 1
 end
 
 mutable struct cusparseSpSVDescr end
@@ -5458,6 +5532,14 @@ end
                                           vecY::cusparseDnVecDescr_t,
                                           computeType::cudaDataType, alg::cusparseSpSVAlg_t,
                                           spsvDescr::cusparseSpSVDescr_t)::cusparseStatus_t
+end
+
+@checked function cusparseSpSV_updateMatrix(handle, spsvDescr, newValues, updatePart)
+    initialize_context()
+    @ccall libcusparse.cusparseSpSV_updateMatrix(handle::cusparseHandle_t,
+                                                 spsvDescr::cusparseSpSVDescr_t,
+                                                 newValues::Ptr{Cvoid},
+                                                 updatePart::cusparseSpSVUpdate_t)::cusparseStatus_t
 end
 
 @cenum cusparseSpSMAlg_t::UInt32 begin
@@ -5841,7 +5923,15 @@ end
     @ccall libcusparse.cusparseSpMMOp_destroyPlan(plan::cusparseSpMMOpPlan_t)::cusparseStatus_t
 end
 
-# Skipping MacroDefinition: CUSPARSE_DEPRECATED ( new_func ) __attribute__ ( ( deprecated ( "please use " # new_func " instead" ) ) )
+# Skipping MacroDefinition: CUSPARSE_DEPRECATED_REPLACE_WITH ( new_func ) __attribute__ ( ( deprecated ( "please use " # new_func " instead" ) ) )
+
+# Skipping MacroDefinition: CUSPARSE_DEPRECATED __attribute__ ( ( deprecated ( "The routine will be removed in the next major release" ) ) )
+
+# Skipping MacroDefinition: CUSPARSE_DEPRECATED_TYPE __attribute__ ( ( deprecated ( "The type will be removed in the next major release" ) ) )
+
+# Skipping MacroDefinition: CUSPARSE_DEPRECATED_ENUM_REPLACE_WITH ( new_enum ) __attribute__ ( ( deprecated ( "please use " # new_enum " instead" ) ) )
+
+# Skipping MacroDefinition: CUSPARSE_DEPRECATED_ENUM __attribute__ ( ( deprecated ( "The enum will be removed in the next major release" ) ) )
 
 # Float16 functionality is only enabled when using C++ (defining __cplusplus breaks things)
 
