@@ -14,7 +14,7 @@ end
 
 function check(f, errs...)
     res = retry_reclaim(in((CUDNN_STATUS_ALLOC_FAILED, errs...))) do
-        f()
+        return f()
     end
 
     if res != CUDNN_STATUS_SUCCESS

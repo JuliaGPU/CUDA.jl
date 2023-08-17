@@ -4,9 +4,11 @@ output_file_path = "../../lib/nvml/libnvml.jl"
 prologue_file_path = "./libnvml_prologue.jl"
 
 output_ignorelist = [
+    # we can't handle NVML_STRUCT_VERSION
     "^nvmlMemory_v2$",
     "^nvmlGpuInstanceProfileInfo_v2$",
     "^nvmlComputeInstanceProfileInfo_v2$",
+    "^nvmlPowerValue_v2$",
 ]
 
 

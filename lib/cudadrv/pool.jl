@@ -13,7 +13,8 @@ mutable struct CuMemoryPool
 
     function CuMemoryPool(dev::CuDevice;
                           alloc_type::CUmemAllocationType=ALLOCATION_TYPE_PINNED,
-                          handle_type::CUmemAllocationHandleType=HANDLE_TYPE_NONE)
+                          handle_type::CUmemAllocationHandleType=HANDLE_TYPE_NONE,
+                          maxSize::Integer=0)
         props = Ref(CUmemPoolProps(
             alloc_type,
             handle_type,
@@ -22,7 +23,8 @@ mutable struct CuMemoryPool
                 deviceid(dev)
             ),
             C_NULL,
-            ntuple(i->Cuchar(0), 64)
+            maxSize,
+            ntuple(i->Cuchar(0), 56)
         ))
         handle_ref = Ref{CUmemoryPool}()
         cuMemPoolCreate(handle_ref, props)
