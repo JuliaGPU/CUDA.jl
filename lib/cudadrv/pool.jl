@@ -30,9 +30,9 @@ mutable struct CuMemoryPool
         cuMemPoolCreate(handle_ref, props)
 
         ctx = current_context()
-        obj = new(handle_ref[], ctx)
-        finalizer(unsafe_destroy!, obj)
-        return obj
+        new(handle_ref[], ctx)
+        # NOTE: we cannot attach a finalizer to this object, as the pool can be active
+        #       without any references to it (similar to how contexts work).
     end
 
     global function default_memory_pool(dev::CuDevice)
