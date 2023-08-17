@@ -112,6 +112,34 @@ end
     @test cpu(input) == gpu(input)
 end
 
+@testset "contract" begin
+    # FIXME: Overlay table is not used for top-level function
+    ir = sprint(io->CUDA.code_llvm(io, *, Tuple{Float64, Float64}, contract=true))
+    @test_broken contains(ir, "fmul nsz contract double %0, %1")
+
+    f(a, b) = a * b
+    g(a, b) = a + b
+    h(a, b) = a - b
+
+    ir = sprint(io->CUDA.code_llvm(io, f, Tuple{Float64, Float64}, contract=true))
+    @test_broken contains(ir, "fmul nsz contract double %0, %1")
+
+    ir = sprint(io->CUDA.code_llvm(io, f, Tuple{Float32, Float32}, contract=true))
+    @test contains(ir, "fmul nsz contract float %0, %1")
+
+    ir = sprint(io->CUDA.code_llvm(io, g, Tuple{Float64, Float64}, contract=true))
+    @test contains(ir, "fadd nsz contract double %0, %1")
+
+    ir = sprint(io->CUDA.code_llvm(io, g, Tuple{Float32, Float32}, contract=true))
+    @test contains(ir, "fadd nsz contract float %0, %1")
+
+    ir = sprint(io->CUDA.code_llvm(io, h, Tuple{Float64, Float64}, contract=true))
+    @test contains(ir, "fsub nsz contract double %0, %1")
+
+    ir = sprint(io->CUDA.code_llvm(io, h, Tuple{Float32, Float32}, contract=true))
+    @test contains(ir, "fsub nsz contract float %0, %1")
+end
+
 end
 
 ############################################################################################

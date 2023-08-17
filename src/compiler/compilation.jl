@@ -43,8 +43,9 @@ end
 import FastmathOverlay
 if FastmathOverlay.functional()
     function GPUCompiler.method_table_view(@nospecialize(job::CUDACompilerJob))
-        if job.params.contract
-            return FastmathOverlay.contract(job.world, method_table)
+        if job.config.params.contract
+            mtv = FastmathOverlay.contract(job.world, method_table)
+            return mtv
         else
             return Core.Compiler.OverlayMethodTable(job.world, method_table)
         end
