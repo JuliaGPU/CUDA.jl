@@ -131,7 +131,8 @@ device memory. You can change this using two environment variables:
   synchronization points, so memory use may temporarily exceed this limit. In addition,
   this limit is incompatible with `JULIA_CUDA_MEMORY_POOL=none`.
 * `JULIA_CUDA_HARD_MEMORY_LIMIT`: This is a hard limit, checked before every allocation.
-  This incurs a certain cost, so it is recommended to first try to use the soft limit.
+  On older versions of CUDA, before v12.2, this is a relatively expensive limit, so it is
+  recommended to first try to use the soft limit.
 
 The value of these variables can be formatted as a numer of bytes, optionally followed by
 a unit, or as a percentage of the total device memory. Examples: `100M`, `50%`, `1.5GiB`,

@@ -818,6 +818,8 @@ memory_pool!(dev, pool)
 attribute!(pool2, CUDA.MEMPOOL_ATTR_RELEASE_THRESHOLD, UInt64(2^30))
 @test attribute(UInt64, pool2, CUDA.MEMPOOL_ATTR_RELEASE_THRESHOLD) == 2^30
 
+CUDA.unsafe_destroy!(pool2)
+
 end
 
 end
