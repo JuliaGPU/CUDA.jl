@@ -459,8 +459,11 @@ end
 
 #function sort
 
-function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int, partial_k=nothing, block_size_shift=0) where {T,N,F1,F2}
-    max_depth = CUDA.limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
+function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int, partial_k=nothing,
+                    block_size_shift=0) where {T,N,F1,F2}
+    # XXX: after JuliaLang/CUDA.jl#2035, which changed the kernel state struct contents,
+    #      the max depth needed to be reduced by 1 to avoid an illegal memory crash...
+    max_depth = CUDA.limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH) - 1
     len = size(c, dims)
 
     1 <= dims <= N || throw(ArgumentError("dimension out of range"))
@@ -884,11 +887,11 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false)
                 # N_pseudo_blocks = how many pseudo-blocks are in this layer of the network
                 N_pseudo_blocks = nextpow(2, c_len) ÷ pseudo_block_length
                 pseudo_blocks_per_block = threads2 ÷ pseudo_block_length
-           
+
                 # grid dimensions
                 N_blocks = max(1, N_pseudo_blocks ÷ pseudo_blocks_per_block)
                 block_size = pseudo_block_length, threads2 ÷ pseudo_block_length
-                
+
                 kernel1(args1...; blocks=N_blocks, threads=block_size,
                         shmem=bitonic_shmem(c, block_size))
                 break

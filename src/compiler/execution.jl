@@ -212,9 +212,9 @@ end
         end
     end
 
-    # add the kernel state
+    # add the kernel state, passing an instance with a unique seed
     pushfirst!(call_t, KernelState)
-    pushfirst!(call_args, :(kernel.state))
+    pushfirst!(call_args, :(KernelState(kernel.state.exception_flag, make_seed(kernel))))
 
     # finalize types
     call_tt = Base.to_tuple_type(call_t)
@@ -329,7 +329,7 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
         if kernel === nothing
             # create the kernel state object
             exception_ptr = create_exceptions!(fun.mod)
-            state = KernelState(exception_ptr)
+            state = KernelState(exception_ptr, UInt32(0))
 
             kernel = HostKernel{F,tt}(f, fun, state)
             _kernel_instances[key] = kernel
@@ -344,6 +344,8 @@ const _kernel_instances = Dict{Any, Any}()
 function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
 end
+
+make_seed(::HostKernel) = Random.rand(UInt32)
 
 
 ## device-side kernels
@@ -374,6 +376,9 @@ No keyword arguments are supported.
 end
 
 (kernel::DeviceKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
+
+# re-use the parent kernel's seed to avoid need for the RNG
+make_seed(::DeviceKernel) = kernel_state().random_seed
 
 
 ## other
