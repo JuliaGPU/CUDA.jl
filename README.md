@@ -39,7 +39,12 @@ automatically when you install the package using Julia's package manager.
 CUDA.jl currently also requires a CUDA-capable GPU with **compute capability 3.5** (Kepler)
 or higher, and an accompanying NVIDIA driver with support for **CUDA 11.0** or newer. These
 requirements are not enforced by the Julia package manager when installing CUDA.jl.
-Depending on your system and GPU, you may need to install an older version of the package.
+Depending on your system and GPU, you may need to install an older version of the package:
+
+* CUDA.jl v4.4 will be the last version with support for CUDA 11.0-11.3 (deprecated in v5.0)
+* CUDA.jl v4.0 is the last version to work with CUDA 10.2 (removed in v4.1)
+* CUDA.jl v3.13 is the last version to work with CUDA 10.1 (removed in v4.0)
+* CUDA.jl v1.3 is the last version to work with CUDA 9-10.0 (removed in v2.0)
 
 Finally, you should be using a platform **supported by NVIDIA**. Currently, that means using
 64-bit Linux or Windows, with an X86, ARM, or PowerPC host processor.
