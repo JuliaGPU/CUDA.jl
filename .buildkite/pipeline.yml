@@ -19,7 +19,7 @@ steps:
           cuda: "*"
         commands: |
           julia --project -e '
-              # make sure the 1.6-era Manifest works on this Julia version
+              # make sure the 1.7-era Manifest works on this Julia version
               using Pkg
               Pkg.resolve()
 
@@ -32,7 +32,6 @@ steps:
         matrix:
           setup:
             julia:
-              - "1.6"
               - "1.7"
               - "1.8"
               - "1.9"
@@ -315,10 +314,10 @@ steps:
         matrix:
           setup:
             julia:
-              - "1.6"
               - "1.7"
               - "1.8"
               - "1.9"
+              - "1.10"
               - "nightly"
           adjustments:
             - with:
