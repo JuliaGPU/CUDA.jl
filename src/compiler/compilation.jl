@@ -72,6 +72,12 @@ function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
         bb = BasicBlock(top_bb, "initialize_rng")
         LLVM.@dispose builder=IRBuilder() begin
             position!(builder, bb)
+            subprogram = LLVM.get_subprogram(entry)
+            if subprogram !== nothing
+                loc = DILocation(0, 0, subprogram)
+                debuglocation!(builder, loc)
+            end
+            debuglocation!(builder, first(instructions(top_bb)))
 
             # call the `deferred_codegen` marker function
             T_ptr = LLVM.Int64Type()
