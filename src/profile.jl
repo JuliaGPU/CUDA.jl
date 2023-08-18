@@ -187,6 +187,9 @@ function emit_integrated_profile(code, kwargs)
         # memory operations
         CUPTI.CUPTI_ACTIVITY_KIND_MEMCPY,
         CUPTI.CUPTI_ACTIVITY_KIND_MEMSET,
+        # NVTX
+        CUPTI.CUPTI_ACTIVITY_KIND_NAME,
+        CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
     ]
     if CUDA.runtime_version() >= v"11.2"
         # additional information for API host calls
@@ -349,6 +352,13 @@ function generate_traces(cfg)
                                    stream=record.streamId,
                                    grid, block, registers,
                                    static_shmem, dynamic_shmem); cols=:union)
+
+        # NVTX events
+        elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_NAME
+            @show record
+        elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_MARKER
+            @show record
+
         else
             error("Unexpected CUPTI activity kind: $(record.kind). Please file an issue.")
         end

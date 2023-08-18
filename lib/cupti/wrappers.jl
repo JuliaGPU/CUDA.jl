@@ -135,6 +135,8 @@ function process(f, cfg::ActivityConfig)
         CUPTI_ACTIVITY_KIND_DRIVER              => CUpti_ActivityAPI,
         CUPTI_ACTIVITY_KIND_RUNTIME             => CUpti_ActivityAPI,
         CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API => CUpti_ActivityAPI,
+        CUPTI_ACTIVITY_KIND_NAME                => CUpti_ActivityName,
+        CUPTI_ACTIVITY_KIND_MARKER              => CUpti_ActivityMarker2,
     )
     # NOTE: the CUPTI version is unreliable, e.g., both CUDA 11.5 and 11.6 have CUPTI 16,
     #       yet CUpti_ActivityMemset4 is only available in CUDA 11.6.
