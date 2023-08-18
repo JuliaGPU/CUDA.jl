@@ -515,7 +515,6 @@ function render_traces(host_trace, device_trace, details;
         # to determine the time the host was active, we should look at threads separately
         host_time = maximum(combine(groupby(host_trace, :tid), :time => sum => :time).time)
         host_ratio = host_time / trace_time
-        println(io, "\nHost-side activity: calling CUDA APIs took $(format_time(host_time)) ($(format_percentage(host_ratio)) of the trace)")
 
         # get rid of API call version suffixes
         host_trace.name = replace.(host_trace.name, r"_v\d+$" => "")
@@ -537,12 +536,15 @@ function render_traces(host_trace, device_trace, details;
                                "cuPointerGetAttribute"])
             end
         end
+        if !isempty(df)
+            println(io, "\nHost-side activity: calling CUDA APIs took $(format_time(host_time)) ($(format_percentage(host_ratio)) of the trace)")
+        end
 
         # add in details
         df = leftjoin(df, details, on=:id, order=:left)
 
         if isempty(df)
-            println(io, "No host-side activity was recorded.")
+            println(io, "\nNo host-side activity was recorded.")
         elseif trace
             # determine columns to show, based on whether they contain useful information
             columns = [:id, :start, :time]
@@ -587,13 +589,15 @@ function render_traces(host_trace, device_trace, details;
     if device
         device_time = sum(device_trace.time)
         device_ratio = device_time / trace_time
-        println(io, "\nDevice-side activity: GPU was busy for $(format_time(device_time)) ($(format_percentage(device_ratio)) of the trace)")
+        if !isempty(device_trace)
+            println(io, "\nDevice-side activity: GPU was busy for $(format_time(device_time)) ($(format_percentage(device_ratio)) of the trace)")
+        end
 
         # add memory throughput information
         device_trace.throughput = device_trace.size ./ device_trace.time
 
         if isempty(device_trace)
-            println(io, "No device-side activity was recorded.")
+            println(io, "\nNo device-side activity was recorded.")
         elseif trace
             # determine columns to show, based on whether they contain useful information
             columns = [:id, :start, :time]
