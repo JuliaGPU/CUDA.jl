@@ -120,14 +120,9 @@ function __init__()
     end
 
     # if we're not running under an external profiler, let CUPTI handle NVTX events
-    if !haskey(ENV, "NVTX_INJECTION64_PATH")
+    if !NVTX.isactive()
         ENV["NVTX_INJECTION64_PATH"] = CUDA_Runtime.libcupti
-        # XXX: the CUPTI documentation suggests adding initialization hooks to our NVTXv3
-        #      library build, however, that leads to undefined symbols during library init.
-
-        # XXX: NVTX.jl only activates when NVTX_INJECTION64_PATH is set during its __init__
-        NVTX.NSYS_ACTIVE[] = true
-        NVTX.initialize()
+        NVTX.activate()
     end
 
     # finally, initialize CUDA
