@@ -102,7 +102,6 @@ function __init__()
         runtime_version()
     catch err
         if err isa CuError && err.code == ERROR_NO_DEVICE
-            @error "No CUDA-capable device found"
             _initialization_error[] = "No CUDA-capable device found"
             return
         end
@@ -124,8 +123,7 @@ function __init__()
     try
         cuInit(0)
     catch err
-        @error "Failed to initialize CUDA" exception=(err,catch_backtrace())
-        _initialization_error[] = "CUDA initialization failed"
+        _initialization_error[] = "CUDA initialization failed: " * sprint(showerror, err)
         return
     end
 
