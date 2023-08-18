@@ -176,9 +176,8 @@ function pool_mark(dev::CuDevice)
   if status[] === nothing
       limits = memory_limits()
 
-      # configure our memory pool
-      # XXX: is it OK to replace the pool like this? we need to, for setting limits.
-      #      how do we get other applications/libraries to use it?
+      # create a custom memory pool and assign it to the device
+      # so that other libraries and applications will use it.
       pool = if limits.hard > 0 && CUDA.driver_version() >= v"12.2"
         CuMemoryPool(dev; maxSize=limits.hard)
       else
