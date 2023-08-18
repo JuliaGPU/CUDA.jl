@@ -418,8 +418,12 @@ function render_traces(host_trace, device_trace, details;
         end
 
         # renumber thread IDs from 1
-        first_tid = minimum(host_trace.tid)
-        host_trace.tid .-= first_tid - 1
+        threads = unique([host_trace.tid; nvtx_trace.tid])
+        for df in (host_trace, nvtx_trace)
+            broadcast!(df.tid, df.tid) do tid
+                findfirst(isequal(tid), threads)
+            end
+        end
 
     end
 
