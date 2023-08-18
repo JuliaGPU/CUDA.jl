@@ -187,8 +187,7 @@ function emit_integrated_profile(code, kwargs)
         # memory operations
         CUPTI.CUPTI_ACTIVITY_KIND_MEMCPY,
         CUPTI.CUPTI_ACTIVITY_KIND_MEMSET,
-        # NVTX
-        CUPTI.CUPTI_ACTIVITY_KIND_NAME,
+        # NVTX markers
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
     ]
     if CUDA.runtime_version() >= v"11.2"
@@ -262,6 +261,14 @@ function generate_traces(cfg)
     details = DataFrame(
         id      = Int[],
         details = String[],
+    )
+    nvtx_trace = DataFrame(
+        id      = Int[],
+        start   = Float64[],
+        type    = Symbol[],
+        tid     = Int[],
+        name    = Union{Missing,String}[],
+        domain  = Union{Missing,String}[],
     )
 
     # memory_kind fields are sometimes typed CUpti_ActivityMemoryKind, sometimes UInt
@@ -353,22 +360,37 @@ function generate_traces(cfg)
                                    grid, block, registers,
                                    static_shmem, dynamic_shmem); cols=:union)
 
-        # NVTX events
-        elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_NAME
-            @show record
+        # NVTX markers
         elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_MARKER
-            @show record
+            start = record.timestamp/1e9
+            name = record.name == C_NULL ? missing : unsafe_string(record.name)
+            domain = record.domain == C_NULL ? missing : unsafe_string(record.domain)
 
+            if record.flags == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_INSTANTANEOUS
+                @assert record.objectKind == CUDA.CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
+                tid = record.objectId.pt.threadId
+                push!(nvtx_trace, (; record.id, start, tid, type=:instant, name, domain))
+            elseif record.flags == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_START
+                @assert record.objectKind == CUDA.CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
+                tid = record.objectId.pt.threadId
+                push!(nvtx_trace, (; record.id, start, tid, type=:start, name, domain))
+            elseif record.flags == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_END
+                @assert record.objectKind == CUDA.CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
+                tid = record.objectId.pt.threadId
+                push!(nvtx_trace, (; record.id, start, tid, type=:end, name, domain))
+            else
+                @error "Unexpected NVTX marker kind $(Int(record.flags)). Please file an issue."
+            end
         else
-            error("Unexpected CUPTI activity kind: $(record.kind). Please file an issue.")
+            @error "Unexpected CUPTI activity kind $(Int(record.kind)). Please file an issue."
         end
     end
 
-    return host_trace, device_trace, details
+    return host_trace, device_trace, details, nvtx_trace
 end
 
 # render traces to a table
-function render_traces(host_trace, device_trace, details;
+function render_traces(host_trace, device_trace, details, nvtx_trace;
                        io=stdout isa Base.TTY ? IOContext(stdout, :limit => true) : stdout,
                        host=true, device=true, trace=false, raw=false)
     # find the relevant part of the trace (marked by calls to 'cuCtxSynchronize')
@@ -410,6 +432,7 @@ function render_traces(host_trace, device_trace, details;
         df.start .-= trace_begin
         df.stop .-= trace_begin
     end
+    nvtx_trace.start .-= trace_begin
     if !raw
         # renumber event IDs from 1
         first_id = minimum([host_trace.id; device_trace.id; details.id])
@@ -543,6 +566,21 @@ function render_traces(host_trace, device_trace, details;
         # add in details
         df = leftjoin(df, details, on=:id, order=:left)
 
+        # instantaneous NVTX markers can be added to the API trace
+        markers = copy(nvtx_trace[nvtx_trace.type .== :instant, :])
+        markers.id .= missing
+        markers.time .= 0.0
+        markers.details = map(markers.name, markers.domain) do name, domain
+            if name !== missing && domain !== missing
+                "$(domain).$(name)"
+            elseif name !== missing
+                "$name"
+            end
+        end
+        markers.name .= "NVTX marker"
+        append!(df, markers; cols=:subset)
+        sort!(df, :start)
+
         if isempty(df)
             println(io, "\nNo host-side activity was recorded.")
         elseif trace
@@ -666,6 +704,30 @@ function render_traces(host_trace, device_trace, details;
             pretty_table(io, df; header, alignment, formatters=summary_formatter, highlighters, crop)
         end
     end
+    # NVTX ranges should be used to repeat the summary information, but group by NVTX range.
+    # those grouping should also include a summary of the NVTX range itself, e.g., see
+    # the types in https://gist.github.com/trevor-m/2fe5f6451a7739bf7493e8b91d2a2e4c.
+    # that probably requires refactoring the summarizing logic out into a separate function
+    ranges = copy(nvtx_trace[nvtx_trace.type .== :start, :])
+    ranges = leftjoin(ranges, nvtx_trace[nvtx_trace.type .== :end,
+                                            [:id, :start]],
+                        on=:id, makeunique=true)
+    if !isempty(ranges)
+        rename!(ranges, :start_1 => :stop)
+        ranges.id .= missing
+        ranges.time .= ranges.stop .- ranges.start
+        ranges.details = map(ranges.name, ranges.domain) do name, domain
+            if name !== missing && domain !== missing
+                "$(domain).$(name)"
+            elseif name !== missing
+                "$name"
+            end
+        end
+        ranges.name .= "NVTX range"
+        @show ranges
+    end
+
+    return
 end
 
 format_percentage(x::Number) = @sprintf("%.2f%%", x * 100)
