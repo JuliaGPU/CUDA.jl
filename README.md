@@ -32,7 +32,7 @@ kernels in Julia, and wrappers for various CUDA libraries.
 
 ## Requirements
 
-The latest development version of CUDA.jl requires **Julia 1.6** or higher. If you are using
+The latest development version of CUDA.jl requires **Julia 1.8** or higher. If you are using
 an older version of Julia, you need to use a previous version of CUDA.jl. This will happen
 automatically when you install the package using Julia's package manager.
 
