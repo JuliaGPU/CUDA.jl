@@ -34,6 +34,8 @@ import Preferences
 
 using Libdl
 
+import NVTX
+
 
 ## source code includes
 

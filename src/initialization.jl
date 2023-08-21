@@ -119,6 +119,12 @@ function __init__()
                  It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
     end
 
+    # if we're not running under an external profiler, let CUPTI handle NVTX events
+    if !NVTX.isactive()
+        ENV["NVTX_INJECTION64_PATH"] = CUDA_Runtime.libcupti
+        NVTX.activate()
+    end
+
     # finally, initialize CUDA
     try
         cuInit(0)
