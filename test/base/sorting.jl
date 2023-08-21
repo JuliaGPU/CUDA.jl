@@ -243,7 +243,7 @@ function check_sortperm!(i, T, N; kwargs...)
     I = CuArray(i)
     a = rand(T, N)
     c = CuArray(a)
-    CUDA.@sync sortperm!(I, c; kwargs...)
+    sortperm!(I, c; kwargs...)
     return Array(I) == sortperm!(i, a; kwargs...)
 end
 
@@ -251,7 +251,7 @@ end
 function check_sortperm(T, N; kwargs...)
     a = rand(T, N)
     c = CuArray(a)
-    I = CUDA.@sync sortperm(c; kwargs...)
+    I = sortperm(c; kwargs...)
     return Array(I) == sortperm(a; kwargs...)
 end
 
@@ -397,6 +397,8 @@ end
     @test check_sortperm!(collect(Int32(1):Int32(1000000)), Float32, 1000000; initialized=false)
     # expected error case
     @test_throws ArgumentError sortperm!(CuArray(1:3), CuArray(1:4))
+    # mismatched types (JuliaGPU/CUDA.jl#2046)
+    @test check_sortperm!(collect(UInt64(1):UInt64(1000000)), Int64, 1000000)
 end
 
 end
