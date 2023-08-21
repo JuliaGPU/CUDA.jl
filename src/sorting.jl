@@ -977,15 +977,14 @@ function Base.partialsort(c::AnyCuArray, k::Union{Integer, OrdinalRange}; kwargs
     return partialsort!(copy(c), k; kwargs...)
 end
 
-function Base.sortperm!(I::AnyCuArray{T}, c::AnyCuArray; initialized=false, kwargs...) where T
-    if length(I) != length(c)
-        throw(ArgumentError("index vector must have the same length/indices as the source vector"))
-    end
+function Base.sortperm!(ix::AnyCuArray{T}, A::AnyCuArray; initialized=false, kwargs...) where T
+    axes(ix) == axes(A) || throw(ArgumentError("index array must have the same size/axes as the source array, $(axes(ix)) != $(axes(A))"))
+
     if !initialized
-        I .= one(T):T(length(I))
+        ix .= LinearIndices(A)
     end
-    bitonic_sort!((c, I); kwargs...)
-    return I
+    bitonic_sort!((A, ix); kwargs...)
+    return ix
 end
 
 function Base.sortperm(c::AnyCuArray; kwargs...)
