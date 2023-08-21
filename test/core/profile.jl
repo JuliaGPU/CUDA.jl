@@ -1,3 +1,5 @@
+import NVTX
+
 @testset "profiler" begin
 
 @testset "external" begin
@@ -75,6 +77,30 @@ let
     @test occursin("ID", str)
 
     @test occursin("cuCtxSynchronize", str)
+end
+
+# NVTX markers
+let
+    str = sprint() do io
+        CUDA.@profile io=io trace=true begin
+            NVTX.@mark "a marker"
+        end
+    end
+
+    @test occursin("NVTX marker", str)
+    @test occursin("a marker", str)
+end
+
+# NVTX ranges
+let
+    str = sprint() do io
+        CUDA.@profile io=io trace=true begin
+            NVTX.@range "a range" identity(nothing)
+        end
+    end
+
+    @test occursin("NVTX ranges", str)
+    @test occursin("a range", str)
 end
 
 end

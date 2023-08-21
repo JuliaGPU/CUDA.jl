@@ -1,7 +1,7 @@
 # Profiler control
 
 """
-    @profile [io=stdout] [host=true] [device=true] [trace=false] [raw=false] code...
+    @profile [io=stdout] [trace=false] [raw=false] code...
     @profile external=true code...
 
 Profile the GPU execution of `code`.
@@ -11,22 +11,19 @@ There are two modes of operation, depending on whether `external` is `true` or `
 ## Integrated profiler (`external=false`, the default)
 
 In this mode, CUDA.jl will profile the execution of `code` and display the result. By
-default, both host-side and device-side activity is captured; this can be controlled with
-the `host` and `device` keyword arguments. If `trace` is `true`, a chronological trace of
-the captured activity will be generated, where the ID column can be used to match host-side
-and device-side activity; by default, only a summary will be shown. If `raw` is `true`, all
-data will always be included, even if it may not be relevant. The output will be written to
-`io`, which defaults to `stdout`.
+default, a summary of host and device-side execution will be show, including any NVTX
+events. To display a chronological trace of the captured activity instead, `trace` can be
+set to `true`. Trace output will include an ID column that can be used to match host-side
+and device-side activity. If `raw` is `true`, all data will always be included, even if it
+may not be relevant. The output will be written to `io`, which defaults to `stdout`.
 
 Slow operations will be highlighted in the output: Entries colored in yellow are among the
 slowest 25%, while entries colored in red are among the slowest 5% of all operations.
 
-!!! compat "Julia 1.9"
-    This functionality is only available on Julia 1.9 and later.
+!!! compat "Julia 1.9" This functionality is only available on Julia 1.9 and later.
 
-!!! compat "CUDA 11.2"
-    Older versions of CUDA, before 11.2, contain bugs that may prevent the
-    `CUDA.@profile` macro to work. It is recommended to use a newer runtime.
+!!! compat "CUDA 11.2" Older versions of CUDA, before 11.2, contain bugs that may prevent
+    the `CUDA.@profile` macro to work. It is recommended to use a newer runtime.
 
 ## External profilers (`external=true`)
 
@@ -386,13 +383,17 @@ function generate_traces(cfg)
         end
     end
 
-    return host_trace, device_trace, details, nvtx_trace
+    # merge in the details
+    host_trace = leftjoin(host_trace, details, on=:id, order=:left)
+    device_trace = leftjoin(device_trace, details, on=:id, order=:left)
+
+    return host_trace, device_trace, nvtx_trace
 end
 
 # render traces to a table
-function render_traces(host_trace, device_trace, details, nvtx_trace;
+function render_traces(host_trace, device_trace, nvtx_trace;
                        io=stdout isa Base.TTY ? IOContext(stdout, :limit => true) : stdout,
-                       host=true, device=true, trace=false, raw=false)
+                       trace=false, raw=false)
     # find the relevant part of the trace (marked by calls to 'cuCtxSynchronize')
     trace_first_sync = findfirst(host_trace.name .== "cuCtxSynchronize")
     trace_first_sync === nothing && error("Could not find the start of the profiling trace.")
@@ -435,8 +436,8 @@ function render_traces(host_trace, device_trace, details, nvtx_trace;
     nvtx_trace.start .-= trace_begin
     if !raw
         # renumber event IDs from 1
-        first_id = minimum([host_trace.id; device_trace.id; details.id])
-        for df in (host_trace, device_trace, details)
+        first_id = minimum([host_trace.id; device_trace.id])
+        for df in (host_trace, device_trace)
             df.id .-= first_id - 1
         end
 
@@ -517,7 +518,7 @@ function render_traces(host_trace, device_trace, details, nvtx_trace;
         "name"          => "Name"
     )
 
-    summary_formatter = function(v, i, j)
+    summary_formatter(df) = function(v, i, j)
         if names(df)[j] == "time_ratio"
             format_percentage(v)
         elseif names(df)[j] in ["time", "time_avg", "time_min", "time_max"]
@@ -534,7 +535,8 @@ function render_traces(host_trace, device_trace, details, nvtx_trace;
         :horizontal
     end
 
-    if host
+    # host-side activity
+    let
         # to determine the time the host was active, we should look at threads separately
         host_time = maximum(combine(groupby(host_trace, :tid), :time => sum => :time).time)
         host_ratio = host_time / trace_time
@@ -559,28 +561,27 @@ function render_traces(host_trace, device_trace, details, nvtx_trace;
                                "cuPointerGetAttribute"])
             end
         end
+
+        # instantaneous NVTX markers can be added to the API trace
+        if trace
+            markers = copy(nvtx_trace[nvtx_trace.type .== :instant, :])
+            markers.id .= missing
+            markers.time .= 0.0
+            markers.details = map(markers.name, markers.domain) do name, domain
+                if name !== missing && domain !== missing
+                    "$(domain).$(name)"
+                elseif name !== missing
+                    "$name"
+                end
+            end
+            markers.name .= "NVTX marker"
+            append!(df, markers; cols=:subset)
+            sort!(df, :start)
+        end
+
         if !isempty(df)
             println(io, "\nHost-side activity: calling CUDA APIs took $(format_time(host_time)) ($(format_percentage(host_ratio)) of the trace)")
         end
-
-        # add in details
-        df = leftjoin(df, details, on=:id, order=:left)
-
-        # instantaneous NVTX markers can be added to the API trace
-        markers = copy(nvtx_trace[nvtx_trace.type .== :instant, :])
-        markers.id .= missing
-        markers.time .= 0.0
-        markers.details = map(markers.name, markers.domain) do name, domain
-            if name !== missing && domain !== missing
-                "$(domain).$(name)"
-            elseif name !== missing
-                "$name"
-            end
-        end
-        markers.name .= "NVTX marker"
-        append!(df, markers; cols=:subset)
-        sort!(df, :start)
-
         if isempty(df)
             println(io, "\nNo host-side activity was recorded.")
         elseif trace
@@ -620,11 +621,12 @@ function render_traces(host_trace, device_trace, details, nvtx_trace;
             header = [summary_column_names[name] for name in names(df)]
             alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters=summary_formatter, highlighters, crop)
+            pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
         end
     end
 
-    if device
+    # device-side activity
+    let
         device_time = sum(device_trace.time)
         device_ratio = device_time / trace_time
         if !isempty(device_trace)
@@ -701,30 +703,40 @@ function render_traces(host_trace, device_trace, details, nvtx_trace;
             header = [summary_column_names[name] for name in names(df)]
             alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters=summary_formatter, highlighters, crop)
+            pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
         end
     end
-    # NVTX ranges should be used to repeat the summary information, but group by NVTX range.
-    # those grouping should also include a summary of the NVTX range itself, e.g., see
-    # the types in https://gist.github.com/trevor-m/2fe5f6451a7739bf7493e8b91d2a2e4c.
-    # that probably requires refactoring the summarizing logic out into a separate function
-    ranges = copy(nvtx_trace[nvtx_trace.type .== :start, :])
-    ranges = leftjoin(ranges, nvtx_trace[nvtx_trace.type .== :end,
-                                            [:id, :start]],
-                        on=:id, makeunique=true)
-    if !isempty(ranges)
-        rename!(ranges, :start_1 => :stop)
-        ranges.id .= missing
-        ranges.time .= ranges.stop .- ranges.start
-        ranges.details = map(ranges.name, ranges.domain) do name, domain
+
+    # show NVTX ranges
+    # TODO: do we also want to repeat the host/device summary for each NVTX range?
+    #       that's what nvprof used to do, but it's a little verbose...
+    nvtx_ranges = copy(nvtx_trace[nvtx_trace.type .== :start, :])
+    nvtx_ranges = leftjoin(nvtx_ranges, nvtx_trace[nvtx_trace.type .== :end,
+                                                   [:id, :start]],
+                           on=:id, makeunique=true)
+    if !isempty(nvtx_ranges)
+        println(io, "\nNVTX ranges:")
+
+        rename!(nvtx_ranges, :start_1 => :stop)
+        nvtx_ranges.id .= missing
+        nvtx_ranges.time .= nvtx_ranges.stop .- nvtx_ranges.start
+        nvtx_ranges.name = map(nvtx_ranges.name, nvtx_ranges.domain) do name, domain
             if name !== missing && domain !== missing
                 "$(domain).$(name)"
             elseif name !== missing
                 "$name"
             end
         end
-        ranges.name .= "NVTX range"
-        @show ranges
+
+        df = summarize_trace(nvtx_ranges)
+
+        columns = [:time_ratio, :time, :calls, :time_avg, :time_min, :time_max, :name]
+        df = df[:, columns]
+
+        header = [summary_column_names[name] for name in names(df)]
+        alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
+        highlighters = time_highlighters(df)
+        pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
     end
 
     return
