@@ -367,13 +367,15 @@ struct JacobiAlgorithm <: SVDAlgorithm end
 
 if VERSION >= v"1.8-"
 
-LinearAlgebra.svd!(A::CuMatrix{T}; full::Bool=false,
+const CuMatOrBatched{T} = Union{CuMatrix{T}, CuArray{T,3}} where T
+
+LinearAlgebra.svd!(A::CuMatOrBatched{T}; full::Bool=false,
                    alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
     _svd!(A, full, alg)
-LinearAlgebra.svd(A::CuMatrix; full=false, alg::SVDAlgorithm=JacobiAlgorithm()) =
+LinearAlgebra.svd(A::CuMatOrBatched; full=false, alg::SVDAlgorithm=JacobiAlgorithm()) =
     _svd!(copy_cublasfloat(A), full, alg)
 
-_svd!(A::CuMatrix{T}, full::Bool, alg::SVDAlgorithm) where T =
+_svd!(A::CuMatOrBatched , full::Bool, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
 function _svd!(A::CuMatrix{T}, full::Bool, alg::QRAlgorithm) where T
     U, S, Vt = gesvd!(full ? 'A' : 'S', full ? 'A' : 'S', A)
@@ -383,13 +385,22 @@ function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
     U, S, V = gesvdj!('V', Int(!full), A)
     return SVD(U, S, V')
 end
+function _svd!(A::CuArray{T,3}, full::Bool, alg::JacobiAlgorithm) where T
+    U, S, V = gesvdj!('V', Int(!full), A)
+    return SVD(U, S, V)
+end
 
 else
-
 
 struct CuSVD{T,Tr,A<:AbstractMatrix{T}} <: LinearAlgebra.Factorization{T}
     U::CuMatrix{T}
     S::CuVector{Tr}
+    V::A
+end
+
+struct CuSVDBatched{T,Tr,A<:AbstractArray{T,3}} <: LinearAlgebra.Factorization{T}
+    U::CuArray{T,3}
+    S::CuMatrix{Tr}
     V::A
 end
 
