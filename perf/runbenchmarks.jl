@@ -17,7 +17,7 @@ end
 # convenience macro to create a benchmark that requires synchronizing the GPU
 macro async_benchmarkable(ex...)
     quote
-        @benchmarkable CUDA.@sync $(ex...)
+        @benchmarkable CUDA.@sync blocking=true $(ex...)
     end
 end
 

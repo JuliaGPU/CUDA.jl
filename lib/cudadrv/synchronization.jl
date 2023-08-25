@@ -164,8 +164,8 @@ function nonblocking_synchronize(val)
     return
 end
 
-function device_synchronize()
-    if use_nonblocking_synchronization
+function device_synchronize(; blocking::Bool=false)
+    if use_nonblocking_synchronization && !blocking
         if fast_synchronization(isdone, legacy_stream())
             cuCtxSynchronize()
         else
@@ -178,8 +178,8 @@ function device_synchronize()
     check_exceptions()
 end
 
-function synchronize(stream::CuStream=stream())
-    if use_nonblocking_synchronization
+function synchronize(stream::CuStream=stream(); blocking::Bool=false)
+    if use_nonblocking_synchronization && !blocking
         if fast_synchronization(isdone, stream)
             cuStreamSynchronize(stream)
         else
@@ -192,8 +192,8 @@ function synchronize(stream::CuStream=stream())
     check_exceptions()
 end
 
-function synchronize(event::CuEvent)
-    if use_nonblocking_synchronization
+function synchronize(event::CuEvent; blocking::Bool=false)
+    if use_nonblocking_synchronization && !blocking
         if fast_synchronization(isdone, event)
             cuEventSynchronize(event)
         else
@@ -249,8 +249,8 @@ function nonblocking_synchronize(stream::CuStream)
     return
 end
 
-function device_synchronize()
-    if use_nonblocking_synchronization
+function device_synchronize(; blocking::Bool=false)
+    if use_nonblocking_synchronization && !blocking
         stream = legacy_stream()
         if !fast_synchronization(isdone, stream)
             nonblocking_synchronize(stream)
@@ -261,8 +261,8 @@ function device_synchronize()
     check_exceptions()
 end
 
-function synchronize(stream::CuStream=stream())
-    if use_nonblocking_synchronization
+function synchronize(stream::CuStream=stream(); blocking::Bool=false)
+    if use_nonblocking_synchronization && !blocking
         if !fast_synchronization(isdone, stream)
             nonblocking_synchronize(stream)
         end
@@ -272,8 +272,8 @@ function synchronize(stream::CuStream=stream())
     check_exceptions()
 end
 
-function synchronize(event::CuEvent)
-    if use_nonblocking_synchronization
+function synchronize(event::CuEvent; blocking::Bool=false)
+    if use_nonblocking_synchronization && !blocking
         fast_synchronization(isdone, event)
     end
     cuEventSynchronize(event)
