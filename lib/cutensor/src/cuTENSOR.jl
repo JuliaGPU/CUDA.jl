@@ -4,11 +4,14 @@ using CUDA
 using CUDA.APIUtils
 using CUDA: CUstream, cudaDataType
 using CUDA: retry_reclaim, initialize_context, isdebug
-using CUDA: CUDA_Runtime, CUDA_Runtime_jll
 
 using CEnum: @cenum
 
-import CUTENSOR_jll
+if CUDA.local_toolkit
+    using CUDA_Runtime_Discovery
+else
+    import CUTENSOR_jll
+end
 
 
 export has_cutensor
@@ -88,14 +91,9 @@ function __init__()
 
     CUDA.functional() || return
 
+    # find the library
     global libcutensor
-    if CUDA_Runtime == CUDA_Runtime_jll
-        if !CUTENSOR_jll.is_available()
-            precompiling || @error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
-            return
-        end
-        libcutensor = CUTENSOR_jll.libcutensor
-    else
+    if CUDA.local_toolkit
         dirs = CUDA_Runtime.find_toolkit()
         path = CUDA_Runtime.get_library(dirs, "cutensor"; optional=true)
         if path === nothing
@@ -103,6 +101,12 @@ function __init__()
             return
         end
         libcutensor = path
+    else
+        if !CUTENSOR_jll.is_available()
+            precompiling || @error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
+            return
+        end
+        libcutensor = CUTENSOR_jll.libcutensor
     end
 
     # register a log callback

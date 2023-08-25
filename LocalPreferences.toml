@@ -1,7 +1,11 @@
 [CUDA_Runtime_jll]
-# which CUDA runtime to use; can be set to a supported
-# version number or to "local" for a local installation.
+# which CUDA runtime to use. in normal cases, this will be auto-detected, but you need to
+# set this preference if you want to precompile CUDA.jl in an envirnonment without CUDA
 #version = "11.8"
+
+# whether to use a local CUDA installation. if CUDA isn't available during precompilation,
+# you will also need to set the "version" preference, matching the local CUDA version.
+#local = "false"
 
 [CUDA]
 # whether to use a nonblocking synchronization mechanism,

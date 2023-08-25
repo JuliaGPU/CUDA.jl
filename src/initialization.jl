@@ -108,15 +108,29 @@ function __init__()
         rethrow()
     end
 
+    # ensure the loaded runtime is supported
     if runtime < v"10.2"
         @error "This version of CUDA.jl only supports CUDA 11 or higher (your toolkit provides CUDA $runtime)"
-        _initialization_error[] = "CUDA runtime too old"
-        return
     end
-
     if runtime.major > driver.major
         @warn """You are using CUDA $runtime with a driver that only supports up to $(driver.major).x.
                  It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
+    end
+
+    # ensure the loaded runtime matches what we precompiled for.
+    if toolkit_version == nothing
+        @error """CUDA.jl was precompiled without knowing the CUDA toolkit version. This is unsupported.
+                  You should either precompile CUDA.jl in an environment where the CUDA toolkit is available,
+                  or call `CUDA.set_runtime_version!` to specify which CUDA version to use."""
+    elseif Base.thisminor(runtime) != Base.thisminor(toolkit_version)
+        # this can only happen with a local toolkit, but let's always check to be sure
+        if local_toolkit
+            @error """You are using a local CUDA $(Base.thisminor(runtime)) toolkit, but CUDA.jl was precompiled for CUDA $(Base.thisminor(toolkit_version)). This is unsupported.
+                      Call `CUDA.set_runtime_version!` to update the CUDA version to match your local installation."""
+        else
+            @error """You are using CUDA $(Base.thisminor(runtime)), but CUDA.jl was precompiled for CUDA $(Base.thisminor(toolkit_version)).
+                      This is unexpected; please file an issue."""
+        end
     end
 
     # if we're not running under an external profiler, let CUPTI handle NVTX events
@@ -155,7 +169,7 @@ function __init__()
     LLVM.clopts("-nvptx-fma-level=1")
 
     # warn about old, deprecated environment variables
-    if haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER") && CUDA_Runtime == CUDA_Runtime_jll
+    if haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER") && !local_toolkit
         @error """JULIA_CUDA_USE_BINARYBUILDER is deprecated, and CUDA.jl always uses artifacts now.
                   To use a local installation, use overrides or preferences to customize the artifact.
                   Please check the CUDA.jl or Pkg.jl documentation for more details."""
@@ -166,7 +180,7 @@ function __init__()
         @error """JULIA_CUDA_VERSION is deprecated. Call `CUDA.jl.set_runtime_version!` to use a different version instead."""
     end
 
-    if CUDA_Runtime == CUDA_Runtime_jll
+    if !local_toolkit
         # scan for CUDA libraries that may have been loaded from system paths
         runtime_libraries = ["cudart",
                              "nvperf", "nvvm", "nvrtc", "nvJitLink",

@@ -32,10 +32,10 @@ function versioninfo(io::IO=stdout)
     @assert functional(true)
 
     print(io, "CUDA runtime $(runtime_version().major).$(runtime_version().minor), ")
-    if CUDA_Runtime == CUDA_Runtime_jll
-        println(io, "artifact installation")
-    else
+    if local_toolkit
         println(io, "local installation")
+    else
+        println(io, "artifact installation")
     end
     println(io, "CUDA driver $(driver_version().major).$(driver_version().minor)")
     if has_nvml()

@@ -18,7 +18,7 @@ steps:
           queue: "juliagpu"
           cuda: "*"
         commands: |
-          echo -e "[CUDA_Runtime_jll]\nversion = \"local\"" >LocalPreferences.toml
+          echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
         if: build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip julia\]/
         timeout_in_minutes: 120
