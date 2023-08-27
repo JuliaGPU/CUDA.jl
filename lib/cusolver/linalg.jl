@@ -364,6 +364,7 @@ end
 abstract type SVDAlgorithm end
 struct QRAlgorithm <: SVDAlgorithm end
 struct JacobiAlgorithm <: SVDAlgorithm end
+struct ApproximateAlgorithm <: SVDAlgorithm end
 
 if VERSION >= v"1.8-"
 
@@ -375,7 +376,7 @@ LinearAlgebra.svd!(A::CuMatOrBatched{T}; full::Bool=false,
 LinearAlgebra.svd(A::CuMatOrBatched; full=false, alg::SVDAlgorithm=JacobiAlgorithm()) =
     _svd!(copy_cublasfloat(A), full, alg)
 
-_svd!(A::CuMatOrBatched , full::Bool, alg::SVDAlgorithm) where T =
+_svd!(A::CuMatOrBatched, full::Bool, alg::SVDAlgorithm) =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
 function _svd!(A::CuMatrix{T}, full::Bool, alg::QRAlgorithm) where T
     U, S, Vt = gesvd!(full ? 'A' : 'S', full ? 'A' : 'S', A)
@@ -386,21 +387,33 @@ function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
     return SVD(U, S, V')
 end
 function _svd!(A::CuArray{T,3}, full::Bool, alg::JacobiAlgorithm) where T
+    # @assert size(A,1) <= 32 && size(A,2) <= 32 # see cuSolver API for gesvdjBatched
     U, S, V = gesvdj!('V', Int(!full), A)
-    return SVD(U, S, V)
+    return CuSVDBatched(U, S, V)
 end
+
+function _svd!(A::CuArray{T,3}, full::Bool, alg::ApproximateAlgorithm) where T
+    U, S, V = gesvda!('V', Int(!full), A)
+    return CuSVDBatched(U, S, V)
+end
+
+struct CuSVDBatched{T,Tr,A<:AbstractArray{T,3}} <: LinearAlgebra.Factorization{T}
+    U::CuArray{T,3}
+    S::CuMatrix{Tr}
+    V::A
+end
+
+# iteration for destructuring into components
+Base.iterate(S::CuSVDBatched) = (S.U, Val(:S))
+Base.iterate(S::CuSVDBatched, ::Val{:S}) = (S.S, Val(:V))
+Base.iterate(S::CuSVDBatched, ::Val{:V}) = (S.V, Val(:done))
+Base.iterate(S::CuSVDBatched, ::Val{:done}) = nothing
 
 else
 
 struct CuSVD{T,Tr,A<:AbstractMatrix{T}} <: LinearAlgebra.Factorization{T}
     U::CuMatrix{T}
     S::CuVector{Tr}
-    V::A
-end
-
-struct CuSVDBatched{T,Tr,A<:AbstractArray{T,3}} <: LinearAlgebra.Factorization{T}
-    U::CuArray{T,3}
-    S::CuMatrix{Tr}
     V::A
 end
 
