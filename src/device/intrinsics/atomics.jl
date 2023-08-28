@@ -369,10 +369,6 @@ atomic_dec!
 # well as acquire/release operations to implement the fallback functionality where any
 # operation can be applied atomically.
 
-if VERSION <= v"1.7-"
-export @atomic
-end
-
 const inplace_ops = Dict(
     :(+=)   => :(+),
     :(-=)   => :(-),

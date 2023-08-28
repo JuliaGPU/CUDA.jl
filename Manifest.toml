@@ -2,7 +2,7 @@
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "e8fd324aba09b72a771344d3910c4e1284ae62a0"
+project_hash = "c38f3e404ea342fb740cb16012407cbac90360fd"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra", "Test"]
@@ -170,9 +170,11 @@ version = "0.1.5"
 
 [[deps.GPUCompiler]]
 deps = ["ExprTools", "InteractiveUtils", "LLVM", "Libdl", "Logging", "Scratch", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "8de395b1243771bbb79ac832ec96c7def7a4586f"
+git-tree-sha1 = "2bec2c336b65f1ca50c4fcb2933712503db8eb2d"
+repo-rev = "master"
+repo-url = "https://github.com/JuliaGPU/GPUCompiler.jl.git"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.22.0"
+version = "0.23.0"
 
 [[deps.InlineStrings]]
 deps = ["Parsers"]

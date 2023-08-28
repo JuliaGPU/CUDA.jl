@@ -1,5 +1,12 @@
 # math functionality corresponding to SpecialFunctions.jl
 
+module SpecialFunctionsExt
+
+using CUDA
+using CUDA: @device_override
+
+isdefined(Base, :get_extension) ? (using SpecialFunctions) : (using ..SpecialFunctions)
+
 
 ## error
 
@@ -46,3 +53,6 @@
 
 @device_override SpecialFunctions.bessely(n::Int32, x::Float64) = ccall("extern __nv_yn", llvmcall, Cdouble, (Int32, Cdouble), n, x)
 @device_override SpecialFunctions.bessely(n::Int32, x::Float32) = ccall("extern __nv_ynf", llvmcall, Cfloat, (Int32, Cfloat), n, x)
+
+
+end

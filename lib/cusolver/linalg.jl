@@ -67,7 +67,6 @@ end
 
 # patch JuliaLang/julia#40899 to create a CuArray
 # (see https://github.com/JuliaLang/julia/pull/41331#issuecomment-868374522)
-if VERSION >= v"1.7-"
 _zeros(::Type{T}, b::AbstractVector, n::Integer) where {T} = CUDA.zeros(T, max(length(b), n))
 _zeros(::Type{T}, B::AbstractMatrix, n::Integer) where {T} = CUDA.zeros(T, max(size(B, 1), n), size(B, 2))
 function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
@@ -99,7 +98,6 @@ function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
     # the complete rhs
     return LinearAlgebra._cut_B(BB, 1:n)
 end
-end
 
 # eigenvalues
 
@@ -130,8 +128,6 @@ end
 using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPackedQ
 
 ## QR
-
-if VERSION >= v"1.8-"
 
 LinearAlgebra.qr!(A::CuMatrix{T}) where T = QR(geqrf!(A::CuMatrix{T})...)
 
@@ -229,143 +225,12 @@ LinearAlgebra.rmul!(A::CuVecOrMat{T},
                     trA::Transpose{<:Any,<:QRPackedQ{T,<:CuArray,<:CuArray}}) where {T<:BlasFloat} =
     ormqr!('R', 'T', parent(trA).factors, parent(adjB).τ, A)
 
-else
-
-struct CuQR{T} <: Factorization{T}
-    factors::CuMatrix
-    τ::CuVector{T}
-    CuQR{T}(factors::CuMatrix{T}, τ::CuVector{T}) where {T} = new(factors, τ)
-end
-
-struct CuQRPackedQ{T} <: AbstractQ{T}
-    factors::CuMatrix{T}
-    τ::CuVector{T}
-    CuQRPackedQ{T}(factors::CuMatrix{T}, τ::CuVector{T}) where {T} = new(factors, τ)
-end
-
-CuQR(factors::CuMatrix{T}, τ::CuVector{T}) where {T} =
-    CuQR{T}(factors, τ)
-CuQRPackedQ(factors::CuMatrix{T}, τ::CuVector{T}) where {T} =
-    CuQRPackedQ{T}(factors, τ)
-
-# AbstractQ's `size` is the size of the full matrix,
-# while `Matrix(Q)` only gives the compact Q.
-# See JuliaLang/julia#26591 and JuliaGPU/CUDA.jl#969.
-CuMatrix{T}(Q::AbstractQ{S}) where {T,S} = convert(CuArray{T}, Matrix(Q))
-CuMatrix{T, B}(Q::AbstractQ{S}) where {T, B, S} = CuMatrix{T}(Q)
-CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
-CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
-CuArray(Q::AbstractQ) = CuMatrix(Q)
-
-# extracting the full matrix can be done with `collect` (which defaults to `Array`)
-function Base.collect(src::CuQRPackedQ)
-    dest = similar(src)
-    copyto!(dest, I)
-    lmul!(src, dest)
-    collect(dest)
-end
-
-# avoid the generic similar fallback that returns a CPU array
-Base.similar(Q::CuQRPackedQ, ::Type{T}, dims::Dims{N}) where {T,N} =
-    CuArray{T,N}(undef, dims)
-
-LinearAlgebra.qr!(A::CuMatrix{T}) where T = CuQR(geqrf!(A::CuMatrix{T})...)
-Base.size(A::CuQR) = size(A.factors)
-Base.size(A::CuQRPackedQ, dim::Integer) = 0 < dim ? (dim <= 2 ? size(A.factors, 1) : 1) : throw(BoundsError())
-CUDA.CuMatrix(A::CuQRPackedQ) = orgqr!(copy(A.factors), A.τ)
-CUDA.CuArray(A::CuQRPackedQ) = CuMatrix(A)
-Base.Matrix(A::CuQRPackedQ) = Matrix(CuMatrix(A))
-
-function Base.getproperty(A::CuQR, d::Symbol)
-    m, n = size(getfield(A, :factors))
-    if d == :R
-        return triu!(A.factors[1:min(m, n), 1:n])
-    elseif d == :Q
-        return CuQRPackedQ(A.factors, A.τ)
-    else
-        getfield(A, d)
-    end
-end
-
-# iteration for destructuring into components
-Base.iterate(S::CuQR) = (S.Q, Val(:R))
-Base.iterate(S::CuQR, ::Val{:R}) = (S.R, Val(:done))
-Base.iterate(S::CuQR, ::Val{:done}) = nothing
-
-# Apply changes Q from the left
-LinearAlgebra.lmul!(A::CuQRPackedQ{T}, B::CuVecOrMat{T}) where {T<:BlasFloat} =
-    ormqr!('L', 'N', A.factors, A.τ, B)
-LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T}}, B::CuVecOrMat{T}) where {T<:BlasReal} =
-    ormqr!('L', 'T', parent(adjA).factors, parent(adjA).τ, B)
-LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T}}, B::CuVecOrMat{T}) where {T<:BlasComplex} =
-    ormqr!('L', 'C', parent(adjA).factors, parent(adjA).τ, B)
-LinearAlgebra.lmul!(trA::Transpose{T,<:CuQRPackedQ{T}}, B::CuVecOrMat{T}) where {T<:BlasFloat} =
-    ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
-
-# Apply changes Q from the right
-LinearAlgebra.rmul!(A::CuVecOrMat{T}, B::CuQRPackedQ{T}) where {T<:BlasFloat} =
-    ormqr!('R', 'N', B.factors, B.τ, A)
-LinearAlgebra.rmul!(A::CuVecOrMat{T},
-                    adjB::Adjoint{<:Any,<:CuQRPackedQ{T}}) where {T<:BlasReal} =
-    ormqr!('R', 'T', parent(adjB).factors, parent(adjB).τ, A)
-LinearAlgebra.rmul!(A::CuVecOrMat{T},
-                    adjB::Adjoint{<:Any,<:CuQRPackedQ{T}}) where {T<:BlasComplex} =
-    ormqr!('R', 'C', parent(adjB).factors, parent(adjB).τ, A)
-LinearAlgebra.rmul!(A::CuVecOrMat{T},
-                    trA::Transpose{<:Any,<:CuQRPackedQ{T}}) where {T<:BlasFloat} =
-    ormqr!('R', 'T', parent(trA).factors, parent(adjB).τ, A)
-
-function Base.getindex(A::CuQRPackedQ{T}, i::Int, j::Int) where {T}
-    assertscalar("CuQRPackedQ getindex")
-    x = CUDA.zeros(T, size(A, 2))
-    x[j] = 1
-    lmul!(A, x)
-    return x[i]
-end
-
-function Base.show(io::IO, F::CuQR)
-    println(io, "$(typeof(F)) with factors Q and R:")
-    show(io, F.Q)
-    println(io)
-    show(io, F.R)
-end
-
-# https://github.com/JuliaLang/julia/pull/32887
-LinearAlgebra.det(Q::CuQRPackedQ{<:Real}) = isodd(count(!iszero, Q.τ)) ? -1 : 1
-LinearAlgebra.det(Q::CuQRPackedQ) = prod(τ -> iszero(τ) ? one(τ) : -sign(τ)^2, Q.τ)
-
-function LinearAlgebra.ldiv!(_qr::CuQR, b::CuVector)
-    m,n = size(_qr)
-    _x = UpperTriangular(_qr.R[1:min(m,n), 1:n]) \ ((_qr.Q' * b)[1:n])
-    b[1:n] .= _x
-    unsafe_free!(_x)
-    return b[1:n]
-end
-
-function LinearAlgebra.ldiv!(_qr::CuQR, B::CuMatrix)
-    m,n = size(_qr)
-    _x = UpperTriangular(_qr.R[1:min(m,n), 1:n]) \ ((_qr.Q' * B)[1:n, 1:size(B, 2)])
-    B[1:n, 1:size(B, 2)] .= _x
-    unsafe_free!(_x)
-    return B[1:n, 1:size(B, 2)]
-end
-
-function LinearAlgebra.ldiv!(x::CuArray,_qr::CuQR, b::CuArray)
-    _x = ldiv!(_qr, b)
-    x .= vec(_x)
-    unsafe_free!(_x)
-    return x
-end
-
-end
 
 ## SVD
 
 abstract type SVDAlgorithm end
 struct QRAlgorithm <: SVDAlgorithm end
 struct JacobiAlgorithm <: SVDAlgorithm end
-
-if VERSION >= v"1.8-"
 
 LinearAlgebra.svd!(A::CuMatrix{T}; full::Bool=false,
                    alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
@@ -382,47 +247,6 @@ end
 function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
     U, S, V = gesvdj!('V', Int(!full), A)
     return SVD(U, S, V')
-end
-
-else
-
-
-struct CuSVD{T,Tr,A<:AbstractMatrix{T}} <: LinearAlgebra.Factorization{T}
-    U::CuMatrix{T}
-    S::CuVector{Tr}
-    V::A
-end
-
-# iteration for destructuring into components
-Base.iterate(S::CuSVD) = (S.U, Val(:S))
-Base.iterate(S::CuSVD, ::Val{:S}) = (S.S, Val(:V))
-Base.iterate(S::CuSVD, ::Val{:V}) = (S.V, Val(:done))
-Base.iterate(S::CuSVD, ::Val{:done}) = nothing
-
-@inline function Base.getproperty(S::CuSVD, s::Symbol)
-    if s === :Vt
-        return getfield(S, :V)'
-    else
-        return getfield(S, s)
-    end
-end
-
-LinearAlgebra.svd!(A::CuMatrix{T}; full::Bool=false,
-                   alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
-    _svd!(A, full, alg)
-LinearAlgebra.svd(A::CuMatrix; full=false, alg::SVDAlgorithm=JacobiAlgorithm()) =
-    _svd!(copy_cublasfloat(A), full, alg)
-
-_svd!(A::CuMatrix{T}, full::Bool, alg::SVDAlgorithm) where T =
-    throw(ArgumentError("Unsupported value for `alg` keyword."))
-function _svd!(A::CuMatrix{T}, full::Bool, alg::QRAlgorithm) where T
-    U, s, Vt = gesvd!(full ? 'A' : 'S', full ? 'A' : 'S', A::CuMatrix{T})
-    return CuSVD(U, s, Vt')
-end
-function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
-    return CuSVD(gesvdj!('V', Int(!full), A::CuMatrix{T})...)
-end
-
 end
 
 LinearAlgebra.svdvals!(A::CuMatrix{T}; alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
@@ -443,9 +267,8 @@ function LinearAlgebra.opnorm2(A::CuMatrix{T}) where {T}
     return @allowscalar invoke(LinearAlgebra.opnorm2, Tuple{AbstractMatrix{T}}, A)
 end
 
-## LU
 
-if VERSION >= v"1.8-"
+## LU
 
 function LinearAlgebra.lu!(A::StridedCuMatrix{T}, ::RowMaximum; check::Bool = true) where {T}
     lpt = getrf!(A)
@@ -472,8 +295,6 @@ end
 LinearAlgebra.ipiv2perm(v::CuVector{T}, maxi::Integer) where T =
     LinearAlgebra.ipiv2perm(Array(v), maxi)
 
-end
-
 function LinearAlgebra.ldiv!(F::LU{T,<:StridedCuMatrix{T}}, B::CuVecOrMat{T}) where {T}
     return getrs!('N', F.factors, F.ipiv, B)
 end
@@ -484,15 +305,14 @@ function LinearAlgebra.ldiv!(F::LU{T,<:StridedCuMatrix{T}}, B::CuVecOrMat{T}) wh
     return getrs!('N', F.factors, F.ipiv, B)
 end
 
+
 ## cholesky
 
-if VERSION >= v"1.8-"
-    function LinearAlgebra.cholesky(A::LinearAlgebra.RealHermSymComplexHerm{<:Real,<:CuMatrix},
-             ::Val{false}=Val(false); check::Bool = true)
-        C, info = LinearAlgebra._chol!(copy(parent(A)), A.uplo == 'U' ? UpperTriangular : LowerTriangular)
-        return Cholesky(C.data, A.uplo, info)
-    end
-
-    LinearAlgebra.cholcopy(A::LinearAlgebra.RealHermSymComplexHerm{<:Any,<:CuArray}) =
-        copyto!(similar(A, LinearAlgebra.choltype(A)), A)
+function LinearAlgebra.cholesky(A::LinearAlgebra.RealHermSymComplexHerm{<:Real,<:CuMatrix},
+                                ::Val{false}=Val(false); check::Bool = true)
+    C, info = LinearAlgebra._chol!(copy(parent(A)), A.uplo == 'U' ? UpperTriangular : LowerTriangular)
+    return Cholesky(C.data, A.uplo, info)
 end
+
+LinearAlgebra.cholcopy(A::LinearAlgebra.RealHermSymComplexHerm{<:Any,<:CuArray}) =
+    copyto!(similar(A, LinearAlgebra.choltype(A)), A)

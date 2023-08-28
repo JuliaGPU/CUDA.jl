@@ -191,11 +191,7 @@ function pool_mark(dev::CuDevice)
 
       # launch a task to periodically trim the pool
       if isinteractive() && !isassigned(__pool_cleanup)
-        __pool_cleanup[] = if VERSION < v"1.7"
-          Threads.@spawn pool_cleanup()
-        else
-          errormonitor(Threads.@spawn pool_cleanup())
-        end
+        __pool_cleanup[] = errormonitor(Threads.@spawn pool_cleanup())
       end
   else
       pool = memory_pool(dev)
