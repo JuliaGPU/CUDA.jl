@@ -392,8 +392,8 @@ function _svd!(A::CuArray{T,3}, full::Bool, alg::JacobiAlgorithm) where T
     return CuSVDBatched(U, S, V)
 end
 
-function _svd!(A::CuArray{T,3}, full::Bool, alg::ApproximateAlgorithm) where T
-    U, S, V = gesvda!('V', Int(!full), A)
+function _svd!(A::CuArray{T,3}, full::Bool, alg::ApproximateAlgorithm; rank::Int=min(size(A,1), size(A,2))) where T
+    U, S, V = gesvda!('V', A; rank=rank)
     return CuSVDBatched(U, S, V)
 end
 
@@ -449,15 +449,16 @@ end
 
 end
 
-LinearAlgebra.svdvals!(A::CuMatrix{T}; alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
+LinearAlgebra.svdvals!(A::CuMatOrBatched{T}; alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
     _svdvals!(A, alg)
-LinearAlgebra.svdvals(A::CuMatrix; alg::SVDAlgorithm=JacobiAlgorithm()) =
+LinearAlgebra.svdvals(A::CuMatOrBatched; alg::SVDAlgorithm=JacobiAlgorithm()) =
     _svdvals!(copy_cublasfloat(A), alg)
 
-_svdvals!(A::CuMatrix{T}, alg::SVDAlgorithm) where T =
+_svdvals!(A::CuMatOrBatched{T}, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
 _svdvals!(A::CuMatrix{T}, alg::QRAlgorithm) where T = gesvd!('N', 'N', A::CuMatrix{T})[2]
-_svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T = gesvdj!('N', 1, A::CuMatrix{T})[2]
+_svdvals!(A::CuMatOrBatched{T}, alg::JacobiAlgorithm) where T = gesvdj!('N', 1, A::CuMatOrBatched{T})[2]
+_svdvals!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvda!('N', A::CuArray{T,3}; rank=rank)[2]
 
 ### opnorm2, enabled by svdvals
 
