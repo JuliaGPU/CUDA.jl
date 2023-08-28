@@ -157,7 +157,7 @@ macro device_override(ex)
         error()
     end
     code = quote
-        $GPUCompiler.@override($CUDA.method_table, $ex)
+        Base.Experimental.@overlay($CUDA.method_table, $ex)
     end
     if isdefined(Base.Experimental, Symbol("@overlay"))
         return esc(code)
