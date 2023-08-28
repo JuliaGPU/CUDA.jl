@@ -400,7 +400,7 @@ function render_traces(host_trace, device_trace, nvtx_trace;
     trace_last_sync = findlast(host_trace.name .== "cuCtxSynchronize")
     trace_first_sync == trace_last_sync && error("Could not find the end of the profiling trace.")
     ## truncate the trace
-    if !raw
+    if !raw || !trace
         trace_begin = host_trace.stop[trace_first_sync]
         trace_end = host_trace.stop[trace_last_sync]
 
@@ -409,10 +409,12 @@ function render_traces(host_trace, device_trace, nvtx_trace;
         for df in (host_trace, device_trace)
             filter!(row -> trace_first_call.id <= row.id <= trace_last_call.id, df)
         end
-        body_hlines = Int[]
+        trace_divisions = Int[]
     else
-        # in raw mode, we display the entire trace, but highlight the relevant part
-        body_hlines = [trace_first_sync, trace_last_sync-1]
+        # in raw mode, we display the entire trace, but highlight the relevant part.
+        # note that we only do so when tracing, because otherwise the summary would
+        # be skewed by the expensive initial API call used to sink the profiler overhead.
+        trace_divisions = [trace_first_sync, trace_last_sync-1]
 
         # inclusive bounds
         trace_begin = host_trace.start[begin]
@@ -557,8 +559,8 @@ function render_traces(host_trace, device_trace, nvtx_trace;
                                "cuGetProcAddress",
                                # called a lot during compilation
                                "cuDeviceGetAttribute",
-                               # pointer attribute query, done before every memory operation
-                               "cuPointerGetAttribute"])
+                               # done before every memory operation
+                               "cuPointerGetAttribute", "cuDeviceGetMemPool"])
             end
         end
 
@@ -611,7 +613,8 @@ function render_traces(host_trace, device_trace, nvtx_trace;
                 end
             end
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters, highlighters, crop, body_hlines)
+            pretty_table(io, df; header, alignment, formatters, highlighters, crop,
+                                 body_hlines=trace_divisions)
         else
             df = summarize_trace(df)
 
@@ -693,7 +696,8 @@ function render_traces(host_trace, device_trace, nvtx_trace;
                 end
             end
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters, highlighters, crop, body_hlines)
+            pretty_table(io, df; header, alignment, formatters, highlighters, crop,
+                                 body_hlines=trace_divisions)
         else
             df = summarize_trace(device_trace)
 

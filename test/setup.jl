@@ -175,24 +175,6 @@ macro test_throws_message(f, typ, ex...)
     end
 end
 
-# @test_throw, peeking into the load error for testing macro errors
-macro test_throws_macro(ty, ex)
-    return quote
-        Test.@test_throws $(esc(ty)) try
-            $(esc(ex))
-        catch err
-            if VERSION < v"1.7-"
-                @test err isa LoadError
-                @test err.file === $(string(__source__.file))
-                @test err.line === $(__source__.line + 1)
-                rethrow(err.error)
-            else
-                rethrow(err)
-            end
-        end
-    end
-end
-
 # Run some code on-device
 macro on_device(ex...)
     code = ex[end]

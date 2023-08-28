@@ -11,11 +11,14 @@ using CUDA
 using CUDA.APIUtils
 using CUDA: CUstream, libraryPropertyType
 using CUDA: retry_reclaim, isdebug, initialize_context
-using CUDA: CUDA_Runtime, CUDA_Runtime_jll
 
 using CEnum: @cenum
 
-import CUDNN_jll
+if CUDA.local_toolkit
+    using CUDA_Runtime_Discovery
+else
+    import CUDNN_jll
+end
 
 
 export has_cudnn
@@ -154,21 +157,22 @@ function __init__()
 
     CUDA.functional() || return
 
+    # find the library
     global libcudnn
-    if CUDA_Runtime == CUDA_Runtime_jll
-        if !CUDNN_jll.is_available()
-            precompiling || @error "cuDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform)))"
-            return
-        end
-        libcudnn = CUDNN_jll.libcudnn
-    else
-        dirs = CUDA_Runtime.find_toolkit()
-        path = CUDA_Runtime.get_library(dirs, "cudnn"; optional=true)
+    if CUDA.local_toolkit
+        dirs = CUDA_Runtime_Discovery.find_toolkit()
+        path = CUDA_Runtime_Discovery.get_library(dirs, "cudnn"; optional=true)
         if path === nothing
             precompiling || @error "cuDNN is not available on your system (looked in $(join(dirs, ", ")))"
             return
         end
         libcudnn = path
+    else
+        if !CUDNN_jll.is_available()
+            precompiling || @error "cuDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform)))"
+            return
+        end
+        libcudnn = CUDNN_jll.libcudnn
     end
 
     # register a log callback

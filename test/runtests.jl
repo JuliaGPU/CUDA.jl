@@ -3,16 +3,6 @@ using Dates
 import REPL
 using Printf: @sprintf
 
-# work around JuliaLang/Pkg.jl#2500
-if VERSION < v"1.8"
-    test_project = first(Base.load_path())
-    preferences_file = joinpath(dirname(@__DIR__), "LocalPreferences.toml")
-    test_preferences_file = joinpath(dirname(test_project), "LocalPreferences.toml")
-    if isfile(preferences_file) && !isfile(test_preferences_file)
-        cp(preferences_file, test_preferences_file)
-    end
-end
-
 # parse some command-line arguments
 function extract_flag!(args, flag, default=nothing; typ=typeof(default))
     for f in args
@@ -396,11 +386,7 @@ for (testname, (resp,)) in results
     elseif isa(resp, Tuple{Int,Int})
         fake = Test.DefaultTestSet(testname)
         for i in 1:resp[1]
-            if VERSION >= v"1.7-"
-                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
-            else
-                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing))
-            end
+            Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
         end
         for i in 1:resp[2]
             Test.record(fake, Test.Broken(:test, nothing))
@@ -414,11 +400,7 @@ for (testname, (resp,)) in results
         println()
         fake = Test.DefaultTestSet(testname)
         for i in 1:resp.captured.ex.pass
-            if VERSION >= v"1.7-"
-                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
-            else
-                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing))
-            end
+            Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
         end
         for i in 1:resp.captured.ex.broken
             Test.record(fake, Test.Broken(:test, nothing))

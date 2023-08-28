@@ -65,12 +65,45 @@ Base.unlock(c::BidirectionalChannel) = unlock(c.cond_take)
 
 
 #
+# fast-path synchronization
+#
+
+# before using a nonblocking mechanism, which has some overhead, use a busy-loop
+# that queries the state of the object to synchronize. this reduces latency,
+# especially for short operations. note that because it does not actually perform
+# the synchronization, when it returns true (indicating that the object is synchronized)
+# the actual synchronization API should be called again.
+
+function fast_synchronization(f, obj)
+    # fast path
+    f(obj) && return true
+
+    # minimize latency of short operations by busy-waiting,
+    # initially without even yielding to other tasks
+    spins = 0
+    while spins < 256
+        if spins < 32
+            ccall(:jl_cpu_pause, Cvoid, ())
+            # temporary solution before we have gc transition support in codegen.
+            ccall(:jl_gc_safepoint, Cvoid, ())
+        else
+            yield()
+        end
+        f(obj) && return true
+        spins += 1
+    end
+
+    return false
+end
+
+
+#
 # nonblocking sync
 #
 
 @static if VERSION >= v"1.9.2"
 
-# if we support foreign threads, perform the synchronization on a separate thread.
+# if we support foreign threads, perform the actual synchronization on a separate thread.
 
 const MAX_SYNC_THREADS = 4
 const sync_channels = Array{BidirectionalChannel{Any}}(undef, MAX_SYNC_THREADS)
@@ -133,29 +166,37 @@ end
 
 function device_synchronize()
     if use_nonblocking_synchronization
-        nonblocking_synchronize(context())
+        if fast_synchronization(isdone, legacy_stream())
+            cuCtxSynchronize()
+        else
+            nonblocking_synchronize(context())
+        end
     else
         cuCtxSynchronize()
     end
+
     check_exceptions()
 end
 
 function synchronize(stream::CuStream=stream())
     if use_nonblocking_synchronization
-        if !isdone(stream)
-            # slow path
+        if fast_synchronization(isdone, stream)
+            cuStreamSynchronize(stream)
+        else
             nonblocking_synchronize(stream)
         end
     else
         cuStreamSynchronize(stream)
     end
+
     check_exceptions()
 end
 
 function synchronize(event::CuEvent)
     if use_nonblocking_synchronization
-        if !isdone(event)
-            # slow path
+        if fast_synchronization(isdone, event)
+            cuEventSynchronize(event)
+        else
             nonblocking_synchronize(event)
         end
     else
@@ -171,32 +212,16 @@ else
 # requiring us to perform the actual API call again after nonblocking synchronization.
 
 function nonblocking_synchronize(stream::CuStream)
-    # fast path
-    isdone(stream) && return
-
-    # minimize latency of short operations by busy-waiting,
-    # initially without even yielding to other tasks
-    spins = 0
-    while spins < 256
-        if spins < 32
-            ccall(:jl_cpu_pause, Cvoid, ())
-            # Temporary solution before we have gc transition support in codegen.
-            ccall(:jl_gc_safepoint, Cvoid, ())
-        else
-            yield()
-        end
-        isdone(stream) && return
-        spins += 1
-    end
-
-    # minimize CPU usage of long-running kernels by waiting for an event signalled by CUDA
+    # wait for an event signalled by CUDA
     event = Base.Event()
     launch(; stream) do
         notify(event)
     end
+
     # if an error occurs, the callback may never fire, so use a timer to detect such cases
     dev = device()
     timer = Timer(0; interval=1)
+
     Base.@sync begin
         Threads.@spawn try
             device!(dev)
@@ -226,7 +251,10 @@ end
 
 function device_synchronize()
     if use_nonblocking_synchronization
-        nonblocking_synchronize(legacy_stream())
+        stream = legacy_stream()
+        if !fast_synchronization(isdone, stream)
+            nonblocking_synchronize(stream)
+        end
     end
     cuCtxSynchronize()
 
@@ -235,34 +263,20 @@ end
 
 function synchronize(stream::CuStream=stream())
     if use_nonblocking_synchronization
-        nonblocking_synchronize(stream)
+        if !fast_synchronization(isdone, stream)
+            nonblocking_synchronize(stream)
+        end
     end
     cuStreamSynchronize(stream)
 
     check_exceptions()
 end
 
-function synchronize(e::CuEvent)
+function synchronize(event::CuEvent)
     if use_nonblocking_synchronization
-        # fast path
-        isdone(e) && return
-
-        # spin (initially without yielding to minimize latency)
-        spins = 0
-        while spins < 256
-            if spins < 32
-                ccall(:jl_cpu_pause, Cvoid, ())
-                # Temporary solution before we have gc transition support in codegen.
-                ccall(:jl_gc_safepoint, Cvoid, ())
-            else
-                yield()
-            end
-            isdone(e) && return
-            spins += 1
-        end
+        fast_synchronization(isdone, event)
     end
-
-    cuEventSynchronize(e)
+    cuEventSynchronize(event)
 end
 
 end

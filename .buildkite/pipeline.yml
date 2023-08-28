@@ -18,7 +18,7 @@ steps:
           queue: "juliagpu"
           cuda: "*"
         commands: |
-          echo -e "[CUDA_Runtime_jll]\nversion = \"local\"" >LocalPreferences.toml
+          echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
         if: build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip julia\]/
         timeout_in_minutes: 120
@@ -30,9 +30,6 @@ steps:
               - "1.10-nightly"
               - "nightly"
           adjustments:
-            - with:
-                julia: "1.10-nightly"
-              soft_fail: true
             - with:
                 julia: "nightly"
               soft_fail: true
@@ -110,27 +107,25 @@ steps:
             !build.pull_request.draft
         timeout_in_minutes: 120
         commands: |
-          julia -e '
+          julia --project -e '
             using Pkg
-            Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix.package}}")))
 
             println("--- :julia: Instantiating project")
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-              pkgs = [PackageSpec(path=pwd())]
+              Pkg.instantiate()
+
+              pkgs = [PackageSpec(path=joinpath(pwd(), "lib", lowercase("{{matrix.package}}")))]
               if "{{matrix.package}}" == "cuTensorNet"
                 # cuTensorNet depends on a development version of cuTENSOR
                 push!(pkgs, PackageSpec(path=joinpath(pwd(), "lib", "cutensor")))
               end
               Pkg.develop(pkgs)
-              Pkg.instantiate()
 
-              Pkg.add("CUDA_Runtime_jll")
-              write(joinpath(pwd(), "lib", lowercase("{{matrix.package}}"), "LocalPreferences.toml"),
-                    "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"")
+              write("LocalPreferences.toml", "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"")
             end
 
             println("+++ :julia: Running tests")
-            Pkg.test(coverage=true)'
+            Pkg.test("{{matrix.package}}"; coverage=true)'
 
   - group: ":telescope: Downstream"
     depends_on: "cuda"
@@ -145,25 +140,21 @@ steps:
                 - lib
                 - examples
         command: |
-          julia -e '
+          julia --project -e '
             using Pkg
 
             println("--- :julia: Instantiating project")
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-              Pkg.develop("NNlibCUDA")
-              Pkg.activate("NNlibCUDA")
-
-              Pkg.develop([PackageSpec(path=pwd()),
-                           PackageSpec(path=joinpath(pwd(), "lib", "cudnn"))])
               Pkg.instantiate()
 
-              Pkg.add("CUDA_Runtime_jll")
-              write(joinpath(Pkg.devdir(), "NNlibCUDA", "LocalPreferences.toml"),
-                    "[CUDA_Runtime_jll]\nversion = \"12.0\"")
+              Pkg.develop("NNlibCUDA")
+              Pkg.develop(path=joinpath(pwd(), "lib", "cudnn"))
+
+              write("LocalPreferences.toml", "[CUDA_Runtime_jll]\nversion = \"12.0\"")
             end
 
             println("+++ :julia: Running tests")
-            Pkg.test(coverage=true)'
+            Pkg.test("NNlibCUDA"; coverage=true)'
         agents:
           queue: "juliagpu"
           cuda: "*"
@@ -295,10 +286,8 @@ steps:
             ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
 
             println("--- :julia: Instantiating project")
-            Pkg.resolve()
             Pkg.instantiate()
             Pkg.activate("perf")
-            Pkg.resolve()
             Pkg.instantiate()
             push!(LOAD_PATH, @__DIR__)
 

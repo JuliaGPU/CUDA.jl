@@ -392,23 +392,19 @@ end
 
             @testset "spr!" begin
                 # execute on host
-                VERSION>=v"1.8.0-DEV.1049" && BLAS.spr!('U',alpha,x,sAPU)
+                BLAS.spr!('U',alpha,x,sAPU)
                 # execute on device
                 CUBLAS.spr!('U',alpha,dx,dsAPU)
                 # compare results
-                if VERSION>=v"1.8.0-DEV.1049"
-                    hsAPU = Array(dsAPU)
-                    @test sAPU ≈ hsAPU
-                end
+                hsAPU = Array(dsAPU)
+                @test sAPU ≈ hsAPU
                 # execute on host
-                VERSION>=v"1.8.0-DEV.1049" && BLAS.spr!('U',alpha,x,sAPL)
+                BLAS.spr!('U',alpha,x,sAPL)
                 # execute on device
                 CUBLAS.spr!('U',alpha,dx,dsAPL)
                 # compare results
-                if VERSION>=v"1.8.0-DEV.1049"
-                    hAPL = Array(dAPL)
-                    @test sAPL ≈ hAPL
-                end
+                hAPL = Array(dAPL)
+                @test sAPL ≈ hAPL
             end
         end
 
