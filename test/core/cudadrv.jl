@@ -818,18 +818,9 @@ memory_pool!(dev, pool)
 attribute!(pool2, CUDA.MEMPOOL_ATTR_RELEASE_THRESHOLD, UInt64(2^30))
 @test attribute(UInt64, pool2, CUDA.MEMPOOL_ATTR_RELEASE_THRESHOLD) == 2^30
 
-end
+CUDA.unsafe_destroy!(pool2)
 
 end
-
-############################################################################################
-
-@testset "profile" begin
-
-@test_logs (:warn, r"only informs an external profiler to start") CUDA.Profile.start()
-CUDA.Profile.stop()
-
-@test_logs (:warn, r"only informs an external profiler to start") CUDA.@profile begin end
 
 end
 

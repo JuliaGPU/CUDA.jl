@@ -14,7 +14,7 @@ end
 
 function check(f, errs...)
     res = retry_reclaim(in((CUFFT_ALLOC_FAILED, errs...))) do
-        f()
+        return f()
     end
 
     if res != CUFFT_SUCCESS

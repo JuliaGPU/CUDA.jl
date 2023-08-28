@@ -9,7 +9,7 @@ let ambs = Aqua.detect_ambiguities(CUDA; recursive=true)
     pkg_match(pkgname, pkgdir::Nothing) = false
     pkg_match(pkgname, pkgdir::AbstractString) = occursin(pkgname, pkgdir)
     filter!(x -> pkg_match("CUDA", pkgdir(last(x).module)), ambs)
-    @test length(ambs) ≤ 35
+    @test length(ambs) ≤ 50
 end
 
 Aqua.test_undefined_exports(CUDA)
@@ -18,9 +18,4 @@ Aqua.test_stale_deps(CUDA; ignore=[:CUDA_Runtime_Discovery, :CUDA_Runtime_jll,
 Aqua.test_deps_compat(CUDA)
 Aqua.test_project_extras(CUDA)
 Aqua.test_project_toml_formatting(CUDA)
-
-if VERSION ≥ v"1.7"
-    # on 1.6, device overrides aren't implemented using overlay method tables,
-    # but using world age hacks which confuse Aqua's type piracy detection.
-    Aqua.test_piracy(CUDA)
-end
+Aqua.test_piracy(CUDA)

@@ -120,75 +120,7 @@ associated with the current Julia task.
 
 See also: [`device_synchronize`](@ref)
 """
-function synchronize(stream::CuStream=stream(); blocking=nothing)
-    if blocking !== nothing
-        Base.depwarn("the blocking keyword to synchronize() has been deprecated", :synchronize)
-    end
-
-    # perform as much of the sync as possible without blocking in CUDA.
-    # XXX: remove this using a yield callback, or by synchronizing on a dedicated stream?
-    nonblocking_synchronize(stream)
-
-    # even though the GPU should be idle now, CUDA hooks work to the actual API call.
-    # see NVIDIA bug #3383169 for more details.
-    cuStreamSynchronize(stream)
-
-    check_exceptions()
-end
-
-@inline function nonblocking_synchronize(stream::CuStream)
-    # fast path
-    isdone(stream) && return
-
-    # minimize latency of short operations by busy-waiting,
-    # initially without even yielding to other tasks
-    spins = 0
-    while spins < 256
-        if spins < 32
-            ccall(:jl_cpu_pause, Cvoid, ())
-            # Temporary solution before we have gc transition support in codegen.
-            ccall(:jl_gc_safepoint, Cvoid, ())
-        else
-            yield()
-        end
-        isdone(stream) && return
-        spins += 1
-    end
-
-    # minimize CPU usage of long-running kernels by waiting for an event signalled by CUDA
-    event = Base.Event()
-    launch(; stream) do
-        notify(event)
-    end
-    # if an error occurs, the callback may never fire, so use a timer to detect such cases
-    dev = device()
-    timer = Timer(0; interval=1)
-    Base.@sync begin
-        Threads.@spawn try
-            device!(dev)
-            while true
-                try
-                    Base.wait(timer)
-                catch err
-                    err isa EOFError && break
-                    rethrow()
-                end
-                if unsafe_cuStreamQuery(stream) != ERROR_NOT_READY
-                    break
-                end
-            end
-        finally
-            notify(event)
-        end
-
-        Threads.@spawn begin
-            Base.wait(event)
-            close(timer)
-        end
-    end
-
-    return
-end
+synchronize(stream::CuStream=stream())
 
 """
     priority_range()

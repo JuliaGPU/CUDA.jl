@@ -460,9 +460,6 @@ function sparse_to_dense_broadcast_kernel(::Type{<:CuSparseMatrixCSC}, f,
 end
 
 function Broadcast.copy(bc::Broadcasted{<:Union{CuSparseVecStyle,CuSparseMatStyle}})
-    # on 1.6, ntuple closures often fail to infer
-    VERSION < v"1.7" && @warn "Sparse broadcast is only supported on Julia 1.7 or higher" maxlog=1
-
     # find the sparse inputs
     bc = Broadcast.flatten(bc)
     sparse_args = findall(bc.args) do arg

@@ -13,24 +13,11 @@ else
 const method_table = nothing
 end
 
-# list of overrides (only for Julia 1.6)
-const overrides = Expr[]
-
 macro device_override(ex)
     ex = macroexpand(__module__, ex)
-    if Meta.isexpr(ex, :call)
-        @show ex = eval(ex)
-        error()
-    end
-    code = quote
-        $GPUCompiler.@override(CUDA.method_table, $ex)
-    end
-    if isdefined(Base.Experimental, Symbol("@overlay"))
-        return esc(code)
-    else
-        push!(overrides, code)
-        return
-    end
+    esc(quote
+        Base.Experimental.@overlay(CUDA.method_table, $ex)
+    end)
 end
 
 macro device_function(ex)

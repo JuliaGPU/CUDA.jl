@@ -3,11 +3,14 @@ module cuStateVec
 using CUDA
 using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace, libraryPropertyType
 using CUDA: unsafe_free!, retry_reclaim, initialize_context, isdebug
-using CUDA: CUDA_Runtime, CUDA_Runtime_jll
 
 using CEnum: @cenum
 
-import cuQuantum_jll
+if CUDA.local_toolkit
+    using CUDA_Runtime_Discovery
+else
+    import cuQuantum_jll
+end
 
 
 export has_custatevec
@@ -106,14 +109,9 @@ function __init__()
 
     CUDA.functional() || return
 
+    # find the library
     global libcustatevec
-    if CUDA_Runtime == CUDA_Runtime_jll
-        if !cuQuantum_jll.is_available()
-            precompiling || @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
-            return
-        end
-        libcustatevec = cuQuantum_jll.libcustatevec
-    else
+    if CUDA.local_toolkit
         dirs = CUDA_Runtime.find_toolkit()
         path = CUDA_Runtime.get_library(dirs, "custatevec"; optional=true)
         if path === nothing
@@ -121,6 +119,12 @@ function __init__()
             return
         end
         libcustatevec = path
+    else
+        if !cuQuantum_jll.is_available()
+            precompiling || @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
+            return
+        end
+        libcustatevec = cuQuantum_jll.libcustatevec
     end
 
     # register a log callback

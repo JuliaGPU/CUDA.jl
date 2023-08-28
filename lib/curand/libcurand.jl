@@ -14,7 +14,7 @@ end
 
 function check(f, errs...)
     res = retry_reclaim(in((CURAND_STATUS_ALLOCATION_FAILED, errs...))) do
-        f()
+        return f()
     end
 
     if res != CURAND_STATUS_SUCCESS

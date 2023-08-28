@@ -1,9 +1,9 @@
 # interfacing with LinearAlgebra standard library
 
-using LinearAlgebra: MulAddMul
+using LinearAlgebra: MulAddMul, AdjOrTrans
 
 if isdefined(LinearAlgebra, :wrap) # i.e., VERSION >= v"1.10.0-DEV.1365"
-    using LinearAlgebra: wrap
+    using LinearAlgebra: wrap, UpperOrLowerTriangular
 else
     function wrap(A::AbstractVecOrMat, tA::AbstractChar)
         if tA == 'N'
@@ -22,6 +22,10 @@ else
             return Symmetric(A, :L)
         end
     end
+    const UpperOrLowerTriangular{T,S} = Union{UpperTriangular{T,S},
+                                                UnitUpperTriangular{T,S},
+                                                LowerTriangular{T,S},
+                                                UnitLowerTriangular{T,S}}
 end
 
 #
@@ -215,6 +219,14 @@ end
 
 # triangular
 
+if VERSION >= v"1.10-"
+# multiplication
+LinearAlgebra.generic_trimatmul!(c::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::DenseCuMatrix{T}, b::AbstractVector{T}) where {T<:CublasFloat} =
+    trmv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, A, c === b ? c : copyto!(c, b))
+# division
+LinearAlgebra.generic_trimatdiv!(C::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::DenseCuMatrix{T}, B::AbstractVector{T}) where {T<:CublasFloat} =
+    trsv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, A, C === B ? C : copyto!(C, B))
+else
 ## direct multiplication/division
 for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
                             (:UnitLowerTriangular, 'L', 'U'),
@@ -262,7 +274,7 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
             trsv!($uploc, 'C', $isunitc, parent(parent(A)), B)
     end
 end
-
+end # VERSION
 
 
 #
@@ -339,6 +351,50 @@ end
 
 # triangular
 
+if VERSION >= v"1.10-"
+LinearAlgebra.generic_trimatmul!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Function, A::DenseCuMatrix{T}, B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+    trmm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), A, B, C)
+LinearAlgebra.generic_mattrimul!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Function, A::DenseCuMatrix{T}, B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+    trmm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), B, A, C)
+# tri-tri-mul!
+const AdjOrTransOrCuMatrix{T} = Union{DenseCuMatrix{T}, AdjOrTrans{<:T,<:DenseCuMatrix}}
+function LinearAlgebra.generic_trimatmul!(C::DenseCuMatrix{T}, uplocA, isunitcA, tfunA::Function, A::DenseCuMatrix{T}, triB::UpperOrLowerTriangular{T,<:AdjOrTransOrCuMatrix{T}}) where {T<:CublasFloat}
+    uplocB = LinearAlgebra.uplo_char(triB)
+    isunitcB = LinearAlgebra.isunit_char(triB)
+    B = parent(triB)
+    tfunB = LinearAlgebra.wrapperop(B)
+    transa = tfunA === identity ? 'N' : tfunA === transpose ? 'T' : 'C'
+    transb = tfunB === identity ? 'N' : tfunB === transpose ? 'T' : 'C'
+    if uplocA == 'L' && tfunA === identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N' # lower * upper
+        triu!(B)
+        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
+    elseif uplocA == 'U' && tfunA === identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N' # upper * lower
+        tril!(B)
+        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
+    elseif uplocA == 'U' && tfunA === identity && tfunB !== identity && uplocB == 'U' && isunitcA == 'N'
+        # operation is reversed to avoid executing the tranpose
+        triu!(A)
+        trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
+    elseif uplocA == 'L' && tfunA !== identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N'
+        tril!(B)
+        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
+    elseif uplocA == 'U' && tfunA !== identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N'
+        triu!(B)
+        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
+    elseif uplocA == 'L' && tfunA === identity && tfunB !== identity && uplocB == 'L' && isunitcA == 'N'
+        tril!(A)
+        trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
+    else
+        throw("mixed triangular-triangular multiplication") # TODO: rethink
+    end
+    return C
+end
+
+LinearAlgebra.generic_trimatdiv!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Function, A::DenseCuMatrix{T}, B::AbstractMatrix{T}) where {T<:CublasFloat} =
+    trsm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), A, C === B ? C : copyto!(C, B))
+LinearAlgebra.generic_mattridiv!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Function, A::AbstractMatrix{T}, B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+    trsm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), B, C === A ? C : copyto!(C, A))
+else
 ## direct multiplication/division
 for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
                             (:UnitLowerTriangular, 'L', 'U'),
@@ -370,40 +426,8 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
         LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
                             B::$t{T,<:DenseCuMatrix}) where {T<:CublasFloat} =
             trsm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A)
-
-        # Matrix inverse
-        function LinearAlgebra.inv(x::$t{T, <:CuMatrix{T}}) where T<:CublasFloat
-            out = CuArray{T}(I(size(x,1)))
-            $t(LinearAlgebra.ldiv!(x, out))
-        end
     end
 end
-
-# Diagonal
-Base.Array(D::Diagonal{T, <:CuArray{T}}) where {T} = Diagonal(Array(D.diag))
-CuArray(D::Diagonal{T, <:Vector{T}}) where {T} = Diagonal(CuArray(D.diag))
-
-function LinearAlgebra.inv(D::Diagonal{T, <:CuArray{T}}) where {T}
-    Di = map(inv, D.diag)
-    if any(isinf, Di)
-        error("Singular Exception")
-    end
-    Diagonal(Di)
-end
-
-LinearAlgebra.rdiv!(A::CuArray, D::Diagonal) =  _rdiv!(A, A, D)
-
-Base.:/(A::CuArray, D::Diagonal) = _rdiv!(similar(A, typeof(oneunit(eltype(A)) / oneunit(eltype(D)))), A, D)
-
-function _rdiv!(B::CuArray, A::CuArray, D::Diagonal)
-    m, n = size(A, 1), size(A, 2)
-    if (k = length(D.diag)) != n
-        throw(DimensionMismatch("left hand side has $n columns but D is $k by $k"))
-    end
-    B .= A*inv(D)
-    B
-end
-
 
 ## adjoint/transpose multiplication ('uploc' reversed)
 for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
@@ -475,7 +499,45 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
             trsm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A)
     end
 end
+end # VERSION
 
+# Matrix inverse
+for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
+    (:UnitLowerTriangular, 'L', 'U'),
+    (:UpperTriangular, 'U', 'N'),
+    (:UnitUpperTriangular, 'U', 'U'))
+    @eval function LinearAlgebra.inv(x::$t{T, <:CuMatrix{T}}) where T<:CublasFloat
+        out = CuArray{T}(I(size(x,1)))
+        $t(LinearAlgebra.ldiv!(x, out))
+    end
+end
+
+# Diagonal
+Base.Array(D::Diagonal{T, <:CuArray{T}}) where {T} = Diagonal(Array(D.diag))
+CuArray(D::Diagonal{T, <:Vector{T}}) where {T} = Diagonal(CuArray(D.diag))
+
+function LinearAlgebra.inv(D::Diagonal{T, <:CuArray{T}}) where {T}
+    Di = map(inv, D.diag)
+    if any(isinf, Di)
+        error("Singular Exception")
+    end
+    Diagonal(Di)
+end
+
+LinearAlgebra.rdiv!(A::CuArray, D::Diagonal) =  _rdiv!(A, A, D)
+
+Base.:/(A::CuArray, D::Diagonal) = _rdiv!(similar(A, typeof(oneunit(eltype(A)) / oneunit(eltype(D)))), A, D)
+
+function _rdiv!(B::CuArray, A::CuArray, D::Diagonal)
+    m, n = size(A, 1), size(A, 2)
+    if (k = length(D.diag)) != n
+        throw(DimensionMismatch("left hand side has $n columns but D is $k by $k"))
+    end
+    B .= A*inv(D)
+    B
+end
+
+if VERSION < v"1.10-"
 function LinearAlgebra.mul!(X::DenseCuMatrix{T},
                             A::LowerTriangular{T,<:DenseCuMatrix},
                             B::UpperTriangular{T,<:DenseCuMatrix},
@@ -537,6 +599,7 @@ for (trtype, valtype) in ((:Transpose, :CublasFloat),
         end
     end
 end
+end # VERSION
 
 # symmetric mul!
 # level 2

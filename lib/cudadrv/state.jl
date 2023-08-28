@@ -444,7 +444,7 @@ an array or a dictionary, use additional locks.
 """
 struct PerDevice{T}
     lock::ReentrantLock
-    values::LazyInitialized{Vector{Union{Nothing,Tuple{CuContext,T}}}}
+    values::LazyInitialized{Vector{Union{Nothing,Tuple{CuContext,T}}},Nothing}
 end
 
 function PerDevice{T}() where {T}

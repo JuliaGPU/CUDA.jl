@@ -1,58 +1,11 @@
 using LinearAlgebra
-using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
-
-function sum_dim1(A::CuSparseMatrixCSR{T}) where {T}
-    function kernel(T, out, dA)
-        idx = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        idx < length(dA.rowPtr) || return
-        s = zero(T)
-        for k in dA.rowPtr[idx]:dA.rowPtr[idx+1]-1
-            s += abs(dA.nzVal[k])
-        end
-        out[idx] = s
-        return
-    end
-
-    m, n = size(A)
-    rowsum = CuVector{Float64}(undef, m)
-    kernel_f = @cuda launch=false kernel(T, rowsum, A)
-
-    config = launch_configuration(kernel_f.fun)
-    threads = min(n, config.threads)
-    blocks = cld(n, threads)
-    kernel_f(T, rowsum, A; threads, blocks)
-    return rowsum
-end
-
-function sum_dim2(A::CuSparseMatrixCSR{T}) where {T}
-    function kernel(T, out, dA)
-        idx = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        idx < length(dA.colPtr) || return
-        s = zero(T)
-        for k in dA.colPtr[idx]:dA.colPtr[idx+1]-1
-            s += abs(dA.nzVal[k])
-        end
-        out[idx] = s
-        return
-    end
-
-    A = CuSparseMatrixCSC(A)
-    m, n = size(A)
-    colsum = CuVector{Float64}(undef, n)
-    kernel_f = @cuda launch=false kernel(T, colsum, A)
-
-    config = launch_configuration(kernel_f.fun)
-    threads = min(m, config.threads)
-    blocks = cld(m, threads)
-    kernel_f(T, colsum, A; threads, blocks)
-    return colsum
-end
+using LinearAlgebra: BlasComplex, BlasFloat, BlasReal, BlasInt
 
 function LinearAlgebra.opnorm(A::CuSparseMatrixCSR, p::Real=2)
     if p == Inf
-        return maximum(sum_dim1(A))
+        return maximum(sum(abs, A; dims=2))
     elseif p == 1
-        return maximum(sum_dim2(A))
+        return maximum(sum(abs, A; dims=1))
     else
         error("p=$p is not supported")
     end
@@ -177,6 +130,112 @@ function LinearAlgebra.kron(A::Diagonal, B::CuSparseMatrixCOO{T}) where {T}
     data .*= repeat(B.nzVal, outer = Annz)
 
     sparse(row, col, data, out_shape..., fmt = :coo)
+end
+
+function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{T}) where {T<:Union{BlasInt, BlasFloat}}
+    if length(y) != size(A, 1) || length(x) != size(A, 2)
+        throw(DimensionMismatch("dimensions must match"))
+    end
+    n = size(A, 2)
+
+    function kernel(y::CuDeviceVector{T1}, colPtr::CuDeviceVector{T2}, rowVal::CuDeviceVector{T2},
+        nzVal::CuDeviceVector{T1}, x::CuDeviceVector{T1}, result::CuDeviceVector{T1}, n::Integer, shuffle) where {T1,T2}
+
+        thread_idx = threadIdx().x
+        index = (blockIdx().x-1) * blockDim().x + thread_idx
+        stride = blockDim().x * gridDim().x
+
+        tmp = zero(T1)
+        if index <=n
+            @inbounds for col in index:stride:n
+                for j in (colPtr[col]):(colPtr[col+1]-1)
+                    row = rowVal[j]
+                    val = nzVal[j]
+                    tmp += dot(y[row], val, x[col])
+                end
+            end
+        end
+
+        reduced_val = CUDA.reduce_block(+, tmp, zero(T1), shuffle)
+
+        if thread_idx == 1
+            @inbounds result[blockIdx().x] = reduced_val
+        end
+        return
+    end
+
+    function compute_threads(max_threads, wanted_threads, shuffle, dev)
+        if wanted_threads > max_threads
+            shuffle ? prevwarp(dev, max_threads) : max_threads
+        else
+            wanted_threads
+        end
+    end
+
+    shuffle = true
+
+    result = CuArray{T}(undef, 1)
+    kernel = @cuda launch=false kernel(y, A.colPtr, A.rowVal, A.nzVal, x, result, n, Val(shuffle))
+    config = launch_configuration(kernel.fun)
+    threads = compute_threads(config.threads, n, shuffle, device())
+    blocks = min(config.blocks, cld(n, threads))
+    result = CuArray{T}(undef, blocks)
+    kernel(y, A.colPtr, A.rowVal, A.nzVal, x, result, n, Val(shuffle); threads, blocks)
+
+    return sum(result)
+end
+
+function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{T}) where {T<:Union{BlasInt, BlasFloat}}
+    if length(y) != size(A, 1) || length(x) != size(A, 2)
+        throw(DimensionMismatch("dimensions must match"))
+    end
+    n = size(A, 1)
+
+    function kernel(y::CuDeviceVector{T1}, rowPtr::CuDeviceVector{T2}, colVal::CuDeviceVector{T2},
+        nzVal::CuDeviceVector{T1}, x::CuDeviceVector{T1}, result::CuDeviceVector{T1}, n::Integer, shuffle) where {T1,T2}
+
+        thread_idx = threadIdx().x
+        index = (blockIdx().x-1) * blockDim().x + thread_idx
+        stride = blockDim().x * gridDim().x
+
+        tmp = zero(T1)
+        if index <= n
+            @inbounds for row in index:stride:n
+                for j in rowPtr[row]:(rowPtr[row+1]-1)
+                    col = colVal[j]
+                    val = nzVal[j]
+                    tmp += dot(y[row], val, x[col])
+                end
+            end
+        end
+
+        reduced_val = CUDA.reduce_block(+, tmp, zero(T1), shuffle)
+
+        if thread_idx == 1
+            @inbounds result[blockIdx().x] = reduced_val
+        end
+        return
+    end
+
+    function compute_threads(max_threads, wanted_threads, shuffle, dev)
+        if wanted_threads > max_threads
+            shuffle ? prevwarp(dev, max_threads) : max_threads
+        else
+            wanted_threads
+        end
+    end
+
+    shuffle = true
+
+    result = CuArray{T}(undef, 1)
+    kernel = @cuda launch=false kernel(y, A.rowPtr, A.colVal, A.nzVal, x, result, n, Val(shuffle))
+    config = launch_configuration(kernel.fun)
+    threads = compute_threads(config.threads, n, shuffle, device())
+    blocks = min(config.blocks, cld(n, threads))
+    result = CuArray{T}(undef, blocks)
+    kernel(y, A.rowPtr, A.colVal, A.nzVal, x, result, n, Val(shuffle); threads, blocks)
+
+    return sum(result)
 end
 
 for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]

@@ -16,7 +16,7 @@ k = 1
         d_A  = CuArray(A)
         d_B  = CuArray(B)
 
-        pivot = VERSION >= v"1.8" ? NoPivot() : Val(false)
+        pivot = NoPivot()
         d_F  = cholesky(d_A, pivot)
         F    = cholesky(A, pivot)
         @test F.U   ≈ collect(d_F.U)
@@ -375,10 +375,10 @@ k = 1
             qval = d_F.Q[1, 1]
             @test qval ≈ F.Q[1, 1]
             qrstr = sprint(show, MIME"text/plain"(), d_F)
-            if VERSION >= v"1.8-"
-                @test qrstr == "$(typeof(d_F))\nQ factor:\n$(sprint(show, MIME"text/plain"(), d_F.Q))\nR factor:\n$(sprint(show, MIME"text/plain"(), d_F.R))"
+            if VERSION >= v"1.10-"
+                @test qrstr == "$(typeof(d_F))\nQ factor: $(sprint(show, MIME"text/plain"(), d_F.Q))\nR factor:\n$(sprint(show, MIME"text/plain"(), d_F.R))"
             else
-                @test qrstr == "$(typeof(d_F)) with factors Q and R:\n$(sprint(show, d_F.Q))\n$(sprint(show, d_F.R))"
+                @test qrstr == "$(typeof(d_F))\nQ factor:\n$(sprint(show, MIME"text/plain"(), d_F.Q))\nR factor:\n$(sprint(show, MIME"text/plain"(), d_F.R))"
             end
         end
 
@@ -590,7 +590,7 @@ k = 1
         end
     end
 
-    VERSION >= v"1.8-" && @testset "lu" begin
+    @testset "lu" begin
         @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
             A = CuArray(rand(elty, m, m))
             F = lu(A)
@@ -607,7 +607,7 @@ k = 1
             lu_gpu = lu(A_d)
             @test ldiv!(lu_cpu, B) ≈ collect(ldiv!(lu_gpu, B_d))
         end
-        
+
         A = CuMatrix(rand(1024, 1024))
         lua = lu(A)
         @test Matrix(lua.L) * Matrix(lua.U) ≈ Matrix(lua.P) * Matrix(A)
@@ -615,7 +615,7 @@ k = 1
         A = CuMatrix(rand(1024, 512))
         lua = lu(A)
         @test Matrix(lua.L) * Matrix(lua.U) ≈ Matrix(lua.P) * Matrix(A)
-    
+
         A = CuMatrix(rand(512, 1024))
         lua = lu(A)
         @test Matrix(lua.L) * Matrix(lua.U) ≈ Matrix(lua.P) * Matrix(A)

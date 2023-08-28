@@ -21,8 +21,13 @@ using ExprTools: splitdef, combinedef
 using CUDA_Driver_jll
 
 import CUDA_Runtime_jll
-if haskey(CUDA_Runtime_jll.preferences, "version") &&
-   CUDA_Runtime_jll.preferences["version"] == "local"
+const local_toolkit = CUDA_Runtime_jll.host_platform["cuda_local"] == "true"
+const toolkit_version = if CUDA_Runtime_jll.host_platform["cuda"] == "none"
+    nothing
+else
+    parse(VersionNumber, CUDA_Runtime_jll.host_platform["cuda"])
+end
+if local_toolkit
     using CUDA_Runtime_Discovery
     const CUDA_Runtime = CUDA_Runtime_Discovery
 else
@@ -33,6 +38,8 @@ end
 import Preferences
 
 using Libdl
+
+import NVTX
 
 
 ## source code includes
@@ -85,6 +92,7 @@ include("accumulate.jl")
 include("reverse.jl")
 include("iterator.jl")
 include("sorting.jl")
+include("profile.jl")
 
 # array libraries
 include("../lib/complex.jl")
