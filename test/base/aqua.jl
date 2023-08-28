@@ -18,9 +18,4 @@ Aqua.test_stale_deps(CUDA; ignore=[:CUDA_Runtime_Discovery, :CUDA_Runtime_jll,
 Aqua.test_deps_compat(CUDA)
 Aqua.test_project_extras(CUDA)
 Aqua.test_project_toml_formatting(CUDA)
-
-if VERSION ≥ v"1.7"
-    # on 1.6, device overrides aren't implemented using overlay method tables,
-    # but using world age hacks which confuse Aqua's type piracy detection.
-    Aqua.test_piracy(CUDA)
-end
+Aqua.test_piracy(CUDA)
