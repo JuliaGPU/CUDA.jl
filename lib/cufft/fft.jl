@@ -148,7 +148,11 @@ end
 # yields the maximal dimensions of the plan, for plans starting at dim 1 or ending at the size vector, 
 # this is always the full input size
 function plan_max_dims(region, sz) 
-    ifelse(region[1] == 1 && (length(region) <=1 || all(diff(collect(region)) .== 1)), length(sz), region[end])
+    if (region[1] == 1 && (length(region) <=1 || all(diff(collect(region)) .== 1)))
+        return length(sz)
+    else
+        return region[end]
+    end
 end
 
 # retrieves the size to allocate even if the trailing dimensions do no transform
