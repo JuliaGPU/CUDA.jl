@@ -2,6 +2,7 @@ using Distributed
 using Dates
 import REPL
 using Printf: @sprintf
+using Base.Filesystem: path_separator
 
 # parse some command-line arguments
 function extract_flag!(args, flag, default=nothing; typ=typeof(default))
@@ -53,12 +54,12 @@ end
 include("setup.jl")     # make sure everything is precompiled
 
 # choose tests
-const tests = ["core/initialization"]    # needs to run first
+const tests = ["core$(path_separator)initialization"]    # needs to run first
 const test_runners = Dict()
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)
-    push!(tests, "gpuarrays$(Base.Filesystem.path_separator)$name")
-    test_runners["gpuarrays$(Base.Filesystem.path_separator)$name"] = ()->TestSuite.tests[name](CuArray)
+    push!(tests, "gpuarrays$(path_separator)$name")
+    test_runners["gpuarrays$(path_separator)$name"] = ()->TestSuite.tests[name](CuArray)
 end
 ## files in the test folder
 for (rootpath, dirs, files) in walkdir(@__DIR__)
@@ -310,7 +311,9 @@ try
 
                     # tests that muck with the context should not be timed with CUDA events,
                     # since they won't be valid at the end of the test anymore.
-                    time_source = in(test, ["core/initialization", "base/examples", "base/exceptions"]) ? :julia : :cuda
+                    time_source = in(test, ["core$(path_separator)initialization",
+                                            "base$(path_separator)examples",
+                                            "base$(path_separator)exceptions"]) ? :julia : :cuda
 
                     # run the test
                     running_tests[test] = now()
