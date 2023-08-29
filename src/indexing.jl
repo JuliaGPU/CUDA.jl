@@ -11,9 +11,9 @@ using Base.Cartesian
 # we cannot use Base.LogicalIndex, which does not support indexing but requires iteration.
 # TODO: it should still be possible to use the same technique;
 #       Base.LogicalIndex basically contains the same as our `findall` here does.
-Base.to_index(::AbstractGPUArray, I::AbstractArray{Bool}) = findall(I)
+Base.to_index(::CuArray, I::AbstractArray{Bool}) = findall(I)
 ## same for the trailing Array{Bool} optimization (see `_maybe_linear_logical_index` in Base)
-Base.to_indices(A::AbstractGPUArray, inds,
+Base.to_indices(A::CuArray, inds,
                 I::Tuple{Union{Array{Bool,N}, BitArray{N}}}) where {N} =
     (Base.to_index(A, I[1]),)
 
