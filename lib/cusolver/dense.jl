@@ -500,7 +500,6 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
                                     (:cusolverDnZgesvdjBatched_bufferSize, :cusolverDnZgesvdjBatched, :ComplexF64, :Float64))
     @eval begin
         function gesvdj!(jobz::Char,
-                         econ::Int,
                          A::StridedCuArray{$elty,3};
                          tol::$relty=eps($relty),
                          max_sweeps::Int=100)
@@ -510,25 +509,15 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
             end
             lda = max(1, stride(A, 2))
 
-            # Warning! For some reason, the solver needs to access U and V even
-            # when only the values are requested
-            U = if jobz === 'V' && econ == 1 && m > n
-                CuArray{$elty}(undef, m, n, batchSize)
-            else
-                CuArray{$elty}(undef, m, m, batchSize)
-            end
-            ldu     = max(1, stride(U, 2))
+            U = CuArray{$elty}(undef, m, m, batchSize)
+            ldu = max(1, stride(U, 2))
 
-            S       = CuArray{$relty}(undef, min(m, n), batchSize)
+            S = CuArray{$relty}(undef, min(m, n), batchSize)
 
-            V = if jobz === 'V' && econ == 1 && m < n
-                CuArray{$elty}(undef, n, m, batchSize)
-            else
-                CuArray{$elty}(undef, n, n, batchSize)
-            end
-            ldv     = max(1, stride(V, 2))
+            V = CuArray{$elty}(undef, n, n, batchSize)
+            ldv = max(1, stride(V, 2))
 
-            params  = Ref{gesvdjInfo_t}(C_NULL)
+            params = Ref{gesvdjInfo_t}(C_NULL)
             cusolverDnCreateGesvdjInfo(params)
             cusolverDnXgesvdjSetTolerance(params[], tol)
             cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
