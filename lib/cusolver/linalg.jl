@@ -252,8 +252,7 @@ function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
     return SVD(U, S, V')
 end
 function _svd!(A::CuArray{T,3}, full::Bool, alg::JacobiAlgorithm) where T
-    # @assert size(A,1) <= 32 && size(A,2) <= 32 # see cuSolver API for gesvdjBatched
-    U, S, V = gesvdj!('V', Int(!full), A)
+    U, S, V = gesvdj!('V', A)
     return CuSVDBatched(U, S, V)
 end
 
@@ -282,7 +281,8 @@ LinearAlgebra.svdvals(A::CuMatOrBatched; alg::SVDAlgorithm=JacobiAlgorithm()) =
 _svdvals!(A::CuMatOrBatched{T}, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
 _svdvals!(A::CuMatrix{T}, alg::QRAlgorithm) where T = gesvd!('N', 'N', A::CuMatrix{T})[2]
-_svdvals!(A::CuMatOrBatched{T}, alg::JacobiAlgorithm) where T = gesvdj!('N', 1, A::CuMatOrBatched{T})[2]
+_svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T = gesvdj!('N', 1, A::CuMatOrBatched{T})[2]
+_svdvals!(A::CuArray{T,3}, alg::JacobiAlgorithm) where T = gesvdj!('N', A::CuArray{T,3})[2]
 _svdvals!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvda!('N', A::CuArray{T,3}; rank=rank)[2]
 
 ### opnorm2, enabled by svdvals
