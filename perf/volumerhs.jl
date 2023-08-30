@@ -255,8 +255,8 @@ function main()
                 $(Base.format_bytes(CUDA.memory(kernel).shared)) shared memory,
                 $(Base.format_bytes(CUDA.memory(kernel).constant)) constant memory"""
     results = @benchmark begin
-        CUDA.@sync $kernel($rhs, $Q, $vgeo, $(DFloat(grav)), $D, $nelem;
-                           threads=$threads, blocks=$nelem)
+        CUDA.@sync blocking=true $kernel($rhs, $Q, $vgeo, $(DFloat(grav)), $D, $nelem;
+                                         threads=$threads, blocks=$nelem)
     end
 
     # BenchmarkTools captures inputs, JuliaCI/BenchmarkTools.jl#127, so forcibly free them
