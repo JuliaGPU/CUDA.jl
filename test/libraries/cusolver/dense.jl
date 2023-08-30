@@ -328,6 +328,33 @@ k = 1
     _svd(A) = svd(A; alg=CUSOLVER.QRAlgorithm())
     @inferred _svd(CUDA.rand(Float32, 4, 4))
 
+    @testset "batched $svd_f with $alg algorithm" for
+        svd_f in (svd, svd!),
+        alg in (CUSOLVER.JacobiAlgorithm(), CUSOLVER.ApproximateAlgorithm()),
+        (_m, _n, _b) in ((m, n, n), (n, m, n), (33,33,1))
+
+        A              = rand(elty, _m, _n, _b)
+        d_A            = CuArray(A)
+        r = min(_m, _n)
+
+        if (_m >= _n && alg == CUSOLVER.ApproximateAlgorithm()) || (_m <= 32 && _n <= 32 && alg == CUSOLVER.JacobiAlgorithm())
+            d_U, d_S, d_V  = svd_f(copy(d_A); full=true, alg=alg)
+            h_S            = collect(d_S)
+            h_U            = collect(d_U)
+            h_V            = collect(d_V)
+            for i=1:_b
+                U, S, V = svd(A[:,:,i]; full=true)
+                @test abs.(h_U[:,:,i]'*h_U[:,:,i]) ≈ I
+                @test abs.(h_U[:,1:min(_m,_n),i]'U[:,1:min(_m,_n)]) ≈ I
+                @test collect(svdvals(d_A; alg=alg))[:,i] ≈ svdvals(A[:,:,i])
+                @test abs.(h_V[:,:,i]'*h_V[:,:,i]) ≈ I
+                @test collect(d_U[:,:,i]'*d_A[:,:,i]*d_V[:,:,i])[1:r,1:r] ≈ (U'*A[:,:,i]*V)[1:r,1:r]
+            end
+        else
+            @test_throws ArgumentError svd(d_A; alg=alg)
+        end
+    end
+
     @testset "2-opnorm($sz x $elty)" for sz in [(2, 0), (2, 3)]
         A = rand(elty, sz)
         d_A = CuArray(A)

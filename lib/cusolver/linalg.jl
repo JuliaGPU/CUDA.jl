@@ -231,14 +231,17 @@ LinearAlgebra.rmul!(A::CuVecOrMat{T},
 abstract type SVDAlgorithm end
 struct QRAlgorithm <: SVDAlgorithm end
 struct JacobiAlgorithm <: SVDAlgorithm end
+struct ApproximateAlgorithm <: SVDAlgorithm end
 
-LinearAlgebra.svd!(A::CuMatrix{T}; full::Bool=false,
+const CuMatOrBatched{T} = Union{CuMatrix{T}, CuArray{T,3}} where T
+
+LinearAlgebra.svd!(A::CuMatOrBatched{T}; full::Bool=false,
                    alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
     _svd!(A, full, alg)
-LinearAlgebra.svd(A::CuMatrix; full=false, alg::SVDAlgorithm=JacobiAlgorithm()) =
+LinearAlgebra.svd(A::CuMatOrBatched; full=false, alg::SVDAlgorithm=JacobiAlgorithm()) =
     _svd!(copy_cublasfloat(A), full, alg)
 
-_svd!(A::CuMatrix{T}, full::Bool, alg::SVDAlgorithm) where T =
+_svd!(A::CuMatOrBatched, full::Bool, alg::SVDAlgorithm) =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
 function _svd!(A::CuMatrix{T}, full::Bool, alg::QRAlgorithm) where T
     U, S, Vt = gesvd!(full ? 'A' : 'S', full ? 'A' : 'S', A)
@@ -248,16 +251,39 @@ function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
     U, S, V = gesvdj!('V', Int(!full), A)
     return SVD(U, S, V')
 end
+function _svd!(A::CuArray{T,3}, full::Bool, alg::JacobiAlgorithm) where T
+    U, S, V = gesvdj!('V', A)
+    return CuSVDBatched(U, S, V)
+end
 
-LinearAlgebra.svdvals!(A::CuMatrix{T}; alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
+function _svd!(A::CuArray{T,3}, full::Bool, alg::ApproximateAlgorithm; rank::Int=min(size(A,1), size(A,2))) where T
+    U, S, V = gesvda!('V', A; rank=rank)
+    return CuSVDBatched(U, S, V)
+end
+
+struct CuSVDBatched{T,Tr,A<:AbstractArray{T,3}} <: LinearAlgebra.Factorization{T}
+    U::CuArray{T,3}
+    S::CuMatrix{Tr}
+    V::A
+end
+
+# iteration for destructuring into components
+Base.iterate(S::CuSVDBatched) = (S.U, Val(:S))
+Base.iterate(S::CuSVDBatched, ::Val{:S}) = (S.S, Val(:V))
+Base.iterate(S::CuSVDBatched, ::Val{:V}) = (S.V, Val(:done))
+Base.iterate(S::CuSVDBatched, ::Val{:done}) = nothing
+
+LinearAlgebra.svdvals!(A::CuMatOrBatched{T}; alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
     _svdvals!(A, alg)
-LinearAlgebra.svdvals(A::CuMatrix; alg::SVDAlgorithm=JacobiAlgorithm()) =
+LinearAlgebra.svdvals(A::CuMatOrBatched; alg::SVDAlgorithm=JacobiAlgorithm()) =
     _svdvals!(copy_cublasfloat(A), alg)
 
-_svdvals!(A::CuMatrix{T}, alg::SVDAlgorithm) where T =
+_svdvals!(A::CuMatOrBatched{T}, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
 _svdvals!(A::CuMatrix{T}, alg::QRAlgorithm) where T = gesvd!('N', 'N', A::CuMatrix{T})[2]
-_svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T = gesvdj!('N', 1, A::CuMatrix{T})[2]
+_svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T = gesvdj!('N', 1, A::CuMatOrBatched{T})[2]
+_svdvals!(A::CuArray{T,3}, alg::JacobiAlgorithm) where T = gesvdj!('N', A::CuArray{T,3})[2]
+_svdvals!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvda!('N', A::CuArray{T,3}; rank=rank)[2]
 
 ### opnorm2, enabled by svdvals
 

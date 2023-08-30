@@ -494,6 +494,120 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
     end
 end
 
+for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cusolverDnSgesvdjBatched, :Float32, :Float32),
+                                    (:cusolverDnDgesvdjBatched_bufferSize, :cusolverDnDgesvdjBatched, :Float64, :Float64),
+                                    (:cusolverDnCgesvdjBatched_bufferSize, :cusolverDnCgesvdjBatched, :ComplexF32, :Float32),
+                                    (:cusolverDnZgesvdjBatched_bufferSize, :cusolverDnZgesvdjBatched, :ComplexF64, :Float64))
+    @eval begin
+        function gesvdj!(jobz::Char,
+                         A::StridedCuArray{$elty,3};
+                         tol::$relty=eps($relty),
+                         max_sweeps::Int=100)
+            m, n, batchSize = size(A)
+            if m > 32 || n > 32
+                throw(ArgumentError("CUSOLVER's gesvdjBatched currently requires m <=32 and n <= 32"))
+            end
+            lda = max(1, stride(A, 2))
+
+            U = CuArray{$elty}(undef, m, m, batchSize)
+            ldu = max(1, stride(U, 2))
+
+            S = CuArray{$relty}(undef, min(m, n), batchSize)
+
+            V = CuArray{$elty}(undef, n, n, batchSize)
+            ldv = max(1, stride(V, 2))
+
+            params = Ref{gesvdjInfo_t}(C_NULL)
+            cusolverDnCreateGesvdjInfo(params)
+            cusolverDnXgesvdjSetTolerance(params[], tol)
+            cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
+
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), jobz, m, n, A, lda, S, U, ldu, V, ldv,
+                       out, params[], batchSize)
+                return out[]
+            end
+
+            devinfo = CuArray{Cint}(undef, batchSize)
+            with_workspace($elty, bufferSize) do work
+                $fname(dense_handle(), jobz, m, n, A, lda, S, U, ldu, V, ldv,
+                       work, length(work), devinfo, params[], batchSize)
+            end
+
+            info = @allowscalar collect(devinfo)
+            unsafe_free!(devinfo)
+
+            # Double check the solver's exit status
+            for i = 1:batchSize
+                chkargsok(BlasInt(info[i]))
+            end
+
+            cusolverDnDestroyGesvdjInfo(params[])
+
+            U, S, V
+        end
+    end
+end
+
+for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize, :cusolverDnSgesvdaStridedBatched, :Float32, :Float32),
+                                    (:cusolverDnDgesvdaStridedBatched_bufferSize, :cusolverDnDgesvdaStridedBatched, :Float64, :Float64),
+                                    (:cusolverDnCgesvdaStridedBatched_bufferSize, :cusolverDnCgesvdaStridedBatched, :ComplexF32, :Float32),
+                                    (:cusolverDnZgesvdaStridedBatched_bufferSize, :cusolverDnZgesvdaStridedBatched, :ComplexF64, :Float64))
+    @eval begin
+        function gesvda!(jobz::Char,
+                         A::StridedCuArray{$elty,3};
+                         rank::Int=min(size(A,1), size(A,2)))
+            m, n, batchSize = size(A)
+            if m < n
+                throw(ArgumentError("CUSOLVER's gesvda currently requires m >= n"))
+                # nikopj: I can't find the documentation for this...
+            end
+            lda = max(1, stride(A, 2))
+            strideA = stride(A, 3)
+
+            U = CuArray{$elty}(undef, m, rank, batchSize)
+            ldu = max(1, stride(U, 2))
+            strideU = stride(U, 3)
+
+            S = CuArray{$relty}(undef, rank, batchSize)
+            strideS = stride(S, 2)
+
+            V = CuArray{$elty}(undef, n, rank, batchSize)
+            ldv = max(1, stride(V, 2))
+            strideV = stride(V, 3)
+
+            function bufferSize()
+                out = Ref{Cint}(0)
+                $bname(dense_handle(), jobz, rank, m, n, A, lda, strideA, 
+                       S, strideS, U, ldu, strideU, V, ldv, strideV, 
+                       out, batchSize)
+                return out[]
+            end
+
+            devinfo = CuArray{Cint}(undef, batchSize)
+            # residual storage
+            h_RnrmF = Array{Cdouble}(undef, batchSize)
+
+            with_workspace($elty, bufferSize) do work
+                $fname(dense_handle(), jobz, rank, m, n, A, lda, strideA, 
+                       S, strideS, U, ldu, strideU, V, ldv, strideV, 
+                       work, length(work), devinfo, h_RnrmF, batchSize)
+            end
+
+            info = @allowscalar collect(devinfo)
+            unsafe_free!(devinfo)
+
+            # Double check the solver's exit status
+            for i = 1:batchSize
+                chkargsok(BlasInt(info[i]))
+            end
+
+            U, S, V
+        end
+    end
+end
+
 for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSize, :cusolverDnSsyevd, :Float32, :Float32),
                                            (:syevd!, :cusolverDnDsyevd_bufferSize, :cusolverDnDsyevd, :Float64, :Float64),
                                            (:heevd!, :cusolverDnCheevd_bufferSize, :cusolverDnCheevd, :ComplexF32, :Float32),
