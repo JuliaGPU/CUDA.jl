@@ -79,6 +79,9 @@ let
     @test occursin("cuCtxSynchronize", str)
 end
 
+# JuliaGPU/NVTX.jl#37
+if !Sys.iswindows()
+
 # NVTX markers
 let
     str = sprint() do io
@@ -101,6 +104,8 @@ let
 
     @test occursin("NVTX ranges", str)
     @test occursin("a range", str)
+end
+
 end
 
 end

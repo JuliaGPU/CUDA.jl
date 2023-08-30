@@ -134,7 +134,8 @@ function __init__()
     end
 
     # if we're not running under an external profiler, let CUPTI handle NVTX events
-    if !NVTX.isactive()
+    # XXX: JuliaGPU/NVTX.jl#37
+    if !NVTX.isactive() && !Sys.iswindows()
         ENV["NVTX_INJECTION64_PATH"] = CUDA_Runtime.libcupti
         NVTX.activate()
     end
