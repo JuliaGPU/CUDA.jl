@@ -30,6 +30,7 @@ SUITE = BenchmarkGroup()
 
 # NOTE: don't use spaces in benchmark names (tobami/codespeed#256)
 
+include("cuda.jl")
 include("kernel.jl")
 include("array.jl")
 

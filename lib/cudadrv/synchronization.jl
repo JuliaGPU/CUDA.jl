@@ -74,7 +74,7 @@ Base.unlock(c::BidirectionalChannel) = unlock(c.cond_take)
 # the synchronization, when it returns true (indicating that the object is synchronized)
 # the actual synchronization API should be called again.
 
-function fast_synchronization(f, obj)
+function spinning_synchronization(f, obj)
     # fast path
     f(obj) && return true
 
@@ -164,9 +164,9 @@ function nonblocking_synchronize(val)
     return
 end
 
-function device_synchronize(; blocking::Bool=false)
+function device_synchronize(; blocking::Bool=false, spin::Bool=true)
     if use_nonblocking_synchronization && !blocking
-        if fast_synchronization(isdone, legacy_stream())
+        if spin && spinning_synchronization(isdone, legacy_stream())
             cuCtxSynchronize()
         else
             nonblocking_synchronize(context())
@@ -178,9 +178,9 @@ function device_synchronize(; blocking::Bool=false)
     check_exceptions()
 end
 
-function synchronize(stream::CuStream=stream(); blocking::Bool=false)
+function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool=true)
     if use_nonblocking_synchronization && !blocking
-        if fast_synchronization(isdone, stream)
+        if spin && spinning_synchronization(isdone, stream)
             cuStreamSynchronize(stream)
         else
             nonblocking_synchronize(stream)
@@ -192,9 +192,9 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=false)
     check_exceptions()
 end
 
-function synchronize(event::CuEvent; blocking::Bool=false)
+function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
     if use_nonblocking_synchronization && !blocking
-        if fast_synchronization(isdone, event)
+        if spin && spinning_synchronization(isdone, event)
             cuEventSynchronize(event)
         else
             nonblocking_synchronize(event)
@@ -249,10 +249,10 @@ function nonblocking_synchronize(stream::CuStream)
     return
 end
 
-function device_synchronize(; blocking::Bool=false)
+function device_synchronize(; blocking::Bool=false, spin::Bool=true)
     if use_nonblocking_synchronization && !blocking
         stream = legacy_stream()
-        if !fast_synchronization(isdone, stream)
+        if !spin || !spinning_synchronization(isdone, stream)
             nonblocking_synchronize(stream)
         end
     end
@@ -261,9 +261,9 @@ function device_synchronize(; blocking::Bool=false)
     check_exceptions()
 end
 
-function synchronize(stream::CuStream=stream(); blocking::Bool=false)
+function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool=true)
     if use_nonblocking_synchronization && !blocking
-        if !fast_synchronization(isdone, stream)
+        if !spin || !spinning_synchronization(isdone, stream)
             nonblocking_synchronize(stream)
         end
     end
@@ -272,9 +272,9 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=false)
     check_exceptions()
 end
 
-function synchronize(event::CuEvent; blocking::Bool=false)
+function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
     if use_nonblocking_synchronization && !blocking
-        fast_synchronization(isdone, event)
+        spin && spinning_synchronization(isdone, event)
     end
     cuEventSynchronize(event)
 end
