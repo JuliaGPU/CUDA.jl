@@ -11,7 +11,7 @@ cubatches = CuIterator(batch for batch in batches) # ensure generators are accep
 previous_cubatch = missing
 for (batch, cubatch) in zip(batches, cubatches)
     global previous_cubatch
-    @test ismissing(previous_cubatch) || all(x -> x.storage === nothing, previous_cubatch)
+    @test ismissing(previous_cubatch) || all(x -> x.data.freed, previous_cubatch)
     @test batch == Array.(cubatch)
     @test all(x -> x isa CuArray, cubatch)
     previous_cubatch = cubatch
@@ -32,7 +32,7 @@ batch1, state = iterate(it_nt)
 @test batch1.x == cu([1,1/2])
 batch2, _ = iterate(it_nt, state)
 @test batch2.x == cu([2,2/2])
-@test batch1.x.storage === nothing  # unsafe_free! has worked inside
+@test batch1.x.data.freed  # unsafe_free! has worked inside
 
 it_vec = CuIterator([[i,i/2], [i/3, i/4]] for i in 1:4)
 @test first(it_vec)[1] isa CuArray{Float64}
