@@ -137,17 +137,23 @@ CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N} =
   CuArray{T,N,Mem.DeviceBuffer}(undef, dims)
 is_unified(a::CuArray) = isa(a.data[], Mem.UnifiedBuffer)
 
-# type and dimensionality specified, accepting dims as series of Ints
-CuArray{T,N,B}(::UndefInitializer, dims::Integer...) where {T,N,B} =
+# buffer, type and dimensionality specified
+CuArray{T,N,B}(::UndefInitializer, dims::NTuple{N,Integer}) where {T,N,B} =
   CuArray{T,N,B}(undef, convert(Tuple{Vararg{Int}}, dims))
-CuArray{T,N}(::UndefInitializer, dims::Integer...) where {T,N} =
+CuArray{T,N,B}(::UndefInitializer, dims::Vararg{Integer,N}) where {T,N,B} =
+  CuArray{T,N,B}(undef, convert(Tuple{Vararg{Int}}, dims))
+
+# type and dimensionality specified
+CuArray{T,N}(::UndefInitializer, dims::NTuple{N,Integer}) where {T,N} =
+  CuArray{T,N}(undef, convert(Tuple{Vararg{Int}}, dims))
+CuArray{T,N}(::UndefInitializer, dims::Vararg{Integer,N}) where {T,N} =
   CuArray{T,N}(undef, convert(Tuple{Vararg{Int}}, dims))
 
 # type but not dimensionality specified
-CuArray{T}(::UndefInitializer, dims::Dims{N}) where {T,N} =
-  CuArray{T,N}(undef, dims)
-CuArray{T}(::UndefInitializer, dims::Integer...) where {T} =
-  CuArray{T}(undef, convert(Tuple{Vararg{Int}}, dims))
+CuArray{T}(::UndefInitializer, dims::NTuple{N,Integer}) where {T,N} =
+  CuArray{T,N}(undef, convert(Tuple{Vararg{Int}}, dims))
+CuArray{T}(::UndefInitializer, dims::Vararg{Integer,N}) where {T,N} =
+  CuArray{T,N}(undef, convert(Tuple{Vararg{Int}}, dims))
 
 # empty vector constructor
 CuArray{T,1,B}() where {T,B} = CuArray{T,1,B}(undef, 0)
