@@ -1,17 +1,36 @@
 # # Performance Tips
 
-# Always start by profiling your code (see the [Profiling](../development/profiling.md) page for more details). You first want to analyze your application as a whole, using NSight Systems, in order to:
+# ## General Tips
 
-# * get rid of unnecessary memory copies: you don't want to be going back and forth between the CPU and the GPU's memory;
-# * identifying problematic kernel invocations: you may be launching thousands of kernels which could be fused into a single call;
-# * finding stalls, where the CPU isn't submitting work fast enough to keep the GPU busy.
+# Always start by profiling your code (see the [Profiling](../development/profiling.md) page for more details). You first want to analyze your application as a whole, using `CUDA.@profile` or NSight Systems, identifying hotspots and bottlenecks. Focusing on these you will want to:
 
-# If that isn't sufficient, and you identified a kernel that executes slowly, you can try using NSight Compute to analyze that kernel in detail. The tool may prompt you to:
-# * optimize memory accesses, e.g., avoiding needless global accesses (buffering in shared memory instead), coalescing accesses, etc;
-# * lowering register pressure so that more threads can be launched on each streaming multiprocessor;
-# * increase the arithmetic intensity in order for the GPU to be able to hide the latency of memory accesses.
+# * Minimize data transfer between the CPU and GPU, you can do this by getting rid of unnecessary memory copies and batching many small transfers into larger ones;
+# * Identify problematic kernel invocations: you may be launching thousands of kernels which could be fused into a single call;
+# * Find stalls, where the CPU isn't submitting work fast enough to keep the GPU busy.
+
+# If that isn't sufficient, and you identified a kernel that executes slowly, you can try using NSight Compute to analyze that kernel in detail. Some things too look out for in order of importance
+# * Memory optimizations are the most important area for performance. Hence optimizing memory accesses, e.g., avoiding needless global accesses (buffering in shared memory instead) and coalescing accesses can lead to big performance improvements;
+# * Launching more threads on each streaming multiprocessor can be acheived by lowering register pressure and reducing shared memory usage, the tips below outline the various ways in which register pressure can be reduced;
+# * Using Float32's instead of Float64's can provide significantly better performance;
+# * Avoid using control flow instructions such as `if` which cause branches, e.g. replace an `if` with an `ifelse` if possible;
+# * Increase the arithmetic intensity in order for the GPU to be able to hide the latency of memory accesses.
+
+# ### Inlining
+
+# Inlining can reduce register usage and thus speed up kernels. To force inlining of all functions use `@cuda always_inline=true`.
+
+# ### Setting Max registers ...
+
+# The number of threads that can be launched is partly determined by the number of registers a kernel uses. This is due to registers being shared between all threads on a multiprocessor.
+# Setting the maximum number of registers per thread will force less registers to be used which can increase thread count at the expense of having to spill registers into local memory which may improve performance. To set the max registers to 32 use `@cuda max_registers=32`.
+
+# ### FastMath
+
+# Use `@fastmath` to use faster versions of common mathematical functions and for even faster square roots use `@cuda fastmath=true`.
 
 # ## Resources
+
+# For further information you can check out these resources.
 
 # NVidia's technical blog has a lot of good tips: [Pro-Tips](https://developer.nvidia.com/blog/tag/pro-tip/), [Optimization](https://developer.nvidia.com/blog/tag/optimization/).
 
@@ -21,22 +40,11 @@
 
 # Also see the [perf](https://github.com/JuliaGPU/CUDA.jl/tree/master/perf) folder for some optimised code examples.
 
-# ## General Tips
-
-# ### Inlining
-
-# Inlining can reduce register usage and thus speed up kernels. To force inlining of all functions use `@cuda always_inline=true`.
-
-# ### Setting Max registers ...
-
-# How many registers are used determines how many threads can be launched ..., setting the max registers will force less registers to be used which can increase thread count at the expense of having to spill registers into local memory. This may improve performance. To use `@cuda max_registers=...`
-arstarstarstar
-
 # ## Julia Specific Tips
 
 # ### Minimise Runtime Exceptions
 
-# Many common operations can throw errors at runtime in Julia, they often do this by branching and calling a function in that branch both of which are slow on GPUs. Using `@inbounds` when indexing into arrays will eliminate exceptions due to bounds checking. You can also use `assume` from the package LLVM.jl to get rid of exceptions
+# Many common operations can throw errors at runtime in Julia, they often do this by branching and calling a function in that branch both of which are slow on GPUs. Using `@inbounds` when indexing into arrays will eliminate exceptions due to bounds checking. You can also use `assume` from the package LLVM.jl to get rid of exceptions, e.g.
 
 # ```julia
 # using LLVM, LLVM.Interop
