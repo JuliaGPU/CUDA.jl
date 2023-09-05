@@ -10,14 +10,12 @@ ENV JULIA_DEPOT_PATH=/usr/local/share/julia
 RUN julia -e 'using Pkg; Pkg.add("CUDA")'
 
 # hard-code a CUDA toolkit version
-RUN julia -e 'using CUDA; CUDA.set_runtime_version!(v"11.8")'
+RUN julia -e 'using CUDA; CUDA.set_runtime_version!(v"12.2")'
 # re-importing CUDA.jl below will trigger a download of the relevant artifacts
 
 # generate the device runtime library for all known and supported devices.
 # this is to avoid having to do this over and over at run time.
-RUN julia -e 'using CUDA; CUDA.precompile_runtime()' && \
-    chmod 644 /usr/local/share/julia/compiled/v1.8/GPUCompiler/*/*.bc
-    # TODO: fix this in GPUCompiler.jl
+RUN julia -e 'using CUDA; CUDA.precompile_runtime()'
 
 
 # user environment

@@ -30,7 +30,6 @@ end
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    precompiling && return
 
     # TODO: make errors here (and in submodules/subpackages like cuBLAS and cuDNN) fatal,
     #       and remove functional(), once people sufficiently use weak dependencies.
@@ -38,12 +37,11 @@ function __init__()
     # check that we have a driver
     global libcuda
     if CUDA_Driver_jll.is_available()
-        if isdefined(CUDA_Driver_jll, :libcuda)
-            libcuda = CUDA_Driver_jll.libcuda
-        else
+        if isnothing(CUDA_Driver_jll.libcuda)
             _initialization_error[] = "CUDA driver not found"
             return
         end
+        libcuda = CUDA_Driver_jll.libcuda
     else
         # CUDA_Driver_jll only kicks in for supported platforms, so fall back to
         # a system search if the artifact isn't available (JLLWrappers.jl#50)
@@ -59,10 +57,17 @@ function __init__()
             return
         end
     end
-    driver = driver_version()
 
-    if driver < v"10.2"
-        @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.2 or higher (yours is for CUDA $driver)"
+    driver = try
+        driver_version()
+    catch err
+        @debug "CUDA driver failed to report a version" exception=(err, catch_backtrace())
+        _initialization_error[] = "CUDA driver not functional"
+        return
+    end
+
+    if driver < v"11"
+        @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 11.x or higher (yours is for CUDA $driver)"
         _initialization_error[] = "CUDA driver too old"
         return
     end
@@ -74,14 +79,22 @@ function __init__()
 
     # check that we have a runtime
     if !CUDA_Runtime.is_available()
-        @error """No CUDA Runtime library found. This can have several reasons:
-                  * you are using an unsupported platform: CUDA.jl only supports Linux (x86_64, aarch64, ppc64le), and Windows (x86_64).
-                    refer to the documentation for instructions on how to use a custom CUDA runtime.
-                  * you precompiled CUDA.jl in an environment where the CUDA driver was not available.
-                    in that case, you need to specify (during pre compilation) which version of CUDA to use.
-                    refer to the documentation for instructions on how to use `CUDA.set_runtime_version!`.
-                  * you requested use of a local CUDA toolkit, but not all components were discovered.
-                    try running with JULIA_DEBUG=CUDA_Runtime_Discovery for more information."""
+        @error """CUDA.jl could not find an appropriate CUDA runtime to use.
+
+                  This can have several reasons:
+                  * you are using an unsupported platform: this version of CUDA.jl
+                    only supports Linux (x86_64, aarch64, ppc64le) and Windows (x86_64),
+                    while your platform was identified as $(Base.BinaryPlatforms.triplet(CUDA_Runtime_jll.host_platform));
+                  * you precompiled CUDA.jl in an environment where the CUDA driver
+                    was not available (i.e., a container, or an HPC login node).
+                    in that case, you need to specify which CUDA version to use
+                    by calling `CUDA.set_runtime_version!`;
+                  * you requested use of a local CUDA toolkit, but not all
+                    required components were discovered. try running with
+                    JULIA_DEBUG=all in your environment for more details.
+
+                  For more details, refer to the CUDA.jl documentation at
+                  https://cuda.juliagpu.org/stable/installation/overview/"""
         _initialization_error[] = "CUDA runtime not found"
         return
     end
@@ -89,40 +102,56 @@ function __init__()
         runtime_version()
     catch err
         if err isa CuError && err.code == ERROR_NO_DEVICE
-            @error "No CUDA-capable device found"
             _initialization_error[] = "No CUDA-capable device found"
             return
         end
         rethrow()
     end
 
+    # ensure the loaded runtime is supported
     if runtime < v"10.2"
         @error "This version of CUDA.jl only supports CUDA 11 or higher (your toolkit provides CUDA $runtime)"
-        _initialization_error[] = "CUDA runtime too old"
-        return
     end
-
     if runtime.major > driver.major
         @warn """You are using CUDA $runtime with a driver that only supports up to $(driver.major).x.
                  It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
+    end
+
+    # ensure the loaded runtime matches what we precompiled for.
+    if toolkit_version == nothing
+        @error """CUDA.jl was precompiled without knowing the CUDA toolkit version. This is unsupported.
+                  You should either precompile CUDA.jl in an environment where the CUDA toolkit is available,
+                  or call `CUDA.set_runtime_version!` to specify which CUDA version to use."""
+    elseif Base.thisminor(runtime) != Base.thisminor(toolkit_version)
+        # this can only happen with a local toolkit, but let's always check to be sure
+        if local_toolkit
+            @error """You are using a local CUDA $(Base.thisminor(runtime)) toolkit, but CUDA.jl was precompiled for CUDA $(Base.thisminor(toolkit_version)). This is unsupported.
+                      Call `CUDA.set_runtime_version!` to update the CUDA version to match your local installation."""
+        else
+            @error """You are using CUDA $(Base.thisminor(runtime)), but CUDA.jl was precompiled for CUDA $(Base.thisminor(toolkit_version)).
+                      This is unexpected; please file an issue."""
+        end
+    end
+
+    # if we're not running under an external profiler, let CUPTI handle NVTX events
+    # XXX: JuliaGPU/NVTX.jl#37
+    if !NVTX.isactive() && !Sys.iswindows()
+        ENV["NVTX_INJECTION64_PATH"] = CUDA_Runtime.libcupti
+        NVTX.activate()
     end
 
     # finally, initialize CUDA
     try
         cuInit(0)
     catch err
-        @error "Failed to initialize CUDA" exception=(err,catch_backtrace())
-        _initialization_error[] = "CUDA initialization failed"
+        _initialization_error[] = "CUDA initialization failed: " * sprint(showerror, err)
         return
     end
 
-    # register device overrides
-    eval(Expr(:block, overrides...))
-    empty!(overrides)
-    @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" begin
-        include("device/intrinsics/special_math.jl")
-        eval(Expr(:block, overrides...))
-        empty!(overrides)
+    @static if !isdefined(Base, :get_extension)
+        @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" begin
+            include("../ext/SpecialFunctionsExt.jl")
+        end
     end
 
     # ensure that operations executed by the REPL back-end finish before returning,
@@ -135,7 +164,7 @@ function __init__()
     LLVM.clopts("-nvptx-fma-level=1")
 
     # warn about old, deprecated environment variables
-    if haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER") && CUDA_Runtime == CUDA_Runtime_jll
+    if haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER") && !local_toolkit
         @error """JULIA_CUDA_USE_BINARYBUILDER is deprecated, and CUDA.jl always uses artifacts now.
                   To use a local installation, use overrides or preferences to customize the artifact.
                   Please check the CUDA.jl or Pkg.jl documentation for more details."""
@@ -144,6 +173,27 @@ function __init__()
     end
     if haskey(ENV, "JULIA_CUDA_VERSION")
         @error """JULIA_CUDA_VERSION is deprecated. Call `CUDA.jl.set_runtime_version!` to use a different version instead."""
+    end
+
+    if !local_toolkit
+        # scan for CUDA libraries that may have been loaded from system paths
+        runtime_libraries = ["cudart",
+                             "nvperf", "nvvm", "nvrtc", "nvJitLink",
+                             "cublas", "cupti", "cusparse", "cufft", "curand", "cusolver"]
+        for lib in Libdl.dllist()
+            contains(lib, "artifacts") && continue
+            if any(rtlib -> contains(lib, rtlib), runtime_libraries)
+                @warn """CUDA runtime library $(basename(lib)) was loaded from a system path. This may cause errors.
+                         Ensure that you have not set the LD_LIBRARY_PATH environment variable, or that it does not contain paths to CUDA libraries."""
+            end
+        end
+
+        # warn about Tegra being incompatible with our artifacts
+        if is_tegra()
+            @warn """You are using a Tegra device, which is currently not supported by the CUDA.jl artifacts.
+                     Please install the CUDA toolkit, and call `CUDA.set_runtime_version!("local")` to use it.
+                     For more information, see JuliaGPU/CUDA.jl#1978."""
+        end
     end
 
     _initialized[] = true

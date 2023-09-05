@@ -131,6 +131,7 @@ end
 
 @device_override Base.exp2(x::Float64) = ccall("extern __nv_exp2", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.exp2(x::Float32) = ccall("extern __nv_exp2f", llvmcall, Cfloat, (Cfloat,), x)
+@device_override FastMath.exp2_fast(x::Union{Float32, Float64}) = exp2(x)
 # TODO: enable once PTX > 7.0 is supported
 # @device_override Base.exp2(x::Float16) = @asmcall("ex2.approx.f16 \$0, \$1", "=h,h", Float16, Tuple{Float16}, x)
 
@@ -221,6 +222,7 @@ end
 
 @device_override Base.sqrt(x::Float64) = ccall("extern __nv_sqrt", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.sqrt(x::Float32) = ccall("extern __nv_sqrtf", llvmcall, Cfloat, (Cfloat,), x)
+@device_override FastMath.sqrt_fast(x::Union{Float32, Float64}) = sqrt(x) 
 
 @device_function rsqrt(x::Float64) = ccall("extern __nv_rsqrt", llvmcall, Cdouble, (Cdouble,), x)
 @device_function rsqrt(x::Float32) = ccall("extern __nv_rsqrtf", llvmcall, Cfloat, (Cfloat,), x)
@@ -306,6 +308,8 @@ end
 
 @device_override FastMath.div_fast(x::Float32, y::Float32) = ccall("extern __nv_fast_fdividef", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
+@device_override Base.inv(x::Float32) = ccall("extern __nv_frcp_rn", llvmcall, Cfloat, (Cfloat,), x)
+@device_override FastMath.inv_fast(x::Union{Float32, Float64}) = @fastmath one(x) / x
 
 ## distributions
 
@@ -352,3 +356,6 @@ end
 
 @device_function scalbn(x::Float64, y::Int32) = ccall("extern __nv_scalbn", llvmcall, Cdouble, (Cdouble, Int32), x, y)
 @device_function scalbn(x::Float32, y::Int32) = ccall("extern __nv_scalbnf", llvmcall, Cfloat, (Cfloat, Int32), x, y)
+
+@device_function norm3df(x::Float32, y::Float32, z::Float32) = ccall("extern __nv_norm3df", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+@device_function rnorm3df(x::Float32, y::Float32, z::Float32) = ccall("extern __nv_rnorm3df", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)

@@ -2,7 +2,9 @@
 
 function cusparseCreate()
     handle = Ref{cusparseHandle_t}()
-    @check unsafe_cusparseCreate(handle) CUSPARSE_STATUS_NOT_INITIALIZED
+    check(CUSPARSE_STATUS_NOT_INITIALIZED) do
+        unsafe_cusparseCreate(handle)
+    end
     handle[]
 end
 

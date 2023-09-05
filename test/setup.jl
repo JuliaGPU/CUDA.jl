@@ -11,21 +11,24 @@ testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
 
 using Random
 
-# detect compute-sanitizer, to disable incompatible tests (e.g. using CUPTI),
-# and to skip tests that are known to generate innocuous API errors
+# detect compute-sanitizer, to disable incompatible tests (e.g. using CUPTI)
 const sanitize = any(contains("NV_SANITIZER"), keys(ENV))
-macro not_if_sanitize(ex)
-    sanitize || return esc(ex)
-    quote
-        @test_skip $ex
-    end
-end
 
 # in addition, CUPTI is not available on older GPUs with recent CUDA toolkits
 function can_use_cupti()
     sanitize && return false
+
     # NVIDIA bug #3964667: CUPTI in CUDA 11.7+ broken for sm_35 devices
-    capability(device()) > v"3.7" || CUDA.runtime_version() < v"11.7"
+    if CUDA.runtime_version() >= v"11.7" && capability(device()) <= v"3.7"
+        return false
+    end
+
+    # Tegra requires running as root and and modifying the device tree
+    if CUDA.is_tegra()
+        return false
+    end
+
+    return true
 end
 
 # precompile the runtime library
@@ -34,14 +37,9 @@ CUDA.precompile_runtime()
 
 ## entry point
 
-function runtests(f, name, time_source=:cuda, snoop=nothing)
+function runtests(f, name, time_source=:cuda)
     old_print_setting = Test.TESTSET_PRINT_ENABLE[]
     Test.TESTSET_PRINT_ENABLE[] = false
-
-    if snoop !== nothing
-        io = open(snoop, "w")
-        ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), io.handle)
-    end
 
     try
         # generate a temporary module to execute the tests in
@@ -113,11 +111,6 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
         CUDA.can_reset_device() && device_reset!()
         res
     finally
-        if snoop !== nothing
-            ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), C_NULL)
-            close(io)
-        end
-
         Test.TESTSET_PRINT_ENABLE[] = old_print_setting
     end
 end
@@ -179,24 +172,6 @@ macro test_throws_message(f, typ, ex...)
             @error "Failed to validate error message\n" * $msg
         end
         @test $(esc(f))($msg)
-    end
-end
-
-# @test_throw, peeking into the load error for testing macro errors
-macro test_throws_macro(ty, ex)
-    return quote
-        Test.@test_throws $(esc(ty)) try
-            $(esc(ex))
-        catch err
-            if VERSION < v"1.7-"
-                @test err isa LoadError
-                @test err.file === $(string(__source__.file))
-                @test err.line === $(__source__.line + 1)
-                rethrow(err.error)
-            else
-                rethrow(err)
-            end
-        end
     end
 end
 

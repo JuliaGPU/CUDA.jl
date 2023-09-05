@@ -264,7 +264,6 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
         partial = similar(R, (size(R)..., reduce_blocks))
         if init === nothing
             # without an explicit initializer we need to copy from the output container
-            sz = prod(size(R))
             partial .= R
         end
         # NOTE: we can't use the previously-compiled kernel, since the type of `partial`

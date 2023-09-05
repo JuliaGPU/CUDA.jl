@@ -26,13 +26,11 @@ end
     end
 end
 
-macro check(ex)
-    quote
-        res = $(esc(ex))
-        if res != SUCCESS
-            throw_api_error(res)
-        end
-
-        nothing
+function check(f)
+    res = f()
+    if res != SUCCESS
+        throw_api_error(res)
     end
+
+    return
 end

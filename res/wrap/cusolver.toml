@@ -5,10 +5,10 @@ prologue_file_path = "./libcusolver_prologue.jl"
 
 output_ignorelist = [
     # generates bad code
-    "^CUSOLVER_CPP_VERSION$",
+    "CUSOLVER_CPP_VERSION",
     # these change often
-    "^CUSOLVER_VERSION$",
-    "^CUSOLVER_VER_",
+    "CUSOLVER_VERSION",
+    "CUSOLVER_VER_.*",
 ]
 
 

@@ -56,11 +56,11 @@ end
 Base.Tuple(x::Vec4) = tuple(x.a, x.b, x.c, x.d)
 
 for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
-        ((Signed,        Vec4{UInt32},  :v4u32),
-         (Unsigned,      Vec4{Int32},   :v4s32),
-         (AbstractFloat, Vec4{Float32}, :v4f32))
+        ((:Signed,        :(Vec4{UInt32}),  :v4u32),
+         (:Unsigned,      :(Vec4{Int32}),   :v4s32),
+         (:AbstractFloat, :(Vec4{Float32}), :v4f32))
 
-    eltyp = Union{dispatch_rettyp, NTuple{<:Any,dispatch_rettyp}}
+    eltyp = :(Union{$dispatch_rettyp, NTuple{<:Any,$dispatch_rettyp}})
 
     # tex1D only supports array memory
     @eval tex(texObject::CuDeviceTexture{<:$eltyp,1,ArrayMemory}, x::Number) =

@@ -71,6 +71,11 @@ function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cus
     return B
 end
 
+"""
+    gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
+
+Sets the nonzero elements of `X` equal to the nonzero elements of `Y` at the same indices.
+"""
 function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
@@ -78,6 +83,11 @@ function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
     return X
 end
 
+"""
+    scatter!(Y::CuVector, X::CuSparseVector, index::SparseChar)
+
+Set `Y[:] = X[:]` for dense `Y` and sparse `X`.
+"""
 function scatter!(Y::CuVector, X::CuSparseVector, index::SparseChar)
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
@@ -85,6 +95,11 @@ function scatter!(Y::CuVector, X::CuSparseVector, index::SparseChar)
     return Y
 end
 
+"""
+    axpby!(alpha::Number, X::CuSparseVector, beta::Number, Y::CuVector, index::SparseChar)
+
+Computes `alpha * X + beta * Y` for sparse `X` and dense `Y`.
+"""
 function axpby!(alpha::Number, X::CuSparseVector{T}, beta::Number, Y::CuVector{T}, index::SparseChar) where {T}
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
@@ -92,6 +107,11 @@ function axpby!(alpha::Number, X::CuSparseVector{T}, beta::Number, Y::CuVector{T
     return Y
 end
 
+"""
+    rot!(X::CuSparseVector, Y::CuVector, c::Number, s::Number, index::SparseChar)
+
+Performs the Givens rotation specified by `c` and `s` to sparse `X` and dense `Y`.
+"""
 function rot!(X::CuSparseVector{T}, Y::CuVector{T}, c::Number, s::Number, index::SparseChar) where {T}
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
@@ -116,23 +136,19 @@ function vv!(transx::SparseChar, X::CuSparseVector{T}, Y::DenseCuVector{T}, inde
 end
 
 function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},CuSparseMatrixCSR{TA},CuSparseMatrixCOO{TA}}, X::DenseCuVector{T},
-             beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_MV_ALG_DEFAULT) where {TA, T}
+             beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_SPMV_ALG_DEFAULT) where {TA, T}
 
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
 
-    # Issue # 1610
-    if isa(A, CuSparseMatrixCSC) && transa == 'C' && TA <: Complex
+    if CUSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC) && transa == 'C' && TA <: Complex
         throw(ArgumentError("Matrix-vector multiplication with the adjoint of a complex CSC matrix" *
-                            " is not supported. Use a CSR or COO matrix instead."))
+                            " is not supported by the current CUDA version. Use a CSR or COO matrix instead."))
     end
 
-    if isa(A, CuSparseMatrixCSC)
-        # cusparseSpMV doesn't support CSC matrices with CUSPARSE.version() < v"11.6.1".
-        # cusparseSpMV supports the CSC matrices with CUSPARSE.version() ≥ v"11.6.1"
-        # but it doesn't work for complex numbers when transa == 'C'.
-        # We use Aᵀ to model them as CSR matrices for now.
-        # It should be fixed with CUDA toolkit v"12.0".
+    if CUSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC)
+        # cusparseSpMV completely supports CSC matrices with CUSPARSE.version() ≥ v"12.0".
+        # We use Aᵀ to model them as CSR matrices for older versions of CUSPARSE.
         descA = CuSparseMatrixDescriptor(A, index, transposed=true)
         n,m = size(A)
         transa = transa == 'N' ? 'T' : 'N'
@@ -175,24 +191,20 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
 end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}},
-             B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
+             B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
 
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
 
-    # Issue # 1610
-    if isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
+    if CUSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
         throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSC matrix" *
-                            " is not supported. Use a CSR or COO matrix instead."))
+                            " is not supported by the current CUDA version. Use a CSR or COO matrix instead."))
     end
 
-    if isa(A, CuSparseMatrixCSC)
-        # cusparseSpMM doesn't support CSC matrices with CUSPARSE.version() < v"11.6.1".
-        # cusparseSpMM supports the CSC matrices with CUSPARSE.version() ≥ v"11.6.1"
-        # but it doesn't work for complex numbers when transa == 'C'.
-        # We use Aᵀ to model them as CSR matrices for now.
-        # It should be fixed with CUDA toolkit v"12.0".
+    if CUSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC)
+        # cusparseSpMM completely supports CSC matrices with CUSPARSE.version() ≥ v"12.0".
+        # We use Aᵀ to model them as CSR matrices for older versions of CUSPARSE.
         descA = CuSparseMatrixDescriptor(A, index, transposed=true)
         k,m = size(A)
         transa = transa == 'N' ? 'T' : 'N'
@@ -237,7 +249,7 @@ end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T},
              B::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}},
-             beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_MM_ALG_DEFAULT) where {T}
+             beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
 
     CUSPARSE.version() < v"11.7.4" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
@@ -251,9 +263,9 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
     # Cc = α * Ac * Bᴴ + β * Cc → α * B̅  * Ar + β * Cr
     # where B is a sparse matrix, Ac and Cc indicate column-major layout, while Ar and Cr refer to row-major layout.
 
-    # Issue # 1610
-    if isa(B, CuSparseMatrixCSR) && transb == 'C' && T <: Complex
-        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSR matrix is not supported. Use a CSC or COO matrix instead."))
+    if CUSPARSE.version() < v"12.0" && isa(B, CuSparseMatrixCSR) && transb == 'C' && T <: Complex
+        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSR matrix" *
+                            " is not supported by the current CUDA version. Use a CSC or COO matrix instead."))
     end
 
     m,k = size(A)
@@ -296,6 +308,9 @@ end
 # AB and C must have the same sparsity pattern if β ≠ 0.
 function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T},
                beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+
+    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+
     m,k = size(A)
     n = size(C)[2]
 
@@ -380,6 +395,9 @@ end
 
 function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
               B::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+
+    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+
     m,k = size(A)
     l,n = size(B)
 
@@ -569,6 +587,8 @@ end
 
 function sddmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::DenseCuMatrix{T},
                 beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSDDMMAlg_t=CUSPARSE_SDDMM_ALG_DEFAULT) where {T}
+
+    CUSPARSE.version() < v"11.4.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa

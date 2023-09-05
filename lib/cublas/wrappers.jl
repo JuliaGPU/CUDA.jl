@@ -5,13 +5,17 @@
 
 function cublasCreate()
   handle_ref = Ref{cublasHandle_t}()
-  @check unsafe_cublasCreate_v2(handle_ref) CUBLAS_STATUS_NOT_INITIALIZED
+  check(CUBLAS_STATUS_NOT_INITIALIZED) do
+    unsafe_cublasCreate_v2(handle_ref)
+  end
   handle_ref[]
 end
 
 function cublasXtCreate()
   handle_ref = Ref{cublasXtHandle_t}()
-  @check unsafe_cublasXtCreate(handle_ref) CUBLAS_STATUS_NOT_INITIALIZED
+  check(CUBLAS_STATUS_NOT_INITIALIZED) do
+    unsafe_cublasXtCreate(handle_ref)
+  end
   handle_ref[]
 end
 
@@ -317,28 +321,107 @@ for (fname, elty) in ((:cublasDgemv_v2,:Float64),
         function gemv!(trans::Char,
                        alpha::Number,
                        A::StridedCuMatrix{$elty},
-                       X::StridedCuVector{$elty},
+                       x::StridedCuVector{$elty},
                        beta::Number,
-                       Y::StridedCuVector{$elty})
+                       y::StridedCuVector{$elty})
             # handle trans
             m,n = size(A)
             # check dimensions
-            length(X) == (trans == 'N' ? n : m) && length(Y) == (trans == 'N' ? m : n) || throw(DimensionMismatch(""))
+            length(x) == (trans == 'N' ? n : m) && length(y) == (trans == 'N' ? m : n) || throw(DimensionMismatch(""))
             # compute increments
             lda = max(1,stride(A,2))
-            incx = stride(X,1)
-            incy = stride(Y,1)
-            $fname(handle(), trans, m, n, alpha, A, lda, X, incx, beta, Y, incy)
-            Y
+            incx = stride(x,1)
+            incy = stride(y,1)
+            $fname(handle(), trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
+            y
         end
     end
 end
 function gemv(trans::Char, alpha::Number,
-              A::StridedCuMatrix{T}, X::StridedCuVector{T}) where T
-    gemv!(trans, alpha, A, X, zero(T), similar(X, size(A, (trans == 'N' ? 1 : 2))))
+              A::StridedCuMatrix{T}, x::StridedCuVector{T}) where T
+    gemv!(trans, alpha, A, x, zero(T), similar(x, size(A, (trans == 'N' ? 1 : 2))))
 end
-function gemv(trans::Char, A::StridedCuMatrix{T}, X::StridedCuVector{T}) where T
-    gemv!(trans, one(T), A, X, zero(T), similar(X, T, size(A, (trans == 'N' ? 1 : 2))))
+function gemv(trans::Char, A::StridedCuMatrix{T}, x::StridedCuVector{T}) where T
+    gemv!(trans, one(T), A, x, zero(T), similar(x, T, size(A, (trans == 'N' ? 1 : 2))))
+end
+
+for (fname, eltyin, eltyout) in
+    ((:cublasDgemvBatched,:Float64, :Float64),
+     (:cublasSgemvBatched,:Float32, :Float32),
+     (:cublasHSHgemvBatched,:Float16, :Float16),
+     (:cublasHSSgemvBatched,:Float16, :Float32),
+     (:cublasZgemvBatched,:ComplexF64, :ComplexF64),
+     (:cublasCgemvBatched,:ComplexF32, :ComplexF32))
+    @eval begin
+        function gemv_batched!(trans::Char,
+                            alpha::Number,
+                            A::Vector{<:StridedCuMatrix{$eltyin}},
+                            x::Vector{<:StridedCuVector{$eltyin}},
+                            beta::Number,
+                            y::Vector{<:StridedCuVector{$eltyout}})
+            if length(A) != length(x) || length(A) != length(y)
+                throw(DimensionMismatch("Lengths of inputs must be the same"))
+            end
+            for (i, (As,xs,ys)) in enumerate(zip(A,x,y))
+                m,n = size(As)
+                if length(xs) != (trans == 'N' ? n : m) || length(ys) != (trans == 'N' ? m : n)
+                    throw(DimensionMismatch("Input $i: A has dimension $(size(As)), x has dimension $(size(xs)), y has dimension $(size(ys))"))
+                end
+            end
+
+            m = size(A[1], trans == 'N' ? 1 : 2)
+            n = size(A[1], trans == 'N' ? 2 : 1)
+            lda = max(1,stride(A[1],2))
+            incx = stride(x[1],1)
+            incy = stride(y[1],1)
+            Aptrs = unsafe_batch(A)
+            xptrs = unsafe_batch(x)
+            yptrs = unsafe_batch(y)
+            $fname(handle(), trans, m, n, alpha, Aptrs, lda, xptrs, incx, beta, yptrs, incy, length(A))
+            unsafe_free!(yptrs)
+            unsafe_free!(xptrs)
+            unsafe_free!(Aptrs)
+
+            y
+        end
+    end
+end
+
+for (fname, eltyin, eltyout) in
+    ((:cublasDgemvStridedBatched,:Float64, :Float64),
+     (:cublasSgemvStridedBatched,:Float32, :Float32),
+     (:cublasHSHgemvStridedBatched,:Float16, :Float16),
+     (:cublasHSSgemvStridedBatched,:Float16, :Float32),
+     (:cublasZgemvStridedBatched,:ComplexF64, :ComplexF64),
+     (:cublasCgemvStridedBatched,:ComplexF32, :ComplexF32))
+    @eval begin
+        function gemv_strided_batched!(trans::Char,
+                            alpha::Number,
+                            A::AbstractArray{$eltyin, 3},
+                            x::AbstractArray{$eltyin, 2},
+                            beta::Number,
+                            y::AbstractArray{$eltyout, 2})
+            if size(A, 3) != size(x, 2) || size(A, 3) != size(y, 2)
+                throw(DimensionMismatch("Batch sizes must be equal for all inputs"))
+            end
+            m = size(A, trans == 'N' ? 1 : 2)
+            n = size(A, trans == 'N' ? 2 : 1)
+            if m != size(y, 1) || n != size(x, 1)
+                throw(DimensionMismatch("A has dimension $(size(A)), x has dimension $(size(x)), y has dimension $(size(y))"))
+            end
+
+            lda = max(1,stride(A, 2))
+            incx = stride(x,1)
+            incy = stride(y,1)
+            strideA = size(A, 3) == 1 ? 0 : stride(A, 3)
+            stridex = size(x, 2) == 1 ? 0 : stride(x, 2)
+            stridey = stride(y, 2)
+            batchCount = size(A, 3)
+            $fname(handle(), trans, m, n, alpha, A, lda, strideA, x, incx, stridex, beta, y, incy, stridey, batchCount)
+
+            y
+        end
+    end
 end
 
 ### (GB) general banded matrix-vector multiplication
@@ -883,7 +966,7 @@ function gemmEx!(transA::Char, transB::Char,
     k = size(A, transA == 'N' ? 2 : 1)
     n = size(B, transB == 'N' ? 2 : 1)
     if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
-        throw(DimensionMismatch(""))
+        throw(DimensionMismatch("A has dimension $(size(A)), B has dimension $(size(B)) and C has dimension $(size(C))"))
     end
     lda = max(1,stride(A,2))
     ldb = max(1,stride(B,2))
@@ -901,6 +984,91 @@ function gemmEx!(transA::Char, transB::Char,
         computeType = convert(cudaDataType, computeT)
         cublasGemmEx_old(handle(), transA, transB, m, n, k, Ref{computeT}(alpha), A, eltype(A), lda, B,
                     eltype(B), ldb, Ref{computeT}(beta), C, eltype(C), ldc, computeType, algo)
+    end
+    C
+end
+
+function gemmBatchedEx!(transA::Char, transB::Char,
+                 @nospecialize(alpha::Number),
+                 @nospecialize(A::Vector{<:StridedCuVecOrMat}),
+                 @nospecialize(B::Vector{<:StridedCuVecOrMat}),
+                 @nospecialize(beta::Number),
+                 @nospecialize(C::Vector{<:StridedCuVecOrMat});
+                 algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
+    if length(A) != length(B) || length(A) != length(C)
+        throw(DimensionMismatch("Lengths of inputs must be the same"))
+    end
+    for (i, (As,Bs,Cs)) in enumerate(zip(A,B,C))
+        m = size(As, transA == 'N' ? 1 : 2)
+        k = size(As, transA == 'N' ? 2 : 1)
+        n = size(Bs, transB == 'N' ? 2 : 1)
+        if m != size(Cs,1) || n != size(Cs,2) || k != size(Bs, transB == 'N' ? 1 : 2)
+            throw(DimensionMismatch("Input $i: A has dimension $(size(As)), B has dimension $(size(Bs)), C has dimension $(size(Cs))"))
+        end
+    end
+    m = size(A[1], transA == 'N' ? 1 : 2)
+    k = size(A[1], transA == 'N' ? 2 : 1)
+    n = size(B[1], transB == 'N' ? 2 : 1)
+    lda = max(1,stride(A[1],2))
+    ldb = max(1,stride(B[1],2))
+    ldc = max(1,stride(C[1],2))
+    computeType = gemmExComputeType(eltype(A[1]), eltype(B[1]), eltype(C[1]), m, k, n)
+    isnothing(computeType) &&
+    throw(ArgumentError("gemmEx does not support $(eltype(C))=$(eltype(A))*$(eltype(B))"))
+    computeT = juliaStorageType(eltype(C[1]), computeType)
+    Aptrs = unsafe_batch(A)
+    Bptrs = unsafe_batch(B)
+    Cptrs = unsafe_batch(C)
+    if version() >= v"11.0"
+        # with CUDA 11, the compute type encodes the math mode.
+        cublasGemmBatchedEx(handle(), transA, transB, m, n, k, Ref{computeT}(alpha), Aptrs, eltype(A[1]), lda, Bptrs,
+                            eltype(B[1]), ldb, Ref{computeT}(beta), Cptrs, eltype(C[1]), ldc, length(A), computeType, algo)
+    else
+        error("Not implemented for CUDA 11 and below.")
+    end
+    unsafe_free!(Cptrs)
+    unsafe_free!(Bptrs)
+    unsafe_free!(Aptrs)
+
+    C
+end
+
+function gemmStridedBatchedEx!(transA::Char, transB::Char,
+                 @nospecialize(alpha::Number),
+                 @nospecialize(A::AbstractArray{Ta, 3}),
+                 @nospecialize(B::AbstractArray{Tb, 3}),
+                 @nospecialize(beta::Number),
+                 @nospecialize(C::AbstractArray{Tc, 3});
+                 algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT) where {Ta, Tb, Tc}
+    if size(A, 3) != size(B, 3) || size(A, 3) != size(C, 3)
+        throw(DimensionMismatch("Batch sizes must be equal for all inputs"))
+    end
+    m = size(A, transA == 'N' ? 1 : 2)
+    k = size(A, transA == 'N' ? 2 : 1)
+    n = size(B, transB == 'N' ? 2 : 1)
+    if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
+        throw(DimensionMismatch("A has dimension $(size(A)), B has dimension $(size(B)), C has dimension $(size(C))"))
+    end
+    lda = max(1,stride(A,2))
+    ldb = max(1,stride(B,2))
+    ldc = max(1,stride(C,2))
+
+    strideA = size(A, 3) == 1 ? 0 : stride(A, 3)
+    strideB = size(B, 3) == 1 ? 0 : stride(B, 3)
+    strideC = stride(C, 3)
+    batchCount = size(C, 3)
+
+    computeType = gemmExComputeType(eltype(A), eltype(B), eltype(C), m, k, n)
+    isnothing(computeType) &&
+    throw(ArgumentError("gemmEx does not support $(eltype(C))=$(eltype(A))*$(eltype(B))"))
+    computeT = juliaStorageType(eltype(C), computeType)
+    if version() >= v"11.0"
+        # with CUDA 11, the compute type encodes the math mode.
+        cublasGemmStridedBatchedEx(handle(), transA, transB, m, n, k, Ref{computeT}(alpha), A, eltype(A), lda, strideA,
+                                   B, eltype(B), ldb, strideB, Ref{computeT}(beta), C, eltype(C), ldc, strideC,
+                                   batchCount, computeType, algo)
+    else
+        error("Not implemented for CUDA 11 and below.")
     end
     C
 end
@@ -965,6 +1133,7 @@ for (fname, elty) in
         end
     end
 end
+
 function gemm_batched(transA::Char, transB::Char, alpha::Number,
                       A::Vector{<:StridedCuMatrix{T}}, B::Vector{<:StridedCuMatrix{T}}) where T
     C = CuMatrix{T}[similar(B[1], (size(A[1], transA == 'N' ? 1 : 2),size(B[1], transB == 'N' ? 2 : 1))) for i in 1:length(A)]
@@ -1026,7 +1195,7 @@ function gemm_strided_batched(transA::Char, transB::Char, A::AbstractArray{T, 3}
     gemm_strided_batched(transA, transB, one(T), A, B)
 end
 
-## (SY) symmetric matrix-matrix and matrix-vector multiplication
+## (Sy) symmetric matrix-matrix and matrix-vector multiplication
 for (fname, elty) in ((:cublasDsymm_v2,:Float64),
                       (:cublasSsymm_v2,:Float32),
                       (:cublasZsymm_v2,:ComplexF64),
@@ -1989,6 +2158,7 @@ for (fname, elty) in ((:cublasXtZher2k,:ComplexF64),
         end
     end
 end
+
 function xt_her2k(uplo::Char, trans::Char, alpha::Number,
                   A::Union{StridedVecOrMat{T}, StridedCuVecOrMat{T}},
                   B::Union{StridedVecOrMat{T}, StridedCuVecOrMat{T}}) where T

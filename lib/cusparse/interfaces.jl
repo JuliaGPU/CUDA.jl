@@ -1,7 +1,7 @@
 # interfacing with other packages
 
 using LinearAlgebra
-using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
+using LinearAlgebra: BlasComplex, BlasFloat, BlasReal, MulAddMul, AdjOrTrans
 export _spadjoint, _sptranspose
 
 function _spadjoint(A::CuSparseMatrixCSR)
@@ -43,11 +43,6 @@ function mm_wrapper(transa::SparseChar, transb::SparseChar, alpha::Number,
     n_A == n_C || throw(DimensionMismatch())
     m_B == m_C || throw(DimensionMismatch())
     isempty(B) && return CUDA.zeros(eltype(B), size(A, 1), 0)
-
-    if version() <= v"10.3.1"
-        # Generic mm! doesn't support transposed B on CUDA10
-        return mm2!(transa, transb, alpha, A, B, beta, C, 'O')
-    end
     mm!(transa, transb, alpha, A, B, beta, C, 'O')
 end
 
@@ -57,100 +52,124 @@ LinearAlgebra.dot(x::DenseCuVector{T}, y::CuSparseVector{T}) where {T <: BlasRea
 LinearAlgebra.dot(x::CuSparseVector{T}, y::DenseCuVector{T}) where {T <: BlasComplex} = vv!('C', x, y, 'O')
 LinearAlgebra.dot(x::DenseCuVector{T}, y::CuSparseVector{T}) where {T <: BlasComplex} = conj(dot(y,x))
 
-tag_wrappers = ((identity, identity),
-                (T -> :(HermOrSym{T, <:$T}), A -> :(parent($A))))
-
 adjtrans_wrappers = ((identity, identity),
                      (M -> :(Transpose{T, <:$M}), M -> :(_sptranspose(parent($M)))),
                      (M -> :(Adjoint{T, <:$M}), M -> :(_spadjoint(parent($M)))))
 
 op_wrappers = ((identity, T -> 'N', identity),
                (T -> :(Transpose{T, <:$T}), T -> 'T', A -> :(parent($A))),
-               (T -> :(Adjoint{T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A))))
+               (T -> :(Adjoint{T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A))),
+               (T -> :(HermOrSym{T, <:$T}), T -> 'N', A -> :(parent($A))))
 
-for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
-    TypeA = wrapa(taga(:(CuSparseMatrix{T})))
+function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::CuSparseMatrix{T}, B::DenseCuVector{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    mv_wrapper(tA, _add.alpha, A, B, _add.beta, C)
+end
+function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::CuSparseMatrix{T}, B::CuSparseVector{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    mv_wrapper(tA, _add.alpha, A, CuVector{T}(B), _add.beta, C)
+end
 
-    @eval begin
-        function LinearAlgebra.mul!(C::CuVector{T}, A::$TypeA, B::DenseCuVector{T},
-                                    alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-            mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), B, beta, C)
-        end
+function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::CuSparseMatrix{T}, B::DenseCuMatrix{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm_wrapper(tA, tB, _add.alpha, A, B, _add.beta, C)
+end
 
-        function LinearAlgebra.mul!(C::CuVector{T}, A::$TypeA, B::CuSparseVector{T},
-                                    alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-            mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), CuVector{T}(B), beta, C)
-        end
+for (wrapa, transa, unwrapa) in op_wrappers
+    TypeA = wrapa(:(CuSparseMatrix{T}))
 
-        function LinearAlgebra.:(*)(A::$TypeA, x::CuSparseVector{T}) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-            m, n = size(A)
-            length(x) == n || throw(DimensionMismatch())
-            y = CuVector{T}(undef, m)
-            mul!(y, A, x)
-        end
+    @eval function LinearAlgebra.:(*)(A::$TypeA, x::CuSparseVector{T}) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+        m, n = size(A)
+        length(x) == n || throw(DimensionMismatch())
+        y = CuVector{T}(undef, m)
+        mul!(y, A, x, true, false)
+    end
+end
+
+function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::DenseCuMatrix{T}, B::CuSparseVector{T}, _add::MulAddMul) where {T <: BlasFloat}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    gemvi!(tA, _add.alpha, A, B, _add.beta, C, 'O')
+end
+
+function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCSC{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
+end
+function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCSR{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
+end
+function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCOO{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
+end
+
+for (wrapa, transa, unwrapa) in op_wrappers
+    TypeA = wrapa(:(DenseCuMatrix{T}))
+
+    @eval function Base.:(*)(A::$TypeA, x::CuSparseVector{T}) where {T <: BlasFloat}
+        m, n = size(A)
+        length(x) == n || throw(DimensionMismatch())
+        y = CuVector{T}(undef, m)
+        mul!(y, A, x, true, false)
     end
 
-    for (tagb, untagb) in tag_wrappers, (wrapb, transb, unwrapb) in op_wrappers
-        TypeB = wrapb(tagb(:(DenseCuMatrix{T})))
+    for (wrapb, transb, unwrapb) in op_wrappers
+        for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
+            TypeB = wrapb(SparseMatrixType)
 
-        @eval begin
-            function LinearAlgebra.mul!(C::CuMatrix{T}, A::$TypeA, B::$TypeB,
-                                        alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-                mm_wrapper($transa(T), $transb(T), alpha, $(untaga(unwrapa(:A))), $(untagb(unwrapb(:B))), beta, C)
+            @eval function Base.:(*)(A::$TypeA, B::$TypeB) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+                m, n = size(A)
+                k, p = size(B)
+                n == k || throw(DimensionMismatch())
+                C = CuMatrix{T}(undef, m, p)
+                mul!(C, A, B, true, false)
             end
         end
     end
 end
 
-for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
-    TypeA = wrapa(taga(:(DenseCuMatrix{T})))
+if VERSION < v"1.10-"
+for (wrapa, transa, unwrapa) in op_wrappers
+    TypeA = wrapa(:(DenseCuMatrix{T}))
 
-    @eval begin
-        function LinearAlgebra.mul!(C::CuVector{T}, A::$TypeA, B::CuSparseVector{T}, alpha::Number, beta::Number) where {T <: BlasFloat}
-            gemvi!($transa(T), alpha, $(untaga(unwrapa(:A))), B, beta, C, 'O')
-        end
-
-        function SparseArrays.:(*)(A::$TypeA, x::CuSparseVector{T}) where {T <: BlasFloat}
-            m, n = size(A)
-            length(x) == n || throw(DimensionMismatch())
-            y = CuVector{T}(undef, m)
-            mul!(y, A, x)
-        end
+    @eval function LinearAlgebra.mul!(C::CuVector{T}, A::$TypeA, B::CuSparseVector{T}, alpha::Number, beta::Number) where {T <: BlasFloat}
+        gemvi!($transa(T), alpha, $(unwrapa(:A)), B, beta, C, 'O')
     end
+end
+end
 
-    for (tagb, untagb) in tag_wrappers, (wrapb, transb, unwrapb) in op_wrappers
-        for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
-            TypeB = wrapb(tagb(SparseMatrixType))
-
-            @eval begin
-                function LinearAlgebra.mul!(C::CuMatrix{T}, A::$TypeA, B::$TypeB,
-                                        alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-                    mm!($transa(T), $transb(T), alpha, $(untaga(unwrapa(:A))), $(untagb(unwrapb(:B))), beta, C, 'O')
-                end
-
-                function LinearAlgebra.:(*)(A::$TypeA, B::$TypeB) where {T <: Union{Float16, ComplexF16, BlasFloat}}
-                    m, n = size(A)
-                    k, p = size(B)
-                    n == k || throw(DimensionMismatch())
-                    C = CuMatrix{T}(undef, m, p)
-                    mul!(C, A, B)
-                end
-            end
-        end
-    end
+function LinearAlgebra.generic_matmatmul!(C::CuSparseMatrixCSC{T}, tA, tB, A::CuSparseMatrixCSC{T}, B::CuSparseMatrixCSC{T}, _add::MulAddMul) where {T <: BlasFloat}
+    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    gemm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
+end
+function LinearAlgebra.generic_matmatmul!(C::CuSparseMatrixCSR{T}, tA, tB, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T}, _add::MulAddMul) where {T <: BlasFloat}
+    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    gemm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
+end
+function LinearAlgebra.generic_matmatmul!(C::CuSparseMatrixCOO{T}, tA, tB, A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}, _add::MulAddMul) where {T <: BlasFloat}
+    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    A_csr = CuSparseMatrixCSR(A)
+    B_csr = CuSparseMatrixCSR(B)
+    C_csr = CuSparseMatrixCSR(C)
+    generic_matmatmul!(C_csr, tA, tB, A_csr, B_csr, _add.alpha, _add.beta)
+    C = CuSparseMatrixCOO(C_csr) # is this in-place of the original C?
 end
 
 for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
-    @eval begin
-        function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T <: BlasFloat}
-            CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
-            gemm('N', 'N', one(T), A, B, 'O')
-        end
-
-        function LinearAlgebra.mul!(C::$SparseMatrixType{T}, A::$SparseMatrixType{T}, B::$SparseMatrixType{T}, alpha::Number, beta::Number) where {T <: BlasFloat}
-            CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
-            gemm!('N', 'N', alpha, A, B, beta, C, 'O')
-        end
+    @eval function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T <: BlasFloat}
+        CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+        gemm('N', 'N', one(T), A, B, 'O')
     end
 end
 
@@ -161,24 +180,12 @@ function LinearAlgebra.:(*)(A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}) wh
     CuSparseMatrixCOO(A_csr * B_csr)
 end
 
-function LinearAlgebra.mul!(C::CuSparseMatrixCOO{T}, A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}, alpha::Number, beta::Number) where {T <: BlasFloat}
-    CUSPARSE.version() < v"11.1.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
-    A_csr = CuSparseMatrixCSR(A)
-    B_csr = CuSparseMatrixCSR(B)
-    C_csr = CuSparseMatrixCSR(C)
-    mul!(C_csr, A_csr, B_csr, alpha, beta)
-    C = CuSparseMatrixCOO(C_csr)
-end
-
 for (wrapa, unwrapa) in adjtrans_wrappers, (wrapb, unwrapb) in adjtrans_wrappers
     for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
         TypeA = wrapa(SparseMatrixType)
         TypeB = wrapb(SparseMatrixType)
         wrapa == identity && wrapb == identity && continue
-        @eval begin
-            LinearAlgebra.:(*)(A::$TypeA, B::$TypeB) where {T <: BlasFloat} = $(unwrapa(:A)) * $(unwrapb(:B))
-            LinearAlgebra.mul!(C::$SparseMatrixType, A::$TypeA, B::$TypeB, alpha::Number, beta::Number) where {T <: BlasFloat} = mul!(C, $(unwrapa(:A)), $(unwrapb(:B)), alpha, beta)
-        end
+        @eval Base.:(*)(A::$TypeA, B::$TypeB) where {T <: BlasFloat} = $(unwrapa(:A)) * $(unwrapb(:B))
     end
 end
 
@@ -197,31 +204,18 @@ for op in (:(+), :(-))
                  B::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}) where {T <: BlasFloat} =
             CuSparseMatrixCOO($(op)(CuSparseMatrixCSR(A), CuSparseMatrixCSR(B)))
     end
-
-    for (wrap1, unwrap1) in adjtrans_wrappers, (wrap2, unwrap2) in adjtrans_wrappers
-        for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCOO{T}), :(CuSparseMatrixBSR{T}))
-            Type1 = wrap1(:(CuSparseMatrixCSR{T}))
-            Type2 = wrap2(SparseMatrixType)
-            @eval begin
-                Base.$op(A::$Type1, B::$Type2) where {T <: BlasFloat} = $(op)($(unwrap1(:A)), CuSparseMatrixCSR(B))
-                Base.$op(A::$Type2, B::$Type1) where {T <: BlasFloat} = $(op)(CuSparseMatrixCSR(A), $(unwrap1(:B)))
-            end
-        end
-
-        for SparseMatrixType in (:(CuSparseMatrixCOO{T}), :(CuSparseMatrixBSR{T}))
-            Type1 = wrap1(:(CuSparseMatrixCSC{T}))
-            Type2 = wrap2(SparseMatrixType)
-            @eval begin
-                Base.$op(A::$Type1, B::$Type2) where {T <: BlasFloat} = $(op)($(unwrap1(:A)), CuSparseMatrixCSC(B))
-                Base.$op(A::$Type2, B::$Type1) where {T <: BlasFloat} = $(op)(CuSparseMatrixCSC(A), $(unwrap1(:B)))
-            end
-        end
-    end
 end
 
 # triangular
-for SparseMatrixType in (:CuSparseMatrixBSR, :CuSparseMatrixCSC, :CuSparseMatrixCSR)
-
+for SparseMatrixType in (:CuSparseMatrixBSR,)
+    if VERSION >= v"1.10-"
+    @eval begin
+        LinearAlgebra.generic_trimatdiv!(C::DenseCuVector{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::AbstractVector{T}) where {T<:BlasFloat} =
+            sv2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', uploc, isunitc, one(T), A, C === B ? C : copyto!(C, B), 'O')
+        LinearAlgebra.generic_trimatdiv!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::AbstractMatrix{T}) where {T<:BlasFloat} =
+            sm2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'N', uploc, isunitc, one(T), A, C === B ? C : copyto!(C, B), 'O')
+    end
+    else
     ## direct
     for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
                                 (:UnitLowerTriangular, 'L', 'U'),
@@ -261,10 +255,52 @@ for SparseMatrixType in (:CuSparseMatrixBSR, :CuSparseMatrixCSC, :CuSparseMatrix
             end
         end
     end
-end
+    end # VERSION
+end # SparseMatrixType loop
 
-for SparseMatrixType in (:CuSparseMatrixCOO,)
-
+for SparseMatrixType in (:CuSparseMatrixCOO, :CuSparseMatrixCSR, :CuSparseMatrixCSC)
+    if VERSION >= v"1.10-"
+    @eval begin
+        function LinearAlgebra.generic_trimatdiv!(C::DenseCuVector{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::DenseCuVector{T}) where {T<:BlasFloat}
+            if CUSPARSE.version() ≥ v"12.0"
+                sv!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', uploc, isunitc, one(T), A, B, C, 'O')
+            else
+                $SparseMatrixType == CuSparseMatrixCOO && throw(ErrorException("This operation is not supported by the current CUDA version."))
+                C !== B && copyto!(C, B)
+                sv2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', uploc, isunitc, one(T), A, C, 'O')
+            end
+        end
+        function LinearAlgebra.generic_trimatdiv!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::DenseCuMatrix{T}) where {T<:BlasFloat}
+            if CUSPARSE.version() ≥ v"12.0"
+                sm!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'N', uploc, isunitc, one(T), parent(A), B, C, 'O')
+            else
+                $SparseMatrixType == CuSparseMatrixCOO && throw(ErrorException("This operation is not supported by the current CUDA version."))
+                C !== B && copyto!(C, B)
+                sm2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'N', uploc, isunitc, one(T), A, C, 'O')
+            end
+        end
+        function LinearAlgebra.generic_trimatdiv!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::AdjOrTrans{<:T,<:DenseCuMatrix{T}}) where {T<:BlasFloat}
+            CUSPARSE.version() < v"12.0" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+            transb = LinearAlgebra.wrapper_char(B)
+            transb == 'C' && throw(ErrorException("adjoint rhs is not supported"))
+            sm!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', transb, uploc, isunitc, one(T), A, parent(B), C, 'O')
+        end
+        function LinearAlgebra.:(\)(A::LinearAlgebra.UpperOrLowerTriangular{T,<:$SparseMatrixType}, B::DenseCuVector{T}) where {T}
+            C = CuVector{T}(undef, length(B))
+            LinearAlgebra.ldiv!(C, A, B)
+        end
+    end
+    
+    for rhs in (:(DenseCuMatrix{T}), :(Transpose{T,<:DenseCuMatrix}), :(Adjoint{T,<:DenseCuMatrix}))
+        @eval begin
+            function LinearAlgebra.:(\)(A::LinearAlgebra.UpperOrLowerTriangular{T,<:$SparseMatrixType}, B::$rhs) where {T}
+                m, n = size(B)
+                C = CuMatrix{T}(undef, m, n)
+                LinearAlgebra.ldiv!(C, A, B)
+            end
+        end
+    end
+    else # pre-1.9 VERSIONs
     ## direct
     for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
                                 (:UnitLowerTriangular, 'L', 'U'),
@@ -272,27 +308,61 @@ for SparseMatrixType in (:CuSparseMatrixCOO,)
                                 (:UnitUpperTriangular, 'U', 'U'))
         @eval begin
             # Left division with vectors
-            LinearAlgebra.ldiv!(C::DenseCuVector{T},
+            function LinearAlgebra.ldiv!(C::DenseCuVector{T},
                                 A::$t{T,<:$SparseMatrixType},
-                                B::DenseCuVector{T}) where {T<:BlasFloat} =
-                sv!('N', $uploc, $isunitc, one(T), parent(A), B, C, 'O')
+                                B::DenseCuVector{T}) where {T<:BlasFloat}
+                if CUSPARSE.version() ≥ v"12.0"
+                    sv!('N', $uploc, $isunitc, one(T), parent(A), B, C, 'O')
+                else
+                    $SparseMatrixType == CuSparseMatrixCOO && throw(ErrorException("This operation is not supported by the current CUDA version."))
+                    copyto!(C, B)
+                    sv2!('N', $uploc, $isunitc, one(T), parent(A), C, 'O')
+                end
+            end
 
             # Left division with matrices
-            LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
+            function LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
                                 A::$t{T,<:$SparseMatrixType},
-                                B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-                sm!('N', 'N', $uploc, $isunitc, one(T), parent(A), B, C, 'O')
+                                B::DenseCuMatrix{T}) where {T<:BlasFloat}
+                if CUSPARSE.version() ≥ v"12.0"
+                    sm!('N', 'N', $uploc, $isunitc, one(T), parent(A), B, C, 'O')
+                else
+                    $SparseMatrixType == CuSparseMatrixCOO && throw(ErrorException("This operation is not supported by the current CUDA version."))
+                    copyto!(C, B)
+                    sm2!('N', 'N', $uploc, $isunitc, one(T), parent(A), C, 'O')
+                end
+            end
 
-            LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
+            function LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
                                 A::$t{T,<:$SparseMatrixType},
-                                B::Transpose{T,<:DenseCuMatrix}) where {T<:BlasFloat} =
+                                B::Transpose{T,<:DenseCuMatrix}) where {T<:BlasFloat}
+                CUSPARSE.version() < v"12.0" && throw(ErrorException("This operation is not supported by the current CUDA version."))
                 sm!('N', 'T', $uploc, $isunitc, one(T), parent(A), parent(B), C, 'O')
+            end
 
             # transb = 'C' is not supported.
-            LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
+            function LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
                                 A::$t{T,<:$SparseMatrixType},
-                                B::Adjoint{T,<:DenseCuMatrix}) where {T<:BlasReal} =
+                                B::Adjoint{T,<:DenseCuMatrix}) where {T<:BlasReal}
+                CUSPARSE.version() < v"12.0" && throw(ErrorException("This operation is not supported by the current CUDA version."))
                 sm!('N', 'T', $uploc, $isunitc, one(T), parent(A), parent(B), C, 'O')
+            end
+
+            function LinearAlgebra.:(\)(A::$t{T,<:$SparseMatrixType}, B::DenseCuVector{T}) where {T}
+                m = length(B)
+                C = CuVector{T}(undef, m)
+                LinearAlgebra.ldiv!(C, A, B)
+            end
+        end
+
+        for rhs in (:(DenseCuMatrix{T}), :(Transpose{T,<:DenseCuMatrix}), :(Adjoint{T,<:DenseCuMatrix}))
+            @eval begin
+                function LinearAlgebra.:(\)(A::$t{T,<:$SparseMatrixType}, B::$rhs) where {T}
+                    m, n = size(B)
+                    C = CuMatrix{T}(undef, m, n)
+                    LinearAlgebra.ldiv!(C, A, B)
+                end
+            end
         end
     end
 
@@ -306,31 +376,64 @@ for SparseMatrixType in (:CuSparseMatrixCOO,)
                               (:Adjoint, 'C'))
             @eval begin
                 # Left division with vectors
-                LinearAlgebra.ldiv!(C::DenseCuVector{T},
+                function LinearAlgebra.ldiv!(C::DenseCuVector{T},
                                     A::$t{T,<:$opa{T,<:$SparseMatrixType}},
-                                    B::DenseCuVector{T}) where {T<:BlasFloat} =
-                    sv!($transa, $uploc, $isunitc, one(T), parent(parent(A)), B, C, 'O')
+                                    B::DenseCuVector{T}) where {T<:BlasFloat}
+                    if CUSPARSE.version() ≥ v"12.0"
+                        sv!($transa, $uploc, $isunitc, one(T), parent(parent(A)), B, C, 'O')
+                    else
+                        copyto!(C, B)
+                        sv2!($transa, $uploc, $isunitc, one(T), parent(parent(A)), C, 'O')
+                    end
+                end
 
                 # Left division with matrices
-                LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
+                function LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
                                     A::$t{T,<:$opa{T,<:$SparseMatrixType}},
-                                    B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-                    sm!($transa, 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, C, 'O')
+                                    B::DenseCuMatrix{T}) where {T<:BlasFloat}
+                    if CUSPARSE.version() ≥ v"12.0"
+                        sm!($transa, 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, C, 'O')
+                    else
+                        copyto!(C, B)
+                        sm2!($transa, 'N', $uploc, $isunitc, one(T), parent(parent(A)), C, 'O')
+                    end
+                end
 
-                LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
+                function LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
                                     A::$t{T,<:$opa{T,<:$SparseMatrixType}},
-                                    B::Transpose{T,<:DenseCuMatrix}) where {T<:BlasFloat} =
+                                    B::Transpose{T,<:DenseCuMatrix}) where {T<:BlasFloat}
+                    CUSPARSE.version() < v"12.0" && throw(ErrorException("This operation is not supported by the current CUDA version."))
                     sm!($transa, 'T', $uploc, $isunitc, one(T), parent(parent(A)), parent(B), C, 'O')
+                end
 
                 # transb = 'C' is not supported.
-                LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
+                function LinearAlgebra.ldiv!(C::DenseCuMatrix{T},
                                     A::$t{T,<:$opa{T,<:$SparseMatrixType}},
-                                    B::Adjoint{T,<:DenseCuMatrix}) where {T<:BlasReal} =
+                                    B::Adjoint{T,<:DenseCuMatrix}) where {T<:BlasReal}
+                    CUSPARSE.version() < v"12.0" && throw(ErrorException("This operation is not supported by the current CUDA version."))
                     sm!($transa, 'T', $uploc, $isunitc, one(T), parent(parent(A)), parent(B), C, 'O')
+                end
+
+                function LinearAlgebra.:(\)(A::$t{T,<:$opa{T,<:$SparseMatrixType}}, B::DenseCuVector{T}) where {T}
+                    m = length(B)
+                    C = CuVector{T}(undef, m)
+                    LinearAlgebra.ldiv!(C, A, B)
+                end
+            end
+
+            for rhs in (:(DenseCuMatrix{T}), :(Transpose{T,<:DenseCuMatrix}), :(Adjoint{T,<:DenseCuMatrix}))
+                @eval begin
+                    function LinearAlgebra.:(\)(A::$t{T,<:$opa{T,<:$SparseMatrixType}}, B::$rhs) where {T}
+                        m, n = size(B)
+                        C = CuMatrix{T}(undef, m, n)
+                        LinearAlgebra.ldiv!(C, A, B)
+                    end
+                end
             end
         end
     end
-end
+    end # VERSION
+end # SparseMatrixType loop
 
 ## uniform scaling
 
@@ -356,20 +459,52 @@ function _sparse_identity(::Type{<:CuSparseMatrixCSC{<:Any,Ti}},
     CuSparseMatrixCSC{Tv,Ti}(colPtr, rowVal, nzVal, dims)
 end
 
-Base.:(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}, J::UniformScaling) =
-    A .+ _sparse_identity(typeof(A), J, size(A))
+function _sparse_identity(::Type{<:CuSparseMatrixCOO{Tv,Ti}},
+                        I::UniformScaling, dims::Dims) where {Tv,Ti}
+    len = min(dims[1], dims[2])
+    rowInd = CuVector{Ti}(1:len)
+    colInd = CuVector{Ti}(1:len)
+    nzVal = CUDA.fill(I.λ, len)
+    CuSparseMatrixCOO{Tv,Ti}(rowInd, colInd, nzVal, dims)
+end
 
-Base.:(-)(J::UniformScaling, A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) =
-    _sparse_identity(typeof(A), J, size(A)) .- A
+for (wrapa, unwrapa) in adjtrans_wrappers
+    for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
+        TypeA = wrapa(SparseMatrixType)
+        @eval begin
+            Base.:(+)(A::$TypeA, J::UniformScaling) where {T} = $(unwrapa(:A)) + _sparse_identity(typeof(A), J, size(A))
+            Base.:(+)(J::UniformScaling, A::$TypeA) where {T} = _sparse_identity(typeof(A), J, size(A)) + $(unwrapa(:A))
+
+            Base.:(-)(A::$TypeA, J::UniformScaling) where {T} = $(unwrapa(:A)) - _sparse_identity(typeof(A), J, size(A))
+            Base.:(-)(J::UniformScaling, A::$TypeA) where {T} = _sparse_identity(typeof(A), J, size(A)) - $(unwrapa(:A))
+        end
+
+        # Broadcasting is not yet supported for COO matrices
+        if SparseMatrixType != :(CuSparseMatrixCOO{T})
+            @eval begin
+                Base.:(*)(A::$TypeA, J::UniformScaling) where {T} = $(unwrapa(:A)) * J.λ
+                Base.:(*)(J::UniformScaling, A::$TypeA) where {T} = J.λ * $(unwrapa(:A))
+            end
+        else
+            @eval begin
+                Base.:(*)(A::$TypeA, J::UniformScaling) where {T} = $(unwrapa(:A)) * _sparse_identity(typeof(A), J, size(A))
+                Base.:(*)(J::UniformScaling, A::$TypeA) where {T} = _sparse_identity(typeof(A), J, size(A)) * $(unwrapa(:A))
+            end
+        end
+    end
+end
 
 # TODO: let Broadcast handle this automatically (a la SparseArrays.PromoteToSparse)
-for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR], op in [:(+), :(-)]
-    @eval begin
-        function Base.$op(lhs::Diagonal{T,<:CuArray}, rhs::$SparseMatrixType{T}) where {T}
-            return $op($SparseMatrixType(lhs), rhs)
-        end
-        function Base.$op(lhs::$SparseMatrixType{T}, rhs::Diagonal{T,<:CuArray}) where {T}
-            return $op(lhs, $SparseMatrixType(rhs))
+for (wrapa, unwrapa) in adjtrans_wrappers, op in (:(+), :(-), :(*))
+    for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
+        TypeA = wrapa(SparseMatrixType)
+        @eval begin
+            function Base.$op(lhs::Diagonal, rhs::$TypeA) where {T}
+                return $op($SparseMatrixType(lhs), $(unwrapa(:rhs)))
+            end
+            function Base.$op(lhs::$TypeA, rhs::Diagonal) where {T}
+                return $op($(unwrapa(:lhs)), $SparseMatrixType(rhs))
+            end
         end
     end
 end

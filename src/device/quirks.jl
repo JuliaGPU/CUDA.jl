@@ -44,75 +44,31 @@ end
 @device_override @noinline Base.Math.sincos_domain_error(x) =
     @print_and_throw "sincos(x) is only defined for finite x."
 
-# multidimensional.jl
-@static if VERSION >= v"1.7-"
-    # XXX: the boundscheck change in JuliaLang/julia#42119 has exposed additional issues
-    #      with bad code generation by ptxas on <sm_70, as reported with NVIDIA in #3382020.
-    @device_override Base.@propagate_inbounds function Base.getindex(iter::CartesianIndices{N,R},
-                                                                     I::Vararg{Int, N}) where {N,R}
-        if compute_capability() < sv"7"
-            CartesianIndex(getindex.(iter.indices, I))
-        else
-            @boundscheck checkbounds(iter, I...)
-            index = map(iter.indices, I) do r, i
-                @inbounds getindex(r, i)
-            end
-            CartesianIndex(index)
-        end
-    end
-end
-
 # range.jl
-@static if VERSION >= v"1.7-"
-    @eval begin
-        @device_override function Base.StepRangeLen{T,R,S,L}(ref::R, step::S, len::Integer,
-                                                             offset::Integer=1) where {T,R,S,L}
-            if T <: Integer && !isinteger(ref + step)
-                @print_and_throw("StepRangeLen{<:Integer} cannot have non-integer step")
-            end
-            len = convert(L, len)
-            len >= zero(len) || @print_and_throw("StepRangeLen length cannot be negative")
-            offset = convert(L, offset)
-            L1 = oneunit(typeof(len))
-            L1 <= offset <= max(L1, len) || @print_and_throw("StepRangeLen: offset must be in [1,...]")
-            $(
-                Expr(:new, :(StepRangeLen{T,R,S,L}), :ref, :step, :len, :offset)
-            )
-        end
-    end
-else
-    @device_override function Base.StepRangeLen{T,R,S}(ref::R, step::S, len::Integer,
-                                                       offset::Integer=1) where {T,R,S}
+@eval begin
+    @device_override function Base.StepRangeLen{T,R,S,L}(ref::R, step::S, len::Integer,
+                                                         offset::Integer=1) where {T,R,S,L}
         if T <: Integer && !isinteger(ref + step)
             @print_and_throw("StepRangeLen{<:Integer} cannot have non-integer step")
         end
-        len >= 0 || @print_and_throw("StepRangeLen length cannot be negative")
-        1 <= offset <= max(1,len) || @print_and_throw("StepRangeLen: offset must be in [1,...]")
-        new(ref, step, len, offset)
+        len = convert(L, len)
+        len >= zero(len) || @print_and_throw("StepRangeLen length cannot be negative")
+        offset = convert(L, offset)
+        L1 = oneunit(typeof(len))
+        L1 <= offset <= max(L1, len) || @print_and_throw("StepRangeLen: offset must be in [1,...]")
+        $(
+            Expr(:new, :(StepRangeLen{T,R,S,L}), :ref, :step, :len, :offset)
+        )
     end
 end
 
 # LinearAlgebra
-@static if VERSION >= v"1.8-"
-    @device_override function Base.setindex!(D::LinearAlgebra.Diagonal, v, i::Int, j::Int)
-        @boundscheck checkbounds(D, i, j)
-        if i == j
-            @inbounds D.diag[i] = v
-        elseif !iszero(v)
-            @print_and_throw("cannot set off-diagonal entry to a nonzero value")
-        end
-        return v
+@device_override function Base.setindex!(D::LinearAlgebra.Diagonal, v, i::Int, j::Int)
+    @boundscheck checkbounds(D, i, j)
+    if i == j
+        @inbounds D.diag[i] = v
+    elseif !iszero(v)
+        @print_and_throw("cannot set off-diagonal entry to a nonzero value")
     end
-end
-
-# fastmath.jl
-@static if VERSION <= v"1.7-"
-## prevent fallbacks to libm
-for f in (:acosh, :asinh, :atanh, :cbrt, :cosh, :exp2, :expm1, :log1p, :sinh, :tanh)
-    f_fast = Base.FastMath.fast_op[f]
-    @eval begin
-        @device_override Base.FastMath.$f_fast(x::Float32) = $f(x)
-        @device_override Base.FastMath.$f_fast(x::Float64) = $f(x)
-    end
-end
+    return v
 end

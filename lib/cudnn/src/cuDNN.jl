@@ -10,26 +10,21 @@ module cuDNN
 using CUDA
 using CUDA.APIUtils
 using CUDA: CUstream, libraryPropertyType
-using CUDA: @retry_reclaim, isdebug, initialize_context
+using CUDA: retry_reclaim, isdebug, initialize_context
 
 using CEnum: @cenum
 
-using CUDNN_jll
+if CUDA.local_toolkit
+    using CUDA_Runtime_Discovery
+else
+    import CUDNN_jll
+end
 
 
 export has_cudnn
 
-function has_cudnn(show_reason::Bool=false)
-    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    precompiling && return
-
-    if !CUDNN_jll.is_available()
-        show_reason && error("cuDNN library not found")
-        return false
-    end
-    return true
-end
-
+const _initialized = Ref{Bool}(false)
+has_cudnn() = _initialized[]
 
 # core library
 include("libcudnn.jl")
@@ -159,11 +154,25 @@ end
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    precompiling && return
 
-    if !CUDNN_jll.is_available()
-        #@error "cuDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform)))"
-        return
+    CUDA.functional() || return
+
+    # find the library
+    global libcudnn
+    if CUDA.local_toolkit
+        dirs = CUDA_Runtime_Discovery.find_toolkit()
+        path = CUDA_Runtime_Discovery.get_library(dirs, "cudnn"; optional=true)
+        if path === nothing
+            precompiling || @error "cuDNN is not available on your system (looked in $(join(dirs, ", ")))"
+            return
+        end
+        libcudnn = path
+    else
+        if !CUDNN_jll.is_available()
+            precompiling || @error "cuDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform)))"
+            return
+        end
+        libcudnn = CUDNN_jll.libcudnn
     end
 
     # register a log callback
@@ -177,6 +186,8 @@ function __init__()
                               (cudnnSeverity_t, Ptr{Cvoid}, Ptr{cudnnDebug_t}, Ptr{UInt8}))
         cudnnSetCallback(typemax(UInt32), log_cond[], callback)
     end
+
+    _initialized[] = true
 end
 
 end

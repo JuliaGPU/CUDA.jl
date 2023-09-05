@@ -11,12 +11,17 @@ version() = VersionNumber(cufftGetProperty(CUDA.MAJOR_VERSION),
                           cufftGetProperty(CUDA.PATCH_LEVEL))
 
 function cufftMakePlan(xtype::cufftType_t, xdims::Dims, region)
+    if any(diff(collect(region)) .< 1)
+        throw(ArgumentError("region must be an increasing sequence"))
+    end
+    if any(region .< 1 .|| region .> length(xdims))
+        throw(ArgumentError("region can only refer to valid dimensions"))
+    end
     nrank = length(region)
     sz = [xdims[i] for i in region]
     csz = copy(sz)
     csz[1] = div(sz[1],2) + 1
     batch = prod(xdims) ÷ prod(sz)
-
     # initialize the plan handle
     handle_ref = Ref{cufftHandle}()
     cufftCreate(handle_ref)
@@ -24,6 +29,7 @@ function cufftMakePlan(xtype::cufftType_t, xdims::Dims, region)
 
     # make the plan
     worksize_ref = Ref{Csize_t}()
+    # 1d, 2d and 3d plans can only be used for a single batch (i.e. the full array being transformed)
     if (nrank == 1) && (batch == 1)
         cufftMakePlan1d(handle, sz[1], xtype, 1, worksize_ref)
     elseif (nrank == 2) && (batch == 1)
@@ -32,11 +38,23 @@ function cufftMakePlan(xtype::cufftType_t, xdims::Dims, region)
         cufftMakePlan3d(handle, sz[3], sz[2], sz[1], xtype, worksize_ref)
     else
         rsz = (length(sz) > 1) ? rsz = reverse(sz) : sz
+        if nrank > 3
+            throw(ArgumentError("only up to three transform dimensions are allowed in one plan"))
+        end
         if ((region...,) == ((1:nrank)...,))
-            # handle simple case ... simply! (for robustness)
-           cufftMakePlanMany(handle, nrank, Cint[rsz...], C_NULL, 1, 1, C_NULL, 1, 1,
+            # handle simple case, transforming the first nrank dimensions, ... simply! (for robustness)
+            # arguments are: plan, rank, transform-sizes, inembed, istride, idist, onembed, ostride, odist, type batch 
+            cufftMakePlanMany(handle, nrank, Cint[rsz...], C_NULL, 1, 1, C_NULL, 1, 1,
                              xtype, batch, worksize_ref)
         else
+            # reduce the array to the final transform direction. This situation will be picked up in the application of the plan later.
+            if region[end] != length(xdims)
+                # just make a plan for a smaller dimension number
+                xdims = xdims[1:region[end]]
+                batch = prod(xdims) ÷ prod(sz)
+                # throw(ArgumentError("batching dims must be sequential"))
+            end
+
             if nrank==1 || all(diff(collect(region)) .== 1)
                 # _stride: successive elements in innermost dimension
                 # _dist: distance between first elements of batches
@@ -45,9 +63,6 @@ function cufftMakePlan(xtype::cufftType_t, xdims::Dims, region)
                     idist = prod(sz)
                     cdist = prod(csz)
                 else
-                    if region[end] != length(xdims)
-                        throw(ArgumentError("batching dims must be sequential"))
-                    end
                     istride = prod(xdims[1:region[1]-1])
                     idist = 1
                     cdist = 1
@@ -67,6 +82,7 @@ function cufftMakePlan(xtype::cufftType_t, xdims::Dims, region)
                     inembed = cnembed
                 end
             else
+                # multiple non-sequential transforms
                 if any(diff(collect(region)) .< 1)
                     throw(ArgumentError("region must be an increasing sequence"))
                 end
@@ -139,6 +155,7 @@ end
 const cufftHandleCacheKey = Tuple{CuContext, cufftType_t, Dims, Any}
 const idle_handles = HandleCache{cufftHandleCacheKey, cufftHandle}()
 function cufftGetPlan(args...)
+
     ctx = context()
     handle = pop!(idle_handles, (ctx, args...)) do
         # make the plan
