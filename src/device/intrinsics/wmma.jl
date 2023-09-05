@@ -193,7 +193,7 @@ for ops in all_ldst_ops,
 
     ccall_name = "$llvm_intr"
 
-    ptr_ty = LLVMPtr{arr_ty, addr_space_int}
+    ptr_ty = :(LLVMPtr{$arr_ty, $addr_space_int})
 
     if sz == 1
         @eval $func_name(src_addr, stride) = tuple(ccall($ccall_name, llvmcall, $frag_ty, ($ptr_ty, Int32), src_addr, stride))
@@ -261,7 +261,7 @@ export llvm_wmma_store
     frag_types = ntuple(i -> frag_ty, sz)
     frag_vars = ntuple(i -> :(data[$i]), sz)
 
-    ptr_ty = LLVMPtr{arr_ty, addr_space_int}
+    ptr_ty = :(LLVMPtr{$arr_ty, $addr_space_int})
 
     @eval $func_name(dst_addr, data, stride) = ccall($ccall_name, llvmcall, Nothing, ($ptr_ty, $(frag_types...), Int32), dst_addr, $(frag_vars...), stride)
     @eval export $func_name
@@ -362,7 +362,7 @@ flatten_recurse(typ::Type{VecElement{T}}, e) where T = [:($e.value)]
 unflatten_recurse(typ::Type{VecElement{T}}, e, idx) where T = :(VecElement{$T}($e[$idx])), idx + 1
 
 # NTuples
-function flatten_recurse(typ::Type{NTuple{N, T}}, e) where {N, T}
+function flatten_recurse(typ::Type{T}, e) where {T <: NTuple}
     ret = Expr[]
 
     for (i, eltyp) in enumerate(typ.types)
@@ -372,7 +372,7 @@ function flatten_recurse(typ::Type{NTuple{N, T}}, e) where {N, T}
     return ret
 end
 
-function unflatten_recurse(typ::Type{NTuple{N, T}}, e, idx) where {N, T}
+function unflatten_recurse(typ::Type{T}, e, idx) where {T<:NTuple}
     ret = Expr(:tuple)
 
     for (i, eltyp) in enumerate(typ.types)

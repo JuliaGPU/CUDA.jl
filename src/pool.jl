@@ -6,39 +6,64 @@ using Logging
 
 ## allocation statistics
 
-mutable struct AllocStats
-  alloc_count::Int
-  alloc_bytes::Int
-
-  free_count::Int
-  free_bytes::Int
-
-  total_time::Float64
+# PPC doesn't support floating-point atomics, so use a ref (which behaves mostly similar)
+if Float64 <: Threads.AtomicTypes
+const MaybeAtomicFloat64 = Threads.Atomic{Float64}
+_add_total_time!(stats, time) = Threads.atomic_add!(stats.total_time, time)
+else
+const MaybeAtomicFloat64 = Base.RefValue{Float64}
+_add_total_time!(stats, time) = (stats.total_time[] += time)
 end
 
-const alloc_stats = AllocStats(0, 0, 0, 0, 0.0)
+mutable struct AllocStats
+  alloc_count::Threads.Atomic{Int}
+  alloc_bytes::Threads.Atomic{Int}
+
+  free_count::Threads.Atomic{Int}
+  free_bytes::Threads.Atomic{Int}
+
+  total_time::MaybeAtomicFloat64
+
+  function AllocStats()
+    new(Threads.Atomic{Int}(0), Threads.Atomic{Int}(0),
+        Threads.Atomic{Int}(0), Threads.Atomic{Int}(0),
+        MaybeAtomicFloat64(0.0))
+  end
+
+  function AllocStats(alloc_count::Integer, alloc_bytes::Integer,
+                      free_count::Integer, free_bytes::Integer,
+                      total_time::Float64)
+    new(Threads.Atomic{Int}(alloc_count), Threads.Atomic{Int}(alloc_bytes),
+        Threads.Atomic{Int}(free_count), Threads.Atomic{Int}(free_bytes),
+        MaybeAtomicFloat64(total_time))
+  end
+end
 
 Base.copy(alloc_stats::AllocStats) =
-  AllocStats((getfield(alloc_stats, field) for field in fieldnames(AllocStats))...)
+  AllocStats(alloc_stats.alloc_count[], alloc_stats.alloc_bytes[],
+             alloc_stats.free_count[], alloc_stats.free_bytes[],
+             alloc_stats.total_time[])
 
-AllocStats(b::AllocStats, a::AllocStats) =
-  AllocStats(
-    b.alloc_count - a.alloc_count,
-    b.alloc_bytes - a.alloc_bytes,
-    b.free_count - a.free_count,
-    b.free_bytes - a.free_bytes,
-    b.total_time - a.total_time)
+Base.:(-)(a::AllocStats, b::AllocStats) = (;
+    alloc_count = a.alloc_count[] - b.alloc_count[],
+    alloc_bytes = a.alloc_bytes[] - b.alloc_bytes[],
+    free_count  = a.free_count[]  - b.free_count[],
+    free_bytes  = a.free_bytes[]  - b.free_bytes[],
+    total_time  = a.total_time[]  - b.total_time[])
+
+const alloc_stats = AllocStats()
 
 
 ## CUDA allocator
 
 function actual_alloc(bytes::Integer; async::Bool=false,
-                      stream::Union{CuStream,Nothing}=nothing)
+                      stream::Union{CuStream,Nothing}=nothing,
+                      pool::Union{CuMemoryPool,Nothing}=nothing)
   memory_limit_exceeded(bytes) && return nothing
 
   # try the actual allocation
   buf = try
-    Mem.alloc(Mem.Device, bytes; async, stream)
+    Mem.alloc(Mem.Device, bytes; async, stream, pool)
   catch err
     isa(err, OutOfGPUMemoryError) || rethrow()
     return nothing
@@ -112,8 +137,10 @@ function memory_limit_exceeded(bytes::Integer)
   limit.hard > 0 || return false
 
   dev = device()
-  used_bytes = if stream_ordered(dev) && driver_version() >= v"11.3"
-    # XXX: this should be done by the allocator itself (NVIDIA bug #3503815).
+  used_bytes = if stream_ordered(dev) && driver_version() >= v"12.2"
+    # we configured the memory pool to do this for us
+    return false
+  elseif stream_ordered(dev) && driver_version() >= v"11.3"
     pool = memory_pool(dev)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else
@@ -147,22 +174,30 @@ end
 function pool_mark(dev::CuDevice)
   status = pool_status(dev)
   if status[] === nothing
-      # allow the pool to use up all memory of this device
       limits = memory_limits()
-      attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD,
+
+      # create a custom memory pool and assign it to the device
+      # so that other libraries and applications will use it.
+      pool = if limits.hard > 0 && CUDA.driver_version() >= v"12.2"
+        CuMemoryPool(dev; maxSize=limits.hard)
+      else
+        CuMemoryPool(dev)
+      end
+      memory_pool!(dev, pool)
+
+      # allow the pool to use up all memory of this device
+      attribute!(pool, MEMPOOL_ATTR_RELEASE_THRESHOLD,
                  limits.soft == 0 ? typemax(UInt64) : limits.soft)
 
       # launch a task to periodically trim the pool
       if isinteractive() && !isassigned(__pool_cleanup)
-        __pool_cleanup[] = if VERSION < v"1.7"
-          Threads.@spawn pool_cleanup()
-        else
-          errormonitor(Threads.@spawn pool_cleanup())
-        end
+        __pool_cleanup[] = errormonitor(Threads.@spawn pool_cleanup())
       end
+  else
+      pool = memory_pool(dev)
   end
   status[] = true
-  return
+  return pool
 end
 
 # reclaim unused pool memory after a certain time
@@ -282,9 +317,18 @@ handle properly.
 """
 struct OutOfGPUMemoryError <: Exception
   sz::Int
-  info::MemoryInfo
+  info::Union{Nothing,MemoryInfo}
 
-  OutOfGPUMemoryError(sz::Integer=0) = new(sz, MemoryInfo())
+  function OutOfGPUMemoryError(sz::Integer=0)
+    info = if task_local_state() === nothing
+      # if this error was triggered before the TLS was initialized, we should not try to
+      # fetch memory info as those API calls will just trigger TLS initialization again.
+      nothing
+    else
+      MemoryInfo()
+    end
+    new(sz, info)
+  end
 end
 
 function Base.showerror(io::IO, err::OutOfGPUMemoryError)
@@ -292,75 +336,69 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
     if err.sz > 0
       print(io, " trying to allocate $(Base.format_bytes(err.sz))")
     end
-    println(io)
-    memory_status(io, err.info)
+    if err.info !== nothing
+      println(io)
+      memory_status(io, err.info)
+    end
 end
 
 """
-    @retry_reclaim isfailed(ret) ex
+    retry_reclaim(isfailed) do
+        # code that may fail due to insufficient GPU memory
+    end
 
-Run a block of code `ex` repeatedly until it successfully allocates the memory it needs.
+Run a block of code repeatedly until it successfully allocates the memory it needs.
 Retries are only attempted when calling `isfailed` with the current return value is true.
 At each try, more and more memory is freed from the CUDA memory pool. When that is not
 possible anymore, the latest returned value will be returned.
 
-This macro is intended for use with CUDA APIs, which sometimes allocate (outside of the
+This function is intended for use with CUDA APIs, which sometimes allocate (outside of the
 CUDA memory pool) and return a specific error code when failing to.
 """
-macro retry_reclaim(isfailed, ex)
-  quote
-    ret = $(esc(ex))
+function retry_reclaim(f, isfailed)
+  ret = f()
 
-    # slow path, incrementally reclaiming more memory until we succeed
-    if $(esc(isfailed))(ret)
-      state = active_state()
-      is_stream_ordered = stream_ordered(state.device)
+  # slow path, incrementally reclaiming more memory until we succeed
+  if isfailed(ret)
+    state = active_state()
+    is_stream_ordered = stream_ordered(state.device)
 
-      phase = 1
-      while true
-        if is_stream_ordered
-          # NOTE: the stream-ordered allocator only releases memory on actual API calls,
-          #       and not when our synchronization routines query the relevant streams.
-          #       we do still call our routines to minimize the time we block in libcuda.
-          if phase == 1
-            synchronize(state.stream)
-          elseif phase == 2
-            device_synchronize()
-          elseif phase == 3
-            GC.gc(false)
-            device_synchronize()
-          elseif phase == 4
-            GC.gc(true)
-            device_synchronize()
-          elseif phase == 5
-            # in case we had a release threshold configured
-            trim(memory_pool(state.device))
-          else
-            break
-          end
+    phase = 1
+    while true
+      if is_stream_ordered
+        if phase == 1
+          synchronize(state.stream)
+        elseif phase == 2
+          device_synchronize()
+        elseif phase == 3
+          GC.gc(false)
+          device_synchronize()
+        elseif phase == 4
+          GC.gc(true)
+          device_synchronize()
+        elseif phase == 5
+          # in case we had a release threshold configured
+          trim(memory_pool(state.device))
         else
-          if phase == 1
-            GC.gc(false)
-          elseif phase == 2
-            GC.gc(true)
-          else
-            break
-          end
+          break
         end
-        phase += 1
-
-        ret = $(esc(ex))
-        $(esc(isfailed))(ret) || break
+      else
+        if phase == 1
+          GC.gc(false)
+        elseif phase == 2
+          GC.gc(true)
+        else
+          break
+        end
       end
+      phase += 1
+
+      ret = f()
+      isfailed(ret) || break
     end
-
-    ret
   end
-end
 
-# XXX: function version for use in CUDAdrv where we haven't loaded pool.jl yet
-function retry_reclaim(f, check)
-  @retry_reclaim check f()
+  ret
 end
 
 """
@@ -378,25 +416,29 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   # (and using Base.@timed/gc_num to exclude that time is too expensive)
   buf, time = _alloc(B, sz; stream)
 
-  memory_use[] += sz
-  alloc_stats.alloc_count += 1
-  alloc_stats.alloc_bytes += sz
-  alloc_stats.total_time += time
+  Threads.atomic_add!(memory_use, sz)
+  Threads.atomic_add!(alloc_stats.alloc_count, 1)
+  Threads.atomic_add!(alloc_stats.alloc_bytes, sz)
+  _add_total_time!(alloc_stats, time)
   # NOTE: total_time might be an over-estimation if we trigger GC somewhere else
 
   return buf
 end
 @inline function _alloc(::Type{Mem.DeviceBuffer}, sz; stream::Union{Nothing,CuStream})
     state = active_state()
-    stream = something(stream, state.stream)
 
     gctime = 0.0
     time = Base.@elapsed begin
       buf = if stream_ordered(state.device)
-        pool_mark(state.device) # mark the pool as active
-        @retry_reclaim isnothing actual_alloc(sz; async=true, stream)
+        stream = something(stream, state.stream)
+        pool = pool_mark(state.device) # mark the pool as active
+        retry_reclaim(isnothing) do
+          actual_alloc(sz; async=true, stream, pool)
+        end
       else
-        @retry_reclaim isnothing actual_alloc(sz; async=false, stream)
+        retry_reclaim(isnothing) do
+          actual_alloc(sz; async=false)
+        end
       end
       buf === nothing && throw(OutOfGPUMemoryError(sz))
     end
@@ -430,10 +472,10 @@ Releases a buffer `buf` to the memory pool.
       _free(buf; stream)
     end
 
-    memory_use[] -= sz
-    alloc_stats.free_count += 1
-    alloc_stats.free_bytes += sz
-    alloc_stats.total_time += time
+    Threads.atomic_sub!(memory_use, sz)
+    Threads.atomic_add!(alloc_stats.free_count, 1)
+    Threads.atomic_add!(alloc_stats.free_bytes, sz)
+    _add_total_time!(alloc_stats, time)
   catch ex
     Base.showerror_nostdio(ex, "WARNING: Error while freeing $buf")
     Base.show_backtrace(Core.stdout, catch_backtrace())
@@ -448,7 +490,7 @@ end
       error("Trying to free $buf from an unrelated context")
     end
 
-    dev = current_device()
+    dev = device()
     if stream_ordered(dev)
       # mark the pool as active
       pool_mark(dev)
@@ -495,9 +537,9 @@ macro allocated(ex)
         let
             local f
             function f()
-                b0 = alloc_stats.alloc_bytes
+                b0 = alloc_stats.alloc_bytes[]
                 $(esc(ex))
-                alloc_stats.alloc_bytes - b0
+                alloc_stats.alloc_bytes[] - b0
             end
             f()
         end
@@ -579,7 +621,7 @@ macro timed(ex)
         local cpu_time = (cpu_time1 - cpu_time0) / 1e9
 
         local cpu_mem_stats = Base.GC_Diff(cpu_mem_stats1, cpu_mem_stats0)
-        local gpu_mem_stats = AllocStats(gpu_mem_stats1, gpu_mem_stats0)
+        local gpu_mem_stats = gpu_mem_stats1 - gpu_mem_stats0
 
         (value=val, time=cpu_time,
          cpu_bytes=cpu_mem_stats.allocd, cpu_gctime=cpu_mem_stats.total_time / 1e9, cpu_gcstats=cpu_mem_stats,

@@ -1,15 +1,5 @@
 using Test, LinearAlgebra
 
-# work around JuliaLang/Pkg.jl#2500
-if VERSION < v"1.8"
-    test_project = first(Base.load_path())
-    preferences_file = joinpath(dirname(@__DIR__), "LocalPreferences.toml")
-    test_preferences_file = joinpath(dirname(test_project), "LocalPreferences.toml")
-    if isfile(preferences_file) && !isfile(test_preferences_file)
-        cp(preferences_file, test_preferences_file)
-    end
-end
-
 using CUDA
 @info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
 
@@ -51,7 +41,7 @@ using cuStateVec
     end
     @testset "applyMatrix! and sample" begin
         # build a simple state and compute samples
-        n_q = 10 
+        n_q = 10
         @testset for elty in [ComplexF32, ComplexF64]
             H = convert(Matrix{elty}, (1/√2).*[1 1; 1 -1])
             sv = CuStateVec(elty, n_q)

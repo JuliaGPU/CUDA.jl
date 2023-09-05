@@ -4,9 +4,9 @@ export malloc
 
 @generated function malloc(sz::Csize_t)
     @dispose ctx=Context() begin
-        T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx))
-        T_size = convert(LLVMType, Csize_t; ctx)
-        T_ptr = convert(LLVMType, Ptr{Cvoid}; ctx)
+        T_pint8 = LLVM.PointerType(LLVM.Int8Type())
+        T_size = convert(LLVMType, Csize_t)
+        T_ptr = convert(LLVMType, Ptr{Cvoid})
 
         # create function
         llvm_f, _ = create_function(T_ptr, [T_size])
@@ -14,24 +14,25 @@ export malloc
 
         # get the intrinsic
         # NOTE: LLVM doesn't have void*, Clang uses i8* for malloc too
-        intr = LLVM.Function(mod, "malloc", LLVM.FunctionType(T_pint8, [T_size]))
+        intr_typ = LLVM.FunctionType(T_pint8, [T_size])
+        intr = LLVM.Function(mod, "malloc", intr_typ)
         # should we attach some metadata here? julia.gc_alloc_obj has the following:
         #let attrs = function_attributes(intr)
         #    AllocSizeNumElemsNotPresent = reinterpret(Cuint, Cint(-1))
         #    packed_allocsize = Int64(1) << 32 | AllocSizeNumElemsNotPresent
-        #    push!(attrs, EnumAttribute("allocsize", packed_allocsize; ctx))
+        #    push!(attrs, EnumAttribute("allocsize", packed_allocsize))
         #end
         #let attrs = return_attributes(intr)
-        #    push!(attrs, EnumAttribute("noalias", 0; ctx))
-        #    push!(attrs, EnumAttribute("nonnull", 0; ctx))
+        #    push!(attrs, EnumAttribute("noalias", 0))
+        #    push!(attrs, EnumAttribute("nonnull", 0))
         #end
 
         # generate IR
-        @dispose builder=Builder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
-            ptr = call!(builder, intr, [parameters(llvm_f)[1]])
+            ptr = call!(builder, intr_typ, intr, [parameters(llvm_f)[1]])
 
             jlptr = ptrtoint!(builder, ptr, T_ptr)
 

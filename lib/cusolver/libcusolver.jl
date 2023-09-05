@@ -12,20 +12,16 @@ const cudaStream_t = CUstream
     end
 end
 
-macro check(ex, errs...)
-    check = :(isequal(err, CUSOLVER_STATUS_ALLOC_FAILED))
-    for err in errs
-        check = :($check || isequal(err, $(esc(err))))
+function check(f, errs...)
+    res = retry_reclaim(in((CUSOLVER_STATUS_ALLOC_FAILED, errs...))) do
+        return f()
     end
 
-    quote
-        res = @retry_reclaim err -> $check $(esc(ex))
-        if res != CUSOLVER_STATUS_SUCCESS
-            throw_api_error(res)
-        end
-
-        nothing
+    if res != CUSOLVER_STATUS_SUCCESS
+        throw_api_error(res)
     end
+
+    return
 end
 
 mutable struct cusolverDnContext end
@@ -55,6 +51,11 @@ const cusolverDnParams_t = Ptr{cusolverDnParams}
 @cenum cusolverDnFunction_t::UInt32 begin
     CUSOLVERDN_GETRF = 0
     CUSOLVERDN_POTRF = 1
+end
+
+@cenum cusolverDeterministicMode_t::UInt32 begin
+    CUSOLVER_DETERMINISTIC_RESULTS = 1
+    CUSOLVER_ALLOW_NON_DETERMINISTIC_RESULTS = 2
 end
 
 const cusolver_int_t = Cint
@@ -188,6 +189,18 @@ end
     initialize_context()
     @ccall libcusolver.cusolverDnGetStream(handle::cusolverDnHandle_t,
                                            streamId::Ptr{cudaStream_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnSetDeterministicMode(handle, mode)
+    initialize_context()
+    @ccall libcusolver.cusolverDnSetDeterministicMode(handle::cusolverDnHandle_t,
+                                                      mode::cusolverDeterministicMode_t)::cusolverStatus_t
+end
+
+@checked function cusolverDnGetDeterministicMode(handle, mode)
+    initialize_context()
+    @ccall libcusolver.cusolverDnGetDeterministicMode(handle::cusolverDnHandle_t,
+                                                      mode::Ptr{cusolverDeterministicMode_t})::cusolverStatus_t
 end
 
 @checked function cusolverDnIRSParamsCreate(params_ptr)
@@ -4370,7 +4383,7 @@ end
     @ccall libcusolver.cusolverDnLoggerSetMask(mask::Cint)::cusolverStatus_t
 end
 
-# no prototype is found for this function at cusolverDn.h:4868:32, please use with caution
+# no prototype is found for this function at cusolverDn.h:4881:32, please use with caution
 @checked function cusolverDnLoggerForceDisable()
     initialize_context()
     @ccall libcusolver.cusolverDnLoggerForceDisable()::cusolverStatus_t

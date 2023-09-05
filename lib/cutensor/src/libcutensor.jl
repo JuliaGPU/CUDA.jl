@@ -1,6 +1,6 @@
 using CEnum
 
-# cuTENSOR uses CUDA runtime objects, which are compatible with our driver usage
+# CUTENSOR uses CUDA runtime objects, which are compatible with our driver usage
 const cudaStream_t = CUstream
 
 # outlined functionality to avoid GC frame allocation
@@ -12,20 +12,16 @@ const cudaStream_t = CUstream
     end
 end
 
-macro check(ex, errs...)
-    check = :(isequal(err, CUTENSOR_STATUS_ALLOC_FAILED))
-    for err in errs
-        check = :($check || isequal(err, $(esc(err))))
+function check(f, errs...)
+    res = retry_reclaim(in((CUTENSOR_STATUS_ALLOC_FAILED, errs...))) do
+        return f()
     end
 
-    quote
-        res = @retry_reclaim err -> $check $(esc(ex))
-        if res != CUTENSOR_STATUS_SUCCESS
-            throw_api_error(res)
-        end
-
-        nothing
+    if res != CUTENSOR_STATUS_SUCCESS
+        throw_api_error(res)
     end
+
+    return
 end
 
 @cenum cutensorOperator_t::UInt32 begin
@@ -168,9 +164,14 @@ end
 # typedef void ( * cutensorLoggerCallback_t ) ( int32_t logLevel , const char * functionName , const char * message )
 const cutensorLoggerCallback_t = Ptr{Cvoid}
 
-@checked function cutensorInit(handle)
+@checked function cutensorCreate(handle)
     initialize_context()
-    @ccall libcutensor.cutensorInit(handle::Ptr{cutensorHandle_t})::cutensorStatus_t
+    @ccall libcutensor.cutensorCreate(handle::Ptr{Ptr{cutensorHandle_t}})::cutensorStatus_t
+end
+
+@checked function cutensorDestroy(handle)
+    initialize_context()
+    @ccall libcutensor.cutensorDestroy(handle::Ptr{cutensorHandle_t})::cutensorStatus_t
 end
 
 @checked function cutensorHandleDetachPlanCachelines(handle)
@@ -396,12 +397,12 @@ function cutensorGetErrorString(error)
     @ccall libcutensor.cutensorGetErrorString(error::cutensorStatus_t)::Cstring
 end
 
-# no prototype is found for this function at cutensor.h:745:8, please use with caution
+# no prototype is found for this function at cutensor.h:794:8, please use with caution
 function cutensorGetVersion()
     @ccall libcutensor.cutensorGetVersion()::Csize_t
 end
 
-# no prototype is found for this function at cutensor.h:751:8, please use with caution
+# no prototype is found for this function at cutensor.h:800:8, please use with caution
 function cutensorGetCudartVersion()
     @ccall libcutensor.cutensorGetCudartVersion()::Csize_t
 end
@@ -431,7 +432,7 @@ end
     @ccall libcutensor.cutensorLoggerSetMask(mask::Int32)::cutensorStatus_t
 end
 
-# no prototype is found for this function at cutensor.h:799:18, please use with caution
+# no prototype is found for this function at cutensor.h:848:18, please use with caution
 @checked function cutensorLoggerForceDisable()
     initialize_context()
     @ccall libcutensor.cutensorLoggerForceDisable()::cutensorStatus_t
@@ -463,4 +464,9 @@ end
                                                      opReduce::cutensorOperator_t,
                                                      typeCompute::cutensorComputeType_t,
                                                      workspaceSize::Ptr{UInt64})::cutensorStatus_t
+end
+
+@checked function cutensorInit(handle)
+    initialize_context()
+    @ccall libcutensor.cutensorInit(handle::Ptr{cutensorHandle_t})::cutensorStatus_t
 end

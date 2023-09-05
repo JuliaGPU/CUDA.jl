@@ -6,10 +6,10 @@ epilogue_file_path = "./libcusparse_epilogue.jl"
 
 output_ignorelist = [
     # generates bad code
-    "^CUSPARSE_CPP_VERSION$",
+    "CUSPARSE_CPP_VERSION",
     # these change often
-    "^CUSPARSE_VERSION$",
-    "^CUSPARSE_VER_",
+    "CUSPARSE_VERSION",
+    "CUSPARSE_VER_.*",
 ]
 
 

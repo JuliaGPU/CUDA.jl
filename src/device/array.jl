@@ -225,7 +225,7 @@ Base.show(io::IO, mime::MIME"text/plain", a::CuDeviceArray) = show(io, a)
 end
 
 function Base.reinterpret(::Type{T}, a::CuDeviceArray{S,N,A}) where {T,S,N,A}
-  err = _reinterpret_exception(T, a)
+  err = GPUArrays._reinterpret_exception(T, a)
   err === nothing || throw(err)
 
   if sizeof(T) == sizeof(S) # fast case
@@ -241,18 +241,18 @@ end
 
 ## reshape
 
-function Base.reshape(a::CuDeviceArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
+function Base.reshape(a::CuDeviceArray{T,M,A}, dims::NTuple{N,Int}) where {T,N,M,A}
   if prod(dims) != length(a)
       throw(DimensionMismatch("new dimensions (argument `dims`) must be consistent with array size (`size(a)`)"))
   end
   if N == M && dims == size(a)
       return a
   end
-  _derived_array(T, N, a, dims)
+  _derived_array(a, T, dims)
 end
 
 # create a derived device array (reinterpreted or reshaped) that's still a CuDeviceArray
-@inline function _derived_array(::Type{T}, N::Int, a::CuDeviceArray{T,M,A},
-                                osize::Dims) where {T, M, A}
+@inline function _derived_array(a::CuDeviceArray{<:Any,<:Any,A}, ::Type{T},
+                                osize::Dims{N}) where {T, N, A}
   return CuDeviceArray{T,N,A}(a.ptr, osize, a.maxsize)
 end

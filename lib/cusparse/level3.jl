@@ -1,7 +1,7 @@
 # sparse linear algebra functions that perform operations between sparse and (usually tall)
 # dense matrices
 
-export mm!, mm2!, sm2!, sm2
+export mm!, sm2!, sm2
 
 """
     mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix, B::CuMatrix, beta::Number, C::CuMatrix, index::SparseChar)
@@ -51,92 +51,6 @@ for (fname,elty) in ((:cusparseSbsrmm, :Float32),
                    transa, transb, mb, n, kb, A.nnzb,
                    alpha, desc, nonzeros(A),A.rowPtr, A.colVal,
                    A.blockDim, B, ldb, beta, C, ldc)
-            C
-        end
-    end
-end
-
-for (fname,elty) in ((:cusparseScsrmm2, :Float32),
-                     (:cusparseDcsrmm2, :Float64),
-                     (:cusparseCcsrmm2, :ComplexF32),
-                     (:cusparseZcsrmm2, :ComplexF64))
-    @eval begin
-        function mm2!(transa::SparseChar,
-                      transb::SparseChar,
-                      alpha::Number,
-                      A::CuSparseMatrixCSR{$elty},
-                      B::StridedCuMatrix{$elty},
-                      beta::Number,
-                      C::StridedCuMatrix{$elty},
-                      index::SparseChar)
-
-            # Support transa = 'C' and `transb = 'C' for real matrices
-            transa = $elty <: Real && transa == 'C' ? 'T' : transa
-            transb = $elty <: Real && transb == 'C' ? 'T' : transb
-
-            if transb == 'C'
-                throw(ArgumentError("B^H is not supported"))
-            elseif transb == 'T' && transa != 'N'
-                throw(ArgumentError("When using B^T, A can be neither transposed nor adjointed"))
-            end
-            desc = CuMatrixDescriptor('G', 'L', 'N', index)
-            m,k = size(A)
-            n = size(C)[2]
-            if transa == 'N' && transb == 'N'
-                chkmmdims(B,C,k,n,m,n)
-            elseif transa == 'N' && transb != 'N'
-                chkmmdims(B,C,n,k,m,n)
-            elseif transa != 'N' && transb == 'N'
-                chkmmdims(B,C,m,n,k,n)
-            elseif transa != 'N' && transb != 'N'
-                chkmmdims(B,C,n,m,k,n)
-            end
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
-            $fname(handle(),
-                   transa, transb, m, n, k, nnz(A), alpha, desc,
-                   nonzeros(A), A.rowPtr, A.colVal, B, ldb, beta, C, ldc)
-            C
-        end
-        function mm2!(transa::SparseChar,
-                      transb::SparseChar,
-                      alpha::Number,
-                      A::CuSparseMatrixCSC{$elty},
-                      B::StridedCuMatrix{$elty},
-                      beta::Number,
-                      C::StridedCuMatrix{$elty},
-                      index::SparseChar)
-
-            # Support transa = 'C' and `transb = 'C' for real matrices
-            transa = $elty <: Real && transa == 'C' ? 'T' : transa
-            transb = $elty <: Real && transb == 'C' ? 'T' : transb
-
-            if transb == 'C'
-                throw(ArgumentError("B^H is not supported"))
-            elseif transb == 'T' && transa != 'N'
-                throw(ArgumentError("When using B^T, A can be neither transposed nor adjointed"))
-            end
-            ctransa = 'N'
-            if transa == 'N'
-                ctransa = 'T'
-            end
-            desc = CuMatrixDescriptor('G', 'L', 'N', index)
-            k,m = size(A)
-            n = size(C)[2]
-            if ctransa == 'N' && transb == 'N'
-                chkmmdims(B,C,k,n,m,n)
-            elseif ctransa == 'N' && transb != 'N'
-                chkmmdims(B,C,n,k,m,n)
-            elseif ctransa != 'N' && transb == 'N'
-                chkmmdims(B,C,m,n,k,n)
-            elseif ctransa != 'N' && transb != 'N'
-                chkmmdims(B,C,n,m,k,n)
-            end
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
-            $fname(handle(),
-                   ctransa, transb, m, n, k, nnz(A), alpha, desc,
-                   nonzeros(A), A.colPtr, rowvals(A), B, ldb, beta, C, ldc)
             C
         end
     end

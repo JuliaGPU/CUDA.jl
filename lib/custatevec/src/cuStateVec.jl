@@ -2,22 +2,21 @@ module cuStateVec
 
 using CUDA
 using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace, libraryPropertyType
-using CUDA: unsafe_free!, @retry_reclaim, initialize_context, isdebug
+using CUDA: unsafe_free!, retry_reclaim, initialize_context, isdebug
 
 using CEnum: @cenum
 
-using cuQuantum_jll
+if CUDA.local_toolkit
+    using CUDA_Runtime_Discovery
+else
+    import cuQuantum_jll
+end
 
 
 export has_custatevec
 
-function has_custatevec(show_reason::Bool=false)
-    if !cuQuantum_jll.is_available()
-        show_reason && error("cuStateVec library not found")
-        return false
-    end
-    return true
-end
+const _initialized = Ref{Bool}(false)
+has_custatevec() = _initialized[]
 
 
 const cudaDataType_t = cudaDataType
@@ -107,11 +106,25 @@ end
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    precompiling && return
 
-    if !cuQuantum_jll.is_available()
-        #@error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
-        return
+    CUDA.functional() || return
+
+    # find the library
+    global libcustatevec
+    if CUDA.local_toolkit
+        dirs = CUDA_Runtime.find_toolkit()
+        path = CUDA_Runtime.get_library(dirs, "custatevec"; optional=true)
+        if path === nothing
+            precompiling || @error "cuQuantum is not available on your system (looked for custatevec in $(join(dirs, ", ")))"
+            return
+        end
+        libcustatevec = path
+    else
+        if !cuQuantum_jll.is_available()
+            precompiling || @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
+            return
+        end
+        libcustatevec = cuQuantum_jll.libcustatevec
     end
 
     # register a log callback
@@ -121,6 +134,8 @@ function __init__()
         custatevecLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")
         custatevecLoggerSetLevel(5)
     end
+
+    _initialized[] = true
 end
 
 end

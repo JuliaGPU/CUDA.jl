@@ -118,8 +118,7 @@ You can choose which version to (try to) download and use by calling
 julia> using CUDA
 
 julia> CUDA.set_runtime_version!(v"11.8")
-┌ Warning: CUDA Runtime version set to 11.8, please re-start Julia for this to take effect.
-└ @ CUDA /usr/local/share/julia/packages/CUDA/irdEw/lib/cudadrv/version.jl:54
+[ Info: Set CUDA.jl toolkit preference to use CUDA 11.8.0 from artifact sources, please re-start Julia for this to take effect.
 ```
 
 This generates the following `LocalPreferences.toml` file in your active environment:
@@ -134,7 +133,8 @@ only select artifacts that are compatible with the configured CUDA runtime.
 
 ### Using a local CUDA
 
-To use a local installation, you can invoke the same API but set the version to `"local"`:
+To use a local installation, you set the `local_toolkit` keyword argument to
+`CUDA.set_runtime_version!`:
 
 ```
 julia> using CUDA
@@ -143,9 +143,8 @@ julia> CUDA.versioninfo()
 CUDA runtime 11.8, artifact installation
 ...
 
-julia> CUDA.set_runtime_version!("local")
-┌ Warning: CUDA Runtime version set to local, please re-start Julia for this to take effect.
-└ @ CUDA ~/Julia/pkg/CUDA/lib/cudadrv/version.jl:73
+julia> CUDA.set_runtime_version!(local_toolkit=true)
+[ Info: Set CUDA.jl toolkit preference to use CUDA from the local system, please re-start Julia for this to take effect.
 ```
 
 After re-launching Julia:
@@ -163,7 +162,7 @@ your active environment:
 
 ```
 [CUDA_Runtime_jll]
-version = "local"
+local = "true"
 ```
 
 This preference not only configures CUDA.jl to use a local toolkit, it also prevents
@@ -174,53 +173,33 @@ If CUDA.jl doesn't properly detect your local toolkit, it may be that certain li
 binaries aren't on a globally-discoverable path. For more information, run Julia with the
 `JULIA_DEBUG` environment variable set to `CUDA_Runtime_Discovery`.
 
-Note that setting the version to `"local"` disables use of *any* CUDA-related JLL, not just
-of `CUDA_Runtime_jll`. This is out of necessity: JLLs are baked in the precompilation image at
-compile time, while local toolkit discovery happens at run time; this inconsistency makes it
-impossible to select a compatible artifact for the JLLs. If you care about other JLLs, use
-CUDA from artifacts.
+Note that using a local toolkit instead of artifacts *any* CUDA-related JLL, not just of
+`CUDA_Runtime_jll`. Any package that depends on such a JLL needs to inspect
+`CUDA.local_toolkit`, and if set use `CUDA_Runtime_Discovery` to detect libraries and
+binaries instead.
 
 
-## Containers
+## Precompiling CUDA.jl without CUDA
 
-CUDA.jl is container friendly: You can install, precompile, and even import the package on a
-system without a GPU:
+CUDA.jl can be precompiled and imported on systems without a GPU or CUDA installation. This
+simplifies the situation where an application optionally uses CUDA. However, when CUDA.jl
+is precompiled in such an environment, it *cannot* be used to run GPU code. This is a
+result of artifacts being selected at precompile time.
 
-```
-$ docker run --rm -it julia   # note how we're *not* using `--gpus=all` here,
-                              # so we won't have access to a GPU (or its driver)
+In some cases, e.g. with containers or HPC log-in nodes, you may want to precompile CUDA.jl
+on a system without CUDA, yet still want to have it download the necessary artifacts and/or
+produce a precompilation image that can be used on a system with CUDA. This can be achieved
+by informing CUDA.jl which CUDA toolkit to run time by calling `CUDA.set_runtime_version!`.
 
-pkg> add CUDA
+When using artifacts, that's as simple as e.g. calling `CUDA.set_runtime_version!(v"11.8")`,
+and afterwards re-starting Julia and re-importing CUDA.jl in order to trigger precompilation
+again and download the necessary artifacts. If you want to use a local CUDA installation,
+you also need to set the `local_toolkit` keyword argument, e.g., by calling
+`CUDA.set_runtime_version!(v"11.8"; local_toolkit=true)`. Note that the version specified
+here needs to match what will be available at run time. In both cases, i.e. when using
+artifacts or a local toolkit, the chosen version needs to be compatible with the available
+driver.
 
-pkg> precompile
-Precompiling project...
-[ Info: Precompiling CUDA [052768ef-5323-5732-b1bb-66c8b64840ba]
-```
-
-The above is common when building a container (`docker build` does not take a `--gpus`
-argument). It does prevent CUDA.jl from downloading the toolkit artifacts that will be
-required at run time, because it cannot query the driver for the CUDA compatibility level.
-
-To avoid having to download the CUDA toolkit artifacts each time you restart your container,
-it's possible to inform CUDA.jl which toolkit to use. This can be done by calling
-`CUDA.set_runtime_version!` when building the container, after which a subsequent import
-of CUDA.jl will download the necessary artifacts.
-
-At run time you obviously do need a CUDA-compatible GPU as well as the CUDA driver library
-to interface with it. Typically, that library is imported from the host system, e.g., by
-launching `docker` using the `--gpus=all` flag:
-
-```
-$ docker run --rm -it --gpus=all julia
-
-julia> using CUDA
-
-julia> CUDA.versioninfo()
-CUDA runtime 11.8
-CUDA driver 11.8
-NVIDIA driver 520.56.6
-
-...
-```
-
-All of the above is demonstrated in the Dockerfile that's part of the CUDA.jl repository.
+Finally, in such a scenario you may also want to call `CUDA.precompile_runtime()` to ensure
+that the GPUCompiler runtime library is precompiled as well. This and all of the above is
+demonstrated in the Dockerfile that's part of the CUDA.jl repository.

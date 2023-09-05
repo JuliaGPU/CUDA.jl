@@ -24,7 +24,7 @@ The possible values for `library` are `"all"` (default), `"cuda"`, `"nvml"`, `"c
 For each library, the script performs the following steps:
 
 - generate wrappers with Clang.jl
-- rewrite the headers: wrap functions that result status codes with `@check`, add calls to
+- rewrite the headers: wrap functions that result status codes with `check`, add calls to
   API initializers, etc.
 
 You should always review any changes to the headers! Specifically, verify that pointer

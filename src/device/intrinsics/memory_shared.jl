@@ -74,8 +74,8 @@ dynamic_smem_size() =
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
 @generated function emit_shmem(::Type{T}, ::Val{len}=Val(0)) where {T,len}
     @dispose ctx=Context() begin
-        T_int8 = LLVM.Int8Type(ctx)
-        T_ptr = convert(LLVMType, LLVMPtr{T,AS.Shared}; ctx)
+        T_int8 = LLVM.Int8Type()
+        T_ptr = convert(LLVMType, LLVMPtr{T,AS.Shared})
 
         # create a function
         llvm_f, _ = create_function(T_ptr)
@@ -121,11 +121,11 @@ dynamic_smem_size() =
         alignment!(gv, align)
 
         # generate IR
-        @dispose builder=Builder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
-            ptr = gep!(builder, gv, [ConstantInt(0; ctx), ConstantInt(0; ctx)])
+            ptr = gep!(builder, gv_typ, gv, [ConstantInt(0), ConstantInt(0)])
 
             untyped_ptr = bitcast!(builder, ptr, T_ptr)
 

@@ -11,5 +11,6 @@ include("enum.jl")
 include("threading.jl")
 include("cache.jl")
 include("memoization.jl")
+include("struct_size.jl")
 
 end
