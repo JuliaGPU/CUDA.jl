@@ -8,7 +8,7 @@
 # * Identify problematic kernel invocations: you may be launching thousands of kernels which could be fused into a single call;
 # * Find stalls, where the CPU isn't submitting work fast enough to keep the GPU busy.
 
-# If that isn't sufficient, and you identified a kernel that executes slowly, you can try using NSight Compute to analyze that kernel in detail. Some things too look out for in order of importance
+# If that isn't sufficient, and you identified a kernel that executes slowly, you can try using NSight Compute to analyze that kernel in detail. Some things to look out for in order of importance
 # * Memory optimizations are the most important area for performance. Hence optimizing memory accesses, e.g., avoiding needless global accesses (buffering in shared memory instead) and coalescing accesses can lead to big performance improvements;
 # * Launching more threads on each streaming multiprocessor can be acheived by lowering register pressure and reducing shared memory usage, the tips below outline the various ways in which register pressure can be reduced;
 # * Using Float32's instead of Float64's can provide significantly better performance;
