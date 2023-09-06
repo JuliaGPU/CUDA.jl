@@ -253,8 +253,10 @@ steps:
             using Pkg
 
             println("--- :julia: Instantiating project")
+            Pkg.resolve()
             Pkg.instantiate()
             Pkg.activate("perf")
+            Pkg.resolve()
             Pkg.instantiate()
             push!(LOAD_PATH, @__DIR__)
 
@@ -286,8 +288,10 @@ steps:
             ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
 
             println("--- :julia: Instantiating project")
+            Pkg.resolve()
             Pkg.instantiate()
             Pkg.activate("perf")
+            Pkg.resolve()
             Pkg.instantiate()
             push!(LOAD_PATH, @__DIR__)
 
