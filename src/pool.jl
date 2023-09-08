@@ -320,7 +320,7 @@ struct OutOfGPUMemoryError <: Exception
   info::Union{Nothing,MemoryInfo}
 
   function OutOfGPUMemoryError(sz::Integer=0)
-    info = if task_local_state() === nothing
+    info = if false && task_local_state() === nothing
       # if this error was triggered before the TLS was initialized, we should not try to
       # fetch memory info as those API calls will just trigger TLS initialization again.
       nothing
