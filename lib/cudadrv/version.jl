@@ -1,7 +1,5 @@
 # Version management
 
-# TODO: get rid of release getters
-
 """
     driver_version()
 
@@ -45,26 +43,48 @@ function runtime_version()
 end
 
 """
-    set_runtime_version!([version])
+    set_runtime_version!([version::VersionNumber]; local_toolkit=false)
 
-Sets the CUDA Runtime version preference to `version`. This can be a version number, in
-which case such a versioned artifact will be attempted to be used; or "local" for using a
-runtime from the local system. Invoke this function without an argument to reset the
-preference, in which case CUDA.jl will use the most recent compatible runtime available.
+Configures CUDA.jl to use a specific CUDA toolkit version from a specific source.
+
+If `local_toolkit` is set, the CUDA toolkit will be used from the local system, otherwise
+it will be downloaded from an artifact source. In the case of a local toolkit, `version`
+informs CUDA.jl which version that is (this may be useful if auto-detection fails). In
+the case of artifact sources, `version` controls which version will be downloaded and used.
+
+See also: [`reset_runtime_version!`](@ref).
 """
-function set_runtime_version!(version::String)
-    Preferences.set_preferences!(CUDA_Runtime_jll, "version" => version; force=true)
-    @info "Set CUDA Runtime version preference to $version, please re-start Julia for this to take effect."
-    if VERSION <= v"1.6.5" || VERSION == v"1.7.0"
-        @warn """Due to a bug in Julia (until 1.6.5 and 1.7.1) your environment needs to directly include CUDA_Runtime_jll for this to work."""
+function set_runtime_version!(version::Union{Nothing,VersionNumber}=nothing;
+                              local_toolkit::Bool=false)
+    if version !== nothing
+        Preferences.set_preferences!(CUDA_Runtime_jll, "version" => "$(version.major).$(version.minor)"; force=true)
+    else
+        Preferences.delete_preferences!(CUDA_Runtime_jll, "version"; force=true)
     end
+    if local_toolkit
+        Preferences.set_preferences!(CUDA_Runtime_jll, "local" => "true"; force=true)
+    else
+        # the default is "false"
+        Preferences.delete_preferences!(CUDA_Runtime_jll, "local"; force=true)
+    end
+    @info "Set CUDA.jl toolkit preference to use $(version === nothing ? "CUDA" : "CUDA $version") from $(local_toolkit ? "the local system" : "artifact sources"), please re-start Julia for this to take effect."
 end
-set_runtime_version!(version::VersionNumber) =
-    set_runtime_version!("$(version.major).$(version.minor)")
-function set_runtime_version!()
+
+"""
+    reset_runtime_version!()
+
+Resets the CUDA Runtime version preference to the default, which is to use the most recent
+compatible runtime available from an artifact source.
+
+See also: [`set_runtime_version!`](@ref).
+"""
+function reset_runtime_version!()
     Preferences.delete_preferences!(CUDA_Runtime_jll, "version"; force=true)
-    @info "Reset CUDA Runtime version preference, please re-start Julia for this to take effect."
-    if VERSION <= v"1.6.5" || VERSION == v"1.7.0"
-        @warn """Due to a bug in Julia (until 1.6.5 and 1.7.1) your environment needs to directly include CUDA_Runtime_jll for this to work."""
-    end
+    Preferences.delete_preferences!(CUDA_Runtime_jll, "local"; force=true)
+    @info "Reset CUDA.jl toolkit preference, please re-start Julia for this to take effect."
 end
+
+
+## helpers
+
+is_tegra() = Sys.islinux() && isfile("/etc/nv_tegra_release")

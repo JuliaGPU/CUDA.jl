@@ -181,7 +181,7 @@ is_capturing(stream::CuStream=stream()) =
 
 """
     for ...
-        @capture begin
+        @captured begin
             # code that executes several kernels or CUDA operations
         end
     end

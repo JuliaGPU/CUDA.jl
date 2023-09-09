@@ -26,7 +26,7 @@ function main()
     x2 = cu(randn(Float32, (1, n)) .+ Float32(0.5))
     y1 = similar(x1)
 
-    results = @benchmark CUDA.@sync add!($y1, $x1, $x2)
+    results = @benchmark CUDA.@sync blocking=true add!($y1, $x1, $x2)
 
     # BenchmarkTools captures inputs, JuliaCI/BenchmarkTools.jl#127, so forcibly free them
     CUDA.unsafe_free!(x1)

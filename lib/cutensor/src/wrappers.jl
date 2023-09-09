@@ -16,14 +16,19 @@ function cuda_version()
   VersionNumber(major, minor, patch)
 end
 
+function cutensorCreate()
+  handle_ref = Ref{Ptr{cutensorHandle_t}}()
+  check(CUTENSOR_STATUS_NOT_INITIALIZED) do
+    unsafe_cutensorCreate(handle_ref)
+  end
+  handle_ref[]
+end
+
 
 abstract type CuTensorPlan end
 
-function CUDA.unsafe_free!(plan::CuTensorPlan, stream::CuStream=stream())
-    CUDA.unsafe_free!(plan.workspace, stream)
-end
-
-unsafe_finalize!(plan::CuTensorPlan) = CUDA.unsafe_free!(plan, default_stream())
+CUDA.unsafe_free!(plan::CuTensorPlan) = CUDA.unsafe_free!(plan.workspace)
+unsafe_finalize!(plan::CuTensorPlan) = CUDA.unsafe_finalize!(plan.workspace)
 
 
 const ModeType = AbstractVector{<:Union{Char, Integer}}

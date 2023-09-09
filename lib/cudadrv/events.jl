@@ -49,36 +49,7 @@ record(e::CuEvent, stream::CuStream=stream()) =
 
 Waits for an event to complete.
 """
-function synchronize(e::CuEvent)
-    # perform as much of the sync as possible without blocking in CUDA.
-    # XXX: remove this using a yield callback, or by synchronizing on a dedicated thread?
-    nonblocking_synchronize(e)
-
-    # even though the GPU should be idle now, CUDA hooks work to the actual API call.
-    # see NVIDIA bug #3383169 for more details.
-    cuEventSynchronize(e)
-end
-
-@inline function nonblocking_synchronize(e::CuEvent)
-    # fast path
-    isdone(e) && return
-
-    # spin (initially without yielding to minimize latency)
-    spins = 0
-    while spins < 256
-        if spins < 32
-            ccall(:jl_cpu_pause, Cvoid, ())
-            # Temporary solution before we have gc transition support in codegen.
-            ccall(:jl_gc_safepoint, Cvoid, ())
-        else
-            yield()
-        end
-        isdone(e) && return
-        spins += 1
-    end
-
-    return
-end
+synchronize(e::CuEvent)
 
 """
     isdone(e::CuEvent)

@@ -6,7 +6,12 @@ import RandomNumbers
 
 # global state
 
-# shared memory with the actual seed, per warp, loaded lazily or overridden by calling `seed!`
+# we cannot store RNG state in thread-local memory (i.e. in the `rng` object) because that
+# inflate register usage. instead, we store it in shared memory, with one entry per warp.
+#
+# XXX: this implies that state is shared between `rng` objects, which can be surprising.
+
+# array with seeds, per warp, initialized on kernel start or by calling `seed!`
 @eval @inline function global_random_keys()
     ptr = Base.llvmcall(
         $("""@global_random_keys = weak addrspace($(AS.Shared)) global [32 x i32] zeroinitializer, align 32
@@ -20,7 +25,7 @@ import RandomNumbers
     CuDeviceArray{UInt32,1,AS.Shared}(ptr, (32,))
 end
 
-# shared memory with per-warp counters, incremented when generating numbers
+# array with per-warp counters, incremented when generating numbers
 @eval @inline function global_random_counters()
     ptr = Base.llvmcall(
         $("""@global_random_counters = weak addrspace($(AS.Shared)) global [32 x i32] zeroinitializer, align 32
@@ -34,6 +39,17 @@ end
     CuDeviceArray{UInt32,1,AS.Shared}(ptr, (32,))
 end
 
+# initialization function, called automatically at the start of each kernel because
+# there's no reliable way to detect uninitialized shared memory (see JuliaGPU/CUDA.jl#2008)
+function initialize_rng_state()
+    threadId = threadIdx().x + (threadIdx().y - 1i32) * blockDim().x +
+                               (threadIdx().z - 1i32) * blockDim().x * blockDim().y
+    warpId = (threadId - 1i32) >> 0x5 + 1i32  # fld1
+
+    @inbounds global_random_keys()[warpId] = kernel_state().random_seed
+    @inbounds global_random_counters()[warpId] = 0
+end
+
 @device_override Random.make_seed() = clock(UInt32)
 
 
@@ -43,19 +59,7 @@ using Random123: philox2x_round, philox2x_bumpkey
 
 # GPU-compatible/optimized version of the generator from Random123.jl
 struct Philox2x32{R} <: RandomNumbers.AbstractRNG{UInt64}
-    @inline function Philox2x32{R}() where R
-        rng = new{R}()
-        if rng.key == 0
-            # initialize the key. this happens when first accessing the (0-initialized)
-            # shared memory key from each block. if we ever want to make the device seed
-            # controlable from the host, this would be the place to read a global seed.
-            #
-            # note however that it is undefined how shared memory persists across e.g.
-            # launches, so we may not be able to rely on the zero initalization then.
-            rng.key = Random.make_seed()
-        end
-        return rng
-    end
+    # NOTE: the state is stored globally; see comments at the top of this file.
 end
 
 # default to 7 rounds; enough to pass SmallCrush
@@ -66,9 +70,7 @@ end
                                (threadIdx().z - 1i32) * blockDim().x * blockDim().y
     warpId = (threadId - 1i32) >> 0x5 + 1i32  # fld1
 
-    if field === :seed
-        @inbounds global_random_seed()[1]
-    elseif field === :key
+    if field === :key
         @inbounds global_random_keys()[warpId]
     elseif field === :ctr1
         @inbounds global_random_counters()[warpId]
@@ -106,10 +108,8 @@ function Random.seed!(rng::Philox2x32, seed::Integer, counter::Integer=0)
     return
 end
 
-if VERSION >= v"1.7-"
 @device_override Random.seed!(::Random._GLOBAL_RNG, seed) =
     Random.seed!(Random.default_rng(), seed)
-end
 
 """
     Random.rand(rng::Philox2x32, UInt32)
@@ -139,6 +139,7 @@ function Random.rand(rng::Philox2x32{R},::Type{UInt64}) where {R}
     # update the warp counter
     # NOTE: this performs the same update on every thread in the warp, but each warp writes
     #       to a unique location so the duplicate writes are innocuous
+    # NOTE: this is not guaranteed to be visible in other kernels (JuliaGPU/CUDA.jl#2008)
     # XXX: what if this overflows? we can't increment ctr2. bump the key?
     rng.ctr1 += 1i32
 
@@ -156,8 +157,8 @@ end
 # a hacky method of exposing constant tables as constant GPU memory
 function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
     @dispose ctx=Context() begin
-        T_val = convert(LLVMType, T; ctx)
-        T_ptr = convert(LLVMType, LLVMPtr{T,AS.Constant}; ctx)
+        T_val = convert(LLVMType, T)
+        T_ptr = convert(LLVMType, LLVMPtr{T,AS.Constant})
 
         # define function and get LLVM module
         llvm_f, _ = create_function(T_ptr)
@@ -170,14 +171,14 @@ function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
         gv = GlobalVariable(mod, T_global, "gpu_$(name)_data", AS.Constant)
         alignment!(gv, 16)
         linkage!(gv, LLVM.API.LLVMInternalLinkage)
-        initializer!(gv, ConstantArray(data; ctx))
+        initializer!(gv, ConstantArray(data))
 
         # generate IR
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
-            ptr = gep!(builder, T_global, gv, [ConstantInt(0; ctx), ConstantInt(0; ctx)])
+            ptr = gep!(builder, T_global, gv, [ConstantInt(0), ConstantInt(0)])
 
             untyped_ptr = bitcast!(builder, ptr, T_ptr)
 

@@ -5,15 +5,15 @@ export
 
 @generated function _index(::Val{name}, ::Val{range}) where {name, range}
     @dispose ctx=Context() begin
-        T_int32 = LLVM.Int32Type(ctx)
+        T_int32 = LLVM.Int32Type()
 
         # create function
         llvm_f, _ = create_function(T_int32)
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
             # call the indexing intrinsic
@@ -22,9 +22,8 @@ export
             idx = call!(builder, intr_typ, intr)
 
             # attach range metadata
-            range_metadata = MDNode([ConstantInt(Int32(range.start); ctx),
-                                     ConstantInt(Int32(range.stop); ctx)];
-                                    ctx)
+            range_metadata = MDNode([ConstantInt(Int32(range.start)),
+                                     ConstantInt(Int32(range.stop))])
             metadata(idx)[LLVM.MD_range] = range_metadata
 
             ret!(builder, idx)

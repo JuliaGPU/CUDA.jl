@@ -59,11 +59,11 @@ function main()
     y1 = [similar(x1[1]) for i = 1:num_z_slices]
 
     # reference down to bones add on GPU
-    results["reference"] = @benchmark CUDA.@sync add!($y1[1], $x1[1], $x2[1])
+    results["reference"] = @benchmark CUDA.@sync blocking=true add!($y1[1], $x1[1], $x2[1])
 
     # adding arrays in an array
     for slices = 1:num_z_slices
-        results["slices=$slices"] = @benchmark CUDA.@sync add_z_slices!($y1[1:$slices], $x1[1:$slices], $x2[1:$slices])
+        results["slices=$slices"] = @benchmark CUDA.@sync blocking=true add_z_slices!($y1[1:$slices], $x1[1:$slices], $x2[1:$slices])
     end
 
     # BenchmarkTools captures inputs, JuliaCI/BenchmarkTools.jl#127, so forcibly free them

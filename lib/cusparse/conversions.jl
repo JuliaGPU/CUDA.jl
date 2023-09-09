@@ -1,5 +1,9 @@
 export sort_csc, sort_csr, sort_coo
 
+adjtrans_wrappers = ((identity, identity),
+                     (M -> :(Transpose{T, <:$M}), M -> :(_sptranspose(parent($M)))),
+                     (M -> :(Adjoint{T, <:$M}), M -> :(_spadjoint(parent($M)))))
+
 # conversion routines between different sparse and dense storage formats
 
 """
@@ -42,6 +46,13 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
         return sort_coo(coo, 'R')
     else
         error("Format :$fmt not available, use :csc, :csr, or :coo.")
+    end
+end
+
+for (wrapa, unwrapa) in adjtrans_wrappers
+    for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
+        TypeA = wrapa(SparseMatrixType)
+        @eval SparseArrays.sparse(A::$TypeA) where {T} = $(unwrapa(:A))
     end
 end
 
@@ -214,16 +225,24 @@ function CuSparseMatrixCSR{T}(S::Adjoint{T, <:CuSparseMatrixCSC{T}}) where {T <:
     return CuSparseMatrixCSR{T}(csc.colPtr, csc.rowVal, conj.(csc.nzVal), size(csc))
 end
 
-for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
+for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR, :CuSparseMatrixCOO)
     @eval begin
-        $SparseMatrixType(S::Diagonal) = $SparseMatrixType(cu(S))
-        $SparseMatrixType(S::Diagonal{T, <:CuArray}) where T = $SparseMatrixType{T}(S)
-        $SparseMatrixType{Tv}(S::Diagonal{T, <:CuArray}) where {Tv, T} = $SparseMatrixType{Tv, Cint}(S)
-        function $SparseMatrixType{Tv, Ti}(S::Diagonal{T, <:CuArray}) where {Tv, Ti, T}
-            m = size(S, 1)
-            return $SparseMatrixType{Tv, Ti}(CuVector(1:(m+1)), CuVector(1:m), Tv.(S.diag), (m, m))
-        end
+        $SparseMatrixType(S::Diagonal{Tv, <:AbstractVector}) where {Tv} = $SparseMatrixType(cu(S))
+        $SparseMatrixType(S::Diagonal{Tv, <:CuArray}) where Tv = $SparseMatrixType{Tv}(S)
+        $SparseMatrixType{Tv}(S::Diagonal) where {Tv} = $SparseMatrixType{Tv, Cint}(S)
     end
+    
+    if SparseMatrixType == :CuSparseMatrixCOO
+        @eval function $SparseMatrixType{Tv, Ti}(S::Diagonal) where {Tv, Ti}
+            m = size(S, 1)
+            return $SparseMatrixType{Tv, Ti}(CuVector(1:m), CuVector(1:m), convert(CuVector{Tv}, S.diag), (m, m))
+        end
+    else
+        @eval function $SparseMatrixType{Tv, Ti}(S::Diagonal) where {Tv, Ti}
+            m = size(S, 1)
+            return $SparseMatrixType{Tv, Ti}(CuVector(1:(m+1)), CuVector(1:m), convert(CuVector{Tv}, S.diag), (m, m))
+        end
+    end        
 end
 
 # by flipping rows and columns, we can use that to get CSC to CSR too

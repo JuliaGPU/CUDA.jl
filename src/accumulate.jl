@@ -177,7 +177,9 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
 
         # get the total of each thread block (except the first) of the partial scans
         aggregates = fill(neutral, Base.setindex(size(input), blocks_dim, dims))
-        copyto!(aggregates, selectdim(output, dims, partial:partial:length(Rdim)))
+        partials = selectdim(output, dims, partial:partial:length(Rdim))
+        indices = CartesianIndices(partials)
+        copyto!(aggregates, indices, partials, indices)
 
         # scan these totals to get totals for the entire partial scan
         accumulate!(f, aggregates, aggregates; dims=dims)

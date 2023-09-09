@@ -9,7 +9,7 @@ jobs:
   CompatHelper:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Get Julia compatibility
         id: julia_compat
         # NOTE: this requires a Julia compat lower-bound with minor version!
@@ -23,7 +23,7 @@ jobs:
         run: |
           import Pkg
           name = "CompatHelper"
-          version = "2"
+          version = "3"
           Pkg.add(; name, version)
         shell: julia --color=yes {0}
       - name: Run CompatHelper

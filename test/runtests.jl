@@ -2,17 +2,7 @@ using Distributed
 using Dates
 import REPL
 using Printf: @sprintf
-using TimerOutputs
-
-# work around JuliaLang/Pkg.jl#2500
-if VERSION < v"1.8"
-    test_project = first(Base.load_path())
-    preferences_file = joinpath(dirname(@__DIR__), "LocalPreferences.toml")
-    test_preferences_file = joinpath(dirname(test_project), "LocalPreferences.toml")
-    if isfile(preferences_file) && !isfile(test_preferences_file)
-        cp(preferences_file, test_preferences_file)
-    end
-end
+using Base.Filesystem: path_separator
 
 # parse some command-line arguments
 function extract_flag!(args, flag, default=nothing; typ=typeof(default))
@@ -42,37 +32,34 @@ if do_help
 
                --help             Show this text.
                --list             List all available tests.
-               --thorough         Don't allow skipping tests that are not supported.
                --quickfail        Fail the entire run as soon as a single test errored.
                --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS).
-               --gpus=N           Expose `N` GPUs to test processes (default: 1).
+               --gpu=1,2,...      Which GPUs to use (comma-separated list of indices, default: all)
                --sanitize[=tool]  Run the tests under `compute-sanitizer`.
-               --snoop=FILE       Snoop on compiled methods and save to `FILE`.
 
                Remaining arguments filter the tests that will be executed.""")
     exit(0)
 end
 set_jobs, jobs = extract_flag!(ARGS, "--jobs"; typ=Int)
 do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
-do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
-do_thorough, _ = extract_flag!(ARGS, "--thorough")
 do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
-
-include("setup.jl")     # make sure everything is precompiled
-_, gpus = extract_flag!(ARGS, "--gpus", ndevices())
-if !set_jobs
-    cpu_jobs = Sys.CPU_THREADS
-    memory_jobs = Int(Sys.free_memory()) ÷ (2 * 2^30)
-    jobs = min(cpu_jobs, memory_jobs)
+do_gpu_list, gpu_list = extract_flag!(ARGS, "--gpu")
+do_list, _ = extract_flag!(ARGS, "--list")
+## no options should remain
+optlike_args = filter(startswith("-"), ARGS)
+if !isempty(optlike_args)
+    error("Unknown test options `$(join(optlike_args, " "))` (try `--help` for usage instructions)")
 end
 
+include("setup.jl")     # make sure everything is precompiled
+
 # choose tests
-const tests = ["initialization"]    # needs to run first
+const tests = ["core$(path_separator)initialization"]    # needs to run first
 const test_runners = Dict()
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)
-    push!(tests, "gpuarrays$(Base.Filesystem.path_separator)$name")
-    test_runners["gpuarrays$(Base.Filesystem.path_separator)$name"] = ()->TestSuite.tests[name](CuArray)
+    push!(tests, "gpuarrays$(path_separator)$name")
+    test_runners["gpuarrays$(path_separator)$name"] = ()->TestSuite.tests[name](CuArray)
 end
 ## files in the test folder
 for (rootpath, dirs, files) in walkdir(@__DIR__)
@@ -103,9 +90,7 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
 end
 unique!(tests)
 
-# parse some more command-line arguments
-## --list to list all available tests
-do_list, _ = extract_flag!(ARGS, "--list")
+# list tests, if requested
 if do_list
     println("Available tests:")
     for test in sort(tests)
@@ -113,12 +98,8 @@ if do_list
     end
     exit(0)
 end
-## no options should remain
-optlike_args = filter(startswith("-"), ARGS)
-if !isempty(optlike_args)
-    error("Unknown test options `$(join(optlike_args, " "))` (try `--help` for usage instructions)")
-end
-## the remaining args filter tests
+
+# filter tests
 if !isempty(ARGS)
   filter!(tests) do test
     any(arg->startswith(test, arg), ARGS)
@@ -131,89 +112,38 @@ label_match = match(r"^CUDA ([\d.]+)$", get(ENV, "BUILDKITE_LABEL", ""))
 if label_match !== nothing
   @test toolkit_release == VersionNumber(label_match.captures[1])
 end
-
-# find suitable devices
 @info "System information:\n" * sprint(io->CUDA.versioninfo(io))
-candidates = []
-for (index,dev) in enumerate(devices())
-    # fetch info that doesn't require a context
+
+# select devices
+function gpu_entry(dev)
     id = deviceid(dev)
-    mig = CUDA.uuid(dev) != CUDA.parent_uuid(dev)
-    uuid = CUDA.uuid(dev)
     name = CUDA.name(dev)
-    cap = capability(dev)
-
-    mem = try
-        device!(dev)
-        mem = CUDA.available_memory()
-        # immediately reset the device. this helps to reduce memory usage,
-        # and is needed for systems that only provide exclusive access to the GPUs
-        CUDA.device_reset!()
-        mem
-    catch err
-        if isa(err, OutOfGPUMemoryError)
-            # the device doesn't even have enough memory left to instantiate a context...
-            0
-        else
-            rethrow()
-        end
-    end
-
-    push!(candidates, (; id, uuid, mig, name, cap, mem))
-
-    # NOTE: we don't use NVML here because it doesn't respect CUDA_VISIBLE_DEVICES
+    uuid = CUDA.uuid(dev)
+    cap = CUDA.capability(dev)
+    mig = uuid != CUDA.parent_uuid(dev)
+    (; id, name, cap, uuid="$(mig ? "MIG" : "GPU")-$uuid")
 end
-## order by available memory, but also by capability if testing needs to be thorough
-sort!(candidates, by=x->x.mem)
-## apply
-picks = reverse(candidates[end-gpus+1:end])   # best GPU first
-ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"$(pick.mig ? "MIG" : "GPU")-$(pick.uuid)", picks), ",")
-@info "Testing using $(length(picks)) device(s): " * join(map(pick->"$(pick.id). $(pick.name) (UUID $(pick.uuid))", picks), ", ")
-
-@info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the JULIA_CPU_THREADS environment variable."
-
-# determine tests to skip
-skip_tests = []
-has_cusolvermg() || push!(skip_tests, "cusolver/multigpu")
-has_nvml() || push!(skip_tests, "nvml")
-if do_sanitize
-    # XXX: some library tests fail under compute-sanitizer
-    append!(skip_tests, ["cutensor"])
-    # XXX: others take absurdly long
-    append!(skip_tests, ["cusolver", "cusparse"])
-    # XXX: these hang for some reason
-    append!(skip_tests, ["sorting"])
-end
-if first(picks).cap < v"7.0"
-    push!(skip_tests, "device/intrinsics/wmma")
-end
-if Sys.ARCH == :aarch64
-    # CUFFT segfaults on ARM
-    push!(skip_tests, "cufft")
-end
-if VERSION < v"1.6.1-"
-    push!(skip_tests, "device/random")
-end
-for (i, test) in enumerate(skip_tests)
-    # we find tests by scanning the file system, so make sure the path separator matches
-    skip_tests[i] = replace(test, '/'=>Base.Filesystem.path_separator)
-end
-# skip_tests is a list of patterns, expand it to actual tests we were going to run
-skip_tests = filter(test->any(skip->occursin(skip,test), skip_tests), tests)
-if do_thorough
-    # we're not allowed to skip tests, so make sure we will mark them as such
-    all_tests = copy(tests)
-    if !isempty(skip_tests)
-        @error "Skipping the following tests: $(join(skip_tests, ", "))"
-        filter!(!in(skip_tests), tests)
+gpus = if do_gpu_list
+    # parse the list of GPUs
+    map(gpu_list) do str
+        id = parse(Int, str)
+        gpu_entry(CuDevice(id))
     end
 else
-    if !isempty(skip_tests)
-        @info "Skipping the following tests: $(join(skip_tests, ", "))"
-        filter!(!in(skip_tests), tests)
-    end
-    all_tests = copy(tests)
+    # find all GPUs
+    map(gpu_entry, CUDA.devices())
 end
+@info("Testing using device " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
+      ". To change this, specify the `--gpus` argument to the tests, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
+ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")
+
+# determine parallelism
+if !set_jobs
+    cpu_jobs = Sys.CPU_THREADS
+    memory_jobs = Int(Sys.free_memory()) ÷ (2 * 2^30)
+    jobs = min(cpu_jobs, memory_jobs)
+end
+@info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the `JULIA_CPU_THREADS` environment variable."
 
 # add workers
 const test_exeflags = Base.julia_cmd()
@@ -239,12 +169,6 @@ function addworker(X; kwargs...)
     end
 end
 addworker(min(jobs, length(tests)))
-
-# prepare to snoop on the compiler
-if do_snoop
-    @info "Writing trace of compiled methods to '$snoop_path'"
-    snoop_io = open(snoop_path, "w")
-end
 
 # pretty print information about gc and mem usage
 testgroupheader = "Test"
@@ -327,7 +251,6 @@ end
 t0 = now()
 results = []
 all_tasks = Task[]
-timings = TimerOutput[]
 try
     # Monitor stdin and kill this task on ^C
     # but don't do this on Windows, because it may deadlock in the kernel
@@ -385,16 +308,17 @@ try
                     wrkr = p
 
                     local resp
-                    snoop = do_snoop ? mktemp() : (nothing, nothing)
 
                     # tests that muck with the context should not be timed with CUDA events,
                     # since they won't be valid at the end of the test anymore.
-                    time_source = in(test, ["initialization", "examples", "exceptions"]) ? :julia : :cuda
+                    time_source = in(test, ["core$(path_separator)initialization",
+                                            "base$(path_separator)examples",
+                                            "base$(path_separator)exceptions"]) ? :julia : :cuda
 
                     # run the test
                     running_tests[test] = now()
                     try
-                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, time_source, snoop[1])
+                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, time_source)
                     catch e
                         isa(e, InterruptException) && return
                         resp = Any[e]
@@ -412,15 +336,6 @@ try
                         p = recycle_worker(p)
                     else
                         print_testworker_stats(test, wrkr, resp)
-                    end
-
-                    # aggregate the snooped compiler invocations
-                    if do_snoop
-                        for line in eachline(snoop[2])
-                            println(snoop_io, line)
-                        end
-                        close(snoop[2])
-                        rm(snoop[1])
                     end
                 end
 
@@ -461,17 +376,6 @@ t1 = now()
 elapsed = canonicalize(Dates.CompoundPeriod(t1-t0))
 println("Testing finished in $elapsed")
 
-# report work timings
-if isdefined(CUDA, :to)
-    println()
-    for to in timings
-        TimerOutputs.merge!(CUDA.to, to)
-    end
-    TimerOutputs.complement!(CUDA.to)
-    show(CUDA.to, sortby=:name)
-    println()
-end
-
 # construct a testset to render the test results
 o_ts = Test.DefaultTestSet("Overall")
 Test.push_testset(o_ts)
@@ -485,11 +389,7 @@ for (testname, (resp,)) in results
     elseif isa(resp, Tuple{Int,Int})
         fake = Test.DefaultTestSet(testname)
         for i in 1:resp[1]
-            if VERSION >= v"1.7-"
-                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
-            else
-                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing))
-            end
+            Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
         end
         for i in 1:resp[2]
             Test.record(fake, Test.Broken(:test, nothing))
@@ -503,11 +403,7 @@ for (testname, (resp,)) in results
         println()
         fake = Test.DefaultTestSet(testname)
         for i in 1:resp.captured.ex.pass
-            if VERSION >= v"1.7-"
-                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
-            else
-                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing))
-            end
+            Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
         end
         for i in 1:resp.captured.ex.broken
             Test.record(fake, Test.Broken(:test, nothing))
@@ -533,7 +429,7 @@ for (testname, (resp,)) in results
         Test.pop_testset()
     end
 end
-for test in all_tests
+for test in tests
     (test in completed_tests) && continue
     fake = Test.DefaultTestSet(test)
     Test.record(fake, Test.Error(:test_interrupted, test, nothing,

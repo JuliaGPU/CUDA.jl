@@ -20,7 +20,7 @@ function precompile_runtime(caps=CUDA.llvm_compat(LLVM.version()).cap)
             target = PTXCompilerTarget(; cap)
             config = CompilerConfig(target, params)
             job = CompilerJob(mi, config)
-            GPUCompiler.load_runtime(job; ctx)
+            GPUCompiler.load_runtime(job)
         end
     end
     return
@@ -28,14 +28,13 @@ end
 
 struct KernelState
     exception_flag::Ptr{Cvoid}
+    random_seed::UInt32
 end
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(KernelState)
 
-exception_flag() = kernel_state().exception_flag
-
 function signal_exception()
-    ptr = exception_flag()
+    ptr = kernel_state().exception_flag
     if ptr !== C_NULL
         unsafe_store!(convert(Ptr{Int}, ptr), 1)
         threadfence_system()

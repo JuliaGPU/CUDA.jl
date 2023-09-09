@@ -57,12 +57,13 @@ const alloc_stats = AllocStats()
 ## CUDA allocator
 
 function actual_alloc(bytes::Integer; async::Bool=false,
-                      stream::Union{CuStream,Nothing}=nothing)
+                      stream::Union{CuStream,Nothing}=nothing,
+                      pool::Union{CuMemoryPool,Nothing}=nothing)
   memory_limit_exceeded(bytes) && return nothing
 
   # try the actual allocation
   buf = try
-    Mem.alloc(Mem.Device, bytes; async, stream)
+    Mem.alloc(Mem.Device, bytes; async, stream, pool)
   catch err
     isa(err, OutOfGPUMemoryError) || rethrow()
     return nothing
@@ -136,8 +137,10 @@ function memory_limit_exceeded(bytes::Integer)
   limit.hard > 0 || return false
 
   dev = device()
-  used_bytes = if stream_ordered(dev) && driver_version() >= v"11.3"
-    # XXX: this should be done by the allocator itself (NVIDIA bug #3503815).
+  used_bytes = if stream_ordered(dev) && driver_version() >= v"12.2"
+    # we configured the memory pool to do this for us
+    return false
+  elseif stream_ordered(dev) && driver_version() >= v"11.3"
     pool = memory_pool(dev)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else
@@ -171,22 +174,30 @@ end
 function pool_mark(dev::CuDevice)
   status = pool_status(dev)
   if status[] === nothing
-      # allow the pool to use up all memory of this device
       limits = memory_limits()
-      attribute!(memory_pool(dev), MEMPOOL_ATTR_RELEASE_THRESHOLD,
+
+      # create a custom memory pool and assign it to the device
+      # so that other libraries and applications will use it.
+      pool = if limits.hard > 0 && CUDA.driver_version() >= v"12.2"
+        CuMemoryPool(dev; maxSize=limits.hard)
+      else
+        CuMemoryPool(dev)
+      end
+      memory_pool!(dev, pool)
+
+      # allow the pool to use up all memory of this device
+      attribute!(pool, MEMPOOL_ATTR_RELEASE_THRESHOLD,
                  limits.soft == 0 ? typemax(UInt64) : limits.soft)
 
       # launch a task to periodically trim the pool
       if isinteractive() && !isassigned(__pool_cleanup)
-        __pool_cleanup[] = if VERSION < v"1.7"
-          Threads.@spawn pool_cleanup()
-        else
-          errormonitor(Threads.@spawn pool_cleanup())
-        end
+        __pool_cleanup[] = errormonitor(Threads.@spawn pool_cleanup())
       end
+  else
+      pool = memory_pool(dev)
   end
   status[] = true
-  return
+  return pool
 end
 
 # reclaim unused pool memory after a certain time
@@ -355,9 +366,6 @@ function retry_reclaim(f, isfailed)
     phase = 1
     while true
       if is_stream_ordered
-        # NOTE: the stream-ordered allocator only releases memory on actual API calls,
-        #       and not when our synchronization routines query the relevant streams.
-        #       we do still call our routines to minimize the time we block in libcuda.
         if phase == 1
           synchronize(state.stream)
         elseif phase == 2
@@ -418,18 +426,18 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 end
 @inline function _alloc(::Type{Mem.DeviceBuffer}, sz; stream::Union{Nothing,CuStream})
     state = active_state()
-    stream = something(stream, state.stream)
 
     gctime = 0.0
     time = Base.@elapsed begin
       buf = if stream_ordered(state.device)
-        pool_mark(state.device) # mark the pool as active
+        stream = something(stream, state.stream)
+        pool = pool_mark(state.device) # mark the pool as active
         retry_reclaim(isnothing) do
-          actual_alloc(sz; async=true, stream)
+          actual_alloc(sz; async=true, stream, pool)
         end
       else
         retry_reclaim(isnothing) do
-          actual_alloc(sz; async=false, stream)
+          actual_alloc(sz; async=false)
         end
       end
       buf === nothing && throw(OutOfGPUMemoryError(sz))
@@ -482,7 +490,7 @@ end
       error("Trying to free $buf from an unrelated context")
     end
 
-    dev = current_device()
+    dev = device()
     if stream_ordered(dev)
       # mark the pool as active
       pool_mark(dev)

@@ -1,7 +1,14 @@
 """
-    @sync ex
+    @sync [blocking=false] ex
 
 Run expression `ex` and synchronize the GPU afterwards.
+
+The `blocking` keyword argument determines how synchronization is performed. By default,
+non-blocking synchronization will be used, which gives other Julia tasks a chance to run
+while waiting for the GPU to finish. This may increase latency, so for short operations,
+or when benchmaring code that does not use multiple tasks, it may be beneficial to use
+blocking synchronization instead by setting `blocking=true`. Blocking synchronization
+can also be enabled globally by changing the `nonblocking_synchronization` preference.
 
 See also: [`synchronize`](@ref).
 """
@@ -11,11 +18,14 @@ macro sync(ex...)
     kwargs = ex[1:end-1]
 
     # decode keyword arguments
+    blocking = false
     for kwarg in kwargs
         Meta.isexpr(kwarg, :(=)) || error("Invalid keyword argument $kwarg")
         key, val = kwarg.args
         if key == :blocking
-            Base.depwarn("the blocking keyword to @sync has been deprecated", :sync)
+            isa(val, Bool) ||
+                error("Invalid value for keyword argument $kwarg; expected Bool, got $(val)")
+            blocking = val
         else
             error("Unknown keyword argument $kwarg")
         end
@@ -23,7 +33,7 @@ macro sync(ex...)
 
     quote
         local ret = $(esc(code))
-        synchronize()
+        synchronize(; blocking=$blocking)
         ret
     end
 end
@@ -32,10 +42,10 @@ function versioninfo(io::IO=stdout)
     @assert functional(true)
 
     print(io, "CUDA runtime $(runtime_version().major).$(runtime_version().minor), ")
-    if CUDA_Runtime == CUDA_Runtime_jll
-        println(io, "artifact installation")
-    else
+    if local_toolkit
         println(io, "local installation")
+    else
+        println(io, "artifact installation")
     end
     println(io, "CUDA driver $(driver_version().major).$(driver_version().minor)")
     if has_nvml()
@@ -60,19 +70,29 @@ function versioninfo(io::IO=stdout)
     println(io)
 
     println(io, "Julia packages: ")
-    ## get a hold of Pkg without adding a dependency on the package
-    Pkg = let
-        id = Base.PkgId(Base.UUID("44cfe95a-1eb2-52ea-b672-e2afdf69b78f"), "Pkg")
-        Base.loaded_modules[id]
-    end
-    ## look at the Project.toml to determine our version
-    project = Pkg.Operations.read_project(Pkg.Types.projectfile_path(pkgdir(CUDA)))
-    println(io, "- CUDA.jl: $(project.version)")
-    ## dependencies
-    deps = Pkg.dependencies()
-    versions = Dict(map(uuid->deps[uuid].name => deps[uuid].version, collect(keys(deps))))
-    for dep in ["CUDA_Driver_jll", "CUDA_Runtime_jll", "CUDA_Runtime_Discovery"]
-        println(io, "- $dep: $(versions[dep])")
+    if VERSION >= v"1.9"
+        println(io, "- CUDA: $(Base.pkgversion(CUDA))")
+        for name in [:CUDA_Driver_jll, :CUDA_Runtime_jll, :CUDA_Runtime_Discovery]
+            isdefined(CUDA, name) || continue
+            mod = getfield(CUDA, name)
+            println(io, "- $(name): $(Base.pkgversion(mod))")
+        end
+    else
+        ## get a hold of Pkg without adding a dependency on the package
+        Pkg = let
+            id = Base.PkgId(Base.UUID("44cfe95a-1eb2-52ea-b672-e2afdf69b78f"), "Pkg")
+            Base.loaded_modules[id]
+        end
+        ## look at the Project.toml to determine our version
+        project = Pkg.Operations.read_project(Pkg.Types.projectfile_path(pkgdir(CUDA)))
+        println(io, "- CUDA.jl: $(project.version)")
+        ## dependencies
+        ## XXX: Pkg.dependencies uses the active project, so may be inaccurate
+        deps = Pkg.dependencies()
+        versions = Dict(map(uuid->deps[uuid].name => deps[uuid].version, collect(keys(deps))))
+        for dep in ["CUDA_Driver_jll", "CUDA_Runtime_jll", "CUDA_Runtime_Discovery"]
+            haskey(versions, dep) && println(io, "- $dep: $(versions[dep])")
+        end
     end
     println(io)
 

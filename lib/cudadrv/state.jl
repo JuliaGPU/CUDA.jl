@@ -241,6 +241,13 @@ function context(dev::CuDevice)
               maxlog=1, _id=devidx)
     end
 
+    # warn about some known bugs
+    if runtime_version() < v"11.5" && capability(dev) < v"7"
+        @warn("""There are known codegen bugs on CUDA 11.4 and earlier for older GPUs like your $(name(dev)).
+                 Please use CUDA 11.5 or later, or switch to a different device.""",
+              maxlog=1, _id=devidx)
+    end
+
     # configure the primary context
     pctx = CuPrimaryContext(dev)
     ctx = CuContext(pctx)
@@ -437,7 +444,7 @@ an array or a dictionary, use additional locks.
 """
 struct PerDevice{T}
     lock::ReentrantLock
-    values::LazyInitialized{Vector{Union{Nothing,Tuple{CuContext,T}}}}
+    values::LazyInitialized{Vector{Union{Nothing,Tuple{CuContext,T}}},Nothing}
 end
 
 function PerDevice{T}() where {T}

@@ -29,14 +29,14 @@ function code_sass_callback(userdata::Ptr{Cvoid}, domain::CUpti_CallbackDomain,
 end
 
 """
-    code_sass([io], f, types; verbose=false)
+    code_sass([io], f, types; raw=false)
 
 Prints the SASS code generated for the method matching the given generic function and type
 signature to `io` which defaults to `stdout`.
 
 The following keyword arguments are supported:
 
-- `verbose`: enable verbose mode, which displays code generation statistics
+- `raw`: dump the assembly like `nvdisasm` reports it, without post-processing;
 - all keyword arguments from [`cufunction`](@ref)
 
 See also: [`@device_code_sass`](@ref)
@@ -52,7 +52,7 @@ end
 # multiple subscribers aren't supported, so make sure we only call CUPTI once
 const cupti_lock = ReentrantLock()
 
-function code_sass(io::IO, job::CompilerJob; verbose::Bool=false)
+function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
     if !job.config.kernel
         error("Can only generate SASS code for kernel functions")
     end
@@ -97,13 +97,15 @@ function code_sass(io::IO, job::CompilerJob; verbose::Bool=false)
 
         cmd = `$(nvdisasm()) --print-code --print-line-info $cubin_path`
         for line in readlines(cmd)
-            # nvdisasm output is pretty verbose;
-            # perform some clean-up and make it look like @code_native
-            line = replace(line, r"/\*[0-9a-f]{4}\*/" => "        ") # strip inst addr
-            line = replace(line, r"^[ ]{30}" => "   ")               # reduce leading spaces
-            line = replace(line, r"[\s+]//##" => ";")                # change line info tag
-            line = replace(line, r"^\." => "\n.")                    # break before new BBs
-            line = replace(line, r"; File \"(.+?)\", line (\d+)" => s"; Location \1:\2") # rename line info
+            if !raw
+                # nvdisasm output is pretty verbose;
+                # perform some clean-up and make it look like @code_native
+                line = replace(line, r"/\*[0-9a-f]{4}\*/" => "        ") # strip inst addr
+                line = replace(line, r"^[ ]{30}" => "   ")               # reduce leading spaces
+                line = replace(line, r"[\s+]//##" => ";")                # change line info tag
+                line = replace(line, r"^\." => "\n.")                    # break before new BBs
+                line = replace(line, r"; File \"(.+?)\", line (\d+)" => s"; Location \1:\2") # rename line info
+            end
             println(io, line)
         end
     end
@@ -160,12 +162,8 @@ function return_type(@nospecialize(func), @nospecialize(tt))
     config = compiler_config(device())
     job = CompilerJob(source, config)
     interp = GPUCompiler.get_interpreter(job)
-    if VERSION >= v"1.8-"
-        sig = Base.signature_type(func, tt)
-        Core.Compiler.return_type(interp, sig)
-    else
-        Core.Compiler.return_type(interp, func, tt)
-    end
+    sig = Base.signature_type(func, tt)
+    Core.Compiler.return_type(interp, sig)
 end
 
 
