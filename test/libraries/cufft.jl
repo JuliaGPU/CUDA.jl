@@ -39,6 +39,7 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     d_Z = pinv2 * d_Y
     Z = collect(d_Z)
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
+
 end
 
 function in_place(X::AbstractArray{T,N}) where {T <: Complex,N}
@@ -60,11 +61,18 @@ function batched(X::AbstractArray{T,N},region) where {T <: Complex,N}
     d_X = CuArray(X)
     p = plan_fft(d_X,region)
     d_Y = p * d_X
+    d_X2 = reshape(d_X, (size(d_X)..., 1))
+    @test_throws ArgumentError p * d_X2
+
     Y = collect(d_Y)
     @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
 
     pinv = plan_ifft(d_Y,region)
     d_Z = pinv * d_Y
+    Z = collect(d_Z)
+    @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
+
+    ldiv!(d_Z, p, d_Y)
     Z = collect(d_Z)
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 end
@@ -143,11 +151,11 @@ end
 
 @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
-    for region in [(1,2),(1,4),(3,4)]
+    for region in [(1,2),(1,4),(3,4),(1,3),(2,3),(2,),(3,)]
         X = rand(T, dims)
         batched(X,region)
     end
-    for region in [(1,3),(2,3),(2,4)]
+    for region in [(2,4)]
         X = rand(T, dims)
         @test_throws ArgumentError batched(X,region)
     end
@@ -236,11 +244,11 @@ end
 
 @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
-    for region in [(1,2),(1,4),(3,4)]
+    for region in [(1,2),(1,4),(3,4),(1,3),(2,3)]
         X = rand(T, dims)
         batched(X,region)
     end
-    for region in [(1,3),(2,3),(2,4)]
+    for region in [(2,4)]
         X = rand(T, dims)
         @test_throws ArgumentError batched(X,region)
     end

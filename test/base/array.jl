@@ -26,31 +26,29 @@ import Adapt
 
   # unsafe_wrap
   let
-    data = CuArray{Int}(undef, 2)
-    ptr = pointer(data)
+    arr = CuArray{Int}(undef, 2)
+    ptr = pointer(arr)
     B = Mem.DeviceBuffer
 
-    @test unsafe_wrap(CuArray, ptr, 1; own=false).storage.refcount[] == -1
-
-    ## compare the fields we care about: the buffer, size, offset, and context
-    function test_eq(a, b)
-      @test eltype(a) == eltype(b)
-      @test ndims(a) == ndims(b)
-      @test a.storage.buffer.ptr == b.storage.buffer.ptr
-      @test a.storage.buffer.ctx == b.storage.buffer.ctx
-      @test a.maxsize == b.maxsize
-      @test a.offset == b.offset
-      @test a.dims == b.dims
+    ## compare the fields we care about
+    function test_eq(a, T, N, dims)
+      @test eltype(a) == T
+      @test ndims(a) == N
+      @test a.data[].ptr == ptr
+      @test a.data[].ctx == context()
+      @test a.maxsize == arr.maxsize
+      @test a.offset == arr.offset
+      @test a.dims == dims
     end
 
-    test_eq(unsafe_wrap(CuArray, ptr, 2),                CuArray{Int,1}(data.storage, (2,)))
-    test_eq(unsafe_wrap(CuArray{Int}, ptr, 2),           CuArray{Int,1}(data.storage, (2,)))
-    test_eq(unsafe_wrap(CuArray{Int,1}, ptr, 2),         CuArray{Int,1}(data.storage, (2,)))
-    test_eq(unsafe_wrap(CuArray{Int,1,B}, ptr, 2),       CuArray{Int,1}(data.storage, (2,)))
-    test_eq(unsafe_wrap(CuArray, ptr, (1,2)),            CuArray{Int,2}(data.storage, (1,2)))
-    test_eq(unsafe_wrap(CuArray{Int}, ptr, (1,2)),       CuArray{Int,2}(data.storage, (1,2)))
-    test_eq(unsafe_wrap(CuArray{Int,2}, ptr, (1,2)),     CuArray{Int,2}(data.storage, (1,2)))
-    test_eq(unsafe_wrap(CuArray{Int,2,B}, ptr, (1,2)),   CuArray{Int,2}(data.storage, (1,2)))
+    test_eq(unsafe_wrap(CuArray, ptr, 2),                Int, 1, (2,))
+    test_eq(unsafe_wrap(CuArray{Int}, ptr, 2),           Int, 1, (2,))
+    test_eq(unsafe_wrap(CuArray{Int,1}, ptr, 2),         Int, 1, (2,))
+    test_eq(unsafe_wrap(CuArray{Int,1,B}, ptr, 2),       Int, 1, (2,))
+    test_eq(unsafe_wrap(CuArray, ptr, (1,2)),            Int, 2, (1,2))
+    test_eq(unsafe_wrap(CuArray{Int}, ptr, (1,2)),       Int, 2, (1,2))
+    test_eq(unsafe_wrap(CuArray{Int,2}, ptr, (1,2)),     Int, 2, (1,2))
+    test_eq(unsafe_wrap(CuArray{Int,2,B}, ptr, (1,2)),   Int, 2, (1,2))
 
     @test_throws ErrorException unsafe_wrap(CuArray{Int,1,Mem.HostBuffer}, ptr, 2)
     @test_throws ErrorException unsafe_wrap(CuArray{Int,2,Mem.HostBuffer}, ptr, (1,2))
@@ -460,10 +458,11 @@ end
     @test length(a) == 2
     @test Array(a)[1:2] == [1,2]
 
-    GC.@preserve a begin
-      b = unsafe_wrap(CuArray{Int}, pointer(a), 2)
-      @test_throws ArgumentError resize!(b, 3)
-    end
+    # we should be able to resize an unsafe_wrapped array too, as it replaces the buffer
+    b = unsafe_wrap(CuArray{Int}, pointer(a), 2)
+    resize!(b, 3)
+    @test length(b) == 3
+    @test Array(b)[1:2] == [1,2]
 
     b = CuArray{Int}(undef, 0)
     @test length(b) == 0

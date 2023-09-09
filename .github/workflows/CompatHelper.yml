@@ -23,7 +23,7 @@ jobs:
         run: |
           import Pkg
           name = "CompatHelper"
-          version = "2"
+          version = "3"
           Pkg.add(; name, version)
         shell: julia --color=yes {0}
       - name: Run CompatHelper
