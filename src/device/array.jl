@@ -260,6 +260,6 @@ end
 
 # create a derived device array (reinterpreted or reshaped) that's still a CuDeviceArray
 @inline function _derived_array(a::CuDeviceArray{<:Any,<:Any,A,I}, ::Type{T},
-                                osize::Dims{N}) where {T, N, A}
+                                osize::Dims{N}) where {T, N, A, I}
   return CuDeviceArray{T,N,A,I}(a.ptr, osize, a.maxsize)
 end
