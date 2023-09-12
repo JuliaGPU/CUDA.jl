@@ -23,7 +23,7 @@ end
 LazyInitialized{T}(validator=nothing) where {T} =
     LazyInitialized{T,typeof(validator)}(Threads.Atomic{Int}(0), Ref{T}(), validator)
 
-@inline function Base.get!(constructor, x::LazyInitialized)
+@inline function Base.get!(constructor::Base.Callable, x::LazyInitialized)
     while x.guard[] != 2
         initialize!(x, constructor)
     end

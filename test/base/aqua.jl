@@ -9,7 +9,7 @@ let ambs = Aqua.detect_ambiguities(CUDA; recursive=true)
     pkg_match(pkgname, pkgdir::Nothing) = false
     pkg_match(pkgname, pkgdir::AbstractString) = occursin(pkgname, pkgdir)
     filter!(x -> pkg_match("CUDA", pkgdir(last(x).module)), ambs)
-    @test length(ambs) ≤ 51
+    @test length(ambs) ≤ 18
 end
 
 Aqua.test_undefined_exports(CUDA)
