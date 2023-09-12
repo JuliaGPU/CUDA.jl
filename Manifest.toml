@@ -2,7 +2,7 @@
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "668ed29932abfaac250cb6c23a1bfa769a4b4fcf"
+project_hash = "bd7ca8996e1ea58c0718ac9f8390b825e95848f9"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra", "Test"]
@@ -158,9 +158,9 @@ version = "0.1.5"
 
 [[deps.GPUCompiler]]
 deps = ["ExprTools", "InteractiveUtils", "LLVM", "Libdl", "Logging", "Scratch", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "8573c39f9c4e99720ab5ea44104efb3ed07a58b0"
+git-tree-sha1 = "4eb8cd377288c16cd9bd6c039d2641e6b3e1d91e"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.23.0"
+version = "0.24.0"
 
 [[deps.InlineStrings]]
 deps = ["Parsers"]
