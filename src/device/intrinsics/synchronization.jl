@@ -1,8 +1,10 @@
 # Synchronization (B.6)
 
+
+## simple synchronization (bar)
+
 export sync_threads, sync_warp
 export sync_threads_count, sync_threads_and, sync_threads_or
-export threadfence, threadfence_block, threadfence_system
 
 """
     sync_threads()
@@ -78,10 +80,21 @@ the warp.
 !!! note
     Requires CUDA >= 9.0 and sm_6.2
 """
-@inline function sync_warp(mask::Integer=0xffffffff)
-    @asmcall("bar.warp.sync \$0;", "r", true,
-             Cvoid, Tuple{UInt32}, convert(UInt32, mask))
-end
+@inline sync_warp(mask::Integer=0xffffffff) =
+    ccall("llvm.nvvm.bar.warp.sync", llvmcall, Cvoid, (UInt32,), mask)
+
+
+## generalized synchronization (barrier)
+
+export barrier_sync
+
+barrier_sync(id::Integer=0) =
+    ccall("llvm.nvvm.barrier.sync", llvmcall, Cvoid, (Int32,), id)
+
+
+## memory barriers (membar)
+
+export threadfence, threadfence_block, threadfence_system
 
 """
     threadfence_block()

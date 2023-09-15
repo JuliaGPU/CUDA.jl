@@ -1047,16 +1047,46 @@ end
 if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
 
 @testset "cooperative groups" begin
+
+@testset "thread blocks" begin
+    # simple reverse kernel, but using cooperative groups instead of indexing intrinsics
+    T = Int32
+    n = 256
+
+    function kernel(d::CuDeviceArray{T}, n) where {T}
+        block = CG.this_thread_block()
+
+        t = CG.thread_rank(block)
+        tr = n-t+1
+
+        s = @inbounds CuDynamicSharedArray(T, n)
+        @inbounds s[t] = d[t]
+        CG.sync(block)
+        @inbounds d[t] = s[tr]
+
+        return
+    end
+
+    a = rand(T, n)
+    d_a = CuArray(a)
+
+    @cuda threads=n shmem=n*sizeof(T) kernel(d_a, n)
+    @test reverse(a) == Array(d_a)
+end
+
+@testset "grid groups" begin
     function kernel_vadd(a, b, c)
-        i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
-        grid_handle = this_grid()
+        grid = CG.this_grid()
+        i = CG.thread_rank(grid)
         c[i] = a[i] + b[i]
-        sync_grid(grid_handle)
+        CG.sync(grid)
         c[i] = c[1]
         return nothing
     end
 
-    # cooperative kernels are additionally limited in the number of blocks that can be launched
+    # cooperative kernels are limited in the number of blocks that can be launched
+    # (the occupancy API could be used to calculate how many blocks can fit per SM,
+    #  but that doesn't matter for the tests, so we assume a single block per SM.)
     maxBlocks = attribute(device(), CUDA.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
     kernel = cufunction(kernel_vadd, NTuple{3, CuDeviceArray{Float32,2,AS.Global}})
     maxThreads = CUDA.maxthreads(kernel)
@@ -1072,6 +1102,8 @@ if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_C
 
     c = Array(d_c)
     @test all(c[1] .== c)
+end
+
 end
 
 end
