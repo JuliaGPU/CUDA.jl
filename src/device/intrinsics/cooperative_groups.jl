@@ -140,7 +140,7 @@ is_valid(gg::grid_group) = gg.details != C_NULL
 
 function thread_rank(gg::grid_group)
     tg = this_thread_block()
-    (block_rank(gg) - 1i32) * num_threads(tg) + thread_rank(tg)
+    (block_rank(gg) - 1) * num_threads(tg) + thread_rank(tg)
 end
 
 """
