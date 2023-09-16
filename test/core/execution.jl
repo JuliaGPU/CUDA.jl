@@ -1105,7 +1105,45 @@ end
 end
 
 @testset "coalesced groups" begin
-    # warp-aggregated atomic increment
+@testset "shuffle idx" begin
+    function reverse_kernel(d, lower, upper)
+        cta = CG.this_thread_block()
+        I = CG.thread_rank(cta)
+        if lower <= threadIdx().x <= upper
+            warp = CG.coalesced_threads()
+            i = CG.thread_rank(warp)
+            j = CG.num_threads(warp) - i + 1
+
+            d[I] = CG.shfl(warp, d[I], j)
+        end
+
+        return
+    end
+
+    warpsize = CUDA.warpsize(device())
+
+    @testset for T in [UInt8, UInt16, UInt32, UInt64, UInt128,
+                       Int8, Int16, Int32, Int64, Int128,
+                       Float16, Float32, Float64,
+                       ComplexF32, ComplexF64, Bool]
+        a = rand(T, warpsize)
+
+        # reverse the entire array
+        d_a = CuArray(a)
+        @cuda threads=warpsize reverse_kernel(d_a, 1, warpsize)
+        @test Array(d_a) == reverse(a)
+
+        # reverse only a part
+        lower, upper = 20, 30
+        d_a = CuArray(a)
+        @cuda threads=warpsize reverse_kernel(d_a, lower, upper)
+        @test Array(d_a)[1:lower-1] == a[1:lower-1]
+        @test Array(d_a)[lower:upper] == reverse(a[lower:upper])
+        @test Array(d_a)[upper+1:end] == a[upper+1:end]
+    end
+end
+
+@testset "warp-aggregated atomic increment" begin
     # from https://developer.nvidia.com/blog/cooperative-groups/
     @inline function atomic_agg_inc!(ptr)
         g = CG.coalesced_threads()
@@ -1130,6 +1168,7 @@ end
     x = CuArray(Int32[0])
     @cuda threads=10 kernel(x)
     @test Array(x)[] == 5
+end
 end
 
 end
