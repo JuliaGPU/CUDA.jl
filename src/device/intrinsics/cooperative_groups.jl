@@ -182,7 +182,7 @@ block_index(gg::grid_group) = blockIdx()
 
 ## coalesced group
 
-export coalesced_group, meta_group_rank, meta_group_size
+export coalesced_group, coalesced_threads, meta_group_rank, meta_group_size
 
 struct coalesced_group <: thread_group
     mask::UInt32
@@ -193,7 +193,7 @@ struct coalesced_group <: thread_group
     coalesced_group(mask::UInt32) = new(mask, CUDA.popc(mask), 0, 1)
 end
 
-coalesced_group() = coalesced_group(active_mask())
+coalesced_threads() = coalesced_group(active_mask())
 
 num_threads(cg::coalesced_group) = cg.size
 
