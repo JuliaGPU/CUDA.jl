@@ -28,8 +28,8 @@ for (name, mode, mask, offset) in (("_up",   :up,   UInt32(0x00), src->src),
         @eval begin
             @inline $fname(mask, val::$T, src, width=$ws) =
                 ccall($intrinsic, llvmcall, $T,
-                    (UInt32, $T, UInt32, UInt32),
-                    mask, val, $(offset(:src)), pack(width, $mask))
+                      (UInt32, $T, UInt32, UInt32),
+                      mask, val, $(offset(:src)), pack(width, $mask))
         end
     end
 end

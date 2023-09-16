@@ -1104,6 +1104,34 @@ end
     @test all(c[1] .== c)
 end
 
+@testset "coalesced groups" begin
+    # warp-aggregated atomic increment
+    # from https://developer.nvidia.com/blog/cooperative-groups/
+    @inline function atomic_agg_inc!(ptr)
+        g = CG.coalesced_threads()
+        prev = Int32(0)
+
+        # elect the first active thread to perform atomic add
+        if CG.thread_rank(g) == 1
+            prev = CUDA.atomic_add!(ptr, Int32(CG.num_threads(g)))
+        end
+
+        # broadcast previous value within the warp
+        # and add each active thread’s rank to it
+        CG.thread_rank(g) - 1i32 + CG.shfl(g, prev, 1i32)
+    end
+    function kernel(arr)
+        if threadIdx().x % 2 == 0
+            atomic_agg_inc!(pointer(arr))
+        end
+        return
+    end
+
+    x = CuArray(Int32[0])
+    @cuda threads=10 kernel(x)
+    @test Array(x)[] == 5
+end
+
 end
 
 end

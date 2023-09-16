@@ -167,6 +167,15 @@ end
     assume(within(UInt64(0), UInt64(64)),
            ccall("extern __nv_ffsll", llvmcall, Int32, (UInt64,), x))
 
+@device_function function fns(mask::Union{Int32,UInt32}, base::Integer, offset::Integer=0)
+    # Reinterpret the input mask instead of letting `ccall` convert them with a range check
+    mask %= UInt32
+
+    pos = ccall("llvm.nvvm.fns", llvmcall, Int32,
+                (UInt32, Int32, Int32), mask, base, offset)
+    assume(within(UInt32(0), UInt32(32)), pos)
+end
+
 @device_function popc(x::Union{Int32, UInt32}) =
     assume(within(UInt32(0), UInt32(32)),
            ccall("extern __nv_popc", llvmcall, Int32, (UInt32,), x))
@@ -222,7 +231,7 @@ end
 
 @device_override Base.sqrt(x::Float64) = ccall("extern __nv_sqrt", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.sqrt(x::Float32) = ccall("extern __nv_sqrtf", llvmcall, Cfloat, (Cfloat,), x)
-@device_override FastMath.sqrt_fast(x::Union{Float32, Float64}) = sqrt(x) 
+@device_override FastMath.sqrt_fast(x::Union{Float32, Float64}) = sqrt(x)
 
 @device_function rsqrt(x::Float64) = ccall("extern __nv_rsqrt", llvmcall, Cdouble, (Cdouble,), x)
 @device_function rsqrt(x::Float32) = ccall("extern __nv_rsqrtf", llvmcall, Cfloat, (Cfloat,), x)

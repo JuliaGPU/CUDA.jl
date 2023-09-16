@@ -369,6 +369,81 @@ end
     barrier_sync(0)
 end
 
+
+#
+# warp functions
+#
+
+## coalesced group
+
+function shfl(cg::coalesced_group, elem, src_rank)
+    lane = if src_rank == 0
+        CUDA.ffs(cg.mask)
+    elseif num_threads(cg) == 32
+        src_rank
+    else
+        CUDA.fns(cg.mask, 0, src_rank) + 1i32
+    end
+
+    shfl_sync(cg.mask, elem, lane)
+end
+
+function shfl_down(cg::coalesced_group, elem, delta)
+    if num_threads(cg) == 32
+        return shfl_down_sync(FULL_MASK, elem, delta)
+    end
+
+    lane = CUDA.fns(cg.mask, laneid() - 1i32, delta + 1i32) + 1i32
+    if lane > 32
+        lane = laneid()
+    end
+
+    shfl(cg.mask, elem, lane)
+end
+
+function shfl_up(cg::coalesced_group, elem, delta)
+    if num_threads(cg) == 32
+        return shfl_up_sync(FULL_MASK, elem, delta)
+    end
+
+    lane = CUDA.fns(cg.mask, laneid() - 1i32, -(delta + 1i32)) + 1i32
+    if lane > 32
+        lane = laneid()
+    end
+
+    shfl(cg.mask, elem, lane)
+end
+
+vote_any(cg::coalesced_group, pred) = vote_ballot_sync(cg.mask, pred) != 0
+
+vote_all(cg::coalesced_group, pred) = vote_all_sync(cg.mask, pred) == cg.mask
+
+function pack_lanes(cg, laneMask)
+    member_pack = UInt32(0)
+    member_rank = UInt32(0)
+
+    for bit_idx in 0:31
+        lane_bit = cg.mask & (UInt32(1) << bit_idx)
+        if lane_bit != 0
+            if laneMask & lane_bit != 0
+                member_pack |= UInt32(1) << member_rank
+            end
+            member_rank += 1
+        end
+    end
+
+    return member_pack
+end
+
+function vote_ballot(cg::coalesced_group, pred)
+    if num_threads(cg) == 32
+        return vote_ballot_sync(FULL_MASK, pred)
+    end
+
+    lane_ballot = vote_ballot_sync(cg.mask, predicate)
+    pack_lanes(cg, lane_ballot)
+end
+
 end
 
 export CG
