@@ -180,6 +180,40 @@ dim_blocks(gg::grid_group) = gridDim()
 block_index(gg::grid_group) = blockIdx()
 
 
+## coalesced group
+
+export coalesced_group, meta_group_rank, meta_group_size
+
+struct coalesced_group <: thread_group
+    mask::UInt32
+    size::UInt32
+    metaGroupSize::UInt16
+    metaGroupRank::UInt16
+
+    coalesced_group(mask::UInt32) = new(mask, CUDA.popc(mask), 0, 1)
+end
+
+coalesced_group() = coalesced_group(active_mask())
+
+num_threads(cg::coalesced_group) = cg.size
+
+thread_rank(cg::coalesced_group) = CUDA.popc(cg.mask & CUDA.lanemask(<)) + 1i32
+
+"""
+    meta_group_rank(cg::coalesced_group)
+
+Rank of this group in the upper level of the hierarchy.
+"""
+meta_group_rank(cg::coalesced_group) = cg.metaGroupRank
+
+"""
+    meta_group_size(cg::coalesced_group)
+
+Total number of partitions created out of all CTAs when the group was created.
+"""
+meta_group_size(cg::coalesced_group) = cg.metaGroupSize
+
+
 #
 # synchronization
 #
@@ -206,6 +240,11 @@ barrier_arrive
 Wait on the barrier, takes arrival token returned from `barrier_arrive`.
 """
 barrier_wait
+
+
+## coalesced group
+
+sync(cg::coalesced_group) = sync_warp(cg.mask)
 
 
 ## thread block
