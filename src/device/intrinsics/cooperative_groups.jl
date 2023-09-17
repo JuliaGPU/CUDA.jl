@@ -1,5 +1,26 @@
 # C. Cooperative Groups
 
+"""
+CUDA.jl's cooperative groups implementation.
+
+Cooperative groups in CUDA offer a structured approach to synchronize and communicate among
+threads. They allow developers to define specific groups of threads, providing a means to
+fine-tune inter-thread communication granularity. By offering a more nuanced alternative to
+traditional CUDA synchronization methods, cooperative groups enable a more controlled and
+efficient parallel decomposition in kernel design.
+
+The following functionality is available in CUDA.jl:
+
+- implicit groups: thread blocks, grid groups, and coalesced groups.
+- synchronization: `sync`, `barrier_arrive`, `barrier_wait`
+- warp collectives for coalesced groups: shuffle and voting
+
+Noteworthy missing functionality:
+
+- implicit groups: clusters, and multi-grid groups (which are deprecated)
+- explicit groups: tiling and partitioning
+- data movement: `memcpy_async`
+"""
 module CG
 
 using ..CUDA
@@ -65,14 +86,14 @@ export thread_rank, num_threads
 """
     thread_rank(group)
 
-Rank of the calling thread within [0, num_threads)
+Returns the linearized rank of the calling thread along the interval `[1, num_threads()]`.
 """
 thread_rank
 
 """
     num_threads(group)
 
-Total number of threads in the group.
+Returns the total number of threads in the group.
 """
 num_threads
 
@@ -81,9 +102,23 @@ num_threads
 
 export this_thread_block, group_index, thread_index, dim_threads
 
+"""
+    thread_block <: thread_group
+
+Every GPU kernel is executed by a grid of thread blocks, and threads within each block are
+guaranteed to reside on the same streaming multiprocessor. A `thread_block` represents a
+thread block whose dimensions are not known until runtime.
+
+Constructed via [`this_thread_block`](@ref)
+"""
 struct thread_block <: thread_group
 end
 
+"""
+    this_thread_block()
+
+Constructs a `thread_block` group
+"""
 this_thread_block() = thread_block()
 
 thread_rank(tb::thread_block) = vec3_to_linear(Int32, threadIdx(), blockDim())
@@ -117,10 +152,24 @@ num_threads(tb::thread_block) = blockDim().x * blockDim().y * blockDim().z
 export grid_group, this_grid, is_valid,
        block_rank, num_blocks, dim_blocks, block_index
 
+"""
+    grid_group <: thread_group
+
+Threads within this this group are guaranteed to be co-resident on the same device within
+the same launched kernel. To use this group, the kernel must have been launched with `@cuda
+cooperative=true`, and the device must support it (queryable device attribute).
+
+Constructed via [`this_grid`](@ref).
+"""
 struct grid_group <: thread_group
     details::grid_workspace
 end
 
+"""
+    this_grid()
+
+Constructs a `grid_group`.
+"""
 @inline function this_grid()
     # load a workspace from the driver
     gg = grid_group(get_grid_workspace())
@@ -184,6 +233,14 @@ block_index(gg::grid_group) = blockIdx()
 
 export coalesced_group, coalesced_threads, meta_group_rank, meta_group_size
 
+"""
+    coalesced_group <: thread_group
+
+A group representing the current set of converged threads in a warp. The size of the group
+is not guaranteed and it may return a group of only one thread (itself).
+
+This group exposes warp-synchronous builtins. Constructed via [`coalesced_threads`](@ref).
+"""
 struct coalesced_group <: thread_group
     mask::UInt32
     size::UInt32
@@ -193,6 +250,11 @@ struct coalesced_group <: thread_group
     coalesced_group(mask::UInt32) = new(mask, CUDA.popc(mask), 0, 1)
 end
 
+"""
+    coalesced_threads()
+
+Constructs a `coalesced_group`.
+"""
 coalesced_threads() = coalesced_group(active_mask())
 
 num_threads(cg::coalesced_group) = cg.size
@@ -223,21 +285,22 @@ export sync, barrier_arrive, barrier_wait
 """
     sync(group)
 
-Synchronize the threads named in the group, equivalent to `barrier_wait(barrier_arrive(g))`
+Synchronize the threads named in the group, equivalent to calling [`barrier_wait`](@ref) and
+[`barrier_arrive`](@ref) in sequence.
 """
 sync
 
 """
     barrier_arrive(group)
 
-Arrive on the barrier, returns a token that needs to be passed into `barrier_wait`
+Arrive on the barrier, returns a token that needs to be passed into [`barrier_wait`](@ref).
 """
 barrier_arrive
 
 """
     barrier_wait(group, token)
 
-Wait on the barrier, takes arrival token returned from `barrier_arrive`.
+Wait on the barrier, takes arrival token returned from [`barrier_arrive`](@ref).
 """
 barrier_wait
 
