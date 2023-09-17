@@ -398,7 +398,7 @@ function shfl_down(cg::coalesced_group, elem, delta)
         lane = laneid()
     end
 
-    shfl(cg.mask, elem, lane)
+    shfl_sync(cg.mask, elem, lane)
 end
 
 function shfl_up(cg::coalesced_group, elem, delta)
@@ -411,7 +411,7 @@ function shfl_up(cg::coalesced_group, elem, delta)
         lane = laneid()
     end
 
-    shfl(cg.mask, elem, lane)
+    shfl_sync(cg.mask, elem, lane)
 end
 
 vote_any(cg::coalesced_group, pred) = vote_ballot_sync(cg.mask, pred) != 0
