@@ -136,45 +136,6 @@ macro grab_output(ex)
     end
 end
 
-# variant on @test_throws that checks the CuError error code
-macro test_throws_cuerror(code, ex)
-    # generate a test only returning CuError if it is the correct one
-    test = quote
-        try
-            $(esc(ex))
-        catch err
-            isa(err, CuError) || rethrow()
-            err.code == $code || error("Wrong CuError: ", err.code, " instead of ", $code)
-            rethrow()
-        end
-    end
-
-    # now re-use @test_throws (which ties into @testset, etc)
-    quote
-        @test_throws CuError $test
-    end
-end
-
-# @test_throw, with additional testing for the exception message
-macro test_throws_message(f, typ, ex...)
-    @gensym msg
-    quote
-        $msg = ""
-        @test_throws $(esc(typ)) try
-            $(esc(ex...))
-        catch err
-            $msg = sprint(showerror, err)
-            rethrow()
-        end
-
-        if !$(esc(f))($msg)
-            # @test should return its result, but doesn't
-            @error "Failed to validate error message\n" * $msg
-        end
-        @test $(esc(f))($msg)
-    end
-end
-
 # Run some code on-device
 macro on_device(ex...)
     code = ex[end]
@@ -217,26 +178,6 @@ function julia_exec(args::Cmd, env...)
     close(err.in)
     wait(proc)
     proc, read(out, String), read(err, String)
-end
-
-# some tests are mysteriously broken with certain hardware/software.
-# use a horrible macro to mark those tests as "potentially broken"
-@eval Test begin
-    export @test_maybe_broken
-
-    macro test_maybe_broken(ex, kws...)
-        test_expr!("@test_maybe_broken", ex, kws...)
-        orig_ex = Expr(:inert, ex)
-        result = get_test_result(ex, __source__)
-        quote
-            x = $result
-            if x.value
-                do_test(x, $orig_ex)
-            else
-                do_broken_test(x, $orig_ex)
-            end
-        end
-    end
 end
 
 nothing # File is loaded via a remotecall to "include". Ensure it returns "nothing".
