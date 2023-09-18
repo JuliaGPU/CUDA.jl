@@ -578,8 +578,6 @@ For this operation to be performed asynchronously, the following conditions must
   but you can also specify it explicitly using [`align`](@ref).
 - the source should be global memory, and the destination should be shared memory.
 - the device should have compute capability 8.0 or higher.
-
-
 """
 memcpy_async
 
