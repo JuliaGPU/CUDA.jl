@@ -554,7 +554,7 @@ Make all threads in this group wait for all previously submitted [`memcpy_async`
 operations to complete.
 """
 function wait(group::memcpy_group)
-    pipeline_wait_prior(0)
+    wait_prior(group, 0)
     sync(group)
 end
 
@@ -565,7 +565,7 @@ Make all threads in this group wait for all but `stage` previously submitted
 [`memcpy_async`](@ref) operations to complete.
 """
 function wait_prior(group::memcpy_group, stage::Integer)
-    if compute_capability() >= v"8.0"
+    if compute_capability() >= sv"8.0"
         pipeline_wait_prior(stage)
     end
     sync(group)
