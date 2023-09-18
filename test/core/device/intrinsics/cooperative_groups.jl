@@ -186,11 +186,11 @@ end
 
 @testset "memcpy_async" begin
     function kernel(input::AbstractArray{T}, output::AbstractArray{T},
-                    elements_per_copy) where {T}
+                    elements_per_copy, group_ctor) where {T}
         # simple kernel that copies global memory, staging through a shared memory buffer,
         # using memcpy_async to perform the copies. the kernel only uses a single block,
         # as the memcpy_async computations only work on (tiled) thread blocks.
-        tb = CG.this_thread_block()
+        tb = group_ctor()
 
         local_smem = CuDynamicSharedArray(T, elements_per_copy)
         bytes_per_copy = sizeof(local_smem)
@@ -221,12 +221,13 @@ end
                        Float16, Float32, Float64,
                        ComplexF32, ComplexF64, Bool],
                  threads in [1, 16, 32, 128],
-                 elements_per_copy in [128, 256, 512]
+                 elements_per_copy in [128, 256, 512],
+                 group_ctor in [CG.coalesced_threads, CG.this_thread_block]
         data = rand(T, 4096)
         input = CuArray(data)
         output = similar(input)
         shmem = elements_per_copy * sizeof(T)
-        @cuda threads=threads shmem=shmem kernel(input, output, elements_per_copy)
+        @cuda threads=threads shmem=shmem kernel(input, output, elements_per_copy, group_ctor)
         @test Array(output) == data
     end
 end
@@ -234,7 +235,5 @@ end
 end
 
 ###########################################################################################
-
-end
 
 end

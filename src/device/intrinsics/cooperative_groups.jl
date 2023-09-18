@@ -550,6 +550,7 @@ Make all threads in this group wait for all previously submitted [`memcpy_async`
 operations to complete.
 """
 function wait(group::memcpy_group)
+    pipeline_wait_prior(0)
     sync(group)
 end
 
@@ -571,7 +572,8 @@ end
 
 Perform a group-wide collective memory copy from `src` to `dst` of `bytes` bytes. This
 operation may be performed asynchronously, so you should [`wait`](@ref) or
-[`wait_prior`](@ref) before using the data.
+[`wait_prior`](@ref) before using the data. It is only supported by thread blocks and
+coalesced groups.
 
 For this operation to be performed asynchronously, the following conditions must be met:
 - the memory should be aligned to 4, 8 or 16 bytes. this will be deduced from the datatype,
