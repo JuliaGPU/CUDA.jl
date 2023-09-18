@@ -523,17 +523,21 @@ end
 
 ## alignment API
 
-export Aligned, align
+export Aligned
 
+"""
+    Aligned{alignment}(size)
+
+Construct an aligned size object, providing alignment information to APIs that require it.
+"""
 struct Aligned{N, T}
     data::T
 end
 Aligned{N}(data::T) where {N, T} = Aligned{N, T}(data)
-alignment(::Type{Aligned{N}}) where {N} = N
-Base.getindex(x::Aligned) = x.data
 
-align(data::T, alignment) where {T} = Aligned{alignment, T}(data)
-align(already_aligned::Aligned, alignment) = already_aligned
+alignment(::Type{Aligned{N}}) where {N} = N
+
+Base.getindex(x::Aligned) = x.data
 
 
 ## memcpy_async API
@@ -586,7 +590,8 @@ memcpy_async
 @inline function memcpy_async(group::memcpy_group, dst::LLVMPtr{T},
                               src::LLVMPtr{U}, bytes) where {T,U}
     alignment = min(Base.datatype_alignment(T), Base.datatype_alignment(U))
-    _memcpy_async(group, astype(Nothing, dst), astype(Nothing, src), align(bytes, alignment))
+    _memcpy_async(group, astype(Nothing, dst), astype(Nothing, src),
+                  Aligned{alignment}(bytes))
 end
 
 @inline function memcpy_async(group::memcpy_group, dst::LLVMPtr,
