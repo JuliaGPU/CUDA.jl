@@ -348,7 +348,7 @@ is_cta_master() = threadIdx().x == 1 && threadIdx().y == 1 && threadIdx().z == 1
             nb = 0x80000000 - (expected - UInt32(1))
         end
 
-        if compute_capability() < sv"7"
+        if compute_capability() < sv"7.0"
             # fence; barrier update; volatile polling; fence
             threadfence()
 
@@ -560,7 +560,7 @@ Make all threads in this group wait for all but `stage` previously submitted
 [`memcpy_async`](@ref) operations to complete.
 """
 function wait_prior(group::memcpy_group, stage::Integer)
-    if compute_capability() >= v"7.0"
+    if compute_capability() >= v"8.0"
         pipeline_wait_prior(stage)
     end
     sync(group)
@@ -620,7 +620,7 @@ end
                                bytes::Aligned{align_hint}) where {align_hint}
     align = min(16, align_hint)
     ispow2(align) || throw(ArgumentError("Alignment must be a power of 2"))
-    if compute_capability() >= sv"7.0"
+    if compute_capability() >= sv"8.0"
         _memcpy_async_dispatch(group, Val{align}(), dst, src, bytes[])
         pipeline_commit()
     else
@@ -716,7 +716,7 @@ end
         return
     end
 
-    if compute_capability() < sv"80"
+    if compute_capability() < sv"8.0"
         return inline_copy(group, dst, src, count)
     end
 

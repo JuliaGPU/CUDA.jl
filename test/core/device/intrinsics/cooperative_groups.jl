@@ -1,5 +1,3 @@
-if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
-
 @testset "cooperative groups" begin
 
 ###########################################################################################
@@ -32,6 +30,7 @@ end
 
 ###########################################################################################
 
+if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
 @testset "grid groups" begin
     function kernel_vadd(a, b, c)
         grid = CG.this_grid()
@@ -60,6 +59,7 @@ end
 
     c = Array(d_c)
     @test all(c[1] .== c)
+end
 end
 
 ###########################################################################################
@@ -205,12 +205,12 @@ end
             checkbounds(local_smem, 1:elements_per_copy)
 
             # this copy can sometimes be accelerated
-            memcpy_async(tb, pointer(local_smem), pointer(input, i), bytes_per_copy)
-            wait(tb)
+            CG.memcpy_async(tb, pointer(local_smem), pointer(input, i), bytes_per_copy)
+            CG.wait(tb)
 
             # this copy is always a simple element-wise operation
-            memcpy_async(tb, pointer(output, i), pointer(local_smem), bytes_per_copy)
-            wait(tb)
+            CG.memcpy_async(tb, pointer(output, i), pointer(local_smem), bytes_per_copy)
+            CG.wait(tb)
 
             i += elements_per_copy
         end
