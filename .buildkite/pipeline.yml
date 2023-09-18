@@ -147,7 +147,12 @@ steps:
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
               Pkg.instantiate()
 
-              Pkg.develop("NNlibCUDA")
+              try
+                Pkg.develop("NNlibCUDA")
+              catch err
+                @error "Could not install NNlibCUDA" exception=(err,catch_backtrace())
+                exit(3)
+              end
               Pkg.develop(path=joinpath(pwd(), "lib", "cudnn"))
 
               write("LocalPreferences.toml", "[CUDA_Runtime_jll]\nversion = \"12.0\"")
@@ -162,6 +167,8 @@ steps:
             build.message !~ /\[skip downstream\]/ &&
             !build.pull_request.draft
         timeout_in_minutes: 60
+        soft_fail:
+          - exit_status: 3
 
   - group: ":eyes: Special"
     depends_on: "cuda"
