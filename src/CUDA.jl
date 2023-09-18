@@ -18,6 +18,8 @@ using BFloat16s: BFloat16
 
 using ExprTools: splitdef, combinedef
 
+using LLVMLoopInfo
+
 using CUDA_Driver_jll
 
 import CUDA_Runtime_jll

@@ -180,6 +180,61 @@ end
 end
 end
 
+###########################################################################################
+
+@testset "data transfer" begin
+
+@testset "memcpy_async" begin
+    function kernel(input::AbstractArray{T}, output::AbstractArray{T},
+                    elements_per_copy) where {T}
+        # simple kernel that copies global memory, staging through a shared memory buffer,
+        # using memcpy_async to perform the copies. the kernel only uses a single block,
+        # as the memcpy_async computations only work on (tiled) thread blocks.
+        tb = CG.this_thread_block()
+
+        local_smem = CuDynamicSharedArray(T, elements_per_copy)
+        bytes_per_copy = sizeof(local_smem)
+
+        i = 1
+        while i <= length(input)
+            # memcpy_async is a collective operation, so we call it identically on all
+            # threads and the implementation takes care of the rest
+
+            checkbounds(input, i:i+elements_per_copy-1)
+            checkbounds(output, i:i+elements_per_copy-1)
+            checkbounds(local_smem, 1:elements_per_copy)
+
+            # this copy can sometimes be accelerated
+            memcpy_async(tb, pointer(local_smem), pointer(input, i), bytes_per_copy)
+            wait(tb)
+
+            # this copy is always a simple element-wise operation
+            memcpy_async(tb, pointer(output, i), pointer(local_smem), bytes_per_copy)
+            wait(tb)
+
+            i += elements_per_copy
+        end
+    end
+
+    @testset for T in [UInt8, UInt16, UInt32, UInt64, UInt128,
+                       Int8, Int16, Int32, Int64, Int128,
+                       Float16, Float32, Float64,
+                       ComplexF32, ComplexF64, Bool],
+                 threads in [1, 16, 32, 128],
+                 elements_per_copy in [128, 256, 512]
+        data = rand(T, 4096)
+        input = CuArray(data)
+        output = similar(input)
+        shmem = elements_per_copy * sizeof(T)
+        @cuda threads=threads shmem=shmem kernel(input, output, elements_per_copy)
+        @test Array(output) == data
+    end
+end
+
+end
+
+###########################################################################################
+
 end
 
 end

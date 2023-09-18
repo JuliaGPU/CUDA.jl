@@ -14,18 +14,23 @@ The following functionality is available in CUDA.jl:
 - implicit groups: thread blocks, grid groups, and coalesced groups.
 - synchronization: `sync`, `barrier_arrive`, `barrier_wait`
 - warp collectives for coalesced groups: shuffle and voting
+- data transfer: `memcpy_async`, `wait` and `wait_prior`
 
 Noteworthy missing functionality:
 
 - implicit groups: clusters, and multi-grid groups (which are deprecated)
 - explicit groups: tiling and partitioning
-- data movement: `memcpy_async`
 """
 module CG
 
 using ..CUDA
 using ..CUDA: i32
+
 using ..LLVM, ..LLVM.Interop
+
+using ..LLVMLoopInfo
+
+using Core: LLVMPtr
 
 const cg_debug = false
 if cg_debug
@@ -73,6 +78,7 @@ function get_grid_workspace()
     gridWsAbiAddress = UInt64(hi) << 32 | UInt64(lo)
     return grid_workspace(gridWsAbiAddress)
 end
+
 
 
 #
@@ -276,6 +282,7 @@ Total number of partitions created out of all CTAs when the group was created.
 meta_group_size(cg::coalesced_group) = cg.metaGroupSize
 
 
+
 #
 # synchronization
 #
@@ -433,6 +440,7 @@ end
 end
 
 
+
 #
 # warp functions
 #
@@ -505,6 +513,270 @@ function vote_ballot(cg::coalesced_group, pred)
 
     lane_ballot = vote_ballot_sync(cg.mask, predicate)
     pack_lanes(cg, lane_ballot)
+end
+
+
+
+#
+# data transfer
+#
+
+## alignment API
+
+export Aligned, align
+
+struct Aligned{N, T}
+    data::T
+end
+Aligned{N}(data::T) where {N, T} = Aligned{N, T}(data)
+alignment(::Type{Aligned{N}}) where {N} = N
+Base.getindex(x::Aligned) = x.data
+
+align(data::T, alignment) where {T} = Aligned{alignment, T}(data)
+align(already_aligned::Aligned, alignment) = already_aligned
+
+
+## memcpy_async API
+
+export memcpy_async, wait, wait_prior
+
+# TODO: thread_block_tile support (with enable_tile_optimization)
+const memcpy_group = Union{thread_block, coalesced_group}
+
+"""
+    wait(group)
+
+Make all threads in this group wait for all previously submitted [`memcpy_async`](@ref)
+operations to complete.
+"""
+function wait(group::memcpy_group)
+    sync(group)
+end
+
+"""
+    wait_prior(group, stage)
+
+Make all threads in this group wait for all but `stage` previously submitted
+[`memcpy_async`](@ref) operations to complete.
+"""
+function wait_prior(group::memcpy_group, stage::Integer)
+    if compute_capability() >= v"7.0"
+        pipeline_wait_prior(stage)
+    end
+    sync(group)
+end
+
+"""
+    memcpy_async(group, dst, src, bytes)
+
+Perform a group-wide collective memory copy from `src` to `dst` of `bytes` bytes. This
+operation may be performed asynchronously, so you should [`wait`](@ref) or
+[`wait_prior`](@ref) before using the data.
+
+For this operation to be performed asynchronously, the following conditions must be met:
+- the memory should be aligned to 4, 8 or 16 bytes. this will be deduced from the datatype,
+  but you can also specify it explicitly using [`align`](@ref).
+- the source should be global memory, and the destination should be shared memory.
+- the device should have compute capability 8.0 or higher.
+
+
+"""
+memcpy_async
+
+@inline function memcpy_async(group::memcpy_group, dst::LLVMPtr{T},
+                              src::LLVMPtr{U}, bytes) where {T,U}
+    alignment = min(Base.datatype_alignment(T), Base.datatype_alignment(U))
+    _memcpy_async(group, astype(Nothing, dst), astype(Nothing, src), align(bytes, alignment))
+end
+
+@inline function memcpy_async(group::memcpy_group, dst::LLVMPtr,
+                              src::LLVMPtr, bytes::Aligned)
+    _memcpy_async(group, astype(Nothing, dst), astype(Nothing, src), bytes)
+end
+
+
+## pipeline operations
+
+pipeline_commit() = ccall("llvm.nvvm.cp.async.commit.group", llvmcall, Cvoid, ())
+
+pipeline_wait_prior(n) =
+    ccall("llvm.nvvm.cp.async.wait.group", llvmcall, Cvoid, (Int32,), n)
+
+@generated function pipeline_memcpy_async(dst::LLVMPtr{T}, src::LLVMPtr{T}) where T
+    size_and_align = sizeof(T)
+    size_and_align in (4, 8, 16) || :(return error($"Unsupported size $size_and_align"))
+    intr = "llvm.nvvm.cp.async.ca.shared.global.$(sizeof(T))"
+    quote
+        # XXX: run-time assert that dst and src are aligned
+        ccall($intr, llvmcall, Cvoid,
+              (LLVMPtr{T,AS.Shared}, LLVMPtr{T,AS.Global}), dst, src)
+    end
+end
+
+
+## memcpy implementation
+
+@inline function _memcpy_async(group, dst::LLVMPtr, src::LLVMPtr,
+                               bytes::Aligned{align_hint}) where {align_hint}
+    align = min(16, align_hint)
+    ispow2(align) || throw(ArgumentError("Alignment must be a power of 2"))
+    if compute_capability() >= sv"7.0"
+        _memcpy_async_dispatch(group, Val{align}(), dst, src, bytes[])
+        pipeline_commit()
+    else
+        inline_copy(group, astype(Int8, dst), astype(Int8, src), bytes[])
+    end
+end
+
+# specializations for specific alignments, dispatching straight to aligned LDGSTS calls
+@inline function _memcpy_async_dispatch(group, alignment::Val{4}, dst, src, bytes)
+    T = NTuple{1, UInt32}
+    src = astype(T, src)
+    dst = astype(T, dst)
+    accelerated_async_copy(group, dst, src, bytes ÷ sizeof(T))
+end
+@inline function _memcpy_async_dispatch(group, alignment::Val{8}, dst, src, bytes)
+    T = NTuple{2, UInt32}
+    src = astype(T, src)
+    dst = astype(T, dst)
+    accelerated_async_copy(group, dst, src, bytes ÷ sizeof(T))
+end
+@inline function _memcpy_async_dispatch(group, alignment::Val{16}, dst, src, bytes)
+    T = NTuple{4, UInt32}
+    src = astype(T, src)
+    dst = astype(T, dst)
+    accelerated_async_copy(group, dst, src, bytes ÷ sizeof(T))
+end
+
+# fallback that determines alignment at run time
+@inline function _memcpy_async_dispatch(group, ::Val{align_hint}, dst, src, bytes) where {align_hint}
+    alignment = find_best_alignment(dst, src, Val(align_hint), Val(16))
+
+    # avoid copying the extra bytes
+    alignment = bytes < alignment ? align_hint : alignment
+
+    # XXX: this dispatch is weird (but it's what the STL implementation does)
+    #      - we never call _memcpy_async_with_alignment because of the specializations above
+    #      - the alignment is only based on the inputs, while _memcpy_async_with_alignment
+    #        is intended to allow copying using a better alignment (by skipping bytes)
+
+    if align_hint == 16
+        _memcpy_async_with_alignment(group, dst, src, bytes, Val(16))
+    elseif align_hint == 8
+        _memcpy_async_with_alignment(group, dst, src, bytes, Val(8))
+    elseif align_hint == 4
+        _memcpy_async_with_alignment(group, dst, src, bytes, Val(4))
+    elseif align_hint == 2
+        inline_copy(group, astype(UInt16, dst), astype(UInt16, src), bytes >> 1)
+    else
+        inline_copy(group, astype(UInt8, dst), astype(UInt8, src), bytes)
+    end
+end
+
+# force use of a specific alignment, by doing unaligned copies before and after
+@inline function _memcpy_async_with_alignment(group, dst, src, bytes,
+                                              ::Val{alignment}) where {alignment}
+    src = astype(Int8, src)
+    dst = astype(Int8, dst)
+
+    T = NTuple{alignment ÷ sizeof(UInt32), UInt32}
+
+    base = reinterpret(UInt64, src) % UInt32
+    align_offset = ((~base) + 1i32) & (alignment - 1)
+
+    # copy unaligned bytes
+    inline_copy(group, dst, src, align_offset)
+    bytes -= align_offset
+    src += align_offset
+    dst += align_offset
+
+    # copy using the requested alignment
+    async_count = bytes ÷ sizeof(T)
+    accelerated_async_copy(group, astype(T, dst), astype(T, src), async_count)
+    async_bytes = async_count * sizeof(T)
+
+    # copy remaining unaligned bytes
+    bytes -= async_bytes
+    src += async_bytes
+    dst += async_bytes
+    inline_copy(group, dst, src, bytes)
+end
+
+@inline function accelerated_async_copy(group, dst, src, count)
+    if count == 0
+        return
+    end
+
+    inline_copy(group, dst, src, count)
+end
+
+@inline function accelerated_async_copy(group, dst::LLVMPtr{T,AS.Shared},
+                                        src::LLVMPtr{T,AS.Global}, count) where {T}
+    if count == 0
+        return
+    end
+
+    if compute_capability() < sv"80"
+        return inline_copy(group, dst, src, count)
+    end
+
+    stride = num_threads(group)
+    rank = thread_rank(group)
+
+    idx = rank
+    while idx <= count
+        pipeline_memcpy_async(dst + (idx - 1) * sizeof(T), src + (idx - 1) * sizeof(T))
+        idx += stride
+    end
+end
+
+# interleaved element by element copies from source to dest
+# TODO: use alignment information to perform vectorized copies
+@inline function inline_copy(group, dst, src, count)
+    rank = thread_rank(group)
+    stride = num_threads(group)
+
+    idx = rank
+    while idx <= count
+        val = unsafe_load(src, idx)
+        unsafe_store!(dst, val, idx)
+        idx += stride
+    end
+end
+
+
+## utilities
+
+astype(::Type{T}, ptr::LLVMPtr{<:Any, AS}) where {T, AS} = reinterpret(LLVMPtr{T, AS}, ptr)
+
+# determine best possible alignment given an input and initial conditions.
+@generated function compute_num_shifts(::Val{min_alignment},
+                                       ::Val{max_alignment}) where {min_alignment,
+                                                                    max_alignment}
+    # XXX: because of const-prop limitations with GPUCompiler.jl, force compile-time eval
+    :($(floor(Int, log2(max_alignment) - log2(min_alignment))))
+end
+@inline function find_best_alignment(dst, src, ::Val{min_alignment},
+                                     ::Val{max_alignment}) where {min_alignment,
+                                                                  max_alignment}
+    # calculate base addresses (we only care about the lower 32 bits)
+    base1 = reinterpret(UInt64, src) % UInt32
+    base2 = reinterpret(UInt64, dst) % UInt32
+
+    # find the bits that differ (but only those that matter for the alignment check)
+    diff = (base1 ⊻ base2) & (max_alignment - 1)
+
+    # choose the best alignment (in a way that we are likely to be able to unroll)
+    best = UInt32(max_alignment)
+    #num_shifts = floor(Int, log2(max_alignment) - log2(min_alignment))
+    num_shifts = compute_num_shifts(Val(min_alignment), Val(max_alignment))
+    @loopinfo unroll for shift in num_shifts:-1:1
+        alignment = UInt32(max_alignment) >> shift
+        if alignment & diff != 0
+            best = alignment
+        end
+    end
+    return best
 end
 
 end
