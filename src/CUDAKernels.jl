@@ -156,6 +156,10 @@ function mkcontext(kernel::Kernel{CUDABackend}, _ndrange, iterspace)
     CompilerMetadata{KernelAbstractions.ndrange(kernel), DynamicCheck}(_ndrange, iterspace)
 end
 
+@device_override function KernelAbstractions.isongpu()
+    return true
+end
+
 @device_override @inline function __index_Local_Linear(ctx)
     return CUDA.threadIdx().x
 end
