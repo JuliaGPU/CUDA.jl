@@ -24,10 +24,9 @@ Noteworthy missing functionality:
 module CG
 
 using ..CUDA
-using ..CUDA: i32
+using ..CUDA: i32, Aligned, alignment
 
-using ..LLVM, ..LLVM.Interop
-
+using ..LLVM.Interop
 using ..LLVMLoopInfo
 
 using Core: LLVMPtr
@@ -521,24 +520,6 @@ end
 # data transfer
 #
 
-## alignment API
-
-export Aligned
-
-"""
-    Aligned{alignment}(size)
-
-Construct an aligned size object, providing alignment information to APIs that require it.
-"""
-struct Aligned{N, T}
-    data::T
-end
-Aligned{N}(data::T) where {N, T} = Aligned{N, T}(data)
-
-alignment(::Type{Aligned{N}}) where {N} = N
-
-Base.getindex(x::Aligned) = x.data
-
 
 ## memcpy_async API
 
@@ -580,23 +561,21 @@ operation may be performed asynchronously, so you should [`wait`](@ref) or
 coalesced groups.
 
 For this operation to be performed asynchronously, the following conditions must be met:
-- the memory should be aligned to 4, 8 or 16 bytes. this will be deduced from the datatype,
-  but you can also specify it explicitly using [`align`](@ref).
+- the source and destination memory should be aligned to 4, 8 or 16 bytes. this will be
+  deduced from the datatype, but can also be specified explicitly using
+  [`CUDA.aligned`](@ref).
 - the source should be global memory, and the destination should be shared memory.
 - the device should have compute capability 8.0 or higher.
 """
 memcpy_async
 
-@inline function memcpy_async(group::memcpy_group, dst::LLVMPtr{T},
-                              src::LLVMPtr{U}, bytes) where {T,U}
-    alignment = min(Base.datatype_alignment(T), Base.datatype_alignment(U))
-    _memcpy_async(group, astype(Nothing, dst), astype(Nothing, src),
-                  Aligned{alignment}(bytes))
-end
+@inline memcpy_async(group, dst, src, bytes) =
+    memcpy_async(group, Aligned(dst), Aligned(src), bytes)
 
-@inline function memcpy_async(group::memcpy_group, dst::LLVMPtr,
-                              src::LLVMPtr, bytes::Aligned)
-    _memcpy_async(group, astype(Nothing, dst), astype(Nothing, src), bytes)
+@inline function memcpy_async(group::memcpy_group, dst::Aligned{<:LLVMPtr},
+                              src::Aligned{<:LLVMPtr}, bytes::Integer)
+    _memcpy_async(group, astype(Nothing, dst[]), astype(Nothing, src[]), bytes,
+                  Val(min(alignment(dst), alignment(src))))
 end
 
 
@@ -622,7 +601,7 @@ end
 ## memcpy implementation
 
 @inline function _memcpy_async(group, dst::LLVMPtr, src::LLVMPtr,
-                               bytes::Aligned{align_hint}) where {align_hint}
+                               bytes, ::Val{align_hint}) where {align_hint}
     align = min(16, align_hint)
     ispow2(align) || throw(ArgumentError("Alignment must be a power of 2"))
     if compute_capability() >= sv"8.0"
