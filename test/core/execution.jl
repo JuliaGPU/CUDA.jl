@@ -88,8 +88,8 @@ end
     # make sure invalid kernels can be partially reflected upon
     let
         invalid_kernel() = throw()
-        @test_throws CUDA.KernelError @cuda invalid_kernel()
-        @test_throws CUDA.KernelError @grab_output @device_code_warntype @cuda invalid_kernel()
+        @test_throws CUDA.InvalidIRError @cuda invalid_kernel()
+        @test_throws CUDA.InvalidIRError @grab_output @device_code_warntype @cuda invalid_kernel()
         out, err = @grab_output begin
             try
                 @device_code_warntype @cuda invalid_kernel()

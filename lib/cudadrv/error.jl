@@ -3,18 +3,38 @@
 export CuError
 
 
+# an optional struct, used to represent e.g. optional error logs.
+# this is to make CuErrors with/without additional logs compare equal
+# (so that we can simply reuse `@test_throws CuError(code)`).
+struct Optional{T}
+    data::Union{Nothing,T}
+    Optional{T}(data::Union{Nothing,T}=nothing) where {T} = new{T}(data)
+end
+Base.getindex(s::Optional) = s.data
+function Base.isequal(a::Optional, b::Optional)
+    if a.data === nothing || b.data === nothing
+        return true
+    else
+        return isequal(a.data, b.data)
+    end
+end
+Base.convert(::Type{Optional{T}}, ::Nothing) where T = Optional{T}()
+Base.convert(::Type{Optional{T}}, x) where T = Optional{T}(convert(T, x))
+Base.convert(::Type{Optional{T}}, x::Optional) where T = convert(Optional{T}, x[])
+
+
 """
     CuError(code)
-    CuError(code, meta)
+    CuError(code, details)
 
-Create a CUDA error object with error code `code`. The optional `meta` parameter indicates
-whether extra information, such as error logs, is known.
+Create a CUDA error object with error code `code`. The optional `details` parameter
+indicates whether extra information, such as error logs, is known.
 """
 struct CuError <: Exception
     code::CUresult
-    meta::Any
+    details::Optional{String}
 
-    CuError(code, meta=nothing) = new(code, meta)
+    CuError(code, details=nothing) = new(code, details)
 end
 
 Base.convert(::Type{CUresult}, err::CuError) = err.code
@@ -63,9 +83,9 @@ function Base.showerror(io::IO, err::CuError)
         print(io, "CUDA error: $(description(err)) (code $(reinterpret(Int32, err.code)), $(name(err)))")
     end
 
-    if err.meta !== nothing
+    if err.details[] !== nothing
         print(io, "\n")
-        print(io, err.meta)
+        print(io, err.details[])
     end
 end
 
