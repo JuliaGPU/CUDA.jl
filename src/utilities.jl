@@ -99,8 +99,6 @@ function versioninfo(io::IO=stdout)
     println(io, "Toolchain:")
     println(io, "- Julia: $VERSION")
     println(io, "- LLVM: $(LLVM.version())")
-    println(io, "- PTX ISA support: $(join(map(ver->"$(ver.major).$(ver.minor)", supported_toolchain().ptx), ", "))")
-    println(io, "- Device capability support: $(join(map(ver->"sm_$(ver.major)$(ver.minor)", supported_toolchain().cap), ", "))")
     println(io)
 
     env = filter(var->startswith(var, "JULIA_CUDA"), keys(ENV))

@@ -8,16 +8,19 @@ import Base.Sys: WORD_SIZE
 # reset the runtime cache from global scope, so that any change triggers recompilation
 GPUCompiler.reset_runtime()
 
-# load or build the runtime for the most likely compilation job given a compute capability
-function precompile_runtime(caps=CUDA.llvm_compat(LLVM.version()).cap)
+# load or build the runtime for the most likely compilation jobs
+function precompile_runtime()
     f = ()->return
     mi = methodinstance(typeof(f), Tuple{})
-    params = CUDACompilerParams()
+
+    caps = llvm_compat().cap
+    ptx = maximum(llvm_compat().ptx)
     JuliaContext() do ctx
-        for cap in caps
+        for cap in caps, debuginfo in [false, true]
             # NOTE: this often runs when we don't have a functioning set-up,
             #       so we don't use `compiler_config` which requires NVML
-            target = PTXCompilerTarget(; cap)
+            target = PTXCompilerTarget(; cap, ptx, debuginfo)
+            params = CUDACompilerParams(; cap, ptx)
             config = CompilerConfig(target, params)
             job = CompilerJob(mi, config)
             GPUCompiler.load_runtime(job)
