@@ -16,10 +16,10 @@ function precompile_runtime()
     caps = llvm_compat().cap
     ptx = maximum(llvm_compat().ptx)
     JuliaContext() do ctx
-        for cap in caps
+        for cap in caps, debuginfo in [false, true]
             # NOTE: this often runs when we don't have a functioning set-up,
             #       so we don't use `compiler_config` which requires NVML
-            target = PTXCompilerTarget(; cap, ptx)
+            target = PTXCompilerTarget(; cap, ptx, debuginfo)
             params = CUDACompilerParams(; cap, ptx)
             config = CompilerConfig(target, params)
             job = CompilerJob(mi, config)
