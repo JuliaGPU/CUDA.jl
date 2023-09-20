@@ -223,16 +223,3 @@ function cuda_compat(driver=driver_version(), runtime=runtime_version())
 
     return (cap=cap_support, ptx=ptx_support)
 end
-
-function supported_toolchain()
-    llvm_support = llvm_compat()
-    cuda_support = cuda_compat()
-
-    target_support = sort(collect(llvm_support.cap ∩ cuda_support.cap))
-    isempty(target_support) && error("Your toolchain does not support any device capability")
-
-    ptx_support = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
-    isempty(ptx_support) && error("Your toolchain does not support any PTX ISA")
-
-    return (cap=target_support, ptx=ptx_support)
-end

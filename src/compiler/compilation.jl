@@ -1,6 +1,13 @@
 ## gpucompiler interface implementation
 
-struct CUDACompilerParams <: AbstractCompilerParams end
+Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
+    # the PTX ISA version and compute capability to target at the CUDA level.
+    # XXX: these aren't visible by kernel code, as the `compute_capability()` etc intrinsics
+    #      return the versions that are used by LLVM. however, we can't safely use the
+    #      CUDA-level compatibility, as that may result in instruction selection errors.
+    cap::VersionNumber
+    ptx::VersionNumber
+end
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
 const CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
 
@@ -119,7 +126,6 @@ function compiler_cache(ctx::CuContext)
 end
 
 # cache of compiler configurations, per device (but additionally configurable via kwargs)
-const _toolchain = Ref{Any}()
 const _compiler_configs = Dict{UInt, CUDACompilerConfig}()
 function compiler_config(dev; kwargs...)
     h = hash(dev, hash(kwargs))
@@ -130,31 +136,66 @@ function compiler_config(dev; kwargs...)
     end
     return config
 end
-@noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false, kwargs...)
-    # determine the toolchain (cached, because this is slow)
-    if !isassigned(_toolchain)
-        _toolchain[] = supported_toolchain()
+@noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
+                                         cap=nothing, ptx=nothing, kwargs...)
+    # determine the toolchain
+    llvm_support = llvm_compat()
+    cuda_support = cuda_compat()
+    target_support = sort(collect(llvm_support.cap ∩ cuda_support.cap))
+    ptx_support = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
+
+    # determine the compute capabilities to use
+    requested_cap = something(cap, capability(dev))
+    llvm_caps = filter(<=(requested_cap), llvm_support.cap)
+    cuda_caps = filter(<=(requested_cap), cuda_support.cap)
+    if cap !== nothing
+        # the user requested a specific compute capability.
+        ## use the highest capability supported by LLVM
+        isempty(llvm_caps) &&
+            error("Requested compute capability $cap is not supported by LLVM $(LLVM.version())")
+        llvm_cap = maximum(llvm_caps)
+        ## use the capability as-is to invoke CUDA
+        cuda_cap = cap
+    else
+        # try to do the best thing (i.e., use the highest compute capability)
+        isempty(llvm_caps) &&
+            error("Your $(CUDA.name(dev)) GPU with compute capability $(requested_cap) is not supported by LLVM $(LLVM.version())")
+        llvm_cap = maximum(llvm_caps)
+        isempty(cuda_caps) &&
+            error("Your $(CUDA.name(dev)) GPU with compute capability $(requested_cap) is not supported by CUDA driver $(driver_version()) / runtime $(runtime_version())")
+        cuda_cap = maximum(cuda_caps)
     end
-    toolchain = _toolchain[]::@NamedTuple{cap::Vector{VersionNumber}, ptx::Vector{VersionNumber}}
 
-    # select the highest capability that is supported by both the entire toolchain, and our
-    # device. this is allowed to be lower than the actual device capability (e.g. `sm_89`
-    # for a `sm_90` device), because we'll invoke `ptxas` using a higher capability later.
-    caps = filter(toolchain_cap -> toolchain_cap <= capability(dev), toolchain.cap)
-    isempty(caps) &&
-        error("Your $(CUDA.name(dev)) GPU with capability v$(capability(dev)) is not supported anymore")
-    cap = maximum(caps)
-
-    # select the PTX ISA we assume to be available
-    # (we actually only need 6.2, but NVPTX doesn't support that)
-    ptx = v"6.3"
+    # determine the PTX ISA to use
+    requested_ptx = something(ptx, v"6.3")  # we only need 6.2, but NVPTX lacks support
+    llvm_ptxs = filter(<=(requested_ptx), llvm_support.ptx)
+    cuda_ptxs = filter(<=(requested_ptx), cuda_support.ptx)
+    if ptx !== nothing
+        # the user requested a specific PTX ISA
+        ## use the highest ISA supported by LLVM
+        isempty(llvm_ptxs) &&
+            error("Requested PTX ISA $ptx is not supported by LLVM $(LLVM.version())")
+        llvm_ptx = maximum(llvm_ptxs)
+        ## use the ISA as-is to invoke CUDA
+        cuda_ptx = ptx
+    else
+        # try to do the best thing (i.e., use the newest PTX ISA)
+        # XXX: is it safe to just use the latest PTX ISA? isn't it possible for, e.g.,
+        #      instructions to get deprecated?
+        isempty(llvm_ptxs) &&
+            error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(LLVM.version())")
+        llvm_ptx = maximum(llvm_ptxs)
+        isempty(cuda_ptxs) &&
+            error("CUDA.jl requires PTX $requested_ptx, which is not supported by CUDA driver $(driver_version()) / runtime $(runtime_version())")
+        cuda_ptx = maximum(cuda_ptxs)
+    end
 
     # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
     debuginfo = runtime_version() >= v"11.7"
 
     # create GPUCompiler objects
-    target = PTXCompilerTarget(; cap, ptx, debuginfo, kwargs...)
-    params = CUDACompilerParams()
+    target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo, kwargs...)
+    params = CUDACompilerParams(; cap=cuda_cap, ptx=cuda_ptx)
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
@@ -178,6 +219,12 @@ function compile(@nospecialize(job::CompilerJob))
         # set `.target debug` and if `--device-debug` isn't passed, PTXAS will compile in
         # release mode".
         asm = replace(asm, r"(\.target .+), debug" => s"\1")
+    end
+
+    # if LLVM couldn't target the requested PTX ISA, bump it in the assembly.
+    if job.config.target.ptx != job.config.params.ptx
+        ptx = job.config.params.ptx
+        asm = replace(asm, r"(\.version .+)" => ".version $(ptx.major).$(ptx.minor)")
     end
 
     # check if we'll need the device runtime
@@ -206,15 +253,7 @@ function compile(@nospecialize(job::CompilerJob))
         push!(ptxas_opts, "--compile-only")
     end
 
-    # use the highest device capability that's supported by CUDA. note that we're allowed
-    # to query this because the compilation cache is sharded by the device context.
-    # XXX: put this in the CompilerTarget to avoid device introspection?
-    #      on the other hand, GPUCompiler doesn't care about the actual device capability...
-    dev = device()
-    caps = filter(toolchain_cap -> toolchain_cap <= capability(dev), cuda_compat().cap)
-    cap = maximum(caps)
-    # NOTE: we should already have warned about compute compatibility mismatches
-    #       during TLS state set-up.
+    cap = job.config.params.cap
     arch = "sm_$(cap.major)$(cap.minor)"
 
     # compile to machine code
