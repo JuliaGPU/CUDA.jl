@@ -72,8 +72,7 @@ end
 
 ## PTX ISAs supported by the CUDA toolkit
 
-# Source:
-# - PTX ISA document, Release History table
+# Source: PTX ISA document, Release History table
 const cuda_ptx_db = Dict(
     v"1.0" => between(v"1.0", highest),
     v"1.1" => between(v"1.1", highest),
@@ -116,6 +115,47 @@ const cuda_ptx_db = Dict(
 function cuda_ptx_support(ver::VersionNumber)
     caps = Set{VersionNumber}()
     for (cap,r) in cuda_ptx_db
+        if ver in r
+            push!(caps, cap)
+        end
+    end
+    return caps
+end
+
+
+## devices supported by each PTX ISA
+
+# Source: PTX ISA document, Release History table
+const ptx_cap_db = Dict(
+    v"1.0"   => between(v"1.0", highest),
+    v"1.1"   => between(v"1.0", highest),
+    v"1.2"   => between(v"1.2", highest),
+    v"1.3"   => between(v"1.2", highest),
+    v"2.0"   => between(v"2.0", highest),
+    v"3.0"   => between(v"3.1", highest),
+    v"3.2"   => between(v"4.0", highest),
+    v"3.5"   => between(v"3.1", highest),
+    v"3.7"   => between(v"4.1", highest),
+    v"5.0"   => between(v"4.0", highest),
+    v"5.2"   => between(v"4.1", highest),
+    v"5.3"   => between(v"4.2", highest),
+    v"6.0"   => between(v"5.0", highest),
+    v"6.1"   => between(v"5.0", highest),
+    v"6.2"   => between(v"5.0", highest),
+    v"7.0"   => between(v"6.0", highest),
+    v"7.2"   => between(v"6.1", highest),
+    v"7.5"   => between(v"6.3", highest),
+    v"8.0"   => between(v"7.0", highest),
+    v"8.6"   => between(v"7.1", highest),
+    v"8.7"   => between(v"7.4", highest),
+    v"8.9"   => between(v"7.8", highest),
+    v"9.0"   => between(v"7.8", highest),
+    #v"9.0a" => between(v"8.0", highest)
+)
+
+function ptx_cap_support(ver::VersionNumber)
+    caps = Set{VersionNumber}()
+    for (cap,r) in ptx_cap_db
         if ver in r
             push!(caps, cap)
         end
@@ -222,4 +262,8 @@ function cuda_compat(driver=driver_version(), runtime=runtime_version())
     ptx_support = sort(collect(driver_ptx_support ∩ toolkit_ptx_support))
 
     return (cap=cap_support, ptx=ptx_support)
+end
+
+function ptx_compat(ptx)
+    return (cap=ptx_cap_support(ptx),)
 end

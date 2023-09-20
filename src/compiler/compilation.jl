@@ -111,6 +111,37 @@ function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
     return entry
 end
 
+function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
+    @assert format == LLVM.API.LLVMAssemblyFile
+    asm = invoke(GPUCompiler.mcgen,
+                 Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, typeof(format)},
+                 job, mod, format)
+
+    # remove extraneous debug info on lower debug levels
+    if Base.JLOptions().debug_level < 2
+        # LLVM sets `.target debug` as soon as the debug emission kind isn't NoDebug. this
+        # is unwanted, as the flag makes `ptxas` behave as if `--device-debug` were set.
+        # ideally, we'd need something like LocTrackingOnly/EmitDebugInfo from D4234, but
+        # that got removed in favor of NoDebug in D18808, seemingly breaking the use case of
+        # only emitting `.loc` instructions...
+        #
+        # according to NVIDIA, "it is fine for PTX producers to produce debug info but not
+        # set `.target debug` and if `--device-debug` isn't passed, PTXAS will compile in
+        # release mode".
+        asm = replace(asm, r"(\.target .+), debug" => s"\1")
+    end
+
+    # if LLVM couldn't target the requested PTX ISA, bump it in the assembly.
+    if job.config.target.ptx != job.config.params.ptx
+        ptx = job.config.params.ptx
+        asm = replace(asm, r"(\.version .+)" => ".version $(ptx.major).$(ptx.minor)")
+    end
+
+    # no need to bump the `.target` directive; we can do that by passing `-arch` to `ptxas`
+
+    asm
+end
+
 
 ## compiler implementation (cache, configure, compile, and link)
 
@@ -141,32 +172,8 @@ end
     # determine the toolchain
     llvm_support = llvm_compat()
     cuda_support = cuda_compat()
-    target_support = sort(collect(llvm_support.cap ∩ cuda_support.cap))
-    ptx_support = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
 
-    # determine the compute capabilities to use
-    requested_cap = something(cap, capability(dev))
-    llvm_caps = filter(<=(requested_cap), llvm_support.cap)
-    cuda_caps = filter(<=(requested_cap), cuda_support.cap)
-    if cap !== nothing
-        # the user requested a specific compute capability.
-        ## use the highest capability supported by LLVM
-        isempty(llvm_caps) &&
-            error("Requested compute capability $cap is not supported by LLVM $(LLVM.version())")
-        llvm_cap = maximum(llvm_caps)
-        ## use the capability as-is to invoke CUDA
-        cuda_cap = cap
-    else
-        # try to do the best thing (i.e., use the highest compute capability)
-        isempty(llvm_caps) &&
-            error("Your $(CUDA.name(dev)) GPU with compute capability $(requested_cap) is not supported by LLVM $(LLVM.version())")
-        llvm_cap = maximum(llvm_caps)
-        isempty(cuda_caps) &&
-            error("Your $(CUDA.name(dev)) GPU with compute capability $(requested_cap) is not supported by CUDA driver $(driver_version()) / runtime $(runtime_version())")
-        cuda_cap = maximum(cuda_caps)
-    end
-
-    # determine the PTX ISA to use
+    # determine the PTX ISA to use. we want at least 6.2, but will use newer if possible.
     requested_ptx = something(ptx, v"6.2")
     llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
     cuda_ptxs = filter(>=(requested_ptx), cuda_support.ptx)
@@ -190,6 +197,31 @@ end
         cuda_ptx = maximum(cuda_ptxs)
     end
 
+    # determine the compute capabilities to use. this should match the capability of the
+    # current device, but if LLVM doesn't support it, we can target an older capability
+    # and pass a different `-arch` to `ptxa`.
+    ptx_support = ptx_compat(cuda_ptx)
+    requested_cap = something(cap, min(capability(dev), maximum(ptx_support.cap)))
+    llvm_caps = filter(<=(requested_cap), llvm_support.cap)
+    cuda_caps = filter(<=(capability(dev)), cuda_support.cap)
+    if cap !== nothing
+        # the user requested a specific compute capability.
+        ## use the highest capability supported by LLVM
+        isempty(llvm_caps) &&
+            error("Requested compute capability $cap is not supported by LLVM $(LLVM.version())")
+        llvm_cap = maximum(llvm_caps)
+        ## use the capability as-is to invoke CUDA
+        cuda_cap = cap
+    else
+        # try to do the best thing (i.e., use the highest compute capability)
+        isempty(llvm_caps) &&
+            error("Compute capability $(requested_cap) is not supported by LLVM $(LLVM.version())")
+        llvm_cap = maximum(llvm_caps)
+        isempty(cuda_caps) &&
+            error("Compute capability $(requested_cap) is not supported by CUDA driver $(driver_version()) / runtime $(runtime_version())")
+        cuda_cap = maximum(cuda_caps)
+    end
+
     # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
     debuginfo = runtime_version() >= v"11.7"
 
@@ -205,26 +237,6 @@ function compile(@nospecialize(job::CompilerJob))
     # TODO: on 1.9, this actually creates a context. cache those.
     asm, meta = JuliaContext() do ctx
         GPUCompiler.compile(:asm, job)
-    end
-
-    # remove extraneous debug info on lower debug levels
-    if Base.JLOptions().debug_level < 2
-        # LLVM sets `.target debug` as soon as the debug emission kind isn't NoDebug. this
-        # is unwanted, as the flag makes `ptxas` behave as if `--device-debug` were set.
-        # ideally, we'd need something like LocTrackingOnly/EmitDebugInfo from D4234, but
-        # that got removed in favor of NoDebug in D18808, seemingly breaking the use case of
-        # only emitting `.loc` instructions...
-        #
-        # according to NVIDIA, "it is fine for PTX producers to produce debug info but not
-        # set `.target debug` and if `--device-debug` isn't passed, PTXAS will compile in
-        # release mode".
-        asm = replace(asm, r"(\.target .+), debug" => s"\1")
-    end
-
-    # if LLVM couldn't target the requested PTX ISA, bump it in the assembly.
-    if job.config.target.ptx != job.config.params.ptx
-        ptx = job.config.params.ptx
-        asm = replace(asm, r"(\.version .+)" => ".version $(ptx.major).$(ptx.minor)")
     end
 
     # check if we'll need the device runtime
