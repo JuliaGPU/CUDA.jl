@@ -101,12 +101,11 @@ end
 ############################################################################################
 
 @testset "clock and nanosleep" begin
+
 @on_device clock(UInt32)
 @on_device clock(UInt64)
+@on_device nanosleep(UInt32(16))
 
-if CUDA.driver_version() >= v"10.0" && v"6.2" in CUDA.supported_toolchain().ptx
-    @on_device nanosleep(UInt32(16))
-end
 end
 
 @testset "parallel synchronization and communication" begin
