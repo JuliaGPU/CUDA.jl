@@ -44,6 +44,22 @@ end
 @device_override @noinline Base.Math.sincos_domain_error(x) =
     @print_and_throw "sincos(x) is only defined for finite x."
 
+# multidimensional.jl
+# XXX: the boundscheck change in JuliaLang/julia#42119 has exposed additional issues
+#      with bad code generation by ptxas on <sm_70, as reported with NVIDIA in #3382020.
+@device_override Base.@propagate_inbounds function Base.getindex(iter::CartesianIndices{N,R},
+                                                                 I::Vararg{Int, N}) where {N,R}
+    if compute_capability() < sv"7"
+        CartesianIndex(getindex.(iter.indices, I))
+    else
+        @boundscheck checkbounds(iter, I...)
+        index = map(iter.indices, I) do r, i
+            @inbounds getindex(r, i)
+        end
+        CartesianIndex(index)
+    end
+end
+
 # range.jl
 @eval begin
     @device_override function Base.StepRangeLen{T,R,S,L}(ref::R, step::S, len::Integer,
