@@ -167,9 +167,9 @@ end
     end
 
     # determine the PTX ISA to use
-    requested_ptx = something(ptx, v"6.3")  # we only need 6.2, but NVPTX lacks support
-    llvm_ptxs = filter(<=(requested_ptx), llvm_support.ptx)
-    cuda_ptxs = filter(<=(requested_ptx), cuda_support.ptx)
+    requested_ptx = something(ptx, v"6.2")
+    llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
+    cuda_ptxs = filter(>=(requested_ptx), cuda_support.ptx)
     if ptx !== nothing
         # the user requested a specific PTX ISA
         ## use the highest ISA supported by LLVM
