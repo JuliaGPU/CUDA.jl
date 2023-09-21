@@ -8,6 +8,14 @@ Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
     cap::VersionNumber
     ptx::VersionNumber
 end
+
+function Base.hash(params::CUDACompilerParams, h::UInt)
+    h = hash(params.cap, h)
+    h = hash(params.ptx, h)
+
+    return h
+end
+
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
 const CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
 
