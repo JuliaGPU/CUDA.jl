@@ -470,7 +470,7 @@ function Base.get(x::PerDevice, dev::CuDevice, val)
     end
 end
 
-function Base.get!(constructor::F, x::PerDevice{T}, dev::CuDevice) where {F, T}
+function Base.get!(constructor::F, x::PerDevice{T}, dev::CuDevice) where {F <: Base.Callable, T}
     y = get_values(x)
     id = deviceid(dev)+1
     ctx = device_context(id)    # may be nothing

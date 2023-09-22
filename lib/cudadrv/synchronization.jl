@@ -43,7 +43,7 @@ function Base.put!(c::BidirectionalChannel{T}, v::T) where T
     end
 end
 
-function Base.take!(f, c::BidirectionalChannel{T}) where T
+function Base.take!(f::Base.Callable, c::BidirectionalChannel{T}) where T
     lock(c)
     try
         # notify the producer that we're ready to accept a value

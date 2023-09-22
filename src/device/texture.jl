@@ -56,11 +56,15 @@ end
 Base.Tuple(x::Vec4) = tuple(x.a, x.b, x.c, x.d)
 
 for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
-        ((:Signed,        :(Vec4{UInt32}),  :v4u32),
-         (:Unsigned,      :(Vec4{Int32}),   :v4s32),
+        ((:Signed,        :(Vec4{Int32}),   :v4u32),
+         (:Unsigned,      :(Vec4{UInt32}),  :v4s32),
          (:AbstractFloat, :(Vec4{Float32}), :v4f32))
 
-    eltyp = :(Union{$dispatch_rettyp, NTuple{<:Any,$dispatch_rettyp}})
+    eltyp = :(Union{$dispatch_rettyp,
+                    NTuple{1,$dispatch_rettyp},
+                    NTuple{2,$dispatch_rettyp},
+                    NTuple{3,$dispatch_rettyp},
+                    NTuple{4,$dispatch_rettyp}})
 
     # tex1D only supports array memory
     @eval tex(texObject::CuDeviceTexture{<:$eltyp,1,ArrayMemory}, x::Number) =
@@ -74,7 +78,7 @@ for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
         julia_sig = ntuple(_->Float32, dims)
         julia_params = ntuple(i->:($(julia_args[i])::Number), dims)
 
-        @eval tex(texObject::CuDeviceTexture{<:$eltyp,$dims,}, $(julia_params...)) =
+        @eval tex(texObject::CuDeviceTexture{<:$eltyp,$dims}, $(julia_params...)) =
             Tuple(ccall($("llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.f32"), llvmcall,
                         $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...)))
     end

@@ -38,6 +38,19 @@ end
 
     @test_throws CuError @cuda threads=2 maxthreads=1 dummy()
     @cuda threads=2 dummy()
+
+    # sm_10 isn't supported by LLVM
+    @test_throws "not supported by LLVM" @cuda launch=false cap=v"1.0" dummy()
+    # sm_20 is, but not by any CUDA version we support
+    @test_throws "Failed to compile PTX code" @cuda launch=false cap=v"2.0" dummy()
+    # there isn't any capability other than the device's that's guaruanteed to work
+    @cuda launch=false cap=capability(device()) dummy()
+    # but we should be able to see it in the generated PTX code
+    asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=v"5.0"))
+    @test contains(asm, ".target sm_50")
+
+    asm = sprint(io->CUDA.code_ptx(io, dummy, (); ptx=v"6.3"))
+    @test contains(asm, ".version 6.3")
 end
 
 
@@ -88,8 +101,8 @@ end
     # make sure invalid kernels can be partially reflected upon
     let
         invalid_kernel() = throw()
-        @test_throws CUDA.KernelError @cuda invalid_kernel()
-        @test_throws CUDA.KernelError @grab_output @device_code_warntype @cuda invalid_kernel()
+        @test_throws CUDA.InvalidIRError @cuda invalid_kernel()
+        @test_throws CUDA.InvalidIRError @grab_output @device_code_warntype @cuda invalid_kernel()
         out, err = @grab_output begin
             try
                 @device_code_warntype @cuda invalid_kernel()

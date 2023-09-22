@@ -13,6 +13,8 @@ function main()
                           repo_root_url="$src/blob/master/docs")
         Literate.markdown("src/tutorials/custom_structs.jl", "src/tutorials";
                           repo_root_url="$src/blob/master/docs")
+        Literate.markdown("src/tutorials/performance.jl", "src/tutorials";
+                          repo_root_url="$src/blob/master/docs")
     end
 
     @info "Generating Documenter.jl site"
@@ -36,6 +38,7 @@ function main()
             "Tutorials" => Any[
                 "tutorials/introduction.md",
                 "tutorials/custom_structs.md",
+                "tutorials/performance.md"
             ],
             "Installation" => Any[
                 "installation/overview.md",

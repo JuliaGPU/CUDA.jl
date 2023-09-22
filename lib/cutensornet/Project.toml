@@ -1,13 +1,13 @@
 authors = ["Katharine Hyatt <kshyatt@gmail.com>"]
 name = "cuTensorNet"
 uuid = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
-version = "1.0.5"
+version = "1.1.0"
 
 [compat]
 CEnum = "0.2, 0.3, 0.4"
-CUDA = "~4.4"
+CUDA = "~5.0"
 cuQuantum_jll = "~22.11"
-cuTENSOR = "~1.0, ~1.1"
+cuTENSOR = "~1.0, ~1.1, ~1.2"
 julia = "1.6"
 
 [deps]
