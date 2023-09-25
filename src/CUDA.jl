@@ -10,6 +10,8 @@ using Core: LLVMPtr
 
 using Adapt: Adapt, adapt, WrappedArray
 
+using ChainRulesCore: ChainRulesCore
+
 using Requires: @require
 
 using LinearAlgebra
