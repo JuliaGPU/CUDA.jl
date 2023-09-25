@@ -9,6 +9,14 @@ l = 13
 k = 1
 
 @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "inv" begin
+        A = rand(elty,n,n)
+        dA = CuArray(A)
+        dA⁻¹ = inv(dA)
+        dI = dA * dA⁻¹
+        @test Array(dI) ≈ I
+    end
+
     @testset "Cholesky (po)" begin
         A    = rand(elty,n,n)
         A    = A*A'+I #posdef
@@ -723,13 +731,5 @@ end
         @test Array(d_A \ d_b) ≈ (Af \ bf)
         @inferred d_A \ d_B
         @inferred d_A \ d_b
-    end
-
-    @testset "inv" begin
-        A = rand(elty,n,n)
-        dA = CuArray(A)
-        dA⁻¹ = inv(dA)
-        dI = dA * dA⁻¹
-        @test Array(dI) ≈ I
     end
 end
