@@ -7,7 +7,7 @@ steps:
         plugins:
           - JuliaCI/julia#v1:
               version: "{{matrix.julia}}"
-          - JuliaCI/julia-test#v1:
+          - JuliaCI/julia-test#2a01737:
               test_args: "--quickfail"
           - JuliaCI/julia-coverage#v1:
               dirs:
