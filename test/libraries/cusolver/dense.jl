@@ -724,4 +724,12 @@ end
         @inferred d_A \ d_B
         @inferred d_A \ d_b
     end
+
+    @testset "inv" begin
+        A = rand(elty,n,n)
+        dA = CuArray(A)
+        dA⁻¹ = inv(dA)
+        dI = dA * dA⁻¹
+        @test Array(dI) ≈ I
+    end
 end
