@@ -1,7 +1,7 @@
 # implementation of LinearAlgebra interfaces
 
 using LinearAlgebra
-using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
+using LinearAlgebra: BlasComplex, BlasFloat, BlasReal, checksquare
 using ..CUBLAS: CublasFloat
 
 function copy_cublasfloat(As...)
@@ -327,7 +327,7 @@ end
 
 # LinearAlgebra.jl defines a comparable method with these restrictions on T, so we need
 #   to define with the same type parameters to resolve method ambiguity for these cases
-function LinearAlgebra.ldiv!(F::LU{T,<:StridedCuMatrix{T}}, B::CuVecOrMat{T}) where {T <: Union{Float32, Float64, ComplexF32, ComplexF64}}
+function LinearAlgebra.ldiv!(F::LU{T,<:StridedCuMatrix{T}}, B::CuVecOrMat{T}) where T <: BlasFloat
     return getrs!('N', F.factors, F.ipiv, B)
 end
 
@@ -342,3 +342,14 @@ end
 
 LinearAlgebra.cholcopy(A::LinearAlgebra.RealHermSymComplexHerm{<:Any,<:CuArray}) =
     copyto!(similar(A, LinearAlgebra.choltype(A)), A)
+
+## inv
+
+function LinearAlgebra.inv(A::StridedCuMatrix{T}) where T <: BlasFloat
+    n = checksquare(A)
+    F = copy(A)
+    factors, ipiv, info = getrf!(F)
+    B = CuMatrix{T}(I, n, n)
+    getrs!('N', factors, ipiv, B)
+    return B
+end
