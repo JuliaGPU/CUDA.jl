@@ -2068,10 +2068,12 @@ end
         A = rand(elty,m,n)
         C = rand(elty,m,n)
         x = rand(elty,m)
+        y = rand(elty,n)
         # move to device
         d_A = CuArray(A)
         d_C = CuArray(C)
         d_x = CuArray(x)
+        d_y = CuArray(y)
         C = diagm(0 => x) * A
         @testset "dgmm!" begin
             # compute
@@ -2090,6 +2092,19 @@ end
             # move to host and compare
             h_C = Array(d_C)
             @test C ≈ h_C
+        end
+        @testset "diagonal -- mul!" begin
+            XA = rand(elty,m,n)
+            d_XA = CuArray(XA)
+            d_X = Diagonal(d_x)
+            mul!(d_XA, d_X, d_A)
+            Array(d_XA) ≈ Diagonal(x) * A
+
+            AY = rand(elty,m,n)
+            d_AY = CuArray(AY)
+            d_Y = Diagonal(d_y)
+            mul!(d_AY, d_A, d_Y)
+            Array(d_AY) ≈ A * Diagonal(y)
         end
     end # extensions
 

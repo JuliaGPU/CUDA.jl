@@ -601,6 +601,15 @@ for (trtype, valtype) in ((:Transpose, :CublasFloat),
 end
 end # VERSION
 
+# diagonal mul!
+function LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, B::Diagonal{T,<:CuVector}) where {T<:CublasFloat}
+    return dgmm!('R', A, B.diag, C)
+end
+
+function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::CuMatrix{T}) where {T<:CublasFloat}
+    return dgmm!('L', B, A.diag, C)
+end
+
 # symmetric mul!
 # level 2
 if VERSION < v"1.10.0-DEV.1365"
