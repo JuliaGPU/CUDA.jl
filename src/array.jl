@@ -718,7 +718,3 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
 
   A
 end
-
-# support ChainRulesCore inplaceability
-
-ChainRulesCore.is_inplaceable_destination(::CuArray) = true
