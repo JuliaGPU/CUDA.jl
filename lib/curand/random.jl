@@ -64,16 +64,19 @@ Random.seed!(rng::RNG, ::Nothing) = Random.seed!(rng)
 const UniformType = Union{Type{Float32},Type{Float64},Type{UInt32}}
 const UniformArray = DenseCuArray{<:Union{Float32,Float64,UInt32}}
 function Random.rand!(rng::RNG, A::DenseCuArray{UInt32})
+    isempty(A) && return A
     update_stream(rng)
     curandGenerate(rng, A, length(A))
     return A
 end
 function Random.rand!(rng::RNG, A::DenseCuArray{Float32})
+    isempty(A) && return A
     update_stream(rng)
     curandGenerateUniform(rng, A, length(A))
     return A
 end
 function Random.rand!(rng::RNG, A::DenseCuArray{Float64})
+    isempty(A) && return A
     update_stream(rng)
     curandGenerateUniformDouble(rng, A, length(A))
     return A
@@ -98,11 +101,13 @@ end
 const NormalType = Union{Type{Float32},Type{Float64}}
 const NormalArray = DenseCuArray{<:Union{Float32,Float64}}
 function Random.randn!(rng::RNG, A::DenseCuArray{Float32}; mean=0, stddev=1)
+    isempty(A) && return A
     update_stream(rng)
     inplace_pow2(A, B->curandGenerateNormal(rng, B, length(B), mean, stddev))
     return A
 end
 function Random.randn!(rng::RNG, A::DenseCuArray{Float64}; mean=0, stddev=1)
+    isempty(A) && return A
     update_stream(rng)
     inplace_pow2(A, B->curandGenerateNormalDouble(rng, B, length(B), mean, stddev))
     return A
@@ -112,11 +117,13 @@ end
 const LognormalType = Union{Type{Float32},Type{Float64}}
 const LognormalArray = DenseCuArray{<:Union{Float32,Float64}}
 function rand_logn!(rng::RNG, A::DenseCuArray{Float32}; mean=0, stddev=1)
+    isempty(A) && return A
     update_stream(rng)
     inplace_pow2(A, B->curandGenerateLogNormal(rng, B, length(B), mean, stddev))
     return A
 end
 function rand_logn!(rng::RNG, A::DenseCuArray{Float64}; mean=0, stddev=1)
+    isempty(A) && return A
     update_stream(rng)
     inplace_pow2(A, B->curandGenerateLogNormalDouble(rng, B, length(B), mean, stddev))
     return A
@@ -126,6 +133,7 @@ end
 const PoissonType = Union{Type{Cuint}}
 const PoissonArray = DenseCuArray{Cuint}
 function rand_poisson!(rng::RNG, A::DenseCuArray{Cuint}; lambda=1)
+    isempty(A) && return A
     update_stream(rng)
     curandGeneratePoisson(rng, A, length(A), lambda)
     return A
@@ -133,21 +141,25 @@ end
 
 # CPU arrays
 function Random.rand!(rng::RNG, A::AbstractArray{T}) where {T <: UniformType}
+    isempty(A) && return A
     B = CuArray{T}(undef, size(A))
     rand!(rng, B)
     copyto!(A, B)
 end
 function Random.randn!(rng::RNG, A::AbstractArray{T}) where {T <: NormalType}
+    isempty(A) && return A
     B = CuArray{T}(undef, size(A))
     randn!(rng, B)
     copyto!(A, B)
 end
 function rand_logn!(rng::RNG, A::AbstractArray{T}) where {T <: LognormalType}
+    isempty(A) && return A
     B = CuArray{T}(undef, size(A))
     rand_logn!(rng, B)
     copyto!(A, B)
 end
 function rand_poisson!(rng::RNG, A::AbstractArray{T}) where {T <: PoissonType}
+    isempty(A) && return A
     B = CuArray{T}(undef, size(A))
     rand_poisson!(rng, B)
     copyto!(A, B)
@@ -159,7 +171,7 @@ end
 # some functions need pow2 lengths: construct a compatible array and return part of it
 function outofplace_pow2(shape, ctor, f)
     len = prod(shape)
-    if ispow2(len)
+    if len == 0 || ispow2(len)
         A = ctor(shape)
         f(A)
     else

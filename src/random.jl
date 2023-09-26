@@ -42,6 +42,8 @@ end
 Random.seed!(rng::RNG) = Random.seed!(rng, make_seed())
 
 function Random.rand!(rng::RNG, A::AnyCuArray)
+    isempty(A) && return A
+
     function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32) where {T}
         device_rng = Random.default_rng()
 
@@ -79,6 +81,8 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
 end
 
 function Random.randn!(rng::RNG, A::AnyCuArray{<:Union{AbstractFloat,Complex{<:AbstractFloat}}})
+    isempty(A) && return A
+
     function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32) where {T<:Real}
         device_rng = Random.default_rng()
 
