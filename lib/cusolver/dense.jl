@@ -113,7 +113,7 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
                             (:cusolverDnCgetrf_bufferSize, :cusolverDnCgetrf, :ComplexF32),
                             (:cusolverDnZgetrf_bufferSize, :cusolverDnZgetrf, :ComplexF64))
     @eval begin
-        function getrf!(A::StridedCuMatrix{$elty})
+        function getrf!(A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint})
             m,n = size(A)
             lda = max(1, stride(A, 2))
 
@@ -123,7 +123,6 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
                 return out[]
             end
 
-            ipiv = CuArray{Cint}(undef, min(m,n))
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace($elty, bufferSize) do buffer
                 $fname(dense_handle(), m, n, A, lda, buffer, ipiv, devinfo)
@@ -134,6 +133,12 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
             chkargsok(BlasInt(info))
 
             A, ipiv, info
+        end
+
+        function getrf!(A::StridedCuMatrix{$elty})
+            m,n = size(A)
+            ipiv = CuArray{Cint}(undef, min(m, n))
+            getrf!(A, ipiv)
         end
     end
 end
@@ -895,6 +900,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         LinearAlgebra.LAPACK.potrs!(uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuVecOrMat{$elty}) = CUSOLVER.potrs!(uplo, A, B)
         LinearAlgebra.LAPACK.potri!(uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.potri!(uplo, A)
         LinearAlgebra.LAPACK.getrf!(A::StridedCuMatrix{$elty}) = CUSOLVER.getrf!(A)
+        LinearAlgebra.LAPACK.getrf!(A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}) = CUSOLVER.getrf!(A, ipiv)
         LinearAlgebra.LAPACK.geqrf!(A::StridedCuMatrix{$elty}) = CUSOLVER.geqrf!(A)
         LinearAlgebra.LAPACK.geqrf!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = CUSOLVER.geqrf!(A, tau)
         LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}) = sytrf!(uplo, A)
