@@ -52,35 +52,12 @@ This helper protects against the rare but real issue of the workspace size gette
 different results based on the GPU device memory pressure, which might change _after_
 initial allocation of the workspace (which can cause a GC collection).
 """
-@inline with_workspace(f, size::Union{Integer,Function}, fallback=nothing; keep::Bool=false) =
-    with_workspace(f, UInt8, size, fallback; keep)
+@inline with_workspace(f, size::Union{Integer,Function}, fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) =
+    with_workspaces(f, UInt8, size, -1, fallback; keep)
 
-function with_workspace(f::Function, eltyp::Type{T}, size::Union{Integer,Function},
-                        fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) where {T}
-    get_size() = Int(isa(size, Integer) ? size : size()::Integer)
-
-    # allocate
-    sz = get_size()
-    workspace = nothing
-    try
-        while workspace === nothing || length(workspace) < sz
-            workspace = CuVector{T}(undef, sz)
-            sz = get_size()
-        end
-    catch ex
-        fallback === nothing && rethrow()
-        isa(ex, OutOfGPUMemoryError) || rethrow()
-        workspace = CuVector{T}(undef, fallback)
-    end
-    workspace = workspace::CuVector{T}
-
-    # use & free
-    try
-        f(workspace)
-    finally
-        keep || CUDA.unsafe_free!(workspace)
-    end
-end
+@inline with_workspace(f::Function, eltyp::Type{T}, size::Union{Integer,Function},
+                       fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) where {T} =
+    with_workspaces(f, T, size, -1, fallback; keep)
 
 """
     with_workspaces([eltyp=UInt8], size_gpu, size_cpu, [fallback::Int]; keep::Bool=false) do workspace_gpu, workspace_cpu
@@ -96,20 +73,20 @@ This helper protects against the rare but real issue of the GPU workspace size g
 different results based on the GPU device memory pressure, which might change _after_
 initial allocation of the workspace (which can cause a GC collection).
 """
-@inline with_workspaces(f, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function}, fallback=nothing; keep::Bool=false) =
+@inline with_workspaces(f, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function},
+                        fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) =
     with_workspaces(f, UInt8, size_gpu, size_cpu, fallback; keep)
 
 function with_workspaces(f::Function, eltyp::Type{T}, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function},
                          fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) where {T}
+
     get_size_gpu() = Int(isa(size_gpu, Integer) ? size_gpu : size_gpu()::Integer)
     get_size_cpu() = Int(isa(size_cpu, Integer) ? size_cpu : size_cpu()::Integer)
 
-    # allocate
     sz_gpu = get_size_gpu()
     sz_cpu = get_size_cpu()
 
     workspace_gpu = nothing
-    workspace_cpu = Vector{T}(undef, sz_cpu)
     try
         while workspace_gpu === nothing || length(workspace_gpu) < sz_gpu
             workspace_gpu = CuVector{T}(undef, sz_gpu)
@@ -124,7 +101,13 @@ function with_workspaces(f::Function, eltyp::Type{T}, size_gpu::Union{Integer,Fu
 
     # use & free
     try
-        f(workspace_gpu, workspace_cpu)
+        # size_cpu == -1 means that we don't need a CPU workspace
+        if sz_cpu == -1
+            f(workspace_gpu)
+        else
+            workspace_cpu = Vector{T}(undef, sz_cpu)
+            f(workspace_gpu, workspace_cpu)
+        end
     finally
         keep || CUDA.unsafe_free!(workspace_gpu)
     end
