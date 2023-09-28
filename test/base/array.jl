@@ -1,5 +1,6 @@
 using LinearAlgebra
 import Adapt
+using ChainRulesCore: add!!, is_inplaceable_destination
 
 @testset "constructors" begin
   xs = CuArray{Int}(undef, 2, 3)
@@ -852,4 +853,14 @@ if length(devices()) > 1
     @test Array(a) == Array(b) == data
   end
 end
+end
+
+@testset "inplaceability" begin
+  a = CUDA.rand(10, 10)
+  @test is_inplaceable_destination(a)
+  a′ = copy(a)
+  b = CUDA.rand(10, 10)
+  c = add!!(a, b)
+  @test c == a′ + b
+  @test c === a
 end

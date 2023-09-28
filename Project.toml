@@ -35,9 +35,11 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 UnsafeAtomicsLLVM = "d80eeb9a-aca5-4d75-85e5-170c8b632249"
 
 [weakdeps]
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [extensions]
+ChainRulesCoreExt = "ChainRulesCore"
 SpecialFunctionsExt = "SpecialFunctions"
 
 [compat]
@@ -48,6 +50,7 @@ CEnum = "0.2, 0.3, 0.4"
 CUDA_Driver_jll = "0.6"
 CUDA_Runtime_Discovery = "0.2"
 CUDA_Runtime_jll = "0.9"
+ChainRulesCore = "1"
 Crayons = "4"
 DataFrames = "1"
 ExprTools = "0.1"
@@ -67,4 +70,5 @@ UnsafeAtomicsLLVM = "0.1"
 julia = "1.8"
 
 [extras]
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
