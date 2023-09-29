@@ -104,7 +104,10 @@ end
 
 @on_device clock(UInt32)
 @on_device clock(UInt64)
+
+if capability(device()) >= v"7.0"
 @on_device nanosleep(UInt32(16))
+end
 
 end
 

@@ -1,6 +1,4 @@
 if capability(device()) < v"7.0"
-@warn "Device capability too low, skipping WMMA tests"
-else
 
 using CUDA.WMMA
 
