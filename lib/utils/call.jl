@@ -1,6 +1,6 @@
 # ccall wrapper for calling functions in libraries that might not be available
 
-export @checked, with_workspace, @debug_ccall
+export @checked, with_workspace, with_workspaces, @debug_ccall
 
 """
     @checked function foo(...)
@@ -52,33 +52,64 @@ This helper protects against the rare but real issue of the workspace size gette
 different results based on the GPU device memory pressure, which might change _after_
 initial allocation of the workspace (which can cause a GC collection).
 """
-@inline with_workspace(f, size::Union{Integer,Function}, fallback=nothing; kwargs...) =
-    with_workspace(f, UInt8, isa(size, Integer) ? ()->size : size, fallback; kwargs...)
+@inline with_workspace(f, size::Union{Integer,Function}, fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) =
+    with_workspaces(f, UInt8, size, -1, fallback; keep)
 
-function with_workspace(f::Function, eltyp::Type{T}, size::Union{Integer,Function},
-                        fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) where {T}
-    get_size() = Int(isa(size, Integer) ? size : size()::Integer)
+@inline with_workspace(f::Function, eltyp::Type{T}, size::Union{Integer,Function},
+                       fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) where {T} =
+    with_workspaces(f, T, size, -1, fallback; keep)
 
-    # allocate
-    sz = get_size()
-    workspace = nothing
+"""
+    with_workspaces([eltyp=UInt8], size_gpu, size_cpu, [fallback::Int]; keep::Bool=false) do workspace_gpu, workspace_cpu
+        ...
+    end
+
+Create GPU and CPU workspace vectors with element type `eltyp` and size in number of elements (in
+the default case of an UInt8 element type this equals to the amount of bytes) specified by
+`size_gpu` and `size_cpu`, and pass them to the do block.
+A fallback GPU workspace size `fallback` can be specified if the regular size would lead to OOM.
+Afterwards, the GPU buffer is put back into the memory pool for reuse (unless `keep` is set to `true`).
+This helper protects against the rare but real issue of the GPU workspace size getter returning
+different results based on the GPU device memory pressure, which might change _after_
+initial allocation of the workspace (which can cause a GC collection).
+"""
+@inline with_workspaces(f, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function},
+                        fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) =
+    with_workspaces(f, UInt8, size_gpu, size_cpu, fallback; keep)
+
+function with_workspaces(f::Function, eltyp::Type{T}, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function},
+                         fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) where {T}
+
+    get_size_gpu() = Int(isa(size_gpu, Integer) ? size_gpu : size_gpu()::Integer)
+    get_size_cpu() = Int(isa(size_cpu, Integer) ? size_cpu : size_cpu()::Integer)
+
+    sz_gpu = get_size_gpu()
+    sz_cpu = get_size_cpu()
+
+    workspace_gpu = nothing
     try
-        while workspace === nothing || length(workspace) < sz
-            workspace = CuVector{T}(undef, sz)
-            sz = get_size()
+        while workspace_gpu === nothing || length(workspace_gpu) < sz_gpu
+            workspace_gpu = CuVector{T}(undef, sz_gpu)
+            sz_gpu = get_size_gpu()
         end
     catch ex
         fallback === nothing && rethrow()
         isa(ex, OutOfGPUMemoryError) || rethrow()
-        workspace = CuVector{T}(undef, fallback)
+        workspace_gpu = CuVector{T}(undef, fallback)
     end
-    workspace = workspace::CuVector{T}
+    workspace_gpu = workspace_gpu::CuVector{T}
 
     # use & free
     try
-        f(workspace)
+        # size_cpu == -1 means that we don't need a CPU workspace
+        if sz_cpu == -1
+            f(workspace_gpu)
+        else
+            workspace_cpu = Vector{T}(undef, sz_cpu)
+            f(workspace_gpu, workspace_cpu)
+        end
     finally
-        keep || CUDA.unsafe_free!(workspace)
+        keep || CUDA.unsafe_free!(workspace_gpu)
     end
 end
 
