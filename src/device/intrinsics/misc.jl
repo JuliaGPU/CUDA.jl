@@ -1,6 +1,13 @@
 export clock, nanosleep
 
 """
+    exit()
+
+Terminate a thread.
+"""
+exit() = @asmcall("exit;")
+
+"""
     clock(UInt32)
 
 Returns the value of a per-multiprocessor counter that is incremented every clock cycle.
