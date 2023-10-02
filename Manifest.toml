@@ -202,15 +202,15 @@ version = "0.9.8"
 
 [[deps.LLVM]]
 deps = ["CEnum", "LLVMExtra_jll", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "a9d2ce1d5007b1e8f6c5b89c5a31ff8bd146db5c"
+git-tree-sha1 = "4ea2928a96acfcf8589e6cd1429eff2a3a82c366"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "6.2.1"
+version = "6.3.0"
 
 [[deps.LLVMExtra_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "7ca6850ae880cc99b59b88517545f91a52020afa"
+git-tree-sha1 = "e7c01b69bcbcb93fd4cbc3d0fea7d229541e18d2"
 uuid = "dad2f222-ce93-54a1-a47d-0025e8a3acab"
-version = "0.0.25+0"
+version = "0.0.26+0"
 
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "f2355693d6778a178ade15952b7ac47a4ff97996"
