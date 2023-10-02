@@ -9,7 +9,7 @@ jobs:
   ManifestUpdater:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get Julia compatibility
         id: julia_compat
         # NOTE: this requires a Julia compat lower-bound with minor version!
