@@ -154,10 +154,14 @@ end
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 struct CuRefValue{T} <: Ref{T}
-  x::T
+    ptr::Ptr{T}
 end
-Base.getindex(r::CuRefValue{T}) where T = r.x
-Adapt.adapt_structure(to::KernelAdaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
+Base.getindex(r::CuRefValue{T}) where T = unsafe_load(r.ptr)
+Base.setindex!(r::CuRefValue{T}, v) where T = unsafe_store!(r.ptr, convert(T, v))
+function Adapt.adapt_structure(to::KernelAdaptor, ref::Base.RefValue{T}) where T
+    ptr = Base.unsafe_convert(Ptr{T}, ref)
+    CuRefValue{T}(ptr)
+end
 
 # broadcast sometimes passes a ref(type), resulting in a GPU-incompatible DataType box.
 # avoid that by using a special kind of ref that knows about the boxed type.
