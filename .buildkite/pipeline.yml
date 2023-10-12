@@ -306,6 +306,7 @@ steps:
             include("perf/runbenchmarks.jl")'
         agents:
           queue: "benchmark"
+          gpu: "rtx2070"
           cuda: "*"
         if: build.message !~ /\[skip benchmarks\]/ &&
             build.branch =~ /^master$$/
