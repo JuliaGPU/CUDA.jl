@@ -197,7 +197,8 @@ let
     @test elapsed(start, stop) > 0
 end
 
-@test (CUDA.@elapsed begin end) > 0
+@test (CUDA.@elapsed identity(nothing)) > 0
+@test (CUDA.@elapsed blocking=true identity(nothing)) > 0
 
 CuEvent(CUDA.EVENT_BLOCKING_SYNC)
 CuEvent(CUDA.EVENT_BLOCKING_SYNC | CUDA.EVENT_DISABLE_TIMING)
