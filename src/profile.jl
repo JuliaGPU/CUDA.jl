@@ -421,7 +421,7 @@ Prints profiling results to `io`
 
 See also: [`@profile`](@ref), [`@profiled`](@ref)
 """
-print
+function print end
 
 print(data; kwargs...) =
     print(stdout isa Base.TTY ? IOContext(stdout, :limit => true) : stdout, data; kwargs...)
