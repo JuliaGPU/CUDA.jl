@@ -79,6 +79,20 @@ let
     @test occursin("cuCtxSynchronize", str)
 end
 
+# collecting data
+let
+    data = CUDA.@profiled begin
+        @cuda identity(nothing)
+    end
+
+    str = sprint() do io
+        CUDA.Profile.print(io, data)
+    end
+
+    @test occursin("cuLaunchKernel", str)
+    @test occursin("_Z8identityv", str)
+end
+
 # JuliaGPU/NVTX.jl#37
 if !Sys.iswindows()
 

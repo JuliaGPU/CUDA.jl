@@ -38,6 +38,7 @@ macro profile(ex...)
     kwargs = ex[1:end-1]
 
     # extract keyword arguments that are handled by this macro
+    io = nothing
     external = false
     remaining_kwargs = []
     for kwarg in kwargs
@@ -46,6 +47,8 @@ macro profile(ex...)
             if key == :external
                 isa(value, Bool) || throw(ArgumentError("Invalid value for keyword argument `external`: got `$value`, expected literal boolean value"))
                 external = value
+            elseif key == :io
+                io = value
             else
                 push!(remaining_kwargs, kwarg)
             end
@@ -55,9 +58,37 @@ macro profile(ex...)
     end
 
     if external
-        Profile.emit_external_profile(code, remaining_kwargs)
+        isempty(remaining_kwargs) ||
+            throw(ArgumentError("Invalid keyword arguments to CUDA.@profile: $remaining_kwargs"))
+        Profile.emit_external_profile(code)
     else
-        Profile.emit_integrated_profile(code, remaining_kwargs)
+        quote
+            rv, data = $(Profile.emit_integrated_profile(code))
+            $Profile.print($((io === nothing ? (:data,) : (esc(io), :data))...);
+                           $(map(esc, remaining_kwargs)...))
+            rv
+        end
+    end
+end
+
+"""
+    @profiled code...
+
+Profile the GPU execution of `code` under the integrated profiler, and returns the raw
+profiling data. This data can then be visualized by passing to `Profile.print`.
+
+Note that the exact format of this data is not guaranteed to be stable, and may change
+between CUDA.jl releases. Currently, it contains three dataframes:
+- `host`, containing host-side activity;
+- `device`, containing device-side activity;
+- `nvtx`, with information on captured NVTX ranges and events.
+
+See also: [`@profile`](@ref)
+"""
+macro profiled(ex)
+    quote
+        _, data = $(Profile.emit_integrated_profile(ex))
+        data
     end
 end
 
@@ -79,9 +110,7 @@ using Printf
 # external profiler
 #
 
-function emit_external_profile(code, kwargs)
-    isempty(kwargs) || throw(ArgumentError("External profiler does not support keyword arguments"))
-
+function emit_external_profile(code)
     quote
         # wait for the device to become idle (and trigger a GC to avoid interference)
         CUDA.cuCtxSynchronize()
@@ -173,7 +202,7 @@ end
 # integrated profiler
 #
 
-function emit_integrated_profile(code, kwargs)
+function emit_integrated_profile(code)
     activity_kinds = [
         # API calls
         CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,
@@ -209,24 +238,23 @@ function emit_integrated_profile(code, kwargs)
 
         # sink the initial profiler overhead into a synchronization call
         CUDA.cuCtxSynchronize()
+        rv = nothing
+        data = nothing
         try
             rv = $(esc(code))
 
             # synchronize to ensure we capture all activity
             CUDA.cuCtxSynchronize()
-
-            rv
         finally
             CUPTI.disable!(cfg)
-            # convert CUPTI activity records to host and device traces
-            traces = $Profile.generate_traces(cfg)
-            $Profile.render_traces(traces...; $(map(esc, kwargs)...))
+            data = $Profile.capture(cfg)
         end
+        rv, data
     end
 end
 
 # convert CUPTI activity records to host and device traces
-function generate_traces(cfg)
+function capture(cfg)
     host_trace = DataFrame(
         id      = Int[],
         start   = Float64[],
@@ -387,26 +415,36 @@ function generate_traces(cfg)
     host_trace = leftjoin(host_trace, details, on=:id, order=:left)
     device_trace = leftjoin(device_trace, details, on=:id, order=:left)
 
-    return host_trace, device_trace, nvtx_trace
+    return (; host=host_trace, device=device_trace, nvtx=nvtx_trace)
 end
 
-# render traces to a table
-function render_traces(host_trace, device_trace, nvtx_trace;
-                       io=stdout isa Base.TTY ? IOContext(stdout, :limit => true) : stdout,
-                       trace=false, raw=false)
+"""
+    Profile.print([io::IO], data; kwargs...)
+
+Prints profiling results to `io`
+
+See also: [`@profile`](@ref), [`@profiled`](@ref)
+"""
+function print end
+
+print(data; kwargs...) =
+    print(stdout isa Base.TTY ? IOContext(stdout, :limit => true) : stdout, data; kwargs...)
+function print(io::IO, data; trace=false, raw=false)
+    data = deepcopy(data)
+
     # find the relevant part of the trace (marked by calls to 'cuCtxSynchronize')
-    trace_first_sync = findfirst(host_trace.name .== "cuCtxSynchronize")
-    trace_first_sync === nothing && error("Could not find the start of the profiling trace.")
-    trace_last_sync = findlast(host_trace.name .== "cuCtxSynchronize")
-    trace_first_sync == trace_last_sync && error("Could not find the end of the profiling trace.")
+    trace_first_sync = findfirst(data.host.name .== "cuCtxSynchronize")
+    trace_first_sync === nothing && error("Could not find the start of the profiling data.")
+    trace_last_sync = findlast(data.host.name .== "cuCtxSynchronize")
+    trace_first_sync == trace_last_sync && error("Could not find the end of the profiling data.")
     ## truncate the trace
     if !raw || !trace
-        trace_begin = host_trace.stop[trace_first_sync]
-        trace_end = host_trace.stop[trace_last_sync]
+        trace_begin = data.host.stop[trace_first_sync]
+        trace_end = data.host.stop[trace_last_sync]
 
-        trace_first_call = copy(host_trace[trace_first_sync+1, :])
-        trace_last_call = copy(host_trace[trace_last_sync-1, :])
-        for df in (host_trace, device_trace)
+        trace_first_call = copy(data.host[trace_first_sync+1, :])
+        trace_last_call = copy(data.host[trace_last_sync-1, :])
+        for df in (data.host, data.device)
             filter!(row -> trace_first_call.id <= row.id <= trace_last_call.id, df)
         end
         trace_divisions = Int[]
@@ -417,35 +455,35 @@ function render_traces(host_trace, device_trace, nvtx_trace;
         trace_divisions = [trace_first_sync, trace_last_sync-1]
 
         # inclusive bounds
-        trace_begin = host_trace.start[begin]
-        trace_end = host_trace.stop[end]
+        trace_begin = data.host.start[begin]
+        trace_end = data.host.stop[end]
     end
     trace_time = trace_end - trace_begin
 
     # compute event and trace duration
-    for df in (host_trace, device_trace)
+    for df in (data.host, data.device)
         df.time = df.stop .- df.start
     end
-    events = nrow(host_trace) + nrow(device_trace)
+    events = nrow(data.host) + nrow(data.device)
     println(io, "Profiler ran for $(format_time(trace_time)), capturing $(events) events.")
 
     # make some numbers more friendly to read
     ## make timestamps relative to the start
-    for df in (host_trace, device_trace)
+    for df in (data.host, data.device)
         df.start .-= trace_begin
         df.stop .-= trace_begin
     end
-    nvtx_trace.start .-= trace_begin
+    data.nvtx.start .-= trace_begin
     if !raw
         # renumber event IDs from 1
-        first_id = minimum([host_trace.id; device_trace.id])
-        for df in (host_trace, device_trace)
+        first_id = minimum([data.host.id; data.device.id])
+        for df in (data.host, data.device)
             df.id .-= first_id - 1
         end
 
         # renumber thread IDs from 1
-        threads = unique([host_trace.tid; nvtx_trace.tid])
-        for df in (host_trace, nvtx_trace)
+        threads = unique([data.host.tid; data.nvtx.tid])
+        for df in (data.host, data.nvtx)
             broadcast!(df.tid, df.tid) do tid
                 findfirst(isequal(tid), threads)
             end
@@ -540,17 +578,17 @@ function render_traces(host_trace, device_trace, nvtx_trace;
     # host-side activity
     let
         # to determine the time the host was active, we should look at threads separately
-        host_time = maximum(combine(groupby(host_trace, :tid), :time => sum => :time).time)
+        host_time = maximum(combine(groupby(data.host, :tid), :time => sum => :time).time)
         host_ratio = host_time / trace_time
 
         # get rid of API call version suffixes
-        host_trace.name = replace.(host_trace.name, r"_v\d+$" => "")
+        data.host.name = replace.(data.host.name, r"_v\d+$" => "")
 
         df = if raw
-            host_trace
+            data.host
         else
             # filter spammy API calls
-            filter(host_trace) do row
+            filter(data.host) do row
                 !in(row.name, [# context and stream queries we use for nonblocking sync
                                "cuCtxGetCurrent", "cuStreamQuery",
                                # occupancy API, done before every kernel launch
@@ -566,7 +604,7 @@ function render_traces(host_trace, device_trace, nvtx_trace;
 
         # instantaneous NVTX markers can be added to the API trace
         if trace
-            markers = copy(nvtx_trace[nvtx_trace.type .== :instant, :])
+            markers = copy(data.nvtx[data.nvtx.type .== :instant, :])
             markers.id .= missing
             markers.time .= 0.0
             markers.details = map(markers.name, markers.domain) do name, domain
@@ -630,45 +668,45 @@ function render_traces(host_trace, device_trace, nvtx_trace;
 
     # device-side activity
     let
-        device_time = sum(device_trace.time)
+        device_time = sum(data.device.time)
         device_ratio = device_time / trace_time
-        if !isempty(device_trace)
+        if !isempty(data.device)
             println(io, "\nDevice-side activity: GPU was busy for $(format_time(device_time)) ($(format_percentage(device_ratio)) of the trace)")
         end
 
         # add memory throughput information
-        device_trace.throughput = device_trace.size ./ device_trace.time
+        data.device.throughput = data.device.size ./ data.device.time
 
-        if isempty(device_trace)
+        if isempty(data.device)
             println(io, "\nNo device-side activity was recorded.")
         elseif trace
             # determine columns to show, based on whether they contain useful information
             columns = [:id, :start, :time]
             ## device/stream identification
             for col in [:device, :stream]
-                if raw || length(unique(device_trace[!, col])) > 1
+                if raw || length(unique(data.device[!, col])) > 1
                     push!(columns, col)
                 end
             end
             ## kernel details (can be missing)
             for col in [:block, :grid, :registers]
-                if raw || any(!ismissing, device_trace[!, col])
+                if raw || any(!ismissing, data.device[!, col])
                     push!(columns, col)
                 end
             end
             for col in [:static_shmem, :dynamic_shmem]
-                if raw || any(val->!ismissing(val) && val > 0, device_trace[!, col])
+                if raw || any(val->!ismissing(val) && val > 0, data.device[!, col])
                     push!(columns, col)
                 end
             end
             ## memory details (can be missing)
-            if raw || any(!ismissing, device_trace.size)
+            if raw || any(!ismissing, data.device.size)
                 push!(columns, :size)
                 push!(columns, :throughput)
             end
             push!(columns, :name)
 
-            df = device_trace[:, columns]
+            df = data.device[:, columns]
             header = [trace_column_names[name] for name in names(df)]
 
             alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
@@ -699,7 +737,7 @@ function render_traces(host_trace, device_trace, nvtx_trace;
             pretty_table(io, df; header, alignment, formatters, highlighters, crop,
                                  body_hlines=trace_divisions)
         else
-            df = summarize_trace(device_trace)
+            df = summarize_trace(data.device)
 
             columns = [:time_ratio, :time, :calls, :time_avg, :time_min, :time_max, :name]
             df = df[:, columns]
@@ -714,8 +752,8 @@ function render_traces(host_trace, device_trace, nvtx_trace;
     # show NVTX ranges
     # TODO: do we also want to repeat the host/device summary for each NVTX range?
     #       that's what nvprof used to do, but it's a little verbose...
-    nvtx_ranges = copy(nvtx_trace[nvtx_trace.type .== :start, :])
-    nvtx_ranges = leftjoin(nvtx_ranges, nvtx_trace[nvtx_trace.type .== :end,
+    nvtx_ranges = copy(data.nvtx[data.nvtx.type .== :start, :])
+    nvtx_ranges = leftjoin(nvtx_ranges, data.nvtx[data.nvtx.type .== :end,
                                                    [:id, :start]],
                            on=:id, makeunique=true)
     if !isempty(nvtx_ranges)
@@ -751,13 +789,13 @@ format_percentage(x::Number) = @sprintf("%.2f%%", x * 100)
 function format_time(t::Number)
     io = IOBuffer()
     if abs(t) < 1e-6  # less than 1 microsecond
-        print(io, round(t * 1e9, digits=2), " ns")
+        Base.print(io, round(t * 1e9, digits=2), " ns")
     elseif abs(t) < 1e-3  # less than 1 millisecond
-        print(io, round(t * 1e6, digits=2), " µs")
+        Base.print(io, round(t * 1e6, digits=2), " µs")
     elseif abs(t) < 1  # less than 1 second
-        print(io, round(t * 1e3, digits=2), " ms")
+        Base.print(io, round(t * 1e3, digits=2), " ms")
     else
-        print(io, round(t, digits=2), " s")
+        Base.print(io, round(t, digits=2), " s")
     end
     return String(take!(io))
 end
