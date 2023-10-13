@@ -38,6 +38,7 @@ macro profile(ex...)
     kwargs = ex[1:end-1]
 
     # extract keyword arguments that are handled by this macro
+    io = nothing
     external = false
     remaining_kwargs = []
     for kwarg in kwargs
@@ -46,6 +47,8 @@ macro profile(ex...)
             if key == :external
                 isa(value, Bool) || throw(ArgumentError("Invalid value for keyword argument `external`: got `$value`, expected literal boolean value"))
                 external = value
+            elseif key == :io
+                io = value
             else
                 push!(remaining_kwargs, kwarg)
             end
@@ -61,7 +64,8 @@ macro profile(ex...)
     else
         quote
             rv, data = $(Profile.emit_integrated_profile(code))
-            $Profile.print(data; $(map(esc, remaining_kwargs)...))
+            $Profile.print($((io === nothing ? (:data,) : (esc(io), :data))...);
+                           $(map(esc, remaining_kwargs)...))
             rv
         end
     end
