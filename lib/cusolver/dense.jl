@@ -258,9 +258,9 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
     @eval begin
         function ormqr!(side::Char,
                         trans::Char,
-                        A::CuMatrix{$elty},
-                        tau::CuVector{$elty},
-                        C::CuVecOrMat{$elty})
+                        A::StridedCuMatrix{$elty},
+                        tau::StridedCuVector{$elty},
+                        C::StridedCuVecOrMat{$elty})
 
             # Support transa = 'C' for real matrices
             trans = $elty <: Real && trans == 'C' ? 'T' : trans
