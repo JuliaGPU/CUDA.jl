@@ -186,7 +186,8 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
                             (:cusolverDnZsytrf_bufferSize, :cusolverDnZsytrf, :ComplexF64))
     @eval begin
         function sytrf!(uplo::Char,
-                        A::StridedCuMatrix{$elty})
+                        A::StridedCuMatrix{$elty},
+                        ipiv::CuVector{Cint})
             chkuplo(uplo)
             n = checksquare(A)
             lda = max(1, stride(A, 2))
@@ -197,7 +198,6 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
                 return out[]
             end
 
-            ipiv = CuArray{Cint}(undef, n)
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace($elty, bufferSize) do buffer
                 $fname(dense_handle(), uplo, n, A, lda, ipiv, buffer, length(buffer), devinfo)
@@ -208,6 +208,12 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
             chkargsok(BlasInt(info))
 
             A, ipiv, info
+        end
+
+        function sytrf!(uplo::Char, A::StridedCuMatrix{$elty})
+            n = checksquare(A)
+            ipiv = CuArray{Cint}(undef, n)
+            sytrf!(uplo, A, ipiv)
         end
     end
 end
@@ -258,9 +264,9 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
     @eval begin
         function ormqr!(side::Char,
                         trans::Char,
-                        A::CuMatrix{$elty},
+                        A::StridedCuMatrix{$elty},
                         tau::CuVector{$elty},
-                        C::CuVecOrMat{$elty})
+                        C::StridedCuVecOrMat{$elty})
 
             # Support transa = 'C' for real matrices
             trans = $elty <: Real && trans == 'C' ? 'T' : trans
@@ -387,11 +393,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
                         jobvt::Char,
                         A::StridedCuMatrix{$elty})
             m, n = size(A)
-            if m < n
-                throw(ArgumentError("CUSOLVER's gesvd currently requires m >= n"))
-                # XXX: is this documented?
-            end
-            lda     = max(1, stride(A, 2))
+            (m < n) && throw(ArgumentError("CUSOLVER's gesvd requires m ≥ n"))
+            lda = max(1, stride(A, 2))
 
             U = if jobu === 'A'
                 CuArray{$elty}(undef, m, m)
@@ -900,11 +903,13 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         LinearAlgebra.LAPACK.geqrf!(A::StridedCuMatrix{$elty}) = CUSOLVER.geqrf!(A)
         LinearAlgebra.LAPACK.geqrf!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = CUSOLVER.geqrf!(A, tau)
         LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}) = sytrf!(uplo, A)
+        LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}) = CUSOLVER.sytrf!(uplo, A, ipiv)
         LinearAlgebra.LAPACK.getrs!(trans::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}, B::StridedCuVecOrMat{$elty}) = CUSOLVER.getrs!(trans, A, ipiv, B)
         LinearAlgebra.LAPACK.ormqr!(side::Char, trans::Char, A::CuMatrix{$elty}, tau::CuVector{$elty}, C::CuVecOrMat{$elty}) = CUSOLVER.ormqr!(side, trans, A, tau, C)
         LinearAlgebra.LAPACK.orgqr!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = CUSOLVER.orgqr!(A, tau)
         LinearAlgebra.LAPACK.gebrd!(A::StridedCuMatrix{$elty}) = CUSOLVER.gebrd!(A)
         LinearAlgebra.LAPACK.gesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.gesvd!(jobu, jobvt, A)
+        LinearAlgebra.LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.syevd!(jobz, uplo, A)
     end
 end
 

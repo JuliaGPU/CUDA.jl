@@ -47,7 +47,7 @@ k = 1
         @test_throws LinearAlgebra.PosDefException cholesky(d_A)
     end
 
-    CUDA.CUSOLVER.version() >= v"10.1" && @testset "Cholesky inverse (potri)" begin
+    @testset "Cholesky inverse (potri)" begin
         # test lower
         A    = rand(elty,n,n)
         A    = A*A'+I #posdef

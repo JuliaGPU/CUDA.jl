@@ -52,7 +52,7 @@ This helper protects against the rare but real issue of the workspace size gette
 different results based on the GPU device memory pressure, which might change _after_
 initial allocation of the workspace (which can cause a GC collection).
 """
-@inline with_workspace(f, size::Union{Integer,Function}, fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) =
+@inline with_workspace(f::Function, size::Union{Integer,Function}, fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) =
     with_workspaces(f, UInt8, size, -1, fallback; keep)
 
 @inline with_workspace(f::Function, eltyp::Type{T}, size::Union{Integer,Function},
@@ -73,7 +73,7 @@ This helper protects against the rare but real issue of the GPU workspace size g
 different results based on the GPU device memory pressure, which might change _after_
 initial allocation of the workspace (which can cause a GC collection).
 """
-@inline with_workspaces(f, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function},
+@inline with_workspaces(f::Function, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function},
                         fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) =
     with_workspaces(f, UInt8, size_gpu, size_cpu, fallback; keep)
 
