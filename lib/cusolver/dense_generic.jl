@@ -241,9 +241,32 @@ function Xgesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}) where {T <: Bla
 end
 
 # Xgesvdp
-# function Xgesvdp!(A::StridedCuMatrix{T}) where {T <: BlasFloat}
+# function Xgesvdp!(jobz::Char, econ::Int, A::StridedCuMatrix{T}) where {T <: BlasFloat}
 #     m, n = size(A)
+#     p = min(m, n)
+#     R = real(T)
+#     U = if jobz == 'V' && econ == 1
+#         CuMatrix{T}(undef, m, p)
+#     elseif jobz == 'V'
+#         CuMatrix{T}(undef, m, m)
+#     elseif jobz == 'N'
+#         CU_NULL
+#     else
+#         throw(ArgumentError("jobz is incorrect. The values accepted are 'V' and 'N'."))
+#     end
+#     Σ = CuVector{R}(undef, p)
+#     V = if jobz == 'V' && econ == 1
+#         CuMatrix{T}(undef, p, n)
+#     elseif jobz == 'V'
+#         CuMatrix{T}(undef, n, n)
+#     elseif jobz == 'N'
+#         CU_NULL
+#     else
+#         throw(ArgumentError("jobz is incorrect. The values accepted are 'V' and 'N'."))
+#     end
 #     lda = max(1, stride(A, 2))
+#     ldu = U == CU_NULL ? 1 : max(1, stride(U, 2))
+#     ldv = V == CU_NULL ? 1 : max(1, stride(V, 2))
 #     info = CuVector{Cint}(undef, 1)
 #     h_err_sigma = Ref{Cdouble}(0)
 #     params = Ref{cusolverDnParams_t}(C_NULL)
@@ -253,14 +276,14 @@ end
 #         out_cpu = Ref{Csize_t}(0)
 #         out_gpu = Ref{Csize_t}(0)
 #         cusolverDnXgesvdp_bufferSize(dense_handle(), params[], jobz, econ, m,
-#                                      n, T, A, lda, R, S, T, U, ldu, T, V,
+#                                      n, T, A, lda, R, Σ, T, U, ldu, T, V,
 #                                      ldv, T, out_gpu, out_cpu)
 #
 #         out_gpu[], out_cpu[]
 #     end
 #     with_workspaces(bufferSize()...) do buffer_gpu, buffer_cpu
 #         cusolverDnXgesvdp(dense_handle(), params[], jobz, econ, m, n, T, A, lda, R,
-#                           S, T, U, ldu, T, V, ldv, T, buffer_gpu, sizeof(buffer_gpu),
+#                           Σ, T, U, ldu, T, V, ldv, T, buffer_gpu, sizeof(buffer_gpu),
 #                           buffer_cpu, sizeof(buffer_cpu), info, h_err_sigma)
 #     end
 #
@@ -268,13 +291,36 @@ end
 #     flag = @allowscalar info[1]
 #     unsafe_free!(info)
 #     chklapackerror(BlasInt(flag))
-#     ...
+#     if jobz == 'N'
+#         return Σ, h_err_sigma[]
+#     elseif jobz == 'V'
+#         return U, Σ, V, h_err_sigma[]
+#     end
 # end
 
 # Xgesvdr
-# function Xgesvdr!(A::StridedCuMatrix{T}, k::Integer) where {T <: BlasFloat}
+# function Xgesvdr!(jobu::Char, jobv::Char, A::StridedCuMatrix{T}, k::Integer;
+#                   niters::Integer=2, p::Integer=2*k) where {T <: BlasFloat}
 #     m, n = size(A)
+#     R = real(T)
+#     U = if jobu == 'S'
+#         CuMatrix{T}(undef, m, k)
+#     elseif jobu == 'N'
+#         CU_NULL
+#     else
+#         throw(ArgumentError("jobu is incorrect. The values accepted are 'S' and 'N'."))
+#     end
+#     Σ = CuVector{R}(undef, k)
+#     V = if jobv == 'S'
+#         CuMatrix{T}(undef, k, n)
+#     elseif jobv == 'N'
+#         CU_NULL
+#     else
+#         throw(ArgumentError("jobv is incorrect. The values accepted are S' and 'N'."))
+#     end
 #     lda = max(1, stride(A, 2))
+#     ldu = U == CU_NULL ? 1 : max(1, stride(U, 2))
+#     ldv = V == CU_NULL ? 1 : max(1, stride(V, 2))
 #     info = CuVector{Cint}(undef, 1)
 #     params = Ref{cusolverDnParams_t}(C_NULL)
 #     cusolverDnCreateParams(params)
@@ -282,25 +328,23 @@ end
 #     function bufferSize()
 #         out_cpu = Ref{Csize_t}(0)
 #         out_gpu = Ref{Csize_t}(0)
-#         cusolverDnXgesvdr_bufferSize(dense_handle(), params[], jobu, jobv, m, n, k, p,
-#                                      niters, T, A, lda, R,
-#                                      Srand, T, Urand, ldUrand,
-#                                      T, Vrand, ldVrand, T, out_gpu, out_cpu)
+#         cusolverDnXgesvdr_bufferSize(dense_handle(), params[], jobu, jobv,
+#                                      m, n, k, p, niters, T, A, lda, R, Σ, T,
+#                                      U, ldu, T, V, ldv, T, out_gpu, out_cpu)
 #         out_gpu[], out_cpu[]
 #     end
 #     with_workspaces(bufferSize()...) do buffer_gpu, buffer_cpu
-#         cusolverDnXgesvdr(dense_handle(), params[], jobu, jobv, m, n, k, p, niters,
-#                           T, A, lda, R, Srand, T,
-#                           Urand, ldUrand, T, Vrand, ldVrand,
-#                           T, buffer_gpu, sizeof(buffer_gpu), buffer_cpu,
-#                           sizeof(buffer_cpu), info)
+#         cusolverDnXgesvdr(dense_handle(), params[], jobu, jobv, m, n,
+#                           k, p, niters, T, A, lda, R, Σ, T, U, ldu, T,
+#                           V, ldv, T, buffer_gpu, sizeof(buffer_gpu),
+#                           buffer_cpu, sizeof(buffer_cpu), info)
 #     end
 #
 #     cusolverDnDestroyParams(params[])
 #     flag = @allowscalar info[1]
 #     unsafe_free!(info)
 #     chklapackerror(BlasInt(flag))
-#     ...
+#     U, Σ, V
 # end
 
 # Xsyevd
@@ -340,14 +384,14 @@ function Xsyevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: Blas
 end
 
 # Xsyevdx
-# function Xsyevdx!(jobz::Char, uplo::Char, range::Char, A::StridedCuMatrix{T};
+# function Xsyevdx!(jobz::Char, range::Char, uplo::Char, A::StridedCuMatrix{T};
 #                   vl::Real=0.0, vu::Real=Inf, il::Integer=1, iu::Integer=0) where {T <: BlasFloat}
 #     chkuplo(uplo)
 #     n = checksquare(A)
-#     (n ≥ 1) && (iu == 0) && (iu = n)
-#     (il > lu) && error("...")
-#     (vl > vu) && error("...")
 #     R = real(T)
+#     (n ≥ 1) && (iu == 0) && (iu = n)
+#     (range == 'I') && !(1 ≤ il ≤ iu ≤ n) && throw(ArgumentError("illegal choice of eigenvalue indices (il = $il, iu = $iu), which must be between 1 and n = $n"))
+#     (range == 'V') && (vl ≥ vu) && throw(ArgumentError("lower boundary, $vl, must be less than upper boundary, $vu"))
 #     lda = max(1, stride(A, 2))
 #     info = CuVector{Cint}(undef, 1)
 #     W = CuVector{R}(undef, n)
