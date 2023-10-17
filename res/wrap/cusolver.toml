@@ -644,6 +644,14 @@ needs_context = false
 [api.cusolverDnZpotri_bufferSize.argtypes]
 4 = "CuPtr{cuDoubleComplex}"
 
+[api.cusolverDnXtrtri_bufferSize.argtypes]
+6 = "CuPtr{Cvoid}"
+
+[api.cusolverDnXtrtri.argtypes]
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
 [api.cusolverDnSpotri.argtypes]
 4 = "CuPtr{Cfloat}"
 6 = "CuPtr{Cfloat}"
@@ -963,6 +971,18 @@ needs_context = false
 6 = "CuPtr{Cint}"
 7 = "CuPtr{cuDoubleComplex}"
 9 = "CuPtr{Cint}"
+
+[api.cusolverDnXsytrs_bufferSize.argtypes]
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Int64}"
+10 = "CuPtr{Cvoid}"
+
+[api.cusolverDnXsytrs.argtypes]
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Int64}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cint}"
 
 [api.cusolverDnSsytrs_bufferSize.argtypes]
 5 = "CuPtr{Cfloat}"
