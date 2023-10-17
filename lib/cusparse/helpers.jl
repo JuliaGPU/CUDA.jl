@@ -191,7 +191,7 @@ mutable struct CuSparseMatrixDescriptor
             A.blockDim, A.blockDim,
             A.rowPtr, A.colVal, nonzeros(A),
             eltype(A.rowPtr), eltype(A.colVal), IndexBase,
-            eltype(nonzeros(A)), A.dir)
+            eltype(nonzeros(A)), A.dir
         )
         obj = new(desc_ref[])
         finalizer(cusparseDestroySpMat, obj)
