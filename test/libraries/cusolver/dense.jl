@@ -9,12 +9,42 @@ l = 13
 k = 1
 
 @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    @testset "inv" begin
+    @testset "inv -- unsymmetric" begin
         A = rand(elty,n,n)
         dA = CuArray(A)
         dA⁻¹ = inv(dA)
         dI = dA * dA⁻¹
         @test Array(dI) ≈ I
+    end
+
+    @testset "inv -- symmetric -- hermitian" begin
+        A = rand(elty,n,n)
+        A = A + A'
+        dA = Hermitian(CuArray(A))
+        dA⁻¹ = inv(dA)
+        dI = dA.data * dA⁻¹
+        @test Array(dI) ≈ I
+
+        if elty <: Real
+            dA = Symmetric(CuArray(A))
+            dA⁻¹ = inv(dA)
+            dI = dA.data * dA⁻¹
+            @test Array(dI) ≈ I
+        end
+    end
+
+    @testset "inv -- triangular" begin
+        for (triangle, uplo, diag) in ((LowerTriangular, 'L', 'N'), (UnitLowerTriangular, 'L', 'U'),
+                                       (UpperTriangular, 'U', 'N'), (UnitUpperTriangular, 'U', 'U'))
+                A = rand(elty,n,n)
+                A = uplo == 'L' ? tril(A) : triu(A)
+                A = diag == 'N' ? A : A - Diagonal(A) + I
+                dA = CuArray(A)
+                dA⁻¹ = inv(dA)
+                dI = dA.data * dA⁻¹
+                @test Array(dI) ≈ I
+            end
+        end
     end
 
     @testset "Cholesky (po)" begin
@@ -682,7 +712,28 @@ end
 ], elty2 in [
     Float16, Float32, Float64, ComplexF16, ComplexF32, ComplexF64, Int32, Int64, Complex{Int32}, Complex{Int64}
 ]
-    @testset "Square linear systems" begin
+    @testset "Square symmetric and hermitian linear systems" begin
+        A = rand(elty1,n,n)
+        A = A + A'
+        B = rand(elty2,n,5)
+        b = rand(elty2,n)
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        d_b = CuArray(b)
+        cublasfloat = promote_type(Float32, promote_type(elty1, elty2))
+        for wrapper in (Symmetric, Hermitian)
+            (wrapper == Symmetric) && !(cublasfloat <: Real) && continue
+            Af = wrapper(cublasfloat.(A))
+            Bf = cublasfloat.(B)
+            bf = cublasfloat.(b)
+            @test Array(d_A \ d_B) ≈ (Af \ Bf)
+            @test Array(d_A \ d_b) ≈ (Af \ bf)
+            @inferred d_A \ d_B
+            @inferred d_A \ d_b
+        end
+    end
+
+    @testset "Square unsymmetric linear systems" begin
         A = rand(elty1,n,n)
         B = rand(elty2,n,5)
         b = rand(elty2,n)

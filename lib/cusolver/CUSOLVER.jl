@@ -14,7 +14,7 @@ using ..CUSPARSE: cusparseMatDescr_t
 using CEnum: @cenum
 
 using LinearAlgebra
-using LinearAlgebra: BlasFloat
+using LinearAlgebra: BlasFloat, HermOrSym
 
 export has_cusolvermg
 
