@@ -52,10 +52,10 @@ This helper protects against the rare but real issue of the workspace size gette
 different results based on the GPU device memory pressure, which might change _after_
 initial allocation of the workspace (which can cause a GC collection).
 """
-@inline with_workspace(f::Function, size::Union{Integer,Function}, fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) =
+@inline with_workspace(f::Base.Callable, size::Union{Integer,Function}, fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) =
     with_workspaces(f, UInt8, size, -1, fallback; keep)
 
-@inline with_workspace(f::Function, eltyp::Type{T}, size::Union{Integer,Function},
+@inline with_workspace(f::Base.Callable, eltyp::Type{T}, size::Union{Integer,Function},
                        fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) where {T} =
     with_workspaces(f, T, size, -1, fallback; keep)
 
@@ -73,11 +73,11 @@ This helper protects against the rare but real issue of the GPU workspace size g
 different results based on the GPU device memory pressure, which might change _after_
 initial allocation of the workspace (which can cause a GC collection).
 """
-@inline with_workspaces(f::Function, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function},
+@inline with_workspaces(f::Base.Callable, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function},
                         fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) =
     with_workspaces(f, UInt8, size_gpu, size_cpu, fallback; keep)
 
-function with_workspaces(f::Function, eltyp::Type{T}, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function},
+function with_workspaces(f::Base.Callable, eltyp::Type{T}, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function},
                          fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) where {T}
 
     get_size_gpu() = Int(isa(size_gpu, Integer) ? size_gpu : size_gpu()::Integer)
