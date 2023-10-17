@@ -182,6 +182,21 @@ mutable struct CuSparseMatrixDescriptor
         finalizer(cusparseDestroySpMat, obj)
         return obj
     end
+
+    function CuSparseMatrixDescriptor(A::CuSparseMatrixBSR, IndexBase::Char)
+        desc_ref = Ref{cusparseSpMatDescr_t}()
+        cusparseCreateBsr(
+            desc_ref,
+            size(A)..., nnz(A),
+            A.blockDim, A.blockDim,
+            A.rowPtr, A.colVal, nonzeros(A),
+            eltype(A.rowPtr), eltype(A.colVal), IndexBase,
+            eltype(nonzeros(A)), A.dir)
+        )
+        obj = new(desc_ref[])
+        finalizer(cusparseDestroySpMat, obj)
+        return obj
+    end
 end
 
 Base.unsafe_convert(::Type{cusparseSpMatDescr_t}, desc::CuSparseMatrixDescriptor) = desc.handle

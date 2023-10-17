@@ -69,25 +69,22 @@ using LinearAlgebra, SparseArrays
         end
     end
 
-    # SpGEMM was added in CUSPARSE v"11.1.1"
-    if CUSPARSE.version() >= v"11.1.1"
-        for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
-            @testset "$SparseMatrixType * $SparseMatrixType -- A * B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-                for opa in (identity, transpose, adjoint)
-                    for opb in (identity, transpose, adjoint)
-                        n = 10
-                        k = 15
-                        m = 20
-                        A = opa == identity ? sprand(elty, m, k, 0.2) : sprand(elty, k, m, 0.2)
-                        B = opb == identity ? sprand(elty, k, n, 0.5) : sprand(elty, n, k, 0.5)
+    for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+        @testset "$SparseMatrixType * $SparseMatrixType -- A * B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            for opa in (identity, transpose, adjoint)
+                for opb in (identity, transpose, adjoint)
+                    n = 10
+                    k = 15
+                    m = 20
+                    A = opa == identity ? sprand(elty, m, k, 0.2) : sprand(elty, k, m, 0.2)
+                    B = opb == identity ? sprand(elty, k, n, 0.5) : sprand(elty, n, k, 0.5)
 
-                        dA = SparseMatrixType(A)
-                        dB = SparseMatrixType(B)
+                    dA = SparseMatrixType(A)
+                    dB = SparseMatrixType(B)
 
-                        C = opa(A) * opb(B)
-                        dC = opa(dA) * opb(dB)
-                        @test C ≈ collect(dC)
-                    end
+                    C = opa(A) * opb(B)
+                    dC = opa(dA) * opb(dB)
+                    @test C ≈ collect(dC)
                 end
             end
         end
