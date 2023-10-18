@@ -65,6 +65,17 @@ function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
     return X
 end
 
+function Base.:\(_A::Symmetric{<:Any,<:CuMatOrAdj}, _B::CuOrAdj)
+    uplo = A.uplo
+    A, B = copy_cublasfloat(_A.data, _B)
+
+    # LDLᴴ decomposition with partial pivoting
+    factors, ipiv, info = sytrf!(uplo, A)
+    ipiv = CuVector{Int64}(ipiv)
+    X = sytrs!(uplo, factors, ipiv, B)
+    return X
+end
+
 # patch JuliaLang/julia#40899 to create a CuArray
 # (see https://github.com/JuliaLang/julia/pull/41331#issuecomment-868374522)
 _zeros(::Type{T}, b::AbstractVector, n::Integer) where {T} = CUDA.zeros(T, max(length(b), n))
@@ -352,4 +363,28 @@ function LinearAlgebra.inv(A::StridedCuMatrix{T}) where T <: BlasFloat
     B = CuMatrix{T}(I, n, n)
     getrs!('N', factors, ipiv, B)
     return B
+end
+
+function LinearAlgebra.inv(A::Symmetric{T,<:StridedCuMatrix{T}}) where T <: BlasFloat
+    n = checksquare(A)
+    F = copy(A.data)
+    factors, ipiv, info = sytrf!(A.uplo, F)
+    ipiv = CuVector{Int64}(ipiv)
+    B = CuMatrix{T}(I, n, n)
+    sytrs!(A.uplo, factors, ipiv, B)
+    return B
+end
+
+for (triangle, uplo, diag) in ((:LowerTriangular, 'L', 'N'),
+                               (:UnitLowerTriangular, 'L', 'U'),
+                               (:UpperTriangular, 'U', 'N'),
+                               (:UnitUpperTriangular, 'U', 'U'))
+    @eval begin
+        function LinearAlgebra.inv(A::$triangle{T,<:StridedCuMatrix{T}}) where T <: BlasFloat
+            n = checksquare(A)
+            B = copy(A.data)
+            trtri!(uplo, diag, B)
+            return B
+        end
+    end
 end

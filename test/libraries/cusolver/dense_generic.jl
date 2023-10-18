@@ -10,7 +10,7 @@ p = 5
         for uplo in ('L', 'U')
             A = rand(elty,n,n)
             B = rand(elty,n,p)
-            A = A + A'
+            A = A + transpose(A)
             d_A = CuMatrix(A)
             d_B = CuMatrix(B)
             d_A, d_ipiv, _ = CUSOLVER.sytrf!(uplo, d_A)
