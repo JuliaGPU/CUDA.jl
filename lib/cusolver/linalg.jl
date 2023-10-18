@@ -65,20 +65,15 @@ function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
     return X
 end
 
-for (wrapper, blas_types) in ((:Symmetric, :BlasReal),
-                              (:Hermitian, :BlasFloat))
-    @eval begin
-        function Base.:\(A::$wrapper{<:$blas_types,<:CuMatOrAdj}, _B::CuOrAdj)
-            uplo = A.uplo
-            A, B = copy_cublasfloat(_A.data, _B)
+function Base.:\(_A::Symmetric{<:Any,<:CuMatOrAdj}, _B::CuOrAdj)
+    uplo = A.uplo
+    A, B = copy_cublasfloat(_A.data, _B)
 
-            # LDLᴴ decomposition with partial pivoting
-            factors, ipiv, info = sytrf!(uplo, F)
-            ipiv = CuVector{Int64}(ipiv)
-            X = sytrs!(uplo, factors, ipiv, B)
-            return X
-        end
-    end
+    # LDLᴴ decomposition with partial pivoting
+    factors, ipiv, info = sytrf!(uplo, A)
+    ipiv = CuVector{Int64}(ipiv)
+    X = sytrs!(uplo, factors, ipiv, B)
+    return X
 end
 
 # patch JuliaLang/julia#40899 to create a CuArray
@@ -370,19 +365,14 @@ function LinearAlgebra.inv(A::StridedCuMatrix{T}) where T <: BlasFloat
     return B
 end
 
-for (wrapper, blas_types) in ((:Symmetric, :BlasReal),
-                              (:Hermitian, :BlasFloat))
-    @eval begin
-        function LinearAlgebra.inv(A::$wrapper{T,<:StridedCuMatrix{T}}) where T <: $blas_types
-            n = checksquare(A)
-            F = copy(A.data)
-            factors, ipiv, info = sytrf!(A.uplo, F)
-            ipiv = CuVector{Int64}(ipiv)
-            B = CuMatrix{T}(I, n, n)
-            sytrs!(A.uplo, factors, ipiv, B)
-            return B
-        end
-    end
+function LinearAlgebra.inv(A::Symmetric{T,<:StridedCuMatrix{T}}) where T <: BlasFloat
+    n = checksquare(A)
+    F = copy(A.data)
+    factors, ipiv, info = sytrf!(A.uplo, F)
+    ipiv = CuVector{Int64}(ipiv)
+    B = CuMatrix{T}(I, n, n)
+    sytrs!(A.uplo, factors, ipiv, B)
+    return B
 end
 
 for (triangle, uplo, diag) in ((:LowerTriangular, 'L', 'N'),
