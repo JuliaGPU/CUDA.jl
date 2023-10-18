@@ -20,7 +20,7 @@ k = 1
     @testset "inv -- symmetric" begin
         A = rand(elty,n,n)
         A = A + transpose(A)
-        dA = Symmetic(CuArray(A))
+        dA = Symmetric(CuArray(A))
         dA⁻¹ = inv(dA)
         dI = dA.data * dA⁻¹
         display(dI)
