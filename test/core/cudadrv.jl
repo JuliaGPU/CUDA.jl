@@ -200,6 +200,14 @@ end
 @test (CUDA.@elapsed identity(nothing)) > 0
 @test (CUDA.@elapsed blocking=true identity(nothing)) > 0
 
+let
+    empty_fun() = nothing
+
+    # Check that the benchmarked code occurs as-is in the macro expansion.
+    me = @macroexpand1 CUDA.@elapsed empty_fun()
+    @test any(arg -> arg == :(empty_fun()), me.args)
+end
+
 CuEvent(CUDA.EVENT_BLOCKING_SYNC)
 CuEvent(CUDA.EVENT_BLOCKING_SYNC | CUDA.EVENT_DISABLE_TIMING)
 
