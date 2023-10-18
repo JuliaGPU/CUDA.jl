@@ -19,7 +19,7 @@ k = 1
 
     @testset "inv -- symmetric" begin
         A = rand(elty,n,n)
-        A = A + tranpose(A)
+        A = A + transpose(A)
         dA = Symmetic(CuArray(A))
         dA⁻¹ = inv(dA)
         dI = dA.data * dA⁻¹
@@ -30,14 +30,13 @@ k = 1
     @testset "inv -- triangular" begin
         for (triangle, uplo, diag) in ((LowerTriangular, 'L', 'N'), (UnitLowerTriangular, 'L', 'U'),
                                        (UpperTriangular, 'U', 'N'), (UnitUpperTriangular, 'U', 'U'))
-                A = rand(elty,n,n)
-                A = uplo == 'L' ? tril(A) : triu(A)
-                A = diag == 'N' ? A : A - Diagonal(A) + I
-                dA = triangle(CuArray(A))
-                dA⁻¹ = inv(dA)
-                dI = dA.data * dA⁻¹
-                @test Array(dI) ≈ I
-            end
+            A = rand(elty,n,n)
+            A = uplo == 'L' ? tril(A) : triu(A)
+            A = diag == 'N' ? A : A - Diagonal(A) + I
+            dA = triangle(CuArray(A))
+            dA⁻¹ = inv(dA)
+            dI = dA.data * dA⁻¹
+            @test Array(dI) ≈ I
         end
     end
 
