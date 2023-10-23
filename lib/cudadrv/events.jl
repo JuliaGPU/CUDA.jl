@@ -118,7 +118,7 @@ macro elapsed(ex...)
     quote
         t0, t1 = CuEvent(), CuEvent()
         record(t0)
-        $(esc(ex))
+        $(esc(code))
         record(t1)
         synchronize(t1; blocking=$blocking)
         elapsed(t0, t1)
