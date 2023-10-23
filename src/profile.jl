@@ -277,8 +277,8 @@ function capture(cfg)
         grid            = Union{Missing,CUDA.CuDim3}[],
         block           = Union{Missing,CUDA.CuDim3}[],
         registers       = Union{Missing,Int64}[],
-        static_shmem    = Union{Missing,Int64}[],
-        dynamic_shmem   = Union{Missing,Int64}[],
+        shared_mem      = Union{Missing,@NamedTuple{static::Int64,dynamic::Int64}}[],
+        local_mem       = Union{Missing,@NamedTuple{thread::Int64,total::Int64}}[],
 
         # memory operations
         size        = Union{Missing,Int64}[],
@@ -375,15 +375,17 @@ function capture(cfg)
             grid = CUDA.CuDim3(record.gridX, record.gridY, record.gridZ)
             block = CUDA.CuDim3(record.blockX, record.blockY, record.blockZ)
             registers = record.registersPerThread
-            static_shmem = record.staticSharedMemory
-            dynamic_shmem = record.dynamicSharedMemory
+            shared_mem = (static=Int64(record.staticSharedMemory),
+                          dynamic=Int64(record.dynamicSharedMemory))
+            local_mem = (thread=Int64(record.localMemoryPerThread),
+                         total=Int64(record.localMemoryTotal))
 
             push!(device_trace, (; id, start=t0, stop=t1, name,
                                    device=record.deviceId,
                                    context=record.contextId,
                                    stream=record.streamId,
                                    grid, block, registers,
-                                   static_shmem, dynamic_shmem); cols=:union)
+                                   shared_mem, local_mem); cols=:union)
 
         # NVTX markers
         elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_MARKER
@@ -538,8 +540,8 @@ function print(io::IO, data; trace=false, raw=false)
         "tid"           => "Thread",
         "block"         => "Threads",
         "registers"     => "Regs",
-        "static_shmem"  => "SSMem",
-        "dynamic_shmem" => "DSMem",
+        "shared_mem"    => "Shared Mem",
+        "local_mem"     => "Local Mem",
         "size"          => "Size",
         "throughput"    => "Throughput",
         "device"        => "Device",
@@ -694,10 +696,11 @@ function print(io::IO, data; trace=false, raw=false)
                     push!(columns, col)
                 end
             end
-            for col in [:static_shmem, :dynamic_shmem]
-                if raw || any(val->!ismissing(val) && val > 0, data.device[!, col])
-                    push!(columns, col)
-                end
+            if raw || any(val->!ismissing(val) && (val.static > 0 || val.dynamic > 0), data.device.shared_mem)
+                push!(columns, :shared_mem)
+            end
+            if raw || any(val->!ismissing(val) && val.thread > 0, data.device.local_mem)
+                push!(columns, :local_mem)
             end
             ## memory details (can be missing)
             if raw || any(!ismissing, data.device.size)
@@ -715,8 +718,20 @@ function print(io::IO, data; trace=false, raw=false)
                     return "-"
                 elseif names(df)[j] in ["start", "time"]
                     format_time(v)
-                elseif names(df)[j] in ["static_shmem", "dynamic_shmem", "size"]
+                elseif names(df)[j] in ["size"]
                     Base.format_bytes(v)
+                elseif names(df)[j] in ["shared_mem"]
+                    if raw || v.static > 0 && v.dynamic > 0
+                        "$(Base.format_bytes(v.static)) static, $(Base.format_bytes(v.dynamic)) dynamic"
+                    elseif v.static > 0
+                        "$(Base.format_bytes(v.static)) static"
+                    elseif v.dynamic > 0
+                        "$(Base.format_bytes(v.dynamic)) dynamic"
+                    else
+                        "-"
+                    end
+                elseif names(df)[j] in ["local_mem"]
+                    "$(Base.format_bytes(v.thread)) / $(Base.format_bytes(v.total))"
                 elseif names(df)[j] in ["throughput"]
                     Base.format_bytes(v) * "/s"
                 elseif names(df)[j] in ["device"]
