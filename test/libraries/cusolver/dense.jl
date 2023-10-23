@@ -23,7 +23,6 @@ k = 1
         dA = Symmetric(CuArray(A))
         dA⁻¹ = inv(dA)
         dI = dA.data * dA⁻¹
-        display(dI)
         @test Array(dI) ≈ I
     end
 
