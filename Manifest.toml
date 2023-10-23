@@ -2,7 +2,7 @@
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "92edeb261e8261d0081b986ab2a8572f0d5c3fdf"
+project_hash = "c2df77f683980882c15e5257065f08461d2156f0"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra", "Test"]
@@ -45,9 +45,9 @@ version = "0.4.2"
 
 [[deps.CUDA_Driver_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
-git-tree-sha1 = "2f64185414751a5f878c4ab616c0edd94ade3419"
+git-tree-sha1 = "1e42ef1bdb45487ff28de16182c0df4920181dc3"
 uuid = "4ee394cb-3365-5eb0-8335-949819d2adfc"
-version = "0.6.0+4"
+version = "0.7.0+0"
 
 [[deps.CUDA_Runtime_Discovery]]
 deps = ["Libdl"]
@@ -57,9 +57,9 @@ version = "0.2.2"
 
 [[deps.CUDA_Runtime_jll]]
 deps = ["Artifacts", "CUDA_Driver_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "105eb8cf6ec6e8b93493da42ec789c3f65f7d749"
+git-tree-sha1 = "92394521ec4582c11d089a3b15b76ef2cb850994"
 uuid = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
-version = "0.9.2+3"
+version = "0.10.0+1"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
