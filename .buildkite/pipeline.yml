@@ -7,7 +7,7 @@ steps:
         plugins:
           - JuliaCI/julia#v1:
               version: "{{matrix.julia}}"
-          - JuliaCI/julia-test#v1:
+          - JuliaCI/julia-test#d41ea0a:
               test_args: "--quickfail"
           - JuliaCI/julia-coverage#v1:
               dirs:
@@ -25,9 +25,6 @@ steps:
         matrix:
           setup:
             julia:
-              - "1.8"
-              - "1.9"
-              - "1.10"
               - "nightly"
           adjustments:
             - with:
