@@ -96,16 +96,42 @@ p = 5
         @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * Vt)
     end
 
-    # @testset "syevdx!" begin
-    #     if elty <: Real
-    #         A = [3.5 0.5 0.0; 0.5 3.5 0.0; 0.0 0.0 2.0]
-    #         d_A = CuMatrix(A)
-    #         d_W, d_V, neig = CUSOLVER.Xsyevdx!('V', 'L', 'A', d_A)
-    #         @test neig = 3
-    #         W = collect(d_W)
-    #         V = collect(d_V)
-    #         @test W ≈ elty[2.0, 3.0, 4.0]
-    #         test A * V ≈ V * Diagonal(W)
+    # @testset "gesvdr!" begin
+    #     R = real(elty)
+    #     B = rand(elty,m,m)
+    #     FB = qr(B)
+    #     C = rand(elty,n,n)
+    #     FC = qr(C)
+    #     Σ = zeros(elty,m,n)
+    #     for i = 1:n
+    #         Σ[i,i] = i*one(R)
     #     end
+    #     k = 3
+    #     A = FB.Q * Σ * FC.Q
+    #     d_A = CuMatrix(A)
+    #     U, Σ, V = CUSOLVER.Xgesvdr!('N', 'N', d_A, n)
+    #     @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * V')
     # end
+
+    @testset "syevdx!" begin
+        R = real(elty)
+        Σ = [i*one(R) for i = 1:10]
+        B = rand(elty, 10, 10)
+        F = qr(B)
+        A = F.Q * Diagonal(Σ) * F.Q'
+        for uplo in ('L', 'U')
+            h_A = uplo == 'L' ? tril(A) : triu(A)
+            d_A = CuMatrix{elty}(h_A)
+
+            d_W, d_V, neig = CUSOLVER.Xsyevdx!('V', 'A', uplo, d_A, vl=3.5, vu= 7.5, il=1, iu=3)
+            @test neig == 10
+            @test collect(d_W) ≈ Σ
+            @test A ≈ collect(d_V * Diagonal(d_W) * d_V')
+
+            d_W, neig = CUSOLVER.Xsyevdx!('N', 'I', uplo, d_A, vl=3.5, vu= 7.5, il=1, iu=3)
+            @test neig == 3
+
+            d_W, neig = CUSOLVER.Xsyevdx!('N', 'V', uplo, d_A, vl=3.5, vu= 7.5, il=1, iu=3)
+        end
+    end
 end
