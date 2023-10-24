@@ -394,7 +394,7 @@ function Xsyevdx!(jobz::Char, range::Char, uplo::Char, A::StridedCuMatrix{T};
     (range == 'V') && (vl ≥ vu) && throw(ArgumentError("lower boundary, $vl, must be less than upper boundary, $vu"))
     lda = max(1, stride(A, 2))
     info = CuVector{Cint}(undef, 1)
-    W = (range == 'I') ? CuVector{R}(undef, iu-il+1) : CuVector{R}(undef, n)
+    W = CuVector{R}(undef, n)
     vl = Ref{R}(vl)
     vu = Ref{R}(vu)
     h_meig = Ref{Int64}(0)
