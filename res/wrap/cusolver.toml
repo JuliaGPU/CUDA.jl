@@ -2043,9 +2043,9 @@ needs_context = false
 
 [api.cusolverDnXsyevdx_bufferSize.argtypes]
 8 = "CuPtr{Cvoid}"
-10 = "CuPtr{Cvoid}"
-11 = "CuPtr{Cvoid}"
-14 = "CuPtr{Int64}"
+10 = "Ptr{Cvoid}"
+11 = "Ptr{Cvoid}"
+14 = "Ptr{Int64}"
 16 = "CuPtr{Cvoid}"
 
 [api.cusolverDnXpotrs.argtypes]
@@ -2074,9 +2074,9 @@ needs_context = false
 
 [api.cusolverDnXsyevdx.argtypes]
 8 = "CuPtr{Cvoid}"
-10 = "CuPtr{Cvoid}"
-11 = "CuPtr{Cvoid}"
-14 = "CuPtr{Int64}"
+10 = "Ptr{Cvoid}"
+11 = "Ptr{Cvoid}"
+14 = "Ptr{Int64}"
 16 = "CuPtr{Cvoid}"
 18 = "CuPtr{Cvoid}"
 22 = "CuPtr{Cint}"
