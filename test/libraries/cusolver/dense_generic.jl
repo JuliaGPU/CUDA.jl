@@ -5,7 +5,7 @@ m = 15
 n = 10
 p = 5
 
-@testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "cusolver -- generic API -- $elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     @testset "sytrs!" begin
         for uplo in ('L', 'U')
             A = rand(elty,n,n)
@@ -96,6 +96,26 @@ p = 5
         @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * Vt)
     end
 
+    @testset "gesvdp!" begin
+        A = rand(elty,m,n)
+        d_A = CuMatrix(A)
+        U, Σ, V, err_sigma = CUSOLVER.Xgesvdp!('V', 0, d_A)
+        @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * V')
+
+        d_A = CuMatrix(A)
+        U, Σ, V, err_sigma = CUSOLVER.Xgesvdp!('V', 1, d_A)
+        @test A ≈ collect(U * Diagonal(Σ) * V')
+
+        A = rand(elty,n,m)
+        d_A = CuMatrix(A)
+        U, Σ, V, err_sigma = CUSOLVER.Xgesvdp!('V', 0, d_A)
+        @test A ≈ collect(U * Diagonal(Σ) * V[:,1:n]')
+
+        d_A = CuMatrix(A)
+        U, Σ, V, err_sigma = CUSOLVER.Xgesvdp!('V', 1, d_A)
+        @test A ≈ collect(U * Diagonal(Σ) * V')
+    end
+
     # @testset "gesvdr!" begin
     #     R = real(elty)
     #     B = rand(elty,m,m)
@@ -109,7 +129,7 @@ p = 5
     #     k = 3
     #     A = FB.Q * Σ * FC.Q
     #     d_A = CuMatrix(A)
-    #     U, Σ, V = CUSOLVER.Xgesvdr!('N', 'N', d_A, n)
+    #     U, Σ, V = CUSOLVER.Xgesvdr!('N', 'N', d_A, k)
     #     @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * V')
     # end
 
