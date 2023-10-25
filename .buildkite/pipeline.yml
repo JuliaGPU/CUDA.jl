@@ -60,6 +60,7 @@ steps:
         matrix:
           setup:
             cuda:
+              - "12.3"
               - "12.2"
               - "12.1"
               - "12.0"
@@ -70,6 +71,7 @@ steps:
               - "11.4"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"" >LocalPreferences.toml
+          echo -e "[CUDA_Driver_jll]\ncompat = \"false\"" >>LocalPreferences.toml
 
   - group: ":nesting_dolls: Subpackages"
     depends_on: "cuda"
