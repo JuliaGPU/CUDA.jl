@@ -1622,12 +1622,12 @@ end
     initialize_context()
     @ccall libcusolver.cusolverDnXtrtri(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
                                         diag::cublasDiagType_t, n::Int64,
-                                        dataTypeA::cudaDataType, A::CuPtr{Cvoid}, lda::Int64,
-                                        bufferOnDevice::CuPtr{Cvoid},
+                                        dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                        lda::Int64, bufferOnDevice::CuPtr{Cvoid},
                                         workspaceInBytesOnDevice::Csize_t,
                                         bufferOnHost::Ptr{Cvoid},
                                         workspaceInBytesOnHost::Csize_t,
-                                        devInfo::CuPtr{Cint})::cusolverStatus_t
+                                        devInfo::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverDnSlauum_bufferSize(handle, uplo, n, A, lda, lwork)
@@ -2125,8 +2125,8 @@ end
     @ccall libcusolver.cusolverDnXsytrs(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
                                         n::Int64, nrhs::Int64, dataTypeA::cudaDataType,
                                         A::CuPtr{Cvoid}, lda::Int64, ipiv::CuPtr{Int64},
-                                        dataTypeB::cudaDataType, B::CuPtr{Cvoid}, ldb::Int64,
-                                        bufferOnDevice::CuPtr{Cvoid},
+                                        dataTypeB::cudaDataType, B::CuPtr{Cvoid},
+                                        ldb::Int64, bufferOnDevice::CuPtr{Cvoid},
                                         workspaceInBytesOnDevice::Csize_t,
                                         bufferOnHost::Ptr{Cvoid},
                                         workspaceInBytesOnHost::Csize_t,
