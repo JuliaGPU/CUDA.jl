@@ -4,10 +4,10 @@
                                        incx, beta, yarray, incy, batchCount)
     initialize_context()
     @ccall libcublas.cublasHSHgemvBatched(handle::cublasHandle_t, trans::cublasOperation_t,
-                                          m::Cint, n::Cint, alpha::Ptr{Cfloat},
-                                          Aarray::Ptr{Ptr{Float16}}, lda::Cint,
-                                          xarray::Ptr{Ptr{Float16}}, incx::Cint,
-                                          beta::Ptr{Cfloat}, yarray::Ptr{Ptr{Float16}},
+                                          m::Cint, n::Cint, alpha::RefOrCuRef{Cfloat},
+                                          Aarray::CuPtr{Ptr{Float16}}, lda::Cint,
+                                          xarray::CuPtr{Ptr{Float16}}, incx::Cint,
+                                          beta::RefOrCuRef{Cfloat}, yarray::CuPtr{Ptr{Float16}},
                                           incy::Cint, batchCount::Cint)::cublasStatus_t
 end
 
@@ -15,10 +15,10 @@ end
                                        incx, beta, yarray, incy, batchCount)
     initialize_context()
     @ccall libcublas.cublasHSSgemvBatched(handle::cublasHandle_t, trans::cublasOperation_t,
-                                          m::Cint, n::Cint, alpha::Ptr{Cfloat},
-                                          Aarray::Ptr{Ptr{Float16}}, lda::Cint,
-                                          xarray::Ptr{Ptr{Float16}}, incx::Cint,
-                                          beta::Ptr{Cfloat}, yarray::Ptr{Ptr{Cfloat}},
+                                          m::Cint, n::Cint, alpha::RefOrCuRef{Cfloat},
+                                          Aarray::CuPtr{Ptr{Float16}}, lda::Cint,
+                                          xarray::CuPtr{Ptr{Float16}}, incx::Cint,
+                                          beta::RefOrCuRef{Cfloat}, yarray::CuPtr{Ptr{Cfloat}},
                                           incy::Cint, batchCount::Cint)::cublasStatus_t
 end
 
@@ -50,11 +50,11 @@ end
     initialize_context()
     @ccall libcublas.cublasHSHgemvStridedBatched(handle::cublasHandle_t,
                                                  trans::cublasOperation_t, m::Cint, n::Cint,
-                                                 alpha::Ptr{Cfloat}, A::Ptr{Float16},
+                                                 alpha::RefOrCuRef{Cfloat}, A::CuPtr{Float16},
                                                  lda::Cint, strideA::Clonglong,
-                                                 x::Ptr{Float16}, incx::Cint,
-                                                 stridex::Clonglong, beta::Ptr{Cfloat},
-                                                 y::Ptr{Float16}, incy::Cint,
+                                                 x::CuPtr{Float16}, incx::Cint,
+                                                 stridex::Clonglong, beta::RefOrCuRef{Cfloat},
+                                                 y::CuPtr{Float16}, incy::Cint,
                                                  stridey::Clonglong,
                                                  batchCount::Cint)::cublasStatus_t
 end
@@ -65,11 +65,11 @@ end
     initialize_context()
     @ccall libcublas.cublasHSSgemvStridedBatched(handle::cublasHandle_t,
                                                  trans::cublasOperation_t, m::Cint, n::Cint,
-                                                 alpha::Ptr{Cfloat}, A::Ptr{Float16},
+                                                 alpha::RefOrCuRef{Cfloat}, A::CuPtr{Float16},
                                                  lda::Cint, strideA::Clonglong,
-                                                 x::Ptr{Float16}, incx::Cint,
-                                                 stridex::Clonglong, beta::Ptr{Cfloat},
-                                                 y::Ptr{Cfloat}, incy::Cint,
+                                                 x::CuPtr{Float16}, incx::Cint,
+                                                 stridex::Clonglong, beta::RefOrCuRef{Cfloat},
+                                                 y::CuPtr{Cfloat}, incy::Cint,
                                                  stridey::Clonglong,
                                                  batchCount::Cint)::cublasStatus_t
 end
@@ -80,11 +80,11 @@ end
     initialize_context()
     @ccall libcublas.cublasTSTgemvStridedBatched(handle::cublasHandle_t,
                                                  trans::cublasOperation_t, m::Cint, n::Cint,
-                                                 alpha::Ptr{Cfloat}, A::Ptr{BFloat16},
+                                                 alpha::RefOrCuRef{Cfloat}, A::CuPtr{BFloat16},
                                                  lda::Cint, strideA::Clonglong,
-                                                 x::Ptr{BFloat16}, incx::Cint,
-                                                 stridex::Clonglong, beta::Ptr{Cfloat},
-                                                 y::Ptr{BFloat16}, incy::Cint,
+                                                 x::CuPtr{BFloat16}, incx::Cint,
+                                                 stridex::Clonglong, beta::RefOrCuRef{Cfloat},
+                                                 y::CuPtr{BFloat16}, incy::Cint,
                                                  stridey::Clonglong,
                                                  batchCount::Cint)::cublasStatus_t
 end
@@ -95,11 +95,11 @@ end
     initialize_context()
     @ccall libcublas.cublasTSSgemvStridedBatched(handle::cublasHandle_t,
                                                  trans::cublasOperation_t, m::Cint, n::Cint,
-                                                 alpha::Ptr{Cfloat}, A::Ptr{BFloat16},
+                                                 alpha::RefOrCuRef{Cfloat}, A::CuPtr{BFloat16},
                                                  lda::Cint, strideA::Clonglong,
-                                                 x::Ptr{BFloat16}, incx::Cint,
-                                                 stridex::Clonglong, beta::Ptr{Cfloat},
-                                                 y::Ptr{Cfloat}, incy::Cint,
+                                                 x::CuPtr{BFloat16}, incx::Cint,
+                                                 stridex::Clonglong, beta::RefOrCuRef{Cfloat},
+                                                 y::CuPtr{Cfloat}, incy::Cint,
                                                  stridey::Clonglong,
                                                  batchCount::Cint)::cublasStatus_t
 end
