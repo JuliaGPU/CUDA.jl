@@ -288,5 +288,5 @@ function main(name="all")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    main()
+    main(ARGS...)
 end

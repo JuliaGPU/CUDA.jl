@@ -1627,7 +1627,7 @@ end
                                         workspaceInBytesOnDevice::Csize_t,
                                         bufferOnHost::Ptr{Cvoid},
                                         workspaceInBytesOnHost::Csize_t,
-                                        devInfo::CuPtr{Cvoid})::cusolverStatus_t
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSlauum_bufferSize(handle, uplo, n, A, lda, lwork)
