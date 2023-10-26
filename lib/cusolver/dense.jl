@@ -588,8 +588,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), jobz, rank, m, n, A, lda, strideA, 
-                       S, strideS, U, ldu, strideU, V, ldv, strideV, 
+                $bname(dense_handle(), jobz, rank, m, n, A, lda, strideA,
+                       S, strideS, U, ldu, strideU, V, ldv, strideV,
                        out, batchSize)
                 return out[]
             end
@@ -599,8 +599,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
             h_RnrmF = Array{Cdouble}(undef, batchSize)
 
             with_workspace($elty, bufferSize) do work
-                $fname(dense_handle(), jobz, rank, m, n, A, lda, strideA, 
-                       S, strideS, U, ldu, strideU, V, ldv, strideV, 
+                $fname(dense_handle(), jobz, rank, m, n, A, lda, strideA,
+                       S, strideS, U, ldu, strideU, V, ldv, strideV,
                        work, length(work), devinfo, h_RnrmF, batchSize)
             end
 
