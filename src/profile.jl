@@ -570,8 +570,8 @@ function print(io::IO, data; trace=false, raw=false)
         end
     end
 
-    crop = if io isa IOBuffer
-        # when emitting to a string, render all content (e.g., for the tests)
+    crop = if io isa IOBuffer || io isa IOStream
+        # when emitting to a string or file, render all content (e.g., for the tests)
         :none
     else
         :horizontal
