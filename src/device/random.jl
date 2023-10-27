@@ -50,8 +50,6 @@ function initialize_rng_state()
     @inbounds global_random_counters()[warpId] = 0
 end
 
-@device_override Random.make_seed() = clock(UInt32)
-
 
 # generators
 
