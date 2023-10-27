@@ -9,6 +9,7 @@ using SparseArrays: nonzeroinds
 m = 25
 n = 35
 k = 10
+p = 5
 blockdim = 5
 
 @testset "array" begin
@@ -1022,6 +1023,57 @@ end
                 @test collect(X3_d) ≈ X3
                 gtsv2!(dl3_d, d3_d, du3_d, B3_d; pivoting)
                 @test collect(B3_d) ≈ X3
+            end
+        end
+    end
+end
+
+@testset "Triangular solves" begin
+    @testset "$SparseMatrixType" for SparseMatrixType in (CuSparseMatrixCSR, CuSparseMatrixCSC, CuSparseMatrixBSR)
+        (SparseMatrixType ∈ (CuSparseMatrixCSR, CuSparseMatrixCSC)) && (CUSPARSE.version() ≥ v"12.0") && continue
+        @testset "y = T \\ x -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
+            for (trans, op) in (('N', identity), ('T', transpose), ('C', adjoint))
+                (SparseMatrixType == CuSparseMatrixCSC) && (trans == 'C') && (elty <: Complex) && continue
+                for uplo in ('L', 'U')
+                    for diag in ('N', 'U')
+                        @testset "trans = $trans | uplo = $uplo | diag = $diag" begin
+                            T = rand(elty,n,n)
+                            T = uplo == 'L' ? tril(T) : triu(T)
+                            T = diag == 'N' ? T : T - Diagonal(T) + I
+                            T = sparse(T)
+                            d_T = SparseMatrixType == CuSparseMatrixBSR ? SparseMatrixType(CuSparseMatrixCSR(T), blockdim) : SparseMatrixType(T)
+                            x = rand(elty,n)
+                            d_x = CuVector{elty}(x)
+                            d_y = CUSPARSE.sv2(trans, uplo, diag, d_T, d_x, 'O')
+                            y = op(T) \ x
+                            @test collect(d_y) ≈ y
+                        end
+                    end
+                end
+            end
+        end
+
+        @testset "Y = T \\ X -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
+            for (transT, opT) in (('N', identity), ('T', transpose), ('C', adjoint))
+                for (transX, opX) in (('N', identity), ('T', transpose))
+                    (SparseMatrixType == CuSparseMatrixCSC) && (transX == 'C') && (elty <: Complex) && continue
+                    for uplo in ('L', 'U')
+                        for diag in ('N', 'U')
+                            @testset "transT = $transT | transX = $transX | uplo = $uplo | diag = $diag" begin
+                                T = rand(elty,n,n)
+                                T = uplo == 'L' ? tril(T) : triu(T)
+                                T = diag == 'N' ? T : T - Diagonal(T) + I
+                                T = sparse(T)
+                                d_T = SparseMatrixType == CuSparseMatrixBSR ? SparseMatrixType(CuSparseMatrixCSR(T), blockdim) : SparseMatrixType(T)
+                                X = transX == 'N' ? rand(elty,n,p) : rand(elty,p,n)
+                                d_X = CuMatrix{elty}(X)
+                                d_Y = CUSPARSE.sm2(transT, transX, uplo, diag, d_T, d_X, 'O')
+                                Y = opT(T) \ opX(X)
+                                @test collect(d_Y) ≈ (transX == 'N' ? Y : transpose(Y))
+                            end
+                        end
+                    end
+                end
             end
         end
     end
