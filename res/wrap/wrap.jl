@@ -1,11 +1,15 @@
 # script to parse CUDA headers and generate Julia wrappers
 
+# TODO
+# - deal with CUSPARSE's `CUSPARSE_DEPRECATED_TYPE` (workaround: remove it from the headers)
+# - deal with NVML's `NVML_STRUCT_VERSION` (workaround: we ignore these symbols)
+
 using Clang
 using Clang.Generators
 
 using JuliaFormatter
 
-using CUDA_full_jll, CUDNN_jll, CUTENSOR_jll, cuQuantum_jll
+using CUDA_SDK_jll, CUDNN_jll, CUTENSOR_jll, cuQuantum_jll
 using Libglvnd_jll
 
 # a pass that removes macro definitions that are also function definitions.
@@ -194,8 +198,8 @@ function rewriter!(ctx, options)
 end
 
 function main(name="all")
-    cuda = joinpath(CUDA_full_jll.artifact_dir, "cuda", "include")
-    @assert CUDA_full_jll.is_available()
+    cuda = joinpath(CUDA_SDK_jll.artifact_dir, "cuda", "include")
+    @assert CUDA_SDK_jll.is_available()
 
     opengl = joinpath(Libglvnd_jll.artifact_dir, "include")
     @assert Libglvnd_jll.is_available()
@@ -210,7 +214,7 @@ function main(name="all")
     end
 
     if name == "all" || name == "cupti"
-        cupti = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
+        cupti = joinpath(CUDA_SDK_jll.artifact_dir, "cuda", "include")
 
         wrap("cupti", ["$cupti/cupti.h", "$cupti/cupti_profiler_target.h"];
             include_dirs=[cuda, cupti],
@@ -284,5 +288,5 @@ function main(name="all")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    main()
+    main(ARGS...)
 end

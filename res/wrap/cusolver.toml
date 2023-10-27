@@ -650,7 +650,7 @@ needs_context = false
 [api.cusolverDnXtrtri.argtypes]
 6 = "CuPtr{Cvoid}"
 8 = "CuPtr{Cvoid}"
-12 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cint}"
 
 [api.cusolverDnSpotri.argtypes]
 4 = "CuPtr{Cfloat}"
