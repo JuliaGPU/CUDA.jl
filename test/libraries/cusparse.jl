@@ -1055,8 +1055,8 @@ end
 
         @testset "Y = T \\ X -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
             for (transT, opT) in (('N', identity), ('T', transpose), ('C', adjoint))
+                (SparseMatrixType == CuSparseMatrixCSC) && (transT == 'C') && (elty <: Complex) && continue
                 for (transX, opX) in (('N', identity), ('T', transpose))
-                    (SparseMatrixType == CuSparseMatrixCSC) && (transX == 'C') && (elty <: Complex) && continue
                     for uplo in ('L', 'U')
                         for diag in ('N', 'U')
                             @testset "transT = $transT | transX = $transX | uplo = $uplo | diag = $diag" begin
