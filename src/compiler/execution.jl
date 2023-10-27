@@ -182,7 +182,9 @@ The following keyword arguments are supported:
 - `threads` (defaults to 1)
 - `blocks` (defaults to 1)
 - `shmem` (defaults to 0)
-- `stream` (defaults to the default stream)
+- `stream` (defaults to the current stream)
+- `cooperative` (defaults to false): whether to launch a cooperative kernel that supports
+  grid synchronization. note that this requires care wrt. the number of blocks launched.
 """
 AbstractKernel
 

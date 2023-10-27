@@ -58,3 +58,29 @@ macro device_functions(ex)
 
     esc(rewrite(ex))
 end
+
+
+## alignment API
+
+"""
+    CUDA.align{alignment}(obj)
+
+Construct an aligned object, providing alignment information to APIs that require it.
+"""
+struct Aligned{T, N}
+    data::T
+end
+
+alignment(::Aligned{<:Any, N}) where {N} = N
+Base.getindex(x::Aligned) = x.data
+
+# explicit alignment by the user
+# we don't expose this as Aligned{N}, because we want to have the T typevar first
+# to facilitate use in function signatures as ::Aligned{<:T}
+struct align{N} end
+(::Type{align{N}})(data::T) where {T,N} = Aligned{T,N}(data)
+
+# default alignment for common types
+Aligned(x::Aligned) = x
+Aligned(x::Ptr{T}) where T = align{Base.datatype_alignment(T)}(x)
+Aligned(x::LLVMPtr{T}) where T = align{Base.datatype_alignment(T)}(x)
