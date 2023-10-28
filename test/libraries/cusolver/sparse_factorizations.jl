@@ -1,7 +1,7 @@
 using CUDA.CUSOLVER, CUDA.CUSPARSE
 
-m = 200
-n = 100
+m = 60
+n = 40
 density = 0.05
 
 @testset "SparseCholesky -- $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
@@ -30,6 +30,7 @@ end
 @testset "SparseQR -- $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     R = real(elty)
     A = sprand(elty, m, n, density)
+    A = A + sparse(I, m, n)
     d_A = CuSparseMatrixCSR{elty}(A)
     F = CUSOLVER.SparseQR(d_A)
     CUSOLVER.spqr_setup(F, d_A)
