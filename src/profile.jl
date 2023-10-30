@@ -215,6 +215,7 @@ function emit_integrated_profile(code)
         CUPTI.CUPTI_ACTIVITY_KIND_MEMSET,
         # NVTX markers
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
+        CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA,
     ]
     if CUDA.runtime_version() >= v"11.2"
         # additional information for API host calls
@@ -294,6 +295,12 @@ function capture(cfg)
         tid     = Int[],
         name    = Union{Missing,String}[],
         domain  = Union{Missing,String}[],
+    )
+    nvtx_data = DataFrame(
+        id       = Int[],
+        payload  = Any[],
+        color    = Union{Nothing,UInt32}[],
+        category = UInt32[],
     )
 
     # memory_kind fields are sometimes typed CUpti_ActivityMemoryKind, sometimes UInt
@@ -408,6 +415,32 @@ function capture(cfg)
             else
                 @error "Unexpected NVTX marker kind $(Int(record.flags)). Please file an issue."
             end
+        elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA
+            payload_accessors = Dict(
+                CUPTI.CUPTI_METRIC_VALUE_KIND_DOUBLE => :metricValueDouble,
+                CUPTI.CUPTI_METRIC_VALUE_KIND_UINT64 => :metricValueUint64,
+                CUPTI.CUPTI_METRIC_VALUE_KIND_PERCENT => :metricValueInt64,
+                CUPTI.CUPTI_METRIC_VALUE_KIND_THROUGHPUT => :metricValuePercent,
+                CUPTI.CUPTI_METRIC_VALUE_KIND_INT64 => :metricValueThroughput,
+                CUPTI.CUPTI_METRIC_VALUE_KIND_UTILIZATION_LEVEL => :metricValueUtilizationLevel
+            )
+            payload = if haskey(payload_accessors, record.payloadKind)
+                getproperty(record.payload, payload_accessors[record.payloadKind])
+            else
+                @error "Unexpected CUPTI metric kind $(Int(record.payloadKind)). Please file an issue."
+                nothing
+            end
+
+            color = if record.flags & CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_NONE == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_NONE
+                nothing
+            elseif record.flags & CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_ARGB == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_ARGB
+                record.color
+            else
+                @error "Unexpected CUPTI marker color flag $(Int(record.flags)). Please file an issue."
+                nothing
+            end
+
+            push!(nvtx_data, (; record.id, payload, color, record.category))
         else
             @error "Unexpected CUPTI activity kind $(Int(record.kind)). Please file an issue."
         end
@@ -416,6 +449,7 @@ function capture(cfg)
     # merge in the details
     host_trace = leftjoin(host_trace, details, on=:id, order=:left)
     device_trace = leftjoin(device_trace, details, on=:id, order=:left)
+    nvtx_trace = leftjoin(nvtx_trace, nvtx_data, on=:id, order=:left)
 
     return (; host=host_trace, device=device_trace, nvtx=nvtx_trace)
 end
@@ -547,7 +581,9 @@ function print(io::IO, data; trace=false, raw=false)
         "device"        => "Device",
         "stream"        => "Stream",
         "name"          => "Name",
-        "details"       => "Details"
+        "domain"        => "Domain",
+        "details"       => "Details",
+        "payload"       => "Payload"
     )
 
     summary_column_names = Dict(
@@ -769,31 +805,76 @@ function print(io::IO, data; trace=false, raw=false)
     #       that's what nvprof used to do, but it's a little verbose...
     nvtx_ranges = copy(data.nvtx[data.nvtx.type .== :start, :])
     nvtx_ranges = leftjoin(nvtx_ranges, data.nvtx[data.nvtx.type .== :end,
-                                                   [:id, :start]],
+                           [:id, :start]],
                            on=:id, makeunique=true)
     if !isempty(nvtx_ranges)
         println(io, "\nNVTX ranges:")
 
         rename!(nvtx_ranges, :start_1 => :stop)
-        nvtx_ranges.id .= missing
         nvtx_ranges.time .= nvtx_ranges.stop .- nvtx_ranges.start
-        nvtx_ranges.name = map(nvtx_ranges.name, nvtx_ranges.domain) do name, domain
-            if name !== missing && domain !== missing
-                "$(domain).$(name)"
-            elseif name !== missing
-                "$name"
+
+        df = nvtx_ranges
+        if trace
+            # determine columns to show, based on whether they contain useful information
+            columns = [:id, :start, :time]
+            for col in [:tid]
+                if raw || length(unique(df[!, col])) > 1
+                    push!(columns, col)
+                end
             end
+            for col in [:domain, :name, :payload]
+                if raw || any(!ismissing, df[!, col])
+                    push!(columns, col)
+                end
+            end
+
+            # use color information as provided by NVTX
+            color_highlighters = []
+            for color in unique(df.color)
+                if color !== nothing
+                    ids = df[df.color .== color, :id]
+                    highlighter = Highlighter(Crayon(; foreground=color)) do data, i, j
+                        names(data)[j] in ["name", "domain"] && data[!, :id][i] in ids
+                    end
+                    push!(color_highlighters, highlighter)
+                end
+            end
+
+            df = df[:, columns]
+            header = [trace_column_names[name] for name in names(df)]
+
+            alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
+            formatters = function(v, i, j)
+                if v === missing
+                    return "-"
+                elseif names(df)[j] in ["start", "time"]
+                    format_time(v)
+                else
+                    v
+                end
+            end
+            highlighters = tuple(color_highlighters..., time_highlighters(df)...)
+            pretty_table(io, df; header, alignment, formatters, highlighters, crop)
+        else
+            # merge the domain and name into a single column
+            nvtx_ranges.name = map(nvtx_ranges.name, nvtx_ranges.domain) do name, domain
+                if name !== missing && domain !== missing
+                    "$(domain).$(name)"
+                elseif name !== missing
+                    "$name"
+                end
+            end
+
+            df = summarize_trace(nvtx_ranges)
+
+            columns = [:time_ratio, :time, :calls, :time_avg, :time_min, :time_max, :name]
+            df = df[:, columns]
+
+            header = [summary_column_names[name] for name in names(df)]
+            alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
+            highlighters = time_highlighters(df)
+            pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
         end
-
-        df = summarize_trace(nvtx_ranges)
-
-        columns = [:time_ratio, :time, :calls, :time_avg, :time_min, :time_max, :name]
-        df = df[:, columns]
-
-        header = [summary_column_names[name] for name in names(df)]
-        alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
-        highlighters = time_highlighters(df)
-        pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
     end
 
     return
