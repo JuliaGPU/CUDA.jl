@@ -2121,3 +2121,50 @@ needs_context = false
 14 = "CuPtr{Cvoid}"
 16 = "CuPtr{Cvoid}"
 19 = "CuPtr{Cvoid}"
+
+[api.cusolverSpXcsrcholDiag.argtypes]
+3 = "CuPtr{T}"
+
+[api.cusolverSpXcsrcholSolve.argtypes]
+3 = "CuPtr{T}"
+4 = "CuPtr{T}"
+6 = "CuPtr{Cvoid}"
+
+[api.cusolverSpXcsrcholFactor.argtypes]
+5 = "CuPtr{T}"
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+9 = "CuPtr{Cvoid}"
+
+[api.cusolverSpXcsrcholBufferInfo.argtypes]
+5 = "CuPtr{T}"
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+
+[api.cusolverSpXcsrcholAnalysis.argtypes]
+5 = "CuPtr{Cint}"
+6 = "CuPtr{Cint}"
+
+[api.cusolverSpXcsrqrSolve.argtypes]
+4 = "CuPtr{T}"
+5 = "CuPtr{T}"
+7 = "CuPtr{Cvoid}"
+
+[api.cusolverSpXcsrqrSetup.argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+
+[api.cusolverSpXcsrqrBufferInfo.argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+
+[api.cusolverSpXcsrqrAnalysis.argtypes]
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+
+[api.cusolverSpXcsrqrFactor.argtypes]
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+8 = "CuPtr{Cvoid}"
