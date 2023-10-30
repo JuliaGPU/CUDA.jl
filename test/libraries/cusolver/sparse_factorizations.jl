@@ -1,4 +1,5 @@
 using CUDA.CUSOLVER, CUDA.CUSPARSE
+using SparseArrays, LinearAlgebra
 
 m = 60
 n = 40
