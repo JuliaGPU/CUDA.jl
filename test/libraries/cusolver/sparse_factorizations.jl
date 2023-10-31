@@ -3,29 +3,41 @@ using SparseArrays, LinearAlgebra
 
 m = 60
 n = 40
+p = 5
 density = 0.05
 
 @testset "SparseCholesky -- $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    R = real(elty)
-    A = sprand(elty, n, n, density)
-    A = A * A' + I
-    d_A = CuSparseMatrixCSR{elty}(A)
-    F = CUSOLVER.SparseCholesky(d_A)
-    CUSOLVER.spcholesky_buffer(F, d_A)
-    tol = R == Float32 ? R(1e-6) : R(1e-12)
-    CUSOLVER.spcholesky_factorise(F, d_A, tol)
-    b = rand(elty, n)
-    d_b = CuVector(b)
-    x = zeros(elty, n)
-    d_x = CuVector(x)
-    CUSOLVER.spcholesky_solve(F, d_b, d_x)
-    d_r = d_b - d_A * d_x
-    @test norm(d_A' * d_r) ≤ √eps(R)
-    diag = zeros(elty, n)
-    d_diag = CuVector{R}(diag)
-    CUSOLVER.spcholesky_diag(F, d_diag)
-    det_A = mapreduce(x -> x^2, *, d_diag)
-    @test det_A ≈ det(Matrix(A))
+    @testset "$SparseMatrixType" for SparseMatrixType in (CuSparseMatrixCSR, CuSparseMatrixCSC)
+        R = real(elty)
+        A = sprand(elty, n, n, density)
+        A = A * A' + I
+        d_A = SparseMatrixType{elty}(A)
+        F = CUSOLVER.SparseCholesky(d_A)
+        tol = R == Float32 ? R(1e-6) : R(1e-12)
+        CUSOLVER.spcholesky_factorise(F, d_A, tol)
+
+        b = rand(elty, n)
+        d_b = CuVector(b)
+        x = zeros(elty, n)
+        d_x = CuVector(x)
+        CUSOLVER.spcholesky_solve(F, d_b, d_x)
+        d_r = d_b - d_A * d_x
+        @test norm(d_r) ≤ √eps(R)
+
+        B = rand(elty, n, p)
+        d_B = CuMatrix(B)
+        X = zeros(elty, n, p)
+        d_X = CuMatrix(X)
+        CUSOLVER.spcholesky_solve(F, d_B, d_X)
+        d_R = d_B - d_A * d_X
+        @test norm(d_R) ≤ √eps(R)
+
+        diag = zeros(elty, n)
+        d_diag = CuVector{R}(diag)
+        CUSOLVER.spcholesky_diag(F, d_diag)
+        det_A = mapreduce(x -> x^2, *, d_diag)
+        @test det_A ≈ det(Matrix(A))
+    end
 end
 
 @testset "SparseQR -- $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
@@ -35,9 +47,9 @@ end
     d_A = CuSparseMatrixCSR{elty}(A)
     F = CUSOLVER.SparseQR(d_A)
     CUSOLVER.spqr_setup(F, d_A)
-    CUSOLVER.spqr_buffer(F, d_A)
     tol = R == Float32 ? R(1e-6) : R(1e-12)
     CUSOLVER.spqr_factorise(F, tol)
+
     b = rand(elty, m)
     d_b = CuVector(b)
     x = zeros(elty, n)
@@ -45,6 +57,14 @@ end
     CUSOLVER.spqr_solve(F, copy(d_b), d_x)
     d_r = d_b - d_A * d_x
     @test norm(d_A' * d_r) ≤ √eps(R)
+
+    B = rand(elty, m, p)
+    d_B = CuMatrix(B)
+    X = zeros(elty, n, p)
+    d_X = CuMatrix(X)
+    CUSOLVER.spqr_solve(F, copy(d_B), d_X)
+    d_R = d_B - d_A * d_X
+    @test norm(d_A' * d_R) ≤ √eps(R)
 
     d_B = copy(d_A)
     nnz_B = rand(elty, nnz(d_B))

@@ -34,6 +34,7 @@ function SparseQR(A::CuSparseMatrixCSR{T,Cint}, index::Char='O') where T <: Blas
     buffer = CU_NULL
     F = SparseQR{T}(n, m, nnzA, mu, handle, descA, info, buffer)
     spqr_analyse(F, A)
+    spqr_buffer(F, A)
     return F
 end
 
@@ -133,7 +134,7 @@ for (bname, fname, sname, pname, elty, relty) in
             return F
         end
 
-        function spqr_factorise_solve(F::SparseQR{$elty}, b::CuVecOrMat{$elty}, x::CuVecOrMat{$elty}, tol::$relty)
+        function spqr_factorise_solve(F::SparseQR{$elty}, b::CuVector{$elty}, x::CuVector{$elty}, tol::$relty)
             $fname(F.handle, F.m, F.n, F.nnzA, b, x, F.info, F.buffer)
             singularity = Ref{Cint}(0)
             $pname(F.handle, F.info, tol, singularity)
@@ -151,9 +152,17 @@ for (bname, fname, sname, pname, elty, relty) in
         # float *            x,
         # csrqrInfo_t        info,
         # void *             pBuffer);
-        function spqr_solve(F::SparseQR{$elty}, b::CuVecOrMat{$elty}, x::CuVecOrMat{$elty})
+        function spqr_solve(F::SparseQR{$elty}, b::CuVector{$elty}, x::CuVector{$elty})
             $sname(F.handle, F.m, F.n, b, x, F.info, F.buffer)
             return x
+        end
+
+        function spqr_solve(F::SparseQR{$elty}, B::CuMatrix{$elty}, X::CuMatrix{$elty})
+            m, p = size(B)
+            for j=1:p
+                $sname(F.handle, F.m, F.n, view(B,:,j), view(X,:,j), F.info, F.buffer)
+            end
+            return X
         end
     end
 end
@@ -181,7 +190,7 @@ mutable struct SparseCholesky{T <: BlasFloat}
     buffer::Union{CuPtr{Cvoid},CuVector{UInt8}}
 end
 
-function SparseCholesky(A::CuSparseMatrixCSR{T,Cint}, index::Char='O') where T <: BlasFloat
+function SparseCholesky(A::Union{CuSparseMatrixCSC{T,Cint},CuSparseMatrixCSR{T,Cint}}, index::Char='O') where T <: BlasFloat
     n = checksquare(A)
     nnzA = nnz(A)
     handle = sparse_handle()
@@ -190,6 +199,7 @@ function SparseCholesky(A::CuSparseMatrixCSR{T,Cint}, index::Char='O') where T <
     buffer = CU_NULL
     F = SparseCholesky{T}(n, nnzA, handle, descA, info, buffer)
     spcholesky_analyse(F, A)
+    spcholesky_buffer(F, A)
     return F
 end
 
@@ -203,16 +213,20 @@ end
 #   const int *              csrRowPtrA,
 #   const int *              csrColIndA,
 #   csrcholInfo_t            info);
-function spcholesky_analyse(F::SparseCholesky{T}, A::CuSparseMatrixCSR{T}) where T <: BlasFloat
-    cusolverSpXcsrcholAnalysis(F.handle, F.n, F.nnzA, F.descA, A.rowPtr, A.colVal, F.info)
+function spcholesky_analyse(F::SparseCholesky{T}, A::Union{CuSparseMatrixCSC{T,Cint},CuSparseMatrixCSR{T,Cint}}) where T <: BlasFloat
+    if A isa CuSparseMatrixCSC
+        cusolverSpXcsrcholAnalysis(F.handle, F.n, F.nnzA, F.descA, A.colPtr, A.rowVal, F.info)
+    else
+        cusolverSpXcsrcholAnalysis(F.handle, F.n, F.nnzA, F.descA, A.rowPtr, A.colVal, F.info)
+    end
     return F
 end
 
-for (bname, fname, pname, sname, dname, elty, relty) in
-    ((:cusolverSpScsrcholBufferInfo, :cusolverSpScsrcholFactor, :cusolverSpScsrcholZeroPivot, :cusolverSpScsrcholSolve, :cusolverSpScsrcholDiag, :Float32   , :Float32),
-     (:cusolverSpDcsrcholBufferInfo, :cusolverSpDcsrcholFactor, :cusolverSpDcsrcholZeroPivot, :cusolverSpDcsrcholSolve, :cusolverSpDcsrcholDiag, :Float64   , :Float64),
-     (:cusolverSpCcsrcholBufferInfo, :cusolverSpCcsrcholFactor, :cusolverSpCcsrcholZeroPivot, :cusolverSpCcsrcholSolve, :cusolverSpCcsrcholDiag, :ComplexF32, :Float32),
-     (:cusolverSpZcsrcholBufferInfo, :cusolverSpZcsrcholFactor, :cusolverSpZcsrcholZeroPivot, :cusolverSpZcsrcholSolve, :cusolverSpZcsrcholDiag, :ComplexF64, :Float64))
+for (bname, fname, pname, elty, relty) in
+    ((:cusolverSpScsrcholBufferInfo, :cusolverSpScsrcholFactor, :cusolverSpScsrcholZeroPivot, :Float32   , :Float32),
+     (:cusolverSpDcsrcholBufferInfo, :cusolverSpDcsrcholFactor, :cusolverSpDcsrcholZeroPivot, :Float64   , :Float64),
+     (:cusolverSpCcsrcholBufferInfo, :cusolverSpCcsrcholFactor, :cusolverSpCcsrcholZeroPivot, :ComplexF32, :Float32),
+     (:cusolverSpZcsrcholBufferInfo, :cusolverSpZcsrcholFactor, :cusolverSpZcsrcholZeroPivot, :ComplexF64, :Float64))
     @eval begin
         # csrcholBufferInfo
         #
@@ -227,11 +241,14 @@ for (bname, fname, pname, sname, dname, elty, relty) in
         #   csrcholInfo_t            info,
         #   size_t *                 internalDataInBytes,
         #   size_t *                 workspaceInBytes);
-        function spcholesky_buffer(F::SparseCholesky{$elty}, A::CuSparseMatrixCSR{$elty})
+        function spcholesky_buffer(F::SparseCholesky{$elty}, A::Union{CuSparseMatrixCSC{$elty,Cint},CuSparseMatrixCSR{$elty,Cint}})
             internalDataInBytes = Ref{Csize_t}(0)
             workspaceInBytes = Ref{Csize_t}(0)
-            $bname(F.handle, F.n, F.nnzA, F.descA, A.nzVal, A.rowPtr, A.colVal, F.info, internalDataInBytes, workspaceInBytes)
-            # TODO: allocate buffer?
+            if A isa CuSparseMatrixCSC
+                $bname(F.handle, F.n, F.nnzA, F.descA, A.nzVal, A.colPtr, A.rowVal, F.info, internalDataInBytes, workspaceInBytes)
+            else
+                $bname(F.handle, F.n, F.nnzA, F.descA, A.nzVal, A.rowPtr, A.colVal, F.info, internalDataInBytes, workspaceInBytes)
+            end
             F.buffer = CuVector{UInt8}(undef, workspaceInBytes[])
             return F
         end
@@ -256,14 +273,26 @@ for (bname, fname, pname, sname, dname, elty, relty) in
         #   csrcholInfo_t      info,
         #   float              tol,
         #   int *              position);
-        function spcholesky_factorise(F::SparseCholesky{$elty}, A::CuSparseMatrixCSR{$elty}, tol::$relty)
-            $fname(F.handle, F.n, F.nnzA, F.descA, A.nzVal, A.rowPtr, A.colVal, F.info, F.buffer)
+        function spcholesky_factorise(F::SparseCholesky{$elty}, A::Union{CuSparseMatrixCSC{$elty,Cint},CuSparseMatrixCSR{$elty,Cint}}, tol::$relty)
+            if A isa CuSparseMatrixCSC
+                nzval = $elty <: Complex ? conj(A.nzVal) : A.nzVal
+                $fname(F.handle, F.n, F.nnzA, F.descA, nzval, A.colPtr, A.rowVal, F.info, F.buffer)
+            else
+                $fname(F.handle, F.n, F.nnzA, F.descA, A.nzVal, A.rowPtr, A.colVal, F.info, F.buffer)
+            end
             singularity = Ref{Cint}(0)
             $pname(F.handle, F.info, tol, singularity)
             (singularity[] ≥ 0) && throw(SingularException(singularity[]))
             return F
         end
+    end
+end
 
+for (sname, dname, elty, relty) in ((:cusolverSpScsrcholSolve, :cusolverSpScsrcholDiag, :Float32   , :Float32),
+                                    (:cusolverSpDcsrcholSolve, :cusolverSpDcsrcholDiag, :Float64   , :Float64),
+                                    (:cusolverSpCcsrcholSolve, :cusolverSpCcsrcholDiag, :ComplexF32, :Float32),
+                                    (:cusolverSpZcsrcholSolve, :cusolverSpZcsrcholDiag, :ComplexF64, :Float64))
+    @eval begin
         # csrcholSolve
         #
         # cusolverStatus_t cusolverSpZcsrcholSolve(
@@ -273,9 +302,17 @@ for (bname, fname, pname, sname, dname, elty, relty) in
         #   cuDoubleComplex *      x,
         #   csrcholInfo_t          info,
         #   void *                 pBuffer);
-        function spcholesky_solve(F::SparseCholesky{$elty}, b::CuVecOrMat{$elty}, x::CuVecOrMat{$elty})
+        function spcholesky_solve(F::SparseCholesky{$elty}, b::CuVector{$elty}, x::CuVector{$elty})        
             $sname(F.handle, F.n, b, x, F.info, F.buffer)
             return x
+        end
+
+        function spcholesky_solve(F::SparseCholesky{$elty}, B::CuMatrix{$elty}, X::CuMatrix{$elty})
+            n, p = size(B)
+            for j=1:p
+                $sname(F.handle, F.n, view(B,:,j), view(X,:,j), F.info, F.buffer)
+            end
+            return X
         end
 
         # csrcholDiag
