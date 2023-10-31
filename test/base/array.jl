@@ -671,7 +671,7 @@ end
   dev = device()
 
   let
-    a = CuVector{Int}(undef, 1)
+    a = CuVector{Int,Mem.DeviceBuffer}(undef, 1)
     @test !is_unified(a)
     @test !is_managed(pointer(a))
   end
@@ -694,12 +694,6 @@ end
   end
 
   let
-    # default ctor: device memory
-    let a = CUDA.rand(1)
-      @test !is_unified(a)
-      @test !is_managed(pointer(a))
-    end
-
     for B = [Mem.DeviceBuffer, Mem.UnifiedBuffer]
       a = CuVector{Float32,B}(rand(Float32, 1))
       @test !xor(B == Mem.UnifiedBuffer, is_unified(a))
@@ -740,12 +734,12 @@ end
     end
 
     # cu: supports unified keyword
-    let a = cu(rand(Float64, 1); unified=true)
-      @test is_unified(a)
+    let a = cu(rand(Float64, 1); device=true)
+      @test !is_unified(a)
       @test eltype(a) == Float32
     end
-    let a = cu(rand(Float64, 1))
-      @test !is_unified(a)
+    let a = cu(rand(Float64, 1); unified=true)
+      @test is_unified(a)
       @test eltype(a) == Float32
     end
   end
