@@ -215,13 +215,16 @@ function emit_integrated_profile(code)
         CUPTI.CUPTI_ACTIVITY_KIND_MEMSET,
         # NVTX markers
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
-        CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA,
     ]
     if CUDA.runtime_version() >= v"11.2"
         # additional information for API host calls
         push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2)
     else
         @warn "The integrated profiler is not supported on CUDA <11.2, and may fail." maxlog=1
+    end
+    if CUDA.runtime_version() >= v"12.0"
+        # additional data on NVTX markers
+        push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA)
     end
     if VERSION < v"1.9"
         @error "The integrated profiler is not supported on Julia <1.9, and will crash." maxlog=1
