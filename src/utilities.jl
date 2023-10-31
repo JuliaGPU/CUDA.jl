@@ -110,6 +110,23 @@ function versioninfo(io::IO=stdout)
         println(io)
     end
 
+    prefs = [
+        "nonblocking_synchronization" => Preferences.load_preference(CUDA, "nonblocking_synchronization"),
+        "default_memory" => Preferences.load_preference(CUDA, "default_memory"),
+        "CUDA_Runtime_jll.version" => Preferences.load_preference(CUDA_Runtime_jll, "version"),
+        "CUDA_Runtime_jll.local" => Preferences.load_preference(CUDA_Runtime_jll, "local"),
+        "CUDA_Driver_jll.compat" => Preferences.load_preference(CUDA_Driver_jll, "compat"),
+    ]
+    if any(x->!isnothing(x[2]), prefs)
+        println(io, "Preferences:")
+        for (key, val) in prefs
+            if !isnothing(val)
+                println(io, "- $key: $val")
+            end
+        end
+        println(io)
+    end
+
     devs = devices()
     if isempty(devs)
         println(io, "No CUDA-capable devices.")
