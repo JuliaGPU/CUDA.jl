@@ -243,7 +243,7 @@ function _unsafe_wrap(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int};
   buf = try
     typ = memory_type(ptr)
     if is_managed(ptr)
-      Mem.UnifiedBuffer(ctx, ptr, sz, Threads.Atomic{Bool}(false))
+      Mem.UnifiedBuffer(ctx, ptr, sz)
     elseif typ == CU_MEMORYTYPE_DEVICE
       # TODO: can we identify whether this pointer was allocated asynchronously?
       Mem.DeviceBuffer(ctx, ptr, sz, false)
@@ -312,8 +312,7 @@ const StridedCuVector{T} = StridedCuArray{T,1}
 const StridedCuMatrix{T} = StridedCuArray{T,2}
 const StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
 
-Base.pointer(x::StridedCuArray{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
-@inline function Base.pointer(x::StridedCuArray{T}, i::Integer; type=Mem.Device) where T
+@inline function Base.pointer(x::StridedCuArray{T}, i::Integer=1; type=Mem.Device) where T
     PT = if type == Mem.Device
       CuPtr{T}
     elseif type == Mem.Host
@@ -360,28 +359,49 @@ CuArray{T,N}(xs::CuArray{T,N,B}) where {T,N,B} = copy(xs)
 Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
 
-## interop with C libraries
+## interop with libraries
+
+# when a unified buffer is converted to a device pointer, we assume it will be accessed
+# asynchronously. we keep track of that in the task local storage, and use that information
+# to perform additional synchronization when converting the buffer to a host pointer.
+# TODO: optimize this! it currently halves the performance of scalar indexing.
+function mark_async(buf::Mem.UnifiedBuffer)
+  tls = task_local_storage()
+  if haskey(tls, :CUDA_ASYNC_BUFFERS)
+    async_buffers = tls[:CUDA_ASYNC_BUFFERS]::Vector{Mem.UnifiedBuffer}
+    in(buf, async_buffers) && return
+    pushfirst!(async_buffers, buf)
+  else
+    tls[:CUDA_ASYNC_BUFFERS] = [buf]
+  end
+  return
+end
+function ensure_sync(buf::Mem.UnifiedBuffer)
+  tls = task_local_storage()
+  haskey(tls, :CUDA_ASYNC_BUFFERS) || return
+  async_buffers = tls[:CUDA_ASYNC_BUFFERS]::Vector{Mem.UnifiedBuffer}
+  in(buf, async_buffers) || return
+  synchronize()
+  filter!(!isequal(buf), async_buffers)
+  return
+end
+
+function Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T}
+  buf = x.data[]
+  if buf isa Mem.UnifiedBuffer
+    mark_async(buf)
+  end
+  convert(CuPtr{T}, buf) + x.offset*Base.elsize(x)
+end
 
 function Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T}
   buf = x.data[]
   if buf isa Mem.DeviceBuffer
     throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
   elseif buf isa Mem.UnifiedBuffer
-    # TODO: atomics
-    if buf.dirty[]
-      synchronize()
-      buf.dirty[] = false
-    end
+    ensure_sync(buf)
   end
   convert(Ptr{T}, buf) + x.offset*Base.elsize(x)
-end
-
-function Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T}
-  buf = x.data[]
-  if buf isa Mem.UnifiedBuffer
-    buf.dirty[] = true
-  end
-  convert(CuPtr{T}, buf) + x.offset*Base.elsize(x)
 end
 
 
