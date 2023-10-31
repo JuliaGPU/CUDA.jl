@@ -132,10 +132,23 @@ const CuVector{T} = CuArray{T,1}
 const CuMatrix{T} = CuArray{T,2}
 const CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
-# default to non-unified memory
+# unspecified memory allocation
+const default_memory = let str = Preferences.@load_preference("default_memory", "unified")
+  if str == "device"
+    Mem.DeviceBuffer
+  elseif str == "unified"
+    Mem.UnifiedBuffer
+  elseif str == "host"
+    Mem.HostBuffer
+  else
+    error("unknown default memory type: $default_memory")
+  end
+end
 CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N} =
-  CuArray{T,N,Mem.DeviceBuffer}(undef, dims)
+  CuArray{T,N,default_memory}(undef, dims)
+is_device(a::CuArray) = isa(a.data[], Mem.DeviceBuffer)
 is_unified(a::CuArray) = isa(a.data[], Mem.UnifiedBuffer)
+is_host(a::CuArray) = isa(a.data[], Mem.HostBuffer)
 
 # buffer, type and dimensionality specified
 CuArray{T,N,B}(::UndefInitializer, dims::NTuple{N,Integer}) where {T,N,B} =
@@ -650,7 +663,21 @@ julia> CuArray(1:3)
  3
 ```
 """
-@inline cu(xs; unified::Bool=false) = adapt(CuArrayAdaptor{unified ? Mem.UnifiedBuffer : Mem.DeviceBuffer}(), xs)
+@inline function cu(xs; device::Bool=false, unified::Bool=false, host::Bool=false)
+  if device + unified + host > 1
+    throw(ArgumentError("Can only specify one of `device`, `unified`, or `host`"))
+  end
+  memory = if device
+    Mem.DeviceBuffer
+  elseif unified
+    Mem.UnifiedBuffer
+  elseif host
+    Mem.HostBuffer
+  else
+    default_memory
+  end
+  adapt(CuArrayAdaptor{memory}(), xs)
+end
 
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
