@@ -381,12 +381,12 @@ end
 ## indexing
 
 function Base.getindex(x::CuArray{T, <:Any, Mem.UnifiedBuffer}, I::Int) where T
-  ptr = Base.unsafe_convert(Ptr{T}, x)
+  ptr = Base.unsafe_convert(Ptr{T}, x) + Base._memory_offset(x, I)
   unsafe_load(ptr)
 end
 
 function Base.setindex!(x::CuArray{T, <:Any, Mem.UnifiedBuffer}, v, I::Int) where T
-  ptr = Base.unsafe_convert(Ptr{T}, x)
+  ptr = Base.unsafe_convert(Ptr{T}, x) + Base._memory_offset(x, I)
   unsafe_store!(ptr, v)
 end
 
