@@ -333,7 +333,7 @@ const AnyCuVecOrMat{T} = Union{AnyCuVector{T}, AnyCuMatrix{T}}
 end
 
 @inline CuArray{T,N}(xs::AbstractArray{<:Any,N}) where {T,N} =
-  CuArray{T,N,Mem.Device}(xs)
+  CuArray{T,N,default_memory}(xs)
 
 @inline CuArray{T,N}(xs::CuArray{<:Any,N,B}) where {T,N,B} =
   CuArray{T,N,B}(xs)
