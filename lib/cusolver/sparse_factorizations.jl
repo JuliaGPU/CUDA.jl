@@ -12,7 +12,7 @@ end
 
 Base.unsafe_convert(::Type{csrqrInfo_t}, info::SparseQRInfo) = info.info
 
-mutable struct SparseQR{T <: BlasFloat}
+mutable struct SparseQR{T <: BlasFloat} <: Factorization{T <: BlasFloat}
   n::Cint
   m::Cint
   nnzA::Cint
@@ -181,7 +181,7 @@ end
 
 Base.unsafe_convert(::Type{csrcholInfo_t}, info::SparseCholeskyInfo) = info.info
 
-mutable struct SparseCholesky{T <: BlasFloat}
+mutable struct SparseCholesky{T <: BlasFloat} <: Factorization{T <: BlasFloat}
     n::Cint
     nnzA::Cint
     handle::cusolverSpHandle_t
