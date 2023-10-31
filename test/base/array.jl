@@ -3,33 +3,38 @@ import Adapt
 using ChainRulesCore: add!!, is_inplaceable_destination
 
 @testset "constructors" begin
-  xs = CuArray{Int}(undef, 2, 3)
-  @test device(xs) == device()
-  @test context(xs) == context()
-  @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
-  @test collect(cu[1, 2, 3]) == [1, 2, 3]
-  @test collect(cu([1, 2, 3])) == [1, 2, 3]
-  @test testf(vec, rand(5,3))
-  @test cu(1:3) === 1:3
-  @test Base.elsize(xs) == sizeof(Int)
-  @test pointer(CuArray{Int, 2}(xs)) != pointer(xs)
+  let xs = CuArray{Int}(undef, 2, 3)
+    # basic properties
+    @test device(xs) == device()
+    @test context(xs) == context()
+    @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
+    @test collect(cu[1, 2, 3]) == [1, 2, 3]
+    @test collect(cu([1, 2, 3])) == [1, 2, 3]
+    @test testf(vec, rand(5,3))
+    @test cu(1:3) === 1:3
+    @test Base.elsize(xs) == sizeof(Int)
+    @test pointer(CuArray{Int, 2}(xs)) != pointer(xs)
 
-  # test aggressive conversion to Float32, but only for floats, and only with `cu`
-  @test cu([1]) isa CuArray{Int}
-  @test cu(Float64[1]) isa CuArray{Float32}
-  @test cu(ComplexF64[1+1im]) isa CuArray{ComplexF32}
-  @test Adapt.adapt(CuArray, Float64[1]) isa CuArray{Float64}
-  @test Adapt.adapt(CuArray, ComplexF64[1]) isa CuArray{ComplexF64}
-  @test Adapt.adapt(CuArray{Float16}, Float64[1]) isa CuArray{Float16}
+    # test aggressive conversion to Float32, but only for floats, and only with `cu`
+    @test cu([1]) isa CuArray{Int}
+    @test cu(Float64[1]) isa CuArray{Float32}
+    @test cu(ComplexF64[1+1im]) isa CuArray{ComplexF32}
+    @test Adapt.adapt(CuArray, Float64[1]) isa CuArray{Float64}
+    @test Adapt.adapt(CuArray, ComplexF64[1]) isa CuArray{ComplexF64}
+    @test Adapt.adapt(CuArray{Float16}, Float64[1]) isa CuArray{Float16}
+  end
 
-  @test_throws ArgumentError Base.unsafe_convert(Ptr{Int}, xs)
-  @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
+  # test pointer conversions
+  let xs = CuVector{Int,Mem.DeviceBuffer}(undef, 1)
+    @test_throws ArgumentError Base.unsafe_convert(Ptr{Int}, xs)
+    @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
+  end
 
   # unsafe_wrap
   let
-    arr = CuArray{Int}(undef, 2)
-    ptr = pointer(arr)
     B = Mem.DeviceBuffer
+    arr = CuVector{Int,B}(undef, 2)
+    ptr = pointer(arr)
 
     ## compare the fields we care about
     function test_eq(a, T, N, dims)
