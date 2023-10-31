@@ -14,7 +14,7 @@
 
 # which memory type unspecified allocations should default to.
 # possible values: "device", "unified", "host"
-#default_memory = "unified"
+#default_memory = "device"
 
 [CUDA_Driver_jll]
 # whether to attempt to load a forwards-compatibile userspace driver.

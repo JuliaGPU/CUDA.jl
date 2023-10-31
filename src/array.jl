@@ -133,7 +133,7 @@ const CuMatrix{T} = CuArray{T,2}
 const CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
 # unspecified memory allocation
-const default_memory = let str = Preferences.@load_preference("default_memory", "unified")
+const default_memory = let str = Preferences.@load_preference("default_memory", "device")
   if str == "device"
     Mem.DeviceBuffer
   elseif str == "unified"
