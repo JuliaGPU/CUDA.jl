@@ -313,8 +313,15 @@ const StridedCuMatrix{T} = StridedCuArray{T,2}
 const StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
 
 Base.pointer(x::StridedCuArray{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
-@inline function Base.pointer(x::StridedCuArray{T}, i::Integer) where T
-    Base.unsafe_convert(CuPtr{T}, x) + Base._memory_offset(x, i)
+@inline function Base.pointer(x::StridedCuArray{T}, i::Integer; type=Mem.Device) where T
+    PT = if type == Mem.Device
+      CuPtr{T}
+    elseif type == Mem.Host
+      Ptr{T}
+    else
+      error("unknown memory type")
+    end
+    Base.unsafe_convert(PT, x) + Base._memory_offset(x, i)
 end
 
 # anything that's (secretly) backed by a CuArray
@@ -380,15 +387,11 @@ end
 
 ## indexing
 
-function Base.getindex(x::CuArray{T, <:Any, Mem.UnifiedBuffer}, I::Int) where T
-  ptr = Base.unsafe_convert(Ptr{T}, x) + Base._memory_offset(x, I)
-  unsafe_load(ptr)
-end
+Base.getindex(x::CuArray{<:Any, <:Any, Mem.UnifiedBuffer}, I::Int) =
+  unsafe_load(pointer(x, I; type=Mem.Host))
 
-function Base.setindex!(x::CuArray{T, <:Any, Mem.UnifiedBuffer}, v, I::Int) where T
-  ptr = Base.unsafe_convert(Ptr{T}, x) + Base._memory_offset(x, I)
-  unsafe_store!(ptr, v)
-end
+Base.setindex!(x::CuArray{<:Any, <:Any, Mem.UnifiedBuffer}, v, I::Int) =
+  unsafe_store!(pointer(x, I; type=Mem.Host), v)
 
 
 ## interop with device arrays
@@ -402,8 +405,16 @@ end
 ## memory copying
 
 typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
-typetagdata(a::CuArray, i=1) =
-  convert(CuPtr{UInt8}, a.data[]) + a.maxsize + a.offset + i - 1
+function typetagdata(a::CuArray, i=1; type=Mem.Device)
+  PT = if type == Mem.Device
+    CuPtr{UInt8}
+  elseif type == Mem.Host
+    Ptr{UInt8}
+  else
+    error("unknown memory type")
+  end
+  convert(PT, a.data[]) + a.maxsize + a.offset + i - 1
+end
 
 function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
                       n::Integer) where T
@@ -518,11 +529,11 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffe
   synchronize()
 
   GC.@preserve src dest begin
-    cpu_ptr = pointer(src, soffs)
-    unsafe_copyto!(host_pointer(pointer(dest, doffs)), cpu_ptr, n)
+    ptr = pointer(src, soffs)
+    unsafe_copyto!(pointer(dest, doffs; type=Mem.Host), ptr, n)
     if Base.isbitsunion(T)
-      cpu_ptr = typetagdata(src, soffs)
-      unsafe_copyto!(host_pointer(typetagdata(dest, doffs)), cpu_ptr, n)
+      ptr = typetagdata(src, soffs)
+      unsafe_copyto!(typetagdata(dest, doffs; type=Mem.Host), ptr, n)
     end
   end
   return dest
@@ -534,11 +545,11 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
   synchronize()
 
   GC.@preserve src dest begin
-    cpu_ptr = pointer(dest, doffs)
-    unsafe_copyto!(cpu_ptr, host_pointer(pointer(src, soffs)), n)
+    ptr = pointer(dest, doffs)
+    unsafe_copyto!(ptr, pointer(src, soffs; type=Mem.Host), n)
     if Base.isbitsunion(T)
-      cpu_ptr = typetagdata(dest, doffs)
-      unsafe_copyto!(cpu_ptr, host_pointer(typetagdata(src, soffs)), n)
+      ptr = typetagdata(dest, doffs)
+      unsafe_copyto!(ptr, typetagdata(src, soffs; type=Mem.Host), n)
     end
   end
 
