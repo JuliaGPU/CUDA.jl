@@ -243,7 +243,7 @@ function _unsafe_wrap(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int};
   buf = try
     typ = memory_type(ptr)
     if is_managed(ptr)
-      Mem.UnifiedBuffer(ctx, ptr, sz)
+      Mem.UnifiedBuffer(ctx, ptr, sz, Threads.Atomic{Bool}(false))
     elseif typ == CU_MEMORYTYPE_DEVICE
       # TODO: can we identify whether this pointer was allocated asynchronously?
       Mem.DeviceBuffer(ctx, ptr, sz, false)
