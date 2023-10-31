@@ -342,10 +342,39 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
 ## interop with C libraries
 
-Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T} =
-  throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
+function Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T}
+  buf = x.data[]
+  if buf isa Mem.DeviceBuffer
+    throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
+  elseif buf isa Mem.UnifiedBuffer
+    # TODO: atomics
+    if buf.dirty[]
+      synchronize()
+      buf.dirty[] = false
+    end
+  end
+  convert(Ptr{T}, buf) + x.offset*Base.elsize(x)
+end
+
 function Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T}
-  convert(CuPtr{T}, x.data[]) + x.offset*Base.elsize(x)
+  buf = x.data[]
+  if buf isa Mem.UnifiedBuffer
+    buf.dirty[] = true
+  end
+  convert(CuPtr{T}, buf) + x.offset*Base.elsize(x)
+end
+
+
+## indexing
+
+function Base.getindex(x::CuArray{T, <:Any, Mem.UnifiedBuffer}, I::Int) where T
+  ptr = Base.unsafe_convert(Ptr{T}, x)
+  unsafe_load(ptr)
+end
+
+function Base.setindex!(x::CuArray{T, <:Any, Mem.UnifiedBuffer}, v, I::Int) where T
+  ptr = Base.unsafe_convert(Ptr{T}, x)
+  unsafe_store!(ptr, v)
 end
 
 
