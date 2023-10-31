@@ -216,7 +216,7 @@ struct UnifiedBuffer <: AbstractBuffer
     dirty::Threads.Atomic{Bool}
 end
 
-UnifiedBuffer() = UnifiedBuffer(context(), CU_NULL, 0)
+UnifiedBuffer() = UnifiedBuffer(context(), CU_NULL, 0, Threads.Atomic{Bool}(false))
 
 Base.pointer(buf::UnifiedBuffer) = buf.ptr
 Base.sizeof(buf::UnifiedBuffer) = buf.bytesize
@@ -245,7 +245,7 @@ function alloc(::Type{UnifiedBuffer}, bytesize::Integer,
     ptr_ref = Ref{CuPtr{Cvoid}}()
     CUDA.cuMemAllocManaged(ptr_ref, bytesize, flags)
 
-    return UnifiedBuffer(context(), ptr_ref[], bytesize, Threads.Atomic{Bool}(false), )
+    return UnifiedBuffer(context(), ptr_ref[], bytesize, Threads.Atomic{Bool}(false))
 end
 
 
