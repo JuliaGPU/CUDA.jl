@@ -451,6 +451,12 @@ end
   end
   buf, time
 end
+@inline function _alloc(::Type{Mem.HostBuffer}, sz; stream::Union{Nothing,CuStream})
+  time = Base.@elapsed begin
+    buf = Mem.alloc(Mem.Host, sz)
+  end
+  buf, time
+end
 
 """
     free(buf)

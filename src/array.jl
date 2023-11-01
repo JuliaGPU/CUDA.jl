@@ -432,34 +432,36 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
 ## interop with libraries
 
-# when a unified buffer is converted to a device pointer, we assume it will be accessed
-# asynchronously. we keep track of that in the task local storage, and use that information
-# to perform additional synchronization when converting the buffer to a host pointer.
-# TODO: optimize this! it currently halves the performance of scalar indexing.
-function mark_async(buf::Mem.UnifiedBuffer)
+# when CPU-accessible buffers are converted to a device pointer, we assume it will be
+# accessed asynchronously. we keep track of that in the task local storage, and use that
+# information to perform additional synchronization when converting the buffer to a host
+# pointer. TODO: optimize this! it currently halves the performance of scalar indexing.
+function mark_async(buf::Union{Mem.HostBuffer,Mem.UnifiedBuffer})
+  ptr = convert(Ptr{Nothing}, buf)
   tls = task_local_storage()
   if haskey(tls, :CUDA_ASYNC_BUFFERS)
-    async_buffers = tls[:CUDA_ASYNC_BUFFERS]::Vector{Mem.UnifiedBuffer}
-    in(buf, async_buffers) && return
-    pushfirst!(async_buffers, buf)
+    async_buffers = tls[:CUDA_ASYNC_BUFFERS]::Vector{Ptr{Nothing}}
+    in(ptr, async_buffers) && return
+    pushfirst!(async_buffers, ptr)
   else
-    tls[:CUDA_ASYNC_BUFFERS] = [buf]
+    tls[:CUDA_ASYNC_BUFFERS] = [ptr]
   end
   return
 end
-function ensure_sync(buf::Mem.UnifiedBuffer)
+function ensure_sync(buf::Union{Mem.HostBuffer,Mem.UnifiedBuffer})
   tls = task_local_storage()
   haskey(tls, :CUDA_ASYNC_BUFFERS) || return
-  async_buffers = tls[:CUDA_ASYNC_BUFFERS]::Vector{Mem.UnifiedBuffer}
-  in(buf, async_buffers) || return
+  async_buffers = tls[:CUDA_ASYNC_BUFFERS]::Vector{Ptr{Nothing}}
+  ptr = convert(Ptr{Nothing}, buf)
+  in(ptr, async_buffers) || return
   synchronize()
-  filter!(!isequal(buf), async_buffers)
+  filter!(!isequal(ptr), async_buffers)
   return
 end
 
 function Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T}
   buf = x.data[]
-  if is_unified(x)
+  if is_unified(x) || is_host(x)
     mark_async(buf)
   end
   convert(CuPtr{T}, buf) + x.offset*Base.elsize(x)
@@ -469,7 +471,7 @@ function Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T}
   buf = x.data[]
   if is_device(x)
     throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
-  elseif is_unified(x)
+  elseif is_unified(x) || is_host(x)
     ensure_sync(buf)
   end
   convert(Ptr{T}, buf) + x.offset*Base.elsize(x)
@@ -478,10 +480,10 @@ end
 
 ## indexing
 
-Base.getindex(x::CuArray{<:Any, <:Any, Mem.UnifiedBuffer}, I::Int) =
+Base.getindex(x::CuArray{<:Any, <:Any, <:Union{Mem.Host,Mem.Unified}}, I::Int) =
   unsafe_load(pointer(x, I; type=Mem.Host))
 
-Base.setindex!(x::CuArray{<:Any, <:Any, Mem.UnifiedBuffer}, v, I::Int) =
+Base.setindex!(x::CuArray{<:Any, <:Any, <:Union{Mem.Host,Mem.Unified}}, v, I::Int) =
   unsafe_store!(pointer(x, I; type=Mem.Host), v)
 
 
