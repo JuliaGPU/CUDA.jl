@@ -817,7 +817,7 @@ function Base.show(io::IO, results::ProfileResults)
         nvtx_ranges.time .= nvtx_ranges.stop .- nvtx_ranges.start
 
         df = nvtx_ranges
-        if trace
+        if results.trace
             # determine columns to show, based on whether they contain useful information
             columns = [:id, :start, :time]
             for col in [:tid]
