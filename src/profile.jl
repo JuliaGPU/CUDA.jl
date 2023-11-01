@@ -821,12 +821,12 @@ function Base.show(io::IO, results::ProfileResults)
             # determine columns to show, based on whether they contain useful information
             columns = [:id, :start, :time]
             for col in [:tid]
-                if raw || length(unique(df[!, col])) > 1
+                if results.raw || length(unique(df[!, col])) > 1
                     push!(columns, col)
                 end
             end
             for col in [:domain, :name, :payload]
-                if raw || any(!ismissing, df[!, col])
+                if results.raw || any(!ismissing, df[!, col])
                     push!(columns, col)
                 end
             end
