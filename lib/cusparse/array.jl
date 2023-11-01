@@ -417,9 +417,9 @@ Adapt.adapt_storage(::Type{CuArray}, xs::SparseMatrixCSC) = CuSparseMatrixCSC(xs
 Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseVector) where {T} = CuSparseVector{T}(xs)
 Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseMatrixCSC) where {T} = CuSparseMatrixCSC{T}(xs)
 
-Adapt.adapt_storage(::CUDA.CuArrayAdaptor, xs::AbstractSparseArray) =
+Adapt.adapt_storage(::CUDA.CuArrayKernelAdaptor, xs::AbstractSparseArray) =
   adapt(CuArray, xs)
-Adapt.adapt_storage(::CUDA.CuArrayAdaptor, xs::AbstractSparseArray{<:AbstractFloat}) =
+Adapt.adapt_storage(::CUDA.CuArrayKernelAdaptor, xs::AbstractSparseArray{<:AbstractFloat}) =
   adapt(CuArray{Float32}, xs)
 
 Adapt.adapt_storage(::Type{Array}, xs::CuSparseVector) = SparseVector(xs)
@@ -546,7 +546,7 @@ end
 
 # interop with device arrays
 
-function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseVector)
+function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseVector)
     return CuSparseDeviceVector(
         adapt(to, x.iPtr),
         adapt(to, x.nzVal),
@@ -554,7 +554,7 @@ function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseVector)
     )
 end
 
-function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixCSR)
+function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCSR)
     return CuSparseDeviceMatrixCSR(
         adapt(to, x.rowPtr),
         adapt(to, x.colVal),
@@ -563,7 +563,7 @@ function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixCSR)
     )
 end
 
-function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixCSC)
+function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCSC)
     return CuSparseDeviceMatrixCSC(
         adapt(to, x.colPtr),
         adapt(to, x.rowVal),
@@ -572,7 +572,7 @@ function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixCSC)
     )
 end
 
-function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixBSR)
+function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixBSR)
     return CuSparseDeviceMatrixBSR(
         adapt(to, x.rowPtr),
         adapt(to, x.colVal),
@@ -582,7 +582,7 @@ function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixBSR)
     )
 end
 
-function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuSparseMatrixCOO)
+function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCOO)
     return CuSparseDeviceMatrixCOO(
         adapt(to, x.rowInd),
         adapt(to, x.colInd),
