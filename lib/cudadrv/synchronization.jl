@@ -154,7 +154,7 @@ function nonblocking_synchronize(val)
     chan = @inbounds sync_channels[i]
 
     # submit the object to synchronize
-    res = put!(chan, val)
+    res = put!(chan, val)::CUresult
     # this `put!` blocks until the worker has finished processing and returned value
     # (which is different from regular channels)
     if res != SUCCESS
