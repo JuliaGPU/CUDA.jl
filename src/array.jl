@@ -480,11 +480,15 @@ end
 
 ## indexing
 
-Base.getindex(x::CuArray{<:Any, <:Any, <:Union{Mem.Host,Mem.Unified}}, I::Int) =
+function Base.getindex(x::CuArray{<:Any, <:Any, <:Union{Mem.Host,Mem.Unified}}, I::Int)
+  @boundscheck checkbounds(x, I)
   unsafe_load(pointer(x, I; type=Mem.Host))
+end
 
-Base.setindex!(x::CuArray{<:Any, <:Any, <:Union{Mem.Host,Mem.Unified}}, v, I::Int) =
+function Base.setindex!(x::CuArray{<:Any, <:Any, <:Union{Mem.Host,Mem.Unified}}, v, I::Int)
+  @boundscheck checkbounds(x, I)
   unsafe_store!(pointer(x, I; type=Mem.Host), v)
+end
 
 
 ## interop with device arrays
