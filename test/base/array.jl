@@ -30,47 +30,6 @@ using ChainRulesCore: add!!, is_inplaceable_destination
     @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
   end
 
-  # unsafe_wrap
-  let
-    B = Mem.DeviceBuffer
-    arr = CuVector{Int,B}(undef, 2)
-    ptr = pointer(arr)
-
-    ## compare the fields we care about
-    function test_eq(a, T, N, dims)
-      @test eltype(a) == T
-      @test ndims(a) == N
-      @test a.data[].ptr == ptr
-      @test a.data[].ctx == context()
-      @test a.maxsize == arr.maxsize
-      @test a.offset == arr.offset
-      @test a.dims == dims
-    end
-
-    test_eq(unsafe_wrap(CuArray, ptr, 2),                Int, 1, (2,))
-    test_eq(unsafe_wrap(CuArray{Int}, ptr, 2),           Int, 1, (2,))
-    test_eq(unsafe_wrap(CuArray{Int,1}, ptr, 2),         Int, 1, (2,))
-    test_eq(unsafe_wrap(CuArray{Int,1,B}, ptr, 2),       Int, 1, (2,))
-    test_eq(unsafe_wrap(CuArray, ptr, (1,2)),            Int, 2, (1,2))
-    test_eq(unsafe_wrap(CuArray{Int}, ptr, (1,2)),       Int, 2, (1,2))
-    test_eq(unsafe_wrap(CuArray{Int,2}, ptr, (1,2)),     Int, 2, (1,2))
-    test_eq(unsafe_wrap(CuArray{Int,2,B}, ptr, (1,2)),   Int, 2, (1,2))
-
-    @test_throws ErrorException unsafe_wrap(CuArray{Int,1,Mem.HostBuffer}, ptr, 2)
-    @test_throws ErrorException unsafe_wrap(CuArray{Int,2,Mem.HostBuffer}, ptr, (1,2))
-  end
-  let buf = Mem.alloc(Mem.Host, sizeof(Int), Mem.HOSTALLOC_DEVICEMAP)
-    gpu_ptr = convert(CuPtr{Int}, buf)
-    gpu_arr = unsafe_wrap(CuArray, gpu_ptr, 1)
-    gpu_arr .= 42
-
-    synchronize()
-
-    cpu_ptr = convert(Ptr{Int}, buf)
-    cpu_arr = unsafe_wrap(Array, cpu_ptr, 1)
-    @test cpu_arr == [42]
-  end
-
   @test collect(CUDA.zeros(2, 2)) == zeros(Float32, 2, 2)
   @test collect(CUDA.ones(2, 2)) == ones(Float32, 2, 2)
 
@@ -90,6 +49,69 @@ using ChainRulesCore: add!!, is_inplaceable_destination
     @test collect(CUDA.zeros(typ, 2, 2)) == zeros(typ, 2, 2)
     @test collect(CUDA.ones(typ, 2, 2)) == ones(typ, 2, 2)
   end
+end
+
+@testset "unsafe_wrap" begin
+    hmm = CUDA.driver_version() >= v"12.2" &&
+          attribute(device(), CUDA.DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
+
+    # managed memory -> CuArray
+    for a in [cu([1]; device=true), cu([1]; unified=true)]
+        p = pointer(a)
+        for AT in [CuArray, CuArray{Int}, CuArray{Int,1}, typeof(a)],
+            b in [unsafe_wrap(AT, p, 1), unsafe_wrap(AT, p, (1,))]
+            @test typeof(b) == typeof(a)
+            @test pointer(b) == p
+            @test size(b) == (1,)
+        end
+    end
+
+    # managed memory -> Array
+    let a = cu([1]; unified=true)
+        p = pointer(a)
+        for AT in [Array, Array{Int}, Array{Int,1}],
+            b in [unsafe_wrap(AT, p, 1), unsafe_wrap(AT, p, (1,)), unsafe_wrap(AT, a)]
+            @test typeof(b) == Array{Int,1}
+            @test pointer(b) == reinterpret(Ptr{Int}, p)
+            @test size(b) == (1,)
+        end
+    end
+
+    # unmanaged memory -> CuArray
+    if hmm
+        a = [1]
+        p = pointer(a)
+        for AT in [CuArray, CuArray{Int}, CuArray{Int,1}, CuArray{Int,1,Mem.UnifiedBuffer}],
+            b in [unsafe_wrap(AT, p, 1), unsafe_wrap(AT, p, (1,)), unsafe_wrap(AT, a)]
+            @test typeof(b) == CuArray{Int,1,Mem.UnifiedBuffer}
+            @test pointer(b) == reinterpret(CuPtr{Int}, p)
+            @test size(b) == (1,)
+        end
+    end
+
+    # errors
+    let a = cu([1]; device=true)
+        @test_throws ArgumentError unsafe_wrap(Array, a)
+        @test_throws ArgumentError unsafe_wrap(CuArray{Int,1,Mem.UnifiedBuffer}, pointer(a), 1)
+    end
+    if hmm
+        let a = [1]
+            @test_throws ArgumentError unsafe_wrap(CuArray{Int,1,Mem.DeviceBuffer}, a)
+        end
+    end
+
+    # some actual operations
+    let buf = Mem.alloc(Mem.Host, sizeof(Int), Mem.HOSTALLOC_DEVICEMAP)
+        gpu_ptr = convert(CuPtr{Int}, buf)
+        gpu_arr = unsafe_wrap(CuArray, gpu_ptr, 1)
+        gpu_arr .= 42
+
+        synchronize()
+
+        cpu_ptr = convert(Ptr{Int}, buf)
+        cpu_arr = unsafe_wrap(Array, cpu_ptr, 1)
+        @test cpu_arr == [42]
+    end
 end
 
 @testset "adapt" begin

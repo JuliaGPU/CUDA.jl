@@ -1,4 +1,4 @@
-export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, is_unified
+export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, is_device, is_unified, is_host
 
 
 ## array type
@@ -207,36 +207,47 @@ function Base.deepcopy_internal(x::CuArray, dict::IdDict)
 end
 
 
+## unsafe_wrap
+
 """
   unsafe_wrap(CuArray, ptr::CuPtr{T}, dims; own=false, ctx=context())
 
-Wrap a `CuArray` object around the data at the address given by `ptr`. The pointer
-element type `T` determines the array element type. `dims` is either an integer (for a 1d
-array) or a tuple of the array dimensions. `own` optionally specified whether Julia should
-take ownership of the memory, calling `cudaFree` when the array is no longer referenced. The
-`ctx` argument determines the CUDA context where the data is allocated in.
+  # requires
+  unsafe_wrap(Array, a::CuArray)
+
+  # requires HMM
+  unsafe_wrap(CuArray, ptr::ptr{T}, dims)
+  unsafe_wrap(CuArray, a::Array)
+
+Wrap a `CuArray` object around the data at the address given by the CUDA-managed pointer
+`ptr`. The element type `T` determines the array element type. `dims` is either an integer
+(for a 1d array) or a tuple of the array dimensions. `own` optionally specified whether
+Julia should take ownership of the memory, calling `cudaFree` when the array is no longer
+referenced. The `ctx` argument determines the CUDA context where the data is allocated in.
 """
+unsafe_wrap
+
+# managed pointer to CuArray
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
-  buf = _unsafe_wrap(T, ptr, dims; own, ctx)
+  buf = _unsafe_wrap_managed(T, ptr, dims; own, ctx)
   data = DataRef(own ? _free_buffer : (args...) -> (#= do nothing =#), buf)
-  CuArray{T, length(dims)}(data, dims)
+  CuArray{T,N}(data, dims)
 end
 function Base.unsafe_wrap(::Type{CuArray{T,N,B}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N,B}
-  buf = _unsafe_wrap(T, ptr, dims; own, ctx)
+  buf = _unsafe_wrap_managed(T, ptr, dims; own, ctx)
   if typeof(buf) !== B
-    error("Declared buffer type does not match inferred buffer type.")
+    throw(ArgumentError("Declared buffer type does not match inferred buffer type."))
   end
   data = DataRef(own ? _free_buffer : (args...) -> (#= do nothing =#), buf)
-  CuArray{T, length(dims)}(data, dims)
+  CuArray{T,N}(data, dims)
 end
-
-function _unsafe_wrap(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int};
+function _unsafe_wrap_managed(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int};
                       own::Bool=false, ctx::CuContext=context()) where {T,N}
-  isbitstype(T) || error("Can only unsafe_wrap a pointer to a bits type")
+  isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
   sz = prod(dims) * sizeof(T)
 
   # identify the buffer
@@ -253,24 +264,84 @@ function _unsafe_wrap(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int};
       error("Unknown memory type; please file an issue.")
     end
   catch err
-      error("Could not identify the buffer type; are you passing a valid CUDA pointer to unsafe_wrap?")
+      throw(ArgumentError("Could not identify the buffer type; are you passing a valid CUDA pointer to unsafe_wrap?"))
   end
   return buf
 end
-
-function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
+# integer size input
+function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
                           p::CuPtr{T}, dim::Int;
                           own::Bool=false, ctx::CuContext=context()) where {T}
-  unsafe_wrap(Atype, p, (dim,); own, ctx)
+  unsafe_wrap(CuArray{T,1}, p, (dim,); own, ctx)
 end
-function Base.unsafe_wrap(Atype::Type{CuArray{T,1,B}},
-                          p::CuPtr{T}, dim::Int;
+function Base.unsafe_wrap(::Type{CuArray{T,1,B}}, p::CuPtr{T}, dim::Int;
                           own::Bool=false, ctx::CuContext=context()) where {T,B}
-  unsafe_wrap(Atype, p, (dim,); own, ctx)
+  unsafe_wrap(CuArray{T,1,B}, p, (dim,); own, ctx)
 end
 
-Base.unsafe_wrap(T::Type{<:CuArray}, ::Ptr, dims::NTuple{N,Int}; kwargs...) where {N} =
-  throw(ArgumentError("cannot wrap a CPU pointer with a $T"))
+# managed pointer to Array
+function Base.unsafe_wrap(::Union{Type{Array},Type{Array{T}},Type{Array{T,N}}},
+                          p::CuPtr{T}, dims::NTuple{N,Int};
+                          own::Bool=false) where {T,N}
+  if !is_managed(p) && memory_type(p) != CU_MEMORYTYPE_HOST
+    throw(ArgumentError("Can only create a CPU array object from a unified or host CUDA array"))
+  end
+  unsafe_wrap(Array{T,N}, reinterpret(Ptr{T}, p), dims; own)
+end
+# integer size input
+function Base.unsafe_wrap(::Union{Type{Array},Type{Array{T}},Type{Array{T,1}}},
+                          p::CuPtr{T}, dim::Int; own::Bool=false) where {T}
+  unsafe_wrap(Array{T,1}, p, (dim,); own)
+end
+# array input
+function Base.unsafe_wrap(::Union{Type{Array},Type{Array{T}},Type{Array{T,N}}},
+                          a::CuArray{T,N}) where {T,N}
+  p = pointer(a; type=Mem.Host)
+  unsafe_wrap(Array, p, size(a))
+end
+
+# unmanaged pointer to CuArray
+function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
+                          p::Ptr{T}, dims::NTuple{N,Int}; ctx::CuContext=context()) where {T,N}
+  isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
+  sz = prod(dims) * sizeof(T)
+
+  if driver_version() < v"12.2"
+    error("Accessing host memory requires HMM support, which is only available in CUDA 12.2+ using the open-source driver.")
+  end
+  if attribute(device(), DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) != 1
+    error("Accessing host memory requires HMM support, which is not provided by your $(name(device())).")
+  end
+
+  buf = Mem.UnifiedBuffer(ctx, reinterpret(CuPtr{Nothing}, p), sz)
+  data = DataRef((args...) -> (#= do nothing =#), buf)
+  CuArray{T,N}(data, dims)
+end
+function Base.unsafe_wrap(::Type{CuArray{T,N,B}}, p::Ptr{T}, dims::NTuple{N,Int};
+                          ctx::CuContext=context()) where {T,N,B}
+  if B !== Mem.UnifiedBuffer
+    throw(ArgumentError("Can only wrap an unmanaged pointer to a CuArray with a UnifiedBuffer"))
+  end
+  unsafe_wrap(CuArray{T,N}, p, dims; ctx)
+end
+# integer size input
+function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
+                          p::Ptr{T}, dim::Int) where {T}
+  unsafe_wrap(CuArray{T,1}, p, (dim,))
+end
+function Base.unsafe_wrap(::Type{CuArray{T,1,B}}, p::Ptr{T}, dim::Int) where {T,B}
+  unsafe_wrap(CuArray{T,1,B}, p, (dim,))
+end
+# array input
+function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
+                          a::Array{T,N}) where {T,N}
+  p = pointer(a)
+  unsafe_wrap(CuArray{T,N}, p, size(a))
+end
+function Base.unsafe_wrap(::Type{CuArray{T,1,B}}, a::Array{T,1}) where {T,B}
+  p = pointer(a)
+  unsafe_wrap(CuArray{T,1,B}, p, size(a))
+end
 
 
 ## array interface
