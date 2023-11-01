@@ -47,8 +47,6 @@ macro profile(ex...)
             if key == :external
                 isa(value, Bool) || throw(ArgumentError("Invalid value for keyword argument `external`: got `$value`, expected literal boolean value"))
                 external = value
-            elseif key == :io
-                io = value
             else
                 push!(remaining_kwargs, kwarg)
             end
@@ -63,32 +61,8 @@ macro profile(ex...)
         Profile.emit_external_profile(code)
     else
         quote
-            rv, data = $(Profile.emit_integrated_profile(code))
-            $Profile.print($((io === nothing ? (:data,) : (esc(io), :data))...);
-                           $(map(esc, remaining_kwargs)...))
-            rv
+            $(Profile.emit_integrated_profile(code, remaining_kwargs))
         end
-    end
-end
-
-"""
-    @profiled code...
-
-Profile the GPU execution of `code` under the integrated profiler, and returns the raw
-profiling data. This data can then be visualized by passing to `Profile.print`.
-
-Note that the exact format of this data is not guaranteed to be stable, and may change
-between CUDA.jl releases. Currently, it contains three dataframes:
-- `host`, containing host-side activity;
-- `device`, containing device-side activity;
-- `nvtx`, with information on captured NVTX ranges and events.
-
-See also: [`@profile`](@ref)
-"""
-macro profiled(ex)
-    quote
-        _, data = $(Profile.emit_integrated_profile(ex))
-        data
     end
 end
 
@@ -202,7 +176,40 @@ end
 # integrated profiler
 #
 
-function emit_integrated_profile(code)
+"""
+    ProfileResults(...)
+
+The results of a profiling run, as returned by [`@profile`](@ref). The recommended way to
+interpret these results is to visualize them using the I/O stack (e.g. by calling `display`,
+`print`, `string`, ...)
+
+For programmatic access, it is possible to access the fields of this struct. However, the
+exact format is not guaranteed to be stable, and may change between CUDA.jl releases.
+Currently, it contains three dataframes:
+- `host`, containing host-side activity;
+- `device`, containing device-side activity;
+- `nvtx`, with information on captured NVTX ranges and events.
+
+See also: [`@profile`](@ref)
+"""
+macro profiled(ex)
+    quote
+        _, data = $(Profile.emit_integrated_profile(ex))
+        data
+    end
+end
+Base.@kwdef struct ProfileResults
+    # captured data
+    host::DataFrame
+    device::DataFrame
+    nvtx::DataFrame
+
+    # display properties set by `@profile` kwargs
+    trace::Bool=false
+    raw::Bool=false
+end
+
+function emit_integrated_profile(code, kwargs)
     activity_kinds = [
         # API calls
         CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,
@@ -253,7 +260,7 @@ function emit_integrated_profile(code)
             CUPTI.disable!(cfg)
             data = $Profile.capture(cfg)
         end
-        rv, data
+        $ProfileResults(; data..., $(map(esc, kwargs)...))
     end
 end
 
@@ -457,33 +464,22 @@ function capture(cfg)
     return (; host=host_trace, device=device_trace, nvtx=nvtx_trace)
 end
 
-"""
-    Profile.print([io::IO], data; kwargs...)
-
-Prints profiling results to `io`
-
-See also: [`@profile`](@ref), [`@profiled`](@ref)
-"""
-function print end
-
-print(data; kwargs...) =
-    print(stdout isa Base.TTY ? IOContext(stdout, :limit => true) : stdout, data; kwargs...)
-function print(io::IO, data; trace=false, raw=false)
-    data = deepcopy(data)
+function Base.show(io::IO, results::ProfileResults)
+    results = deepcopy(results)
 
     # find the relevant part of the trace (marked by calls to 'cuCtxSynchronize')
-    trace_first_sync = findfirst(data.host.name .== "cuCtxSynchronize")
+    trace_first_sync = findfirst(results.host.name .== "cuCtxSynchronize")
     trace_first_sync === nothing && error("Could not find the start of the profiling data.")
-    trace_last_sync = findlast(data.host.name .== "cuCtxSynchronize")
+    trace_last_sync = findlast(results.host.name .== "cuCtxSynchronize")
     trace_first_sync == trace_last_sync && error("Could not find the end of the profiling data.")
     ## truncate the trace
-    if !raw || !trace
-        trace_begin = data.host.stop[trace_first_sync]
-        trace_end = data.host.stop[trace_last_sync]
+    if !results.raw || !results.trace
+        trace_begin = results.host.stop[trace_first_sync]
+        trace_end = results.host.stop[trace_last_sync]
 
-        trace_first_call = copy(data.host[trace_first_sync+1, :])
-        trace_last_call = copy(data.host[trace_last_sync-1, :])
-        for df in (data.host, data.device)
+        trace_first_call = copy(results.host[trace_first_sync+1, :])
+        trace_last_call = copy(results.host[trace_last_sync-1, :])
+        for df in (results.host, results.device)
             filter!(row -> trace_first_call.id <= row.id <= trace_last_call.id, df)
         end
         trace_divisions = Int[]
@@ -494,35 +490,35 @@ function print(io::IO, data; trace=false, raw=false)
         trace_divisions = [trace_first_sync, trace_last_sync-1]
 
         # inclusive bounds
-        trace_begin = data.host.start[begin]
-        trace_end = data.host.stop[end]
+        trace_begin = results.host.start[begin]
+        trace_end = results.host.stop[end]
     end
     trace_time = trace_end - trace_begin
 
     # compute event and trace duration
-    for df in (data.host, data.device)
+    for df in (results.host, results.device)
         df.time = df.stop .- df.start
     end
-    events = nrow(data.host) + nrow(data.device)
+    events = nrow(results.host) + nrow(results.device)
     println(io, "Profiler ran for $(format_time(trace_time)), capturing $(events) events.")
 
     # make some numbers more friendly to read
     ## make timestamps relative to the start
-    for df in (data.host, data.device)
+    for df in (results.host, results.device)
         df.start .-= trace_begin
         df.stop .-= trace_begin
     end
-    data.nvtx.start .-= trace_begin
-    if !raw
+    results.nvtx.start .-= trace_begin
+    if !results.raw
         # renumber event IDs from 1
-        first_id = minimum([data.host.id; data.device.id])
-        for df in (data.host, data.device)
+        first_id = minimum([results.host.id; results.device.id])
+        for df in (results.host, results.device)
             df.id .-= first_id - 1
         end
 
         # renumber thread IDs from 1
-        threads = unique([data.host.tid; data.nvtx.tid])
-        for df in (data.host, data.nvtx)
+        threads = unique([results.host.tid; results.nvtx.tid])
+        for df in (results.host, results.nvtx)
             broadcast!(df.tid, df.tid) do tid
                 findfirst(isequal(tid), threads)
             end
@@ -609,27 +605,31 @@ function print(io::IO, data; trace=false, raw=false)
         end
     end
 
-    crop = if io isa IOBuffer || io isa IOStream
-        # when emitting to a string or file, render all content (e.g., for the tests)
+    crop = if get(io, :is_pluto, false)
+        # Pluto.jl indicates it wants to limit output, but it does have a scroll bar,
+        # so let's ignore that
         :none
-    else
+    elseif io isa Base.TTY || get(io, :limit, false)::Bool
+        # crop horizonally to fit the terminal
         :horizontal
+    else
+        :none
     end
 
     # host-side activity
     let
         # to determine the time the host was active, we should look at threads separately
-        host_time = maximum(combine(groupby(data.host, :tid), :time => sum => :time).time)
+        host_time = maximum(combine(groupby(results.host, :tid), :time => sum => :time).time)
         host_ratio = host_time / trace_time
 
         # get rid of API call version suffixes
-        data.host.name = replace.(data.host.name, r"_v\d+$" => "")
+        results.host.name = replace.(results.host.name, r"_v\d+$" => "")
 
-        df = if raw
-            data.host
+        df = if results.raw
+            results.host
         else
             # filter spammy API calls
-            filter(data.host) do row
+            filter(results.host) do row
                 !in(row.name, [# context and stream queries we use for nonblocking sync
                                "cuCtxGetCurrent", "cuStreamQuery",
                                # occupancy API, done before every kernel launch
@@ -644,8 +644,8 @@ function print(io::IO, data; trace=false, raw=false)
         end
 
         # instantaneous NVTX markers can be added to the API trace
-        if trace
-            markers = copy(data.nvtx[data.nvtx.type .== :instant, :])
+        if results.trace
+            markers = copy(results.nvtx[results.nvtx.type .== :instant, :])
             markers.id .= missing
             markers.time .= 0.0
             markers.details = map(markers.name, markers.domain) do name, domain
@@ -665,11 +665,11 @@ function print(io::IO, data; trace=false, raw=false)
         end
         if isempty(df)
             println(io, "\nNo host-side activity was recorded.")
-        elseif trace
+        elseif results.trace
             # determine columns to show, based on whether they contain useful information
             columns = [:id, :start, :time]
             for col in [:tid]
-                if raw || length(unique(df[!, col])) > 1
+                if results.raw || length(unique(df[!, col])) > 1
                     push!(columns, col)
                 end
             end
@@ -709,46 +709,46 @@ function print(io::IO, data; trace=false, raw=false)
 
     # device-side activity
     let
-        device_time = sum(data.device.time)
+        device_time = sum(results.device.time)
         device_ratio = device_time / trace_time
-        if !isempty(data.device)
+        if !isempty(results.device)
             println(io, "\nDevice-side activity: GPU was busy for $(format_time(device_time)) ($(format_percentage(device_ratio)) of the trace)")
         end
 
         # add memory throughput information
-        data.device.throughput = data.device.size ./ data.device.time
+        results.device.throughput = results.device.size ./ results.device.time
 
-        if isempty(data.device)
+        if isempty(results.device)
             println(io, "\nNo device-side activity was recorded.")
-        elseif trace
+        elseif results.trace
             # determine columns to show, based on whether they contain useful information
             columns = [:id, :start, :time]
             ## device/stream identification
             for col in [:device, :stream]
-                if raw || length(unique(data.device[!, col])) > 1
+                if results.raw || length(unique(results.device[!, col])) > 1
                     push!(columns, col)
                 end
             end
             ## kernel details (can be missing)
             for col in [:block, :grid, :registers]
-                if raw || any(!ismissing, data.device[!, col])
+                if results.raw || any(!ismissing, results.device[!, col])
                     push!(columns, col)
                 end
             end
-            if raw || any(val->!ismissing(val) && (val.static > 0 || val.dynamic > 0), data.device.shared_mem)
+            if results.raw || any(val->!ismissing(val) && (val.static > 0 || val.dynamic > 0), results.device.shared_mem)
                 push!(columns, :shared_mem)
             end
-            if raw || any(val->!ismissing(val) && val.thread > 0, data.device.local_mem)
+            if results.raw || any(val->!ismissing(val) && val.thread > 0, results.device.local_mem)
                 push!(columns, :local_mem)
             end
             ## memory details (can be missing)
-            if raw || any(!ismissing, data.device.size)
+            if results.raw || any(!ismissing, results.device.size)
                 push!(columns, :size)
                 push!(columns, :throughput)
             end
             push!(columns, :name)
 
-            df = data.device[:, columns]
+            df = results.device[:, columns]
             header = [trace_column_names[name] for name in names(df)]
 
             alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
@@ -760,7 +760,7 @@ function print(io::IO, data; trace=false, raw=false)
                 elseif names(df)[j] in ["size"]
                     Base.format_bytes(v)
                 elseif names(df)[j] in ["shared_mem"]
-                    if raw || v.static > 0 && v.dynamic > 0
+                    if results.raw || v.static > 0 && v.dynamic > 0
                         "$(Base.format_bytes(v.static)) static, $(Base.format_bytes(v.dynamic)) dynamic"
                     elseif v.static > 0
                         "$(Base.format_bytes(v.static)) static"
@@ -791,7 +791,7 @@ function print(io::IO, data; trace=false, raw=false)
             pretty_table(io, df; header, alignment, formatters, highlighters, crop,
                                  body_hlines=trace_divisions)
         else
-            df = summarize_trace(data.device)
+            df = summarize_trace(results.device)
 
             columns = [:time_ratio, :time, :calls, :time_avg, :time_min, :time_max, :name]
             df = df[:, columns]
@@ -806,8 +806,8 @@ function print(io::IO, data; trace=false, raw=false)
     # show NVTX ranges
     # TODO: do we also want to repeat the host/device summary for each NVTX range?
     #       that's what nvprof used to do, but it's a little verbose...
-    nvtx_ranges = copy(data.nvtx[data.nvtx.type .== :start, :])
-    nvtx_ranges = leftjoin(nvtx_ranges, data.nvtx[data.nvtx.type .== :end,
+    nvtx_ranges = copy(results.nvtx[results.nvtx.type .== :start, :])
+    nvtx_ranges = leftjoin(nvtx_ranges, results.nvtx[results.nvtx.type .== :end,
                            [:id, :start]],
                            on=:id, makeunique=true)
     if !isempty(nvtx_ranges)
@@ -817,16 +817,16 @@ function print(io::IO, data; trace=false, raw=false)
         nvtx_ranges.time .= nvtx_ranges.stop .- nvtx_ranges.start
 
         df = nvtx_ranges
-        if trace
+        if results.trace
             # determine columns to show, based on whether they contain useful information
             columns = [:id, :start, :time]
             for col in [:tid]
-                if raw || length(unique(df[!, col])) > 1
+                if results.raw || length(unique(df[!, col])) > 1
                     push!(columns, col)
                 end
             end
             for col in [:domain, :name, :payload]
-                if raw || any(!ismissing, df[!, col])
+                if results.raw || any(!ismissing, df[!, col])
                     push!(columns, col)
                 end
             end
