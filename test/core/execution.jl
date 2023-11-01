@@ -470,7 +470,7 @@ end
     @eval struct Host   end
     @eval struct Device end
 
-    Adapt.adapt_storage(::CUDA.Adaptor, a::Host) = Device()
+    Adapt.adapt_storage(::CUDA.KernelAdaptor, a::Host) = Device()
 
     Base.convert(::Type{Int}, ::Host)   = 1
     Base.convert(::Type{Int}, ::Device) = 2

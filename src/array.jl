@@ -388,7 +388,7 @@ end
 
 function Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T}
   buf = x.data[]
-  if buf isa Mem.UnifiedBuffer
+  if is_unified(x)
     mark_async(buf)
   end
   convert(CuPtr{T}, buf) + x.offset*Base.elsize(x)
@@ -396,9 +396,9 @@ end
 
 function Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T}
   buf = x.data[]
-  if buf isa Mem.DeviceBuffer
+  if is_device(x)
     throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
-  elseif buf isa Mem.UnifiedBuffer
+  elseif is_unified(x)
     ensure_sync(buf)
   end
   convert(Ptr{T}, buf) + x.offset*Base.elsize(x)
@@ -637,19 +637,19 @@ Adapt.adapt_storage(::Type{<:CuArray{T, N, B}}, xs::AT) where {T, N, B, AT<:Abst
 
 # eagerly converts Float64 to Float32, for performance reasons
 
-struct CuArrayAdaptor{B} end
+struct CuArrayKernelAdaptor{B} end
 
-Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T,N,B} =
+Adapt.adapt_storage(::CuArrayKernelAdaptor{B}, xs::AbstractArray{T,N}) where {T,N,B} =
   isbits(xs) ? xs : CuArray{T,N,B}(xs)
 
-Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:AbstractFloat,N,B} =
+Adapt.adapt_storage(::CuArrayKernelAdaptor{B}, xs::AbstractArray{T,N}) where {T<:AbstractFloat,N,B} =
   isbits(xs) ? xs : CuArray{Float32,N,B}(xs)
 
-Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Complex{<:AbstractFloat},N,B} =
+Adapt.adapt_storage(::CuArrayKernelAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Complex{<:AbstractFloat},N,B} =
   isbits(xs) ? xs : CuArray{ComplexF32,N,B}(xs)
 
 # not for Float16
-Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Union{Float16,BFloat16},N,B} =
+Adapt.adapt_storage(::CuArrayKernelAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Union{Float16,BFloat16},N,B} =
   isbits(xs) ? xs : CuArray{T,N,B}(xs)
 
 """
@@ -707,7 +707,7 @@ julia> CuArray(1:3)
   else
     default_memory
   end
-  adapt(CuArrayAdaptor{memory}(), xs)
+  adapt(CuArrayKernelAdaptor{memory}(), xs)
 end
 
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])

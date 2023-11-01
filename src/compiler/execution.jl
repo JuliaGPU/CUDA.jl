@@ -121,35 +121,44 @@ end
 
 ## host to device value conversion
 
-struct Adaptor end
+struct KernelAdaptor end
 
 # convert CUDA host pointers to device pointers
 # TODO: use ordinary ptr?
-Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = reinterpret(LLVMPtr{T,AS.Generic}, p)
+Adapt.adapt_storage(to::KernelAdaptor, p::CuPtr{T}) where {T} =
+    reinterpret(LLVMPtr{T,AS.Generic}, p)
+
+# convert CUDA host arrays to device arrays
+function Adapt.adapt_storage(::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,N}
+  # prefetch unified memory as we're likely to use it on the GPU
+  # TODO: make this configurable?
+  if is_unified(xs) && sizeof(xs) > 0 && !is_capturing()
+    buf = xs.data[]
+    subbuf = Mem.UnifiedBuffer(buf.ctx, pointer(xs), sizeof(xs))
+    Mem.prefetch(subbuf)
+  end
+
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+end
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 struct CuRefValue{T} <: Ref{T}
   x::T
 end
 Base.getindex(r::CuRefValue{T}) where T = r.x
-Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
+Adapt.adapt_structure(to::KernelAdaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
 
 # broadcast sometimes passes a ref(type), resulting in a GPU-incompatible DataType box.
 # avoid that by using a special kind of ref that knows about the boxed type.
 struct CuRefType{T} <: Ref{DataType} end
 Base.getindex(r::CuRefType{T}) where T = T
-Adapt.adapt_structure(to::Adaptor, r::Base.RefValue{<:Union{DataType,Type}}) = CuRefType{r[]}()
+Adapt.adapt_structure(to::KernelAdaptor, r::Base.RefValue{<:Union{DataType,Type}}) =
+    CuRefType{r[]}()
 
 # case where type is the function being broadcasted
-Adapt.adapt_structure(to::Adaptor, bc::Base.Broadcast.Broadcasted{Style, <:Any, Type{T}}) where {Style, T} =
-    Base.Broadcast.Broadcasted{Style}((x...) -> T(x...), adapt(to, bc.args), bc.axes)
-
-Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
-  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
-
-# we materialize ReshapedArray/ReinterpretArray/SubArray/... directly as a device array
-Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
-  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+Adapt.adapt_structure(to::KernelAdaptor,
+                      bc::Broadcast.Broadcasted{Style, <:Any, Type{T}}) where {Style, T} =
+    Broadcast.Broadcasted{Style}((x...) -> T(x...), adapt(to, bc.args), bc.axes)
 
 """
     cudaconvert(x)
@@ -159,9 +168,9 @@ converted to a GPU-friendly format. By default, the function does nothing and re
 input object `x` as-is.
 
 Do not add methods to this function, but instead extend the underlying Adapt.jl package and
-register methods for the the `CUDA.Adaptor` type.
+register methods for the the `CUDA.KernelAdaptor` type.
 """
-cudaconvert(arg) = adapt(Adaptor(), arg)
+cudaconvert(arg) = adapt(KernelAdaptor(), arg)
 
 
 ## abstract kernel functionality
