@@ -818,7 +818,8 @@ end
 
 ## derived arrays
 
-function GPUArrays.derive(::Type{T}, N::Int, a::CuArray, dims::Dims, offset::Int) where {T}
+function GPUArrays.derive(::Type{T}, n::Int, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
+  @assert n == N
   offset = (a.offset * Base.elsize(a)) ÷ sizeof(T) + offset
   CuArray{T,N}(a.data, dims; a.maxsize, offset)
 end
