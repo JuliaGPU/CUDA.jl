@@ -566,7 +566,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
     if use_nonblocking_synchronization
-      is_pinned(pointer(src)) || nonblocking_synchronize(stream())
+      is_pinned(pointer(src)) || synchronize()
     end
 
     GC.@preserve src dest begin
@@ -585,7 +585,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
     if use_nonblocking_synchronization
-      is_pinned(pointer(dest)) || nonblocking_synchronize(stream())
+      is_pinned(pointer(dest)) || synchronize()
     end
 
     GC.@preserve src dest begin
