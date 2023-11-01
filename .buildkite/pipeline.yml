@@ -79,7 +79,7 @@ steps:
           - JuliaCI/julia#v1:
               version: 1.9
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core base"
+              test_args: "--quickfail core base libraries"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
