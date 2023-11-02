@@ -148,4 +148,12 @@ using SpecialFunctions
         @assert contains(asm, "cos.approx.f32")
         @assert !contains(asm, "__nv")  # from libdevice
     end
+
+    @testset "JuliaGPU/CUDA.jl#2111: min/max should return NaN" begin
+        @test isequal(Array(min.(cu([NaN]), cu([Inf]))), [NaN])
+        @test isequal(minimum(cu([NaN])), NaN)
+
+        @test isequal(Array(max.(cu([NaN]), cu([-Inf]))), [NaN])
+        @test isequal(maximum(cu([NaN])), NaN)
+    end
 end
