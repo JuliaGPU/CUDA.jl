@@ -16,6 +16,7 @@ function main()
         Literate.markdown("src/tutorials/performance.jl", "src/tutorials";
                           repo_root_url="$src/blob/master/docs")
     end
+    println()
 
     @info "Generating Documenter.jl site"
     DocMeta.setdocmeta!(CUDA, :DocTestSetup, :(using CUDA); recursive=true)
@@ -31,7 +32,7 @@ function main()
             analytics = "UA-154489943-2",
         ),
         doctest = true,
-        #strict = true,
+        warnonly = [:missing_docs],
         modules = [CUDA],
         pages = Any[
             "Home" => "index.md",
@@ -55,14 +56,15 @@ function main()
             ],
             "Development" => Any[
                 "development/profiling.md",
+                "development/kernel.md",
                 "development/troubleshooting.md",
                 "development/debugging.md",
             ],
             "API reference" => Any[
                 "api/essentials.md",
-                "api/compiler.md",
-                "api/kernel.md",
                 "api/array.md",
+                "api/kernel.md",
+                "api/compiler.md",
             ],
             "Library reference" => Any[
                 "lib/driver.md",

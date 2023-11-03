@@ -73,17 +73,19 @@ memory, I/O is disallowed, and badly-typed code will not compile. As a general r
 thumb, keep kernels simple, and only incrementally port code while continuously verifying
 that it still compiles and executes as expected.
 
+For more details, refer to the section on [Kernel programming](@ref).
+
 
 ## CUDA API wrappers
 
 For advanced use of the CUDA, you can use the driver API wrappers in CUDA.jl. Common
-operations include synchronizing the GPU, inspecting its properties, starting the profiler,
+operations include synchronizing the GPU, inspecting its properties, using events,
 etc. These operations are low-level, but for your convenience wrapped using high-level
 constructs. For example:
 
 ```julia
-CUDA.@profile begin
-    # code that runs under the profiler
+CUDA.@elapsed begin
+    # code that will be timed using CUDA events
 end
 
 # or

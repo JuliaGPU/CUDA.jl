@@ -86,7 +86,7 @@ the time spent on the CPU, and the time spent on the GPU:
 ```julia
 julia> a = CUDA.rand(1024,1024,1024);
 
-julia> CUDA.@profile sin.(a);
+julia> CUDA.@profile sin.(a)
 Profiler ran for 11.93 ms, capturing 8 events.
 
 Host-side activity: calling CUDA APIs took 437.26 µs (3.67% of the trace)
@@ -109,7 +109,7 @@ By default, `CUDA.@profile` will provide a summary of host and device activities
 prefer a chronological view of the events, you can set the `trace` keyword argument:
 
 ```julia
-julia> CUDA.@profile trace=true sin.(a);
+julia> CUDA.@profile trace=true sin.(a)
 Profiler ran for 11.71 ms, capturing 8 events.
 
 Host-side activity: calling CUDA APIs took 217.68 µs (1.86% of the trace)
@@ -289,7 +289,3 @@ CUDA.jl will by default emit the necessary source line information, which you ca
 launching Julia with `-g0`. Conversely, launching with `-g2` will emit additional debug
 information, which can be useful in combination with tools like `cuda-gdb`, but might hurt
 performance or code size.
-
-!!! warning
-
-    Due to bugs in LLVM and CUDA, debug info emission is unavailable in Julia 1.4 and higher.

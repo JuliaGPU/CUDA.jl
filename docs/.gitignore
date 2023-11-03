@@ -3,4 +3,5 @@ build/
 # generated files
 src/tutorials/introduction.md
 src/tutorials/custom_structs.md
+src/tutorials/performance.md
 
