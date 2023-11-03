@@ -52,7 +52,7 @@ it will be downloaded from an artifact source. In the case of a local toolkit, `
 informs CUDA.jl which version that is (this may be useful if auto-detection fails). In
 the case of artifact sources, `version` controls which version will be downloaded and used.
 
-See also: [`reset_runtime_version!`](@ref).
+See also: [`CUDA.reset_runtime_version!`](@ref).
 """
 function set_runtime_version!(version::Union{Nothing,VersionNumber}=nothing;
                               local_toolkit::Bool=false)
@@ -76,7 +76,7 @@ end
 Resets the CUDA Runtime version preference to the default, which is to use the most recent
 compatible runtime available from an artifact source.
 
-See also: [`set_runtime_version!`](@ref).
+See also: [`CUDA.set_runtime_version!`](@ref).
 """
 function reset_runtime_version!()
     Preferences.delete_preferences!(CUDA_Runtime_jll, "version"; force=true)

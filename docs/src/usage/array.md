@@ -130,6 +130,7 @@ julia> accumulate(+, a; dims=2)
 ```
 Be wary that the operator `f` of `accumulate`, `accumulate!`, `scan` and `scan!` must be associative since the operation is performed in parallel. That is `f(f(a,b)c)` must be equivalent to `f(a,f(b,c))`. Accumulating with a non-associative operator on a `CuArray` will not produce the same result as on an `Array`.
 
+
 ## Logical operations
 
 `CuArray`s can also be indexed with arrays of boolean values to select items:
@@ -384,7 +385,6 @@ julia> Array(a) \ Array(b)
   1.29018    0.942773
  -0.765663  -0.782648
 ```
-
 
 
 ## Sparse arrays

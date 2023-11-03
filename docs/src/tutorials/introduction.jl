@@ -213,53 +213,23 @@ end
 # ### Profiling
 
 # When you don't get the performance you expect, usually your first step should be to
-# profile the code and see where it's spending its time. For that, you'll need to be able to
-# run NVIDIA's [`nvprof`
-# tool](https://devblogs.nvidia.com/cuda-pro-tip-nvprof-your-handy-universal-gpu-profiler/).
-# On Unix systems, launch Julia this way:
-#
-# ```sh
-# $ nvprof --profile-from-start off --openacc-profiling off /path/to/julia
-# ```
-#
-# replacing the `/path/to/julia` with the path to your Julia binary. Note that we don't
-# immediately start the profiler, but instead call into the CUDA APIs and manually start the
-# profiler with `CUDA.@profile` (thus excluding the time to compile our kernel):
+# profile the code and see where it's spending its time:
 
 bench_gpu1!(y_d, x_d)  # run it once to force compilation
 CUDA.@profile bench_gpu1!(y_d, x_d)
 
-# When we quit the Julia REPL, the profiler process will print information about the
-# executed kernels and API calls:
+# You can see that almost all of the time was spent in `ptxcall_gpu_add1__1`, the name of
+# the kernel that CUDA.jl assigned when compiling `gpu_add1!` for these inputs. (Had you
+# created arrays of multiple data types, e.g., `xu_d = CUDA.fill(0x01, N)`, you might have
+# also seen `ptxcall_gpu_add1__2` and so on. Like the rest of Julia, you can define a single
+# method and it will be specialized at compile time for the particular data types you're
+# using.)
 
-# ```
-# ==2574== Profiling result:
-#             Type  Time(%)      Time     Calls       Avg       Min       Max  Name
-#  GPU activities:  100.00%  247.61ms         1  247.61ms  247.61ms  247.61ms  ptxcall_gpu_add1__1
-#       API calls:   99.54%  247.83ms         1  247.83ms  247.83ms  247.83ms  cuEventSynchronize
-#                     0.46%  1.1343ms         1  1.1343ms  1.1343ms  1.1343ms  cuLaunchKernel
-#                     0.00%  4.9490us         1  4.9490us  4.9490us  4.9490us  cuEventRecord
-#                     0.00%  4.4190us         1  4.4190us  4.4190us  4.4190us  cuEventCreate
-#                     0.00%     960ns         2     480ns     358ns     602ns  cuCtxGetCurrent
-# ```
+# For further insight, run the profiling with the option `trace=true`
 
-# You can see that 100% of the time was spent in `ptxcall_gpu_add1__1`, the name of the
-# kernel that CUDA.jl assigned when compiling `gpu_add1!` for these inputs. (Had you created
-# arrays of multiple data types, e.g., `xu_d = CUDA.fill(0x01, N)`, you might have also seen
-# `ptxcall_gpu_add1__2` and so on. Like the rest of Julia, you can define a single method
-# and it will be specialized at compile time for the particular data types you're using.)
+CUDA.@profile trace=true bench_gpu1!(y_d, x_d)
 
-# For further insight, run the profiling with the option `--print-gpu-trace`. You can also
-# invoke Julia with as argument the path to a file containing all commands you want to run
-# (including a call to `CUDA.@profile`):
-#
-# ```sh
-# $ nvprof --profile-from-start off --openacc-profiling off --print-gpu-trace /path/to/julia /path/to/script.jl
-#      Start  Duration   Grid Size   Block Size     Regs*    SSMem*    DSMem*           Device   Context    Stream  Name
-#   13.3134s  245.04ms     (1 1 1)      (1 1 1)        20        0B        0B  GeForce GTX TIT         1         7  ptxcall_gpu_add1__1 [34]
-# ```
-
-# The key thing to note here is the `(1 1 1)` in the "Grid Size" and "Block Size" columns.
+# The key thing to note here is that we are only using a single block with a single thread.
 # These terms will be explained shortly, but for now, suffice it to say that this is an
 # indication that this computation ran sequentially. Of note, sequential processing with
 # GPUs is much slower than with CPUs; where GPUs shine is with large-scale parallelism.
@@ -359,14 +329,9 @@ end
 # ```
 
 # Finally, we've achieved the similar performance to what we got with the broadcasted
-# version. Let's run `nvprof` again to confirm this launch configuration:
-#
-# ```
-# ==23972== Profiling result:
-#    Start  Duration            Grid Size      Block Size     Regs*    SSMem*    DSMem*           Device   Context    Stream  Name
-# 13.3526s  101.22us           (4096 1 1)       (256 1 1)        32        0B        0B  GeForce GTX TIT         1         7  ptxcall_gpu_add3__1 [34]
-# ```
+# version. Let's profile again to confirm this launch configuration:
 
+CUDA.@profile trace=true bench_gpu3!(y_d, x_d)
 
 # In the previous example, the number of threads was hard-coded to 256. This is not ideal,
 # as using more threads generally improves performance, but the maximum number of allowed

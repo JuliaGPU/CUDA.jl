@@ -1,9 +1,14 @@
+wip*
+
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
-/docs/build/
+*.nsys-rep
+alloc-profile.pb.gz
+
 .vscode
 lcov.info
-build/
+
+/Manifest.toml
 /lib/**/Manifest.toml
 /lib/**/LocalPreferences.toml

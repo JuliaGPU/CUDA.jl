@@ -249,17 +249,15 @@ function emit_integrated_profile(code, kwargs)
 
         # sink the initial profiler overhead into a synchronization call
         CUDA.cuCtxSynchronize()
-        rv = nothing
-        data = nothing
         try
-            rv = $(esc(code))
+            $(esc(code))
 
             # synchronize to ensure we capture all activity
             CUDA.cuCtxSynchronize()
         finally
             CUPTI.disable!(cfg)
-            data = $Profile.capture(cfg)
         end
+        data = $Profile.capture(cfg)
         $ProfileResults(; data..., $(map(esc, kwargs)...))
     end
 end

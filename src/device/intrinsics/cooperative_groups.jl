@@ -563,7 +563,7 @@ coalesced groups.
 For this operation to be performed asynchronously, the following conditions must be met:
 - the source and destination memory should be aligned to 4, 8 or 16 bytes. this will be
   deduced from the datatype, but can also be specified explicitly using
-  [`CUDA.aligned`](@ref).
+  [`CUDA.align`](@ref).
 - the source should be global memory, and the destination should be shared memory.
 - the device should have compute capability 8.0 or higher.
 """

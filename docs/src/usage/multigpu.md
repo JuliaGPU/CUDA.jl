@@ -72,9 +72,7 @@ Allocations are tied to the device that was active when requesting the memory, a
 used with another device. That means you cannot allocate a `CuArray`, switch devices, and
 use that object. Similar restrictions apply to library objects, like CUFFT plans.
 
-To avoid this difficulty, you can use unified memory that is accessible from all devices.
-These APIs are available through high-level wrappers, but not exposed by the `CuArray`
-constructors yet:
+To avoid this difficulty, you can use unified memory that is accessible from all devices:
 
 ```julia
 using CUDA
@@ -86,27 +84,10 @@ dims = (3,4,gpus)
 a = round.(rand(Float32, dims) * 100)
 b = round.(rand(Float32, dims) * 100)
 
-# CuArray doesn't support unified memory yet,
-# so allocate our own buffers
-buf_a = Mem.alloc(Mem.Unified, sizeof(a))
-d_a = unsafe_wrap(CuArray{Float32,3}, convert(CuPtr{Float32}, buf_a), dims)
-finalizer(d_a) do _
-    Mem.free(buf_a)
-end
-copyto!(d_a, a)
-
-buf_b = Mem.alloc(Mem.Unified, sizeof(b))
-d_b = unsafe_wrap(CuArray{Float32,3}, convert(CuPtr{Float32}, buf_b), dims)
-finalizer(d_b) do _
-    Mem.free(buf_b)
-end
-copyto!(d_b, b)
-
-buf_c = Mem.alloc(Mem.Unified, sizeof(a))
-d_c = unsafe_wrap(CuArray{Float32,3}, convert(CuPtr{Float32}, buf_c), dims)
-finalizer(d_c) do _
-    Mem.free(buf_c)
-end
+# allocate and initialize GPU data
+d_a = cu(a; unified=true)
+d_b = cu(b; unified=true)
+d_c = similar(d_a)
 ```
 
 The data allocated here uses the GPU id as a the outermost dimension, which can be used to

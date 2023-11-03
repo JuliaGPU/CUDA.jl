@@ -62,11 +62,9 @@ end
 
 ## alignment API
 
-"""
-    CUDA.align{alignment}(obj)
+# we don't expose this as Aligned{N}, because we want to have the T typevar first
+# to facilitate use in function signatures as ::Aligned{<:T}
 
-Construct an aligned object, providing alignment information to APIs that require it.
-"""
 struct Aligned{T, N}
     data::T
 end
@@ -74,9 +72,11 @@ end
 alignment(::Aligned{<:Any, N}) where {N} = N
 Base.getindex(x::Aligned) = x.data
 
-# explicit alignment by the user
-# we don't expose this as Aligned{N}, because we want to have the T typevar first
-# to facilitate use in function signatures as ::Aligned{<:T}
+"""
+    CUDA.align{N}(obj)
+
+Construct an aligned object, providing alignment information to APIs that require it.
+"""
 struct align{N} end
 (::Type{align{N}})(data::T) where {T,N} = Aligned{T,N}(data)
 
