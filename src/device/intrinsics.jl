@@ -4,14 +4,12 @@
 include("intrinsics/version.jl")
 
 # extensions to the C language
-include("intrinsics/memory_shared.jl")
+include("intrinsics/shared_memory.jl")
 include("intrinsics/indexing.jl")
 include("intrinsics/synchronization.jl")
-include("intrinsics/warp_vote.jl")
-include("intrinsics/warp_shuffle.jl")
+include("intrinsics/warp.jl")
 include("intrinsics/output.jl")
 include("intrinsics/assertion.jl")
-include("intrinsics/memory_dynamic.jl")
 include("intrinsics/atomics.jl")
 include("intrinsics/misc.jl")
 include("intrinsics/wmma.jl")
