@@ -94,7 +94,7 @@ end
 A macro to evaluate an expression, discarding the resulting value, instead returning the
 number of seconds it took to execute on the GPU, as a floating-point number.
 
-See also: [`@synchronize`](@ref).
+See also: [`@sync`](@ref).
 """
 macro elapsed(ex...)
     # destructure the `@elapsed` expression
