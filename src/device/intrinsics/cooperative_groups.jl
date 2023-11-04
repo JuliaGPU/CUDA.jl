@@ -59,12 +59,12 @@ end
 const grid_workspace = Ptr{grid_workspace_st}
 
 # overload getproperty such that accessing grid workspace fields on a workspace pointer
-# returns a pointer to the field (as we perform atomic operations on them)
+# returns something usable (e.g. a pointer to perform subsequent atomic operations)
 @inline function Base.getproperty(gws::grid_workspace, sym::Symbol)
     if sym === :wsSize
-        return reinterpret(Ptr{UInt32}, gws)
+        return unsafe_load(reinterpret(Ptr{UInt32}, gws))
     elseif sym === :barrier
-        return reinterpret(Ptr{UInt32}, gws) + 4
+        return reinterpret(LLVMPtr{UInt32,AS.Global}, gws) + 4
     else
         return getfield(gws, sym)
     end
@@ -362,12 +362,14 @@ is_cta_master() = threadIdx().x == 1 && threadIdx().y == 1 && threadIdx().z == 1
             # barrier update with release; polling with acquire
             oldArrive = @asmcall("atom.add.release.gpu.u32 \$0,[\$1],\$2;",
                                  "=r,l,r,~{memory}", true, UInt32,
-                                 Tuple{Ptr{UInt32}, UInt32}, arrived, nb)
+                                 Tuple{LLVMPtr{UInt32,AS.Global}, UInt32},
+                                 arrived, nb)
 
             while true
                 current_arrive = @asmcall("ld.acquire.gpu.u32 \$0,[\$1];",
                                           "=r,l,~{memory}", true, UInt32,
-                                          Tuple{Ptr{UInt32}}, arrived)
+                                          Tuple{LLVMPtr{UInt32,AS.Global}},
+                                          arrived)
                 if bar_has_flipped(oldArrive, current_arrive)
                     break
                 end
@@ -405,7 +407,8 @@ end
             # barrier update with release
             oldArrive = @asmcall("atom.add.release.gpu.u32 \$0,[\$1],\$2;",
                                  "=r,l,r,~{memory}", true, UInt32,
-                                 Tuple{Ptr{UInt32}, UInt32}, arrived, nb)
+                                 Tuple{LLVMPtr{UInt32,AS.Global}, UInt32},
+                                 arrived, nb)
         end
     end
 
@@ -427,7 +430,8 @@ end
             while true
                 current_arrive = @asmcall("ld.acquire.gpu.u32 \$0,[\$1];",
                                           "=r,l,~{memory}", true, UInt32,
-                                          Tuple{Ptr{UInt32}}, arrived)
+                                          Tuple{LLVMPtr{UInt32,AS.Global}},
+                                          arrived)
                 if bar_has_flipped(token, current_arrive)
                     break
                 end
