@@ -12,7 +12,7 @@ end
 
 Base.unsafe_convert(::Type{csrqrInfo_t}, info::SparseQRInfo) = info.info
 
-mutable struct SparseQR{T <: BlasFloat} <: Factorization{T <: BlasFloat}
+mutable struct SparseQR{T <: BlasFloat} <: Factorization{T}
   n::Cint
   m::Cint
   nnzA::Cint
@@ -54,35 +54,11 @@ function spqr_analyse(F::SparseQR{T}, A::CuSparseMatrixCSR{T,Cint}) where T <: B
     return F
 end
 
-#csrqrSetup
-for (fname, elty) in ((:cusolverSpScsrqrSetup, :Float32),
-                      (:cusolverSpDcsrqrSetup, :Float64),
-                      (:cusolverSpCcsrqrSetup, :ComplexF32),
-                      (:cusolverSpZcsrqrSetup, :ComplexF64))
-    @eval begin
-        # cusolverStatus_t cusolverSpScsrqrSetup(
-        # cusolverSpHandle_t       handle,
-        # int                      m,
-        # int                      n,
-        # int                      nnzA,
-        # const cusparseMatDescr_t descrA,
-        # const float *            csrValA,
-        # const int *              csrRowPtrA,
-        # const int *              csrColIndA,
-        # float                    mu,
-        # csrqrInfo_t              info);
-        function spqr_setup(F::SparseQR{$elty}, A::CuSparseMatrixCSR{$elty,Cint})
-            $fname(F.handle, F.m, F.n, F.nnzA, F.descA, A.nzVal, A.rowPtr, A.colVal, F.mu, F.info)
-            return F
-        end
-    end
-end
-
-for (bname, fname, sname, pname, elty, relty) in
-    ((:cusolverSpScsrqrBufferInfo, :cusolverSpScsrqrFactor, :cusolverSpScsrqrSolve, :cusolverSpScsrqrZeroPivot, :Float32   , :Float32),
-     (:cusolverSpDcsrqrBufferInfo, :cusolverSpDcsrqrFactor, :cusolverSpDcsrqrSolve, :cusolverSpDcsrqrZeroPivot, :Float64   , :Float64),
-     (:cusolverSpCcsrqrBufferInfo, :cusolverSpCcsrqrFactor, :cusolverSpCcsrqrSolve, :cusolverSpCcsrqrZeroPivot, :ComplexF32, :Float32),
-     (:cusolverSpZcsrqrBufferInfo, :cusolverSpZcsrqrFactor, :cusolverSpZcsrqrSolve, :cusolverSpZcsrqrZeroPivot, :ComplexF64, :Float64))
+for (bname, iname, fname, sname, pname, elty, relty) in
+    ((:cusolverSpScsrqrBufferInfo, :cusolverSpScsrqrSetup, :cusolverSpScsrqrFactor, :cusolverSpScsrqrSolve, :cusolverSpScsrqrZeroPivot, :Float32   , :Float32),
+     (:cusolverSpDcsrqrBufferInfo, :cusolverSpDcsrqrSetup, :cusolverSpDcsrqrFactor, :cusolverSpDcsrqrSolve, :cusolverSpDcsrqrZeroPivot, :Float64   , :Float64),
+     (:cusolverSpCcsrqrBufferInfo, :cusolverSpCcsrqrSetup, :cusolverSpCcsrqrFactor, :cusolverSpCcsrqrSolve, :cusolverSpCcsrqrZeroPivot, :ComplexF32, :Float32),
+     (:cusolverSpZcsrqrBufferInfo, :cusolverSpZcsrqrSetup, :cusolverSpZcsrqrFactor, :cusolverSpZcsrqrSolve, :cusolverSpZcsrqrZeroPivot, :ComplexF64, :Float64))
     @eval begin
         # csrqrBufferInfo
         #
@@ -102,20 +78,33 @@ for (bname, fname, sname, pname, elty, relty) in
             internalDataInBytes = Ref{Csize_t}(0)
             workspaceInBytes = Ref{Csize_t}(0)
             $bname(F.handle, F.m, F.n, F.nnzA, F.descA, A.nzVal, A.rowPtr, A.colVal, F.info, internalDataInBytes, workspaceInBytes)
-            # TODO: allocate buffer?
             F.buffer = CuVector{UInt8}(undef, workspaceInBytes[])
             return F
         end
 
+        # csrqrSetup
+        #
+        # cusolverStatus_t cusolverSpDcsrqrSetup(
+        # cusolverSpHandle_t       handle,
+        # int                      m,
+        # int                      n,
+        # int                      nnzA,
+        # const cusparseMatDescr_t descrA,
+        # const double *           csrValA,
+        # const int *              csrRowPtrA,
+        # const int *              csrColIndA,
+        # double                   mu,
+        # csrqrInfo_t              info);
+        #
         # csrqrFactor
         #
-        # cusolverStatus_t cusolverSpScsrqrFactor(
+        # cusolverStatus_t cusolverSpDcsrqrFactor(
         # cusolverSpHandle_t handle,
         # int                m,
         # int                n,
         # int                nnzA,
-        # float *            b,
-        # float *            x,
+        # double *           b,
+        # double *           x,
         # csrqrInfo_t        info,
         # void *             pBuffer);
         #
@@ -126,7 +115,8 @@ for (bname, fname, sname, pname, elty, relty) in
         # csrqrInfo_t        info,
         # double             tol,
         # int *              position);
-        function spqr_factorise(F::SparseQR{$elty}, tol::$relty)
+        function spqr_factorise(F::SparseQR{$elty}, A::CuSparseMatrixCSR{$elty,Cint}, tol::$relty)
+            $iname(F.handle, F.m, F.n, F.nnzA, F.descA, A.nzVal, A.rowPtr, A.colVal, F.mu, F.info)
             $fname(F.handle, F.m, F.n, F.nnzA, CU_NULL, CU_NULL, F.info, F.buffer)
             singularity = Ref{Cint}(0)
             $pname(F.handle, F.info, tol, singularity)
@@ -134,7 +124,8 @@ for (bname, fname, sname, pname, elty, relty) in
             return F
         end
 
-        function spqr_factorise_solve(F::SparseQR{$elty}, b::CuVector{$elty}, x::CuVector{$elty}, tol::$relty)
+        function spqr_factorise_solve(F::SparseQR{$elty}, A::CuSparseMatrixCSR{$elty,Cint}, b::CuVector{$elty}, x::CuVector{$elty}, tol::$relty)
+            $iname(F.handle, F.m, F.n, F.nnzA, F.descA, A.nzVal, A.rowPtr, A.colVal, F.mu, F.info)
             $fname(F.handle, F.m, F.n, F.nnzA, b, x, F.info, F.buffer)
             singularity = Ref{Cint}(0)
             $pname(F.handle, F.info, tol, singularity)
@@ -181,7 +172,7 @@ end
 
 Base.unsafe_convert(::Type{csrcholInfo_t}, info::SparseCholeskyInfo) = info.info
 
-mutable struct SparseCholesky{T <: BlasFloat} <: Factorization{T <: BlasFloat}
+mutable struct SparseCholesky{T <: BlasFloat} <: Factorization{T}
     n::Cint
     nnzA::Cint
     handle::cusolverSpHandle_t
