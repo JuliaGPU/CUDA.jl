@@ -1,4 +1,4 @@
-if capability(device()) < v"7.0"
+if capability(device()) >= v"7.0"
 
 using CUDA.WMMA
 
