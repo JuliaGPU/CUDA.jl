@@ -295,6 +295,19 @@ end
 # JuliaGPU/CUDA.jl#2111: fmin semantics wrt. NaN don't match Julia's
 #@device_override Base.min(x::Float64, y::Float64) = ccall("extern __nv_fmin", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 #@device_override Base.min(x::Float32, y::Float32) = ccall("extern __nv_fminf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@inline llvm_min(x::Float64, y::Float64) = ccall("llvm.minimum.f64", llvmcall, Float64, (Float64, Float64), x, y)
+@inline llvm_min(x::Float32, y::Float32) = ccall("llvm.minimum.f32", llvmcall, Float32, (Float32, Float32), x, y)
+@device_override @inline function Base.min(x::T, y::T) where {T<:Union{Float32,Float64}}
+    if compute_capability() >= sv"8.0"
+        # we have min.NaN, so can safely use LLVM's min
+        # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
+        return llvm_min(x, y)
+    end
+    diff = x - y
+    argmin = ifelse(signbit(diff), x, y)
+    anynan = isnan(x)|isnan(y)
+    return ifelse(anynan, diff, argmin)
+end
 
 #@device_override Base.max(x::Int32, y::Int32) = ccall("extern __nv_max", llvmcall, Int32, (Int32, Int32), x, y)
 #@device_override Base.max(x::Int64, y::Int64) = ccall("extern __nv_llmax", llvmcall, Int64, (Int64, Int64), x, y)
@@ -303,6 +316,30 @@ end
 # JuliaGPU/CUDA.jl#2111: fmin semantics wrt. NaN don't match Julia's
 #@device_override Base.max(x::Float64, y::Float64) = ccall("extern __nv_fmax", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 #@device_override Base.max(x::Float32, y::Float32) = ccall("extern __nv_fmaxf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@inline llvm_max(x::Float64, y::Float64) = ccall("llvm.maximum.f64", llvmcall, Float64, (Float64, Float64), x, y)
+@inline llvm_max(x::Float32, y::Float32) = ccall("llvm.maximum.f32", llvmcall, Float32, (Float32, Float32), x, y)
+@device_override @inline function Base.max(x::T, y::T) where {T<:Union{Float32,Float64}}
+    if compute_capability() >= sv"8.0"
+        # we have min.NaN, so can safely use LLVM's min
+        # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
+        return llvm_max(x, y)
+    end
+    diff = x - y
+    argmax = ifelse(signbit(diff), y, x)
+    anynan = isnan(x)|isnan(y)
+    return ifelse(anynan, diff, argmax)
+end
+
+@device_override @inline function Base.minmax(x::T, y::T) where {T<:Union{Float32,Float64}}
+   if compute_capability() >= sv"8.0"
+        return Base.llvm_min(x, y), Base.llvm_max(x, y)
+    end
+    diff = x - y
+    sdiff = signbit(diff)
+    min, max = ifelse(sdiff, x, y), ifelse(sdiff, y, x)
+    anynan = isnan(x)|isnan(y)
+    return ifelse(anynan, diff, min), ifelse(anynan, diff, max)
+end
 
 @device_function saturate(x::Float32) = ccall("extern __nv_saturatef", llvmcall, Cfloat, (Cfloat,), x)
 
