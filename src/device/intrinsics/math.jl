@@ -296,8 +296,8 @@ end
 #@device_override Base.min(x::Float64, y::Float64) = ccall("extern __nv_fmin", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 #@device_override Base.min(x::Float32, y::Float32) = ccall("extern __nv_fminf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_override @inline function Base.min(x::Float32, y::Float32)
-    if compute_capability() >= sv"8.0"
-        # LLVM can do the right thing, but only on sm_80+
+    if @static LLVM.version() < v"14" ? false : (compute_capability() >= sv"8.0")
+        # LLVM 14+ can do the right thing, but only on sm_80+
         # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
         ccall("llvm.minimum.f32", llvmcall, Float32, (Float32, Float32), x, y)
     else
@@ -322,8 +322,8 @@ end
 #@device_override Base.max(x::Float64, y::Float64) = ccall("extern __nv_fmax", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 #@device_override Base.max(x::Float32, y::Float32) = ccall("extern __nv_fmaxf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_override @inline function Base.max(x::Float32, y::Float32)
-    if compute_capability() >= sv"8.0"
-        # LLVM can do the right thing, but only on sm_80+
+    if @static LLVM.version() < v"14" ? false : (compute_capability() >= sv"8.0")
+        # LLVM 14+ can do the right thing, but only on sm_80+
         # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
         ccall("llvm.maximum.f32", llvmcall, Float32, (Float32, Float32), x, y)
     else
@@ -341,8 +341,8 @@ end
 end
 
 @device_override @inline function Base.minmax(x::Float32, y::Float32)
-    if compute_capability() >= sv"8.0"
-        # LLVM can do the right thing, but only on sm_80+
+    if @static LLVM.version() < v"14" ? false : (compute_capability() >= sv"8.0")
+        # LLVM 14+ can do the right thing, but only on sm_80+
         # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
         ccall("llvm.minimum.f32", llvmcall, Float32, (Float32, Float32), x, y),
         ccall("llvm.maximum.f32", llvmcall, Float32, (Float32, Float32), x, y)
