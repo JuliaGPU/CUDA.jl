@@ -152,15 +152,35 @@ function Adapt.adapt_storage(::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,N}
   Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
 end
 
-# Base.RefValue isn't GPU compatible, so provide a compatible alternative
+# Base.RefValue isn't GPU compatible, so provide a compatible alternative.
+# however, `Ref` is commonly used for two different purposes:
+# - as a way to box a value and pass that box by (mutable) reference;
+# - to force treating an argument to broadcast as a scalar.
+# as the latter is often used with complex inputs like `CuArrays`, we need to adapt.
+# however, that breaks the ability to mutate, as adapting allocates a new object.
+# to support both, we differentiate based on the type of the value being boxed.
 struct CuRefValue{T} <: Ref{T}
+    val::T
+end
+Base.getindex(r::CuRefValue{T}) where T = r.val
+struct CuRefPointer{T} <: Ref{T}
     ptr::Ptr{T}
 end
-Base.getindex(r::CuRefValue{T}) where T = unsafe_load(r.ptr)
-Base.setindex!(r::CuRefValue{T}, v) where T = unsafe_store!(r.ptr, convert(T, v))
+Base.getindex(r::CuRefPointer{T}) where T = unsafe_load(r.ptr)
+Base.setindex!(r::CuRefPointer{T}, v) where T = unsafe_store!(r.ptr, convert(T, v))
 function Adapt.adapt_structure(to::KernelAdaptor, ref::Base.RefValue{T}) where T
-    ptr = Base.unsafe_convert(Ptr{T}, ref)
-    CuRefValue{T}(ptr)
+    if isbitstype(T)
+        ptr = Base.unsafe_convert(Ptr{T}, ref)
+        # XXX: not needed with HMM
+        ctx = context()
+        Mem.__pin(ptr, sizeof(T))
+        finalizer(ref) do _
+            Mem.__unpin(ptr, ctx)
+        end
+        CuRefPointer{T}(ptr)
+    else
+        CuRefValue(adapt(to, ref[]))
+    end
 end
 
 # broadcast sometimes passes a ref(type), resulting in a GPU-incompatible DataType box.
