@@ -52,9 +52,6 @@ using ChainRulesCore: add!!, is_inplaceable_destination
 end
 
 @testset "unsafe_wrap" begin
-    hmm = CUDA.driver_version() >= v"12.2" &&
-          attribute(device(), CUDA.DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
-
     # managed memory -> CuArray
     for a in [cu([1]; device=true), cu([1]; unified=true)]
         p = pointer(a)
@@ -78,7 +75,7 @@ end
     end
 
     # unmanaged memory -> CuArray
-    if hmm
+    let
         a = [1]
         p = pointer(a)
         for AT in [CuArray, CuArray{Int}, CuArray{Int,1}, CuArray{Int,1,Mem.UnifiedBuffer}],
@@ -94,10 +91,8 @@ end
         @test_throws ArgumentError unsafe_wrap(Array, a)
         @test_throws ArgumentError unsafe_wrap(CuArray{Int,1,Mem.UnifiedBuffer}, pointer(a), 1)
     end
-    if hmm
-        let a = [1]
-            @test_throws ArgumentError unsafe_wrap(CuArray{Int,1,Mem.DeviceBuffer}, a)
-        end
+    let a = [1]
+        @test_throws ArgumentError unsafe_wrap(CuArray{Int,1,Mem.DeviceBuffer}, a)
     end
 
     # some actual operations

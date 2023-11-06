@@ -631,18 +631,13 @@ end
 ## memory pinning
 
 function pin(a::AbstractArray)
+    ptr = pointer(a)
     ctx = context()
-    ptr = __pin(a)
+    __pin(ptr, sizeof(a))
     finalizer(a) do _
         __unpin(ptr, ctx)
     end
     a
-end
-
-function __pin(a::Base.Array)
-    ptr = convert(Ptr{Cvoid}, pointer(a))
-    __pin(ptr, sizeof(a))
-    return ptr
 end
 
 # derived arrays should always pin the parent memory range, because we may end up copying
@@ -659,9 +654,9 @@ __pin(a::Union{SubArray, Base.ReinterpretArray, Base.ReshapedArray}) = __pin(par
 const __pin_lock = ReentrantLock()
 const __pins = Dict{Tuple{CuContext,Ptr{Cvoid}}, HostBuffer}()
 const __pin_count = Dict{Tuple{CuContext,Ptr{Cvoid}}, Int}()
-function __pin(ptr::Ptr{Nothing}, sz::Int)
+function __pin(ptr::Ptr, sz::Int)
     ctx = context()
-    key = (ctx,ptr)
+    key = (ctx, convert(Ptr{Nothing}, ptr))
 
     Base.@lock __pin_lock begin
         pin_count = if haskey(__pin_count, key)
@@ -669,7 +664,6 @@ function __pin(ptr::Ptr{Nothing}, sz::Int)
         else
             __pin_count[key] = 1
         end
-        @assert pin_count >= 1  # should have been caught by double-unpin check in __unpin
 
         if pin_count == 1
             buf = Mem.register(Mem.Host, ptr, sz)
@@ -684,13 +678,12 @@ function __pin(ptr::Ptr{Nothing}, sz::Int)
 
     return
 end
-function __unpin(ptr::Ptr{Nothing}, ctx::CuContext)
-    key = (ctx,ptr)
+function __unpin(ptr::Ptr, ctx::CuContext)
+    key = (ctx, convert(Ptr{Nothing}, ptr))
 
     Base.@lock __pin_lock begin
         @assert haskey(__pin_count, key) "Cannot unpin unmanaged pointer $ptr."
         pin_count = __pin_count[key] -= 1
-        @assert pin_count >= 0 "Double unpin for $ptr"
 
         if pin_count == 0
             buf = @inbounds __pins[key]
@@ -702,6 +695,12 @@ function __unpin(ptr::Ptr{Nothing}, ctx::CuContext)
     end
 
     return
+end
+function __pinned(ptr::Ptr, ctx::CuContext)
+    key = (ctx, convert(Ptr{Nothing}, ptr))
+    Base.@lock __pin_lock begin
+        haskey(__pin_count, key)
+    end
 end
 
 ## p2p handling

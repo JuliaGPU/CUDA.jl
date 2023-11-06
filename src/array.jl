@@ -80,7 +80,7 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
   function CuArray{T,N}(data::DataRef{B}, dims::Dims{N};
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,B}
     check_eltype(T)
-    obj = new{T,N,B}(copy(data), maxsize, offset, dims)
+    obj = new{T,N,B}(data, maxsize, offset, dims)
     finalizer(unsafe_finalize!, obj)
   end
 end
@@ -306,15 +306,20 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
   isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
   sz = prod(dims) * sizeof(T)
 
-  if driver_version() < v"12.2"
-    error("Accessing host memory requires HMM support, which is only available in CUDA 12.2+ using the open-source driver.")
-  end
-  if attribute(device(), DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) != 1
-    error("Accessing host memory requires HMM support, which is not provided by your $(name(device())).")
+  if driver_version() >= v"12.2" && attribute(device(), DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
+    # HMM: supports coherently accessing pageable memory without calling cudaHostRegister
+    finalizer = (args...) -> (#= do nothing =#)
+  else
+    Mem.__pin(p, sz)
+    finalizer = function (args...)
+      context!(ctx; skip_destroyed=true) do
+        Mem.__unpin(p, ctx)
+      end
+    end
   end
 
   buf = Mem.UnifiedBuffer(ctx, reinterpret(CuPtr{Nothing}, p), sz)
-  data = DataRef((args...) -> (#= do nothing =#), buf)
+  data = DataRef(finalizer, buf)
   CuArray{T,N}(data, dims)
 end
 function Base.unsafe_wrap(::Type{CuArray{T,N,B}}, p::Ptr{T}, dims::NTuple{N,Int};
@@ -821,7 +826,7 @@ end
 function GPUArrays.derive(::Type{T}, n::Int, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
   @assert n == N
   offset = (a.offset * Base.elsize(a)) ÷ sizeof(T) + offset
-  CuArray{T,N}(a.data, dims; a.maxsize, offset)
+  CuArray{T,N}(copy(a.data), dims; a.maxsize, offset)
 end
 
 
