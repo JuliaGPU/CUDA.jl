@@ -13,7 +13,7 @@ cuTENSOR = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
 
 [compat]
 CEnum = "0.2, 0.3, 0.4"
-CUDA = "~5.0"
+CUDA = "~5.1"
 CUDA_Runtime_Discovery = "0.2"
 cuQuantum_jll = "~22.11"
 cuTENSOR = "~1.0, ~1.1, ~1.2"
