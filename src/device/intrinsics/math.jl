@@ -295,6 +295,24 @@ end
 # JuliaGPU/CUDA.jl#2111: fmin semantics wrt. NaN don't match Julia's
 #@device_override Base.min(x::Float64, y::Float64) = ccall("extern __nv_fmin", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 #@device_override Base.min(x::Float32, y::Float32) = ccall("extern __nv_fminf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@device_override @inline function Base.min(x::Float32, y::Float32)
+    if @static LLVM.version() < v"14" ? false : (compute_capability() >= sv"8.0")
+        # LLVM 14+ can do the right thing, but only on sm_80+
+        # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
+        ccall("llvm.minimum.f32", llvmcall, Float32, (Float32, Float32), x, y)
+    else
+        # we follow PTX semantics, returning canonical NaN if either input is NaN
+        anynan = isnan(x) | isnan(y)
+        minval = ccall("extern __nv_fminf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+        ifelse(anynan, NaN32, minval)
+    end
+end
+@device_override @inline function Base.min(x::Float64, y::Float64)
+    # PTX doesn't support min.NaN.f64, so we have to do it ourselves
+    anynan = isnan(x) | isnan(y)
+    minval = ccall("extern __nv_fmin", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
+    ifelse(anynan, NaN, minval)
+end
 
 #@device_override Base.max(x::Int32, y::Int32) = ccall("extern __nv_max", llvmcall, Int32, (Int32, Int32), x, y)
 #@device_override Base.max(x::Int64, y::Int64) = ccall("extern __nv_llmax", llvmcall, Int64, (Int64, Int64), x, y)
@@ -303,6 +321,46 @@ end
 # JuliaGPU/CUDA.jl#2111: fmin semantics wrt. NaN don't match Julia's
 #@device_override Base.max(x::Float64, y::Float64) = ccall("extern __nv_fmax", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 #@device_override Base.max(x::Float32, y::Float32) = ccall("extern __nv_fmaxf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@device_override @inline function Base.max(x::Float32, y::Float32)
+    if @static LLVM.version() < v"14" ? false : (compute_capability() >= sv"8.0")
+        # LLVM 14+ can do the right thing, but only on sm_80+
+        # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
+        ccall("llvm.maximum.f32", llvmcall, Float32, (Float32, Float32), x, y)
+    else
+        # we follow PTX semantics, returning canonical NaN if either input is NaN
+        anynan = isnan(x) | isnan(y)
+        maxval = ccall("extern __nv_fmaxf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+        ifelse(anynan, NaN32, maxval)
+    end
+end
+@device_override @inline function Base.max(x::Float64, y::Float64)
+    # PTX doesn't support max.NaN.f64, so we have to do it ourselves
+    anynan = isnan(x) | isnan(y)
+    maxval = ccall("extern __nv_fmax", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
+    ifelse(anynan, NaN, maxval)
+end
+
+@device_override @inline function Base.minmax(x::Float32, y::Float32)
+    if @static LLVM.version() < v"14" ? false : (compute_capability() >= sv"8.0")
+        # LLVM 14+ can do the right thing, but only on sm_80+
+        # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
+        ccall("llvm.minimum.f32", llvmcall, Float32, (Float32, Float32), x, y),
+        ccall("llvm.maximum.f32", llvmcall, Float32, (Float32, Float32), x, y)
+    else
+        # we follow PTX semantics, returning canonical NaN if either input is NaN
+        anynan = isnan(x) | isnan(y)
+        minval = ccall("extern __nv_fminf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+        maxval = ccall("extern __nv_fmaxf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+        ifelse(anynan, NaN32, minval), ifelse(anynan, NaN32, maxval)
+    end
+end
+@device_override @inline function Base.minmax(x::Float64, y::Float64)
+    # PTX doesn't support (min|max).NaN.f64, so we have to do it ourselves
+    anynan = isnan(x) | isnan(y)
+    minval = ccall("extern __nv_fmin", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
+    maxval = ccall("extern __nv_fmax", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
+    ifelse(anynan, NaN, minval), ifelse(anynan, NaN, maxval)
+end
 
 @device_function saturate(x::Float32) = ccall("extern __nv_saturatef", llvmcall, Cfloat, (Cfloat,), x)
 
