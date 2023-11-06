@@ -150,10 +150,13 @@ using SpecialFunctions
     end
 
     @testset "JuliaGPU/CUDA.jl#2111: min/max should return NaN" begin
-        @test isequal(Array(min.(cu([NaN]), cu([Inf]))), [NaN])
-        @test isequal(minimum(cu([NaN])), NaN)
+        for T in [Float32, Float64]
+            AT = CuArray{T}
+            @test isequal(Array(min.(AT([NaN]), AT([Inf]))), [NaN])
+            @test isequal(minimum(AT([NaN])), NaN)
 
-        @test isequal(Array(max.(cu([NaN]), cu([-Inf]))), [NaN])
-        @test isequal(maximum(cu([NaN])), NaN)
+            @test isequal(Array(max.(AT([NaN]), AT([-Inf]))), [NaN])
+            @test isequal(maximum(AT([NaN])), NaN)
+        end
     end
 end
