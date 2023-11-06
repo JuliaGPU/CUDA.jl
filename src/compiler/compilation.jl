@@ -306,6 +306,9 @@ function compile(@nospecialize(job::CompilerJob))
             msg *= "\n" * log
         end
         msg *= "\nIf you think this is a bug, please file an issue and attach $(ptx_input)"
+        if parse(Bool, get(ENV, "BUILDKITE", "false"))
+            run(`buildkite-agent artifact upload $(ptx_input)`)
+        end
         error(msg)
     elseif !isempty(log)
         @debug "PTX compiler log:\n" * log
