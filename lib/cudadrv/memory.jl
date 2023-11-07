@@ -640,6 +640,16 @@ function pin(a::AbstractArray)
     a
 end
 
+function pin(ref::Base.RefValue{T}) where T
+    ctx = context()
+    ptr = Base.unsafe_convert(Ptr{T}, ref)
+    __pin(ptr, sizeof(T))
+    finalizer(ref) do _
+        __unpin(ptr, ctx)
+    end
+    ref
+end
+
 # derived arrays should always pin the parent memory range, because we may end up copying
 # from or to that parent range (containing the derived range), and partially-pinned ranges
 # are not supported:
