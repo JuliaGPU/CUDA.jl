@@ -10,9 +10,44 @@ that knowledge to programming in Julia using CUDA.jl. Nontheless, this section w
 brief overview of the most important concepts and their syntax.
 
 
-## Essentials
+## Defining and launching kernels
 
 Kernels are written as ordinary Julia functions, returning `nothing`:
+
+```julia
+function my_kernel()
+    return
+end
+```
+
+To launch this kernel, use the `@cuda` macro:
+
+```julia-repl
+julia> @cuda my_kernel()
+```
+
+This automatically (re)compiles the `my_kernel` function and launches it on the current
+GPU (selected by calling `device!`).
+
+By passing the `launch=false` keyword argument to `@cuda`, it is possible to obtain a
+callable object representing the compiled kernel. This can be useful for reflection and
+introspection purposes:
+
+```julia-repl
+julia> k = @cuda launch=false my_kernel()
+CUDA.HostKernel for my_kernel()
+
+julia> CUDA.registers(k)
+4
+
+julia> k()
+```
+
+
+## Kernel inputs and outputs
+
+GPU kernels cannot return values, and should always `return` or `return nothing` on all
+code paths. To communicate values from a kernel, you can use a `CuArray`:
 
 ```julia
 function my_kernel(a)
@@ -20,8 +55,6 @@ function my_kernel(a)
     return
 end
 ```
-
-To launch this kernel, use the `@cuda` macro:
 
 ```julia-repl
 julia> a = CuArray{Int}(undef, 1);
@@ -33,9 +66,34 @@ julia> a
  42
 ```
 
-This only launched a single thread, which is not very useful. To launch more threads, use
-the `threads` and `blocks` keyword arguments to `@cuda`, while using indexing intrinsics
-in the kernel to differentiate the computation for each thread:
+Kernels can also mutate `Ref` boxes:
+
+```julia
+function my_kernel(a)
+    a[] = 42
+    return
+end
+```
+
+```julia-repl
+julia> box = Ref(1)
+
+julia> CUDA.@sync @cuda my_kernel(box);
+
+julia> box[]
+42
+```
+
+Note the `CUDA.@sync` here: GPU operations always execute asynchronously, so we need to
+wait for the GPU to finish before we can access the result. This is not needed when using
+`CuArray`s, as they automatically synchronize on access.
+
+
+## Launch configuration and indexing
+
+Simply using `@cuda` only launches a single thread, which is not very useful. To launch more
+threads, use the `threads` and `blocks` keyword arguments to `@cuda`, while using indexing
+intrinsics in the kernel to differentiate the computation for each thread:
 
 ```julia-repl
 julia> function my_kernel(a)
@@ -56,9 +114,6 @@ julia> a
  42
  42
 ```
-
-
-## Indexing
 
 As shown above, the `threadIdx` etc. values from CUDA C are available as functions returning
 a `NamedTuple` with `x`, `y`, and `z` fields. The intrinsics return 1-based indices.
