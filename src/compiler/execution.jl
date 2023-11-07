@@ -169,13 +169,16 @@ end
 Base.getindex(r::CuRefPointer{T}) where T = unsafe_load(r.ptr)
 Base.setindex!(r::CuRefPointer{T}, v) where T = unsafe_store!(r.ptr, convert(T, v))
 function Adapt.adapt_structure(to::KernelAdaptor, ref::Base.RefValue{T}) where T
-    if isbitstype(T)
+    if isbitstype(T) && sizeof(T) > 0
         ptr = Base.unsafe_convert(Ptr{T}, ref)
-        # XXX: not needed with HMM
-        ctx = context()
-        Mem.__pin(ptr, sizeof(T))
-        finalizer(ref) do _
-            Mem.__unpin(ptr, ctx)
+        if driver_version() < v"12.2" ||
+           attribute(device(), DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) != 1
+            # no HMM, need to register this memory
+            ctx = context()
+            Mem.__pin(ptr, sizeof(T))
+            finalizer(ref) do _
+                Mem.__unpin(ptr, ctx)
+            end
         end
         CuRefPointer{T}(ptr)
     else
