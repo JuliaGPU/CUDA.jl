@@ -61,6 +61,19 @@ let
     @test occursin("cuCtxSynchronize", str)
 end
 
+# benchmarked profile
+let
+    str = string(CUDA.@bprofile @cuda identity(nothing))
+    @test occursin("cuLaunchKernel", str)
+    @test occursin("_Z8identityv", str)
+    @test !occursin("cuCtxGetCurrent", str)
+
+    str = string(CUDA.@bprofile raw=true @cuda identity(nothing))
+    @test occursin("cuLaunchKernel", str)
+    @test occursin("_Z8identityv", str)
+    @test occursin("cuCtxGetCurrent", str)
+end
+
 # JuliaGPU/NVTX.jl#37
 if !Sys.iswindows()
 
