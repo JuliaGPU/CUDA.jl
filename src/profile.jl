@@ -603,9 +603,9 @@ function Base.show(io::IO, results::ProfileResults)
         end
     end
 
-    crop = if get(io, :is_pluto, false)
-        # Pluto.jl indicates it wants to limit output, but it does have a scroll bar,
-        # so let's ignore that
+    crop = if get(io, :is_pluto, false) || get(io, :jupyter, false)
+        # Pluto.jl and IJulia.jl both indicate they want to limit output,
+        # but they have scrollbars, so let's ignore that
         :none
     elseif io isa Base.TTY || get(io, :limit, false)::Bool
         # crop horizonally to fit the terminal
