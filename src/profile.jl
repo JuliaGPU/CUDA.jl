@@ -104,9 +104,9 @@ macro bprofile(ex...)
     # the benchmarking code; pretty naive right now
     body = quote
         t0 = time_ns()
-        domain = NVTX.Domain("@bprofile")
+        domain = $NVTX.Domain("@bprofile")
         while (time_ns() - t0)/1e9 < $time
-            NVTX.@range "iteration" domain=domain begin
+            $NVTX.@range "iteration" domain=domain begin
                 $(code)
                 CUDA.cuCtxSynchronize()
             end
