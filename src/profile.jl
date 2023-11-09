@@ -66,6 +66,61 @@ macro profile(ex...)
     end
 end
 
+"""
+    CUDA.@bprofile [time=1.0] [kwargs...] code...
+
+Benchmark the given code by running it for `time` seconds, and report the results using
+the internal profiler `CUDA.@profile`.
+
+The `time` keyword argument is optional, and defaults to `1.0` seconds. Other keyword
+arguments are forwarded to `CUDA.@profile`.
+
+See also: [`CUDA.@profile`](@ref).
+"""
+macro bprofile(ex...)
+    # destructure the `@profile` expression
+    code = ex[end]
+    kwargs = ex[1:end-1]
+
+    # extract keyword arguments that are handled by this macro
+    time = 1.0
+    remaining_kwargs = []
+    for kwarg in kwargs
+        if Meta.isexpr(kwarg, :(=))
+            key, value = kwarg.args
+            if key == :time
+                isa(value, Number) || throw(ArgumentError("Invalid value for keyword argument `time`: got `$value`, expected literal number"))
+                time = value
+            elseif key == :external
+                error("The `external` keyword argument is not supported by `CUDA.@bprofile`")
+            else
+                push!(remaining_kwargs, kwarg)
+            end
+        else
+            throw(ArgumentError("Invalid keyword argument to CUDA.@bprofile: $kwarg"))
+        end
+    end
+
+    # the benchmarking code; pretty naive right now
+    body = quote
+        t0 = time_ns()
+        domain = NVTX.Domain("@bprofile")
+        while (time_ns() - t0)/1e9 < $time
+            NVTX.@range "iteration" domain=domain begin
+                $(code)
+                CUDA.cuCtxSynchronize()
+            end
+        end
+    end
+
+    quote
+        # warm-up
+        $(esc(code))
+
+        $(Profile.emit_integrated_profile(body, remaining_kwargs))
+    end
+end
+
 
 module Profile
 
