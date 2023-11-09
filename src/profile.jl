@@ -550,12 +550,11 @@ function Base.show(io::IO, results::ProfileResults)
         df = groupby(df, :name)
 
         # gather summary statistics
+        analyze_time(time) = Ref((; std=std(time), mean=mean(time), min=minimum(time), max=maximum(time)))
         df = combine(df,
-            :time => sum => :time,
-            :time => length => :calls,
-            :time => mean => :time_avg,
-            :time => minimum => :time_min,
-            :time => maximum => :time_max
+            :time => sum           => :time,
+            :time => length        => :calls,
+            :time => analyze_time  => :time_dist,
         )
         df.time_ratio = df.time ./ trace_time
         sort!(df, :time_ratio, rev=true)
@@ -584,20 +583,21 @@ function Base.show(io::IO, results::ProfileResults)
     )
 
     summary_column_names = Dict(
-        "time"          => "Time",
+        "time"          => "Total time",
         "time_ratio"    => "Time (%)",
         "calls"         => "Calls",
-        "time_avg"      => "Avg time",
-        "time_min"      => "Min time",
-        "time_max"      => "Max time",
+        "time_dist"     => "Time distribution",
         "name"          => "Name"
     )
 
     summary_formatter(df) = function(v, i, j)
         if names(df)[j] == "time_ratio"
             format_percentage(v)
-        elseif names(df)[j] in ["time", "time_avg", "time_min", "time_max"]
+        elseif names(df)[j] == "time"
             format_time(v)
+        elseif names(df)[j] == "time_dist"
+            mean, std, min, max = format_time(v.mean, v.std, v.min, v.max)
+            @sprintf("%9s ± %-6s (%6s ‥ %s)", mean, std, min, max)
         else
             v
         end
@@ -677,9 +677,9 @@ function Base.show(io::IO, results::ProfileResults)
             end
 
             df = df[:, columns]
-            header = [trace_column_names[name] for name in names(df)]
 
-            alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
+            header = [trace_column_names[name] for name in names(df)]
+            alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             formatters = function(v, i, j)
                 if v === missing
                     return "-"
@@ -695,11 +695,11 @@ function Base.show(io::IO, results::ProfileResults)
         else
             df = summarize_trace(df)
 
-            columns = [:time_ratio, :time, :calls, :time_avg, :time_min, :time_max, :name]
+            columns = [:time_ratio, :time, :calls, :time_dist, :name]
             df = df[:, columns]
 
             header = [summary_column_names[name] for name in names(df)]
-            alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
+            alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             highlighters = time_highlighters(df)
             pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
         end
@@ -747,9 +747,9 @@ function Base.show(io::IO, results::ProfileResults)
             push!(columns, :name)
 
             df = results.device[:, columns]
-            header = [trace_column_names[name] for name in names(df)]
 
-            alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
+            header = [trace_column_names[name] for name in names(df)]
+            alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             formatters = function(v, i, j)
                 if v === missing
                     return "-"
@@ -791,11 +791,11 @@ function Base.show(io::IO, results::ProfileResults)
         else
             df = summarize_trace(results.device)
 
-            columns = [:time_ratio, :time, :calls, :time_avg, :time_min, :time_max, :name]
+            columns = [:time_ratio, :time, :calls, :time_dist, :name]
             df = df[:, columns]
 
             header = [summary_column_names[name] for name in names(df)]
-            alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
+            alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             highlighters = time_highlighters(df)
             pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
         end
@@ -842,9 +842,9 @@ function Base.show(io::IO, results::ProfileResults)
             end
 
             df = df[:, columns]
-            header = [trace_column_names[name] for name in names(df)]
 
-            alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
+            header = [trace_column_names[name] for name in names(df)]
+            alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             formatters = function(v, i, j)
                 if v === missing
                     return "-"
@@ -868,11 +868,11 @@ function Base.show(io::IO, results::ProfileResults)
 
             df = summarize_trace(nvtx_ranges)
 
-            columns = [:time_ratio, :time, :calls, :time_avg, :time_min, :time_max, :name]
+            columns = [:time_ratio, :time, :calls, :time_dist, :name]
             df = df[:, columns]
 
             header = [summary_column_names[name] for name in names(df)]
-            alignment = [i == lastindex(header) ? :l : :r for i in 1:length(header)]
+            alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             highlighters = time_highlighters(df)
             pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
         end
@@ -883,18 +883,40 @@ end
 
 format_percentage(x::Number) = @sprintf("%.2f%%", x * 100)
 
-function format_time(t::Number)
-    io = IOBuffer()
-    if abs(t) < 1e-6  # less than 1 microsecond
-        Base.print(io, round(t * 1e9, digits=2), " ns")
+function format_time(ts::Number...)
+    # the first number determines the scale and unit
+    t = ts[1]
+    range, unit = if abs(t) < 1e-6  # less than 1 microsecond
+        1e9, "ns"
     elseif abs(t) < 1e-3  # less than 1 millisecond
-        Base.print(io, round(t * 1e6, digits=2), " µs")
+        1e6, "µs"
     elseif abs(t) < 1  # less than 1 second
-        Base.print(io, round(t * 1e3, digits=2), " ms")
+        1e3, "ms"
     else
-        Base.print(io, round(t, digits=2), " s")
+        1, "s"
     end
-    return String(take!(io))
+
+    strs = String[]
+
+    # only the first number displays the unit
+    let io = IOBuffer()
+        Base.print(io, round(t * range, digits=2), " ", unit)
+        push!(strs, String(take!(io)))
+    end
+
+    # the other numbers are simply scaled
+    for t in ts[2:end]
+        let io = IOBuffer()
+            Base.print(io, round(t * range, digits=2))
+            push!(strs, String(take!(io)))
+        end
+    end
+
+    if length(strs) == 1
+        return strs[1]
+    else
+        return strs
+    end
 end
 
 end
