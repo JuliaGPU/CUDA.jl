@@ -9,6 +9,10 @@ output_ignorelist = [
     "^nvmlGpuInstanceProfileInfo_v2$",
     "^nvmlComputeInstanceProfileInfo_v2$",
     "^nvmlPowerValue_v2$",
+    "^nvmlProcessDetailList_v1$",
+    "^nvmlC2cModeInfo_v1$",
+    "^nvmlGpuInstanceProfileInfo_v3$",
+    "^nvmlComputeInstanceProfileInfo_v3$",
 ]
 
 

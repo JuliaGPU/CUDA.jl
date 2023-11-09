@@ -92,6 +92,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
             end
             mb = cld(m, A.blockDim)
             mX,nX = size(X)
+            nrhs = transxy == 'N' ? nX : mX
             if transxy == 'N' && (mX != m)
                 throw(DimensionMismatch(""))
             end
@@ -105,14 +106,14 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
             function bufferSize()
                 out = Ref{Cint}(1)
                 $bname(handle(), A.dir, transa, transxy,
-                       mb, nX, A.nnzb, desc, nonzeros(A), A.rowPtr,
+                       mb, nrhs, A.nnzb, desc, nonzeros(A), A.rowPtr,
                        A.colVal, A.blockDim, info[],
                        out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 $aname(handle(), A.dir, transa, transxy,
-                        mb, nX, A.nnzb, desc, nonzeros(A), A.rowPtr,
+                        mb, nrhs, A.nnzb, desc, nonzeros(A), A.rowPtr,
                         A.colVal, A.blockDim, info[],
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
@@ -121,7 +122,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), A.dir, transa, transxy, mb,
-                        nX, A.nnzb, alpha, desc, nonzeros(A), A.rowPtr,
+                        nrhs, A.nnzb, alpha, desc, nonzeros(A), A.rowPtr,
                         A.colVal, A.blockDim, info[], X, ldx, X, ldx,
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             end
@@ -156,6 +157,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
             mX,nX = size(X)
+            nrhs = transxy == 'N' ? nX : mX
             if transxy == 'N' && (mX != m)
                 throw(DimensionMismatch(""))
             end
@@ -170,14 +172,14 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
             function bufferSize()
                 out = Ref{UInt64}(1)
                 $bname(handle(), 0, transa, transxy,
-                        m, nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                        m, nrhs, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
                         A.colVal, X, ldx, info[], CUSPARSE_SOLVE_POLICY_USE_LEVEL,
                         out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 $aname(handle(), 0, transa, transxy,
-                        m, nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                        m, nrhs, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
                         A.colVal, X, ldx, info[],
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
@@ -186,7 +188,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), 0, transa, transxy, m,
-                        nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                        nrhs, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
                         A.colVal, X, ldx, info[],
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             end
@@ -231,6 +233,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                 throw(DimensionMismatch("A must be square, but has dimensions ($n,$m)!"))
             end
             mX,nX = size(X)
+            nrhs = transxy == 'N' ? nX : mX
             if transxy == 'N' && (mX != m)
                 throw(DimensionMismatch(""))
             end
@@ -245,14 +248,14 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
             function bufferSize()
                 out = Ref{UInt64}(1)
                 $bname(handle(), 0, ctransa, transxy,
-                       m, nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                       m, nrhs, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
                        rowvals(A), X, ldx, info[], CUSPARSE_SOLVE_POLICY_USE_LEVEL,
                        out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 $aname(handle(), 0, ctransa, transxy,
-                        m, nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                        m, nrhs, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
                         rowvals(A), X, ldx, info[],
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
@@ -261,7 +264,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), 0, ctransa, transxy, m,
-                        nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                        nrhs, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
                         rowvals(A), X, ldx, info[],
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             end

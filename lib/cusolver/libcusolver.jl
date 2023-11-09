@@ -1610,7 +1610,7 @@ end
     @ccall libcusolver.cusolverDnXtrtri_bufferSize(handle::cusolverDnHandle_t,
                                                    uplo::cublasFillMode_t,
                                                    diag::cublasDiagType_t, n::Int64,
-                                                   dataTypeA::cudaDataType, A::Ptr{Cvoid},
+                                                   dataTypeA::cudaDataType, A::CuPtr{Cvoid},
                                                    lda::Int64,
                                                    workspaceInBytesOnDevice::Ptr{Csize_t},
                                                    workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
@@ -1622,12 +1622,12 @@ end
     initialize_context()
     @ccall libcusolver.cusolverDnXtrtri(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
                                         diag::cublasDiagType_t, n::Int64,
-                                        dataTypeA::cudaDataType, A::Ptr{Cvoid}, lda::Int64,
-                                        bufferOnDevice::Ptr{Cvoid},
+                                        dataTypeA::cudaDataType, A::CuPtr{Cvoid},
+                                        lda::Int64, bufferOnDevice::CuPtr{Cvoid},
                                         workspaceInBytesOnDevice::Csize_t,
                                         bufferOnHost::Ptr{Cvoid},
                                         workspaceInBytesOnHost::Csize_t,
-                                        devInfo::Ptr{Cint})::cusolverStatus_t
+                                        devInfo::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSlauum_bufferSize(handle, uplo, n, A, lda, lwork)
@@ -2109,9 +2109,9 @@ end
     @ccall libcusolver.cusolverDnXsytrs_bufferSize(handle::cusolverDnHandle_t,
                                                    uplo::cublasFillMode_t, n::Int64,
                                                    nrhs::Int64, dataTypeA::cudaDataType,
-                                                   A::Ptr{Cvoid}, lda::Int64,
-                                                   ipiv::Ptr{Int64},
-                                                   dataTypeB::cudaDataType, B::Ptr{Cvoid},
+                                                   A::CuPtr{Cvoid}, lda::Int64,
+                                                   ipiv::CuPtr{Int64},
+                                                   dataTypeB::cudaDataType, B::CuPtr{Cvoid},
                                                    ldb::Int64,
                                                    workspaceInBytesOnDevice::Ptr{Csize_t},
                                                    workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
@@ -2124,13 +2124,13 @@ end
     initialize_context()
     @ccall libcusolver.cusolverDnXsytrs(handle::cusolverDnHandle_t, uplo::cublasFillMode_t,
                                         n::Int64, nrhs::Int64, dataTypeA::cudaDataType,
-                                        A::Ptr{Cvoid}, lda::Int64, ipiv::Ptr{Int64},
-                                        dataTypeB::cudaDataType, B::Ptr{Cvoid}, ldb::Int64,
-                                        bufferOnDevice::Ptr{Cvoid},
+                                        A::CuPtr{Cvoid}, lda::Int64, ipiv::CuPtr{Int64},
+                                        dataTypeB::cudaDataType, B::CuPtr{Cvoid},
+                                        ldb::Int64, bufferOnDevice::CuPtr{Cvoid},
                                         workspaceInBytesOnDevice::Csize_t,
                                         bufferOnHost::Ptr{Cvoid},
                                         workspaceInBytesOnHost::Csize_t,
-                                        info::Ptr{Cint})::cusolverStatus_t
+                                        info::CuPtr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnSsytri_bufferSize(handle, uplo, n, A, lda, ipiv, lwork)
@@ -4190,9 +4190,9 @@ end
                                                     uplo::cublasFillMode_t, n::Int64,
                                                     dataTypeA::cudaDataType,
                                                     A::CuPtr{Cvoid}, lda::Int64,
-                                                    vl::CuPtr{Cvoid}, vu::CuPtr{Cvoid},
+                                                    vl::Ptr{Cvoid}, vu::Ptr{Cvoid},
                                                     il::Int64, iu::Int64,
-                                                    h_meig::CuPtr{Int64},
+                                                    h_meig::Ptr{Int64},
                                                     dataTypeW::cudaDataType,
                                                     W::CuPtr{Cvoid},
                                                     computeType::cudaDataType,
@@ -4210,8 +4210,8 @@ end
                                          jobz::cusolverEigMode_t, range::cusolverEigRange_t,
                                          uplo::cublasFillMode_t, n::Int64,
                                          dataTypeA::cudaDataType, A::CuPtr{Cvoid},
-                                         lda::Int64, vl::CuPtr{Cvoid}, vu::CuPtr{Cvoid},
-                                         il::Int64, iu::Int64, meig64::CuPtr{Int64},
+                                         lda::Int64, vl::Ptr{Cvoid}, vu::Ptr{Cvoid},
+                                         il::Int64, iu::Int64, meig64::Ptr{Int64},
                                          dataTypeW::cudaDataType, W::CuPtr{Cvoid},
                                          computeType::cudaDataType,
                                          bufferOnDevice::CuPtr{Cvoid},
@@ -5624,8 +5624,8 @@ end
     @ccall libcusolver.cusolverSpXcsrqrAnalysis(handle::cusolverSpHandle_t, m::Cint,
                                                 n::Cint, nnzA::Cint,
                                                 descrA::cusparseMatDescr_t,
-                                                csrRowPtrA::Ptr{Cint},
-                                                csrColIndA::Ptr{Cint},
+                                                csrRowPtrA::CuPtr{Cint},
+                                                csrColIndA::CuPtr{Cint},
                                                 info::csrqrInfo_t)::cusolverStatus_t
 end
 
@@ -5636,9 +5636,9 @@ end
     @ccall libcusolver.cusolverSpScsrqrBufferInfo(handle::cusolverSpHandle_t, m::Cint,
                                                   n::Cint, nnzA::Cint,
                                                   descrA::cusparseMatDescr_t,
-                                                  csrValA::Ptr{Cfloat},
-                                                  csrRowPtrA::Ptr{Cint},
-                                                  csrColIndA::Ptr{Cint}, info::csrqrInfo_t,
+                                                  csrValA::CuPtr{Cfloat},
+                                                  csrRowPtrA::CuPtr{Cint},
+                                                  csrColIndA::CuPtr{Cint}, info::csrqrInfo_t,
                                                   internalDataInBytes::Ptr{Csize_t},
                                                   workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
@@ -5650,9 +5650,9 @@ end
     @ccall libcusolver.cusolverSpDcsrqrBufferInfo(handle::cusolverSpHandle_t, m::Cint,
                                                   n::Cint, nnzA::Cint,
                                                   descrA::cusparseMatDescr_t,
-                                                  csrValA::Ptr{Cdouble},
-                                                  csrRowPtrA::Ptr{Cint},
-                                                  csrColIndA::Ptr{Cint}, info::csrqrInfo_t,
+                                                  csrValA::CuPtr{Cdouble},
+                                                  csrRowPtrA::CuPtr{Cint},
+                                                  csrColIndA::CuPtr{Cint}, info::csrqrInfo_t,
                                                   internalDataInBytes::Ptr{Csize_t},
                                                   workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
@@ -5664,9 +5664,9 @@ end
     @ccall libcusolver.cusolverSpCcsrqrBufferInfo(handle::cusolverSpHandle_t, m::Cint,
                                                   n::Cint, nnzA::Cint,
                                                   descrA::cusparseMatDescr_t,
-                                                  csrValA::Ptr{cuComplex},
-                                                  csrRowPtrA::Ptr{Cint},
-                                                  csrColIndA::Ptr{Cint}, info::csrqrInfo_t,
+                                                  csrValA::CuPtr{cuComplex},
+                                                  csrRowPtrA::CuPtr{Cint},
+                                                  csrColIndA::CuPtr{Cint}, info::csrqrInfo_t,
                                                   internalDataInBytes::Ptr{Csize_t},
                                                   workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
@@ -5678,9 +5678,9 @@ end
     @ccall libcusolver.cusolverSpZcsrqrBufferInfo(handle::cusolverSpHandle_t, m::Cint,
                                                   n::Cint, nnzA::Cint,
                                                   descrA::cusparseMatDescr_t,
-                                                  csrValA::Ptr{cuDoubleComplex},
-                                                  csrRowPtrA::Ptr{Cint},
-                                                  csrColIndA::Ptr{Cint}, info::csrqrInfo_t,
+                                                  csrValA::CuPtr{cuDoubleComplex},
+                                                  csrRowPtrA::CuPtr{Cint},
+                                                  csrColIndA::CuPtr{Cint}, info::csrqrInfo_t,
                                                   internalDataInBytes::Ptr{Csize_t},
                                                   workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
 end
@@ -5690,8 +5690,8 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpScsrqrSetup(handle::cusolverSpHandle_t, m::Cint, n::Cint,
                                              nnzA::Cint, descrA::cusparseMatDescr_t,
-                                             csrValA::Ptr{Cfloat}, csrRowPtrA::Ptr{Cint},
-                                             csrColIndA::Ptr{Cint}, mu::Cfloat,
+                                             csrValA::CuPtr{Cfloat}, csrRowPtrA::CuPtr{Cint},
+                                             csrColIndA::CuPtr{Cint}, mu::Cfloat,
                                              info::csrqrInfo_t)::cusolverStatus_t
 end
 
@@ -5700,8 +5700,8 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpDcsrqrSetup(handle::cusolverSpHandle_t, m::Cint, n::Cint,
                                              nnzA::Cint, descrA::cusparseMatDescr_t,
-                                             csrValA::Ptr{Cdouble}, csrRowPtrA::Ptr{Cint},
-                                             csrColIndA::Ptr{Cint}, mu::Cdouble,
+                                             csrValA::CuPtr{Cdouble}, csrRowPtrA::CuPtr{Cint},
+                                             csrColIndA::CuPtr{Cint}, mu::Cdouble,
                                              info::csrqrInfo_t)::cusolverStatus_t
 end
 
@@ -5710,8 +5710,8 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpCcsrqrSetup(handle::cusolverSpHandle_t, m::Cint, n::Cint,
                                              nnzA::Cint, descrA::cusparseMatDescr_t,
-                                             csrValA::Ptr{cuComplex}, csrRowPtrA::Ptr{Cint},
-                                             csrColIndA::Ptr{Cint}, mu::cuComplex,
+                                             csrValA::CuPtr{cuComplex}, csrRowPtrA::CuPtr{Cint},
+                                             csrColIndA::CuPtr{Cint}, mu::cuComplex,
                                              info::csrqrInfo_t)::cusolverStatus_t
 end
 
@@ -5720,8 +5720,8 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpZcsrqrSetup(handle::cusolverSpHandle_t, m::Cint, n::Cint,
                                              nnzA::Cint, descrA::cusparseMatDescr_t,
-                                             csrValA::Ptr{cuDoubleComplex},
-                                             csrRowPtrA::Ptr{Cint}, csrColIndA::Ptr{Cint},
+                                             csrValA::CuPtr{cuDoubleComplex},
+                                             csrRowPtrA::CuPtr{Cint}, csrColIndA::CuPtr{Cint},
                                              mu::cuDoubleComplex,
                                              info::csrqrInfo_t)::cusolverStatus_t
 end
@@ -5729,33 +5729,33 @@ end
 @checked function cusolverSpScsrqrFactor(handle, m, n, nnzA, b, x, info, pBuffer)
     initialize_context()
     @ccall libcusolver.cusolverSpScsrqrFactor(handle::cusolverSpHandle_t, m::Cint, n::Cint,
-                                              nnzA::Cint, b::Ptr{Cfloat}, x::Ptr{Cfloat},
+                                              nnzA::Cint, b::CuPtr{Cfloat}, x::CuPtr{Cfloat},
                                               info::csrqrInfo_t,
-                                              pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                              pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrqrFactor(handle, m, n, nnzA, b, x, info, pBuffer)
     initialize_context()
     @ccall libcusolver.cusolverSpDcsrqrFactor(handle::cusolverSpHandle_t, m::Cint, n::Cint,
-                                              nnzA::Cint, b::Ptr{Cdouble}, x::Ptr{Cdouble},
+                                              nnzA::Cint, b::CuPtr{Cdouble}, x::CuPtr{Cdouble},
                                               info::csrqrInfo_t,
-                                              pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                              pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrqrFactor(handle, m, n, nnzA, b, x, info, pBuffer)
     initialize_context()
     @ccall libcusolver.cusolverSpCcsrqrFactor(handle::cusolverSpHandle_t, m::Cint, n::Cint,
-                                              nnzA::Cint, b::Ptr{cuComplex},
-                                              x::Ptr{cuComplex}, info::csrqrInfo_t,
-                                              pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                              nnzA::Cint, b::CuPtr{cuComplex},
+                                              x::CuPtr{cuComplex}, info::csrqrInfo_t,
+                                              pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrqrFactor(handle, m, n, nnzA, b, x, info, pBuffer)
     initialize_context()
     @ccall libcusolver.cusolverSpZcsrqrFactor(handle::cusolverSpHandle_t, m::Cint, n::Cint,
-                                              nnzA::Cint, b::Ptr{cuDoubleComplex},
-                                              x::Ptr{cuDoubleComplex}, info::csrqrInfo_t,
-                                              pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                              nnzA::Cint, b::CuPtr{cuDoubleComplex},
+                                              x::CuPtr{cuDoubleComplex}, info::csrqrInfo_t,
+                                              pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrqrZeroPivot(handle, info, tol, position)
@@ -5789,33 +5789,33 @@ end
 @checked function cusolverSpScsrqrSolve(handle, m, n, b, x, info, pBuffer)
     initialize_context()
     @ccall libcusolver.cusolverSpScsrqrSolve(handle::cusolverSpHandle_t, m::Cint, n::Cint,
-                                             b::Ptr{Cfloat}, x::Ptr{Cfloat},
+                                             b::CuPtr{Cfloat}, x::CuPtr{Cfloat},
                                              info::csrqrInfo_t,
-                                             pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                             pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrqrSolve(handle, m, n, b, x, info, pBuffer)
     initialize_context()
     @ccall libcusolver.cusolverSpDcsrqrSolve(handle::cusolverSpHandle_t, m::Cint, n::Cint,
-                                             b::Ptr{Cdouble}, x::Ptr{Cdouble},
+                                             b::CuPtr{Cdouble}, x::CuPtr{Cdouble},
                                              info::csrqrInfo_t,
-                                             pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                             pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrqrSolve(handle, m, n, b, x, info, pBuffer)
     initialize_context()
     @ccall libcusolver.cusolverSpCcsrqrSolve(handle::cusolverSpHandle_t, m::Cint, n::Cint,
-                                             b::Ptr{cuComplex}, x::Ptr{cuComplex},
+                                             b::CuPtr{cuComplex}, x::CuPtr{cuComplex},
                                              info::csrqrInfo_t,
-                                             pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                             pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrqrSolve(handle, m, n, b, x, info, pBuffer)
     initialize_context()
     @ccall libcusolver.cusolverSpZcsrqrSolve(handle::cusolverSpHandle_t, m::Cint, n::Cint,
-                                             b::Ptr{cuDoubleComplex},
-                                             x::Ptr{cuDoubleComplex}, info::csrqrInfo_t,
-                                             pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                             b::CuPtr{cuDoubleComplex},
+                                             x::CuPtr{cuDoubleComplex}, info::csrqrInfo_t,
+                                             pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCreateCsrcholInfoHost(info)
@@ -6025,8 +6025,8 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpXcsrcholAnalysis(handle::cusolverSpHandle_t, n::Cint,
                                                   nnzA::Cint, descrA::cusparseMatDescr_t,
-                                                  csrRowPtrA::Ptr{Cint},
-                                                  csrColIndA::Ptr{Cint},
+                                                  csrRowPtrA::CuPtr{Cint},
+                                                  csrColIndA::CuPtr{Cint},
                                                   info::csrcholInfo_t)::cusolverStatus_t
 end
 
@@ -6036,9 +6036,9 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpScsrcholBufferInfo(handle::cusolverSpHandle_t, n::Cint,
                                                     nnzA::Cint, descrA::cusparseMatDescr_t,
-                                                    csrValA::Ptr{Cfloat},
-                                                    csrRowPtrA::Ptr{Cint},
-                                                    csrColIndA::Ptr{Cint},
+                                                    csrValA::CuPtr{Cfloat},
+                                                    csrRowPtrA::CuPtr{Cint},
+                                                    csrColIndA::CuPtr{Cint},
                                                     info::csrcholInfo_t,
                                                     internalDataInBytes::Ptr{Csize_t},
                                                     workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
@@ -6050,9 +6050,9 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpDcsrcholBufferInfo(handle::cusolverSpHandle_t, n::Cint,
                                                     nnzA::Cint, descrA::cusparseMatDescr_t,
-                                                    csrValA::Ptr{Cdouble},
-                                                    csrRowPtrA::Ptr{Cint},
-                                                    csrColIndA::Ptr{Cint},
+                                                    csrValA::CuPtr{Cdouble},
+                                                    csrRowPtrA::CuPtr{Cint},
+                                                    csrColIndA::CuPtr{Cint},
                                                     info::csrcholInfo_t,
                                                     internalDataInBytes::Ptr{Csize_t},
                                                     workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
@@ -6064,9 +6064,9 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpCcsrcholBufferInfo(handle::cusolverSpHandle_t, n::Cint,
                                                     nnzA::Cint, descrA::cusparseMatDescr_t,
-                                                    csrValA::Ptr{cuComplex},
-                                                    csrRowPtrA::Ptr{Cint},
-                                                    csrColIndA::Ptr{Cint},
+                                                    csrValA::CuPtr{cuComplex},
+                                                    csrRowPtrA::CuPtr{Cint},
+                                                    csrColIndA::CuPtr{Cint},
                                                     info::csrcholInfo_t,
                                                     internalDataInBytes::Ptr{Csize_t},
                                                     workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
@@ -6078,9 +6078,9 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpZcsrcholBufferInfo(handle::cusolverSpHandle_t, n::Cint,
                                                     nnzA::Cint, descrA::cusparseMatDescr_t,
-                                                    csrValA::Ptr{cuDoubleComplex},
-                                                    csrRowPtrA::Ptr{Cint},
-                                                    csrColIndA::Ptr{Cint},
+                                                    csrValA::CuPtr{cuDoubleComplex},
+                                                    csrRowPtrA::CuPtr{Cint},
+                                                    csrColIndA::CuPtr{Cint},
                                                     info::csrcholInfo_t,
                                                     internalDataInBytes::Ptr{Csize_t},
                                                     workspaceInBytes::Ptr{Csize_t})::cusolverStatus_t
@@ -6091,9 +6091,9 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpScsrcholFactor(handle::cusolverSpHandle_t, n::Cint,
                                                 nnzA::Cint, descrA::cusparseMatDescr_t,
-                                                csrValA::Ptr{Cfloat}, csrRowPtrA::Ptr{Cint},
-                                                csrColIndA::Ptr{Cint}, info::csrcholInfo_t,
-                                                pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                                csrValA::CuPtr{Cfloat}, csrRowPtrA::CuPtr{Cint},
+                                                csrColIndA::CuPtr{Cint}, info::csrcholInfo_t,
+                                                pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
@@ -6101,10 +6101,10 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpDcsrcholFactor(handle::cusolverSpHandle_t, n::Cint,
                                                 nnzA::Cint, descrA::cusparseMatDescr_t,
-                                                csrValA::Ptr{Cdouble},
-                                                csrRowPtrA::Ptr{Cint},
-                                                csrColIndA::Ptr{Cint}, info::csrcholInfo_t,
-                                                pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                                csrValA::CuPtr{Cdouble},
+                                                csrRowPtrA::CuPtr{Cint},
+                                                csrColIndA::CuPtr{Cint}, info::csrcholInfo_t,
+                                                pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
@@ -6112,10 +6112,10 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpCcsrcholFactor(handle::cusolverSpHandle_t, n::Cint,
                                                 nnzA::Cint, descrA::cusparseMatDescr_t,
-                                                csrValA::Ptr{cuComplex},
-                                                csrRowPtrA::Ptr{Cint},
-                                                csrColIndA::Ptr{Cint}, info::csrcholInfo_t,
-                                                pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                                csrValA::CuPtr{cuComplex},
+                                                csrRowPtrA::CuPtr{Cint},
+                                                csrColIndA::CuPtr{Cint}, info::csrcholInfo_t,
+                                                pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrcholFactor(handle, n, nnzA, descrA, csrValA, csrRowPtrA,
@@ -6123,10 +6123,10 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpZcsrcholFactor(handle::cusolverSpHandle_t, n::Cint,
                                                 nnzA::Cint, descrA::cusparseMatDescr_t,
-                                                csrValA::Ptr{cuDoubleComplex},
-                                                csrRowPtrA::Ptr{Cint},
-                                                csrColIndA::Ptr{Cint}, info::csrcholInfo_t,
-                                                pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                                csrValA::CuPtr{cuDoubleComplex},
+                                                csrRowPtrA::CuPtr{Cint},
+                                                csrColIndA::CuPtr{Cint}, info::csrcholInfo_t,
+                                                pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrcholZeroPivot(handle, info, tol, position)
@@ -6160,59 +6160,59 @@ end
 @checked function cusolverSpScsrcholSolve(handle, n, b, x, info, pBuffer)
     initialize_context()
     @ccall libcusolver.cusolverSpScsrcholSolve(handle::cusolverSpHandle_t, n::Cint,
-                                               b::Ptr{Cfloat}, x::Ptr{Cfloat},
+                                               b::CuPtr{Cfloat}, x::CuPtr{Cfloat},
                                                info::csrcholInfo_t,
-                                               pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                               pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrcholSolve(handle, n, b, x, info, pBuffer)
     initialize_context()
     @ccall libcusolver.cusolverSpDcsrcholSolve(handle::cusolverSpHandle_t, n::Cint,
-                                               b::Ptr{Cdouble}, x::Ptr{Cdouble},
+                                               b::CuPtr{Cdouble}, x::CuPtr{Cdouble},
                                                info::csrcholInfo_t,
-                                               pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                               pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrcholSolve(handle, n, b, x, info, pBuffer)
     initialize_context()
     @ccall libcusolver.cusolverSpCcsrcholSolve(handle::cusolverSpHandle_t, n::Cint,
-                                               b::Ptr{cuComplex}, x::Ptr{cuComplex},
+                                               b::CuPtr{cuComplex}, x::CuPtr{cuComplex},
                                                info::csrcholInfo_t,
-                                               pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                               pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrcholSolve(handle, n, b, x, info, pBuffer)
     initialize_context()
     @ccall libcusolver.cusolverSpZcsrcholSolve(handle::cusolverSpHandle_t, n::Cint,
-                                               b::Ptr{cuDoubleComplex},
-                                               x::Ptr{cuDoubleComplex}, info::csrcholInfo_t,
-                                               pBuffer::Ptr{Cvoid})::cusolverStatus_t
+                                               b::CuPtr{cuDoubleComplex},
+                                               x::CuPtr{cuDoubleComplex}, info::csrcholInfo_t,
+                                               pBuffer::CuPtr{Cvoid})::cusolverStatus_t
 end
 
 @checked function cusolverSpScsrcholDiag(handle, info, diag)
     initialize_context()
     @ccall libcusolver.cusolverSpScsrcholDiag(handle::cusolverSpHandle_t,
                                               info::csrcholInfo_t,
-                                              diag::Ptr{Cfloat})::cusolverStatus_t
+                                              diag::CuPtr{Cfloat})::cusolverStatus_t
 end
 
 @checked function cusolverSpDcsrcholDiag(handle, info, diag)
     initialize_context()
     @ccall libcusolver.cusolverSpDcsrcholDiag(handle::cusolverSpHandle_t,
                                               info::csrcholInfo_t,
-                                              diag::Ptr{Cdouble})::cusolverStatus_t
+                                              diag::CuPtr{Cdouble})::cusolverStatus_t
 end
 
 @checked function cusolverSpCcsrcholDiag(handle, info, diag)
     initialize_context()
     @ccall libcusolver.cusolverSpCcsrcholDiag(handle::cusolverSpHandle_t,
                                               info::csrcholInfo_t,
-                                              diag::Ptr{Cfloat})::cusolverStatus_t
+                                              diag::CuPtr{Cfloat})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrcholDiag(handle, info, diag)
     initialize_context()
     @ccall libcusolver.cusolverSpZcsrcholDiag(handle::cusolverSpHandle_t,
                                               info::csrcholInfo_t,
-                                              diag::Ptr{Cdouble})::cusolverStatus_t
+                                              diag::CuPtr{Cdouble})::cusolverStatus_t
 end

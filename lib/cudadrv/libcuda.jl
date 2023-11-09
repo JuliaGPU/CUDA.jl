@@ -87,6 +87,7 @@ const CUdevice = CUdevice_v1
     CUDA_ERROR_OPERATING_SYSTEM = 304
     CUDA_ERROR_INVALID_HANDLE = 400
     CUDA_ERROR_ILLEGAL_STATE = 401
+    CUDA_ERROR_LOSSY_QUERY = 402
     CUDA_ERROR_NOT_FOUND = 500
     CUDA_ERROR_NOT_READY = 600
     CUDA_ERROR_ILLEGAL_ADDRESS = 700
@@ -587,7 +588,8 @@ end
     CU_JIT_REFERENCED_VARIABLE_COUNT = 28
     CU_JIT_OPTIMIZE_UNUSED_DEVICE_VARIABLES = 29
     CU_JIT_POSITION_INDEPENDENT_CODE = 30
-    CU_JIT_NUM_OPTIONS = 31
+    CU_JIT_MIN_CTA_PER_SM = 31
+    CU_JIT_NUM_OPTIONS = 32
 end
 
 const CUjit_option = CUjit_option_enum
@@ -920,11 +922,21 @@ mutable struct CUuserObject_st end
 
 const CUuserObject = Ptr{CUuserObject_st}
 
+const CUgraphConditionalHandle = cuuint64_t
+
 struct CUuuid_st
     bytes::NTuple{16,Cchar}
 end
 
 const CUuuid = CUuuid_st
+
+struct CUmemFabricHandle_st
+    data::NTuple{64,Cuchar}
+end
+
+const CUmemFabricHandle_v1 = CUmemFabricHandle_st
+
+const CUmemFabricHandle = CUmemFabricHandle_v1
 
 struct CUipcEventHandle_st
     reserved::NTuple{64,Cchar}
@@ -1241,10 +1253,12 @@ const CUfilter_mode = CUfilter_mode_enum
     CU_DEVICE_ATTRIBUTE_IPC_EVENT_SUPPORTED = 125
     CU_DEVICE_ATTRIBUTE_MEM_SYNC_DOMAIN_COUNT = 126
     CU_DEVICE_ATTRIBUTE_TENSOR_MAP_ACCESS_SUPPORTED = 127
+    CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_FABRIC_SUPPORTED = 128
     CU_DEVICE_ATTRIBUTE_UNIFIED_FUNCTION_POINTERS = 129
     CU_DEVICE_ATTRIBUTE_NUMA_CONFIG = 130
     CU_DEVICE_ATTRIBUTE_NUMA_ID = 131
     CU_DEVICE_ATTRIBUTE_MULTICAST_SUPPORTED = 132
+    CU_DEVICE_ATTRIBUTE_MPS_ENABLED = 133
     CU_DEVICE_ATTRIBUTE_HOST_NUMA_ID = 134
     CU_DEVICE_ATTRIBUTE_MAX = 135
 end
@@ -1558,6 +1572,21 @@ end
 
 const CUDA_HOST_NODE_PARAMS_v2 = CUDA_HOST_NODE_PARAMS_v2_st
 
+@cenum CUgraphConditionalNodeType_enum::UInt32 begin
+    CU_GRAPH_COND_TYPE_IF = 0
+    CU_GRAPH_COND_TYPE_WHILE = 1
+end
+
+const CUgraphConditionalNodeType = CUgraphConditionalNodeType_enum
+
+struct CUDA_CONDITIONAL_NODE_PARAMS
+    handle::CUgraphConditionalHandle
+    type::CUgraphConditionalNodeType
+    size::Cuint
+    phGraph_out::Ptr{CUgraph}
+    ctx::CUcontext
+end
+
 @cenum CUgraphNodeType_enum::UInt32 begin
     CU_GRAPH_NODE_TYPE_KERNEL = 0
     CU_GRAPH_NODE_TYPE_MEMCPY = 1
@@ -1572,9 +1601,26 @@ const CUDA_HOST_NODE_PARAMS_v2 = CUDA_HOST_NODE_PARAMS_v2_st
     CU_GRAPH_NODE_TYPE_MEM_ALLOC = 10
     CU_GRAPH_NODE_TYPE_MEM_FREE = 11
     CU_GRAPH_NODE_TYPE_BATCH_MEM_OP = 12
+    CU_GRAPH_NODE_TYPE_CONDITIONAL = 13
 end
 
 const CUgraphNodeType = CUgraphNodeType_enum
+
+@cenum CUgraphDependencyType_enum::UInt32 begin
+    CU_GRAPH_DEPENDENCY_TYPE_DEFAULT = 0
+    CU_GRAPH_DEPENDENCY_TYPE_PROGRAMMATIC = 1
+end
+
+const CUgraphDependencyType = CUgraphDependencyType_enum
+
+struct CUgraphEdgeData_st
+    from_port::Cuchar
+    to_port::Cuchar
+    type::Cuchar
+    reserved::NTuple{5,Cuchar}
+end
+
+const CUgraphEdgeData = CUgraphEdgeData_st
 
 @cenum CUgraphInstantiateResult_enum::UInt32 begin
     CUDA_GRAPH_INSTANTIATE_SUCCESS = 0
@@ -1638,6 +1684,7 @@ const CUlaunchMemSyncDomainMap = CUlaunchMemSyncDomainMap_st
     CU_LAUNCH_ATTRIBUTE_PRIORITY = 8
     CU_LAUNCH_ATTRIBUTE_MEM_SYNC_DOMAIN_MAP = 9
     CU_LAUNCH_ATTRIBUTE_MEM_SYNC_DOMAIN = 10
+    CU_LAUNCH_ATTRIBUTE_LAUNCH_COMPLETION_EVENT = 12
 end
 
 const CUlaunchAttributeID = CUlaunchAttributeID_enum
@@ -1651,10 +1698,11 @@ function Base.getproperty(x::Ptr{CUlaunchAttributeValue_union}, f::Symbol)
     f === :accessPolicyWindow && return Ptr{CUaccessPolicyWindow}(x + 0)
     f === :cooperative && return Ptr{Cint}(x + 0)
     f === :syncPolicy && return Ptr{CUsynchronizationPolicy}(x + 0)
-    f === :clusterDim && return Ptr{var"##Ctag#2719"}(x + 0)
+    f === :clusterDim && return Ptr{var"##Ctag#293"}(x + 0)
     f === :clusterSchedulingPolicyPreference && return Ptr{CUclusterSchedulingPolicy}(x + 0)
     f === :programmaticStreamSerializationAllowed && return Ptr{Cint}(x + 0)
-    f === :programmaticEvent && return Ptr{var"##Ctag#2720"}(x + 0)
+    f === :programmaticEvent && return Ptr{var"##Ctag#294"}(x + 0)
+    f === :launchCompletionEvent && return Ptr{var"##Ctag#295"}(x + 0)
     f === :priority && return Ptr{Cint}(x + 0)
     f === :memSyncDomainMap && return Ptr{CUlaunchMemSyncDomainMap}(x + 0)
     f === :memSyncDomain && return Ptr{CUlaunchMemSyncDomain}(x + 0)
@@ -1732,23 +1780,23 @@ const CUexecAffinitySmCount_v1 = CUexecAffinitySmCount_st
 
 const CUexecAffinitySmCount = CUexecAffinitySmCount_v1
 
-struct var"##Ctag#2723"
+struct var"##Ctag#298"
     data::NTuple{4,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#2723"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#298"}, f::Symbol)
     f === :smCount && return Ptr{CUexecAffinitySmCount}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2723", f::Symbol)
-    r = Ref{var"##Ctag#2723"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2723"}, r)
+function Base.getproperty(x::var"##Ctag#298", f::Symbol)
+    r = Ref{var"##Ctag#298"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#298"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2723"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#298"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1758,7 +1806,7 @@ end
 
 function Base.getproperty(x::Ptr{CUexecAffinityParam_st}, f::Symbol)
     f === :type && return Ptr{CUexecAffinityType}(x + 0)
-    f === :param && return Ptr{var"##Ctag#2723"}(x + 4)
+    f === :param && return Ptr{var"##Ctag#298"}(x + 4)
     return getfield(x, f)
 end
 
@@ -1851,26 +1899,26 @@ end
 
 const CUDA_MEMCPY_NODE_PARAMS = CUDA_MEMCPY_NODE_PARAMS_st
 
-struct var"##Ctag#2709"
+struct var"##Ctag#283"
     width::Cuint
     height::Cuint
     depth::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2709"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#283"}, f::Symbol)
     f === :width && return Ptr{Cuint}(x + 0)
     f === :height && return Ptr{Cuint}(x + 4)
     f === :depth && return Ptr{Cuint}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2709", f::Symbol)
-    r = Ref{var"##Ctag#2709"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2709"}, r)
+function Base.getproperty(x::var"##Ctag#283", f::Symbol)
+    r = Ref{var"##Ctag#283"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#283"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2709"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#283"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1879,7 +1927,7 @@ struct CUDA_ARRAY_SPARSE_PROPERTIES_st
 end
 
 function Base.getproperty(x::Ptr{CUDA_ARRAY_SPARSE_PROPERTIES_st}, f::Symbol)
-    f === :tileExtent && return Ptr{var"##Ctag#2709"}(x + 0)
+    f === :tileExtent && return Ptr{var"##Ctag#283"}(x + 0)
     f === :miptailFirstLevel && return Ptr{Cuint}(x + 12)
     f === :miptailSize && return Ptr{Culonglong}(x + 16)
     f === :flags && return Ptr{Cuint}(x + 24)
@@ -1912,27 +1960,27 @@ const CUDA_ARRAY_MEMORY_REQUIREMENTS_v1 = CUDA_ARRAY_MEMORY_REQUIREMENTS_st
 
 const CUDA_ARRAY_MEMORY_REQUIREMENTS = CUDA_ARRAY_MEMORY_REQUIREMENTS_v1
 
-struct var"##Ctag#2701"
+struct var"##Ctag#275"
     data::NTuple{128,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#2701"}, f::Symbol)
-    f === :array && return Ptr{var"##Ctag#2702"}(x + 0)
-    f === :mipmap && return Ptr{var"##Ctag#2703"}(x + 0)
-    f === :linear && return Ptr{var"##Ctag#2704"}(x + 0)
-    f === :pitch2D && return Ptr{var"##Ctag#2705"}(x + 0)
-    f === :reserved && return Ptr{var"##Ctag#2706"}(x + 0)
+function Base.getproperty(x::Ptr{var"##Ctag#275"}, f::Symbol)
+    f === :array && return Ptr{var"##Ctag#276"}(x + 0)
+    f === :mipmap && return Ptr{var"##Ctag#277"}(x + 0)
+    f === :linear && return Ptr{var"##Ctag#278"}(x + 0)
+    f === :pitch2D && return Ptr{var"##Ctag#279"}(x + 0)
+    f === :reserved && return Ptr{var"##Ctag#280"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2701", f::Symbol)
-    r = Ref{var"##Ctag#2701"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2701"}, r)
+function Base.getproperty(x::var"##Ctag#275", f::Symbol)
+    r = Ref{var"##Ctag#275"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#275"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2701"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#275"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1942,7 +1990,7 @@ end
 
 function Base.getproperty(x::Ptr{CUDA_RESOURCE_DESC_st}, f::Symbol)
     f === :resType && return Ptr{CUresourcetype}(x + 0)
-    f === :res && return Ptr{var"##Ctag#2701"}(x + 8)
+    f === :res && return Ptr{var"##Ctag#275"}(x + 8)
     f === :flags && return Ptr{Cuint}(x + 136)
     return getfield(x, f)
 end
@@ -2155,25 +2203,25 @@ end
 
 const CUexternalMemoryHandleType = CUexternalMemoryHandleType_enum
 
-struct var"##Ctag#2721"
+struct var"##Ctag#296"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#2721"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#296"}, f::Symbol)
     f === :fd && return Ptr{Cint}(x + 0)
-    f === :win32 && return Ptr{var"##Ctag#2722"}(x + 0)
+    f === :win32 && return Ptr{var"##Ctag#297"}(x + 0)
     f === :nvSciBufObject && return Ptr{Ptr{Cvoid}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2721", f::Symbol)
-    r = Ref{var"##Ctag#2721"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2721"}, r)
+function Base.getproperty(x::var"##Ctag#296", f::Symbol)
+    r = Ref{var"##Ctag#296"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#296"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2721"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#296"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -2183,7 +2231,7 @@ end
 
 function Base.getproperty(x::Ptr{CUDA_EXTERNAL_MEMORY_HANDLE_DESC_st}, f::Symbol)
     f === :type && return Ptr{CUexternalMemoryHandleType}(x + 0)
-    f === :handle && return Ptr{var"##Ctag#2721"}(x + 8)
+    f === :handle && return Ptr{var"##Ctag#296"}(x + 8)
     f === :size && return Ptr{Culonglong}(x + 24)
     f === :flags && return Ptr{Cuint}(x + 32)
     f === :reserved && return Ptr{NTuple{16,Cuint}}(x + 36)
@@ -2242,25 +2290,25 @@ end
 
 const CUexternalSemaphoreHandleType = CUexternalSemaphoreHandleType_enum
 
-struct var"##Ctag#2707"
+struct var"##Ctag#281"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#2707"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#281"}, f::Symbol)
     f === :fd && return Ptr{Cint}(x + 0)
-    f === :win32 && return Ptr{var"##Ctag#2708"}(x + 0)
+    f === :win32 && return Ptr{var"##Ctag#282"}(x + 0)
     f === :nvSciSyncObj && return Ptr{Ptr{Cvoid}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2707", f::Symbol)
-    r = Ref{var"##Ctag#2707"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2707"}, r)
+function Base.getproperty(x::var"##Ctag#281", f::Symbol)
+    r = Ref{var"##Ctag#281"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#281"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2707"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#281"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -2270,7 +2318,7 @@ end
 
 function Base.getproperty(x::Ptr{CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_st}, f::Symbol)
     f === :type && return Ptr{CUexternalSemaphoreHandleType}(x + 0)
-    f === :handle && return Ptr{var"##Ctag#2707"}(x + 8)
+    f === :handle && return Ptr{var"##Ctag#281"}(x + 8)
     f === :flags && return Ptr{Cuint}(x + 24)
     f === :reserved && return Ptr{NTuple{16,Cuint}}(x + 28)
     return getfield(x, f)
@@ -2291,85 +2339,85 @@ const CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_v1 = CUDA_EXTERNAL_SEMAPHORE_HANDLE_DE
 
 const CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC = CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_v1
 
-struct var"##Ctag#2725"
+struct var"##Ctag#300"
     value::Culonglong
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2725"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#300"}, f::Symbol)
     f === :value && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2725", f::Symbol)
-    r = Ref{var"##Ctag#2725"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2725"}, r)
+function Base.getproperty(x::var"##Ctag#300", f::Symbol)
+    r = Ref{var"##Ctag#300"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#300"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2725"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#300"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2726"
+struct var"##Ctag#301"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#2726"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#301"}, f::Symbol)
     f === :fence && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :reserved && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2726", f::Symbol)
-    r = Ref{var"##Ctag#2726"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2726"}, r)
+function Base.getproperty(x::var"##Ctag#301", f::Symbol)
+    r = Ref{var"##Ctag#301"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#301"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2726"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#301"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2727"
+struct var"##Ctag#302"
     key::Culonglong
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2727"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#302"}, f::Symbol)
     f === :key && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2727", f::Symbol)
-    r = Ref{var"##Ctag#2727"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2727"}, r)
+function Base.getproperty(x::var"##Ctag#302", f::Symbol)
+    r = Ref{var"##Ctag#302"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#302"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2727"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#302"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2724"
+struct var"##Ctag#299"
     data::NTuple{72,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#2724"}, f::Symbol)
-    f === :fence && return Ptr{var"##Ctag#2725"}(x + 0)
-    f === :nvSciSync && return Ptr{var"##Ctag#2726"}(x + 8)
-    f === :keyedMutex && return Ptr{var"##Ctag#2727"}(x + 16)
+function Base.getproperty(x::Ptr{var"##Ctag#299"}, f::Symbol)
+    f === :fence && return Ptr{var"##Ctag#300"}(x + 0)
+    f === :nvSciSync && return Ptr{var"##Ctag#301"}(x + 8)
+    f === :keyedMutex && return Ptr{var"##Ctag#302"}(x + 16)
     f === :reserved && return Ptr{NTuple{12,Cuint}}(x + 24)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2724", f::Symbol)
-    r = Ref{var"##Ctag#2724"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2724"}, r)
+function Base.getproperty(x::var"##Ctag#299", f::Symbol)
+    r = Ref{var"##Ctag#299"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#299"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2724"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#299"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -2399,87 +2447,87 @@ const CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_v1 = CUDA_EXTERNAL_SEMAPHORE_SIGNAL_
 
 const CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS = CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_v1
 
-struct var"##Ctag#2716"
+struct var"##Ctag#290"
     value::Culonglong
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2716"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#290"}, f::Symbol)
     f === :value && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2716", f::Symbol)
-    r = Ref{var"##Ctag#2716"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2716"}, r)
+function Base.getproperty(x::var"##Ctag#290", f::Symbol)
+    r = Ref{var"##Ctag#290"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#290"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2716"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#290"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2717"
+struct var"##Ctag#291"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#2717"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#291"}, f::Symbol)
     f === :fence && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :reserved && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2717", f::Symbol)
-    r = Ref{var"##Ctag#2717"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2717"}, r)
+function Base.getproperty(x::var"##Ctag#291", f::Symbol)
+    r = Ref{var"##Ctag#291"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#291"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2717"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#291"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2718"
+struct var"##Ctag#292"
     key::Culonglong
     timeoutMs::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2718"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#292"}, f::Symbol)
     f === :key && return Ptr{Culonglong}(x + 0)
     f === :timeoutMs && return Ptr{Cuint}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2718", f::Symbol)
-    r = Ref{var"##Ctag#2718"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2718"}, r)
+function Base.getproperty(x::var"##Ctag#292", f::Symbol)
+    r = Ref{var"##Ctag#292"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#292"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2718"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#292"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2715"
+struct var"##Ctag#289"
     data::NTuple{72,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#2715"}, f::Symbol)
-    f === :fence && return Ptr{var"##Ctag#2716"}(x + 0)
-    f === :nvSciSync && return Ptr{var"##Ctag#2717"}(x + 8)
-    f === :keyedMutex && return Ptr{var"##Ctag#2718"}(x + 16)
+function Base.getproperty(x::Ptr{var"##Ctag#289"}, f::Symbol)
+    f === :fence && return Ptr{var"##Ctag#290"}(x + 0)
+    f === :nvSciSync && return Ptr{var"##Ctag#291"}(x + 8)
+    f === :keyedMutex && return Ptr{var"##Ctag#292"}(x + 16)
     f === :reserved && return Ptr{NTuple{10,Cuint}}(x + 32)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2715", f::Symbol)
-    r = Ref{var"##Ctag#2715"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2715"}, r)
+function Base.getproperty(x::var"##Ctag#289", f::Symbol)
+    r = Ref{var"##Ctag#289"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#289"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2715"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#289"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -2554,6 +2602,7 @@ const CUmemGenericAllocationHandle = CUmemGenericAllocationHandle_v1
     CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR = 1
     CU_MEM_HANDLE_TYPE_WIN32 = 2
     CU_MEM_HANDLE_TYPE_WIN32_KMT = 4
+    CU_MEM_HANDLE_TYPE_FABRIC = 8
     CU_MEM_HANDLE_TYPE_MAX = 2147483647
 end
 
@@ -2621,65 +2670,65 @@ end
 
 const CUmemHandleType = CUmemHandleType_enum
 
-struct var"##Ctag#2710"
+struct var"##Ctag#284"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#2710"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#284"}, f::Symbol)
     f === :mipmap && return Ptr{CUmipmappedArray}(x + 0)
     f === :array && return Ptr{CUarray}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2710", f::Symbol)
-    r = Ref{var"##Ctag#2710"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2710"}, r)
+function Base.getproperty(x::var"##Ctag#284", f::Symbol)
+    r = Ref{var"##Ctag#284"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#284"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2710"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#284"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2711"
+struct var"##Ctag#285"
     data::NTuple{32,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#2711"}, f::Symbol)
-    f === :sparseLevel && return Ptr{var"##Ctag#2712"}(x + 0)
-    f === :miptail && return Ptr{var"##Ctag#2713"}(x + 0)
+function Base.getproperty(x::Ptr{var"##Ctag#285"}, f::Symbol)
+    f === :sparseLevel && return Ptr{var"##Ctag#286"}(x + 0)
+    f === :miptail && return Ptr{var"##Ctag#287"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2711", f::Symbol)
-    r = Ref{var"##Ctag#2711"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2711"}, r)
+function Base.getproperty(x::var"##Ctag#285", f::Symbol)
+    r = Ref{var"##Ctag#285"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#285"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2711"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#285"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2714"
+struct var"##Ctag#288"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#2714"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#288"}, f::Symbol)
     f === :memHandle && return Ptr{CUmemGenericAllocationHandle}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2714", f::Symbol)
-    r = Ref{var"##Ctag#2714"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2714"}, r)
+function Base.getproperty(x::var"##Ctag#288", f::Symbol)
+    r = Ref{var"##Ctag#288"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#288"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2714"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#288"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -2689,12 +2738,12 @@ end
 
 function Base.getproperty(x::Ptr{CUarrayMapInfo_st}, f::Symbol)
     f === :resourceType && return Ptr{CUresourcetype}(x + 0)
-    f === :resource && return Ptr{var"##Ctag#2710"}(x + 8)
+    f === :resource && return Ptr{var"##Ctag#284"}(x + 8)
     f === :subresourceType && return Ptr{CUarraySparseSubresourceType}(x + 16)
-    f === :subresource && return Ptr{var"##Ctag#2711"}(x + 24)
+    f === :subresource && return Ptr{var"##Ctag#285"}(x + 24)
     f === :memOperationType && return Ptr{CUmemOperationType}(x + 56)
     f === :memHandleType && return Ptr{CUmemHandleType}(x + 60)
-    f === :memHandle && return Ptr{var"##Ctag#2714"}(x + 64)
+    f === :memHandle && return Ptr{var"##Ctag#288"}(x + 64)
     f === :offset && return Ptr{Culonglong}(x + 72)
     f === :deviceBitMask && return Ptr{Cuint}(x + 80)
     f === :flags && return Ptr{Cuint}(x + 84)
@@ -2733,13 +2782,13 @@ end
 
 const CUmemAllocationCompType = CUmemAllocationCompType_enum
 
-struct var"##Ctag#2700"
+struct var"##Ctag#274"
     compressionType::Cuchar
     gpuDirectRDMACapable::Cuchar
     usage::Cushort
     reserved::NTuple{4,Cuchar}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2700"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#274"}, f::Symbol)
     f === :compressionType && return Ptr{Cuchar}(x + 0)
     f === :gpuDirectRDMACapable && return Ptr{Cuchar}(x + 1)
     f === :usage && return Ptr{Cushort}(x + 2)
@@ -2747,14 +2796,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#2700"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2700", f::Symbol)
-    r = Ref{var"##Ctag#2700"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2700"}, r)
+function Base.getproperty(x::var"##Ctag#274", f::Symbol)
+    r = Ref{var"##Ctag#274"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#274"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2700"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#274"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -2767,7 +2816,7 @@ function Base.getproperty(x::Ptr{CUmemAllocationProp_st}, f::Symbol)
     f === :requestedHandleTypes && return Ptr{CUmemAllocationHandleType}(x + 4)
     f === :location && return Ptr{CUmemLocation}(x + 8)
     f === :win32HandleMetaData && return Ptr{Ptr{Cvoid}}(x + 16)
-    f === :allocFlags && return Ptr{var"##Ctag#2700"}(x + 24)
+    f === :allocFlags && return Ptr{var"##Ctag#274"}(x + 24)
     return getfield(x, f)
 end
 
@@ -2922,6 +2971,7 @@ function Base.getproperty(x::Ptr{CUgraphNodeParams_st}, f::Symbol)
     f === :alloc && return Ptr{CUDA_MEM_ALLOC_NODE_PARAMS_v2}(x + 16)
     f === :free && return Ptr{CUDA_MEM_FREE_NODE_PARAMS}(x + 16)
     f === :memOp && return Ptr{CUDA_BATCH_MEM_OP_NODE_PARAMS_v2}(x + 16)
+    f === :conditional && return Ptr{CUDA_CONDITIONAL_NODE_PARAMS}(x + 16)
     f === :reserved2 && return Ptr{Clonglong}(x + 248)
     return getfield(x, f)
 end
@@ -2983,6 +3033,7 @@ const CUflushGPUDirectRDMAWritesTarget = CUflushGPUDirectRDMAWritesTarget_enum
     CU_GRAPH_DEBUG_DOT_FLAGS_MEM_FREE_NODE_PARAMS = 4096
     CU_GRAPH_DEBUG_DOT_FLAGS_BATCH_MEM_OP_NODE_PARAMS = 8192
     CU_GRAPH_DEBUG_DOT_FLAGS_EXTRA_TOPO_INFO = 16384
+    CU_GRAPH_DEBUG_DOT_FLAGS_CONDITIONAL_NODE_PARAMS = 32768
 end
 
 const CUgraphDebugDot_flags = CUgraphDebugDot_flags_enum
@@ -3373,6 +3424,11 @@ end
     initialize_context()
     @ccall libcuda.cuKernelSetCacheConfig(kernel::CUkernel, config::CUfunc_cache,
                                           dev::CUdevice)::CUresult
+end
+
+@checked function cuKernelGetName(name, hfunc)
+    initialize_context()
+    @ccall libcuda.cuKernelGetName(name::Ptr{Cstring}, hfunc::CUkernel)::CUresult
 end
 
 @checked function cuMemFreeHost(p)
@@ -3892,6 +3948,16 @@ end
                                        userData::Ptr{Cvoid}, flags::Cuint)::CUresult
 end
 
+@checked function cuStreamBeginCaptureToGraph(hStream, hGraph, dependencies, dependencyData,
+                                              numDependencies, mode)
+    initialize_context()
+    @ccall libcuda.cuStreamBeginCaptureToGraph(hStream::CUstream, hGraph::CUgraph,
+                                               dependencies::Ptr{CUgraphNode},
+                                               dependencyData::Ptr{CUgraphEdgeData},
+                                               numDependencies::Csize_t,
+                                               mode::CUstreamCaptureMode)::CUresult
+end
+
 @checked function cuThreadExchangeStreamCaptureMode(mode)
     initialize_context()
     @ccall libcuda.cuThreadExchangeStreamCaptureMode(mode::Ptr{CUstreamCaptureMode})::CUresult
@@ -3908,6 +3974,19 @@ end
                                        captureStatus::Ptr{CUstreamCaptureStatus})::CUresult
 end
 
+@checked function cuStreamGetCaptureInfo_v3(hStream, captureStatus_out, id_out, graph_out,
+                                            dependencies_out, edgeData_out,
+                                            numDependencies_out)
+    initialize_context()
+    @ccall libcuda.cuStreamGetCaptureInfo_v3(hStream::CUstream,
+                                             captureStatus_out::Ptr{CUstreamCaptureStatus},
+                                             id_out::Ptr{cuuint64_t},
+                                             graph_out::Ptr{CUgraph},
+                                             dependencies_out::Ptr{Ptr{CUgraphNode}},
+                                             edgeData_out::Ptr{Ptr{CUgraphEdgeData}},
+                                             numDependencies_out::Ptr{Csize_t})::CUresult
+end
+
 @checked function cuStreamUpdateCaptureDependencies(hStream, dependencies, numDependencies,
                                                     flags)
     initialize_context()
@@ -3915,6 +3994,17 @@ end
                                                      dependencies::Ptr{CUgraphNode},
                                                      numDependencies::Csize_t,
                                                      flags::Cuint)::CUresult
+end
+
+@checked function cuStreamUpdateCaptureDependencies_v2(hStream, dependencies,
+                                                       dependencyData, numDependencies,
+                                                       flags)
+    initialize_context()
+    @ccall libcuda.cuStreamUpdateCaptureDependencies_v2(hStream::CUstream,
+                                                        dependencies::Ptr{CUgraphNode},
+                                                        dependencyData::Ptr{CUgraphEdgeData},
+                                                        numDependencies::Csize_t,
+                                                        flags::Cuint)::CUresult
 end
 
 @checked function cuStreamAttachMemAsync(hStream, dptr, length, flags)
@@ -4062,6 +4152,11 @@ end
 @checked function cuFuncGetModule(hmod, hfunc)
     initialize_context()
     @ccall libcuda.cuFuncGetModule(hmod::Ptr{CUmodule}, hfunc::CUfunction)::CUresult
+end
+
+@checked function cuFuncGetName(name, hfunc)
+    initialize_context()
+    @ccall libcuda.cuFuncGetName(name::Ptr{Cstring}, hfunc::CUfunction)::CUresult
 end
 
 @checked function cuLaunchKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY,
@@ -4453,11 +4548,27 @@ end
                                    to::Ptr{CUgraphNode}, numEdges::Ptr{Csize_t})::CUresult
 end
 
+@checked function cuGraphGetEdges_v2(hGraph, from, to, edgeData, numEdges)
+    initialize_context()
+    @ccall libcuda.cuGraphGetEdges_v2(hGraph::CUgraph, from::Ptr{CUgraphNode},
+                                      to::Ptr{CUgraphNode}, edgeData::Ptr{CUgraphEdgeData},
+                                      numEdges::Ptr{Csize_t})::CUresult
+end
+
 @checked function cuGraphNodeGetDependencies(hNode, dependencies, numDependencies)
     initialize_context()
     @ccall libcuda.cuGraphNodeGetDependencies(hNode::CUgraphNode,
                                               dependencies::Ptr{CUgraphNode},
                                               numDependencies::Ptr{Csize_t})::CUresult
+end
+
+@checked function cuGraphNodeGetDependencies_v2(hNode, dependencies, edgeData,
+                                                numDependencies)
+    initialize_context()
+    @ccall libcuda.cuGraphNodeGetDependencies_v2(hNode::CUgraphNode,
+                                                 dependencies::Ptr{CUgraphNode},
+                                                 edgeData::Ptr{CUgraphEdgeData},
+                                                 numDependencies::Ptr{Csize_t})::CUresult
 end
 
 @checked function cuGraphNodeGetDependentNodes(hNode, dependentNodes, numDependentNodes)
@@ -4467,6 +4578,15 @@ end
                                                 numDependentNodes::Ptr{Csize_t})::CUresult
 end
 
+@checked function cuGraphNodeGetDependentNodes_v2(hNode, dependentNodes, edgeData,
+                                                  numDependentNodes)
+    initialize_context()
+    @ccall libcuda.cuGraphNodeGetDependentNodes_v2(hNode::CUgraphNode,
+                                                   dependentNodes::Ptr{CUgraphNode},
+                                                   edgeData::Ptr{CUgraphEdgeData},
+                                                   numDependentNodes::Ptr{Csize_t})::CUresult
+end
+
 @checked function cuGraphAddDependencies(hGraph, from, to, numDependencies)
     initialize_context()
     @ccall libcuda.cuGraphAddDependencies(hGraph::CUgraph, from::Ptr{CUgraphNode},
@@ -4474,11 +4594,27 @@ end
                                           numDependencies::Csize_t)::CUresult
 end
 
+@checked function cuGraphAddDependencies_v2(hGraph, from, to, edgeData, numDependencies)
+    initialize_context()
+    @ccall libcuda.cuGraphAddDependencies_v2(hGraph::CUgraph, from::Ptr{CUgraphNode},
+                                             to::Ptr{CUgraphNode},
+                                             edgeData::Ptr{CUgraphEdgeData},
+                                             numDependencies::Csize_t)::CUresult
+end
+
 @checked function cuGraphRemoveDependencies(hGraph, from, to, numDependencies)
     initialize_context()
     @ccall libcuda.cuGraphRemoveDependencies(hGraph::CUgraph, from::Ptr{CUgraphNode},
                                              to::Ptr{CUgraphNode},
                                              numDependencies::Csize_t)::CUresult
+end
+
+@checked function cuGraphRemoveDependencies_v2(hGraph, from, to, edgeData, numDependencies)
+    initialize_context()
+    @ccall libcuda.cuGraphRemoveDependencies_v2(hGraph::CUgraph, from::Ptr{CUgraphNode},
+                                                to::Ptr{CUgraphNode},
+                                                edgeData::Ptr{CUgraphEdgeData},
+                                                numDependencies::Csize_t)::CUresult
 end
 
 @checked function cuGraphDestroyNode(hNode)
@@ -4653,6 +4789,16 @@ end
                                   nodeParams::Ptr{CUgraphNodeParams})::CUresult
 end
 
+@checked function cuGraphAddNode_v2(phGraphNode, hGraph, dependencies, dependencyData,
+                                    numDependencies, nodeParams)
+    initialize_context()
+    @ccall libcuda.cuGraphAddNode_v2(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                     dependencies::Ptr{CUgraphNode},
+                                     dependencyData::Ptr{CUgraphEdgeData},
+                                     numDependencies::Csize_t,
+                                     nodeParams::Ptr{CUgraphNodeParams})::CUresult
+end
+
 @checked function cuGraphNodeSetParams(hNode, nodeParams)
     initialize_context()
     @ccall libcuda.cuGraphNodeSetParams(hNode::CUgraphNode,
@@ -4663,6 +4809,15 @@ end
     initialize_context()
     @ccall libcuda.cuGraphExecNodeSetParams(hGraphExec::CUgraphExec, hNode::CUgraphNode,
                                             nodeParams::Ptr{CUgraphNodeParams})::CUresult
+end
+
+@checked function cuGraphConditionalHandleCreate(pHandle_out, hGraph, ctx,
+                                                 defaultLaunchValue, flags)
+    initialize_context()
+    @ccall libcuda.cuGraphConditionalHandleCreate(pHandle_out::Ptr{CUgraphConditionalHandle},
+                                                  hGraph::CUgraph, ctx::CUcontext,
+                                                  defaultLaunchValue::Cuint,
+                                                  flags::Cuint)::CUresult
 end
 
 @checked function cuOccupancyMaxActiveBlocksPerMultiprocessor(numBlocks, func, blockSize,
@@ -5188,51 +5343,51 @@ end
     @ccall libcuda.cuProfilerStop()::CUresult
 end
 
-struct var"##Ctag#2702"
+struct var"##Ctag#276"
     hArray::CUarray
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2702"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#276"}, f::Symbol)
     f === :hArray && return Ptr{CUarray}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2702", f::Symbol)
-    r = Ref{var"##Ctag#2702"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2702"}, r)
+function Base.getproperty(x::var"##Ctag#276", f::Symbol)
+    r = Ref{var"##Ctag#276"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#276"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2702"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#276"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2703"
+struct var"##Ctag#277"
     hMipmappedArray::CUmipmappedArray
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2703"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#277"}, f::Symbol)
     f === :hMipmappedArray && return Ptr{CUmipmappedArray}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2703", f::Symbol)
-    r = Ref{var"##Ctag#2703"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2703"}, r)
+function Base.getproperty(x::var"##Ctag#277", f::Symbol)
+    r = Ref{var"##Ctag#277"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#277"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2703"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#277"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2704"
+struct var"##Ctag#278"
     devPtr::CUdeviceptr
     format::CUarray_format
     numChannels::Cuint
     sizeInBytes::Csize_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2704"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#278"}, f::Symbol)
     f === :devPtr && return Ptr{CUdeviceptr}(x + 0)
     f === :format && return Ptr{CUarray_format}(x + 8)
     f === :numChannels && return Ptr{Cuint}(x + 12)
@@ -5240,18 +5395,18 @@ function Base.getproperty(x::Ptr{var"##Ctag#2704"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2704", f::Symbol)
-    r = Ref{var"##Ctag#2704"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2704"}, r)
+function Base.getproperty(x::var"##Ctag#278", f::Symbol)
+    r = Ref{var"##Ctag#278"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#278"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2704"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#278"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2705"
+struct var"##Ctag#279"
     devPtr::CUdeviceptr
     format::CUarray_format
     numChannels::Cuint
@@ -5259,7 +5414,7 @@ struct var"##Ctag#2705"
     height::Csize_t
     pitchInBytes::Csize_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2705"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#279"}, f::Symbol)
     f === :devPtr && return Ptr{CUdeviceptr}(x + 0)
     f === :format && return Ptr{CUarray_format}(x + 8)
     f === :numChannels && return Ptr{Cuint}(x + 12)
@@ -5269,58 +5424,58 @@ function Base.getproperty(x::Ptr{var"##Ctag#2705"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2705", f::Symbol)
-    r = Ref{var"##Ctag#2705"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2705"}, r)
+function Base.getproperty(x::var"##Ctag#279", f::Symbol)
+    r = Ref{var"##Ctag#279"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#279"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2705"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#279"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2706"
+struct var"##Ctag#280"
     reserved::NTuple{32,Cint}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2706"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#280"}, f::Symbol)
     f === :reserved && return Ptr{NTuple{32,Cint}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2706", f::Symbol)
-    r = Ref{var"##Ctag#2706"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2706"}, r)
+function Base.getproperty(x::var"##Ctag#280", f::Symbol)
+    r = Ref{var"##Ctag#280"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#280"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2706"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#280"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2708"
+struct var"##Ctag#282"
     handle::Ptr{Cvoid}
     name::Ptr{Cvoid}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2708"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#282"}, f::Symbol)
     f === :handle && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :name && return Ptr{Ptr{Cvoid}}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2708", f::Symbol)
-    r = Ref{var"##Ctag#2708"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2708"}, r)
+function Base.getproperty(x::var"##Ctag#282", f::Symbol)
+    r = Ref{var"##Ctag#282"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#282"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2708"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#282"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2712"
+struct var"##Ctag#286"
     level::Cuint
     layer::Cuint
     offsetX::Cuint
@@ -5330,7 +5485,7 @@ struct var"##Ctag#2712"
     extentHeight::Cuint
     extentDepth::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2712"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#286"}, f::Symbol)
     f === :level && return Ptr{Cuint}(x + 0)
     f === :layer && return Ptr{Cuint}(x + 4)
     f === :offsetX && return Ptr{Cuint}(x + 8)
@@ -5342,83 +5497,104 @@ function Base.getproperty(x::Ptr{var"##Ctag#2712"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2712", f::Symbol)
-    r = Ref{var"##Ctag#2712"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2712"}, r)
+function Base.getproperty(x::var"##Ctag#286", f::Symbol)
+    r = Ref{var"##Ctag#286"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#286"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2712"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#286"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2713"
+struct var"##Ctag#287"
     layer::Cuint
     offset::Culonglong
     size::Culonglong
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2713"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#287"}, f::Symbol)
     f === :layer && return Ptr{Cuint}(x + 0)
     f === :offset && return Ptr{Culonglong}(x + 8)
     f === :size && return Ptr{Culonglong}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2713", f::Symbol)
-    r = Ref{var"##Ctag#2713"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2713"}, r)
+function Base.getproperty(x::var"##Ctag#287", f::Symbol)
+    r = Ref{var"##Ctag#287"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#287"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2713"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#287"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2719"
+struct var"##Ctag#293"
     x::Cuint
     y::Cuint
     z::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2719"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#293"}, f::Symbol)
     f === :x && return Ptr{Cuint}(x + 0)
     f === :y && return Ptr{Cuint}(x + 4)
     f === :z && return Ptr{Cuint}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2719", f::Symbol)
-    r = Ref{var"##Ctag#2719"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2719"}, r)
+function Base.getproperty(x::var"##Ctag#293", f::Symbol)
+    r = Ref{var"##Ctag#293"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#293"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2719"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#293"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#2720"
+struct var"##Ctag#294"
     event::CUevent
     flags::Cint
     triggerAtBlockStart::Cint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2720"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#294"}, f::Symbol)
     f === :event && return Ptr{CUevent}(x + 0)
     f === :flags && return Ptr{Cint}(x + 8)
     f === :triggerAtBlockStart && return Ptr{Cint}(x + 12)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2720", f::Symbol)
-    r = Ref{var"##Ctag#2720"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2720"}, r)
+function Base.getproperty(x::var"##Ctag#294", f::Symbol)
+    r = Ref{var"##Ctag#294"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#294"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2720"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#294"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"##Ctag#295"
+    event::CUevent
+    flags::Cint
+end
+function Base.getproperty(x::Ptr{var"##Ctag#295"}, f::Symbol)
+    f === :event && return Ptr{CUevent}(x + 0)
+    f === :flags && return Ptr{Cint}(x + 8)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"##Ctag#295", f::Symbol)
+    r = Ref{var"##Ctag#295"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#295"}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"##Ctag#295"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -5482,24 +5658,24 @@ struct CUstreamMemOpMemoryBarrierParams_st
     flags::Cuint
 end
 
-struct var"##Ctag#2722"
+struct var"##Ctag#297"
     handle::Ptr{Cvoid}
     name::Ptr{Cvoid}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#2722"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#297"}, f::Symbol)
     f === :handle && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :name && return Ptr{Ptr{Cvoid}}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#2722", f::Symbol)
-    r = Ref{var"##Ctag#2722"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#2722"}, r)
+function Base.getproperty(x::var"##Ctag#297", f::Symbol)
+    r = Ref{var"##Ctag#297"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#297"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#2722"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#297"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -5512,6 +5688,14 @@ const CU_STREAM_LEGACY = CUstream(0x01)
 const CU_STREAM_PER_THREAD = CUstream(0x02)
 
 const CU_COMPUTE_ACCELERATED_TARGET_BASE = 0x00010000
+
+const CU_GRAPH_COND_ASSIGN_DEFAULT = 0x01
+
+const CU_GRAPH_KERNEL_NODE_PORT_DEFAULT = 0
+
+const CU_GRAPH_KERNEL_NODE_PORT_PROGRAMMATIC = 1
+
+const CU_GRAPH_KERNEL_NODE_PORT_LAUNCH_ORDER = 2
 
 const CU_KERNEL_NODE_ATTRIBUTE_ACCESS_POLICY_WINDOW = CU_LAUNCH_ATTRIBUTE_ACCESS_POLICY_WINDOW
 

@@ -31,3 +31,15 @@ function Base.convert(::Type{cusolverEigMode_t}, jobz::Char)
         throw(ArgumentError("Unknown eigenvalue solver mode $jobz."))
     end
 end
+
+function Base.convert(::Type{cusolverEigRange_t}, range::Char)
+    if range == 'A'
+        CUSOLVER_EIG_RANGE_ALL
+    elseif range == 'V'
+        CUSOLVER_EIG_RANGE_V
+    elseif range == 'I'
+        CUSOLVER_EIG_RANGE_I
+    else
+        throw(ArgumentError("Unknown eigenvalue solver range $range."))
+    end
+end

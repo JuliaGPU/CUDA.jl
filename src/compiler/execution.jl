@@ -121,35 +121,82 @@ end
 
 ## host to device value conversion
 
-struct Adaptor end
+struct KernelAdaptor end
 
 # convert CUDA host pointers to device pointers
 # TODO: use ordinary ptr?
-Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = reinterpret(LLVMPtr{T,AS.Generic}, p)
+Adapt.adapt_storage(to::KernelAdaptor, p::CuPtr{T}) where {T} =
+    reinterpret(LLVMPtr{T,AS.Generic}, p)
 
-# Base.RefValue isn't GPU compatible, so provide a compatible alternative
-struct CuRefValue{T} <: Ref{T}
-  x::T
+# convert CUDA host arrays to device arrays
+function Adapt.adapt_storage(::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,N}
+  # prefetch unified memory as we're likely to use it on the GPU
+  # TODO: make this configurable?
+  if is_unified(xs)
+    buf = xs.data[]::Mem.UnifiedBuffer
+
+    can_prefetch = sizeof(xs) > 0
+    ## prefetching isn't supported during stream capture
+    can_prefetch &= !is_capturing()
+    ## we can only prefetch pageable memory
+    can_prefetch &= !Mem.__pinned(convert(Ptr{T}, buf), buf.ctx)
+    ## pageable memory needs to be accessible concurrently
+    can_prefetch &= attribute(device(), DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1
+
+    if can_prefetch
+        subbuf = Mem.UnifiedBuffer(buf.ctx, pointer(xs), sizeof(xs))
+        Mem.prefetch(subbuf)
+    end
+  end
+
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
 end
-Base.getindex(r::CuRefValue{T}) where T = r.x
-Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
+
+# Base.RefValue isn't GPU compatible, so provide a compatible alternative.
+# however, `Ref` is commonly used for two different purposes:
+# - as a way to box a value and pass that box by (mutable) reference;
+# - to force treating an argument to broadcast as a scalar.
+# as the latter is often used with complex inputs like `CuArrays`, we need to adapt.
+# however, that breaks the ability to mutate, as adapting allocates a new object.
+# to support both, we differentiate based on the type of the value being boxed.
+struct CuRefValue{T} <: Ref{T}
+    val::T
+end
+Base.getindex(r::CuRefValue{T}) where T = r.val
+struct CuRefPointer{T} <: Ref{T}
+    ptr::Ptr{T}
+end
+Base.getindex(r::CuRefPointer{T}) where T = unsafe_load(r.ptr)
+Base.setindex!(r::CuRefPointer{T}, v) where T = unsafe_store!(r.ptr, convert(T, v))
+function Adapt.adapt_structure(to::KernelAdaptor, ref::Base.RefValue{T}) where T
+    if isbitstype(T) && sizeof(T) > 0
+        ptr = Base.unsafe_convert(Ptr{T}, ref)
+        if driver_version() < v"12.2" ||
+           attribute(device(), DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) != 1
+            # no HMM, need to register this memory
+            ctx = context()
+            Mem.__pin(ptr, sizeof(T))
+            finalizer(ref) do _
+                Mem.__unpin(ptr, ctx)
+            end
+        end
+        CuRefPointer{T}(ptr)
+    else
+        CuRefValue(adapt(to, ref[]))
+    end
+end
 
 # broadcast sometimes passes a ref(type), resulting in a GPU-incompatible DataType box.
 # avoid that by using a special kind of ref that knows about the boxed type.
 struct CuRefType{T} <: Ref{DataType} end
 Base.getindex(r::CuRefType{T}) where T = T
-Adapt.adapt_structure(to::Adaptor, r::Base.RefValue{<:Union{DataType,Type}}) = CuRefType{r[]}()
+Adapt.adapt_structure(to::KernelAdaptor, r::Base.RefValue{<:Union{DataType,Type}}) =
+    CuRefType{r[]}()
 
 # case where type is the function being broadcasted
-Adapt.adapt_structure(to::Adaptor, bc::Base.Broadcast.Broadcasted{Style, <:Any, Type{T}}) where {Style, T} =
-    Base.Broadcast.Broadcasted{Style}((x...) -> T(x...), adapt(to, bc.args), bc.axes)
-
-Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
-  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
-
-# we materialize ReshapedArray/ReinterpretArray/SubArray/... directly as a device array
-Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
-  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+Adapt.adapt_structure(to::KernelAdaptor,
+                      bc::Broadcast.Broadcasted{Style, <:Any, Type{T}}) where {Style, T} =
+    Broadcast.Broadcasted{Style}((x...) -> T(x...), adapt(to, bc.args), bc.axes)
 
 """
     cudaconvert(x)
@@ -159,9 +206,9 @@ converted to a GPU-friendly format. By default, the function does nothing and re
 input object `x` as-is.
 
 Do not add methods to this function, but instead extend the underlying Adapt.jl package and
-register methods for the the `CUDA.Adaptor` type.
+register methods for the the `CUDA.KernelAdaptor` type.
 """
-cudaconvert(arg) = adapt(Adaptor(), arg)
+cudaconvert(arg) = adapt(KernelAdaptor(), arg)
 
 
 ## abstract kernel functionality
@@ -182,7 +229,9 @@ The following keyword arguments are supported:
 - `threads` (defaults to 1)
 - `blocks` (defaults to 1)
 - `shmem` (defaults to 0)
-- `stream` (defaults to the default stream)
+- `stream` (defaults to the current stream)
+- `cooperative` (defaults to false): whether to launch a cooperative kernel that supports
+  grid synchronization. note that this requires care wrt. the number of blocks launched.
 """
 AbstractKernel
 

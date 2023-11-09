@@ -23,10 +23,9 @@ mutable struct CuModule
         handle_ref = Ref{CUmodule}()
 
         options[JIT_ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
-        @debug begin
+        if isdebug(:CuModule)
             options[JIT_INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
             options[JIT_LOG_VERBOSE] = true
-            "JIT compiling code" # FIXME: remove this useless message
         end
         optionKeys, optionVals = encode(options)
 

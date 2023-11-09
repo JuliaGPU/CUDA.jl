@@ -47,6 +47,7 @@ function signal_exception()
                      Please file a bug.
             """)
     end
+    exit()
     return
 end
 

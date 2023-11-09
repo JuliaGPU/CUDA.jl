@@ -11,3 +11,13 @@
 # whether to use a nonblocking synchronization mechanism,
 # making it possible to do use cooperative multitasking.
 #nonblocking_synchronization = true
+
+# which memory type unspecified allocations should default to.
+# possible values: "device", "unified", "host"
+#default_memory = "device"
+
+[CUDA_Driver_jll]
+# whether to attempt to load a forwards-compatibile userspace driver.
+# only turn this off if you experience issues, e.g., when using a local
+# toolkit that's much older than the available forwards compatible driver.
+#compat = "true"

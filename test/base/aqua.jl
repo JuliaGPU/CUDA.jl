@@ -17,5 +17,4 @@ Aqua.test_stale_deps(CUDA; ignore=[:CUDA_Runtime_Discovery, :CUDA_Runtime_jll,
                                    :SpecialFunctions])
 Aqua.test_deps_compat(CUDA)
 Aqua.test_project_extras(CUDA)
-Aqua.test_project_toml_formatting(CUDA)
 Aqua.test_piracy(CUDA)

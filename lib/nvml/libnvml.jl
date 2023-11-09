@@ -58,6 +58,7 @@ end
     NVML_ERROR_ARGUMENT_VERSION_MISMATCH = 25
     NVML_ERROR_DEPRECATED = 26
     NVML_ERROR_NOT_READY = 27
+    NVML_ERROR_GPU_NOT_FOUND = 28
     NVML_ERROR_UNKNOWN = 999
 end
 
@@ -251,15 +252,14 @@ const nvmlComputeInstanceInfo_t = nvmlComputeInstanceInfo_st
                                                      info::Ptr{nvmlComputeInstanceInfo_t})::nvmlReturn_t
 end
 
-struct nvmlProcessInfo_st
+struct nvmlProcessInfo_v2_st
     pid::Cuint
     usedGpuMemory::Culonglong
     gpuInstanceId::Cuint
     computeInstanceId::Cuint
-    usedGpuCcProtectedMemory::Culonglong
 end
 
-const nvmlProcessInfo_t = nvmlProcessInfo_st
+const nvmlProcessInfo_t = nvmlProcessInfo_v2_st
 
 @checked function nvmlDeviceGetComputeRunningProcesses_v3(device, infoCount, infos)
     initialize_context()
@@ -401,14 +401,28 @@ end
 
 const nvmlProcessInfo_v1_t = nvmlProcessInfo_v1_st
 
-struct nvmlProcessInfo_v2_st
+const nvmlProcessInfo_v2_t = nvmlProcessInfo_v2_st
+
+struct nvmlProcessDetail_v1_t
     pid::Cuint
     usedGpuMemory::Culonglong
     gpuInstanceId::Cuint
     computeInstanceId::Cuint
+    usedGpuCcProtectedMemory::Culonglong
 end
 
-const nvmlProcessInfo_v2_t = nvmlProcessInfo_v2_st
+struct nvmlProcessDetailList_v1_t
+    version::Cuint
+    mode::Cuint
+    numProcArrayEntries::Cuint
+    procArray::Ptr{nvmlProcessDetail_v1_t}
+end
+
+const nvmlProcessDetailList_t = nvmlProcessDetailList_v1_t
+
+struct nvmlC2cModeInfo_v1_t
+    isC2cEnabled::Cuint
+end
 
 struct nvmlRowRemapperHistogramValues_st
     max::Cuint
@@ -663,14 +677,14 @@ end
     NVML_THERMAL_CONTROLLER_UNKNOWN = -1
 end
 
-struct var"##Ctag#4006"
+struct var"##Ctag#324"
     controller::nvmlThermalController_t
     defaultMinTemp::Cint
     defaultMaxTemp::Cint
     currentTemp::Cint
     target::nvmlThermalTarget_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#4006"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#324"}, f::Symbol)
     f === :controller && return Ptr{nvmlThermalController_t}(x + 0)
     f === :defaultMinTemp && return Ptr{Cint}(x + 4)
     f === :defaultMaxTemp && return Ptr{Cint}(x + 8)
@@ -679,14 +693,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#4006"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#4006", f::Symbol)
-    r = Ref{var"##Ctag#4006"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4006"}, r)
+function Base.getproperty(x::var"##Ctag#324", f::Symbol)
+    r = Ref{var"##Ctag#324"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#324"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#4006"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#324"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -696,7 +710,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol)
     f === :count && return Ptr{Cuint}(x + 0)
-    f === :sensor && return Ptr{NTuple{3,var"##Ctag#4006"}}(x + 4)
+    f === :sensor && return Ptr{NTuple{3,var"##Ctag#324"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -983,8 +997,8 @@ struct nvmlVgpuSchedulerParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#4003"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#4004"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#318"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#319"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1013,7 +1027,7 @@ const nvmlVgpuSchedulerLogEntry_t = nvmlVgpuSchedulerLogEntries_st
 struct nvmlVgpuSchedulerLog_st
     engineId::Cuint
     schedulerPolicy::Cuint
-    isEnabledARR::Cuint
+    arrMode::Cuint
     schedulerParams::nvmlVgpuSchedulerParams_t
     entriesCount::Cuint
     logEntries::NTuple{200,nvmlVgpuSchedulerLogEntry_t}
@@ -1023,7 +1037,7 @@ const nvmlVgpuSchedulerLog_t = nvmlVgpuSchedulerLog_st
 
 struct nvmlVgpuSchedulerGetState_st
     schedulerPolicy::Cuint
-    isEnabledARR::Cuint
+    arrMode::Cuint
     schedulerParams::nvmlVgpuSchedulerParams_t
 end
 
@@ -1034,8 +1048,8 @@ struct nvmlVgpuSchedulerSetParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#4008"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#4009"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#322"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#323"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1097,13 +1111,13 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"##Ctag#4007"
+struct var"##Ctag#320"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
     decThreshold::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#4007"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#320"}, f::Symbol)
     f === :bIsPresent && return Ptr{Cuint}(x + 0)
     f === :percentage && return Ptr{Cuint}(x + 4)
     f === :incThreshold && return Ptr{Cuint}(x + 8)
@@ -1111,14 +1125,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#4007"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#4007", f::Symbol)
-    r = Ref{var"##Ctag#4007"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4007"}, r)
+function Base.getproperty(x::var"##Ctag#320", f::Symbol)
+    r = Ref{var"##Ctag#320"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#320"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#4007"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#320"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1128,7 +1142,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
-    f === :utilization && return Ptr{NTuple{8,var"##Ctag#4007"}}(x + 4)
+    f === :utilization && return Ptr{NTuple{8,var"##Ctag#320"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -1236,6 +1250,7 @@ const nvmlAccountingStats_t = nvmlAccountingStats_st
 @cenum nvmlEncoderQueryType_enum::UInt32 begin
     NVML_ENCODER_QUERY_H264 = 0
     NVML_ENCODER_QUERY_HEVC = 1
+    NVML_ENCODER_QUERY_AV1 = 2
 end
 
 const nvmlEncoderType_t = nvmlEncoderQueryType_enum
@@ -1333,9 +1348,9 @@ const nvmlConfComputeGpuAttestationReport_t = nvmlConfComputeGpuAttestationRepor
 const nvmlGpuFabricState_t = Cuchar
 
 struct nvmlGpuFabricInfo_t
-    clusterUuid::NTuple{16,Cchar}
+    clusterUuid::NTuple{16,Cuchar}
     status::nvmlReturn_t
-    partitionId::Cuint
+    cliqueId::Cuint
     state::nvmlGpuFabricState_t
 end
 
@@ -1387,6 +1402,18 @@ end
                                                 length::Cuint)::nvmlReturn_t
 end
 
+@checked function nvmlSystemGetHicVersion(hwbcCount, hwbcEntries)
+    initialize_context()
+    @ccall (libnvml()).nvmlSystemGetHicVersion(hwbcCount::Ptr{Cuint},
+                                               hwbcEntries::Ptr{nvmlHwbcEntry_t})::nvmlReturn_t
+end
+
+@checked function nvmlSystemGetTopologyGpuSet(cpuNumber, count, deviceArray)
+    initialize_context()
+    @ccall (libnvml()).nvmlSystemGetTopologyGpuSet(cpuNumber::Cuint, count::Ptr{Cuint},
+                                                   deviceArray::Ptr{nvmlDevice_t})::nvmlReturn_t
+end
+
 @checked function nvmlUnitGetCount(unitCount)
     initialize_context()
     @ccall (libnvml()).nvmlUnitGetCount(unitCount::Ptr{Cuint})::nvmlReturn_t
@@ -1434,12 +1461,6 @@ end
                                           devices::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
-@checked function nvmlSystemGetHicVersion(hwbcCount, hwbcEntries)
-    initialize_context()
-    @ccall (libnvml()).nvmlSystemGetHicVersion(hwbcCount::Ptr{Cuint},
-                                               hwbcEntries::Ptr{nvmlHwbcEntry_t})::nvmlReturn_t
-end
-
 @checked function nvmlDeviceGetHandleBySerial(serial, device)
     initialize_context()
     @ccall (libnvml()).nvmlDeviceGetHandleBySerial(serial::Cstring,
@@ -1480,6 +1501,12 @@ end
     initialize_context()
     @ccall (libnvml()).nvmlDeviceGetModuleId(device::nvmlDevice_t,
                                              moduleId::Ptr{Cuint})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetC2cModeInfoV(device, c2cModeInfo)
+    initialize_context()
+    @ccall (libnvml()).nvmlDeviceGetC2cModeInfoV(device::nvmlDevice_t,
+                                                 c2cModeInfo::Ptr{nvmlC2cModeInfo_v1_t})::nvmlReturn_t
 end
 
 const nvmlAffinityScope_t = Cuint
@@ -1530,12 +1557,6 @@ end
                                                         deviceArray::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
-@checked function nvmlSystemGetTopologyGpuSet(cpuNumber, count, deviceArray)
-    initialize_context()
-    @ccall (libnvml()).nvmlSystemGetTopologyGpuSet(cpuNumber::Cuint, count::Ptr{Cuint},
-                                                   deviceArray::Ptr{nvmlDevice_t})::nvmlReturn_t
-end
-
 @checked function nvmlDeviceGetP2PStatus(device1, device2, p2pIndex, p2pStatus)
     initialize_context()
     @ccall (libnvml()).nvmlDeviceGetP2PStatus(device1::nvmlDevice_t, device2::nvmlDevice_t,
@@ -1547,13 +1568,6 @@ end
     initialize_context()
     @ccall (libnvml()).nvmlDeviceGetUUID(device::nvmlDevice_t, uuid::Cstring,
                                          length::Cuint)::nvmlReturn_t
-end
-
-@checked function nvmlVgpuInstanceGetMdevUUID(vgpuInstance, mdevUuid, size)
-    initialize_context()
-    @ccall (libnvml()).nvmlVgpuInstanceGetMdevUUID(vgpuInstance::nvmlVgpuInstance_t,
-                                                   mdevUuid::Cstring,
-                                                   size::Cuint)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMinorNumber(device, minorNumber)
@@ -1593,6 +1607,13 @@ end
 @checked function nvmlDeviceValidateInforom(device)
     initialize_context()
     @ccall (libnvml()).nvmlDeviceValidateInforom(device::nvmlDevice_t)::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetLastBBXFlushTime(device, timestamp, durationUs)
+    initialize_context()
+    @ccall (libnvml()).nvmlDeviceGetLastBBXFlushTime(device::nvmlDevice_t,
+                                                     timestamp::Ptr{Culonglong},
+                                                     durationUs::Ptr{Culong})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetDisplayMode(device, display)
@@ -1689,11 +1710,6 @@ end
                                                              clockMHz::Ptr{Cuint})::nvmlReturn_t
 end
 
-@checked function nvmlDeviceResetApplicationsClocks(device)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceResetApplicationsClocks(device::nvmlDevice_t)::nvmlReturn_t
-end
-
 @checked function nvmlDeviceGetClock(device, clockType, clockId, clockMHz)
     initialize_context()
     @ccall (libnvml()).nvmlDeviceGetClock(device::nvmlDevice_t, clockType::nvmlClockType_t,
@@ -1731,19 +1747,6 @@ end
                                                              defaultIsEnabled::Ptr{nvmlEnableState_t})::nvmlReturn_t
 end
 
-@checked function nvmlDeviceSetAutoBoostedClocksEnabled(device, enabled)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceSetAutoBoostedClocksEnabled(device::nvmlDevice_t,
-                                                             enabled::nvmlEnableState_t)::nvmlReturn_t
-end
-
-@checked function nvmlDeviceSetDefaultAutoBoostedClocksEnabled(device, enabled, flags)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceSetDefaultAutoBoostedClocksEnabled(device::nvmlDevice_t,
-                                                                    enabled::nvmlEnableState_t,
-                                                                    flags::Cuint)::nvmlReturn_t
-end
-
 @checked function nvmlDeviceGetFanSpeed(device, speed)
     initialize_context()
     @ccall (libnvml()).nvmlDeviceGetFanSpeed(device::nvmlDevice_t,
@@ -1762,12 +1765,6 @@ end
                                                    targetSpeed::Ptr{Cuint})::nvmlReturn_t
 end
 
-@checked function nvmlDeviceSetDefaultFanSpeed_v2(device, fan)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceSetDefaultFanSpeed_v2(device::nvmlDevice_t,
-                                                       fan::Cuint)::nvmlReturn_t
-end
-
 @checked function nvmlDeviceGetMinMaxFanSpeed(device, minSpeed, maxSpeed)
     initialize_context()
     @ccall (libnvml()).nvmlDeviceGetMinMaxFanSpeed(device::nvmlDevice_t,
@@ -1779,12 +1776,6 @@ end
     initialize_context()
     @ccall (libnvml()).nvmlDeviceGetFanControlPolicy_v2(device::nvmlDevice_t, fan::Cuint,
                                                         policy::Ptr{nvmlFanControlPolicy_t})::nvmlReturn_t
-end
-
-@checked function nvmlDeviceSetFanControlPolicy(device, fan, policy)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceSetFanControlPolicy(device::nvmlDevice_t, fan::Cuint,
-                                                     policy::nvmlFanControlPolicy_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetNumFans(device, numFans)
@@ -1805,13 +1796,6 @@ end
     @ccall (libnvml()).nvmlDeviceGetTemperatureThreshold(device::nvmlDevice_t,
                                                          thresholdType::nvmlTemperatureThresholds_t,
                                                          temp::Ptr{Cuint})::nvmlReturn_t
-end
-
-@checked function nvmlDeviceSetTemperatureThreshold(device, thresholdType, temp)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceSetTemperatureThreshold(device::nvmlDevice_t,
-                                                         thresholdType::nvmlTemperatureThresholds_t,
-                                                         temp::Ptr{Cint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetThermalSettings(device, sensorIndex, pThermalSettings)
@@ -2117,6 +2101,12 @@ end
                                                    bridgeHierarchy::Ptr{nvmlBridgeChipHierarchy_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetRunningProcessDetailList(device, plist)
+    initialize_context()
+    @ccall (libnvml()).nvmlDeviceGetRunningProcessDetailList(device::nvmlDevice_t,
+                                                             plist::Ptr{nvmlProcessDetailList_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceOnSameBoard(device1, device2, onSameBoard)
     initialize_context()
     @ccall (libnvml()).nvmlDeviceOnSameBoard(device1::nvmlDevice_t, device2::nvmlDevice_t,
@@ -2246,6 +2236,19 @@ end
                                                                     gpuAtstReport::Ptr{nvmlConfComputeGpuAttestationReport_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetGspFirmwareVersion(device, version)
+    initialize_context()
+    @ccall (libnvml()).nvmlDeviceGetGspFirmwareVersion(device::nvmlDevice_t,
+                                                       version::Cstring)::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetGspFirmwareMode(device, isEnabled, defaultMode)
+    initialize_context()
+    @ccall (libnvml()).nvmlDeviceGetGspFirmwareMode(device::nvmlDevice_t,
+                                                    isEnabled::Ptr{Cuint},
+                                                    defaultMode::Ptr{Cuint})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetAccountingMode(device, mode)
     initialize_context()
     @ccall (libnvml()).nvmlDeviceGetAccountingMode(device::nvmlDevice_t,
@@ -2312,6 +2315,21 @@ end
     initialize_context()
     @ccall (libnvml()).nvmlDeviceGetArchitecture(device::nvmlDevice_t,
                                                  arch::Ptr{nvmlDeviceArchitecture_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetClkMonStatus(device, status)
+    initialize_context()
+    @ccall (libnvml()).nvmlDeviceGetClkMonStatus(device::nvmlDevice_t,
+                                                 status::Ptr{nvmlClkMonStatus_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetProcessUtilization(device, utilization, processSamplesCount,
+                                                  lastSeenTimeStamp)
+    initialize_context()
+    @ccall (libnvml()).nvmlDeviceGetProcessUtilization(device::nvmlDevice_t,
+                                                       utilization::Ptr{nvmlProcessUtilizationSample_t},
+                                                       processSamplesCount::Ptr{Cuint},
+                                                       lastSeenTimeStamp::Culonglong)::nvmlReturn_t
 end
 
 @checked function nvmlUnitSetLedState(unit, color)
@@ -2390,10 +2408,41 @@ end
                                                        graphicsClockMHz::Cuint)::nvmlReturn_t
 end
 
-@checked function nvmlDeviceGetClkMonStatus(device, status)
+@checked function nvmlDeviceResetApplicationsClocks(device)
     initialize_context()
-    @ccall (libnvml()).nvmlDeviceGetClkMonStatus(device::nvmlDevice_t,
-                                                 status::Ptr{nvmlClkMonStatus_t})::nvmlReturn_t
+    @ccall (libnvml()).nvmlDeviceResetApplicationsClocks(device::nvmlDevice_t)::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetAutoBoostedClocksEnabled(device, enabled)
+    initialize_context()
+    @ccall (libnvml()).nvmlDeviceSetAutoBoostedClocksEnabled(device::nvmlDevice_t,
+                                                             enabled::nvmlEnableState_t)::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetDefaultAutoBoostedClocksEnabled(device, enabled, flags)
+    initialize_context()
+    @ccall (libnvml()).nvmlDeviceSetDefaultAutoBoostedClocksEnabled(device::nvmlDevice_t,
+                                                                    enabled::nvmlEnableState_t,
+                                                                    flags::Cuint)::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetDefaultFanSpeed_v2(device, fan)
+    initialize_context()
+    @ccall (libnvml()).nvmlDeviceSetDefaultFanSpeed_v2(device::nvmlDevice_t,
+                                                       fan::Cuint)::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetFanControlPolicy(device, fan, policy)
+    initialize_context()
+    @ccall (libnvml()).nvmlDeviceSetFanControlPolicy(device::nvmlDevice_t, fan::Cuint,
+                                                     policy::nvmlFanControlPolicy_t)::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetTemperatureThreshold(device, thresholdType, temp)
+    initialize_context()
+    @ccall (libnvml()).nvmlDeviceSetTemperatureThreshold(device::nvmlDevice_t,
+                                                         thresholdType::nvmlTemperatureThresholds_t,
+                                                         temp::Ptr{Cint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetPowerManagementLimit(device, limit)
@@ -2601,28 +2650,6 @@ end
     initialize_context()
     @ccall (libnvml()).nvmlDeviceSetVirtualizationMode(device::nvmlDevice_t,
                                                        virtualMode::nvmlGpuVirtualizationMode_t)::nvmlReturn_t
-end
-
-@checked function nvmlDeviceGetProcessUtilization(device, utilization, processSamplesCount,
-                                                  lastSeenTimeStamp)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceGetProcessUtilization(device::nvmlDevice_t,
-                                                       utilization::Ptr{nvmlProcessUtilizationSample_t},
-                                                       processSamplesCount::Ptr{Cuint},
-                                                       lastSeenTimeStamp::Culonglong)::nvmlReturn_t
-end
-
-@checked function nvmlDeviceGetGspFirmwareVersion(device, version)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceGetGspFirmwareVersion(device::nvmlDevice_t,
-                                                       version::Cstring)::nvmlReturn_t
-end
-
-@checked function nvmlDeviceGetGspFirmwareMode(device, isEnabled, defaultMode)
-    initialize_context()
-    @ccall (libnvml()).nvmlDeviceGetGspFirmwareMode(device::nvmlDevice_t,
-                                                    isEnabled::Ptr{Cuint},
-                                                    defaultMode::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlGetVgpuDriverCapabilities(capability, capResult)
@@ -2842,6 +2869,13 @@ end
                                                    capResult::Ptr{Cuint})::nvmlReturn_t
 end
 
+@checked function nvmlVgpuInstanceGetMdevUUID(vgpuInstance, mdevUuid, size)
+    initialize_context()
+    @ccall (libnvml()).nvmlVgpuInstanceGetMdevUUID(vgpuInstance::nvmlVgpuInstance_t,
+                                                   mdevUuid::Cstring,
+                                                   size::Cuint)::nvmlReturn_t
+end
+
 struct nvmlVgpuVersion_st
     minVersion::Cuint
     maxVersion::Cuint
@@ -3046,6 +3080,24 @@ end
 
 const nvmlGpuInstanceProfileInfo_v2_t = nvmlGpuInstanceProfileInfo_v2_st
 
+struct nvmlGpuInstanceProfileInfo_v3_st
+    version::Cuint
+    id::Cuint
+    sliceCount::Cuint
+    instanceCount::Cuint
+    multiprocessorCount::Cuint
+    copyEngineCount::Cuint
+    decoderCount::Cuint
+    encoderCount::Cuint
+    jpegCount::Cuint
+    ofaCount::Cuint
+    memorySizeMB::Culonglong
+    name::NTuple{96,Cchar}
+    capabilities::Cuint
+end
+
+const nvmlGpuInstanceProfileInfo_v3_t = nvmlGpuInstanceProfileInfo_v3_st
+
 struct nvmlGpuInstanceInfo_st
     device::nvmlDevice_t
     id::Cuint
@@ -3084,6 +3136,23 @@ struct nvmlComputeInstanceProfileInfo_v2_st
 end
 
 const nvmlComputeInstanceProfileInfo_v2_t = nvmlComputeInstanceProfileInfo_v2_st
+
+struct nvmlComputeInstanceProfileInfo_v3_st
+    version::Cuint
+    id::Cuint
+    sliceCount::Cuint
+    instanceCount::Cuint
+    multiprocessorCount::Cuint
+    sharedCopyEngineCount::Cuint
+    sharedDecoderCount::Cuint
+    sharedEncoderCount::Cuint
+    sharedJpegCount::Cuint
+    sharedOfaCount::Cuint
+    name::NTuple{96,Cchar}
+    capabilities::Cuint
+end
+
+const nvmlComputeInstanceProfileInfo_v3_t = nvmlComputeInstanceProfileInfo_v3_st
 
 @checked function nvmlDeviceSetMigMode(device, mode, activationStatus)
     initialize_context()
@@ -3346,26 +3415,26 @@ mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"##Ctag#4005"
+struct var"##Ctag#321"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
 end
-function Base.getproperty(x::Ptr{var"##Ctag#4005"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#321"}, f::Symbol)
     f === :shortName && return Ptr{Cstring}(x + 0)
     f === :longName && return Ptr{Cstring}(x + 8)
     f === :unit && return Ptr{Cstring}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#4005", f::Symbol)
-    r = Ref{var"##Ctag#4005"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4005"}, r)
+function Base.getproperty(x::var"##Ctag#321", f::Symbol)
+    r = Ref{var"##Ctag#321"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#321"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#4005"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#321"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3377,7 +3446,7 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :metricId && return Ptr{Cuint}(x + 0)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
-    f === :metricInfo && return Ptr{var"##Ctag#4005"}(x + 16)
+    f === :metricInfo && return Ptr{var"##Ctag#321"}(x + 16)
     return getfield(x, f)
 end
 
@@ -3478,83 +3547,83 @@ end
                                                             powerValue::Ptr{nvmlPowerValue_v2_t})::nvmlReturn_t
 end
 
-struct var"##Ctag#4003"
+struct var"##Ctag#318"
     avgFactor::Cuint
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#4003"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#318"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :timeslice && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#4003", f::Symbol)
-    r = Ref{var"##Ctag#4003"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4003"}, r)
+function Base.getproperty(x::var"##Ctag#318", f::Symbol)
+    r = Ref{var"##Ctag#318"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#318"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#4003"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#318"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#4004"
+struct var"##Ctag#319"
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#4004"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#319"}, f::Symbol)
     f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#4004", f::Symbol)
-    r = Ref{var"##Ctag#4004"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4004"}, r)
+function Base.getproperty(x::var"##Ctag#319", f::Symbol)
+    r = Ref{var"##Ctag#319"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#319"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#4004"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#319"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#4008"
+struct var"##Ctag#322"
     avgFactor::Cuint
     frequency::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#4008"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#322"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :frequency && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#4008", f::Symbol)
-    r = Ref{var"##Ctag#4008"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4008"}, r)
+function Base.getproperty(x::var"##Ctag#322", f::Symbol)
+    r = Ref{var"##Ctag#322"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#322"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#4008"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#322"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#4009"
+struct var"##Ctag#323"
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#4009"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#323"}, f::Symbol)
     f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#4009", f::Symbol)
-    r = Ref{var"##Ctag#4009"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#4009"}, r)
+function Base.getproperty(x::var"##Ctag#323", f::Symbol)
+    r = Ref{var"##Ctag#323"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#323"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#4009"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#323"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3635,6 +3704,12 @@ const NVML_VGPU_SCHEDULER_POLICY_FIXED_SHARE = 3
 const NVML_SUPPORTED_VGPU_SCHEDULER_POLICY_COUNT = 3
 
 const NVML_SCHEDULER_SW_MAX_LOG_ENTRIES = 200
+
+const NVML_VGPU_SCHEDULER_ARR_UNDEFINED = 0
+
+const NVML_VGPU_SCHEDULER_ARR_DISABLE = 1
+
+const NVML_VGPU_SCHEDULER_ARR_ENABLE = 2
 
 const NVML_GRID_LICENSE_STATE_UNKNOWN = 0
 
@@ -4212,6 +4287,8 @@ const NVML_POWER_SCOPE_GPU = Cuint(0)
 
 const NVML_POWER_SCOPE_MODULE = Cuint(1)
 
+const NVML_POWER_SCOPE_MEMORY = Cuint(2)
+
 const NVML_INIT_FLAG_NO_GPUS = 1
 
 const NVML_INIT_FLAG_NO_ATTACH = 2
@@ -4265,6 +4342,8 @@ const NVML_GPU_INSTANCE_PROFILE_2_SLICE_REV1 = 0x08
 const NVML_GPU_INSTANCE_PROFILE_1_SLICE_REV2 = 0x09
 
 const NVML_GPU_INSTANCE_PROFILE_COUNT = 0x0a
+
+const NVML_GPU_INTSTANCE_PROFILE_CAPS_P2P = 0x01
 
 const NVML_COMPUTE_INSTANCE_PROFILE_1_SLICE = 0x00
 

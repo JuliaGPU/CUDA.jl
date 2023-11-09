@@ -110,6 +110,23 @@ function versioninfo(io::IO=stdout)
         println(io)
     end
 
+    prefs = [
+        "nonblocking_synchronization" => Preferences.load_preference(CUDA, "nonblocking_synchronization"),
+        "default_memory" => Preferences.load_preference(CUDA, "default_memory"),
+        "CUDA_Runtime_jll.version" => Preferences.load_preference(CUDA_Runtime_jll, "version"),
+        "CUDA_Runtime_jll.local" => Preferences.load_preference(CUDA_Runtime_jll, "local"),
+        "CUDA_Driver_jll.compat" => Preferences.load_preference(CUDA_Driver_jll, "compat"),
+    ]
+    if any(x->!isnothing(x[2]), prefs)
+        println(io, "Preferences:")
+        for (key, val) in prefs
+            if !isnothing(val)
+                println(io, "- $key: $val")
+            end
+        end
+        println(io)
+    end
+
     devs = devices()
     if isempty(devs)
         println(io, "No CUDA-capable devices.")
@@ -162,7 +179,12 @@ end
 # this helper function encodes options for compute-sanitizer useful with Julia applications
 function compute_sanitizer_cmd(tool::String="memcheck")
     sanitizer = CUDA.compute_sanitizer()
-    `$sanitizer --tool $tool --launch-timeout=0 --target-processes=all --report-api-errors=no`
+    cmd = `$sanitizer --tool $tool --launch-timeout=0 --target-processes=all --report-api-errors=no`
+    if runtime_version() >= v"12.3" &&
+       attribute(device(), DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
+        cmd = `$cmd --hmm-support`
+    end
+    cmd
 end
 
 """

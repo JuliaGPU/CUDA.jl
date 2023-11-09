@@ -10,12 +10,12 @@ const use_nonblocking_synchronization =
 
 # custom, unbuffered channel that supports returning a value to the sender
 # without the need for a second channel
-struct BidirectionalChannel{T} <: AbstractChannel{T}
+struct BidirectionalChannel{I,O} <: AbstractChannel{I}
     cond_take::Threads.Condition                 # waiting for data to become available
     cond_put::Threads.Condition                  # waiting for a writeable slot
     cond_ret::Threads.Condition                  # waiting for a data to be returned
 
-    function BidirectionalChannel{T}() where T
+    function BidirectionalChannel{I,O}() where {I,O}
         lock = ReentrantLock()
         cond_put = Threads.Condition(lock)
         cond_take = Threads.Condition(lock)
@@ -24,8 +24,8 @@ struct BidirectionalChannel{T} <: AbstractChannel{T}
     end
 end
 
-Base.put!(c::BidirectionalChannel{T}, v) where T = put!(c, convert(T, v))
-function Base.put!(c::BidirectionalChannel{T}, v::T) where T
+Base.put!(c::BidirectionalChannel{I}, v) where {I} = put!(c, convert(I, v))
+function Base.put!(c::BidirectionalChannel{I,O}, v::I) where {I,O}
     lock(c)
     try
         # wait for a slot to be available
@@ -37,23 +37,23 @@ function Base.put!(c::BidirectionalChannel{T}, v::T) where T
         notify(c.cond_take, v, false, false)
 
         # wait for a return value to be produced
-        Base.wait(c.cond_ret)
+        Base.wait(c.cond_ret)::O
     finally
         unlock(c)
     end
 end
 
-function Base.take!(f::Base.Callable, c::BidirectionalChannel{T}) where T
+function Base.take!(f::Base.Callable, c::BidirectionalChannel{I,O}) where {I,O}
     lock(c)
     try
         # notify the producer that we're ready to accept a value
         notify(c.cond_put, nothing, false, false)
 
         # receive a value from the producer
-        v = Base.wait(c.cond_take)::T
+        v = Base.wait(c.cond_take)::I
 
         # return a value to the producer
-        ret = f(v)
+        ret = f(v)::O
         notify(c.cond_ret, ret, false, false)
     finally
         unlock(c)
@@ -105,8 +105,10 @@ end
 
 # if we support foreign threads, perform the actual synchronization on a separate thread.
 
+const SyncObject = Union{CuContext, CuStream, CuEvent}
+
 const MAX_SYNC_THREADS = 4
-const sync_channels = Array{BidirectionalChannel{Any}}(undef, MAX_SYNC_THREADS)
+const sync_channels = Array{BidirectionalChannel{SyncObject,CUresult}}(undef, MAX_SYNC_THREADS)
 const sync_channel_cursor = Threads.Atomic{UInt32}(1)
 
 function synchronization_worker(data)
@@ -131,7 +133,7 @@ function synchronization_worker(data)
 end
 
 @noinline function create_synchronization_worker(i)
-    sync_channels[i] = BidirectionalChannel{Any}()
+    sync_channels[i] = BidirectionalChannel{SyncObject,CUresult}()
     # should be safe to assign before threads are running;
     #  any user will just submit work that makes it block
 

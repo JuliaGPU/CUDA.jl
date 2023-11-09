@@ -470,7 +470,7 @@ end
     @eval struct Host   end
     @eval struct Device end
 
-    Adapt.adapt_storage(::CUDA.Adaptor, a::Host) = Device()
+    Adapt.adapt_storage(::CUDA.KernelAdaptor, a::Host) = Device()
 
     Base.convert(::Type{Int}, ::Host)   = 1
     Base.convert(::Type{Int}, ::Device) = 2
@@ -593,6 +593,17 @@ end
     using Test
     @test f(1) == 1
     @test f(2) == 2
+end
+
+@testset "Ref boxes" begin
+    function kernel(x)
+        x[] += 1
+        return
+    end
+
+    box = Ref(1)
+    CUDA.@sync @cuda kernel(box)
+    @test box[] == 2
 end
 
 end
@@ -1038,40 +1049,6 @@ end
     @cuda threads=1 dp_6arg_kernel(1, 1, 1, 1, 1, 1)
     @cuda threads=1 main_5arg_kernel()
     @cuda threads=1 main_6arg_kernel()
-end
-
-end
-
-############################################################################################
-
-if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
-
-@testset "cooperative groups" begin
-    function kernel_vadd(a, b, c)
-        i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
-        grid_handle = this_grid()
-        c[i] = a[i] + b[i]
-        sync_grid(grid_handle)
-        c[i] = c[1]
-        return nothing
-    end
-
-    # cooperative kernels are additionally limited in the number of blocks that can be launched
-    maxBlocks = attribute(device(), CUDA.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
-    kernel = cufunction(kernel_vadd, NTuple{3, CuDeviceArray{Float32,2,AS.Global}})
-    maxThreads = CUDA.maxthreads(kernel)
-
-    a = rand(Float32, maxBlocks, maxThreads)
-    b = rand(Float32, size(a)) * 100
-    c = similar(a)
-    d_a = CuArray(a)
-    d_b = CuArray(b)
-    d_c = CuArray(c)  # output array
-
-    @cuda cooperative=true threads=maxThreads blocks=maxBlocks kernel_vadd(d_a, d_b, d_c)
-
-    c = Array(d_c)
-    @test all(c[1] .== c)
 end
 
 end

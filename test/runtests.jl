@@ -58,6 +58,10 @@ const tests = ["core$(path_separator)initialization"]    # needs to run first
 const test_runners = Dict()
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)
+    if CUDA.default_memory != Mem.Device && name == "indexing scalar"
+        # GPUArrays' scalar indexing tests assume that indexing is not supported
+        continue
+    end
     push!(tests, "gpuarrays$(path_separator)$name")
     test_runners["gpuarrays$(path_separator)$name"] = ()->TestSuite.tests[name](CuArray)
 end

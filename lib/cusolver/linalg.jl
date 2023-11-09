@@ -1,7 +1,7 @@
 # implementation of LinearAlgebra interfaces
 
 using LinearAlgebra
-using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
+using LinearAlgebra: BlasComplex, BlasFloat, BlasReal, checksquare
 using ..CUBLAS: CublasFloat
 
 function copy_cublasfloat(As...)
@@ -62,6 +62,17 @@ function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
             CUBLAS.trsm!('L', 'U', 'N', 'N', one(T), view(F,1:m,1:m), X)
         end
     end
+    return X
+end
+
+function Base.:\(_A::Symmetric{<:Any,<:CuMatOrAdj}, _B::CuOrAdj)
+    uplo = A.uplo
+    A, B = copy_cublasfloat(_A.data, _B)
+
+    # LDLᴴ decomposition with partial pivoting
+    factors, ipiv, info = sytrf!(uplo, A)
+    ipiv = CuVector{Int64}(ipiv)
+    X = sytrs!(uplo, factors, ipiv, B)
     return X
 end
 
@@ -327,7 +338,7 @@ end
 
 # LinearAlgebra.jl defines a comparable method with these restrictions on T, so we need
 #   to define with the same type parameters to resolve method ambiguity for these cases
-function LinearAlgebra.ldiv!(F::LU{T,<:StridedCuMatrix{T}}, B::CuVecOrMat{T}) where {T <: Union{Float32, Float64, ComplexF32, ComplexF64}}
+function LinearAlgebra.ldiv!(F::LU{T,<:StridedCuMatrix{T}}, B::CuVecOrMat{T}) where T <: BlasFloat
     return getrs!('N', F.factors, F.ipiv, B)
 end
 
@@ -342,3 +353,38 @@ end
 
 LinearAlgebra.cholcopy(A::LinearAlgebra.RealHermSymComplexHerm{<:Any,<:CuArray}) =
     copyto!(similar(A, LinearAlgebra.choltype(A)), A)
+
+## inv
+
+function LinearAlgebra.inv(A::StridedCuMatrix{T}) where T <: BlasFloat
+    n = checksquare(A)
+    F = copy(A)
+    factors, ipiv, info = getrf!(F)
+    B = CuMatrix{T}(I, n, n)
+    getrs!('N', factors, ipiv, B)
+    return B
+end
+
+function LinearAlgebra.inv(A::Symmetric{T,<:StridedCuMatrix{T}}) where T <: BlasFloat
+    n = checksquare(A)
+    F = copy(A.data)
+    factors, ipiv, info = sytrf!(A.uplo, F)
+    ipiv = CuVector{Int64}(ipiv)
+    B = CuMatrix{T}(I, n, n)
+    sytrs!(A.uplo, factors, ipiv, B)
+    return B
+end
+
+for (triangle, uplo, diag) in ((:LowerTriangular, 'L', 'N'),
+                               (:UnitLowerTriangular, 'L', 'U'),
+                               (:UpperTriangular, 'U', 'N'),
+                               (:UnitUpperTriangular, 'U', 'U'))
+    @eval begin
+        function LinearAlgebra.inv(A::$triangle{T,<:StridedCuMatrix{T}}) where T <: BlasFloat
+            n = checksquare(A)
+            B = copy(A.data)
+            trtri!(uplo, diag, B)
+            return B
+        end
+    end
+end

@@ -8,7 +8,7 @@
 const ws = Int32(32)
 
 
-# core intrinsics
+## core intrinsics
 
 # "two packed values specifying a mask for logically splitting warps into sub-segments
 # and an upper bound for clamping the source lane index"
@@ -28,14 +28,42 @@ for (name, mode, mask, offset) in (("_up",   :up,   UInt32(0x00), src->src),
         @eval begin
             @inline $fname(mask, val::$T, src, width=$ws) =
                 ccall($intrinsic, llvmcall, $T,
-                    (UInt32, $T, UInt32, UInt32),
-                    mask, val, $(offset(:src)), pack(width, $mask))
+                      (UInt32, $T, UInt32, UInt32),
+                      mask, val, $(offset(:src)), pack(width, $mask))
         end
     end
 end
 
+@doc """
+    shfl_sync(threadmask::UInt32, val, lane::Integer, width::Integer=32)
 
-# extended versions
+Shuffle a value from a directly indexed lane `lane`, and synchronize threads according to
+`threadmask`.
+""" shfl_sync
+
+@doc """
+    shfl_up_sync(threadmask::UInt32, val, delta::Integer, width::Integer=32)
+
+Shuffle a value from a lane with lower ID relative to caller, and synchronize threads
+according to `threadmask`.
+""" shfl_up_sync
+
+@doc """
+    shfl_down_sync(threadmask::UInt32, val, delta::Integer, width::Integer=32)
+
+Shuffle a value from a lane with higher ID relative to caller, and synchronize threads
+according to `threadmask`.
+""" shfl_down_sync
+
+@doc """
+    shfl_xor_sync(threadmask::UInt32, val, mask::Integer, width::Integer=32)
+
+Shuffle a value from a lane based on bitwise XOR of own lane ID with `mask`, and synchronize
+threads according to `threadmask`.
+""" shfl_xor_sync
+
+
+## extensions
 
 """
     shfl_recurse(op, x::T)::T
@@ -73,32 +101,57 @@ shfl_recurse(op, x::Bool)    = op(UInt32(x)) % Bool
 shfl_recurse(op, x::Complex) = Complex(op(real(x)), op(imag(x)))
 
 
-# documentation
 
-@doc """
-    shfl_sync(threadmask::UInt32, val, lane::Integer, width::Integer=32)
+# Warp Vote (B.13)
 
-Shuffle a value from a directly indexed lane `lane`, and synchronize threads according to
-`threadmask`.
-""" shfl_sync
+for mode in (:all, :any, :uni)
+    fname = Symbol("vote_$(mode)_sync")
+    @eval export $fname
 
-@doc """
-    shfl_up_sync(threadmask::UInt32, val, delta::Integer, width::Integer=32)
+    intrinsic = "llvm.nvvm.vote.$mode.sync"
+    @eval @inline $fname(mask, pred) =
+        @typed_ccall($intrinsic, llvmcall, Bool, (UInt32, Bool), mask, pred)
+end
 
-Shuffle a value from a lane with lower ID relative to caller, and synchronize threads
-according to `threadmask`.
-""" shfl_up_sync
+# ballot returns an integer, so we need to repeat the above
+for mode in (:ballot, )
+    fname = Symbol("vote_$(mode)_sync")
+    @eval export $fname
 
-@doc """
-    shfl_down_sync(threadmask::UInt32, val, delta::Integer, width::Integer=32)
+    intrinsic = "llvm.nvvm.vote.$mode.sync"
+    @eval @inline $fname(mask, pred) =
+        @typed_ccall($intrinsic, llvmcall, UInt32, (UInt32, Bool), mask, pred)
+end
 
-Shuffle a value from a lane with higher ID relative to caller, and synchronize threads
-according to `threadmask`.
-""" shfl_down_sync
+"""
+    vote_all_sync(mask::UInt32, predicate::Bool)
 
-@doc """
-    shfl_xor_sync(threadmask::UInt32, val, mask::Integer, width::Integer=32)
+Evaluate `predicate` for all active threads of the warp and return whether `predicate`
+is true for all of them.
+"""
+vote_all_sync
 
-Shuffle a value from a lane based on bitwise XOR of own lane ID with `mask`, and synchronize
-threads according to `threadmask`.
-""" shfl_xor_sync
+"""
+    vote_any_sync(mask::UInt32, predicate::Bool)
+
+Evaluate `predicate` for all active threads of the warp and return whether `predicate`
+is true for any of them.
+"""
+vote_any_sync
+
+"""
+    vote_uni_sync(mask::UInt32, predicate::Bool)
+
+Evaluate `predicate` for all active threads of the warp and return whether `predicate` is
+the same for any of them.
+"""
+vote_uni_sync
+
+"""
+    vote_ballot_sync(mask::UInt32, predicate::Bool)
+
+Evaluate `predicate` for all active threads of the warp and return an integer whose Nth bit
+is set if and only if `predicate` is true for the Nth thread of the warp and the Nth thread
+is active.
+"""
+vote_ballot_sync

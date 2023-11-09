@@ -20,13 +20,7 @@ end
 
 # smoke test
 let
-    str = sprint() do io
-        rv = CUDA.@profile io=io begin
-            true
-        end
-        @test rv
-    end
-
+    str = string(CUDA.@profile true)
     @test occursin("No host-side activity was recorded", str)
     @test occursin("No device-side activity was recorded", str)
 end
@@ -34,11 +28,7 @@ end
 # kernel launch
 let
     @cuda identity(nothing)
-    str = sprint() do io
-        CUDA.@profile io=io begin
-            @cuda identity(nothing)
-        end
-    end
+    str = string(CUDA.@profile @cuda identity(nothing))
 
     @test occursin("cuLaunchKernel", str)
     @test occursin("_Z8identityv", str)
@@ -49,11 +39,7 @@ end
 
 # kernel launch (trace)
 let
-    str = sprint() do io
-        CUDA.@profile io=io trace=true begin
-            @cuda identity(nothing)
-        end
-    end
+    str = string(CUDA.@profile trace=true @cuda identity(nothing))
 
     @test occursin("cuLaunchKernel", str)
     @test occursin("_Z8identityv", str)
@@ -65,11 +51,7 @@ end
 
 # kernel launch (raw trace)
 let
-    str = sprint() do io
-        CUDA.@profile io=io trace=true raw=true begin
-            @cuda identity(nothing)
-        end
-    end
+    str = string(CUDA.@profile trace=true raw=true @cuda identity(nothing))
 
     @test occursin("cuLaunchKernel", str)
     @test occursin("_Z8identityv", str)
@@ -84,24 +66,14 @@ if !Sys.iswindows()
 
 # NVTX markers
 let
-    str = sprint() do io
-        CUDA.@profile io=io trace=true begin
-            NVTX.@mark "a marker"
-        end
-    end
-
+    str = string(CUDA.@profile trace=true NVTX.@mark "a marker")
     @test occursin("NVTX marker", str)
     @test occursin("a marker", str)
 end
 
 # NVTX ranges
 let
-    str = sprint() do io
-        CUDA.@profile io=io trace=true begin
-            NVTX.@range "a range" identity(nothing)
-        end
-    end
-
+    str = string(CUDA.@profile trace=true NVTX.@range "a range" identity(nothing))
     @test occursin("NVTX ranges", str)
     @test occursin("a range", str)
 end

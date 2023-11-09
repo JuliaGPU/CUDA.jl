@@ -24,6 +24,7 @@ CUDA.driver_version()
 CUDA.system_driver_version()
 CUDA.runtime_version()
 CUDA.set_runtime_version!
+CUDA.reset_runtime_version!
 ```
 
 
@@ -136,6 +137,7 @@ methods then work with these raw pointers:
 ### Memory info
 
 ```@docs
+CUDA.memory_status
 CUDA.available_memory
 CUDA.total_memory
 ```

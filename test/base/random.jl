@@ -7,7 +7,7 @@
                   (randn!,Float32),
                   (rand_logn!,Float32),
                   (rand_poisson!,Cuint)),
-        d in (2, (2,2), (2,2,2), 3, (3,3), (3,3,3))
+        d in (0, 2, (2,2), (2,2,2), 3, (3,3), (3,3,3))
         A = CuArray{T}(undef, d)
         f(A)
     end
@@ -16,7 +16,7 @@
     for (f,T) in ((CUDA.rand,Float32), (CUDA.randn,Float32),
                   (CUDA.rand_logn,Float32), (CUDA.rand_poisson,Cuint),
                   (rand,Float64), (randn,Float64)),
-        args in ((2,), (2, 2), (3,), (3, 3))
+        args in ((0,), (2,), (2, 2), (3,), (3, 3))
         A = f(args...)
         @test eltype(A) == T
     end
@@ -27,19 +27,19 @@
                   (CUDA.rand_poisson,Cuint),
                   (rand,Float32), (randn,Float32),
                   (rand,Float64), (randn,Float64)),
-        args in ((T, 2), (T, 2, 2), (T, (2, 2)), (T, 3), (T, 3, 3), (T, (3, 3)))
+        args in ((T, 0), (T, 2), (T, 2, 2), (T, (2, 2)), (T, 3), (T, 3, 3), (T, (3, 3)))
         A = f(args...)
         @test eltype(A) == T
     end
 
     # unsupported types that fall back to a native generator
     for (f,T) in ((CUDA.rand,Int64), (CUDA.randn,ComplexF64)),
-        args in ((T, 2), (T, 2, 2), (T, (2, 2)), (T, 3), (T, 3, 3), (T, (3, 3)))
+        args in ((T, 0), (T, 2), (T, 2, 2), (T, (2, 2)), (T, 3), (T, 3, 3), (T, (3, 3)))
         A = f(args...)
         @test eltype(A) == T
     end
     for (f,T) in ((rand!,Int64), (randn!,ComplexF64)),
-        d in (2, (2,2), (2,2,2), 3, (3,3), (3,3,3))
+        d in (0, 2, (2,2), (2,2,2), 3, (3,3), (3,3,3))
         A = CuArray{T}(undef, d)
         f(A)
     end
@@ -87,21 +87,23 @@ end
     for T in (Float16, Float32, Float64,
               ComplexF16, ComplexF32, ComplexF64,
               Int8, Int16, Int32, Int64, Int128,
-              UInt8, UInt16, UInt32, UInt64, UInt128)
-        A = CuArray{T}(undef, 2048)
+              UInt8, UInt16, UInt32, UInt64, UInt128),
+        dims = (0, 2, (2,2), (2,2,2))
+        A = CuArray{T}(undef, dims)
         rand!(rng, A)
 
-        B = Array{T}(undef, 2048)
+        B = Array{T}(undef, dims)
         CUDA.@allowscalar rand!(rng, B)
     end
 
     # normal
     for T in (Float16, Float32, Float64,
-              ComplexF16, ComplexF32, ComplexF64)
-        A = CuArray{T}(undef, 2048)
+              ComplexF16, ComplexF32, ComplexF64),
+        dims = (0, 2, (2,2), (2,2,2))
+        A = CuArray{T}(undef, dims)
         randn!(rng, A)
 
-        B = Array{T}(undef, 2048)
+        B = Array{T}(undef, dims)
         CUDA.@allowscalar rand!(rng, B)
     end
 
@@ -112,16 +114,28 @@ end
         @test rand(rng) isa Number
         @test rand(rng, Float32) isa Float32
     end
-    @test rand(rng, Float32, 1) isa CuArray
-    @test rand(rng, 1) isa CuArray
+    for dims in (0, 2, (2,2), (2,2,2))
+        @test rand(rng, dims) isa CuArray
+        for T in (Float16, Float32, Float64,
+                  ComplexF16, ComplexF32, ComplexF64,
+                  Int8, Int16, Int32, Int64, Int128,
+                  UInt8, UInt16, UInt32, UInt64, UInt128)
+            @test rand(rng, T, dims) isa CuArray{T}
+        end
+    end
 
     # normal
     CUDA.@allowscalar begin
         @test randn(rng) isa Number
         @test randn(rng, Float32) isa Float32
     end
-    @test randn(rng, Float32, 1) isa CuArray
-    @test randn(rng, 1) isa CuArray
+    for dims in (0, 2, (2,2), (2,2,2))
+        @test randn(rng, dims) isa CuArray
+        for T in (Float16, Float32, Float64,
+                  ComplexF16, ComplexF32, ComplexF64)
+            @test randn(rng, T, dims) isa CuArray{T}
+        end
+    end
 
     # #1464: Check that the Box-Muller transform doesn't produce infinities (stemming from
     # zeros in the radial sample). Virtually deterministic for the typical 23-24 bits of
