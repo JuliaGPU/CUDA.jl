@@ -605,7 +605,13 @@ function Base.show(io::IO, results::ProfileResults)
         df = groupby(df, :name)
 
         # gather summary statistics
-        analyze_time(time) = Ref((; std=std(time), mean=mean(time), min=minimum(time), max=maximum(time)))
+        function analyze_time(time)
+            if length(time) == 1
+                missing
+            else
+                Ref((; std=std(time), mean=mean(time), min=minimum(time), max=maximum(time)))
+            end
+        end
         df = combine(df,
             :time => sum           => :time,
             :time => length        => :calls,
@@ -651,8 +657,12 @@ function Base.show(io::IO, results::ProfileResults)
         elseif names(df)[j] == "time"
             format_time(v)
         elseif names(df)[j] == "time_dist"
-            mean, std, min, max = format_time(v.mean, v.std, v.min, v.max)
-            @sprintf("%9s ± %-6s (%6s ‥ %s)", mean, std, min, max)
+            if v === missing
+                ""
+            else
+                mean, std, min, max = format_time(v.mean, v.std, v.min, v.max)
+                @sprintf("%9s ± %-6s (%6s ‥ %s)", mean, std, min, max)
+            end
         else
             v
         end
@@ -734,7 +744,7 @@ function Base.show(io::IO, results::ProfileResults)
             df = df[:, columns]
 
             header = [trace_column_names[name] for name in names(df)]
-            alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
+            alignment = [name in ["name"] ? :l : :r for name in names(df)]
             formatters = function(v, i, j)
                 if v === missing
                     return "-"
@@ -750,7 +760,11 @@ function Base.show(io::IO, results::ProfileResults)
         else
             df = summarize_trace(df)
 
-            columns = [:time_ratio, :time, :calls, :time_dist, :name]
+            columns = [:time_ratio, :time, :calls]
+            if any(!ismissing, df.time_dist)
+                push!(columns, :time_dist)
+            end
+            push!(columns, :name)
             df = df[:, columns]
 
             header = [summary_column_names[name] for name in names(df)]
@@ -804,7 +818,7 @@ function Base.show(io::IO, results::ProfileResults)
             df = results.device[:, columns]
 
             header = [trace_column_names[name] for name in names(df)]
-            alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
+            alignment = [name in ["name"] ? :l : :r for name in names(df)]
             formatters = function(v, i, j)
                 if v === missing
                     return "-"
@@ -846,7 +860,11 @@ function Base.show(io::IO, results::ProfileResults)
         else
             df = summarize_trace(results.device)
 
-            columns = [:time_ratio, :time, :calls, :time_dist, :name]
+            columns = [:time_ratio, :time, :calls]
+            if any(!ismissing, df.time_dist)
+                push!(columns, :time_dist)
+            end
+            push!(columns, :name)
             df = df[:, columns]
 
             header = [summary_column_names[name] for name in names(df)]
@@ -899,7 +917,7 @@ function Base.show(io::IO, results::ProfileResults)
             df = df[:, columns]
 
             header = [trace_column_names[name] for name in names(df)]
-            alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
+            alignment = [name in ["name"] ? :l : :r for name in names(df)]
             formatters = function(v, i, j)
                 if v === missing
                     return "-"
@@ -923,7 +941,11 @@ function Base.show(io::IO, results::ProfileResults)
 
             df = summarize_trace(nvtx_ranges)
 
-            columns = [:time_ratio, :time, :calls, :time_dist, :name]
+            columns = [:time_ratio, :time, :calls]
+            if any(!ismissing, df.time_dist)
+                push!(columns, :time_dist)
+            end
+            push!(columns, :name)
             df = df[:, columns]
 
             header = [summary_column_names[name] for name in names(df)]
