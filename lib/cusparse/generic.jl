@@ -255,8 +255,17 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
     return C
 end
 
-function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseArrayCSR{T},
-              B::DenseCuArray{T,3}, beta::Number, C::DenseCuArray{T,3}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
+function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseArrayCSR{T,Ti,N},
+              B::DenseCuArray{T,N}, beta::Number, C::DenseCuArray{T,N}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T,Ti,N}
+    Ar = reshape(A, :, :, :)
+    Br = reshape(B, size(B,1), size(B,2), :)
+    Cr = reshape(C, size(C,1), size(C,2), :)
+    bmm!(transa, transb, alpha, Ar, Br, beta, Cr, index, algo)
+end
+
+# batched sparse * dense -> dense matmul
+function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseArrayCSR{T,Ti,3},
+              B::DenseCuArray{T,3}, beta::Number, C::DenseCuArray{T,3}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T,Ti}
 
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa

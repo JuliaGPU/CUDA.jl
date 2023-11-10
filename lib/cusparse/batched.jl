@@ -1,13 +1,54 @@
-# concat
-function batchcat(A::CuSparseMatrixCSR...)
-    b = length(A)
-    CuSparseArrayCSR(cat([A[i].rowPtr for i=1:b]...; dims=2),
-                     cat([A[i].colVal for i=1:b]...; dims=2),
-                     cat([A[i].nzVal for i=1:b]...; dims=2),
-                     (size(A[1])..., b))
+function Base.cat(As::CuSparseMatrixCSR...; dims=3)
+    if dims == 1
+        return hcat(As)
+    elseif dims == 2
+        return vcat(As)
+    end
+    newsize = (size(As[1])..., ones(Int, dims-3)..., length(As))
+    CuSparseArrayCSR(cat([A.rowPtr for A in As]...; dims=dims-1),
+                     cat([A.colVal for A in As]...; dims=dims-1),
+                     cat([A.nzVal  for A in As]...; dims=dims-1),
+                     newsize)
 end
 
-# mm! (C dense = A sparse * B dense) (generic.jl)
+function Base.cat(As::CuSparseArrayCSR...; dims=3)
+    if dims == 1
+        return hcat(As)
+    elseif dims == 2
+        return vcat(As)
+    end
+    rowPtr = cat([A.rowPtr for A in As]...; dims=dims-1)
+    CuSparseArrayCSR(rowPtr,
+                     cat([A.colVal for A in As]...; dims=dims-1),
+                     cat([A.nzVal  for A in As]...; dims=dims-1),
+                     (size(As[1])[1:2]..., size(rowPtr)[2:end]...))
+end
+
+# we can't reshape the first two dimensions
+function Base.reshape(A::CuSparseArrayCSR{Tv, Ti, N}, ::Colon, ::Colon, bshape::Int64...) where {Tv, Ti, N}
+    CuSparseArrayCSR(reshape(A.rowPtr, :, bshape...),
+                     reshape(A.colVal, :, bshape...),
+                     reshape(A.nzVal,  :, bshape...),
+                     (size(A)[1:2]..., bshape...))
+end
+
+function Base.reshape(A::CuSparseArrayCSR, dims::Int64...)
+    s1, s2, bshape = dims[1], dims[2], dims[3:end]
+    @assert s1 == size(A, 1) && s2 == size(A, 2)
+    CuSparseArrayCSR(reshape(A.rowPtr, :, bshape...),
+                     reshape(A.colVal, :, bshape...),
+                     reshape(A.nzVal,  :, bshape...),
+                     (size(A)[1:2]..., bshape...))
+end
+
+# reshape to have a single batch dimension
+function Base.reshape(A::CuSparseArrayCSR, ::Colon, ::Colon, ::Colon)
+    b = prod(size(A)[3:end])
+    CuSparseArrayCSR(reshape(A.rowPtr, :, b),
+                     reshape(A.colVal, :, b),
+                     reshape(A.nzVal,  :, b),
+                     (size(A)[1:2]..., b))
+end
 
 # scalar addition/subtraction, scalar mul/div (see interfaces.jl +412)
 
