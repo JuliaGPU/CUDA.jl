@@ -1,4 +1,4 @@
-# custom extension of CuArray in CUDArt for sparse vectors/matricesjjjj
+# custom extension of CuArray in CUDArt for sparse vectors/matrices
 # using CSC format for interop with Julia's native sparse functionality
 
 export CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR, CuSparseMatrixCOO,
