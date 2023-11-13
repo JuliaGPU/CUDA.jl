@@ -123,9 +123,10 @@ function gpu_entry(dev)
     id = deviceid(dev)
     name = CUDA.name(dev)
     uuid = CUDA.uuid(dev)
-    cap = CUDA.capability(dev)
-    mig = uuid != CUDA.parent_uuid(dev)
-    (; id, name, cap, uuid="$(mig ? "MIG" : "GPU")-$uuid")
+    cap = capability(dev)
+    mig = uuid != parent_uuid(dev)
+    compute_mode = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE)
+    (; id, name, cap, uuid="$(mig ? "MIG" : "GPU")-$uuid", compute_mode)
 end
 gpus = if do_gpu_list
     # parse the list of GPUs
@@ -135,8 +136,9 @@ gpus = if do_gpu_list
     end
 else
     # find all GPUs
-    map(gpu_entry, CUDA.devices())
+    map(gpu_entry, devices())
 end
+filter!(gpu->gpu.compute_mode != CUDA.CU_COMPUTEMODE_PROHIBITED, gpus)
 @info("Testing using device " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
       ". To change this, specify the `--gpus` argument to the tests, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
 ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")
@@ -148,6 +150,10 @@ if !set_jobs
     jobs = min(cpu_jobs, memory_jobs)
 end
 @info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the `JULIA_CPU_THREADS` environment variable."
+if first(gpus).compute_mode == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
+    @warn "Running tests on a GPU in exclusive mode; reducing parallelism to 1."
+    jobs = 1
+end
 
 # add workers
 const test_exeflags = Base.julia_cmd()
