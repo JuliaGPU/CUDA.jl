@@ -222,16 +222,25 @@ abstract type AbstractKernel{F,TT} end
     (::HostKernel)(args...; kwargs...)
     (::DeviceKernel)(args...; kwargs...)
 
-Low-level interface to call a compiled kernel, passing GPU-compatible arguments in `args`.
-For a higher-level interface, use [`@cuda`](@ref).
+Low-level interface to call a compiled kernel, passing GPU-compatible arguments
+in `args`. For a higher-level interface, use [`@cuda`](@ref).
+
+A `HostKernel` is callable on the host, and a `DeviceKernel` is callable on the
+device (created by `@cuda` with `dynamic=true`).
 
 The following keyword arguments are supported:
-- `threads` (defaults to 1)
-- `blocks` (defaults to 1)
-- `shmem` (defaults to 0)
-- `stream` (defaults to the current stream)
-- `cooperative` (defaults to false): whether to launch a cooperative kernel that supports
-  grid synchronization. note that this requires care wrt. the number of blocks launched.
+- `threads` (default: `1`): Number of threads per block, or a 1-, 2- or 3-tuple of dimensions
+  (e.g. `threads=(32, 32)` for a 2D block of 32×32 threads).
+  Use [`threadIdx()`](@ref) and [`blockDim()`](@ref) to query from within the kernel.
+- `blocks` (default: `1`): Number of thread blocks to launch, or a 1-, 2- or 3-tuple of
+  dimensions (e.g. `blocks=(2, 4, 2)` for a 3D grid of blocks).
+  Use [`blockIdx()`](@ref) and [`gridDim()`](@ref) to query from within the kernel.
+- `shmem`(default=0): Amount of dynamic shared memory, used by [`CuDynamicSharedArray`](@ref),
+  to allocate per thread block in bytes.
+- `stream` (default: [`stream()`](@ref)): [`CuStream`](@ref) to launch the kernel on.
+- `cooperative` (default: `false``): whether to launch a cooperative kernel that supports
+  grid synchronization (see [`this_grid`](@ref) and [`sync_grid`](@ref)). 
+  Note that this requires care wrt. the number of blocks launched.
 """
 AbstractKernel
 
