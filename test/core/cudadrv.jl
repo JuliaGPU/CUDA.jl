@@ -2,31 +2,34 @@
 
 ctx = current_context()
 dev = current_device()
+exclusive = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
 
 synchronize(ctx)
 
-let ctx2 = CuContext(dev)
-    @test ctx2 == current_context()    # ctor implicitly pushes
-    activate(ctx)
-    @test ctx == current_context()
+if !exclusive
+    let ctx2 = CuContext(dev)
+        @test ctx2 == current_context()    # ctor implicitly pushes
+        activate(ctx)
+        @test ctx == current_context()
 
-    @test device(ctx2) == dev
+        @test device(ctx2) == dev
 
-    CUDA.unsafe_destroy!(ctx2)
-end
-
-let global_ctx2 = nothing
-    CuContext(dev) do ctx2
-        @test ctx2 == current_context()
-        @test ctx != ctx2
-        global_ctx2 = ctx2
+        CUDA.unsafe_destroy!(ctx2)
     end
-    @test !CUDA.isvalid(global_ctx2)
-    @test ctx == current_context()
 
-    @test device(ctx) == dev
-    @test current_device() == dev
-    device_synchronize()
+    let global_ctx2 = nothing
+        CuContext(dev) do ctx2
+            @test ctx2 == current_context()
+            @test ctx != ctx2
+            global_ctx2 = ctx2
+        end
+        @test !CUDA.isvalid(global_ctx2)
+        @test ctx == current_context()
+
+        @test device(ctx) == dev
+        @test current_device() == dev
+        device_synchronize()
+    end
 end
 
 end
