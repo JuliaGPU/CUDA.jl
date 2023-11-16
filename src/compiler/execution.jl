@@ -239,7 +239,7 @@ The following keyword arguments are supported:
   to allocate per thread block in bytes.
 - `stream` (default: [`stream()`](@ref)): [`CuStream`](@ref) to launch the kernel on.
 - `cooperative` (default: `false``): whether to launch a cooperative kernel that supports
-  grid synchronization (see [`this_grid`](@ref) and [`sync_grid`](@ref)). 
+  grid synchronization (see [`CG.this_grid`](@ref) and [`CG.sync`](@ref)). 
   Note that this requires care wrt. the number of blocks launched.
 """
 AbstractKernel
