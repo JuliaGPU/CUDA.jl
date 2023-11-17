@@ -25,7 +25,7 @@ function Base.cat(As::CuSparseArrayCSR...; dims=3)
 end
 
 # we can't reshape the first two dimensions
-function Base.reshape(A::CuSparseArrayCSR{Tv, Ti, N}, ::Colon, ::Colon, bshape::Int64...) where {Tv, Ti, N}
+function Base.reshape(A::Union{CuSparseArrayCSR, CuSparseMatrixCSR}, ::Colon, ::Colon, bshape::Int64...) 
     CuSparseArrayCSR(reshape(A.rowPtr, :, bshape...),
                      reshape(A.colVal, :, bshape...),
                      reshape(A.nzVal,  :, bshape...),
@@ -48,6 +48,15 @@ function Base.reshape(A::CuSparseArrayCSR, ::Colon, ::Colon, ::Colon)
                      reshape(A.colVal, :, b),
                      reshape(A.nzVal,  :, b),
                      (size(A)[1:2]..., b))
+end
+
+# repeat non-matrix dimensions
+function Base.repeat(A::Union{CuSparseArrayCSR, CuSparseMatrixCSR}, r1::Int64, r2::Int64, rs::Int64...)
+    @assert r1 == 1 && r2 == 1 "Cannot repeat matrix dimensions of CuSparseCSR"
+    CuSparseArrayCSR(repeat(A.rowPtr, 1, rs...),
+                     repeat(A.colVal, 1, rs...),
+                     repeat(A.nzVal,  1, rs...),
+                     (size(A)[1:2]..., [size(A,i+2)*rs[i] for i=1:length(rs)]...))
 end
 
 # scalar addition/subtraction, scalar mul/div (see interfaces.jl +412)

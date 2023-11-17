@@ -261,6 +261,7 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     Br = reshape(B, size(B,1), size(B,2), :)
     Cr = reshape(C, size(C,1), size(C,2), :)
     bmm!(transa, transb, alpha, Ar, Br, beta, Cr, index, algo)
+    return C
 end
 
 # batched sparse * dense -> dense matmul
@@ -279,6 +280,10 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
         throw(ArgumentError("C must have same batch-dimension as max(size(A,3)=$(size(A,3)), size(B,3)=$(size(B,3))), got $(size(C,3))."))
     end
 
+    if n == 1 && b > 1
+        throw(ArgumentError("bmm! does not work for n==1 and b>1 due to CUDA error."))
+    end
+
     if transa == 'N' && transb == 'N'
         chkbmmdims(B,C,k,n,m,n)
     elseif transa == 'N' && transb != 'N'
@@ -295,11 +300,9 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
 
     cusparseCsrSetStridedBatch(descA, b, ptrstride(A), valstride(A))
 
-    # strideB = size(B, 3) > 1 ? stride(B, 3) : 0
     strideB = stride(B, 3) 
     cusparseDnMatSetStridedBatch(descB, b, strideB)
 
-    # strideC = size(C, 3) > 1 ? stride(C, 3) : 0
     strideC = stride(C, 3)
     cusparseDnMatSetStridedBatch(descC, b, strideC)
 

@@ -283,8 +283,8 @@ function Base.size(g::CuSparseMatrix, d::Integer)
     end
 end
 
-function Base.size(g::CuSparseArrayCSR, d::Integer)
-    if 1 <= d <= 3
+function Base.size(g::CuSparseArrayCSR{Tv,Ti,N}, d::Integer) where {Tv,Ti,N}
+    if 1 <= d <= N
         return g.dims[d]
     elseif d > 1
         return 1
@@ -560,7 +560,6 @@ Base.copy(Mat::CuSparseMatrixCSR) = copyto!(similar(Mat), Mat)
 Base.copy(Mat::CuSparseMatrixBSR) = copyto!(similar(Mat), Mat)
 Base.copy(Mat::CuSparseMatrixCOO) = copyto!(similar(Mat), Mat)
 Base.copy(Mat::CuSparseArrayCSR) = CuSparseArrayCSR(copy(Mat.rowPtr), copy(Mat.colVal), copy(nonzeros(Mat)), size(Mat))
-
 
 # input/output
 

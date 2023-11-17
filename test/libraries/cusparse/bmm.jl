@@ -3,8 +3,10 @@ using CUDA, CUDA.CUSPARSE
 using LinearAlgebra
 using SparseArrays
 
-m = 5
-n = 15
+m = 1
+n = 15 
+# error when n == 1 and batchsize > 1 as cusparseSpMM fallsback to cusparseSpMV, which doesn't do batched computations.
+# see https://docs.nvidia.com/cuda/cusparse/#cusparsespmm
 k = 25
 p = 0.5
 
@@ -29,7 +31,6 @@ p = 0.5
 
         @test D ≈ C
     end
-    elty isa Int32 && break
 
     @testset "C = αAᵀB + βC" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, k, m, p))
