@@ -614,13 +614,17 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
 
+    # Check if we solve a triangular system in-place with transb != 'N'.
+    # In that case we need to update the descriptor of C such that it represents Bᵀ.
+    is_C_transposed = (B === C) && (transb != 'N')
+
     if isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
         throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR or COO matrix instead."))
     end
 
     mA,nA = size(A)
     mB,nB = size(B)
-    mC,nC = size(C)
+    mC,nC = !is_C_transposed ? size(C) : reverse(size(C))
 
     (mA != nA) && throw(DimensionMismatch("A must be square, but has dimensions ($mA,$nA)!"))
     (mC != mA) && throw(DimensionMismatch("C must have $mA rows, but has $mC rows"))
@@ -645,7 +649,7 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     cusparseSpMatSetAttribute(descA, 'D', cusparse_diag, Csize_t(sizeof(cusparse_diag)))
 
     descB = CuDenseMatrixDescriptor(B)
-    descC = CuDenseMatrixDescriptor(C)
+    descC = CuDenseMatrixDescriptor(C, transposed=is_C_transposed)
 
     spsm_desc = CuSparseSpSMDescriptor()
     function bufferSize()

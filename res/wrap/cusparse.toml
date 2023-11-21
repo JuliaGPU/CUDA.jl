@@ -2652,6 +2652,9 @@ needs_context = false
 [api.cusparseSpSV_analysis.argtypes]
 10 = "CuPtr{Cvoid}"
 
+[api.cusparseSpSV_updateMatrix.argtypes]
+3 = "CuPtr{Cvoid}"
+
 [api.cusparseSpGEMMreuse_workEstimation.argtypes]
 10 = "CuPtr{Cvoid}"
 

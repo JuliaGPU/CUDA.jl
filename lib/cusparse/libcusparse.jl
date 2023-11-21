@@ -5538,7 +5538,7 @@ end
     initialize_context()
     @ccall libcusparse.cusparseSpSV_updateMatrix(handle::cusparseHandle_t,
                                                  spsvDescr::cusparseSpSVDescr_t,
-                                                 newValues::Ptr{Cvoid},
+                                                 newValues::CuPtr{Cvoid},
                                                  updatePart::cusparseSpSVUpdate_t)::cusparseStatus_t
 end
 
