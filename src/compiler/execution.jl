@@ -235,10 +235,10 @@ The following keyword arguments are supported:
 - `blocks` (default: `1`): Number of thread blocks to launch, or a 1-, 2- or 3-tuple of
   dimensions (e.g. `blocks=(2, 4, 2)` for a 3D grid of blocks).
   Use [`blockIdx()`](@ref) and [`gridDim()`](@ref) to query from within the kernel.
-- `shmem`(default=0): Amount of dynamic shared memory, used by [`CuDynamicSharedArray`](@ref),
-  to allocate per thread block in bytes.
+- `shmem`(default: `0`): Amount of dynamic shared memory in bytes to allocate per thread block;
+  used by [`CuDynamicSharedArray`](@ref).
 - `stream` (default: [`stream()`](@ref)): [`CuStream`](@ref) to launch the kernel on.
-- `cooperative` (default: `false``): whether to launch a cooperative kernel that supports
+- `cooperative` (default: `false`): whether to launch a cooperative kernel that supports
   grid synchronization (see [`CG.this_grid`](@ref) and [`CG.sync`](@ref)). 
   Note that this requires care wrt. the number of blocks launched.
 """
