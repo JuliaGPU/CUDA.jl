@@ -3,14 +3,14 @@ using CUDA, CUDA.CUSPARSE
 using LinearAlgebra
 using SparseArrays
 
-m = 1
+m = 5
 n = 15 
 # error when n == 1 and batchsize > 1 as cusparseSpMM fallsback to cusparseSpMV, which doesn't do batched computations.
 # see https://docs.nvidia.com/cuda/cusparse/#cusparsespmm
 k = 25
 p = 0.5
 
-@testset "Sparse-Dense $elty bmm!" for elty in (Float64, Float32)
+@testset "Sparse-Dense $elty bmm!" for elty in (Float64, Float32, ComplexF64, ComplexF32)
     α = rand(elty) 
     β = rand(elty) 
 
@@ -42,7 +42,7 @@ p = 0.5
         C = CUDA.rand(elty, m, n, 2)
         D = copy(C)
 
-        CUSPARSE.bmm!('T', 'N', α, A, B, β, C, 'O') 
+        CUSPARSE.bmm!('C', 'N', α, A, B, β, C, 'O') 
 
         D[:,:,1] = α * A1' * B[:,:,1] + β * D[:,:,1]
         D[:,:,2] = α * A2' * B[:,:,2] + β * D[:,:,2]
@@ -61,7 +61,7 @@ p = 0.5
         C = CUDA.rand(elty, m, n, 2)
         D = copy(C)
 
-        CUSPARSE.bmm!('N', 'T', α, A, B, β, C, 'O') 
+        CUSPARSE.bmm!('N', 'C', α, A, B, β, C, 'O') 
 
         D[:,:,1] = α * A1 * B[:,:,1]' + β * D[:,:,1]
         D[:,:,2] = α * A2 * B[:,:,2]' + β * D[:,:,2]
@@ -80,7 +80,7 @@ p = 0.5
         C = CUDA.rand(elty, m, n, 2)
         D = copy(C)
 
-        CUSPARSE.bmm!('T', 'T', α, A, B, β, C, 'O') 
+        CUSPARSE.bmm!('C', 'C', α, A, B, β, C, 'O') 
 
         D[:,:,1] = α * A1' * B[:,:,1]' + β * D[:,:,1]
         D[:,:,2] = α * A2' * B[:,:,2]' + β * D[:,:,2]
