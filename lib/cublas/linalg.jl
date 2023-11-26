@@ -684,3 +684,84 @@ for op in (:(+), :(-))
         @eval Base.$op(A::$TypeA, B::$TypeB) where {T <: CublasFloat} = geam($transa(T), $transb(T), one(T), $(unwrapa(:A)), $(op)(one(T)), $(unwrapb(:B)))
     end
 end
+
+# Kronecker product
+function LinearAlgebra.kron!(C::CuMatrix{TC}, A::CuMatrix{TA}, B::CuMatrix{TB}) where {TA,TB,TC}
+
+    function _kron_mat_kernelA!(C, A, B, m, n, p, q)
+        index_i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+        index_j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    
+        stride_i = blockDim().x * gridDim().x
+        stride_j = blockDim().y * gridDim().y
+    
+        index_i > m && return
+        index_j > n && return
+    
+        for i in index_i:stride_i:m
+            for j in index_j:stride_j:n
+                for k in 1:p
+                    for l in 1:q
+                        @inbounds C[(i-1)*p+k, (j-1)*q+l] = A[i,j] * B[k,l]
+                    end
+                end
+            end
+        end
+        return nothing
+    end
+
+    function _kron_mat_kernelB!(C, A, B, m, n, p, q)
+        index_p = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+        index_q = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    
+        stride_p = blockDim().x * gridDim().x
+        stride_q = blockDim().y * gridDim().y
+    
+        index_p > p && return
+        index_q > q && return
+    
+        for i in 1:m
+            for j in 1:n
+                for k in index_p:stride_p:p
+                    for l in index_q:stride_q:q
+                        @inbounds C[(i-1)*p+k, (j-1)*q+l] = A[i,j] * B[k,l]
+                    end
+                end
+            end
+        end
+        return nothing
+    end
+
+    m, n = size(A)
+    p, q = size(B)
+
+    m*n >= p*q ? (kernel = @cuda launch=false _kron_mat_kernelA!(C, A, B, m, n, p, q)) : 
+                 (kernel = @cuda launch=false _kron_mat_kernelB!(C, A, B, m, n, p, q))
+
+    # kernel = @cuda launch=false _kron_mat_kernel!(C, A, B, m, n, p, q)
+    config = launch_configuration(kernel.fun)
+    dim_ratio = m / n
+    max_threads_i = floor(Int, sqrt(config.threads * dim_ratio))
+    max_threads_j = floor(Int, sqrt(config.threads / dim_ratio))
+
+    threads_i = min(m, max_threads_i)
+    threads_j = min(n, max_threads_j)
+    threads = (threads_i, threads_j)
+    blocks_i = cld(m, threads_i)
+    blocks_j = cld(n, threads_j)
+    blocks = (blocks_i, blocks_j)
+
+    kernel(C, A, B, m, n, p, q; threads=threads, blocks=blocks)
+
+    return C
+end
+
+function LinearAlgebra.kron(A::CuMatrix{TA}, B::CuMatrix{TB}) where {TA,TB}
+    m, n = size(A)
+    p, q = size(B)
+    
+    T = promote_type(TA, TB)
+    C = similar(A, T, m*p, n*q)
+
+    kron!(C, A, B)
+end
