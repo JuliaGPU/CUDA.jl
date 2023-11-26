@@ -738,17 +738,18 @@ function LinearAlgebra.kron!(C::CuMatrix{TC}, A::CuMatrix{TA}, B::CuMatrix{TB}) 
     m*n >= p*q ? (kernel = @cuda launch=false _kron_mat_kernelA!(C, A, B, m, n, p, q)) : 
                  (kernel = @cuda launch=false _kron_mat_kernelB!(C, A, B, m, n, p, q))
 
-    # kernel = @cuda launch=false _kron_mat_kernel!(C, A, B, m, n, p, q)
+    m*n >= p*q ? (sizes = (m, n)) : (sizes = (p, q))
+
     config = launch_configuration(kernel.fun)
-    dim_ratio = m / n
+    dim_ratio = sizes[1] / sizes[2]
     max_threads_i = floor(Int, sqrt(config.threads * dim_ratio))
     max_threads_j = floor(Int, sqrt(config.threads / dim_ratio))
 
-    threads_i = min(m, max_threads_i)
-    threads_j = min(n, max_threads_j)
+    threads_i = min(sizes[1], max_threads_i)
+    threads_j = min(sizes[2], max_threads_j)
     threads = (threads_i, threads_j)
-    blocks_i = cld(m, threads_i)
-    blocks_j = cld(n, threads_j)
+    blocks_i = cld(sizes[1], threads_i)
+    blocks_j = cld(sizes[2], threads_j)
     blocks = (blocks_i, blocks_j)
 
     kernel(C, A, B, m, n, p, q; threads=threads, blocks=blocks)
