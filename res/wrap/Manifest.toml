@@ -47,9 +47,9 @@ version = "8.9.2+0"
 
 [[CUTENSOR_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "d2c1a1de70a8716acaeee873def6608d854212d5"
+git-tree-sha1 = "aff33b54e97432cba542bf646c405a6b03cc29ac"
 uuid = "35b6c64b-1ee1-5834-92a3-3f624899209a"
-version = "1.7.0+0"
+version = "2.0.0+0"
 
 [[Clang]]
 deps = ["CEnum", "Clang_jll", "Downloads", "Pkg", "TOML"]
@@ -149,7 +149,7 @@ version = "0.6.4"
 [[LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.0.1+1"
+version = "8.4.0+0"
 
 [[LibGit2]]
 deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
@@ -360,7 +360,7 @@ version = "22.11.13+0"
 [[libLLVM_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8f36deef-c2a5-5394-99ed-8e07531fb29a"
-version = "15.0.7+8"
+version = "15.0.7+9"
 
 [[nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
