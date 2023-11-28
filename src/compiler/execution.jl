@@ -114,7 +114,10 @@ macro cuda(ex...)
                     catch err
                         f_str = $(string(f))
                         arg_strs = ["\n  $arg :: $type   ($(sizeof(typeof(type))) bytes)" for (arg,type) in zip($(map(string, args)), fieldtypes($kernel_tt))]
-                        @error "Error compiling CUDA kernel $(f_str) with args: $(join(arg_strs))"
+                        @error(
+                            "Error compiling CUDA kernel $(f_str) with args: $(join(arg_strs))",
+                            _file=$(__source__.file === nothing ? "?" : String(__source__.file::Symbol)),
+                            _line=$(__source__.line))
                         rethrow(err)
                     end
                     if $launch
