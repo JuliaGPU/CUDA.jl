@@ -9,11 +9,11 @@
 # * Find stalls, where the CPU isn't submitting work fast enough to keep the GPU busy.
 
 # If that isn't sufficient, and you identified a kernel that executes slowly, you can try using NSight Compute to analyze that kernel in detail. Some things to try in order of importance:
-# * Optimizing memory accesses, e.g. avoiding needless global accesses (buffering in shared memory instead) or coalescing accesses;
-# * Launching more threads on each streaming multiprocessor can be achieved by lowering register pressure and reducing shared memory usage, the tips below outline the various ways in which register pressure can be reduced;
-# * Using Float32's instead of Float64's;
-# * Avoiding the use of control flow instructions such as `if`s which cause branches, e.g. try replacing an `if` with an `ifelse`;
-# * Increasing the arithmetic intensity in order for the GPU to be able to hide the latency of memory accesses.
+# * Optimize memory accesses, e.g., avoid needless global accesses (buffering in shared memory instead) or coalesce accesses;
+# * Launch more threads on each streaming multiprocessor, this can be achieved by lowering register pressure or reducing shared memory usage, the tips below outline the various ways in which register pressure can be reduced;
+# * Use Float32's instead of Float64's;
+# * Avoid the use of control flow which cause threads in the same warp to diverge, i.e., make sure `while` or `for` loops behave identically across the entire warp, and replace `if`s that diverge within a warp with `ifelse`s;
+# * Increase the arithmetic intensity in order for the GPU to be able to hide the latency of memory accesses.
 
 # ### Inlining
 
