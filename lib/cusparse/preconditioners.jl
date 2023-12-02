@@ -40,29 +40,27 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
-            info = csric02Info_t[0]
-            cusparseCreateCsric02Info(info)
+            info = IC0Info()
 
             function bufferSize()
                 out = Ref{Cint}(1)
-                $bname(handle(), m, nnz(A), desc, nonzeros(A), A.rowPtr, A.colVal, info[1],
+                $bname(handle(), m, nnz(A), desc, nonzeros(A), A.rowPtr, A.colVal, info,
                        out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 $aname(handle(), m, nnz(A), desc,
-                        nonzeros(A), A.rowPtr, A.colVal, info[1],
+                        nonzeros(A), A.rowPtr, A.colVal, info,
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
-                cusparseXcsric02_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
+                cusparseXcsric02_zeroPivot(handle(), info, posit)
+                if posit[] ≥ 0
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), m, nnz(A),
-                        desc, nonzeros(A), A.rowPtr, A.colVal, info[1],
+                        desc, nonzeros(A), A.rowPtr, A.colVal, info,
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             end
-            cusparseDestroyCsric02Info(info[1])
             A
         end
     end
@@ -80,29 +78,27 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
-            info = csric02Info_t[0]
-            cusparseCreateCsric02Info(info)
+            info = IC0Info()
 
             function bufferSize()
                 out = Ref{Cint}(1)
                 $bname(handle(), m, nnz(A), desc, nonzeros(A), A.colPtr, rowvals(A),
-                       info[1], out)
+                       info, out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 $aname(handle(), m, nnz(A), desc,
-                        nonzeros(A), A.colPtr, rowvals(A), info[1],
+                        nonzeros(A), A.colPtr, rowvals(A), info,
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
-                cusparseXcsric02_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
+                cusparseXcsric02_zeroPivot(handle(), info, posit)
+                if posit[] ≥ 0
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), m, nnz(A),
-                        desc, nonzeros(A), A.colPtr, rowvals(A), info[1],
+                        desc, nonzeros(A), A.colPtr, rowvals(A), info,
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             end
-            cusparseDestroyCsric02Info(info[1])
             A
         end
     end
@@ -120,30 +116,28 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
-            info = csrilu02Info_t[0]
-            cusparseCreateCsrilu02Info(info)
+            info = ILU0Info()
 
             function bufferSize()
                 out = Ref{Cint}(1)
                 $bname(handle(), m, nnz(A), desc,
-                       nonzeros(A), A.rowPtr, A.colVal, info[1],
+                       nonzeros(A), A.rowPtr, A.colVal, info,
                        out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 $aname(handle(), m, nnz(A), desc,
-                        nonzeros(A), A.rowPtr, A.colVal, info[1],
+                        nonzeros(A), A.rowPtr, A.colVal, info,
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
-                cusparseXcsrilu02_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
+                cusparseXcsrilu02_zeroPivot(handle(), info, posit)
+                if posit[] ≥ 0
                     error("Structural zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), m, nnz(A),
-                        desc, nonzeros(A), A.rowPtr, A.colVal, info[1],
+                        desc, nonzeros(A), A.rowPtr, A.colVal, info,
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             end
-            cusparseDestroyCsrilu02Info(info[1])
             A
         end
     end
@@ -161,30 +155,28 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
-            info = csrilu02Info_t[0]
-            cusparseCreateCsrilu02Info(info)
+            info = ILU0Info()
 
             function bufferSize()
                 out = Ref{Cint}(1)
                 $bname(handle(), m, nnz(A), desc,
-                       nonzeros(A), A.colPtr, rowvals(A), info[1],
+                       nonzeros(A), A.colPtr, rowvals(A), info,
                        out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 $aname(handle(), m, nnz(A), desc,
-                        nonzeros(A), A.colPtr, rowvals(A), info[1],
+                        nonzeros(A), A.colPtr, rowvals(A), info,
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
-                cusparseXcsrilu02_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
+                cusparseXcsrilu02_zeroPivot(handle(), info, posit)
+                if posit[] ≥ 0
                     error("Structural zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), m, nnz(A),
-                        desc, nonzeros(A), A.colPtr, rowvals(A), info[1],
+                        desc, nonzeros(A), A.colPtr, rowvals(A), info,
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             end
-            cusparseDestroyCsrilu02Info(info[1])
             A
         end
     end
@@ -219,7 +211,8 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
                     cusparseXbsric02_zeroPivot(handle(), info[1], posit)
-                    if posit[] >= 0
+                    if posit[] ≥ 0
+                        cusparseDestroyBsric02Info(info[1])
                         error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), A.dir, mb, nnz(A), desc,
@@ -261,7 +254,8 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
                 cusparseXbsrilu02_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
+                if posit[] ≥ 0
+                    cusparseDestroyBsrilu02Info(info[1])
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), A.dir, mb, nnz(A), desc,
