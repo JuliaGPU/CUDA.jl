@@ -8,11 +8,11 @@
 # * Identify problematic kernel invocations: you may be launching thousands of kernels which could be fused into a single call;
 # * Find stalls, where the CPU isn't submitting work fast enough to keep the GPU busy.
 
-# If that isn't sufficient, and you identified a kernel that executes slowly, you can try using NSight Compute to analyze that kernel in detail. Some things to look out for in order of importance:
-# * Memory optimizations are the most important area for performance. Hence optimizing memory accesses, e.g., avoiding needless global accesses (buffering in shared memory instead) and coalescing accesses can lead to big performance improvements;
-# * Launching more threads on each streaming multiprocessor can be acheived by lowering register pressure and reducing shared memory usage, the tips below outline the various ways in which register pressure can be reduced;
-# * Using Float32's instead of Float64's can provide significantly better performance;
-# * Avoid using control flow instructions such as `if` which cause branches, e.g. replace an `if` with an `ifelse` if possible;
+# If that isn't sufficient, and you identified a kernel that executes slowly, you can try using NSight Compute to analyze that kernel in detail. Some things to try in order of importance:
+# * Optimize memory accesses, e.g., avoid needless global accesses (buffering in shared memory instead) or coalesce accesses;
+# * Launch more threads on each streaming multiprocessor, this can be achieved by lowering register pressure or reducing shared memory usage, the tips below outline the various ways in which register pressure can be reduced;
+# * Use Float32's instead of Float64's;
+# * Avoid the use of control flow which cause threads in the same warp to diverge, i.e., make sure `while` or `for` loops behave identically across the entire warp, and replace `if`s that diverge within a warp with `ifelse`s;
 # * Increase the arithmetic intensity in order for the GPU to be able to hide the latency of memory accesses.
 
 # ### Inlining
@@ -26,7 +26,7 @@
 
 # ### FastMath
 
-# Use `@fastmath` to use faster versions of common mathematical functions and for even faster square roots use `@cuda fastmath=true`.
+# Use `@fastmath` to use faster versions of common mathematical functions and use `@cuda fastmath=true` for even faster square roots.
 
 # ## Resources
 
