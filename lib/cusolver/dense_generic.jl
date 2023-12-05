@@ -1,26 +1,38 @@
+mutable struct CuSolverParameters
+    parameters::cusolverDnParams_t
+
+    function CuSolverParameters()
+        parameters_ref = Ref{cusolverDnParams_t}()
+        cusolverDnCreateParams(parameters_ref)
+        obj = new(parameters_ref[])
+        finalizer(cusolverDnDestroyParams, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{cusolverDnParams_t}, params::CuSolverParameters) = params.parameters
+
 # Xpotrf
 function Xpotrf!(uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     chkuplo(uplo)
     n = checksquare(A)
     lda = max(1, stride(A, 2))
     info = CuVector{Cint}(undef, 1)
-    params = Ref{cusolverDnParams_t}(C_NULL)
-    cusolverDnCreateParams(params)
+    params = CuSolverParameters()
 
     function bufferSize()
         out_cpu = Ref{Csize_t}(0)
         out_gpu = Ref{Csize_t}(0)
-        cusolverDnXpotrf_bufferSize(dense_handle(), params[], uplo, n,
+        cusolverDnXpotrf_bufferSize(dense_handle(), params, uplo, n,
                                     T, A, lda, T, out_gpu, out_cpu)
         out_gpu[], out_cpu[]
     end
     with_workspaces(bufferSize()...) do buffer_gpu, buffer_cpu
-        cusolverDnXpotrf(dense_handle(), params[], uplo, n, T, A, lda, T,
+        cusolverDnXpotrf(dense_handle(), params, uplo, n, T, A, lda, T,
                          buffer_gpu, sizeof(buffer_gpu), buffer_cpu,
                          sizeof(buffer_cpu), info)
     end
 
-    cusolverDnDestroyParams(params[])
     flag = @allowscalar info[1]
     unsafe_free!(info)
     chkargsok(BlasInt(flag))
@@ -36,12 +48,10 @@ function Xpotrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) whe
     lda = max(1, stride(A, 2))
     ldb = max(1, stride(B, 2))
     info = CuVector{Cint}(undef, 1)
-    params = Ref{cusolverDnParams_t}(C_NULL)
-    cusolverDnCreateParams(params)
+    params = CuSolverParameters()
 
-    cusolverDnXpotrs(dense_handle(), params[], uplo, n, nrhs, T, A, lda, T, B, ldb, info)
+    cusolverDnXpotrs(dense_handle(), params, uplo, n, nrhs, T, A, lda, T, B, ldb, info)
 
-    cusolverDnDestroyParams(params[])
     flag = @allowscalar info[1]
     unsafe_free!(info)
     chkargsok(BlasInt(flag))
@@ -53,23 +63,21 @@ function Xgetrf!(A::StridedCuMatrix{T}, ipiv::CuVector{Int64}) where {T <: BlasF
     m, n = size(A)
     lda = max(1, stride(A, 2))
     info = CuVector{Cint}(undef, 1)
-    params = Ref{cusolverDnParams_t}(C_NULL)
-    cusolverDnCreateParams(params)
+    params = CuSolverParameters()
 
     function bufferSize()
         out_cpu = Ref{Csize_t}(0)
         out_gpu = Ref{Csize_t}(0)
-        cusolverDnXgetrf_bufferSize(dense_handle(), params[], m, n, T,
+        cusolverDnXgetrf_bufferSize(dense_handle(), params, m, n, T,
                                     A, lda, T, out_gpu, out_cpu)
         out_gpu[], out_cpu[]
     end
     with_workspaces(bufferSize()...) do buffer_gpu, buffer_cpu
-        cusolverDnXgetrf(dense_handle(), params[], m, n, T, A, lda, ipiv,
+        cusolverDnXgetrf(dense_handle(), params, m, n, T, A, lda, ipiv,
                          T, buffer_gpu, sizeof(buffer_gpu), buffer_cpu,
                          sizeof(buffer_cpu), info)
     end
 
-    cusolverDnDestroyParams(params[])
     flag = @allowscalar info[1]
     unsafe_free!(info)
     chkargsok(BlasInt(flag))
@@ -90,12 +98,10 @@ function Xgetrs!(trans::Char, A::StridedCuMatrix{T}, ipiv::CuVector{Int64}, B::S
     lda = max(1, stride(A, 2))
     ldb = max(1, stride(B, 2))
     info = CuVector{Cint}(undef, 1)
-    params = Ref{cusolverDnParams_t}(C_NULL)
-    cusolverDnCreateParams(params)
+    params = CuSolverParameters()
 
-    cusolverDnXgetrs(dense_handle(), params[], trans, n, nrhs, T, A, lda, ipiv, T, B, ldb, info)
+    cusolverDnXgetrs(dense_handle(), params, trans, n, nrhs, T, A, lda, ipiv, T, B, ldb, info)
 
-    cusolverDnDestroyParams(params[])
     flag = @allowscalar info[1]
     unsafe_free!(info)
     chkargsok(BlasInt(flag))
@@ -107,23 +113,21 @@ function Xgeqrf!(A::StridedCuMatrix{T}, tau::CuVector{T}) where {T <: BlasFloat}
     m, n = size(A)
     lda = max(1, stride(A, 2))
     info = CuVector{Cint}(undef, 1)
-    params = Ref{cusolverDnParams_t}(C_NULL)
-    cusolverDnCreateParams(params)
+    params = CuSolverParameters()
 
     function bufferSize()
         out_cpu = Ref{Csize_t}(0)
         out_gpu = Ref{Csize_t}(0)
-        cusolverDnXgeqrf_bufferSize(dense_handle(), params[], m, n, T, A,
+        cusolverDnXgeqrf_bufferSize(dense_handle(), params, m, n, T, A,
                                     lda, T, tau, T, out_gpu, out_cpu)
         out_gpu[], out_cpu[]
     end
     with_workspaces(bufferSize()...) do buffer_gpu, buffer_cpu
-        cusolverDnXgeqrf(dense_handle(), params[], m, n, T, A,
+        cusolverDnXgeqrf(dense_handle(), params, m, n, T, A,
                          lda, T, tau, T, buffer_gpu, sizeof(buffer_gpu),
                          buffer_cpu, sizeof(buffer_cpu), info)
     end
 
-    cusolverDnDestroyParams(params[])
     flag = @allowscalar info[1]
     unsafe_free!(info)
     chkargsok(BlasInt(flag))
@@ -216,24 +220,22 @@ function Xgesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}) where {T <: Bla
     ldu = U == CU_NULL ? 1 : max(1, stride(U, 2))
     ldvt = Vt == CU_NULL ? 1 : max(1, stride(Vt, 2))
     info = CuVector{Cint}(undef, 1)
-    params = Ref{cusolverDnParams_t}(C_NULL)
-    cusolverDnCreateParams(params)
+    params = CuSolverParameters()
 
     function bufferSize()
         out_cpu = Ref{Csize_t}(0)
         out_gpu = Ref{Csize_t}(0)
-        cusolverDnXgesvd_bufferSize(dense_handle(), params[], jobu, jobvt,
+        cusolverDnXgesvd_bufferSize(dense_handle(), params, jobu, jobvt,
                                     m, n, T, A, lda, R, Σ, T, U, ldu,
                                     T, Vt, ldvt, T, out_gpu, out_cpu)
         out_gpu[], out_cpu[]
     end
     with_workspaces(bufferSize()...) do buffer_gpu, buffer_cpu
-        cusolverDnXgesvd(dense_handle(), params[], jobu, jobvt, m, n, T, A,
+        cusolverDnXgesvd(dense_handle(), params, jobu, jobvt, m, n, T, A,
                          lda, R, Σ, T, U, ldu, T, Vt, ldvt, T, buffer_gpu,
                          sizeof(buffer_gpu), buffer_cpu, sizeof(buffer_cpu), info)
     end
 
-    cusolverDnDestroyParams(params[])
     flag = @allowscalar info[1]
     unsafe_free!(info)
     chklapackerror(BlasInt(flag))
@@ -270,25 +272,23 @@ function Xgesvdp!(jobz::Char, econ::Int, A::StridedCuMatrix{T}) where {T <: Blas
     ldv = V == CU_NULL ? 1 : max(1, stride(V, 2))
     info = CuVector{Cint}(undef, 1)
     h_err_sigma = Ref{Cdouble}(0)
-    params = Ref{cusolverDnParams_t}(C_NULL)
-    cusolverDnCreateParams(params)
+    params = CuSolverParameters()
 
     function bufferSize()
         out_cpu = Ref{Csize_t}(0)
         out_gpu = Ref{Csize_t}(0)
-        cusolverDnXgesvdp_bufferSize(dense_handle(), params[], jobz, econ, m,
+        cusolverDnXgesvdp_bufferSize(dense_handle(), params, jobz, econ, m,
                                      n, T, A, lda, R, Σ, T, U, ldu, T, V,
                                      ldv, T, out_gpu, out_cpu)
 
         out_gpu[], out_cpu[]
     end
     with_workspaces(bufferSize()...) do buffer_gpu, buffer_cpu
-        cusolverDnXgesvdp(dense_handle(), params[], jobz, econ, m, n, T, A, lda, R,
+        cusolverDnXgesvdp(dense_handle(), params, jobz, econ, m, n, T, A, lda, R,
                           Σ, T, U, ldu, T, V, ldv, T, buffer_gpu, sizeof(buffer_gpu),
                           buffer_cpu, sizeof(buffer_cpu), info, h_err_sigma)
     end
 
-    cusolverDnDestroyParams(params[])
     flag = @allowscalar info[1]
     unsafe_free!(info)
     chklapackerror(BlasInt(flag))
@@ -326,25 +326,23 @@ function Xgesvdr!(jobu::Char, jobv::Char, A::StridedCuMatrix{T}, k::Integer;
     ldu = U == CU_NULL ? 1 : max(1, stride(U, 2))
     ldv = V == CU_NULL ? 1 : max(1, stride(V, 2))
     info = CuVector{Cint}(undef, 1)
-    params = Ref{cusolverDnParams_t}(C_NULL)
-    cusolverDnCreateParams(params)
+    params = CuSolverParameters()
 
     function bufferSize()
         out_cpu = Ref{Csize_t}(0)
         out_gpu = Ref{Csize_t}(0)
-        cusolverDnXgesvdr_bufferSize(dense_handle(), params[], jobu, jobv,
+        cusolverDnXgesvdr_bufferSize(dense_handle(), params, jobu, jobv,
                                      m, n, k, p, niters, T, A, lda, R, Σ, T,
                                      U, ldu, T, V, ldv, T, out_gpu, out_cpu)
         out_gpu[], out_cpu[]
     end
     with_workspaces(bufferSize()...) do buffer_gpu, buffer_cpu
-        cusolverDnXgesvdr(dense_handle(), params[], jobu, jobv, m, n,
+        cusolverDnXgesvdr(dense_handle(), params, jobu, jobv, m, n,
                           k, p, niters, T, A, lda, R, Σ, T, U, ldu, T,
                           V, ldv, T, buffer_gpu, sizeof(buffer_gpu),
                           buffer_cpu, sizeof(buffer_cpu), info)
     end
 
-    cusolverDnDestroyParams(params[])
     flag = @allowscalar info[1]
     unsafe_free!(info)
     chklapackerror(BlasInt(flag))
@@ -359,23 +357,21 @@ function Xsyevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: Blas
     lda = max(1, stride(A, 2))
     info = CuVector{Cint}(undef, 1)
     W = CuVector{R}(undef, n)
-    params = Ref{cusolverDnParams_t}(C_NULL)
-    cusolverDnCreateParams(params)
+    params = CuSolverParameters()
 
     function bufferSize()
         out_cpu = Ref{Csize_t}(0)
         out_gpu = Ref{Csize_t}(0)
-        cusolverDnXsyevd_bufferSize(dense_handle(), params[], jobz, uplo, n,
+        cusolverDnXsyevd_bufferSize(dense_handle(), params, jobz, uplo, n,
                                     T, A, lda, R, W, T, out_gpu, out_cpu)
         out_gpu[], out_cpu[]
     end
     with_workspaces(bufferSize()...) do buffer_gpu, buffer_cpu
-        cusolverDnXsyevd(dense_handle(), params[], jobz, uplo, n, T, A,
+        cusolverDnXsyevd(dense_handle(), params, jobz, uplo, n, T, A,
                          lda, R, W, T, buffer_gpu, sizeof(buffer_gpu),
                          buffer_cpu, sizeof(buffer_cpu), info)
     end
 
-    cusolverDnDestroyParams(params[])
     flag = @allowscalar info[1]
     unsafe_free!(info)
     chkargsok(BlasInt(flag))
@@ -402,24 +398,22 @@ function Xsyevdx!(jobz::Char, range::Char, uplo::Char, A::StridedCuMatrix{T};
     vl = Ref{R}(vl)
     vu = Ref{R}(vu)
     h_meig = Ref{Int64}(0)
-    params = Ref{cusolverDnParams_t}(C_NULL)
-    cusolverDnCreateParams(params)
+    params = CuSolverParameters()
 
     function bufferSize()
         out_cpu = Ref{Csize_t}(0)
         out_gpu = Ref{Csize_t}(0)
-        cusolverDnXsyevdx_bufferSize(dense_handle(), params[], jobz, range, uplo, n,
+        cusolverDnXsyevdx_bufferSize(dense_handle(), params, jobz, range, uplo, n,
                                      T, A, lda, vl, vu, il, iu, h_meig,
                                      R, W, T, out_gpu, out_cpu)
         out_gpu[], out_cpu[]
     end
     with_workspaces(bufferSize()...) do buffer_gpu, buffer_cpu
-        cusolverDnXsyevdx(dense_handle(), params[], jobz, range, uplo, n, T, A,
+        cusolverDnXsyevdx(dense_handle(), params, jobz, range, uplo, n, T, A,
                           lda, vl, vu, il, iu, h_meig, R, W, T, buffer_gpu,
                           sizeof(buffer_gpu), buffer_cpu, sizeof(buffer_cpu), info)
     end
 
-    cusolverDnDestroyParams(params[])
     flag = @allowscalar info[1]
     unsafe_free!(info)
     chkargsok(BlasInt(flag))
