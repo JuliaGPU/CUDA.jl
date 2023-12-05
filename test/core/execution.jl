@@ -11,10 +11,14 @@ dummy() = return
 @testset "launch configuration" begin
     @cuda dummy()
 
+    threads = 1
+    @cuda threads dummy()
     @cuda threads=1 dummy()
     @cuda threads=(1,1) dummy()
     @cuda threads=(1,1,1) dummy()
 
+    blocks = 1
+    @cuda blocks dummy()
     @cuda blocks=1 dummy()
     @cuda blocks=(1,1) dummy()
     @cuda blocks=(1,1,1) dummy()

@@ -31,7 +31,15 @@ Several keyword arguments are supported that influence the behavior of `@cuda`.
 macro cuda(ex...)
     # destructure the `@cuda` expression
     call = ex[end]
-    kwargs = ex[1:end-1]
+    kwargs = map(ex[1:end-1]) do kwarg
+        if kwarg isa Symbol
+            :($kwarg = $kwarg)
+        elseif Meta.isexpr(kwarg, :(=))
+            kwarg
+        else
+            throw(ArgumentError("Invalid keyword argument '$kwarg'"))
+        end
+    end
 
     # destructure the kernel call
     Meta.isexpr(call, :call) || throw(ArgumentError("second argument to @cuda should be a function call"))
@@ -239,7 +247,7 @@ The following keyword arguments are supported:
   used by [`CuDynamicSharedArray`](@ref).
 - `stream` (default: [`stream()`](@ref)): [`CuStream`](@ref) to launch the kernel on.
 - `cooperative` (default: `false`): whether to launch a cooperative kernel that supports
-  grid synchronization (see [`CG.this_grid`](@ref) and [`CG.sync`](@ref)). 
+  grid synchronization (see [`CG.this_grid`](@ref) and [`CG.sync`](@ref)).
   Note that this requires care wrt. the number of blocks launched.
 """
 AbstractKernel
