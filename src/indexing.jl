@@ -44,7 +44,7 @@ function Base.findall(bools::AnyCuArray{Bool})
         config = launch_configuration(kernel.fun)
         threads = min(length(indices), config.threads)
         blocks = cld(length(indices), threads)
-        kernel(ys, bools, indices; threads=threads, blocks=blocks)
+        kernel(ys, bools, indices; threads, blocks)
     end
 
     unsafe_free!(indices)

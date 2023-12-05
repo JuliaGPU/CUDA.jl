@@ -143,7 +143,7 @@ function (obj::Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=noth
     end
 
     # Launch kernel
-    kernel(ctx, args...; threads=threads, blocks=nblocks)
+    kernel(ctx, args...; threads, blocks=nblocks)
 
     return nothing
 end
