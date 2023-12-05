@@ -5,7 +5,7 @@ using ..CUDA: @device_override
 
 import KernelAbstractions as KA
 
-using KernelAbstractions: StaticArrays
+import StaticArrays
 
 import Adapt
 
