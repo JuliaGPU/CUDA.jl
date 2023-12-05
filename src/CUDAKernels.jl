@@ -21,8 +21,8 @@ end
 CUDABackend(; prefer_blocks=false, always_inline=false) = CUDABackend(prefer_blocks, always_inline)
 
 KA.allocate(::CUDABackend, ::Type{T}, dims::Tuple) where T = CuArray{T}(undef, dims)
-KA.zeros(::CUDABackend, ::Type{T}, dims::Tuple) where T = zeros(T, dims)
-KA.ones(::CUDABackend, ::Type{T}, dims::Tuple) where T = ones(T, dims)
+KA.zeros(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.zeros(T, dims)
+KA.ones(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.ones(T, dims)
 
 KA.get_backend(::CuArray) = CUDABackend()
 KA.get_backend(::CUSPARSE.AbstractCuSparseArray) = CUDABackend()
@@ -65,7 +65,11 @@ end
 
 ## kernel launch
 
-function launch_config(kernel::KA.Kernel{CUDABackend}, ndrange, workgroupsize)
+function KA.mkcontext(kernel::KA.Kernel{CUDABackend}, _ndrange, iterspace)
+    KA.CompilerMetadata{KA.ndrange(kernel), KA.DynamicCheck}(_ndrange, iterspace)
+end
+
+function KA.launch_config(kernel::KA.Kernel{CUDABackend}, ndrange, workgroupsize)
     if ndrange isa Integer
         ndrange = (ndrange,)
     end
@@ -74,16 +78,16 @@ function launch_config(kernel::KA.Kernel{CUDABackend}, ndrange, workgroupsize)
     end
 
     # partition checked that the ndrange's agreed
-    if KA.ndrange(kernel) <: StaticSize
+    if KA.ndrange(kernel) <: KA.StaticSize
         ndrange = nothing
     end
 
-    iterspace, dynamic = if KA.workgroupsize(kernel) <: DynamicSize &&
+    iterspace, dynamic = if KA.workgroupsize(kernel) <: KA.DynamicSize &&
         workgroupsize === nothing
         # use ndrange as preliminary workgroupsize for autotuning
-        partition(kernel, ndrange, ndrange)
+        KA.partition(kernel, ndrange, ndrange)
     else
-        partition(kernel, ndrange, workgroupsize)
+        KA.partition(kernel, ndrange, workgroupsize)
     end
 
     return ndrange, workgroupsize, iterspace, dynamic
@@ -127,7 +131,7 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
             threads = config.threads
         end
 
-        workgroupsize = KA.threads_to_workgroupsize(threads, ndrange)
+        workgroupsize = threads_to_workgroupsize(threads, ndrange)
         iterspace, dynamic = KA.partition(obj, ndrange, workgroupsize)
         ctx = KA.mkcontext(obj, ndrange, iterspace)
     end
@@ -157,7 +161,7 @@ end
 end
 
 @device_override @inline function KA.__index_Global_Linear(ctx)
-    I =  @inbounds expand(__iterspace(ctx), blockIdx().x, threadIdx().x)
+    I =  @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
     # TODO: This is unfortunate, can we get the linear index cheaper
     @inbounds LinearIndices(KA.__ndrange(ctx))[I]
 end
