@@ -54,7 +54,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
                 cusparseXcsric02_zeroPivot(handle(), info, posit)
-                if posit[] ≥ 0
+                if posit[] >= 0
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), m, nnz(A),
@@ -92,7 +92,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
                 cusparseXcsric02_zeroPivot(handle(), info, posit)
-                if posit[] ≥ 0
+                if posit[] >= 0
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), m, nnz(A),
@@ -131,7 +131,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
                 cusparseXcsrilu02_zeroPivot(handle(), info, posit)
-                if posit[] ≥ 0
+                if posit[] >= 0
                     error("Structural zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), m, nnz(A),
@@ -170,7 +170,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
                 cusparseXcsrilu02_zeroPivot(handle(), info, posit)
-                if posit[] ≥ 0
+                if posit[] >= 0
                     error("Structural zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), m, nnz(A),
@@ -195,31 +195,27 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
             mb = div(m,A.blockDim)
-            info = bsric02Info_t[0]
-            cusparseCreateBsric02Info(info)
+            info = IC0InfoBSR()
 
             function bufferSize()
                 out = Ref{Cint}(1)
-                $bname(handle(), A.dir, mb, nnz(A), desc,
-                       nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info[1],
-                       out)
+                $bname(handle(), A.dir, mb, nnz(A), desc, nonzeros(A),
+                       A.rowPtr, A.colVal, A.blockDim, info, out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
-                    $aname(handle(), A.dir, mb, nnz(A), desc,
-                           nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info[1],
-                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-                    posit = Ref{Cint}(1)
-                    cusparseXbsric02_zeroPivot(handle(), info[1], posit)
-                    if posit[] ≥ 0
-                        cusparseDestroyBsric02Info(info[1])
-                        error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
-                    end
-                    $sname(handle(), A.dir, mb, nnz(A), desc,
-                           nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info[1],
-                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                $aname(handle(), A.dir, mb, nnz(A), desc,
+                       nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info,
+                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                posit = Ref{Cint}(1)
+                cusparseXbsric02_zeroPivot(handle(), info, posit)
+                if posit[] >= 0
+                    error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
-            cusparseDestroyBsric02Info(info[1])
+                $sname(handle(), A.dir, mb, nnz(A), desc,
+                       nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info,
+                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+            end
             A
         end
     end
@@ -238,31 +234,27 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
             mb = div(m,A.blockDim)
-            info = bsrilu02Info_t[0]
-            cusparseCreateBsrilu02Info(info)
+            info = ILU0InfoBSR()
 
             function bufferSize()
                 out = Ref{Cint}(1)
-                $bname(handle(), A.dir, mb, nnz(A), desc,
-                       nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info[1],
-                       out)
+                $bname(handle(), A.dir, mb, nnz(A), desc, nonzeros(A),
+                       A.rowPtr, A.colVal, A.blockDim, info, out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 $aname(handle(), A.dir, mb, nnz(A), desc,
-                        nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info[1],
+                        nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info,
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
-                cusparseXbsrilu02_zeroPivot(handle(), info[1], posit)
-                if posit[] ≥ 0
-                    cusparseDestroyBsrilu02Info(info[1])
+                cusparseXbsrilu02_zeroPivot(handle(), info, posit)
+                if posit[] >= 0
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(handle(), A.dir, mb, nnz(A), desc,
-                        nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info[1],
+                        nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info,
                         CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             end
-            cusparseDestroyBsrilu02Info(info[1])
             A
         end
     end
