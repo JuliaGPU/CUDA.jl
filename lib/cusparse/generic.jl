@@ -235,11 +235,12 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        # Uncomment if we find a way to reuse the buffer (issue #1362)
-        # cusparseSpMM_preprocess(
-        #     handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-        #     descC, T, algo, buffer)
-        # end
+        # We should find a way to reuse the buffer (issue #1362)
+        if !(A isa CuSparseMatrixCOO) && (CUSPARSE.version() ≥ v"11.7.2")
+            cusparseSpMM_preprocess(
+                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+                descC, T, algo, buffer)
+        end
         cusparseSpMM(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, buffer)
@@ -293,11 +294,12 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        # Uncomment if we find a way to reuse the buffer (issue #1362)
-        # cusparseSpMM_preprocess(
-        #     handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
-        #     descC, T, algo, buffer)
-        # end
+        # We should find a way to reuse the buffer (issue #1362)
+        if !(B isa CuSparseMatrixCOO) && (CUSPARSE.version() ≥ v"11.7.2")
+            cusparseSpMM_preprocess(
+                handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
+                descC, T, algo, buffer)
+        end
         cusparseSpMM(
             handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
             descC, T, algo, buffer)
