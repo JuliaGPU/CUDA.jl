@@ -227,7 +227,7 @@ end
         input = CuArray(data)
         output = similar(input)
         shmem = elements_per_copy * sizeof(T)
-        @cuda threads=threads shmem=shmem kernel(input, output, elements_per_copy, group_ctor)
+        @cuda threads shmem kernel(input, output, elements_per_copy, group_ctor)
         @test Array(output) == data
     end
 end

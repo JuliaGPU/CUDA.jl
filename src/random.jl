@@ -70,7 +70,7 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
     config = launch_configuration(kernel.fun; max_threads=64)
     threads = max(32, min(config.threads, length(A)))
     blocks = min(config.blocks, cld(length(A), threads))
-    kernel(A, rng.seed, rng.counter; threads=threads, blocks=blocks)
+    kernel(A, rng.seed, rng.counter; threads, blocks)
 
     new_counter = Int64(rng.counter) + length(A)
     overflow, remainder = fldmod(new_counter, typemax(UInt32))
@@ -149,7 +149,7 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:Union{AbstractFloat,Complex{<:A
     config = launch_configuration(kernel.fun; max_threads=64)
     threads = max(32, min(config.threads, length(A)÷2))
     blocks = min(config.blocks, cld(cld(length(A), 2), threads))
-    kernel(A, rng.seed, rng.counter; threads=threads, blocks=blocks)
+    kernel(A, rng.seed, rng.counter; threads, blocks)
 
     new_counter = Int64(rng.counter) + length(A)
     overflow, remainder = fldmod(new_counter, typemax(UInt32))

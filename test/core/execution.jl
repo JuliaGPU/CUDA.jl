@@ -11,10 +11,14 @@ dummy() = return
 @testset "launch configuration" begin
     @cuda dummy()
 
+    threads = 1
+    @cuda threads dummy()
     @cuda threads=1 dummy()
     @cuda threads=(1,1) dummy()
     @cuda threads=(1,1,1) dummy()
 
+    blocks = 1
+    @cuda blocks dummy()
     @cuda blocks=1 dummy()
     @cuda blocks=(1,1) dummy()
     @cuda blocks=(1,1,1) dummy()
@@ -698,7 +702,7 @@ end
 
         threads = 256
         out = CuArray{OT}(undef, (1,))
-        @cuda threads=threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
+        @cuda threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
         Array(out)[1]
     end
 
@@ -750,7 +754,7 @@ end
 
         threads = 256
         out = CuArray{OT}(undef, (1,))
-        @cuda threads=threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
+        @cuda threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
         Array(out)[1]
     end
 

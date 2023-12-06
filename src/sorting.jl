@@ -479,8 +479,7 @@ function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int, partial_k=
     threads = prevpow(2, config.threads)
     threads = threads >> block_size_shift   # for testing purposes
 
-    kernel(my_sort_args...;
-           blocks=prod(otherdims), threads=threads, shmem=get_shmem(threads))
+    kernel(my_sort_args...; blocks=prod(otherdims), threads, shmem=get_shmem(threads))
 
     return c
 end
