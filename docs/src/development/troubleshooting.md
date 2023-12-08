@@ -47,7 +47,7 @@ type `Union{}`:
 
 ```julia
 julia> function kernel(a)
-         @inbounds a[threadId().x] = CUDA.sin(a[threadIdx().x])
+         @inbounds a[threadIdx().x] = CUDA.sin(a[threadIdx().x])
          return
        end
 
