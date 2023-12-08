@@ -265,6 +265,13 @@ function energy_consumption(dev::Device)
     return ref[] / 1000
 end
 
+# degrees C
+function temperature(dev::Device, sensor=NVML_TEMPERATURE_GPU)
+    ref = Ref{Cuint}()
+    nvmlDeviceGetTemperature(dev, sensor, ref)
+    return Int(ref[])
+end
+
 # bytes
 function memory_info(dev::Device)
     ref = Ref{nvmlMemory_t}()
@@ -277,11 +284,4 @@ function utilization_rates(dev::Device)
     ref = Ref{nvmlUtilization_t}()
     nvmlDeviceGetUtilizationRates(dev, ref)
     return (compute=Int(ref[].gpu)/100, memory=Int(ref[].memory)/100)
-end
-
-# degrees C
-function temperature(dev::Device, sensor=NVML_TEMPERATURE_GPU)
-    ref = Ref{Cuint}()
-    nvmlDeviceGetTemperature(dev, sensor, ref)
-    return Int(ref[])
 end
