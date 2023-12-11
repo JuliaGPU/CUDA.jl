@@ -1,12 +1,14 @@
 using CUDA.NVML
 
-macro test_maybe_unsupported(ex)
+# XXX: can we be more fine grained? or check if we have permissions beforehand?
+macro test_maybe(ex)
     quote
         unsupported = try
             $(esc(ex))
             false
         catch err
-            isa(err, NVML.NVMLError) && err.code == NVML.ERROR_NOT_SUPPORTED
+            isa(err, NVML.NVMLError) &&
+            err.code in [NVML.ERROR_NOT_SUPPORTED, NVML.ERROR_NO_PERMISSION]
         end
         @test $(esc(ex)) skip=unsupported
     end
@@ -40,28 +42,28 @@ end
         @test NVML.uuid(dev) == parent_uuid(cuda_dev)
         @test NVML.brand(dev) isa NVML.nvmlBrandType_t
         @test occursin(NVML.name(dev), name(cuda_dev))
-        @test_maybe_unsupported NVML.serial(dev) isa String
+        @test_maybe NVML.serial(dev) isa String
 
         # compute properties
         @test NVML.compute_mode(dev) isa NVML.nvmlComputeMode_t
         @test NVML.compute_capability(dev) == capability(cuda_dev)
-        @test_maybe_unsupported NVML.compute_processes(dev) isa Union{Nothing,Dict}
+        @test_maybe NVML.compute_processes(dev) isa Union{Nothing,Dict}
 
         # clocks
-        @test_maybe_unsupported NVML.default_applications_clock(dev) isa NamedTuple
-        @test_maybe_unsupported NVML.applications_clock(dev) isa NamedTuple
-        @test_maybe_unsupported NVML.clock_info(dev) isa NamedTuple
-        @test_maybe_unsupported NVML.max_clock_info(dev) isa NamedTuple
-        @test_maybe_unsupported NVML.supported_memory_clocks(dev) isa Vector
-        @test_maybe_unsupported NVML.supported_graphics_clocks(dev) isa Vector
-        @test_maybe_unsupported NVML.clock_event_reasons(dev) isa NamedTuple
+        @test_maybe NVML.default_applications_clock(dev) isa NamedTuple
+        @test_maybe NVML.applications_clock(dev) isa NamedTuple
+        @test_maybe NVML.clock_info(dev) isa NamedTuple
+        @test_maybe NVML.max_clock_info(dev) isa NamedTuple
+        @test_maybe NVML.supported_memory_clocks(dev) isa Vector
+        @test_maybe NVML.supported_graphics_clocks(dev) isa Vector
+        @test_maybe NVML.clock_event_reasons(dev) isa NamedTuple
 
         # other queries
-        @test_maybe_unsupported NVML.power_usage(dev) isa Number
-        @test_maybe_unsupported NVML.energy_consumption(dev) isa Number
-        @test_maybe_unsupported NVML.temperature(dev) isa Number
-        @test_maybe_unsupported NVML.memory_info(dev) isa NamedTuple
-        @test_maybe_unsupported NVML.utilization_rates(dev) isa NamedTuple
+        @test_maybe NVML.power_usage(dev) isa Number
+        @test_maybe NVML.energy_consumption(dev) isa Number
+        @test_maybe NVML.temperature(dev) isa Number
+        @test_maybe NVML.memory_info(dev) isa NamedTuple
+        @test_maybe NVML.utilization_rates(dev) isa NamedTuple
     end
 
     # tests for the compute instance
@@ -74,7 +76,7 @@ end
         context()
         # FIXME: https://github.com/NVIDIA/gpu-monitoring-tools/issues/63
         #@test getpid() in keys(NVML.compute_processes(dev))
-        @test_maybe_unsupported NVML.compute_processes(dev) isa Union{Nothing,Dict}
+        @test_maybe NVML.compute_processes(dev) isa Union{Nothing,Dict}
     end
 end
 
