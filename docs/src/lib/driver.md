@@ -67,7 +67,7 @@ isactive(::CuPrimaryContext)
 flags(::CuPrimaryContext)
 setflags!(::CuPrimaryContext, ::CUDA.CUctx_flags)
 unsafe_reset!(::CuPrimaryContext)
-CUDA.unsafe_release!(::CuContext)
+CUDA.unsafe_release!(::CuPrimaryContext)
 ```
 
 

@@ -165,15 +165,25 @@ function stream_ordered(dev::CuDevice)
   end::Bool
 end
 
-# per-device flag indicating the status of a pool
-const _pool_status = PerDevice{Base.RefValue{Union{Nothing,Bool}}}()
-pool_status(dev::CuDevice) = get!(_pool_status, dev) do
-  # nothing=uninitialized, false=idle, true=active
-  Ref{Union{Nothing,Bool}}(nothing)
+# per-device flag indicating the status of a pool.
+# `nothing` indicates the pool hasn't been initialized,
+# `false` indicates the pool is idle, and `true` indicates it is active.
+const _pool_status = PerDevice{Base.RefValue{Bool}}()
+function pool_status(dev::CuDevice)
+  status = get(_pool_status, dev, nothing)
+  status === nothing && return nothing
+  return status[]
+end
+function pool_status!(dev::CuDevice, val)
+  box = get!(_pool_status, dev) do
+    # nothing=uninitialized, false=idle, true=active
+    Ref{Bool}()
+  end
+  box[] = val
+  return
 end
 function pool_mark(dev::CuDevice)
-  status = pool_status(dev)
-  if status[] === nothing
+  if pool_status(dev) === nothing
       limits = memory_limits()
 
       # create a custom memory pool and assign it to the device
@@ -196,7 +206,7 @@ function pool_mark(dev::CuDevice)
   else
       pool = memory_pool(dev)
   end
-  status[] = true
+  pool_status!(dev, true)
   return pool
 end
 
@@ -205,27 +215,6 @@ const __pool_cleanup = Ref{Task}()
 function pool_cleanup()
   idle_counters = Base.fill(0, ndevices())
   while true
-    for (i, dev) in enumerate(devices())
-      stream_ordered(dev) || continue
-
-      status = pool_status(dev)
-      status[] === nothing && continue
-
-      if status[]::Bool
-        idle_counters[i] = 0
-      else
-        idle_counters[i] += 1
-      end
-      status[] = 0
-
-      if idle_counters[i] == 5
-        # the pool hasn't been used for a while, so reclaim unused buffers
-        device!(dev) do
-          reclaim()
-        end
-      end
-    end
-
     try
       sleep(60)
     catch ex
@@ -234,6 +223,27 @@ function pool_cleanup()
         break
       else
         rethrow()
+      end
+    end
+
+    for (i, dev) in enumerate(devices())
+      stream_ordered(dev) || continue
+
+      status = pool_status(dev)
+      status === nothing && continue
+
+      if status
+        idle_counters[i] = 0
+      else
+        idle_counters[i] += 1
+      end
+      pool_status!(dev, false)
+
+      if idle_counters[i] == 5
+        # the pool hasn't been used for a while, so reclaim unused buffers
+        device!(dev) do
+          reclaim()
+        end
       end
     end
   end
