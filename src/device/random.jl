@@ -50,10 +50,6 @@ function initialize_rng_state()
     @inbounds global_random_counters()[warpId] = 0
 end
 
-if VERSION < v"1.11.0-0"
-    @device_override Random.make_seed() = clock(UInt32)
-end
-
 # generators
 
 using Random123: philox2x_round, philox2x_bumpkey
@@ -109,7 +105,20 @@ function Random.seed!(rng::Philox2x32, seed::Integer, counter::Integer=0)
     return
 end
 
-if VERSION < v"1.11.0-0"
+if VERSION >= v"1.11-"
+    # `Random.seed!(::AbstractRNG)` now passes a `nothing` seed value
+    Random.seed!(rng::Philox2x32, seed::Nothing) =
+        Random.seed!(rng, clock(UInt32))
+else
+    # ... where it used to call `Random_make_seed()`
+    @device_override Random.make_seed() = clock(UInt32)
+end
+
+# seeding the implicit default RNG
+if VERSION >= v"1.11-"
+    @device_override Random.seed!(seed) =
+        Random.seed!(Random.default_rng(), seed)
+else
     @device_override Random.seed!(::Random._GLOBAL_RNG, seed) =
         Random.seed!(Random.default_rng(), seed)
 end
