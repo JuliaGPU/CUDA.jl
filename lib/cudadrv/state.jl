@@ -174,7 +174,7 @@ end
             end
         end
     elseif !skip_destroyed
-        error("Cannot switch to an invalidated context.")
+        error("This CUDA context has been destroyed.")
     end
 end
 
