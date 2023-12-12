@@ -38,9 +38,8 @@ macro profile(ex...)
     kwargs = ex[1:end-1]
 
     # extract keyword arguments that are handled by this macro
-    io = nothing
     external = false
-    remaining_kwargs = []
+    remaining_kwargs = Expr[]
     for kwarg in kwargs
         if Meta.isexpr(kwarg, :(=))
             key, value = kwarg.args
@@ -48,20 +47,19 @@ macro profile(ex...)
                 isa(value, Bool) || throw(ArgumentError("Invalid value for keyword argument `external`: got `$value`, expected literal boolean value"))
                 external = value
             else
-                push!(remaining_kwargs, kwarg)
+                push!(remaining_kwargs, Expr(:kw, key, esc(value)))
             end
         else
             throw(ArgumentError("Invalid keyword argument to CUDA.@profile: $kwarg"))
         end
     end
 
-    if external
-        isempty(remaining_kwargs) ||
-            throw(ArgumentError("Invalid keyword arguments to CUDA.@profile: $remaining_kwargs"))
-        Profile.emit_external_profile(code)
-    else
-        quote
-            $(Profile.emit_integrated_profile(code, remaining_kwargs))
+    quote
+        profiled_code() = $(esc(code))
+        if $external
+            $Profile.profile_externally(profiled_code; $(remaining_kwargs...))
+        else
+            $Profile.profile_internally(profiled_code; $(remaining_kwargs...))
         end
     end
 end
@@ -83,41 +81,23 @@ macro bprofile(ex...)
     kwargs = ex[1:end-1]
 
     # extract keyword arguments that are handled by this macro
-    time = 1.0
-    remaining_kwargs = []
+    remaining_kwargs = Expr[]
     for kwarg in kwargs
         if Meta.isexpr(kwarg, :(=))
             key, value = kwarg.args
-            if key == :time
-                isa(value, Number) || throw(ArgumentError("Invalid value for keyword argument `time`: got `$value`, expected literal number"))
-                time = value
-            elseif key == :external
+            if key == :external
                 error("The `external` keyword argument is not supported by `CUDA.@bprofile`")
             else
-                push!(remaining_kwargs, kwarg)
+                push!(remaining_kwargs, Expr(:kw, key, esc(value)))
             end
         else
             throw(ArgumentError("Invalid keyword argument to CUDA.@bprofile: $kwarg"))
         end
     end
 
-    # the benchmarking code; pretty naive right now
-    body = quote
-        t0 = time_ns()
-        domain = $NVTX.Domain("@bprofile")
-        while (time_ns() - t0)/1e9 < $time
-            $NVTX.@range "iteration" domain=domain begin
-                $(code)
-                CUDA.cuCtxSynchronize()
-            end
-        end
-    end
-
     quote
-        # warm-up
-        $(esc(code))
-
-        $(Profile.emit_integrated_profile(body, remaining_kwargs))
+        benchmarked_code() = $(esc(code))
+        $Profile.benchmark_and_profile(benchmarked_code; $(remaining_kwargs...))
     end
 end
 
@@ -125,7 +105,7 @@ end
 module Profile
 
 using ..CUDA
-
+using ..NVTX
 using ..CUPTI
 
 using PrettyTables
@@ -139,19 +119,17 @@ using Printf
 # external profiler
 #
 
-function emit_external_profile(code)
-    quote
-        # wait for the device to become idle (and trigger a GC to avoid interference)
-        CUDA.cuCtxSynchronize()
-        GC.gc(false)
-        GC.gc(true)
+function profile_externally(f)
+    # wait for the device to become idle (and trigger a GC to avoid interference)
+    CUDA.cuCtxSynchronize()
+    GC.gc(false)
+    GC.gc(true)
 
-        $Profile.start()
-        try
-            $(esc(code))
-        finally
-            $Profile.stop()
-        end
+    start()
+    try
+        f()
+    finally
+        stop()
     end
 end
 
@@ -247,12 +225,6 @@ Currently, it contains three dataframes:
 
 See also: [`@profile`](@ref)
 """
-macro profiled(ex)
-    quote
-        _, data = $(Profile.emit_integrated_profile(ex))
-        data
-    end
-end
 Base.@kwdef struct ProfileResults
     # captured data
     host::DataFrame
@@ -264,13 +236,13 @@ Base.@kwdef struct ProfileResults
     raw::Bool=false
 end
 
-function emit_integrated_profile(code, kwargs)
+function profile_internally(f; concurrent=true, kwargs...)
     activity_kinds = [
         # API calls
         CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,
         CUPTI.CUPTI_ACTIVITY_KIND_RUNTIME,
         # kernel execution
-        CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL,
+        concurrent ? CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL : CUPTI.CUPTI_ACTIVITY_KIND_KERNEL,
         CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API,
         # memory operations
         CUPTI.CUPTI_ACTIVITY_KIND_MEMCPY,
@@ -291,30 +263,27 @@ function emit_integrated_profile(code, kwargs)
     if VERSION < v"1.9"
         @error "The integrated profiler is not supported on Julia <1.9, and will crash." maxlog=1
     end
+    cfg = CUPTI.ActivityConfig(activity_kinds)
 
-    quote
-        cfg = CUPTI.ActivityConfig($activity_kinds)
+    # wait for the device to become idle (and trigger a GC to avoid interference)
+    CUDA.cuCtxSynchronize()
+    GC.gc(false)
+    GC.gc(true)
 
-        # wait for the device to become idle (and trigger a GC to avoid interference)
+    CUPTI.enable!(cfg)
+
+    # sink the initial profiler overhead into a synchronization call
+    CUDA.cuCtxSynchronize()
+    try
+        f()
+
+        # synchronize to ensure we capture all activity
         CUDA.cuCtxSynchronize()
-        GC.gc(false)
-        GC.gc(true)
-
-        CUPTI.enable!(cfg)
-
-        # sink the initial profiler overhead into a synchronization call
-        CUDA.cuCtxSynchronize()
-        try
-            $(esc(code))
-
-            # synchronize to ensure we capture all activity
-            CUDA.cuCtxSynchronize()
-        finally
-            CUPTI.disable!(cfg)
-        end
-        data = $Profile.capture(cfg)
-        $ProfileResults(; data..., $(map(esc, kwargs)...))
+    finally
+        CUPTI.disable!(cfg)
     end
+    data = capture(cfg)
+    ProfileResults(; data..., kwargs...)
 end
 
 # convert CUPTI activity records to host and device traces
@@ -994,6 +963,30 @@ function format_time(ts::Number...)
     else
         return strs
     end
+end
+
+
+#
+# benchmarking
+#
+
+function benchmark_and_profile(f; time=1.0, kwargs...)
+    # warm-up
+    f()
+
+    # the benchmarking code; pretty naive right now
+    function benchmark_harness(; kwargs...)
+        t0 = time_ns()
+        domain = NVTX.Domain("@bprofile")
+        while (time_ns() - t0)/1e9 < time
+            NVTX.@range "iteration" domain=domain begin
+                f()
+                CUDA.cuCtxSynchronize()
+            end
+        end
+    end
+
+    profile_internally(benchmark_harness; kwargs...)
 end
 
 end
