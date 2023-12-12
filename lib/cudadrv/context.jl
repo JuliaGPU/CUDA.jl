@@ -80,37 +80,35 @@ end
 # to make this work, every function returning a context (e.g. `cuCtxGetCurrent`, attribute
 # functions, etc) need to return the same context objects. because looking up a context is a
 # very common operation (often executed from finalizers), we need to ensure this look-up is
-# fast and lockless. this rules out using a dictionary, so we use a plain array containing
-# context objects.
+# fast and does not switch tasks. we do this by scanning a simple linear vector.
 const MAX_CONTEXTS = 1024
 const context_objects = Vector{CuContext}(undef, MAX_CONTEXTS)
+const context_lock = Base.ThreadSynchronizer()
 function UniqueCuContext(handle::CUcontext)
-    # look if there's an existing object for this handle
-    i = 1
-    @inbounds while i <= MAX_CONTEXTS && isassigned(context_objects, i)
-        if context_objects[i].handle == handle
-            if isvalid(context_objects[i])
-                return context_objects[i]
-            else
-                # this object was invalidated, so we can reuse its slot
-                break
+    @lock context_lock begin
+        # look if there's an existing object for this handle
+        i = 1
+        @inbounds while i <= MAX_CONTEXTS && isassigned(context_objects, i)
+            if context_objects[i].handle == handle
+                if isvalid(context_objects[i])
+                    return context_objects[i]
+                else
+                    # this object was invalidated, so we can reuse its slot
+                    break
+                end
             end
+            i += 1
         end
-        i += 1
-    end
-    if i == MAX_CONTEXTS
-        error("Exceeded maximum amount of CUDA contexts. This is unexpected; please file an issue.")
-    end
+        if i == MAX_CONTEXTS
+            error("Exceeded maximum amount of CUDA contexts. This is unexpected; please file an issue.")
+        end
 
-    # we've got a slot we can write to
-    # XXX: this write is racy, but we cannot take a lock...
-    new_object = UnsafeCuContext(handle)
-    context_objects[i] = new_object
-    return new_object
+        # we've got a slot we can write to
+        new_object = UnsafeCuContext(handle)
+        @inbounds context_objects[i] = new_object
+        return new_object
+    end
 end
-# because we're unable to take locks, the code above is racy... this may result in multiple
-# objects for the same context, which can lead to data being freed after the owning context
-# was destroyed. this however should be rare, and only result in errors during process exit.
 
 """
     unsafe_destroy!(ctx::CuContext)
