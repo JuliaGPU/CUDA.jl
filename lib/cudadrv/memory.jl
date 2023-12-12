@@ -817,7 +817,7 @@ end
 Identify the context a CUDA memory buffer was allocated in.
 """
 context(ptr::Union{Ptr,CuPtr}) =
-    _CuContext(attribute(CUcontext, ptr, POINTER_ATTRIBUTE_CONTEXT))
+    UniqueCuContext(attribute(CUcontext, ptr, POINTER_ATTRIBUTE_CONTEXT))
 
 """
     device(ptr)
