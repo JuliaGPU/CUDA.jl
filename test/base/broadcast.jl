@@ -47,3 +47,19 @@ end
   @test eltype(A .+ ComplexF32.(1)) == ComplexF64
   @test eltype(ComplexF32.(A) .+ ComplexF32.(1)) == ComplexF32
 end
+
+# https://github.com/JuliaGPU/CUDA.jl/issues/2191
+@testset "preserving buffer types" begin
+  a = cu([1]; unified=true)
+  @test is_unified(a)
+
+  # unified-ness should be preserved
+  b = a .+ 1
+  @test is_unified(b)
+
+  # when there's a conflict, we should defer to unified memory
+  c = cu([1]; device=true)
+  d = cu([1]; host=true)
+  e = c .+ d
+  @test is_unified(e)
+end

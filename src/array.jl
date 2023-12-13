@@ -359,6 +359,9 @@ Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 context(A::CuArray) = A.data[].ctx
 device(A::CuArray) = device(A.data[].ctx)
 
+buftype(x::CuArray) = buftype(typeof(x))
+buftype(::Type{<:CuArray{<:Any,<:Any,B}}) where {B} = @isdefined(B) ? B : Any
+
 
 ## derived types
 

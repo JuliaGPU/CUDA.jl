@@ -167,8 +167,8 @@ end
   @testset "CPU array source" begin
       a = rand(3)
       i = rand(1:3, 2)
-      @test testf(view, a, i)
-      @test testf(view, a, view(i, 2:2))
+      @test testf(view, a, Ref(i))
+      @test testf(view, a, Ref(view(i, 2:2)))
   end
 
   @testset "unmanaged view" begin
