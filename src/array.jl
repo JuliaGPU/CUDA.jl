@@ -359,6 +359,9 @@ Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 context(A::CuArray) = A.data[].ctx
 device(A::CuArray) = device(A.data[].ctx)
 
+buftype(x::CuArray) = buftype(typeof(x))
+buftype(::Type{<:CuArray{<:Any,<:Any,B}}) where {B} = @isdefined(B) ? B : Any
+
 
 ## derived types
 
@@ -823,8 +826,7 @@ end
 
 ## derived arrays
 
-function GPUArrays.derive(::Type{T}, n::Int, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
-  @assert n == N
+function GPUArrays.derive(::Type{T}, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
   offset = (a.offset * Base.elsize(a)) ÷ sizeof(T) + offset
   CuArray{T,N}(copy(a.data), dims; a.maxsize, offset)
 end
