@@ -17,7 +17,7 @@ function cuda_version()
 end
 
 function cutensorCreate()
-  handle_ref = Ref{Ptr{cutensorHandle_t}}()
+  handle_ref = Ref{cutensorHandle_t}()
   check(CUTENSOR_STATUS_NOT_INITIALIZED) do
     unsafe_cutensorCreate(handle_ref)
   end
