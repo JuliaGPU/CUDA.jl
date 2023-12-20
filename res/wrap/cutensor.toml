@@ -2,6 +2,7 @@
 library_name = "libcutensor"
 output_file_path = "../../lib/cutensor/src/libcutensor.jl"
 prologue_file_path = "./libcutensor_prologue.jl"
+epilogue_file_path = "./libcutensor_epilogue.jl"
 
 output_ignorelist = [
     # these change often
