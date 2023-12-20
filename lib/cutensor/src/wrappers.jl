@@ -272,7 +272,7 @@ function contraction!(
         @nospecialize(beta::Number),
         @nospecialize(C::Union{Array, CuArray}), Cinds::ModeType, opC::cutensorOperator_t,
         opOut::cutensorOperator_t;
-        pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
+        pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT,
         compute_type::Type=eltype(C), plan::Union{CuTensorPlan, Nothing}=nothing)
 
@@ -303,7 +303,7 @@ function plan_contraction(
         @nospecialize(B::Union{CuArray, Array}), Binds::ModeType, opB::cutensorOperator_t,
         @nospecialize(C::Union{CuArray, Array}), Cinds::ModeType, opC::cutensorOperator_t,
         opOut::cutensorOperator_t;
-        pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
+        pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
