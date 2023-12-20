@@ -25,10 +25,32 @@ function cutensorCreate()
 end
 
 
-abstract type CuTensorPlan end
+mutable struct CuTensorPlan
+    ctx::CuContext
+    handle::cutensorPlan_t
 
-CUDA.unsafe_free!(plan::CuTensorPlan) = CUDA.unsafe_free!(plan.workspace)
-unsafe_finalize!(plan::CuTensorPlan) = CUDA.unsafe_finalize!(plan.workspace)
+    function CuTensorPlan(desc, pref; workspacePref=CUTENSOR_WORKSPACE_DEFAULT)
+        workspaceSize = Ref{UInt64}()
+        cutensorEstimateWorkspaceSize(handle(), desc, pref, workspacePref, workspaceSize)
+
+        plan_ref[] = Ref{cutensorPlan_t}()
+        cutensorCreatePlan(handle(), plan_ref, desc, pref, workspaceSize[])
+        obj = new(handle(), plan_ref)
+        finalizer(unsafe_destroy!, obj)
+        return obj
+    end
+end
+
+function unsafe_destroy!(plan::CuTensorPlan)
+    context!(plan.ctx; skip_destroyed=true) do
+        cutensorDestroyPlan(e)
+    end
+end
+
+Base.unsafe_convert(::Type{cutensorPlan_t}, plan::CuTensorPlan) = plan.handle
+
+Base.:(==)(a::CuTensorPlan, b::CuTensorPlan) = a.handle == b.handle
+Base.hash(plan::CuTensorPlan, h::UInt) = hash(plan.handle, h)
 
 
 const ModeType = AbstractVector{<:Union{Char, Integer}}
@@ -243,17 +265,6 @@ function permutation!(
     return B
 end
 
-mutable struct CuTensorContractionPlan <: CuTensorPlan
-    ctx::CuContext
-    handle::Base.RefValue{cutensorContractionPlan_t}
-    workspace::CuVector{UInt8,Mem.DeviceBuffer}
-
-    function CuTensorContractionPlan(handle, workspace)
-        plan = new(context(), handle, workspace)
-        finalizer(unsafe_finalize!, plan)
-    end
-end
-
 function contraction!(
         @nospecialize(alpha::Number),
         @nospecialize(A::Union{Array, CuArray}), Ainds::ModeType, opA::cutensorOperator_t,
@@ -263,7 +274,7 @@ function contraction!(
         opOut::cutensorOperator_t;
         pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT,
-        compute_type::Type=eltype(C), plan::Union{CuTensorContractionPlan, Nothing}=nothing)
+        compute_type::Type=eltype(C), plan::Union{CuTensorPlan, Nothing}=nothing)
 
     # XXX: save these as parameters of the plan?
     output_type = eltype(C)
@@ -327,19 +338,7 @@ function plan_contraction(
     find = Ref{cutensorContractionFind_t}()
     cutensorInitContractionFind(handle(), find, algo)
 
-    function workspaceSize()
-        @nospecialize
-        out = Ref{UInt64}(C_NULL)
-        cutensorContractionGetWorkspace(handle(), desc, find, pref, out)
-        return out[]
-    end
-    with_workspace(workspaceSize, 1<<27; keep=true) do workspace
-        @nospecialize
-        plan_ref = Ref{cutensorContractionPlan_t}()
-        cutensorInitContractionPlan(handle(), plan_ref, desc, find, sizeof(workspace))
-
-        CuTensorContractionPlan(plan_ref, workspace)
-    end
+    CuTensorPlan(desc, pref)
 end
 
 function reduction!(
