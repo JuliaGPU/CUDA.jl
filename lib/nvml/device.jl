@@ -214,10 +214,18 @@ supported_graphics_clocks(dev::Device) =
 
 function clock_event_reasons(dev::Device)
     current_events = Ref{Culonglong}()
-    nvmlDeviceGetCurrentClocksEventReasons(dev, current_events)
+    if version() >= v"12.2"
+        nvmlDeviceGetCurrentClocksEventReasons(dev, current_events)
+    else
+        nvmlDeviceGetCurrentClocksThrottleReasons(dev, current_events)
+    end
 
     supported_events = Ref{Culonglong}(0)
-    nvmlDeviceGetSupportedClocksEventReasons(dev, supported_events)
+    if version() >= v"12.2"
+        nvmlDeviceGetSupportedClocksEventReasons(dev, supported_events)
+    else
+        nvmlDeviceGetSupportedClocksThrottleReasons(dev, supported_events)
+    end
 
     reasons = [
         # Nothing is running on the GPU and the clocks are dropping to Idle state
