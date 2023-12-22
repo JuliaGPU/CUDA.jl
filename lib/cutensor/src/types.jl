@@ -11,11 +11,11 @@ const scalar_types = Dict(
     (ComplexF64, ComplexF64)    => ComplexF64,
     (ComplexF64, ComplexF32)    => ComplexF64)
 
-function cutensorComputeType(T::DataType)
-    if T == Float32 || T == ComplexF32
-        return CUTENSOR_COMPUTE_DESC_32F()
-    elseif T == Float16 || T == ComplexF16
+function Base.cconvert(::Type{cutensorComputeDescriptor_t}, T::DataType)
+    if T == Float16 || T == ComplexF16
         return CUTENSOR_COMPUTE_DESC_16F()
+    elseif T == Float32 || T == ComplexF32
+        return CUTENSOR_COMPUTE_DESC_32F()
     elseif T == Float64 || T == ComplexF64
         return CUTENSOR_COMPUTE_DESC_64F()
     else
@@ -23,15 +23,15 @@ function cutensorComputeType(T::DataType)
     end
 end
 
-function cutensorDataType(T::DataType)
-    if T == Float32
-        return CUTENSOR_R_32F
-    elseif T == ComplexF32
-        return CUTENSOR_C_32F
-    elseif T == Float16
+function Base.convert(::Type{cutensorDataType_t}, T::DataType)
+    if T == Float16
         return CUTENSOR_R_16F
     elseif T == ComplexF16
         return CUTENSOR_C_16F
+    elseif T == Float32
+        return CUTENSOR_R_32F
+    elseif T == ComplexF32
+        return CUTENSOR_C_32F
     elseif T == Float64
         return CUTENSOR_R_64F
     elseif T == ComplexF64
@@ -117,10 +117,9 @@ mutable struct CuTensorDescriptor
         sz = collect(Int64, size)
         st = collect(Int64, strides)
         alignmentRequirement::UInt32 = 128
-        dataType = cutensorDataType(eltype)
 
         desc = Ref{cutensorTensorDescriptor_t}()
-        cutensorCreateTensorDescriptor(handle(), desc, length(sz), sz, st, dataType, alignmentRequirement)
+        cutensorCreateTensorDescriptor(handle(), desc, length(sz), sz, st, eltype, alignmentRequirement)
 
         obj = new(desc[])
         finalizer(unsafe_destroy!, obj)

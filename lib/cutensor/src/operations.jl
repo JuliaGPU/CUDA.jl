@@ -230,7 +230,6 @@ function plan_contraction(
     # for now, D must be identical to C (and thus, descD must be identical to descC)
     output_type = eltype(C)
     scalar_type = scalar_types[(output_type, compute_type)]
-    computeType = cutensorComputeType(compute_type)
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
@@ -242,7 +241,7 @@ function plan_contraction(
                               descB, modeB, opB,
                               descC, modeC, opC,
                               descC, modeC,
-                              computeType)
+                              compute_type)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, CUTENSOR_JIT_MODE_NONE)
@@ -291,7 +290,6 @@ function plan_reduction(
     descA = CuTensorDescriptor(A)
     descC = CuTensorDescriptor(C)
     # for now, D must be identical to C (and thus, descD must be identical to descC)
-    computeType = cutensorComputeType(compute_type)
     modeA = collect(Cint, Ainds)
     modeC = collect(Cint, Cinds)
 
@@ -301,7 +299,7 @@ function plan_reduction(
                             descA, modeA, opA,
                             descC, modeC, opC,
                             descC, modeC, opReduce,
-                            computeType)
+                            compute_type)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, CUTENSOR_JIT_MODE_NONE)
