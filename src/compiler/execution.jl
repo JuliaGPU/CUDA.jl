@@ -109,17 +109,7 @@ macro cuda(ex...)
                     $kernel_f = $cudaconvert($f_var)
                     $kernel_args = map($cudaconvert, ($(var_exprs...),))
                     $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                    $kernel = try
-                        $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
-                    catch err
-                        f_str = $(string(f))
-                        arg_strs = ["\n  $arg :: $type   ($(sizeof(type)) bytes)" for (arg, type) in zip($(map(string, args)), fieldtypes($kernel_tt))]
-                        @error(
-                            "Error compiling CUDA kernel $(f_str) with args: $(join(arg_strs))",
-                            _file=$(__source__.file === nothing ? "?" : String(__source__.file::Symbol)),
-                            _line=$(__source__.line))
-                        rethrow(err)
-                    end
+                    $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
                     if $launch
                         $kernel($(var_exprs...); $(call_kwargs...))
                     end

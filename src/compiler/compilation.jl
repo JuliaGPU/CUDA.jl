@@ -273,8 +273,22 @@ function compile(@nospecialize(job::CompilerJob))
         push!(ptxas_opts, "--compile-only")
     end
 
+    ptx = job.config.params.ptx
     cap = job.config.params.cap
     arch = "sm_$(cap.major)$(cap.minor)"
+
+    # validate use of parameter memory
+    param_usage = sum(sizeof, job.source.specTypes.parameters)
+    param_usage += sizeof(KernelState)
+    param_limit = 4096
+    if cap >= v"7.0" && ptx >= v"8.1"
+        param_limit = 32764
+    end
+    if param_usage > param_limit
+        kernel_name = sprint(io->Base.show_tuple_as_call(io, job.source.def.name, job.source.specTypes))
+        @error """Invocation of $(kernel_name) uses $(Base.format_bytes(param_usage)) of parameters, exceeding the $(Base.format_bytes(param_limit)) limit.
+                  Compilation will likely fail."""
+    end
 
     # compile to machine code
     # NOTE: we use tempname since mktemp doesn't support suffixes, and mktempdir is slow
