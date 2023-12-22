@@ -28,22 +28,25 @@ end
 mutable struct CuTensorPlan
     ctx::CuContext
     handle::cutensorPlan_t
+    workspace::CuVector{UInt8,Mem.DeviceBuffer}
 
     function CuTensorPlan(desc, pref; workspacePref=CUTENSOR_WORKSPACE_DEFAULT)
-        workspaceSize = Ref{UInt64}()
-        cutensorEstimateWorkspaceSize(handle(), desc, pref, workspacePref, workspaceSize)
+        # estimate the workspace size
+        workspaceSizeEstimate = Ref{UInt64}()
+        cutensorEstimateWorkspaceSize(handle(), desc, pref, workspacePref, workspaceSizeEstimate)
 
-        plan_ref[] = Ref{cutensorPlan_t}()
-        cutensorCreatePlan(handle(), plan_ref, desc, pref, workspaceSize[])
-        obj = new(handle(), plan_ref)
-        finalizer(unsafe_destroy!, obj)
+        # create the plan
+        plan_ref = Ref{cutensorPlan_t}()
+        cutensorCreatePlan(handle(), plan_ref, desc, pref, workspaceSizeEstimate[])
+
+        # allocate the actual workspace
+        actualWorkspaceSize = Ref{UInt64}()
+        cutensorPlanGetAttribute(handle(), plan_ref[], CUTENSOR_PLAN_REQUIRED_WORKSPACE, actualWorkspaceSize, sizeof(actualWorkspaceSize))
+        workspace = CuArray{UInt8}(undef, actualWorkspaceSize[])
+
+        obj = new(context(), plan_ref[], workspace)
+        finalizer(CUDA.unsafe_finalize!, obj)
         return obj
-    end
-end
-
-function unsafe_destroy!(plan::CuTensorPlan)
-    context!(plan.ctx; skip_destroyed=true) do
-        cutensorDestroyPlan(e)
     end
 end
 
@@ -51,6 +54,31 @@ Base.unsafe_convert(::Type{cutensorPlan_t}, plan::CuTensorPlan) = plan.handle
 
 Base.:(==)(a::CuTensorPlan, b::CuTensorPlan) = a.handle == b.handle
 Base.hash(plan::CuTensorPlan, h::UInt) = hash(plan.handle, h)
+
+# destroying the plan
+function unsafe_destroy!(plan::CuTensorPlan)
+    context!(plan.ctx; skip_destroyed=true) do
+        cutensorDestroyPlan(plan)
+    end
+end
+
+# early freeing the plan and associated workspace
+function CUDA.unsafe_free!(plan::CuTensorPlan)
+    CUDA.unsafe_free!(plan.workspace)
+    if plan.handle !== C_NULL
+        unsafe_destroy!(plan)
+        plan.handle = C_NULL
+    end
+end
+
+# GC-driven freeing of the plan and associated workspace
+function CUDA.unsafe_finalize!(plan::CuTensorPlan)
+    CUDA.unsafe_finalize!(plan.workspace)
+    if plan.handle !== C_NULL
+        unsafe_destroy!(plan)
+        plan.handle = C_NULL
+    end
+end
 
 
 const ModeType = AbstractVector{<:Union{Char, Integer}}
@@ -277,7 +305,7 @@ function contraction!(
 
     # XXX: save these as parameters of the plan?
     actual_plan = if plan === nothing
-        create_contraction_plan(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, opOut; ws_pref, algo, compute_type)
+        plan_contraction(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, opOut; ws_pref, algo, compute_type)
     else
         plan
     end
@@ -296,7 +324,7 @@ function contraction!(
     return C
 end
 
-function create_contraction_plan(
+function plan_contraction(
         @nospecialize(A::Union{CuArray, Array}), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(B::Union{CuArray, Array}), Binds::ModeType, opB::cutensorOperator_t,
         @nospecialize(C::Union{CuArray, Array}), Cinds::ModeType, opC::cutensorOperator_t,
@@ -330,7 +358,7 @@ function create_contraction_plan(
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, CUTENSOR_JIT_MODE_NONE)
 
-    CuTensorPlan(plan, desc[]; workspacePref=ws_pref)
+    CuTensorPlan(desc[], plan_pref[]; workspacePref=ws_pref)
 end
 
 function reduction!(
@@ -343,7 +371,7 @@ function reduction!(
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C), plan::Union{CuTensorPlan, Nothing}=nothing)
 
     actual_plan = if plan === nothing
-        create_reduction_plan(A, Ainds, opA, C, Cinds, opC, opReduce; ws_pref, algo, compute_type)
+        plan_reduction(A, Ainds, opA, C, Cinds, opC, opReduce; ws_pref, algo, compute_type)
     else
         plan
     end
@@ -362,7 +390,7 @@ function reduction!(
     return C
 end
 
-function create_reduction_plan(
+function plan_reduction(
         @nospecialize(A::Union{CuArray, Array}), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(C::Union{CuArray, Array}), Cinds::ModeType, opC::cutensorOperator_t,
         opReduce::cutensorOperator_t;
@@ -389,7 +417,7 @@ function create_reduction_plan(
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, CUTENSOR_JIT_MODE_NONE)
 
-    CuTensorPlan(plan[], desc[]; workspacePref=ws_pref)
+    CuTensorPlan(desc[], plan_pref[]; workspacePref=ws_pref)
 end
 
 function cutensorComputeType(T::DataType)
