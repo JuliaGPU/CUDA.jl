@@ -1,86 +1,3 @@
-# wrappers of low-level functionality
-
-function version()
-    ver = cutensorGetVersion()
-    major, ver = divrem(ver, 10000)
-    minor, patch = divrem(ver, 100)
-
-    VersionNumber(major, minor, patch)
-end
-
-function cuda_version()
-  ver = cutensorGetCudartVersion()
-  major, ver = divrem(ver, 1000)
-  minor, patch = divrem(ver, 10)
-
-  VersionNumber(major, minor, patch)
-end
-
-function cutensorCreate()
-  handle_ref = Ref{cutensorHandle_t}()
-  check(CUTENSOR_STATUS_NOT_INITIALIZED) do
-    unsafe_cutensorCreate(handle_ref)
-  end
-  handle_ref[]
-end
-
-
-mutable struct CuTensorPlan
-    ctx::CuContext
-    handle::cutensorPlan_t
-    workspace::CuVector{UInt8,Mem.DeviceBuffer}
-
-    function CuTensorPlan(desc, pref; workspacePref=CUTENSOR_WORKSPACE_DEFAULT)
-        # estimate the workspace size
-        workspaceSizeEstimate = Ref{UInt64}()
-        cutensorEstimateWorkspaceSize(handle(), desc, pref, workspacePref, workspaceSizeEstimate)
-
-        # create the plan
-        plan_ref = Ref{cutensorPlan_t}()
-        cutensorCreatePlan(handle(), plan_ref, desc, pref, workspaceSizeEstimate[])
-
-        # allocate the actual workspace
-        actualWorkspaceSize = Ref{UInt64}()
-        cutensorPlanGetAttribute(handle(), plan_ref[], CUTENSOR_PLAN_REQUIRED_WORKSPACE, actualWorkspaceSize, sizeof(actualWorkspaceSize))
-        workspace = CuArray{UInt8}(undef, actualWorkspaceSize[])
-
-        obj = new(context(), plan_ref[], workspace)
-        finalizer(CUDA.unsafe_finalize!, obj)
-        return obj
-    end
-end
-
-Base.unsafe_convert(::Type{cutensorPlan_t}, plan::CuTensorPlan) = plan.handle
-
-Base.:(==)(a::CuTensorPlan, b::CuTensorPlan) = a.handle == b.handle
-Base.hash(plan::CuTensorPlan, h::UInt) = hash(plan.handle, h)
-
-# destroying the plan
-function unsafe_destroy!(plan::CuTensorPlan)
-    context!(plan.ctx; skip_destroyed=true) do
-        cutensorDestroyPlan(plan)
-    end
-end
-
-# early freeing the plan and associated workspace
-function CUDA.unsafe_free!(plan::CuTensorPlan)
-    CUDA.unsafe_free!(plan.workspace)
-    if plan.handle !== C_NULL
-        unsafe_destroy!(plan)
-        plan.handle = C_NULL
-    end
-end
-
-# GC-driven freeing of the plan and associated workspace
-function CUDA.unsafe_finalize!(plan::CuTensorPlan)
-    CUDA.unsafe_finalize!(plan.workspace)
-    if plan.handle !== C_NULL
-        unsafe_destroy!(plan)
-        plan.handle = C_NULL
-    end
-end
-
-
 const ModeType = AbstractVector{<:Union{Char, Integer}}
 
 is_unary(op::cutensorOperator_t) =
@@ -88,34 +5,6 @@ is_unary(op::cutensorOperator_t) =
             CUTENSOR_OP_RCP))
 is_binary(op::cutensorOperator_t) =
     (op ∈ (CUTENSOR_OP_ADD, CUTENSOR_OP_MUL, CUTENSOR_OP_MAX, CUTENSOR_OP_MIN))
-
-mutable struct CuTensorDescriptor
-    desc::Ref{cutensorTensorDescriptor_t}
-
-    function CuTensorDescriptor(a; size = size(a), strides = strides(a), eltype = eltype(a))
-        sz = collect(Int64, size)
-        st = collect(Int64, strides)
-        desc = Ref{cutensorTensorDescriptor_t}()
-        alignmentRequirement::UInt32 = 128
-        dataType = cutensorDataType(eltype)
-        cutensorCreateTensorDescriptor(handle(), desc, length(sz), sz, st, dataType, alignmentRequirement)
-        # obj = new(desc)
-        return desc
-    end
-end
-
-const scalar_types = Dict(
-    (Float16, Float16)          => Float32,
-    (Float32, Float16)          => Float32,
-    (Float16, Float32)          => Float32,
-    (Float32, Float32)          => Float32,
-    (Float64, Float64)          => Float64,
-    (Float64, Float32)          => Float64,
-    (ComplexF32, ComplexF32)    => ComplexF32,
-    (ComplexF64, ComplexF64)    => ComplexF64,
-    (ComplexF64, ComplexF32)    => ComplexF64)
-
-Base.cconvert(::Type{Ptr{cutensorTensorDescriptor_t}}, obj::CuTensorDescriptor) = obj.desc
 
 # function elementwiseTrinary!(
 #         @nospecialize(alpha::Number),
@@ -349,10 +238,10 @@ function plan_contraction(
     desc = Ref{cutensorOperationDescriptor_t}()
     cutensorCreateContraction(handle(),
                               desc,
-                              descA[], modeA, opA,
-                              descB[], modeB, opB,
-                              descC[], modeC, opC,
-                              descC[], modeC,
+                              descA, modeA, opA,
+                              descB, modeB, opB,
+                              descC, modeC, opC,
+                              descC, modeC,
                               computeType)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
@@ -409,51 +298,13 @@ function plan_reduction(
     desc = Ref{cutensorOperationDescriptor_t}()
     cutensorCreateReduction(handle(),
                             desc,
-                            descA[], modeA, opA,
-                            descC[], modeC, opC,
-                            descC[], modeC, opReduce,
+                            descA, modeA, opA,
+                            descC, modeC, opC,
+                            descC, modeC, opReduce,
                             computeType)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, CUTENSOR_JIT_MODE_NONE)
 
     CuTensorPlan(desc[], plan_pref[]; workspacePref=ws_pref)
-end
-
-function cutensorComputeType(T::DataType)
-    if T == Float32 || T == ComplexF32
-        return CUTENSOR_COMPUTE_DESC_32F()
-    elseif T == Float16 || T == ComplexF16
-        return CUTENSOR_COMPUTE_DESC_16F()
-    elseif T == Float64 || T == ComplexF64
-        return CUTENSOR_COMPUTE_DESC_64F()
-    else
-        throw(ArgumentError("cutensorComputeType equivalent for input type $T does not exist!"))
-    end
-end
-
-function cutensorDataType(T::DataType)
-    if T == Float32
-        return CUTENSOR_R_32F
-    elseif T == ComplexF32
-        return CUTENSOR_C_32F
-    elseif T == Float16
-        return CUTENSOR_R_16F
-    elseif T == ComplexF16
-        return CUTENSOR_C_16F
-    elseif T == Float64
-        return CUTENSOR_R_64F
-    elseif T == ComplexF64
-        return CUTENSOR_C_64F
-    elseif T == Int8
-        return CUTENSOR_R_8I
-    elseif T == Int32
-        return CUTENSOR_R_32I
-    elseif T == UInt8
-        return CUTENSOR_R_8U
-    elseif T == UInt32
-        return CUTENSOR_R_32U
-    else
-        throw(ArgumentError("cutensorDataType equivalent for input type $T does not exist!"))
-    end
 end

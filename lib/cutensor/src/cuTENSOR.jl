@@ -27,8 +27,9 @@ include("libcutensor.jl")
 
 # low-level wrappers
 include("error.jl")
-include("tensor.jl")
-include("wrappers.jl")
+include("utils.jl")
+include("types.jl")
+include("operations.jl")
 
 # high-level integrations
 include("interfaces.jl")
