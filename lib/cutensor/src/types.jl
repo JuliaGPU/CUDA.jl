@@ -92,7 +92,7 @@ end
 # early freeing the plan and associated workspace
 function CUDA.unsafe_free!(plan::CuTensorPlan)
     CUDA.unsafe_free!(plan.workspace)
-    if plan.handle !== C_NULL
+    if plan.handle != C_NULL
         unsafe_destroy!(plan)
         plan.handle = C_NULL
     end
@@ -101,7 +101,7 @@ end
 # GC-driven freeing of the plan and associated workspace
 function CUDA.unsafe_finalize!(plan::CuTensorPlan)
     CUDA.unsafe_finalize!(plan.workspace)
-    if plan.handle !== C_NULL
+    if plan.handle != C_NULL
         unsafe_destroy!(plan)
         plan.handle = C_NULL
     end
