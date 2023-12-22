@@ -285,9 +285,7 @@ function compile(@nospecialize(job::CompilerJob))
         param_limit = 32764
     end
     if param_usage > param_limit
-        kernel_name = sprint(io->Base.show_tuple_as_call(io, job.source.def.name, job.source.specTypes))
-        @error """Invocation of $(kernel_name) uses $(Base.format_bytes(param_usage)) of parameters, exceeding the $(Base.format_bytes(param_limit)) limit.
-                  Compilation will likely fail."""
+        error("Kernel invocation uses $(Base.format_bytes(param_usage)) of parameters, exceeding the $(Base.format_bytes(param_limit)) limit.")
     end
 
     # compile to machine code
