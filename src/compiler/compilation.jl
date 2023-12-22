@@ -278,8 +278,10 @@ function compile(@nospecialize(job::CompilerJob))
     arch = "sm_$(cap.major)$(cap.minor)"
 
     # validate use of parameter memory
-    param_usage = sum(sizeof, job.source.specTypes.parameters)
-    param_usage += sizeof(KernelState)
+    argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
+        !isghosttype(dt) && !Core.Compiler.isconstType(dt)
+    end
+    param_usage = sum(sizeof, argtypes)
     param_limit = 4096
     if cap >= v"7.0" && ptx >= v"8.1"
         param_limit = 32764
