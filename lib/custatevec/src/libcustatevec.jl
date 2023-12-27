@@ -143,7 +143,7 @@ end
 @checked function custatevecSetWorkspace(handle, workspace, workspaceSizeInBytes)
     initialize_context()
     @ccall libcustatevec.custatevecSetWorkspace(handle::custatevecHandle_t,
-                                                workspace::Ptr{Cvoid},
+                                                workspace::CuPtr{Cvoid},
                                                 workspaceSizeInBytes::Csize_t)::custatevecStatus_t
 end
 
@@ -227,7 +227,7 @@ end
                                             abs2sum1, basisBits, nBasisBits)
     initialize_context()
     @ccall libcustatevec.custatevecAbs2SumOnZBasis(handle::custatevecHandle_t,
-                                                   sv::Ptr{Cvoid},
+                                                   sv::CuPtr{Cvoid},
                                                    svDataType::cudaDataType_t,
                                                    nIndexBits::UInt32,
                                                    abs2sum0::Ptr{Cdouble},
@@ -240,7 +240,8 @@ end
                                          bitOrdering, bitOrderingLen, maskBitString,
                                          maskOrdering, maskLen)
     initialize_context()
-    @ccall libcustatevec.custatevecAbs2SumArray(handle::custatevecHandle_t, sv::Ptr{Cvoid},
+    @ccall libcustatevec.custatevecAbs2SumArray(handle::custatevecHandle_t,
+                                                sv::CuPtr{Cvoid},
                                                 svDataType::cudaDataType_t,
                                                 nIndexBits::UInt32, abs2sum::Ptr{Cdouble},
                                                 bitOrdering::Ptr{Int32},
@@ -254,7 +255,7 @@ end
                                              basisBits, nBasisBits, norm)
     initialize_context()
     @ccall libcustatevec.custatevecCollapseOnZBasis(handle::custatevecHandle_t,
-                                                    sv::Ptr{Cvoid},
+                                                    sv::CuPtr{Cvoid},
                                                     svDataType::cudaDataType_t,
                                                     nIndexBits::UInt32, parity::Int32,
                                                     basisBits::Ptr{Int32},
@@ -266,7 +267,7 @@ end
                                                 bitString, bitOrdering, bitStringLen, norm)
     initialize_context()
     @ccall libcustatevec.custatevecCollapseByBitString(handle::custatevecHandle_t,
-                                                       sv::Ptr{Cvoid},
+                                                       sv::CuPtr{Cvoid},
                                                        svDataType::cudaDataType_t,
                                                        nIndexBits::UInt32,
                                                        bitString::Ptr{Int32},
@@ -279,7 +280,7 @@ end
                                             basisBits, nBasisBits, randnum, collapse)
     initialize_context()
     @ccall libcustatevec.custatevecMeasureOnZBasis(handle::custatevecHandle_t,
-                                                   sv::Ptr{Cvoid},
+                                                   sv::CuPtr{Cvoid},
                                                    svDataType::cudaDataType_t,
                                                    nIndexBits::UInt32, parity::Ptr{Int32},
                                                    basisBits::Ptr{Int32},
@@ -290,7 +291,8 @@ end
 @checked function custatevecBatchMeasure(handle, sv, svDataType, nIndexBits, bitString,
                                          bitOrdering, bitStringLen, randnum, collapse)
     initialize_context()
-    @ccall libcustatevec.custatevecBatchMeasure(handle::custatevecHandle_t, sv::Ptr{Cvoid},
+    @ccall libcustatevec.custatevecBatchMeasure(handle::custatevecHandle_t,
+                                                sv::CuPtr{Cvoid},
                                                 svDataType::cudaDataType_t,
                                                 nIndexBits::UInt32, bitString::Ptr{Int32},
                                                 bitOrdering::Ptr{Int32},
@@ -303,7 +305,7 @@ end
                                                    randnum, collapse, offset, abs2sum)
     initialize_context()
     @ccall libcustatevec.custatevecBatchMeasureWithOffset(handle::custatevecHandle_t,
-                                                          sv::Ptr{Cvoid},
+                                                          sv::CuPtr{Cvoid},
                                                           svDataType::cudaDataType_t,
                                                           nIndexBits::UInt32,
                                                           bitString::Ptr{Int32},
@@ -339,7 +341,7 @@ end
     @ccall libcustatevec.custatevecApplyMatrixGetWorkspaceSize(handle::custatevecHandle_t,
                                                                svDataType::cudaDataType_t,
                                                                nIndexBits::UInt32,
-                                                               matrix::Ptr{Cvoid},
+                                                               matrix::PtrOrCuPtr{Cvoid},
                                                                matrixDataType::cudaDataType_t,
                                                                layout::custatevecMatrixLayout_t,
                                                                adjoint::Int32,
@@ -508,7 +510,7 @@ end
                                                                      controls::Ptr{Int32},
                                                                      controlBitValues::Ptr{Int32},
                                                                      nControls::UInt32,
-                                                                     extraWorkspace::Ptr{Cvoid},
+                                                                     extraWorkspace::PtrOrCuPtr{Cvoid},
                                                                      extraWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
 end
 
@@ -636,8 +638,8 @@ end
                                                   matrixDataType::cudaDataType_t,
                                                   layout::custatevecMatrixLayout_t,
                                                   nTargets::UInt32, adjoint::Int32,
-                                                  computeType::PtrOrCuPtr{Cvoid},
-                                                  extraWorkspace::Ptr{Cvoid},
+                                                  computeType::custatevecComputeType_t,
+                                                  extraWorkspace::PtrOrCuPtr{Cvoid},
                                                   extraWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
 end
 

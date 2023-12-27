@@ -39,25 +39,28 @@ needs_context = false
 [api.custatevecLoggerSetCallback]
 needs_context = false
 
-[api.custatevecAbs2SumOnZBasis]
+[api.custatevecSetWorkspace.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecAbs2SumArray]
+[api.custatevecAbs2SumOnZBasis.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecCollapseOnZBasis]
+[api.custatevecAbs2SumArray.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecCollapseByBitString]
+[api.custatevecCollapseOnZBasis.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecMeasureOnZBasis]
+[api.custatevecCollapseByBitString.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecBatchMeasure]
+[api.custatevecMeasureOnZBasis.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecBatchMeasureWithOffset]
+[api.custatevecBatchMeasure.argtypes]
+2 = "CuPtr{Cvoid}"
+
+[api.custatevecBatchMeasureWithOffset.argtypes]
 2 = "CuPtr{Cvoid}"
 
 [api.custatevecApplyPauliRotation.argtypes]
@@ -71,6 +74,7 @@ needs_context = false
 2 = "CuPtr{Cvoid}"
 5 = "PtrOrCuPtr{custatevecIndex_t}"
 6 = "PtrOrCuPtr{Cvoid}"
+14 = "PtrOrCuPtr{Cvoid}"
 
 [api.custatevecComputeExpectationGetWorkspaceSize.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
@@ -86,6 +90,9 @@ needs_context = false
 [api.custatevecSamplerCreate.argtypes]
 2 = "CuPtr{Cvoid}"
 
+[api.custatevecApplyMatrixGetWorkspaceSize.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+
 [api.custatevecApplyMatrix.argtypes]
 2 = "CuPtr{Cvoid}"
 5 = "PtrOrCuPtr{Cvoid}"
@@ -96,7 +103,7 @@ needs_context = false
 
 [api.custatevecTestMatrixType.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
-9 = "PtrOrCuPtr{Cvoid}"
+10 = "PtrOrCuPtr{Cvoid}"
 
 [api.custatevecSamplerPreprocess.argtypes]
 3 = "CuPtr{Cvoid}"
