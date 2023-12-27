@@ -8,7 +8,7 @@ using cuStateVec
 @info "cuStateVec version: $(cuStateVec.version())"
 
 @testset "cuStateVec" begin
-    import cuStateVec: CuStateVec, applyMatrix!, applyPauliExp!, applyGeneralizedPermutationMatrix!, expectation, expectationsOnPauliBasis, sample, testMatrixType, Pauli, PauliX, PauliY, PauliZ, PauliI, measureOnZBasis!, swapIndexBits!
+    import cuStateVec: CuStateVec, applyMatrix!, applyMatrixBatched!, applyPauliExp!, applyGeneralizedPermutationMatrix!, expectation, expectationsOnPauliBasis, sample, testMatrixType, Pauli, PauliX, PauliY, PauliZ, PauliI, measureOnZBasis!, swapIndexBits!
 
     @testset "applyMatrix! and expectation" begin
         # build a simple state and compute expectations
@@ -23,6 +23,55 @@ using cuStateVec
             @test exp ≈ 0.0 atol=1e-6
             exp, res = expectation(sv, X, Int32[0])
             @test exp ≈ 1.0 atol=1e-6
+        end
+        # build a simple state with controls and compute expectations
+        n_q = 2
+        @testset for elty in [ComplexF32, ComplexF64]
+            H = convert(Matrix{elty}, (1/√2).*[1 1; 1 -1])
+            X = convert(Matrix{elty}, [0 1; 1 0])
+            Z = convert(Matrix{elty}, [1 0; 0 -1])
+            sv = CuStateVec(elty, n_q)
+            sv = applyMatrix!(sv, H, false, Int32[0], Int32[])
+            sv = applyMatrix!(sv, X, false, Int32[1], Int32[0]) # CNOT
+            exp, res = expectation(sv, Z, Int32[0])
+            @test exp ≈ 0.0 atol=1e-6
+            exp, res = expectation(sv, X, Int32[0])
+            @test exp ≈ 0.0 atol=1e-6
+        end
+    end
+    @testset "applyMatrixBatched! and expectation" begin
+        # build a simple state and compute expectations
+        n_q = 2
+        @testset for elty in [ComplexF32, ComplexF64]
+            H = convert(Matrix{elty}, (1/√2).*[1 1; 1 -1])
+            X = convert(Matrix{elty}, [0 1; 1 0])
+            Z = convert(Matrix{elty}, [1 0; 0 -1])
+            @testset for n_svs in (1, 2)
+                @testset for (mapping, mat_inds, n_mats) in (
+                                                             (cuStateVec.CUSTATEVEC_MATRIX_MAP_TYPE_MATRIX_INDEXED, collect(0:n_svs-1), n_svs), 
+                                                             (cuStateVec.CUSTATEVEC_MATRIX_MAP_TYPE_MATRIX_INDEXED, fill(0, n_svs), 1), 
+                                                             (cuStateVec.CUSTATEVEC_MATRIX_MAP_TYPE_BROADCAST, fill(0, n_svs), 1),
+                                                  )
+                    batched_vec = CUDA.zeros(elty, n_svs*2^(n_q))
+                    for sv_ix in 0:n_svs-1
+                        CUDA.@allowscalar batched_vec[sv_ix*(2^n_q) + 1] = one(elty)
+                    end
+                    sv = CuStateVec(batched_vec) # padded state vector
+                    H_batch = CuVector{elty}(repeat(vec(H), n_mats))
+                    sv = applyMatrixBatched!(sv, n_svs, mapping, mat_inds, H_batch, n_mats, false, Int32[0], Int32[])
+                    CUDA.@allowscalar begin
+                        for sv_ix in 0:n_svs-1
+                            ix_begin = sv_ix*2^n_q + 1
+                            ix_end   = (sv_ix+1)*2^n_q
+                            sv_ = CuStateVec(sv.data[ix_begin:ix_end])
+                            exp, res = expectation(sv_, Z, Int32[0])
+                            @test exp ≈ 0.0 atol=1e-6
+                            exp, res = expectation(sv_, X, Int32[0])
+                            @test exp ≈ 1.0 atol=1e-6
+                        end
+                    end
+                end
+            end
         end
         # build a simple state with controls and compute expectations
         n_q = 2

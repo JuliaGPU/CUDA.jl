@@ -859,7 +859,7 @@ end
                                                                       svStride::custatevecIndex_t,
                                                                       mapType::custatevecMatrixMapType_t,
                                                                       matrixIndices::Ptr{Int32},
-                                                                      matrices::Ptr{Cvoid},
+                                                                      matrices::PtrOrCuPtr{Cvoid},
                                                                       matrixDataType::cudaDataType_t,
                                                                       layout::custatevecMatrixLayout_t,
                                                                       adjoint::Int32,
@@ -878,13 +878,13 @@ end
                                                extraWorkspace, extraWorkspaceSizeInBytes)
     initialize_context()
     @ccall libcustatevec.custatevecApplyMatrixBatched(handle::custatevecHandle_t,
-                                                      batchedSv::Ptr{Cvoid},
+                                                      batchedSv::CuPtr{Cvoid},
                                                       svDataType::cudaDataType_t,
                                                       nIndexBits::UInt32, nSVs::UInt32,
                                                       svStride::custatevecIndex_t,
                                                       mapType::custatevecMatrixMapType_t,
                                                       matrixIndices::Ptr{Int32},
-                                                      matrices::Ptr{Cvoid},
+                                                      matrices::PtrOrCuPtr{Cvoid},
                                                       matrixDataType::cudaDataType_t,
                                                       layout::custatevecMatrixLayout_t,
                                                       adjoint::Int32, nMatrices::UInt32,
@@ -893,7 +893,7 @@ end
                                                       controlBitValues::Ptr{Int32},
                                                       nControls::UInt32,
                                                       computeType::custatevecComputeType_t,
-                                                      extraWorkspace::Ptr{Cvoid},
+                                                      extraWorkspace::CuPtr{Cvoid},
                                                       extraWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
 end
 

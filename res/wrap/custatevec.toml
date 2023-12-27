@@ -93,6 +93,14 @@ needs_context = false
 [api.custatevecApplyMatrixGetWorkspaceSize.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
 
+[api.custatevecApplyMatrixBatched.argtypes]
+2 = "CuPtr{Cvoid}"
+9 = "PtrOrCuPtr{Cvoid}"
+20 = "CuPtr{Cvoid}"
+
+[api.custatevecApplyMatrixBatchedGetWorkspaceSize.argtypes]
+8 = "PtrOrCuPtr{Cvoid}"
+
 [api.custatevecApplyMatrix.argtypes]
 2 = "CuPtr{Cvoid}"
 5 = "PtrOrCuPtr{Cvoid}"

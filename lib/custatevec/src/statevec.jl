@@ -16,15 +16,16 @@ function applyMatrix!(sv::CuStateVec, matrix::Union{Matrix, CuMatrix}, adjoint::
     sv
 end
 
-function applyMatrixBatched!(batched_sv::CuStateVec, n_svs::Int, map_type::custatevecMatrixMapType_t, matrix_inds::Vector{Int}, matrices::Union{Matrix, CuMatrix}, n_matrices::Int, adjoint::Bool, targets::Vector{<:Integer}, controls::Vector{<:Integer}, controlValues::Vector{<:Integer}=fill(one(Int32), length(controls)))
-    sv_stride = div(length(batched_sv), n_svs)
+function applyMatrixBatched!(sv::CuStateVec, n_svs::Int, map_type::custatevecMatrixMapType_t, matrix_inds::Vector{Int}, matrix::Union{Vector, CuVector}, n_matrices::Int, adjoint::Bool, targets::Vector{<:Integer}, controls::Vector{<:Integer}, controlValues::Vector{<:Integer}=fill(one(Int32), length(controls)))
+    sv_stride    = div(length(sv.data), n_svs)
+    n_index_bits = div(Int(log2(length(sv.data))), n_svs)
     function bufferSize()
         out = Ref{Csize_t}()
-        custatevecApplyMatrixBatchedGetWorkspaceSize(handle(), eltype(sv), sv.nbits, n_svs, sv_stride, map_type, matrix_inds, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, length(targets), length(controls), compute_type(eltype(sv), eltype(matrix)), out)
+        custatevecApplyMatrixBatchedGetWorkspaceSize(handle(), eltype(sv), n_index_bits, n_svs, sv_stride, map_type, matrix_inds, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, length(targets), length(controls), compute_type(eltype(sv), eltype(matrix)), out)
         out[]
     end
     with_workspace(bufferSize) do buffer
-        custatevecApplyMatrixBatched(handle(), sv.data, eltype(sv), sv.nbits, sv_stride, map_type, matrix_inds, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), compute_type(eltype(sv), eltype(matrix)), buffer, length(buffer))
+        custatevecApplyMatrixBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, map_type, matrix_inds, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), compute_type(eltype(sv), eltype(matrix)), buffer, length(buffer))
     end
     sv
 end
