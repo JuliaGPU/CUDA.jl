@@ -1,6 +1,6 @@
 using CEnum
 
-# cuStateVec uses CUDA runtime objects, which are compatible with our driver usage
+# CUSTATEVEC uses CUDA runtime objects, which are compatible with our driver usage
 const cudaStream_t = CUstream
 
 # vector types
@@ -17,7 +17,7 @@ end
 
 function check(f, errs...)
     res = retry_reclaim(in((CUSTATEVEC_STATUS_ALLOC_FAILED, errs...))) do
-        f()
+        return f()
     end
 
     if res != CUSTATEVEC_STATUS_SUCCESS
@@ -67,7 +67,9 @@ end
     CUSTATEVEC_STATUS_SAMPLER_NOT_PREPROCESSED = 9
     CUSTATEVEC_STATUS_NO_DEVICE_ALLOCATOR = 10
     CUSTATEVEC_STATUS_DEVICE_ALLOCATOR_ERROR = 11
-    CUSTATEVEC_STATUS_MAX_VALUE = 12
+    CUSTATEVEC_STATUS_COMMUNICATOR_ERROR = 12
+    CUSTATEVEC_STATUS_LOADING_LIBRARY_FAILED = 13
+    CUSTATEVEC_STATUS_MAX_VALUE = 14
 end
 
 @cenum custatevecPauli_t::UInt32 begin
@@ -86,6 +88,11 @@ end
     CUSTATEVEC_MATRIX_TYPE_GENERAL = 0
     CUSTATEVEC_MATRIX_TYPE_UNITARY = 1
     CUSTATEVEC_MATRIX_TYPE_HERMITIAN = 2
+end
+
+@cenum custatevecMatrixMapType_t::UInt32 begin
+    CUSTATEVEC_MATRIX_MAP_TYPE_BROADCAST = 0
+    CUSTATEVEC_MATRIX_MAP_TYPE_MATRIX_INDEXED = 1
 end
 
 @cenum custatevecCollapseOp_t::UInt32 begin
@@ -108,6 +115,13 @@ end
 @cenum custatevecDeviceNetworkType_t::UInt32 begin
     CUSTATEVEC_DEVICE_NETWORK_TYPE_SWITCH = 1
     CUSTATEVEC_DEVICE_NETWORK_TYPE_FULLMESH = 2
+end
+
+@cenum custatevecStateVectorType_t::UInt32 begin
+    CUSTATEVEC_STATE_VECTOR_TYPE_ZERO = 0
+    CUSTATEVEC_STATE_VECTOR_TYPE_UNIFORM = 1
+    CUSTATEVEC_STATE_VECTOR_TYPE_GHZ = 2
+    CUSTATEVEC_STATE_VECTOR_TYPE_W = 3
 end
 
 @checked function custatevecCreate(handle)
@@ -148,7 +162,7 @@ end
                                                value::Ptr{Int32})::custatevecStatus_t
 end
 
-# no prototype is found for this function at custatevec.h:520:8, please use with caution
+# no prototype is found for this function at custatevec.h:521:8, please use with caution
 function custatevecGetVersion()
     @ccall libcustatevec.custatevecGetVersion()::Csize_t
 end
@@ -192,7 +206,7 @@ end
     @ccall libcustatevec.custatevecLoggerSetMask(mask::Int32)::custatevecStatus_t
 end
 
-# no prototype is found for this function at custatevec.h:620:1, please use with caution
+# no prototype is found for this function at custatevec.h:621:1, please use with caution
 @checked function custatevecLoggerForceDisable()
     @ccall libcustatevec.custatevecLoggerForceDisable()::custatevecStatus_t
 end
@@ -213,7 +227,7 @@ end
                                             abs2sum1, basisBits, nBasisBits)
     initialize_context()
     @ccall libcustatevec.custatevecAbs2SumOnZBasis(handle::custatevecHandle_t,
-                                                   sv::CuPtr{Cvoid},
+                                                   sv::Ptr{Cvoid},
                                                    svDataType::cudaDataType_t,
                                                    nIndexBits::UInt32,
                                                    abs2sum0::Ptr{Cdouble},
@@ -226,7 +240,7 @@ end
                                          bitOrdering, bitOrderingLen, maskBitString,
                                          maskOrdering, maskLen)
     initialize_context()
-    @ccall libcustatevec.custatevecAbs2SumArray(handle::custatevecHandle_t, sv::CuPtr{Cvoid},
+    @ccall libcustatevec.custatevecAbs2SumArray(handle::custatevecHandle_t, sv::Ptr{Cvoid},
                                                 svDataType::cudaDataType_t,
                                                 nIndexBits::UInt32, abs2sum::Ptr{Cdouble},
                                                 bitOrdering::Ptr{Int32},
@@ -240,7 +254,7 @@ end
                                              basisBits, nBasisBits, norm)
     initialize_context()
     @ccall libcustatevec.custatevecCollapseOnZBasis(handle::custatevecHandle_t,
-                                                    sv::CuPtr{Cvoid},
+                                                    sv::Ptr{Cvoid},
                                                     svDataType::cudaDataType_t,
                                                     nIndexBits::UInt32, parity::Int32,
                                                     basisBits::Ptr{Int32},
@@ -252,7 +266,7 @@ end
                                                 bitString, bitOrdering, bitStringLen, norm)
     initialize_context()
     @ccall libcustatevec.custatevecCollapseByBitString(handle::custatevecHandle_t,
-                                                       sv::CuPtr{Cvoid},
+                                                       sv::Ptr{Cvoid},
                                                        svDataType::cudaDataType_t,
                                                        nIndexBits::UInt32,
                                                        bitString::Ptr{Int32},
@@ -265,7 +279,7 @@ end
                                             basisBits, nBasisBits, randnum, collapse)
     initialize_context()
     @ccall libcustatevec.custatevecMeasureOnZBasis(handle::custatevecHandle_t,
-                                                   sv::CuPtr{Cvoid},
+                                                   sv::Ptr{Cvoid},
                                                    svDataType::cudaDataType_t,
                                                    nIndexBits::UInt32, parity::Ptr{Int32},
                                                    basisBits::Ptr{Int32},
@@ -276,7 +290,7 @@ end
 @checked function custatevecBatchMeasure(handle, sv, svDataType, nIndexBits, bitString,
                                          bitOrdering, bitStringLen, randnum, collapse)
     initialize_context()
-    @ccall libcustatevec.custatevecBatchMeasure(handle::custatevecHandle_t, sv::CuPtr{Cvoid},
+    @ccall libcustatevec.custatevecBatchMeasure(handle::custatevecHandle_t, sv::Ptr{Cvoid},
                                                 svDataType::cudaDataType_t,
                                                 nIndexBits::UInt32, bitString::Ptr{Int32},
                                                 bitOrdering::Ptr{Int32},
@@ -289,7 +303,7 @@ end
                                                    randnum, collapse, offset, abs2sum)
     initialize_context()
     @ccall libcustatevec.custatevecBatchMeasureWithOffset(handle::custatevecHandle_t,
-                                                          sv::CuPtr{Cvoid},
+                                                          sv::Ptr{Cvoid},
                                                           svDataType::cudaDataType_t,
                                                           nIndexBits::UInt32,
                                                           bitString::Ptr{Int32},
@@ -465,7 +479,7 @@ end
                                                                                      svDataType::cudaDataType_t,
                                                                                      nIndexBits::UInt32,
                                                                                      permutation::PtrOrCuPtr{custatevecIndex_t},
-                                                                                     diagonals::PtrOrCuPtr{Cvoid},
+                                                                                     diagonals::CuPtr{Cvoid},
                                                                                      diagonalsDataType::cudaDataType_t,
                                                                                      targets::Ptr{Int32},
                                                                                      nTargets::UInt32,
@@ -494,7 +508,7 @@ end
                                                                      controls::Ptr{Int32},
                                                                      controlBitValues::Ptr{Int32},
                                                                      nControls::UInt32,
-                                                                     extraWorkspace::PtrOrCuPtr{Cvoid},
+                                                                     extraWorkspace::Ptr{Cvoid},
                                                                      extraWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
 end
 
@@ -584,7 +598,8 @@ end
 @checked function custatevecSwapIndexBits(handle, sv, svDataType, nIndexBits, bitSwaps,
                                           nBitSwaps, maskBitString, maskOrdering, maskLen)
     initialize_context()
-    @ccall libcustatevec.custatevecSwapIndexBits(handle::custatevecHandle_t, sv::CuPtr{Cvoid},
+    @ccall libcustatevec.custatevecSwapIndexBits(handle::custatevecHandle_t,
+                                                 sv::CuPtr{Cvoid},
                                                  svDataType::cudaDataType_t,
                                                  nIndexBits::UInt32, bitSwaps::Ptr{int2},
                                                  nBitSwaps::UInt32,
@@ -621,9 +636,19 @@ end
                                                   matrixDataType::cudaDataType_t,
                                                   layout::custatevecMatrixLayout_t,
                                                   nTargets::UInt32, adjoint::Int32,
-                                                  computeType::custatevecComputeType_t,
-                                                  extraWorkspace::PtrOrCuPtr{Cvoid},
+                                                  computeType::PtrOrCuPtr{Cvoid},
+                                                  extraWorkspace::Ptr{Cvoid},
                                                   extraWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
+end
+
+@checked function custatevecInitializeStateVector(handle, sv, svDataType, nIndexBits,
+                                                  svType)
+    initialize_context()
+    @ccall libcustatevec.custatevecInitializeStateVector(handle::custatevecHandle_t,
+                                                         sv::Ptr{Cvoid},
+                                                         svDataType::cudaDataType_t,
+                                                         nIndexBits::UInt32,
+                                                         svType::custatevecStateVectorType_t)::custatevecStatus_t
 end
 
 @checked function custatevecMultiDeviceSwapIndexBits(handles, nHandles, subSVs, svDataType,
@@ -646,4 +671,330 @@ end
                                                             deviceNetworkType::custatevecDeviceNetworkType_t)::custatevecStatus_t
 end
 
+mutable struct custatevecCommunicator_t end
+
+const custatevecCommunicatorDescriptor_t = Ptr{custatevecCommunicator_t}
+
+@cenum custatevecCommunicatorType_t::UInt32 begin
+    CUSTATEVEC_COMMUNICATOR_TYPE_EXTERNAL = 0
+    CUSTATEVEC_COMMUNICATOR_TYPE_OPENMPI = 1
+    CUSTATEVEC_COMMUNICATOR_TYPE_MPICH = 2
+end
+
+@cenum custatevecDataTransferType_t::UInt32 begin
+    CUSTATEVEC_DATA_TRANSFER_TYPE_NONE = 0
+    CUSTATEVEC_DATA_TRANSFER_TYPE_SEND = 1
+    CUSTATEVEC_DATA_TRANSFER_TYPE_RECV = 2
+    CUSTATEVEC_DATA_TRANSFER_TYPE_SEND_RECV = 3
+end
+
+struct custatevecSVSwapParameters_t
+    swapBatchIndex::Int32
+    orgSubSVIndex::Int32
+    dstSubSVIndex::Int32
+    orgSegmentMaskString::NTuple{48,Int32}
+    dstSegmentMaskString::NTuple{48,Int32}
+    segmentMaskOrdering::NTuple{48,Int32}
+    segmentMaskLen::UInt32
+    nSegmentBits::UInt32
+    dataTransferType::custatevecDataTransferType_t
+    transferSize::custatevecIndex_t
+end
+
+mutable struct custatevecDistIndexBitSwapScheduler_t end
+
+const custatevecDistIndexBitSwapSchedulerDescriptor_t = Ptr{custatevecDistIndexBitSwapScheduler_t}
+
+mutable struct custatevecSVSwapWorker_t end
+
+const custatevecSVSwapWorkerDescriptor_t = Ptr{custatevecSVSwapWorker_t}
+
+@checked function custatevecCommunicatorCreate(handle, communicator, communicatorType,
+                                               soname)
+    initialize_context()
+    @ccall libcustatevec.custatevecCommunicatorCreate(handle::custatevecHandle_t,
+                                                      communicator::Ptr{custatevecCommunicatorDescriptor_t},
+                                                      communicatorType::custatevecCommunicatorType_t,
+                                                      soname::Cstring)::custatevecStatus_t
+end
+
+@checked function custatevecCommunicatorDestroy(handle, communicator)
+    initialize_context()
+    @ccall libcustatevec.custatevecCommunicatorDestroy(handle::custatevecHandle_t,
+                                                       communicator::custatevecCommunicatorDescriptor_t)::custatevecStatus_t
+end
+
+@checked function custatevecDistIndexBitSwapSchedulerCreate(handle, scheduler,
+                                                            nGlobalIndexBits,
+                                                            nLocalIndexBits)
+    initialize_context()
+    @ccall libcustatevec.custatevecDistIndexBitSwapSchedulerCreate(handle::custatevecHandle_t,
+                                                                   scheduler::Ptr{custatevecDistIndexBitSwapSchedulerDescriptor_t},
+                                                                   nGlobalIndexBits::UInt32,
+                                                                   nLocalIndexBits::UInt32)::custatevecStatus_t
+end
+
+@checked function custatevecDistIndexBitSwapSchedulerDestroy(handle, scheduler)
+    initialize_context()
+    @ccall libcustatevec.custatevecDistIndexBitSwapSchedulerDestroy(handle::custatevecHandle_t,
+                                                                    scheduler::custatevecDistIndexBitSwapSchedulerDescriptor_t)::custatevecStatus_t
+end
+
+@checked function custatevecDistIndexBitSwapSchedulerSetIndexBitSwaps(handle, scheduler,
+                                                                      indexBitSwaps,
+                                                                      nIndexBitSwaps,
+                                                                      maskBitString,
+                                                                      maskOrdering, maskLen,
+                                                                      nSwapBatches)
+    initialize_context()
+    @ccall libcustatevec.custatevecDistIndexBitSwapSchedulerSetIndexBitSwaps(handle::custatevecHandle_t,
+                                                                             scheduler::custatevecDistIndexBitSwapSchedulerDescriptor_t,
+                                                                             indexBitSwaps::Ptr{int2},
+                                                                             nIndexBitSwaps::UInt32,
+                                                                             maskBitString::Ptr{Int32},
+                                                                             maskOrdering::Ptr{Int32},
+                                                                             maskLen::UInt32,
+                                                                             nSwapBatches::Ptr{UInt32})::custatevecStatus_t
+end
+
+@checked function custatevecDistIndexBitSwapSchedulerGetParameters(handle, scheduler,
+                                                                   swapBatchIndex,
+                                                                   orgSubSVIndex,
+                                                                   parameters)
+    initialize_context()
+    @ccall libcustatevec.custatevecDistIndexBitSwapSchedulerGetParameters(handle::custatevecHandle_t,
+                                                                          scheduler::custatevecDistIndexBitSwapSchedulerDescriptor_t,
+                                                                          swapBatchIndex::Int32,
+                                                                          orgSubSVIndex::Int32,
+                                                                          parameters::Ptr{custatevecSVSwapParameters_t})::custatevecStatus_t
+end
+
+@checked function custatevecSVSwapWorkerCreate(handle, svSwapWorker, communicator, orgSubSV,
+                                               orgSubSVIndex, orgEvent, svDataType, stream,
+                                               extraWorkspaceSizeInBytes,
+                                               minTransferWorkspaceSizeInBytes)
+    initialize_context()
+    @ccall libcustatevec.custatevecSVSwapWorkerCreate(handle::custatevecHandle_t,
+                                                      svSwapWorker::Ptr{custatevecSVSwapWorkerDescriptor_t},
+                                                      communicator::custatevecCommunicatorDescriptor_t,
+                                                      orgSubSV::Ptr{Cvoid},
+                                                      orgSubSVIndex::Int32,
+                                                      orgEvent::cudaEvent_t,
+                                                      svDataType::cudaDataType_t,
+                                                      stream::cudaStream_t,
+                                                      extraWorkspaceSizeInBytes::Ptr{Csize_t},
+                                                      minTransferWorkspaceSizeInBytes::Ptr{Csize_t})::custatevecStatus_t
+end
+
+@checked function custatevecSVSwapWorkerDestroy(handle, svSwapWorker)
+    initialize_context()
+    @ccall libcustatevec.custatevecSVSwapWorkerDestroy(handle::custatevecHandle_t,
+                                                       svSwapWorker::custatevecSVSwapWorkerDescriptor_t)::custatevecStatus_t
+end
+
+@checked function custatevecSVSwapWorkerSetExtraWorkspace(handle, svSwapWorker,
+                                                          extraWorkspace,
+                                                          extraWorkspaceSizeInBytes)
+    initialize_context()
+    @ccall libcustatevec.custatevecSVSwapWorkerSetExtraWorkspace(handle::custatevecHandle_t,
+                                                                 svSwapWorker::custatevecSVSwapWorkerDescriptor_t,
+                                                                 extraWorkspace::Ptr{Cvoid},
+                                                                 extraWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
+end
+
+@checked function custatevecSVSwapWorkerSetTransferWorkspace(handle, svSwapWorker,
+                                                             transferWorkspace,
+                                                             transferWorkspaceSizeInBytes)
+    initialize_context()
+    @ccall libcustatevec.custatevecSVSwapWorkerSetTransferWorkspace(handle::custatevecHandle_t,
+                                                                    svSwapWorker::custatevecSVSwapWorkerDescriptor_t,
+                                                                    transferWorkspace::Ptr{Cvoid},
+                                                                    transferWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
+end
+
+@checked function custatevecSVSwapWorkerSetSubSVsP2P(handle, svSwapWorker, dstSubSVsP2P,
+                                                     dstSubSVIndicesP2P, dstEvents,
+                                                     nDstSubSVsP2P)
+    initialize_context()
+    @ccall libcustatevec.custatevecSVSwapWorkerSetSubSVsP2P(handle::custatevecHandle_t,
+                                                            svSwapWorker::custatevecSVSwapWorkerDescriptor_t,
+                                                            dstSubSVsP2P::Ptr{Ptr{Cvoid}},
+                                                            dstSubSVIndicesP2P::Ptr{Int32},
+                                                            dstEvents::Ptr{cudaEvent_t},
+                                                            nDstSubSVsP2P::UInt32)::custatevecStatus_t
+end
+
+@checked function custatevecSVSwapWorkerSetParameters(handle, svSwapWorker, parameters,
+                                                      peer)
+    initialize_context()
+    @ccall libcustatevec.custatevecSVSwapWorkerSetParameters(handle::custatevecHandle_t,
+                                                             svSwapWorker::custatevecSVSwapWorkerDescriptor_t,
+                                                             parameters::Ptr{custatevecSVSwapParameters_t},
+                                                             peer::Cint)::custatevecStatus_t
+end
+
+@checked function custatevecSVSwapWorkerExecute(handle, svSwapWorker, _begin, _end)
+    initialize_context()
+    @ccall libcustatevec.custatevecSVSwapWorkerExecute(handle::custatevecHandle_t,
+                                                       svSwapWorker::custatevecSVSwapWorkerDescriptor_t,
+                                                       _begin::custatevecIndex_t,
+                                                       _end::custatevecIndex_t)::custatevecStatus_t
+end
+
+@checked function custatevecApplyMatrixBatchedGetWorkspaceSize(handle, svDataType,
+                                                               nIndexBits, nSVs, svStride,
+                                                               mapType, matrixIndices,
+                                                               matrices, matrixDataType,
+                                                               layout, adjoint, nMatrices,
+                                                               nTargets, nControls,
+                                                               computeType,
+                                                               extraWorkspaceSizeInBytes)
+    initialize_context()
+    @ccall libcustatevec.custatevecApplyMatrixBatchedGetWorkspaceSize(handle::custatevecHandle_t,
+                                                                      svDataType::cudaDataType_t,
+                                                                      nIndexBits::UInt32,
+                                                                      nSVs::UInt32,
+                                                                      svStride::custatevecIndex_t,
+                                                                      mapType::custatevecMatrixMapType_t,
+                                                                      matrixIndices::Ptr{Int32},
+                                                                      matrices::Ptr{Cvoid},
+                                                                      matrixDataType::cudaDataType_t,
+                                                                      layout::custatevecMatrixLayout_t,
+                                                                      adjoint::Int32,
+                                                                      nMatrices::UInt32,
+                                                                      nTargets::UInt32,
+                                                                      nControls::UInt32,
+                                                                      computeType::custatevecComputeType_t,
+                                                                      extraWorkspaceSizeInBytes::Ptr{Csize_t})::custatevecStatus_t
+end
+
+@checked function custatevecApplyMatrixBatched(handle, batchedSv, svDataType, nIndexBits,
+                                               nSVs, svStride, mapType, matrixIndices,
+                                               matrices, matrixDataType, layout, adjoint,
+                                               nMatrices, targets, nTargets, controls,
+                                               controlBitValues, nControls, computeType,
+                                               extraWorkspace, extraWorkspaceSizeInBytes)
+    initialize_context()
+    @ccall libcustatevec.custatevecApplyMatrixBatched(handle::custatevecHandle_t,
+                                                      batchedSv::Ptr{Cvoid},
+                                                      svDataType::cudaDataType_t,
+                                                      nIndexBits::UInt32, nSVs::UInt32,
+                                                      svStride::custatevecIndex_t,
+                                                      mapType::custatevecMatrixMapType_t,
+                                                      matrixIndices::Ptr{Int32},
+                                                      matrices::Ptr{Cvoid},
+                                                      matrixDataType::cudaDataType_t,
+                                                      layout::custatevecMatrixLayout_t,
+                                                      adjoint::Int32, nMatrices::UInt32,
+                                                      targets::Ptr{Int32}, nTargets::UInt32,
+                                                      controls::Ptr{Int32},
+                                                      controlBitValues::Ptr{Int32},
+                                                      nControls::UInt32,
+                                                      computeType::custatevecComputeType_t,
+                                                      extraWorkspace::Ptr{Cvoid},
+                                                      extraWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
+end
+
+@checked function custatevecAbs2SumArrayBatched(handle, batchedSv, svDataType, nIndexBits,
+                                                nSVs, svStride, abs2sumArrays,
+                                                abs2sumArrayStride, bitOrdering,
+                                                bitOrderingLen, maskBitStrings,
+                                                maskOrdering, maskLen)
+    initialize_context()
+    @ccall libcustatevec.custatevecAbs2SumArrayBatched(handle::custatevecHandle_t,
+                                                       batchedSv::Ptr{Cvoid},
+                                                       svDataType::cudaDataType_t,
+                                                       nIndexBits::UInt32, nSVs::UInt32,
+                                                       svStride::custatevecIndex_t,
+                                                       abs2sumArrays::Ptr{Cdouble},
+                                                       abs2sumArrayStride::custatevecIndex_t,
+                                                       bitOrdering::Ptr{Int32},
+                                                       bitOrderingLen::UInt32,
+                                                       maskBitStrings::Ptr{custatevecIndex_t},
+                                                       maskOrdering::Ptr{Int32},
+                                                       maskLen::UInt32)::custatevecStatus_t
+end
+
+@checked function custatevecCollapseByBitStringBatchedGetWorkspaceSize(handle, nSVs,
+                                                                       bitStrings, norms,
+                                                                       extraWorkspaceSizeInBytes)
+    initialize_context()
+    @ccall libcustatevec.custatevecCollapseByBitStringBatchedGetWorkspaceSize(handle::custatevecHandle_t,
+                                                                              nSVs::UInt32,
+                                                                              bitStrings::Ptr{custatevecIndex_t},
+                                                                              norms::Ptr{Cdouble},
+                                                                              extraWorkspaceSizeInBytes::Ptr{Csize_t})::custatevecStatus_t
+end
+
+@checked function custatevecCollapseByBitStringBatched(handle, batchedSv, svDataType,
+                                                       nIndexBits, nSVs, svStride,
+                                                       bitStrings, bitOrdering,
+                                                       bitStringLen, norms, extraWorkspace,
+                                                       extraWorkspaceSizeInBytes)
+    initialize_context()
+    @ccall libcustatevec.custatevecCollapseByBitStringBatched(handle::custatevecHandle_t,
+                                                              batchedSv::Ptr{Cvoid},
+                                                              svDataType::cudaDataType_t,
+                                                              nIndexBits::UInt32,
+                                                              nSVs::UInt32,
+                                                              svStride::custatevecIndex_t,
+                                                              bitStrings::Ptr{custatevecIndex_t},
+                                                              bitOrdering::Ptr{Int32},
+                                                              bitStringLen::UInt32,
+                                                              norms::Ptr{Cdouble},
+                                                              extraWorkspace::Ptr{Cvoid},
+                                                              extraWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
+end
+
+@checked function custatevecMeasureBatched(handle, batchedSv, svDataType, nIndexBits, nSVs,
+                                           svStride, bitStrings, bitOrdering, bitStringLen,
+                                           randnums, collapse)
+    initialize_context()
+    @ccall libcustatevec.custatevecMeasureBatched(handle::custatevecHandle_t,
+                                                  batchedSv::Ptr{Cvoid},
+                                                  svDataType::cudaDataType_t,
+                                                  nIndexBits::UInt32, nSVs::UInt32,
+                                                  svStride::custatevecIndex_t,
+                                                  bitStrings::Ptr{custatevecIndex_t},
+                                                  bitOrdering::Ptr{Int32},
+                                                  bitStringLen::UInt32,
+                                                  randnums::Ptr{Cdouble},
+                                                  collapse::custatevecCollapseOp_t)::custatevecStatus_t
+end
+
+mutable struct custatevecSubSVMigratorDescriptor end
+
+const custatevecSubSVMigratorDescriptor_t = Ptr{custatevecSubSVMigratorDescriptor}
+
+@checked function custatevecSubSVMigratorCreate(handle, migrator, deviceSlots, svDataType,
+                                                nDeviceSlots, nLocalIndexBits)
+    initialize_context()
+    @ccall libcustatevec.custatevecSubSVMigratorCreate(handle::custatevecHandle_t,
+                                                       migrator::Ptr{custatevecSubSVMigratorDescriptor_t},
+                                                       deviceSlots::Ptr{Cvoid},
+                                                       svDataType::cudaDataType_t,
+                                                       nDeviceSlots::Cint,
+                                                       nLocalIndexBits::Cint)::custatevecStatus_t
+end
+
+@checked function custatevecSubSVMigratorDestroy(handle, migrator)
+    initialize_context()
+    @ccall libcustatevec.custatevecSubSVMigratorDestroy(handle::custatevecHandle_t,
+                                                        migrator::custatevecSubSVMigratorDescriptor_t)::custatevecStatus_t
+end
+
+@checked function custatevecSubSVMigratorMigrate(handle, migrator, deviceSlotIndex,
+                                                 srcSubSV, dstSubSV, _begin, _end)
+    initialize_context()
+    @ccall libcustatevec.custatevecSubSVMigratorMigrate(handle::custatevecHandle_t,
+                                                        migrator::custatevecSubSVMigratorDescriptor_t,
+                                                        deviceSlotIndex::Cint,
+                                                        srcSubSV::Ptr{Cvoid},
+                                                        dstSubSV::Ptr{Cvoid},
+                                                        _begin::custatevecIndex_t,
+                                                        _end::custatevecIndex_t)::custatevecStatus_t
+end
+
 const CUSTATEVEC_ALLOCATOR_NAME_LEN = 64
+
+const CUSTATEVEC_MAX_SEGMENT_MASK_SIZE = 48

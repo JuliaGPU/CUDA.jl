@@ -78,9 +78,6 @@ needs_context = false
 [api.custatevecComputeExpectationsOnPauliBasis.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecSamplerPreprocess.argtypes]
-3 = "CuPtr{Cvoid}"
-
 [api.custatevecComputeExpectation.argtypes]
 2 = "CuPtr{Cvoid}"
 8 = "PtrOrCuPtr{Cvoid}"
