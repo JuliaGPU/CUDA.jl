@@ -904,7 +904,7 @@ end
                                                 maskOrdering, maskLen)
     initialize_context()
     @ccall libcustatevec.custatevecAbs2SumArrayBatched(handle::custatevecHandle_t,
-                                                       batchedSv::Ptr{Cvoid},
+                                                       batchedSv::CuPtr{Cvoid},
                                                        svDataType::cudaDataType_t,
                                                        nIndexBits::UInt32, nSVs::UInt32,
                                                        svStride::custatevecIndex_t,
@@ -935,7 +935,7 @@ end
                                                        extraWorkspaceSizeInBytes)
     initialize_context()
     @ccall libcustatevec.custatevecCollapseByBitStringBatched(handle::custatevecHandle_t,
-                                                              batchedSv::Ptr{Cvoid},
+                                                              batchedSv::CuPtr{Cvoid},
                                                               svDataType::cudaDataType_t,
                                                               nIndexBits::UInt32,
                                                               nSVs::UInt32,
@@ -944,7 +944,7 @@ end
                                                               bitOrdering::Ptr{Int32},
                                                               bitStringLen::UInt32,
                                                               norms::Ptr{Cdouble},
-                                                              extraWorkspace::Ptr{Cvoid},
+                                                              extraWorkspace::PtrOrCuPtr{Cvoid},
                                                               extraWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
 end
 
@@ -953,7 +953,7 @@ end
                                            randnums, collapse)
     initialize_context()
     @ccall libcustatevec.custatevecMeasureBatched(handle::custatevecHandle_t,
-                                                  batchedSv::Ptr{Cvoid},
+                                                  batchedSv::CuPtr{Cvoid},
                                                   svDataType::cudaDataType_t,
                                                   nIndexBits::UInt32, nSVs::UInt32,
                                                   svStride::custatevecIndex_t,

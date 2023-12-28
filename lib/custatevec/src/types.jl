@@ -79,6 +79,7 @@ CuStateVec(v::CuVector{T}) where {T} = CuStateVec{T}(v, UInt32(log2(length(v))))
 CuStateVec(v::Vector{T}) where {T}   = CuStateVec(CuVector{T}(v))
 
 Base.eltype(sv::CuStateVec{T}) where T = T
+Base.copy(sv::CuStateVec{T}) where {T} = CuStateVec(copy(sv.data))
 
 mutable struct CuStateVecSampler
     handle::custatevecSamplerDescriptor_t
