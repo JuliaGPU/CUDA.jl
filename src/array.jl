@@ -210,12 +210,15 @@ end
 ## unsafe_wrap
 
 """
+  # simple case, wrapping a CuArray around an existing GPU pointer
   unsafe_wrap(CuArray, ptr::CuPtr{T}, dims; own=false, ctx=context())
 
-  # requires
+  # wraps a CPU array object around a unified GPU array
   unsafe_wrap(Array, a::CuArray)
 
-  # requires HMM
+  # wraps a GPU array object around a CPU array.
+  # if your system supports HMM, this is a fast operation.
+  # in other cases, it has to use page locking, which can be slow.
   unsafe_wrap(CuArray, ptr::ptr{T}, dims)
   unsafe_wrap(CuArray, a::Array)
 
