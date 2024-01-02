@@ -27,12 +27,12 @@ function SparseArrays.sparse(x::DenseCuMatrix; fmt=:csc)
     end
 end
 
-function SparseArrays.sparse(I::CuVector, J::CuVector, V::CuVector,
-                             m=maximum(I), n=maximum(J); kwargs...)
-    sparse(Cint.(I), Cint.(J), V, m, n; kwargs...)
+function SparseArrays.sparse(I::CuVector, J::CuVector, V::CuVector, args...; kwargs...)
+    sparse(Cint.(I), Cint.(J), V, args...; kwargs...)
 end
 
-function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{Tv}, m, n;
+function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{Tv},
+                             m=maximum(I), n=maximum(J);
                              fmt=:csc, combine=nothing) where Tv
     # we use COO as an intermediate format, as it's easy to construct from I/J/V.
     coo = CuSparseMatrixCOO{Tv}(I, J, V, (m, n))
@@ -45,10 +45,13 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
     groups = similar(I, Int)
     function find_groups(groups, I, J)
         i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+        if i > length(groups)
+            return
+        end
         len = 0
 
         # check if we're at the start of a new group
-        @inbounds if i == 1 || (I[i] != I[i-1] && J[i] != J[i-1])
+        @inbounds if i == 1 || I[i] != I[i-1] || J[i] != J[i-1]
             len = 1
             while i+len <= length(groups) && I[i] == I[i+len] && J[i] == J[i+len]
                 len += 1
@@ -88,9 +91,12 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
         # combine (if needed) all values and update the output vectors.
         function combine_groups(groups, total_lengths, oldI, oldJ, oldV, newI, newJ, newV, combine)
             i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+            if i > length(groups)
+                return
+            end
 
             # check if we're at the start of a group
-            @inbounds if 1 <= i <= length(groups) && groups[i] != 0
+            @inbounds if groups[i] != 0
                 # get an exclusive offset from the inclusive cumsum
                 offset = total_lengths[i] - groups[i] + 1
 
