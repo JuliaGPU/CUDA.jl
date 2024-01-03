@@ -54,7 +54,7 @@ end
 include("setup.jl")     # make sure everything is precompiled
 
 # choose tests
-const tests = ["core$(path_separator)initialization"]    # needs to run first
+const tests = ["core/initialization"]    # needs to run first
 const test_runners = Dict()
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)
@@ -62,8 +62,8 @@ for name in keys(TestSuite.tests)
         # GPUArrays' scalar indexing tests assume that indexing is not supported
         continue
     end
-    push!(tests, "gpuarrays$(path_separator)$name")
-    test_runners["gpuarrays$(path_separator)$name"] = ()->TestSuite.tests[name](CuArray)
+    push!(tests, "gpuarrays/$name")
+    test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
 end
 ## files in the test folder
 for (rootpath, dirs, files) in walkdir(@__DIR__)
@@ -84,6 +84,11 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
     files = map(files) do file
       joinpath(subdir, file)
     end
+  end
+
+  # unify path separators
+  files = map(files) do file
+    replace(file, path_separator => '/')
   end
 
   append!(tests, files)
@@ -126,7 +131,12 @@ function gpu_entry(dev)
     cap = capability(dev)
     mig = uuid != parent_uuid(dev)
     compute_mode = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE)
-    (; id, name, cap, uuid="$(mig ? "MIG" : "GPU")-$uuid", compute_mode)
+    available_memory = device!(dev) do
+        mem = CUDA.available_memory()
+        device_reset!()
+        mem
+    end
+    (; id, name, cap, uuid="$(mig ? "MIG" : "GPU")-$uuid", compute_mode, available_memory)
 end
 gpus = if do_gpu_list
     # parse the list of GPUs
@@ -146,8 +156,9 @@ ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")
 # determine parallelism
 if !set_jobs
     cpu_jobs = Sys.CPU_THREADS
-    memory_jobs = Int(Sys.free_memory()) ÷ (2 * 2^30)
-    jobs = min(cpu_jobs, memory_jobs)
+    cpu_memory_jobs = Int(Sys.free_memory()) ÷ (2 * 2^30)
+    gpu_memory_jobs = first(gpus).available_memory ÷ (2 * 2^30)
+    jobs = max(1, min(cpu_jobs, cpu_memory_jobs, gpu_memory_jobs))
 end
 @info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the `JULIA_CPU_THREADS` environment variable."
 if first(gpus).compute_mode == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
@@ -321,9 +332,9 @@ try
 
                     # tests that muck with the context should not be timed with CUDA events,
                     # since they won't be valid at the end of the test anymore.
-                    time_source = in(test, ["core$(path_separator)initialization",
-                                            "base$(path_separator)examples",
-                                            "base$(path_separator)exceptions"]) ? :julia : :cuda
+                    time_source = in(test, ["core/initialization",
+                                            "base/examples",
+                                            "base/exceptions"]) ? :julia : :cuda
 
                     # run the test
                     running_tests[test] = now()

@@ -85,7 +85,7 @@ end
         d_a = CuArray(a)
 
         threads = nextwarp(device(), n)
-        @cuda threads=threads kernel(d_a, n)
+        @cuda threads kernel(d_a, n)
 
         a[1:n÷2] += a[n÷2+1:end]
         @test a == Array(d_a)

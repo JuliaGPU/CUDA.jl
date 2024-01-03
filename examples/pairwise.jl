@@ -105,7 +105,7 @@ function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
     blocks = ceil.(Int, n ./ threads)
     shmem = get_shmem(threads)
 
-    kernel(lat_gpu, lon_gpu, rowresult_gpu, n; threads=threads, blocks=blocks, shmem=shmem)
+    kernel(lat_gpu, lon_gpu, rowresult_gpu, n; threads, blocks, shmem)
     return Array(rowresult_gpu)
 end
 

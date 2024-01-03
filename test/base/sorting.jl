@@ -40,8 +40,7 @@ function test_batch_partition(T, N, lo, hi, seed, lt=isless, by=identity)
     block_dim = threads
     @assert block_dim >= 32 "This test assumes block size can be >= 32"
 
-    kernel(A, pivot, lo, hi, true, lt;
-           threads=threads, blocks=(1,blocks), shmem=get_shmem(threads))
+    kernel(A, pivot, lo, hi, true, lt; threads, blocks=(1,blocks), shmem=get_shmem(threads))
     synchronize()
 
     post_sort = Array(A)
@@ -112,11 +111,11 @@ function test_consolidate_partition(T, N, lo, hi, seed, block_dim, lt=isless, by
     threads = isnothing(block_dim) ? prevpow(2, config.threads) : block_dim
     blocks = ceil(Int, (hi - lo) ./ threads)
 
-    kernel(A, pivot, lo, hi, true, lt, by; threads=threads, blocks=(1,blocks), shmem=get_shmem(threads))
+    kernel(A, pivot, lo, hi, true, lt, by; threads, blocks=(1,blocks), shmem=get_shmem(threads))
     synchronize()
     dest = CuArray(zeros(Int, 1))
 
-    @cuda threads=threads test_consolidate_kernel(A, pivot, lo, hi - lo, sums, dest, true, lt, by)
+    @cuda threads test_consolidate_kernel(A, pivot, lo, hi - lo, sums, dest, true, lt, by)
     synchronize()
 
     partition = Array(dest)[1]

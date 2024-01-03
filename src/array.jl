@@ -210,12 +210,15 @@ end
 ## unsafe_wrap
 
 """
+  # simple case, wrapping a CuArray around an existing GPU pointer
   unsafe_wrap(CuArray, ptr::CuPtr{T}, dims; own=false, ctx=context())
 
-  # requires
+  # wraps a CPU array object around a unified GPU array
   unsafe_wrap(Array, a::CuArray)
 
-  # requires HMM
+  # wraps a GPU array object around a CPU array.
+  # if your system supports HMM, this is a fast operation.
+  # in other cases, it has to use page locking, which can be slow.
   unsafe_wrap(CuArray, ptr::ptr{T}, dims)
   unsafe_wrap(CuArray, a::Array)
 
@@ -358,6 +361,9 @@ Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 
 context(A::CuArray) = A.data[].ctx
 device(A::CuArray) = device(A.data[].ctx)
+
+buftype(x::CuArray) = buftype(typeof(x))
+buftype(::Type{<:CuArray{<:Any,<:Any,B}}) where {B} = @isdefined(B) ? B : Any
 
 
 ## derived types
@@ -823,8 +829,7 @@ end
 
 ## derived arrays
 
-function GPUArrays.derive(::Type{T}, n::Int, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
-  @assert n == N
+function GPUArrays.derive(::Type{T}, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
   offset = (a.offset * Base.elsize(a)) ÷ sizeof(T) + offset
   CuArray{T,N}(copy(a.data), dims; a.maxsize, offset)
 end

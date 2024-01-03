@@ -27,7 +27,7 @@ end
 
 @inline function GPUArrays.gpu_call(::CuArrayBackend, f::F, args::TT, threads::Int,
                                     blocks::Int; name::Union{String,Nothing}) where {F,TT}
-    @cuda threads=threads blocks=blocks name=name f(CuKernelContext(), args...)
+    @cuda threads blocks name f(CuKernelContext(), args...)
 end
 
 

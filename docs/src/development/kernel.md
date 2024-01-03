@@ -66,28 +66,6 @@ julia> a
  42
 ```
 
-Kernels can also mutate `Ref` boxes:
-
-```julia
-function my_kernel(a)
-    a[] = 42
-    return
-end
-```
-
-```julia-repl
-julia> box = Ref(1)
-
-julia> CUDA.@sync @cuda my_kernel(box);
-
-julia> box[]
-42
-```
-
-Note the `CUDA.@sync` here: GPU operations always execute asynchronously, so we need to
-wait for the GPU to finish before we can access the result. This is not needed when using
-`CuArray`s, as they automatically synchronize on access.
-
 
 ## Launch configuration and indexing
 

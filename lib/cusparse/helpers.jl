@@ -296,3 +296,59 @@ mutable struct CuSparseSpSMDescriptor
 end
 
 Base.unsafe_convert(::Type{cusparseSpSMDescr_t}, desc::CuSparseSpSMDescriptor) = desc.handle
+
+mutable struct IC0Info
+    info::csric02Info_t
+
+    function IC0Info()
+        info_ref = Ref{csric02Info_t}()
+        cusparseCreateCsric02Info(info_ref)
+        obj = new(info_ref[])
+        finalizer(cusparseDestroyCsric02Info, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{csric02Info_t}, info::IC0Info) = info.info
+
+mutable struct IC0InfoBSR
+    info::bsric02Info_t
+
+    function IC0InfoBSR()
+        info_ref = Ref{bsric02Info_t}()
+        cusparseCreateBsric02Info(info_ref)
+        obj = new(info_ref[])
+        finalizer(cusparseDestroyBsric02Info, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{bsric02Info_t}, info::IC0InfoBSR) = info.info
+
+mutable struct ILU0Info
+    info::csrilu02Info_t
+
+    function ILU0Info()
+        info_ref = Ref{csrilu02Info_t}()
+        cusparseCreateCsrilu02Info(info_ref)
+        obj = new(info_ref[])
+        finalizer(cusparseDestroyCsrilu02Info, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{csrilu02Info_t}, info::ILU0Info) = info.info
+
+mutable struct ILU0InfoBSR
+    info::bsrilu02Info_t
+
+    function ILU0InfoBSR()
+        info_ref = Ref{bsrilu02Info_t}()
+        cusparseCreateBsrilu02Info(info_ref)
+        obj = new(info_ref[])
+        finalizer(cusparseDestroyBsrilu02Info, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{bsrilu02Info_t}, info::ILU0InfoBSR) = info.info
