@@ -38,6 +38,13 @@ e.g., due to inaccurate or instable type information). These are a red herring, 
 cause is listed last: a typo in the use of the `threadIdx` function! If we fix this, the IR
 error disappears and our kernel successfully compiles and executes.
 
+!!! note 
+
+    Bounds checking can cause compilation failures. Even if you have included an `@inbounds` block,
+    `Pkg.test` by default will force bounds-checking and this may cause `InvalidIRError`s. To prevent
+    this, run tests of your code with `Pkg.test("MyCUDAPackage"; julia_args=\`--check-bounds=auto\`)`.
+    This will force the test running to respect `@inbounds` blocks in your kernels.
+
 
 ## KernelError: kernel returns a value of type `Union{}`
 
