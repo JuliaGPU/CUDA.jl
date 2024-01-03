@@ -324,6 +324,7 @@ function LinearAlgebra.generic_matmatmul!(C::CuVecOrMat, tA, tB, A::StridedCuVec
             return hemm!('R', tB == 'H' ? 'U' : 'L', alpha, B, A, beta, C)
         end
     end
+
     GPUArrays.generic_matmatmul!(C, wrap(A, tA), wrap(B, tB), alpha, beta)
 end
 
@@ -691,13 +692,13 @@ function LinearAlgebra.kron!(C::CuMatrix{TC}, A::CuMatrix{TA}, B::CuMatrix{TB}) 
     function _kron_mat_kernelA!(C, A, B, m, n, p, q)
         index_i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
         index_j = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-    
+
         stride_i = blockDim().x * gridDim().x
         stride_j = blockDim().y * gridDim().y
-    
+
         index_i > m && return
         index_j > n && return
-    
+
         for i in index_i:stride_i:m
             for j in index_j:stride_j:n
                 for k in 1:p
@@ -713,13 +714,13 @@ function LinearAlgebra.kron!(C::CuMatrix{TC}, A::CuMatrix{TA}, B::CuMatrix{TB}) 
     function _kron_mat_kernelB!(C, A, B, m, n, p, q)
         index_p = (blockIdx().x - 1) * blockDim().x + threadIdx().x
         index_q = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-    
+
         stride_p = blockDim().x * gridDim().x
         stride_q = blockDim().y * gridDim().y
-    
+
         index_p > p && return
         index_q > q && return
-    
+
         for i in 1:m
             for j in 1:n
                 for k in index_p:stride_p:p
@@ -737,7 +738,7 @@ function LinearAlgebra.kron!(C::CuMatrix{TC}, A::CuMatrix{TA}, B::CuMatrix{TB}) 
 
     # Use different kernels depending on the size of the matrices
     # choosing to parallelize the matrix with the largest number of elements
-    m*n >= p*q ? (kernel = @cuda launch=false _kron_mat_kernelA!(C, A, B, m, n, p, q)) : 
+    m*n >= p*q ? (kernel = @cuda launch=false _kron_mat_kernelA!(C, A, B, m, n, p, q)) :
                  (kernel = @cuda launch=false _kron_mat_kernelB!(C, A, B, m, n, p, q))
 
     m*n >= p*q ? (sizes = (m, n)) : (sizes = (p, q))
@@ -764,7 +765,7 @@ end
 function LinearAlgebra.kron(A::CuMatrix{TA}, B::CuMatrix{TB}) where {TA,TB}
     m, n = size(A)
     p, q = size(B)
-    
+
     T = promote_type(TA, TB)
     C = similar(A, T, m*p, n*q)
 
