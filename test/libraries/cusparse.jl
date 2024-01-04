@@ -1078,3 +1078,27 @@ end
         end
     end
 end
+
+@testset "duplicate entries" begin
+    # already sorted
+    let
+        I = [1, 3, 4, 4]
+        J = [1, 2, 3, 3]
+        V = [1f0, 2f0, 3f0, 10f0]
+        coo = sparse(cu(I), cu(J), cu(V); fmt=:coo)
+        @test Array(coo.rowInd) == [1, 3, 4]
+        @test Array(coo.colInd) == [1, 2, 3]
+        @test Array(coo.nzVal) == [1f0, 2f0, 13f0]
+    end
+
+    # out of order
+    let
+        I = [4, 1, 3, 4]
+        J = [3, 1, 2, 3]
+        V = [10f0, 1f0, 2f0, 3f0]
+        coo = sparse(cu(I), cu(J), cu(V); fmt=:coo)
+        @test Array(coo.rowInd) == [1, 3, 4]
+        @test Array(coo.colInd) == [1, 2, 3]
+        @test Array(coo.nzVal) == [1f0, 2f0, 13f0]
+    end
+end
