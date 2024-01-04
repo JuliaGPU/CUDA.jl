@@ -6,14 +6,14 @@ function Base.:(+)(A::CuTensor, B::CuTensor)
     α = convert(eltype(A), 1.0)
     γ = convert(eltype(B), 1.0)
     C = similar(B)
-    elementwiseBinary!(α, A, CUTENSOR_OP_IDENTITY, γ, B, CUTENSOR_OP_IDENTITY, C, CUTENSOR_OP_ADD)
+    elementwiseBinary!(α, A.data, A.inds, CUTENSOR_OP_IDENTITY, γ, B.data, B.inds, CUTENSOR_OP_IDENTITY, C.data, C.inds, CUTENSOR_OP_ADD)
 end
 
 function Base.:(-)(A::CuTensor, B::CuTensor)
     α = convert(eltype(A), 1.0)
     γ = convert(eltype(B), -1.0)
     C = similar(B)
-    elementwiseBinary!(α, A, CUTENSOR_OP_IDENTITY, γ, B, CUTENSOR_OP_IDENTITY, C, CUTENSOR_OP_ADD)
+    elementwiseBinary!(α, A.data, A.inds, CUTENSOR_OP_IDENTITY, γ, B.data, B.inds, CUTENSOR_OP_IDENTITY, C.data, C.inds, CUTENSOR_OP_ADD)
 end
 
 function Base.:(*)(A::CuTensor, B::CuTensor)
@@ -33,8 +33,8 @@ end
 
 using LinearAlgebra
 
-LinearAlgebra.axpy!(a, X::CuTensor, Y::CuTensor) = elementwiseBinary!(a, X, CUTENSOR_OP_IDENTITY, one(eltype(Y)), Y, CUTENSOR_OP_IDENTITY, Y, CUTENSOR_OP_ADD)
-LinearAlgebra.axpby!(a, X::CuTensor, b, Y::CuTensor) = elementwiseBinary!(a, X, CUTENSOR_OP_IDENTITY, b, Y, CUTENSOR_OP_IDENTITY, Y, CUTENSOR_OP_ADD)
+LinearAlgebra.axpy!(a, X::CuTensor, Y::CuTensor) = elementwiseBinary!(a, X.data, X.inds, CUTENSOR_OP_IDENTITY, one(eltype(Y)), Y.data, Y.inds, CUTENSOR_OP_IDENTITY, Y.data, Y.inds, CUTENSOR_OP_ADD)
+LinearAlgebra.axpby!(a, X::CuTensor, b, Y::CuTensor) = elementwiseBinary!(a, X.data, X.inds, CUTENSOR_OP_IDENTITY, b, Y.data, Y.inds, CUTENSOR_OP_IDENTITY, Y.data, Y.inds, CUTENSOR_OP_ADD)
 
 function LinearAlgebra.mul!(C::CuTensor, A::CuTensor, B::CuTensor)
    contraction!(one(eltype(C)), A.data, A.inds, CUTENSOR_OP_IDENTITY, B.data, B.inds, CUTENSOR_OP_IDENTITY, zero(eltype(C)), C.data, C.inds, CUTENSOR_OP_IDENTITY, CUTENSOR_OP_IDENTITY)

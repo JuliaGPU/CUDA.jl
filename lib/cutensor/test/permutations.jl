@@ -30,25 +30,26 @@ eltypes = ((Float16, Float16),
         dC = similar(dA, eltyC, dimsC...)
 
         # simple case
-        dC = cuTENSOR.permutation!(one(eltyA), dA, indsA, dC, indsC)
+        opA   = cuTENSOR.CUTENSOR_OP_IDENTITY
+        dC = cuTENSOR.permutation!(one(eltyA), dA, indsA, opA, dC, indsC)
         C  = collect(dC)
         @test C == permutedims(A, p) # exact equality
         if can_pin
             Csimple = zeros(eltyC, dimsC...)
             Mem.pin(Csimple)
-            Csimple = CUDA.@sync cuTENSOR.permutation!(one(eltyA), A, indsA, Csimple, indsC)
+            Csimple = CUDA.@sync cuTENSOR.permutation!(one(eltyA), A, indsA, opA, Csimple, indsC)
             @test Csimple == permutedims(A, p) # exact equality
         end
 
         # with scalar
         α  = rand(eltyA)
-        dC = cuTENSOR.permutation!(α, dA, indsA, dC, indsC)
+        dC = cuTENSOR.permutation!(α, dA, indsA, opA, dC, indsC)
         C  = collect(dC)
         @test C ≈ α * permutedims(A, p) # approximate, floating point rounding
         if can_pin
             Cscalar = zeros(eltyC, dimsC...)
             Mem.pin(Cscalar)
-            Cscalar = CUDA.@sync cuTENSOR.permutation!(α, A, indsA, Cscalar, indsC)
+            Cscalar = CUDA.@sync cuTENSOR.permutation!(α, A, indsA, opA, Cscalar, indsC)
             @test Cscalar ≈ α * permutedims(A, p) # approximate, floating point rounding
         end
     end
