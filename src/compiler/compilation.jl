@@ -287,7 +287,17 @@ function compile(@nospecialize(job::CompilerJob))
         param_limit = 32764
     end
     if param_usage > param_limit
-        error("Kernel invocation uses $(Base.format_bytes(param_usage)) of parameters, exceeding the $(Base.format_bytes(param_limit)) limit.")
+        msg = "Kernel invocation uses $(Base.format_bytes(param_usage)) of parameters, exceeding the device limit of $(Base.format_bytes(param_limit))."
+        for (i, dt) in enumerate(job.source.specTypes.parameters)
+            if isghosttype(dt) || Core.Compiler.isconstType(dt)
+                continue
+            end
+            msg *= "\n- param $(i-1): $(Base.format_bytes(sizeof(dt))) required by $(dt)"
+        end
+        if cap >= v"7.0" && ptx < v"8.1" && param_usage < 32764
+            msg *= "\nNote: to support more parameters on your device, consider upgrading CUDA."
+        end
+        error(msg)
     end
 
     # compile to machine code

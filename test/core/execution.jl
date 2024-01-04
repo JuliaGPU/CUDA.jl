@@ -601,7 +601,7 @@ end
 
 @testset "parameter space" begin
     kernel(x) = nothing
-    @test_throws r"Kernel invocation uses .+ of parameters, exceeding the .+ limit" @cuda kernel(ntuple(_->UInt64(1), 2^13))
+    @test_throws r"Kernel invocation uses .+ of parameters, exceeding the device limit" @cuda kernel(ntuple(_->UInt64(1), 2^13))
 end
 
 end
