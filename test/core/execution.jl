@@ -599,6 +599,11 @@ end
     @test f(2) == 2
 end
 
+@testset "parameter space" begin
+    kernel(x) = nothing
+    @test_throws "Kernel invocation uses too much parameter memory" @cuda kernel(ntuple(_->UInt64(1), 2^13))
+end
+
 end
 
 ############################################################################################
