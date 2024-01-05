@@ -29,7 +29,7 @@ function elementwiseTrinary!(
     end
 
     scalar_type = eltype(A)
-    cutensorElementwiseTrinaryExecute(handle(), actual_plan.handle,
+    cutensorElementwiseTrinaryExecute(handle(), actual_plan,
                                       Ref{scalar_type}(alpha), A,
                                       Ref{scalar_type}(beta), B,
                                       Ref{scalar_type}(gamma), C, D,
@@ -100,9 +100,9 @@ function elementwiseBinary!(
     end
 
     scalar_type = eltype(A)
-    cutensorElementwiseBinaryExecute(handle(), actual_plan.handle,
-                                     Ref{scalar_type}(alpha), A, 
-                                     Ref{scalar_type}(gamma), C, D, 
+    cutensorElementwiseBinaryExecute(handle(), actual_plan,
+                                     Ref{scalar_type}(alpha), A,
+                                     Ref{scalar_type}(gamma), C, D,
                                      stream())
 
     if plan === nothing
@@ -134,7 +134,7 @@ function plan_elementwiseBinary(
                                      desc,
                                      descA, modeA, opA,
                                      descC, modeC, opC,
-                                     descD, modeD, 
+                                     descD, modeD,
                                      opAC,
                                      compute_type)
 
@@ -160,7 +160,7 @@ function permutation!(
     end
 
     scalar_type = eltype(B)
-    cutensorPermute(handle(), actual_plan.handle,
+    cutensorPermute(handle(), actual_plan,
                     Ref{scalar_type}(alpha), A, B,
                     stream())
 
@@ -179,7 +179,7 @@ function plan_permutation(
     #!is_unary(opPsi)    && throw(ArgumentError("opPsi must be a unary op!"))
     descA = CuTensorDescriptor(A)
     descB = CuTensorDescriptor(B)
-    
+
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
 
@@ -214,7 +214,7 @@ function contraction!(
 
     output_type = eltype(C)
     scalar_type = scalar_types[(output_type, compute_type)]
-    cutensorContract(handle(), actual_plan.handle,
+    cutensorContract(handle(), actual_plan,
                      Ref{scalar_type}(alpha), A, B,
                      Ref{scalar_type}(beta),  C, C,
                      actual_plan.workspace, sizeof(actual_plan.workspace), stream())
@@ -279,7 +279,7 @@ function reduction!(
 
     output_type = eltype(C)
     scalar_type = scalar_types[(output_type, compute_type)]
-    cutensorReduce(handle(), actual_plan.handle,
+    cutensorReduce(handle(), actual_plan,
                    Ref{scalar_type}(alpha), A,
                    Ref{scalar_type}(beta),  C, C,
                    actual_plan.workspace, sizeof(actual_plan.workspace), stream())
