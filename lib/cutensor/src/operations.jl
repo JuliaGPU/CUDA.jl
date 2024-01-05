@@ -34,6 +34,11 @@ function elementwiseTrinary!(
                                       Ref{scalar_type}(beta), B,
                                       Ref{scalar_type}(gamma), C, D,
                                       stream())
+
+    if plan === nothing
+        CUDA.unsafe_free!(actual_plan)
+    end
+
     return D
 end
 
@@ -99,6 +104,11 @@ function elementwiseBinary!(
                                      Ref{scalar_type}(alpha), A, 
                                      Ref{scalar_type}(gamma), C, D, 
                                      stream())
+
+    if plan === nothing
+        CUDA.unsafe_free!(actual_plan)
+    end
+
     return D
 end
 
@@ -153,6 +163,11 @@ function permutation!(
     cutensorPermute(handle(), actual_plan.handle,
                     Ref{scalar_type}(alpha), A, B,
                     stream())
+
+    if plan === nothing
+        CUDA.unsafe_free!(actual_plan)
+    end
+
     return B
 end
 
