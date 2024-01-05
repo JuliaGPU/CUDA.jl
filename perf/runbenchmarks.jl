@@ -2,6 +2,8 @@
 
 using CUDA
 
+CUDA.versioninfo()
+
 using BenchmarkTools
 
 using StableRNGs
