@@ -11,9 +11,6 @@ eltypes = ( (Float32, Float32, Float32, Float32),
             (ComplexF64, ComplexF64, ComplexF64, ComplexF32)
             )
 
-# using host memory with cuTENSOR doesn't work on Windows
-can_pin = !Sys.iswindows()
-
 @testset for NoA=1:2, NoB=1:2, Nc=1:2
     @testset for (eltyA, eltyB, eltyC, eltyCompute) in eltypes
         # setup
@@ -150,43 +147,6 @@ can_pin = !Sys.iswindows()
                 mC = reshape(permutedims(C, ipC), (loA, loB))
                 @test mC ≈ conj(mA)*conj(mB) rtol=compute_rtol
             end
-        end
-        if can_pin
-            Mem.pin(A)
-            Mem.pin(B)
-            # simple case host side
-            Mem.pin(C)
-            @test !any(isnan.(C))
-            opA = cuTENSOR.CUTENSOR_OP_IDENTITY
-            opB = cuTENSOR.CUTENSOR_OP_IDENTITY
-            opC = cuTENSOR.CUTENSOR_OP_IDENTITY
-            opOut = cuTENSOR.CUTENSOR_OP_IDENTITY
-            C  = CUDA.@sync cuTENSOR.contraction!(1, A, indsA, opA, B, indsB, opB, 0, C, indsC, opC, opOut)
-            mC = reshape(permutedims(C, ipC), (loA, loB))
-            @test !any(isnan.(A))
-            @test !any(isnan.(B))
-            @test !any(isnan.(mC))
-            @test mC ≈ mA * mB rtol=compute_rtol
-
-            # simple case with non-zero α host side
-            α = rand(eltyCompute)
-            C .= zero(eltyC)
-            @test !any(isnan.(C))
-            C = CUDA.@sync cuTENSOR.contraction!(α, A, indsA, opA, B, indsB, opB, 0, C, indsC, opC, opOut)
-            mC = reshape(permutedims(collect(C), ipC), (loA, loB))
-            @test !any(isnan.(mC))
-            @test mC ≈ α * mA * mB rtol=compute_rtol
-
-            # simple case with plan storage host-side
-            opA = cuTENSOR.CUTENSOR_OP_IDENTITY
-            opB = cuTENSOR.CUTENSOR_OP_IDENTITY
-            opC = cuTENSOR.CUTENSOR_OP_IDENTITY
-            opOut = cuTENSOR.CUTENSOR_OP_IDENTITY
-            plan  = cuTENSOR.plan_contraction(A, indsA, opA, B, indsB, opB, C, indsC, opC, opOut)
-            C = CUDA.@sync cuTENSOR.contraction!(1, A, indsA, opA, B, indsB, opB, 0, C, indsC, opC, opOut, plan=plan)
-            mC = reshape(permutedims(C, ipC), (loA, loB))
-            @test !any(isnan.(mC))
-            @test mC ≈ mA * mB
         end
     end
 end

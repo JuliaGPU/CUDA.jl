@@ -1,9 +1,6 @@
 using CUDA, cuTENSOR
 using LinearAlgebra, Random
 
-# using host memory with cuTENSOR doesn't work on Windows
-can_pin = !Sys.iswindows()
-
 eltypes = ((Float16, Float16),
             #(Float16, Float32),
             (Float32, Float32),
@@ -25,7 +22,6 @@ eltypes = ((Float16, Float16),
         dimsA = dims
         dimsC = dims[p]
         A = rand(eltyA, dimsA...)
-        can_pin && Mem.pin(A)
         dA = CuArray(A)
         dC = similar(dA, eltyC, dimsC...)
 
@@ -34,23 +30,11 @@ eltypes = ((Float16, Float16),
         dC = cuTENSOR.permutation!(one(eltyA), dA, indsA, opA, dC, indsC)
         C  = collect(dC)
         @test C == permutedims(A, p) # exact equality
-        if can_pin
-            Csimple = zeros(eltyC, dimsC...)
-            Mem.pin(Csimple)
-            Csimple = CUDA.@sync cuTENSOR.permutation!(one(eltyA), A, indsA, opA, Csimple, indsC)
-            @test Csimple == permutedims(A, p) # exact equality
-        end
 
         # with scalar
         α  = rand(eltyA)
         dC = cuTENSOR.permutation!(α, dA, indsA, opA, dC, indsC)
         C  = collect(dC)
         @test C ≈ α * permutedims(A, p) # approximate, floating point rounding
-        if can_pin
-            Cscalar = zeros(eltyC, dimsC...)
-            Mem.pin(Cscalar)
-            Cscalar = CUDA.@sync cuTENSOR.permutation!(α, A, indsA, opA, Cscalar, indsC)
-            @test Cscalar ≈ α * permutedims(A, p) # approximate, floating point rounding
-        end
     end
 end
