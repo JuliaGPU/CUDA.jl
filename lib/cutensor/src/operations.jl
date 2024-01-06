@@ -8,12 +8,12 @@ is_binary(op::cutensorOperator_t) =
 
 function elementwiseTrinary!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::Union{Array, DenseCuArray}), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(beta::Number),
-        @nospecialize(B::Union{Array, DenseCuArray}), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(B::DenseCuArray), Binds::ModeType, opB::cutensorOperator_t,
         @nospecialize(gamma::Number),
-        @nospecialize(C::Union{Array, DenseCuArray}), Cinds::ModeType, opC::cutensorOperator_t,
-        @nospecialize(D::Union{Array, DenseCuArray}), Dinds::ModeType, opAB::cutensorOperator_t,
+        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::DenseCuArray), Dinds::ModeType, opAB::cutensorOperator_t,
         opABC::cutensorOperator_t;
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C), plan::Union{CuTensorPlan, Nothing}=nothing)
@@ -43,10 +43,10 @@ function elementwiseTrinary!(
 end
 
 function plan_elementwiseTrinary(
-        @nospecialize(A::Union{Array, DenseCuArray}), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(B::Union{Array, DenseCuArray}), Binds::ModeType, opB::cutensorOperator_t,
-        @nospecialize(C::Union{Array, DenseCuArray}), Cinds::ModeType, opC::cutensorOperator_t,
-        @nospecialize(D::Union{Array, DenseCuArray}), Dinds::ModeType, opAB::cutensorOperator_t,
+        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B::DenseCuArray), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::DenseCuArray), Dinds::ModeType, opAB::cutensorOperator_t,
         opABC::cutensorOperator_t;
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
@@ -83,10 +83,10 @@ end
 
 function elementwiseBinary!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::Union{Array, DenseCuArray}), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(gamma::Number),
-        @nospecialize(C::Union{Array, DenseCuArray}), Cinds::ModeType, opC::cutensorOperator_t,
-        @nospecialize(D::Union{Array, DenseCuArray}), Dinds::ModeType, opAC::cutensorOperator_t;
+        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::DenseCuArray), Dinds::ModeType, opAC::cutensorOperator_t;
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C), plan::Union{CuTensorPlan, Nothing}=nothing)
 
@@ -113,9 +113,9 @@ function elementwiseBinary!(
 end
 
 function plan_elementwiseBinary(
-        @nospecialize(A::Union{Array, DenseCuArray}), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(C::Union{Array, DenseCuArray}), Cinds::ModeType, opC::cutensorOperator_t,
-        @nospecialize(D::Union{Array, DenseCuArray}), Dinds::ModeType, opAC::cutensorOperator_t;
+        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::DenseCuArray), Dinds::ModeType, opAC::cutensorOperator_t;
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
@@ -146,8 +146,8 @@ end
 
 function permutation!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::Union{Array, DenseCuArray}), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(B::Union{Array, DenseCuArray}), Binds::ModeType;
+        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B::DenseCuArray), Binds::ModeType;
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(B), plan::Union{CuTensorPlan, Nothing}=nothing)
 
@@ -172,8 +172,8 @@ function permutation!(
 end
 
 function plan_permutation(
-        @nospecialize(A::Union{Array, DenseCuArray}), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(B::Union{Array, DenseCuArray}), Binds::ModeType;
+        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B::DenseCuArray), Binds::ModeType;
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(B))
     #!is_unary(opPsi)    && throw(ArgumentError("opPsi must be a unary op!"))
@@ -197,10 +197,10 @@ end
 
 function contraction!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::Union{Array, DenseCuArray}), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(B::Union{Array, DenseCuArray}), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B::DenseCuArray), Binds::ModeType, opB::cutensorOperator_t,
         @nospecialize(beta::Number),
-        @nospecialize(C::Union{Array, DenseCuArray}), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         opOut::cutensorOperator_t;
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C), plan::Union{CuTensorPlan, Nothing}=nothing)
@@ -227,9 +227,9 @@ function contraction!(
 end
 
 function plan_contraction(
-        @nospecialize(A::Union{Array, DenseCuArray}), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(B::Union{Array, DenseCuArray}), Binds::ModeType, opB::cutensorOperator_t,
-        @nospecialize(C::Union{Array, DenseCuArray}), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B::DenseCuArray), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         opOut::cutensorOperator_t;
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
@@ -264,9 +264,9 @@ end
 
 function reduction!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::Union{Array, DenseCuArray}), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(beta::Number),
-        @nospecialize(C::Union{Array, DenseCuArray}), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         opReduce::cutensorOperator_t;
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C), plan::Union{CuTensorPlan, Nothing}=nothing)
@@ -292,8 +292,8 @@ function reduction!(
 end
 
 function plan_reduction(
-        @nospecialize(A::Union{Array, DenseCuArray}), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(C::Union{Array, DenseCuArray}), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         opReduce::cutensorOperator_t;
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
