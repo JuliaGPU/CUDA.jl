@@ -34,7 +34,7 @@ if do_help
                --list             List all available tests.
                --quickfail        Fail the entire run as soon as a single test errored.
                --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS).
-               --gpu=1,2,...      Which GPUs to use (comma-separated list of indices, default: all)
+               --gpu=0,1,...      Comma-separated list of GPUs to use (default: 0)
                --sanitize[=tool]  Run the tests under `compute-sanitizer`.
 
                Remaining arguments filter the tests that will be executed.""")
@@ -54,7 +54,7 @@ end
 include("setup.jl")     # make sure everything is precompiled
 
 # choose tests
-const tests = ["core$(path_separator)initialization"]    # needs to run first
+const tests = ["core/initialization"]    # needs to run first
 const test_runners = Dict()
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)
@@ -62,8 +62,8 @@ for name in keys(TestSuite.tests)
         # GPUArrays' scalar indexing tests assume that indexing is not supported
         continue
     end
-    push!(tests, "gpuarrays$(path_separator)$name")
-    test_runners["gpuarrays$(path_separator)$name"] = ()->TestSuite.tests[name](CuArray)
+    push!(tests, "gpuarrays/$name")
+    test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
 end
 ## files in the test folder
 for (rootpath, dirs, files) in walkdir(@__DIR__)
@@ -84,6 +84,11 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
     files = map(files) do file
       joinpath(subdir, file)
     end
+  end
+
+  # unify path separators
+  files = map(files) do file
+    replace(file, path_separator => '/')
   end
 
   append!(tests, files)
@@ -135,10 +140,11 @@ gpus = if do_gpu_list
         gpu_entry(CuDevice(id))
     end
 else
-    # find all GPUs
-    map(gpu_entry, devices())
+    # pick the first non-exclusive GPU
+    entries = map(gpu_entry, devices())
+    filter!(entry->entry.compute_mode != CUDA.CU_COMPUTEMODE_PROHIBITED, entries)
+    first(entries, 1)
 end
-filter!(gpu->gpu.compute_mode != CUDA.CU_COMPUTEMODE_PROHIBITED, gpus)
 @info("Testing using device " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
       ". To change this, specify the `--gpus` argument to the tests, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
 ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")
@@ -321,9 +327,9 @@ try
 
                     # tests that muck with the context should not be timed with CUDA events,
                     # since they won't be valid at the end of the test anymore.
-                    time_source = in(test, ["core$(path_separator)initialization",
-                                            "base$(path_separator)examples",
-                                            "base$(path_separator)exceptions"]) ? :julia : :cuda
+                    time_source = in(test, ["core/initialization",
+                                            "base/examples",
+                                            "base/exceptions"]) ? :julia : :cuda
 
                     # run the test
                     running_tests[test] = now()

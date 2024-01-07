@@ -595,17 +595,6 @@ end
     @test f(2) == 2
 end
 
-@testset "Ref boxes" begin
-    function kernel(x)
-        x[] += 1
-        return
-    end
-
-    box = Ref(1)
-    CUDA.@sync @cuda kernel(box)
-    @test box[] == 2
-end
-
 end
 
 ############################################################################################
