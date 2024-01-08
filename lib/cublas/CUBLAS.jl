@@ -237,28 +237,28 @@ end
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    precompiling && return
 
     if !CUDA_Runtime.is_available()
-        #@error "cuBLAS is not available"
+        #precompiling || @error "cuBLAS is not available"
         return
     end
 
     # register a log callback
-    log_cond[] = Base.AsyncCondition() do async_cond
-        blob = ""
-        while true
-            message_length = log_cursor[]
-            blob = unsafe_string(pointer(log_buffer), message_length)
-            if Threads.atomic_cas!(log_cursor, message_length, UInt(0)) == message_length
-                break
+    if !Sys.iswindows() && # NVIDIA bug #3321130 &&
+       !precompiling && (isdebug(:init, CUBLAS) || Base.JLOptions().debug_level >= 2)
+        log_cond[] = Base.AsyncCondition() do async_cond
+            blob = ""
+            while true
+                message_length = log_cursor[]
+                blob = unsafe_string(pointer(log_buffer), message_length)
+                if Threads.atomic_cas!(log_cursor, message_length, UInt(0)) == message_length
+                    break
+                end
             end
+            _log_message(blob)
+            return
         end
-        _log_message(blob)
-        return
-    end
-    if (isdebug(:init, CUBLAS) || Base.JLOptions().debug_level >= 2) &&
-       !Sys.iswindows() # NVIDIA bug #3321130
+
         callback = @cfunction(log_message, Nothing, (Cstring,))
         cublasSetLoggerCallback(callback)
     end

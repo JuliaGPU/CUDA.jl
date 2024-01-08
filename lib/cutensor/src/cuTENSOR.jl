@@ -110,7 +110,7 @@ function __init__()
     end
 
     # register a log callback
-    if isdebug(:init, cuTENSOR) || Base.JLOptions().debug_level >= 2
+    if !precompiling && (isdebug(:init, cuTENSOR) || Base.JLOptions().debug_level >= 2)
         callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
         cutensorLoggerSetCallback(callback)
         cutensorLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")
