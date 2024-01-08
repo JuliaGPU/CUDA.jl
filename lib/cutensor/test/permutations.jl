@@ -1,16 +1,17 @@
 using CUDA, cuTENSOR
 using LinearAlgebra, Random
 
-eltypes = ((Float16, Float16),
-            #(Float16, Float32),
-            (Float32, Float32),
-            #(Float32, Float64),
-            (Float64, Float64),
-            #(ComplexF16, ComplexF16),
-            #(ComplexF16, ComplexF32),
-            (ComplexF32, ComplexF32),
-            #(ComplexF32, ComplexF64),
-            (ComplexF64, ComplexF64))
+eltypes = [(Float16, Float16),
+           #(Float16, Float32),
+           (Float32, Float32),
+           #(Float32, Float64),
+           (Float64, Float64),
+           #(ComplexF16, ComplexF16),
+           #(ComplexF16, ComplexF32),
+           (ComplexF32, ComplexF32),
+           #(ComplexF32, ComplexF64),
+           (ComplexF64, ComplexF64)]
+
 @testset for N=2:5
     @testset for (eltyA, eltyC) in eltypes
         # setup
@@ -26,14 +27,14 @@ eltypes = ((Float16, Float16),
         dC = similar(dA, eltyC, dimsC...)
 
         # simple case
-        opA   = cuTENSOR.CUTENSOR_OP_IDENTITY
-        dC = cuTENSOR.permutation!(one(eltyA), dA, indsA, opA, dC, indsC)
+        opA   = cuTENSOR.OP_IDENTITY
+        dC = permutation!(one(eltyA), dA, indsA, opA, dC, indsC)
         C  = collect(dC)
         @test C == permutedims(A, p) # exact equality
 
         # with scalar
         α  = rand(eltyA)
-        dC = cuTENSOR.permutation!(α, dA, indsA, opA, dC, indsC)
+        dC = permutation!(α, dA, indsA, opA, dC, indsC)
         C  = collect(dC)
         @test C ≈ α * permutedims(A, p) # approximate, floating point rounding
     end
