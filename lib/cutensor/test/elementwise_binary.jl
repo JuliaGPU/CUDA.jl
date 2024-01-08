@@ -69,10 +69,10 @@ eltypes = [(Float16, Float16),
             if eltyA <: Complex
                 @test D ≈ α .* permutedims(A, p) .+ γ .* conj.(C)
             else
-                @test D ≈ α .* sqrt.(convert.(eltyD, permutedims(A, p))) .+ γ .* conj.(C)
+                @test D ≈ α .* sqrt.(eltyD.(permutedims(A, p))) .+ γ .* conj.(C)
             end
         else
-            @test D ≈ max.(α .* sqrt.(convert.(eltyD, permutedims(A, p))), γ .* C)
+            @test D ≈ max.(α .* sqrt.(eltyD.(permutedims(A, p))), γ .* C)
         end
 
         # using CuTensor type

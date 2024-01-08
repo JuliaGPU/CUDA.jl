@@ -59,22 +59,22 @@ eltypes = [(Float16, Float16, Float16),
         dD = elementwise_trinary!(1, dA, indsA, opA, 1, dB, indsB, opB,
                                   1, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
-        @test D ≈ (convert.(eltyD, permutedims(A, pA)) .* convert.(eltyD, permutedims(B, pB))) .+ C
+        @test D ≈ (eltyD.(permutedims(A, pA)) .* eltyD.(permutedims(B, pB))) .+ C
 
         opAB = cuTENSOR.OP_ADD
         opABC = cuTENSOR.OP_MUL
         dD = elementwise_trinary!(1, dA, indsA, opA, 1, dB, indsB, opB,
                                   1, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
-        @test D ≈ (convert.(eltyD, permutedims(A, pA)) .+ convert.(eltyD, permutedims(B, pB))) .* C
+        @test D ≈ (eltyD.(permutedims(A, pA)) .+ eltyD.(permutedims(B, pB))) .* C
 
         opAB = cuTENSOR.OP_MUL
         opABC = cuTENSOR.OP_MUL
         dD = elementwise_trinary!(1, dA, indsA, opA, 1, dB, indsB, opB,
                                   1, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
-        @test D ≈ convert.(eltyD, permutedims(A, pA)) .*
-                  convert.(eltyD, permutedims(B, pB)) .* C
+        @test D ≈ eltyD.(permutedims(A, pA)) .*
+                  eltyD.(permutedims(B, pB)) .* C
 
         # with non-trivial coefficients and conjugation
         α = rand(eltyD)
@@ -124,20 +124,20 @@ eltypes = [(Float16, Float16, Float16),
                 @test D ≈ α .* permutedims(A, pA) .* β .* permutedims(B, pB) .+
                             γ .* conj.(C)
             elseif eltyB <: Complex
-                @test D ≈ α .* sqrt.(convert.(eltyD, permutedims(A, pA))) .*
+                @test D ≈ α .* sqrt.(eltyD.(permutedims(A, pA))) .*
                           β .* permutedims(B, pB) .+ γ .* conj.(C)
             elseif eltyB <: Complex
                 @test D ≈ α .* permutedims(A, pA) .*
-                          β .* sqrt.(convert.(eltyD, permutedims(B, pB))) .+
+                          β .* sqrt.(eltyD.(permutedims(B, pB))) .+
                           γ .* conj.(C)
             else
-                @test D ≈ α .* sqrt.(convert.(eltyD, permutedims(A, pA))) .*
-                          β .* sqrt.(convert.(eltyD, permutedims(B, pB))) .+
+                @test D ≈ α .* sqrt.(eltyD.(permutedims(A, pA))) .*
+                          β .* sqrt.(eltyD.(permutedims(B, pB))) .+
                           γ .* conj.(C)
             end
         else
-            @test D ≈ max.(min.(α .* sqrt.(convert.(eltyD, permutedims(A, pA))),
-                                β .* sqrt.(convert.(eltyD, permutedims(B, pB)))),
+            @test D ≈ max.(min.(α .* sqrt.(eltyD.(permutedims(A, pA))),
+                                β .* sqrt.(eltyD.(permutedims(B, pB)))),
                             γ .* C)
         end
     end

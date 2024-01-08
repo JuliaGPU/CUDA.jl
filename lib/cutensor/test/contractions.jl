@@ -119,7 +119,7 @@ eltypes = [(Float32, Float32, Float32, Float32),
             @test mC ≈ mA * mB
             ctC = ctA * ctB
             C2, C2inds = collect(ctC)
-            pC2 = convert.(Int, indexin(convert.(Char, C2inds), [indsoA; indsoB]))
+            pC2 = Int.(indexin(Char.(C2inds), [indsoA; indsoB]))
             mC = reshape(permutedims(C2, invperm(pC2)), (loA, loB))
             @test mC ≈ mA * mB
         end
