@@ -202,12 +202,13 @@ function contraction!(
         @nospecialize(beta::Number),
         @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         opOut::cutensorOperator_t;
+        jit_mode::cutensorJitMode_t=CUTENSOR_JIT_MODE_NONE,
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C), plan::Union{CuTensorPlan, Nothing}=nothing)
 
     # XXX: save these as parameters of the plan?
     actual_plan = if plan === nothing
-        plan_contraction(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, opOut; ws_pref, algo, compute_type)
+        plan_contraction(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, opOut; jit_mode, ws_pref, algo, compute_type)
     else
         plan
     end
@@ -231,6 +232,7 @@ function plan_contraction(
         @nospecialize(B::DenseCuArray), Binds::ModeType, opB::cutensorOperator_t,
         @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         opOut::cutensorOperator_t;
+        jit_mode::cutensorJitMode_t=CUTENSOR_JIT_MODE_NONE,
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
@@ -257,7 +259,7 @@ function plan_contraction(
                               compute_type)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
-    cutensorCreatePlanPreference(handle(), plan_pref, algo, CUTENSOR_JIT_MODE_NONE)
+    cutensorCreatePlanPreference(handle(), plan_pref, algo, jit_mode)
 
     CuTensorPlan(desc[], plan_pref[]; workspacePref=ws_pref)
 end

@@ -80,6 +80,17 @@ eltypes = ( (Float32, Float32, Float32, Float32),
         mC = reshape(permutedims(C, ipC), (loA, loB))
         @test mC ≈ mA * mB rtol=compute_rtol
 
+        # simple case with plan storage and JIT compilation
+        opA = cuTENSOR.CUTENSOR_OP_IDENTITY
+        opB = cuTENSOR.CUTENSOR_OP_IDENTITY
+        opC = cuTENSOR.CUTENSOR_OP_IDENTITY
+        opOut = cuTENSOR.CUTENSOR_OP_IDENTITY
+        plan  = cuTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut, jit_mode=cuTENSOR.CUTENSOR_JIT_MODE_DEFAULT)
+        dC = cuTENSOR.contraction!(1, dA, indsA, opA, dB, indsB, opB, 0, dC, indsC, opC, opOut, plan=plan)
+        C = collect(dC)
+        mC = reshape(permutedims(C, ipC), (loA, loB))
+        @test mC ≈ mA * mB
+
         # with non-trivial α
         α = rand(eltyCompute)
         dC = cuTENSOR.contraction!(α, dA, indsA, opA, dB, indsB, opB, zero(eltyCompute), dC, indsC, opC, opOut, compute_type=eltyCompute)
