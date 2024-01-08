@@ -48,6 +48,7 @@ function plan_elementwiseTrinary(
         @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         @nospecialize(D::DenseCuArray), Dinds::ModeType, opAB::cutensorOperator_t,
         opABC::cutensorOperator_t;
+        jit_mode::cutensorJitMode_t=CUTENSOR_JIT_MODE_NONE,
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
@@ -76,7 +77,7 @@ function plan_elementwiseTrinary(
                                      compute_type)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
-    cutensorCreatePlanPreference(handle(), plan_pref, algo, CUTENSOR_JIT_MODE_NONE)
+    cutensorCreatePlanPreference(handle(), plan_pref, algo, jit_mode)
 
     CuTensorPlan(desc[], plan_pref[]; workspacePref=ws_pref)
 end
@@ -116,6 +117,7 @@ function plan_elementwiseBinary(
         @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         @nospecialize(D::DenseCuArray), Dinds::ModeType, opAC::cutensorOperator_t;
+        jit_mode::cutensorJitMode_t=CUTENSOR_JIT_MODE_NONE,
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
@@ -139,7 +141,7 @@ function plan_elementwiseBinary(
                                      compute_type)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
-    cutensorCreatePlanPreference(handle(), plan_pref, algo, CUTENSOR_JIT_MODE_NONE)
+    cutensorCreatePlanPreference(handle(), plan_pref, algo, jit_mode)
 
     CuTensorPlan(desc[], plan_pref[]; workspacePref=ws_pref)
 end
@@ -174,6 +176,7 @@ end
 function plan_permutation(
         @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(B::DenseCuArray), Binds::ModeType;
+        jit_mode::cutensorJitMode_t=CUTENSOR_JIT_MODE_NONE,
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(B))
     #!is_unary(opPsi)    && throw(ArgumentError("opPsi must be a unary op!"))
@@ -190,7 +193,7 @@ function plan_permutation(
                               compute_type)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
-    cutensorCreatePlanPreference(handle(), plan_pref, algo, CUTENSOR_JIT_MODE_NONE)
+    cutensorCreatePlanPreference(handle(), plan_pref, algo, jit_mode)
 
     CuTensorPlan(desc[], plan_pref[]; workspacePref=ws_pref)
 end
@@ -297,6 +300,7 @@ function plan_reduction(
         @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         opReduce::cutensorOperator_t;
+        jit_mode::cutensorJitMode_t=CUTENSOR_JIT_MODE_NONE,
         ws_pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
@@ -317,7 +321,7 @@ function plan_reduction(
                             compute_type)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
-    cutensorCreatePlanPreference(handle(), plan_pref, algo, CUTENSOR_JIT_MODE_NONE)
+    cutensorCreatePlanPreference(handle(), plan_pref, algo, jit_mode)
 
     CuTensorPlan(desc[], plan_pref[]; workspacePref=ws_pref)
 end
