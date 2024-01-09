@@ -45,7 +45,7 @@ if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_C
     # (the occupancy API could be used to calculate how many blocks can fit per SM,
     #  but that doesn't matter for the tests, so we assume a single block per SM.)
     maxBlocks = attribute(device(), CUDA.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
-    kernel = cufunction(kernel_vadd, NTuple{3, CuDeviceArray{Float32,2,AS.Global}})
+    kernel = cufunction(kernel_vadd, NTuple{3, CuDeviceArray{Float32,2,AS.Global,Int}})
     maxThreads = CUDA.maxthreads(kernel)
 
     a = rand(Float32, maxBlocks, maxThreads)
