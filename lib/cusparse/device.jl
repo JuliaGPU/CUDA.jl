@@ -11,9 +11,9 @@ using SparseArrays
 export CuSparseDeviceVector, CuSparseDeviceMatrixCSC, CuSparseDeviceMatrixCSR,
        CuSparseDeviceMatrixBSR, CuSparseDeviceMatrixCOO
 
-struct CuSparseDeviceVector{Tv,Ti, A} <: AbstractSparseVector{Tv,Ti}
-    iPtr::CuDeviceVector{Ti, A}
-    nzVal::CuDeviceVector{Tv, A}
+struct CuSparseDeviceVector{Tv,Ti,A} <: AbstractSparseVector{Tv,Ti}
+    iPtr::CuDeviceVector{Ti,A,Ti}
+    nzVal::CuDeviceVector{Tv,A,Ti}
     len::Int
     nnz::Ti
 end
@@ -23,9 +23,9 @@ Base.size(g::CuSparseDeviceVector) = (g.len,)
 SparseArrays.nnz(g::CuSparseDeviceVector) = g.nnz
 
 struct CuSparseDeviceMatrixCSC{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
-    colPtr::CuDeviceVector{Ti, A}
-    rowVal::CuDeviceVector{Ti, A}
-    nzVal::CuDeviceVector{Tv, A}
+    colPtr::CuDeviceVector{Ti,A,Ti}
+    rowVal::CuDeviceVector{Ti,A,Ti}
+    nzVal::CuDeviceVector{Tv,A,Ti}
     dims::NTuple{2,Int}
     nnz::Ti
 end
@@ -35,10 +35,10 @@ Base.size(g::CuSparseDeviceMatrixCSC) = g.dims
 SparseArrays.nnz(g::CuSparseDeviceMatrixCSC) = g.nnz
 
 struct CuSparseDeviceMatrixCSR{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
-    rowPtr::CuDeviceVector{Ti, A}
-    colVal::CuDeviceVector{Ti, A}
-    nzVal::CuDeviceVector{Tv, A}
-    dims::NTuple{2, Int}
+    rowPtr::CuDeviceVector{Ti,A,Ti}
+    colVal::CuDeviceVector{Ti,A,Ti}
+    nzVal::CuDeviceVector{Tv,A,Ti}
+    dims::NTuple{2,Int}
     nnz::Ti
 end
 
@@ -47,9 +47,9 @@ Base.size(g::CuSparseDeviceMatrixCSR) = g.dims
 SparseArrays.nnz(g::CuSparseDeviceMatrixCSR) = g.nnz
 
 struct CuSparseDeviceMatrixBSR{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
-    rowPtr::CuDeviceVector{Ti, A}
-    colVal::CuDeviceVector{Ti, A}
-    nzVal::CuDeviceVector{Tv, A}
+    rowPtr::CuDeviceVector{Ti,A,Ti}
+    colVal::CuDeviceVector{Ti,A,Ti}
+    nzVal::CuDeviceVector{Tv,A,Ti}
     dims::NTuple{2,Int}
     blockDim::Ti
     dir::Char
@@ -61,9 +61,9 @@ Base.size(g::CuSparseDeviceMatrixBSR) = g.dims
 SparseArrays.nnz(g::CuSparseDeviceMatrixBSR) = g.nnz
 
 struct CuSparseDeviceMatrixCOO{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
-    rowInd::CuDeviceVector{Ti, A}
-    colInd::CuDeviceVector{Ti, A}
-    nzVal::CuDeviceVector{Tv, A}
+    rowInd::CuDeviceVector{Ti,A,Ti}
+    colInd::CuDeviceVector{Ti,A,Ti}
+    nzVal::CuDeviceVector{Tv,A,Ti}
     dims::NTuple{2,Int}
     nnz::Ti
 end
