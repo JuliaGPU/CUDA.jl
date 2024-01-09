@@ -24,3 +24,10 @@ function cutensorCreate()
   handle_ref[]
 end
 
+function read_cache!(filename::String)
+  cutensorReadKernelCacheFromFile(handle(), filename)
+end
+
+function write_cache!(filename::String)
+  cutensorWriteKernelCacheToFile(handle(), filename)
+end
