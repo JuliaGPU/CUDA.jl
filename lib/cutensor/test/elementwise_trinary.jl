@@ -3,15 +3,13 @@
 using LinearAlgebra
 
 eltypes = [(Float16, Float16, Float16),
-           #(Float16, Float32, Float32),
-           # (Float32, Float16, Float32),
            (Float32, Float32, Float32),
-           # (Float32, Float32, Float64),
-           # (Float32, Float64, Float64),
-           # (Float64, Float32, Float64),
            (Float64, Float64, Float64),
            (ComplexF32, ComplexF32, ComplexF32),
-           (ComplexF64, ComplexF64, ComplexF64)]
+           (ComplexF64, ComplexF64, ComplexF64),
+           (Float32, Float32, Float16),
+           #(Float64, Float64, Float32),
+           (ComplexF64, ComplexF64, ComplexF32)]
 
 @testset for N=2:5
     @testset for (eltyA, eltyB, eltyC) in eltypes

@@ -2,11 +2,10 @@
 
 using LinearAlgebra, Random
 
-eltypes = [#(Float16, Float16), #(Float16, Float32),
-           (Float32, Float32), #(Float32, Float64),
+eltypes = [(Float16, Float16),
+           (Float32, Float32),
            (Float64, Float64),
-           #(ComplexF16, ComplexF16), (ComplexF16, ComplexF32),
-           (ComplexF32, ComplexF32), #(ComplexF32, ComplexF64),
+           (ComplexF32, ComplexF32),
            (ComplexF64, ComplexF64)]
 
 @testset for NA=2:5, NC = 1:NA-1

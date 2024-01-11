@@ -1,15 +1,59 @@
 ## data types
 
-const scalar_types = Dict(
-    (Float16, Float16)          => Float32,
-    (Float32, Float16)          => Float32,
-    (Float16, Float32)          => Float32,
-    (Float32, Float32)          => Float32,
-    (Float64, Float64)          => Float64,
-    (Float64, Float32)          => Float64,
-    (ComplexF32, ComplexF32)    => ComplexF32,
-    (ComplexF64, ComplexF64)    => ComplexF64,
-    (ComplexF64, ComplexF32)    => ComplexF64)
+const contraction_compute_types = Dict(
+    # typeA,     typeB,      typeC       => typeCompute
+    (Float16,    Float16,    Float16)    => Float32,
+    (Float32,    Float32,    Float32)    => Float32,
+    (Float64,    Float64,    Float64)    => Float64,
+    (ComplexF32, ComplexF32, ComplexF32) => Float32,
+    (ComplexF64, ComplexF64, ComplexF64) => Float64,
+    (Float64,    ComplexF64, ComplexF64) => Float64,
+    (ComplexF64, Float64,    ComplexF64) => Float64)
+
+const elementwise_trinary_compute_types = Dict(
+    # typeA,     typeB,      typeC       => typeCompute
+    (Float16,    Float16,    Float16)    => Float16,
+    (Float32,    Float32,    Float32)    => Float32,
+    (Float64,    Float64,    Float64)    => Float64,
+    (ComplexF32, ComplexF32, ComplexF32) => Float32,
+    (ComplexF64, ComplexF64, ComplexF64) => Float64,
+    (Float32,    Float32,    Float16)    => Float32,
+  # (Float64,    Float64,    Float32)    => Float32,
+    (ComplexF64, ComplexF64, ComplexF32) => Float64)
+
+const elementwise_binary_compute_types = Dict(
+    # typeA,     typeC       => typeCompute
+    (Float16,    Float16)    => Float16,
+    (Float32,    Float32)    => Float32,
+    (Float64,    Float64)    => Float64,
+    (ComplexF32, ComplexF32) => Float32,
+    (ComplexF64, ComplexF64) => Float64,
+    (ComplexF64, ComplexF32) => Float64,
+    (Float32,    Float16)    => Float32,
+    (Float64,    Float32)    => Float64)
+
+const permutation_compute_types = Dict(
+    # typeA,     typeB       => typeCompute
+    (Float16,    Float16)    => Float16,
+    (Float16,    Float32)    => Float32,
+  # (Float32,    Float16)    => Float32,
+    (Float32,    Float32)    => Float32,
+    (Float64,    Float64)    => Float64,
+    (Float32,    Float64)    => Float64,
+  # (Float64,    Float32)    => Float64,
+    (ComplexF32, ComplexF32) => Float32,
+    (ComplexF64, ComplexF64) => Float64,
+    (ComplexF32, ComplexF64) => Float64,
+  # (ComplexF64, ComplexF32) => Float64
+    )
+
+const reduction_compute_types = Dict(
+    # typeA,     typeC       => typeCompute
+    (Float16,    Float16)    => Float16,
+    (Float32,    Float32)    => Float32,
+    (Float64,    Float64)    => Float64,
+    (ComplexF32, ComplexF32) => Float32,
+    (ComplexF64, ComplexF64) => Float64)
 
 function Base.cconvert(::Type{cutensorComputeDescriptor_t}, T::DataType)
     if T == Float16 || T == ComplexF16
@@ -49,6 +93,22 @@ function Base.convert(::Type{cutensorDataType_t}, T::DataType)
     end
 end
 
+function Base.convert(::DataType, T::cutensorDataType_t)
+    if T == CUTENSOR_R_16F
+        return Float16
+    elseif T == CUTENSOR_R_32F
+        return Float32
+    elseif T == CUTENSOR_C_32F
+        return ComplexF32
+    elseif T == CUTENSOR_R_64F
+        return Float64
+    elseif T == CUTENSOR_C_64F
+        return ComplexF64
+    else
+        throw(ArgumentError("Data type equivalent for cutensorDataType type $T does not exist!"))
+    end
+end
+
 
 ## plan
 
@@ -56,11 +116,16 @@ mutable struct CuTensorPlan
     ctx::CuContext
     handle::cutensorPlan_t
     workspace::CuVector{UInt8,Mem.DeviceBuffer}
+    scalar_type::DataType
 
     function CuTensorPlan(desc, pref; workspacePref=CUTENSOR_WORKSPACE_DEFAULT)
         # estimate the workspace size
         workspaceSizeEstimate = Ref{UInt64}()
         cutensorEstimateWorkspaceSize(handle(), desc, pref, workspacePref, workspaceSizeEstimate)
+
+        # determine the scalar type
+        required_scalar_type = Ref{cutensorDataType_t}()
+        cutensorOperationDescriptorGetAttribute(handle(), desc, CUTENSOR_OPERATION_DESCRIPTOR_SCALAR_TYPE, required_scalar_type, sizeof(required_scalar_type))
 
         # create the plan
         plan_ref = Ref{cutensorPlan_t}()
@@ -71,7 +136,7 @@ mutable struct CuTensorPlan
         cutensorPlanGetAttribute(handle(), plan_ref[], CUTENSOR_PLAN_REQUIRED_WORKSPACE, actualWorkspaceSize, sizeof(actualWorkspaceSize))
         workspace = CuArray{UInt8}(undef, actualWorkspaceSize[])
 
-        obj = new(context(), plan_ref[], workspace)
+        obj = new(context(), plan_ref[], workspace, required_scalar_type[])
         finalizer(CUDA.unsafe_finalize!, obj)
         return obj
     end

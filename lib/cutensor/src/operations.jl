@@ -23,20 +23,27 @@ function elementwise_trinary!(
         @nospecialize(D::DenseCuArray), Dinds::ModeType, opAB::cutensorOperator_t,
         opABC::cutensorOperator_t;
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
-        algo::cutensorAlgo_t=ALGO_DEFAULT, compute_type::Type=eltype(C),
+        algo::cutensorAlgo_t=ALGO_DEFAULT,
+        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
+
+    actual_compute_type = if compute_type === nothing
+        elementwise_trinary_compute_types[(eltype(A), eltype(B), eltype(C))]
+    else
+        compute_type
+    end
 
     actual_plan = if plan === nothing
         plan_elementwise_trinary(A, Ainds, opA,
                                  B, Binds, opB,
                                  C, Cinds, opC,
                                  D, Dinds, opAB, opABC;
-                                 workspace, algo, compute_type)
+                                 workspace, algo, compute_type=actual_compute_type)
     else
         plan
     end
 
-    scalar_type = eltype(A)
+    scalar_type = actual_plan.scalar_type
     cutensorElementwiseTrinaryExecute(handle(), actual_plan,
                                       Ref{scalar_type}(alpha), A,
                                       Ref{scalar_type}(beta), B,
@@ -58,7 +65,8 @@ function plan_elementwise_trinary(
         opABC::cutensorOperator_t;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
-        algo::cutensorAlgo_t=ALGO_DEFAULT, compute_type::Type=eltype(C))
+        algo::cutensorAlgo_t=ALGO_DEFAULT,
+        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing)
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
@@ -73,6 +81,12 @@ function plan_elementwise_trinary(
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
     modeD = modeC
+
+    actual_compute_type = if compute_type === nothing
+        elementwise_trinary_compute_types[(eltype(A), eltype(B), eltype(C))]
+    else
+        compute_type
+    end
 
     desc = Ref{cutensorOperationDescriptor_t}()
     cutensorCreateElementwiseTrinary(handle(),
@@ -97,19 +111,26 @@ function elementwise_binary!(
         @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         @nospecialize(D::DenseCuArray), Dinds::ModeType, opAC::cutensorOperator_t;
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
-        algo::cutensorAlgo_t=ALGO_DEFAULT, compute_type::Type=eltype(C),
+        algo::cutensorAlgo_t=ALGO_DEFAULT,
+        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
+
+    actual_compute_type = if compute_type === nothing
+        elementwise_binary_compute_types[(eltype(A), eltype(C))]
+    else
+        compute_type
+    end
 
     actual_plan = if plan === nothing
         plan_elementwise_binary(A, Ainds, opA,
                                 C, Cinds, opC,
                                 D, Dinds, opAC;
-                                workspace, algo, compute_type)
+                                workspace, algo, compute_type=actual_compute_type)
     else
         plan
     end
 
-    scalar_type = eltype(A)
+    scalar_type = actual_plan.scalar_type
     cutensorElementwiseBinaryExecute(handle(), actual_plan,
                                      Ref{scalar_type}(alpha), A,
                                      Ref{scalar_type}(gamma), C, D,
@@ -128,7 +149,8 @@ function plan_elementwise_binary(
         @nospecialize(D::DenseCuArray), Dinds::ModeType, opAC::cutensorOperator_t;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
-        algo::cutensorAlgo_t=ALGO_DEFAULT, compute_type::Type=eltype(C))
+        algo::cutensorAlgo_t=ALGO_DEFAULT,
+        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=eltype(C))
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opAC)  && throw(ArgumentError("opAC must be a binary op!"))
@@ -140,6 +162,12 @@ function plan_elementwise_binary(
     modeC = collect(Cint, Cinds)
     modeD = modeC
 
+    actual_compute_type = if compute_type === nothing
+        elementwise_binary_compute_types[(eltype(A), eltype(C))]
+    else
+        compute_type
+    end
+
     desc = Ref{cutensorOperationDescriptor_t}()
     cutensorCreateElementwiseBinary(handle(),
                                      desc,
@@ -147,7 +175,7 @@ function plan_elementwise_binary(
                                      descC, modeC, opC,
                                      descD, modeD,
                                      opAC,
-                                     compute_type)
+                                     actual_compute_type)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, jit)
@@ -160,18 +188,25 @@ function permutation!(
         @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(B::DenseCuArray), Binds::ModeType;
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
-        algo::cutensorAlgo_t=ALGO_DEFAULT, compute_type::Type=eltype(B),
+        algo::cutensorAlgo_t=ALGO_DEFAULT,
+        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
+
+    actual_compute_type = if compute_type === nothing
+        permutation_compute_types[(eltype(A), eltype(B))]
+    else
+        compute_type
+    end
 
     actual_plan = if plan === nothing
         plan_permutation(A, Ainds, opA,
                          B, Binds;
-                         workspace, algo, compute_type)
+                         workspace, algo, compute_type=actual_compute_type)
     else
         plan
     end
 
-    scalar_type = eltype(B)
+    scalar_type = actual_plan.scalar_type
     cutensorPermute(handle(), actual_plan,
                     Ref{scalar_type}(alpha), A, B,
                     stream())
@@ -188,7 +223,8 @@ function plan_permutation(
         @nospecialize(B::DenseCuArray), Binds::ModeType;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
-        algo::cutensorAlgo_t=ALGO_DEFAULT, compute_type::Type=eltype(B))
+        algo::cutensorAlgo_t=ALGO_DEFAULT,
+        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing)
     #!is_unary(opPsi)    && throw(ArgumentError("opPsi must be a unary op!"))
     descA = CuTensorDescriptor(A)
     descB = CuTensorDescriptor(B)
@@ -196,11 +232,17 @@ function plan_permutation(
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
 
+    actual_compute_type = if compute_type === nothing
+        permutation_compute_types[(eltype(A), eltype(B))]
+    else
+        compute_type
+    end
+
     desc = Ref{cutensorOperationDescriptor_t}()
     cutensorCreatePermutation(handle(), desc,
                               descA, modeA, opA,
                               descB, modeB,
-                              compute_type)
+                              actual_compute_type)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, jit)
@@ -217,19 +259,25 @@ function contraction!(
         opOut::cutensorOperator_t;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
-        algo::cutensorAlgo_t=ALGO_DEFAULT, compute_type::Type=eltype(C),
+        algo::cutensorAlgo_t=ALGO_DEFAULT,
+        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
+
+    actual_compute_type = if compute_type === nothing
+        contraction_compute_types[(eltype(A), eltype(B), eltype(C))]
+    else
+        compute_type
+    end
 
     # XXX: save these as parameters of the plan?
     actual_plan = if plan === nothing
         plan_contraction(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, opOut;
-                         jit, workspace, algo, compute_type)
+                         jit, workspace, algo, compute_type=actual_compute_type)
     else
         plan
     end
 
-    output_type = eltype(C)
-    scalar_type = scalar_types[(output_type, compute_type)]
+    scalar_type = actual_plan.scalar_type
     cutensorContract(handle(), actual_plan,
                      Ref{scalar_type}(alpha), A, B,
                      Ref{scalar_type}(beta),  C, C,
@@ -249,7 +297,8 @@ function plan_contraction(
         opOut::cutensorOperator_t;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
-        algo::cutensorAlgo_t=ALGO_DEFAULT, compute_type::Type=eltype(C))
+        algo::cutensorAlgo_t=ALGO_DEFAULT,
+        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing)
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
@@ -258,11 +307,15 @@ function plan_contraction(
     descB = CuTensorDescriptor(B)
     descC = CuTensorDescriptor(C)
     # for now, D must be identical to C (and thus, descD must be identical to descC)
-    output_type = eltype(C)
-    scalar_type = scalar_types[(output_type, compute_type)]
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
+
+    actual_compute_type = if compute_type === nothing
+        contraction_compute_types[(eltype(A), eltype(B), eltype(C))]
+    else
+        compute_type
+    end
 
     desc = Ref{cutensorOperationDescriptor_t}()
     cutensorCreateContraction(handle(),
@@ -271,7 +324,7 @@ function plan_contraction(
                               descB, modeB, opB,
                               descC, modeC, opC,
                               descC, modeC,
-                              compute_type)
+                              actual_compute_type)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, jit)
@@ -286,17 +339,23 @@ function reduction!(
         @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         opReduce::cutensorOperator_t;
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
-        algo::cutensorAlgo_t=ALGO_DEFAULT, compute_type::Type=eltype(C),
+        algo::cutensorAlgo_t=ALGO_DEFAULT,
+        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
 
+    actual_compute_type = if compute_type === nothing
+        reduction_compute_types[(eltype(A), eltype(C))]
+    else
+        compute_type
+    end
+
     actual_plan = if plan === nothing
-        plan_reduction(A, Ainds, opA, C, Cinds, opC, opReduce; workspace, algo, compute_type)
+        plan_reduction(A, Ainds, opA, C, Cinds, opC, opReduce; workspace, algo, compute_type=actual_compute_type)
     else
         plan
     end
 
-    output_type = eltype(C)
-    scalar_type = scalar_types[(output_type, compute_type)]
+    scalar_type = actual_plan.scalar_type
     cutensorReduce(handle(), actual_plan,
                    Ref{scalar_type}(alpha), A,
                    Ref{scalar_type}(beta),  C, C,
@@ -315,7 +374,8 @@ function plan_reduction(
         opReduce::cutensorOperator_t;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
-        algo::cutensorAlgo_t=ALGO_DEFAULT, compute_type::Type=eltype(C))
+        algo::cutensorAlgo_t=ALGO_DEFAULT,
+        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing)
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opReduce)  && throw(ArgumentError("opReduce must be a binary op!"))
@@ -325,13 +385,19 @@ function plan_reduction(
     modeA = collect(Cint, Ainds)
     modeC = collect(Cint, Cinds)
 
+    actual_compute_type = if compute_type === nothing
+        reduction_compute_types[(eltype(A), eltype(B), eltype(C))]
+    else
+        compute_type
+    end
+
     desc = Ref{cutensorOperationDescriptor_t}()
     cutensorCreateReduction(handle(),
                             desc,
                             descA, modeA, opA,
                             descC, modeC, opC,
                             descC, modeC, opReduce,
-                            compute_type)
+                            actual_compute_type)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, jit)
