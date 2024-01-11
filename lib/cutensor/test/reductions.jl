@@ -1,7 +1,6 @@
-using CUDA, cuTENSOR
-using LinearAlgebra
-using Test
-using Random
+@testset "reductions" begin
+
+using LinearAlgebra, Random
 
 eltypes = [#(Float16, Float16), #(Float16, Float32),
            (Float32, Float32), #(Float32, Float64),
@@ -60,4 +59,6 @@ eltypes = [#(Float16, Float16), #(Float16, Float32),
         @test reshape(collect(dC), (dimsC..., ones(Int,NA-NC)...)) ≈
             α .* conj.(sum(permutedims(A, p); dims = ((NC+1:NA)...,))) .+ γ .* C
     end
+end
+
 end

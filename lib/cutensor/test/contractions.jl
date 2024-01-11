@@ -1,4 +1,5 @@
-using CUDA, cuTENSOR
+@testset "contractions" begin
+
 using LinearAlgebra
 
 eltypes = [(Float32, Float32, Float32, Float32),
@@ -159,4 +160,6 @@ eltypes = [(Float32, Float32, Float32, Float32),
             end
         end
     end
+end
+
 end

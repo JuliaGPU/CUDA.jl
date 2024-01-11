@@ -1,4 +1,5 @@
-using CUDA, cuTENSOR
+@testset "base" begin
+
 using LinearAlgebra, Random
 
 @test has_cutensor()
@@ -24,12 +25,4 @@ using LinearAlgebra, Random
     @test eltype(ctA) == eltype(A)
 end
 
-@testset "kernel cache" begin
-    mktempdir() do dir
-    cd(dir) do
-        cuTENSOR.read_cache!("kernelCache.bin")
-        @test isfile("kernelCache.bin")
-        cuTENSOR.write_cache!("kernelCache.bin")
-    end
-    end
 end

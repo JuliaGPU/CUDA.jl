@@ -1,4 +1,5 @@
-using CUDA, cuTENSOR
+@testset "permutations" begin
+
 using LinearAlgebra, Random
 
 eltypes = [(Float16, Float16),
@@ -38,4 +39,6 @@ eltypes = [(Float16, Float16),
         C  = collect(dC)
         @test C ≈ α * permutedims(A, p) # approximate, floating point rounding
     end
+end
+
 end

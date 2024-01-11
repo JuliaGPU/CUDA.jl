@@ -1,4 +1,5 @@
-using CUDA, cuTENSOR
+@testset "elementwise binary" begin
+
 using LinearAlgebra
 
 eltypes = [(Float16, Float16),
@@ -101,4 +102,6 @@ eltypes = [(Float16, Float16),
         hD = collect(ctD.data)
         @test hD ≈ α.*permutedims(A, p) .+ γ.*C
     end
+end
+
 end

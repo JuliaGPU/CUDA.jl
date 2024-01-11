@@ -1,4 +1,5 @@
-using CUDA, cuTENSOR
+@testset "elementwise trinary" begin
+
 using LinearAlgebra
 
 eltypes = [(Float16, Float16, Float16),
@@ -141,4 +142,6 @@ eltypes = [(Float16, Float16, Float16),
                             γ .* C)
         end
     end
+end
+
 end

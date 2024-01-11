@@ -9,17 +9,22 @@ using cuTENSOR
 
 @testset "cuTENSOR" begin
 
-# include all tests
-for entry in readdir(@__DIR__)
-    endswith(entry, ".jl") || continue
-    entry in ["runtests.jl"] && continue
+include("base.jl")
 
-    # generate a testset
-    name = splitext(entry)[1]
-    @eval begin
-        @testset $name begin
-            include($entry)
-        end
+include("elementwise_binary.jl")
+include("elementwise_trinary.jl")
+include("permutations.jl")
+include("contractions.jl")
+include("reductions.jl")
+
+# we should have some kernels in the cache after this
+@testset "kernel cache" begin
+    mktempdir() do dir
+    cd(dir) do
+        cuTENSOR.write_cache!("kernelCache.bin")
+        @test isfile("kernelCache.bin")
+        cuTENSOR.read_cache!("kernelCache.bin")
+    end
     end
 end
 
