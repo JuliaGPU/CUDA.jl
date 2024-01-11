@@ -27,20 +27,21 @@ include("libcutensor.jl")
 
 # low-level wrappers
 include("error.jl")
-include("tensor.jl")
-include("wrappers.jl")
+include("utils.jl")
+include("types.jl")
+include("operations.jl")
 
 # high-level integrations
 include("interfaces.jl")
 
 # cache for created, but unused handles
-const idle_handles = HandleCache{CuContext,Ptr{cutensorHandle_t}}()
+const idle_handles = HandleCache{CuContext,cutensorHandle_t}()
 
 function handle()
     cuda = CUDA.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::Ptr{cutensorHandle_t}}
+    LibraryState = @NamedTuple{handle::cutensorHandle_t}
     states = get!(task_local_storage(), :cuTENSOR) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}

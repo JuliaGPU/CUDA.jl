@@ -1,4 +1,5 @@
-using CUDA, cuTENSOR
+@testset "base" begin
+
 using LinearAlgebra, Random
 
 @test has_cutensor()
@@ -22,4 +23,6 @@ using LinearAlgebra, Random
     @test ndims(ctA) == ndims(A)
     @test strides(ctA) == strides(A)
     @test eltype(ctA) == eltype(A)
+end
+
 end

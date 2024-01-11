@@ -139,12 +139,7 @@ steps:
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
               Pkg.instantiate()
 
-              pkgs = [PackageSpec(path=joinpath(pwd(), "lib", lowercase("{{matrix.package}}")))]
-              if "{{matrix.package}}" == "cuTensorNet"
-                # cuTensorNet depends on a development version of cuTENSOR
-                push!(pkgs, PackageSpec(path=joinpath(pwd(), "lib", "cutensor")))
-              end
-              Pkg.develop(pkgs)
+              Pkg.develop(path=joinpath(pwd(), "lib", lowercase("{{matrix.package}}")))
 
               write("LocalPreferences.toml", "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"")
             end

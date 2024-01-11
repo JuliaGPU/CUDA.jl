@@ -2,6 +2,7 @@
 library_name = "libcutensor"
 output_file_path = "../../lib/cutensor/src/libcutensor.jl"
 prologue_file_path = "./libcutensor_prologue.jl"
+epilogue_file_path = "./libcutensor_epilogue.jl"
 
 output_ignorelist = [
     # these change often
@@ -29,46 +30,30 @@ needs_context = false
 [api.cutensorGetCudartVersion]
 needs_context = false
 
-[api.cutensorElementwiseTrinary.argtypes]
-3 = "PtrOrCuPtr{Cvoid}"
-7 = "PtrOrCuPtr{Cvoid}"
-11 = "PtrOrCuPtr{Cvoid}"
-14 = "PtrOrCuPtr{Cvoid}"
-
-[api.cutensorElementwiseBinary.argtypes]
-3 = "PtrOrCuPtr{Cvoid}"
-7 = "PtrOrCuPtr{Cvoid}"
-10 = "PtrOrCuPtr{Cvoid}"
-
-[api.cutensorPermutation.argtypes]
-3 = "PtrOrCuPtr{Cvoid}"
-6 = "PtrOrCuPtr{Cvoid}"
-
-[api.cutensorContraction.argtypes]
-4 = "PtrOrCuPtr{Cvoid}"
-5 = "PtrOrCuPtr{Cvoid}"
-7 = "PtrOrCuPtr{Cvoid}"
-8 = "PtrOrCuPtr{Cvoid}"
+[api.cutensorElementwiseTrinaryExecute.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
 9 = "CuPtr{Cvoid}"
 
-[api.cutensorReduction.argtypes]
-3 = "PtrOrCuPtr{Cvoid}"
-7 = "PtrOrCuPtr{Cvoid}"
-10 = "PtrOrCuPtr{Cvoid}"
-15 = "PtrOrCuPtr{Cvoid}"
+[api.cutensorElementwiseBinaryExecute.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
 
-[api.cutensorReductionGetWorkspace.argtypes]
-2 = "PtrOrCuPtr{Cvoid}"
-5 = "PtrOrCuPtr{Cvoid}"
-8 = "PtrOrCuPtr{Cvoid}"
+[api.cutensorPermute.argtypes]
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
 
-[api.cutensorGetAlignmentRequirement.argtypes]
-2 = "PtrOrCuPtr{Cvoid}"
+[api.cutensorContract.argtypes]
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
 
-[api.cutensorHandleReadCacheFromFile.argtypes]
-3 = "Ref{UInt32}"
-
-[api.cutensorReductionGetWorkspaceSize.argtypes]
-2 = "PtrOrCuPtr{Cvoid}"
-5 = "PtrOrCuPtr{Cvoid}"
-8 = "PtrOrCuPtr{Cvoid}"
+[api.cutensorReduce.argtypes]
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
