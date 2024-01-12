@@ -18,6 +18,7 @@ include("contractions.jl")
 include("reductions.jl")
 
 # we should have some kernels in the cache after this
+if CUDA.runtime_version() >= v"11.8" && capability(device()) >= v"8.0"
 @testset "kernel cache" begin
     mktempdir() do dir
     cd(dir) do
@@ -26,6 +27,7 @@ include("reductions.jl")
         cuTENSOR.read_cache!("kernelCache.bin")
     end
     end
+end
 end
 
 end

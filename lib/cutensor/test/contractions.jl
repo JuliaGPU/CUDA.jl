@@ -31,7 +31,7 @@ eltypes = [(Float32, Float32, Float32, Float32),
         ipB = invperm(pB)
         pC = randperm(NoA + NoB)
         ipC = invperm(pC)
-        compute_rtol = (real(eltyCompute) == Float16 || real(eltyC) == Float16) ? 1e-2 : (real(eltyCompute) == Float32 ? 1e-4 : 1e-6)
+        compute_rtol = (eltyCompute == Float16 || eltyC == Float16) ? 1e-2 : (eltyCompute == Float32 ? 1e-4 : 1e-6)
         dimsA = [dimsoA; dimsc][pA]
         indsA = [indsoA; indsc][pA]
         dimsB = [dimsc; dimsoB][pB]
@@ -73,9 +73,10 @@ eltypes = [(Float32, Float32, Float32, Float32),
         opB = cuTENSOR.OP_IDENTITY
         opC = cuTENSOR.OP_IDENTITY
         opOut = cuTENSOR.OP_IDENTITY
-        plan  = cuTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut; compute_type=eltyCompute)
+        eltypComputeEnum = convert(cutensorComputeDescriptorEnum, eltyCompute)
+        plan  = cuTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut; compute_type=eltypComputeEnum)
         dC = contraction!(1, dA, indsA, opA, dB, indsB, opB,
-                                    0, dC, indsC, opC, opOut, plan=plan, compute_type=eltyCompute)
+                          0, dC, indsC, opC, opOut, plan=plan, compute_type=eltypComputeEnum)
         C = collect(dC)
         mC = reshape(permutedims(C, ipC), (loA, loB))
         @test mC ≈ mA * mB rtol=compute_rtol
