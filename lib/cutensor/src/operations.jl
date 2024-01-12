@@ -43,17 +43,29 @@ function elementwise_trinary!(
         plan
     end
 
-    scalar_type = actual_plan.scalar_type
-    cutensorElementwiseTrinaryExecute(handle(), actual_plan,
-                                      Ref{scalar_type}(alpha), A,
-                                      Ref{scalar_type}(beta), B,
-                                      Ref{scalar_type}(gamma), C, D,
-                                      stream())
+    elementwise_trinary_execute!(actual_plan, alpha, A, beta, B, gamma, C, D)
 
     if plan === nothing
         CUDA.unsafe_free!(actual_plan)
     end
 
+    return D
+end
+
+function elementwise_trinary_execute!(plan::CuTensorPlan,
+                                      @nospecialize(alpha::Number),
+                                      @nospecialize(A::DenseCuArray),
+                                      @nospecialize(beta::Number),
+                                      @nospecialize(B::DenseCuArray),
+                                      @nospecialize(gamma::Number),
+                                      @nospecialize(C::DenseCuArray),
+                                      @nospecialize(D::DenseCuArray))
+    scalar_type = plan.scalar_type
+    cutensorElementwiseTrinaryExecute(handle(), plan,
+                                      Ref{scalar_type}(alpha), A,
+                                      Ref{scalar_type}(beta), B,
+                                      Ref{scalar_type}(gamma), C, D,
+                                      stream())
     return D
 end
 
@@ -130,16 +142,26 @@ function elementwise_binary!(
         plan
     end
 
-    scalar_type = actual_plan.scalar_type
-    cutensorElementwiseBinaryExecute(handle(), actual_plan,
-                                     Ref{scalar_type}(alpha), A,
-                                     Ref{scalar_type}(gamma), C, D,
-                                     stream())
+    elementwise_binary_execute!(actual_plan, alpha, A, gamma, C, D)
 
     if plan === nothing
         CUDA.unsafe_free!(actual_plan)
     end
 
+    return D
+end
+
+function elementwise_binary_execute!(plan::CuTensorPlan,
+                                     @nospecialize(alpha::Number),
+                                     @nospecialize(A::DenseCuArray),
+                                     @nospecialize(gamma::Number),
+                                     @nospecialize(C::DenseCuArray),
+                                     @nospecialize(D::DenseCuArray))
+    scalar_type = plan.scalar_type
+    cutensorElementwiseBinaryExecute(handle(), plan,
+                                     Ref{scalar_type}(alpha), A,
+                                     Ref{scalar_type}(gamma), C, D,
+                                     stream())
     return D
 end
 
@@ -206,15 +228,23 @@ function permutation!(
         plan
     end
 
-    scalar_type = actual_plan.scalar_type
-    cutensorPermute(handle(), actual_plan,
-                    Ref{scalar_type}(alpha), A, B,
-                    stream())
+    permute!(actual_plan, alpha, A, B)
 
     if plan === nothing
         CUDA.unsafe_free!(actual_plan)
     end
 
+    return B
+end
+
+function permute!(plan::CuTensorPlan,
+                  @nospecialize(alpha::Number),
+                  @nospecialize(A::DenseCuArray),
+                  @nospecialize(B::DenseCuArray))
+    scalar_type = plan.scalar_type
+    cutensorPermute(handle(), plan,
+                    Ref{scalar_type}(alpha), A, B,
+                    stream())
     return B
 end
 
@@ -275,16 +305,26 @@ function contraction!(
         plan
     end
 
-    scalar_type = actual_plan.scalar_type
-    cutensorContract(handle(), actual_plan,
-                     Ref{scalar_type}(alpha), A, B,
-                     Ref{scalar_type}(beta),  C, C,
-                     actual_plan.workspace, sizeof(actual_plan.workspace), stream())
+    contract!(actual_plan, alpha, A, B, beta, C)
 
     if plan === nothing
         CUDA.unsafe_free!(actual_plan)
     end
 
+    return C
+end
+
+function contract!(plan::CuTensorPlan,
+                   @nospecialize(alpha::Number),
+                   @nospecialize(A::DenseCuArray),
+                   @nospecialize(B::DenseCuArray),
+                   @nospecialize(beta::Number),
+                   @nospecialize(C::DenseCuArray))
+    scalar_type = plan.scalar_type
+    cutensorContract(handle(), plan,
+                     Ref{scalar_type}(alpha), A, B,
+                     Ref{scalar_type}(beta), C, C,
+                     plan.workspace, sizeof(plan.workspace), stream())
     return C
 end
 
@@ -353,16 +393,25 @@ function reduction!(
         plan
     end
 
-    scalar_type = actual_plan.scalar_type
-    cutensorReduce(handle(), actual_plan,
-                   Ref{scalar_type}(alpha), A,
-                   Ref{scalar_type}(beta),  C, C,
-                   actual_plan.workspace, sizeof(actual_plan.workspace), stream())
+    reduce!(actual_plan, alpha, A, beta, C)
 
     if plan === nothing
         CUDA.unsafe_free!(actual_plan)
     end
 
+    return C
+end
+
+function reduce!(plan::CuTensorPlan,
+                 @nospecialize(alpha::Number),
+                 @nospecialize(A::DenseCuArray),
+                 @nospecialize(beta::Number),
+                 @nospecialize(C::DenseCuArray))
+    scalar_type = plan.scalar_type
+    cutensorReduce(handle(), plan,
+                   Ref{scalar_type}(alpha), A,
+                   Ref{scalar_type}(beta), C, C,
+                   plan.workspace, sizeof(plan.workspace), stream())
     return C
 end
 

@@ -63,7 +63,7 @@ eltypes = [(Float32, Float32, Float32, Float32),
         opC = cuTENSOR.OP_IDENTITY
         opOut = cuTENSOR.OP_IDENTITY
         plan  = cuTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut)
-        dC = contraction!(1, dA, indsA, opA, dB, indsB, opB, 0, dC, indsC, opC, opOut; plan)
+        dC = cuTENSOR.contract!(plan, 1, dA, dB, 0, dC)
         C = collect(dC)
         mC = reshape(permutedims(C, ipC), (loA, loB))
         @test mC ≈ mA * mB
@@ -75,8 +75,7 @@ eltypes = [(Float32, Float32, Float32, Float32),
         opOut = cuTENSOR.OP_IDENTITY
         eltypComputeEnum = convert(cutensorComputeDescriptorEnum, eltyCompute)
         plan  = cuTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut; compute_type=eltypComputeEnum)
-        dC = contraction!(1, dA, indsA, opA, dB, indsB, opB,
-                          0, dC, indsC, opC, opOut, plan=plan, compute_type=eltypComputeEnum)
+        dC = cuTENSOR.contract!(plan, 1, dA, dB, 0, dC)
         C = collect(dC)
         mC = reshape(permutedims(C, ipC), (loA, loB))
         @test mC ≈ mA * mB rtol=compute_rtol
@@ -87,7 +86,7 @@ eltypes = [(Float32, Float32, Float32, Float32),
         opC = cuTENSOR.OP_IDENTITY
         opOut = cuTENSOR.OP_IDENTITY
         plan  = cuTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut; jit=cuTENSOR.JIT_MODE_DEFAULT)
-        dC = contraction!(1, dA, indsA, opA, dB, indsB, opB, 0, dC, indsC, opC, opOut, plan=plan)
+        dC = cuTENSOR.contract!(plan, 1, dA, dB, 0, dC)
         C = collect(dC)
         mC = reshape(permutedims(C, ipC), (loA, loB))
         @test mC ≈ mA * mB
