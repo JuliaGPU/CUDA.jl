@@ -11,9 +11,9 @@ CUTENSOR_jll = "35b6c64b-1ee1-5834-92a3-3f624899209a"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [compat]
-CEnum = "0.2, 0.3, 0.4"
-CUDA = "~5.1"
+CEnum = "0.2, 0.3, 0.4, 0.5"
+CUDA = "~5.1, ~5.2"
 CUDA_Runtime_Discovery = "0.2"
 CUTENSOR_jll = "~2.0"
-julia = "1.6"
+julia = "1.8"
 LinearAlgebra = "1"
