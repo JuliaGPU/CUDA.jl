@@ -106,18 +106,12 @@ steps:
           setup:
             cuda:
               - "11.4"
+              - "12.0"
             package:
               - "cuDNN"
               - "cuTENSOR"
               - "cuStateVec"
               - "cuTensorNet"
-          adjustments:
-            - with:
-                cuda: "12.0"
-                package: "cuDNN"
-            - with:
-                cuda: "12.0"
-                package: "cuTENSOR"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.9"

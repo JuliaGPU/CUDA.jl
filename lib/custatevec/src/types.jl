@@ -79,6 +79,7 @@ CuStateVec(v::CuVector{T}) where {T} = CuStateVec{T}(v, UInt32(log2(length(v))))
 CuStateVec(v::Vector{T}) where {T}   = CuStateVec(CuVector{T}(v))
 
 Base.eltype(sv::CuStateVec{T}) where T = T
+Base.copy(sv::CuStateVec{T}) where {T} = CuStateVec(copy(sv.data))
 
 mutable struct CuStateVecSampler
     handle::custatevecSamplerDescriptor_t
@@ -94,3 +95,16 @@ mutable struct CuStateVecSampler
 end
 
 Base.unsafe_convert(::Type{custatevecSamplerDescriptor_t}, desc::CuStateVecSampler) = desc.handle
+
+mutable struct CuStateVecAccessor
+    handle::custatevecAccessorDescriptor_t
+    ws_size::Csize_t
+    function CuStateVecAccessor(sv::CuStateVec, bit_ordering::Vector{Int}, mask_bit_string::Vector{Int}, mask_ordering::Vector{Int})
+        desc_ref   = Ref{custatevecAccessorDescriptor_t}()
+        extra_size = Ref{Csize_t}(0)
+        custatevecAccessorCreate(handle(), pointer(sv.data), eltype(sv), sv.nbits, desc_ref, bit_ordering, length(bit_ordering), mask_bit_string, mark_ordering, length(mask_bit_string), extra_size)
+        obj = new(desc_ref[], extra_size[])
+        finalizer(custatevecAccessorDestroy, obj)
+        obj
+    end
+end
