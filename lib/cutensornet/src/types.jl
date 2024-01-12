@@ -81,7 +81,7 @@ Base.unsafe_convert(::Type{cutensornetTensorDescriptor_t}, desc::CuTensorDescrip
 mutable struct CuTensorNetworkDescriptor
     handle::cutensornetNetworkDescriptor_t
     function CuTensorNetworkDescriptor(numInputs::Int32, numModesIn::Vector{Int32}, extentsIn::Vector{Vector{Int64}},
-                                       stridesIn, modesIn::Vector{Vector{Int32}}, qualifiersIn::Vector{Int32},
+                                       stridesIn, modesIn::Vector{Vector{Int32}}, qualifiersIn::Vector{cutensornetTensorQualifiers_t},
                                        numModesOut::Int32, extentsOut::Vector{Int64}, stridesOut::Union{Ptr{Nothing}, Vector{Int64}},
                                        modesOut::Vector{Int32}, dataType::Type, computeType::Type)
         desc_ref = Ref{cutensornetNetworkDescriptor_t}()
@@ -117,11 +117,13 @@ mutable struct CuTensorNetwork{T}
     output_arr::CuArray{T}
 end
 function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides, input_qualifiers, output_modes, output_extents, output_strides)
+    input_qualifiers = [cutensornetTensorQualifiers_t(isConjugate, 0, 0) for isConjugate in input_qualifiers]
+    # TODO: expose isConstant & requiresGradient?
     desc = CuTensorNetworkDescriptor(Int32(length(input_modes)), Int32.(length.(input_modes)), input_extents, input_strides, input_modes, input_qualifiers,
                                      Int32(length(output_modes)), output_extents, output_strides, output_modes, T, compute_type(real(T)))
 
-    return CuTensorNetwork{T}(desc, input_modes, input_extents, input_strides, cutensornetTensorQualifiers_t.(input_qualifiers), Vector{CuArray{T}}(undef, 0),
-                              output_modes, output_extents, output_strides, CUDA.zeros(T, 0))
+    return CuTensorNetwork{T}(desc, input_modes, input_extents, input_strides, input_qualifiers,
+                              Vector{CuArray{T}}(undef, 0), output_modes, output_extents, output_strides, CUDA.zeros(T, 0))
 end
 
 mutable struct CuTensorSVDInfo
