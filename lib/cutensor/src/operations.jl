@@ -24,7 +24,7 @@ function elementwise_trinary!(
         opABC::cutensorOperator_t;
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
-        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing,
+        compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
 
     actual_compute_type = if compute_type === nothing
@@ -66,7 +66,7 @@ function plan_elementwise_trinary(
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
-        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing)
+        compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing)
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
@@ -96,7 +96,7 @@ function plan_elementwise_trinary(
                                      descC, modeC, opC,
                                      descD, modeD,
                                      opAB, opABC,
-                                     compute_type)
+                                     actual_compute_type)
 
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, jit)
@@ -112,7 +112,7 @@ function elementwise_binary!(
         @nospecialize(D::DenseCuArray), Dinds::ModeType, opAC::cutensorOperator_t;
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
-        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing,
+        compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
 
     actual_compute_type = if compute_type === nothing
@@ -150,7 +150,7 @@ function plan_elementwise_binary(
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
-        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=eltype(C))
+        compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=eltype(C))
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opAC)  && throw(ArgumentError("opAC must be a binary op!"))
@@ -189,7 +189,7 @@ function permutation!(
         @nospecialize(B::DenseCuArray), Binds::ModeType;
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
-        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing,
+        compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
 
     actual_compute_type = if compute_type === nothing
@@ -224,8 +224,7 @@ function plan_permutation(
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
-        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing)
-    #!is_unary(opPsi)    && throw(ArgumentError("opPsi must be a unary op!"))
+        compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing)
     descA = CuTensorDescriptor(A)
     descB = CuTensorDescriptor(B)
 
@@ -260,7 +259,7 @@ function contraction!(
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
-        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing,
+        compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
 
     actual_compute_type = if compute_type === nothing
@@ -269,7 +268,6 @@ function contraction!(
         compute_type
     end
 
-    # XXX: save these as parameters of the plan?
     actual_plan = if plan === nothing
         plan_contraction(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, opOut;
                          jit, workspace, algo, compute_type=actual_compute_type)
@@ -298,7 +296,7 @@ function plan_contraction(
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
-        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing)
+        compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing)
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
@@ -340,7 +338,7 @@ function reduction!(
         opReduce::cutensorOperator_t;
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
-        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing,
+        compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
 
     actual_compute_type = if compute_type === nothing
@@ -375,7 +373,7 @@ function plan_reduction(
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
-        compute_type::Union{Type, cutensorComputeDescriptor_t, Nothing}=nothing)
+        compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing)
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opReduce)  && throw(ArgumentError("opReduce must be a binary op!"))

@@ -1,5 +1,15 @@
 ## data types
 
+export cutensorComputeDescriptorEnum
+
+@enum cutensorComputeDescriptorEnum begin
+    COMPUTE_DESC_16F = 1
+    COMPUTE_DESC_32F = 2
+    COMPUTE_DESC_TF32 = 3
+    COMPUTE_DESC_3XTF32 = 4
+    COMPUTE_DESC_64F = 5
+end
+
 const contraction_compute_types = Dict(
     # typeA,     typeB,      typeC       => typeCompute
     (Float16,    Float16,    Float16)    => Float32,
@@ -55,17 +65,37 @@ const reduction_compute_types = Dict(
     (ComplexF32, ComplexF32) => Float32,
     (ComplexF64, ComplexF64) => Float64)
 
-function Base.cconvert(::Type{cutensorComputeDescriptor_t}, T::DataType)
-    if T == Float16 || T == ComplexF16
-        return CUTENSOR_COMPUTE_DESC_16F()
+# we have our own enum to represent cutensorComputeDescriptor_t values
+function Base.convert(::Type{cutensorComputeDescriptorEnum}, T::DataType)
+    if T == Float16
+        return COMPUTE_DESC_16F
     elseif T == Float32 || T == ComplexF32
-        return CUTENSOR_COMPUTE_DESC_32F()
+        return COMPUTE_DESC_32F
     elseif T == Float64 || T == ComplexF64
-        return CUTENSOR_COMPUTE_DESC_64F()
+        return COMPUTE_DESC_64F
     else
-        throw(ArgumentError("cutensorComputeType equivalent for input type $T does not exist!"))
+        throw(ArgumentError("cutensorComputeDescriptor equivalent for input type $T does not exist!"))
     end
 end
+Base.cconvert(::Type{cutensorComputeDescriptor_t}, T::DataType) =
+    Base.cconvert(cutensorComputeDescriptor_t, convert(cutensorComputeDescriptorEnum, T))
+
+function Base.cconvert(::Type{cutensorComputeDescriptor_t}, T::cutensorComputeDescriptorEnum)
+    if T == COMPUTE_DESC_16F
+        return CUTENSOR_COMPUTE_DESC_16F()
+    elseif T == COMPUTE_DESC_32F
+        return CUTENSOR_COMPUTE_DESC_32F()
+    elseif T == COMPUTE_DESC_TF32
+        return CUTENSOR_COMPUTE_DESC_TF32()
+    elseif T == COMPUTE_DESC_3XTF32
+        return CUTENSOR_COMPUTE_DESC_3XTF32()
+    elseif T == COMPUTE_DESC_64F
+        return CUTENSOR_COMPUTE_DESC_64F()
+    else
+        throw(ArgumentError("cutensorComputeDescriptor equivalent for input enum value $T does not exist!"))
+    end
+end
+
 
 function Base.convert(::Type{cutensorDataType_t}, T::DataType)
     if T == Float16
