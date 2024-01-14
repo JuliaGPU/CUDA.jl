@@ -140,7 +140,8 @@ end
 
 By using the `Threads.@spawn` macro, the tasks will be scheduled to be run on different CPU
 threads. This can be useful when you are calling a lot of operations that "block" in CUDA,
-e.g., memory copies to or from unpinned memory. Generally though, operations that
+e.g., memory copies to or from unpinned memory. The same result will occur when using a
+`Threads.@threads for ... end` block. Generally, though, operations that
 synchronize GPU execution (including the call to `synchronize` itself) are implemented in a
 way that they yield back to the Julia scheduler, to enable concurrent execution without
 requiring the use of different CPU threads.
