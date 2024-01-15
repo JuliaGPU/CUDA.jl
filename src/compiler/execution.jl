@@ -385,7 +385,7 @@ end
 # cache of kernel instances
 const _kernel_instances = Dict{Any, Any}()
 
-function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
+function (kernel::HostKernel)(args::Vararg{Any,N}; threads::CuDim=1, blocks::CuDim=1, kwargs...) where {N}
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
 end
 
