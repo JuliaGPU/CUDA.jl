@@ -26,6 +26,25 @@ function flop_count(info::CuTensorNetworkContractionOptimizerInfo)
     return n[]
 end
 
+function pack_optimizer_data(info::CuTensorNetworkContractionOptimizerInfo)
+    buf_size = Ref{Csize_t}()
+    cutensornetContractionOptimizerInfoGetPackedSize(handle(), info, buf_size)
+    buffer = CuVector{Cvoid}(undef, buf_size[])
+    cutensornetContractionOptimizerInfoPackData(handle(), info, buffer, buf_size[])
+    return buffer
+end
+
+function unpack_data_to_optimizer_info(tn::CuTensorNetwork, packed_buffer::CuVector{Cvoid})
+    info = Ref{CuTensorNetworkContractionOptimizerInfo_t}()
+    cutensornetCreateContractionOptimizerInfoFromPackedData(handle(), tn.desc, packed_buffer, length(packed_buffer), info)
+    return CuTensorNetworkContractionOptimizerInfo(handle)
+end
+
+function unpack_data_to_optimizer_info(info::CuTensorNetworkContractionOptimizerInfo, packed_buffer::CuVector{Cvoid})
+    cutensornetUpdateContractionOptimizerInfoFromPackedData(handle(), packed_buffer, length(packed_buffer), info)
+    return info
+end
+
 # step 2, contract
 function perform_contraction!(tn::CuTensorNetwork, info, ::NoAutoTune; prefs::AutotunePreferences=AutotunePreferences(), stream::CuStream=stream(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE)
     workspace_desc = CuTensorNetworkWorkspaceDescriptor()
@@ -68,6 +87,10 @@ function perform_contraction!(tn::CuTensorNetwork, info, ::AutoTune; prefs::Auto
         cutensornetWorkspaceSet(handle(), workspace_desc, memspace, C_NULL, 0)
     end
     return tn
+end
+
+function compute_backward_pass(plan::CuTensorNetworkContractionPlan, tn::CuTensorNetwork, output_gradient::CuTensor, gradient_tn::CuTensorNetwork; accumulate_output::Bool=false, stream::CuStream=stream())
+
 end
 
 
@@ -127,4 +150,152 @@ function gateSplit!(A::CuArray{T, NA}, modes_a, B::CuArray{T, NB}, modes_b, G::C
     return tensor_u, s, tensor_v, svd_info
 end
 
-gateSplit!(A::CuTensor{T, NA}, B::CuTensor{T, NB}, G::CuTensor{T, NG}, U::CuTensor{T, NU}, s::CuVector{S}, V::CuTensor{T, NV}; kwargs...) where {T<:Number, S<:Real, NA, NB, NG, NU, NV} = gateSplit!(A.data, A.inds, B.data, B.inds, G.data, G.inds, U.data, U.inds, s, V.data, V.inds; kwargs...) 
+gateSplit!(A::CuTensor{T, NA}, B::CuTensor{T, NB}, G::CuTensor{T, NG}, U::CuTensor{T, NU}, s::CuVector{S}, V::CuTensor{T, NV}; kwargs...) where {T<:Number, S<:Real, NA, NB, NG, NU, NV} = gateSplit!(A.data, A.inds, B.data, B.inds, G.data, G.inds, U.data, U.inds, s, V.data, V.inds; kwargs...)
+
+
+### High level API ###
+
+function applyTensor!(state::CuState{TS}, tensor::CuTensor{TT}, tensor_is_unitary::Bool; adjoint::Bool=false, keep_tensor_immutable::Bool=false) where {TS, TT}
+    tensor_id = Ref{Cint}()
+    cutensornetStateApplyTensor(handle(), state, tensor.inds, tensor.data, strides(tensor), keep_tensor_immutable, adjoint, tensor_is_unitary, tensor_id)
+    return state, tensor_id[]
+end
+
+function updateTensor!(state::CuState{TS}, tensor_id::Int, tensor::CuTensor{TT}, tensor_is_unitary::Bool) where {TS, TT}
+    cutensornetStateUpdateTensor(handle(), state, tensor_id, tensor.data, tensor_is_unitary)
+    return state
+end
+
+function Base.push!(operator::CuNetworkOperator{TO}, coeff::ComplexF64, op_tensors::Vector{CuTensor{TT}}; component_id::Int64=(operator.operator_count+1)) where {TO, TT}
+    tensor_modes = 
+    cutensornetNetworkOperatorAppendProduct(handle(), operator, coeff, length(op_tensors), ndims(op_tensors[1]), tensor_modes, [component_id])
+    operator.operater_count += 1
+    return operator
+end
+
+function configure!(state::CuState, config::StateConfig)
+    for (attr, jl_attr) in ((CUTENSORNET_STATE_MPS_CANONICAL_CENTER, :canonical_center),
+                            (CUTENSORNET_STATE_MPS_SVD_CONFIG_ABS_CUTOFF, :svd_abs_cutoff),
+                            (CUTENSORNET_STATE_MPS_SVD_CONFIG_REL_CUTOFF, :svd_rel_cutoff),
+                            (CUTENSORNET_STATE_MPS_SVD_CONFIG_S_NORMALIZATION, :svd_s_normalization),
+                            (CUTENSORNET_STATE_MPS_SVD_CONFIG_ALGO, :svd_algo),
+                            (CUTENSORNET_STATE_MPS_SVD_CONFIG_ALGO_PARAMS, :svd_algo_params),
+                            (CUTENSORNET_STATE_MPS_SVD_CONFIG_DISCARDED_WEIGHT_CUTOFF, :svd_discarded_weight_cutoff),
+                            (CUTENSORNET_STATE_NUM_HYPER_SAMPLES, :num_hyper_samples),
+                           )
+        attr_val = getproperty(config, jl_attr)
+        attr_val_size = sizeof(attr_val)
+        cutensornetStateConfigure(handle(), state, attr, [attr_val], attr_val_size)
+    end
+    return state
+end
+
+function compute!(state::CuState, output_tensors::Vector{CuTensor}; stream::CuStream::stream(), max_workspace_size::Csize_t=Mem.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE)
+    workspace_desc = CuTensorNetworkWorkspaceDescriptor()
+    actual_ws_size = Ref{UInt64}()
+    cutensornetStatePrepare(handle(), state, max_workspace_size, workspace_desc, stream)
+    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    with_workspace(actual_ws_size[]) do workspace
+        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+
+        cutensornetStateCompute(handle(), state, workspace_desc, C_NULL, C_NULL, output_tensors, stream) 
+    end
+    return state, output_tensors
+end
+
+function computeMPS!(state::CuState, output_tensors::Vector{CuTensor}; boundary_condition::cutensornetBoundaryCondition_t=CUTENSORNET_BOUNDARY_CONDITION_OPEN, stream::CuStream::stream(), max_workspace_size::Csize_t=Mem.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE)
+    workspace_desc = CuTensorNetworkWorkspaceDescriptor()
+    actual_ws_size = Ref{UInt64}()
+    cutensornetStatePrepare(handle(), state, max_workspace_size, workspace_desc, stream)
+    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    with_workspace(actual_ws_size[]) do workspace
+        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+        cutensornetStateFinalizeMPS(handle(), state, reduce(vcat, size.(output_tensors)), reduce(vcat, strides.(output_tensors))) 
+        cutensornetStateCompute(handle(), state, workspace_desc, C_NULL, C_NULL, output_tensors, stream) 
+    end
+    return state, output_tensors
+end
+
+function expectation(state::CuState{T}, operator::CuNetworkOperator{T}; config::ExpectationConfig=ExpectationConfig(), stream::CuStream::stream(), max_workspace_size::Csize_t=Mem.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
+    exp = CuStateExpectation(state, operator)
+    for (attr, jl_attr) in ((CUTENSORNET_EXPECTATION_OPT_NUM_HYPER_SAMPLES, :num_hyper_samples),
+                           )
+
+        attr_val = getproperty(config, jl_attr)
+        attr_val_size = sizeof(attr_val)
+        cutensornetExpectationConfigure(handle(), exp, attr, [attr_val], attr_val_size)
+    end
+    workspace_desc = CuTensorNetworkWorkspaceDescriptor()
+    actual_ws_size = Ref{UInt64}()
+    cutensornetExpectationPrepare(handle(), exp, max_workspace_size, workspace_desc, stream)
+    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    exp_val    = Ref{T}()
+    state_norm = Ref{T}()
+    with_workspace(actual_ws_size[]) do workspace
+        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+        cutensornetExpectationCompute(handle(), exp, workspace_desc, evp_val, state_norm, stream) 
+    end
+    return exp_val[], state_norm[]
+end
+
+function compute_marginal!(state::CuState{T}, marginal_modes::Vector{Int}, projected_modes::Vector{Int}, projected_mode_values::Vector{Int}, marginal_tensor::CuTensor{T}; config::MarginalConfig=MarginalConfig(), stream::CuStream::stream(), max_workspace_size::Csize_t=Mem.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
+    marg = CuStateMarginal(state, marginal_modes, projected_modes)
+    for (attr, jl_attr) in ((CUTENSORNET_MARGINAL_OPT_NUM_HYPER_SAMPLES, :num_hyper_samples),
+                           )
+
+        attr_val = getproperty(config, jl_attr)
+        attr_val_size = sizeof(attr_val)
+        cutensornetMarginalConfigure(handle(), marg, attr, [attr_val], attr_val_size)
+    end
+    workspace_desc = CuTensorNetworkWorkspaceDescriptor()
+    actual_ws_size = Ref{UInt64}()
+    cutensornetMarginalPrepare(handle(), marg, max_workspace_size, workspace_desc, stream)
+    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    with_workspace(actual_ws_size[]) do workspace
+        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+        cutensornetMarginalCompute(handle(), marg, projected_mode_values, workspace_desc, marginal_tensor.data, stream) 
+    end
+    return marginal_tensor
+end
+
+function sample!(state::CuState{T}, modes_to_sample::Vector{Int}, num_shots::Int; config::SamplerConfig=SamplerConfig(), stream::CuStream::stream(), max_workspace_size::Csize_t=Mem.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
+    sampler = CuStateSampler(state, modes_to_sample)
+    for (attr, jl_attr) in ((CUTENSORNET_SAMPLER_OPT_NUM_HYPER_SAMPLES, :num_hyper_samples),
+                           )
+
+        attr_val = getproperty(config, jl_attr)
+        attr_val_size = sizeof(attr_val)
+        cutensornetMarginalConfigure(handle(), marg, attr, [attr_val], attr_val_size)
+    end
+    workspace_desc = CuTensorNetworkWorkspaceDescriptor()
+    actual_ws_size = Ref{UInt64}()
+    cutensornetSamplerPrepare(handle(), sampler, max_workspace_size, workspace_desc, stream)
+    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    samples = [Vector{Int}(undef, length(modes_to_sample)) for shot in 1:num_shots]
+    with_workspace(actual_ws_size[]) do workspace
+        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+        cutensornetSamplerCompute(handle(), sampler, num_shots, workspace_desc, samples, stream) 
+    end
+    return samples
+end
+
+function amplitudes!(state::CuState{T}, projected_modes::Vector{Int}, projected_mode_values::Vector{Int}, amplitudes_tensor::CuTensor{T}; config::AccessorConfig=AccessorConfig(), stream::CuStream::stream(), max_workspace_size::Csize_t=Mem.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
+    accessor = CuStateAccessor(state, projected_modes)
+    for (attr, jl_attr) in ((CUTENSORNET_ACCESSOR_OPT_NUM_HYPER_SAMPLES, :num_hyper_samples),
+                           )
+
+        attr_val = getproperty(config, jl_attr)
+        attr_val_size = sizeof(attr_val)
+        cutensornetMarginalConfigure(handle(), marg, attr, [attr_val], attr_val_size)
+    end
+    workspace_desc = CuTensorNetworkWorkspaceDescriptor()
+    actual_ws_size = Ref{UInt64}()
+    cutensornetAccessorPrepare(handle(), accessor, max_workspace_size, workspace_desc, stream)
+    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    state_norm = Ref{T}()
+    with_workspace(actual_ws_size[]) do workspace
+        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+        cutensornetAccessorCompute(handle(), accessor, projected_mode_values, workspace_desc, amplitudes_tensor.data, state_norm, stream) 
+    end
+    return amplitudes_tensor, state_norm[]
+end

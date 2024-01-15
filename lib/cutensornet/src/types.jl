@@ -126,6 +126,108 @@ function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides,
                               Vector{CuArray{T}}(undef, 0), output_modes, output_extents, output_strides, CUDA.zeros(T, 0))
 end
 
+mutable struct CuState{T}
+    handle::cutensornetState_t
+    # each element is a tuple of (label, size)
+    physical_dims::Vector{Tuple{Int, Int}}
+    function CuState{T}(physical_dims::Vector{Tuple{Int, Int}}; mixed::Bool=false) where {T}
+        state_ref = Ref{cutensornetState_t}()
+        cutensornetCreateState(handle(), mixed, length(physical_dims), [d[2] for d in physical_dims], T, state_ref)
+        obj = new(state_ref[], physical_dims)
+        finalizer(cutensornetDestroyState, obj)
+        return obj
+    end
+end
+
+Base.@kwdef struct StateConfig
+    canonical_center::Int32=-1
+    svd_abs_cutoff::Float64=0.0
+    svd_rel_cutoff::Float64=0.0
+    svd_s_normalization::cutensornetTensorSVDNormalization_t=CUTENSORNET_TENSOR_SVD_NORMALIZATION_NONE
+    svd_algo::cutensornetTensorSVDAlgo_t=CUTENSORNET_TENSOR_SVD_ALGO_GESVDJ
+    svd_algo_params::Union{cutensornetGesvdrParams_t, cutensornetGesvdjParams_t}=cutensornetGesvdjParams_t()
+    svd_discarded_weight_cutoff::Float64=0.0
+    num_hyper_samples::Int32=0
+end
+
+mutable struct CuNetworkOperator{T}
+    handle::cutensornetNetworkOperator_t
+    # each element is a tuple of (label, size)
+    physical_dims::Vector{Tuple{Int, Int}}
+    operator_count::Int
+    function CuNetworkOperator{T}(physical_dims::Vector{Tuple{Int, Int}}) where {T}
+        op_ref = Ref{cutensornetNetworkOperator_t}()
+        cutensornetCreateNetworkOperator(handle(), length(physical_dims), [d[2] for d in physical_dims], T, op_ref)
+        obj = new(op_ref[], physical_dims, 0)
+        finalizer(cutensornetDestroyNetworkOperator, obj)
+        return obj
+    end
+end
+
+mutable struct CuStateExpectation
+    handle::cutensornetStateExpectation_t
+    function CuStateExpectation(state::CuState, operator::CuNetworkOperator)
+        exp_ref = Ref{cutensornetStateExpectation_t}()
+        cutensornetCreateExpectation(handle(), state, operator, exp_ref)
+        obj = new(exp_ref[])
+        finalizer(cutensornetDestroyExpectation, obj)
+        return obj
+    end
+end
+
+Base.@kwdef struct ExpectationConfig
+    num_hyper_samples::Int32=0
+end
+
+mutable struct CuStateMarginal
+    handle::cutensornetStateMarginal_t
+    marginal_modes::Vector{Int}
+    projected_modes::Vector{Int}
+    function CuStateMarginal(state::CuState, marginal_modes::Vector{Int}, projected_modes::Vector{Int})
+        marg_ref = Ref{cutensornetStateMarginal_t}()
+        cutensornetCreateMarginal(handle(), state, length(marginal_modes), marginal_modes, length(projected_modes), projected_modes, C_NULL, marg_ref)
+        obj = new(marg_ref[], marginal_modes, projected_modes)
+        finalizer(cutensornetDestroyMarginal, obj)
+        return obj
+    end
+end
+
+Base.@kwdef struct MarginalConfig
+    num_hyper_samples::Int32=0
+end
+
+mutable struct CuStateSampler
+    handle::cutensornetStateSampler_t
+    modes_to_sample::Vector{Int}
+    function CuStateSampler(state::CuState, modes_to_sample::Vector{Int})
+        sampler_ref = Ref{cutensornetStateSampler_t}()
+        cutensornetCreateSampler(handle(), state, length(modes_to_sample), modes_to_sample, sampler_ref)
+        obj = new(sampler_ref[])
+        finalizer(cutensornetDestroySampler, obj)
+        return obj
+    end
+end
+
+Base.@kwdef struct SamplerConfig
+    num_hyper_samples::Int32=0
+end
+
+mutable struct CuStateAccessor
+    handle::cutensornetStateAccessor_t
+    projected_modes::Vector{Int}
+    function CuStateAccessor(state::CuState, projected_modes::Vector{Int})
+        acc_ref = Ref{cutensornetStateAccessor_t}()
+        cutensornetCreateAccessor(handle(), state, length(projected_modes), projected_modes, acc_ref)
+        obj = new(acc_ref[], projected_modes)
+        finalizer(cutensornetDestroyAccessor, obj)
+        return obj
+    end
+end
+
+Base.@kwdef struct AccessorConfig
+    num_hyper_samples::Int32=0
+end
+
 mutable struct CuTensorSVDInfo
     handle::cutensornetTensorSVDInfo_t
     function CuTensorSVDInfo()
@@ -161,6 +263,12 @@ mutable struct CuTensorNetworkContractionOptimizerInfo
         desc_ref = Ref{cutensornetContractionOptimizerInfo_t}()
         cutensornetCreateContractionOptimizerInfo(handle(), net_desc, desc_ref)
         obj = new(desc_ref[])
+        finalizer(cutensornetDestroyContractionOptimizerInfo, obj)
+        obj
+    end
+    # needed for unpacking functions
+    function CuTensorNetworkContractionOptimizerInfo(handle::cutensornetContractionOptimizerInfo_t)
+        obj = new(handle)
         finalizer(cutensornetDestroyContractionOptimizerInfo, obj)
         obj
     end
