@@ -30,14 +30,14 @@ eltypes = [(Float16, Float16),
         dC = similar(dA, eltyC, dimsC...)
 
         # simple case
-        opA   = cuTENSOR.OP_IDENTITY
-        dC = permutation!(one(eltyA), dA, indsA, opA, dC, indsC)
+        opA = cuTENSOR.OP_IDENTITY
+        dC = cuTENSOR.permute!(one(eltyA), dA, indsA, opA, dC, indsC)
         C  = collect(dC)
         @test C == permutedims(A, p) # exact equality
 
         # with scalar
         α  = rand(eltyA)
-        dC = permutation!(α, dA, indsA, opA, dC, indsC)
+        dC = cuTENSOR.permute!(α, dA, indsA, opA, dC, indsC)
         C  = collect(dC)
         @test C ≈ α * permutedims(A, p) # approximate, floating point rounding
     end

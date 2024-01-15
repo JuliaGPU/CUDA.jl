@@ -52,7 +52,7 @@ eltypes = [(Float32, Float32, Float32, Float32),
         opB = cuTENSOR.OP_IDENTITY
         opC = cuTENSOR.OP_IDENTITY
         opOut = cuTENSOR.OP_IDENTITY
-        dC = contraction!(1, dA, indsA, opA, dB, indsB, opB, 0, dC, indsC, opC, opOut, compute_type=eltyCompute)
+        dC = contract!(1, dA, indsA, opA, dB, indsB, opB, 0, dC, indsC, opC, opOut, compute_type=eltyCompute)
         C = collect(dC)
         mC = reshape(permutedims(C, ipC), (loA, loB))
         @test mC ≈ mA * mB rtol=compute_rtol
@@ -93,7 +93,7 @@ eltypes = [(Float32, Float32, Float32, Float32),
 
         # with non-trivial α
         α = rand(eltyCompute)
-        dC = contraction!(α, dA, indsA, opA, dB, indsB, opB, zero(eltyCompute), dC, indsC, opC, opOut; compute_type=eltyCompute)
+        dC = contract!(α, dA, indsA, opA, dB, indsB, opB, zero(eltyCompute), dC, indsC, opC, opOut; compute_type=eltyCompute)
         C = collect(dC)
         mC = reshape(permutedims(C, ipC), (loA, loB))
         @test mC ≈ α * mA * mB rtol=compute_rtol
@@ -104,7 +104,7 @@ eltypes = [(Float32, Float32, Float32, Float32),
         α = rand(eltyCompute)
         β = rand(eltyCompute)
         copyto!(dC, C)
-        dD = contraction!(α, dA, indsA, opA, dB, indsB, opB, β, dC, indsC, opC, opOut; compute_type=eltyCompute)
+        dD = contract!(α, dA, indsA, opA, dB, indsB, opB, β, dC, indsC, opC, opOut; compute_type=eltyCompute)
         D = collect(dD)
         mC = reshape(permutedims(C, ipC), (loA, loB))
         mD = reshape(permutedims(D, ipC), (loA, loB))
@@ -132,7 +132,7 @@ eltypes = [(Float32, Float32, Float32, Float32),
                 opA   = cuTENSOR.OP_CONJ
                 opB   = cuTENSOR.OP_IDENTITY
                 opOut = cuTENSOR.OP_IDENTITY
-                dC    = contraction!(complex(1.0, 0.0), dA, indsA, opA, dB, indsB, opB,
+                dC    = contract!(complex(1.0, 0.0), dA, indsA, opA, dB, indsB, opB,
                                                 0, dC, indsC, opC, opOut; compute_type=eltyCompute)
                 C     = collect(dC)
                 mC    = reshape(permutedims(C, ipC), (loA, loB))
@@ -142,8 +142,8 @@ eltypes = [(Float32, Float32, Float32, Float32),
                 opA = cuTENSOR.OP_IDENTITY
                 opB = cuTENSOR.OP_CONJ
                 opOut = cuTENSOR.OP_IDENTITY
-                dC = contraction!(complex(1.0, 0.0), dA, indsA, opA, dB, indsB, opB,
-                                            complex(0.0, 0.0), dC, indsC, opC, opOut; compute_type=eltyCompute)
+                dC = contract!(complex(1.0, 0.0), dA, indsA, opA, dB, indsB, opB,
+                               complex(0.0, 0.0), dC, indsC, opC, opOut; compute_type=eltyCompute)
                 C = collect(dC)
                 mC = reshape(permutedims(C, ipC), (loA, loB))
                 @test mC ≈ mA*conj(mB) rtol=compute_rtol
@@ -152,7 +152,7 @@ eltypes = [(Float32, Float32, Float32, Float32),
                 opA = cuTENSOR.OP_CONJ
                 opB = cuTENSOR.OP_CONJ
                 opOut = cuTENSOR.OP_IDENTITY
-                dC = contraction!(one(eltyCompute), dA, indsA, opA, dB, indsB, opB,
+                dC = contract!(one(eltyCompute), dA, indsA, opA, dB, indsB, opB,
                         zero(eltyCompute), dC, indsC, opC, opOut; compute_type=eltyCompute)
                 C = collect(dC)
                 mC = reshape(permutedims(C, ipC), (loA, loB))

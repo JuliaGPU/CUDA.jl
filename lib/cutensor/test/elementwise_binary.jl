@@ -32,18 +32,18 @@ eltypes = [(Float16, Float16),
         opC   = cuTENSOR.OP_IDENTITY
         dD    = similar(dC, eltyD)
         opAC  = cuTENSOR.OP_ADD
-        dD    = elementwise_binary!(1, dA, indsA, opA, 1, dC, indsC, opC, dD, indsC, opAC)
+        dD    = elementwise_binary_execute!(1, dA, indsA, opA, 1, dC, indsC, opC, dD, indsC, opAC)
         D = collect(dD)
         @test D ≈ permutedims(A, p) .+ C
 
         # using integers as indices
-        dD = elementwise_binary!(1, dA, 1:N, opA, 1, dC, p, opC, dD, p, opAC)
+        dD = elementwise_binary_execute!(1, dA, 1:N, opA, 1, dC, p, opC, dD, p, opAC)
         D = collect(dD)
         @test D ≈ permutedims(A, p) .+ C
 
         # multiplication as binary operator
         opAC = cuTENSOR.OP_MUL
-        dD = elementwise_binary!(1, dA, indsA, opA, 1, dC, indsC, opC, dD, indsC, opAC)
+        dD = elementwise_binary_execute!(1, dA, indsA, opA, 1, dC, indsC, opC, dD, indsC, opAC)
         D = collect(dD)
         @test D ≈ permutedims(A, p) .* C
 
@@ -53,7 +53,7 @@ eltypes = [(Float16, Float16),
         opAC = cuTENSOR.OP_ADD
         α = rand(eltyD)
         γ = rand(eltyD)
-        dD = elementwise_binary!(α, dA, indsA, opA, γ, dC, indsC, opC, dD, indsC, opAC)
+        dD = elementwise_binary_execute!(α, dA, indsA, opA, γ, dC, indsC, opC, dD, indsC, opAC)
         D = collect(dD)
         @test D ≈ α .* conj.(permutedims(A, p)) .+ γ .* C
 
@@ -64,7 +64,7 @@ eltypes = [(Float16, Float16),
         opAC = eltyD <: Complex ? cuTENSOR.OP_ADD : cuTENSOR.OP_MAX
         α = rand(eltyD)
         γ = rand(eltyD)
-        dD = elementwise_binary!(α, dA, indsA, opA, γ, dC, indsC, opC, dC, indsC, opAC)
+        dD = elementwise_binary_execute!(α, dA, indsA, opA, γ, dC, indsC, opC, dC, indsC, opAC)
         D = collect(dC)
         if eltyD <: Complex
             if eltyA <: Complex

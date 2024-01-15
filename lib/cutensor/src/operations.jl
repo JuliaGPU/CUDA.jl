@@ -1,5 +1,5 @@
-export elementwise_binary!, elementwise_trinary!,
-       permutation!, contraction!, reduction!
+export elementwise_binary_execute!, elementwise_trinary_execute!,
+       permute!, contract!, reduce!
 
 const ModeType = AbstractVector{<:Union{Char, Integer}}
 
@@ -13,7 +13,7 @@ const ModeType = AbstractVector{<:Union{Char, Integer}}
 is_unary(op::cutensorOperator_t) =  (op ∈ (OP_IDENTITY, OP_SQRT, OP_RELU, OP_CONJ, OP_RCP))
 is_binary(op::cutensorOperator_t) = (op ∈ (OP_ADD, OP_MUL, OP_MAX, OP_MIN))
 
-function elementwise_trinary!(
+function elementwise_trinary_execute!(
         @nospecialize(alpha::Number),
         @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(beta::Number),
@@ -116,7 +116,7 @@ function plan_elementwise_trinary(
     CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
 end
 
-function elementwise_binary!(
+function elementwise_binary_execute!(
         @nospecialize(alpha::Number),
         @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(gamma::Number),
@@ -205,7 +205,7 @@ function plan_elementwise_binary(
     CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
 end
 
-function permutation!(
+function permute!(
         @nospecialize(alpha::Number),
         @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(B::DenseCuArray), Binds::ModeType;
@@ -279,7 +279,7 @@ function plan_permutation(
     CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
 end
 
-function contraction!(
+function contract!(
         @nospecialize(alpha::Number),
         @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(B::DenseCuArray), Binds::ModeType, opB::cutensorOperator_t,
@@ -370,7 +370,7 @@ function plan_contraction(
     CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
 end
 
-function reduction!(
+function reduce!(
         @nospecialize(alpha::Number),
         @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(beta::Number),
