@@ -127,14 +127,35 @@ being slightly faster.
 """
 cudacall
 
-# FIXME: can we make this infer properly?
-cudacall(f, types::Tuple, args...; kwargs...) =
-    cudacall(f, Base.to_tuple_type(types), args...; kwargs...)
+cudacall(f::F, types::Tuple, args::Vararg{Any,N}; kwargs...) where {N,F} =
+    cudacall(f, _to_tuple_type(types), args...; kwargs...)
 
-function cudacall(f, types::Type, args...; kwargs...)
-    convert_arguments(types, args...) do pointers...
-        launch(f, pointers...; kwargs...)
+function cudacall(f::F, types::Type{T}, args::Vararg{Any,N}; kwargs...) where {T,N,F}
+    convert_arguments(
+        ((pointers::Vararg{Any,M},) where {M}) -> launch(f, pointers...; kwargs...),
+        types,
+        args...
+    )
+end
+
+# From `julia/base/reflection.jl`, adjusted to add specialization on `t`.
+function _to_tuple_type(t)
+    if isa(t, Tuple) || isa(t, AbstractArray) || isa(t, SimpleVector)
+        t = Tuple{t...}
     end
+    if isa(t, Type) && t <: Tuple
+        for p in (Base.unwrap_unionall(t)::DataType).parameters
+            if isa(p, Core.TypeofVararg)
+                p = Base.unwrapva(p)
+            end
+            if !(isa(p, Type) || isa(p, TypeVar))
+                error("argument tuple type must contain only types")
+            end
+        end
+    else
+        error("expected tuple type")
+    end
+    t
 end
 
 
