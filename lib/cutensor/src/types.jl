@@ -1,7 +1,5 @@
 ## data types
 
-export cutensorComputeDescriptorEnum
-
 @enum cutensorComputeDescriptorEnum begin
     COMPUTE_DESC_16F = 1
     COMPUTE_DESC_32F = 2

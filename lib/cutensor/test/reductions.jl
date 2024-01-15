@@ -1,5 +1,7 @@
 @testset "reductions" begin
 
+using cuTENSOR: reduce!
+
 using LinearAlgebra, Random
 
 eltypes = [(Float16, Float16),
@@ -28,20 +30,20 @@ eltypes = [(Float16, Float16),
         opC = cuTENSOR.OP_IDENTITY
         opReduce = cuTENSOR.OP_ADD
         # simple case
-        dC = reduction!(1, dA, indsA, opA, 0, dC, indsC, opC, opReduce)
+        dC = reduce!(1, dA, indsA, opA, 0, dC, indsC, opC, opReduce)
         C = collect(dC)
         @test reshape(C, (dimsC..., ones(Int,NA-NC)...)) ≈
             sum(permutedims(A, p); dims = ((NC+1:NA)...,))
 
         # using integers as indices
-        dC = reduction!(1, dA, collect(1:NA), opA, 0, dC, p[1:NC], opC, opReduce)
+        dC = reduce!(1, dA, collect(1:NA), opA, 0, dC, p[1:NC], opC, opReduce)
         C = collect(dC)
         @test reshape(C, (dimsC..., ones(Int,NA-NC)...)) ≈
             sum(permutedims(A, p); dims = ((NC+1:NA)...,))
 
         # multiplication as reduction operator
         opReduce = cuTENSOR.OP_MUL
-        dC = reduction!(1, dA, indsA, opA, 0, dC, indsC, opC, opReduce)
+        dC = reduce!(1, dA, indsA, opA, 0, dC, indsC, opC, opReduce)
         C = collect(dC)
         @test reshape(C, (dimsC..., ones(Int,NA-NC)...)) ≈
             prod(permutedims(A, p); dims = ((NC+1:NA)...,)) atol=eps(Float16) rtol=Base.rtoldefault(Float16)
@@ -54,7 +56,7 @@ eltypes = [(Float16, Float16),
         dC = CuArray(C)
         α = rand(eltyC)
         γ = rand(eltyC)
-        dC = reduction!(α, dA, indsA, opA, γ, dC, indsC, opC, opReduce)
+        dC = reduce!(α, dA, indsA, opA, γ, dC, indsC, opC, opReduce)
         @test reshape(collect(dC), (dimsC..., ones(Int,NA-NC)...)) ≈
             α .* conj.(sum(permutedims(A, p); dims = ((NC+1:NA)...,))) .+ γ .* C
     end
