@@ -162,7 +162,7 @@ function context!(ctx::CuContext)
     return old_ctx
 end
 
-@inline function context!(f::Function, ctx::CuContext; skip_destroyed::Bool=false)
+@inline function context!(f::F, ctx::CuContext; skip_destroyed::Bool=false) where {F<:Function}
     # @inline so that the kwarg method is inlined too and we can const-prop skip_destroyed
     if isvalid(ctx)
         old_ctx = context!(ctx)::Union{CuContext,Nothing}
