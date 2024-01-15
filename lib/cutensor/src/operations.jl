@@ -1,6 +1,3 @@
-export elementwise_binary_execute!, elementwise_trinary_execute!,
-       permute!, contract!, reduce!
-
 const ModeType = AbstractVector{<:Union{Char, Integer}}
 
 # remove the CUTENSOR_ prefix from some common enums,

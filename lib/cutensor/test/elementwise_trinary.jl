@@ -1,5 +1,7 @@
 @testset "elementwise trinary" begin
 
+using cuTENSOR: elementwise_trinary_execute!
+
 using LinearAlgebra
 
 eltypes = [(Float16, Float16, Float16),

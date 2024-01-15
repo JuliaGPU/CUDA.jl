@@ -1,5 +1,7 @@
 @testset "elementwise binary" begin
 
+using cuTENSOR: elementwise_binary_execute!
+
 using LinearAlgebra
 
 eltypes = [(Float16, Float16),

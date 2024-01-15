@@ -1,5 +1,7 @@
 @testset "contractions" begin
 
+using cuTENSOR: contract!, plan_contraction
+
 using LinearAlgebra
 
 eltypes = [(Float32, Float32, Float32, Float32),
@@ -73,7 +75,7 @@ eltypes = [(Float32, Float32, Float32, Float32),
         opB = cuTENSOR.OP_IDENTITY
         opC = cuTENSOR.OP_IDENTITY
         opOut = cuTENSOR.OP_IDENTITY
-        eltypComputeEnum = convert(cutensorComputeDescriptorEnum, eltyCompute)
+        eltypComputeEnum = convert(cuTENSOR.cutensorComputeDescriptorEnum, eltyCompute)
         plan  = cuTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut; compute_type=eltypComputeEnum)
         dC = cuTENSOR.contract!(plan, 1, dA, dB, 0, dC)
         C = collect(dC)
