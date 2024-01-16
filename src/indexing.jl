@@ -12,10 +12,7 @@ using Base.Cartesian
 # TODO: it should still be possible to use the same technique;
 #       Base.LogicalIndex basically contains the same as our `findall` here does.
 Base.to_index(::CuArray, I::AbstractArray{Bool}) = findall(I)
-## same for the trailing Array{Bool} optimization (see `_maybe_linear_logical_index` in Base)
-Base.to_indices(A::CuArray, inds,
-                I::Tuple{Union{Array{Bool,N}, BitArray{N}}}) where {N} =
-    (Base.to_index(A, I[1]),)
+Base.to_indices(A::CuArray, I::Tuple{AbstractArray{Bool}}) = (Base.to_index(A, I[1]),)
 
 
 ## find*
