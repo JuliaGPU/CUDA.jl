@@ -514,8 +514,8 @@ end
 
 if VERSION >= v"1.11.0-DEV.753"
 function typetagdata(a::Array, i=1)
-  ptr = convert(Ptr{UInt8}, a.ref.ptr_or_offset)
-  @ccall(jl_genericmemory_typetagdata(a.ref::Any)::Cchar) + ptr + i - 1
+  ptr_or_offset = Int(a.ref.ptr_or_offset)
+  @ccall(jl_genericmemory_typetagdata(a.ref.mem::Any)::Ptr{UInt8}) + ptr_or_offset + i - 1
 end
 else
 typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
