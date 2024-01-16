@@ -62,6 +62,8 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
     finally
         CUPTI.disable!(cfg)
     end
+  
+    return
 end
 
 # disassemble a cubin to SASS
