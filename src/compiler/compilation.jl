@@ -273,8 +273,52 @@ function compile(@nospecialize(job::CompilerJob))
         push!(ptxas_opts, "--compile-only")
     end
 
+    ptx = job.config.params.ptx
     cap = job.config.params.cap
     arch = "sm_$(cap.major)$(cap.minor)"
+
+    # validate use of parameter memory
+    argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
+        !isghosttype(dt) && !Core.Compiler.isconstType(dt)
+    end
+    param_usage = sum(sizeof, argtypes)
+    param_limit = 4096
+    if cap >= v"7.0" && ptx >= v"8.1"
+        param_limit = 32764
+    end
+    if param_usage > param_limit
+        msg = """Kernel invocation uses too much parameter memory.
+                 $(Base.format_bytes(param_usage)) exceeds the $(Base.format_bytes(param_limit)) limit imposed by sm_$(cap.major)$(cap.minor) / PTX v$(ptx.major).$(ptx.minor)."""
+
+        try
+            details = "\n\nRelevant parameters:"
+
+            source_types = job.source.specTypes.parameters
+            source_argnames = Base.method_argnames(job.source.def)
+            while length(source_argnames) < length(source_types)
+                # this is probably due to a trailing vararg; repeat its name
+                push!(source_argnames, source_argnames[end])
+            end
+
+            for (i, typ) in enumerate(source_types)
+                if isghosttype(typ) || Core.Compiler.isconstType(typ)
+                    continue
+                end
+                name = source_argnames[i]
+                details *= "\n  [$(i-1)] $name::$typ uses $(Base.format_bytes(sizeof(typ)))"
+            end
+            details *= "\n"
+
+            if cap >= v"7.0" && ptx < v"8.1" && param_usage < 32764
+                details *= "\nNote: use a newer CUDA to support more parameters on your device.\n"
+            end
+
+            msg *= details
+        catch err
+            @error "Failed to analyze kernel parameter usage; please file an issue with a reproducer."
+        end
+        error(msg)
+    end
 
     # compile to machine code
     # NOTE: we use tempname since mktemp doesn't support suffixes, and mktempdir is slow

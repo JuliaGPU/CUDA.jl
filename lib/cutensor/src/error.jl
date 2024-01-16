@@ -41,6 +41,8 @@ function description(err::CUTENSORError)
         "insufficient workspace memory for this operation"
     elseif err.code == CUTENSOR_STATUS_INSUFFICIENT_DRIVER
         "insufficient driver version"
+    elseif err.code == CUTENSOR_STATUS_IO_ERROR
+        "file not found"
     else
         "no description for this error"
     end

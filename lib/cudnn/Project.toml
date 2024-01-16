@@ -1,7 +1,7 @@
 name = "cuDNN"
 uuid = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
 authors = ["Tim Besard <tim.besard@gmail.com>"]
-version = "1.2.1"
+version = "1.2.3"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
@@ -10,8 +10,8 @@ CUDA_Runtime_Discovery = "1af6417a-86b4-443c-805f-a4643ffb695f"
 CUDNN_jll = "62b44479-cb7b-5706-934f-f13b2eb2e645"
 
 [compat]
-CEnum = "0.2, 0.3, 0.4"
-CUDA = "~5.1"
+CEnum = "0.2, 0.3, 0.4, 0.5"
+CUDA = "~5.1, ~5.2"
 CUDA_Runtime_Discovery = "0.2"
 CUDNN_jll = "~8.9"
-julia = "1.6"
+julia = "1.8"

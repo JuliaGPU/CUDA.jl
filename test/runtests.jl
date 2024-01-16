@@ -34,7 +34,7 @@ if do_help
                --list             List all available tests.
                --quickfail        Fail the entire run as soon as a single test errored.
                --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS).
-               --gpu=1,2,...      Which GPUs to use (comma-separated list of indices, default: all)
+               --gpu=0,1,...      Comma-separated list of GPUs to use (default: 0)
                --sanitize[=tool]  Run the tests under `compute-sanitizer`.
 
                Remaining arguments filter the tests that will be executed.""")
@@ -145,10 +145,11 @@ gpus = if do_gpu_list
         gpu_entry(CuDevice(id))
     end
 else
-    # find all GPUs
-    map(gpu_entry, devices())
+    # pick the first non-exclusive GPU
+    entries = map(gpu_entry, devices())
+    filter!(entry->entry.compute_mode != CUDA.CU_COMPUTEMODE_PROHIBITED, entries)
+    first(entries, 1)
 end
-filter!(gpu->gpu.compute_mode != CUDA.CU_COMPUTEMODE_PROHIBITED, gpus)
 @info("Testing using device " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
       ". To change this, specify the `--gpus` argument to the tests, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
 ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")

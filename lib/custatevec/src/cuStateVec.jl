@@ -1,7 +1,7 @@
 module cuStateVec
 
 using CUDA
-using CUDA: CUstream, cudaDataType, @checked, HandleCache, with_workspace, libraryPropertyType
+using CUDA: CUstream, cudaDataType, cudaEvent_t, @checked, HandleCache, with_workspace, libraryPropertyType
 using CUDA: unsafe_free!, retry_reclaim, initialize_context, isdebug
 
 using CEnum: @cenum
@@ -128,7 +128,7 @@ function __init__()
     end
 
     # register a log callback
-    if isdebug(:init, cuStateVec) || Base.JLOptions().debug_level >= 2
+    if !precompiling && (isdebug(:init, cuStateVec) || Base.JLOptions().debug_level >= 2)
         callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
         custatevecLoggerSetCallback(callback)
         custatevecLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")

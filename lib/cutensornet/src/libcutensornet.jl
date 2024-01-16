@@ -1,6 +1,6 @@
 using CEnum
 
-# cuTensorNet uses CUDA runtime objects, which are compatible with our driver usage
+# CUTENSORNET uses CUDA runtime objects, which are compatible with our driver usage
 const cudaStream_t = CUstream
 
 # outlined functionality to avoid GC frame allocation
@@ -14,7 +14,7 @@ end
 
 function check(f, errs...)
     res = retry_reclaim(in((CUTENSORNET_STATUS_ALLOC_FAILED, errs...))) do
-        f()
+        return f()
     end
 
     if res != CUTENSORNET_STATUS_SUCCESS
@@ -46,6 +46,7 @@ end
     CUTENSORNET_STATUS_CUSOLVER_ERROR = 25
     CUTENSORNET_STATUS_DEVICE_ALLOCATOR_ERROR = 26
     CUTENSORNET_STATUS_DISTRIBUTED_FAILURE = 27
+    CUTENSORNET_STATUS_INTERRUPTED = 28
 end
 
 @cenum cutensornetComputeType_t::UInt32 begin
@@ -58,6 +59,15 @@ end
     CUTENSORNET_COMPUTE_8I = 256
     CUTENSORNET_COMPUTE_32U = 128
     CUTENSORNET_COMPUTE_32I = 512
+end
+
+@cenum cutensornetNetworkAttributes_t::UInt32 begin
+    CUTENSORNET_NETWORK_INPUT_TENSORS_NUM_CONSTANT = 0
+    CUTENSORNET_NETWORK_INPUT_TENSORS_CONSTANT = 1
+    CUTENSORNET_NETWORK_INPUT_TENSORS_NUM_CONJUGATED = 10
+    CUTENSORNET_NETWORK_INPUT_TENSORS_CONJUGATED = 11
+    CUTENSORNET_NETWORK_INPUT_TENSORS_NUM_REQUIRE_GRAD = 20
+    CUTENSORNET_NETWORK_INPUT_TENSORS_REQUIRE_GRAD = 21
 end
 
 @cenum cutensornetGraphAlgo_t::UInt32 begin
@@ -74,6 +84,11 @@ end
     CUTENSORNET_OPTIMIZER_COST_FLOPS = 0
     CUTENSORNET_OPTIMIZER_COST_TIME = 1
     CUTENSORNET_OPTIMIZER_COST_TIME_TUNED = 2
+end
+
+@cenum cutensornetSmartOption_t::UInt32 begin
+    CUTENSORNET_SMART_OPTION_DISABLED = 0
+    CUTENSORNET_SMART_OPTION_ENABLED = 1
 end
 
 @cenum cutensornetContractionOptimizerConfigAttributes_t::UInt32 begin
@@ -95,6 +110,8 @@ end
     CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SIMPLIFICATION_DISABLE_DR = 40
     CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SEED = 60
     CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_COST_FUNCTION_OBJECTIVE = 61
+    CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_CACHE_REUSE_NRUNS = 62
+    CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SMART_OPTION = 63
 end
 
 @cenum cutensornetContractionOptimizerInfoAttributes_t::UInt32 begin
@@ -138,6 +155,16 @@ end
     CUTENSORNET_MEMSPACE_HOST = 1
 end
 
+@cenum cutensornetWorkspaceKind_t::UInt32 begin
+    CUTENSORNET_WORKSPACE_SCRATCH = 0
+    CUTENSORNET_WORKSPACE_CACHE = 1
+end
+
+struct cutensornetTensorIDList_t
+    numTensors::Int32
+    data::Ptr{Int32}
+end
+
 struct cutensornetNodePair_t
     first::Int32
     second::Int32
@@ -168,6 +195,8 @@ const cutensornetSliceGroup_t = Ptr{Cvoid}
 
 struct cutensornetTensorQualifiers_t
     isConjugate::Int32
+    isConstant::Int32
+    requiresGradient::Int32
 end
 
 const cutensornetTensorDescriptor_t = Ptr{Cvoid}
@@ -179,6 +208,26 @@ const cutensornetTensorSVDConfig_t = Ptr{Cvoid}
     CUTENSORNET_TENSOR_SVD_CONFIG_REL_CUTOFF = 1
     CUTENSORNET_TENSOR_SVD_CONFIG_S_NORMALIZATION = 2
     CUTENSORNET_TENSOR_SVD_CONFIG_S_PARTITION = 3
+    CUTENSORNET_TENSOR_SVD_CONFIG_ALGO = 4
+    CUTENSORNET_TENSOR_SVD_CONFIG_ALGO_PARAMS = 5
+    CUTENSORNET_TENSOR_SVD_CONFIG_DISCARDED_WEIGHT_CUTOFF = 6
+end
+
+@cenum cutensornetTensorSVDAlgo_t::UInt32 begin
+    CUTENSORNET_TENSOR_SVD_ALGO_GESVD = 0
+    CUTENSORNET_TENSOR_SVD_ALGO_GESVDJ = 1
+    CUTENSORNET_TENSOR_SVD_ALGO_GESVDP = 2
+    CUTENSORNET_TENSOR_SVD_ALGO_GESVDR = 3
+end
+
+struct cutensornetGesvdjParams_t
+    tol::Cdouble
+    maxSweeps::Int32
+end
+
+struct cutensornetGesvdrParams_t
+    oversampling::Int64
+    niters::Int64
 end
 
 @cenum cutensornetTensorSVDPartition_t::UInt32 begin
@@ -201,6 +250,17 @@ const cutensornetTensorSVDInfo_t = Ptr{Cvoid}
     CUTENSORNET_TENSOR_SVD_INFO_FULL_EXTENT = 0
     CUTENSORNET_TENSOR_SVD_INFO_REDUCED_EXTENT = 1
     CUTENSORNET_TENSOR_SVD_INFO_DISCARDED_WEIGHT = 2
+    CUTENSORNET_TENSOR_SVD_INFO_ALGO = 3
+    CUTENSORNET_TENSOR_SVD_INFO_ALGO_STATUS = 4
+end
+
+struct cutensornetGesvdjStatus_t
+    residual::Cdouble
+    sweeps::Int32
+end
+
+struct cutensornetGesvdpStatus_t
+    errSigma::Cdouble
 end
 
 @cenum cutensornetGateSplitAlgo_t::UInt32 begin
@@ -214,6 +274,53 @@ struct cutensornetDeviceMemHandler_t
     device_free::Ptr{Cvoid}
     name::NTuple{64,Cchar}
 end
+
+const cutensornetState_t = Ptr{Cvoid}
+
+@cenum cutensornetStatePurity_t::UInt32 begin
+    CUTENSORNET_STATE_PURITY_PURE = 0
+end
+
+const cutensornetStateAccessor_t = Ptr{Cvoid}
+
+@cenum cutensornetAccessorAttributes_t::UInt32 begin
+    CUTENSORNET_ACCESSOR_OPT_NUM_HYPER_SAMPLES = 0
+end
+
+const cutensornetStateExpectation_t = Ptr{Cvoid}
+
+@cenum cutensornetExpectationAttributes_t::UInt32 begin
+    CUTENSORNET_EXPECTATION_OPT_NUM_HYPER_SAMPLES = 0
+end
+
+const cutensornetStateMarginal_t = Ptr{Cvoid}
+
+@cenum cutensornetMarginalAttributes_t::UInt32 begin
+    CUTENSORNET_MARGINAL_OPT_NUM_HYPER_SAMPLES = 0
+end
+
+const cutensornetStateSampler_t = Ptr{Cvoid}
+
+@cenum cutensornetSamplerAttributes_t::UInt32 begin
+    CUTENSORNET_SAMPLER_OPT_NUM_HYPER_SAMPLES = 0
+end
+
+@cenum cutensornetBoundaryCondition_t::UInt32 begin
+    CUTENSORNET_BOUNDARY_CONDITION_OPEN = 0
+end
+
+@cenum cutensornetStateAttributes_t::UInt32 begin
+    CUTENSORNET_STATE_MPS_CANONICAL_CENTER = 0
+    CUTENSORNET_STATE_MPS_SVD_CONFIG_ABS_CUTOFF = 1
+    CUTENSORNET_STATE_MPS_SVD_CONFIG_REL_CUTOFF = 2
+    CUTENSORNET_STATE_MPS_SVD_CONFIG_S_NORMALIZATION = 3
+    CUTENSORNET_STATE_MPS_SVD_CONFIG_ALGO = 4
+    CUTENSORNET_STATE_MPS_SVD_CONFIG_ALGO_PARAMS = 5
+    CUTENSORNET_STATE_MPS_SVD_CONFIG_DISCARDED_WEIGHT_CUTOFF = 6
+    CUTENSORNET_STATE_NUM_HYPER_SAMPLES = 7
+end
+
+const cutensornetNetworkOperator_t = Ptr{Cvoid}
 
 # typedef void ( * cutensornetLoggerCallback_t ) ( int32_t logLevel , const char * functionName , const char * message )
 const cutensornetLoggerCallback_t = Ptr{Cvoid}
@@ -256,6 +363,26 @@ end
 @checked function cutensornetDestroyNetworkDescriptor(desc)
     initialize_context()
     @ccall libcutensornet.cutensornetDestroyNetworkDescriptor(desc::cutensornetNetworkDescriptor_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkGetAttribute(handle, networkDesc, attr, buf,
+                                                 sizeInBytes)
+    initialize_context()
+    @ccall libcutensornet.cutensornetNetworkGetAttribute(handle::cutensornetHandle_t,
+                                                         networkDesc::cutensornetNetworkDescriptor_t,
+                                                         attr::cutensornetNetworkAttributes_t,
+                                                         buf::Ptr{Cvoid},
+                                                         sizeInBytes::Csize_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkSetAttribute(handle, networkDesc, attr, buf,
+                                                 sizeInBytes)
+    initialize_context()
+    @ccall libcutensornet.cutensornetNetworkSetAttribute(handle::cutensornetHandle_t,
+                                                         networkDesc::cutensornetNetworkDescriptor_t,
+                                                         attr::cutensornetNetworkAttributes_t,
+                                                         buf::Ptr{Cvoid},
+                                                         sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetGetOutputTensorDetails(handle, descNet, numModes, dataSize,
@@ -322,6 +449,17 @@ end
                                                       workspaceSize::Ptr{UInt64})::cutensornetStatus_t
 end
 
+@checked function cutensornetWorkspaceGetMemorySize(handle, workDesc, workPref, memSpace,
+                                                    workKind, memorySize)
+    initialize_context()
+    @ccall libcutensornet.cutensornetWorkspaceGetMemorySize(handle::cutensornetHandle_t,
+                                                            workDesc::cutensornetWorkspaceDescriptor_t,
+                                                            workPref::cutensornetWorksizePref_t,
+                                                            memSpace::cutensornetMemspace_t,
+                                                            workKind::cutensornetWorkspaceKind_t,
+                                                            memorySize::Ptr{Int64})::cutensornetStatus_t
+end
+
 @checked function cutensornetWorkspaceSet(handle, workDesc, memSpace, workspacePtr,
                                           workspaceSize)
     initialize_context()
@@ -332,6 +470,17 @@ end
                                                   workspaceSize::UInt64)::cutensornetStatus_t
 end
 
+@checked function cutensornetWorkspaceSetMemory(handle, workDesc, memSpace, workKind,
+                                                memoryPtr, memorySize)
+    initialize_context()
+    @ccall libcutensornet.cutensornetWorkspaceSetMemory(handle::cutensornetHandle_t,
+                                                        workDesc::cutensornetWorkspaceDescriptor_t,
+                                                        memSpace::cutensornetMemspace_t,
+                                                        workKind::cutensornetWorkspaceKind_t,
+                                                        memoryPtr::Ptr{Cvoid},
+                                                        memorySize::Int64)::cutensornetStatus_t
+end
+
 @checked function cutensornetWorkspaceGet(handle, workDesc, memSpace, workspacePtr,
                                           workspaceSize)
     initialize_context()
@@ -340,6 +489,24 @@ end
                                                   memSpace::cutensornetMemspace_t,
                                                   workspacePtr::Ptr{Ptr{Cvoid}},
                                                   workspaceSize::Ptr{UInt64})::cutensornetStatus_t
+end
+
+@checked function cutensornetWorkspaceGetMemory(handle, workDesc, memSpace, workKind,
+                                                memoryPtr, memorySize)
+    initialize_context()
+    @ccall libcutensornet.cutensornetWorkspaceGetMemory(handle::cutensornetHandle_t,
+                                                        workDesc::cutensornetWorkspaceDescriptor_t,
+                                                        memSpace::cutensornetMemspace_t,
+                                                        workKind::cutensornetWorkspaceKind_t,
+                                                        memoryPtr::Ptr{Ptr{Cvoid}},
+                                                        memorySize::Ptr{Int64})::cutensornetStatus_t
+end
+
+@checked function cutensornetWorkspacePurgeCache(handle, workDesc, memSpace)
+    initialize_context()
+    @ccall libcutensornet.cutensornetWorkspacePurgeCache(handle::cutensornetHandle_t,
+                                                         workDesc::cutensornetWorkspaceDescriptor_t,
+                                                         memSpace::cutensornetMemspace_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetDestroyWorkspaceDescriptor(desc)
@@ -570,6 +737,20 @@ end
                                                     stream::cudaStream_t)::cutensornetStatus_t
 end
 
+@checked function cutensornetComputeGradientsBackward(handle, plan, rawDataIn,
+                                                      outputGradient, gradients,
+                                                      accumulateOutput, workDesc, stream)
+    initialize_context()
+    @ccall libcutensornet.cutensornetComputeGradientsBackward(handle::cutensornetHandle_t,
+                                                              plan::cutensornetContractionPlan_t,
+                                                              rawDataIn::Ptr{Ptr{Cvoid}},
+                                                              outputGradient::Ptr{Cvoid},
+                                                              gradients::Ptr{Ptr{Cvoid}},
+                                                              accumulateOutput::Int32,
+                                                              workDesc::cutensornetWorkspaceDescriptor_t,
+                                                              stream::cudaStream_t)::cutensornetStatus_t
+end
+
 @checked function cutensornetCreateTensorDescriptor(handle, numModes, extents, strides,
                                                     modes, dataType, descTensor)
     initialize_context()
@@ -771,17 +952,17 @@ end
     @ccall libcutensornet.cutensornetLoggerSetMask(mask::Int32)::cutensornetStatus_t
 end
 
-# no prototype is found for this function at cutensornet.h:1110:21, please use with caution
+# no prototype is found for this function at cutensornet.h:1262:21, please use with caution
 @checked function cutensornetLoggerForceDisable()
     @ccall libcutensornet.cutensornetLoggerForceDisable()::cutensornetStatus_t
 end
 
-# no prototype is found for this function at cutensornet.h:1115:8, please use with caution
+# no prototype is found for this function at cutensornet.h:1267:8, please use with caution
 function cutensornetGetVersion()
     @ccall libcutensornet.cutensornetGetVersion()::Csize_t
 end
 
-# no prototype is found for this function at cutensornet.h:1121:8, please use with caution
+# no prototype is found for this function at cutensornet.h:1273:8, please use with caution
 function cutensornetGetCudartVersion()
     @ccall libcutensornet.cutensornetGetCudartVersion()::Csize_t
 end
@@ -812,6 +993,327 @@ end
 @checked function cutensornetDistributedSynchronize(handle)
     initialize_context()
     @ccall libcutensornet.cutensornetDistributedSynchronize(handle::cutensornetHandle_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetCreateState(handle, purity, numStateModes, stateModeExtents,
+                                         dataType, tensorNetworkState)
+    initialize_context()
+    @ccall libcutensornet.cutensornetCreateState(handle::cutensornetHandle_t,
+                                                 purity::cutensornetStatePurity_t,
+                                                 numStateModes::Int32,
+                                                 stateModeExtents::Ptr{Int64},
+                                                 dataType::cudaDataType_t,
+                                                 tensorNetworkState::Ptr{cutensornetState_t})::cutensornetStatus_t
+end
+
+@checked function cutensornetStateApplyTensor(handle, tensorNetworkState, numStateModes,
+                                              stateModes, tensorData, tensorModeStrides,
+                                              immutable, adjoint, unitary, tensorId)
+    initialize_context()
+    @ccall libcutensornet.cutensornetStateApplyTensor(handle::cutensornetHandle_t,
+                                                      tensorNetworkState::cutensornetState_t,
+                                                      numStateModes::Int32,
+                                                      stateModes::Ptr{Int32},
+                                                      tensorData::Ptr{Cvoid},
+                                                      tensorModeStrides::Ptr{Int64},
+                                                      immutable::Int32, adjoint::Int32,
+                                                      unitary::Int32,
+                                                      tensorId::Ptr{Int64})::cutensornetStatus_t
+end
+
+@checked function cutensornetStateUpdateTensor(handle, tensorNetworkState, tensorId,
+                                               tensorData, unitary)
+    initialize_context()
+    @ccall libcutensornet.cutensornetStateUpdateTensor(handle::cutensornetHandle_t,
+                                                       tensorNetworkState::cutensornetState_t,
+                                                       tensorId::Int64,
+                                                       tensorData::Ptr{Cvoid},
+                                                       unitary::Int32)::cutensornetStatus_t
+end
+
+@checked function cutensornetStateFinalizeMPS(handle, tensorNetworkState, boundaryCondition,
+                                              extentsOut, stridesOut)
+    initialize_context()
+    @ccall libcutensornet.cutensornetStateFinalizeMPS(handle::cutensornetHandle_t,
+                                                      tensorNetworkState::cutensornetState_t,
+                                                      boundaryCondition::cutensornetBoundaryCondition_t,
+                                                      extentsOut::Ptr{Ptr{Int64}},
+                                                      stridesOut::Ptr{Ptr{Int64}})::cutensornetStatus_t
+end
+
+@checked function cutensornetStateConfigure(handle, tensorNetworkState, attribute,
+                                            attributeValue, attributeSize)
+    initialize_context()
+    @ccall libcutensornet.cutensornetStateConfigure(handle::cutensornetHandle_t,
+                                                    tensorNetworkState::cutensornetState_t,
+                                                    attribute::cutensornetStateAttributes_t,
+                                                    attributeValue::Ptr{Cvoid},
+                                                    attributeSize::Csize_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetStatePrepare(handle, tensorNetworkState,
+                                          maxWorkspaceSizeDevice, workDesc, cudaStream)
+    initialize_context()
+    @ccall libcutensornet.cutensornetStatePrepare(handle::cutensornetHandle_t,
+                                                  tensorNetworkState::cutensornetState_t,
+                                                  maxWorkspaceSizeDevice::Csize_t,
+                                                  workDesc::cutensornetWorkspaceDescriptor_t,
+                                                  cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetStateCompute(handle, tensorNetworkState, workDesc, extentsOut,
+                                          stridesOut, stateTensorsOut, cudaStream)
+    initialize_context()
+    @ccall libcutensornet.cutensornetStateCompute(handle::cutensornetHandle_t,
+                                                  tensorNetworkState::cutensornetState_t,
+                                                  workDesc::cutensornetWorkspaceDescriptor_t,
+                                                  extentsOut::Ptr{Ptr{Int64}},
+                                                  stridesOut::Ptr{Ptr{Int64}},
+                                                  stateTensorsOut::Ptr{Ptr{Cvoid}},
+                                                  cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetGetOutputStateDetails(handle, tensorNetworkState,
+                                                   numTensorsOut, numModesOut, extentsOut,
+                                                   stridesOut)
+    initialize_context()
+    @ccall libcutensornet.cutensornetGetOutputStateDetails(handle::cutensornetHandle_t,
+                                                           tensorNetworkState::cutensornetState_t,
+                                                           numTensorsOut::Ptr{Int32},
+                                                           numModesOut::Ptr{Int32},
+                                                           extentsOut::Ptr{Ptr{Int64}},
+                                                           stridesOut::Ptr{Ptr{Int64}})::cutensornetStatus_t
+end
+
+@checked function cutensornetDestroyState(tensorNetworkState)
+    initialize_context()
+    @ccall libcutensornet.cutensornetDestroyState(tensorNetworkState::cutensornetState_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetCreateNetworkOperator(handle, numStateModes, stateModeExtents,
+                                                   dataType, tensorNetworkOperator)
+    initialize_context()
+    @ccall libcutensornet.cutensornetCreateNetworkOperator(handle::cutensornetHandle_t,
+                                                           numStateModes::Int32,
+                                                           stateModeExtents::Ptr{Int64},
+                                                           dataType::cudaDataType_t,
+                                                           tensorNetworkOperator::Ptr{cutensornetNetworkOperator_t})::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkOperatorAppendProduct(handle, tensorNetworkOperator,
+                                                          coefficient, numTensors, numModes,
+                                                          stateModes, tensorModeStrides,
+                                                          tensorData, componentId)
+    initialize_context()
+    @ccall libcutensornet.cutensornetNetworkOperatorAppendProduct(handle::cutensornetHandle_t,
+                                                                  tensorNetworkOperator::cutensornetNetworkOperator_t,
+                                                                  coefficient::cuDoubleComplex,
+                                                                  numTensors::Int32,
+                                                                  numModes::Ptr{Int32},
+                                                                  stateModes::Ptr{Ptr{Int32}},
+                                                                  tensorModeStrides::Ptr{Ptr{Int64}},
+                                                                  tensorData::Ptr{Ptr{Cvoid}},
+                                                                  componentId::Ptr{Int64})::cutensornetStatus_t
+end
+
+@checked function cutensornetDestroyNetworkOperator(tensorNetworkOperator)
+    initialize_context()
+    @ccall libcutensornet.cutensornetDestroyNetworkOperator(tensorNetworkOperator::cutensornetNetworkOperator_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetCreateAccessor(handle, tensorNetworkState, numProjectedModes,
+                                            projectedModes, amplitudesTensorStrides,
+                                            tensorNetworkAccessor)
+    initialize_context()
+    @ccall libcutensornet.cutensornetCreateAccessor(handle::cutensornetHandle_t,
+                                                    tensorNetworkState::cutensornetState_t,
+                                                    numProjectedModes::Int32,
+                                                    projectedModes::Ptr{Int32},
+                                                    amplitudesTensorStrides::Ptr{Int64},
+                                                    tensorNetworkAccessor::Ptr{cutensornetStateAccessor_t})::cutensornetStatus_t
+end
+
+@checked function cutensornetAccessorConfigure(handle, tensorNetworkAccessor, attribute,
+                                               attributeValue, attributeSize)
+    initialize_context()
+    @ccall libcutensornet.cutensornetAccessorConfigure(handle::cutensornetHandle_t,
+                                                       tensorNetworkAccessor::cutensornetStateAccessor_t,
+                                                       attribute::cutensornetAccessorAttributes_t,
+                                                       attributeValue::Ptr{Cvoid},
+                                                       attributeSize::Csize_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetAccessorPrepare(handle, tensorNetworkAccessor,
+                                             maxWorkspaceSizeDevice, workDesc, cudaStream)
+    initialize_context()
+    @ccall libcutensornet.cutensornetAccessorPrepare(handle::cutensornetHandle_t,
+                                                     tensorNetworkAccessor::cutensornetStateAccessor_t,
+                                                     maxWorkspaceSizeDevice::Csize_t,
+                                                     workDesc::cutensornetWorkspaceDescriptor_t,
+                                                     cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetAccessorCompute(handle, tensorNetworkAccessor,
+                                             projectedModeValues, workDesc,
+                                             amplitudesTensor, stateNorm, cudaStream)
+    initialize_context()
+    @ccall libcutensornet.cutensornetAccessorCompute(handle::cutensornetHandle_t,
+                                                     tensorNetworkAccessor::cutensornetStateAccessor_t,
+                                                     projectedModeValues::Ptr{Int64},
+                                                     workDesc::cutensornetWorkspaceDescriptor_t,
+                                                     amplitudesTensor::Ptr{Cvoid},
+                                                     stateNorm::Ptr{Cvoid},
+                                                     cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetDestroyAccessor(tensorNetworkAccessor)
+    initialize_context()
+    @ccall libcutensornet.cutensornetDestroyAccessor(tensorNetworkAccessor::cutensornetStateAccessor_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetCreateExpectation(handle, tensorNetworkState,
+                                               tensorNetworkOperator,
+                                               tensorNetworkExpectation)
+    initialize_context()
+    @ccall libcutensornet.cutensornetCreateExpectation(handle::cutensornetHandle_t,
+                                                       tensorNetworkState::cutensornetState_t,
+                                                       tensorNetworkOperator::cutensornetNetworkOperator_t,
+                                                       tensorNetworkExpectation::Ptr{cutensornetStateExpectation_t})::cutensornetStatus_t
+end
+
+@checked function cutensornetExpectationConfigure(handle, tensorNetworkExpectation,
+                                                  attribute, attributeValue, attributeSize)
+    initialize_context()
+    @ccall libcutensornet.cutensornetExpectationConfigure(handle::cutensornetHandle_t,
+                                                          tensorNetworkExpectation::cutensornetStateExpectation_t,
+                                                          attribute::cutensornetExpectationAttributes_t,
+                                                          attributeValue::Ptr{Cvoid},
+                                                          attributeSize::Csize_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetExpectationPrepare(handle, tensorNetworkExpectation,
+                                                maxWorkspaceSizeDevice, workDesc,
+                                                cudaStream)
+    initialize_context()
+    @ccall libcutensornet.cutensornetExpectationPrepare(handle::cutensornetHandle_t,
+                                                        tensorNetworkExpectation::cutensornetStateExpectation_t,
+                                                        maxWorkspaceSizeDevice::Csize_t,
+                                                        workDesc::cutensornetWorkspaceDescriptor_t,
+                                                        cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetExpectationCompute(handle, tensorNetworkExpectation, workDesc,
+                                                expectationValue, stateNorm, cudaStream)
+    initialize_context()
+    @ccall libcutensornet.cutensornetExpectationCompute(handle::cutensornetHandle_t,
+                                                        tensorNetworkExpectation::cutensornetStateExpectation_t,
+                                                        workDesc::cutensornetWorkspaceDescriptor_t,
+                                                        expectationValue::Ptr{Cvoid},
+                                                        stateNorm::Ptr{Cvoid},
+                                                        cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetDestroyExpectation(tensorNetworkExpectation)
+    initialize_context()
+    @ccall libcutensornet.cutensornetDestroyExpectation(tensorNetworkExpectation::cutensornetStateExpectation_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetCreateMarginal(handle, tensorNetworkState, numMarginalModes,
+                                            marginalModes, numProjectedModes,
+                                            projectedModes, marginalTensorStrides,
+                                            tensorNetworkMarginal)
+    initialize_context()
+    @ccall libcutensornet.cutensornetCreateMarginal(handle::cutensornetHandle_t,
+                                                    tensorNetworkState::cutensornetState_t,
+                                                    numMarginalModes::Int32,
+                                                    marginalModes::Ptr{Int32},
+                                                    numProjectedModes::Int32,
+                                                    projectedModes::Ptr{Int32},
+                                                    marginalTensorStrides::Ptr{Int64},
+                                                    tensorNetworkMarginal::Ptr{cutensornetStateMarginal_t})::cutensornetStatus_t
+end
+
+@checked function cutensornetMarginalConfigure(handle, tensorNetworkMarginal, attribute,
+                                               attributeValue, attributeSize)
+    initialize_context()
+    @ccall libcutensornet.cutensornetMarginalConfigure(handle::cutensornetHandle_t,
+                                                       tensorNetworkMarginal::cutensornetStateMarginal_t,
+                                                       attribute::cutensornetMarginalAttributes_t,
+                                                       attributeValue::Ptr{Cvoid},
+                                                       attributeSize::Csize_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetMarginalPrepare(handle, tensorNetworkMarginal,
+                                             maxWorkspaceSizeDevice, workDesc, cudaStream)
+    initialize_context()
+    @ccall libcutensornet.cutensornetMarginalPrepare(handle::cutensornetHandle_t,
+                                                     tensorNetworkMarginal::cutensornetStateMarginal_t,
+                                                     maxWorkspaceSizeDevice::Csize_t,
+                                                     workDesc::cutensornetWorkspaceDescriptor_t,
+                                                     cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetMarginalCompute(handle, tensorNetworkMarginal,
+                                             projectedModeValues, workDesc, marginalTensor,
+                                             cudaStream)
+    initialize_context()
+    @ccall libcutensornet.cutensornetMarginalCompute(handle::cutensornetHandle_t,
+                                                     tensorNetworkMarginal::cutensornetStateMarginal_t,
+                                                     projectedModeValues::Ptr{Int64},
+                                                     workDesc::cutensornetWorkspaceDescriptor_t,
+                                                     marginalTensor::Ptr{Cvoid},
+                                                     cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetDestroyMarginal(tensorNetworkMarginal)
+    initialize_context()
+    @ccall libcutensornet.cutensornetDestroyMarginal(tensorNetworkMarginal::cutensornetStateMarginal_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetCreateSampler(handle, tensorNetworkState, numModesToSample,
+                                           modesToSample, tensorNetworkSampler)
+    initialize_context()
+    @ccall libcutensornet.cutensornetCreateSampler(handle::cutensornetHandle_t,
+                                                   tensorNetworkState::cutensornetState_t,
+                                                   numModesToSample::Int32,
+                                                   modesToSample::Ptr{Int32},
+                                                   tensorNetworkSampler::Ptr{cutensornetStateSampler_t})::cutensornetStatus_t
+end
+
+@checked function cutensornetSamplerConfigure(handle, tensorNetworkSampler, attribute,
+                                              attributeValue, attributeSize)
+    initialize_context()
+    @ccall libcutensornet.cutensornetSamplerConfigure(handle::cutensornetHandle_t,
+                                                      tensorNetworkSampler::cutensornetStateSampler_t,
+                                                      attribute::cutensornetSamplerAttributes_t,
+                                                      attributeValue::Ptr{Cvoid},
+                                                      attributeSize::Csize_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetSamplerPrepare(handle, tensorNetworkSampler,
+                                            maxWorkspaceSizeDevice, workDesc, cudaStream)
+    initialize_context()
+    @ccall libcutensornet.cutensornetSamplerPrepare(handle::cutensornetHandle_t,
+                                                    tensorNetworkSampler::cutensornetStateSampler_t,
+                                                    maxWorkspaceSizeDevice::Csize_t,
+                                                    workDesc::cutensornetWorkspaceDescriptor_t,
+                                                    cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetSamplerSample(handle, tensorNetworkSampler, numShots, workDesc,
+                                           samples, cudaStream)
+    initialize_context()
+    @ccall libcutensornet.cutensornetSamplerSample(handle::cutensornetHandle_t,
+                                                   tensorNetworkSampler::cutensornetStateSampler_t,
+                                                   numShots::Int64,
+                                                   workDesc::cutensornetWorkspaceDescriptor_t,
+                                                   samples::Ptr{Int64},
+                                                   cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetDestroySampler(tensorNetworkSampler)
+    initialize_context()
+    @ccall libcutensornet.cutensornetDestroySampler(tensorNetworkSampler::cutensornetStateSampler_t)::cutensornetStatus_t
 end
 
 const CUTENSORNET_ALLOCATOR_NAME_LEN = 64

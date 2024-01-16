@@ -168,14 +168,12 @@ function __init__()
 
     # warn about old, deprecated environment variables
     if haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER") && !local_toolkit
-        @error """JULIA_CUDA_USE_BINARYBUILDER is deprecated, and CUDA.jl always uses artifacts now.
-                  To use a local installation, use overrides or preferences to customize the artifact.
-                  Please check the CUDA.jl or Pkg.jl documentation for more details."""
+        @error """JULIA_CUDA_USE_BINARYBUILDER is deprecated. Call `CUDA.jl.set_runtime_version!` to use a local toolkit."""
         # we do not warn about this when we're already using the new preference,
         # because during the transition clusters will be deploying both mechanisms.
     end
     if haskey(ENV, "JULIA_CUDA_VERSION")
-        @error """JULIA_CUDA_VERSION is deprecated. Call `CUDA.jl.set_runtime_version!` to use a different version instead."""
+        @error """JULIA_CUDA_VERSION is deprecated. Call `CUDA.jl.set_runtime_version!` to use a different version."""
     end
 
     if !local_toolkit

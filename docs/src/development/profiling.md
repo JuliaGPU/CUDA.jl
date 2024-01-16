@@ -214,7 +214,11 @@ interactions in detail, Nsight Compute is the tool for you. It is again possible
 profiler with an interactive session of Julia, and debug or profile only those sections of
 your application that are marked with `CUDA.@profile`.
 
-Start with launching Julia under the Nsight Compute CLI tool:
+First, ensure that all (CUDA) packages that are involved in your application have been
+precompiled. Otherwise, you'll end up profiling the precompilation process, instead of
+the process where the actual work happens.
+
+Then, launch Julia under the Nsight Compute CLI tool as follows:
 
 ```
 $ ncu --mode=launch julia
@@ -224,23 +228,25 @@ You will get an interactive REPL, where you can execute whatever code you want:
 
 ```julia
 julia> using CUDA
-
-julia> CUDA.driver_version()
-
 # Julia hangs!
 ```
 
 As soon as you use CUDA.jl, your Julia process will hang. This is expected, as the tool
 breaks upon the very first call to the CUDA API, at which point you are expected to launch
-the Nsight Compute GUI utility and attach to the running session:
+the Nsight Compute GUI utility, select `Interactive Profile` under `Activity`, and attach
+to the running session by selecting it in the list in the `Attach` pane:
 
 !["NVIDIA Nsight Compute - Attaching to a session"](nsight_compute-attach.png)
 
-You will see that the tool has stopped execution on the call to `cuInit`. Now check
-`Profile > Auto Profile` to make Nsight Compute gather statistics on our kernels, and clock
-`Debug > Resume` to resume your session.
+Note that this even works with remote systems, i.e., you can have NSight Compute connect
+over ssh to a remote system where you run Julia under `ncu`.
 
-Now our CLI session comes to life again, and we can enter the rest of our script:
+Once you've successfully attached to a Julia process, you will see that the tool has stopped
+execution on the call to `cuInit`. Now check `Profile > Auto Profile` to make Nsight Compute
+gather statistics on our kernels, uncheck `Debug > Break On API Error` to avoid halting the
+process when innocuous errors happen, and click `Debug > Resume` to resume your application.
+
+After doing so, our CLI session comes to life again, and we can execute the rest of our script:
 
 ```julia
 julia> a = CUDA.rand(1024,1024,1024);
@@ -253,6 +259,12 @@ julia> CUDA.@profile external=true sin.(a);
 Once that's finished, the Nsight Compute GUI window will have plenty details on our kernel:
 
 !["NVIDIA Nsight Compute - Kernel profiling"](nsight_compute-kernel.png)
+
+By default, this only collects a basic set of metrics. If you need more information on a
+specific kernel, select `detailed` or `full` in the `Metric Selection` pane and re-run
+your kernels. Note that collecting more metrics is also more expensive, sometimes even
+requiring multiple executions of your kernel. As such, it is recommended to only collect
+basic metrics by default, and only detailed or full metrics for kernels of interest.
 
 At any point in time, you can also pause your application from the debug menu, and inspect
 the API calls that have been made:

@@ -176,7 +176,7 @@ function __init__()
     end
 
     # register a log callback
-    if isdebug(:init, cuDNN) || Base.JLOptions().debug_level >= 2
+    if !precompiling && (isdebug(:init, cuDNN) || Base.JLOptions().debug_level >= 2)
         log_cond[] = Base.AsyncCondition() do async_cond
             message = Base.@lock log_lock popfirst!(log_messages)
             _log_message(message...)

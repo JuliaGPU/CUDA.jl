@@ -39,25 +39,38 @@ needs_context = false
 [api.custatevecLoggerSetCallback]
 needs_context = false
 
-[api.custatevecAbs2SumOnZBasis]
+[api.custatevecSetWorkspace.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecAbs2SumArray]
+[api.custatevecAbs2SumOnZBasis.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecCollapseOnZBasis]
+[api.custatevecAbs2SumArray.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecCollapseByBitString]
+[api.custatevecAbs2SumArrayBatched.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecMeasureOnZBasis]
+[api.custatevecCollapseOnZBasis.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecBatchMeasure]
+[api.custatevecCollapseByBitString.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecBatchMeasureWithOffset]
+[api.custatevecCollapseByBitStringBatched.argtypes]
+2 = "CuPtr{Cvoid}"
+11 = "PtrOrCuPtr{Cvoid}"
+
+[api.custatevecMeasureOnZBasis.argtypes]
+2 = "CuPtr{Cvoid}"
+
+[api.custatevecBatchMeasure.argtypes]
+2 = "CuPtr{Cvoid}"
+
+[api.custatevecMeasureBatched.argtypes]
+2 = "CuPtr{Cvoid}"
+
+[api.custatevecBatchMeasureWithOffset.argtypes]
 2 = "CuPtr{Cvoid}"
 
 [api.custatevecApplyPauliRotation.argtypes]
@@ -71,15 +84,13 @@ needs_context = false
 2 = "CuPtr{Cvoid}"
 5 = "PtrOrCuPtr{custatevecIndex_t}"
 6 = "PtrOrCuPtr{Cvoid}"
+14 = "PtrOrCuPtr{Cvoid}"
 
 [api.custatevecComputeExpectationGetWorkspaceSize.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
 
 [api.custatevecComputeExpectationsOnPauliBasis.argtypes]
 2 = "CuPtr{Cvoid}"
-
-[api.custatevecSamplerPreprocess.argtypes]
-3 = "CuPtr{Cvoid}"
 
 [api.custatevecComputeExpectation.argtypes]
 2 = "CuPtr{Cvoid}"
@@ -88,6 +99,17 @@ needs_context = false
 
 [api.custatevecSamplerCreate.argtypes]
 2 = "CuPtr{Cvoid}"
+
+[api.custatevecApplyMatrixGetWorkspaceSize.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+
+[api.custatevecApplyMatrixBatched.argtypes]
+2 = "CuPtr{Cvoid}"
+9 = "PtrOrCuPtr{Cvoid}"
+20 = "CuPtr{Cvoid}"
+
+[api.custatevecApplyMatrixBatchedGetWorkspaceSize.argtypes]
+8 = "PtrOrCuPtr{Cvoid}"
 
 [api.custatevecApplyMatrix.argtypes]
 2 = "CuPtr{Cvoid}"
@@ -99,7 +121,7 @@ needs_context = false
 
 [api.custatevecTestMatrixType.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
-9 = "PtrOrCuPtr{Cvoid}"
+10 = "PtrOrCuPtr{Cvoid}"
 
 [api.custatevecSamplerPreprocess.argtypes]
 3 = "CuPtr{Cvoid}"
