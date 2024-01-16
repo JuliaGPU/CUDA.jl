@@ -512,7 +512,14 @@ end
 
 ## memory copying
 
+if VERSION >= v"1.11.0-DEV.753"
+function typetagdata(a::Array, i=1)
+  ptr = convert(Ptr{UInt8}, a.ref.ptr_or_offset)
+  @ccall(jl_genericmemory_typetagdata(a.ref::Any)::Cchar) + ptr + i - 1
+end
+else
 typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
+end
 function typetagdata(a::CuArray, i=1; type=Mem.Device)
   PT = if type == Mem.Device
     CuPtr{UInt8}
