@@ -4,12 +4,13 @@ using LinearAlgebra
 using SparseArrays
 
 m = 5
-n = 15 
+n = 15
 # error when n == 1 and batchsize > 1 as cusparseSpMM fallsback to cusparseSpMV, which doesn't do batched computations.
 # see https://docs.nvidia.com/cuda/cusparse/#cusparsespmm
 k = 25
 p = 0.5
 
+if CUSPARSE.version() ≥ v"11.7.2"
 @testset "Sparse-Dense $elty bmm!" for elty in (Float64, Float32, ComplexF64, ComplexF32)
     α = rand(elty) 
     β = rand(elty) 
@@ -114,4 +115,5 @@ p = 0.5
 
         @test D ≈ C
     end
+end
 end
