@@ -66,29 +66,30 @@ end
 Add PTX code to a pending link operation.
 """
 function add_data!(link::CuLink, name::String, code::String)
-    data = unsafe_wrap(Vector{UInt8}, code)
+    GC.@preserve code begin
+        # cuLinkAddData takes a Ptr{Cvoid} instead of a Cstring, because it accepts both
+        # source and binary, so do the conversion (ensuring no embedded NULLs) ourselves
+        data = Base.unsafe_convert(Cstring, code)
 
-    # there shouldn't be any embedded NULLs
-    checked_data = Base.unsafe_convert(Cstring, data)
-
-    res = unsafe_cuLinkAddData_v2(link, JIT_INPUT_PTX, pointer(checked_data), length(data),
-                                  name, 0, C_NULL, C_NULL)
-    if res == ERROR_NO_BINARY_FOR_GPU ||
-       res == ERROR_INVALID_IMAGE ||
-       res == ERROR_INVALID_PTX
-        throw(CuError(res, unsafe_string(pointer(link.options[JIT_ERROR_LOG_BUFFER]))))
-    elseif res != SUCCESS
-        throw_api_error(res)
+        res = unsafe_cuLinkAddData_v2(link, JIT_INPUT_PTX, pointer(data), length(code),
+                                      name, 0, C_NULL, C_NULL)
+        if res == ERROR_NO_BINARY_FOR_GPU ||
+        res == ERROR_INVALID_IMAGE ||
+        res == ERROR_INVALID_PTX
+            throw(CuError(res, unsafe_string(pointer(link.options[JIT_ERROR_LOG_BUFFER]))))
+        elseif res != SUCCESS
+            throw_api_error(res)
+        end
     end
 end
 
 """
-    add_data!(link::CuLink, name::String, data::Vector{UInt8}, type::CUjitInputType)
+    add_data!(link::CuLink, name::String, data::Vector{UInt8})
 
 Add object code to a pending link operation.
 """
 function add_data!(link::CuLink, name::String, data::Vector{UInt8})
-    res = unsafe_cuLinkAddData_v2(link, JIT_INPUT_OBJECT, pointer(data), length(data),
+    res = unsafe_cuLinkAddData_v2(link, JIT_INPUT_OBJECT, data, length(data),
                                   name, 0, C_NULL, C_NULL)
     if res == ERROR_NO_BINARY_FOR_GPU ||
        res == ERROR_INVALID_IMAGE ||
@@ -97,8 +98,6 @@ function add_data!(link::CuLink, name::String, data::Vector{UInt8})
     elseif res != SUCCESS
         throw_api_error(res)
     end
-
-    return
 end
 
 """
