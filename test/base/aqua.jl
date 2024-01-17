@@ -8,6 +8,7 @@ let ambs = Aqua.detect_ambiguities(CUDA; recursive=true)
     # StaticArrays pirates a bunch of Random stuff...
     filter!(x -> !pkg_match("StaticArrays", pkgdir(first(x).module)), ambs)
 
+    @warn "Remaining ambiguities: $(length(ambs))"
     @test length(ambs) ≤ 15
 end
 
