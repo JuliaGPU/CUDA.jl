@@ -4,19 +4,6 @@ function version()
     VersionNumber(version_ref[])
 end
 
-abstract type AbstractConfig end
-
-function enable!(f, cfg::AbstractConfig, args...)
-    GC.@preserve cfg begin
-        enable!(cfg, args...)
-        try
-            f()
-        finally
-            disable!(cfg)
-        end
-    end
-end
-
 
 #
 # callback API
@@ -60,50 +47,41 @@ end
         # do stuff
     end
 """
-mutable struct CallbackConfig <: AbstractConfig
+mutable struct CallbackConfig
     callback::Function
     callback_kinds::Vector{CUpti_CallbackDomain}
-    subscriber::Union{Nothing,CUpti_SubscriberHandle}
 end
 
-function CallbackConfig(callback, callback_kinds)
-    CallbackConfig(callback, callback_kinds, nothing)
-end
+function enable!(f::Base.Callable, cfg::CallbackConfig)
+    @lock callback_lock begin
+        callback_ptr =
+            @cfunction(callback, Cvoid,
+                       (Ptr{Cvoid}, CUpti_CallbackDomain, CUpti_CallbackId, Ptr{Cvoid}))
 
-function enable!(cfg::CallbackConfig)
-    lock(callback_lock)
-    callback_ptr =
-        @cfunction(callback, Cvoid,
-                   (Ptr{Cvoid}, CUpti_CallbackDomain, CUpti_CallbackId, Ptr{Cvoid}))
+        GC.@preserve cfg begin
+            # set-up subscriber
+            subscriber_ref = Ref{CUpti_SubscriberHandle}()
+            cuptiSubscribe(subscriber_ref, callback_ptr, Base.pointer_from_objref(cfg))
+            subscriber = subscriber_ref[]
 
-    # set-up subscriber
-    subscriber_ref = Ref{CUpti_SubscriberHandle}()
-    cuptiSubscribe(subscriber_ref, callback_ptr, Base.pointer_from_objref(cfg))
-    cfg.subscriber = subscriber_ref[]
+            # enable domains
+            for callback_kind in cfg.callback_kinds
+                CUPTI.cuptiEnableDomain(true, subscriber, callback_kind)
+            end
 
-    # enable domains
-    for callback_kind in cfg.callback_kinds
-        CUPTI.cuptiEnableDomain(true, cfg.subscriber, callback_kind)
+            try
+                f()
+            finally
+                # disable callback kinds
+                for callback_kind in cfg.callback_kinds
+                    CUPTI.cuptiEnableDomain(false, subscriber, callback_kind)
+                end
+
+                # disable the subscriber
+                CUPTI.cuptiUnsubscribe(subscriber)
+            end
+        end
     end
-end
-
-function disable!(cfg::CallbackConfig)
-    if cfg.subscriber === nothing
-        error("This profiling session is not active.")
-    end
-
-    # disable callback kinds
-    for callback_kind in cfg.callback_kinds
-        CUPTI.cuptiEnableDomain(false, cfg.subscriber, callback_kind)
-    end
-
-    # disable the subscriber
-    CUPTI.cuptiUnsubscribe(cfg.subscriber)
-    cfg.subscriber = nothing
-
-    unlock(callback_lock)
-
-    return
 end
 
 
@@ -124,7 +102,7 @@ end
 
 High-level interface to the CUPTI activity API.
 """
-struct ActivityConfig <: AbstractConfig
+struct ActivityConfig
     activity_kinds::Vector{CUpti_ActivityKind}
 
     available_buffers::Vector{Vector{UInt8}}
@@ -145,6 +123,7 @@ function allocate_buffer()
     Array{UInt8}(undef, 8 * 1024 * 1024)  # 8 MB
 end
 
+const activity_lock = ReentrantLock()
 const activity_config = Ref{Union{Nothing,ActivityConfig}}(nothing)
 
 function request_buffer(dest_ptr, sz_ptr, max_num_records_ptr)
@@ -195,41 +174,40 @@ function complete_buffer(ctx_handle, stream_id, buf_ptr, sz, valid_sz)
     return
 end
 
-function enable!(cfg::ActivityConfig)
-    activity_config[] === nothing ||
-        error("Only one profiling session can be active at a time.")
+function enable!(f::Base.Callable, cfg::ActivityConfig)
+    @lock activity_lock begin
+        activity_config[] = cfg
 
-    # set-up callbacks
-    request_buffer_ptr = @cfunction(request_buffer, Cvoid,
-                                    (Ptr{Ptr{UInt8}}, Ptr{Csize_t}, Ptr{Csize_t}))
-    complete_buffer_ptr = @cfunction(complete_buffer, Cvoid,
-                                     (CUDA.CUcontext, UInt32, Ptr{UInt8}, Csize_t, Csize_t))
-    cuptiActivityRegisterCallbacks(request_buffer_ptr, complete_buffer_ptr)
+        # set-up callbacks
+        request_buffer_ptr =
+            @cfunction(request_buffer, Cvoid,
+                       (Ptr{Ptr{UInt8}}, Ptr{Csize_t}, Ptr{Csize_t}))
+        complete_buffer_ptr =
+            @cfunction(complete_buffer, Cvoid,
+                       (CUDA.CUcontext, UInt32, Ptr{UInt8}, Csize_t, Csize_t))
+        cuptiActivityRegisterCallbacks(request_buffer_ptr, complete_buffer_ptr)
 
-    activity_config[] = cfg
+        activity_config[] = cfg
 
-    # enable requested activity kinds
-    for activity_kind in cfg.activity_kinds
-        cuptiActivityEnable(activity_kind)
+        # enable requested activity kinds
+        for activity_kind in cfg.activity_kinds
+            cuptiActivityEnable(activity_kind)
+        end
+
+        try
+            f()
+        finally
+            # disable activity kinds
+            for activity_kind in cfg.activity_kinds
+                cuptiActivityDisable(activity_kind)
+            end
+
+            # flush all activity records, even incomplete ones
+            cuptiActivityFlushAll(CUPTI_ACTIVITY_FLAG_FLUSH_FORCED)
+
+            activity_config[] = nothing
+        end
     end
-end
-
-function disable!(cfg::ActivityConfig)
-    if activity_config[] !== cfg
-        error("This profiling session is not active.")
-    end
-
-    # disable activity kinds
-    for activity_kind in cfg.activity_kinds
-        cuptiActivityDisable(activity_kind)
-    end
-
-    # flush all activity records, even incomplete ones
-    cuptiActivityFlushAll(CUPTI_ACTIVITY_FLAG_FLUSH_FORCED)
-
-    activity_config[] = nothing
-
-    return
 end
 
 function process(f, cfg::ActivityConfig)
