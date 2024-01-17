@@ -21,3 +21,14 @@ function chkmmdims(B, C, k, l, m, n)
         throw(DimensionMismatch("C has dimensions $(size(C)) but needs ($m,$n)"))
     end
 end
+
+"""
+check that the dimensions of arrays `B` and `C` make sense for a batched matrix-matrix multiplication
+"""
+function chkbmmdims(B, C, k, l, m, n)
+    if size(B)[1:2] != (k,l)
+        throw(DimensionMismatch("B has dimensions $(size(B)) but needs ($k,$l)"))
+    elseif size(C)[1:2] != (m,n)
+        throw(DimensionMismatch("C has dimensions $(size(C)) but needs ($m,$n)"))
+    end
+end

@@ -3,6 +3,7 @@
 
 export CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR, CuSparseMatrixCOO,
        CuSparseMatrix, AbstractCuSparseMatrix,
+       CuSparseArrayCSR,
        CuSparseVector,
        CuSparseVecOrMat
 
@@ -141,6 +142,32 @@ end
 
 CuSparseMatrixCOO(A::CuSparseMatrixCOO) = A
 
+mutable struct CuSparseArrayCSR{Tv, Ti, N} <: AbstractCuSparseArray{Tv, Ti, N}
+    rowPtr::CuArray{Ti}
+    colVal::CuArray{Ti}
+    nzVal::CuArray{Tv}
+    dims::NTuple{N,Int}
+    nnz::Ti
+
+    function CuSparseArrayCSR{Tv, Ti, N}(rowPtr::CuArray{<:Integer, M}, colVal::CuArray{<:Integer, M}, nzVal::CuArray{Tv, M}, dims::NTuple{N,<:Integer}) where {Tv, Ti<:Integer, M, N}
+        @assert M == N - 1 "CuSparseArrayCSR requires ndims(rowPtr) == ndims(colVal) == ndims(nzVal) == length(dims) - 1"
+        new{Tv, Ti, N}(rowPtr, colVal, nzVal, dims, length(nzVal))
+    end
+end
+
+CuSparseArrayCSR(A::CuSparseArrayCSR) = A
+
+function CUDA.unsafe_free!(xs::CuSparseArrayCSR)
+    unsafe_free!(xs.rowPtr)
+    unsafe_free!(xs.colVal)
+    unsafe_free!(nonzeros(xs))
+    return
+end
+
+# broadcast over batch-dim if batchsize==1
+ptrstride(A::CuSparseArrayCSR) = size(A.rowPtr, 2) > 1 ? stride(A.rowPtr, 2) : 0
+valstride(A::CuSparseArrayCSR) = size(A.nzVal, 2) > 1 ? stride(A.nzVal, 2) : 0
+
 """
 Utility union type of [`CuSparseMatrixCSC`](@ref), [`CuSparseMatrixCSR`](@ref),
 [`CuSparseMatrixBSR`](@ref), [`CuSparseMatrixCOO`](@ref).
@@ -153,7 +180,6 @@ const CuSparseMatrix{Tv, Ti} = Union{
 }
 
 const CuSparseVecOrMat = Union{CuSparseVector,CuSparseMatrix}
-
 
 # NOTE: we use Cint as default Ti on CUDA instead of Int to provide
 # maximum compatiblity to old CUSPARSE APIs
@@ -183,6 +209,11 @@ function CuSparseMatrixCOO{Tv}(rowInd::CuVector{<:Integer}, colInd::CuVector{<:I
     CuSparseMatrixCOO{Tv, Cint}(rowInd,colInd,nzVal,dims,nnz)
 end
 
+function CuSparseArrayCSR{Tv}(rowPtr::CuArray{<:Integer, M}, colVal::CuArray{<:Integer, M},
+                              nzVal::CuArray{Tv, M}, dims::NTuple{N,<:Integer}) where {Tv, M, N}
+    CuSparseArrayCSR{Tv, Cint, N}(rowPtr, colVal, nzVal, dims)
+end
+
 ## convenience constructors
 CuSparseVector(iPtr::DenseCuArray{<:Integer}, nzVal::DenseCuArray{T}, len::Integer) where {T} =
     CuSparseVector{T}(iPtr, nzVal, len)
@@ -201,6 +232,9 @@ CuSparseMatrixBSR(rowPtr::DenseCuArray, colVal::DenseCuArray, nzVal::DenseCuArra
 CuSparseMatrixCOO(rowInd::DenseCuArray, colInd::DenseCuArray, nzVal::DenseCuArray{T}, dims::NTuple{2,<:Integer}, nnz::Integer=length(nzVal)) where T =
     CuSparseMatrixCOO{T}(rowInd, colInd, nzVal, dims, nnz)
 
+CuSparseArrayCSR(rowPtr::DenseCuArray, colVal::DenseCuArray, nzVal::DenseCuArray{T}, dims::NTuple{N,<:Integer}) where {T,N} =
+    CuSparseArrayCSR{T}(rowPtr, colVal, nzVal, dims)
+
 Base.similar(Vec::CuSparseVector) = CuSparseVector(copy(nonzeroinds(Vec)), similar(nonzeros(Vec)), length(Vec))
 Base.similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(rowvals(Mat)), similar(nonzeros(Mat)), size(Mat))
 Base.similar(Mat::CuSparseMatrixCSR) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), size(Mat))
@@ -216,6 +250,7 @@ Base.similar(Mat::CuSparseMatrixCOO, T::Type) = CuSparseMatrixCOO(copy(Mat.rowIn
 Base.similar(Mat::CuSparseMatrixCSC, T::Type, N::Int, M::Int) =  CuSparseMatrixCSC(CuVector{Int32}(undef, M+1), CuVector{Int32}(undef, nnz(Mat)), CuVector{T}(undef, nnz(Mat)), (N,M))
 Base.similar(Mat::CuSparseMatrixCSR, T::Type, N::Int, M::Int) =  CuSparseMatrixCSR(CuVector{Int32}(undef, N+1), CuVector{Int32}(undef, nnz(Mat)), CuVector{T}(undef, nnz(Mat)), (N,M))
 Base.similar(Mat::CuSparseMatrixCOO, T::Type, N::Int, M::Int) =  CuSparseMatrixCOO(CuVector{Int32}(undef, nnz(Mat)), CuVector{Int32}(undef, nnz(Mat)), CuVector{T}(undef, nnz(Mat)), (N,M))
+Base.similar(Mat::CuSparseArrayCSR) = CuSparseArrayCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), size(Mat))
 
 ## array interface
 
@@ -224,6 +259,9 @@ Base.size(g::CuSparseVector) = (g.len,)
 
 Base.length(g::CuSparseMatrix) = prod(g.dims)
 Base.size(g::CuSparseMatrix) = g.dims
+
+Base.length(g::CuSparseArrayCSR) = prod(g.dims)
+Base.size(g::CuSparseArrayCSR) = g.dims
 
 function Base.size(g::CuSparseVector, d::Integer)
     if d == 1
@@ -245,6 +283,15 @@ function Base.size(g::CuSparseMatrix, d::Integer)
     end
 end
 
+function Base.size(g::CuSparseArrayCSR{Tv,Ti,N}, d::Integer) where {Tv,Ti,N}
+    if 1 <= d <= N
+        return g.dims[d]
+    elseif d > 1
+        return 1
+    else
+        throw(ArgumentError("dimension must be ≥ 1, got $d"))
+    end
+end
 
 ## sparse array interface
 
@@ -348,6 +395,16 @@ function Base.getindex(A::CuSparseMatrixBSR{T}, i0::Integer, i1::Integer) where 
     nonzeros(A)[c1+block_idx]
 end
 
+# matrix slices
+function Base.getindex(A::CuSparseArrayCSR{Tv, Ti, N}, ::Colon, ::Colon, idxs::Integer...) where {Tv, Ti, N}
+    @boundscheck checkbounds(A, :, :, idxs...)
+    CuSparseMatrixCSR(A.rowPtr[:,idxs...], A.colVal[:,idxs...], nonzeros(A)[:,idxs...], size(A)[1:2])
+end
+
+function Base.getindex(A::CuSparseArrayCSR{Tv, Ti, N}, i0::Integer, i1::Integer, idxs::Integer...) where {Tv, Ti, N}
+    @boundscheck checkbounds(A, i0, i1, idxs...)
+    CuSparseMatrixCSR(A.rowPtr[:,idxs...], A.colVal[:,idxs...], nonzeros(A)[:,idxs...], size(A)[1:2])[i0, i1]
+end
 
 ## interop with sparse CPU arrays
 
@@ -502,7 +559,7 @@ Base.copy(Mat::CuSparseMatrixCSC) = copyto!(similar(Mat), Mat)
 Base.copy(Mat::CuSparseMatrixCSR) = copyto!(similar(Mat), Mat)
 Base.copy(Mat::CuSparseMatrixBSR) = copyto!(similar(Mat), Mat)
 Base.copy(Mat::CuSparseMatrixCOO) = copyto!(similar(Mat), Mat)
-
+Base.copy(Mat::CuSparseArrayCSR) = CuSparseArrayCSR(copy(Mat.rowPtr), copy(Mat.colVal), copy(nonzeros(Mat)), size(Mat))
 
 # input/output
 
@@ -539,6 +596,24 @@ for (gpu, cpu) in [:CuSparseMatrixCSC => :SparseMatrixCSC,
                 # so that we get the nice Braille pattern
                 Base.print_array(io, $cpu(S))
             end
+        end
+    end
+end
+
+function Base.show(io::IOContext, ::MIME"text/plain", A::CuSparseArrayCSR)
+    xnnz = nnz(A)
+    dims = join(size(A), "×")
+
+    print(io, dims..., " ", typeof(A), " with ", xnnz, " stored ", xnnz == 1 ? "entry" : "entries")
+
+    if all(size(A) .> 0)
+        println(io, ":")
+        io = IOContext(io, :typeinfo => eltype(A))
+        for (k, c) in enumerate(CartesianIndices(size(A)[3:end]))
+            k > 1 && println(io, "\n")
+            dims = join(c.I, ", ")
+            println(io, "[:, :, $dims] =")
+            Base.print_array(io, SparseMatrixCSC(A[:,:,c.I...]))
         end
     end
 end
@@ -590,3 +665,13 @@ function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCOO)
         size(x), x.nnz
     )
 end
+
+function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseArrayCSR)
+    return CuSparseDeviceArrayCSR(
+        adapt(to, x.rowPtr),
+        adapt(to, x.colVal),
+        adapt(to, x.nzVal),
+        size(x), x.nnz
+    )
+end
+

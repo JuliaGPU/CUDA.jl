@@ -2,6 +2,7 @@
 
 export gather!, scatter!, axpby!, rot!
 export vv!, sv!, sm!, gemm, gemm!, sddmm!
+export bmm!
 
 ## API functions
 
@@ -226,6 +227,89 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
 
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
+
+    # cusparseDnMatSetStridedBatch(descB, size(B,3), size(B,1)*size(B,2))
+    # cusparseDnMatSetStridedBatch(descB, size(B,3), size(B,1)*size(B,2))
+    # batchsize = length(nonzeros(A)) ÷ nnz(A)
+    # if batchsize > 1
+    #     cusparseCsrSetStridedBatch(obj, batchsize, 0, nnz(A))
+    # end
+
+    function bufferSize()
+        out = Ref{Csize_t}()
+        cusparseSpMM_bufferSize(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, algo, out)
+        return out[]
+    end
+    with_workspace(bufferSize) do buffer
+        # Uncomment if we find a way to reuse the buffer (issue #1362)
+        # cusparseSpMM_preprocess(
+        #     handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+        #     descC, T, algo, buffer)
+        # end
+        cusparseSpMM(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, algo, buffer)
+    end
+    return C
+end
+
+function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseArrayCSR{T,Ti,N},
+              B::DenseCuArray{T,N}, beta::Number, C::DenseCuArray{T,N}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T,Ti,N}
+    Ar = reshape(A, :, :, :)
+    Br = reshape(B, size(B,1), size(B,2), :)
+    Cr = reshape(C, size(C,1), size(C,2), :)
+    bmm!(transa, transb, alpha, Ar, Br, beta, Cr, index, algo)
+    return C
+end
+
+# batched sparse * dense -> dense matmul
+function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseArrayCSR{T,Ti,3},
+              B::DenseCuArray{T,3}, beta::Number, C::DenseCuArray{T,3}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T,Ti}
+
+    if CUSPARSE.version() < v"11.7.2"
+        throw(ErrorException("Batched dense-matrix times batched sparse-matrix (bmm!) requires a CUSPARSE version ≥ 11.7.2 (yours: $(CUSPARSE.version()))."))
+    end
+
+
+    # Support transa = 'C' and `transb = 'C' for real matrices
+    transa = T <: Real && transa == 'C' ? 'T' : transa
+    transb = T <: Real && transb == 'C' ? 'T' : transb
+
+    m, k = size(A)[1:2]
+    n, bc = size(C)[2:3]
+    b = max(size(A, 3), size(B, 3))
+
+    if b != bc
+        throw(ArgumentError("C must have same batch-dimension as max(size(A,3)=$(size(A,3)), size(B,3)=$(size(B,3))), got $(size(C,3))."))
+    end
+
+    if n == 1 && b > 1
+        throw(ArgumentError("bmm! does not work for n==1 and b>1 due to CUDA error."))
+    end
+
+    if transa == 'N' && transb == 'N'
+        chkbmmdims(B,C,k,n,m,n)
+    elseif transa == 'N' && transb != 'N'
+        chkbmmdims(B,C,n,k,m,n)
+    elseif transa != 'N' && transb == 'N'
+        chkbmmdims(B,C,m,n,k,n)
+    elseif transa != 'N' && transb != 'N'
+        chkbmmdims(B,C,n,m,k,n)
+    end
+
+    descA = CuSparseMatrixDescriptor(A, index)
+    descB = CuDenseMatrixDescriptor(B)
+    descC = CuDenseMatrixDescriptor(C)
+
+    cusparseCsrSetStridedBatch(descA, b, ptrstride(A), valstride(A))
+
+    strideB = stride(B, 3) 
+    cusparseDnMatSetStridedBatch(descB, b, strideB)
+
+    strideC = stride(C, 3)
+    cusparseDnMatSetStridedBatch(descC, b, strideC)
 
     function bufferSize()
         out = Ref{Csize_t}()
