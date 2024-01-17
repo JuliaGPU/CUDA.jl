@@ -168,7 +168,7 @@ const cuprint_specifiers = Dict(
             fmt *= string(T.parameters[1])
         else
             @warn("@cuprint does not support values of type $T")
-            fmt *= "$(string(T.parameters[1]))(...)"
+            fmt *= "$(T)(...)"
         end
     end
 

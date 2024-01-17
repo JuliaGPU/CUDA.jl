@@ -419,7 +419,8 @@ No keyword arguments are supported.
     DeviceKernel{F,tt}(f, fun, kernel_state())
 end
 
-(kernel::DeviceKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
+@inline (kernel::DeviceKernel)(args::Vararg{Any,N}; kwargs...) where {N} =
+    call(kernel, args...; kwargs...)
 
 # re-use the parent kernel's seed to avoid need for the RNG
 make_seed(::DeviceKernel) = kernel_state().random_seed
