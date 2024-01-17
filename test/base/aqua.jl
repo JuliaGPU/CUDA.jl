@@ -4,8 +4,11 @@ using Aqua
 let ambs = Aqua.detect_ambiguities(CUDA; recursive=true)
     pkg_match(pkgname, pkgdir::Nothing) = false
     pkg_match(pkgname, pkgdir::AbstractString) = occursin(pkgname, pkgdir)
-    filter!(x -> pkg_match("CUDA", pkgdir(last(x).module)), ambs)
-    @test length(ambs) ≤ 18
+
+    # StaticArrays pirates a bunch of Random stuff...
+    filter!(x -> !pkg_match("StaticArrays", pkgdir(first(x).module)), ambs)
+
+    @test length(ambs) ≤ 15
 end
 
 Aqua.test_all(CUDA;
