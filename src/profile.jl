@@ -270,18 +270,16 @@ function profile_internally(f; concurrent=true, kwargs...)
     GC.gc(false)
     GC.gc(true)
 
-    CUPTI.enable!(cfg)
+    CUPTI.enable!(cfg) do
+        # sink the initial profiler overhead into a synchronization call
+        CUDA.cuCtxSynchronize()
 
-    # sink the initial profiler overhead into a synchronization call
-    CUDA.cuCtxSynchronize()
-    try
         f()
 
         # synchronize to ensure we capture all activity
         CUDA.cuCtxSynchronize()
-    finally
-        CUPTI.disable!(cfg)
     end
+
     data = capture(cfg)
     ProfileResults(; data..., kwargs...)
 end

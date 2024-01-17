@@ -4,6 +4,19 @@ function version()
     VersionNumber(version_ref[])
 end
 
+abstract type AbstractConfig end
+
+function enable!(f, cfg::AbstractConfig, args...)
+    GC.@preserve cfg begin
+        enable!(cfg, args...)
+        try
+            f()
+        finally
+            disable!(cfg)
+        end
+    end
+end
+
 
 #
 # callback API
@@ -40,17 +53,14 @@ end
 
 """
     cfg = CUPTI.CallbackConfig(callback_kinds) do domain, id, data
-        # ...
+        # inspect data
     end
 
-    CUPTI.enable!(cfg)
-    try
+    CUPTI.enable!(cfg) do
         # do stuff
-    finally
-        CUPTI.disable!(cfg)
     end
 """
-mutable struct CallbackConfig
+mutable struct CallbackConfig <: AbstractConfig
     callback::Function
     callback_kinds::Vector{CUpti_CallbackDomain}
     subscriber::Union{Nothing,CUpti_SubscriberHandle}
@@ -104,11 +114,8 @@ end
 """
     cfg = CUPTI.ActivityConfig(activity_kinds)
 
-    CUPTI.enable!(cfg)
-    try
+    CUPTI.enable!(cfg) do
         # do stuff
-    finally
-        CUPTI.disable!(cfg)
     end
 
     CUPTI.process(cfg) do ctx, stream_id, record
@@ -117,7 +124,7 @@ end
 
 High-level interface to the CUPTI activity API.
 """
-struct ActivityConfig
+struct ActivityConfig <: AbstractConfig
     activity_kinds::Vector{CUpti_ActivityKind}
 
     available_buffers::Vector{Vector{UInt8}}

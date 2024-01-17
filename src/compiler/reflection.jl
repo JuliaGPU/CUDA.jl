@@ -55,13 +55,10 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
     end
 
     compiled = compile(job)
-    CUPTI.enable!(cfg)
-    try
+    CUPTI.enable!(cfg) do
         link(job, compiled)
-    finally
-        CUPTI.disable!(cfg)
     end
-  
+
     return
 end
 
