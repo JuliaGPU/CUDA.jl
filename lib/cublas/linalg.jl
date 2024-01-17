@@ -221,10 +221,10 @@ end
 
 if VERSION >= v"1.10-"
 # multiplication
-LinearAlgebra.generic_trimatmul!(c::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::DenseCuMatrix{T}, b::AbstractVector{T}) where {T<:CublasFloat} =
+LinearAlgebra.generic_trimatmul!(c::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, b::AbstractVector{T}) where {T<:CublasFloat} =
     trmv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, A, c === b ? c : copyto!(c, b))
 # division
-LinearAlgebra.generic_trimatdiv!(C::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::DenseCuMatrix{T}, B::AbstractVector{T}) where {T<:CublasFloat} =
+LinearAlgebra.generic_trimatdiv!(C::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::AbstractVector{T}) where {T<:CublasFloat} =
     trsv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, A, C === B ? C : copyto!(C, B))
 else
 ## direct multiplication/division
@@ -234,12 +234,12 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
                             (:UnitUpperTriangular, 'U', 'U'))
     @eval begin
         # Multiplication
-        LinearAlgebra.lmul!(A::$t{T,<:DenseCuMatrix},
+        LinearAlgebra.lmul!(A::$t{T,<:StridedCuMatrix},
                             b::StridedCuVector{T}) where {T<:CublasFloat} =
             trmv!($uploc, 'N', $isunitc, parent(A), b)
 
         # Left division
-        LinearAlgebra.ldiv!(A::$t{T,<:DenseCuMatrix},
+        LinearAlgebra.ldiv!(A::$t{T,<:StridedCuMatrix},
                             B::StridedCuVector{T}) where {T<:CublasFloat} =
             trsv!($uploc, 'N', $isunitc, parent(A), B)
     end
@@ -252,24 +252,24 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
                             (:UnitUpperTriangular, 'L', 'U'))
     @eval begin
         # Multiplication
-        LinearAlgebra.lmul!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
-                            b::DenseCuVector{T}) where {T<:CublasFloat} =
+        LinearAlgebra.lmul!(A::$t{<:Any,<:Transpose{T,<:StridedCuMatrix}},
+                            b::StridedCuVector{T}) where {T<:CublasFloat} =
             trmv!($uploc, 'T', $isunitc, parent(parent(A)), b)
-        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
-                            b::DenseCuVector{T}) where {T<:CublasReal} =
+        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}},
+                            b::StridedCuVector{T}) where {T<:CublasReal} =
             trmv!($uploc, 'T', $isunitc, parent(parent(A)), b)
-        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
-                            b::DenseCuVector{T}) where {T<:CublasComplex} =
+        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}},
+                            b::StridedCuVector{T}) where {T<:CublasComplex} =
             trmv!($uploc, 'C', $isunitc, parent(parent(A)), b)
 
         # Left division
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:StridedCuMatrix}},
                             B::StridedCuVector{T}) where {T<:CublasFloat} =
             trsv!($uploc, 'T', $isunitc, parent(parent(A)), B)
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}},
                             B::StridedCuVector{T}) where {T<:CublasReal} =
             trsv!($uploc, 'T', $isunitc, parent(parent(A)), B)
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}},
                             B::StridedCuVector{T}) where {T<:CublasComplex} =
             trsv!($uploc, 'C', $isunitc, parent(parent(A)), B)
     end
@@ -283,7 +283,7 @@ end # VERSION
 
 # GEMM
 
-function LinearAlgebra.generic_matmatmul!(C::CuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul)
+function LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul)
     T = eltype(C)
     alpha, beta = _add.alpha, _add.beta
     mA, nA = size(A, tA == 'N' ? 1 : 2), size(A, tA == 'N' ? 2 : 1)
@@ -305,10 +305,10 @@ function LinearAlgebra.generic_matmatmul!(C::CuVecOrMat, tA, tB, A::StridedCuVec
     end
 
     if all(in(('N', 'T', 'C')), (tA, tB))
-        if A isa DenseCuArray && B isa DenseCuArray &&
+        if A isa StridedCuArray && B isa StridedCuArray &&
         gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
             return gemmEx!(tA, tB, alpha, A, B, beta, C)
-        elseif T <: CublasFloat && A isa DenseCuArray{T} && B isa DenseCuArray{T}
+        elseif T <: CublasFloat && A isa StridedCuArray{T} && B isa StridedCuArray{T}
             return gemm!(tA, tB, alpha, A, B, beta, C)
         end
     end
@@ -330,18 +330,18 @@ end
 
 if VERSION < v"1.10.0-DEV.1365"
 # catch other functions that are called by LinearAlgebra's mul!
-LinearAlgebra.gemm_wrapper!(C::CuMatrix, tA::AbstractChar, tB::AbstractChar, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul) =
+LinearAlgebra.gemm_wrapper!(C::StridedCuMatrix, tA::AbstractChar, tB::AbstractChar, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul) =
     LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add)
-LinearAlgebra.gemm_wrapper!(C::CuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuVecOrMat{T}, B::StridedCuVecOrMat{T}, _add::MulAddMul) where {T<:LinearAlgebra.BlasFloat} =
+LinearAlgebra.gemm_wrapper!(C::StridedCuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuVecOrMat{T}, B::StridedCuVecOrMat{T}, _add::MulAddMul) where {T<:LinearAlgebra.BlasFloat} =
     LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add)
-function LinearAlgebra.syrk_wrapper!(C::CuMatrix, tA::AbstractChar, A::StridedCuVecOrMat, _add::MulAddMul)
+function LinearAlgebra.syrk_wrapper!(C::StridedCuMatrix, tA::AbstractChar, A::StridedCuVecOrMat, _add::MulAddMul)
     if tA == 'T'
         LinearAlgebra.generic_matmatmul!(C, 'T', 'N', A, A, _add)
     else # tA == 'N'
         LinearAlgebra.generic_matmatmul!(C, 'N', 'T', A, A, _add)
     end
 end
-function LinearAlgebra.herk_wrapper!(C::CuMatrix, tA::AbstractChar, A::StridedCuVecOrMat, _add::MulAddMul)
+function LinearAlgebra.herk_wrapper!(C::StridedCuMatrix, tA::AbstractChar, A::StridedCuVecOrMat, _add::MulAddMul)
     if tA == 'C'
         LinearAlgebra.generic_matmatmul!(C, 'C', 'N', A, A, _add)
     else # tA == 'N'
@@ -353,13 +353,13 @@ end
 # triangular
 
 if VERSION >= v"1.10-"
-LinearAlgebra.generic_trimatmul!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Function, A::DenseCuMatrix{T}, B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
     trmm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), A, B, C)
-LinearAlgebra.generic_mattrimul!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Function, A::DenseCuMatrix{T}, B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+LinearAlgebra.generic_mattrimul!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
     trmm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), B, A, C)
 # tri-tri-mul!
-const AdjOrTransOrCuMatrix{T} = Union{DenseCuMatrix{T}, AdjOrTrans{<:T,<:DenseCuMatrix}}
-function LinearAlgebra.generic_trimatmul!(C::DenseCuMatrix{T}, uplocA, isunitcA, tfunA::Function, A::DenseCuMatrix{T}, triB::UpperOrLowerTriangular{T,<:AdjOrTransOrCuMatrix{T}}) where {T<:CublasFloat}
+const AdjOrTransOrCuMatrix{T} = Union{StridedCuMatrix{T}, AdjOrTrans{<:T,<:StridedCuMatrix}}
+function LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uplocA, isunitcA, tfunA::Function, A::StridedCuMatrix{T}, triB::UpperOrLowerTriangular{T,<:AdjOrTransOrCuMatrix{T}}) where {T<:CublasFloat}
     uplocB = LinearAlgebra.uplo_char(triB)
     isunitcB = LinearAlgebra.isunit_char(triB)
     B = parent(triB)
@@ -391,9 +391,9 @@ function LinearAlgebra.generic_trimatmul!(C::DenseCuMatrix{T}, uplocA, isunitcA,
     return C
 end
 
-LinearAlgebra.generic_trimatdiv!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Function, A::DenseCuMatrix{T}, B::AbstractMatrix{T}) where {T<:CublasFloat} =
+LinearAlgebra.generic_trimatdiv!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::AbstractMatrix{T}) where {T<:CublasFloat} =
     trsm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), A, C === B ? C : copyto!(C, B))
-LinearAlgebra.generic_mattridiv!(C::DenseCuMatrix{T}, uploc, isunitc, tfun::Function, A::AbstractMatrix{T}, B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+LinearAlgebra.generic_mattridiv!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::AbstractMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
     trsm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), B, C === A ? C : copyto!(C, A))
 else
 ## direct multiplication/division
@@ -403,29 +403,29 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
                             (:UnitUpperTriangular, 'U', 'U'))
     @eval begin
         # Multiplication
-        LinearAlgebra.lmul!(A::$t{T,<:DenseCuMatrix},
-                            B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+        LinearAlgebra.lmul!(A::$t{T,<:StridedCuMatrix},
+                            B::StridedCuMatrix{T}) where {T<:CublasFloat} =
             trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B, B)
-        LinearAlgebra.rmul!(A::DenseCuMatrix{T},
-                            B::$t{T,<:DenseCuMatrix}) where {T<:CublasFloat} =
+        LinearAlgebra.rmul!(A::StridedCuMatrix{T},
+                            B::$t{T,<:StridedCuMatrix}) where {T<:CublasFloat} =
             trmm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A, A)
 
         # optimization: Base.mul! uses lmul!/rmul! with a copy (because of BLAS)
-        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{T,<:DenseCuMatrix},
-                           B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+        LinearAlgebra.mul!(X::StridedCuMatrix{T}, A::$t{T,<:StridedCuMatrix},
+                           B::StridedCuMatrix{T}) where {T<:CublasFloat} =
             trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B, X)
-        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                           B::$t{T,<:DenseCuMatrix}) where {T<:CublasFloat} =
+        LinearAlgebra.mul!(X::StridedCuMatrix{T}, A::StridedCuMatrix{T},
+                           B::$t{T,<:StridedCuMatrix}) where {T<:CublasFloat} =
             trmm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A, X)
 
         # Left division
-        LinearAlgebra.ldiv!(A::$t{T,<:DenseCuMatrix},
-                            B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+        LinearAlgebra.ldiv!(A::$t{T,<:StridedCuMatrix},
+                            B::StridedCuMatrix{T}) where {T<:CublasFloat} =
             trsm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B)
 
         # Right division
-        LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                            B::$t{T,<:DenseCuMatrix}) where {T<:CublasFloat} =
+        LinearAlgebra.rdiv!(A::StridedCuMatrix{T},
+                            B::$t{T,<:StridedCuMatrix}) where {T<:CublasFloat} =
             trsm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A)
     end
 end
@@ -437,66 +437,66 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
                             (:UnitUpperTriangular, 'L', 'U'))
     @eval begin
         # Multiplication
-        LinearAlgebra.lmul!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
-                            B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+        LinearAlgebra.lmul!(A::$t{<:Any,<:Transpose{T,<:StridedCuMatrix}},
+                            B::StridedCuMatrix{T}) where {T<:CublasFloat} =
             trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
-        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
-                            B::DenseCuMatrix{T}) where {T<:CublasComplex} =
+        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}},
+                            B::StridedCuMatrix{T}) where {T<:CublasComplex} =
             trmm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B, B)
-        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
-                            B::DenseCuMatrix{T}) where {T<:CublasReal} =
+        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}},
+                            B::StridedCuMatrix{T}) where {T<:CublasReal} =
             trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
 
-        LinearAlgebra.rmul!(A::DenseCuMatrix{T},
-                            B::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}}) where {T<:CublasFloat} =
+        LinearAlgebra.rmul!(A::StridedCuMatrix{T},
+                            B::$t{<:Any,<:Transpose{T,<:StridedCuMatrix}}) where {T<:CublasFloat} =
             trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, A)
-        LinearAlgebra.rmul!(A::DenseCuMatrix{T},
-                            B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasComplex} =
+        LinearAlgebra.rmul!(A::StridedCuMatrix{T},
+                            B::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}}) where {T<:CublasComplex} =
             trmm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A, A)
-        LinearAlgebra.rmul!(A::DenseCuMatrix{T},
-                            B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasReal} =
+        LinearAlgebra.rmul!(A::StridedCuMatrix{T},
+                            B::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}}) where {T<:CublasReal} =
             trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, A)
 
         # optimization: Base.mul! uses lmul!/rmul! with a copy (because of BLAS)
-        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
-                           B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+        LinearAlgebra.mul!(X::StridedCuMatrix{T}, A::$t{<:Any,<:Transpose{T,<:StridedCuMatrix}},
+                           B::StridedCuMatrix{T}) where {T<:CublasFloat} =
             trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, X)
-        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
-                           B::DenseCuMatrix{T}) where {T<:CublasComplex} =
+        LinearAlgebra.mul!(X::StridedCuMatrix{T}, A::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}},
+                           B::StridedCuMatrix{T}) where {T<:CublasComplex} =
             trmm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B, X)
-        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
-                           B::DenseCuMatrix{T}) where {T<:CublasReal} =
+        LinearAlgebra.mul!(X::StridedCuMatrix{T}, A::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}},
+                           B::StridedCuMatrix{T}) where {T<:CublasReal} =
             trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, X)
-        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                           B::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}}) where {T<:CublasFloat} =
+        LinearAlgebra.mul!(X::StridedCuMatrix{T}, A::StridedCuMatrix{T},
+                           B::$t{<:Any,<:Transpose{T,<:StridedCuMatrix}}) where {T<:CublasFloat} =
             trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, X)
-        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                           B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasComplex} =
+        LinearAlgebra.mul!(X::StridedCuMatrix{T}, A::StridedCuMatrix{T},
+                           B::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}}) where {T<:CublasComplex} =
             trmm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A, X)
-        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                           B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasReal} =
+        LinearAlgebra.mul!(X::StridedCuMatrix{T}, A::StridedCuMatrix{T},
+                           B::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}}) where {T<:CublasReal} =
             trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, X)
 
         # Left division
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
-                            B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:StridedCuMatrix}},
+                            B::StridedCuMatrix{T}) where {T<:CublasFloat} =
             trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
-                            B::DenseCuMatrix{T}) where {T<:CublasReal} =
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}},
+                            B::StridedCuMatrix{T}) where {T<:CublasReal} =
             trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
-                            B::DenseCuMatrix{T}) where {T<:CublasComplex} =
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}},
+                            B::StridedCuMatrix{T}) where {T<:CublasComplex} =
             trsm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B)
 
         # Right division
-        LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                            B::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}}) where {T<:CublasFloat} =
+        LinearAlgebra.rdiv!(A::StridedCuMatrix{T},
+                            B::$t{<:Any,<:Transpose{T,<:StridedCuMatrix}}) where {T<:CublasFloat} =
             trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
-        LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                            B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasReal} =
+        LinearAlgebra.rdiv!(A::StridedCuMatrix{T},
+                            B::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}}) where {T<:CublasReal} =
             trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
-        LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                            B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasComplex} =
+        LinearAlgebra.rdiv!(A::StridedCuMatrix{T},
+                            B::$t{<:Any,<:Adjoint{T,<:StridedCuMatrix}}) where {T<:CublasComplex} =
             trsm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A)
     end
 end
@@ -539,18 +539,18 @@ function _rdiv!(B::CuArray, A::CuArray, D::Diagonal)
 end
 
 if VERSION < v"1.10-"
-function LinearAlgebra.mul!(X::DenseCuMatrix{T},
-                            A::LowerTriangular{T,<:DenseCuMatrix},
-                            B::UpperTriangular{T,<:DenseCuMatrix},
+function LinearAlgebra.mul!(X::StridedCuMatrix{T},
+                            A::LowerTriangular{T,<:StridedCuMatrix},
+                            B::UpperTriangular{T,<:StridedCuMatrix},
                             ) where {T<:CublasFloat}
     triu!(parent(B))
     trmm!('L', 'L', 'N', 'N', one(T), parent(A), parent(B), parent(X))
     X
 end
 
-function LinearAlgebra.mul!(X::DenseCuMatrix{T},
-                            A::UpperTriangular{T,<:DenseCuMatrix},
-                            B::LowerTriangular{T,<:DenseCuMatrix},
+function LinearAlgebra.mul!(X::StridedCuMatrix{T},
+                            A::UpperTriangular{T,<:StridedCuMatrix},
+                            B::LowerTriangular{T,<:StridedCuMatrix},
                             ) where {T<:CublasFloat}
     tril!(parent(B))
     trmm!('L', 'U', 'N', 'N', one(T), parent(A), parent(B), parent(X))
@@ -561,9 +561,9 @@ for (trtype, valtype) in ((:Transpose, :CublasFloat),
                           (:Adjoint,   :CublasReal),
                           (:Adjoint,   :CublasComplex))
     @eval begin
-        function LinearAlgebra.mul!(X::DenseCuMatrix{T},
-                                    A::UpperTriangular{T,<:DenseCuMatrix},
-                                    B::LowerTriangular{<:Any,<:$trtype{T,<:DenseCuMatrix}},
+        function LinearAlgebra.mul!(X::StridedCuMatrix{T},
+                                    A::UpperTriangular{T,<:StridedCuMatrix},
+                                    B::LowerTriangular{<:Any,<:$trtype{T,<:StridedCuMatrix}},
                                     ) where {T<:$valtype}
             # operation is reversed to avoid executing the tranpose
             triu!(parent(A))
@@ -571,27 +571,27 @@ for (trtype, valtype) in ((:Transpose, :CublasFloat),
             X
         end
 
-        function LinearAlgebra.mul!(X::DenseCuMatrix{T},
-                                    A::UpperTriangular{<:Any,<:$trtype{T,<:DenseCuMatrix}},
-                                    B::LowerTriangular{T,<:DenseCuMatrix},
+        function LinearAlgebra.mul!(X::StridedCuMatrix{T},
+                                    A::UpperTriangular{<:Any,<:$trtype{T,<:StridedCuMatrix}},
+                                    B::LowerTriangular{T,<:StridedCuMatrix},
                                     ) where {T<:$valtype}
             tril!(parent(B))
             trmm!('L', 'L', 'T', 'N', one(T), parent(parent(A)), parent(B), parent(X))
             X
         end
 
-        function LinearAlgebra.mul!(X::DenseCuMatrix{T},
-                                    A::LowerTriangular{<:Any,<:$trtype{T,<:DenseCuMatrix}},
-                                    B::UpperTriangular{T,<:DenseCuMatrix},
+        function LinearAlgebra.mul!(X::StridedCuMatrix{T},
+                                    A::LowerTriangular{<:Any,<:$trtype{T,<:StridedCuMatrix}},
+                                    B::UpperTriangular{T,<:StridedCuMatrix},
                                     ) where {T<:$valtype}
             triu!(parent(B))
             trmm!('L', 'U', 'T', 'N', one(T), parent(parent(A)), parent(B), parent(X))
             X
         end
 
-        function LinearAlgebra.mul!(X::DenseCuMatrix{T},
-                                    A::LowerTriangular{T,<:DenseCuMatrix},
-                                    B::UpperTriangular{<:Any,<:$trtype{T,<:DenseCuMatrix}},
+        function LinearAlgebra.mul!(X::StridedCuMatrix{T},
+                                    A::LowerTriangular{T,<:StridedCuMatrix},
+                                    B::UpperTriangular{<:Any,<:$trtype{T,<:StridedCuMatrix}},
                                     ) where {T<:$valtype}
             # operation is reversed to avoid executing the tranpose
             tril!(parent(A))
