@@ -88,7 +88,9 @@ function description(err)
     elseif err.code == CUPTI_ERROR_CUDA_COMPILER_NOT_COMPATIBLE
         "Profiling results might be incorrect for CUDA applications compiled with nvcc version older than 9.0 for devices with compute capability 6.0 and 6.1"
     elseif err.code == CUPTI_ERROR_INSUFFICIENT_PRIVILEGES
-        "user doesn't have sufficient privileges which are required to start the profiling session"
+        """Insufficient privileges: You don't have permissions to profile GPU code.
+           Please configure your system to allow all users to profile, or run Julia with
+           elevated permissions: https://developer.nvidia.com/ERR_NVGPUCTRPERM#SolnAdminTag"""
     elseif err.code == CUPTI_ERROR_OLD_PROFILER_API_INITIALIZED
         "old profiling api's are not supported with new profiling api's"
     elseif err.code == CUPTI_ERROR_OPENACC_UNDEFINED_ROUTINE
