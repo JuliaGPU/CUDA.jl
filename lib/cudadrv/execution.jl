@@ -131,11 +131,10 @@ cudacall(f::F, types::Tuple, args::Vararg{Any,N}; kwargs...) where {N,F} =
     cudacall(f, _to_tuple_type(types), args...; kwargs...)
 
 function cudacall(f::F, types::Type{T}, args::Vararg{Any,N}; kwargs...) where {T,N,F}
-    convert_arguments(
-        ((pointers::Vararg{Any,M},) where {M}) -> launch(f, pointers...; kwargs...),
-        types,
-        args...
-    )
+    launch_closure = function (pointers::Vararg{Any,N})
+        launch(f, pointers...; kwargs...)
+    end
+    convert_arguments(launch_closure, types, args...)
 end
 
 # From `julia/base/reflection.jl`, adjusted to add specialization on `t`.

@@ -50,3 +50,10 @@ function Base.repeat(A::Union{CuSparseArrayCSR, CuSparseMatrixCSR}, r1::Int64, r
                      repeat(A.nzVal,  1, rs...),
                      (size(A)[1:2]..., [size(A,i+2)*rs[i] for i=1:length(rs)]...))
 end
+<<<<<<< HEAD
+=======
+
+# scalar addition/subtraction, scalar mul/div (see interfaces.jl +412)
+
+# chkmmdims (see util.jl)
+>>>>>>> 85fc364b5b0e891b83bd857e18861c4a7649ccd9
