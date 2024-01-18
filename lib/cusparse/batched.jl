@@ -1,9 +1,6 @@
-function Base.cat(As::CuSparseMatrixCSR...; dims=3)
-    if dims == 1
-        return hcat(As)
-    elseif dims == 2
-        return vcat(As)
-    end
+function Base.cat(A::CuSparseMatrixCSR, As::CuSparseMatrixCSR...; dims=3)
+    @assert dims ≥ 3 "only batch-dimension cat supported"
+    As = (A, As...)
     newsize = (size(As[1])..., ones(Int, dims-3)..., length(As))
     CuSparseArrayCSR(cat([A.rowPtr for A in As]...; dims=dims-1),
                      cat([A.colVal for A in As]...; dims=dims-1),
@@ -11,12 +8,9 @@ function Base.cat(As::CuSparseMatrixCSR...; dims=3)
                      newsize)
 end
 
-function Base.cat(As::CuSparseArrayCSR...; dims=3)
-    if dims == 1
-        return hcat(As)
-    elseif dims == 2
-        return vcat(As)
-    end
+function Base.cat(A::CuSparseArrayCSR, As::CuSparseArrayCSR...; dims=3)
+    @assert dims ≥ 3 "only batch-dimension cat supported"
+    As = (A, As...)
     rowPtr = cat([A.rowPtr for A in As]...; dims=dims-1)
     CuSparseArrayCSR(rowPtr,
                      cat([A.colVal for A in As]...; dims=dims-1),
@@ -58,7 +52,3 @@ function Base.repeat(A::Union{CuSparseArrayCSR, CuSparseMatrixCSR}, r1::Int64, r
                      repeat(A.nzVal,  1, rs...),
                      (size(A)[1:2]..., [size(A,i+2)*rs[i] for i=1:length(rs)]...))
 end
-
-# scalar addition/subtraction, scalar mul/div (see interfaces.jl +412)
-
-# chkmmdims (see util.jl)
