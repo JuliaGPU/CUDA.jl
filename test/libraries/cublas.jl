@@ -715,6 +715,22 @@ end
             @test_throws ArgumentError mul!(dhA, dhA, dsA)
             @test_throws DimensionMismatch mul!(d_C1, d_A, dsA)
         end
+        @testset "strided gemm!" begin
+            denseA = CUDA.rand(elty, 4,4)
+            denseB = CUDA.rand(elty, 4,4)
+            denseC = CUDA.zeros(elty, 4,4)
+
+            stridedA = view(denseA, 1:2, 1:2)::SubArray
+            stridedB = view(denseB, 1:2, 1:2)::SubArray
+            stridedC = view(denseC, 1:2, 1:2)::SubArray
+
+            CUBLAS.gemm!('N', 'N', true, stridedA, stridedB, false, stridedC)
+            @test Array(stridedC) ≈ Array(stridedA) * Array(stridedB)
+
+            stridedC .= 0
+            mul!(stridedC, stridedA, stridedB, true, false)
+            @test Array(stridedC) ≈ Array(stridedA) * Array(stridedB)
+        end
         if capability(device()) > v"5.0"
             @testset "gemmEx!" begin
                 α = rand(elty)
