@@ -1,18 +1,20 @@
-function Base._cat(dim::Int, As::CuSparseMatrixCSR...)
-    @assert dim ≥ 3 "only batch-dimension cat supported"
-    newsize = (size(As[1])..., ones(Int, dim-3)..., length(As))
-    CuSparseArrayCSR(cat([A.rowPtr for A in As]...; dims=dim-1),
-                     cat([A.colVal for A in As]...; dims=dim-1),
-                     cat([A.nzVal  for A in As]...; dims=dim-1),
+function Base.cat(A::CuSparseMatrixCSR, As::CuSparseMatrixCSR...; dims=3)
+    @assert dims ≥ 3 "only batch-dimension cat supported"
+    As = (A, As...)
+    newsize = (size(As[1])..., ones(Int, dims-3)..., length(As))
+    CuSparseArrayCSR(cat([A.rowPtr for A in As]...; dims=dims-1),
+                     cat([A.colVal for A in As]...; dims=dims-1),
+                     cat([A.nzVal  for A in As]...; dims=dims-1),
                      newsize)
 end
 
-function Base._cat(dim::Int, As::CuSparseArrayCSR...)
-    @assert dim ≥ 3 "only batch-dimension cat supported"
-    rowPtr = cat([A.rowPtr for A in As]...; dims=dim-1)
+function Base.cat(A::CuSparseArrayCSR, As::CuSparseArrayCSR...; dims=3)
+    @assert dims ≥ 3 "only batch-dimension cat supported"
+    As = (A, As...)
+    rowPtr = cat([A.rowPtr for A in As]...; dims=dims-1)
     CuSparseArrayCSR(rowPtr,
-                     cat([A.colVal for A in As]...; dims=dim-1),
-                     cat([A.nzVal  for A in As]...; dims=dim-1),
+                     cat([A.colVal for A in As]...; dims=dims-1),
+                     cat([A.nzVal  for A in As]...; dims=dims-1),
                      (size(As[1])[1:2]..., size(rowPtr)[2:end]...))
 end
 
