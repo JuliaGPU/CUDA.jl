@@ -11,6 +11,14 @@ function cublasCreate()
   handle_ref[]
 end
 
+function cublasGetVersion(handle)
+  version = Ref{Cint}()
+  cublasGetVersion_v2(handle, version)
+  major, ver = divrem(version[], 10000)
+  minor, patch = divrem(ver, 100)
+  VersionNumber(major, minor, patch)
+end
+
 function cublasXtCreate()
   handle_ref = Ref{cublasXtHandle_t}()
   check(CUBLAS_STATUS_NOT_INITIALIZED) do
