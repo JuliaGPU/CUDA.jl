@@ -120,13 +120,13 @@ function synchronization_worker(data)
         take!(chan) do v
             if v isa CuContext
                 context!(v)
-                unsafe_cuCtxSynchronize()
+                unchecked_cuCtxSynchronize()
             elseif v isa CuStream
                 context!(v.ctx)
-                unsafe_cuStreamSynchronize(v)
+                unchecked_cuStreamSynchronize(v)
             elseif v isa CuEvent
                 context!(v.ctx)
-                unsafe_cuEventSynchronize(v)
+                unchecked_cuEventSynchronize(v)
             end
         end
     end
@@ -234,7 +234,7 @@ function nonblocking_synchronize(stream::CuStream)
                     err isa EOFError && break
                     rethrow()
                 end
-                if unsafe_cuStreamQuery(stream) != ERROR_NOT_READY
+                if unchecked_cuStreamQuery(stream) != ERROR_NOT_READY
                     break
                 end
             end

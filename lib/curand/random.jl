@@ -50,7 +50,7 @@ function Random.seed!(rng::RNG, seed=make_seed(), offset=0)
     curandSetPseudoRandomGeneratorSeed(rng, seed)
     curandSetGeneratorOffset(rng, offset)
     check(CURAND_STATUS_PREEXISTING_FAILURE) do
-        unsafe_curandGenerateSeeds(rng)
+        unchecked_curandGenerateSeeds(rng)
     end
     return
 end

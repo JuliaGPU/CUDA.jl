@@ -8,7 +8,7 @@ using ..CUBLAS: unsafe_batch
 function cusolverDnCreate()
   handle_ref = Ref{cusolverDnHandle_t}()
   check(CUSOLVER_STATUS_NOT_INITIALIZED, CUSOLVER_STATUS_INTERNAL_ERROR) do
-    unsafe_cusolverDnCreate(handle_ref)
+    unchecked_cusolverDnCreate(handle_ref)
   end
   return handle_ref[]
 end

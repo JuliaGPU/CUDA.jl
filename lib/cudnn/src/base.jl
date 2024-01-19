@@ -1,7 +1,7 @@
 function cudnnCreate()
     handle_ref = Ref{cudnnHandle_t}()
     check(CUDNN_STATUS_NOT_INITIALIZED,CUDNN_STATUS_INTERNAL_ERROR) do
-      unsafe_cudnnCreate(handle_ref)
+      unchecked_cudnnCreate(handle_ref)
     end
     return handle_ref[]
 end

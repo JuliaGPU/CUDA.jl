@@ -102,7 +102,7 @@ end
 
 function compute_processes(dev::Device)
     count_ref = Ref{Cuint}(0)
-    res = unsafe_nvmlDeviceGetComputeRunningProcesses(dev, count_ref, C_NULL)
+    res = unchecked_nvmlDeviceGetComputeRunningProcesses(dev, count_ref, C_NULL)
     if res == NVML_SUCCESS
         return nothing
     elseif res !== NVML_ERROR_INSUFFICIENT_SIZE
@@ -193,7 +193,7 @@ end
 
 function supported_memory_clocks(dev::Device)
     count_ref = Ref{Cuint}(0)
-    unsafe_nvmlDeviceGetSupportedMemoryClocks(dev, count_ref, C_NULL)
+    unchecked_nvmlDeviceGetSupportedMemoryClocks(dev, count_ref, C_NULL)
     count::Cuint = count_ref[]
     clocks = Vector{Cuint}(undef, count)
     nvmlDeviceGetSupportedMemoryClocks(dev, Ref(count), clocks)
@@ -202,7 +202,7 @@ end
 
 function supported_graphics_clocks(dev::Device, memory_clock)
     count_ref = Ref{Cuint}(0)
-    unsafe_nvmlDeviceGetSupportedGraphicsClocks(dev, memory_clock, count_ref, C_NULL)
+    unchecked_nvmlDeviceGetSupportedGraphicsClocks(dev, memory_clock, count_ref, C_NULL)
     count::Cuint = count_ref[]
     clocks = Vector{Cuint}(undef, count)
     nvmlDeviceGetSupportedGraphicsClocks(dev, memory_clock, Ref(count), clocks)

@@ -8,7 +8,7 @@ end
 const initialized = Ref(false)
 function initialize_context()
     if !initialized[]
-        res = unsafe_nvmlInitWithFlags(0)
+        res = unchecked_nvmlInitWithFlags(0)
         if res !== NVML_SUCCESS
             # NOTE: we can't call nvmlErrorString during initialization
             error("NVML could not be initialized ($res)")

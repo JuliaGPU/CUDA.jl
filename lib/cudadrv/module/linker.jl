@@ -71,7 +71,7 @@ function add_data!(link::CuLink, name::String, code::String)
         # source and binary, so do the conversion (ensuring no embedded NULLs) ourselves
         data = Base.unsafe_convert(Cstring, code)
 
-        res = unsafe_cuLinkAddData_v2(link, JIT_INPUT_PTX, pointer(data), length(code),
+        res = unchecked_cuLinkAddData_v2(link, JIT_INPUT_PTX, pointer(data), length(code),
                                       name, 0, C_NULL, C_NULL)
         if res == ERROR_NO_BINARY_FOR_GPU ||
         res == ERROR_INVALID_IMAGE ||
@@ -89,7 +89,7 @@ end
 Add object code to a pending link operation.
 """
 function add_data!(link::CuLink, name::String, data::Vector{UInt8})
-    res = unsafe_cuLinkAddData_v2(link, JIT_INPUT_OBJECT, data, length(data),
+    res = unchecked_cuLinkAddData_v2(link, JIT_INPUT_OBJECT, data, length(data),
                                   name, 0, C_NULL, C_NULL)
     if res == ERROR_NO_BINARY_FOR_GPU ||
        res == ERROR_INVALID_IMAGE ||
@@ -133,7 +133,7 @@ function complete(link::CuLink)
     cubin_ref = Ref{Ptr{Cvoid}}()
     size_ref = Ref{Csize_t}()
 
-    res = unsafe_cuLinkComplete(link, cubin_ref, size_ref)
+    res = unchecked_cuLinkComplete(link, cubin_ref, size_ref)
     if res == CUDA_ERROR_NO_BINARY_FOR_GPU || res == CUDA_ERROR_INVALID_IMAGE
         options = decode(link.optionKeys, link.optionVals)
         throw(CuError(res, options[JIT_ERROR_LOG_BUFFER]))

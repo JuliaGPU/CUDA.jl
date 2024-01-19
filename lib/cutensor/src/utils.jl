@@ -19,7 +19,7 @@ end
 function cutensorCreate()
   handle_ref = Ref{cutensorHandle_t}()
   check(CUTENSOR_STATUS_NOT_INITIALIZED) do
-    unsafe_cutensorCreate(handle_ref)
+    unchecked_cutensorCreate(handle_ref)
   end
   handle_ref[]
 end

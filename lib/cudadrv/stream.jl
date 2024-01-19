@@ -102,7 +102,7 @@ Return `false` if a stream is busy (has task running or queued)
 and `true` if that stream is free.
 """
 function isdone(s::CuStream)
-    res = unsafe_cuStreamQuery(s)
+    res = unchecked_cuStreamQuery(s)
     if res == ERROR_NOT_READY
         return false
     elseif res == SUCCESS

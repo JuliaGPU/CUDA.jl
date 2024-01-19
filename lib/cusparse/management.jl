@@ -3,7 +3,7 @@
 function cusparseCreate()
     handle = Ref{cusparseHandle_t}()
     check(CUSPARSE_STATUS_NOT_INITIALIZED) do
-        unsafe_cusparseCreate(handle)
+        unchecked_cusparseCreate(handle)
     end
     handle[]
 end

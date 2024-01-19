@@ -57,12 +57,12 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
 
     res = pack_arguments(args...) do kernelParams
         if cooperative
-            unsafe_cuLaunchCooperativeKernel(f,
+            unchecked_cuLaunchCooperativeKernel(f,
                                              blockdim.x, blockdim.y, blockdim.z,
                                              threaddim.x, threaddim.y, threaddim.z,
                                              shmem, stream, kernelParams)
         else
-            unsafe_cuLaunchKernel(f,
+            unchecked_cuLaunchKernel(f,
                                   blockdim.x, blockdim.y, blockdim.z,
                                   threaddim.x, threaddim.y, threaddim.z,
                                   shmem, stream, kernelParams, C_NULL)

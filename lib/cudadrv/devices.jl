@@ -20,7 +20,7 @@ struct CuDevice
 
     global function current_device()
         device_ref = Ref{CUdevice}()
-        res = unsafe_cuCtxGetDevice(device_ref)
+        res = unchecked_cuCtxGetDevice(device_ref)
         res == ERROR_INVALID_CONTEXT && throw(UndefRefError())
         res != SUCCESS && throw_api_error(res)
         return _CuDevice(device_ref[])
@@ -49,7 +49,7 @@ Returns whether there is an active device.
 """
 function has_device()
     device_ref = Ref{CUdevice}()
-    res = unsafe_cuCtxGetDevice(device_ref)
+    res = unchecked_cuCtxGetDevice(device_ref)
     if res == SUCCESS
         return true
     elseif res == ERROR_INVALID_CONTEXT

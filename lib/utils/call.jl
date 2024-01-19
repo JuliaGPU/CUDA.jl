@@ -10,8 +10,8 @@ export @checked, with_workspace, with_workspaces, @debug_ccall
 
 Macro for wrapping a function definition returning a status code. Two versions of the
 function will be generated: `foo`, with the function execution wrapped by an invocation of
-the `check` function (to be implemented by the caller of this macro), and `unsafe_foo` where
-no such invocation is present and the status code is returned to the caller.
+the `check` function (to be implemented by the caller of this macro), and `unchecked_foo`
+where no such invocation is present and the status code is returned to the caller.
 """
 macro checked(ex)
     # parse the function definition
@@ -30,11 +30,11 @@ macro checked(ex)
     safe_sig = Expr(:call, sig.args[1], sig.args[2:end]...)
     safe_def = Expr(:function, safe_sig, safe_body)
 
-    # generate a "unsafe" version that returns the error code instead
-    unsafe_sig = Expr(:call, Symbol("unsafe_", sig.args[1]), sig.args[2:end]...)
-    unsafe_def = Expr(:function, unsafe_sig, body)
+    # generate a "unchecked" version that returns the error code instead
+    unchecked_sig = Expr(:call, Symbol("unchecked_", sig.args[1]), sig.args[2:end]...)
+    unchecked_def = Expr(:function, unchecked_sig, body)
 
-    return esc(:($safe_def, $unsafe_def))
+    return esc(:($safe_def, $unchecked_def))
 end
 
 """
