@@ -36,16 +36,22 @@ end
 using LinearAlgebra
 
 function LinearAlgebra.axpy!(a, X::CuTensor, Y::CuTensor)
-    elementwise_binary_execute!(a, X.data, X.inds, CUTENSOR_OP_IDENTITY, one(eltype(Y)), Y.data, Y.inds, CUTENSOR_OP_IDENTITY, Y.data, Y.inds, CUTENSOR_OP_ADD)
+    elementwise_binary_execute!(a, X.data, X.inds, CUTENSOR_OP_IDENTITY,
+                                one(eltype(Y)), Y.data, Y.inds, CUTENSOR_OP_IDENTITY,
+                                Y.data, Y.inds, CUTENSOR_OP_ADD)
     return Y
 end
 
 function LinearAlgebra.axpby!(a, X::CuTensor, b, Y::CuTensor)
-    elementwise_binary_execute!(a, X.data, X.inds, CUTENSOR_OP_IDENTITY, b, Y.data, Y.inds, CUTENSOR_OP_IDENTITY, Y.data, Y.inds, CUTENSOR_OP_ADD)
+    elementwise_binary_execute!(a, X.data, X.inds, CUTENSOR_OP_IDENTITY,
+                                b, Y.data, Y.inds, CUTENSOR_OP_IDENTITY,
+                                Y.data, Y.inds, CUTENSOR_OP_ADD)
     return Y
 end
 
-function LinearAlgebra.mul!(C::CuTensor, A::CuTensor, B::CuTensor)
-   contract!(one(eltype(C)), A.data, A.inds, CUTENSOR_OP_IDENTITY, B.data, B.inds, CUTENSOR_OP_IDENTITY, zero(eltype(C)), C.data, C.inds, CUTENSOR_OP_IDENTITY, CUTENSOR_OP_IDENTITY)
+function LinearAlgebra.mul!(C::CuTensor, A::CuTensor, B::CuTensor, α::Number, β::Number)
+   contract!(α, A.data, A.inds, CUTENSOR_OP_IDENTITY,
+             B.data, B.inds, CUTENSOR_OP_IDENTITY, β,
+             C.data, C.inds, CUTENSOR_OP_IDENTITY, CUTENSOR_OP_IDENTITY)
    return C
 end
