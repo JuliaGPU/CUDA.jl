@@ -28,6 +28,4 @@ fd = FD(x)
 
 @test DT(Float32) isa cudnnDataType_t
 
-@test (CUDA.retry_reclaim(x->(x!==CUDNN_STATUS_SUCCESS)) do
-        cudnnCreateTensorDescriptor(Ref{cudnnTensorDescriptor_t}(C_NULL))
-    end) isa Nothing
+@test cudnnCreateTensorDescriptor(Ref{cudnnTensorDescriptor_t}(C_NULL)) isa Nothing

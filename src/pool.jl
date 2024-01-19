@@ -353,62 +353,69 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
 end
 
 """
-    retry_reclaim(isfailed) do
+    retry_reclaim(retry_if) do
         # code that may fail due to insufficient GPU memory
     end
 
 Run a block of code repeatedly until it successfully allocates the memory it needs.
-Retries are only attempted when calling `isfailed` with the current return value is true.
+Retries are only attempted when calling `retry_if` with the current return value is true.
 At each try, more and more memory is freed from the CUDA memory pool. When that is not
 possible anymore, the latest returned value will be returned.
 
 This function is intended for use with CUDA APIs, which sometimes allocate (outside of the
-CUDA memory pool) and return a specific error code when failing to.
+CUDA memory pool) and return a specific error code when failing to. It is similar to
+`Base.retry`, but deals with return values instead of exceptions for performance reasons.
 """
-function retry_reclaim(f, isfailed)
+@inline function retry_reclaim(f, retry_if)
   ret = f()
+  if retry_if(ret)
+    return retry_reclaim_slow(f, retry_if, ret)
+  else
+    return ret
+  end
+end
+## slow path, incrementally reclaiming more memory until we succeed
+@noinline function retry_reclaim_slow(f, retry_if, orig_ret)
+  state = active_state()
+  is_stream_ordered = stream_ordered(state.device)
 
-  # slow path, incrementally reclaiming more memory until we succeed
-  if isfailed(ret)
-    state = active_state()
-    is_stream_ordered = stream_ordered(state.device)
-
-    phase = 1
-    while true
-      if is_stream_ordered
-        if phase == 1
-          synchronize(state.stream)
-        elseif phase == 2
-          device_synchronize()
-        elseif phase == 3
-          GC.gc(false)
-          device_synchronize()
-        elseif phase == 4
-          GC.gc(true)
-          device_synchronize()
-        elseif phase == 5
-          # in case we had a release threshold configured
-          trim(memory_pool(state.device))
-        else
-          break
-        end
+  phase = 1
+  while true
+    if is_stream_ordered
+      if phase == 1
+        synchronize(state.stream)
+      elseif phase == 2
+        device_synchronize()
+      elseif phase == 3
+        GC.gc(false)
+        device_synchronize()
+      elseif phase == 4
+        GC.gc(true)
+        device_synchronize()
+      elseif phase == 5
+        # in case we had a release threshold configured
+        trim(memory_pool(state.device))
       else
-        if phase == 1
-          GC.gc(false)
-        elseif phase == 2
-          GC.gc(true)
-        else
-          break
-        end
+        break
       end
-      phase += 1
+    else
+      if phase == 1
+        GC.gc(false)
+      elseif phase == 2
+        GC.gc(true)
+      else
+        break
+      end
+    end
+    phase += 1
 
-      ret = f()
-      isfailed(ret) || break
+    ret = f()
+    if !retry_if(ret)
+      return ret
     end
   end
 
-  ret
+  return orig_ret
 end
 
 """

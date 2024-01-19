@@ -5,9 +5,7 @@
 
 function cublasCreate()
   handle_ref = Ref{cublasHandle_t}()
-  check(CUBLAS_STATUS_NOT_INITIALIZED) do
-    unchecked_cublasCreate_v2(handle_ref)
-  end
+  cublasCreate_v2(handle_ref)
   handle_ref[]
 end
 
@@ -21,9 +19,7 @@ end
 
 function cublasXtCreate()
   handle_ref = Ref{cublasXtHandle_t}()
-  check(CUBLAS_STATUS_NOT_INITIALIZED) do
-    unchecked_cublasXtCreate(handle_ref)
-  end
+  cublasXtCreate(handle_ref)
   handle_ref[]
 end
 
