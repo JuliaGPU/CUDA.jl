@@ -73,7 +73,7 @@ function disassemble_cubin(io::IO, cubin::Vector{Cchar}; raw::Bool)
             if !raw
                 # nvdisasm output is pretty verbose;
                 # perform some clean-up and make it look like @code_native
-                line = replace(line, r"/\*[0-9a-f]{4}\*/" => "        ") # strip inst addr
+                line = replace(line, r"/\*[0-9a-f]{4,5}\*/" => " "^8)    # strip inst addr
                 line = replace(line, r"^[ ]{30}" => "   ")               # reduce leading spaces
                 line = replace(line, r"[\s+]//##" => ";")                # change line info tag
                 line = replace(line, r"^\." => "\n.")                    # break before new BBs
