@@ -54,24 +54,66 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
                 stream::CuStream=stream()) where {N}
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
-    (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) ||
-        throw(ArgumentError("Grid dimensions should be non-null"))
-    (threaddim.x>0 && threaddim.y>0 && threaddim.z>0) ||
-        throw(ArgumentError("Block dimensions should be non-null"))
 
-    pack_arguments(args...) do kernelParams
+    res = pack_arguments(args...) do kernelParams
         if cooperative
-            cuLaunchCooperativeKernel(f,
-                                      blockdim.x, blockdim.y, blockdim.z,
-                                      threaddim.x, threaddim.y, threaddim.z,
-                                      shmem, stream, kernelParams)
+            unsafe_cuLaunchCooperativeKernel(f,
+                                             blockdim.x, blockdim.y, blockdim.z,
+                                             threaddim.x, threaddim.y, threaddim.z,
+                                             shmem, stream, kernelParams)
         else
-            cuLaunchKernel(f,
-                           blockdim.x, blockdim.y, blockdim.z,
-                           threaddim.x, threaddim.y, threaddim.z,
-                           shmem, stream, kernelParams, C_NULL)
+            unsafe_cuLaunchKernel(f,
+                                  blockdim.x, blockdim.y, blockdim.z,
+                                  threaddim.x, threaddim.y, threaddim.z,
+                                  shmem, stream, kernelParams, C_NULL)
         end
     end
+    if res != CUDA_SUCCESS
+        diagnose_launch_failure(f, res; blockdim, threaddim, shmem)
+    end
+end
+
+@noinline function diagnose_launch_failure(f, res; blockdim, threaddim, shmem)
+    if res != CUDA_ERROR_INVALID_VALUE
+        throw_api_error(res)
+    end
+    function throw_extended_error(message)
+        throw(CuError(res, message))
+    end
+
+    # essentials
+    (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) ||
+        throw_extended_error("Grid dimensions should be non-null")
+    (threaddim.x>0 && threaddim.y>0 && threaddim.z>0) ||
+        throw_extended_error("Block dimensions should be non-null")
+
+    # check device limits
+    dev = device()
+    ## block size limit
+    threadlim = CuDim3(attribute(dev, DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X),
+                       attribute(dev, DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y),
+                       attribute(dev, DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z))
+    for dim in (:x, :y, :z)
+        if getfield(threaddim, dim) > getfield(threadlim, dim)
+            throw_extended_error("Number of threads in $(dim)-dimension exceeds device limit ($(getfield(threaddim, dim)) > $(getfield(threadlim, dim))).")
+        end
+    end
+    ## grid size limit
+    blocklim = CuDim3(attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_X),
+                      attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y),
+                      attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z))
+    for dim in (:x, :y, :z)
+        if getfield(blockdim, dim) > getfield(blocklim, dim)
+            throw_extended_error("Number of blocks in $(dim)-dimension exceeds device limit ($(getfield(blockdim, dim)) > $(getfield(blocklim, dim))).")
+        end
+    end
+    ## shared memory limit
+    shmem_lim = attribute(dev, DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK)
+    if shmem > shmem_lim
+        throw_extended_error("Amount of dynamic shared memory exceeds device limit ($(Base.format_bytes(shmem)) > $(Base.format_bytes(shmem_lim))).")
+    end
+
+    throw_api_error(res)
 end
 
 # convert the argument values to match the kernel's signature (specified by the user)
