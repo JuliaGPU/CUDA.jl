@@ -12,16 +12,15 @@ const cudaStream_t = CUstream
     end
 end
 
-function check(f, errs...)
-    res = retry_reclaim(in((CUDNN_STATUS_ALLOC_FAILED, errs...))) do
-        return f()
-    end
+@inline function check(f)
+    retry_if(res) = res in (CUDNN_STATUS_NOT_INITIALIZED,
+                            CUDNN_STATUS_ALLOC_FAILED,
+                            CUDNN_STATUS_INTERNAL_ERROR)
+    res = retry_reclaim(f, retry_if)
 
     if res != CUDNN_STATUS_SUCCESS
         throw_api_error(res)
     end
-
-    return
 end
 
 mutable struct cudnnContext end

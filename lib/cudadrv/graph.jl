@@ -37,7 +37,7 @@ mutable struct CuGraph
             f()
         finally
             handle_ref = Ref{CUgraph}()
-            err = unsafe_cuStreamEndCapture(stream(), handle_ref)
+            err = unchecked_cuStreamEndCapture(stream(), handle_ref)
             if err == ERROR_STREAM_CAPTURE_INVALIDATED && !throw_error
                 return nothing
             elseif err != CUDA_SUCCESS

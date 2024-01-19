@@ -855,7 +855,7 @@ function is_pinned(ptr::Ptr)
     # calling `memory_type` with an expensive try/catch we perform low-level API calls.
     ptr = reinterpret(CuPtr{Nothing}, ptr)
     data_ref = Ref{Cuint}()
-    res = unsafe_cuPointerGetAttribute(data_ref, POINTER_ATTRIBUTE_MEMORY_TYPE, ptr)
+    res = unchecked_cuPointerGetAttribute(data_ref, POINTER_ATTRIBUTE_MEMORY_TYPE, ptr)
     if res == ERROR_INVALID_VALUE
         false
     elseif res == SUCCESS

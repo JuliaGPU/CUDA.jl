@@ -58,7 +58,7 @@ Return `false` if there is outstanding work preceding the most recent
 call to `record(e)` and `true` if all captured work has been completed.
 """
 function isdone(e::CuEvent)
-    res = unsafe_cuEventQuery(e)
+    res = unchecked_cuEventQuery(e)
     if res == ERROR_NOT_READY
         return false
     elseif res == SUCCESS

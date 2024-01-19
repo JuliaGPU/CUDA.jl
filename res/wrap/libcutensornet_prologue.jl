@@ -10,14 +10,13 @@ const cudaStream_t = CUstream
     end
 end
 
-function check(f, errs...)
-    res = retry_reclaim(in((CUTENSORNET_STATUS_ALLOC_FAILED, errs...))) do
-        f()
-    end
+@inline function check(f)
+    retry_if(res) = res in (CUTENSORNET_STATUS_NOT_INITIALIZED,
+                            CUTENSORNET_STATUS_ALLOC_FAILED,
+                            CUTENSORNET_STATUS_INTERNAL_ERROR)
+    res = retry_reclaim(f, retry_if)
 
     if res != CUTENSORNET_STATUS_SUCCESS
         throw_api_error(res)
     end
-
-    return
 end

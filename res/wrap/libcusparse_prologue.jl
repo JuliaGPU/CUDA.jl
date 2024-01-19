@@ -10,14 +10,13 @@ const cudaStream_t = CUstream
     end
 end
 
-function check(f, errs...)
-    res = retry_reclaim(in((CUSPARSE_STATUS_ALLOC_FAILED, errs...))) do
-        f()
-    end
+@inline function check(f)
+    retry_if(res) = res in (CUSPARSE_STATUS_NOT_INITIALIZED,
+                            CUSPARSE_STATUS_ALLOC_FAILED,
+                            CUSPARSE_STATUS_INTERNAL_ERROR)
+    res = retry_reclaim(f, retry_if)
 
     if res != CUSPARSE_STATUS_SUCCESS
         throw_api_error(res)
     end
-
-    return
 end
