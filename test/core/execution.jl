@@ -76,7 +76,17 @@ end
     CUDA.code_llvm(devnull, dummy, Tuple{})
     CUDA.code_ptx(devnull, dummy, Tuple{})
     if can_use_cupti()
-        CUDA.code_sass(devnull, dummy, Tuple{})
+        # functions defined in Julia
+        sass = sprint(io->CUDA.code_sass(io, dummy, Tuple{}))
+        @test occursin(".text._Z5dummy", sass)
+
+        # external functions
+        sass = sprint(io->begin
+            CUDA.code_sass(io) do
+                CUBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
+            end
+        end)
+        @test occursin("copy_kernel", sass)
     end
 
     @device_code_lowered @cuda dummy()
@@ -85,7 +95,17 @@ end
     @device_code_llvm io=devnull @cuda dummy()
     @device_code_ptx io=devnull @cuda dummy()
     if can_use_cupti()
-        @device_code_sass io=devnull @cuda dummy()
+        # functions defined in Julia
+        sass = sprint(io->@device_code_sass io=io @cuda dummy())
+        @test occursin(".text._Z5dummy", sass)
+
+        # external functions
+        sass = sprint(io->begin
+            @device_code_sass io=io begin
+                CUBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
+            end
+        end)
+        @test occursin("copy_kernel", sass)
     end
 
     mktempdir() do dir
