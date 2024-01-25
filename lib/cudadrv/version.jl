@@ -96,4 +96,16 @@ end
 
 ## helpers
 
-is_tegra() = Sys.islinux() && isfile("/etc/nv_tegra_release")
+function is_tegra()
+    if !Sys.islinux()
+        return false
+    end
+    if isfile("/etc/nv_tegra_release")
+        return true
+    end
+    if isfile("/proc/device-tree/compatible") &&
+        contains(read("/proc/device-tree/compatible", String), "tegra")
+        return true
+    end
+    return false
+end
