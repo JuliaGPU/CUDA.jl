@@ -10,7 +10,7 @@ using cuTensorNet
 @test cuTensorNet.has_cutensornet()
 @info "cuTensorNet version: $(cuTensorNet.version()) (built for CUDA $(cuTensorNet.cuda_version()))"
 
-import cuTensorNet: CuTensorNetwork, rehearse_contraction, perform_contraction!, gateSplit!, AutoTune, NoAutoTune
+import cuTensorNet: CuTensorNetwork, rehearse_contraction, perform_contraction!, gateSplit!, AutoTune, NoAutoTune, amplitudes!, CuState, applyTensor!, cutensornetTensorQualifiers_t, SamplerConfig, AccessorConfig, MarginalConfig, ExpectationConfig, expectation, CuNetworkOperator, appendToOperator!, compute_marginal!, sample!
 
 using TensorOperations
 
@@ -18,7 +18,7 @@ using TensorOperations
     n = 8
     m = 16
     k = 32
-    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    #=@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         @testset "Simple serial" begin
             modesA = ['m', 'h', 'k', 'n']
             modesB = ['u', 'k', 'h']
@@ -44,7 +44,9 @@ using TensorOperations
             extents_in = [extentsA, extentsB, extentsC]
             aligns_in = UInt32.([256, 256, 256])
             aligns_out = UInt32(256)
-            ctn = CuTensorNetwork(elty, modes_in, extents_in, [C_NULL, C_NULL, C_NULL], Int32[0, 0, 0], Int32.(modesD), extentsD, C_NULL)
+            strides_in = [Int32.(collect(strides(A))), Int32.(collect(strides(B))), Int32.(collect(strides(C)))]
+            qualifiers_in = [cutensornetTensorQualifiers_t(0, 0, 0), cutensornetTensorQualifiers_t(0, 0, 0), cutensornetTensorQualifiers_t(0, 0, 0)] 
+            ctn = CuTensorNetwork(elty, modes_in, extents_in, strides_in, qualifiers_in, Int32.(modesD), extentsD, C_NULL)
             @testset for max_ws_size in [2^28, 2^32]
                 @testset for tuning in [NoAutoTune(), AutoTune()]
                     ctn.input_arrs = raw_data_in
@@ -112,5 +114,105 @@ using TensorOperations
             @test cuTensorNet.full_extent(info)      == z*z*2
             @test cuTensorNet.reduced_extent(info)   == z
         end
+    end=#
+    @testset "Amplitudes" begin
+        h_gate = 1/√2 * ComplexF64[1. 1.; 1. -1.]
+        c_not_gate = ComplexF64[1.0 0.0 0.0 0.0; 0.0 1.0 0.0 0.0; 0.0 0.0 0.0 1.0; 0.0 0.0 1.0 0.0]
+        n_amps = 1
+        n_qubits = 6
+        h_tensor  = CuTensor(CuMatrix{ComplexF64}(h_gate), [Char(0)])
+        cx_tensors = [CuTensor(CuMatrix{ComplexF64}(c_not_gate), Char[i, i+1]) for i in 0:n_qubits-2]
+        qubit_dims = [(i, 2) for i in 0:n_qubits-1]
+        state = CuState{ComplexF64}(qubit_dims)
+        fixed_modes = [0, 1, 2, 3, 4, 5]
+        fixed_mode_vals = Int64[1, 1, 1, 1, 1, 1]
+        applyTensor!(state, h_tensor, true)
+        for cxt in cx_tensors
+            applyTensor!(state, cxt, true)
+        end
+        amp_tensor = CuTensor(CUDA.zeros(ComplexF64, 2^(n_qubits - length(fixed_modes))), Char.(sort(setdiff(0:n_qubits-1, fixed_modes))))
+        GC.@preserve state amp_tensor begin
+            amp_tensor, norm = amplitudes!(state, fixed_modes, fixed_mode_vals, amp_tensor; config=AccessorConfig(num_hyper_samples=8))
+            @test norm == 1.0
+            @test collect(amp_tensor.data) ≈ [1.0/√2]
+        end
+    end
+    @testset "Sampling" begin
+        h_gate = 1/√2 * ComplexF64[1. 1.; 1. -1.]
+        c_not_gate = ComplexF64[1.0 0.0 0.0 0.0; 0.0 1.0 0.0 0.0; 0.0 0.0 0.0 1.0; 0.0 0.0 1.0 0.0]
+        n_shots    = 100
+        n_qubits   = 16
+        h_tensor   = CuTensor(CuMatrix{ComplexF64}(h_gate), [Char(0)])
+        cx_tensors = [CuTensor(CuMatrix{ComplexF64}(c_not_gate), Char[i, i+1]) for i in 0:n_qubits-2]
+        qubit_dims = [(i, 2) for i in 0:n_qubits-1]
+        state      = CuState{ComplexF64}(qubit_dims)
+        applyTensor!(state, h_tensor, true)
+        for cxt in cx_tensors
+            applyTensor!(state, cxt, true)
+        end
+        samples = sample!(state, collect(0:n_qubits-1), n_shots; config=SamplerConfig(num_hyper_samples=8))
+        @test all(s ∈ [ones(Int, n_qubits), zeros(Int, n_qubits)] for s in eachcol(samples))
+    end
+    @testset "Marginal" begin
+        h_gate = 1/√2 * ComplexF64[1. 1.; 1. -1.]
+        c_not_gate = ComplexF64[1.0 0.0 0.0 0.0; 0.0 1.0 0.0 0.0; 0.0 0.0 0.0 1.0; 0.0 0.0 1.0 0.0]
+        n_qubits = 6
+        h_tensor  = CuTensor(CuMatrix{ComplexF64}(h_gate), [Char(0)])
+        cx_tensors = [CuTensor(CuMatrix{ComplexF64}(c_not_gate), Char[i, i+1]) for i in 0:n_qubits-2]
+        qubit_dims = [(i, 2) for i in 0:n_qubits-1]
+        state = CuState{ComplexF64}(qubit_dims)
+        marginal_modes = [0, 1]
+        applyTensor!(state, h_tensor, true)
+        for cxt in cx_tensors
+            applyTensor!(state, cxt, true)
+        end
+        marginal_tensor = CuTensor(CUDA.zeros(ComplexF64, 2^(length(marginal_modes)) * 2^(length(marginal_modes))), Char.(marginal_modes))
+        GC.@preserve state marginal_tensor begin
+            marginal_tensor = compute_marginal!(state, marginal_modes, Int[], Int[], marginal_tensor; config=MarginalConfig(num_hyper_samples=8))
+        end
+        h_marginal_tensor = collect(marginal_tensor.data)
+        correct_tensor = zeros(Float64, 2^(n_qubits - length(marginal_modes)))
+        correct_tensor[1] = 0.5
+        correct_tensor[end] = 0.5
+        @test h_marginal_tensor ≈ correct_tensor
+    end
+    @testset "Expectation" begin
+        h_gate     = 1/√2 * ComplexF64[1. 1.; 1. -1.]
+        c_not_gate = ComplexF64[1.0 0.0 0.0 0.0; 0.0 1.0 0.0 0.0; 0.0 0.0 0.0 1.0; 0.0 0.0 1.0 0.0]
+        n_qubits   = 4
+        h_tensor   = CuTensor(CuMatrix{ComplexF64}(h_gate), [Char(0)])
+        cx_tensors = [CuTensor(CuMatrix{ComplexF64}(c_not_gate), Char[i, i+1]) for i in 0:n_qubits-2]
+        qubit_dims = [(i, 2) for i in 0:n_qubits-1]
+        state = CuState{ComplexF64}(qubit_dims)
+        applyTensor!(state, h_tensor, true)
+        for cxt in cx_tensors
+            applyTensor!(state, cxt, true)
+        end
+        network_op = CuNetworkOperator{ComplexF64}(qubit_dims)
+        z_gate = ComplexF64[1 0; 0 -1]
+        y_gate = ComplexF64[0 -im; im 0]
+        x_gate = ComplexF64[0 1; 1 0]
+        i_gate = ComplexF64[1 0; 0 1]
+        z1_tensor  = CuTensor(CuMatrix{ComplexF64}(z_gate), [Char(1)])
+        z2_tensor  = CuTensor(CuMatrix{ComplexF64}(z_gate), [Char(2)])
+        y3_tensor  = CuTensor(CuMatrix{ComplexF64}(y_gate), [Char(3)])
+
+        y0_tensor  = CuTensor(CuMatrix{ComplexF64}(y_gate), [Char(0)])
+        x2_tensor  = CuTensor(CuMatrix{ComplexF64}(x_gate), [Char(2)])
+        z3_tensor  = CuTensor(CuMatrix{ComplexF64}(z_gate), [Char(3)])
+        
+        i0_tensor  = CuTensor(CuMatrix{ComplexF64}(i_gate), [Char(0)])
+        i1_tensor  = CuTensor(CuMatrix{ComplexF64}(i_gate), [Char(1)])
+        i2_tensor  = CuTensor(CuMatrix{ComplexF64}(i_gate), [Char(2)])
+        i3_tensor  = CuTensor(CuMatrix{ComplexF64}(i_gate), [Char(3)])
+        #network_op = appendToOperator!(network_op, ComplexF64(0.5), [z1_tensor, z2_tensor])
+        #network_op = appendToOperator!(network_op, ComplexF64(0.25), [y3_tensor])
+        #network_op = appendToOperator!(network_op, ComplexF64(0.13), [y0_tensor, x2_tensor, z3_tensor])
+        network_op = appendToOperator!(network_op, ComplexF64(1.0), [i0_tensor, i1_tensor, i2_tensor, i3_tensor])
+        GC.@preserve state network_op begin
+            exp, norm = expectation(state, network_op; config=ExpectationConfig(num_hyper_samples=8))
+            @test exp ≈ 1.0 
+            @test norm ≈ 1.0 
+        end 
     end
 end

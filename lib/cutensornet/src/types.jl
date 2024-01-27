@@ -117,7 +117,7 @@ mutable struct CuTensorNetwork{T}
     output_arr::CuArray{T}
 end
 function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides, input_qualifiers, output_modes, output_extents, output_strides)
-    input_qualifiers = [cutensornetTensorQualifiers_t(isConjugate, 0, 0) for isConjugate in input_qualifiers]
+    #input_qualifiers = [cutensornetTensorQualifiers_t(isConjugate, 0, 0) for isConjugate in input_qualifiers]
     # TODO: expose isConstant & requiresGradient?
     desc = CuTensorNetworkDescriptor(Int32(length(input_modes)), Int32.(length.(input_modes)), input_extents, input_strides, input_modes, input_qualifiers,
                                      Int32(length(output_modes)), output_extents, output_strides, output_modes, T, compute_type(real(T)))
@@ -132,12 +132,15 @@ mutable struct CuState{T}
     physical_dims::Vector{Tuple{Int, Int}}
     function CuState{T}(physical_dims::Vector{Tuple{Int, Int}}; mixed::Bool=false) where {T}
         state_ref = Ref{cutensornetState_t}()
-        cutensornetCreateState(handle(), mixed, length(physical_dims), [d[2] for d in physical_dims], T, state_ref)
+        purity = cutensornetStatePurity_t(Int(mixed))
+        dim_extents = [Int64(d[2]) for d in physical_dims]
+        cutensornetCreateState(handle(), purity, Int32(length(physical_dims)), dim_extents, convert(cudaDataType, T), state_ref)
         obj = new(state_ref[], physical_dims)
         finalizer(cutensornetDestroyState, obj)
         return obj
     end
 end
+Base.unsafe_convert(::Type{cutensornetState_t}, state::CuState) = state.handle
 
 Base.@kwdef struct StateConfig
     canonical_center::Int32=-1
@@ -157,12 +160,14 @@ mutable struct CuNetworkOperator{T}
     operator_count::Int
     function CuNetworkOperator{T}(physical_dims::Vector{Tuple{Int, Int}}) where {T}
         op_ref = Ref{cutensornetNetworkOperator_t}()
-        cutensornetCreateNetworkOperator(handle(), length(physical_dims), [d[2] for d in physical_dims], T, op_ref)
+        dim_extents = [Int64(d[2]) for d in physical_dims]
+        cutensornetCreateNetworkOperator(handle(), Int32(length(physical_dims)), dim_extents, convert(cudaDataType, T), op_ref)
         obj = new(op_ref[], physical_dims, 0)
         finalizer(cutensornetDestroyNetworkOperator, obj)
         return obj
     end
 end
+Base.unsafe_convert(::Type{cutensornetNetworkOperator_t}, op::CuNetworkOperator) = op.handle
 
 mutable struct CuStateExpectation
     handle::cutensornetStateExpectation_t
@@ -174,6 +179,7 @@ mutable struct CuStateExpectation
         return obj
     end
 end
+Base.unsafe_convert(::Type{cutensornetStateExpectation_t}, exp::CuStateExpectation) = exp.handle
 
 Base.@kwdef struct ExpectationConfig
     num_hyper_samples::Int32=0
@@ -181,9 +187,9 @@ end
 
 mutable struct CuStateMarginal
     handle::cutensornetStateMarginal_t
-    marginal_modes::Vector{Int}
-    projected_modes::Vector{Int}
-    function CuStateMarginal(state::CuState, marginal_modes::Vector{Int}, projected_modes::Vector{Int})
+    marginal_modes::Vector{Int32}
+    projected_modes::Vector{Int32}
+    function CuStateMarginal(state::CuState, marginal_modes::Vector{Int32}, projected_modes::Vector{Int32})
         marg_ref = Ref{cutensornetStateMarginal_t}()
         cutensornetCreateMarginal(handle(), state, length(marginal_modes), marginal_modes, length(projected_modes), projected_modes, C_NULL, marg_ref)
         obj = new(marg_ref[], marginal_modes, projected_modes)
@@ -191,6 +197,7 @@ mutable struct CuStateMarginal
         return obj
     end
 end
+Base.unsafe_convert(::Type{cutensornetStateMarginal_t}, m::CuStateMarginal) = m.handle
 
 Base.@kwdef struct MarginalConfig
     num_hyper_samples::Int32=0
@@ -198,15 +205,16 @@ end
 
 mutable struct CuStateSampler
     handle::cutensornetStateSampler_t
-    modes_to_sample::Vector{Int}
+    modes_to_sample::Vector{Int32}
     function CuStateSampler(state::CuState, modes_to_sample::Vector{Int})
         sampler_ref = Ref{cutensornetStateSampler_t}()
-        cutensornetCreateSampler(handle(), state, length(modes_to_sample), modes_to_sample, sampler_ref)
+        cutensornetCreateSampler(handle(), state, length(modes_to_sample), Int32.(modes_to_sample), sampler_ref)
         obj = new(sampler_ref[])
         finalizer(cutensornetDestroySampler, obj)
         return obj
     end
 end
+Base.unsafe_convert(::Type{cutensornetStateSampler_t}, s::CuStateSampler) = s.handle
 
 Base.@kwdef struct SamplerConfig
     num_hyper_samples::Int32=0
@@ -215,14 +223,15 @@ end
 mutable struct CuStateAccessor
     handle::cutensornetStateAccessor_t
     projected_modes::Vector{Int}
-    function CuStateAccessor(state::CuState, projected_modes::Vector{Int})
+    function CuStateAccessor(state::CuState, projected_modes::Vector{Int32})
         acc_ref = Ref{cutensornetStateAccessor_t}()
-        cutensornetCreateAccessor(handle(), state, length(projected_modes), projected_modes, acc_ref)
+        cutensornetCreateAccessor(handle(), state, length(projected_modes), projected_modes, C_NULL, acc_ref)
         obj = new(acc_ref[], projected_modes)
         finalizer(cutensornetDestroyAccessor, obj)
         return obj
     end
 end
+Base.unsafe_convert(::Type{cutensornetStateAccessor_t}, acc::CuStateAccessor) = acc.handle
 
 Base.@kwdef struct AccessorConfig
     num_hyper_samples::Int32=0

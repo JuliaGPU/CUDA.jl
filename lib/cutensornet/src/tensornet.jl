@@ -155,21 +155,25 @@ gateSplit!(A::CuTensor{T, NA}, B::CuTensor{T, NB}, G::CuTensor{T, NG}, U::CuTens
 
 ### High level API ###
 
-function applyTensor!(state::CuState{TS}, tensor::CuTensor{TT}, tensor_is_unitary::Bool; adjoint::Bool=false, keep_tensor_immutable::Bool=false) where {TS, TT}
-    tensor_id = Ref{Cint}()
-    cutensornetStateApplyTensor(handle(), state, tensor.inds, tensor.data, strides(tensor), keep_tensor_immutable, adjoint, tensor_is_unitary, tensor_id)
+function applyTensor!(state::CuState{TS}, tensor::CuTensor{TT}, tensor_is_unitary::Bool; adjoint::Bool=false, keep_tensor_immutable::Bool=true) where {TS, TT}
+    tensor_id = Ref{Int64}()
+    n_inds = length(tensor.inds)
+    cutensornetStateApplyTensor(handle(), state, Int32(n_inds), Int32.(tensor.inds), pointer(tensor.data), C_NULL, keep_tensor_immutable, adjoint, tensor_is_unitary, tensor_id)
     return state, tensor_id[]
 end
 
-function updateTensor!(state::CuState{TS}, tensor_id::Int, tensor::CuTensor{TT}, tensor_is_unitary::Bool) where {TS, TT}
-    cutensornetStateUpdateTensor(handle(), state, tensor_id, tensor.data, tensor_is_unitary)
+function updateTensor!(state::CuState{TS}, tensor_id::Int64, tensor::CuTensor{TT}, tensor_is_unitary::Bool) where {TS, TT}
+    cutensornetStateUpdateTensor(handle(), state, tensor_id, pointer(tensor.data), tensor_is_unitary)
     return state
 end
 
-function Base.push!(operator::CuNetworkOperator{TO}, coeff::ComplexF64, op_tensors::Vector{CuTensor{TT}}; component_id::Int64=(operator.operator_count+1)) where {TO, TT}
-    tensor_modes = 
-    cutensornetNetworkOperatorAppendProduct(handle(), operator, coeff, length(op_tensors), ndims(op_tensors[1]), tensor_modes, [component_id])
-    operator.operater_count += 1
+function appendToOperator!(operator::CuNetworkOperator{T}, coeff::ComplexF64, op_tensors::Vector{CuTensor{T, N}}; component_id::Int64=(operator.operator_count+1)) where {T, N}
+    num_tensors = Int32(length(op_tensors))
+    num_modes = [Int32(ndims(op)) for op in op_tensors]
+    tensor_inds = [Int32.(op.inds) for op in op_tensors]
+    id = Ref{Int64}(component_id)
+    cutensornetNetworkOperatorAppendProduct(handle(), operator, coeff, num_tensors, num_modes, tensor_inds, C_NULL, [pointer(op.data) for op in op_tensors], id)
+    operator.operator_count += 1
     return operator
 end
 
@@ -190,11 +194,11 @@ function configure!(state::CuState, config::StateConfig)
     return state
 end
 
-function compute!(state::CuState, output_tensors::Vector{CuTensor}; stream::CuStream::stream(), max_workspace_size::Csize_t=Mem.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE)
+function compute!(state::CuState, output_tensors::Vector{CuTensor}; stream::CuStream=stream(), max_workspace_size::Csize_t=CUDA.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE)
     workspace_desc = CuTensorNetworkWorkspaceDescriptor()
-    actual_ws_size = Ref{UInt64}()
+    actual_ws_size = Ref{Int64}()
     cutensornetStatePrepare(handle(), state, max_workspace_size, workspace_desc, stream)
-    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
         cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
 
@@ -203,11 +207,11 @@ function compute!(state::CuState, output_tensors::Vector{CuTensor}; stream::CuSt
     return state, output_tensors
 end
 
-function computeMPS!(state::CuState, output_tensors::Vector{CuTensor}; boundary_condition::cutensornetBoundaryCondition_t=CUTENSORNET_BOUNDARY_CONDITION_OPEN, stream::CuStream::stream(), max_workspace_size::Csize_t=Mem.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE)
+function computeMPS!(state::CuState, output_tensors::Vector{CuTensor}; boundary_condition::cutensornetBoundaryCondition_t=CUTENSORNET_BOUNDARY_CONDITION_OPEN, stream::CuStream=stream(), max_workspace_size::Csize_t=CUDA.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE)
     workspace_desc = CuTensorNetworkWorkspaceDescriptor()
-    actual_ws_size = Ref{UInt64}()
+    actual_ws_size = Ref{Int64}()
     cutensornetStatePrepare(handle(), state, max_workspace_size, workspace_desc, stream)
-    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
         cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
         cutensornetStateFinalizeMPS(handle(), state, reduce(vcat, size.(output_tensors)), reduce(vcat, strides.(output_tensors))) 
@@ -216,7 +220,7 @@ function computeMPS!(state::CuState, output_tensors::Vector{CuTensor}; boundary_
     return state, output_tensors
 end
 
-function expectation(state::CuState{T}, operator::CuNetworkOperator{T}; config::ExpectationConfig=ExpectationConfig(), stream::CuStream::stream(), max_workspace_size::Csize_t=Mem.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
+function expectation(state::CuState{T}, operator::CuNetworkOperator{T}; config::ExpectationConfig=ExpectationConfig(), stream::CuStream=stream(), max_workspace_size::Csize_t=Csize_t(CUDA.available_memory()), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
     exp = CuStateExpectation(state, operator)
     for (attr, jl_attr) in ((CUTENSORNET_EXPECTATION_OPT_NUM_HYPER_SAMPLES, :num_hyper_samples),
                            )
@@ -226,20 +230,21 @@ function expectation(state::CuState{T}, operator::CuNetworkOperator{T}; config::
         cutensornetExpectationConfigure(handle(), exp, attr, [attr_val], attr_val_size)
     end
     workspace_desc = CuTensorNetworkWorkspaceDescriptor()
-    actual_ws_size = Ref{UInt64}()
+    actual_ws_size = Ref{Int64}()
     cutensornetExpectationPrepare(handle(), exp, max_workspace_size, workspace_desc, stream)
-    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
-    exp_val    = Ref{T}()
-    state_norm = Ref{T}()
+    cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
+    # ws must be 256 byte aligned!
+    exp_val    = Ref{T}(zero(T))
+    state_norm = Ref{T}(zero(T))
     with_workspace(actual_ws_size[]) do workspace
-        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
-        cutensornetExpectationCompute(handle(), exp, workspace_desc, evp_val, state_norm, stream) 
+        cutensornetWorkspaceSetMemory(handle(), workspace_desc, memspace, CUTENSORNET_WORKSPACE_SCRATCH, pointer(workspace), actual_ws_size[])
+        cutensornetExpectationCompute(handle(), exp, workspace_desc, exp_val, state_norm, stream) 
     end
     return exp_val[], state_norm[]
 end
 
-function compute_marginal!(state::CuState{T}, marginal_modes::Vector{Int}, projected_modes::Vector{Int}, projected_mode_values::Vector{Int}, marginal_tensor::CuTensor{T}; config::MarginalConfig=MarginalConfig(), stream::CuStream::stream(), max_workspace_size::Csize_t=Mem.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
-    marg = CuStateMarginal(state, marginal_modes, projected_modes)
+function compute_marginal!(state::CuState{T}, marginal_modes::Vector{Int}, projected_modes::Vector{Int}, projected_mode_values::Vector{Int}, marginal_tensor::CuTensor{T}; config::MarginalConfig=MarginalConfig(), stream::CuStream=stream(), max_workspace_size::Csize_t=Csize_t(CUDA.available_memory()), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
+    marg = CuStateMarginal(state, Int32.(marginal_modes), Int32.(projected_modes))
     for (attr, jl_attr) in ((CUTENSORNET_MARGINAL_OPT_NUM_HYPER_SAMPLES, :num_hyper_samples),
                            )
 
@@ -248,54 +253,55 @@ function compute_marginal!(state::CuState{T}, marginal_modes::Vector{Int}, proje
         cutensornetMarginalConfigure(handle(), marg, attr, [attr_val], attr_val_size)
     end
     workspace_desc = CuTensorNetworkWorkspaceDescriptor()
-    actual_ws_size = Ref{UInt64}()
+    actual_ws_size = Ref{Int64}()
     cutensornetMarginalPrepare(handle(), marg, max_workspace_size, workspace_desc, stream)
-    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
-        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
-        cutensornetMarginalCompute(handle(), marg, projected_mode_values, workspace_desc, marginal_tensor.data, stream) 
+        cutensornetWorkspaceSetMemory(handle(), workspace_desc, memspace, CUTENSORNET_WORKSPACE_SCRATCH, pointer(workspace), actual_ws_size[])
+        cutensornetMarginalCompute(handle(), marg, projected_mode_values, workspace_desc, pointer(marginal_tensor.data), stream) 
     end
     return marginal_tensor
 end
 
-function sample!(state::CuState{T}, modes_to_sample::Vector{Int}, num_shots::Int; config::SamplerConfig=SamplerConfig(), stream::CuStream::stream(), max_workspace_size::Csize_t=Mem.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
+function sample!(state::CuState{T}, modes_to_sample::Vector{Int}, num_shots::Int; config::SamplerConfig=SamplerConfig(), stream::CuStream=stream(), max_workspace_size::Csize_t=Csize_t(CUDA.available_memory()), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
     sampler = CuStateSampler(state, modes_to_sample)
     for (attr, jl_attr) in ((CUTENSORNET_SAMPLER_OPT_NUM_HYPER_SAMPLES, :num_hyper_samples),
                            )
 
         attr_val = getproperty(config, jl_attr)
         attr_val_size = sizeof(attr_val)
-        cutensornetMarginalConfigure(handle(), marg, attr, [attr_val], attr_val_size)
+        cutensornetSamplerConfigure(handle(), sampler, attr, [attr_val], attr_val_size)
     end
     workspace_desc = CuTensorNetworkWorkspaceDescriptor()
-    actual_ws_size = Ref{UInt64}()
+    actual_ws_size = Ref{Int64}()
     cutensornetSamplerPrepare(handle(), sampler, max_workspace_size, workspace_desc, stream)
-    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
-    samples = [Vector{Int}(undef, length(modes_to_sample)) for shot in 1:num_shots]
+    cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
+    samples = Vector{Int64}(undef, length(modes_to_sample)*num_shots)
     with_workspace(actual_ws_size[]) do workspace
-        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
-        cutensornetSamplerCompute(handle(), sampler, num_shots, workspace_desc, samples, stream) 
+        cutensornetWorkspaceSetMemory(handle(), workspace_desc, memspace, CUTENSORNET_WORKSPACE_SCRATCH, pointer(workspace), actual_ws_size[])
+        cutensornetSamplerSample(handle(), sampler, Int64(num_shots), workspace_desc, samples, stream)
     end
-    return samples
+    return reshape(samples, (length(modes_to_sample), num_shots))
 end
 
-function amplitudes!(state::CuState{T}, projected_modes::Vector{Int}, projected_mode_values::Vector{Int}, amplitudes_tensor::CuTensor{T}; config::AccessorConfig=AccessorConfig(), stream::CuStream::stream(), max_workspace_size::Csize_t=Mem.available_memory(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
-    accessor = CuStateAccessor(state, projected_modes)
+function amplitudes!(state::CuState{T}, projected_modes::Vector{Int}, projected_mode_values::Vector{Int}, amplitudes_tensor::CuTensor{T}; config::AccessorConfig=AccessorConfig(), stream::CuStream=stream(), max_workspace_size::Csize_t=Csize_t(CUDA.available_memory()), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
+    accessor = CuStateAccessor(state, Int32.(projected_modes))
     for (attr, jl_attr) in ((CUTENSORNET_ACCESSOR_OPT_NUM_HYPER_SAMPLES, :num_hyper_samples),
                            )
 
         attr_val = getproperty(config, jl_attr)
         attr_val_size = sizeof(attr_val)
-        cutensornetMarginalConfigure(handle(), marg, attr, [attr_val], attr_val_size)
+        cutensornetAccessorConfigure(handle(), accessor, attr, [attr_val], attr_val_size)
     end
     workspace_desc = CuTensorNetworkWorkspaceDescriptor()
-    actual_ws_size = Ref{UInt64}()
+    actual_ws_size = Ref{Int64}()
     cutensornetAccessorPrepare(handle(), accessor, max_workspace_size, workspace_desc, stream)
-    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
     state_norm = Ref{T}()
     with_workspace(actual_ws_size[]) do workspace
-        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
-        cutensornetAccessorCompute(handle(), accessor, projected_mode_values, workspace_desc, amplitudes_tensor.data, state_norm, stream) 
+        cutensornetWorkspaceSetMemory(handle(), workspace_desc, memspace, CUTENSORNET_WORKSPACE_SCRATCH, pointer(workspace), actual_ws_size[])
+        cutensornetAccessorCompute(handle(), accessor, Int64.(projected_mode_values), workspace_desc, pointer(amplitudes_tensor.data), state_norm, stream) 
     end
+    synchronize()
     return amplitudes_tensor, state_norm[]
 end

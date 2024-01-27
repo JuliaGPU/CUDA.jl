@@ -77,3 +77,21 @@ needs_context = false
 9 = "CuPtr{Cvoid}"
 10 = "CuPtr{Cvoid}"
 12 = "CuPtr{Cvoid}"
+
+[api.cutensornetStateApplyTensor.argtypes]
+5 = "CuPtr{Cvoid}"
+
+[api.cutensornetStateUpdateTensor.argtypes]
+4 = "CuPtr{Cvoid}"
+
+[api.cutensornetAccessorCompute.argtypes]
+5 = "PtrOrCuPtr{Cvoid}"
+
+[api.cutensornetMarginalCompute.argtypes]
+5 = "PtrOrCuPtr{Cvoid}"
+
+[api.cutensornetNetworkOperatorAppendProduct.argtypes]
+8 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cutensornetWorkspaceSetMemory.argtypes]
+5 = "PtrOrCuPtr{Cvoid}"

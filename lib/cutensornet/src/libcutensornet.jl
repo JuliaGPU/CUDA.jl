@@ -477,7 +477,7 @@ end
                                                         workDesc::cutensornetWorkspaceDescriptor_t,
                                                         memSpace::cutensornetMemspace_t,
                                                         workKind::cutensornetWorkspaceKind_t,
-                                                        memoryPtr::Ptr{Cvoid},
+                                                        memoryPtr::PtrOrCuPtr{Cvoid},
                                                         memorySize::Int64)::cutensornetStatus_t
 end
 
@@ -1014,7 +1014,7 @@ end
                                                       tensorNetworkState::cutensornetState_t,
                                                       numStateModes::Int32,
                                                       stateModes::Ptr{Int32},
-                                                      tensorData::Ptr{Cvoid},
+                                                      tensorData::CuPtr{Cvoid},
                                                       tensorModeStrides::Ptr{Int64},
                                                       immutable::Int32, adjoint::Int32,
                                                       unitary::Int32,
@@ -1027,7 +1027,7 @@ end
     @ccall libcutensornet.cutensornetStateUpdateTensor(handle::cutensornetHandle_t,
                                                        tensorNetworkState::cutensornetState_t,
                                                        tensorId::Int64,
-                                                       tensorData::Ptr{Cvoid},
+                                                       tensorData::CuPtr{Cvoid},
                                                        unitary::Int32)::cutensornetStatus_t
 end
 
@@ -1112,7 +1112,7 @@ end
                                                                   numModes::Ptr{Int32},
                                                                   stateModes::Ptr{Ptr{Int32}},
                                                                   tensorModeStrides::Ptr{Ptr{Int64}},
-                                                                  tensorData::Ptr{Ptr{Cvoid}},
+                                                                  tensorData::Ptr{CuPtr{Cvoid}},
                                                                   componentId::Ptr{Int64})::cutensornetStatus_t
 end
 
@@ -1161,7 +1161,7 @@ end
                                                      tensorNetworkAccessor::cutensornetStateAccessor_t,
                                                      projectedModeValues::Ptr{Int64},
                                                      workDesc::cutensornetWorkspaceDescriptor_t,
-                                                     amplitudesTensor::Ptr{Cvoid},
+                                                     amplitudesTensor::CuPtr{Cvoid},
                                                      stateNorm::Ptr{Cvoid},
                                                      cudaStream::cudaStream_t)::cutensornetStatus_t
 end
@@ -1261,7 +1261,7 @@ end
                                                      tensorNetworkMarginal::cutensornetStateMarginal_t,
                                                      projectedModeValues::Ptr{Int64},
                                                      workDesc::cutensornetWorkspaceDescriptor_t,
-                                                     marginalTensor::Ptr{Cvoid},
+                                                     marginalTensor::PtrOrCuPtr{Cvoid},
                                                      cudaStream::cudaStream_t)::cutensornetStatus_t
 end
 
