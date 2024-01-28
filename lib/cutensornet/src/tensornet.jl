@@ -48,15 +48,14 @@ end
 # step 2, contract
 function perform_contraction!(tn::CuTensorNetwork, info, ::NoAutoTune; prefs::AutotunePreferences=AutotunePreferences(), stream::CuStream=stream(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE)
     workspace_desc = CuTensorNetworkWorkspaceDescriptor()
-    cutensornetWorkspaceComputeSizes(handle(), tn.desc, info, workspace_desc)
-    actual_ws_size = Ref{UInt64}()
-    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
-    inputs = tn.input_arrs
-    output = tn.output_arr
-    cutensornetWorkspaceSet(handle(), workspace_desc, memspace, C_NULL, actual_ws_size[])
-    plan = CuTensorNetworkContractionPlan(tn.desc, info, workspace_desc)
+    cutensornetWorkspaceComputeContractionSizes(handle(), tn.desc, info, workspace_desc)
+    actual_ws_size = Ref{Int64}(0)
+    cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
-        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+        cutensornetWorkspaceSetMemory(handle(), workspace_desc, memspace, CUTENSORNET_WORKSPACE_SCRATCH, pointer(workspace), actual_ws_size[])
+        plan   = CuTensorNetworkContractionPlan(tn.desc, info, workspace_desc)
+        inputs = tn.input_arrs
+        output = tn.output_arr
         input_ptrs = [pointer(arr) for arr in inputs]
         output_ptr = pointer(output)
         slice_group = CuTensorNetworkSliceGroup(0, num_slices(info), 1)
@@ -69,19 +68,17 @@ end
 function perform_contraction!(tn::CuTensorNetwork, info, ::AutoTune; prefs::AutotunePreferences=AutotunePreferences(), stream::CuStream=stream(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE)
     ctn_prefs = CuTensorNetworkAutotunePreference(prefs)
     workspace_desc = CuTensorNetworkWorkspaceDescriptor()
-    cutensornetWorkspaceComputeSizes(handle(), tn.desc, info, workspace_desc)
-    inputs = tn.input_arrs
-    output = tn.output_arr
-    actual_ws_size = Ref{UInt64}(0)
-    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    cutensornetWorkspaceComputeContractionSizes(handle(), tn.desc, info, workspace_desc)
+    actual_ws_size = Ref{Int64}(0)
+    cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
-        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+        cutensornetWorkspaceSetMemory(handle(), workspace_desc, memspace, CUTENSORNET_WORKSPACE_SCRATCH, pointer(workspace), actual_ws_size[])
         plan = CuTensorNetworkContractionPlan(tn.desc, info, workspace_desc)
-        cutensornetContractionAutotune(handle(), plan, pointer.(tn.input_arrs),
-                                       pointer(tn.output_arr), workspace_desc,
-                                       ctn_prefs, stream)
+        inputs = tn.input_arrs
+        output = tn.output_arr
         input_ptrs = [pointer(arr) for arr in inputs]
         output_ptr = pointer(output)
+        cutensornetContractionAutotune(handle(), plan, input_ptrs, output_ptr, workspace_desc, ctn_prefs, stream)
         slice_group = CuTensorNetworkSliceGroup(0, num_slices(info), 1)
         cutensornetContractSlices(handle(), plan, input_ptrs, output_ptr, 0, workspace_desc, slice_group, stream)
         cutensornetWorkspaceSet(handle(), workspace_desc, memspace, C_NULL, 0)
@@ -89,8 +86,8 @@ function perform_contraction!(tn::CuTensorNetwork, info, ::AutoTune; prefs::Auto
     return tn
 end
 
-function compute_backward_pass(plan::CuTensorNetworkContractionPlan, tn::CuTensorNetwork, output_gradient::CuTensor, gradient_tn::CuTensorNetwork; accumulate_output::Bool=false, stream::CuStream=stream())
-
+function backward!(plan::CuTensorNetworkContractionPlan, tn::CuTensorNetwork, output_gradient::CuTensor, gradient_tn::CuTensorNetwork; accumulate_output::Bool=false, stream::CuStream=stream())
+    cutensornetComputeGradientsBackward(handle(), plan, [pointer(a) for a in tn.input_arrs], output_gradient.data, [pointer(g) for g in gradient_tn.input_arrs], accumulateOutput, workDesc, stream)
 end
 
 
@@ -100,10 +97,10 @@ function LinearAlgebra.qr!(tensor_in::CuArray{T,N}, modes_in, tensor_q::CuArray{
     r_desc  = CuTensorDescriptor(tensor_r, modes_r)
     workspace_desc = CuTensorNetworkWorkspaceDescriptor()
     cutensornetWorkspaceComputeQRSizes(handle(), in_desc, q_desc, r_desc, workspace_desc)
-    actual_ws_size = Ref{UInt64}(0)
-    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    actual_ws_size = Ref{Int64}(0)
+    cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
-        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+        cutensornetWorkspaceSetMemory(handle(), workspace_desc, memspace, CUTENSORNET_WORKSPACE_SCRATCH, pointer(workspace), actual_ws_size[])
         cutensornetTensorQR(handle(), in_desc, tensor_in, q_desc, tensor_q, r_desc, tensor_r, workspace_desc, stream)
     end
     return tensor_q, tensor_r
@@ -119,11 +116,11 @@ function LinearAlgebra.svd!(tensor_in::CuArray{T,N}, modes_in, tensor_u::CuArray
     svd_info       = CuTensorSVDInfo()
     cu_svd_config  = CuTensorSVDConfig(svd_config)
     workspace_desc = CuTensorNetworkWorkspaceDescriptor()
-    actual_ws_size = Ref{UInt64}(0)
+    actual_ws_size = Ref{Int64}(0)
     cutensornetWorkspaceComputeSVDSizes(handle(), in_desc, u_desc, v_desc, cu_svd_config, workspace_desc)
-    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
-        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+        cutensornetWorkspaceSetMemory(handle(), workspace_desc, memspace, CUTENSORNET_WORKSPACE_SCRATCH, pointer(workspace), actual_ws_size[])
         cutensornetTensorSVD(handle(), in_desc, tensor_in, u_desc, tensor_u, s, v_desc, tensor_v, cu_svd_config, svd_info, workspace_desc, stream)
     end
     return tensor_u, s, tensor_v, svd_info
@@ -139,12 +136,12 @@ function gateSplit!(A::CuArray{T, NA}, modes_a, B::CuArray{T, NB}, modes_b, G::C
     svd_info       = CuTensorSVDInfo()
     cu_svd_config  = CuTensorSVDConfig(svd_config)
     workspace_desc = CuTensorNetworkWorkspaceDescriptor()
-    actual_ws_size = Ref{UInt64}(0)
+    actual_ws_size = Ref{Int64}(0)
     compute_type = convert(cutensornetComputeType_t, real(T)) 
     cutensornetWorkspaceComputeGateSplitSizes(handle(), a_desc, b_desc, g_desc, u_desc, v_desc, gateAlgo, cu_svd_config, compute_type, workspace_desc)
-    cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
+    cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
-        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+        cutensornetWorkspaceSetMemory(handle(), workspace_desc, memspace, CUTENSORNET_WORKSPACE_SCRATCH, pointer(workspace), actual_ws_size[])
         cutensornetGateSplit(handle(), a_desc, A, b_desc, B, g_desc, G, u_desc, tensor_u, s, v_desc, tensor_v, gateAlgo, cu_svd_config, compute_type, svd_info, workspace_desc, stream)
     end
     return tensor_u, s, tensor_v, svd_info
@@ -200,7 +197,7 @@ function compute!(state::CuState, output_tensors::Vector{CuTensor}; stream::CuSt
     cutensornetStatePrepare(handle(), state, max_workspace_size, workspace_desc, stream)
     cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
-        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+        cutensornetWorkspaceSetMemory(handle(), workspace_desc, memspace, CUTENSORNET_WORKSPACE_SCRATCH, pointer(workspace), actual_ws_size[])
 
         cutensornetStateCompute(handle(), state, workspace_desc, C_NULL, C_NULL, output_tensors, stream) 
     end
@@ -213,12 +210,13 @@ function computeMPS!(state::CuState, output_tensors::Vector{CuTensor}; boundary_
     cutensornetStatePrepare(handle(), state, max_workspace_size, workspace_desc, stream)
     cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference, memspace, CUTENSORNET_WORKSPACE_SCRATCH, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
-        cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
+        cutensornetWorkspaceSetMemory(handle(), workspace_desc, memspace, CUTENSORNET_WORKSPACE_SCRATCH, pointer(workspace), actual_ws_size[])
         cutensornetStateFinalizeMPS(handle(), state, reduce(vcat, size.(output_tensors)), reduce(vcat, strides.(output_tensors))) 
         cutensornetStateCompute(handle(), state, workspace_desc, C_NULL, C_NULL, output_tensors, stream) 
     end
     return state, output_tensors
 end
+
 
 function expectation(state::CuState{T}, operator::CuNetworkOperator{T}; config::ExpectationConfig=ExpectationConfig(), stream::CuStream=stream(), max_workspace_size::Csize_t=Csize_t(CUDA.available_memory()), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T}
     exp = CuStateExpectation(state, operator)

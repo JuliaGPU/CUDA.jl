@@ -18,7 +18,7 @@ using TensorOperations
     n = 8
     m = 16
     k = 32
-    #=@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         @testset "Simple serial" begin
             modesA = ['m', 'h', 'k', 'n']
             modesB = ['u', 'k', 'h']
@@ -44,8 +44,8 @@ using TensorOperations
             extents_in = [extentsA, extentsB, extentsC]
             aligns_in = UInt32.([256, 256, 256])
             aligns_out = UInt32(256)
-            strides_in = [Int32.(collect(strides(A))), Int32.(collect(strides(B))), Int32.(collect(strides(C)))]
-            qualifiers_in = [cutensornetTensorQualifiers_t(0, 0, 0), cutensornetTensorQualifiers_t(0, 0, 0), cutensornetTensorQualifiers_t(0, 0, 0)] 
+            strides_in = [Int64.(collect(strides(A))), Int64.(collect(strides(B))), Int64.(collect(strides(C)))]
+            qualifiers_in = [cutensornetTensorQualifiers_t(Int32(0), Int32(0), Int32(0)), cutensornetTensorQualifiers_t(Int32(0), Int32(0), Int32(0)), cutensornetTensorQualifiers_t(Int32(0), Int32(0), Int32(0))] 
             ctn = CuTensorNetwork(elty, modes_in, extents_in, strides_in, qualifiers_in, Int32.(modesD), extentsD, C_NULL)
             @testset for max_ws_size in [2^28, 2^32]
                 @testset for tuning in [NoAutoTune(), AutoTune()]
@@ -114,7 +114,7 @@ using TensorOperations
             @test cuTensorNet.full_extent(info)      == z*z*2
             @test cuTensorNet.reduced_extent(info)   == z
         end
-    end=#
+    end
     @testset "Amplitudes" begin
         h_gate = 1/√2 * ComplexF64[1. 1.; 1. -1.]
         c_not_gate = ComplexF64[1.0 0.0 0.0 0.0; 0.0 1.0 0.0 0.0; 0.0 0.0 0.0 1.0; 0.0 0.0 1.0 0.0]
@@ -189,25 +189,12 @@ using TensorOperations
             applyTensor!(state, cxt, true)
         end
         network_op = CuNetworkOperator{ComplexF64}(qubit_dims)
-        z_gate = ComplexF64[1 0; 0 -1]
-        y_gate = ComplexF64[0 -im; im 0]
-        x_gate = ComplexF64[0 1; 1 0]
         i_gate = ComplexF64[1 0; 0 1]
-        z1_tensor  = CuTensor(CuMatrix{ComplexF64}(z_gate), [Char(1)])
-        z2_tensor  = CuTensor(CuMatrix{ComplexF64}(z_gate), [Char(2)])
-        y3_tensor  = CuTensor(CuMatrix{ComplexF64}(y_gate), [Char(3)])
-
-        y0_tensor  = CuTensor(CuMatrix{ComplexF64}(y_gate), [Char(0)])
-        x2_tensor  = CuTensor(CuMatrix{ComplexF64}(x_gate), [Char(2)])
-        z3_tensor  = CuTensor(CuMatrix{ComplexF64}(z_gate), [Char(3)])
         
         i0_tensor  = CuTensor(CuMatrix{ComplexF64}(i_gate), [Char(0)])
         i1_tensor  = CuTensor(CuMatrix{ComplexF64}(i_gate), [Char(1)])
         i2_tensor  = CuTensor(CuMatrix{ComplexF64}(i_gate), [Char(2)])
         i3_tensor  = CuTensor(CuMatrix{ComplexF64}(i_gate), [Char(3)])
-        #network_op = appendToOperator!(network_op, ComplexF64(0.5), [z1_tensor, z2_tensor])
-        #network_op = appendToOperator!(network_op, ComplexF64(0.25), [y3_tensor])
-        #network_op = appendToOperator!(network_op, ComplexF64(0.13), [y0_tensor, x2_tensor, z3_tensor])
         network_op = appendToOperator!(network_op, ComplexF64(1.0), [i0_tensor, i1_tensor, i2_tensor, i3_tensor])
         GC.@preserve state network_op begin
             exp, norm = expectation(state, network_op; config=ExpectationConfig(num_hyper_samples=8))
