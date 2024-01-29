@@ -301,6 +301,26 @@ SparseArrays.nonzeros(g::AbstractCuSparseArray) = g.nzVal
 SparseArrays.nonzeroinds(g::AbstractCuSparseVector) = g.iPtr
 
 SparseArrays.rowvals(g::CuSparseMatrixCSC) = g.rowVal
+SparseArrays.getcolptr(S::CuSparseMatrixCSC) = S.colPtr
+
+function SparseArrays.findnz(S::MT) where {MT <: AbstractCuSparseMatrix}
+    S2 = CuSparseMatrixCOO(S)
+    I = S2.rowInd
+    J = S2.colInd
+    V = S2.nzVal
+
+    # To make it compatible with the SparseArrays.jl version
+    idxs = sortperm(J)
+    I = I[idxs]
+    J = J[idxs]
+    V = V[idxs]
+
+    return (I, J, V)
+end
+
+function SparseArrays.sparsevec(I::CuArray{Ti}, V::CuArray{Tv}, n::Integer) where {Ti,Tv}
+    CuSparseVector(I, V, n)
+end
 
 LinearAlgebra.issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = size(M, 1) == size(M, 2) ? norm(M - transpose(M), Inf) == 0 : false
 LinearAlgebra.ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = size(M, 1) == size(M, 2) ? norm(M - adjoint(M), Inf) == 0 : false
