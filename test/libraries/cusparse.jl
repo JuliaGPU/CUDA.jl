@@ -107,19 +107,18 @@ blockdim = 5
     @test !istriu(d_x)
     @test istril(d_x)
 
-    m = 50
-    A = sprand(m, m, 0.2)
+    A = sprand(n, n, 0.2)
     d_A = CuSparseMatrixCSC(A)
     @test Array(getcolptr(d_A)) == getcolptr(A)
     i, j, v = findnz(A)
     d_i, d_j, d_v = findnz(d_A)
     @test Array(d_i) == i && Array(d_j) == j && Array(d_v) == v
-    i = unique(sort(rand(1:m, 10)))
+    i = unique(sort(rand(1:n, 10)))
     vals = rand(length(i))
     d_i = CuArray(i)
     d_vals = CuArray(vals)
-    v = sparsevec(i, vals, m)
-    d_v = sparsevec(d_i, d_vals, m)
+    v = sparsevec(i, vals, n)
+    d_v = sparsevec(d_i, d_vals, n)
     @test Array(d_v.iPtr) == v.nzind
     @test Array(d_v.nzVal) == v.nzval
     @test d_v.len == v.n
