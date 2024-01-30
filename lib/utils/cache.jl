@@ -21,55 +21,57 @@ struct HandleCache{K,V}
 end
 
 # remove a handle from the cache, or create a new one
-function Base.pop!(f::Function, cache::HandleCache{K,V}, key) where {K,V}
-    function check_cache(f::Function=()->nothing)
-        lock(cache.lock) do
-            handle = if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
-                f()
-            else
-                pop!(cache.idle_handles[key])
-            end
-
-            if handle !== nothing
-                push!(cache.active_handles, key=>handle)
-            end
-
-            return handle
+function Base.pop!(ctor::Function, cache::HandleCache{K,V}, key::K) where {K,V}
+    # check the cache
+    handle = @lock cache.lock begin
+        if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
+            nothing
+        else
+            pop!(cache.idle_handles[key])
         end
     end
 
-    handle = check_cache()
-
+    # if we didn't find anything, create a new handle.
+    # we could (and used to) run `GC.gc(false)` here to free up old handles,
+    # but that can be expensive when using lots of short-lived tasks.
     if handle === nothing
-        # if we didn't find anything, perform a quick GC collection to free up old handles.
-        GC.gc(false)
+        handle = ctor()
+    end
 
-        handle = check_cache(f)
+    # add the handle to the active set
+    @lock cache.lock begin
+        push!(cache.active_handles, key=>handle)
     end
 
     return handle::V
 end
 
 # put a handle in the cache, or destroy it if it doesn't fit
-function Base.push!(f::Function, cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
-    lock(cache.lock) do
+function Base.push!(dtor::Function, cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
+    saved = @lock cache.lock begin
         delete!(cache.active_handles, key=>handle)
 
         if haskey(cache.idle_handles, key)
             if length(cache.idle_handles[key]) > cache.max_entries
-                f()
+                false
             else
                 push!(cache.idle_handles[key], handle)
+                true
             end
         else
             cache.idle_handles[key] = [handle]
+            true
         end
+    end
+
+    if !saved
+        dtor()
     end
 end
 
 # shorthand version to put a handle back without having to remember the key
-function Base.push!(f::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
-    lock(cache.lock) do
+function Base.push!(dtor::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
+    key = @lock cache.lock begin
         key = nothing
         for entry in cache.active_handles
             if entry[2] == handle
@@ -80,6 +82,8 @@ function Base.push!(f::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
         if key === nothing
             error("Attempt to cache handle $handle that was not created by the handle cache")
         end
-        push!(f, cache, key, handle)
+        key
     end
+
+    push!(dtor, cache, key, handle)
 end
