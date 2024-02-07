@@ -243,4 +243,10 @@ function KA.priority!(::CUDABackend, prio::Symbol)
     return nothing
 end
 
+KA.supports_enzyme(::CUDABackend) = true
+function KA.__fake_compiler_job(::CUDABackend)
+    mi = CUDA.methodinstance(typeof(()->return), Tuple{})
+    return CUDA.CompilerJob(mi, CUDA.compiler_config(CUDA.device()))
+end
+
 end
