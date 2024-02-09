@@ -4848,11 +4848,30 @@ end
                                                    blockSizeToDynamicSMemSize,
                                                    dynamicSMemSize, blockSizeLimit)
     initialize_context()
-    @ccall libcuda.cuOccupancyMaxPotentialBlockSize(minGridSize::Ptr{Cint},
-                                                    blockSize::Ptr{Cint}, func::CUfunction,
-                                                    blockSizeToDynamicSMemSize::CUoccupancyB2DSize,
-                                                    dynamicSMemSize::Csize_t,
-                                                    blockSizeLimit::Cint)::CUresult
+    # Until https://github.com/JuliaLang/julia/pull/49933
+    # do this manually. There seems to be a lock taken inside that can lead to deadlocks
+    _minGridSize = Base.cconvert(Ptr{Cint}, minGridSize)
+    _blockSize = Base.cconvert(Ptr{Cint}, blockSize)
+    _func = Base.cconvert(CUfunction, func)
+    _blockSizeToDynamicSMemSize = Base.cconvert(CUoccupancyB2DSize, blockSizeToDynamicSMemSize)
+    _dynamicSMemSize = Base.cconvert(Csize_t, dynamicSMemSize)
+    _blockSizeLimit =  Base.cconvert(Cint, blockSizeLimit)
+    GC.@preserve _minGridSize _blockSize _func _blockSizeToDynamicSMemSize _dynamicSMemSize _blockSizeLimit begin
+        __minGridSize = Base.unsafe_convert(Ptr{Cint}, _minGridSize)
+        __blockSize = Base.unsafe_convert(Ptr{Cint}, _blockSize)
+        __func = Base.unsafe_convert(CUfunction, _func)
+        __blockSizeToDynamicSMemSize = Base.unsafe_convert(CUoccupancyB2DSize, _blockSizeToDynamicSMemSize)
+        __dynamicSMemSize = Base.unsafe_convert(Csize_t, _dynamicSMemSize)
+        __blockSizeLimit = Base.unsafe_convert(Cint, _blockSizeLimit)
+        gc_state = @ccall(jl_gc_safe_enter()::Int8)
+        result   = @ccall libcuda.cuOccupancyMaxPotentialBlockSize( __minGridSize::Ptr{Cint},
+                                                                    __blockSize::Ptr{Cint}, __func::CUfunction,
+                                                                    __blockSizeToDynamicSMemSize::CUoccupancyB2DSize,
+                                                                    __dynamicSMemSize::Csize_t,
+                                                                    __blockSizeLimit::Cint)::CUresult
+        @ccall(jl_gc_safe_leave(gc_state::Int8)::Cvoid)
+    end
+    return result
 end
 
 @checked function cuOccupancyMaxPotentialBlockSizeWithFlags(minGridSize, blockSize, func,
