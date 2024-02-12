@@ -165,6 +165,12 @@ render_arg(io, arg::Union{<:Base.RefValue, AbstractArray}) = summary(io, arg)
 
 # TODO: replace with JuliaLang/julia#49933 once merged
 
+# note that this is generally only safe with functions that do not call back into Julia.
+# when callbacks occur, the code should ensure the GC is not running:
+# - on 1.10 and later, everything is fine because of safepoint_on_entry
+# - on 1.9, @cfunction-based callbacks are fine because they transition to gc_unsafe
+# - on 1.8 and earlier, the code should explicitly call GC.safepoint()!
+
 function ccall_macro_lower(func, rettype, types, args, nreq)
     # instead of re-using ccall or Expr(:foreigncall) to perform argument conversion,
     # we need to do so ourselves in order to insert a jl_gc_safe_enter|leave
