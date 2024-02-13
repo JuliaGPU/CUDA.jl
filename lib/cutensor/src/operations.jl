@@ -24,18 +24,12 @@ function elementwise_trinary_execute!(
         compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
 
-    actual_compute_type = if compute_type === nothing
-        elementwise_trinary_compute_types[(eltype(A), eltype(B), eltype(C))]
-    else
-        compute_type
-    end
-
     actual_plan = if plan === nothing
         plan_elementwise_trinary(A, Ainds, opA,
                                  B, Binds, opB,
                                  C, Cinds, opC,
                                  D, Dinds, opAB, opABC;
-                                 workspace, algo, compute_type=actual_compute_type)
+                                 workspace, algo, compute_type)
     else
         plan
     end
@@ -123,18 +117,11 @@ function elementwise_binary_execute!(
         algo::cutensorAlgo_t=ALGO_DEFAULT,
         compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
-
-    actual_compute_type = if compute_type === nothing
-        elementwise_binary_compute_types[(eltype(A), eltype(C))]
-    else
-        compute_type
-    end
-
     actual_plan = if plan === nothing
         plan_elementwise_binary(A, Ainds, opA,
                                 C, Cinds, opC,
                                 D, Dinds, opAC;
-                                workspace, algo, compute_type=actual_compute_type)
+                                workspace, algo, compute_type)
     else
         plan
     end
@@ -210,17 +197,10 @@ function permute!(
         algo::cutensorAlgo_t=ALGO_DEFAULT,
         compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
-
-    actual_compute_type = if compute_type === nothing
-        permutation_compute_types[(eltype(A), eltype(B))]
-    else
-        compute_type
-    end
-
     actual_plan = if plan === nothing
         plan_permutation(A, Ainds, opA,
                          B, Binds;
-                         workspace, algo, compute_type=actual_compute_type)
+                         workspace, algo, compute_type)
     else
         plan
     end
@@ -288,16 +268,9 @@ function contract!(
         algo::cutensorAlgo_t=ALGO_DEFAULT,
         compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
-
-    actual_compute_type = if compute_type === nothing
-        contraction_compute_types[(eltype(A), eltype(B), eltype(C))]
-    else
-        compute_type
-    end
-
     actual_plan = if plan === nothing
         plan_contraction(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, opOut;
-                         jit, workspace, algo, compute_type=actual_compute_type)
+                         jit, workspace, algo, compute_type)
     else
         plan
     end
@@ -377,15 +350,8 @@ function reduce!(
         algo::cutensorAlgo_t=ALGO_DEFAULT,
         compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
         plan::Union{CuTensorPlan, Nothing}=nothing)
-
-    actual_compute_type = if compute_type === nothing
-        reduction_compute_types[(eltype(A), eltype(C))]
-    else
-        compute_type
-    end
-
     actual_plan = if plan === nothing
-        plan_reduction(A, Ainds, opA, C, Cinds, opC, opReduce; workspace, algo, compute_type=actual_compute_type)
+        plan_reduction(A, Ainds, opA, C, Cinds, opC, opReduce; workspace, algo, compute_type)
     else
         plan
     end
