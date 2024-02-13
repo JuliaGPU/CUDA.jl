@@ -2285,10 +2285,10 @@ needs_context = false
 3 = "CuPtr{Cdouble}"
 
 [api.cusolverSpCcsrcholDiag.argtypes]
-3 = "CuPtr{cuComplex}"
+3 = "CuPtr{Cfloat}"
 
 [api.cusolverSpZcsrcholDiag.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
+3 = "CuPtr{Cdouble}"
 
 [api.cusolverSpZcsrcholFactor.argtypes]
 5 = "CuPtr{cuDoubleComplex}"

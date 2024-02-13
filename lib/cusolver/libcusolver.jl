@@ -6224,12 +6224,12 @@ end
     initialize_context()
     @ccall libcusolver.cusolverSpCcsrcholDiag(handle::cusolverSpHandle_t,
                                               info::csrcholInfo_t,
-                                              diag::CuPtr{cuComplex})::cusolverStatus_t
+                                              diag::CuPtr{Cfloat})::cusolverStatus_t
 end
 
 @checked function cusolverSpZcsrcholDiag(handle, info, diag)
     initialize_context()
     @ccall libcusolver.cusolverSpZcsrcholDiag(handle::cusolverSpHandle_t,
                                               info::csrcholInfo_t,
-                                              diag::CuPtr{cuDoubleComplex})::cusolverStatus_t
+                                              diag::CuPtr{Cdouble})::cusolverStatus_t
 end
