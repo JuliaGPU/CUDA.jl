@@ -430,7 +430,7 @@ function plan_reduction(
     modeC = collect(Cint, Cinds)
 
     actual_compute_type = if compute_type === nothing
-        reduction_compute_types[(eltype(A), eltype(B), eltype(C))]
+        reduction_compute_types[(eltype(A), eltype(C))]
     else
         compute_type
     end
