@@ -14,6 +14,11 @@ const callback_lock = ReentrantLock()
 
 function callback(userdata::Ptr{Cvoid}, domain::CUpti_CallbackDomain,
                   id::CUpti_CallbackId, data_ptr::Ptr{Cvoid})
+    # see @gcsafe_ccall documentation
+    @static if VERSION < v"1.9"
+        GC.safepoint()
+    end
+
     cfg = Base.unsafe_pointer_to_objref(userdata)::CallbackConfig
 
     # decode the callback data
@@ -130,6 +135,11 @@ function request_buffer(dest_ptr, sz_ptr, max_num_records_ptr)
     # this function is called by CUPTI, but directly from the application, so it should be
     # fine to perform I/O or allocate memory here.
 
+    # see @gcsafe_ccall documentation
+    @static if VERSION < v"1.9"
+        GC.safepoint()
+    end
+
     dest = Base.unsafe_wrap(Array, dest_ptr, 1)
     sz = Base.unsafe_wrap(Array, sz_ptr, 1)
     max_num_records = Base.unsafe_wrap(Array, max_num_records_ptr, 1)
@@ -165,6 +175,11 @@ function complete_buffer(ctx_handle, stream_id, buf_ptr, sz, valid_sz)
     # we also may not trigger GC, because the main application cannot reach a safepoint.
     # to prevent this, we call `sizehint!` in `request_buffer`.
     # XXX: `sizehint!` isn't a guarantee; use `resize!` and a cursor?
+
+    # see @gcsafe_ccall documentation
+    @static if VERSION < v"1.9"
+        GC.safepoint()
+    end
 
     cfg = activity_config[]
     if cfg !== nothing

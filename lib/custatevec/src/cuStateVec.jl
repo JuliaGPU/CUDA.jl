@@ -88,6 +88,11 @@ end
 ## logging
 
 function log_message(log_level, function_name, message)
+    # see @gcsafe_ccall documentation
+    @static if VERSION < v"1.9"
+        GC.safepoint()
+    end
+
     function_name = unsafe_string(function_name)
     message = unsafe_string(message)
     output = if isempty(message)

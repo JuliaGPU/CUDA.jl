@@ -211,6 +211,11 @@ function log_message(ptr)
 end
 
 function _log_message(blob)
+    # see @gcsafe_ccall documentation
+    @static if VERSION < v"1.9"
+        GC.safepoint()
+    end
+
     # the message format isn't documented, but it looks like a message starts with a capital
     # and the severity (e.g. `I!`), and subsequent lines start with a lowercase mark (`!i`)
     #
