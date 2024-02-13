@@ -200,7 +200,8 @@ function ccall_macro_lower(func, rettype, types, args, nreq)
         $(unsafe_convert_exprs...)
 
         gc_state = @ccall(jl_gc_safe_enter()::Int8)
-        ret = ccall($(esc(func)), $(esc(rettype)), $(Expr(:tuple, map(esc, types)...)), $(unsafe_convert_args...))
+        ret = ccall($(esc(func)), $(esc(rettype)), $(Expr(:tuple, map(esc, types)...)),
+                    $(unsafe_convert_args...))
         @ccall(jl_gc_safe_leave(gc_state::Int8)::Cvoid)
         ret
     end
