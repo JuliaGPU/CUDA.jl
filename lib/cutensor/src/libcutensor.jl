@@ -194,66 +194,156 @@ const cutensorLoggerCallback_t = Ptr{Cvoid}
 
 @checked function cutensorCreate(handle)
     initialize_context()
-    @ccall libcutensor.cutensorCreate(handle::Ptr{cutensorHandle_t})::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorCreate(handle::Ptr{cutensorHandle_t})::cutensorStatus_t
 end
 
 @checked function cutensorDestroy(handle)
     initialize_context()
-    @ccall libcutensor.cutensorDestroy(handle::cutensorHandle_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorDestroy(handle::cutensorHandle_t)::cutensorStatus_t
 end
 
 @checked function cutensorHandleResizePlanCache(handle, numEntries)
     initialize_context()
-    @ccall libcutensor.cutensorHandleResizePlanCache(handle::cutensorHandle_t,
-                                                     numEntries::UInt32)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorHandleResizePlanCache(handle::cutensorHandle_t,
+                                                            numEntries::UInt32)::cutensorStatus_t
 end
 
 @checked function cutensorHandleWritePlanCacheToFile(handle, filename)
     initialize_context()
-    @ccall libcutensor.cutensorHandleWritePlanCacheToFile(handle::cutensorHandle_t,
-                                                          filename::Ptr{Cchar})::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorHandleWritePlanCacheToFile(handle::cutensorHandle_t,
+                                                                 filename::Ptr{Cchar})::cutensorStatus_t
 end
 
 @checked function cutensorHandleReadPlanCacheFromFile(handle, filename, numCachelinesRead)
     initialize_context()
-    @ccall libcutensor.cutensorHandleReadPlanCacheFromFile(handle::cutensorHandle_t,
-                                                           filename::Ptr{Cchar},
-                                                           numCachelinesRead::Ptr{UInt32})::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorHandleReadPlanCacheFromFile(handle::cutensorHandle_t,
+                                                                  filename::Ptr{Cchar},
+                                                                  numCachelinesRead::Ptr{UInt32})::cutensorStatus_t
 end
 
 @checked function cutensorWriteKernelCacheToFile(handle, filename)
     initialize_context()
-    @ccall libcutensor.cutensorWriteKernelCacheToFile(handle::cutensorHandle_t,
-                                                      filename::Ptr{Cchar})::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorWriteKernelCacheToFile(handle::cutensorHandle_t,
+                                                             filename::Ptr{Cchar})::cutensorStatus_t
 end
 
 @checked function cutensorReadKernelCacheFromFile(handle, filename)
     initialize_context()
-    @ccall libcutensor.cutensorReadKernelCacheFromFile(handle::cutensorHandle_t,
-                                                       filename::Ptr{Cchar})::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorReadKernelCacheFromFile(handle::cutensorHandle_t,
+                                                              filename::Ptr{Cchar})::cutensorStatus_t
 end
 
 @checked function cutensorCreateTensorDescriptor(handle, desc, numModes, extent, stride,
                                                  dataType, alignmentRequirement)
     initialize_context()
-    @ccall libcutensor.cutensorCreateTensorDescriptor(handle::cutensorHandle_t,
-                                                      desc::Ptr{cutensorTensorDescriptor_t},
-                                                      numModes::UInt32, extent::Ptr{Int64},
-                                                      stride::Ptr{Int64},
-                                                      dataType::cutensorDataType_t,
-                                                      alignmentRequirement::UInt32)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorCreateTensorDescriptor(handle::cutensorHandle_t,
+                                                             desc::Ptr{cutensorTensorDescriptor_t},
+                                                             numModes::UInt32,
+                                                             extent::Ptr{Int64},
+                                                             stride::Ptr{Int64},
+                                                             dataType::cutensorDataType_t,
+                                                             alignmentRequirement::UInt32)::cutensorStatus_t
 end
 
 @checked function cutensorDestroyTensorDescriptor(desc)
     initialize_context()
-    @ccall libcutensor.cutensorDestroyTensorDescriptor(desc::cutensorTensorDescriptor_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorDestroyTensorDescriptor(desc::cutensorTensorDescriptor_t)::cutensorStatus_t
 end
 
 @checked function cutensorCreateElementwiseTrinary(handle, desc, descA, modeA, opA, descB,
                                                    modeB, opB, descC, modeC, opC, descD,
                                                    modeD, opAB, opABC, descCompute)
     initialize_context()
-    @ccall libcutensor.cutensorCreateElementwiseTrinary(handle::cutensorHandle_t,
+    @gcsafe_ccall libcutensor.cutensorCreateElementwiseTrinary(handle::cutensorHandle_t,
+                                                               desc::Ptr{cutensorOperationDescriptor_t},
+                                                               descA::cutensorTensorDescriptor_t,
+                                                               modeA::Ptr{Int32},
+                                                               opA::cutensorOperator_t,
+                                                               descB::cutensorTensorDescriptor_t,
+                                                               modeB::Ptr{Int32},
+                                                               opB::cutensorOperator_t,
+                                                               descC::cutensorTensorDescriptor_t,
+                                                               modeC::Ptr{Int32},
+                                                               opC::cutensorOperator_t,
+                                                               descD::cutensorTensorDescriptor_t,
+                                                               modeD::Ptr{Int32},
+                                                               opAB::cutensorOperator_t,
+                                                               opABC::cutensorOperator_t,
+                                                               descCompute::cutensorComputeDescriptor_t)::cutensorStatus_t
+end
+
+@checked function cutensorElementwiseTrinaryExecute(handle, plan, alpha, A, beta, B, gamma,
+                                                    C, D, stream)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorElementwiseTrinaryExecute(handle::cutensorHandle_t,
+                                                                plan::cutensorPlan_t,
+                                                                alpha::Ptr{Cvoid},
+                                                                A::CuPtr{Cvoid},
+                                                                beta::Ptr{Cvoid},
+                                                                B::CuPtr{Cvoid},
+                                                                gamma::Ptr{Cvoid},
+                                                                C::CuPtr{Cvoid},
+                                                                D::CuPtr{Cvoid},
+                                                                stream::cudaStream_t)::cutensorStatus_t
+end
+
+@checked function cutensorCreateElementwiseBinary(handle, desc, descA, modeA, opA, descC,
+                                                  modeC, opC, descD, modeD, opAC,
+                                                  descCompute)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorCreateElementwiseBinary(handle::cutensorHandle_t,
+                                                              desc::Ptr{cutensorOperationDescriptor_t},
+                                                              descA::cutensorTensorDescriptor_t,
+                                                              modeA::Ptr{Int32},
+                                                              opA::cutensorOperator_t,
+                                                              descC::cutensorTensorDescriptor_t,
+                                                              modeC::Ptr{Int32},
+                                                              opC::cutensorOperator_t,
+                                                              descD::cutensorTensorDescriptor_t,
+                                                              modeD::Ptr{Int32},
+                                                              opAC::cutensorOperator_t,
+                                                              descCompute::cutensorComputeDescriptor_t)::cutensorStatus_t
+end
+
+@checked function cutensorElementwiseBinaryExecute(handle, plan, alpha, A, gamma, C, D,
+                                                   stream)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorElementwiseBinaryExecute(handle::cutensorHandle_t,
+                                                               plan::cutensorPlan_t,
+                                                               alpha::Ptr{Cvoid},
+                                                               A::CuPtr{Cvoid},
+                                                               gamma::Ptr{Cvoid},
+                                                               C::CuPtr{Cvoid},
+                                                               D::CuPtr{Cvoid},
+                                                               stream::cudaStream_t)::cutensorStatus_t
+end
+
+@checked function cutensorCreatePermutation(handle, desc, descA, modeA, opA, descB, modeB,
+                                            descCompute)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorCreatePermutation(handle::cutensorHandle_t,
+                                                        desc::Ptr{cutensorOperationDescriptor_t},
+                                                        descA::cutensorTensorDescriptor_t,
+                                                        modeA::Ptr{Int32},
+                                                        opA::cutensorOperator_t,
+                                                        descB::cutensorTensorDescriptor_t,
+                                                        modeB::Ptr{Int32},
+                                                        descCompute::cutensorComputeDescriptor_t)::cutensorStatus_t
+end
+
+@checked function cutensorPermute(handle, plan, alpha, A, B, stream)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorPermute(handle::cutensorHandle_t,
+                                              plan::cutensorPlan_t, alpha::Ptr{Cvoid},
+                                              A::CuPtr{Cvoid}, B::CuPtr{Cvoid},
+                                              stream::cudaStream_t)::cutensorStatus_t
+end
+
+@checked function cutensorCreateContraction(handle, desc, descA, modeA, opA, descB, modeB,
+                                            opB, descC, modeC, opC, descD, modeD,
+                                            descCompute)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorCreateContraction(handle::cutensorHandle_t,
                                                         desc::Ptr{cutensorOperationDescriptor_t},
                                                         descA::cutensorTensorDescriptor_t,
                                                         modeA::Ptr{Int32},
@@ -266,246 +356,172 @@ end
                                                         opC::cutensorOperator_t,
                                                         descD::cutensorTensorDescriptor_t,
                                                         modeD::Ptr{Int32},
-                                                        opAB::cutensorOperator_t,
-                                                        opABC::cutensorOperator_t,
                                                         descCompute::cutensorComputeDescriptor_t)::cutensorStatus_t
-end
-
-@checked function cutensorElementwiseTrinaryExecute(handle, plan, alpha, A, beta, B, gamma,
-                                                    C, D, stream)
-    initialize_context()
-    @ccall libcutensor.cutensorElementwiseTrinaryExecute(handle::cutensorHandle_t,
-                                                         plan::cutensorPlan_t,
-                                                         alpha::Ptr{Cvoid}, A::CuPtr{Cvoid},
-                                                         beta::Ptr{Cvoid}, B::CuPtr{Cvoid},
-                                                         gamma::Ptr{Cvoid}, C::CuPtr{Cvoid},
-                                                         D::CuPtr{Cvoid},
-                                                         stream::cudaStream_t)::cutensorStatus_t
-end
-
-@checked function cutensorCreateElementwiseBinary(handle, desc, descA, modeA, opA, descC,
-                                                  modeC, opC, descD, modeD, opAC,
-                                                  descCompute)
-    initialize_context()
-    @ccall libcutensor.cutensorCreateElementwiseBinary(handle::cutensorHandle_t,
-                                                       desc::Ptr{cutensorOperationDescriptor_t},
-                                                       descA::cutensorTensorDescriptor_t,
-                                                       modeA::Ptr{Int32},
-                                                       opA::cutensorOperator_t,
-                                                       descC::cutensorTensorDescriptor_t,
-                                                       modeC::Ptr{Int32},
-                                                       opC::cutensorOperator_t,
-                                                       descD::cutensorTensorDescriptor_t,
-                                                       modeD::Ptr{Int32},
-                                                       opAC::cutensorOperator_t,
-                                                       descCompute::cutensorComputeDescriptor_t)::cutensorStatus_t
-end
-
-@checked function cutensorElementwiseBinaryExecute(handle, plan, alpha, A, gamma, C, D,
-                                                   stream)
-    initialize_context()
-    @ccall libcutensor.cutensorElementwiseBinaryExecute(handle::cutensorHandle_t,
-                                                        plan::cutensorPlan_t,
-                                                        alpha::Ptr{Cvoid}, A::CuPtr{Cvoid},
-                                                        gamma::Ptr{Cvoid}, C::CuPtr{Cvoid},
-                                                        D::CuPtr{Cvoid},
-                                                        stream::cudaStream_t)::cutensorStatus_t
-end
-
-@checked function cutensorCreatePermutation(handle, desc, descA, modeA, opA, descB, modeB,
-                                            descCompute)
-    initialize_context()
-    @ccall libcutensor.cutensorCreatePermutation(handle::cutensorHandle_t,
-                                                 desc::Ptr{cutensorOperationDescriptor_t},
-                                                 descA::cutensorTensorDescriptor_t,
-                                                 modeA::Ptr{Int32}, opA::cutensorOperator_t,
-                                                 descB::cutensorTensorDescriptor_t,
-                                                 modeB::Ptr{Int32},
-                                                 descCompute::cutensorComputeDescriptor_t)::cutensorStatus_t
-end
-
-@checked function cutensorPermute(handle, plan, alpha, A, B, stream)
-    initialize_context()
-    @ccall libcutensor.cutensorPermute(handle::cutensorHandle_t, plan::cutensorPlan_t,
-                                       alpha::Ptr{Cvoid}, A::CuPtr{Cvoid}, B::CuPtr{Cvoid},
-                                       stream::cudaStream_t)::cutensorStatus_t
-end
-
-@checked function cutensorCreateContraction(handle, desc, descA, modeA, opA, descB, modeB,
-                                            opB, descC, modeC, opC, descD, modeD,
-                                            descCompute)
-    initialize_context()
-    @ccall libcutensor.cutensorCreateContraction(handle::cutensorHandle_t,
-                                                 desc::Ptr{cutensorOperationDescriptor_t},
-                                                 descA::cutensorTensorDescriptor_t,
-                                                 modeA::Ptr{Int32}, opA::cutensorOperator_t,
-                                                 descB::cutensorTensorDescriptor_t,
-                                                 modeB::Ptr{Int32}, opB::cutensorOperator_t,
-                                                 descC::cutensorTensorDescriptor_t,
-                                                 modeC::Ptr{Int32}, opC::cutensorOperator_t,
-                                                 descD::cutensorTensorDescriptor_t,
-                                                 modeD::Ptr{Int32},
-                                                 descCompute::cutensorComputeDescriptor_t)::cutensorStatus_t
 end
 
 @checked function cutensorDestroyOperationDescriptor(desc)
     initialize_context()
-    @ccall libcutensor.cutensorDestroyOperationDescriptor(desc::cutensorOperationDescriptor_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorDestroyOperationDescriptor(desc::cutensorOperationDescriptor_t)::cutensorStatus_t
 end
 
 @checked function cutensorOperationDescriptorSetAttribute(handle, desc, attr, buf,
                                                           sizeInBytes)
     initialize_context()
-    @ccall libcutensor.cutensorOperationDescriptorSetAttribute(handle::cutensorHandle_t,
-                                                               desc::cutensorOperationDescriptor_t,
-                                                               attr::cutensorOperationDescriptorAttribute_t,
-                                                               buf::Ptr{Cvoid},
-                                                               sizeInBytes::Csize_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorOperationDescriptorSetAttribute(handle::cutensorHandle_t,
+                                                                      desc::cutensorOperationDescriptor_t,
+                                                                      attr::cutensorOperationDescriptorAttribute_t,
+                                                                      buf::Ptr{Cvoid},
+                                                                      sizeInBytes::Csize_t)::cutensorStatus_t
 end
 
 @checked function cutensorOperationDescriptorGetAttribute(handle, desc, attr, buf,
                                                           sizeInBytes)
     initialize_context()
-    @ccall libcutensor.cutensorOperationDescriptorGetAttribute(handle::cutensorHandle_t,
-                                                               desc::cutensorOperationDescriptor_t,
-                                                               attr::cutensorOperationDescriptorAttribute_t,
-                                                               buf::Ptr{Cvoid},
-                                                               sizeInBytes::Csize_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorOperationDescriptorGetAttribute(handle::cutensorHandle_t,
+                                                                      desc::cutensorOperationDescriptor_t,
+                                                                      attr::cutensorOperationDescriptorAttribute_t,
+                                                                      buf::Ptr{Cvoid},
+                                                                      sizeInBytes::Csize_t)::cutensorStatus_t
 end
 
 @checked function cutensorCreatePlanPreference(handle, pref, algo, jitMode)
     initialize_context()
-    @ccall libcutensor.cutensorCreatePlanPreference(handle::cutensorHandle_t,
-                                                    pref::Ptr{cutensorPlanPreference_t},
-                                                    algo::cutensorAlgo_t,
-                                                    jitMode::cutensorJitMode_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorCreatePlanPreference(handle::cutensorHandle_t,
+                                                           pref::Ptr{cutensorPlanPreference_t},
+                                                           algo::cutensorAlgo_t,
+                                                           jitMode::cutensorJitMode_t)::cutensorStatus_t
 end
 
 @checked function cutensorDestroyPlanPreference(pref)
     initialize_context()
-    @ccall libcutensor.cutensorDestroyPlanPreference(pref::cutensorPlanPreference_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorDestroyPlanPreference(pref::cutensorPlanPreference_t)::cutensorStatus_t
 end
 
 @checked function cutensorPlanPreferenceSetAttribute(handle, pref, attr, buf, sizeInBytes)
     initialize_context()
-    @ccall libcutensor.cutensorPlanPreferenceSetAttribute(handle::cutensorHandle_t,
-                                                          pref::cutensorPlanPreference_t,
-                                                          attr::cutensorPlanPreferenceAttribute_t,
-                                                          buf::Ptr{Cvoid},
-                                                          sizeInBytes::Csize_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorPlanPreferenceSetAttribute(handle::cutensorHandle_t,
+                                                                 pref::cutensorPlanPreference_t,
+                                                                 attr::cutensorPlanPreferenceAttribute_t,
+                                                                 buf::Ptr{Cvoid},
+                                                                 sizeInBytes::Csize_t)::cutensorStatus_t
 end
 
 @checked function cutensorPlanGetAttribute(handle, plan, attr, buf, sizeInBytes)
     initialize_context()
-    @ccall libcutensor.cutensorPlanGetAttribute(handle::cutensorHandle_t,
-                                                plan::cutensorPlan_t,
-                                                attr::cutensorPlanAttribute_t,
-                                                buf::Ptr{Cvoid},
-                                                sizeInBytes::Csize_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorPlanGetAttribute(handle::cutensorHandle_t,
+                                                       plan::cutensorPlan_t,
+                                                       attr::cutensorPlanAttribute_t,
+                                                       buf::Ptr{Cvoid},
+                                                       sizeInBytes::Csize_t)::cutensorStatus_t
 end
 
 @checked function cutensorEstimateWorkspaceSize(handle, desc, planPref, workspacePref,
                                                 workspaceSizeEstimate)
     initialize_context()
-    @ccall libcutensor.cutensorEstimateWorkspaceSize(handle::cutensorHandle_t,
-                                                     desc::cutensorOperationDescriptor_t,
-                                                     planPref::cutensorPlanPreference_t,
-                                                     workspacePref::cutensorWorksizePreference_t,
-                                                     workspaceSizeEstimate::Ptr{UInt64})::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorEstimateWorkspaceSize(handle::cutensorHandle_t,
+                                                            desc::cutensorOperationDescriptor_t,
+                                                            planPref::cutensorPlanPreference_t,
+                                                            workspacePref::cutensorWorksizePreference_t,
+                                                            workspaceSizeEstimate::Ptr{UInt64})::cutensorStatus_t
 end
 
 @checked function cutensorCreatePlan(handle, plan, desc, pref, workspaceSizeLimit)
     initialize_context()
-    @ccall libcutensor.cutensorCreatePlan(handle::cutensorHandle_t,
-                                          plan::Ptr{cutensorPlan_t},
-                                          desc::cutensorOperationDescriptor_t,
-                                          pref::cutensorPlanPreference_t,
-                                          workspaceSizeLimit::UInt64)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorCreatePlan(handle::cutensorHandle_t,
+                                                 plan::Ptr{cutensorPlan_t},
+                                                 desc::cutensorOperationDescriptor_t,
+                                                 pref::cutensorPlanPreference_t,
+                                                 workspaceSizeLimit::UInt64)::cutensorStatus_t
 end
 
 @checked function cutensorDestroyPlan(plan)
     initialize_context()
-    @ccall libcutensor.cutensorDestroyPlan(plan::cutensorPlan_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorDestroyPlan(plan::cutensorPlan_t)::cutensorStatus_t
 end
 
 @checked function cutensorContract(handle, plan, alpha, A, B, beta, C, D, workspace,
                                    workspaceSize, stream)
     initialize_context()
-    @ccall libcutensor.cutensorContract(handle::cutensorHandle_t, plan::cutensorPlan_t,
-                                        alpha::Ptr{Cvoid}, A::CuPtr{Cvoid}, B::CuPtr{Cvoid},
-                                        beta::Ptr{Cvoid}, C::CuPtr{Cvoid}, D::CuPtr{Cvoid},
-                                        workspace::CuPtr{Cvoid}, workspaceSize::UInt64,
-                                        stream::cudaStream_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorContract(handle::cutensorHandle_t,
+                                               plan::cutensorPlan_t, alpha::Ptr{Cvoid},
+                                               A::CuPtr{Cvoid}, B::CuPtr{Cvoid},
+                                               beta::Ptr{Cvoid}, C::CuPtr{Cvoid},
+                                               D::CuPtr{Cvoid}, workspace::CuPtr{Cvoid},
+                                               workspaceSize::UInt64,
+                                               stream::cudaStream_t)::cutensorStatus_t
 end
 
 @checked function cutensorCreateReduction(handle, desc, descA, modeA, opA, descC, modeC,
                                           opC, descD, modeD, opReduce, descCompute)
     initialize_context()
-    @ccall libcutensor.cutensorCreateReduction(handle::cutensorHandle_t,
-                                               desc::Ptr{cutensorOperationDescriptor_t},
-                                               descA::cutensorTensorDescriptor_t,
-                                               modeA::Ptr{Int32}, opA::cutensorOperator_t,
-                                               descC::cutensorTensorDescriptor_t,
-                                               modeC::Ptr{Int32}, opC::cutensorOperator_t,
-                                               descD::cutensorTensorDescriptor_t,
-                                               modeD::Ptr{Int32},
-                                               opReduce::cutensorOperator_t,
-                                               descCompute::cutensorComputeDescriptor_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorCreateReduction(handle::cutensorHandle_t,
+                                                      desc::Ptr{cutensorOperationDescriptor_t},
+                                                      descA::cutensorTensorDescriptor_t,
+                                                      modeA::Ptr{Int32},
+                                                      opA::cutensorOperator_t,
+                                                      descC::cutensorTensorDescriptor_t,
+                                                      modeC::Ptr{Int32},
+                                                      opC::cutensorOperator_t,
+                                                      descD::cutensorTensorDescriptor_t,
+                                                      modeD::Ptr{Int32},
+                                                      opReduce::cutensorOperator_t,
+                                                      descCompute::cutensorComputeDescriptor_t)::cutensorStatus_t
 end
 
 @checked function cutensorReduce(handle, plan, alpha, A, beta, C, D, workspace,
                                  workspaceSize, stream)
     initialize_context()
-    @ccall libcutensor.cutensorReduce(handle::cutensorHandle_t, plan::cutensorPlan_t,
-                                      alpha::Ptr{Cvoid}, A::CuPtr{Cvoid}, beta::Ptr{Cvoid},
-                                      C::CuPtr{Cvoid}, D::CuPtr{Cvoid},
-                                      workspace::CuPtr{Cvoid}, workspaceSize::UInt64,
-                                      stream::cudaStream_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorReduce(handle::cutensorHandle_t, plan::cutensorPlan_t,
+                                             alpha::Ptr{Cvoid}, A::CuPtr{Cvoid},
+                                             beta::Ptr{Cvoid}, C::CuPtr{Cvoid},
+                                             D::CuPtr{Cvoid}, workspace::CuPtr{Cvoid},
+                                             workspaceSize::UInt64,
+                                             stream::cudaStream_t)::cutensorStatus_t
 end
 
 function cutensorGetErrorString(error)
-    @ccall libcutensor.cutensorGetErrorString(error::cutensorStatus_t)::Cstring
+    @gcsafe_ccall libcutensor.cutensorGetErrorString(error::cutensorStatus_t)::Cstring
 end
 
 # no prototype is found for this function at cutensor.h:980:8, please use with caution
 function cutensorGetVersion()
-    @ccall libcutensor.cutensorGetVersion()::Csize_t
+    @gcsafe_ccall libcutensor.cutensorGetVersion()::Csize_t
 end
 
 # no prototype is found for this function at cutensor.h:986:8, please use with caution
 function cutensorGetCudartVersion()
-    @ccall libcutensor.cutensorGetCudartVersion()::Csize_t
+    @gcsafe_ccall libcutensor.cutensorGetCudartVersion()::Csize_t
 end
 
 @checked function cutensorLoggerSetCallback(callback)
     initialize_context()
-    @ccall libcutensor.cutensorLoggerSetCallback(callback::cutensorLoggerCallback_t)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorLoggerSetCallback(callback::cutensorLoggerCallback_t)::cutensorStatus_t
 end
 
 @checked function cutensorLoggerSetFile(file)
     initialize_context()
-    @ccall libcutensor.cutensorLoggerSetFile(file::Ptr{Libc.FILE})::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorLoggerSetFile(file::Ptr{Libc.FILE})::cutensorStatus_t
 end
 
 @checked function cutensorLoggerOpenFile(logFile)
     initialize_context()
-    @ccall libcutensor.cutensorLoggerOpenFile(logFile::Cstring)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorLoggerOpenFile(logFile::Cstring)::cutensorStatus_t
 end
 
 @checked function cutensorLoggerSetLevel(level)
     initialize_context()
-    @ccall libcutensor.cutensorLoggerSetLevel(level::Int32)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorLoggerSetLevel(level::Int32)::cutensorStatus_t
 end
 
 @checked function cutensorLoggerSetMask(mask)
     initialize_context()
-    @ccall libcutensor.cutensorLoggerSetMask(mask::Int32)::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorLoggerSetMask(mask::Int32)::cutensorStatus_t
 end
 
 # no prototype is found for this function at cutensor.h:1034:18, please use with caution
 @checked function cutensorLoggerForceDisable()
     initialize_context()
-    @ccall libcutensor.cutensorLoggerForceDisable()::cutensorStatus_t
+    @gcsafe_ccall libcutensor.cutensorLoggerForceDisable()::cutensorStatus_t
 end
 
 # Skipping MacroDefinition: CUTENSOR_EXTERN extern

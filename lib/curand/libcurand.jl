@@ -141,181 +141,184 @@ const curandMethod_t = curandMethod
 
 @checked function curandCreateGenerator(generator, rng_type)
     initialize_context()
-    @ccall libcurand.curandCreateGenerator(generator::Ptr{curandGenerator_t},
-                                           rng_type::curandRngType_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandCreateGenerator(generator::Ptr{curandGenerator_t},
+                                                  rng_type::curandRngType_t)::curandStatus_t
 end
 
 @checked function curandCreateGeneratorHost(generator, rng_type)
     initialize_context()
-    @ccall libcurand.curandCreateGeneratorHost(generator::Ptr{curandGenerator_t},
-                                               rng_type::curandRngType_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandCreateGeneratorHost(generator::Ptr{curandGenerator_t},
+                                                      rng_type::curandRngType_t)::curandStatus_t
 end
 
 @checked function curandDestroyGenerator(generator)
     initialize_context()
-    @ccall libcurand.curandDestroyGenerator(generator::curandGenerator_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandDestroyGenerator(generator::curandGenerator_t)::curandStatus_t
 end
 
 @checked function curandGetVersion(version)
-    @ccall libcurand.curandGetVersion(version::Ptr{Cint})::curandStatus_t
+    @gcsafe_ccall libcurand.curandGetVersion(version::Ptr{Cint})::curandStatus_t
 end
 
 @checked function curandGetProperty(type, value)
-    @ccall libcurand.curandGetProperty(type::libraryPropertyType,
-                                       value::Ptr{Cint})::curandStatus_t
+    @gcsafe_ccall libcurand.curandGetProperty(type::libraryPropertyType,
+                                              value::Ptr{Cint})::curandStatus_t
 end
 
 @checked function curandSetStream(generator, stream)
     initialize_context()
-    @ccall libcurand.curandSetStream(generator::curandGenerator_t,
-                                     stream::cudaStream_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandSetStream(generator::curandGenerator_t,
+                                            stream::cudaStream_t)::curandStatus_t
 end
 
 @checked function curandSetPseudoRandomGeneratorSeed(generator, seed)
     initialize_context()
-    @ccall libcurand.curandSetPseudoRandomGeneratorSeed(generator::curandGenerator_t,
-                                                        seed::Culonglong)::curandStatus_t
+    @gcsafe_ccall libcurand.curandSetPseudoRandomGeneratorSeed(generator::curandGenerator_t,
+                                                               seed::Culonglong)::curandStatus_t
 end
 
 @checked function curandSetGeneratorOffset(generator, offset)
     initialize_context()
-    @ccall libcurand.curandSetGeneratorOffset(generator::curandGenerator_t,
-                                              offset::Culonglong)::curandStatus_t
+    @gcsafe_ccall libcurand.curandSetGeneratorOffset(generator::curandGenerator_t,
+                                                     offset::Culonglong)::curandStatus_t
 end
 
 @checked function curandSetGeneratorOrdering(generator, order)
     initialize_context()
-    @ccall libcurand.curandSetGeneratorOrdering(generator::curandGenerator_t,
-                                                order::curandOrdering_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandSetGeneratorOrdering(generator::curandGenerator_t,
+                                                       order::curandOrdering_t)::curandStatus_t
 end
 
 @checked function curandSetQuasiRandomGeneratorDimensions(generator, num_dimensions)
     initialize_context()
-    @ccall libcurand.curandSetQuasiRandomGeneratorDimensions(generator::curandGenerator_t,
-                                                             num_dimensions::Cuint)::curandStatus_t
+    @gcsafe_ccall libcurand.curandSetQuasiRandomGeneratorDimensions(generator::curandGenerator_t,
+                                                                    num_dimensions::Cuint)::curandStatus_t
 end
 
 @checked function curandGenerate(generator, outputPtr, num)
     initialize_context()
-    @ccall libcurand.curandGenerate(generator::curandGenerator_t, outputPtr::CuPtr{UInt32},
-                                    num::Csize_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGenerate(generator::curandGenerator_t,
+                                           outputPtr::CuPtr{UInt32},
+                                           num::Csize_t)::curandStatus_t
 end
 
 @checked function curandGenerateLongLong(generator, outputPtr, num)
     initialize_context()
-    @ccall libcurand.curandGenerateLongLong(generator::curandGenerator_t,
-                                            outputPtr::CuPtr{Culonglong},
-                                            num::Csize_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGenerateLongLong(generator::curandGenerator_t,
+                                                   outputPtr::CuPtr{Culonglong},
+                                                   num::Csize_t)::curandStatus_t
 end
 
 @checked function curandGenerateUniform(generator, outputPtr, num)
     initialize_context()
-    @ccall libcurand.curandGenerateUniform(generator::curandGenerator_t,
-                                           outputPtr::CuPtr{Cfloat},
-                                           num::Csize_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGenerateUniform(generator::curandGenerator_t,
+                                                  outputPtr::CuPtr{Cfloat},
+                                                  num::Csize_t)::curandStatus_t
 end
 
 @checked function curandGenerateUniformDouble(generator, outputPtr, num)
     initialize_context()
-    @ccall libcurand.curandGenerateUniformDouble(generator::curandGenerator_t,
-                                                 outputPtr::CuPtr{Cdouble},
-                                                 num::Csize_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGenerateUniformDouble(generator::curandGenerator_t,
+                                                        outputPtr::CuPtr{Cdouble},
+                                                        num::Csize_t)::curandStatus_t
 end
 
 @checked function curandGenerateNormal(generator, outputPtr, n, mean, stddev)
     initialize_context()
-    @ccall libcurand.curandGenerateNormal(generator::curandGenerator_t,
-                                          outputPtr::CuPtr{Cfloat}, n::Csize_t,
-                                          mean::Cfloat, stddev::Cfloat)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGenerateNormal(generator::curandGenerator_t,
+                                                 outputPtr::CuPtr{Cfloat}, n::Csize_t,
+                                                 mean::Cfloat,
+                                                 stddev::Cfloat)::curandStatus_t
 end
 
 @checked function curandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
     initialize_context()
-    @ccall libcurand.curandGenerateNormalDouble(generator::curandGenerator_t,
-                                                outputPtr::CuPtr{Cdouble}, n::Csize_t,
-                                                mean::Cdouble,
-                                                stddev::Cdouble)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGenerateNormalDouble(generator::curandGenerator_t,
+                                                       outputPtr::CuPtr{Cdouble},
+                                                       n::Csize_t, mean::Cdouble,
+                                                       stddev::Cdouble)::curandStatus_t
 end
 
 @checked function curandGenerateLogNormal(generator, outputPtr, n, mean, stddev)
     initialize_context()
-    @ccall libcurand.curandGenerateLogNormal(generator::curandGenerator_t,
-                                             outputPtr::CuPtr{Cfloat}, n::Csize_t,
-                                             mean::Cfloat, stddev::Cfloat)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGenerateLogNormal(generator::curandGenerator_t,
+                                                    outputPtr::CuPtr{Cfloat}, n::Csize_t,
+                                                    mean::Cfloat,
+                                                    stddev::Cfloat)::curandStatus_t
 end
 
 @checked function curandGenerateLogNormalDouble(generator, outputPtr, n, mean, stddev)
     initialize_context()
-    @ccall libcurand.curandGenerateLogNormalDouble(generator::curandGenerator_t,
-                                                   outputPtr::CuPtr{Cdouble}, n::Csize_t,
-                                                   mean::Cdouble,
-                                                   stddev::Cdouble)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGenerateLogNormalDouble(generator::curandGenerator_t,
+                                                          outputPtr::CuPtr{Cdouble},
+                                                          n::Csize_t, mean::Cdouble,
+                                                          stddev::Cdouble)::curandStatus_t
 end
 
 @checked function curandCreatePoissonDistribution(lambda, discrete_distribution)
     initialize_context()
-    @ccall libcurand.curandCreatePoissonDistribution(lambda::Cdouble,
-                                                     discrete_distribution::Ptr{curandDiscreteDistribution_t})::curandStatus_t
+    @gcsafe_ccall libcurand.curandCreatePoissonDistribution(lambda::Cdouble,
+                                                            discrete_distribution::Ptr{curandDiscreteDistribution_t})::curandStatus_t
 end
 
 @checked function curandDestroyDistribution(discrete_distribution)
     initialize_context()
-    @ccall libcurand.curandDestroyDistribution(discrete_distribution::curandDiscreteDistribution_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandDestroyDistribution(discrete_distribution::curandDiscreteDistribution_t)::curandStatus_t
 end
 
 @checked function curandGeneratePoisson(generator, outputPtr, n, lambda)
     initialize_context()
-    @ccall libcurand.curandGeneratePoisson(generator::curandGenerator_t,
-                                           outputPtr::CuPtr{UInt32}, n::Csize_t,
-                                           lambda::Cdouble)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGeneratePoisson(generator::curandGenerator_t,
+                                                  outputPtr::CuPtr{UInt32}, n::Csize_t,
+                                                  lambda::Cdouble)::curandStatus_t
 end
 
 @checked function curandGeneratePoissonMethod(generator, outputPtr, n, lambda, method)
     initialize_context()
-    @ccall libcurand.curandGeneratePoissonMethod(generator::curandGenerator_t,
-                                                 outputPtr::CuPtr{UInt32}, n::Csize_t,
-                                                 lambda::Cdouble,
-                                                 method::curandMethod_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGeneratePoissonMethod(generator::curandGenerator_t,
+                                                        outputPtr::CuPtr{UInt32},
+                                                        n::Csize_t, lambda::Cdouble,
+                                                        method::curandMethod_t)::curandStatus_t
 end
 
 @checked function curandGenerateBinomial(generator, outputPtr, num, n, p)
     initialize_context()
-    @ccall libcurand.curandGenerateBinomial(generator::curandGenerator_t,
-                                            outputPtr::CuPtr{UInt32}, num::Csize_t,
-                                            n::Cuint, p::Cdouble)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGenerateBinomial(generator::curandGenerator_t,
+                                                   outputPtr::CuPtr{UInt32}, num::Csize_t,
+                                                   n::Cuint, p::Cdouble)::curandStatus_t
 end
 
 @checked function curandGenerateBinomialMethod(generator, outputPtr, num, n, p, method)
     initialize_context()
-    @ccall libcurand.curandGenerateBinomialMethod(generator::curandGenerator_t,
-                                                  outputPtr::CuPtr{UInt32}, num::Csize_t,
-                                                  n::Cuint, p::Cdouble,
-                                                  method::curandMethod_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGenerateBinomialMethod(generator::curandGenerator_t,
+                                                         outputPtr::CuPtr{UInt32},
+                                                         num::Csize_t, n::Cuint, p::Cdouble,
+                                                         method::curandMethod_t)::curandStatus_t
 end
 
 @checked function curandGenerateSeeds(generator)
     initialize_context()
-    @ccall libcurand.curandGenerateSeeds(generator::curandGenerator_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGenerateSeeds(generator::curandGenerator_t)::curandStatus_t
 end
 
 @checked function curandGetDirectionVectors32(vectors, set)
     initialize_context()
-    @ccall libcurand.curandGetDirectionVectors32(vectors::Ptr{Ptr{curandDirectionVectors32_t}},
-                                                 set::curandDirectionVectorSet_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGetDirectionVectors32(vectors::Ptr{Ptr{curandDirectionVectors32_t}},
+                                                        set::curandDirectionVectorSet_t)::curandStatus_t
 end
 
 @checked function curandGetScrambleConstants32(constants)
     initialize_context()
-    @ccall libcurand.curandGetScrambleConstants32(constants::Ptr{Ptr{Cuint}})::curandStatus_t
+    @gcsafe_ccall libcurand.curandGetScrambleConstants32(constants::Ptr{Ptr{Cuint}})::curandStatus_t
 end
 
 @checked function curandGetDirectionVectors64(vectors, set)
     initialize_context()
-    @ccall libcurand.curandGetDirectionVectors64(vectors::Ptr{Ptr{curandDirectionVectors64_t}},
-                                                 set::curandDirectionVectorSet_t)::curandStatus_t
+    @gcsafe_ccall libcurand.curandGetDirectionVectors64(vectors::Ptr{Ptr{curandDirectionVectors64_t}},
+                                                        set::curandDirectionVectorSet_t)::curandStatus_t
 end
 
 @checked function curandGetScrambleConstants64(constants)
     initialize_context()
-    @ccall libcurand.curandGetScrambleConstants64(constants::Ptr{Ptr{Culonglong}})::curandStatus_t
+    @gcsafe_ccall libcurand.curandGetScrambleConstants64(constants::Ptr{Ptr{Culonglong}})::curandStatus_t
 end
