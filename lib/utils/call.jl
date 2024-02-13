@@ -251,7 +251,7 @@ macro gcunsafe_callback(ex)
     gcunsafe_body = quote
         gc_state = @ccall(jl_gc_unsafe_enter()::Int8)
         try
-            $(ex)
+            $body
         finally
             @ccall(jl_gc_unsafe_leave(gc_state::Int8)::Cvoid)
         end
