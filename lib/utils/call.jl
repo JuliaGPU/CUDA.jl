@@ -1,6 +1,7 @@
 # utilities for calling foreign functionality more conveniently
 
-export @checked, with_workspace, with_workspaces, @debug_ccall, @gcsafe_ccall
+export @checked, with_workspace, with_workspaces,
+       @debug_ccall, @gcsafe_ccall, @gcunsafe_callback
 
 
 ## function wrapper for checking the return value of a function
@@ -166,10 +167,8 @@ render_arg(io, arg::Union{<:Base.RefValue, AbstractArray}) = summary(io, arg)
 # TODO: replace with JuliaLang/julia#49933 once merged
 
 # note that this is generally only safe with functions that do not call back into Julia.
-# when callbacks occur, the code should ensure the GC is not running:
-# - on 1.10 and later, everything is fine because of safepoint_on_entry
-# - on 1.9, @cfunction-based callbacks are fine because they transition to gc_unsafe
-# - on 1.8 and earlier, the code should explicitly call GC.safepoint()!
+# when callbacks occur, the code should ensure the GC is not running by wrapping the code
+# in the `@gcunsafe` macro
 
 function ccall_macro_lower(func, rettype, types, args, nreq)
     # instead of re-using ccall or Expr(:foreigncall) to perform argument conversion,
@@ -213,7 +212,50 @@ function ccall_macro_lower(func, rettype, types, args, nreq)
     end
 end
 
+"""
+    @gcsafe_ccall ...
+
+Call a foreign function just like `@ccall`, but marking it safe for the GC to run. This is
+useful for functions that may block, so that the GC isn't blocked from running, but may also
+be required to prevent deadlocks (see JuliaGPU/CUDA.jl#2261).
+
+Note that this is generally only safe with non-Julia C functions that do not call back into
+Julia. When using callbacks, the code should make sure to transition back into GC-unsafe
+mode using the `@gcunsafe` macro.
+"""
 macro gcsafe_ccall(expr)
     ccall_macro_lower(Base.ccall_macro_parse(expr)...)
 end
 
+"""
+    @gcunsafe_callback function callback(...)
+        ...
+    end
+
+Mark a callback function as unsafe for the GC to run. This is normally the default for
+Julia code, and is meant to be used in combination with `@gcsafe_ccall`.
+"""
+macro gcunsafe_callback(ex)
+    if VERSION >= v"1.9"
+        # on 1.9+, `@cfunction` already transitions to GC-unsafe mode
+        return esc(ex)
+    end
+
+    # parse the function definition
+    @assert Meta.isexpr(ex, :function)
+    sig = ex.args[1]
+    @assert Meta.isexpr(sig, :call)
+    body = ex.args[2]
+    @assert Meta.isexpr(body, :block)
+
+    gcunsafe_body = quote
+        gc_state = @ccall(jl_gc_unsafe_enter()::Int8)
+        try
+            $(ex)
+        finally
+            @ccall(jl_gc_unsafe_leave(gc_state::Int8)::Cvoid)
+        end
+    end
+
+    return esc(Expr(:function, sig, gcunsafe_body))
+end
