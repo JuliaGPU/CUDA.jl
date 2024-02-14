@@ -12,6 +12,13 @@ else
     import cuQuantum_jll
 end
 
+# XXX: cuStateVec depends on cuTENSOR 1, while GC-safe ccalls were introduced in CUDA 5.3
+#      which is only compatible with cuTENSOR 2. So disable that functionality for now.
+const var"@gcsafe_ccall" = var"@ccall"
+macro gcunsafe_callback(expr)
+    esc(expr)
+end
+
 
 export has_custatevec
 
@@ -87,7 +94,7 @@ end
 
 ## logging
 
-function log_message(log_level, function_name, message)
+@gcunsafe_callback function log_message(log_level, function_name, message)
     function_name = unsafe_string(function_name)
     message = unsafe_string(message)
     output = if isempty(message)

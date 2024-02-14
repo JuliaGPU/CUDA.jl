@@ -132,7 +132,12 @@ steps:
             println("--- :julia: Instantiating project")
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
               Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix.package}}")))
-              Pkg.instantiate()
+              try
+                Pkg.instantiate()
+              catch
+                # if we fail to instantiate, assume that we need a newer CUDA.jl
+                Pkg.develop(path=".")
+              end
 
               Pkg.add("CUDA_Runtime_jll")
               write("LocalPreferences.toml", "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"")

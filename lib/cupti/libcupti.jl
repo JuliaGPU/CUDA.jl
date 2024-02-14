@@ -85,18 +85,18 @@ end
 end
 
 @checked function cuptiGetResultString(result, str)
-    @ccall libcupti.cuptiGetResultString(result::CUptiResult,
-                                         str::Ptr{Cstring})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetResultString(result::CUptiResult,
+                                                str::Ptr{Cstring})::CUptiResult
 end
 
 @checked function cuptiGetErrorMessage(result, str)
     initialize_context()
-    @ccall libcupti.cuptiGetErrorMessage(result::CUptiResult,
-                                         str::Ptr{Cstring})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetErrorMessage(result::CUptiResult,
+                                                str::Ptr{Cstring})::CUptiResult
 end
 
 @checked function cuptiGetVersion(version)
-    @ccall libcupti.cuptiGetVersion(version::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetVersion(version::Ptr{UInt32})::CUptiResult
 end
 
 @cenum CUpti_ApiCallbackSite::UInt32 begin
@@ -281,53 +281,55 @@ const CUpti_DomainTable = Ptr{CUpti_CallbackDomain}
 
 @checked function cuptiSupportedDomains(domainCount, domainTable)
     initialize_context()
-    @ccall libcupti.cuptiSupportedDomains(domainCount::Ptr{Csize_t},
-                                          domainTable::Ptr{CUpti_DomainTable})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiSupportedDomains(domainCount::Ptr{Csize_t},
+                                                 domainTable::Ptr{CUpti_DomainTable})::CUptiResult
 end
 
 @checked function cuptiSubscribe(subscriber, callback, userdata)
     initialize_context()
-    @ccall libcupti.cuptiSubscribe(subscriber::Ptr{CUpti_SubscriberHandle},
-                                   callback::CUpti_CallbackFunc,
-                                   userdata::Ptr{Cvoid})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiSubscribe(subscriber::Ptr{CUpti_SubscriberHandle},
+                                          callback::CUpti_CallbackFunc,
+                                          userdata::Ptr{Cvoid})::CUptiResult
 end
 
 @checked function cuptiUnsubscribe(subscriber)
     initialize_context()
-    @ccall libcupti.cuptiUnsubscribe(subscriber::CUpti_SubscriberHandle)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiUnsubscribe(subscriber::CUpti_SubscriberHandle)::CUptiResult
 end
 
 @checked function cuptiGetCallbackState(enable, subscriber, domain, cbid)
     initialize_context()
-    @ccall libcupti.cuptiGetCallbackState(enable::Ptr{UInt32},
-                                          subscriber::CUpti_SubscriberHandle,
-                                          domain::CUpti_CallbackDomain,
-                                          cbid::CUpti_CallbackId)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetCallbackState(enable::Ptr{UInt32},
+                                                 subscriber::CUpti_SubscriberHandle,
+                                                 domain::CUpti_CallbackDomain,
+                                                 cbid::CUpti_CallbackId)::CUptiResult
 end
 
 @checked function cuptiEnableCallback(enable, subscriber, domain, cbid)
     initialize_context()
-    @ccall libcupti.cuptiEnableCallback(enable::UInt32, subscriber::CUpti_SubscriberHandle,
-                                        domain::CUpti_CallbackDomain,
-                                        cbid::CUpti_CallbackId)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEnableCallback(enable::UInt32,
+                                               subscriber::CUpti_SubscriberHandle,
+                                               domain::CUpti_CallbackDomain,
+                                               cbid::CUpti_CallbackId)::CUptiResult
 end
 
 @checked function cuptiEnableDomain(enable, subscriber, domain)
     initialize_context()
-    @ccall libcupti.cuptiEnableDomain(enable::UInt32, subscriber::CUpti_SubscriberHandle,
-                                      domain::CUpti_CallbackDomain)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEnableDomain(enable::UInt32,
+                                             subscriber::CUpti_SubscriberHandle,
+                                             domain::CUpti_CallbackDomain)::CUptiResult
 end
 
 @checked function cuptiEnableAllDomains(enable, subscriber)
     initialize_context()
-    @ccall libcupti.cuptiEnableAllDomains(enable::UInt32,
-                                          subscriber::CUpti_SubscriberHandle)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEnableAllDomains(enable::UInt32,
+                                                 subscriber::CUpti_SubscriberHandle)::CUptiResult
 end
 
 @checked function cuptiGetCallbackName(domain, cbid, name)
     initialize_context()
-    @ccall libcupti.cuptiGetCallbackName(domain::CUpti_CallbackDomain, cbid::UInt32,
-                                         name::Ptr{Cstring})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetCallbackName(domain::CUpti_CallbackDomain, cbid::UInt32,
+                                                name::Ptr{Cstring})::CUptiResult
 end
 
 const CUpti_EventID = UInt32
@@ -442,201 +444,202 @@ end
 
 @checked function cuptiSetEventCollectionMode(context, mode)
     initialize_context()
-    @ccall libcupti.cuptiSetEventCollectionMode(context::CUcontext,
-                                                mode::CUpti_EventCollectionMode)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiSetEventCollectionMode(context::CUcontext,
+                                                       mode::CUpti_EventCollectionMode)::CUptiResult
 end
 
 @checked function cuptiDeviceGetAttribute(device, attrib, valueSize, value)
     initialize_context()
-    @ccall libcupti.cuptiDeviceGetAttribute(device::CUdevice, attrib::CUpti_DeviceAttribute,
-                                            valueSize::Ptr{Csize_t},
-                                            value::Ptr{Cvoid})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiDeviceGetAttribute(device::CUdevice,
+                                                   attrib::CUpti_DeviceAttribute,
+                                                   valueSize::Ptr{Csize_t},
+                                                   value::Ptr{Cvoid})::CUptiResult
 end
 
 @checked function cuptiDeviceGetNumEventDomains(device, numDomains)
     initialize_context()
-    @ccall libcupti.cuptiDeviceGetNumEventDomains(device::CUdevice,
-                                                  numDomains::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiDeviceGetNumEventDomains(device::CUdevice,
+                                                         numDomains::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiDeviceEnumEventDomains(device, arraySizeBytes, domainArray)
     initialize_context()
-    @ccall libcupti.cuptiDeviceEnumEventDomains(device::CUdevice,
-                                                arraySizeBytes::Ptr{Csize_t},
-                                                domainArray::Ptr{CUpti_EventDomainID})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiDeviceEnumEventDomains(device::CUdevice,
+                                                       arraySizeBytes::Ptr{Csize_t},
+                                                       domainArray::Ptr{CUpti_EventDomainID})::CUptiResult
 end
 
 @checked function cuptiDeviceGetEventDomainAttribute(device, eventDomain, attrib, valueSize,
                                                      value)
     initialize_context()
-    @ccall libcupti.cuptiDeviceGetEventDomainAttribute(device::CUdevice,
-                                                       eventDomain::CUpti_EventDomainID,
-                                                       attrib::CUpti_EventDomainAttribute,
-                                                       valueSize::Ptr{Csize_t},
-                                                       value::Ptr{Cvoid})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiDeviceGetEventDomainAttribute(device::CUdevice,
+                                                              eventDomain::CUpti_EventDomainID,
+                                                              attrib::CUpti_EventDomainAttribute,
+                                                              valueSize::Ptr{Csize_t},
+                                                              value::Ptr{Cvoid})::CUptiResult
 end
 
 @checked function cuptiGetNumEventDomains(numDomains)
     initialize_context()
-    @ccall libcupti.cuptiGetNumEventDomains(numDomains::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetNumEventDomains(numDomains::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiEnumEventDomains(arraySizeBytes, domainArray)
     initialize_context()
-    @ccall libcupti.cuptiEnumEventDomains(arraySizeBytes::Ptr{Csize_t},
-                                          domainArray::Ptr{CUpti_EventDomainID})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEnumEventDomains(arraySizeBytes::Ptr{Csize_t},
+                                                 domainArray::Ptr{CUpti_EventDomainID})::CUptiResult
 end
 
 @checked function cuptiEventDomainGetAttribute(eventDomain, attrib, valueSize, value)
     initialize_context()
-    @ccall libcupti.cuptiEventDomainGetAttribute(eventDomain::CUpti_EventDomainID,
-                                                 attrib::CUpti_EventDomainAttribute,
-                                                 valueSize::Ptr{Csize_t},
-                                                 value::Ptr{Cvoid})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventDomainGetAttribute(eventDomain::CUpti_EventDomainID,
+                                                        attrib::CUpti_EventDomainAttribute,
+                                                        valueSize::Ptr{Csize_t},
+                                                        value::Ptr{Cvoid})::CUptiResult
 end
 
 @checked function cuptiEventDomainGetNumEvents(eventDomain, numEvents)
     initialize_context()
-    @ccall libcupti.cuptiEventDomainGetNumEvents(eventDomain::CUpti_EventDomainID,
-                                                 numEvents::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventDomainGetNumEvents(eventDomain::CUpti_EventDomainID,
+                                                        numEvents::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiEventDomainEnumEvents(eventDomain, arraySizeBytes, eventArray)
     initialize_context()
-    @ccall libcupti.cuptiEventDomainEnumEvents(eventDomain::CUpti_EventDomainID,
-                                               arraySizeBytes::Ptr{Csize_t},
-                                               eventArray::Ptr{CUpti_EventID})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventDomainEnumEvents(eventDomain::CUpti_EventDomainID,
+                                                      arraySizeBytes::Ptr{Csize_t},
+                                                      eventArray::Ptr{CUpti_EventID})::CUptiResult
 end
 
 @checked function cuptiEventGetAttribute(event, attrib, valueSize, value)
     initialize_context()
-    @ccall libcupti.cuptiEventGetAttribute(event::CUpti_EventID,
-                                           attrib::CUpti_EventAttribute,
-                                           valueSize::Ptr{Csize_t},
-                                           value::Ptr{Cvoid})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGetAttribute(event::CUpti_EventID,
+                                                  attrib::CUpti_EventAttribute,
+                                                  valueSize::Ptr{Csize_t},
+                                                  value::Ptr{Cvoid})::CUptiResult
 end
 
 @checked function cuptiEventGetIdFromName(device, eventName, event)
     initialize_context()
-    @ccall libcupti.cuptiEventGetIdFromName(device::CUdevice, eventName::Cstring,
-                                            event::Ptr{CUpti_EventID})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGetIdFromName(device::CUdevice, eventName::Cstring,
+                                                   event::Ptr{CUpti_EventID})::CUptiResult
 end
 
 @checked function cuptiEventGroupCreate(context, eventGroup, flags)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupCreate(context::CUcontext,
-                                          eventGroup::Ptr{CUpti_EventGroup},
-                                          flags::UInt32)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupCreate(context::CUcontext,
+                                                 eventGroup::Ptr{CUpti_EventGroup},
+                                                 flags::UInt32)::CUptiResult
 end
 
 @checked function cuptiEventGroupDestroy(eventGroup)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupDestroy(eventGroup::CUpti_EventGroup)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupDestroy(eventGroup::CUpti_EventGroup)::CUptiResult
 end
 
 @checked function cuptiEventGroupGetAttribute(eventGroup, attrib, valueSize, value)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupGetAttribute(eventGroup::CUpti_EventGroup,
-                                                attrib::CUpti_EventGroupAttribute,
-                                                valueSize::Ptr{Csize_t},
-                                                value::Ptr{Cvoid})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupGetAttribute(eventGroup::CUpti_EventGroup,
+                                                       attrib::CUpti_EventGroupAttribute,
+                                                       valueSize::Ptr{Csize_t},
+                                                       value::Ptr{Cvoid})::CUptiResult
 end
 
 @checked function cuptiEventGroupSetAttribute(eventGroup, attrib, valueSize, value)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupSetAttribute(eventGroup::CUpti_EventGroup,
-                                                attrib::CUpti_EventGroupAttribute,
-                                                valueSize::Csize_t,
-                                                value::Ptr{Cvoid})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupSetAttribute(eventGroup::CUpti_EventGroup,
+                                                       attrib::CUpti_EventGroupAttribute,
+                                                       valueSize::Csize_t,
+                                                       value::Ptr{Cvoid})::CUptiResult
 end
 
 @checked function cuptiEventGroupAddEvent(eventGroup, event)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupAddEvent(eventGroup::CUpti_EventGroup,
-                                            event::CUpti_EventID)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupAddEvent(eventGroup::CUpti_EventGroup,
+                                                   event::CUpti_EventID)::CUptiResult
 end
 
 @checked function cuptiEventGroupRemoveEvent(eventGroup, event)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupRemoveEvent(eventGroup::CUpti_EventGroup,
-                                               event::CUpti_EventID)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupRemoveEvent(eventGroup::CUpti_EventGroup,
+                                                      event::CUpti_EventID)::CUptiResult
 end
 
 @checked function cuptiEventGroupRemoveAllEvents(eventGroup)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupRemoveAllEvents(eventGroup::CUpti_EventGroup)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupRemoveAllEvents(eventGroup::CUpti_EventGroup)::CUptiResult
 end
 
 @checked function cuptiEventGroupResetAllEvents(eventGroup)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupResetAllEvents(eventGroup::CUpti_EventGroup)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupResetAllEvents(eventGroup::CUpti_EventGroup)::CUptiResult
 end
 
 @checked function cuptiEventGroupEnable(eventGroup)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupEnable(eventGroup::CUpti_EventGroup)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupEnable(eventGroup::CUpti_EventGroup)::CUptiResult
 end
 
 @checked function cuptiEventGroupDisable(eventGroup)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupDisable(eventGroup::CUpti_EventGroup)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupDisable(eventGroup::CUpti_EventGroup)::CUptiResult
 end
 
 @checked function cuptiEventGroupReadEvent(eventGroup, flags, event,
                                            eventValueBufferSizeBytes, eventValueBuffer)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupReadEvent(eventGroup::CUpti_EventGroup,
-                                             flags::CUpti_ReadEventFlags,
-                                             event::CUpti_EventID,
-                                             eventValueBufferSizeBytes::Ptr{Csize_t},
-                                             eventValueBuffer::Ptr{UInt64})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupReadEvent(eventGroup::CUpti_EventGroup,
+                                                    flags::CUpti_ReadEventFlags,
+                                                    event::CUpti_EventID,
+                                                    eventValueBufferSizeBytes::Ptr{Csize_t},
+                                                    eventValueBuffer::Ptr{UInt64})::CUptiResult
 end
 
 @checked function cuptiEventGroupReadAllEvents(eventGroup, flags, eventValueBufferSizeBytes,
                                                eventValueBuffer, eventIdArraySizeBytes,
                                                eventIdArray, numEventIdsRead)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupReadAllEvents(eventGroup::CUpti_EventGroup,
-                                                 flags::CUpti_ReadEventFlags,
-                                                 eventValueBufferSizeBytes::Ptr{Csize_t},
-                                                 eventValueBuffer::Ptr{UInt64},
-                                                 eventIdArraySizeBytes::Ptr{Csize_t},
-                                                 eventIdArray::Ptr{CUpti_EventID},
-                                                 numEventIdsRead::Ptr{Csize_t})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupReadAllEvents(eventGroup::CUpti_EventGroup,
+                                                        flags::CUpti_ReadEventFlags,
+                                                        eventValueBufferSizeBytes::Ptr{Csize_t},
+                                                        eventValueBuffer::Ptr{UInt64},
+                                                        eventIdArraySizeBytes::Ptr{Csize_t},
+                                                        eventIdArray::Ptr{CUpti_EventID},
+                                                        numEventIdsRead::Ptr{Csize_t})::CUptiResult
 end
 
 @checked function cuptiEventGroupSetsCreate(context, eventIdArraySizeBytes, eventIdArray,
                                             eventGroupPasses)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupSetsCreate(context::CUcontext,
-                                              eventIdArraySizeBytes::Csize_t,
-                                              eventIdArray::Ptr{CUpti_EventID},
-                                              eventGroupPasses::Ptr{Ptr{CUpti_EventGroupSets}})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupSetsCreate(context::CUcontext,
+                                                     eventIdArraySizeBytes::Csize_t,
+                                                     eventIdArray::Ptr{CUpti_EventID},
+                                                     eventGroupPasses::Ptr{Ptr{CUpti_EventGroupSets}})::CUptiResult
 end
 
 @checked function cuptiEventGroupSetsDestroy(eventGroupSets)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupSetsDestroy(eventGroupSets::Ptr{CUpti_EventGroupSets})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupSetsDestroy(eventGroupSets::Ptr{CUpti_EventGroupSets})::CUptiResult
 end
 
 @checked function cuptiEventGroupSetEnable(eventGroupSet)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupSetEnable(eventGroupSet::Ptr{CUpti_EventGroupSet})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupSetEnable(eventGroupSet::Ptr{CUpti_EventGroupSet})::CUptiResult
 end
 
 @checked function cuptiEventGroupSetDisable(eventGroupSet)
     initialize_context()
-    @ccall libcupti.cuptiEventGroupSetDisable(eventGroupSet::Ptr{CUpti_EventGroupSet})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEventGroupSetDisable(eventGroupSet::Ptr{CUpti_EventGroupSet})::CUptiResult
 end
 
 @checked function cuptiEnableKernelReplayMode(context)
     initialize_context()
-    @ccall libcupti.cuptiEnableKernelReplayMode(context::CUcontext)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEnableKernelReplayMode(context::CUcontext)::CUptiResult
 end
 
 @checked function cuptiDisableKernelReplayMode(context)
     initialize_context()
-    @ccall libcupti.cuptiDisableKernelReplayMode(context::CUcontext)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiDisableKernelReplayMode(context::CUcontext)::CUptiResult
 end
 
 # typedef void ( CUPTIAPI * CUpti_KernelReplayUpdateFunc ) ( const char * kernelName , int numReplaysDone , void * customData )
@@ -644,8 +647,8 @@ const CUpti_KernelReplayUpdateFunc = Ptr{Cvoid}
 
 @checked function cuptiKernelReplaySubscribeUpdate(updateFunc, customData)
     initialize_context()
-    @ccall libcupti.cuptiKernelReplaySubscribeUpdate(updateFunc::CUpti_KernelReplayUpdateFunc,
-                                                     customData::Ptr{Cvoid})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiKernelReplaySubscribeUpdate(updateFunc::CUpti_KernelReplayUpdateFunc,
+                                                            customData::Ptr{Cvoid})::CUptiResult
 end
 
 const CUpti_MetricID = UInt32
@@ -750,93 +753,95 @@ end
 
 @checked function cuptiGetNumMetrics(numMetrics)
     initialize_context()
-    @ccall libcupti.cuptiGetNumMetrics(numMetrics::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetNumMetrics(numMetrics::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiEnumMetrics(arraySizeBytes, metricArray)
     initialize_context()
-    @ccall libcupti.cuptiEnumMetrics(arraySizeBytes::Ptr{Csize_t},
-                                     metricArray::Ptr{CUpti_MetricID})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiEnumMetrics(arraySizeBytes::Ptr{Csize_t},
+                                            metricArray::Ptr{CUpti_MetricID})::CUptiResult
 end
 
 @checked function cuptiDeviceGetNumMetrics(device, numMetrics)
     initialize_context()
-    @ccall libcupti.cuptiDeviceGetNumMetrics(device::CUdevice,
-                                             numMetrics::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiDeviceGetNumMetrics(device::CUdevice,
+                                                    numMetrics::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiDeviceEnumMetrics(device, arraySizeBytes, metricArray)
     initialize_context()
-    @ccall libcupti.cuptiDeviceEnumMetrics(device::CUdevice, arraySizeBytes::Ptr{Csize_t},
-                                           metricArray::Ptr{CUpti_MetricID})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiDeviceEnumMetrics(device::CUdevice,
+                                                  arraySizeBytes::Ptr{Csize_t},
+                                                  metricArray::Ptr{CUpti_MetricID})::CUptiResult
 end
 
 @checked function cuptiMetricGetAttribute(metric, attrib, valueSize, value)
     initialize_context()
-    @ccall libcupti.cuptiMetricGetAttribute(metric::CUpti_MetricID,
-                                            attrib::CUpti_MetricAttribute,
-                                            valueSize::Ptr{Csize_t},
-                                            value::Ptr{Cvoid})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiMetricGetAttribute(metric::CUpti_MetricID,
+                                                   attrib::CUpti_MetricAttribute,
+                                                   valueSize::Ptr{Csize_t},
+                                                   value::Ptr{Cvoid})::CUptiResult
 end
 
 @checked function cuptiMetricGetIdFromName(device, metricName, metric)
     initialize_context()
-    @ccall libcupti.cuptiMetricGetIdFromName(device::CUdevice, metricName::Cstring,
-                                             metric::Ptr{CUpti_MetricID})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiMetricGetIdFromName(device::CUdevice, metricName::Cstring,
+                                                    metric::Ptr{CUpti_MetricID})::CUptiResult
 end
 
 @checked function cuptiMetricGetNumEvents(metric, numEvents)
     initialize_context()
-    @ccall libcupti.cuptiMetricGetNumEvents(metric::CUpti_MetricID,
-                                            numEvents::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiMetricGetNumEvents(metric::CUpti_MetricID,
+                                                   numEvents::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiMetricEnumEvents(metric, eventIdArraySizeBytes, eventIdArray)
     initialize_context()
-    @ccall libcupti.cuptiMetricEnumEvents(metric::CUpti_MetricID,
-                                          eventIdArraySizeBytes::Ptr{Csize_t},
-                                          eventIdArray::Ptr{CUpti_EventID})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiMetricEnumEvents(metric::CUpti_MetricID,
+                                                 eventIdArraySizeBytes::Ptr{Csize_t},
+                                                 eventIdArray::Ptr{CUpti_EventID})::CUptiResult
 end
 
 @checked function cuptiMetricGetNumProperties(metric, numProp)
     initialize_context()
-    @ccall libcupti.cuptiMetricGetNumProperties(metric::CUpti_MetricID,
-                                                numProp::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiMetricGetNumProperties(metric::CUpti_MetricID,
+                                                       numProp::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiMetricEnumProperties(metric, propIdArraySizeBytes, propIdArray)
     initialize_context()
-    @ccall libcupti.cuptiMetricEnumProperties(metric::CUpti_MetricID,
-                                              propIdArraySizeBytes::Ptr{Csize_t},
-                                              propIdArray::Ptr{CUpti_MetricPropertyID})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiMetricEnumProperties(metric::CUpti_MetricID,
+                                                     propIdArraySizeBytes::Ptr{Csize_t},
+                                                     propIdArray::Ptr{CUpti_MetricPropertyID})::CUptiResult
 end
 
 @checked function cuptiMetricGetRequiredEventGroupSets(context, metric, eventGroupSets)
     initialize_context()
-    @ccall libcupti.cuptiMetricGetRequiredEventGroupSets(context::CUcontext,
-                                                         metric::CUpti_MetricID,
-                                                         eventGroupSets::Ptr{Ptr{CUpti_EventGroupSets}})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiMetricGetRequiredEventGroupSets(context::CUcontext,
+                                                                metric::CUpti_MetricID,
+                                                                eventGroupSets::Ptr{Ptr{CUpti_EventGroupSets}})::CUptiResult
 end
 
 @checked function cuptiMetricCreateEventGroupSets(context, metricIdArraySizeBytes,
                                                   metricIdArray, eventGroupPasses)
     initialize_context()
-    @ccall libcupti.cuptiMetricCreateEventGroupSets(context::CUcontext,
-                                                    metricIdArraySizeBytes::Csize_t,
-                                                    metricIdArray::Ptr{CUpti_MetricID},
-                                                    eventGroupPasses::Ptr{Ptr{CUpti_EventGroupSets}})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiMetricCreateEventGroupSets(context::CUcontext,
+                                                           metricIdArraySizeBytes::Csize_t,
+                                                           metricIdArray::Ptr{CUpti_MetricID},
+                                                           eventGroupPasses::Ptr{Ptr{CUpti_EventGroupSets}})::CUptiResult
 end
 
 @checked function cuptiMetricGetValue(device, metric, eventIdArraySizeBytes, eventIdArray,
                                       eventValueArraySizeBytes, eventValueArray,
                                       timeDuration, metricValue)
     initialize_context()
-    @ccall libcupti.cuptiMetricGetValue(device::CUdevice, metric::CUpti_MetricID,
-                                        eventIdArraySizeBytes::Csize_t,
-                                        eventIdArray::Ptr{CUpti_EventID},
-                                        eventValueArraySizeBytes::Csize_t,
-                                        eventValueArray::Ptr{UInt64}, timeDuration::UInt64,
-                                        metricValue::Ptr{CUpti_MetricValue})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiMetricGetValue(device::CUdevice, metric::CUpti_MetricID,
+                                               eventIdArraySizeBytes::Csize_t,
+                                               eventIdArray::Ptr{CUpti_EventID},
+                                               eventValueArraySizeBytes::Csize_t,
+                                               eventValueArray::Ptr{UInt64},
+                                               timeDuration::UInt64,
+                                               metricValue::Ptr{CUpti_MetricValue})::CUptiResult
 end
 
 @checked function cuptiMetricGetValue2(metric, eventIdArraySizeBytes, eventIdArray,
@@ -844,16 +849,16 @@ end
                                        propIdArraySizeBytes, propIdArray,
                                        propValueArraySizeBytes, propValueArray, metricValue)
     initialize_context()
-    @ccall libcupti.cuptiMetricGetValue2(metric::CUpti_MetricID,
-                                         eventIdArraySizeBytes::Csize_t,
-                                         eventIdArray::Ptr{CUpti_EventID},
-                                         eventValueArraySizeBytes::Csize_t,
-                                         eventValueArray::Ptr{UInt64},
-                                         propIdArraySizeBytes::Csize_t,
-                                         propIdArray::Ptr{CUpti_MetricPropertyID},
-                                         propValueArraySizeBytes::Csize_t,
-                                         propValueArray::Ptr{UInt64},
-                                         metricValue::Ptr{CUpti_MetricValue})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiMetricGetValue2(metric::CUpti_MetricID,
+                                                eventIdArraySizeBytes::Csize_t,
+                                                eventIdArray::Ptr{CUpti_EventID},
+                                                eventValueArraySizeBytes::Csize_t,
+                                                eventValueArray::Ptr{UInt64},
+                                                propIdArraySizeBytes::Csize_t,
+                                                propIdArray::Ptr{CUpti_MetricPropertyID},
+                                                propValueArraySizeBytes::Csize_t,
+                                                propValueArray::Ptr{UInt64},
+                                                metricValue::Ptr{CUpti_MetricValue})::CUptiResult
 end
 
 @cenum CUpti_ActivityKind::UInt32 begin
@@ -2470,87 +2475,90 @@ end
 
 @checked function cuptiGetTimestamp(timestamp)
     initialize_context()
-    @ccall libcupti.cuptiGetTimestamp(timestamp::Ptr{UInt64})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetTimestamp(timestamp::Ptr{UInt64})::CUptiResult
 end
 
 @checked function cuptiGetContextId(context, contextId)
     initialize_context()
-    @ccall libcupti.cuptiGetContextId(context::CUcontext,
-                                      contextId::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetContextId(context::CUcontext,
+                                             contextId::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiGetStreamId(context, stream, streamId)
     initialize_context()
-    @ccall libcupti.cuptiGetStreamId(context::CUcontext, stream::CUstream,
-                                     streamId::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetStreamId(context::CUcontext, stream::CUstream,
+                                            streamId::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiGetStreamIdEx(context, stream, perThreadStream, streamId)
     initialize_context()
-    @ccall libcupti.cuptiGetStreamIdEx(context::CUcontext, stream::CUstream,
-                                       perThreadStream::UInt8,
-                                       streamId::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetStreamIdEx(context::CUcontext, stream::CUstream,
+                                              perThreadStream::UInt8,
+                                              streamId::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiGetDeviceId(context, deviceId)
     initialize_context()
-    @ccall libcupti.cuptiGetDeviceId(context::CUcontext, deviceId::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetDeviceId(context::CUcontext,
+                                            deviceId::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiGetGraphNodeId(node, nodeId)
     initialize_context()
-    @ccall libcupti.cuptiGetGraphNodeId(node::CUgraphNode, nodeId::Ptr{UInt64})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetGraphNodeId(node::CUgraphNode,
+                                               nodeId::Ptr{UInt64})::CUptiResult
 end
 
 @checked function cuptiGetGraphId(graph, pId)
     initialize_context()
-    @ccall libcupti.cuptiGetGraphId(graph::CUgraph, pId::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetGraphId(graph::CUgraph, pId::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiGetGraphExecId(graphExec, pId)
     initialize_context()
-    @ccall libcupti.cuptiGetGraphExecId(graphExec::CUgraphExec,
-                                        pId::Ptr{UInt32})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetGraphExecId(graphExec::CUgraphExec,
+                                               pId::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiActivityEnable(kind)
     initialize_context()
-    @ccall libcupti.cuptiActivityEnable(kind::CUpti_ActivityKind)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityEnable(kind::CUpti_ActivityKind)::CUptiResult
 end
 
 @checked function cuptiActivityEnableAndDump(kind)
     initialize_context()
-    @ccall libcupti.cuptiActivityEnableAndDump(kind::CUpti_ActivityKind)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityEnableAndDump(kind::CUpti_ActivityKind)::CUptiResult
 end
 
 @checked function cuptiActivityDisable(kind)
     initialize_context()
-    @ccall libcupti.cuptiActivityDisable(kind::CUpti_ActivityKind)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityDisable(kind::CUpti_ActivityKind)::CUptiResult
 end
 
 @checked function cuptiActivityEnableContext(context, kind)
     initialize_context()
-    @ccall libcupti.cuptiActivityEnableContext(context::CUcontext,
-                                               kind::CUpti_ActivityKind)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityEnableContext(context::CUcontext,
+                                                      kind::CUpti_ActivityKind)::CUptiResult
 end
 
 @checked function cuptiActivityDisableContext(context, kind)
     initialize_context()
-    @ccall libcupti.cuptiActivityDisableContext(context::CUcontext,
-                                                kind::CUpti_ActivityKind)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityDisableContext(context::CUcontext,
+                                                       kind::CUpti_ActivityKind)::CUptiResult
 end
 
 @checked function cuptiActivityGetNumDroppedRecords(context, streamId, dropped)
     initialize_context()
-    @ccall libcupti.cuptiActivityGetNumDroppedRecords(context::CUcontext, streamId::UInt32,
-                                                      dropped::Ptr{Csize_t})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityGetNumDroppedRecords(context::CUcontext,
+                                                             streamId::UInt32,
+                                                             dropped::Ptr{Csize_t})::CUptiResult
 end
 
 @checked function cuptiActivityGetNextRecord(buffer, validBufferSizeBytes, record)
     initialize_context()
-    @ccall libcupti.cuptiActivityGetNextRecord(buffer::Ptr{UInt8},
-                                               validBufferSizeBytes::Csize_t,
-                                               record::Ptr{Ptr{CUpti_Activity}})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityGetNextRecord(buffer::Ptr{UInt8},
+                                                      validBufferSizeBytes::Csize_t,
+                                                      record::Ptr{Ptr{CUpti_Activity}})::CUptiResult
 end
 
 # typedef void ( CUPTIAPI * CUpti_BuffersCallbackRequestFunc ) ( uint8_t * * buffer , size_t * size , size_t * maxNumRecords )
@@ -2561,77 +2569,78 @@ const CUpti_BuffersCallbackCompleteFunc = Ptr{Cvoid}
 
 @checked function cuptiActivityRegisterCallbacks(funcBufferRequested, funcBufferCompleted)
     initialize_context()
-    @ccall libcupti.cuptiActivityRegisterCallbacks(funcBufferRequested::CUpti_BuffersCallbackRequestFunc,
-                                                   funcBufferCompleted::CUpti_BuffersCallbackCompleteFunc)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityRegisterCallbacks(funcBufferRequested::CUpti_BuffersCallbackRequestFunc,
+                                                          funcBufferCompleted::CUpti_BuffersCallbackCompleteFunc)::CUptiResult
 end
 
 @checked function cuptiActivityFlush(context, streamId, flag)
     initialize_context()
-    @ccall libcupti.cuptiActivityFlush(context::CUcontext, streamId::UInt32,
-                                       flag::UInt32)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityFlush(context::CUcontext, streamId::UInt32,
+                                              flag::UInt32)::CUptiResult
 end
 
 @checked function cuptiActivityFlushAll(flag)
     initialize_context()
-    @ccall libcupti.cuptiActivityFlushAll(flag::UInt32)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityFlushAll(flag::UInt32)::CUptiResult
 end
 
 @checked function cuptiActivityGetAttribute(attr, valueSize, value)
     initialize_context()
-    @ccall libcupti.cuptiActivityGetAttribute(attr::CUpti_ActivityAttribute,
-                                              valueSize::Ptr{Csize_t},
-                                              value::Ptr{Cvoid})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityGetAttribute(attr::CUpti_ActivityAttribute,
+                                                     valueSize::Ptr{Csize_t},
+                                                     value::Ptr{Cvoid})::CUptiResult
 end
 
 @checked function cuptiActivitySetAttribute(attr, valueSize, value)
     initialize_context()
-    @ccall libcupti.cuptiActivitySetAttribute(attr::CUpti_ActivityAttribute,
-                                              valueSize::Ptr{Csize_t},
-                                              value::Ptr{Cvoid})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivitySetAttribute(attr::CUpti_ActivityAttribute,
+                                                     valueSize::Ptr{Csize_t},
+                                                     value::Ptr{Cvoid})::CUptiResult
 end
 
 @checked function cuptiActivityConfigureUnifiedMemoryCounter(config, count)
     initialize_context()
-    @ccall libcupti.cuptiActivityConfigureUnifiedMemoryCounter(config::Ptr{CUpti_ActivityUnifiedMemoryCounterConfig},
-                                                               count::UInt32)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityConfigureUnifiedMemoryCounter(config::Ptr{CUpti_ActivityUnifiedMemoryCounterConfig},
+                                                                      count::UInt32)::CUptiResult
 end
 
 @checked function cuptiGetAutoBoostState(context, state)
     initialize_context()
-    @ccall libcupti.cuptiGetAutoBoostState(context::CUcontext,
-                                           state::Ptr{CUpti_ActivityAutoBoostState})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetAutoBoostState(context::CUcontext,
+                                                  state::Ptr{CUpti_ActivityAutoBoostState})::CUptiResult
 end
 
 @checked function cuptiActivityConfigurePCSampling(ctx, config)
     initialize_context()
-    @ccall libcupti.cuptiActivityConfigurePCSampling(ctx::CUcontext,
-                                                     config::Ptr{CUpti_ActivityPCSamplingConfig})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityConfigurePCSampling(ctx::CUcontext,
+                                                            config::Ptr{CUpti_ActivityPCSamplingConfig})::CUptiResult
 end
 
 @checked function cuptiGetLastError()
     initialize_context()
-    @ccall libcupti.cuptiGetLastError()::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetLastError()::CUptiResult
 end
 
 @checked function cuptiSetThreadIdType(type)
     initialize_context()
-    @ccall libcupti.cuptiSetThreadIdType(type::CUpti_ActivityThreadIdType)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiSetThreadIdType(type::CUpti_ActivityThreadIdType)::CUptiResult
 end
 
 @checked function cuptiGetThreadIdType(type)
     initialize_context()
-    @ccall libcupti.cuptiGetThreadIdType(type::Ptr{CUpti_ActivityThreadIdType})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiGetThreadIdType(type::Ptr{CUpti_ActivityThreadIdType})::CUptiResult
 end
 
 @checked function cuptiComputeCapabilitySupported(major, minor, support)
     initialize_context()
-    @ccall libcupti.cuptiComputeCapabilitySupported(major::Cint, minor::Cint,
-                                                    support::Ptr{Cint})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiComputeCapabilitySupported(major::Cint, minor::Cint,
+                                                           support::Ptr{Cint})::CUptiResult
 end
 
 @checked function cuptiDeviceSupported(dev, support)
     initialize_context()
-    @ccall libcupti.cuptiDeviceSupported(dev::CUdevice, support::Ptr{Cint})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiDeviceSupported(dev::CUdevice,
+                                                support::Ptr{Cint})::CUptiResult
 end
 
 @cenum CUpti_DeviceVirtualizationMode::UInt32 begin
@@ -2643,40 +2652,40 @@ end
 
 @checked function cuptiDeviceVirtualizationMode(dev, mode)
     initialize_context()
-    @ccall libcupti.cuptiDeviceVirtualizationMode(dev::CUdevice,
-                                                  mode::Ptr{CUpti_DeviceVirtualizationMode})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiDeviceVirtualizationMode(dev::CUdevice,
+                                                         mode::Ptr{CUpti_DeviceVirtualizationMode})::CUptiResult
 end
 
 @checked function cuptiFinalize()
     initialize_context()
-    @ccall libcupti.cuptiFinalize()::CUptiResult
+    @gcsafe_ccall libcupti.cuptiFinalize()::CUptiResult
 end
 
 @checked function cuptiActivityPushExternalCorrelationId(kind, id)
     initialize_context()
-    @ccall libcupti.cuptiActivityPushExternalCorrelationId(kind::CUpti_ExternalCorrelationKind,
-                                                           id::UInt64)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityPushExternalCorrelationId(kind::CUpti_ExternalCorrelationKind,
+                                                                  id::UInt64)::CUptiResult
 end
 
 @checked function cuptiActivityPopExternalCorrelationId(kind, lastId)
     initialize_context()
-    @ccall libcupti.cuptiActivityPopExternalCorrelationId(kind::CUpti_ExternalCorrelationKind,
-                                                          lastId::Ptr{UInt64})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityPopExternalCorrelationId(kind::CUpti_ExternalCorrelationKind,
+                                                                 lastId::Ptr{UInt64})::CUptiResult
 end
 
 @checked function cuptiActivityEnableLatencyTimestamps(enable)
     initialize_context()
-    @ccall libcupti.cuptiActivityEnableLatencyTimestamps(enable::UInt8)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityEnableLatencyTimestamps(enable::UInt8)::CUptiResult
 end
 
 @checked function cuptiActivityFlushPeriod(time)
     initialize_context()
-    @ccall libcupti.cuptiActivityFlushPeriod(time::UInt32)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityFlushPeriod(time::UInt32)::CUptiResult
 end
 
 @checked function cuptiActivityEnableLaunchAttributes(enable)
     initialize_context()
-    @ccall libcupti.cuptiActivityEnableLaunchAttributes(enable::UInt8)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityEnableLaunchAttributes(enable::UInt8)::CUptiResult
 end
 
 # typedef uint64_t ( CUPTIAPI * CUpti_TimestampCallbackFunc ) ( void )
@@ -2684,12 +2693,12 @@ const CUpti_TimestampCallbackFunc = Ptr{Cvoid}
 
 @checked function cuptiActivityRegisterTimestampCallback(funcTimestamp)
     initialize_context()
-    @ccall libcupti.cuptiActivityRegisterTimestampCallback(funcTimestamp::CUpti_TimestampCallbackFunc)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityRegisterTimestampCallback(funcTimestamp::CUpti_TimestampCallbackFunc)::CUptiResult
 end
 
 @checked function cuptiActivityEnableDeviceGraph(enable)
     initialize_context()
-    @ccall libcupti.cuptiActivityEnableDeviceGraph(enable::UInt8)::CUptiResult
+    @gcsafe_ccall libcupti.cuptiActivityEnableDeviceGraph(enable::UInt8)::CUptiResult
 end
 
 struct CUpti_ActivityOverhead
@@ -5450,102 +5459,102 @@ end
 
 @checked function cuptiProfilerInitialize(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerInitialize(pParams::Ptr{CUpti_Profiler_Initialize_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerInitialize(pParams::Ptr{CUpti_Profiler_Initialize_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerDeInitialize(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerDeInitialize(pParams::Ptr{CUpti_Profiler_DeInitialize_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerDeInitialize(pParams::Ptr{CUpti_Profiler_DeInitialize_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerCounterDataImageCalculateSize(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerCounterDataImageCalculateSize(pParams::Ptr{CUpti_Profiler_CounterDataImage_CalculateSize_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerCounterDataImageCalculateSize(pParams::Ptr{CUpti_Profiler_CounterDataImage_CalculateSize_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerCounterDataImageInitialize(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerCounterDataImageInitialize(pParams::Ptr{CUpti_Profiler_CounterDataImage_Initialize_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerCounterDataImageInitialize(pParams::Ptr{CUpti_Profiler_CounterDataImage_Initialize_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerCounterDataImageCalculateScratchBufferSize(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerCounterDataImageCalculateScratchBufferSize(pParams::Ptr{CUpti_Profiler_CounterDataImage_CalculateScratchBufferSize_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerCounterDataImageCalculateScratchBufferSize(pParams::Ptr{CUpti_Profiler_CounterDataImage_CalculateScratchBufferSize_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerCounterDataImageInitializeScratchBuffer(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerCounterDataImageInitializeScratchBuffer(pParams::Ptr{CUpti_Profiler_CounterDataImage_InitializeScratchBuffer_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerCounterDataImageInitializeScratchBuffer(pParams::Ptr{CUpti_Profiler_CounterDataImage_InitializeScratchBuffer_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerBeginSession(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerBeginSession(pParams::Ptr{CUpti_Profiler_BeginSession_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerBeginSession(pParams::Ptr{CUpti_Profiler_BeginSession_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerEndSession(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerEndSession(pParams::Ptr{CUpti_Profiler_EndSession_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerEndSession(pParams::Ptr{CUpti_Profiler_EndSession_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerSetConfig(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerSetConfig(pParams::Ptr{CUpti_Profiler_SetConfig_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerSetConfig(pParams::Ptr{CUpti_Profiler_SetConfig_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerUnsetConfig(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerUnsetConfig(pParams::Ptr{CUpti_Profiler_UnsetConfig_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerUnsetConfig(pParams::Ptr{CUpti_Profiler_UnsetConfig_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerBeginPass(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerBeginPass(pParams::Ptr{CUpti_Profiler_BeginPass_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerBeginPass(pParams::Ptr{CUpti_Profiler_BeginPass_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerEndPass(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerEndPass(pParams::Ptr{CUpti_Profiler_EndPass_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerEndPass(pParams::Ptr{CUpti_Profiler_EndPass_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerEnableProfiling(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerEnableProfiling(pParams::Ptr{CUpti_Profiler_EnableProfiling_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerEnableProfiling(pParams::Ptr{CUpti_Profiler_EnableProfiling_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerDisableProfiling(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerDisableProfiling(pParams::Ptr{CUpti_Profiler_DisableProfiling_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerDisableProfiling(pParams::Ptr{CUpti_Profiler_DisableProfiling_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerIsPassCollected(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerIsPassCollected(pParams::Ptr{CUpti_Profiler_IsPassCollected_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerIsPassCollected(pParams::Ptr{CUpti_Profiler_IsPassCollected_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerFlushCounterData(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerFlushCounterData(pParams::Ptr{CUpti_Profiler_FlushCounterData_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerFlushCounterData(pParams::Ptr{CUpti_Profiler_FlushCounterData_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerPushRange(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerPushRange(pParams::Ptr{CUpti_Profiler_PushRange_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerPushRange(pParams::Ptr{CUpti_Profiler_PushRange_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerPopRange(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerPopRange(pParams::Ptr{CUpti_Profiler_PopRange_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerPopRange(pParams::Ptr{CUpti_Profiler_PopRange_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerGetCounterAvailability(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerGetCounterAvailability(pParams::Ptr{CUpti_Profiler_GetCounterAvailability_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerGetCounterAvailability(pParams::Ptr{CUpti_Profiler_GetCounterAvailability_Params})::CUptiResult
 end
 
 @checked function cuptiProfilerDeviceSupported(pParams)
     initialize_context()
-    @ccall libcupti.cuptiProfilerDeviceSupported(pParams::Ptr{CUpti_Profiler_DeviceSupported_Params})::CUptiResult
+    @gcsafe_ccall libcupti.cuptiProfilerDeviceSupported(pParams::Ptr{CUpti_Profiler_DeviceSupported_Params})::CUptiResult
 end
 
 struct var"##Ctag#533"

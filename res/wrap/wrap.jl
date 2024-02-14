@@ -162,6 +162,9 @@ function rewriter!(ctx, options)
             expr = node.exprs[1]
             call_expr = expr.args[2].args[1].args[3]    # assumes `use_ccall_macro` is true
 
+            # replace `@ccall` with `@gcsafe_ccall`
+            expr.args[2].args[1].args[1] = Symbol("@gcsafe_ccall")
+
             target_expr = call_expr.args[1].args[1]
             fn = String(target_expr.args[2].value)
 

@@ -70,7 +70,7 @@ end
 
 ## logging
 
-function log_message(log_level, function_name, message)
+@gcunsafe_callback function log_message(log_level, function_name, message)
     function_name = unsafe_string(function_name)
     message = unsafe_string(message)
     output = if isempty(message)
