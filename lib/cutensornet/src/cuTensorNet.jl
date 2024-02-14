@@ -16,6 +16,13 @@ else
     import cuQuantum_jll
 end
 
+# XXX: cuTensorNet depends on cuTENSOR 1, while GC-safe ccalls were introduced in CUDA 5.3
+#      which is only compatible with cuTENSOR 2. So disable that functionality for now.
+const var"@gcsafe_ccall" = var"@ccall"
+macro gcunsafe_callback(expr)
+    esc(expr)
+end
+
 
 export has_cutensornet
 
