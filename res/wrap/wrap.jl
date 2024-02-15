@@ -278,10 +278,7 @@ function main(name="all")
     if (name == "all" || name == "cudnn") && CUDNN_jll.is_available()
         cudnn = joinpath(CUDNN_jll.artifact_dir, "include")
         wrap("cudnn",
-            ["$cudnn/cudnn_version.h", "$cudnn/cudnn_ops_infer.h",
-             "$cudnn/cudnn_ops_train.h", "$cudnn/cudnn_adv_infer.h",
-             "$cudnn/cudnn_adv_train.h", "$cudnn/cudnn_cnn_infer.h",
-             "$cudnn/cudnn_cnn_train.h"];
+            ["$cudnn/cudnn.h"]; targets=[r"cudnn_.*.h"],
              include_dirs=[cuda, cudnn])
     end
 
