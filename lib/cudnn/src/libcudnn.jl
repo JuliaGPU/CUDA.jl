@@ -28,6 +28,58 @@ end
     end
 end
 
+@cenum cudnnStatus_t::UInt32 begin
+    CUDNN_STATUS_SUCCESS = 0
+    CUDNN_STATUS_NOT_INITIALIZED = 1001
+    CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH = 1002
+    CUDNN_STATUS_SERIALIZATION_VERSION_MISMATCH = 1003
+    CUDNN_STATUS_DEPRECATED = 1004
+    CUDNN_STATUS_LICENSE_ERROR = 1005
+    CUDNN_STATUS_RUNTIME_IN_PROGRESS = 1006
+    CUDNN_STATUS_RUNTIME_FP_OVERFLOW = 1007
+    CUDNN_STATUS_BAD_PARAM = 2000
+    CUDNN_STATUS_BAD_PARAM_NULL_POINTER = 2002
+    CUDNN_STATUS_BAD_PARAM_MISALIGNED_POINTER = 2003
+    CUDNN_STATUS_BAD_PARAM_NOT_FINALIZED = 2004
+    CUDNN_STATUS_BAD_PARAM_OUT_OF_BOUND = 2005
+    CUDNN_STATUS_BAD_PARAM_SIZE_INSUFFICIENT = 2006
+    CUDNN_STATUS_BAD_PARAM_STREAM_MISMATCH = 2007
+    CUDNN_STATUS_BAD_PARAM_SHAPE_MISMATCH = 2008
+    CUDNN_STATUS_BAD_PARAM_DUPLICATED_ENTRIES = 2009
+    CUDNN_STATUS_BAD_PARAM_ATTRIBUTE_TYPE = 2010
+    CUDNN_STATUS_NOT_SUPPORTED = 3000
+    CUDNN_STATUS_NOT_SUPPORTED_GRAPH_PATTERN = 3001
+    CUDNN_STATUS_NOT_SUPPORTED_SHAPE = 3002
+    CUDNN_STATUS_NOT_SUPPORTED_DATA_TYPE = 3003
+    CUDNN_STATUS_NOT_SUPPORTED_LAYOUT = 3004
+    CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDA_DRIVER = 3005
+    CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDART = 3006
+    CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH = 3007
+    CUDNN_STATUS_NOT_SUPPORTED_RUNTIME_PREREQUISITE_MISSING = 3008
+    CUDNN_STATUS_NOT_SUPPORTED_SUBLIBRARY_UNAVAILABLE = 3009
+    CUDNN_STATUS_NOT_SUPPORTED_SHARED_MEMORY_INSUFFICIENT = 3010
+    CUDNN_STATUS_NOT_SUPPORTED_PADDING = 3011
+    CUDNN_STATUS_NOT_SUPPORTED_BAD_LAUNCH_PARAM = 3012
+    CUDNN_STATUS_INTERNAL_ERROR = 4000
+    CUDNN_STATUS_INTERNAL_ERROR_COMPILATION_FAILED = 4001
+    CUDNN_STATUS_INTERNAL_ERROR_UNEXPECTED_VALUE = 4002
+    CUDNN_STATUS_INTERNAL_ERROR_HOST_ALLOCATION_FAILED = 4003
+    CUDNN_STATUS_INTERNAL_ERROR_DEVICE_ALLOCATION_FAILED = 4004
+    CUDNN_STATUS_INTERNAL_ERROR_BAD_LAUNCH_PARAM = 4005
+    CUDNN_STATUS_INTERNAL_ERROR_TEXTURE_CREATION_FAILED = 4006
+    CUDNN_STATUS_EXECUTION_FAILED = 5000
+    CUDNN_STATUS_EXECUTION_FAILED_CUDA_DRIVER = 5001
+    CUDNN_STATUS_EXECUTION_FAILED_CUBLAS = 5002
+    CUDNN_STATUS_EXECUTION_FAILED_CUDART = 5003
+    CUDNN_STATUS_EXECUTION_FAILED_CURAND = 5004
+    CUDNN_STATUS_ALLOC_FAILED = 4003
+    CUDNN_STATUS_INVALID_VALUE = 2001
+    CUDNN_STATUS_ARCH_MISMATCH = 3007
+    CUDNN_STATUS_MAPPING_ERROR = 4006
+    CUDNN_STATUS_RUNTIME_PREREQUISITE_MISSING = 3008
+    CUDNN_STATUS_VERSION_MISMATCH = 1002
+end
+
 mutable struct cudnnContext end
 
 const cudnnHandle_t = Ptr{cudnnContext}
@@ -44,26 +96,14 @@ function cudnnGetCudartVersion()
     @gcsafe_ccall libcudnn.cudnnGetCudartVersion()::Csize_t
 end
 
-@cenum cudnnStatus_t::UInt32 begin
-    CUDNN_STATUS_SUCCESS = 0
-    CUDNN_STATUS_NOT_INITIALIZED = 1
-    CUDNN_STATUS_ALLOC_FAILED = 2
-    CUDNN_STATUS_BAD_PARAM = 3
-    CUDNN_STATUS_INTERNAL_ERROR = 4
-    CUDNN_STATUS_INVALID_VALUE = 5
-    CUDNN_STATUS_ARCH_MISMATCH = 6
-    CUDNN_STATUS_MAPPING_ERROR = 7
-    CUDNN_STATUS_EXECUTION_FAILED = 8
-    CUDNN_STATUS_NOT_SUPPORTED = 9
-    CUDNN_STATUS_LICENSE_ERROR = 10
-    CUDNN_STATUS_RUNTIME_PREREQUISITE_MISSING = 11
-    CUDNN_STATUS_RUNTIME_IN_PROGRESS = 12
-    CUDNN_STATUS_RUNTIME_FP_OVERFLOW = 13
-    CUDNN_STATUS_VERSION_MISMATCH = 14
-end
-
 function cudnnGetErrorString(status)
     @gcsafe_ccall libcudnn.cudnnGetErrorString(status::cudnnStatus_t)::Cstring
+end
+
+function cudnnGetLastErrorString(message, max_size)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnGetLastErrorString(message::Cstring,
+                                                   max_size::Csize_t)::Cvoid
 end
 
 mutable struct cudnnRuntimeTag_t end
@@ -109,6 +149,648 @@ end
                                           streamId::Ptr{cudaStream_t})::cudnnStatus_t
 end
 
+@cenum cudnnDataType_t::UInt32 begin
+    CUDNN_DATA_FLOAT = 0
+    CUDNN_DATA_DOUBLE = 1
+    CUDNN_DATA_HALF = 2
+    CUDNN_DATA_INT8 = 3
+    CUDNN_DATA_INT32 = 4
+    CUDNN_DATA_INT8x4 = 5
+    CUDNN_DATA_UINT8 = 6
+    CUDNN_DATA_UINT8x4 = 7
+    CUDNN_DATA_INT8x32 = 8
+    CUDNN_DATA_BFLOAT16 = 9
+    CUDNN_DATA_INT64 = 10
+    CUDNN_DATA_BOOLEAN = 11
+    CUDNN_DATA_FP8_E4M3 = 12
+    CUDNN_DATA_FP8_E5M2 = 13
+    CUDNN_DATA_FAST_FLOAT_FOR_FP8 = 14
+end
+
+@cenum cudnnMathType_t::UInt32 begin
+    CUDNN_DEFAULT_MATH = 0
+    CUDNN_TENSOR_OP_MATH = 1
+    CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION = 2
+    CUDNN_FMA_MATH = 3
+end
+
+@cenum cudnnNanPropagation_t::UInt32 begin
+    CUDNN_NOT_PROPAGATE_NAN = 0
+    CUDNN_PROPAGATE_NAN = 1
+end
+
+@cenum cudnnCTCGradMode_t::UInt32 begin
+    CUDNN_CTC_ZERO_OOB_GRADIENTS = 0
+    CUDNN_CTC_SKIP_OOB_GRADIENTS = 1
+end
+
+@cenum cudnnTensorFormat_t::UInt32 begin
+    CUDNN_TENSOR_NCHW = 0
+    CUDNN_TENSOR_NHWC = 1
+    CUDNN_TENSOR_NCHW_VECT_C = 2
+end
+
+@cenum cudnnReduceTensorOp_t::UInt32 begin
+    CUDNN_REDUCE_TENSOR_ADD = 0
+    CUDNN_REDUCE_TENSOR_MUL = 1
+    CUDNN_REDUCE_TENSOR_MIN = 2
+    CUDNN_REDUCE_TENSOR_MAX = 3
+    CUDNN_REDUCE_TENSOR_AMAX = 4
+    CUDNN_REDUCE_TENSOR_AVG = 5
+    CUDNN_REDUCE_TENSOR_NORM1 = 6
+    CUDNN_REDUCE_TENSOR_NORM2 = 7
+    CUDNN_REDUCE_TENSOR_MUL_NO_ZEROS = 8
+end
+
+@cenum cudnnActivationMode_t::UInt32 begin
+    CUDNN_ACTIVATION_SIGMOID = 0
+    CUDNN_ACTIVATION_RELU = 1
+    CUDNN_ACTIVATION_TANH = 2
+    CUDNN_ACTIVATION_CLIPPED_RELU = 3
+    CUDNN_ACTIVATION_ELU = 4
+    CUDNN_ACTIVATION_IDENTITY = 5
+    CUDNN_ACTIVATION_SWISH = 6
+end
+
+@cenum cudnnSeverity_t::UInt32 begin
+    CUDNN_SEV_FATAL = 0
+    CUDNN_SEV_ERROR = 1
+    CUDNN_SEV_WARNING = 2
+    CUDNN_SEV_INFO = 3
+end
+
+struct cudnnDebugStruct
+    cudnn_version::Cuint
+    cudnnStatus::cudnnStatus_t
+    time_sec::Cuint
+    time_usec::Cuint
+    time_delta::Cuint
+    handle::cudnnHandle_t
+    stream::cudaStream_t
+    pid::Culonglong
+    tid::Culonglong
+    cudaDeviceId::Cint
+    reserved::NTuple{15,Cint}
+end
+
+const cudnnDebug_t = cudnnDebugStruct
+
+# typedef void ( * cudnnCallback_t ) ( cudnnSeverity_t sev , void * udata , const cudnnDebug_t * dbg , const char * msg )
+const cudnnCallback_t = Ptr{Cvoid}
+
+@checked function cudnnSetCallback(mask, udata, fptr)
+    @gcsafe_ccall libcudnn.cudnnSetCallback(mask::Cuint, udata::Ptr{Cvoid},
+                                            fptr::cudnnCallback_t)::cudnnStatus_t
+end
+
+@checked function cudnnGetCallback(mask, udata, fptr)
+    @gcsafe_ccall libcudnn.cudnnGetCallback(mask::Ptr{Cuint}, udata::Ptr{Ptr{Cvoid}},
+                                            fptr::Ptr{cudnnCallback_t})::cudnnStatus_t
+end
+
+@checked function cudnnGraphVersionCheck()
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnGraphVersionCheck()::cudnnStatus_t
+end
+
+@cenum cudnnConvolutionMode_t::UInt32 begin
+    CUDNN_CONVOLUTION = 0
+    CUDNN_CROSS_CORRELATION = 1
+end
+
+@cenum cudnnReorderType_t::UInt32 begin
+    CUDNN_DEFAULT_REORDER = 0
+    CUDNN_NO_REORDER = 1
+end
+
+const cudnnBackendDescriptor_t = Ptr{Cvoid}
+
+struct cudnnFractionStruct
+    numerator::Int64
+    denominator::Int64
+end
+
+const cudnnFraction_t = cudnnFractionStruct
+
+@cenum cudnnPointwiseMode_t::UInt32 begin
+    CUDNN_POINTWISE_ADD = 0
+    CUDNN_POINTWISE_ADD_SQUARE = 5
+    CUDNN_POINTWISE_DIV = 6
+    CUDNN_POINTWISE_MAX = 3
+    CUDNN_POINTWISE_MIN = 2
+    CUDNN_POINTWISE_MOD = 7
+    CUDNN_POINTWISE_MUL = 1
+    CUDNN_POINTWISE_POW = 8
+    CUDNN_POINTWISE_SUB = 9
+    CUDNN_POINTWISE_ABS = 10
+    CUDNN_POINTWISE_CEIL = 11
+    CUDNN_POINTWISE_COS = 12
+    CUDNN_POINTWISE_EXP = 13
+    CUDNN_POINTWISE_FLOOR = 14
+    CUDNN_POINTWISE_LOG = 15
+    CUDNN_POINTWISE_NEG = 16
+    CUDNN_POINTWISE_RSQRT = 17
+    CUDNN_POINTWISE_SIN = 18
+    CUDNN_POINTWISE_SQRT = 4
+    CUDNN_POINTWISE_TAN = 19
+    CUDNN_POINTWISE_ERF = 20
+    CUDNN_POINTWISE_IDENTITY = 21
+    CUDNN_POINTWISE_RECIPROCAL = 22
+    CUDNN_POINTWISE_RELU_FWD = 100
+    CUDNN_POINTWISE_TANH_FWD = 101
+    CUDNN_POINTWISE_SIGMOID_FWD = 102
+    CUDNN_POINTWISE_ELU_FWD = 103
+    CUDNN_POINTWISE_GELU_FWD = 104
+    CUDNN_POINTWISE_SOFTPLUS_FWD = 105
+    CUDNN_POINTWISE_SWISH_FWD = 106
+    CUDNN_POINTWISE_GELU_APPROX_TANH_FWD = 107
+    CUDNN_POINTWISE_RELU_BWD = 200
+    CUDNN_POINTWISE_TANH_BWD = 201
+    CUDNN_POINTWISE_SIGMOID_BWD = 202
+    CUDNN_POINTWISE_ELU_BWD = 203
+    CUDNN_POINTWISE_GELU_BWD = 204
+    CUDNN_POINTWISE_SOFTPLUS_BWD = 205
+    CUDNN_POINTWISE_SWISH_BWD = 206
+    CUDNN_POINTWISE_GELU_APPROX_TANH_BWD = 207
+    CUDNN_POINTWISE_CMP_EQ = 300
+    CUDNN_POINTWISE_CMP_NEQ = 301
+    CUDNN_POINTWISE_CMP_GT = 302
+    CUDNN_POINTWISE_CMP_GE = 303
+    CUDNN_POINTWISE_CMP_LT = 304
+    CUDNN_POINTWISE_CMP_LE = 305
+    CUDNN_POINTWISE_LOGICAL_AND = 400
+    CUDNN_POINTWISE_LOGICAL_OR = 401
+    CUDNN_POINTWISE_LOGICAL_NOT = 402
+    CUDNN_POINTWISE_GEN_INDEX = 501
+    CUDNN_POINTWISE_BINARY_SELECT = 601
+end
+
+@cenum cudnnResampleMode_t::UInt32 begin
+    CUDNN_RESAMPLE_NEAREST = 0
+    CUDNN_RESAMPLE_BILINEAR = 1
+    CUDNN_RESAMPLE_AVGPOOL = 2
+    CUDNN_RESAMPLE_AVGPOOL_INCLUDE_PADDING = 2
+    CUDNN_RESAMPLE_AVGPOOL_EXCLUDE_PADDING = 4
+    CUDNN_RESAMPLE_MAXPOOL = 3
+end
+
+@cenum cudnnSignalMode_t::UInt32 begin
+    CUDNN_SIGNAL_SET = 0
+    CUDNN_SIGNAL_WAIT = 1
+end
+
+@cenum cudnnGenStatsMode_t::UInt32 begin
+    CUDNN_GENSTATS_SUM_SQSUM = 0
+end
+
+@cenum cudnnBnFinalizeStatsMode_t::UInt32 begin
+    CUDNN_BN_FINALIZE_STATISTICS_TRAINING = 0
+    CUDNN_BN_FINALIZE_STATISTICS_INFERENCE = 1
+end
+
+@cenum cudnnRngDistribution_t::UInt32 begin
+    CUDNN_RNG_DISTRIBUTION_BERNOULLI = 0
+    CUDNN_RNG_DISTRIBUTION_UNIFORM = 1
+    CUDNN_RNG_DISTRIBUTION_NORMAL = 2
+end
+
+@cenum cudnnBackendAttributeName_t::UInt32 begin
+    CUDNN_ATTR_POINTWISE_MODE = 0
+    CUDNN_ATTR_POINTWISE_MATH_PREC = 1
+    CUDNN_ATTR_POINTWISE_NAN_PROPAGATION = 2
+    CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP = 3
+    CUDNN_ATTR_POINTWISE_RELU_UPPER_CLIP = 4
+    CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP_SLOPE = 5
+    CUDNN_ATTR_POINTWISE_ELU_ALPHA = 6
+    CUDNN_ATTR_POINTWISE_SOFTPLUS_BETA = 7
+    CUDNN_ATTR_POINTWISE_SWISH_BETA = 8
+    CUDNN_ATTR_POINTWISE_AXIS = 9
+    CUDNN_ATTR_CONVOLUTION_COMP_TYPE = 100
+    CUDNN_ATTR_CONVOLUTION_CONV_MODE = 101
+    CUDNN_ATTR_CONVOLUTION_DILATIONS = 102
+    CUDNN_ATTR_CONVOLUTION_FILTER_STRIDES = 103
+    CUDNN_ATTR_CONVOLUTION_POST_PADDINGS = 104
+    CUDNN_ATTR_CONVOLUTION_PRE_PADDINGS = 105
+    CUDNN_ATTR_CONVOLUTION_SPATIAL_DIMS = 106
+    CUDNN_ATTR_ENGINEHEUR_MODE = 200
+    CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH = 201
+    CUDNN_ATTR_ENGINEHEUR_RESULTS = 202
+    CUDNN_ATTR_ENGINEHEUR_SM_COUNT_TARGET = 203
+    CUDNN_ATTR_ENGINECFG_ENGINE = 300
+    CUDNN_ATTR_ENGINECFG_INTERMEDIATE_INFO = 301
+    CUDNN_ATTR_ENGINECFG_KNOB_CHOICES = 302
+    CUDNN_ATTR_EXECUTION_PLAN_HANDLE = 400
+    CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG = 401
+    CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE = 402
+    CUDNN_ATTR_EXECUTION_PLAN_COMPUTED_INTERMEDIATE_UIDS = 403
+    CUDNN_ATTR_EXECUTION_PLAN_RUN_ONLY_INTERMEDIATE_UIDS = 404
+    CUDNN_ATTR_EXECUTION_PLAN_JSON_REPRESENTATION = 405
+    CUDNN_ATTR_INTERMEDIATE_INFO_UNIQUE_ID = 500
+    CUDNN_ATTR_INTERMEDIATE_INFO_SIZE = 501
+    CUDNN_ATTR_INTERMEDIATE_INFO_DEPENDENT_DATA_UIDS = 502
+    CUDNN_ATTR_INTERMEDIATE_INFO_DEPENDENT_ATTRIBUTES = 503
+    CUDNN_ATTR_KNOB_CHOICE_KNOB_TYPE = 600
+    CUDNN_ATTR_KNOB_CHOICE_KNOB_VALUE = 601
+    CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_ALPHA = 700
+    CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_BETA = 701
+    CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_CONV_DESC = 702
+    CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_W = 703
+    CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_X = 704
+    CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_Y = 705
+    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_ALPHA = 706
+    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_BETA = 707
+    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_CONV_DESC = 708
+    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_W = 709
+    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DX = 710
+    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DY = 711
+    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_ALPHA = 712
+    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_BETA = 713
+    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_CONV_DESC = 714
+    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DW = 715
+    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_X = 716
+    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DY = 717
+    CUDNN_ATTR_OPERATION_POINTWISE_PW_DESCRIPTOR = 750
+    CUDNN_ATTR_OPERATION_POINTWISE_XDESC = 751
+    CUDNN_ATTR_OPERATION_POINTWISE_BDESC = 752
+    CUDNN_ATTR_OPERATION_POINTWISE_YDESC = 753
+    CUDNN_ATTR_OPERATION_POINTWISE_ALPHA1 = 754
+    CUDNN_ATTR_OPERATION_POINTWISE_ALPHA2 = 755
+    CUDNN_ATTR_OPERATION_POINTWISE_DXDESC = 756
+    CUDNN_ATTR_OPERATION_POINTWISE_DYDESC = 757
+    CUDNN_ATTR_OPERATION_POINTWISE_TDESC = 758
+    CUDNN_ATTR_OPERATION_GENSTATS_MODE = 770
+    CUDNN_ATTR_OPERATION_GENSTATS_MATH_PREC = 771
+    CUDNN_ATTR_OPERATION_GENSTATS_XDESC = 772
+    CUDNN_ATTR_OPERATION_GENSTATS_SUMDESC = 773
+    CUDNN_ATTR_OPERATION_GENSTATS_SQSUMDESC = 774
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_STATS_MODE = 780
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_MATH_PREC = 781
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_Y_SUM_DESC = 782
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_Y_SQ_SUM_DESC = 783
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_SCALE_DESC = 784
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_BIAS_DESC = 785
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_PREV_RUNNING_MEAN_DESC = 786
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_PREV_RUNNING_VAR_DESC = 787
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_UPDATED_RUNNING_MEAN_DESC = 788
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_UPDATED_RUNNING_VAR_DESC = 789
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_SAVED_MEAN_DESC = 790
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_SAVED_INV_STD_DESC = 791
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_EQ_SCALE_DESC = 792
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_EQ_BIAS_DESC = 793
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_ACCUM_COUNT_DESC = 794
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_EPSILON_DESC = 795
+    CUDNN_ATTR_OPERATION_BN_FINALIZE_EXP_AVERATE_FACTOR_DESC = 796
+    CUDNN_ATTR_OPERATIONGRAPH_HANDLE = 800
+    CUDNN_ATTR_OPERATIONGRAPH_OPS = 801
+    CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT = 802
+    CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT = 900
+    CUDNN_ATTR_TENSOR_DATA_TYPE = 901
+    CUDNN_ATTR_TENSOR_DIMENSIONS = 902
+    CUDNN_ATTR_TENSOR_STRIDES = 903
+    CUDNN_ATTR_TENSOR_VECTOR_COUNT = 904
+    CUDNN_ATTR_TENSOR_VECTORIZED_DIMENSION = 905
+    CUDNN_ATTR_TENSOR_UNIQUE_ID = 906
+    CUDNN_ATTR_TENSOR_IS_VIRTUAL = 907
+    CUDNN_ATTR_TENSOR_IS_BY_VALUE = 908
+    CUDNN_ATTR_TENSOR_REORDERING_MODE = 909
+    CUDNN_ATTR_TENSOR_RAGGED_OFFSET_DESC = 913
+    CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS = 1000
+    CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS = 1001
+    CUDNN_ATTR_VARIANT_PACK_INTERMEDIATES = 1002
+    CUDNN_ATTR_VARIANT_PACK_WORKSPACE = 1003
+    CUDNN_ATTR_LAYOUT_INFO_TENSOR_UID = 1100
+    CUDNN_ATTR_LAYOUT_INFO_TYPES = 1101
+    CUDNN_ATTR_KNOB_INFO_TYPE = 1200
+    CUDNN_ATTR_KNOB_INFO_MAXIMUM_VALUE = 1201
+    CUDNN_ATTR_KNOB_INFO_MINIMUM_VALUE = 1202
+    CUDNN_ATTR_KNOB_INFO_STRIDE = 1203
+    CUDNN_ATTR_ENGINE_OPERATION_GRAPH = 1300
+    CUDNN_ATTR_ENGINE_GLOBAL_INDEX = 1301
+    CUDNN_ATTR_ENGINE_KNOB_INFO = 1302
+    CUDNN_ATTR_ENGINE_NUMERICAL_NOTE = 1303
+    CUDNN_ATTR_ENGINE_LAYOUT_INFO = 1304
+    CUDNN_ATTR_ENGINE_BEHAVIOR_NOTE = 1305
+    CUDNN_ATTR_ENGINE_SM_COUNT_TARGET = 1306
+    CUDNN_ATTR_MATMUL_COMP_TYPE = 1500
+    CUDNN_ATTR_MATMUL_PADDING_VALUE = 1503
+    CUDNN_ATTR_OPERATION_MATMUL_ADESC = 1520
+    CUDNN_ATTR_OPERATION_MATMUL_BDESC = 1521
+    CUDNN_ATTR_OPERATION_MATMUL_CDESC = 1522
+    CUDNN_ATTR_OPERATION_MATMUL_DESC = 1523
+    CUDNN_ATTR_OPERATION_MATMUL_IRREGULARLY_STRIDED_BATCH_COUNT = 1524
+    CUDNN_ATTR_OPERATION_MATMUL_GEMM_M_OVERRIDE_DESC = 1525
+    CUDNN_ATTR_OPERATION_MATMUL_GEMM_N_OVERRIDE_DESC = 1526
+    CUDNN_ATTR_OPERATION_MATMUL_GEMM_K_OVERRIDE_DESC = 1527
+    CUDNN_ATTR_REDUCTION_OPERATOR = 1600
+    CUDNN_ATTR_REDUCTION_COMP_TYPE = 1601
+    CUDNN_ATTR_OPERATION_REDUCTION_XDESC = 1610
+    CUDNN_ATTR_OPERATION_REDUCTION_YDESC = 1611
+    CUDNN_ATTR_OPERATION_REDUCTION_DESC = 1612
+    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_MATH_PREC = 1620
+    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_MEAN_DESC = 1621
+    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_INVSTD_DESC = 1622
+    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_BN_SCALE_DESC = 1623
+    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_X_DESC = 1624
+    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DY_DESC = 1625
+    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DBN_SCALE_DESC = 1626
+    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DBN_BIAS_DESC = 1627
+    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_DY_SCALE_DESC = 1628
+    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_X_SCALE_DESC = 1629
+    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_BIAS = 1630
+    CUDNN_ATTR_RESAMPLE_MODE = 1700
+    CUDNN_ATTR_RESAMPLE_COMP_TYPE = 1701
+    CUDNN_ATTR_RESAMPLE_SPATIAL_DIMS = 1702
+    CUDNN_ATTR_RESAMPLE_POST_PADDINGS = 1703
+    CUDNN_ATTR_RESAMPLE_PRE_PADDINGS = 1704
+    CUDNN_ATTR_RESAMPLE_STRIDES = 1705
+    CUDNN_ATTR_RESAMPLE_WINDOW_DIMS = 1706
+    CUDNN_ATTR_RESAMPLE_NAN_PROPAGATION = 1707
+    CUDNN_ATTR_RESAMPLE_PADDING_MODE = 1708
+    CUDNN_ATTR_OPERATION_RESAMPLE_FWD_XDESC = 1710
+    CUDNN_ATTR_OPERATION_RESAMPLE_FWD_YDESC = 1711
+    CUDNN_ATTR_OPERATION_RESAMPLE_FWD_IDXDESC = 1712
+    CUDNN_ATTR_OPERATION_RESAMPLE_FWD_ALPHA = 1713
+    CUDNN_ATTR_OPERATION_RESAMPLE_FWD_BETA = 1714
+    CUDNN_ATTR_OPERATION_RESAMPLE_FWD_DESC = 1716
+    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DXDESC = 1720
+    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DYDESC = 1721
+    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_IDXDESC = 1722
+    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_ALPHA = 1723
+    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_BETA = 1724
+    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DESC = 1725
+    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_XDESC = 1726
+    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_YDESC = 1727
+    CUDNN_ATTR_OPERATION_CONCAT_AXIS = 1800
+    CUDNN_ATTR_OPERATION_CONCAT_INPUT_DESCS = 1801
+    CUDNN_ATTR_OPERATION_CONCAT_INPLACE_INDEX = 1802
+    CUDNN_ATTR_OPERATION_CONCAT_OUTPUT_DESC = 1803
+    CUDNN_ATTR_OPERATION_SIGNAL_MODE = 1900
+    CUDNN_ATTR_OPERATION_SIGNAL_FLAGDESC = 1901
+    CUDNN_ATTR_OPERATION_SIGNAL_VALUE = 1902
+    CUDNN_ATTR_OPERATION_SIGNAL_XDESC = 1903
+    CUDNN_ATTR_OPERATION_SIGNAL_YDESC = 1904
+    CUDNN_ATTR_OPERATION_NORM_FWD_MODE = 2000
+    CUDNN_ATTR_OPERATION_NORM_FWD_PHASE = 2001
+    CUDNN_ATTR_OPERATION_NORM_FWD_XDESC = 2002
+    CUDNN_ATTR_OPERATION_NORM_FWD_MEAN_DESC = 2003
+    CUDNN_ATTR_OPERATION_NORM_FWD_INV_VARIANCE_DESC = 2004
+    CUDNN_ATTR_OPERATION_NORM_FWD_SCALE_DESC = 2005
+    CUDNN_ATTR_OPERATION_NORM_FWD_BIAS_DESC = 2006
+    CUDNN_ATTR_OPERATION_NORM_FWD_EPSILON_DESC = 2007
+    CUDNN_ATTR_OPERATION_NORM_FWD_EXP_AVG_FACTOR_DESC = 2008
+    CUDNN_ATTR_OPERATION_NORM_FWD_INPUT_RUNNING_MEAN_DESC = 2009
+    CUDNN_ATTR_OPERATION_NORM_FWD_INPUT_RUNNING_VAR_DESC = 2010
+    CUDNN_ATTR_OPERATION_NORM_FWD_OUTPUT_RUNNING_MEAN_DESC = 2011
+    CUDNN_ATTR_OPERATION_NORM_FWD_OUTPUT_RUNNING_VAR_DESC = 2012
+    CUDNN_ATTR_OPERATION_NORM_FWD_YDESC = 2013
+    CUDNN_ATTR_OPERATION_NORM_FWD_PEER_STAT_DESCS = 2014
+    CUDNN_ATTR_OPERATION_NORM_BWD_MODE = 2100
+    CUDNN_ATTR_OPERATION_NORM_BWD_XDESC = 2101
+    CUDNN_ATTR_OPERATION_NORM_BWD_MEAN_DESC = 2102
+    CUDNN_ATTR_OPERATION_NORM_BWD_INV_VARIANCE_DESC = 2103
+    CUDNN_ATTR_OPERATION_NORM_BWD_DYDESC = 2104
+    CUDNN_ATTR_OPERATION_NORM_BWD_SCALE_DESC = 2105
+    CUDNN_ATTR_OPERATION_NORM_BWD_EPSILON_DESC = 2106
+    CUDNN_ATTR_OPERATION_NORM_BWD_DSCALE_DESC = 2107
+    CUDNN_ATTR_OPERATION_NORM_BWD_DBIAS_DESC = 2108
+    CUDNN_ATTR_OPERATION_NORM_BWD_DXDESC = 2109
+    CUDNN_ATTR_OPERATION_NORM_BWD_PEER_STAT_DESCS = 2110
+    CUDNN_ATTR_OPERATION_RESHAPE_XDESC = 2200
+    CUDNN_ATTR_OPERATION_RESHAPE_YDESC = 2201
+    CUDNN_ATTR_RNG_DISTRIBUTION = 2300
+    CUDNN_ATTR_RNG_NORMAL_DIST_MEAN = 2301
+    CUDNN_ATTR_RNG_NORMAL_DIST_STANDARD_DEVIATION = 2302
+    CUDNN_ATTR_RNG_UNIFORM_DIST_MAXIMUM = 2303
+    CUDNN_ATTR_RNG_UNIFORM_DIST_MINIMUM = 2304
+    CUDNN_ATTR_RNG_BERNOULLI_DIST_PROBABILITY = 2305
+    CUDNN_ATTR_OPERATION_RNG_YDESC = 2310
+    CUDNN_ATTR_OPERATION_RNG_SEED = 2311
+    CUDNN_ATTR_OPERATION_RNG_DESC = 2312
+    CUDNN_ATTR_OPERATION_RNG_OFFSET_DESC = 2313
+end
+
+@cenum cudnnBackendAttributeType_t::UInt32 begin
+    CUDNN_TYPE_HANDLE = 0
+    CUDNN_TYPE_DATA_TYPE = 1
+    CUDNN_TYPE_BOOLEAN = 2
+    CUDNN_TYPE_INT64 = 3
+    CUDNN_TYPE_FLOAT = 4
+    CUDNN_TYPE_DOUBLE = 5
+    CUDNN_TYPE_VOID_PTR = 6
+    CUDNN_TYPE_CONVOLUTION_MODE = 7
+    CUDNN_TYPE_HEUR_MODE = 8
+    CUDNN_TYPE_KNOB_TYPE = 9
+    CUDNN_TYPE_NAN_PROPOGATION = 10
+    CUDNN_TYPE_NUMERICAL_NOTE = 11
+    CUDNN_TYPE_LAYOUT_TYPE = 12
+    CUDNN_TYPE_ATTRIB_NAME = 13
+    CUDNN_TYPE_POINTWISE_MODE = 14
+    CUDNN_TYPE_BACKEND_DESCRIPTOR = 15
+    CUDNN_TYPE_GENSTATS_MODE = 16
+    CUDNN_TYPE_BN_FINALIZE_STATS_MODE = 17
+    CUDNN_TYPE_REDUCTION_OPERATOR_TYPE = 18
+    CUDNN_TYPE_BEHAVIOR_NOTE = 19
+    CUDNN_TYPE_TENSOR_REORDERING_MODE = 20
+    CUDNN_TYPE_RESAMPLE_MODE = 21
+    CUDNN_TYPE_PADDING_MODE = 22
+    CUDNN_TYPE_INT32 = 23
+    CUDNN_TYPE_CHAR = 24
+    CUDNN_TYPE_SIGNAL_MODE = 25
+    CUDNN_TYPE_FRACTION = 26
+    CUDNN_TYPE_NORM_MODE = 27
+    CUDNN_TYPE_NORM_FWD_PHASE = 28
+    CUDNN_TYPE_RNG_DISTRIBUTION = 29
+end
+
+@cenum cudnnBackendDescriptorType_t::UInt32 begin
+    CUDNN_BACKEND_POINTWISE_DESCRIPTOR = 0
+    CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR = 1
+    CUDNN_BACKEND_ENGINE_DESCRIPTOR = 2
+    CUDNN_BACKEND_ENGINECFG_DESCRIPTOR = 3
+    CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR = 4
+    CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR = 5
+    CUDNN_BACKEND_INTERMEDIATE_INFO_DESCRIPTOR = 6
+    CUDNN_BACKEND_KNOB_CHOICE_DESCRIPTOR = 7
+    CUDNN_BACKEND_KNOB_INFO_DESCRIPTOR = 8
+    CUDNN_BACKEND_LAYOUT_INFO_DESCRIPTOR = 9
+    CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR = 10
+    CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR = 11
+    CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR = 12
+    CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR = 13
+    CUDNN_BACKEND_OPERATION_GEN_STATS_DESCRIPTOR = 14
+    CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR = 15
+    CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR = 16
+    CUDNN_BACKEND_TENSOR_DESCRIPTOR = 17
+    CUDNN_BACKEND_MATMUL_DESCRIPTOR = 18
+    CUDNN_BACKEND_OPERATION_MATMUL_DESCRIPTOR = 19
+    CUDNN_BACKEND_OPERATION_BN_FINALIZE_STATISTICS_DESCRIPTOR = 20
+    CUDNN_BACKEND_REDUCTION_DESCRIPTOR = 21
+    CUDNN_BACKEND_OPERATION_REDUCTION_DESCRIPTOR = 22
+    CUDNN_BACKEND_OPERATION_BN_BWD_WEIGHTS_DESCRIPTOR = 23
+    CUDNN_BACKEND_RESAMPLE_DESCRIPTOR = 24
+    CUDNN_BACKEND_OPERATION_RESAMPLE_FWD_DESCRIPTOR = 25
+    CUDNN_BACKEND_OPERATION_RESAMPLE_BWD_DESCRIPTOR = 26
+    CUDNN_BACKEND_OPERATION_CONCAT_DESCRIPTOR = 27
+    CUDNN_BACKEND_OPERATION_SIGNAL_DESCRIPTOR = 28
+    CUDNN_BACKEND_OPERATION_NORM_FORWARD_DESCRIPTOR = 29
+    CUDNN_BACKEND_OPERATION_NORM_BACKWARD_DESCRIPTOR = 30
+    CUDNN_BACKEND_OPERATION_RESHAPE_DESCRIPTOR = 31
+    CUDNN_BACKEND_RNG_DESCRIPTOR = 32
+    CUDNN_BACKEND_OPERATION_RNG_DESCRIPTOR = 33
+end
+
+@cenum cudnnBackendNumericalNote_t::UInt32 begin
+    CUDNN_NUMERICAL_NOTE_TENSOR_CORE = 0
+    CUDNN_NUMERICAL_NOTE_DOWN_CONVERT_INPUTS = 1
+    CUDNN_NUMERICAL_NOTE_REDUCED_PRECISION_REDUCTION = 2
+    CUDNN_NUMERICAL_NOTE_FFT = 3
+    CUDNN_NUMERICAL_NOTE_NONDETERMINISTIC = 4
+    CUDNN_NUMERICAL_NOTE_WINOGRAD = 5
+    CUDNN_NUMERICAL_NOTE_WINOGRAD_TILE_4x4 = 6
+    CUDNN_NUMERICAL_NOTE_WINOGRAD_TILE_6x6 = 7
+    CUDNN_NUMERICAL_NOTE_WINOGRAD_TILE_13x13 = 8
+    CUDNN_NUMERICAL_NOTE_TYPE_COUNT = 9
+end
+
+@cenum cudnnBackendBehaviorNote_t::UInt32 begin
+    CUDNN_BEHAVIOR_NOTE_RUNTIME_COMPILATION = 0
+    CUDNN_BEHAVIOR_NOTE_REQUIRES_FILTER_INT8x32_REORDER = 1
+    CUDNN_BEHAVIOR_NOTE_REQUIRES_BIAS_INT8x32_REORDER = 2
+    CUDNN_BEHAVIOR_NOTE_TYPE_COUNT = 3
+end
+
+@cenum cudnnBackendKnobType_t::UInt32 begin
+    CUDNN_KNOB_TYPE_SPLIT_K = 0
+    CUDNN_KNOB_TYPE_SWIZZLE = 1
+    CUDNN_KNOB_TYPE_TILE_SIZE = 2
+    CUDNN_KNOB_TYPE_USE_TEX = 3
+    CUDNN_KNOB_TYPE_EDGE = 4
+    CUDNN_KNOB_TYPE_KBLOCK = 5
+    CUDNN_KNOB_TYPE_LDGA = 6
+    CUDNN_KNOB_TYPE_LDGB = 7
+    CUDNN_KNOB_TYPE_CHUNK_K = 8
+    CUDNN_KNOB_TYPE_SPLIT_H = 9
+    CUDNN_KNOB_TYPE_WINO_TILE = 10
+    CUDNN_KNOB_TYPE_MULTIPLY = 11
+    CUDNN_KNOB_TYPE_SPLIT_K_BUF = 12
+    CUDNN_KNOB_TYPE_TILEK = 13
+    CUDNN_KNOB_TYPE_STAGES = 14
+    CUDNN_KNOB_TYPE_REDUCTION_MODE = 15
+    CUDNN_KNOB_TYPE_CTA_SPLIT_K_MODE = 16
+    CUDNN_KNOB_TYPE_SPLIT_K_SLC = 17
+    CUDNN_KNOB_TYPE_IDX_MODE = 18
+    CUDNN_KNOB_TYPE_SLICED = 19
+    CUDNN_KNOB_TYPE_SPLIT_RS = 20
+    CUDNN_KNOB_TYPE_SINGLEBUFFER = 21
+    CUDNN_KNOB_TYPE_LDGC = 22
+    CUDNN_KNOB_TYPE_SPECFILT = 23
+    CUDNN_KNOB_TYPE_KERNEL_CFG = 24
+    CUDNN_KNOB_TYPE_WORKSPACE = 25
+    CUDNN_KNOB_TYPE_TILE_CGA = 26
+    CUDNN_KNOB_TYPE_TILE_CGA_M = 27
+    CUDNN_KNOB_TYPE_TILE_CGA_N = 28
+    CUDNN_KNOB_TYPE_BLOCK_SIZE = 29
+    CUDNN_KNOB_TYPE_OCCUPANCY = 30
+    CUDNN_KNOB_TYPE_ARRAY_SIZE_PER_THREAD = 31
+    CUDNN_KNOB_TYPE_NUM_C_PER_BLOCK = 32
+    CUDNN_KNOB_TYPE_SPLIT_COLS = 33
+    CUDNN_KNOB_TYPE_TILE_ROWS = 34
+    CUDNN_KNOB_TYPE_TILE_COLS = 35
+    CUDNN_KNOB_TYPE_LOAD_SIZE = 36
+    CUDNN_KNOB_TYPE_COUNTS = 37
+end
+
+@cenum cudnnBackendLayoutType_t::UInt32 begin
+    CUDNN_LAYOUT_TYPE_PREFERRED_NCHW = 0
+    CUDNN_LAYOUT_TYPE_PREFERRED_NHWC = 1
+    CUDNN_LAYOUT_TYPE_PREFERRED_PAD4CK = 2
+    CUDNN_LAYOUT_TYPE_PREFERRED_PAD8CK = 3
+    CUDNN_LAYOUT_TYPE_COUNT = 4
+end
+
+@cenum cudnnBackendHeurMode_t::UInt32 begin
+    CUDNN_HEUR_MODE_INSTANT = 0
+    CUDNN_HEUR_MODE_B = 1
+    CUDNN_HEUR_MODE_FALLBACK = 2
+    CUDNN_HEUR_MODE_A = 3
+    CUDNN_HEUR_MODES_COUNT = 4
+end
+
+@cenum cudnnBackendTensorReordering_t::UInt32 begin
+    CUDNN_TENSOR_REORDERING_NONE = 0
+    CUDNN_TENSOR_REORDERING_INT8x32 = 1
+    CUDNN_TENSOR_REORDERING_F16x16 = 2
+end
+
+@cenum cudnnPaddingMode_t::UInt32 begin
+    CUDNN_ZERO_PAD = 0
+    CUDNN_NEG_INF_PAD = 1
+    CUDNN_EDGE_VAL_PAD = 2
+end
+
+@cenum cudnnBackendNormMode_t::UInt32 begin
+    CUDNN_LAYER_NORM = 0
+    CUDNN_INSTANCE_NORM = 1
+    CUDNN_BATCH_NORM = 2
+    CUDNN_GROUP_NORM = 3
+    CUDNN_RMS_NORM = 4
+end
+
+@cenum cudnnBackendNormFwdPhase_t::UInt32 begin
+    CUDNN_NORM_FWD_INFERENCE = 0
+    CUDNN_NORM_FWD_TRAINING = 1
+end
+
+@checked function cudnnBackendCreateDescriptor(descriptorType, descriptor)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnBackendCreateDescriptor(descriptorType::cudnnBackendDescriptorType_t,
+                                                        descriptor::Ptr{cudnnBackendDescriptor_t})::cudnnStatus_t
+end
+
+@checked function cudnnBackendDestroyDescriptor(descriptor)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnBackendDestroyDescriptor(descriptor::cudnnBackendDescriptor_t)::cudnnStatus_t
+end
+
+@checked function cudnnBackendInitialize(descriptor)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnBackendInitialize(descriptor::cudnnBackendDescriptor_t)::cudnnStatus_t
+end
+
+@checked function cudnnBackendFinalize(descriptor)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnBackendFinalize(descriptor::cudnnBackendDescriptor_t)::cudnnStatus_t
+end
+
+@checked function cudnnBackendSetAttribute(descriptor, attributeName, attributeType,
+                                           elementCount, arrayOfElements)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnBackendSetAttribute(descriptor::cudnnBackendDescriptor_t,
+                                                    attributeName::cudnnBackendAttributeName_t,
+                                                    attributeType::cudnnBackendAttributeType_t,
+                                                    elementCount::Int64,
+                                                    arrayOfElements::Ptr{Cvoid})::cudnnStatus_t
+end
+
+@checked function cudnnBackendGetAttribute(descriptor, attributeName, attributeType,
+                                           requestedElementCount, elementCount,
+                                           arrayOfElements)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnBackendGetAttribute(descriptor::cudnnBackendDescriptor_t,
+                                                    attributeName::cudnnBackendAttributeName_t,
+                                                    attributeType::cudnnBackendAttributeType_t,
+                                                    requestedElementCount::Int64,
+                                                    elementCount::Ptr{Int64},
+                                                    arrayOfElements::Ptr{Cvoid})::cudnnStatus_t
+end
+
+@checked function cudnnBackendExecute(handle, executionPlan, variantPack)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnBackendExecute(handle::cudnnHandle_t,
+                                               executionPlan::cudnnBackendDescriptor_t,
+                                               variantPack::cudnnBackendDescriptor_t)::cudnnStatus_t
+end
+
 mutable struct cudnnTensorStruct end
 
 const cudnnTensorDescriptor_t = Ptr{cudnnTensorStruct}
@@ -149,36 +831,6 @@ mutable struct cudnnTensorTransformStruct end
 
 const cudnnTensorTransformDescriptor_t = Ptr{cudnnTensorTransformStruct}
 
-@cenum cudnnDataType_t::UInt32 begin
-    CUDNN_DATA_FLOAT = 0
-    CUDNN_DATA_DOUBLE = 1
-    CUDNN_DATA_HALF = 2
-    CUDNN_DATA_INT8 = 3
-    CUDNN_DATA_INT32 = 4
-    CUDNN_DATA_INT8x4 = 5
-    CUDNN_DATA_UINT8 = 6
-    CUDNN_DATA_UINT8x4 = 7
-    CUDNN_DATA_INT8x32 = 8
-    CUDNN_DATA_BFLOAT16 = 9
-    CUDNN_DATA_INT64 = 10
-    CUDNN_DATA_BOOLEAN = 11
-    CUDNN_DATA_FP8_E4M3 = 12
-    CUDNN_DATA_FP8_E5M2 = 13
-    CUDNN_DATA_FAST_FLOAT_FOR_FP8 = 14
-end
-
-@cenum cudnnMathType_t::UInt32 begin
-    CUDNN_DEFAULT_MATH = 0
-    CUDNN_TENSOR_OP_MATH = 1
-    CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION = 2
-    CUDNN_FMA_MATH = 3
-end
-
-@cenum cudnnNanPropagation_t::UInt32 begin
-    CUDNN_NOT_PROPAGATE_NAN = 0
-    CUDNN_PROPAGATE_NAN = 1
-end
-
 @cenum cudnnDeterminism_t::UInt32 begin
     CUDNN_NON_DETERMINISTIC = 0
     CUDNN_DETERMINISTIC = 1
@@ -187,12 +839,6 @@ end
 @checked function cudnnCreateTensorDescriptor(tensorDesc)
     initialize_context()
     @gcsafe_ccall libcudnn.cudnnCreateTensorDescriptor(tensorDesc::Ptr{cudnnTensorDescriptor_t})::cudnnStatus_t
-end
-
-@cenum cudnnTensorFormat_t::UInt32 begin
-    CUDNN_TENSOR_NCHW = 0
-    CUDNN_TENSOR_NHWC = 1
-    CUDNN_TENSOR_NCHW_VECT_C = 2
 end
 
 @checked function cudnnSetTensor4dDescriptor(tensorDesc, format, dataType, n, c, h, w)
@@ -390,18 +1036,6 @@ end
                                          bDesc::cudnnTensorDescriptor_t, B::CuPtr{Cvoid},
                                          beta::Ptr{Cvoid}, cDesc::cudnnTensorDescriptor_t,
                                          C::CuPtr{Cvoid})::cudnnStatus_t
-end
-
-@cenum cudnnReduceTensorOp_t::UInt32 begin
-    CUDNN_REDUCE_TENSOR_ADD = 0
-    CUDNN_REDUCE_TENSOR_MUL = 1
-    CUDNN_REDUCE_TENSOR_MIN = 2
-    CUDNN_REDUCE_TENSOR_MAX = 3
-    CUDNN_REDUCE_TENSOR_AMAX = 4
-    CUDNN_REDUCE_TENSOR_AVG = 5
-    CUDNN_REDUCE_TENSOR_NORM1 = 6
-    CUDNN_REDUCE_TENSOR_NORM2 = 7
-    CUDNN_REDUCE_TENSOR_MUL_NO_ZEROS = 8
 end
 
 @cenum cudnnReduceTensorIndices_t::UInt32 begin
@@ -695,16 +1329,6 @@ end
                                                x::CuPtr{Cvoid}, beta::Ptr{Cvoid},
                                                yDesc::cudnnTensorDescriptor_t,
                                                y::CuPtr{Cvoid})::cudnnStatus_t
-end
-
-@cenum cudnnActivationMode_t::UInt32 begin
-    CUDNN_ACTIVATION_SIGMOID = 0
-    CUDNN_ACTIVATION_RELU = 1
-    CUDNN_ACTIVATION_TANH = 2
-    CUDNN_ACTIVATION_CLIPPED_RELU = 3
-    CUDNN_ACTIVATION_ELU = 4
-    CUDNN_ACTIVATION_IDENTITY = 5
-    CUDNN_ACTIVATION_SWISH = 6
 end
 
 @checked function cudnnCreateActivationDescriptor(activationDesc)
@@ -1032,14 +1656,6 @@ end
                                                reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
 end
 
-mutable struct cudnnAlgorithmStruct end
-
-const cudnnAlgorithmDescriptor_t = Ptr{cudnnAlgorithmStruct}
-
-mutable struct cudnnAlgorithmPerformanceStruct end
-
-const cudnnAlgorithmPerformance_t = Ptr{cudnnAlgorithmPerformanceStruct}
-
 @cenum cudnnConvolutionFwdAlgo_t::UInt32 begin
     CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM = 0
     CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM = 1
@@ -1073,184 +1689,14 @@ end
     CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT = 6
 end
 
-@cenum cudnnRNNAlgo_t::UInt32 begin
-    CUDNN_RNN_ALGO_STANDARD = 0
-    CUDNN_RNN_ALGO_PERSIST_STATIC = 1
-    CUDNN_RNN_ALGO_PERSIST_DYNAMIC = 2
-    CUDNN_RNN_ALGO_PERSIST_STATIC_SMALL_H = 3
-    CUDNN_RNN_ALGO_COUNT = 4
-end
-
 @cenum cudnnCTCLossAlgo_t::UInt32 begin
     CUDNN_CTC_LOSS_ALGO_DETERMINISTIC = 0
     CUDNN_CTC_LOSS_ALGO_NON_DETERMINISTIC = 1
 end
 
-struct Algorithm
-    data::NTuple{4,UInt8}
-end
-
-function Base.getproperty(x::Ptr{Algorithm}, f::Symbol)
-    f === :convFwdAlgo && return Ptr{cudnnConvolutionFwdAlgo_t}(x + 0)
-    f === :convBwdFilterAlgo && return Ptr{cudnnConvolutionBwdFilterAlgo_t}(x + 0)
-    f === :convBwdDataAlgo && return Ptr{cudnnConvolutionBwdDataAlgo_t}(x + 0)
-    f === :RNNAlgo && return Ptr{cudnnRNNAlgo_t}(x + 0)
-    f === :CTCLossAlgo && return Ptr{cudnnCTCLossAlgo_t}(x + 0)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::Algorithm, f::Symbol)
-    r = Ref{Algorithm}(x)
-    ptr = Base.unsafe_convert(Ptr{Algorithm}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{Algorithm}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct cudnnAlgorithmUnionStruct
-    data::NTuple{4,UInt8}
-end
-
-function Base.getproperty(x::Ptr{cudnnAlgorithmUnionStruct}, f::Symbol)
-    f === :algo && return Ptr{Algorithm}(x + 0)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::cudnnAlgorithmUnionStruct, f::Symbol)
-    r = Ref{cudnnAlgorithmUnionStruct}(x)
-    ptr = Base.unsafe_convert(Ptr{cudnnAlgorithmUnionStruct}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{cudnnAlgorithmUnionStruct}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-const cudnnAlgorithm_t = cudnnAlgorithmUnionStruct
-
-@checked function cudnnCreateAlgorithmDescriptor(algoDesc)
+@checked function cudnnOpsVersionCheck()
     initialize_context()
-    @gcsafe_ccall libcudnn.cudnnCreateAlgorithmDescriptor(algoDesc::Ptr{cudnnAlgorithmDescriptor_t})::cudnnStatus_t
-end
-
-@checked function cudnnSetAlgorithmDescriptor(algoDesc, algorithm)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnSetAlgorithmDescriptor(algoDesc::cudnnAlgorithmDescriptor_t,
-                                                       algorithm::cudnnAlgorithm_t)::cudnnStatus_t
-end
-
-@checked function cudnnGetAlgorithmDescriptor(algoDesc, algorithm)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetAlgorithmDescriptor(algoDesc::cudnnAlgorithmDescriptor_t,
-                                                       algorithm::Ptr{cudnnAlgorithm_t})::cudnnStatus_t
-end
-
-@checked function cudnnCopyAlgorithmDescriptor(src, dest)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnCopyAlgorithmDescriptor(src::cudnnAlgorithmDescriptor_t,
-                                                        dest::cudnnAlgorithmDescriptor_t)::cudnnStatus_t
-end
-
-@checked function cudnnDestroyAlgorithmDescriptor(algoDesc)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnDestroyAlgorithmDescriptor(algoDesc::cudnnAlgorithmDescriptor_t)::cudnnStatus_t
-end
-
-@checked function cudnnCreateAlgorithmPerformance(algoPerf, numberToCreate)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnCreateAlgorithmPerformance(algoPerf::Ptr{cudnnAlgorithmPerformance_t},
-                                                           numberToCreate::Cint)::cudnnStatus_t
-end
-
-@checked function cudnnSetAlgorithmPerformance(algoPerf, algoDesc, status, time, memory)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnSetAlgorithmPerformance(algoPerf::cudnnAlgorithmPerformance_t,
-                                                        algoDesc::cudnnAlgorithmDescriptor_t,
-                                                        status::cudnnStatus_t, time::Cfloat,
-                                                        memory::Csize_t)::cudnnStatus_t
-end
-
-@checked function cudnnGetAlgorithmPerformance(algoPerf, algoDesc, status, time, memory)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetAlgorithmPerformance(algoPerf::cudnnAlgorithmPerformance_t,
-                                                        algoDesc::Ptr{cudnnAlgorithmDescriptor_t},
-                                                        status::Ptr{cudnnStatus_t},
-                                                        time::Ptr{Cfloat},
-                                                        memory::Ptr{Csize_t})::cudnnStatus_t
-end
-
-@checked function cudnnDestroyAlgorithmPerformance(algoPerf, numberToDestroy)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnDestroyAlgorithmPerformance(algoPerf::Ptr{cudnnAlgorithmPerformance_t},
-                                                            numberToDestroy::Cint)::cudnnStatus_t
-end
-
-@checked function cudnnGetAlgorithmSpaceSize(handle, algoDesc, algoSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetAlgorithmSpaceSize(handle::cudnnHandle_t,
-                                                      algoDesc::cudnnAlgorithmDescriptor_t,
-                                                      algoSpaceSizeInBytes::Ptr{Csize_t})::cudnnStatus_t
-end
-
-@checked function cudnnSaveAlgorithm(handle, algoDesc, algoSpace, algoSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnSaveAlgorithm(handle::cudnnHandle_t,
-                                              algoDesc::cudnnAlgorithmDescriptor_t,
-                                              algoSpace::Ptr{Cvoid},
-                                              algoSpaceSizeInBytes::Csize_t)::cudnnStatus_t
-end
-
-@checked function cudnnRestoreAlgorithm(handle, algoSpace, algoSpaceSizeInBytes, algoDesc)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnRestoreAlgorithm(handle::cudnnHandle_t,
-                                                 algoSpace::Ptr{Cvoid},
-                                                 algoSpaceSizeInBytes::Csize_t,
-                                                 algoDesc::cudnnAlgorithmDescriptor_t)::cudnnStatus_t
-end
-
-@cenum cudnnSeverity_t::UInt32 begin
-    CUDNN_SEV_FATAL = 0
-    CUDNN_SEV_ERROR = 1
-    CUDNN_SEV_WARNING = 2
-    CUDNN_SEV_INFO = 3
-end
-
-struct cudnnDebugStruct
-    cudnn_version::Cuint
-    cudnnStatus::cudnnStatus_t
-    time_sec::Cuint
-    time_usec::Cuint
-    time_delta::Cuint
-    handle::cudnnHandle_t
-    stream::cudaStream_t
-    pid::Culonglong
-    tid::Culonglong
-    cudaDeviceId::Cint
-    reserved::NTuple{15,Cint}
-end
-
-const cudnnDebug_t = cudnnDebugStruct
-
-# typedef void ( * cudnnCallback_t ) ( cudnnSeverity_t sev , void * udata , const cudnnDebug_t * dbg , const char * msg )
-const cudnnCallback_t = Ptr{Cvoid}
-
-@checked function cudnnSetCallback(mask, udata, fptr)
-    @gcsafe_ccall libcudnn.cudnnSetCallback(mask::Cuint, udata::Ptr{Cvoid},
-                                            fptr::cudnnCallback_t)::cudnnStatus_t
-end
-
-@checked function cudnnGetCallback(mask, udata, fptr)
-    @gcsafe_ccall libcudnn.cudnnGetCallback(mask::Ptr{Cuint}, udata::Ptr{Ptr{Cvoid}},
-                                            fptr::Ptr{cudnnCallback_t})::cudnnStatus_t
-end
-
-@checked function cudnnOpsInferVersionCheck()
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnOpsInferVersionCheck()::cudnnStatus_t
+    @gcsafe_ccall libcudnn.cudnnOpsVersionCheck()::cudnnStatus_t
 end
 
 @checked function cudnnSoftmaxBackward(handle, algo, mode, alpha, yDesc, y, dyDesc, dy,
@@ -1712,9 +2158,12 @@ end
                                                 reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
 end
 
-@checked function cudnnOpsTrainVersionCheck()
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnOpsTrainVersionCheck()::cudnnStatus_t
+@cenum cudnnRNNAlgo_t::UInt32 begin
+    CUDNN_RNN_ALGO_STANDARD = 0
+    CUDNN_RNN_ALGO_PERSIST_STATIC = 1
+    CUDNN_RNN_ALGO_PERSIST_DYNAMIC = 2
+    CUDNN_RNN_ALGO_PERSIST_STATIC_SMALL_H = 3
+    CUDNN_RNN_ALGO_COUNT = 4
 end
 
 @cenum cudnnForwardMode_t::UInt32 begin
@@ -1757,15 +2206,9 @@ end
     CUDNN_RNN_DATA_LAYOUT_BATCH_MAJOR_UNPACKED = 2
 end
 
-const cudnnRNNPaddingMode_t = Cuint
-
 mutable struct cudnnRNNStruct end
 
 const cudnnRNNDescriptor_t = Ptr{cudnnRNNStruct}
-
-mutable struct cudnnPersistentRNNPlan end
-
-const cudnnPersistentRNNPlan_t = Ptr{cudnnPersistentRNNPlan}
 
 mutable struct cudnnRNNDataStruct end
 
@@ -1823,67 +2266,19 @@ end
                                                     auxFlags::Ref{UInt32})::cudnnStatus_t
 end
 
-@checked function cudnnSetRNNDescriptor_v6(handle, rnnDesc, hiddenSize, numLayers,
-                                           dropoutDesc, inputMode, direction, cellMode,
-                                           algo, mathPrec)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnSetRNNDescriptor_v6(handle::cudnnHandle_t,
-                                                    rnnDesc::cudnnRNNDescriptor_t,
-                                                    hiddenSize::Cint, numLayers::Cint,
-                                                    dropoutDesc::cudnnDropoutDescriptor_t,
-                                                    inputMode::cudnnRNNInputMode_t,
-                                                    direction::cudnnDirectionMode_t,
-                                                    cellMode::cudnnRNNMode_t,
-                                                    algo::cudnnRNNAlgo_t,
-                                                    mathPrec::cudnnDataType_t)::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNDescriptor_v6(handle, rnnDesc, hiddenSize, numLayers,
-                                           dropoutDesc, inputMode, direction, cellMode,
-                                           algo, mathPrec)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNDescriptor_v6(handle::cudnnHandle_t,
-                                                    rnnDesc::cudnnRNNDescriptor_t,
-                                                    hiddenSize::Ref{Cint},
-                                                    numLayers::Ref{Cint},
-                                                    dropoutDesc::Ref{cudnnDropoutDescriptor_t},
-                                                    inputMode::Ref{cudnnRNNInputMode_t},
-                                                    direction::Ref{cudnnDirectionMode_t},
-                                                    cellMode::Ref{cudnnRNNMode_t},
-                                                    algo::Ref{cudnnRNNAlgo_t},
-                                                    mathPrec::Ref{cudnnDataType_t})::cudnnStatus_t
-end
-
-@checked function cudnnSetRNNMatrixMathType(rnnDesc, mType)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnSetRNNMatrixMathType(rnnDesc::cudnnRNNDescriptor_t,
-                                                     mType::cudnnMathType_t)::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNMatrixMathType(rnnDesc, mType)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNMatrixMathType(rnnDesc::cudnnRNNDescriptor_t,
-                                                     mType::Ptr{cudnnMathType_t})::cudnnStatus_t
-end
-
-@checked function cudnnSetRNNBiasMode(rnnDesc, biasMode)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnSetRNNBiasMode(rnnDesc::cudnnRNNDescriptor_t,
-                                               biasMode::cudnnRNNBiasMode_t)::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNBiasMode(rnnDesc, biasMode)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNBiasMode(rnnDesc::cudnnRNNDescriptor_t,
-                                               biasMode::Ptr{cudnnRNNBiasMode_t})::cudnnStatus_t
-end
-
 @checked function cudnnRNNSetClip_v8(rnnDesc, clipMode, clipNanOpt, lclip, rclip)
     initialize_context()
     @gcsafe_ccall libcudnn.cudnnRNNSetClip_v8(rnnDesc::cudnnRNNDescriptor_t,
                                               clipMode::cudnnRNNClipMode_t,
                                               clipNanOpt::cudnnNanPropagation_t,
                                               lclip::Cdouble, rclip::Cdouble)::cudnnStatus_t
+end
+
+@checked function cudnnRNNSetClip_v9(rnnDesc, clipMode, lclip, rclip)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnRNNSetClip_v9(rnnDesc::cudnnRNNDescriptor_t,
+                                              clipMode::cudnnRNNClipMode_t, lclip::Cdouble,
+                                              rclip::Cdouble)::cudnnStatus_t
 end
 
 @checked function cudnnRNNGetClip_v8(rnnDesc, clipMode, clipNanOpt, lclip, rclip)
@@ -1895,58 +2290,12 @@ end
                                               rclip::Ref{Cdouble})::cudnnStatus_t
 end
 
-@checked function cudnnRNNSetClip(handle, rnnDesc, clipMode, clipNanOpt, lclip, rclip)
+@checked function cudnnRNNGetClip_v9(rnnDesc, clipMode, lclip, rclip)
     initialize_context()
-    @gcsafe_ccall libcudnn.cudnnRNNSetClip(handle::cudnnHandle_t,
-                                           rnnDesc::cudnnRNNDescriptor_t,
-                                           clipMode::cudnnRNNClipMode_t,
-                                           clipNanOpt::cudnnNanPropagation_t,
-                                           lclip::Cdouble, rclip::Cdouble)::cudnnStatus_t
-end
-
-@checked function cudnnRNNGetClip(handle, rnnDesc, clipMode, clipNanOpt, lclip, rclip)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnRNNGetClip(handle::cudnnHandle_t,
-                                           rnnDesc::cudnnRNNDescriptor_t,
-                                           clipMode::Ptr{cudnnRNNClipMode_t},
-                                           clipNanOpt::Ptr{cudnnNanPropagation_t},
-                                           lclip::Ptr{Cdouble},
-                                           rclip::Ptr{Cdouble})::cudnnStatus_t
-end
-
-@checked function cudnnSetRNNProjectionLayers(handle, rnnDesc, recProjSize, outProjSize)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnSetRNNProjectionLayers(handle::cudnnHandle_t,
-                                                       rnnDesc::cudnnRNNDescriptor_t,
-                                                       recProjSize::Cint,
-                                                       outProjSize::Cint)::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNProjectionLayers(handle, rnnDesc, recProjSize, outProjSize)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNProjectionLayers(handle::cudnnHandle_t,
-                                                       rnnDesc::cudnnRNNDescriptor_t,
-                                                       recProjSize::Ptr{Cint},
-                                                       outProjSize::Ptr{Cint})::cudnnStatus_t
-end
-
-@checked function cudnnCreatePersistentRNNPlan(rnnDesc, minibatch, dataType, plan)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnCreatePersistentRNNPlan(rnnDesc::cudnnRNNDescriptor_t,
-                                                        minibatch::Cint,
-                                                        dataType::cudnnDataType_t,
-                                                        plan::Ptr{cudnnPersistentRNNPlan_t})::cudnnStatus_t
-end
-
-@checked function cudnnDestroyPersistentRNNPlan(plan)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnDestroyPersistentRNNPlan(plan::cudnnPersistentRNNPlan_t)::cudnnStatus_t
-end
-
-@checked function cudnnSetPersistentRNNPlan(rnnDesc, plan)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnSetPersistentRNNPlan(rnnDesc::cudnnRNNDescriptor_t,
-                                                     plan::cudnnPersistentRNNPlan_t)::cudnnStatus_t
+    @gcsafe_ccall libcudnn.cudnnRNNGetClip_v9(rnnDesc::cudnnRNNDescriptor_t,
+                                              clipMode::Ptr{cudnnRNNClipMode_t},
+                                              lclip::Ptr{Cdouble},
+                                              rclip::Ptr{Cdouble})::cudnnStatus_t
 end
 
 @checked function cudnnBuildRNNDynamic(handle, rnnDesc, miniBatch)
@@ -1954,25 +2303,6 @@ end
     @gcsafe_ccall libcudnn.cudnnBuildRNNDynamic(handle::cudnnHandle_t,
                                                 rnnDesc::cudnnRNNDescriptor_t,
                                                 miniBatch::Cint)::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNWorkspaceSize(handle, rnnDesc, seqLength, xDesc, sizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNWorkspaceSize(handle::cudnnHandle_t,
-                                                    rnnDesc::cudnnRNNDescriptor_t,
-                                                    seqLength::Cint,
-                                                    xDesc::Ptr{cudnnTensorDescriptor_t},
-                                                    sizeInBytes::Ref{Csize_t})::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNTrainingReserveSize(handle, rnnDesc, seqLength, xDesc,
-                                                 sizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNTrainingReserveSize(handle::cudnnHandle_t,
-                                                          rnnDesc::cudnnRNNDescriptor_t,
-                                                          seqLength::Cint,
-                                                          xDesc::Ptr{cudnnTensorDescriptor_t},
-                                                          sizeInBytes::Ref{Csize_t})::cudnnStatus_t
 end
 
 @checked function cudnnGetRNNTempSpaceSizes(handle, rnnDesc, fwdMode, xDesc, workSpaceSize,
@@ -1986,49 +2316,11 @@ end
                                                      reserveSpaceSize::Ref{Csize_t})::cudnnStatus_t
 end
 
-@checked function cudnnGetRNNParamsSize(handle, rnnDesc, xDesc, sizeInBytes, dataType)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNParamsSize(handle::cudnnHandle_t,
-                                                 rnnDesc::cudnnRNNDescriptor_t,
-                                                 xDesc::cudnnTensorDescriptor_t,
-                                                 sizeInBytes::Ref{Csize_t},
-                                                 dataType::cudnnDataType_t)::cudnnStatus_t
-end
-
 @checked function cudnnGetRNNWeightSpaceSize(handle, rnnDesc, weightSpaceSize)
     initialize_context()
     @gcsafe_ccall libcudnn.cudnnGetRNNWeightSpaceSize(handle::cudnnHandle_t,
                                                       rnnDesc::cudnnRNNDescriptor_t,
                                                       weightSpaceSize::Ref{Csize_t})::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNLinLayerMatrixParams(handle, rnnDesc, pseudoLayer, xDesc,
-                                                  wDesc, w, linLayerID, linLayerMatDesc,
-                                                  linLayerMat)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNLinLayerMatrixParams(handle::cudnnHandle_t,
-                                                           rnnDesc::cudnnRNNDescriptor_t,
-                                                           pseudoLayer::Cint,
-                                                           xDesc::cudnnTensorDescriptor_t,
-                                                           wDesc::cudnnFilterDescriptor_t,
-                                                           w::CuPtr{Cvoid},
-                                                           linLayerID::Cint,
-                                                           linLayerMatDesc::cudnnFilterDescriptor_t,
-                                                           linLayerMat::Ptr{Ptr{Cvoid}})::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNLinLayerBiasParams(handle, rnnDesc, pseudoLayer, xDesc, wDesc,
-                                                w, linLayerID, linLayerBiasDesc,
-                                                linLayerBias)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNLinLayerBiasParams(handle::cudnnHandle_t,
-                                                         rnnDesc::cudnnRNNDescriptor_t,
-                                                         pseudoLayer::Cint,
-                                                         xDesc::cudnnTensorDescriptor_t,
-                                                         wDesc::cudnnFilterDescriptor_t,
-                                                         w::CuPtr{Cvoid}, linLayerID::Cint,
-                                                         linLayerBiasDesc::cudnnFilterDescriptor_t,
-                                                         linLayerBias::Ptr{Ptr{Cvoid}})::cudnnStatus_t
 end
 
 @checked function cudnnGetRNNWeightParams(handle, rnnDesc, pseudoLayer, weightSpaceSize,
@@ -2045,43 +2337,6 @@ end
                                                    mAddr::Ptr{CuPtr{Cvoid}},
                                                    bDesc::cudnnTensorDescriptor_t,
                                                    bAddr::Ptr{CuPtr{Cvoid}})::cudnnStatus_t
-end
-
-@checked function cudnnRNNForwardInference(handle, rnnDesc, seqLength, xDesc, x, hxDesc, hx,
-                                           cxDesc, cx, wDesc, w, yDesc, y, hyDesc, hy,
-                                           cyDesc, cy, workSpace, workSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnRNNForwardInference(handle::cudnnHandle_t,
-                                                    rnnDesc::cudnnRNNDescriptor_t,
-                                                    seqLength::Cint,
-                                                    xDesc::Ptr{cudnnTensorDescriptor_t},
-                                                    x::CuPtr{Cvoid},
-                                                    hxDesc::cudnnTensorDescriptor_t,
-                                                    hx::CuPtr{Cvoid},
-                                                    cxDesc::cudnnTensorDescriptor_t,
-                                                    cx::CuPtr{Cvoid},
-                                                    wDesc::cudnnFilterDescriptor_t,
-                                                    w::CuPtr{Cvoid},
-                                                    yDesc::Ptr{cudnnTensorDescriptor_t},
-                                                    y::CuPtr{Cvoid},
-                                                    hyDesc::cudnnTensorDescriptor_t,
-                                                    hy::CuPtr{Cvoid},
-                                                    cyDesc::cudnnTensorDescriptor_t,
-                                                    cy::CuPtr{Cvoid},
-                                                    workSpace::CuPtr{Cvoid},
-                                                    workSpaceSizeInBytes::Csize_t)::cudnnStatus_t
-end
-
-@checked function cudnnSetRNNPaddingMode(rnnDesc, paddingMode)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnSetRNNPaddingMode(rnnDesc::cudnnRNNDescriptor_t,
-                                                  paddingMode::Cuint)::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNPaddingMode(rnnDesc, paddingMode)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNPaddingMode(rnnDesc::cudnnRNNDescriptor_t,
-                                                  paddingMode::Ptr{Cuint})::cudnnStatus_t
 end
 
 @checked function cudnnCreateRNNDataDescriptor(rnnDataDesc)
@@ -2122,39 +2377,6 @@ end
                                                      paddingFill::Ptr{Cvoid})::cudnnStatus_t
 end
 
-@checked function cudnnRNNForwardInferenceEx(handle, rnnDesc, xDesc, x, hxDesc, hx, cxDesc,
-                                             cx, wDesc, w, yDesc, y, hyDesc, hy, cyDesc, cy,
-                                             kDesc, keys, cDesc, cAttn, iDesc, iAttn, qDesc,
-                                             queries, workSpace, workSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnRNNForwardInferenceEx(handle::cudnnHandle_t,
-                                                      rnnDesc::cudnnRNNDescriptor_t,
-                                                      xDesc::cudnnRNNDataDescriptor_t,
-                                                      x::CuPtr{Cvoid},
-                                                      hxDesc::cudnnTensorDescriptor_t,
-                                                      hx::CuPtr{Cvoid},
-                                                      cxDesc::cudnnTensorDescriptor_t,
-                                                      cx::CuPtr{Cvoid},
-                                                      wDesc::cudnnFilterDescriptor_t,
-                                                      w::CuPtr{Cvoid},
-                                                      yDesc::cudnnRNNDataDescriptor_t,
-                                                      y::CuPtr{Cvoid},
-                                                      hyDesc::cudnnTensorDescriptor_t,
-                                                      hy::CuPtr{Cvoid},
-                                                      cyDesc::cudnnTensorDescriptor_t,
-                                                      cy::CuPtr{Cvoid},
-                                                      kDesc::cudnnRNNDataDescriptor_t,
-                                                      keys::Ptr{Cvoid},
-                                                      cDesc::cudnnRNNDataDescriptor_t,
-                                                      cAttn::Ptr{Cvoid},
-                                                      iDesc::cudnnRNNDataDescriptor_t,
-                                                      iAttn::Ptr{Cvoid},
-                                                      qDesc::cudnnRNNDataDescriptor_t,
-                                                      queries::CuPtr{Cvoid},
-                                                      workSpace::CuPtr{Cvoid},
-                                                      workSpaceSizeInBytes::Csize_t)::cudnnStatus_t
-end
-
 @checked function cudnnRNNForward(handle, rnnDesc, fwdMode, devSeqLengths, xDesc, x, yDesc,
                                   y, hDesc, hx, hy, cDesc, cx, cy, weightSpaceSize,
                                   weightSpace, workSpaceSize, workSpace, reserveSpaceSize,
@@ -2174,53 +2396,6 @@ end
                                            workSpaceSize::Csize_t, workSpace::CuPtr{Cvoid},
                                            reserveSpaceSize::Csize_t,
                                            reserveSpace::CuPtr{Cvoid})::cudnnStatus_t
-end
-
-@checked function cudnnSetRNNAlgorithmDescriptor(handle, rnnDesc, algoDesc)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnSetRNNAlgorithmDescriptor(handle::cudnnHandle_t,
-                                                          rnnDesc::cudnnRNNDescriptor_t,
-                                                          algoDesc::cudnnAlgorithmDescriptor_t)::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNForwardInferenceAlgorithmMaxCount(handle, rnnDesc, count)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNForwardInferenceAlgorithmMaxCount(handle::cudnnHandle_t,
-                                                                        rnnDesc::cudnnRNNDescriptor_t,
-                                                                        count::Ptr{Cint})::cudnnStatus_t
-end
-
-@checked function cudnnFindRNNForwardInferenceAlgorithmEx(handle, rnnDesc, seqLength, xDesc,
-                                                          x, hxDesc, hx, cxDesc, cx, wDesc,
-                                                          w, yDesc, y, hyDesc, hy, cyDesc,
-                                                          cy, findIntensity,
-                                                          requestedAlgoCount,
-                                                          returnedAlgoCount, perfResults,
-                                                          workspace, workSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnFindRNNForwardInferenceAlgorithmEx(handle::cudnnHandle_t,
-                                                                   rnnDesc::cudnnRNNDescriptor_t,
-                                                                   seqLength::Cint,
-                                                                   xDesc::Ptr{cudnnTensorDescriptor_t},
-                                                                   x::CuPtr{Cvoid},
-                                                                   hxDesc::cudnnTensorDescriptor_t,
-                                                                   hx::CuPtr{Cvoid},
-                                                                   cxDesc::cudnnTensorDescriptor_t,
-                                                                   cx::CuPtr{Cvoid},
-                                                                   wDesc::cudnnFilterDescriptor_t,
-                                                                   w::CuPtr{Cvoid},
-                                                                   yDesc::Ptr{cudnnTensorDescriptor_t},
-                                                                   y::CuPtr{Cvoid},
-                                                                   hyDesc::cudnnTensorDescriptor_t,
-                                                                   hy::CuPtr{Cvoid},
-                                                                   cyDesc::cudnnTensorDescriptor_t,
-                                                                   cy::CuPtr{Cvoid},
-                                                                   findIntensity::Cfloat,
-                                                                   requestedAlgoCount::Cint,
-                                                                   returnedAlgoCount::Ptr{Cint},
-                                                                   perfResults::Ptr{cudnnAlgorithmPerformance_t},
-                                                                   workspace::CuPtr{Cvoid},
-                                                                   workSpaceSizeInBytes::Csize_t)::cudnnStatus_t
 end
 
 @cenum cudnnSeqDataAxis_t::UInt32 begin
@@ -2271,8 +2446,6 @@ end
                                                      seqLengthArray::Ptr{Cint},
                                                      paddingFill::Ptr{Cvoid})::cudnnStatus_t
 end
-
-const cudnnAttnQueryMap_t = Cuint
 
 mutable struct cudnnAttnStruct end
 
@@ -2399,76 +2572,14 @@ end
                                                      reserveSpace::CuPtr{Cvoid})::cudnnStatus_t
 end
 
-@checked function cudnnAdvInferVersionCheck()
+@checked function cudnnAdvVersionCheck()
     initialize_context()
-    @gcsafe_ccall libcudnn.cudnnAdvInferVersionCheck()::cudnnStatus_t
+    @gcsafe_ccall libcudnn.cudnnAdvVersionCheck()::cudnnStatus_t
 end
 
 @cenum cudnnWgradMode_t::UInt32 begin
     CUDNN_WGRAD_MODE_ADD = 0
     CUDNN_WGRAD_MODE_SET = 1
-end
-
-@checked function cudnnRNNForwardTraining(handle, rnnDesc, seqLength, xDesc, x, hxDesc, hx,
-                                          cxDesc, cx, wDesc, w, yDesc, y, hyDesc, hy,
-                                          cyDesc, cy, workSpace, workSpaceSizeInBytes,
-                                          reserveSpace, reserveSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnRNNForwardTraining(handle::cudnnHandle_t,
-                                                   rnnDesc::cudnnRNNDescriptor_t,
-                                                   seqLength::Cint,
-                                                   xDesc::Ptr{cudnnTensorDescriptor_t},
-                                                   x::CuPtr{Cvoid},
-                                                   hxDesc::cudnnTensorDescriptor_t,
-                                                   hx::CuPtr{Cvoid},
-                                                   cxDesc::cudnnTensorDescriptor_t,
-                                                   cx::CuPtr{Cvoid},
-                                                   wDesc::cudnnFilterDescriptor_t,
-                                                   w::CuPtr{Cvoid},
-                                                   yDesc::Ptr{cudnnTensorDescriptor_t},
-                                                   y::CuPtr{Cvoid},
-                                                   hyDesc::cudnnTensorDescriptor_t,
-                                                   hy::CuPtr{Cvoid},
-                                                   cyDesc::cudnnTensorDescriptor_t,
-                                                   cy::CuPtr{Cvoid},
-                                                   workSpace::CuPtr{Cvoid},
-                                                   workSpaceSizeInBytes::Csize_t,
-                                                   reserveSpace::CuPtr{Cvoid},
-                                                   reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
-end
-
-@checked function cudnnRNNBackwardData(handle, rnnDesc, seqLength, yDesc, y, dyDesc, dy,
-                                       dhyDesc, dhy, dcyDesc, dcy, wDesc, w, hxDesc, hx,
-                                       cxDesc, cx, dxDesc, dx, dhxDesc, dhx, dcxDesc, dcx,
-                                       workSpace, workSpaceSizeInBytes, reserveSpace,
-                                       reserveSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnRNNBackwardData(handle::cudnnHandle_t,
-                                                rnnDesc::cudnnRNNDescriptor_t,
-                                                seqLength::Cint,
-                                                yDesc::Ptr{cudnnTensorDescriptor_t},
-                                                y::CuPtr{Cvoid},
-                                                dyDesc::Ptr{cudnnTensorDescriptor_t},
-                                                dy::CuPtr{Cvoid},
-                                                dhyDesc::cudnnTensorDescriptor_t,
-                                                dhy::CuPtr{Cvoid},
-                                                dcyDesc::cudnnTensorDescriptor_t,
-                                                dcy::CuPtr{Cvoid},
-                                                wDesc::cudnnFilterDescriptor_t,
-                                                w::CuPtr{Cvoid},
-                                                hxDesc::cudnnTensorDescriptor_t,
-                                                hx::CuPtr{Cvoid},
-                                                cxDesc::cudnnTensorDescriptor_t,
-                                                cx::CuPtr{Cvoid},
-                                                dxDesc::Ptr{cudnnTensorDescriptor_t},
-                                                dx::CuPtr{Cvoid},
-                                                dhxDesc::cudnnTensorDescriptor_t,
-                                                dhx::CuPtr{Cvoid},
-                                                dcxDesc::cudnnTensorDescriptor_t,
-                                                dcx::CuPtr{Cvoid}, workSpace::CuPtr{Cvoid},
-                                                workSpaceSizeInBytes::Csize_t,
-                                                reserveSpace::CuPtr{Cvoid},
-                                                reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
 end
 
 @checked function cudnnRNNBackwardData_v8(handle, rnnDesc, devSeqLengths, yDesc, y, dy,
@@ -2497,26 +2608,6 @@ end
                                                    reserveSpace::CuPtr{Cvoid})::cudnnStatus_t
 end
 
-@checked function cudnnRNNBackwardWeights(handle, rnnDesc, seqLength, xDesc, x, hxDesc, hx,
-                                          yDesc, y, workSpace, workSpaceSizeInBytes, dwDesc,
-                                          dw, reserveSpace, reserveSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnRNNBackwardWeights(handle::cudnnHandle_t,
-                                                   rnnDesc::cudnnRNNDescriptor_t,
-                                                   seqLength::Cint,
-                                                   xDesc::Ptr{cudnnTensorDescriptor_t},
-                                                   x::CuPtr{Cvoid},
-                                                   hxDesc::cudnnTensorDescriptor_t,
-                                                   hx::CuPtr{Cvoid},
-                                                   yDesc::Ptr{cudnnTensorDescriptor_t},
-                                                   y::CuPtr{Cvoid}, workSpace::CuPtr{Cvoid},
-                                                   workSpaceSizeInBytes::Csize_t,
-                                                   dwDesc::cudnnFilterDescriptor_t,
-                                                   dw::CuPtr{Cvoid},
-                                                   reserveSpace::CuPtr{Cvoid},
-                                                   reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
-end
-
 @checked function cudnnRNNBackwardWeights_v8(handle, rnnDesc, addGrad, devSeqLengths, xDesc,
                                              x, hDesc, hx, yDesc, y, weightSpaceSize,
                                              dweightSpace, workSpaceSize, workSpace,
@@ -2538,231 +2629,6 @@ end
                                                       workSpace::CuPtr{Cvoid},
                                                       reserveSpaceSize::Csize_t,
                                                       reserveSpace::CuPtr{Cvoid})::cudnnStatus_t
-end
-
-@checked function cudnnRNNForwardTrainingEx(handle, rnnDesc, xDesc, x, hxDesc, hx, cxDesc,
-                                            cx, wDesc, w, yDesc, y, hyDesc, hy, cyDesc, cy,
-                                            kDesc, keys, cDesc, cAttn, iDesc, iAttn, qDesc,
-                                            queries, workSpace, workSpaceSizeInBytes,
-                                            reserveSpace, reserveSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnRNNForwardTrainingEx(handle::cudnnHandle_t,
-                                                     rnnDesc::cudnnRNNDescriptor_t,
-                                                     xDesc::cudnnRNNDataDescriptor_t,
-                                                     x::CuPtr{Cvoid},
-                                                     hxDesc::cudnnTensorDescriptor_t,
-                                                     hx::CuPtr{Cvoid},
-                                                     cxDesc::cudnnTensorDescriptor_t,
-                                                     cx::CuPtr{Cvoid},
-                                                     wDesc::cudnnFilterDescriptor_t,
-                                                     w::CuPtr{Cvoid},
-                                                     yDesc::cudnnRNNDataDescriptor_t,
-                                                     y::CuPtr{Cvoid},
-                                                     hyDesc::cudnnTensorDescriptor_t,
-                                                     hy::CuPtr{Cvoid},
-                                                     cyDesc::cudnnTensorDescriptor_t,
-                                                     cy::CuPtr{Cvoid},
-                                                     kDesc::cudnnRNNDataDescriptor_t,
-                                                     keys::CuPtr{Cvoid},
-                                                     cDesc::cudnnRNNDataDescriptor_t,
-                                                     cAttn::CuPtr{Cvoid},
-                                                     iDesc::cudnnRNNDataDescriptor_t,
-                                                     iAttn::CuPtr{Cvoid},
-                                                     qDesc::cudnnRNNDataDescriptor_t,
-                                                     queries::CuPtr{Cvoid},
-                                                     workSpace::CuPtr{Cvoid},
-                                                     workSpaceSizeInBytes::Csize_t,
-                                                     reserveSpace::CuPtr{Cvoid},
-                                                     reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
-end
-
-@checked function cudnnRNNBackwardDataEx(handle, rnnDesc, yDesc, y, dyDesc, dy, dcDesc,
-                                         dcAttn, dhyDesc, dhy, dcyDesc, dcy, wDesc, w,
-                                         hxDesc, hx, cxDesc, cx, dxDesc, dx, dhxDesc, dhx,
-                                         dcxDesc, dcx, dkDesc, dkeys, workSpace,
-                                         workSpaceSizeInBytes, reserveSpace,
-                                         reserveSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnRNNBackwardDataEx(handle::cudnnHandle_t,
-                                                  rnnDesc::cudnnRNNDescriptor_t,
-                                                  yDesc::cudnnRNNDataDescriptor_t,
-                                                  y::CuPtr{Cvoid},
-                                                  dyDesc::cudnnRNNDataDescriptor_t,
-                                                  dy::CuPtr{Cvoid},
-                                                  dcDesc::cudnnRNNDataDescriptor_t,
-                                                  dcAttn::CuPtr{Cvoid},
-                                                  dhyDesc::cudnnTensorDescriptor_t,
-                                                  dhy::CuPtr{Cvoid},
-                                                  dcyDesc::cudnnTensorDescriptor_t,
-                                                  dcy::CuPtr{Cvoid},
-                                                  wDesc::cudnnFilterDescriptor_t,
-                                                  w::CuPtr{Cvoid},
-                                                  hxDesc::cudnnTensorDescriptor_t,
-                                                  hx::CuPtr{Cvoid},
-                                                  cxDesc::cudnnTensorDescriptor_t,
-                                                  cx::CuPtr{Cvoid},
-                                                  dxDesc::cudnnRNNDataDescriptor_t,
-                                                  dx::CuPtr{Cvoid},
-                                                  dhxDesc::cudnnTensorDescriptor_t,
-                                                  dhx::Ptr{Cvoid},
-                                                  dcxDesc::cudnnTensorDescriptor_t,
-                                                  dcx::CuPtr{Cvoid},
-                                                  dkDesc::cudnnRNNDataDescriptor_t,
-                                                  dkeys::Ptr{Cvoid},
-                                                  workSpace::CuPtr{Cvoid},
-                                                  workSpaceSizeInBytes::Csize_t,
-                                                  reserveSpace::CuPtr{Cvoid},
-                                                  reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
-end
-
-@checked function cudnnRNNBackwardWeightsEx(handle, rnnDesc, xDesc, x, hxDesc, hx, yDesc, y,
-                                            workSpace, workSpaceSizeInBytes, dwDesc, dw,
-                                            reserveSpace, reserveSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnRNNBackwardWeightsEx(handle::cudnnHandle_t,
-                                                     rnnDesc::cudnnRNNDescriptor_t,
-                                                     xDesc::cudnnRNNDataDescriptor_t,
-                                                     x::CuPtr{Cvoid},
-                                                     hxDesc::cudnnTensorDescriptor_t,
-                                                     hx::CuPtr{Cvoid},
-                                                     yDesc::cudnnRNNDataDescriptor_t,
-                                                     y::CuPtr{Cvoid},
-                                                     workSpace::CuPtr{Cvoid},
-                                                     workSpaceSizeInBytes::Csize_t,
-                                                     dwDesc::cudnnFilterDescriptor_t,
-                                                     dw::CuPtr{Cvoid},
-                                                     reserveSpace::CuPtr{Cvoid},
-                                                     reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNForwardTrainingAlgorithmMaxCount(handle, rnnDesc, count)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNForwardTrainingAlgorithmMaxCount(handle::cudnnHandle_t,
-                                                                       rnnDesc::cudnnRNNDescriptor_t,
-                                                                       count::Ptr{Cint})::cudnnStatus_t
-end
-
-@checked function cudnnFindRNNForwardTrainingAlgorithmEx(handle, rnnDesc, seqLength, xDesc,
-                                                         x, hxDesc, hx, cxDesc, cx, wDesc,
-                                                         w, yDesc, y, hyDesc, hy, cyDesc,
-                                                         cy, findIntensity,
-                                                         requestedAlgoCount,
-                                                         returnedAlgoCount, perfResults,
-                                                         workspace, workSpaceSizeInBytes,
-                                                         reserveSpace,
-                                                         reserveSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnFindRNNForwardTrainingAlgorithmEx(handle::cudnnHandle_t,
-                                                                  rnnDesc::cudnnRNNDescriptor_t,
-                                                                  seqLength::Cint,
-                                                                  xDesc::Ptr{cudnnTensorDescriptor_t},
-                                                                  x::CuPtr{Cvoid},
-                                                                  hxDesc::cudnnTensorDescriptor_t,
-                                                                  hx::CuPtr{Cvoid},
-                                                                  cxDesc::cudnnTensorDescriptor_t,
-                                                                  cx::CuPtr{Cvoid},
-                                                                  wDesc::cudnnFilterDescriptor_t,
-                                                                  w::CuPtr{Cvoid},
-                                                                  yDesc::Ptr{cudnnTensorDescriptor_t},
-                                                                  y::CuPtr{Cvoid},
-                                                                  hyDesc::cudnnTensorDescriptor_t,
-                                                                  hy::CuPtr{Cvoid},
-                                                                  cyDesc::cudnnTensorDescriptor_t,
-                                                                  cy::CuPtr{Cvoid},
-                                                                  findIntensity::Cfloat,
-                                                                  requestedAlgoCount::Cint,
-                                                                  returnedAlgoCount::Ptr{Cint},
-                                                                  perfResults::Ptr{cudnnAlgorithmPerformance_t},
-                                                                  workspace::CuPtr{Cvoid},
-                                                                  workSpaceSizeInBytes::Csize_t,
-                                                                  reserveSpace::CuPtr{Cvoid},
-                                                                  reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNBackwardDataAlgorithmMaxCount(handle, rnnDesc, count)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNBackwardDataAlgorithmMaxCount(handle::cudnnHandle_t,
-                                                                    rnnDesc::cudnnRNNDescriptor_t,
-                                                                    count::Ptr{Cint})::cudnnStatus_t
-end
-
-@checked function cudnnFindRNNBackwardDataAlgorithmEx(handle, rnnDesc, seqLength, yDesc, y,
-                                                      dyDesc, dy, dhyDesc, dhy, dcyDesc,
-                                                      dcy, wDesc, w, hxDesc, hx, cxDesc, cx,
-                                                      dxDesc, dx, dhxDesc, dhx, dcxDesc,
-                                                      dcx, findIntensity,
-                                                      requestedAlgoCount, returnedAlgoCount,
-                                                      perfResults, workspace,
-                                                      workSpaceSizeInBytes, reserveSpace,
-                                                      reserveSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnFindRNNBackwardDataAlgorithmEx(handle::cudnnHandle_t,
-                                                               rnnDesc::cudnnRNNDescriptor_t,
-                                                               seqLength::Cint,
-                                                               yDesc::Ptr{cudnnTensorDescriptor_t},
-                                                               y::CuPtr{Cvoid},
-                                                               dyDesc::Ptr{cudnnTensorDescriptor_t},
-                                                               dy::CuPtr{Cvoid},
-                                                               dhyDesc::cudnnTensorDescriptor_t,
-                                                               dhy::CuPtr{Cvoid},
-                                                               dcyDesc::cudnnTensorDescriptor_t,
-                                                               dcy::CuPtr{Cvoid},
-                                                               wDesc::cudnnFilterDescriptor_t,
-                                                               w::CuPtr{Cvoid},
-                                                               hxDesc::cudnnTensorDescriptor_t,
-                                                               hx::CuPtr{Cvoid},
-                                                               cxDesc::cudnnTensorDescriptor_t,
-                                                               cx::CuPtr{Cvoid},
-                                                               dxDesc::Ptr{cudnnTensorDescriptor_t},
-                                                               dx::CuPtr{Cvoid},
-                                                               dhxDesc::cudnnTensorDescriptor_t,
-                                                               dhx::CuPtr{Cvoid},
-                                                               dcxDesc::cudnnTensorDescriptor_t,
-                                                               dcx::CuPtr{Cvoid},
-                                                               findIntensity::Cfloat,
-                                                               requestedAlgoCount::Cint,
-                                                               returnedAlgoCount::Ptr{Cint},
-                                                               perfResults::Ptr{cudnnAlgorithmPerformance_t},
-                                                               workspace::CuPtr{Cvoid},
-                                                               workSpaceSizeInBytes::Csize_t,
-                                                               reserveSpace::CuPtr{Cvoid},
-                                                               reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
-end
-
-@checked function cudnnGetRNNBackwardWeightsAlgorithmMaxCount(handle, rnnDesc, count)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnGetRNNBackwardWeightsAlgorithmMaxCount(handle::cudnnHandle_t,
-                                                                       rnnDesc::cudnnRNNDescriptor_t,
-                                                                       count::Ptr{Cint})::cudnnStatus_t
-end
-
-@checked function cudnnFindRNNBackwardWeightsAlgorithmEx(handle, rnnDesc, seqLength, xDesc,
-                                                         x, hxDesc, hx, yDesc, y,
-                                                         findIntensity, requestedAlgoCount,
-                                                         returnedAlgoCount, perfResults,
-                                                         workspace, workSpaceSizeInBytes,
-                                                         dwDesc, dw, reserveSpace,
-                                                         reserveSpaceSizeInBytes)
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnFindRNNBackwardWeightsAlgorithmEx(handle::cudnnHandle_t,
-                                                                  rnnDesc::cudnnRNNDescriptor_t,
-                                                                  seqLength::Cint,
-                                                                  xDesc::Ptr{cudnnTensorDescriptor_t},
-                                                                  x::CuPtr{Cvoid},
-                                                                  hxDesc::cudnnTensorDescriptor_t,
-                                                                  hx::CuPtr{Cvoid},
-                                                                  yDesc::Ptr{cudnnTensorDescriptor_t},
-                                                                  y::CuPtr{Cvoid},
-                                                                  findIntensity::Cfloat,
-                                                                  requestedAlgoCount::Cint,
-                                                                  returnedAlgoCount::Ptr{Cint},
-                                                                  perfResults::Ptr{cudnnAlgorithmPerformance_t},
-                                                                  workspace::CuPtr{Cvoid},
-                                                                  workSpaceSizeInBytes::Csize_t,
-                                                                  dwDesc::cudnnFilterDescriptor_t,
-                                                                  dw::CuPtr{Cvoid},
-                                                                  reserveSpace::CuPtr{Cvoid},
-                                                                  reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
 end
 
 @checked function cudnnMultiHeadAttnBackwardData(handle, attnDesc, loWinIdx, hiWinIdx,
@@ -2859,6 +2725,16 @@ end
                                                         maxLabelLength::Cint)::cudnnStatus_t
 end
 
+@checked function cudnnSetCTCLossDescriptor_v9(ctcLossDesc, compType, normMode, ctcGradMode,
+                                               maxLabelLength)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnSetCTCLossDescriptor_v9(ctcLossDesc::cudnnCTCLossDescriptor_t,
+                                                        compType::cudnnDataType_t,
+                                                        normMode::cudnnLossNormalizationMode_t,
+                                                        ctcGradMode::cudnnCTCGradMode_t,
+                                                        maxLabelLength::Cint)::cudnnStatus_t
+end
+
 @checked function cudnnGetCTCLossDescriptor(ctcLossDesc, compType)
     initialize_context()
     @gcsafe_ccall libcudnn.cudnnGetCTCLossDescriptor(ctcLossDesc::cudnnCTCLossDescriptor_t,
@@ -2881,6 +2757,16 @@ end
                                                         normMode::Ref{cudnnLossNormalizationMode_t},
                                                         gradMode::Ref{cudnnNanPropagation_t},
                                                         maxLabelLength::Ref{Cint})::cudnnStatus_t
+end
+
+@checked function cudnnGetCTCLossDescriptor_v9(ctcLossDesc, compType, normMode, ctcGradMode,
+                                               maxLabelLength)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnGetCTCLossDescriptor_v9(ctcLossDesc::cudnnCTCLossDescriptor_t,
+                                                        compType::Ptr{cudnnDataType_t},
+                                                        normMode::Ptr{cudnnLossNormalizationMode_t},
+                                                        ctcGradMode::Ptr{cudnnCTCGradMode_t},
+                                                        maxLabelLength::Ptr{Cint})::cudnnStatus_t
 end
 
 @checked function cudnnDestroyCTCLossDescriptor(ctcLossDesc)
@@ -2946,24 +2832,9 @@ end
                                                            sizeInBytes::Ptr{Csize_t})::cudnnStatus_t
 end
 
-@checked function cudnnAdvTrainVersionCheck()
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnAdvTrainVersionCheck()::cudnnStatus_t
-end
-
 mutable struct cudnnConvolutionStruct end
 
 const cudnnConvolutionDescriptor_t = Ptr{cudnnConvolutionStruct}
-
-@cenum cudnnConvolutionMode_t::UInt32 begin
-    CUDNN_CONVOLUTION = 0
-    CUDNN_CROSS_CORRELATION = 1
-end
-
-@cenum cudnnReorderType_t::UInt32 begin
-    CUDNN_DEFAULT_REORDER = 0
-    CUDNN_NO_REORDER = 1
-end
 
 struct cudnnConvolutionFwdAlgoPerfStruct
     algo::cudnnConvolutionFwdAlgo_t
@@ -3460,9 +3331,9 @@ end
     CUDNN_SCALAR_DOUBLE_BN_EPSILON = 103
 end
 
-@checked function cudnnCnnInferVersionCheck()
+@checked function cudnnCnnVersionCheck()
     initialize_context()
-    @gcsafe_ccall libcudnn.cudnnCnnInferVersionCheck()::cudnnStatus_t
+    @gcsafe_ccall libcudnn.cudnnCnnVersionCheck()::cudnnStatus_t
 end
 
 struct cudnnConvolutionBwdFilterAlgoPerfStruct
@@ -3657,44 +3528,9 @@ end
                                                 varPack::cudnnFusedOpsVariantParamPack_t)::cudnnStatus_t
 end
 
-@checked function cudnnCnnTrainVersionCheck()
-    initialize_context()
-    @gcsafe_ccall libcudnn.cudnnCnnTrainVersionCheck()::cudnnStatus_t
-end
-
 const CUDNN_MAX_SM_MAJOR_NUMBER = 9
 
 const CUDNN_MAX_SM_MINOR_NUMBER = 0
-
-const CUDNN_SM_50 = 500
-
-const CUDNN_SM_52 = 520
-
-const CUDNN_SM_53 = 530
-
-const CUDNN_SM_60 = 600
-
-const CUDNN_SM_61 = 610
-
-const CUDNN_SM_62 = 620
-
-const CUDNN_SM_70 = 700
-
-const CUDNN_SM_72 = 720
-
-const CUDNN_SM_75 = 750
-
-const CUDNN_SM_80 = 800
-
-const CUDNN_SM_86 = 860
-
-const CUDNN_SM_87 = 870
-
-const CUDNN_SM_89 = 890
-
-const CUDNN_SM_90 = 900
-
-const CUDNN_SM_9X_END = 999
 
 const CUDNN_DIM_MAX = 8
 

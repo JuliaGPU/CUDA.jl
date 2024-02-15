@@ -149,7 +149,7 @@ steps:
   - group: ":telescope: Downstream"
     depends_on: "cuda"
     steps:
-      - label: "NNlibCUDA.jl on CUDA 12"
+      - label: "NNlib.jl on CUDA 12"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.10"
@@ -167,9 +167,9 @@ steps:
               Pkg.instantiate()
 
               try
-                Pkg.develop("NNlibCUDA")
+                Pkg.develop("NNlib")
               catch err
-                @error "Could not install NNlibCUDA" exception=(err,catch_backtrace())
+                @error "Could not install NNlib" exception=(err,catch_backtrace())
                 exit(3)
               end
               Pkg.develop(path=joinpath(pwd(), "lib", "cudnn"))
@@ -178,7 +178,10 @@ steps:
             end
 
             println("+++ :julia: Running tests")
-            Pkg.test("NNlibCUDA"; coverage=true)'
+            Pkg.test("NNlib"; coverage=true)'
+        env:
+          NNLIB_TEST_CUDA: "true"
+          NNLIB_TEST_CPU: "false"
         agents:
           queue: "juliagpu"
           cuda: "*"
