@@ -178,6 +178,22 @@ for (fname, elty, ret_type) in ((:cublasDnrm2_v2,:Float64,:Float64),
         end
     end
 end
+
+# nrm2 with Int64 arguments
+for (fname, elty, ret_type) in ((:cublasDnrm2_v2_64,:Float64,:Float64),
+                                (:cublasSnrm2_v2_64,:Float32,:Float32),
+                                (:cublasDznrm2_v2_64,:ComplexF64,:Float64),
+                                (:cublasScnrm2_v2_64,:ComplexF32,:Float32))
+    @eval begin
+        function nrm2(n::Int64,
+                      X::StridedCuArray{$elty})
+            result = Ref{$ret_type}()
+            $fname(handle(), n, X, stride(X, 1), result)
+            return result[]
+        end
+    end
+end
+
 nrm2(x::StridedCuArray) = nrm2(length(x), x)
 
 function nrm2(n::Integer, x::StridedCuArray{Float16})
