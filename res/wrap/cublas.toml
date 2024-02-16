@@ -239,41 +239,81 @@ needs_context = false
 3 = "CuPtr{Cfloat}"
 5 = "RefOrCuRef{Cint}"
 
+[api.cublasIsamax_v2_64.argtypes]
+3 = "CuPtr{Cfloat}"
+5 = "RefOrCuRef{Int64}"
+
 [api.cublasIdamax_v2.argtypes]
 3 = "CuPtr{Cdouble}"
 5 = "RefOrCuRef{Cint}"
+
+[api.cublasIdamax_v2_64.argtypes]
+3 = "CuPtr{Cdouble}"
+5 = "RefOrCuRef{Int64}"
 
 [api.cublasIcamax_v2.argtypes]
 3 = "CuPtr{cuComplex}"
 5 = "RefOrCuRef{Cint}"
 
+[api.cublasIcamax_v2_64.argtypes]
+3 = "CuPtr{cuComplex}"
+5 = "RefOrCuRef{Int64}"
+
 [api.cublasIzamax_v2.argtypes]
 3 = "CuPtr{cuDoubleComplex}"
 5 = "RefOrCuRef{Cint}"
+
+[api.cublasIzamax_v2_64.argtypes]
+3 = "CuPtr{cuDoubleComplex}"
+5 = "RefOrCuRef{Int64}"
 
 [api.cublasIamaxEx.argtypes]
 3 = "CuPtr{Cvoid}"
 6 = "RefOrCuRef{Cint}"
 
+[api.cublasIamaxEx_64.argtypes]
+3 = "CuPtr{Cvoid}"
+6 = "RefOrCuRef{Int64}"
+
 [api.cublasIsamin_v2.argtypes]
 3 = "CuPtr{Cfloat}"
 5 = "RefOrCuRef{Cint}"
+
+[api.cublasIsamin_v2_64.argtypes]
+3 = "CuPtr{Cfloat}"
+5 = "RefOrCuRef{Int64}"
 
 [api.cublasIdamin_v2.argtypes]
 3 = "CuPtr{Cdouble}"
 5 = "RefOrCuRef{Cint}"
 
+[api.cublasIdamin_v2_64.argtypes]
+3 = "CuPtr{Cdouble}"
+5 = "RefOrCuRef{Int64}"
+
 [api.cublasIcamin_v2.argtypes]
 3 = "CuPtr{cuComplex}"
 5 = "RefOrCuRef{Cint}"
+
+[api.cublasIcamin_v2_64.argtypes]
+3 = "CuPtr{cuComplex}"
+5 = "RefOrCuRef{Int64}"
 
 [api.cublasIzamin_v2.argtypes]
 3 = "CuPtr{cuDoubleComplex}"
 5 = "RefOrCuRef{Cint}"
 
+[api.cublasIzamin_v2_64.argtypes]
+3 = "CuPtr{cuDoubleComplex}"
+5 = "RefOrCuRef{Int64}"
+
 [api.cublasIaminEx.argtypes]
 3 = "CuPtr{Cvoid}"
 6 = "RefOrCuRef{Cint}"
+
+[api.cublasIaminEx_64.argtypes]
+3 = "CuPtr{Cvoid}"
+6 = "RefOrCuRef{Int64}"
 
 [api.cublasAsumEx.argtypes]
 3 = "CuPtr{Cvoid}"
