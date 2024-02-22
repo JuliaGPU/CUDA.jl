@@ -110,6 +110,7 @@ const SyncObject = Union{CuContext, CuStream, CuEvent}
 const MAX_SYNC_THREADS = 4
 const sync_channels = Array{BidirectionalChannel{SyncObject,CUresult}}(undef, MAX_SYNC_THREADS)
 const sync_channel_cursor = Threads.Atomic{UInt32}(1)
+const sync_channel_lock = Base.ReentrantLock()
 
 function synchronization_worker(data)
     i = Int(data)
@@ -133,15 +134,25 @@ function synchronization_worker(data)
 end
 
 @noinline function create_synchronization_worker(i)
-    sync_channels[i] = BidirectionalChannel{SyncObject,CUresult}()
-    # should be safe to assign before threads are running;
-    #  any user will just submit work that makes it block
+    lock(sync_channel_lock) do
+        # test and test-and-set
+        if isassigned(sync_channels, i)
+            return
+        end
 
-    # we don't know what the size of uv_thread_t is, so reserve enough space
-    tid = Ref{NTuple{32, UInt8}}(ntuple(i -> 0, 32))
+        # should be safe to assign before threads are running;
+        # any user will just submit work that makes it block
+        sync_channels[i] = BidirectionalChannel{SyncObject,CUresult}()
 
-    cb = @cfunction(synchronization_worker, Cvoid, (Ptr{Cvoid},))
-    @ccall uv_thread_create(tid::Ptr{Cvoid}, cb::Ptr{Cvoid}, Ptr{Cvoid}(i)::Ptr{Cvoid})::Int32
+        # we don't know what the size of uv_thread_t is, so reserve enough space
+        tid = Ref{NTuple{32, UInt8}}(ntuple(i -> 0, 32))
+
+        cb = @cfunction(synchronization_worker, Cvoid, (Ptr{Cvoid},))
+        err = @ccall uv_thread_create(tid::Ptr{Cvoid}, cb::Ptr{Cvoid}, Ptr{Cvoid}(i)::Ptr{Cvoid})::Cint
+        err == 0 || Base.uv_error("uv_thread_create", err)
+        @ccall uv_thread_detach(tid::Ptr{Cvoid})::Cint
+        err == 0 || Base.uv_error("uv_thread_detach", err)
+    end
 
     return
 end
