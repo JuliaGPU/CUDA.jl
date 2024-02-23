@@ -38,12 +38,10 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 [weakdeps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
-StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [extensions]
 ChainRulesCoreExt = "ChainRulesCore"
 SpecialFunctionsExt = "SpecialFunctions"
-StaticArraysExt = "StaticArrays"
 
 [compat]
 AbstractFFTs = "0.4, 0.5, 1.0"
