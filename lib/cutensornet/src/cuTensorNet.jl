@@ -120,8 +120,8 @@ function __init__()
     # find the library
     global libcutensornet
     if CUDA.local_toolkit
-        dirs = CUDA_Runtime.find_toolkit()
-        path = CUDA_Runtime.get_library(dirs, "cutensornet"; optional=true)
+        dirs = CUDA_Runtime_Discovery.find_toolkit()
+        path = CUDA_Runtime_Discovery.get_library(dirs, "cutensornet"; optional=true)
         if path === nothing
             precompiling || @error "cuQuantum is not available on your system (looked for cutensornet in $(join(dirs, ", ")))"
             return
