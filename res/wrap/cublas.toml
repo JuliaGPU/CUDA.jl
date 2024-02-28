@@ -239,81 +239,41 @@ needs_context = false
 3 = "CuPtr{Cfloat}"
 5 = "RefOrCuRef{Cint}"
 
-[api.cublasIsamax_v2_64.argtypes]
-3 = "CuPtr{Cfloat}"
-5 = "RefOrCuRef{Int64}"
-
 [api.cublasIdamax_v2.argtypes]
 3 = "CuPtr{Cdouble}"
 5 = "RefOrCuRef{Cint}"
-
-[api.cublasIdamax_v2_64.argtypes]
-3 = "CuPtr{Cdouble}"
-5 = "RefOrCuRef{Int64}"
 
 [api.cublasIcamax_v2.argtypes]
 3 = "CuPtr{cuComplex}"
 5 = "RefOrCuRef{Cint}"
 
-[api.cublasIcamax_v2_64.argtypes]
-3 = "CuPtr{cuComplex}"
-5 = "RefOrCuRef{Int64}"
-
 [api.cublasIzamax_v2.argtypes]
 3 = "CuPtr{cuDoubleComplex}"
 5 = "RefOrCuRef{Cint}"
-
-[api.cublasIzamax_v2_64.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
-5 = "RefOrCuRef{Int64}"
 
 [api.cublasIamaxEx.argtypes]
 3 = "CuPtr{Cvoid}"
 6 = "RefOrCuRef{Cint}"
 
-[api.cublasIamaxEx_64.argtypes]
-3 = "CuPtr{Cvoid}"
-6 = "RefOrCuRef{Int64}"
-
 [api.cublasIsamin_v2.argtypes]
 3 = "CuPtr{Cfloat}"
 5 = "RefOrCuRef{Cint}"
-
-[api.cublasIsamin_v2_64.argtypes]
-3 = "CuPtr{Cfloat}"
-5 = "RefOrCuRef{Int64}"
 
 [api.cublasIdamin_v2.argtypes]
 3 = "CuPtr{Cdouble}"
 5 = "RefOrCuRef{Cint}"
 
-[api.cublasIdamin_v2_64.argtypes]
-3 = "CuPtr{Cdouble}"
-5 = "RefOrCuRef{Int64}"
-
 [api.cublasIcamin_v2.argtypes]
 3 = "CuPtr{cuComplex}"
 5 = "RefOrCuRef{Cint}"
-
-[api.cublasIcamin_v2_64.argtypes]
-3 = "CuPtr{cuComplex}"
-5 = "RefOrCuRef{Int64}"
 
 [api.cublasIzamin_v2.argtypes]
 3 = "CuPtr{cuDoubleComplex}"
 5 = "RefOrCuRef{Cint}"
 
-[api.cublasIzamin_v2_64.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
-5 = "RefOrCuRef{Int64}"
-
 [api.cublasIaminEx.argtypes]
 3 = "CuPtr{Cvoid}"
 6 = "RefOrCuRef{Cint}"
-
-[api.cublasIaminEx_64.argtypes]
-3 = "CuPtr{Cvoid}"
-6 = "RefOrCuRef{Int64}"
 
 [api.cublasAsumEx.argtypes]
 3 = "CuPtr{Cvoid}"
@@ -552,21 +512,7 @@ needs_context = false
 10 = "RefOrCuRef{Cfloat}"
 11 = "CuPtr{Ptr{Cfloat}}"
 
-[api.cublasSgemvBatched_64.argtypes]
-5 = "RefOrCuRef{Cfloat}"
-6 = "CuPtr{Ptr{Cfloat}}"
-8 = "CuPtr{Ptr{Cfloat}}"
-10 = "RefOrCuRef{Cfloat}"
-11 = "CuPtr{Ptr{Cfloat}}"
-
 [api.cublasDgemvBatched.argtypes]
-5 = "RefOrCuRef{Cdouble}"
-6 = "CuPtr{Ptr{Cdouble}}"
-8 = "CuPtr{Ptr{Cdouble}}"
-10 = "RefOrCuRef{Cdouble}"
-11 = "CuPtr{Ptr{Cdouble}}"
-
-[api.cublasDgemvBatched_64.argtypes]
 5 = "RefOrCuRef{Cdouble}"
 6 = "CuPtr{Ptr{Cdouble}}"
 8 = "CuPtr{Ptr{Cdouble}}"
@@ -580,21 +526,7 @@ needs_context = false
 10 = "RefOrCuRef{cuComplex}"
 11 = "CuPtr{Ptr{cuComplex}}"
 
-[api.cublasCgemvBatched_64.argtypes]
-5 = "RefOrCuRef{cuComplex}"
-6 = "CuPtr{Ptr{cuComplex}}"
-8 = "CuPtr{Ptr{cuComplex}}"
-10 = "RefOrCuRef{cuComplex}"
-11 = "CuPtr{Ptr{cuComplex}}"
-
 [api.cublasZgemvBatched.argtypes]
-5 = "RefOrCuRef{cuDoubleComplex}"
-6 = "CuPtr{Ptr{cuDoubleComplex}}"
-8 = "CuPtr{Ptr{cuDoubleComplex}}"
-10 = "RefOrCuRef{cuDoubleComplex}"
-11 = "CuPtr{Ptr{cuDoubleComplex}}"
-
-[api.cublasZgemvBatched_64.argtypes]
 5 = "RefOrCuRef{cuDoubleComplex}"
 6 = "CuPtr{Ptr{cuDoubleComplex}}"
 8 = "CuPtr{Ptr{cuDoubleComplex}}"
@@ -622,21 +554,7 @@ needs_context = false
 12 = "RefOrCuRef{Cfloat}"
 13 = "CuPtr{Cfloat}"
 
-[api.cublasSgemvStridedBatched_64.argtypes]
-5 = "RefOrCuRef{Cfloat}"
-6 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-12 = "RefOrCuRef{Cfloat}"
-13 = "CuPtr{Cfloat}"
-
 [api.cublasDgemvStridedBatched.argtypes]
-5 = "RefOrCuRef{Cdouble}"
-6 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-12 = "RefOrCuRef{Cdouble}"
-13 = "CuPtr{Cdouble}"
-
-[api.cublasDgemvStridedBatched_64.argtypes]
 5 = "RefOrCuRef{Cdouble}"
 6 = "CuPtr{Cdouble}"
 9 = "CuPtr{Cdouble}"
@@ -650,21 +568,7 @@ needs_context = false
 12 = "RefOrCuRef{cuComplex}"
 13 = "CuPtr{cuComplex}"
 
-[api.cublasCgemvStridedBatched_64.argtypes]
-5 = "RefOrCuRef{cuComplex}"
-6 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-12 = "RefOrCuRef{cuComplex}"
-13 = "CuPtr{cuComplex}"
-
 [api.cublasZgemvStridedBatched.argtypes]
-5 = "RefOrCuRef{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-12 = "RefOrCuRef{cuDoubleComplex}"
-13 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasZgemvStridedBatched_64.argtypes]
 5 = "RefOrCuRef{cuDoubleComplex}"
 6 = "CuPtr{cuDoubleComplex}"
 9 = "CuPtr{cuDoubleComplex}"
