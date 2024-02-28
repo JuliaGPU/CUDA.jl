@@ -9,6 +9,6 @@ import StaticArrays
 
 # same quirk as for some Base methods in src/device/quirks.jl
 @device_override @noinline StaticArrays.dimension_mismatch_fail(::Type{SA}, a::AbstractArray) where {SA<:StaticArrays.StaticArray} =
-    @print_and_throw(" DimensionMismatch: Expected and actual length of input array differ.")
+    @print_and_throw("DimensionMismatch while trying to convert to StaticArray: Expected and actual length of input array differ.")
 
 end  # extension module
