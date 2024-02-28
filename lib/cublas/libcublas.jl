@@ -1746,56 +1746,56 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasIsamax_v2_64(handle::cublasHandle_t, n::Int64,
                                                x::CuPtr{Cfloat}, incx::Int64,
-                                               result::RefOrCuRef{Cint})::cublasStatus_t
+                                               result::RefOrCuRef{Int64})::cublasStatus_t
 end
 
 @checked function cublasIdamax_v2_64(handle, n, x, incx, result)
     initialize_context()
     @gcsafe_ccall libcublas.cublasIdamax_v2_64(handle::cublasHandle_t, n::Int64,
                                                x::CuPtr{Cdouble}, incx::Int64,
-                                               result::RefOrCuRef{Cint})::cublasStatus_t
+                                               result::RefOrCuRef{Int64})::cublasStatus_t
 end
 
 @checked function cublasIcamax_v2_64(handle, n, x, incx, result)
     initialize_context()
     @gcsafe_ccall libcublas.cublasIcamax_v2_64(handle::cublasHandle_t, n::Int64,
                                                x::CuPtr{cuComplex}, incx::Int64,
-                                               result::RefOrCuRef{Cint})::cublasStatus_t
+                                               result::RefOrCuRef{Int64})::cublasStatus_t
 end
 
 @checked function cublasIzamax_v2_64(handle, n, x, incx, result)
     initialize_context()
     @gcsafe_ccall libcublas.cublasIzamax_v2_64(handle::cublasHandle_t, n::Int64,
                                                x::CuPtr{cuDoubleComplex}, incx::Int64,
-                                               result::RefOrCuRef{Cint})::cublasStatus_t
+                                               result::RefOrCuRef{Int64})::cublasStatus_t
 end
 
 @checked function cublasIsamin_v2_64(handle, n, x, incx, result)
     initialize_context()
     @gcsafe_ccall libcublas.cublasIsamin_v2_64(handle::cublasHandle_t, n::Int64,
                                                x::CuPtr{Cfloat}, incx::Int64,
-                                               result::RefOrCuRef{Cint})::cublasStatus_t
+                                               result::RefOrCuRef{Int64})::cublasStatus_t
 end
 
 @checked function cublasIdamin_v2_64(handle, n, x, incx, result)
     initialize_context()
     @gcsafe_ccall libcublas.cublasIdamin_v2_64(handle::cublasHandle_t, n::Int64,
                                                x::CuPtr{Cdouble}, incx::Int64,
-                                               result::RefOrCuRef{Cint})::cublasStatus_t
+                                               result::RefOrCuRef{Int64})::cublasStatus_t
 end
 
 @checked function cublasIcamin_v2_64(handle, n, x, incx, result)
     initialize_context()
     @gcsafe_ccall libcublas.cublasIcamin_v2_64(handle::cublasHandle_t, n::Int64,
                                                x::CuPtr{cuComplex}, incx::Int64,
-                                               result::RefOrCuRef{Cint})::cublasStatus_t
+                                               result::RefOrCuRef{Int64})::cublasStatus_t
 end
 
 @checked function cublasIzamin_v2_64(handle, n, x, incx, result)
     initialize_context()
     @gcsafe_ccall libcublas.cublasIzamin_v2_64(handle::cublasHandle_t, n::Int64,
                                                x::CuPtr{cuDoubleComplex}, incx::Int64,
-                                               result::RefOrCuRef{Cint})::cublasStatus_t
+                                               result::RefOrCuRef{Int64})::cublasStatus_t
 end
 
 @checked function cublasSasum_v2_64(handle, n, x, incx, result)
@@ -3466,7 +3466,7 @@ end
     @gcsafe_ccall libcublas.cublasIamaxEx_64(handle::cublasHandle_t, n::Int64,
                                              x::CuPtr{Cvoid}, xType::cudaDataType,
                                              incx::Int64,
-                                             result::RefOrCuRef{Cint})::cublasStatus_t
+                                             result::RefOrCuRef{Int64})::cublasStatus_t
 end
 
 @checked function cublasIaminEx(handle, n, x, xType, incx, result)
@@ -3481,7 +3481,7 @@ end
     @gcsafe_ccall libcublas.cublasIaminEx_64(handle::cublasHandle_t, n::Int64,
                                              x::CuPtr{Cvoid}, xType::cudaDataType,
                                              incx::Int64,
-                                             result::RefOrCuRef{Cint})::cublasStatus_t
+                                             result::RefOrCuRef{Int64})::cublasStatus_t
 end
 
 @checked function cublasAsumEx(handle, n, x, xType, incx, result, resultType, executiontype)

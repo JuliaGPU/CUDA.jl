@@ -196,6 +196,12 @@ function rewriter!(ctx, options)
             for (arg, typ) in argtypes
                 i = parse(Int, arg)
                 i in 1:length(arg_exprs) || error("invalid argtypes for $fn: index $arg is out of bounds")
+
+                # _64 aliases should use Int64 instead of Int32/Cint
+                if endswith(fn, "_64")
+                    typ = replace(typ, "Cint" => "Int64", "Int32" => "Int64")
+                end
+
                 arg_exprs[i].args[2] = Meta.parse(typ)
             end
 
