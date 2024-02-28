@@ -5,6 +5,9 @@ using StaticArrays
     function batched_matvec(ms::CuArray, vs::CuArray)
         function matvec_kernel(out, ms, vs, ::Val{N}, ::Val{M}) where {N, M}
             i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+            # Call constructors without @inbounds.
+            # This asserts that the @device_override
+            # for StaticArrays.dimension_mismatch_fail() works.
             m = SMatrix{N, M, Float32}(@view ms[:, :, i])
             v = SVector{M, Float32}(@view vs[:, i])
             out[:, i] .= m * v
