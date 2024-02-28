@@ -173,7 +173,7 @@ end
 #
 
 # GEMV
-
+if VERSION < v"1.12.0-"
 function LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, _add::MulAddMul)
     mA, nA = tA == 'N' ? size(A) : reverse(size(A))
 
@@ -208,6 +208,44 @@ function LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::Stri
     end
     LinearAlgebra.generic_matmatmul!(Y, tA, 'N', A, B, MulAddMul(alpha, beta))
 end
+else # VERSION >= v"1.12.0-"
+# legacy method
+LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, _add::MulAddMul) =
+    LinearAlgebra.generic_matvecmul!(Y, tA, A, B, _add.alpha, _add.beta)
+function LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, alpha::Number, beta::Number)
+    mA, nA = tA == 'N' ? size(A) : reverse(size(A))
+
+    if nA != length(B)
+        throw(DimensionMismatch("second dimension of A, $nA, does not match length of B, $(length(B))"))
+    end
+
+    if mA != length(Y)
+        throw(DimensionMismatch("first dimension of A, $mA, does not match length of Y, $(length(Y))"))
+    end
+
+    if mA == 0
+        return Y
+    end
+
+    if nA == 0
+        return rmul!(Y, 0)
+    end
+
+    T = eltype(Y)
+    if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
+        if T <: CublasFloat && eltype(A) == eltype(B) == T
+            if tA in ('N', 'T', 'C')
+                return gemv!(tA, alpha, A, B, beta, Y)
+            elseif tA in ('S', 's')
+                return symv!(tA == 'S' ? 'U' : 'L', alpha, A, B, beta, Y)
+            elseif tA in ('H', 'h')
+                return hemv!(tA == 'H' ? 'U' : 'L', alpha, A, B, beta, Y)
+            end
+        end
+    end
+    LinearAlgebra.generic_matmatmul!(Y, tA, 'N', A, B, alpha, beta)
+end
+end # VERSION
 
 if VERSION < v"1.10.0-DEV.1365"
 @inline LinearAlgebra.gemv!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, a::Number, b::Number) =
@@ -282,10 +320,13 @@ end # VERSION
 #
 
 # GEMM
+if VERSION < v"1.12.0-"
+LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul) =
+    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
+end
 
-function LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul)
+function LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, alpha::Number, beta::Number)
     T = eltype(C)
-    alpha, beta = _add.alpha, _add.beta
     mA, nA = size(A, tA == 'N' ? 1 : 2), size(A, tA == 'N' ? 2 : 1)
     mB, nB = size(B, tB == 'N' ? 1 : 2), size(B, tB == 'N' ? 2 : 1)
 
