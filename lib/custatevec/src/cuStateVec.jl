@@ -35,6 +35,27 @@ include("error.jl")
 include("types.jl")
 include("statevec.jl")
 
+# should be mutable so we can replace
+# the buffer if needed
+mutable struct HandleAndBuffer
+    handle::custatevecHandle_t
+    buffer::CuVector{UInt8}
+    function HandleAndBuffer(handle::custatevecHandle_t, buffer::CuVector{UInt8})
+        s = new(handle, buffer)
+        finalizer(unsafe_free!, s)
+        s
+    end
+end
+Base.unsafe_convert(::Type{Ptr{custatevecContext}}, lib_handle::HandleAndBuffer) = lib_handle.handle
+Base.unsafe_convert(::Type{CuVector{UInt8}}, lib_handle::HandleAndBuffer) = lib_handle.buffer
+
+function CUDA.unsafe_free!(s::HandleAndBuffer)
+    custatevecDestroy(s.handle)
+    CUDA.unsafe_free!(s.buffer)
+    return
+end
+
+
 # cache for created, but unused handles
 const idle_handles  = HandleCache{CuContext,custatevecHandle_t}()
 
@@ -42,7 +63,7 @@ function handle()
     cuda = CUDA.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::custatevecHandle_t, stream::CuStream}
+    LibraryState = @NamedTuple{handle_and_buffer::HandleAndBuffer, stream::CuStream}
     states = get!(task_local_storage(), :CUQUANTUM) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
@@ -54,18 +75,18 @@ function handle()
             custatevecCreate(handle)
             handle[]
         end
-
+        buf = CuVector{UInt8}(undef, 0)
+        hab = HandleAndBuffer(new_handle, buf)
         finalizer(current_task()) do task
             push!(idle_handles, cuda.context, new_handle) do
                 context!(cuda.context; skip_destroyed=true) do
-                    custatevecDestroy(new_handle)
+                    finalize(hab) 
                 end
             end
         end
-
         custatevecSetStream(new_handle, cuda.stream)
 
-        (; handle=new_handle, cuda.stream)
+        (; handle_and_buffer=hab, stream=cuda.stream)
     end
     state = get!(states, cuda.context) do
         new_state(cuda)
@@ -73,14 +94,14 @@ function handle()
 
     # update stream
     @noinline function update_stream(cuda, state)
-        custatevecSetStream(state.handle, cuda.stream)
-        (; state.handle, cuda.stream)
+        custatevecSetStream(state.handle_and_buffer.handle, cuda.stream)
+        (; state.handle_and_buffer, cuda.stream)
     end
     if state.stream != cuda.stream
         states[cuda.context] = state = update_stream(cuda, state)
     end
 
-    return state.handle
+    return state.handle_and_buffer
 end
 
 function version()
