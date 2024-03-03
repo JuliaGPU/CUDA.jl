@@ -356,7 +356,7 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
+function cufunction(f::F, tt::TT; kwargs...) where {F,TT}
     cuda = active_state()
 
     Base.@lock cufunction_lock begin
@@ -379,6 +379,34 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
             _kernel_instances[key] = kernel
         end
         return kernel::HostKernel{F,tt}
+    end
+end
+
+cufunction(f::F; kwargs...) where {F} = cufunction(f, Tuple{}; kwargs...)
+
+function cufunction(f::F, ::Type{TT}; kwargs...) where {F,TT}
+    cuda = active_state()
+
+    Base.@lock cufunction_lock begin
+        # compile the function
+        cache = compiler_cache(cuda.context)
+        source = methodinstance(F, TT)
+        config = compiler_config(cuda.device; kwargs...)::CUDACompilerConfig
+        fun = GPUCompiler.cached_compilation(cache, source, config, compile, link)
+
+        # create a callable object that captures the function instance. we don't need to think
+        # about world age here, as GPUCompiler already does and will return a different object
+        key = (objectid(source), hash(fun), f)
+        kernel = get(_kernel_instances, key, nothing)
+        if kernel === nothing
+            # create the kernel state object
+            exception_ptr = create_exceptions!(fun.mod)
+            state = KernelState(exception_ptr, UInt32(0))
+
+            kernel = HostKernel{F,TT}(f, fun, state)
+            _kernel_instances[key] = kernel
+        end
+        return kernel::HostKernel{F,TT}
     end
 end
 
