@@ -2625,6 +2625,11 @@ needs_context = false
 6 = "CuPtr{Ptr{Cvoid}}"
 7 = "CuPtr{Ptr{Cvoid}}"
 
+[api.cusparseSpMV_preprocess.argtypes]
+3 = "PtrOrCuPtr{Cvoid}"
+6 = "PtrOrCuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+
 [api.cusparseSpMM_preprocess.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
 7 = "PtrOrCuPtr{Cvoid}"
@@ -2655,6 +2660,9 @@ needs_context = false
 10 = "CuPtr{Cvoid}"
 
 [api.cusparseSpSV_updateMatrix.argtypes]
+3 = "CuPtr{Cvoid}"
+
+[api.cusparseSpSM_updateMatrix.argtypes]
 3 = "CuPtr{Cvoid}"
 
 [api.cusparseSpGEMMreuse_workEstimation.argtypes]

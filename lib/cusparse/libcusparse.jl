@@ -5821,6 +5821,21 @@ end
                                                       bufferSize::Ptr{Csize_t})::cusparseStatus_t
 end
 
+@checked function cusparseSpMV_preprocess(handle, opA, alpha, matA, vecX, beta, vecY,
+                                          computeType, alg, externalBuffer)
+    initialize_context()
+    @gcsafe_ccall libcusparse.cusparseSpMV_preprocess(handle::cusparseHandle_t,
+                                                      opA::cusparseOperation_t,
+                                                      alpha::PtrOrCuPtr{Cvoid},
+                                                      matA::cusparseConstSpMatDescr_t,
+                                                      vecX::cusparseConstDnVecDescr_t,
+                                                      beta::PtrOrCuPtr{Cvoid},
+                                                      vecY::cusparseDnVecDescr_t,
+                                                      computeType::cudaDataType,
+                                                      alg::cusparseSpMVAlg_t,
+                                                      externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
+end
+
 @cenum cusparseSpSVAlg_t::UInt32 begin
     CUSPARSE_SPSV_ALG_DEFAULT = 0
 end
@@ -5900,6 +5915,11 @@ end
     CUSPARSE_SPSM_ALG_DEFAULT = 0
 end
 
+@cenum cusparseSpSMUpdate_t::UInt32 begin
+    CUSPARSE_SPSM_UPDATE_GENERAL = 0
+    CUSPARSE_SPSM_UPDATE_DIAGONAL = 1
+end
+
 mutable struct cusparseSpSMDescr end
 
 const cusparseSpSMDescr_t = Ptr{cusparseSpSMDescr}
@@ -5959,6 +5979,14 @@ end
                                                  computeType::cudaDataType,
                                                  alg::cusparseSpSMAlg_t,
                                                  spsmDescr::cusparseSpSMDescr_t)::cusparseStatus_t
+end
+
+@checked function cusparseSpSM_updateMatrix(handle, spsmDescr, newValues, updatePart)
+    initialize_context()
+    @gcsafe_ccall libcusparse.cusparseSpSM_updateMatrix(handle::cusparseHandle_t,
+                                                        spsmDescr::cusparseSpSMDescr_t,
+                                                        newValues::CuPtr{Cvoid},
+                                                        updatePart::cusparseSpSMUpdate_t)::cusparseStatus_t
 end
 
 @cenum cusparseSpMMAlg_t::UInt32 begin

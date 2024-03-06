@@ -4649,6 +4649,98 @@ end
                                                           algo::cublasGemmAlgo_t)::cublasStatus_t
 end
 
+@checked function cublasSgemmGroupedBatched(handle, transa_array, transb_array, m_array,
+                                            n_array, k_array, alpha_array, Aarray,
+                                            lda_array, Barray, ldb_array, beta_array,
+                                            Carray, ldc_array, group_count, group_size)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasSgemmGroupedBatched(handle::cublasHandle_t,
+                                                      transa_array::Ptr{cublasOperation_t},
+                                                      transb_array::Ptr{cublasOperation_t},
+                                                      m_array::CuPtr{Cint},
+                                                      n_array::CuPtr{Cint},
+                                                      k_array::CuPtr{Cint},
+                                                      alpha_array::CuPtr{Float32},
+                                                      Aarray::CuPtr{Ptr{Float32}},
+                                                      lda_array::CuPtr{Cint},
+                                                      Barray::CuPtr{Ptr{Float32}},
+                                                      ldb_array::CuPtr{Cint},
+                                                      beta_array::CuPtr{Float32},
+                                                      Carray::CuPtr{Ptr{Float32}},
+                                                      ldc_array::CuPtr{Cint},
+                                                      group_count::Cint,
+                                                      group_size::CuPtr{Cint})::cublasStatus_t
+end
+
+@checked function cublasSgemmGroupedBatched_64(handle, transa_array, transb_array, m_array,
+                                               n_array, k_array, alpha_array, Aarray,
+                                               lda_array, Barray, ldb_array, beta_array,
+                                               Carray, ldc_array, group_count, group_size)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasSgemmGroupedBatched_64(handle::cublasHandle_t,
+                                                         transa_array::Ptr{cublasOperation_t},
+                                                         transb_array::Ptr{cublasOperation_t},
+                                                         m_array::CuPtr{Int64},
+                                                         n_array::CuPtr{Int64},
+                                                         k_array::CuPtr{Int64},
+                                                         alpha_array::CuPtr{Float32},
+                                                         Aarray::CuPtr{Ptr{Float32}},
+                                                         lda_array::CuPtr{Int64},
+                                                         Barray::CuPtr{Ptr{Float32}},
+                                                         ldb_array::CuPtr{Int64},
+                                                         beta_array::CuPtr{Float32},
+                                                         Carray::CuPtr{Ptr{Float32}},
+                                                         ldc_array::CuPtr{Int64},
+                                                         group_count::Int64,
+                                                         group_size::CuPtr{Int64})::cublasStatus_t
+end
+
+@checked function cublasDgemmGroupedBatched(handle, transa_array, transb_array, m_array,
+                                            n_array, k_array, alpha_array, Aarray,
+                                            lda_array, Barray, ldb_array, beta_array,
+                                            Carray, ldc_array, group_count, group_size)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasDgemmGroupedBatched(handle::cublasHandle_t,
+                                                      transa_array::Ptr{cublasOperation_t},
+                                                      transb_array::Ptr{cublasOperation_t},
+                                                      m_array::CuPtr{Cint},
+                                                      n_array::CuPtr{Cint},
+                                                      k_array::CuPtr{Cint},
+                                                      alpha_array::CuPtr{Float64},
+                                                      Aarray::CuPtr{Ptr{Float64}},
+                                                      lda_array::CuPtr{Cint},
+                                                      Barray::CuPtr{Ptr{Float64}},
+                                                      ldb_array::CuPtr{Cint},
+                                                      beta_array::CuPtr{Float64},
+                                                      Carray::CuPtr{Ptr{Float64}},
+                                                      ldc_array::CuPtr{Cint},
+                                                      group_count::Cint,
+                                                      group_size::CuPtr{Cint})::cublasStatus_t
+end
+
+@checked function cublasDgemmGroupedBatched_64(handle, transa_array, transb_array, m_array,
+                                               n_array, k_array, alpha_array, Aarray,
+                                               lda_array, Barray, ldb_array, beta_array,
+                                               Carray, ldc_array, group_count, group_size)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasDgemmGroupedBatched_64(handle::cublasHandle_t,
+                                                         transa_array::Ptr{cublasOperation_t},
+                                                         transb_array::Ptr{cublasOperation_t},
+                                                         m_array::CuPtr{Int64},
+                                                         n_array::CuPtr{Int64},
+                                                         k_array::CuPtr{Int64},
+                                                         alpha_array::CuPtr{Float64},
+                                                         Aarray::CuPtr{Ptr{Float64}},
+                                                         lda_array::CuPtr{Int64},
+                                                         Barray::CuPtr{Ptr{Float64}},
+                                                         ldb_array::CuPtr{Int64},
+                                                         beta_array::CuPtr{Float64},
+                                                         Carray::CuPtr{Ptr{Float64}},
+                                                         ldc_array::CuPtr{Int64},
+                                                         group_count::Int64,
+                                                         group_size::CuPtr{Int64})::cublasStatus_t
+end
+
 @checked function cublasSgeam(handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C,
                               ldc)
     initialize_context()
