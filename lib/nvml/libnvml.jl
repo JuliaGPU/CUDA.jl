@@ -3945,12 +3945,6 @@ const NVML_DEVICE_PCI_BUS_ID_BUFFER_SIZE = 32
 
 const NVML_DEVICE_PCI_BUS_ID_BUFFER_V2_SIZE = 16
 
-const nvmlPciInfoExt_v1 = NVML_STRUCT_VERSION(PciInfoExt, 1)
-
-const NVML_DEVICE_PCI_BUS_ID_LEGACY_FMT = "%04X:%02X:%02X.0"
-
-const NVML_DEVICE_PCI_BUS_ID_FMT = "%08X:%02X:%02X.0"
-
 const NVML_NVLINK_MAX_LINKS = 18
 
 const NVML_TOPOLOGY_CPU = NVML_TOPOLOGY_NODE
@@ -4005,18 +3999,6 @@ const NVML_VGPU_PGPU_VIRTUALIZATION_CAP_MIGRATION_NO = 0x00
 
 const NVML_VGPU_PGPU_VIRTUALIZATION_CAP_MIGRATION_YES = 0x01
 
-const nvmlVgpuHeterogeneousMode_v1 = NVML_STRUCT_VERSION(VgpuHeterogeneousMode, 1)
-
-const nvmlVgpuPlacementId_v1 = NVML_STRUCT_VERSION(VgpuPlacementId, 1)
-
-const nvmlVgpuPlacementList_v1 = NVML_STRUCT_VERSION(VgpuPlacementList, 1)
-
-const nvmlVgpuInstancesUtilizationInfo_v1 = NVML_STRUCT_VERSION(VgpuInstancesUtilizationInfo,
-                                                                1)
-
-const nvmlVgpuProcessesUtilizationInfo_v1 = NVML_STRUCT_VERSION(VgpuProcessesUtilizationInfo,
-                                                                1)
-
 const NVML_VGPU_SCHEDULER_POLICY_UNKNOWN = 0
 
 const NVML_VGPU_SCHEDULER_POLICY_BEST_EFFORT = 1
@@ -4046,10 +4028,6 @@ const NVML_GRID_LICENSE_STATE_UNLICENSED_RESTRICTED = 3
 const NVML_GRID_LICENSE_STATE_UNLICENSED = 4
 
 const NVML_GRID_LICENSE_STATE_LICENSED = 5
-
-const nvmlProcessesUtilizationInfo_v1 = NVML_STRUCT_VERSION(ProcessesUtilizationInfo, 1)
-
-const nvmlEccSramErrorStatus_v1 = NVML_STRUCT_VERSION(EccSramErrorStatus, 1)
 
 const NVML_GSP_FIRMWARE_VERSION_BUF_SIZE = 0x40
 
@@ -4589,8 +4567,6 @@ const NVML_CC_SYSTEM_MULTIGPU_NONE = 0
 
 const NVML_CC_SYSTEM_MULTIGPU_PROTECTED_PCIE = 1
 
-const nvmlSystemConfComputeSettings_v1 = NVML_STRUCT_VERSION(SystemConfComputeSettings, 1)
-
 const NVML_CC_ACCEPTING_CLIENT_REQUESTS_FALSE = 0
 
 const NVML_CC_ACCEPTING_CLIENT_REQUESTS_TRUE = 1
@@ -4613,12 +4589,6 @@ const NVML_CC_KEY_ROTATION_THRESHOLD_ATTACKER_ADVANTAGE_MIN = 50
 
 const NVML_CC_KEY_ROTATION_THRESHOLD_ATTACKER_ADVANTAGE_MAX = 75
 
-const nvmlConfComputeSetKeyRotationThresholdInfo_v1 = NVML_STRUCT_VERSION(ConfComputeSetKeyRotationThresholdInfo,
-                                                                          1)
-
-const nvmlConfComputeGetKeyRotationThresholdInfo_v1 = NVML_STRUCT_VERSION(ConfComputeGetKeyRotationThresholdInfo,
-                                                                          1)
-
 const NVML_GPU_FABRIC_UUID_LEN = 16
 
 const NVML_GPU_FABRIC_STATE_NOT_SUPPORTED = 0
@@ -4638,8 +4608,6 @@ const NVML_GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_FALSE = 2
 const NVML_GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW = 0
 
 const NVML_GPU_FABRIC_HEALTH_MASK_WIDTH_DEGRADED_BW = 0x11
-
-const nvmlGpuFabricInfo_v2 = NVML_STRUCT_VERSION(GpuFabricInfo, 2)
 
 const NVML_POWER_SCOPE_GPU = Cuint(0)
 

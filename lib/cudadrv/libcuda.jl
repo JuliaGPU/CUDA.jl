@@ -6208,5 +6208,3 @@ const RESOURCE_ABI_VERSION = 1
 const RESOURCE_ABI_EXTERNAL_BYTES = 48
 
 # Skipping MacroDefinition: _CONCAT_INNER ( x , y ) x ## y
-
-const _CONCAT_OUTER = (((x, y))(_CONCAT_INNER))(x, y)
