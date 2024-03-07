@@ -62,6 +62,7 @@ end
     NVML_ERROR_DEPRECATED = 26
     NVML_ERROR_NOT_READY = 27
     NVML_ERROR_GPU_NOT_FOUND = 28
+    NVML_ERROR_INVALID_STATE = 29
     NVML_ERROR_UNKNOWN = 999
 end
 
@@ -356,6 +357,20 @@ end
 
 const nvmlMemoryErrorType_t = nvmlMemoryErrorType_enum
 
+struct nvmlPciInfoExt_v1_t
+    version::Cuint
+    domain::Cuint
+    bus::Cuint
+    device::Cuint
+    pciDeviceId::Cuint
+    pciSubSystemId::Cuint
+    baseClass::Cuint
+    subClass::Cuint
+    busId::NTuple{32,Cchar}
+end
+
+const nvmlPciInfoExt_t = nvmlPciInfoExt_v1_t
+
 struct nvmlEccErrorCounts_st
     l1Cache::Culonglong
     l2Cache::Culonglong
@@ -537,6 +552,7 @@ const nvmlGpuP2PStatus_t = nvmlGpuP2PStatus_enum
     NVML_P2P_CAPS_INDEX_WRITE = 1
     NVML_P2P_CAPS_INDEX_NVLINK = 2
     NVML_P2P_CAPS_INDEX_ATOMICS = 3
+    NVML_P2P_CAPS_INDEX_PCI = 4
     NVML_P2P_CAPS_INDEX_PROP = 4
     NVML_P2P_CAPS_INDEX_UNKNOWN = 5
 end
@@ -566,7 +582,9 @@ const nvmlBridgeChipHierarchy_t = nvmlBridgeChipHierarchy_st
     NVML_PROCESSOR_CLK_SAMPLES = 5
     NVML_MEMORY_CLK_SAMPLES = 6
     NVML_MODULE_POWER_SAMPLES = 7
-    NVML_SAMPLINGTYPE_COUNT = 8
+    NVML_JPG_UTILIZATION_SAMPLES = 8
+    NVML_OFA_UTILIZATION_SAMPLES = 9
+    NVML_SAMPLINGTYPE_COUNT = 10
 end
 
 const nvmlSamplingType_t = nvmlSamplingType_enum
@@ -681,14 +699,14 @@ end
     NVML_THERMAL_CONTROLLER_UNKNOWN = -1
 end
 
-struct var"##Ctag#324"
+struct var"##Ctag#342"
     controller::nvmlThermalController_t
     defaultMinTemp::Cint
     defaultMaxTemp::Cint
     currentTemp::Cint
     target::nvmlThermalTarget_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#324"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#342"}, f::Symbol)
     f === :controller && return Ptr{nvmlThermalController_t}(x + 0)
     f === :defaultMinTemp && return Ptr{Cint}(x + 4)
     f === :defaultMaxTemp && return Ptr{Cint}(x + 8)
@@ -697,14 +715,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#324"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#324", f::Symbol)
-    r = Ref{var"##Ctag#324"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#324"}, r)
+function Base.getproperty(x::var"##Ctag#342", f::Symbol)
+    r = Ref{var"##Ctag#342"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#342"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#324"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#342"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -714,7 +732,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol)
     f === :count && return Ptr{Cuint}(x + 0)
-    f === :sensor && return Ptr{NTuple{3,var"##Ctag#324"}}(x + 4)
+    f === :sensor && return Ptr{NTuple{3,var"##Ctag#342"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -965,12 +983,38 @@ const nvmlVgpuDriverCapability_t = nvmlVgpuDriverCapability_enum
     NVML_DEVICE_VGPU_CAP_HETEROGENEOUS_TIMESLICE_SIZES = 2
     NVML_DEVICE_VGPU_CAP_READ_DEVICE_BUFFER_BW = 3
     NVML_DEVICE_VGPU_CAP_WRITE_DEVICE_BUFFER_BW = 4
-    NVML_DEVICE_VGPU_CAP_COUNT = 5
+    NVML_DEVICE_VGPU_CAP_DEVICE_STREAMING = 5
+    NVML_DEVICE_VGPU_CAP_MINI_QUARTER_GPU = 6
+    NVML_DEVICE_VGPU_CAP_COMPUTE_MEDIA_ENGINE_GPU = 7
+    NVML_DEVICE_VGPU_CAP_COUNT = 8
 end
 
 const nvmlDeviceVgpuCapability_t = nvmlDeviceVgpuCapability_enum
 
 const nvmlVgpuTypeId_t = Cuint
+
+struct nvmlVgpuHeterogeneousMode_v1_t
+    version::Cuint
+    mode::Cuint
+end
+
+const nvmlVgpuHeterogeneousMode_t = nvmlVgpuHeterogeneousMode_v1_t
+
+struct nvmlVgpuPlacementId_v1_t
+    version::Cuint
+    placementId::Cuint
+end
+
+const nvmlVgpuPlacementId_t = nvmlVgpuPlacementId_v1_t
+
+struct nvmlVgpuPlacementList_v1_t
+    version::Cuint
+    placementSize::Cuint
+    count::Cuint
+    placementIds::Ptr{Cuint}
+end
+
+const nvmlVgpuPlacementList_t = nvmlVgpuPlacementList_v1_t
 
 struct nvmlVgpuInstanceUtilizationSample_st
     vgpuInstance::nvmlVgpuInstance_t
@@ -982,6 +1026,27 @@ struct nvmlVgpuInstanceUtilizationSample_st
 end
 
 const nvmlVgpuInstanceUtilizationSample_t = nvmlVgpuInstanceUtilizationSample_st
+
+struct nvmlVgpuInstanceUtilizationInfo_v1_t
+    timeStamp::Culonglong
+    vgpuInstance::nvmlVgpuInstance_t
+    smUtil::nvmlValue_t
+    memUtil::nvmlValue_t
+    encUtil::nvmlValue_t
+    decUtil::nvmlValue_t
+    jpgUtil::nvmlValue_t
+    ofaUtil::nvmlValue_t
+end
+
+struct nvmlVgpuInstancesUtilizationInfo_v1_t
+    version::Cuint
+    sampleValType::nvmlValueType_t
+    vgpuInstanceCount::Cuint
+    lastSeenTimeStamp::Culonglong
+    vgpuUtilArray::Ptr{nvmlVgpuInstanceUtilizationInfo_v1_t}
+end
+
+const nvmlVgpuInstancesUtilizationInfo_t = nvmlVgpuInstancesUtilizationInfo_v1_t
 
 struct nvmlVgpuProcessUtilizationSample_st
     vgpuInstance::nvmlVgpuInstance_t
@@ -996,13 +1061,35 @@ end
 
 const nvmlVgpuProcessUtilizationSample_t = nvmlVgpuProcessUtilizationSample_st
 
+struct nvmlVgpuProcessUtilizationInfo_v1_t
+    processName::NTuple{64,Cchar}
+    timeStamp::Culonglong
+    vgpuInstance::nvmlVgpuInstance_t
+    pid::Cuint
+    smUtil::Cuint
+    memUtil::Cuint
+    encUtil::Cuint
+    decUtil::Cuint
+    jpgUtil::Cuint
+    ofaUtil::Cuint
+end
+
+struct nvmlVgpuProcessesUtilizationInfo_v1_t
+    version::Cuint
+    vgpuProcessCount::Cuint
+    lastSeenTimeStamp::Culonglong
+    vgpuProcUtilArray::Ptr{nvmlVgpuProcessUtilizationInfo_v1_t}
+end
+
+const nvmlVgpuProcessesUtilizationInfo_t = nvmlVgpuProcessesUtilizationInfo_v1_t
+
 struct nvmlVgpuSchedulerParams_t
     data::NTuple{8,UInt8}
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#318"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#319"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#340"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#341"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1052,8 +1139,8 @@ struct nvmlVgpuSchedulerSetParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#322"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#323"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#336"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#337"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1100,6 +1187,44 @@ end
 
 const nvmlProcessUtilizationSample_t = nvmlProcessUtilizationSample_st
 
+struct nvmlProcessUtilizationInfo_v1_t
+    timeStamp::Culonglong
+    pid::Cuint
+    smUtil::Cuint
+    memUtil::Cuint
+    encUtil::Cuint
+    decUtil::Cuint
+    jpgUtil::Cuint
+    ofaUtil::Cuint
+end
+
+struct nvmlProcessesUtilizationInfo_v1_t
+    version::Cuint
+    processSamplesCount::Cuint
+    lastSeenTimeStamp::Culonglong
+    procUtilArray::Ptr{nvmlProcessUtilizationInfo_v1_t}
+end
+
+const nvmlProcessesUtilizationInfo_t = nvmlProcessesUtilizationInfo_v1_t
+
+struct nvmlEccSramErrorStatus_v1_t
+    version::Cuint
+    aggregateUncParity::Culonglong
+    aggregateUncSecDed::Culonglong
+    aggregateCor::Culonglong
+    volatileUncParity::Culonglong
+    volatileUncSecDed::Culonglong
+    volatileCor::Culonglong
+    aggregateUncBucketL2::Culonglong
+    aggregateUncBucketSm::Culonglong
+    aggregateUncBucketPcie::Culonglong
+    aggregateUncBucketMcu::Culonglong
+    aggregateUncBucketOther::Culonglong
+    bThresholdExceeded::Cuint
+end
+
+const nvmlEccSramErrorStatus_t = nvmlEccSramErrorStatus_v1_t
+
 const nvmlDeviceArchitecture_t = Cuint
 
 const nvmlBusType_t = Cuint
@@ -1115,13 +1240,13 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"##Ctag#320"
+struct var"##Ctag#339"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
     decThreshold::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#320"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#339"}, f::Symbol)
     f === :bIsPresent && return Ptr{Cuint}(x + 0)
     f === :percentage && return Ptr{Cuint}(x + 4)
     f === :incThreshold && return Ptr{Cuint}(x + 8)
@@ -1129,14 +1254,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#320"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#320", f::Symbol)
-    r = Ref{var"##Ctag#320"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#320"}, r)
+function Base.getproperty(x::var"##Ctag#339", f::Symbol)
+    r = Ref{var"##Ctag#339"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#339"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#320"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#339"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1146,7 +1271,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
-    f === :utilization && return Ptr{NTuple{8,var"##Ctag#320"}}(x + 4)
+    f === :utilization && return Ptr{NTuple{8,var"##Ctag#339"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -1255,6 +1380,7 @@ const nvmlAccountingStats_t = nvmlAccountingStats_st
     NVML_ENCODER_QUERY_H264 = 0
     NVML_ENCODER_QUERY_HEVC = 1
     NVML_ENCODER_QUERY_AV1 = 2
+    NVML_ENCODER_QUERY_UNKNOWN = 255
 end
 
 const nvmlEncoderType_t = nvmlEncoderQueryType_enum
@@ -1322,6 +1448,16 @@ end
 
 const nvmlConfComputeSystemState_t = nvmlConfComputeSystemState_st
 
+struct nvmlSystemConfComputeSettings_v1_t
+    version::Cuint
+    environment::Cuint
+    ccFeature::Cuint
+    devToolsMode::Cuint
+    multiGpuMode::Cuint
+end
+
+const nvmlSystemConfComputeSettings_t = nvmlSystemConfComputeSettings_v1_t
+
 struct nvmlConfComputeMemSizeInfo_st
     protectedMemSizeKib::Culonglong
     unprotectedMemSizeKib::Culonglong
@@ -1349,6 +1485,24 @@ end
 
 const nvmlConfComputeGpuAttestationReport_t = nvmlConfComputeGpuAttestationReport_st
 
+struct nvmlConfComputeSetKeyRotationThresholdInfo_st
+    version::Cuint
+    maxAttackerAdvantage::Culonglong
+end
+
+const nvmlConfComputeSetKeyRotationThresholdInfo_v1_t = nvmlConfComputeSetKeyRotationThresholdInfo_st
+
+const nvmlConfComputeSetKeyRotationThresholdInfo_t = nvmlConfComputeSetKeyRotationThresholdInfo_v1_t
+
+struct nvmlConfComputeGetKeyRotationThresholdInfo_st
+    version::Cuint
+    attackerAdvantage::Culonglong
+end
+
+const nvmlConfComputeGetKeyRotationThresholdInfo_v1_t = nvmlConfComputeGetKeyRotationThresholdInfo_st
+
+const nvmlConfComputeGetKeyRotationThresholdInfo_t = nvmlConfComputeGetKeyRotationThresholdInfo_v1_t
+
 const nvmlGpuFabricState_t = Cuchar
 
 struct nvmlGpuFabricInfo_t
@@ -1357,6 +1511,17 @@ struct nvmlGpuFabricInfo_t
     cliqueId::Cuint
     state::nvmlGpuFabricState_t
 end
+
+struct nvmlGpuFabricInfo_v2_t
+    version::Cuint
+    clusterUuid::NTuple{16,Cuchar}
+    status::nvmlReturn_t
+    cliqueId::Cuint
+    state::nvmlGpuFabricState_t
+    healthMask::Cuint
+end
+
+const nvmlGpuFabricInfoV_t = nvmlGpuFabricInfo_v2_t
 
 const nvmlPowerScopeType_t = Cuchar
 
@@ -1549,6 +1714,12 @@ end
     @gcsafe_ccall (libnvml()).nvmlDeviceClearCpuAffinity(device::nvmlDevice_t)::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetNumaNodeId(device, node)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetNumaNodeId(device::nvmlDevice_t,
+                                                      node::Ptr{Cuint})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetTopologyCommonAncestor(device1, device2, pathInfo)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetTopologyCommonAncestor(device1::nvmlDevice_t,
@@ -1640,6 +1811,12 @@ end
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetPersistenceMode(device::nvmlDevice_t,
                                                            mode::Ptr{nvmlEnableState_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetPciInfoExt(device, pci)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetPciInfoExt(device::nvmlDevice_t,
+                                                      pci::Ptr{nvmlPciInfoExt_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetMaxPcieLinkGeneration(device, maxLinkGen)
@@ -2211,6 +2388,12 @@ end
                                                          gpuFabricInfo::Ptr{nvmlGpuFabricInfo_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetGpuFabricInfoV(device, gpuFabricInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetGpuFabricInfoV(device::nvmlDevice_t,
+                                                          gpuFabricInfo::Ptr{nvmlGpuFabricInfoV_t})::nvmlReturn_t
+end
+
 @checked function nvmlSystemGetConfComputeCapabilities(capabilities)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlSystemGetConfComputeCapabilities(capabilities::Ptr{nvmlConfComputeSystemCaps_t})::nvmlReturn_t
@@ -2248,6 +2431,16 @@ end
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetConfComputeGpuAttestationReport(device::nvmlDevice_t,
                                                                            gpuAtstReport::Ptr{nvmlConfComputeGpuAttestationReport_t})::nvmlReturn_t
+end
+
+@checked function nvmlSystemGetConfComputeKeyRotationThresholdInfo(pKeyRotationThrInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlSystemGetConfComputeKeyRotationThresholdInfo(pKeyRotationThrInfo::Ptr{nvmlConfComputeGetKeyRotationThresholdInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlSystemGetConfComputeSettings(settings)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlSystemGetConfComputeSettings(settings::Ptr{nvmlSystemConfComputeSettings_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGspFirmwareVersion(device, version)
@@ -2347,6 +2540,12 @@ end
                                                               utilization::Ptr{nvmlProcessUtilizationSample_t},
                                                               processSamplesCount::Ptr{Cuint},
                                                               lastSeenTimeStamp::Culonglong)::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetProcessesUtilizationInfo(device, procesesUtilInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetProcessesUtilizationInfo(device::nvmlDevice_t,
+                                                                    procesesUtilInfo::Ptr{nvmlProcessesUtilizationInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlUnitSetLedState(unit, color)
@@ -2509,6 +2708,11 @@ end
 @checked function nvmlSystemSetConfComputeGpusReadyState(isAcceptingWork)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlSystemSetConfComputeGpusReadyState(isAcceptingWork::Cuint)::nvmlReturn_t
+end
+
+@checked function nvmlSystemSetConfComputeKeyRotationThresholdInfo(pKeyRotationThrInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlSystemSetConfComputeKeyRotationThresholdInfo(pKeyRotationThrInfo::Ptr{nvmlConfComputeSetKeyRotationThresholdInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetAccountingMode(device, mode)
@@ -2676,6 +2880,59 @@ end
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceSetVirtualizationMode(device::nvmlDevice_t,
                                                               virtualMode::nvmlGpuVirtualizationMode_t)::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetVgpuHeterogeneousMode(device, pHeterogeneousMode)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetVgpuHeterogeneousMode(device::nvmlDevice_t,
+                                                                 pHeterogeneousMode::Ptr{nvmlVgpuHeterogeneousMode_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetVgpuHeterogeneousMode(device, pHeterogeneousMode)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceSetVgpuHeterogeneousMode(device::nvmlDevice_t,
+                                                                 pHeterogeneousMode::Ptr{nvmlVgpuHeterogeneousMode_t})::nvmlReturn_t
+end
+
+@checked function nvmlVgpuInstanceGetPlacementId(vgpuInstance, pPlacement)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlVgpuInstanceGetPlacementId(vgpuInstance::nvmlVgpuInstance_t,
+                                                             pPlacement::Ptr{nvmlVgpuPlacementId_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetVgpuTypeSupportedPlacements(device, vgpuTypeId,
+                                                           pPlacementList)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetVgpuTypeSupportedPlacements(device::nvmlDevice_t,
+                                                                       vgpuTypeId::nvmlVgpuTypeId_t,
+                                                                       pPlacementList::Ptr{nvmlVgpuPlacementList_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetVgpuTypeCreatablePlacements(device, vgpuTypeId,
+                                                           pPlacementList)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetVgpuTypeCreatablePlacements(device::nvmlDevice_t,
+                                                                       vgpuTypeId::nvmlVgpuTypeId_t,
+                                                                       pPlacementList::Ptr{nvmlVgpuPlacementList_t})::nvmlReturn_t
+end
+
+@checked function nvmlVgpuTypeGetGspHeapSize(vgpuTypeId, gspHeapSize)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlVgpuTypeGetGspHeapSize(vgpuTypeId::nvmlVgpuTypeId_t,
+                                                         gspHeapSize::Ptr{Culonglong})::nvmlReturn_t
+end
+
+@checked function nvmlVgpuTypeGetFbReservation(vgpuTypeId, fbReservation)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlVgpuTypeGetFbReservation(vgpuTypeId::nvmlVgpuTypeId_t,
+                                                           fbReservation::Ptr{Culonglong})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetVgpuCapabilities(device, capability, state)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceSetVgpuCapabilities(device::nvmlDevice_t,
+                                                            capability::nvmlDeviceVgpuCapability_t,
+                                                            state::nvmlEnableState_t)::nvmlReturn_t
 end
 
 @checked function nvmlGetVgpuDriverCapabilities(capability, capResult)
@@ -3040,6 +3297,12 @@ end
                                                            utilizationSamples::Ptr{nvmlVgpuInstanceUtilizationSample_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetVgpuInstancesUtilizationInfo(device, vgpuUtilInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetVgpuInstancesUtilizationInfo(device::nvmlDevice_t,
+                                                                        vgpuUtilInfo::Ptr{nvmlVgpuInstancesUtilizationInfo_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetVgpuProcessUtilization(device, lastSeenTimeStamp,
                                                       vgpuProcessSamplesCount,
                                                       utilizationSamples)
@@ -3048,6 +3311,12 @@ end
                                                                   lastSeenTimeStamp::Culonglong,
                                                                   vgpuProcessSamplesCount::Ptr{Cuint},
                                                                   utilizationSamples::Ptr{nvmlVgpuProcessUtilizationSample_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetVgpuProcessesUtilizationInfo(device, vgpuProcUtilInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetVgpuProcessesUtilizationInfo(device::nvmlDevice_t,
+                                                                        vgpuProcUtilInfo::Ptr{nvmlVgpuProcessesUtilizationInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlVgpuInstanceGetAccountingMode(vgpuInstance, mode)
@@ -3447,26 +3716,26 @@ mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"##Ctag#321"
+struct var"##Ctag#338"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
 end
-function Base.getproperty(x::Ptr{var"##Ctag#321"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#338"}, f::Symbol)
     f === :shortName && return Ptr{Cstring}(x + 0)
     f === :longName && return Ptr{Cstring}(x + 8)
     f === :unit && return Ptr{Cstring}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#321", f::Symbol)
-    r = Ref{var"##Ctag#321"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#321"}, r)
+function Base.getproperty(x::var"##Ctag#338", f::Symbol)
+    r = Ref{var"##Ctag#338"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#338"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#321"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#338"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3478,7 +3747,7 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :metricId && return Ptr{Cuint}(x + 0)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
-    f === :metricInfo && return Ptr{var"##Ctag#321"}(x + 16)
+    f === :metricInfo && return Ptr{var"##Ctag#338"}(x + 16)
     return getfield(x, f)
 end
 
@@ -3580,83 +3849,89 @@ end
                                                                    powerValue::Ptr{nvmlPowerValue_v2_t})::nvmlReturn_t
 end
 
-struct var"##Ctag#318"
-    avgFactor::Cuint
-    timeslice::Cuint
-end
-function Base.getproperty(x::Ptr{var"##Ctag#318"}, f::Symbol)
-    f === :avgFactor && return Ptr{Cuint}(x + 0)
-    f === :timeslice && return Ptr{Cuint}(x + 4)
-    return getfield(x, f)
+@checked function nvmlDeviceGetSramEccErrorStatus(device, status)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetSramEccErrorStatus(device::nvmlDevice_t,
+                                                              status::Ptr{nvmlEccSramErrorStatus_t})::nvmlReturn_t
 end
 
-function Base.getproperty(x::var"##Ctag#318", f::Symbol)
-    r = Ref{var"##Ctag#318"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#318"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#318"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#319"
-    timeslice::Cuint
-end
-function Base.getproperty(x::Ptr{var"##Ctag#319"}, f::Symbol)
-    f === :timeslice && return Ptr{Cuint}(x + 0)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#319", f::Symbol)
-    r = Ref{var"##Ctag#319"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#319"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#319"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#322"
+struct var"##Ctag#336"
     avgFactor::Cuint
     frequency::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#322"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#336"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :frequency && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#322", f::Symbol)
-    r = Ref{var"##Ctag#322"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#322"}, r)
+function Base.getproperty(x::var"##Ctag#336", f::Symbol)
+    r = Ref{var"##Ctag#336"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#336"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#322"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#336"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#323"
+struct var"##Ctag#337"
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#323"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#337"}, f::Symbol)
     f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#323", f::Symbol)
-    r = Ref{var"##Ctag#323"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#323"}, r)
+function Base.getproperty(x::var"##Ctag#337", f::Symbol)
+    r = Ref{var"##Ctag#337"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#337"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#323"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#337"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"##Ctag#340"
+    avgFactor::Cuint
+    timeslice::Cuint
+end
+function Base.getproperty(x::Ptr{var"##Ctag#340"}, f::Symbol)
+    f === :avgFactor && return Ptr{Cuint}(x + 0)
+    f === :timeslice && return Ptr{Cuint}(x + 4)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"##Ctag#340", f::Symbol)
+    r = Ref{var"##Ctag#340"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#340"}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"##Ctag#340"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"##Ctag#341"
+    timeslice::Cuint
+end
+function Base.getproperty(x::Ptr{var"##Ctag#341"}, f::Symbol)
+    f === :timeslice && return Ptr{Cuint}(x + 0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"##Ctag#341", f::Symbol)
+    r = Ref{var"##Ctag#341"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#341"}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"##Ctag#341"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3669,10 +3944,6 @@ const NVML_VALUE_NOT_AVAILABLE = -1
 const NVML_DEVICE_PCI_BUS_ID_BUFFER_SIZE = 32
 
 const NVML_DEVICE_PCI_BUS_ID_BUFFER_V2_SIZE = 16
-
-const NVML_DEVICE_PCI_BUS_ID_LEGACY_FMT = "%04X:%02X:%02X.0"
-
-const NVML_DEVICE_PCI_BUS_ID_FMT = "%08X:%02X:%02X.0"
 
 const NVML_NVLINK_MAX_LINKS = 18
 
@@ -3713,6 +3984,8 @@ const NVML_GRID_LICENSE_FEATURE_MAX_COUNT = 3
 const INVALID_GPU_INSTANCE_PROFILE_ID = 0xffffffff
 
 const INVALID_GPU_INSTANCE_ID = 0xffffffff
+
+const NVML_INVALID_VGPU_PLACEMENT_ID = 0xffff
 
 const NVML_VGPU_VIRTUALIZATION_CAP_MIGRATION = 0:0
 
@@ -4208,7 +4481,9 @@ const NVML_FI_DEV_TEMPERATURE_MEM_MAX_TLIMIT = 195
 
 const NVML_FI_DEV_TEMPERATURE_GPU_MAX_TLIMIT = 196
 
-const NVML_FI_MAX = 197
+const NVML_FI_DEV_IS_MIG_MODE_INDEPENDENT_MIG_QUERY_CAPABLE = 199
+
+const NVML_FI_MAX = 200
 
 const nvmlEventTypeSingleBitEccError = Clonglong(0x0000000000000001)
 
@@ -4288,6 +4563,10 @@ const NVML_CC_SYSTEM_FEATURE_DISABLED = 0
 
 const NVML_CC_SYSTEM_FEATURE_ENABLED = 1
 
+const NVML_CC_SYSTEM_MULTIGPU_NONE = 0
+
+const NVML_CC_SYSTEM_MULTIGPU_PROTECTED_PCIE = 1
+
 const NVML_CC_ACCEPTING_CLIENT_REQUESTS_FALSE = 0
 
 const NVML_CC_ACCEPTING_CLIENT_REQUESTS_TRUE = 1
@@ -4306,6 +4585,10 @@ const NVML_CC_CEC_ATTESTATION_REPORT_NOT_PRESENT = 0
 
 const NVML_CC_CEC_ATTESTATION_REPORT_PRESENT = 1
 
+const NVML_CC_KEY_ROTATION_THRESHOLD_ATTACKER_ADVANTAGE_MIN = 50
+
+const NVML_CC_KEY_ROTATION_THRESHOLD_ATTACKER_ADVANTAGE_MAX = 75
+
 const NVML_GPU_FABRIC_UUID_LEN = 16
 
 const NVML_GPU_FABRIC_STATE_NOT_SUPPORTED = 0
@@ -4315,6 +4598,16 @@ const NVML_GPU_FABRIC_STATE_NOT_STARTED = 1
 const NVML_GPU_FABRIC_STATE_IN_PROGRESS = 2
 
 const NVML_GPU_FABRIC_STATE_COMPLETED = 3
+
+const NVML_GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_NOT_SUPPORTED = 0
+
+const NVML_GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE = 1
+
+const NVML_GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_FALSE = 2
+
+const NVML_GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW = 0
+
+const NVML_GPU_FABRIC_HEALTH_MASK_WIDTH_DEGRADED_BW = 0x11
 
 const NVML_POWER_SCOPE_GPU = Cuint(0)
 

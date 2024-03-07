@@ -4854,6 +4854,49 @@ end
                                                 d_info::CuPtr{Cint})::cusolverStatus_t
 end
 
+@checked function cusolverDnXlarft_bufferSize(handle, params, direct, storev, N, K,
+                                              dataTypeV, d_V, ldv, dataTypeTau, d_tau,
+                                              dataTypeT, d_T, ldt, computeType,
+                                              workspaceInBytesOnDevice,
+                                              workspaceInBytesOnHost)
+    initialize_context()
+    @gcsafe_ccall libcusolver.cusolverDnXlarft_bufferSize(handle::cusolverDnHandle_t,
+                                                          params::cusolverDnParams_t,
+                                                          direct::cusolverDirectMode_t,
+                                                          storev::cusolverStorevMode_t,
+                                                          N::Int64, K::Int64,
+                                                          dataTypeV::cudaDataType,
+                                                          d_V::CuPtr{Cvoid}, ldv::Int64,
+                                                          dataTypeTau::cudaDataType,
+                                                          d_tau::CuPtr{Cvoid},
+                                                          dataTypeT::cudaDataType,
+                                                          d_T::CuPtr{Cvoid}, ldt::Int64,
+                                                          computeType::cudaDataType,
+                                                          workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                          workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXlarft(handle, params, direct, storev, N, K, dataTypeV, d_V,
+                                   ldv, dataTypeTau, d_tau, dataTypeT, d_T, ldt,
+                                   computeType, bufferOnDevice, workspaceInBytesOnDevice,
+                                   bufferOnHost, workspaceInBytesOnHost)
+    initialize_context()
+    @gcsafe_ccall libcusolver.cusolverDnXlarft(handle::cusolverDnHandle_t,
+                                               params::cusolverDnParams_t,
+                                               direct::cusolverDirectMode_t,
+                                               storev::cusolverStorevMode_t, N::Int64,
+                                               K::Int64, dataTypeV::cudaDataType,
+                                               d_V::CuPtr{Cvoid}, ldv::Int64,
+                                               dataTypeTau::cudaDataType,
+                                               d_tau::CuPtr{Cvoid}, dataTypeT::cudaDataType,
+                                               d_T::CuPtr{Cvoid}, ldt::Int64,
+                                               computeType::CuPtr{Cvoid},
+                                               bufferOnDevice::Ptr{Cvoid},
+                                               workspaceInBytesOnDevice::Csize_t,
+                                               bufferOnHost::Ptr{Cvoid},
+                                               workspaceInBytesOnHost::Csize_t)::cusolverStatus_t
+end
+
 # typedef void ( * cusolverDnLoggerCallback_t ) ( int logLevel , const char * functionName , const char * message )
 const cusolverDnLoggerCallback_t = Ptr{Cvoid}
 
@@ -4882,7 +4925,7 @@ end
     @gcsafe_ccall libcusolver.cusolverDnLoggerSetMask(mask::Cint)::cusolverStatus_t
 end
 
-# no prototype is found for this function at cusolverDn.h:4881:32, please use with caution
+# no prototype is found for this function at cusolverDn.h:4921:32, please use with caution
 @checked function cusolverDnLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcusolver.cusolverDnLoggerForceDisable()::cusolverStatus_t
