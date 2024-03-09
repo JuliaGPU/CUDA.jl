@@ -37,19 +37,18 @@ include("statevec.jl")
 
 # should be mutable so we can replace
 # the buffer if needed
-mutable struct HandleAndBuffer
+mutable struct cuStateVecHandle 
     handle::custatevecHandle_t
     buffer::CuVector{UInt8}
-    function HandleAndBuffer(handle::custatevecHandle_t, buffer::CuVector{UInt8})
+    function cuStateVecHandle(handle::custatevecHandle_t, buffer::CuVector{UInt8})
         s = new(handle, buffer)
         finalizer(unsafe_free!, s)
         s
     end
 end
-Base.unsafe_convert(::Type{Ptr{custatevecContext}}, lib_handle::HandleAndBuffer) = lib_handle.handle
-Base.unsafe_convert(::Type{CuVector{UInt8}}, lib_handle::HandleAndBuffer) = lib_handle.buffer
+Base.unsafe_convert(::Type{Ptr{custatevecContext}}, lib_handle::cuStateVecHandle) = lib_handle.handle
 
-function CUDA.unsafe_free!(s::HandleAndBuffer)
+function CUDA.unsafe_free!(s::cuStateVecHandle)
     custatevecDestroy(s.handle)
     CUDA.unsafe_free!(s.buffer)
     return
@@ -63,7 +62,7 @@ function handle()
     cuda = CUDA.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{handle_and_buffer::HandleAndBuffer, stream::CuStream}
+    LibraryState = @NamedTuple{handle_and_buffer::cuStateVecHandle, stream::CuStream}
     states = get!(task_local_storage(), :CUQUANTUM) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
@@ -76,7 +75,7 @@ function handle()
             handle[]
         end
         buf = CuVector{UInt8}(undef, 0)
-        hab = HandleAndBuffer(new_handle, buf)
+        hab = cuStateVecHandle(new_handle, buf)
         finalizer(current_task()) do task
             push!(idle_handles, cuda.context, new_handle) do
                 context!(cuda.context; skip_destroyed=true) do
