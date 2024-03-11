@@ -305,7 +305,7 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
 
     cusparseCsrSetStridedBatch(descA, b, ptrstride(A), valstride(A))
 
-    strideB = stride(B, 3) 
+    strideB = stride(B, 3)
     cusparseDnMatSetStridedBatch(descB, b, strideB)
 
     strideC = stride(C, 3)
@@ -410,6 +410,7 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
 
     spgemm_desc = CuSpGEMMDescriptor()
     # cusparseSpGEMM_workEstimation is used to compute an upper bound of the memory required for the intermediate products.
+    buffer1 = CuVector{UInt8}(undef, 0)
     function buffer1Size()
         out = Ref{Csize_t}(0)
         cusparseSpGEMM_workEstimation(
@@ -417,7 +418,7 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
             descC, T, algo, spgemm_desc, out, CU_NULL)
         return out[]
     end
-    with_workspace(buffer1Size; keep=true) do buffer
+    with_workspace(buffer1, buffer1Size) do buffer
         out = Ref{Csize_t}(sizeof(buffer))
         cusparseSpGEMM_workEstimation(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
@@ -425,6 +426,7 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
     end
     # cusparseSpGEMM_compute computes the structure of the output matrix and its values.
     # It stores the matrix in temporary buffers.
+    buffer2 = CuVector{UInt8}(undef, 0)
     function buffer2Size()
         out = Ref{Csize_t}(0)
         cusparseSpGEMM_compute(
@@ -432,7 +434,7 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
             descC, T, algo, spgemm_desc, out, CU_NULL)
         return out[]
     end
-    with_workspace(buffer2Size; keep=true) do buffer
+    with_workspace(buffer2, buffer2Size) do buffer
         out = Ref{Csize_t}(sizeof(buffer))
         cusparseSpGEMM_compute(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
@@ -461,6 +463,8 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
     # cusparseSpGEMM_copy copies the offsets, column indices, and values from the temporary buffers to the output matrix.
     cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB,
                         Ref{T}(beta), descC, T, algo, spgemm_desc)
+    CUDA.unsafe_free!(buffer1)
+    CUDA.unsafe_free!(buffer2)
     return C
 end
 
@@ -494,6 +498,7 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
 
     spgemm_desc = CuSpGEMMDescriptor()
     # cusparseSpGEMM_workEstimation is used to compute an upper bound of the memory required for the intermediate products.
+    buffer1 = CuVector{UInt8}(undef, 0)
     function buffer1Size()
         out = Ref{Csize_t}(0)
         cusparseSpGEMM_workEstimation(
@@ -501,7 +506,7 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
             descC, T, algo, spgemm_desc, out, CU_NULL)
         return out[]
     end
-    with_workspace(buffer1Size; keep=true) do buffer
+    with_workspace(buffer1, buffer1Size) do buffer
         out = Ref{Csize_t}(sizeof(buffer))
         cusparseSpGEMM_workEstimation(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
@@ -509,6 +514,7 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     end
     # cusparseSpGEMM_compute computes the structure of the output matrix and its values.
     # It stores the matrix in temporary buffers.
+    buffer2 = CuVector{UInt8}(undef, 0)
     function buffer2Size()
         out = Ref{Csize_t}(0)
         cusparseSpGEMM_compute(
@@ -516,7 +522,7 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
             descC, T, algo, spgemm_desc, out, CU_NULL)
         return out[]
     end
-    with_workspace(buffer2Size; keep=true) do buffer
+    with_workspace(buffer2, buffer2Size) do buffer
         out = Ref{Csize_t}(sizeof(buffer))
         cusparseSpGEMM_compute(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
@@ -534,6 +540,8 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     # cusparseSpGEMM_copy copies the offsets, column indices, and values from the temporary buffers to the output matrix.
     cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
                         descC, T, algo, spgemm_desc)
+    CUDA.unsafe_free!(buffer1)
+    CUDA.unsafe_free!(buffer2)
     return C
 end
 

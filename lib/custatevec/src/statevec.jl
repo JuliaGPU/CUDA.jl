@@ -1,47 +1,3 @@
-@inline with_cached_workspace(f::Base.Callable, size::Union{Integer,Function}, cached_ws::CuVector{UInt8}) =
-    with_cached_workspaces(f, UInt8, size, -1, cached_ws)
-
-@inline with_cached_workspace(f::Base.Callable, eltyp::Type{T}, size::Union{Integer,Function}, cached_ws::CuVector{T}) where {T} = with_cached_workspaces(f, T, size, -1, cached_ws)
-
-@inline with_cached_workspaces(f::Base.Callable, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function}, cached_ws::CuVector{UInt8}) = with_cached_workspaces(f, UInt8, size_gpu, size_cpu, cached_ws)
-
-function with_cached_workspaces(f::Base.Callable, eltyp::Type{T}, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function}, cached_ws::CuVector{T}) where {T}
-    get_size_gpu() = Int(isa(size_gpu, Integer) ? size_gpu : size_gpu()::Integer)
-    get_size_cpu() = Int(isa(size_cpu, Integer) ? size_cpu : size_cpu()::Integer)
-
-    sz_gpu = get_size_gpu() # this is bufferSize
-    sz_cpu = get_size_cpu()
-
-    workspace_gpu = nothing 
-    if sz_gpu <= length(cached_ws)
-        workspace_gpu = cached_ws
-    else
-        try
-            while workspace_gpu === nothing || length(workspace_gpu) < sz_gpu
-                workspace_gpu = CuVector{T}(undef, sz_gpu)
-                sz_gpu = get_size_gpu()
-            end
-        catch ex
-            isa(ex, OutOfGPUMemoryError) || rethrow()
-            workspace_gpu = cached_ws
-        end
-    end
-    workspace_gpu = workspace_gpu::CuVector{T}
-
-    # use & free
-    try
-        # size_cpu == -1 means that we don't need a CPU workspace
-        if sz_cpu == -1
-            f(workspace_gpu)
-        else
-            workspace_cpu = Vector{T}(undef, sz_cpu)
-            f(workspace_gpu, workspace_cpu)
-        end
-    finally
-        cached_ws = workspace_gpu
-    end
-end
-
 function applyPauliExp!(sv::CuStateVec, theta::Float64, paulis::Vector{<:Pauli}, targets::Vector{Int32}, controls::Vector{Int32}, controlValues::Vector{Int32}=fill(one(Int32), length(controls)))
     cupaulis = CuStateVecPauli.(paulis)
     custatevecApplyPauliRotation(handle(), sv.data, eltype(sv), sv.nbits, theta, cupaulis, targets, length(targets), controls, controlValues, length(controls))
@@ -49,14 +5,12 @@ function applyPauliExp!(sv::CuStateVec, theta::Float64, paulis::Vector{<:Pauli},
 end
 
 function applyMatrix!(sv::CuStateVec, matrix::Union{Matrix, CuMatrix}, adjoint::Bool, targets::Vector{<:Integer}, controls::Vector{<:Integer}, controlValues::Vector{<:Integer}=fill(one(Int32), length(controls)))
-    lib_handle_and_buf = handle()
-    cached_buf = lib_handle_and_buf.buffer
     function bufferSize()
         out = Ref{Csize_t}()
         custatevecApplyMatrixGetWorkspaceSize(handle(), eltype(sv), sv.nbits, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), length(targets), length(controls), compute_type(eltype(sv), eltype(matrix)), out)
         out[]
     end
-    with_cached_workspace(bufferSize, handle().buffer) do buffer
+    with_workspace(handle().cache, bufferSize) do buffer
         custatevecApplyMatrix(handle(), sv.data, eltype(sv), sv.nbits, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), compute_type(eltype(sv), eltype(matrix)), buffer, length(buffer))
     end
     sv
@@ -70,7 +24,7 @@ function applyMatrixBatched!(sv::CuStateVec, n_svs::Int, map_type::custatevecMat
         custatevecApplyMatrixBatchedGetWorkspaceSize(handle(), eltype(sv), n_index_bits, n_svs, sv_stride, map_type, matrix_inds, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, length(targets), length(controls), compute_type(eltype(sv), eltype(matrix)), out)
         out[]
     end
-    with_cached_workspace(bufferSize, handle().buffer) do buffer
+    with_workspace(handle().cache, bufferSize) do buffer
         custatevecApplyMatrixBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, map_type, matrix_inds, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), compute_type(eltype(sv), eltype(matrix)), buffer, length(buffer))
     end
     sv
@@ -82,7 +36,7 @@ function applyGeneralizedPermutationMatrix!(sv::CuStateVec, permutation::Union{V
         custatevecApplyGeneralizedPermutationMatrixGetWorkspaceSize(handle(), eltype(sv), sv.nbits, permutation, diagonals, eltype(diagonals), convert(Vector{Int32}, targets), length(targets), length(controls), out)
         out[]
     end
-    with_cached_workspace(bufferSize, handle().buffer) do buffer
+    with_workspace(handle().cache, bufferSize) do buffer
         custatevecApplyGeneralizedPermutationMatrix(handle(), sv.data, eltype(sv), sv.nbits, permutation, diagonals, eltype(diagonals), Int32(adjoint), convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), buffer, length(buffer))
     end
     sv
@@ -120,7 +74,7 @@ function collapseByBitStringBatched!(sv::CuStateVec, n_svs::Int, bitstrings::Vec
     end
     sv_stride    = div(length(sv.data), n_svs)
     n_index_bits = Int(log2(div(length(sv.data), n_svs)))
-    with_cached_workspace(bufferSize, handle().buffer) do buffer
+    with_workspace(handle().cache, bufferSize) do buffer
         custatevecCollapseByBitStringBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, convert(Vector{custatevecIndex_t}, bitstrings), convert(Vector{Int32}, bitordering), n_index_bits, norms, buffer, length(buffer))
     end
     sv
@@ -163,7 +117,7 @@ function expectation(sv::CuStateVec, matrix::Union{Matrix, CuMatrix}, basis_bits
     end
     expVal = Ref{Float64}()
     residualNorm = Ref{Float64}()
-    with_cached_workspace(bufferSize, handle().buffer) do buffer
+    with_workspace(handle().cache, bufferSize) do buffer
         custatevecComputeExpectation(handle(), sv.data, eltype(sv), sv.nbits, expVal, Float64, residualNorm, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, convert(Vector{Int32}, basis_bits), length(basis_bits), compute_type(eltype(sv), eltype(matrix)), buffer, length(buffer))
     end
     return expVal[], residualNorm[]
@@ -179,7 +133,7 @@ end
 function sample(sv::CuStateVec, sampled_bits::Vector{<:Integer}, shot_count)
     sampler = CuStateVecSampler(sv, UInt32(shot_count))
     bitstrings = Vector{custatevecIndex_t}(undef, shot_count)
-    with_cached_workspace(sampler.ws_size, handle().buffer) do buffer
+    with_workspace(handle().cache, sampler.ws_size) do buffer
         custatevecSamplerPreprocess(handle(), sampler.handle, buffer, length(buffer))
         custatevecSamplerSample(handle(), sampler.handle, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), rand(shot_count), shot_count, CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
     end
@@ -201,7 +155,7 @@ function swapIndexBitsMultiDevice!(sub_svs::Vector{CuStateVec}, devices::Vector{
     end
     device!(original_device)
     sub_data = map(sv->sv.data, sub_svs)
-    global_index_bits = mapreduce(sv->sv.nbits, +, sub_svs) 
+    global_index_bits = mapreduce(sv->sv.nbits, +, sub_svs)
     custatevecMultiDeviceSwapIndexBits(handles, length(handles), sub_data, eltype(first(sub_svs)), first(sub_svs).nbits, global_index_bits, convert(Vector{Pair{Int32, Int32}}, indexBitSwaps), length(indexBitSwaps), convert(Vector{Int32}, maskBitString), convert(Vector{Int32}, maskOrdering), length(maskOrdering), device_network_type)
     return sub_svs
 end
@@ -211,14 +165,14 @@ function testMatrixType(matrix::Union{Matrix, CuMatrix}, adjoint::Bool, matrix_t
     n == m || throw(DimensionMismatch("matrix must be square, but has dimensions ($n, $m)."))
     n_targets = log2(n)
     n_targets > 15 && throw(ArgumentError("matrix must be smaller than 2^15 x 2^15"))
-    
+
     residualNorm = Ref{Float64}()
     function bufferSize()
         out = Ref{Csize_t}()
         custatevecTestMatrixTypeGetWorkspaceSize(handle(), matrix_type, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, n_targets, Int32(adjoint), compute_type, out)
         out[]
     end
-    with_cached_workspace(bufferSize, handle().buffer) do buffer
+    with_workspace(handle().cache, bufferSize) do buffer
         custatevecTestMatrixType(handle(), residualNorm, matrix_type, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, n_targets, Int32(adjoint), compute_type, buffer, length(buffer))
     end
     return residualNorm[]
