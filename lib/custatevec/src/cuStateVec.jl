@@ -48,7 +48,7 @@ function handle()
     cuda = CUDA.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{fat_handle::cuStateVecHandle, stream::CuStream}
+    LibraryState = @NamedTuple{handle::cuStateVecHandle, stream::CuStream}
     states = get!(task_local_storage(), :CUQUANTUM) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
@@ -77,7 +77,7 @@ function handle()
 
         custatevecSetStream(new_handle, cuda.stream)
 
-        (; fat_handle, stream=cuda.stream)
+        (; handle=fat_handle, stream=cuda.stream)
     end
     state = get!(states, cuda.context) do
         new_state(cuda)
@@ -85,14 +85,14 @@ function handle()
 
     # update stream
     @noinline function update_stream(cuda, state)
-        custatevecSetStream(state.handle_and_cache.handle, cuda.stream)
-        (; state.handle_and_cache, cuda.stream)
+        custatevecSetStream(state.handle, cuda.stream)
+        (; state.handle, cuda.stream)
     end
     if state.stream != cuda.stream
         states[cuda.context] = state = update_stream(cuda, state)
     end
 
-    return state.handle_and_cache
+    return state.handle
 end
 
 function version()
