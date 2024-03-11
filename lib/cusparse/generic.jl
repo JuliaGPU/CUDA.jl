@@ -305,7 +305,7 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
 
     cusparseCsrSetStridedBatch(descA, b, ptrstride(A), valstride(A))
 
-    strideB = stride(B, 3) 
+    strideB = stride(B, 3)
     cusparseDnMatSetStridedBatch(descB, b, strideB)
 
     strideC = stride(C, 3)
@@ -409,58 +409,70 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
     descC = CuSparseMatrixDescriptor(C, index)
 
     spgemm_desc = CuSpGEMMDescriptor()
-    # cusparseSpGEMM_workEstimation is used to compute an upper bound of the memory required for the intermediate products.
-    function buffer1Size()
-        out = Ref{Csize_t}(0)
-        cusparseSpGEMM_workEstimation(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, spgemm_desc, out, CU_NULL)
-        return out[]
+
+    buffer1 = CuVector{UInt8}(undef, 0)
+    buffer2 = CuVector{UInt8}(undef, 0)
+    GC.@preserve buffer1 buffer2 begin
+        # compute an upper bound of the memory required for the intermediate products
+        function buffer1Size()
+            out = Ref{Csize_t}(0)
+            cusparseSpGEMM_workEstimation(
+                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+                descC, T, algo, spgemm_desc, out, CU_NULL)
+            return out[]
+        end
+        with_workspace(buffer1, buffer1Size) do buffer
+            out = Ref{Csize_t}(sizeof(buffer))
+            cusparseSpGEMM_workEstimation(
+                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+                descC, T, algo, spgemm_desc, out, buffer)
+        end
+
+        # compute the structure of the output matrix and its values in a temporary buffer
+        function buffer2Size()
+            out = Ref{Csize_t}(0)
+            cusparseSpGEMM_compute(
+                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+                descC, T, algo, spgemm_desc, out, CU_NULL)
+            return out[]
+        end
+        with_workspace(buffer2, buffer2Size) do buffer
+            out = Ref{Csize_t}(sizeof(buffer))
+            cusparseSpGEMM_compute(
+                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+                descC, T, algo, spgemm_desc, out, buffer)
+        end
+        CUDA.unsafe_free!(buffer1)
+
+        # retrieve the size of the output matrix and the number of non-zero elements
+        nnzC = Ref{Int64}()
+        cusparseSpMatGetSize(descC, Ref{Int64}(), Ref{Int64}(), nnzC)
+        # assume that AB and C have the same sparsity pattern if they have the same number
+        # of non-zero elements.
+        #
+        # XXX: even if AB and C have the same number of non-zero elements they could have
+        #      different sparsity patterns and the result will be wrong with β ≠ 0...
+        if nnz(C) ≠ nnzC[]
+            beta ≠ zero(T) && throw(ErrorException("AB and C must have the same sparsity pattern."))
+            # AB and C don't have the same sparsity pattern but we are still able to
+            # reallocate the memory to store the result of αAB in C because β = 0.
+            unsafe_free!(C.rowPtr)
+            unsafe_free!(C.colVal)
+            unsafe_free!(C.nzVal)
+            C.rowPtr = CuVector{Cint}(undef, m+1)
+            C.colVal = CuVector{Cint}(undef, nnzC[])
+            C.nzVal  = CuVector{T}(undef, nnzC[])
+            C.nnz    = nnzC[]
+            ## update the descriptor
+            cusparseCsrSetPointers(descC, C.rowPtr, C.colVal, C.nzVal)
+        end
+
+        # copy the offsets, column indices, and values to the output matrix
+        cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB,
+                            Ref{T}(beta), descC, T, algo, spgemm_desc)
+        CUDA.unsafe_free!(buffer2)
     end
-    with_workspace(buffer1Size; keep=true) do buffer
-        out = Ref{Csize_t}(sizeof(buffer))
-        cusparseSpGEMM_workEstimation(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, spgemm_desc, out, buffer)
-    end
-    # cusparseSpGEMM_compute computes the structure of the output matrix and its values.
-    # It stores the matrix in temporary buffers.
-    function buffer2Size()
-        out = Ref{Csize_t}(0)
-        cusparseSpGEMM_compute(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, spgemm_desc, out, CU_NULL)
-        return out[]
-    end
-    with_workspace(buffer2Size; keep=true) do buffer
-        out = Ref{Csize_t}(sizeof(buffer))
-        cusparseSpGEMM_compute(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, spgemm_desc, out, buffer)
-    end
-    # cusparseSpMatGetSize retrieve the size of the output matrix and the number of non-zero elements
-    nnzC = Ref{Int64}()
-    cusparseSpMatGetSize(descC, Ref{Int64}(), Ref{Int64}(), nnzC)
-    # We suppose that AB and C have the same sparsity pattern if they have the same number of non-zero elements.
-    # Even if AB and C have the same number of non-zero elements they could have different
-    # sparsity patterns and the result will be wrong with β ≠ 0...
-    if nnz(C) ≠ nnzC[]
-        beta ≠ zero(T) && throw(ErrorException("AB and C must have the same sparsity pattern."))
-        # AB and C don't have the same sparsity pattern but we are still able to reallocate
-        # the memory to store the result of αAB in C because β = 0.
-        unsafe_free!(C.rowPtr)
-        unsafe_free!(C.colVal)
-        unsafe_free!(C.nzVal)
-        C.rowPtr = CuVector{Cint}(undef, m+1)
-        C.colVal = CuVector{Cint}(undef, nnzC[])
-        C.nzVal  = CuVector{T}(undef, nnzC[])
-        C.nnz    = nnzC[]
-        # We update the descriptor with cusparseCsrSetPointers
-        cusparseCsrSetPointers(descC, C.rowPtr, C.colVal, C.nzVal)
-    end
-    # cusparseSpGEMM_copy copies the offsets, column indices, and values from the temporary buffers to the output matrix.
-    cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB,
-                        Ref{T}(beta), descC, T, algo, spgemm_desc)
+
     return C
 end
 
@@ -493,47 +505,57 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     descC = CuSparseMatrixDescriptor(CuSparseMatrixCSR, rowPtr, T, Cint, m, n, index)
 
     spgemm_desc = CuSpGEMMDescriptor()
-    # cusparseSpGEMM_workEstimation is used to compute an upper bound of the memory required for the intermediate products.
-    function buffer1Size()
-        out = Ref{Csize_t}(0)
-        cusparseSpGEMM_workEstimation(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
-            descC, T, algo, spgemm_desc, out, CU_NULL)
-        return out[]
+
+    buffer1 = CuVector{UInt8}(undef, 0)
+    buffer2 = CuVector{UInt8}(undef, 0)
+    GC.@preserve buffer1 buffer1 begin
+        # compute an upper bound of the memory required for the intermediate products.
+        function buffer1Size()
+            out = Ref{Csize_t}(0)
+            cusparseSpGEMM_workEstimation(
+                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
+                descC, T, algo, spgemm_desc, out, CU_NULL)
+            return out[]
+        end
+        with_workspace(buffer1, buffer1Size) do buffer
+            out = Ref{Csize_t}(sizeof(buffer))
+            cusparseSpGEMM_workEstimation(
+                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
+                descC, T, algo, spgemm_desc, out, buffer)
+        end
+
+        # compute the structure of the output matrix and its values in a temporary buffer
+        function buffer2Size()
+            out = Ref{Csize_t}(0)
+            cusparseSpGEMM_compute(
+                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
+                descC, T, algo, spgemm_desc, out, CU_NULL)
+            return out[]
+        end
+        with_workspace(buffer2, buffer2Size) do buffer
+            out = Ref{Csize_t}(sizeof(buffer))
+            cusparseSpGEMM_compute(
+                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
+                descC, T, algo, spgemm_desc, out, buffer)
+        end
+        CUDA.unsafe_free!(buffer1)
+
+        # retrieve the size of the output matrix and the number of non-zero elements
+        nnzC = Ref{Int64}()
+        cusparseSpMatGetSize(descC, Ref{Int64}(), Ref{Int64}(), nnzC)
+        ## allocate the memory to store the result of αAB
+        colVal = CuVector{Cint}(undef, nnzC[])
+        nzVal = CuVector{T}(undef, nnzC[])
+        C = CuSparseMatrixCSR{T, Cint}(rowPtr, colVal, nzVal, (m,n))
+        ## update the descriptor
+        cusparseCsrSetPointers(descC, C.rowPtr, C.colVal, C.nzVal)
+
+        # copy the offsets, column indices, and values to the output matrix
+        cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
+                            descC, T, algo, spgemm_desc)
+        CUDA.unsafe_free!(buffer2)
     end
-    with_workspace(buffer1Size; keep=true) do buffer
-        out = Ref{Csize_t}(sizeof(buffer))
-        cusparseSpGEMM_workEstimation(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
-            descC, T, algo, spgemm_desc, out, buffer)
-    end
-    # cusparseSpGEMM_compute computes the structure of the output matrix and its values.
-    # It stores the matrix in temporary buffers.
-    function buffer2Size()
-        out = Ref{Csize_t}(0)
-        cusparseSpGEMM_compute(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
-            descC, T, algo, spgemm_desc, out, CU_NULL)
-        return out[]
-    end
-    with_workspace(buffer2Size; keep=true) do buffer
-        out = Ref{Csize_t}(sizeof(buffer))
-        cusparseSpGEMM_compute(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
-            descC, T, algo, spgemm_desc, out, buffer)
-    end
-    nnzC = Ref{Int64}()
-    # cusparseSpMatGetSize retrieve the size of the output matrix and the number of non-zero elements
-    cusparseSpMatGetSize(descC, Ref{Int64}(), Ref{Int64}(), nnzC)
-    # We allocate the memory to store the result of αAB
-    colVal = CuVector{Cint}(undef, nnzC[])
-    nzVal = CuVector{T}(undef, nnzC[])
-    C = CuSparseMatrixCSR{T, Cint}(rowPtr, colVal, nzVal, (m,n))
-    # We update the descriptor with cusparseCsrSetPointers
-    cusparseCsrSetPointers(descC, C.rowPtr, C.colVal, C.nzVal)
-    # cusparseSpGEMM_copy copies the offsets, column indices, and values from the temporary buffers to the output matrix.
-    cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
-                        descC, T, algo, spgemm_desc)
+
     return C
 end
 
