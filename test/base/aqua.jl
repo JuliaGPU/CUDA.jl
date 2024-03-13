@@ -1,5 +1,7 @@
 using Aqua
 
+const MAX_AMBIGUITIES = 15
+
 # FIXME: we have plenty of ambiguities, let's at least ensure that we don't create more
 let ambs = Aqua.detect_ambiguities(CUDA; recursive=true)
     pkg_match(pkgname, pkgdir::Nothing) = false
@@ -8,8 +10,25 @@ let ambs = Aqua.detect_ambiguities(CUDA; recursive=true)
     # StaticArrays pirates a bunch of Random stuff...
     filter!(x -> !pkg_match("StaticArrays", pkgdir(first(x).module)), ambs)
 
-    @warn "Remaining ambiguities: $(length(ambs))"
-    @test length(ambs) ≤ 15
+    # if we'll fail this test, at least show which ambiguities were detected
+    if length(ambs) > MAX_AMBIGUITIES
+        for (ma, mb) in ambs
+            println()
+            println("Ambiguity detected:")
+            if VERSION >= v"1.9"
+                print("  ")
+                Base.show_method(stdout, ma)
+                println()
+                print("  ")
+                Base.show_method(stdout, mb)
+                println()
+            else
+                println("  ", ma)
+                println("  ", mb)
+            end
+        end
+    end
+    @test length(ambs) ≤ MAX_AMBIGUITIES
 end
 
 Aqua.test_all(CUDA;
