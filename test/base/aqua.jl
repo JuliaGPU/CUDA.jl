@@ -8,7 +8,8 @@ let ambs = Aqua.detect_ambiguities(CUDA; recursive=true)
     pkg_match(pkgname, pkgdir::AbstractString) = occursin(pkgname, pkgdir)
 
     # StaticArrays pirates a bunch of Random stuff...
-    filter!(x -> !pkg_match("StaticArrays", pkgdir(first(x).module)), ambs)
+    filter!(x -> !pkg_match("StaticArrays", pkgdir(x[1].module)) &&
+                 !pkg_match("StaticArrays", pkgdir(x[2].module)), ambs)
 
     # if we'll fail this test, at least show which ambiguities were detected
     if length(ambs) > MAX_AMBIGUITIES
