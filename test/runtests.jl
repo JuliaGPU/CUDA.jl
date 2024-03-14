@@ -54,17 +54,8 @@ end
 include("setup.jl")     # make sure everything is precompiled
 
 # choose tests
-const tests = ["core/initialization"]    # needs to run first
+const tests = []
 const test_runners = Dict()
-## GPUArrays testsuite
-for name in keys(TestSuite.tests)
-    if CUDA.default_memory != Mem.Device && name == "indexing scalar"
-        # GPUArrays' scalar indexing tests assume that indexing is not supported
-        continue
-    end
-    push!(tests, "gpuarrays/$name")
-    test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
-end
 ## files in the test folder
 for (rootpath, dirs, files) in walkdir(@__DIR__)
   # find Julia files
@@ -92,11 +83,22 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
   end
 
   append!(tests, files)
-  sort(files; by=(file)->stat("$(@__DIR__)/$file.jl").size, rev=true) # large (slow) tests first
   for file in files
     test_runners[file] = ()->include("$(@__DIR__)/$file.jl")
   end
 end
+sort!(tests; by=(file)->stat("$(@__DIR__)/$file.jl").size, rev=true)
+## GPUArrays testsuite
+for name in keys(TestSuite.tests)
+    if CUDA.default_memory != Mem.Device && name == "indexing scalar"
+        # GPUArrays' scalar indexing tests assume that indexing is not supported
+        continue
+    end
+    pushfirst!(tests, "gpuarrays/$name")
+    test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
+end
+## finalize
+pushfirst!(tests, "core/initialization")
 unique!(tests)
 
 # list tests, if requested
