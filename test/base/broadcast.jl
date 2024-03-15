@@ -62,4 +62,10 @@ end
   d = cu([1]; host=true)
   e = c .+ d
   @test is_unified(e)
+
+  # this should also work with differently-sized inputs
+  f = cu([1]; device=true)
+  g = cu([1 2]; host=true)
+  h = f .+ g
+  @test is_unified(h)
 end

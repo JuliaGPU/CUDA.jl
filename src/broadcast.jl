@@ -12,9 +12,9 @@ BroadcastStyle(W::Type{<:AnyCuArray{T,N}}) where {T,N} =
 
 # when we are dealing with different buffer styles, we cannot know
 # which one is better, so use unified memory
-BroadcastStyle(::CUDA.CuArrayStyle{N, B1},
-               ::CUDA.CuArrayStyle{N, B2}) where {N,B1,B2} =
-    CuArrayStyle{N, Mem.Unified}()
+BroadcastStyle(::CUDA.CuArrayStyle{N1, B1},
+               ::CUDA.CuArrayStyle{N2, B2}) where {N1,N2,B1,B2} =
+    CuArrayStyle{max(N1,N2), Mem.Unified}()
 
 # allocation of output arrays
 Base.similar(bc::Broadcasted{CuArrayStyle{N,B}}, ::Type{T}, dims) where {T,N,B} =
