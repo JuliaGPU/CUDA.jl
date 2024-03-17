@@ -2,13 +2,14 @@
 
 module EnzymeCoreExt
 
-using CUDA: CUDABackend
+using CUDA
+import CUDA: GPUCompiler, CUDABackend
 
 isdefined(Base, :get_extension) ? (import EnzymeCore) : (import ..EnzymeCore)
 
-function EnzymeCore.parent_job_for_tape_type(::CUDABackend)
-    mi = CUDA.methodinstance(typeof(()->return), Tuple{})
-    return CUDA.CompilerJob(mi, CUDA.compiler_config(CUDA.device()))
+function EnzymeCore.compiler_job_from_backend(::CUDABackend, @nospecialize(F::Type), @nospecialize(TT::Type))
+    mi = GPUCompiler.methodinstance(F, TT)
+    return GPUCompiler.CompilerJob(mi, CUDA.compiler_config(CUDA.device()))
 end
 
 end # module
