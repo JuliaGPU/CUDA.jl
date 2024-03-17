@@ -2328,3 +2328,14 @@ needs_context = false
 5 = "CuPtr{T}"
 6 = "CuPtr{T}"
 8 = "CuPtr{Cvoid}"
+
+[api.cusolverDnXlarft_bufferSize.argtypes]
+8 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+
+[api.cusolverDnXlarft.argtypes]
+8 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+13 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"

@@ -294,6 +294,32 @@ end
                                             value::Ptr{Cint})::cufftResult
 end
 
+@cenum cufftProperty_t::UInt32 begin
+    NVFFT_PLAN_PROPERTY_INT64_PATIENT_JIT = 1
+end
+
+const cufftProperty = cufftProperty_t
+
+@checked function cufftSetPlanPropertyInt64(plan, property, inputValueInt)
+    initialize_context()
+    @gcsafe_ccall libcufft.cufftSetPlanPropertyInt64(plan::cufftHandle,
+                                                     property::cufftProperty,
+                                                     inputValueInt::Clonglong)::cufftResult
+end
+
+@checked function cufftGetPlanPropertyInt64(plan, property, returnPtrValue)
+    initialize_context()
+    @gcsafe_ccall libcufft.cufftGetPlanPropertyInt64(plan::cufftHandle,
+                                                     property::cufftProperty,
+                                                     returnPtrValue::Ptr{Clonglong})::cufftResult
+end
+
+@checked function cufftResetPlanProperty(plan, property)
+    initialize_context()
+    @gcsafe_ccall libcufft.cufftResetPlanProperty(plan::cufftHandle,
+                                                  property::cufftProperty)::cufftResult
+end
+
 # Skipping MacroDefinition: CUFFTAPI __attribute__ ( ( visibility ( "default" ) ) )
 
 const MAX_CUFFT_ERROR = 0x11

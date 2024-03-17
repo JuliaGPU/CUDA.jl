@@ -45,47 +45,51 @@ end
 ## wrapper for foreign functionality that requires a workspace buffer
 
 """
-    with_workspace([eltyp=UInt8], size, [fallback::Int]; keep::Bool=false) do workspace
+    with_workspace([cache], bytesize) do workspace
         ...
     end
 
-Create a GPU workspace vector with element type `eltyp` and size in number of elements (in
-the default case of an UInt8 element type this equals to the amount of bytes) specified by
-`size`, and pass it to the do block. A fallback workspace size `fallback` can be specified
-if the regular size would lead to OOM. Afterwards, the buffer is put back into the memory
-pool for reuse (unless `keep` is set to `true`).
+Create a GPU workspace vector with size `bytesize` (either a number, or a callable
+function), and pass it to the do block. Afterwards, the buffer is freed. If you instead want
+to cache the workspace, pass any previous instance as the first argument, which will result
+in it getting resized instead.
 
 This helper protects against the rare but real issue of the workspace size getter returning
 different results based on the GPU device memory pressure, which might change _after_
 initial allocation of the workspace (which can cause a GC collection).
-"""
-@inline with_workspace(f::Base.Callable, size::Union{Integer,Function}, fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) =
-    with_workspaces(f, UInt8, size, -1, fallback; keep)
 
-@inline with_workspace(f::Base.Callable, eltyp::Type{T}, size::Union{Integer,Function},
-                       fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) where {T} =
-    with_workspaces(f, T, size, -1, fallback; keep)
+See also: [`with_workspaces`](@ref), if you need both a GPU and CPU workspace.
+"""
+with_workspace(f::Base.Callable, size) = with_workspaces(f, nothing, nothing, size, -1)
+
+with_workspace(f::Base.Callable, cache, size) = with_workspaces(f, cache, nothing, size, -1)
 
 """
-    with_workspaces([eltyp=UInt8], size_gpu, size_cpu, [fallback::Int]; keep::Bool=false) do workspace_gpu, workspace_cpu
+    with_workspaces([cache_gpu], [cache_cpu], size_gpu, size_cpu) do workspace_gpu, workspace_cpu
         ...
     end
 
-Create GPU and CPU workspace vectors with element type `eltyp` and size in number of elements (in
-the default case of an UInt8 element type this equals to the amount of bytes) specified by
-`size_gpu` and `size_cpu`, and pass them to the do block.
-A fallback GPU workspace size `fallback` can be specified if the regular size would lead to OOM.
-Afterwards, the GPU buffer is put back into the memory pool for reuse (unless `keep` is set to `true`).
-This helper protects against the rare but real issue of the GPU workspace size getter returning
-different results based on the GPU device memory pressure, which might change _after_
-initial allocation of the workspace (which can cause a GC collection).
-"""
-@inline with_workspaces(f::Base.Callable, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function},
-                        fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) =
-    with_workspaces(f, UInt8, size_gpu, size_cpu, fallback; keep)
+Create GPU and CPU workspace vectors with size `bytesize` (either a number, or a callable
+function), and pass them to the do block.  Afterwards, the buffers are freed. If you instead
+want to cache the workspaces, pass any previous instances as the first arguments, which will
+result in them getting resized instead.
 
-function with_workspaces(f::Base.Callable, eltyp::Type{T}, size_gpu::Union{Integer,Function}, size_cpu::Union{Integer,Function},
-                         fallback::Union{Nothing,Integer}=nothing; keep::Bool=false) where {T}
+This helper protects against the rare but real issue of the workspace size getters returning
+different results based on the memory pressure, which might change _after_ initial
+allocation of the workspace (which can cause a GC collection).
+
+See also: [`with_workspace`](@ref), if you only need a GPU workspace.
+"""
+with_workspaces(f::Base.Callable, size_gpu, size_cpu) =
+    with_workspaces(f, nothing, nothing, size_gpu, size_cpu)
+with_workspaces(f::Base.Callable, cache_gpu, size_gpu, size_cpu) =
+    with_workspaces(f, cache_gpu, nothing, size_gpu, size_cpu)
+
+function with_workspaces(f::Base.Callable,
+                         cache_gpu::Union{Nothing,AbstractVector{UInt8}},
+                         cache_cpu::Union{Nothing,AbstractVector{UInt8}},
+                         size_gpu::Union{Integer,Function},
+                         size_cpu::Union{Integer,Function})
 
     get_size_gpu() = Int(isa(size_gpu, Integer) ? size_gpu : size_gpu()::Integer)
     get_size_cpu() = Int(isa(size_cpu, Integer) ? size_cpu : size_cpu()::Integer)
@@ -93,30 +97,41 @@ function with_workspaces(f::Base.Callable, eltyp::Type{T}, size_gpu::Union{Integ
     sz_gpu = get_size_gpu()
     sz_cpu = get_size_cpu()
 
-    workspace_gpu = nothing
-    try
-        while workspace_gpu === nothing || length(workspace_gpu) < sz_gpu
-            workspace_gpu = CuVector{T}(undef, sz_gpu)
-            sz_gpu = get_size_gpu()
+    workspace_gpu = cache_gpu
+    while workspace_gpu === nothing || length(workspace_gpu) < sz_gpu
+        if workspace_gpu === nothing
+            workspace_gpu = CuVector{UInt8}(undef, sz_gpu)
+        else
+            resize!(workspace_gpu, sz_gpu)
         end
-    catch ex
-        fallback === nothing && rethrow()
-        isa(ex, OutOfGPUMemoryError) || rethrow()
-        workspace_gpu = CuVector{T}(undef, fallback)
+        sz_gpu = get_size_gpu()
     end
-    workspace_gpu = workspace_gpu::CuVector{T}
+    workspace_gpu = workspace_gpu::CuVector{UInt8}
+
+    # size_cpu == -1 means that we don't need a CPU workspace
+    if sz_cpu !== -1
+        workspace_cpu = cache_cpu
+        if workspace_cpu === nothing || length(workspace_cpu) < sz_cpu
+            if workspace_cpu === nothing
+                workspace_cpu = Vector{UInt8}(undef, sz_cpu)
+            else
+                resize!(workspace_cpu, sz_cpu)
+            end
+        end
+        workspace_cpu = workspace_cpu::Vector{UInt8}
+    end
 
     # use & free
     try
-        # size_cpu == -1 means that we don't need a CPU workspace
         if sz_cpu == -1
             f(workspace_gpu)
         else
-            workspace_cpu = Vector{T}(undef, sz_cpu)
             f(workspace_gpu, workspace_cpu)
         end
     finally
-        keep || CUDA.unsafe_free!(workspace_gpu)
+        if cache_gpu === nothing
+            CUDA.unsafe_free!(workspace_gpu)
+        end
     end
 end
 

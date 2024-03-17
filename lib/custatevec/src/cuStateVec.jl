@@ -35,14 +35,20 @@ include("error.jl")
 include("types.jl")
 include("statevec.jl")
 
+struct cuStateVecHandle
+    handle::custatevecHandle_t
+    cache::CuVector{UInt8}
+end
+Base.unsafe_convert(::Type{Ptr{custatevecContext}}, handle::cuStateVecHandle) = handle.handle
+
 # cache for created, but unused handles
-const idle_handles  = HandleCache{CuContext,custatevecHandle_t}()
+const idle_handles = HandleCache{CuContext,custatevecHandle_t}()
 
 function handle()
     cuda = CUDA.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::custatevecHandle_t, stream::CuStream}
+    LibraryState = @NamedTuple{handle::cuStateVecHandle, stream::CuStream}
     states = get!(task_local_storage(), :CUQUANTUM) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
@@ -55,7 +61,13 @@ function handle()
             handle[]
         end
 
+        cache = CuVector{UInt8}(undef, 0)
+        fat_handle = cuStateVecHandle(new_handle, cache)
+
         finalizer(current_task()) do task
+            # wipe the cache when storing the handle
+            resize!(cache, 0)
+
             push!(idle_handles, cuda.context, new_handle) do
                 context!(cuda.context; skip_destroyed=true) do
                     custatevecDestroy(new_handle)
@@ -65,7 +77,7 @@ function handle()
 
         custatevecSetStream(new_handle, cuda.stream)
 
-        (; handle=new_handle, cuda.stream)
+        (; handle=fat_handle, stream=cuda.stream)
     end
     state = get!(states, cuda.context) do
         new_state(cuda)

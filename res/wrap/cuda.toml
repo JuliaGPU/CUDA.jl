@@ -10,6 +10,7 @@ output_ignorelist = [
     "CUstream", "CUstream_st",
     # these change often
     "CUDA_VERSION",
+    "_CONCAT_OUTER",
 ]
 
 
