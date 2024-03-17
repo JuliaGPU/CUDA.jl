@@ -156,7 +156,7 @@ function __init__()
             include("../ext/SpecialFunctionsExt.jl")
         end
         @require EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869" begin
-            include("../ext/EnzymeExt.jl")
+            include("../ext/EnzymeCoreExt.jl")
         end
     end
 
