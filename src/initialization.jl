@@ -155,6 +155,9 @@ function __init__()
         @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" begin
             include("../ext/SpecialFunctionsExt.jl")
         end
+        @require EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869" begin
+            include("../ext/EnzymeExt.jl")
+        end
     end
 
     # ensure that operations executed by the REPL back-end finish before returning,
