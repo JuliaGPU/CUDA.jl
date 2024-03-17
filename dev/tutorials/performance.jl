@@ -22,7 +22,7 @@
 # ### Limiting the Maximum Number of Registers Per Thread
 
 # The number of threads that can be launched is partly determined by the number of registers a kernel uses. This is due to registers being shared between all threads on a multiprocessor.
-# Setting the maximum number of registers per thread will force less registers to be used which can increase thread count at the expense of having to spill registers into local memory, this may improve performance. To set the max registers to 32 use `@cuda max_registers=32`.
+# Setting the maximum number of registers per thread will force less registers to be used which can increase thread count at the expense of having to spill registers into local memory, this may improve performance. To set the max registers to 32 use `@cuda maxregs=32`.
 
 # ### FastMath
 
