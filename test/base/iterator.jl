@@ -37,6 +37,12 @@ batch2, _ = iterate(it_nt, state)
 it_vec = CuIterator([[i,i/2], [i/3, i/4]] for i in 1:4)
 @test first(it_vec)[1] isa CuArray{Float64}
 
+# test element type conversion using a custom adaptor
+it_float64 = CuIterator([[1.0]])
+@test first(it_float64) isa CuArray{Float64}
+it_float32 = CuIterator(CuArray{Float32}, [[1.0]])
+@test first(it_float32) isa CuArray{Float32}
+
 using StaticArrays: SVector, SA
 it_static = CuIterator([SA[i,i/2], SA[i/3, i/4]] for i in 1:4)
 @test first(it_static) isa CuArray{<:SVector}
