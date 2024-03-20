@@ -44,18 +44,22 @@
 
 # ### Minimise Runtime Exceptions
 
-# Many common operations can throw errors at runtime in Julia, they often do this by branching and calling a function in that branch both of which are slow on GPUs. Using `@inbounds` when indexing into arrays will eliminate exceptions due to bounds checking. You can also use `assume` from the package LLVM.jl to get rid of exceptions, e.g.
+# Many common operations can throw errors at runtime in Julia, they often do this by branching and calling a function in that branch both of which are slow on GPUs. Using `@inbounds` when indexing into arrays will eliminate exceptions due to bounds checking. More generally, one can use the functions from the [UnsafeAssume.jl](https://juliahub.com/ui/Packages/General/UnsafeAssume) package to get rid of exceptions, e.g.
 
 # ```julia
-# using LLVM.Interop
+# using UnsafeAssume
 
 # function test(x, y)
-#     assume(x > 0)
-#     div(y, x)
+#     @inline begin  # it's necessary for the code to end up in the same function after inlining for this to work
+#         unsafe_assume_condition(x > 0)
+#         div(y, x)
+#     end
 # end
 # ```
 
-# The `assume(x > 0)` tells the compiler that there cannot be a divide by 0 error.
+# The `unsafe_assume_condition(x > 0)` tells the compiler that there cannot be a divide by 0 error.
+
+# There's also the older `Interop.assume` function from the LLVM.jl package, having the same API as `unsafe_assume_condition`.
 
 # For more information and examples check out [Kernel analysis and optimization](https://github.com/JuliaComputing/Training/blob/master/AdvancedGPU/2-2-kernel_analysis_optimization.ipynb).
 
