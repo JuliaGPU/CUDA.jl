@@ -19,7 +19,7 @@ import LLVM
 using LLVM.Interop: assume
 
 using CEnum: @cenum
-
+using TaskLocalValues
 
 # core library
 include("libcublas.jl")
@@ -73,14 +73,15 @@ end
 const idle_handles = HandleCache{CuContext,cublasHandle_t}()
 const idle_xt_handles = HandleCache{Any,cublasXtHandle_t}()
 
+const LIBRARY_STATE = @NamedTuple{handle::cublasHandle_t, stream::CuStream, math_mode::CUDA.MathMode}
+const CUBLAS_STATE =
+    TaskLocalValue{Dict{CuContext,LibraryState}}(()-> Dict{CuContext,LibraryState}())
+
 function handle()
     cuda = CUDA.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cublasHandle_t, stream::CuStream, math_mode::CUDA.MathMode}
-    states = get!(task_local_storage(), :CUBLAS) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUBLAS_STATE[]
 
     # get library state
     @noinline function new_state(cuda)

@@ -13,6 +13,7 @@ using CUDA: CUstream, libraryPropertyType
 using CUDA: retry_reclaim, isdebug, initialize_context
 
 using CEnum: @cenum
+using TaskLocalValues
 
 if CUDA.local_toolkit
     using CUDA_Runtime_Discovery
@@ -65,14 +66,15 @@ end
 # cache for created, but unused handles
 const idle_handles = HandleCache{CuContext,cudnnHandle_t}()
 
+const LibraryState = @NamedTuple{handle::cudnnHandle_t, stream::CuStream}
+const cuDNN_STATE =
+    TaskLocalValue{Dict{CuContext,LibraryState}}(()-> Dict{CuContext,LibraryState}())
+
 function handle()
     cuda = CUDA.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cudnnHandle_t, stream::CuStream}
-    states = get!(task_local_storage(), :cuDNN) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = cuDNN_STATE[]
 
     # get library state
     @noinline function new_state(cuda)
