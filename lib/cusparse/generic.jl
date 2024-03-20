@@ -236,7 +236,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
     # end
 
     function bufferSize()
-        out = Ref{Csize_t}(0)
+        out = Ref{Csize_t}(10000)
         cusparseSpMM_bufferSize(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, out)
@@ -312,7 +312,7 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     cusparseDnMatSetStridedBatch(descC, b, strideC)
 
     function bufferSize()
-        out = Ref{Csize_t}(0)
+        out = Ref{Csize_t}(10000)
         cusparseSpMM_bufferSize(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, out)
@@ -370,7 +370,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
     descC = CuDenseMatrixDescriptor(C, transposed=true)
 
     function bufferSize()
-        out = Ref{Csize_t}(0)
+        out = Ref{Csize_t}(10000)
         cusparseSpMM_bufferSize(
             handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
             descC, T, algo, out)
