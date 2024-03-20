@@ -342,3 +342,10 @@ end
 
     @test Array(dy) ≈ y
 end
+
+## AbstractFFTs tests, which also test adjoint functionality of CUFFT plans. 
+
+@testset "AbstractFFTs FFT backend tests" begin
+    AbstractFFTs.TestUtils.test_complex_ffts(CuArray; test_wrappers=false)
+    AbstractFFTs.TestUtils.test_real_ffts(CuArray; copy_input=true, test_wrappers=false)
+end
