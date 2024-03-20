@@ -1093,3 +1093,50 @@ end
 end
 
 ############################################################################################
+
+if VERSION >= v"1.10-"
+@testset "opaque closures" begin
+
+# basic closure, constructed from IRCode
+let
+    ir, rettyp = only(Base.code_ircode(+, (Int, Int)))
+    oc = CUDA.OpaqueClosure(ir)
+
+    c = CuArray([0])
+    a = CuArray([1])
+    b = CuArray([2])
+
+    function kernel(oc, c, a, b)
+        i = threadIdx().x
+        @inbounds c[i] = oc(a[i], b[i])
+        return
+    end
+    @cuda threads=1 kernel(oc, c, a, b)
+
+    @test Array(c)[] == 3
+end
+
+# basic closure, constructed from CodeInfo
+let
+    ir, rettyp = only(Base.code_typed(*, (Int, Int, Int)))
+    oc = CUDA.OpaqueClosure(ir)
+
+    d = CuArray([1])
+    a = CuArray([2])
+    b = CuArray([3])
+    c = CuArray([4])
+
+    function kernel(oc, d, a, b, c)
+        i = threadIdx().x
+        @inbounds d[i] = oc(a[i], b[i], c[i])
+        return
+    end
+    @cuda threads=1 kernel(oc, d, a, b, c)
+
+    @test Array(d)[] == 24
+end
+
+end
+end
+
+############################################################################################
