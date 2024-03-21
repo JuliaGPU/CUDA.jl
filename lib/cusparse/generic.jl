@@ -236,7 +236,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
     # end
 
     # Set default buffer for small matrices (10000 chosen arbitrarly)
-    # Otherwise tries to allocate  120TB of memory (see #2296)
+    # Otherwise tries to allocate 120TB of memory (see #2296)
     function bufferSize()
         out = Ref{Csize_t}(10000) 
         cusparseSpMM_bufferSize(
@@ -314,7 +314,7 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     cusparseDnMatSetStridedBatch(descC, b, strideC)
 
     # Set default buffer for small matrices (10000 chosen arbitrarly)
-    # Otherwise tries to allocate  120TB of memory (see #2296
+    # Otherwise tries to allocate 120TB of memory (see #2296)
     function bufferSize()
         out = Ref{Csize_t}(10000)
         cusparseSpMM_bufferSize(
@@ -374,7 +374,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
     descC = CuDenseMatrixDescriptor(C, transposed=true)
 
     # Set default buffer for small matrices (10000 chosen arbitrarly)
-    # Otherwise tries to allocate  120TB of memory (see #2296
+    # Otherwise tries to allocate 120TB of memory (see #2296)
     function bufferSize()
         out = Ref{Csize_t}(10000)
         cusparseSpMM_bufferSize(
