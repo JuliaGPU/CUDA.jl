@@ -134,6 +134,22 @@ if CUSPARSE.version() >= v"11.7.4"
                         beta = rand(T)
                         mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
                         @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
+
+                        # add tests for very small matrices (see #2296)
+                        # skip conjugate transpose - causes errors with 1x1 matrices
+                        # CUSPARSE_SPMM_CSR_ALG3 also fails
+                        (algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 || transa == 'C') && continue
+                        A = rand(T, 1, 1)
+                        B = sprand(T, 1, 1, 1.)
+                        C = rand(T, 1, 1)
+                        dA = CuArray(A)
+                        dB = SparseMatrixType(B)
+                        dC = CuArray(C)
+
+                        alpha = rand(T)
+                        beta = rand(T)
+                        mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                        @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
                     end
                 end
             end
