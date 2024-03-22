@@ -193,10 +193,11 @@ function trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{T}) where {T <: BlasF
 end
 
 # Xlarft!
-function larft!(direct::Char, v::StridedCuMatrix{T}, tau::StridedCuVector{T}, t::StridedCuMatrix{T}) where {T <: BlasFloat}
+function larft!(direct::Char, storev::Char, v::StridedCuMatrix{T}, tau::StridedCuVector{T}, t::StridedCuMatrix{T}) where {T <: BlasFloat}
     n, k = size(v)
     ktau = length(tau)
     mt, nt = size(t)
+    (storev != 'C') && throw(ArgumentError("Only storev = 'C' is supported."))
     (n < k) && throw(ArgumentError("The number of elementary reflectors ($k) must be lower or equal to the order of block reflector H ($n)."))
     (ktau != k) && throw(ArgumentError("The length of tau ($ktau) is not equal to the number of elementary reflectors ($k)."))
     (mt != k || nt != k) && throw(ArgumentError("The size of the triangular factor of the block reflector is ($mt, $nt) and must be ($k, $k)."))
@@ -207,12 +208,12 @@ function larft!(direct::Char, v::StridedCuMatrix{T}, tau::StridedCuVector{T}, t:
     function bufferSize()
         out_cpu = Ref{Csize_t}(0)
         out_gpu = Ref{Csize_t}(0)
-        cusolverDnXlarft_bufferSize(dense_handle(), params, direct, 'C', n, k, T,
+        cusolverDnXlarft_bufferSize(dense_handle(), params, direct, storev, n, k, T,
                                     v, ldv, T, tau, T, t, ldt, T, out_gpu, out_cpu)
         out_gpu[], out_cpu[]
     end
     with_workspaces(bufferSize()...) do buffer_gpu, buffer_cpu
-        cusolverDnXlarft(dense_handle(), params, direct, 'C', n, k, T, v, ldv, T, tau, T, t,
+        cusolverDnXlarft(dense_handle(), params, direct, storev, n, k, T, v, ldv, T, tau, T, t,
                          ldt, T, buffer_gpu, sizeof(buffer_gpu), buffer_cpu, sizeof(buffer_cpu))
     end
 
