@@ -27,7 +27,7 @@ p = 5
             end
             dv = CuArray(v)
             dt = CuMatrix(t)
-            dt = CUSOLVER.larft!(direct, dv, dτ, dt)
+            dt = CUSOLVER.larft!(direct, 'C', dv, dτ, dt)
             @test dI - dv * dt * dv' ≈ dH
         end
     end
