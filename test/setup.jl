@@ -93,8 +93,15 @@ function runtests(f, name, time_source=:cuda)
         else
             missing
         end
-        passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
-            Test.get_test_counts(data[1])
+        if VERSION >= v"1.11.0-DEV.1529"
+            tc = Test.get_test_counts(data[1])
+            passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
+                tc.passes, tc.fails, tc.errors, tc.broken, tc.cumulative_passes,
+                tc.cumulative_fails, tc.cumulative_errors, tc.cumulative_broken
+        else
+            passes,fails,errors,broken,c_passes,c_fails,c_errors,c_broken =
+                Test.get_test_counts(data[1])
+        end
         if data[1].anynonpass == false
             data = ((passes+c_passes,broken+c_broken),
                     data[2],
