@@ -9,6 +9,37 @@ l = 13
 k = 1
 
 @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "geqrf! -- orgqr!" begin
+        A = rand(elty, m, n)
+        dA = CuArray(A)
+        dA, τ = CUSOLVER.geqrf!(dA)
+        CUSOLVER.orgqr!(dA, τ)
+        @test dA' * dA ≈ I
+    end
+
+    @testset "ormqr!" begin
+        @testset "side = $side" for side in ['L', 'R']
+            @testset "trans = $trans" for (trans, op) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                (elty <: Complex) && (trans == 'T') && continue
+                A = rand(elty, m, n)
+                dA = CuArray(A)
+                dA, dτ = CUSOLVER.geqrf!(dA)
+
+                hI = Matrix{elty}(I, m, m)
+                dI = CuArray(hI)
+                dH = CUSOLVER.ormqr!(side, 'N', dA, dτ, dI)
+                @test dH' * dH ≈ I
+
+                C = side == 'L' ? rand(elty, m, n) : rand(elty, n, m)
+                dC = CuArray(C)
+                dD = side == 'L' ? op(dH) * dC : dC * op(dH)
+
+                CUSOLVER.ormqr!(side, trans, dA, dτ, dC)
+                @test dC ≈ dD
+            end
+        end
+    end
+
     @testset "inv -- unsymmetric" begin
         A = rand(elty,n,n)
         dA = CuArray(A)
