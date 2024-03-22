@@ -6,29 +6,31 @@ n = 10
 p = 5
 
 @testset "cusolver -- generic API -- $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    @testset "larft!" begin
-        @testset "direct = $direct" for direct in ('F', 'B')
-            direct == 'B' && continue
-            A = rand(elty,m,n)
-            t = rand(elty,n,n)
+    if CUSOLVER.version() >= v"11.6.0"
+        @testset "larft!" begin
+            @testset "direct = $direct" for direct in ('F', 'B')
+                direct == 'B' && continue
+                A = rand(elty,m,n)
+                t = rand(elty,n,n)
 
-            dA = CuMatrix(A)
-            dA, dτ = CUSOLVER.geqrf!(dA)
-            hI = Matrix{elty}(I, m, m)
-            dI = CuArray(hI)
-            dH = CUSOLVER.ormqr!('L', 'N', dA, dτ, copy(dI))
+                dA = CuMatrix(A)
+                dA, dτ = CUSOLVER.geqrf!(dA)
+                hI = Matrix{elty}(I, m, m)
+                dI = CuArray(hI)
+                dH = CUSOLVER.ormqr!('L', 'N', dA, dτ, copy(dI))
 
-            v = Array(dA)
-            for j = 1:n
-                v[j,j] = one(elty)
-                for i = 1:j-1
-                    v[i,j] = zero(elty)
+                v = Array(dA)
+                for j = 1:n
+                    v[j,j] = one(elty)
+                    for i = 1:j-1
+                        v[i,j] = zero(elty)
+                    end
                 end
+                dv = CuArray(v)
+                dt = CuMatrix(t)
+                dt = CUSOLVER.larft!(direct, 'C', dv, dτ, dt)
+                @test dI - dv * dt * dv' ≈ dH
             end
-            dv = CuArray(v)
-            dt = CuMatrix(t)
-            dt = CUSOLVER.larft!(direct, 'C', dv, dτ, dt)
-            @test dI - dv * dt * dv' ≈ dH
         end
     end
 
