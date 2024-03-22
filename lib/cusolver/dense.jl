@@ -268,7 +268,7 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
 
             # Support transa = 'C' for real matrices
             trans = $elty <: Real && trans == 'C' ? 'T' : trans
-            trans = $elty <: Complex && trans == 'T' && throw(ArgumentError("trans = 'T' is not supported with complex matrices."))
+           ($elty <: Complex) && (trans == 'T') && throw(ArgumentError("trans = 'T' is not supported with complex matrices."))
 
             chkside(side)
             chktrans(trans)
