@@ -125,6 +125,7 @@ export CUDABackend
 # StaticArrays is still a direct dependency, so directly include the extension
 include("../ext/StaticArraysExt.jl")
 
+include("deprecated.jl")
 include("precompile.jl")
 
 end
