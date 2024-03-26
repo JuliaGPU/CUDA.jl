@@ -767,11 +767,11 @@ end
 end # module Mem
 
 """
-    available_memory()
+    free_memory()
 
-Returns the available amount of memory (in bytes), available for allocation by the CUDA context.
+Returns the free amount of memory (in bytes), available for allocation by the CUDA context.
 """
-available_memory() = Mem.info()[1]
+free_memory() = Mem.info()[1]
 
 """
     total_memory()

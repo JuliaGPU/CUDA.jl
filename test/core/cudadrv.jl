@@ -415,7 +415,7 @@ end
 let
     a,b = Mem.info()
     # NOTE: actually testing this is pretty fragile on CI
-    #=@test a == =# CUDA.available_memory()
+    #=@test a == =# CUDA.free_memory()
     #=@test b == =# CUDA.total_memory()
 end
 

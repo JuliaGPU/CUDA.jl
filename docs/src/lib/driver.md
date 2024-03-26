@@ -138,7 +138,7 @@ methods then work with these raw pointers:
 
 ```@docs
 CUDA.memory_status
-CUDA.available_memory
+CUDA.free_memory
 CUDA.total_memory
 ```
 
