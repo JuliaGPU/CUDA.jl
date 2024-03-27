@@ -1,5 +1,7 @@
 using Enzyme
 
+@static if isdefined(Base, :get_extension)
+
 function square_kernel!(x)
     i = threadIdx().x
     x[i] *= x[i]
@@ -29,3 +31,5 @@ dA2 .= 3
 Enzyme.autodiff(Forward, square!, BatchDuplicated(A, (dA, dA2)))
 @test all(dA .≈ (2:2:64))
 @test all(dA2 .≈ 3*(2:2:64))
+
+end
