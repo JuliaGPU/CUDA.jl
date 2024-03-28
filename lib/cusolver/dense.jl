@@ -268,10 +268,11 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
 
             # Support transa = 'C' for real matrices
             trans = $elty <: Real && trans == 'C' ? 'T' : trans
+           ($elty <: Complex) && (trans == 'T') && throw(ArgumentError("trans = 'T' is not supported with complex matrices."))
 
             chkside(side)
             chktrans(trans)
-            m,n = ndims(C) == 2 ? size(C) : (size(C, 1), 1)
+            m,n = ndims(C) == 2 ? size(C) : (length(C), 1)
             mA  = size(A, 1)
             k   = length(tau)
             if side == 'L' && m != mA

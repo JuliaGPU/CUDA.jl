@@ -334,12 +334,25 @@ struct OutOfGPUMemoryError <: Exception
       # if this error was triggered before the TLS was initialized, we should not try to
       # fetch memory info as those API calls will just trigger TLS initialization again.
       nothing
+    elseif in_oom_ctor[]
+      # if we triggered an OOM while trying to construct an OOM object, break the cycle
+      nothing
     else
-      MemoryInfo()
+      in_oom_ctor[] = true
+      try
+        MemoryInfo()
+      catch err
+        # when extremely close to OOM, just inspecting `Mem.info()` may trigger an OOM again
+        isa(err, OutOfGPUMemoryError) || rethrow()
+        nothing
+      finally
+        in_oom_ctor[] = false
+      end
     end
     new(sz, info)
   end
 end
+const in_oom_ctor = Ref{Bool}(false)
 
 function Base.showerror(io::IO, err::OutOfGPUMemoryError)
     print(io, "Out of GPU memory")

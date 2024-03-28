@@ -235,8 +235,10 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
     #     cusparseCsrSetStridedBatch(obj, batchsize, 0, nnz(A))
     # end
 
+    # Set default buffer for small matrices (10000 chosen arbitrarly)
+    # Otherwise tries to allocate 120TB of memory (see #2296)
     function bufferSize()
-        out = Ref{Csize_t}()
+        out = Ref{Csize_t}(10000) 
         cusparseSpMM_bufferSize(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, out)
@@ -311,8 +313,10 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     strideC = stride(C, 3)
     cusparseDnMatSetStridedBatch(descC, b, strideC)
 
+    # Set default buffer for small matrices (10000 chosen arbitrarly)
+    # Otherwise tries to allocate 120TB of memory (see #2296)
     function bufferSize()
-        out = Ref{Csize_t}()
+        out = Ref{Csize_t}(10000)
         cusparseSpMM_bufferSize(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, out)
@@ -337,7 +341,6 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
              beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
 
     CUSPARSE.version() < v"11.7.4" && throw(ErrorException("This operation is not supported by the current CUDA version."))
-
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
@@ -370,8 +373,10 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
     descB = CuSparseMatrixDescriptor(B, index, transposed=true)
     descC = CuDenseMatrixDescriptor(C, transposed=true)
 
+    # Set default buffer for small matrices (10000 chosen arbitrarly)
+    # Otherwise tries to allocate 120TB of memory (see #2296)
     function bufferSize()
-        out = Ref{Csize_t}()
+        out = Ref{Csize_t}(10000)
         cusparseSpMM_bufferSize(
             handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
             descC, T, algo, out)
