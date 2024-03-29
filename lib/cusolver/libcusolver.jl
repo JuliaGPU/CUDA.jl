@@ -4890,8 +4890,8 @@ end
                                                dataTypeTau::cudaDataType,
                                                d_tau::CuPtr{Cvoid}, dataTypeT::cudaDataType,
                                                d_T::CuPtr{Cvoid}, ldt::Int64,
-                                               computeType::CuPtr{Cvoid},
-                                               bufferOnDevice::Ptr{Cvoid},
+                                               computeType::cudaDataType,
+                                               bufferOnDevice::CuPtr{Cvoid},
                                                workspaceInBytesOnDevice::Csize_t,
                                                bufferOnHost::Ptr{Cvoid},
                                                workspaceInBytesOnHost::Csize_t)::cusolverStatus_t
