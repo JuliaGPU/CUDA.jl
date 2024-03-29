@@ -61,7 +61,7 @@
 
 # ### 32-bit Integers
 
-# Use 32-bit integers where possible. A common source of register pressure is the use of 64-bit integers when only 32-bits are required. For example, the hardware's indices are 32-bit integers, but Julia's literals are Int64's which results in expressions like blockIdx().x-1 to be promoted to 64-bit integers. To use 32-bit integers we can instead replace the `1` with `Int32(1)` or more succintly `1i32` if you run `using CUDA: i32`.
+# Use 32-bit integers where possible. A common source of register pressure is the use of 64-bit integers when only 32-bits are required. For example, the hardware's indices are 32-bit integers, but Julia's literals are Int64's which results in expressions like `blockIdx().x-1` to be promoted to 64-bit integers. To use 32-bit integers we can instead replace the `1` with `Int32(1)` or more succintly `1i32` if you run `using CUDA: i32`.
 
 # To see how much of a difference this makes let's use a kernel introduced in the introductory tutorial for inplace addition.
 
