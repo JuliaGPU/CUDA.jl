@@ -267,8 +267,6 @@ function profile_internally(f; concurrent=true, kwargs...)
 
     # wait for the device to become idle (and trigger a GC to avoid interference)
     CUDA.cuCtxSynchronize()
-    GC.gc(false)
-    GC.gc(true)
 
     CUPTI.enable!(cfg) do
         # sink the initial profiler overhead into a synchronization call
