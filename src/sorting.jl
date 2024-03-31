@@ -578,10 +578,43 @@ end
     end
 end
 
+function extraneous_block(vals :: AbstractArray, dims):: Bool
+    other_linear_index = ((gridDim().z  ÷ blockDim().z) * (blockIdx().y - 1)) + blockIdx().z
+    return other_linear_index > length(vals) ÷ size(vals)[dims]
+end
+
+function extraneous_block(vals, dims) :: Bool
+    return extraneous_block(vals[1], dims)
+end
+
+# methods are defined for Val{1} because using view has 2x speed penalty for 1D arrays
+function view_along_dims(vals :: AbstractArray, dimsval::Val{1})
+    return vals
+end
+
+function view_along_dims(vals, dimsval::Val{1})
+    return vals[1], view_along_dims(vals[2], dimsval)
+end
+
+
+function view_along_dims(vals :: AbstractArray{T, N}, ::Val{dims}) where {T,N,dims}
+    otherdims = ntuple(i -> i == dims ? 1 : size(vals, i), N)
+    other_linear_index = ((gridDim().z  ÷ blockDim().z) * (blockIdx().y - 1)) + blockIdx().z
+    other = CartesianIndices(otherdims)[other_linear_index]
+    # create a view that keeps the sorting dimension but indexes across the others
+    slicedims = map(Base.Slice, axes(vals))
+    idxs = ntuple(i->i==dims ? slicedims[i] : other[i], N)
+    return view(vals, idxs...)
+end
+
+function view_along_dims(vals, dimsval::Val{dims}) where dims
+    return vals[1], view_along_dims(vals[2], dimsval)
+end
+
+
 # Functions specifically for "large" bitonic steps (those that cannot use shmem)
 
-@inline function compare!(vals::AbstractArray{T}, i1::I, i2::I, dir::Bool, by, lt,
-                          rev) where {T,I}
+@inline function compare!(vals::AbstractArray{T, N}, i1::I, i2::I, dir::Bool, by, lt, rev) where {T,I,N}
     i1′, i2′ = i1 + one(I), i2 + one(I)
     @inbounds if dir != rev_lt(by(vals[i1′]), by(vals[i2′]), lt, rev)
         vals[i1′], vals[i2′] = vals[i2′], vals[i1′]
@@ -645,8 +678,14 @@ Note that to avoid synchronization issues, only one thread from each pair of
 indices being swapped will actually move data.
 """
 function comparator_kernel(vals, length_vals::I, k::I, j::I, by::F1, lt::F2,
-                           rev) where {I,F1,F2}
+                           rev, dimsval :: Val{dims}) where {I,F1,F2,dims}
+    if extraneous_block(vals, dims)
+        return nothing
+    end
+    
     index = (blockDim().x * (blockIdx().x - one(I))) + threadIdx().x - one(I)
+
+    slice = view_along_dims(vals, dimsval)
 
     lo, n, dir = get_range(length_vals, index, k, j)
 
@@ -654,7 +693,7 @@ function comparator_kernel(vals, length_vals::I, k::I, j::I, by::F1, lt::F2,
         m = gp2lt(n)
         if lo <= index < lo + n - m
             i1, i2 = index, index + m
-            @inbounds compare!(vals, i1, i2, dir, by, lt, rev)
+            @inbounds compare!(slice, i1, i2, dir, by, lt, rev)
         end
     end
     return
@@ -804,15 +843,19 @@ a unique  range of indices corresponding to a comparator in the sorting network.
 Note that this moves the array values copied within shmem, but doesn't copy them
 back to global the way it does for indices.
 """
-function comparator_small_kernel(c, length_c::I, k::I, j_0::I, j_f::I,
-                                 by::F1, lt::F2, rev) where {I,F1,F2}
+function comparator_small_kernel(vals, length_vals::I, k::I, j_0::I, j_f::I,
+                                 by::F1, lt::F2, rev, dimsval::Val{dims}) where {I,F1,F2,dims}
+    if extraneous_block(vals, dims)
+        return nothing
+    end
+    slice = view_along_dims(vals, dimsval)
     pseudo_block_idx = (blockIdx().x - one(I)) * blockDim().y + threadIdx().y - one(I)
     # immutable info about the range used by this kernel
-    _lo, _n, dir = block_range(length_c, pseudo_block_idx, k, j_0)
+    _lo, _n, dir = block_range(length_vals, pseudo_block_idx, k, j_0)
     index = _lo + threadIdx().x - one(I)
     in_range = (threadIdx().x <= _n && _lo >= zero(I))
 
-    swap = initialize_shmem!(c, index, in_range)
+    swap = initialize_shmem!(slice, index, in_range)
 
     # mutable copies for pseudo-recursion
     lo, n = _lo, _n
@@ -829,7 +872,7 @@ function comparator_small_kernel(c, length_c::I, k::I, j_0::I, j_f::I,
         sync_threads()
     end
 
-    finalize_shmem!(c, swap, index, in_range)
+    finalize_shmem!(slice, swap, index, in_range)
     return
 end
 
@@ -849,20 +892,19 @@ of values and an index array for doing `sortperm!`. Cannot provide a stable
 `sort!` although `sortperm!` is properly stable. To reverse, set `rev=true`
 rather than `lt=!isless` (otherwise stability of sortperm breaks down).
 """
-function bitonic_sort!(c; by = identity, lt = isless, rev = false)
-    c_len = if typeof(c) <: Tuple
-        length(c[1])
+function bitonic_sort!(c; by = identity, lt = isless, rev = false, dims=1)
+    c_len, otherdims_len = if typeof(c) <: Tuple
+        size(c[1])[dims], length(c[1]) ÷ size(c[1])[dims]
     else
-        length(c)
+        size(c)[dims], length(c) ÷ size(c)[dims]
     end
 
     # compile kernels (using Int32 for indexing, if possible, yielding a 10% speedup)
     I = c_len <= typemax(Int32) ? Int32 : Int
-    args1 = (c, I(c_len), one(I), one(I), one(I), by, lt, Val(rev))
+    args1 = (c, I(c_len), one(I), one(I), one(I), by, lt, Val(rev), Val(dims))
     kernel1 = @cuda launch=false comparator_small_kernel(args1...)
     config1 = launch_configuration(kernel1.fun, shmem = threads -> bitonic_shmem(c, threads))
-    threads1 = prevpow(2, config1.threads)
-    args2 = (c, I(c_len), one(I), one(I), by, lt, Val(rev))
+    args2 = (c, I(c_len), one(I), one(I), by, lt, Val(rev), Val(dims))
     kernel2 = @cuda launch=false comparator_kernel(args2...)
     config2 = launch_configuration(kernel2.fun, shmem = threads -> bitonic_shmem(c, threads))
     # blocksize for kernel2 MUST be a power of 2
@@ -877,9 +919,13 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false)
     k0 = ceil(Int, log2(c_len))
     for k = k0:-1:1
         j_final = 1 + k0 - k
+
+        # non-sorting dims are put into blocks along grid y/z. Using sqrt minimizes wasted blocks
+        other_block_dims = Int(ceil(sqrt(otherdims_len))), Int(ceil(sqrt(otherdims_len))) 
+
         for j = 1:j_final
-            args1 = (c, I.((c_len, k, j, j_final))..., by, lt, Val(rev))
-            args2 = (c, I.((c_len, k, j))..., by, lt, Val(rev))
+            args1 = (c, I.((c_len, k, j, j_final))..., by, lt, Val(rev), Val(dims))
+            args2 = (c, I.((c_len, k, j))..., by, lt, Val(rev), Val(dims))
             if k0 - k - j + 2 <= log_threads
                 # pseudo_block_length = max(nextpow(2, length(comparator)) for all comparators in this layer of the network)
                 pseudo_block_length = 1 << abs(j_final + 1 - j)
@@ -888,15 +934,14 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false)
                 pseudo_blocks_per_block = threads2 ÷ pseudo_block_length
 
                 # grid dimensions
-                N_blocks = max(1, N_pseudo_blocks ÷ pseudo_blocks_per_block)
+                N_blocks = max(1, N_pseudo_blocks ÷ pseudo_blocks_per_block), other_block_dims...
                 block_size = pseudo_block_length, threads2 ÷ pseudo_block_length
-
                 kernel1(args1...; blocks=N_blocks, threads=block_size,
                         shmem=bitonic_shmem(c, block_size))
                 break
             else
-                N_blocks = cld(c_len, threads1)
-                kernel2(args2...; blocks = N_blocks, threads=threads1)
+                N_blocks = cld(c_len, threads2), other_block_dims...
+                kernel2(args2...; blocks = N_blocks, threads=threads2)
             end
         end
     end
@@ -930,22 +975,12 @@ function Base.sort!(c::AnyCuVector, alg::QuickSortAlg; lt=isless, by=identity, r
     return c
 end
 
-function Base.sort!(c::AnyCuVector, alg::BitonicSortAlg; kwargs...)
+function Base.sort!(c::AnyCuArray, alg::BitonicSortAlg; kwargs...)
     return bitonic_sort!(c; kwargs...)
 end
 
-function Base.sort!(c::AnyCuVector; alg :: SortingAlgorithm = BitonicSort, kwargs...)
+function Base.sort!(c::AnyCuArray; alg :: SortingAlgorithm = BitonicSort, kwargs...)
     return sort!(c, alg; kwargs...)
-end
-
-function Base.sort!(c::AnyCuArray; dims::Integer, lt=isless, by=identity, rev=false)
-    # for multi dim sorting, only quicksort is supported so no alg keyword
-    if rev
-        lt = !lt
-    end
-
-    quicksort!(c; lt, by, dims)
-    return c
 end
 
 function Base.sort(c::AnyCuArray; kwargs...)
@@ -986,6 +1021,11 @@ function Base.sortperm!(ix::AnyCuArray{T}, A::AnyCuArray; initialized=false, kwa
     return ix
 end
 
-function Base.sortperm(c::AnyCuArray; kwargs...)
+function Base.sortperm(c::AnyCuVector; kwargs...)
     sortperm!(CuArray(1:length(c)), c; initialized=true, kwargs...)
+end
+
+function Base.sortperm(c::AnyCuArray; dims, kwargs...)
+    # Base errors for Matrices without dims arg, we should too
+    sortperm!(reshape(CuArray(1:length(c)), size(c)), c; initialized=true, dims=dims, kwargs...)
 end
