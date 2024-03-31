@@ -587,6 +587,15 @@ function extraneous_block(vals, dims) :: Bool
     return extraneous_block(vals[1], dims)
 end
 
+# methods are defined for Val{1} because using view has 2x speed penalty for 1D arrays
+function view_along_dims(vals :: AbstractArray{T, 1}, dimsval::Val{1}) where T
+    return vals
+end
+
+function view_along_dims(vals :: Tuple{AbstractArray{T,1},Any}, dimsval::Val{1}) where T
+    return vals[1], view_along_dims(vals[2], dimsval)
+end
+
 
 function view_along_dims(vals :: AbstractArray{T, N}, ::Val{dims}) where {T,N,dims}
     otherdims = ntuple(i -> i == dims ? 1 : size(vals, i), N)
@@ -894,6 +903,7 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false, dims=1)
     I = c_len <= typemax(Int32) ? Int32 : Int
     args1 = (c, I(c_len), one(I), one(I), one(I), by, lt, Val(rev), Val(dims))
     kernel1 = @cuda launch=false comparator_small_kernel(args1...)
+    
     config1 = launch_configuration(kernel1.fun, shmem = threads -> bitonic_shmem(c, threads))
     args2 = (c, I(c_len), one(I), one(I), by, lt, Val(rev), Val(dims))
     kernel2 = @cuda launch=false comparator_kernel(args2...)
