@@ -587,15 +587,6 @@ function extraneous_block(vals, dims) :: Bool
     return extraneous_block(vals[1], dims)
 end
 
-# methods are defined for Val{1} because using view has 2x speed penalty for 1D arrays
-function view_along_dims(vals :: AbstractArray, dimsval::Val{1})
-    return vals
-end
-
-function view_along_dims(vals, dimsval::Val{1})
-    return vals[1], view_along_dims(vals[2], dimsval)
-end
-
 
 function view_along_dims(vals :: AbstractArray{T, N}, ::Val{dims}) where {T,N,dims}
     otherdims = ntuple(i -> i == dims ? 1 : size(vals, i), N)
