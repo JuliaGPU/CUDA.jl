@@ -578,26 +578,26 @@ end
     end
 end
 
-function extraneous_block(vals :: AbstractArray, dims):: Bool
+@inline function extraneous_block(vals :: AbstractArray, dims):: Bool
     other_linear_index = ((gridDim().z  ÷ blockDim().z) * (blockIdx().y - 1)) + blockIdx().z
     return other_linear_index > length(vals) ÷ size(vals)[dims]
 end
 
-function extraneous_block(vals, dims) :: Bool
+@inline function extraneous_block(vals, dims) :: Bool
     return extraneous_block(vals[1], dims)
 end
 
 # methods are defined for Val{1} because using view has 2x speed penalty for 1D arrays
-function view_along_dims(vals :: AbstractArray{T, 1}, dimsval::Val{1}) where T
+@inline function view_along_dims(vals :: AbstractArray{T, 1}, dimsval::Val{1}) where T
     return vals
 end
 
-function view_along_dims(vals :: Tuple{AbstractArray{T,1},Any}, dimsval::Val{1}) where T
+@inline function view_along_dims(vals :: Tuple{AbstractArray{T,1},Any}, dimsval::Val{1}) where T
     return vals[1], view_along_dims(vals[2], dimsval)
 end
 
 
-function view_along_dims(vals :: AbstractArray{T, N}, ::Val{dims}) where {T,N,dims}
+@inline function view_along_dims(vals :: AbstractArray{T, N}, ::Val{dims}) where {T,N,dims}
     otherdims = ntuple(i -> i == dims ? 1 : size(vals, i), N)
     other_linear_index = ((gridDim().z  ÷ blockDim().z) * (blockIdx().y - 1)) + blockIdx().z
     other = CartesianIndices(otherdims)[other_linear_index]
@@ -607,7 +607,7 @@ function view_along_dims(vals :: AbstractArray{T, N}, ::Val{dims}) where {T,N,di
     return view(vals, idxs...)
 end
 
-function view_along_dims(vals, dimsval::Val{dims}) where dims
+@inline function view_along_dims(vals, dimsval::Val{dims}) where dims
     return vals[1], view_along_dims(vals[2], dimsval)
 end
 
