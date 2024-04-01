@@ -147,3 +147,13 @@ function Base.convert(::Type{cusparseSpSVUpdate_t}, update::SparseChar)
         throw(ArgumentError("Unknown update $update"))
     end
 end
+
+function Base.convert(::Type{cusparseSpSMUpdate_t}, update::SparseChar)
+    if update == 'G'
+        CUSPARSE_SPSM_UPDATE_GENERAL
+    elseif update == 'D'
+        CUSPARSE_SPSM_UPDATE_DIAGONAL
+    else
+        throw(ArgumentError("Unknown update $update"))
+    end
+end
