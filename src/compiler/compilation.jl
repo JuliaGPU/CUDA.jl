@@ -455,7 +455,7 @@ end
 function compute_ir_rettype(ir::IRCode)
     rt = Union{}
     for i = 1:length(ir.stmts)
-        stmt = ir.stmts[i][:inst]
+        stmt = ir[Core.SSAValue(i)][:stmt]
         if isa(stmt, Core.Compiler.ReturnNode) && isdefined(stmt, :val)
             rt = Core.Compiler.tmerge(Core.Compiler.argextype(stmt.val, ir), rt)
         end
@@ -479,31 +479,34 @@ function compute_oc_signature(ir::IRCode, nargs::Int, isva::Bool)
     return Tuple{argtypes...}
 end
 
-function OpaqueClosure(ir::IRCode, @nospecialize env...; isva::Bool = false)
+function OpaqueClosure(ir::IRCode, @nospecialize env...;
+                       isva::Bool = false,
+                       slotnames::Union{Nothing,Vector{Symbol}}=nothing)
     # NOTE: we need ir.argtypes[1] == typeof(env)
     ir = Core.Compiler.copy(ir)
-    nargs = length(ir.argtypes)-1
+    # if the user didn't specify a definition MethodInstance or filename Symbol to use for the debuginfo, set a filename now
+    ir.debuginfo.def === nothing && (ir.debuginfo.def = :var"generated IR for OpaqueClosure")
+    nargtypes = length(ir.argtypes)
+    nargs = nargtypes-1
     sig = compute_oc_signature(ir, nargs, isva)
     rt = compute_ir_rettype(ir)
     src = ccall(:jl_new_code_info_uninit, Ref{CodeInfo}, ())
-    src.slotnames = Base.fill(:none, nargs+1)
-    src.slotflags = Base.fill(zero(UInt8), length(ir.argtypes))
+    if slotnames === nothing
+        src.slotnames = Base.fill(:none, nargtypes)
+    else
+        length(slotnames) == nargtypes || error("mismatched `argtypes` and `slotnames`")
+        src.slotnames = slotnames
+    end
+    src.slotflags = Base.fill(zero(UInt8), nargtypes)
     src.slottypes = copy(ir.argtypes)
-    src.rettype = rt
     src = Core.Compiler.ir_to_codeinf!(src, ir)
     config = compiler_config(device(); kernel=false)
     return generate_opaque_closure(config, src, sig, rt, nargs, isva, env...)
 end
 
-function OpaqueClosure(src::CodeInfo, @nospecialize env...)
-    src.inferred || throw(ArgumentError("Expected inferred src::CodeInfo"))
-    mi = src.parent::Core.MethodInstance
-    sig = Base.tuple_type_tail(mi.specTypes)
-    method = mi.def::Method
-    nargs = method.nargs-1
-    isva = method.isva
+function OpaqueClosure(src::CodeInfo, @nospecialize env...; rettype, sig, nargs, isva=false)
     config = compiler_config(device(); kernel=false)
-    return generate_opaque_closure(config, src, sig, src.rettype, nargs, isva, env...)
+    return generate_opaque_closure(config, src, sig, rettype, nargs, isva, env...)
 end
 
 function generate_opaque_closure(config::CompilerConfig, src::CodeInfo,
@@ -529,8 +532,20 @@ function generate_opaque_closure(config::CompilerConfig, src::CodeInfo,
     job = CompilerJob(mi, config)   # this captures the current world age
 
     # create a code instance and store it in the cache
-    ci = CodeInstance(mi, rt, C_NULL, src, Int32(0), meth.primary_world, typemax(UInt),
-                      UInt32(0), UInt32(0), nothing, UInt8(0))
+    interp = GPUCompiler.get_interpreter(job)
+    owner = Core.Compiler.cache_owner(interp)
+    exctype = Any
+    inferred_const = C_NULL
+    const_flags = Int32(0)
+    min_world = meth.primary_world
+    max_world = typemax(UInt)
+    ipo_effects = UInt32(0)
+    effects = UInt32(0)
+    analysis_results = nothing
+    relocatability = UInt8(0)
+    ci = CodeInstance(mi, owner, rt, exctype, inferred_const, const_flags,
+                      const_flags, min_world, max_world, ipo_effects, effects,
+                      analysis_results, relocatability, src.debuginfo)
     Core.Compiler.setindex!(GPUCompiler.ci_cache(job), ci, mi)
 
     id = length(GPUCompiler.deferred_codegen_jobs) + 1
