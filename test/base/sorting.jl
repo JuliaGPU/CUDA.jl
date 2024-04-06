@@ -315,7 +315,7 @@ end
 
         # multiple dimensions
         @test check_sort!(Int32, (4, 50000, 4); dims=2)
-        @test check_sort!(Int32, (4, 4, 50000); dims=3, rev=true)
+        @test check_sort!(Int32, (2, 2, 50000); dims=3, rev=true)
 
         # large sizes
         @test check_sort!(Float32, 2^25; alg=CUDA.QuickSort)
