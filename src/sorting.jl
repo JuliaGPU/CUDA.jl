@@ -988,8 +988,24 @@ function Base.sort(c::AnyCuArray; kwargs...)
     return sort!(copy(c); kwargs...)
 end
 
-function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange};
-                           lt=isless, by=identity, rev=false, alg::QuickSortAlg)
+function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange}, alg::BitonicSortAlg;
+    lt=isless, by=identity, rev=false)
+
+    function out(k :: OrdinalRange)
+        return copy(c[k])
+    end
+
+    # work around disallowed scalar index
+    function out(k :: Integer)
+        return Array(c[k:k])[1]
+    end
+
+    sort!(c, alg=alg; lt, by, rev)
+    return out(k)
+end
+
+function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange}, alg::QuickSortAlg;
+                           lt=isless, by=identity, rev=false)
     # for reverse sorting, invert the less-than function
     if rev
         lt = !lt
@@ -1008,20 +1024,8 @@ function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange};
     return out(k)
 end
 
-function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange};
-    lt=isless, by=identity, rev=false, alg::SortingAlgorithm=BitonicSort)
-
-    function out(k :: OrdinalRange)
-        return copy(c[k])
-    end
-
-    # work around disallowed scalar index
-    function out(k :: Integer)
-        return Array(c[k:k])[1]
-    end
-
-    sort!(c, alg=alg; lt, by, rev)
-    return out(k)
+function Base.partialsort!(c::AnyCuArray, k::Union{Integer, OrdinalRange}; alg::SortingAlgorithm=BitonicSort, kwargs...)
+    return partialsort!(c, k, alg; kwargs...)
 end
 
 function Base.partialsort(c::AnyCuArray, k::Union{Integer, OrdinalRange}; kwargs...)
