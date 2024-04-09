@@ -34,7 +34,7 @@ function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
     if n < m
         # LQ decomposition
         At = CuMatrix(A')
-        F, tau = CUSOLVER.geqrf!(At)  # A = RᴴQᴴ
+        F, tau = geqrf!(At)  # A = RᴴQᴴ
         if B isa CuVector{T}
             CUBLAS.trsv!('U', 'C', 'N', view(F,1:n,1:n), B)
             X = CUDA.zeros(T, m)
@@ -45,15 +45,15 @@ function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
             X = CUDA.zeros(T, m, p)
             view(X, 1:n, :) .= B
         end
-        CUSOLVER.ormqr!('L', 'N', F, tau, X)
+        ormqr!('L', 'N', F, tau, X)
     elseif n == m
         # LU decomposition with partial pivoting
-        F, p, info = CUSOLVER.getrf!(A)  # PA = LU
-        X = CUSOLVER.getrs!('N', F, p, B)
+        F, p, info = getrf!(A)  # PA = LU
+        X = getrs!('N', F, p, B)
     else
         # QR decomposition
-        F, tau = CUSOLVER.geqrf!(A)  # A = QR
-        CUSOLVER.ormqr!('L', 'C', F, tau, B)
+        F, tau = geqrf!(A)  # A = QR
+        ormqr!('L', 'C', F, tau, B)
         if B isa CuVector{T}
             X = B[1:m]
             CUBLAS.trsv!('U', 'N', 'N', view(F,1:m,1:m), X)
@@ -307,9 +307,22 @@ end
 
 ## LU
 
-function LinearAlgebra.lu!(A::StridedCuMatrix{T}, ::RowMaximum; check::Bool = true) where {T}
+function _check_lu_success(info, allowsingular)
+    if VERSION >= v"1.11.0-DEV.1535"
+        if info < 0 # zero pivot error from unpivoted LU
+            LinearAlgebra.checknozeropivot(-info)
+        else
+            allowsingular || LinearAlgebra.checknonsingular(info)
+        end
+    else
+        LinearAlgebra.checknonsingular(info)
+    end
+end
+
+function LinearAlgebra.lu!(A::StridedCuMatrix{T}, ::RowMaximum;
+                           check::Bool=true, allowsingular::Bool=false) where {T}
     lpt = getrf!(A)
-    check && LinearAlgebra.checknonsingular(lpt[3])
+    check && _check_lu_success(lpt[3], allowsingular)
     return LU(lpt[1], lpt[2], Int(lpt[3]))
 end
 
