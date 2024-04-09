@@ -69,7 +69,8 @@ affected by `parity`. See `flex_lt`. `swap` is an array for exchanging values
 and `sums` is an array of Ints used during the merge sort.
 Uses block y index to decide which values to operate on.
 """
-@inline function batch_partition(values, pivot, swap, sums, lo, hi, parity, lt::F1, by::F2) where {F1,F2}
+@inline function batch_partition(values, pivot, swap, sums, lo, hi, parity,
+                                 lt::F1, by::F2) where {F1,F2}
     sync_threads()
     blockIdx_yz = (blockIdx().z - 1i32) * gridDim().y + blockIdx().y
     idx0 = lo + (blockIdx_yz - 1i32) * blockDim().x + threadIdx().x
@@ -88,7 +89,11 @@ Uses block y index to decide which values to operate on.
     cumsum!(sums)
 
     @inbounds if idx0 <= hi
-        dest_idx = @inbounds comparison ? blockDim().x - sums[end] + sums[threadIdx().x] : threadIdx().x - sums[threadIdx().x]
+        dest_idx = @inbounds if comparison
+            blockDim().x - sums[end] + sums[threadIdx().x]
+        else
+            threadIdx().x - sums[threadIdx().x]
+        end
         if dest_idx <= length(swap)
             swap[dest_idx] = val
         end
@@ -211,7 +216,7 @@ Finds the median of `vals` starting after `lo` and going for `blockDim().x`
 elements spaced by `stride`. Performs bitonic sort in shmem, returns middle value.
 Faster than bubble sort, but not as flexible. Does not modify `vals`
 """
-function bitonic_median(vals :: AbstractArray{T}, swap, lo, L, stride, lt::F1, by::F2) where {T,F1,F2}
+function bitonic_median(vals::AbstractArray{T}, swap, lo, L, stride, lt::F1, by::F2) where {T,F1,F2}
     sync_threads()
     bitonic_lt(i1, i2) = @inbounds flex_lt(swap[i1 + 1], swap[i2 + 1], false, lt, by)
 
@@ -337,7 +342,7 @@ Quicksort recursion condition
 For a full sort, `partial` is nothing so it shouldn't affect whether recursion
 happens.
 """
-function partial_range_overlap(lo, hi, partial :: Nothing)
+function partial_range_overlap(lo, hi, partial::Nothing)
     true
 end
 
@@ -374,7 +379,8 @@ it's possible that the first pivot will be that value, which could lead to an in
 early end to recursion if we started `stuck` at 0.
 """
 function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sync_depth,
-                      prev_pivot, lt::F1, by::F2, ::Val{dims}, partial=nothing, stuck=-1) where {T, N, S, F1, F2, dims}
+                      prev_pivot, lt::F1, by::F2, ::Val{dims}, partial=nothing,
+                      stuck=-1) where {T, N, S, F1, F2, dims}
     b_sums = CuDynamicSharedArray(Int, blockDim().x)
     swap = CuDynamicSharedArray(T, blockDim().x, sizeof(b_sums))
     shmem = sizeof(b_sums) + sizeof(swap)
@@ -449,7 +455,7 @@ function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sy
     return
 end
 
-function sort_args(args, partial_k :: Nothing)
+function sort_args(args, partial_k::Nothing)
     return args
 end
 
@@ -578,26 +584,26 @@ end
     end
 end
 
-@inline function extraneous_block(vals :: AbstractArray, dims):: Bool
+@inline function extraneous_block(vals::AbstractArray, dims):: Bool
     other_linear_index = ((gridDim().z  ÷ blockDim().z) * (blockIdx().y - 1)) + blockIdx().z
     return other_linear_index > length(vals) ÷ size(vals)[dims]
 end
 
-@inline function extraneous_block(vals, dims) :: Bool
+@inline function extraneous_block(vals, dims)::Bool
     return extraneous_block(vals[1], dims)
 end
 
 # methods are defined for Val{1} because using view has 2x speed penalty for 1D arrays
-@inline function view_along_dims(vals :: AbstractArray{T, 1}, dimsval::Val{1}) where T
+@inline function view_along_dims(vals::AbstractArray{T, 1}, dimsval::Val{1}) where T
     return vals
 end
 
-@inline function view_along_dims(vals :: Tuple{AbstractArray{T,1},Any}, dimsval::Val{1}) where T
+@inline function view_along_dims(vals::Tuple{AbstractArray{T,1},Any}, dimsval::Val{1}) where T
     return vals[1], view_along_dims(vals[2], dimsval)
 end
 
 
-@inline function view_along_dims(vals :: AbstractArray{T, N}, ::Val{dims}) where {T,N,dims}
+@inline function view_along_dims(vals::AbstractArray{T, N}, ::Val{dims}) where {T,N,dims}
     otherdims = ntuple(i -> i == dims ? 1 : size(vals, i), N)
     other_linear_index = ((gridDim().z  ÷ blockDim().z) * (blockIdx().y - 1)) + blockIdx().z
     other = CartesianIndices(otherdims)[other_linear_index]
@@ -626,7 +632,8 @@ end
     i1′, i2′ = i1 + one(I), i2 + one(I)
     vals, inds = vals_inds
     # comparing tuples of (value, index) guarantees stability of sort
-    @inbounds if dir != rev_lt((by(vals[inds[i1′]]), inds[i1′]), (by(vals[inds[i2′]]), inds[i2′]), lt, rev)
+    @inbounds if dir != rev_lt((by(vals[inds[i1′]]), inds[i1′]),
+                               (by(vals[inds[i2′]]), inds[i2′]), lt, rev)
         inds[i1′], inds[i2′] = inds[i2′], inds[i1′]
     end
 end
@@ -678,11 +685,11 @@ Note that to avoid synchronization issues, only one thread from each pair of
 indices being swapped will actually move data.
 """
 function comparator_kernel(vals, length_vals::I, k::I, j::I, by::F1, lt::F2,
-                           rev, dimsval :: Val{dims}) where {I,F1,F2,dims}
+                           rev, dimsval::Val{dims}) where {I,F1,F2,dims}
     if extraneous_block(vals, dims)
         return nothing
     end
-    
+
     index = (blockDim().x * (blockIdx().x - one(I))) + threadIdx().x - one(I)
 
     slice = view_along_dims(vals, dimsval)
@@ -903,7 +910,7 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false, dims=1)
     I = c_len <= typemax(Int32) ? Int32 : Int
     args1 = (c, I(c_len), one(I), one(I), one(I), by, lt, Val(rev), Val(dims))
     kernel1 = @cuda launch=false comparator_small_kernel(args1...)
-    
+
     config1 = launch_configuration(kernel1.fun, shmem = threads -> bitonic_shmem(c, threads))
     args2 = (c, I(c_len), one(I), one(I), by, lt, Val(rev), Val(dims))
     kernel2 = @cuda launch=false comparator_kernel(args2...)
@@ -922,13 +929,14 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false, dims=1)
         j_final = 1 + k0 - k
 
         # non-sorting dims are put into blocks along grid y/z. Using sqrt minimizes wasted blocks
-        other_block_dims = Int(ceil(sqrt(otherdims_len))), Int(ceil(sqrt(otherdims_len))) 
+        other_block_dims = Int(ceil(sqrt(otherdims_len))), Int(ceil(sqrt(otherdims_len)))
 
         for j = 1:j_final
             args1 = (c, I.((c_len, k, j, j_final))..., by, lt, Val(rev), Val(dims))
             args2 = (c, I.((c_len, k, j))..., by, lt, Val(rev), Val(dims))
             if k0 - k - j + 2 <= log_threads
-                # pseudo_block_length = max(nextpow(2, length(comparator)) for all comparators in this layer of the network)
+                # pseudo_block_length = max(nextpow(2, length(comparator))
+                # for all comparators in this layer of the network)
                 pseudo_block_length = 1 << abs(j_final + 1 - j)
                 # N_pseudo_blocks = how many pseudo-blocks are in this layer of the network
                 N_pseudo_blocks = nextpow(2, c_len) ÷ pseudo_block_length
@@ -980,7 +988,7 @@ function Base.sort!(c::AnyCuArray, alg::BitonicSortAlg; kwargs...)
     return bitonic_sort!(c; kwargs...)
 end
 
-function Base.sort!(c::AnyCuArray; alg :: SortingAlgorithm = BitonicSort, kwargs...)
+function Base.sort!(c::AnyCuArray; alg::SortingAlgorithm = BitonicSort, kwargs...)
     return sort!(c, alg; kwargs...)
 end
 
@@ -988,35 +996,26 @@ function Base.sort(c::AnyCuArray; kwargs...)
     return sort!(copy(c); kwargs...)
 end
 
-function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange}, alg::BitonicSortAlg;
-    lt=isless, by=identity, rev=false)
+function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange},
+                           alg::BitonicSortAlg; lt=isless, by=identity, rev=false)
 
-    function out(k :: OrdinalRange)
-        return copy(c[k])
-    end
-
-    # work around disallowed scalar index
-    function out(k :: Integer)
-        return Array(c[k:k])[1]
-    end
-
-    sort!(c, alg=alg; lt, by, rev)
-    return out(k)
+    sort!(c, alg; lt, by, rev)
+    return @allowscalar copy(c[k])
 end
 
-function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange}, alg::QuickSortAlg;
-                           lt=isless, by=identity, rev=false)
+function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange},
+                           alg::QuickSortAlg; lt=isless, by=identity, rev=false)
     # for reverse sorting, invert the less-than function
     if rev
         lt = !lt
     end
 
-    function out(k :: OrdinalRange)
+    function out(k::OrdinalRange)
         return copy(c[k])
     end
 
     # work around disallowed scalar index
-    function out(k :: Integer)
+    function out(k::Integer)
         return Array(c[k:k])[1]
     end
 
@@ -1024,7 +1023,8 @@ function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange}, alg:
     return out(k)
 end
 
-function Base.partialsort!(c::AnyCuArray, k::Union{Integer, OrdinalRange}; alg::SortingAlgorithm=BitonicSort, kwargs...)
+function Base.partialsort!(c::AnyCuArray, k::Union{Integer, OrdinalRange};
+                           alg::SortingAlgorithm=BitonicSort, kwargs...)
     return partialsort!(c, k, alg; kwargs...)
 end
 
@@ -1032,8 +1032,10 @@ function Base.partialsort(c::AnyCuArray, k::Union{Integer, OrdinalRange}; kwargs
     return partialsort!(copy(c), k; kwargs...)
 end
 
-function Base.sortperm!(ix::AnyCuArray{T}, A::AnyCuArray; initialized=false, kwargs...) where T
-    axes(ix) == axes(A) || throw(ArgumentError("index array must have the same size/axes as the source array, $(axes(ix)) != $(axes(A))"))
+function Base.sortperm!(ix::AnyCuArray, A::AnyCuArray; initialized=false, kwargs...)
+    if axes(ix) != axes(A)
+        throw(ArgumentError("index array must have the same size/axes as the source array, $(axes(ix)) != $(axes(A))"))
+    end
 
     if !initialized
         ix .= LinearIndices(A)
@@ -1048,5 +1050,5 @@ end
 
 function Base.sortperm(c::AnyCuArray; dims, kwargs...)
     # Base errors for Matrices without dims arg, we should too
-    sortperm!(reshape(CuArray(1:length(c)), size(c)), c; initialized=true, dims=dims, kwargs...)
+    sortperm!(reshape(CuArray(1:length(c)), size(c)), c; initialized=true, dims, kwargs...)
 end
