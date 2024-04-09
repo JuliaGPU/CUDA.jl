@@ -1,10 +1,8 @@
 using Random
 using DataStructures
 
-@testset "quicksort" begin
-
-import CUDA.QuickSortImpl: flex_lt, find_partition, quicksort!,
-        partition_batches_kernel, consolidate_batch_partition, bubble_sort
+import CUDA.QuickSortImpl: flex_lt, find_partition, quicksort!, partition_batches_kernel,
+                           consolidate_batch_partition, bubble_sort
 
 @testset "integer functions" begin
     @test flex_lt(1, 2, false, isless, identity) == true
@@ -279,9 +277,6 @@ end
     end
 end
 
-# XXX: some tests here make compute-sanitizer hang, but only on CI.
-#      maybe related to the container set-up? try again once we use Sandbox.jl.
-
 @testset "interface" begin
     @testset "quicksort" begin
         # pre-sorted
@@ -389,7 +384,7 @@ end
     @test check_sortperm(Float64, 1000000; rev=true)
     @test check_sortperm(Float64, 1000000; by=x->abs(x-0.5))
     @test check_sortperm(Float64, 1000000; rev=true, by=x->abs(x-0.5))
-    
+
     if VERSION >= v"1.9"
         # Base.jl didn't implement sortperm(;dims) until 1.9
         @test check_sortperm(Float32, (100_000, 16); dims=1)
@@ -405,6 +400,4 @@ end
     @test_throws ArgumentError sortperm!(CuArray(1:3), CuArray(1:4))
     # mismatched types (JuliaGPU/CUDA.jl#2046)
     @test check_sortperm!(collect(UInt64(1):UInt64(1000000)), Int64, 1000000)
-end
-
 end
