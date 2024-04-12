@@ -73,8 +73,15 @@ Base.:(==)(x::CuPtr, y::CuPtr) = UInt(x) == UInt(y)
 Base.:(<)(x::CuPtr,  y::CuPtr) = UInt(x) < UInt(y)
 Base.:(-)(x::CuPtr,  y::CuPtr) = UInt(x) - UInt(y)
 
+if VERSION >= v"1.12.0-DEV.225"
+Base.:(+)(x::CuPtr{T}, y::Integer) where T =
+    reinterpret(CuPtr{T}, Base.add_ptr(reinterpret(Ptr{T}, x), (y % UInt) % UInt))
+Base.:(-)(x::CuPtr{T}, y::Integer) where T =
+    reinterpret(CuPtr{T}, Base.sub_ptr(reinterpret(Ptr{T}, x), (y % UInt) % UInt))
+else
 Base.:(+)(x::CuPtr, y::Integer) = oftype(x, Base.add_ptr(UInt(x), (y % UInt) % UInt))
 Base.:(-)(x::CuPtr, y::Integer) = oftype(x, Base.sub_ptr(UInt(x), (y % UInt) % UInt))
+end
 Base.:(+)(x::Integer, y::CuPtr) = y + x
 
 
@@ -186,8 +193,15 @@ Base.:(==)(x::CuArrayPtr, y::CuArrayPtr) = UInt(x) == UInt(y)
 Base.:(<)(x::CuArrayPtr,  y::CuArrayPtr) = UInt(x) < UInt(y)
 Base.:(-)(x::CuArrayPtr,  y::CuArrayPtr) = UInt(x) - UInt(y)
 
+if VERSION >= v"1.12.0-DEV.225"
+Base.:(+)(x::CuArrayPtr{T}, y::Integer) where T =
+    reinterpret(CuArrayPtr{T}, Base.add_ptr(reinterpret(Ptr{T}, x), (y % UInt) % UInt))
+Base.:(-)(x::CuArrayPtr{T}, y::Integer) where T =
+    reinterpret(CuArrayPtr{T}, Base.sub_ptr(reinterpret(Ptr{T}, x), (y % UInt) % UInt))
+else
 Base.:(+)(x::CuArrayPtr, y::Integer) = oftype(x, Base.add_ptr(UInt(x), (y % UInt) % UInt))
 Base.:(-)(x::CuArrayPtr, y::Integer) = oftype(x, Base.sub_ptr(UInt(x), (y % UInt) % UInt))
+end
 Base.:(+)(x::Integer, y::CuArrayPtr) = y + x
 
 

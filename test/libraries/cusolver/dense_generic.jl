@@ -128,20 +128,20 @@ p = 5
         A = rand(elty,m,n)
         d_A = CuMatrix(A)
         U, Σ, V, err_sigma = CUSOLVER.Xgesvdp!('V', 0, d_A)
-        @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * V')
+        @test A ≈ collect(U[:,1:n]) * Diagonal(collect(Σ)) * collect(V)'
 
         d_A = CuMatrix(A)
         U, Σ, V, err_sigma = CUSOLVER.Xgesvdp!('V', 1, d_A)
-        @test A ≈ collect(U * Diagonal(Σ) * V')
+        @test A ≈ collect(U) * Diagonal(collect(Σ)) * collect(V)'
 
         A = rand(elty,n,m)
         d_A = CuMatrix(A)
         U, Σ, V, err_sigma = CUSOLVER.Xgesvdp!('V', 0, d_A)
-        @test A ≈ collect(U * Diagonal(Σ) * V[:,1:n]')
+        @test A ≈ collect(U) * Diagonal(collect(Σ)) * collect(V[:,1:n])'
 
         d_A = CuMatrix(A)
         U, Σ, V, err_sigma = CUSOLVER.Xgesvdp!('V', 1, d_A)
-        @test A ≈ collect(U * Diagonal(Σ) * V')
+        @test A ≈ collect(U) * Diagonal(collect(Σ)) * collect(V)'
     end
 
     # @testset "gesvdr!" begin

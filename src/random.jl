@@ -66,11 +66,16 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
         return
     end
 
-    kernel = @cuda launch=false name="rand!" kernel(A, rng.seed, rng.counter)
-    config = launch_configuration(kernel.fun; max_threads=64)
-    threads = max(32, min(config.threads, length(A)))
-    blocks = min(config.blocks, cld(length(A), threads))
-    kernel(A, rng.seed, rng.counter; threads, blocks)
+    # XXX: because of how random numbers are generated, the launch configuration
+    #      affects the results. as such, use a constant number of threads, set
+    #      very low for compatibility, and a deterministic number of blocks.
+    #      this is not ideal, but otherwise generated numbers have observed to
+    #      be different between otherwise identical inputs (eltype, dims)
+    #      depending on whether it was a direct CuArray or a wrapped SubArray.
+    threads = 32
+    blocks = cld(length(A), threads)
+
+    @cuda threads=threads blocks=blocks name="rand!" kernel(A, rng.seed, rng.counter)
 
     new_counter = Int64(rng.counter) + length(A)
     overflow, remainder = fldmod(new_counter, typemax(UInt32))

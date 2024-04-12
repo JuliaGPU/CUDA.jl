@@ -37,8 +37,9 @@ end
     @print_and_throw "Inexact conversion"
 
 # abstractarray.jl
-@device_override @noinline Base.throw_boundserror(A, I) =
+@noinline throw_boundserror() =
     @print_and_throw "Out-of-bounds array access"
+@device_override @inline Base.throw_boundserror(A, I) = throw_boundserror()
 
 # trig.jl
 @device_override @noinline Base.Math.sincos_domain_error(x) =

@@ -42,7 +42,7 @@ let (proc, out, err) = julia_exec(`-g1 -e $script`)
     @test !success(proc)
     @test occursin(host_error_re, err)
     @test occursin(device_error_re, out)
-    @test occursin("Run Julia on debug level 2 for device stack traces", out)
+    @test occursin("run Julia on debug level 2", out)
 end
 
 let (proc, out, err) = julia_exec(`-g2 -e $script`)

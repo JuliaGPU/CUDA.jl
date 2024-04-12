@@ -54,7 +54,7 @@ end
 function report_exception(ex)
     @cuprintf("""
         ERROR: a %s was thrown during kernel execution.
-               Run Julia on debug level 2 for device stack traces.
+        For stacktrace reporting, run Julia on debug level 2 (by passing -g2 to the executable).
         """, ex)
     return
 end
