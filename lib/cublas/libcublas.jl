@@ -445,8 +445,8 @@ end
 @checked function cublasSrotg_v2(handle, a, b, c, s)
     initialize_context()
     @gcsafe_ccall libcublas.cublasSrotg_v2(handle::cublasHandle_t, a::RefOrCuRef{Cfloat},
-                                           b::RefOrCuRef{Cfloat}, c::RefOrCuRef{Cfloat},
-                                           s::RefOrCuRef{Cfloat})::cublasStatus_t
+                                           b::RefOrCuRef{Cfloat}, c::PtrOrCuPtr{Cfloat},
+                                           s::PtrOrCuPtr{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDrotg_v2(handle, a, b, c, s)
@@ -459,8 +459,8 @@ end
 @checked function cublasCrotg_v2(handle, a, b, c, s)
     initialize_context()
     @gcsafe_ccall libcublas.cublasCrotg_v2(handle::cublasHandle_t, a::RefOrCuRef{cuComplex},
-                                           b::RefOrCuRef{cuComplex}, c::RefOrCuRef{Cfloat},
-                                           s::RefOrCuRef{cuComplex})::cublasStatus_t
+                                           b::RefOrCuRef{cuComplex}, c::PtrOrCuPtr{Cfloat},
+                                           s::PtrOrCuPtr{cuComplex})::cublasStatus_t
 end
 
 @checked function cublasZrotg_v2(handle, a, b, c, s)
@@ -468,8 +468,8 @@ end
     @gcsafe_ccall libcublas.cublasZrotg_v2(handle::cublasHandle_t,
                                            a::RefOrCuRef{cuDoubleComplex},
                                            b::RefOrCuRef{cuDoubleComplex},
-                                           c::RefOrCuRef{Cdouble},
-                                           s::RefOrCuRef{cuDoubleComplex})::cublasStatus_t
+                                           c::PtrOrCuPtr{Cdouble},
+                                           s::PtrOrCuPtr{cuDoubleComplex})::cublasStatus_t
 end
 
 @checked function cublasSrotm_v2(handle, n, x, incx, y, incy, param)
@@ -4661,12 +4661,12 @@ end
                                                       n_array::Ptr{Cint},
                                                       k_array::Ptr{Cint},
                                                       alpha_array::Ptr{Cfloat},
-                                                      Aarray::CuPtr{Ptr{Float32}},
+                                                      Aarray::CuPtr{Ptr{Cfloat}},
                                                       lda_array::Ptr{Cint},
-                                                      Barray::CuPtr{Ptr{Float32}},
+                                                      Barray::CuPtr{Ptr{Cfloat}},
                                                       ldb_array::Ptr{Cint},
                                                       beta_array::Ptr{Cfloat},
-                                                      Carray::CuPtr{Ptr{Float32}},
+                                                      Carray::CuPtr{Ptr{Cfloat}},
                                                       ldc_array::Ptr{Cint},
                                                       group_count::Cint,
                                                       group_size::Ptr{Cint})::cublasStatus_t
@@ -4684,12 +4684,12 @@ end
                                                          n_array::Ptr{Int64},
                                                          k_array::Ptr{Int64},
                                                          alpha_array::Ptr{Cfloat},
-                                                         Aarray::CuPtr{Ptr{Float32}},
+                                                         Aarray::CuPtr{Ptr{Cfloat}},
                                                          lda_array::Ptr{Int64},
-                                                         Barray::CuPtr{Ptr{Float32}},
+                                                         Barray::CuPtr{Ptr{Cfloat}},
                                                          ldb_array::Ptr{Int64},
                                                          beta_array::Ptr{Cfloat},
-                                                         Carray::CuPtr{Ptr{Float32}},
+                                                         Carray::CuPtr{Ptr{Cfloat}},
                                                          ldc_array::Ptr{Int64},
                                                          group_count::Int64,
                                                          group_size::Ptr{Int64})::cublasStatus_t
@@ -4707,12 +4707,12 @@ end
                                                       n_array::Ptr{Cint},
                                                       k_array::Ptr{Cint},
                                                       alpha_array::Ptr{Cdouble},
-                                                      Aarray::CuPtr{Ptr{Float64}},
+                                                      Aarray::CuPtr{Ptr{Cdouble}},
                                                       lda_array::Ptr{Cint},
-                                                      Barray::CuPtr{Ptr{Float64}},
+                                                      Barray::CuPtr{Ptr{Cdouble}},
                                                       ldb_array::Ptr{Cint},
                                                       beta_array::Ptr{Cdouble},
-                                                      Carray::CuPtr{Ptr{Float64}},
+                                                      Carray::CuPtr{Ptr{Cdouble}},
                                                       ldc_array::Ptr{Cint},
                                                       group_count::Cint,
                                                       group_size::Ptr{Cint})::cublasStatus_t
@@ -4730,12 +4730,12 @@ end
                                                          n_array::Ptr{Int64},
                                                          k_array::Ptr{Int64},
                                                          alpha_array::Ptr{Cdouble},
-                                                         Aarray::CuPtr{Ptr{Float64}},
+                                                         Aarray::CuPtr{Ptr{Cdouble}},
                                                          lda_array::Ptr{Int64},
-                                                         Barray::CuPtr{Ptr{Float64}},
+                                                         Barray::CuPtr{Ptr{Cdouble}},
                                                          ldb_array::Ptr{Int64},
                                                          beta_array::Ptr{Cdouble},
-                                                         Carray::CuPtr{Ptr{Float64}},
+                                                         Carray::CuPtr{Ptr{Cdouble}},
                                                          ldc_array::Ptr{Int64},
                                                          group_count::Int64,
                                                          group_size::Ptr{Int64})::cublasStatus_t
