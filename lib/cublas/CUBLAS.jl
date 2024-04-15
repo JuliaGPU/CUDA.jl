@@ -21,6 +21,8 @@ using LLVM.Interop: assume
 using CEnum: @cenum
 
 
+const cudaDataType_t = cudaDataType
+
 # core library
 include("libcublas.jl")
 include("libcublas_deprecated.jl")
