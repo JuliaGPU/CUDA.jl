@@ -34,7 +34,11 @@ kernels in Julia, and wrappers for various CUDA libraries.
 
 The latest development version of CUDA.jl requires **Julia 1.8** or higher. If you are using
 an older version of Julia, you need to use a previous version of CUDA.jl. This will happen
-automatically when you install the package using Julia's package manager.
+automatically when you install the package using Julia's package manager. 
+
+Note that CUDA.jl may not work with a custom build of Julia; it is recommended that you 
+install Julia using the [official binaries](https://julialang.org/downloads/) or 
+[juliaup](https://github.com/JuliaLang/juliaup). 
 
 CUDA.jl currently also requires a CUDA-capable GPU with **compute capability 3.5** (Kepler)
 or higher, and an accompanying NVIDIA driver with support for **CUDA 11.0** or newer. These
@@ -48,7 +52,6 @@ Depending on your system and GPU, you may need to install an older version of th
 
 Finally, you should be using a platform **supported by NVIDIA**. Currently, that means using
 64-bit Linux or Windows, with an X86, ARM, or PowerPC host processor.
-
 
 ## Quick start
 
