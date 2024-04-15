@@ -7,6 +7,8 @@ using CUDA: retry_reclaim, initialize_context, isdebug
 
 using CEnum: @cenum
 
+using Printf: @printf
+
 if CUDA.local_toolkit
     using CUDA_Runtime_Discovery
 else
