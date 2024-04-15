@@ -61,5 +61,5 @@ respective repositories.
 ## When installing CUDA.jl on a cluster, why does Julia stall during precompilation?
 
 If you're working on a cluster, precompilation may stall if you have not requested 
-sufficient memory. You may also wish to make sure you have enough disk space. 
-enough disk space. 
+sufficient memory. You may also wish to make sure you have enough disk space prior
+to installing CUDA.jl.
