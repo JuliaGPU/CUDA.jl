@@ -249,7 +249,7 @@ function main(name="all")
     end
 
     if name == "all" || name == "cublas"
-        wrap("cublas", ["$cuda/cublas_v2.h", "$cuda/cublasXt.h"];
+        wrap("cublas", ["$cuda/cublas_v2.h", "$cuda/cublasXt.h", "$cuda/cublasLt.h"];
             targets=[r"cublas.*.h"],
             include_dirs=[cuda])
     end
