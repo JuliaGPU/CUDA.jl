@@ -184,25 +184,19 @@ function rewriter!(ctx, options)
                 # look for a template rewrite: many libraries have very similar functions,
                 # e.g., `cublas[SDHCZ]gemm`, for which we can use the same type rewrites
                 # registered as `cublas𝕏gemm` template with `T` and `S` placeholders.
-                for name in copy(names),
-                    (typcode,(T,S)) in ["S"=>("Cfloat","Cfloat"),
-                                        "D"=>("Cdouble","Cdouble"),
-                                        "H"=>("Float16","Float16"),
-                                        "C"=>("cuComplex","Cfloat"),
-                                        "Z"=>("cuDoubleComplex","Cdouble")]
-
-                    start = 1
-                    match = findnext(typcode, name, start)
-                    while match !== nothing
-                        idx = match.start
-                        template_name = name[1:idx-1] * "𝕏" * name[idx+1:end]
+                for name in copy(names), (typcode,(T,S)) in ["S"=>("Cfloat","Cfloat"),
+                                                              "D"=>("Cdouble","Cdouble"),
+                                                              "H"=>("Float16","Float16"),
+                                                              "C"=>("cuComplex","Cfloat"),
+                                                              "Z"=>("cuDoubleComplex","Cdouble")]
+                    idx = findfirst(typcode, name)
+                    while idx !== nothing
+                        template_name = name[1:idx.start-1] * "𝕏" * name[idx.stop+1:end]
                         if haskey(options["api"], template_name)
                             templates[template_name] = ["T" => T, "S" => S]
                             push!(names, template_name)
                         end
-
-                        start = idx+1
-                        match = findnext(typcode, name, start)
+                        idx = findnext(typcode, name, idx.stop+1)
                     end
                 end
 
