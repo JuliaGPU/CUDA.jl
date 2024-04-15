@@ -183,7 +183,7 @@ function rewriter!(ctx, options)
 
                 # look for a template rewrite: many libraries have very similar functions,
                 # e.g., `cublas[SDHCZ]gemm`, for which we can use the same type rewrites
-                # registered as `cublasXgemm` template with `T` and `S` placeholders.
+                # registered as `cublas𝕏gemm` template with `T` and `S` placeholders.
                 for (typcode,(T,S)) in ["S"=>("Cfloat","Cfloat"),
                                         "D"=>("Cdouble","Cdouble"),
                                         "H"=>("Float16","Float16"),
@@ -193,7 +193,7 @@ function rewriter!(ctx, options)
                     match = findfirst(typcode, name)
                     match === nothing && continue
                     idx = match.start
-                    template_name = name[1:idx-1] * "X" * name[idx+1:end]
+                    template_name = name[1:idx-1] * "𝕏" * name[idx+1:end]
                     if haskey(options["api"], template_name)
                         templates[template_name] = ["T" => T, "S" => S]
                         push!(names, template_name)
