@@ -170,6 +170,8 @@ function rewriter!(ctx, options)
 
             # look up API options for this function
             fn_options = Dict{String,Any}()
+            templates = Dict{String,Any}()
+            template_types = nothing
             if haskey(options, "api")
                 names = [fn]
 
@@ -179,10 +181,30 @@ function rewriter!(ctx, options)
                     push!(names, fn[1:end-3])
                 end
 
+                # look for a template rewrite: many libraries have very similar functions,
+                # e.g., `cublas[SDHCZ]gemm`, for which we can use the same type rewrites
+                # registered as `cublas𝕏gemm` template with `T` and `S` placeholders.
+                for name in copy(names), (typcode,(T,S)) in ["S"=>("Cfloat","Cfloat"),
+                                                              "D"=>("Cdouble","Cdouble"),
+                                                              "H"=>("Float16","Float16"),
+                                                              "C"=>("cuComplex","Cfloat"),
+                                                              "Z"=>("cuDoubleComplex","Cdouble")]
+                    idx = findfirst(typcode, name)
+                    while idx !== nothing
+                        template_name = name[1:idx.start-1] * "𝕏" * name[idx.stop+1:end]
+                        if haskey(options["api"], template_name)
+                            templates[template_name] = ["T" => T, "S" => S]
+                            push!(names, template_name)
+                        end
+                        idx = findnext(typcode, name, idx.stop+1)
+                    end
+                end
+
                 # the exact name is always checked first, so it's always possible to
                 # override the type rewrites for a specific function
                 # (e.g. if a _64 function ever passes a `Ptr{Cint}` index).
                 for name in names
+                    template_types = get(templates, name, nothing)
                     if haskey(options["api"], name)
                         fn_options = options["api"][name]
                         break
@@ -200,6 +222,11 @@ function rewriter!(ctx, options)
                 # _64 aliases should use Int64 instead of Int32/Cint
                 if endswith(fn, "_64")
                     typ = replace(typ, "Cint" => "Int64", "Int32" => "Int64")
+                end
+
+                # expand type templates
+                if template_types !== nothing
+                    typ = replace(typ, template_types...)
                 end
 
                 arg_exprs[i].args[2] = Meta.parse(typ)
@@ -249,7 +276,7 @@ function main(name="all")
     end
 
     if name == "all" || name == "cublas"
-        wrap("cublas", ["$cuda/cublas_v2.h", "$cuda/cublasXt.h"];
+        wrap("cublas", ["$cuda/cublas_v2.h", "$cuda/cublasXt.h", "$cuda/cublasLt.h"];
             targets=[r"cublas.*.h"],
             include_dirs=[cuda])
     end

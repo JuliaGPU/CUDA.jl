@@ -17,56 +17,51 @@ version = "0.5.0"
 
 [[CSTParser]]
 deps = ["Tokenize"]
-git-tree-sha1 = "b1d309487c04e92253b55c1f803b1d6f0e136920"
+git-tree-sha1 = "b544d62417a99d091c569b95109bc9d8c223e9e3"
 uuid = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
-version = "3.4.1"
+version = "3.4.2"
 
 [[CUDA_Driver_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
-git-tree-sha1 = "d01bfc999768f0a31ed36f5d22a76161fc63079c"
+git-tree-sha1 = "dc172b558adbf17952001e15cf0d6364e6d78c2f"
 uuid = "4ee394cb-3365-5eb0-8335-949819d2adfc"
-version = "0.7.0+1"
+version = "0.8.1+0"
 
 [[CUDA_Runtime_jll]]
 deps = ["Artifacts", "CUDA_Driver_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "8e25c009d2bf16c2c31a70a6e9e8939f7325cc84"
+git-tree-sha1 = "4ca7d6d92075906c2ce871ea8bba971fff20d00c"
 uuid = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
-version = "0.11.1+0"
+version = "0.12.1+0"
 
 [[CUDA_SDK_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "a188221ab66c7608f9af75f93fe2bd6d0a14b4b5"
+git-tree-sha1 = "752d5810571b8639702ada3b098cf550babb1967"
 uuid = "6cbf2f2e-7e60-5632-ac76-dca2274e0be0"
-version = "12.3.2+0"
+version = "12.4.1+0"
 
 [[CUDNN_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "b188220f9bd361db61a72326e987d57c0750ac5e"
+git-tree-sha1 = "cbf7d75f8c58b147bdf6acea2e5bc96cececa6d4"
 uuid = "62b44479-cb7b-5706-934f-f13b2eb2e645"
-version = "9.0.0+0"
+version = "9.0.0+1"
 
 [[CUTENSOR_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "aff33b54e97432cba542bf646c405a6b03cc29ac"
+git-tree-sha1 = "2ad02c8180d94cca10336fc5646a7e24ab4aa268"
 uuid = "35b6c64b-1ee1-5834-92a3-3f624899209a"
-version = "2.0.0+0"
+version = "2.0.1+0"
 
 [[Clang]]
 deps = ["CEnum", "Clang_jll", "Downloads", "Pkg", "TOML"]
-git-tree-sha1 = "846054622cb22aa63b5d51b5d84ec04b42d4d587"
+git-tree-sha1 = "be935fd478265159ffdb1a949489a5f91319fb95"
 uuid = "40e3b903-d033-50b4-a0cc-940c62c95e31"
-version = "0.17.8"
+version = "0.18.1"
 
 [[Clang_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "TOML", "Zlib_jll", "libLLVM_jll"]
 git-tree-sha1 = "de2204d98741f57e7ddb9a6a738db74ba8a608cb"
 uuid = "0ee61d77-7f21-5576-8119-9fcc46b10100"
 version = "15.0.7+10"
-
-[[Combinatorics]]
-git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
-uuid = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
-version = "1.0.2"
 
 [[CommonMark]]
 deps = ["Crayons", "JSON", "PrecompileTools", "URIs"]
@@ -76,9 +71,9 @@ version = "0.8.12"
 
 [[Compat]]
 deps = ["TOML", "UUIDs"]
-git-tree-sha1 = "75bd5b6fc5089df449b5d35fa501c846c9b6549b"
+git-tree-sha1 = "c955881e3c981181362ae4088b35995446298b80"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.12.0"
+version = "4.14.0"
 
     [Compat.extensions]
     CompatLinearAlgebraExt = "LinearAlgebra"
@@ -90,7 +85,7 @@ version = "4.12.0"
 [[CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.0.5+1"
+version = "1.1.0+0"
 
 [[Crayons]]
 git-tree-sha1 = "249fe38abf76d48563e2f4556bebd215aa317e15"
@@ -99,9 +94,9 @@ version = "4.1.1"
 
 [[DataStructures]]
 deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "ac67408d9ddf207de5cfa9a97e114352430f01ed"
+git-tree-sha1 = "97d79461925cdb635ee32116978fc735b9463a39"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.18.16"
+version = "0.18.19"
 
 [[Dates]]
 deps = ["Printf"]
@@ -137,10 +132,10 @@ uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
 
 [[JuliaFormatter]]
-deps = ["CSTParser", "Combinatorics", "CommonMark", "DataStructures", "Glob", "Pkg", "PrecompileTools", "Tokenize"]
-git-tree-sha1 = "bf3bdb6d310b8106fa13f69eb9cd9c6a53b82b5b"
+deps = ["CSTParser", "CommonMark", "DataStructures", "Glob", "Pkg", "PrecompileTools", "Tokenize"]
+git-tree-sha1 = "1c4880cb70a5c6c87ea36deccc3d7f9e7969c18c"
 uuid = "98e50ef6-434e-11e9-1051-2b60c6c9e899"
-version = "1.0.47"
+version = "1.0.56"
 
 [[LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
@@ -238,15 +233,15 @@ version = "1.10.0"
 
 [[PrecompileTools]]
 deps = ["Preferences"]
-git-tree-sha1 = "03b4c25b43cb84cee5c90aa9b5ea0a78fd848d2f"
+git-tree-sha1 = "5aa36f7049a63a1528fe8f7c3f2113413ffd4e1f"
 uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.2.0"
+version = "1.2.1"
 
 [[Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "00805cd429dcb4870060ff49ef443486c262e38e"
+git-tree-sha1 = "9306f6085165d270f7e3db02af26a400d580f5c6"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.4.1"
+version = "1.4.3"
 
 [[Printf]]
 deps = ["Unicode"]
@@ -299,9 +294,9 @@ uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
 [[XML2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libiconv_jll", "Zlib_jll"]
-git-tree-sha1 = "801cbe47eae69adc50f36c3caec4758d2650741b"
+git-tree-sha1 = "532e22cf7be8462035d092ff21fada7527e2c488"
 uuid = "02c8fc9c-b97f-50b9-bbe4-9be30ff0a78a"
-version = "2.12.2+0"
+version = "2.12.6+0"
 
 [[XSLT_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libgcrypt_jll", "Libgpg_error_jll", "Libiconv_jll", "Pkg", "XML2_jll", "Zlib_jll"]
