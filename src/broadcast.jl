@@ -16,6 +16,11 @@ BroadcastStyle(::CUDA.CuArrayStyle{N1, B1},
                ::CUDA.CuArrayStyle{N2, B2}) where {N1,N2,B1,B2} =
     CuArrayStyle{max(N1,N2), Mem.Unified}()
 
+# resolve ambiguity: different N, same buffer
+BroadcastStyle(::CUDA.CuArrayStyle{N1, B},
+               ::CUDA.CuArrayStyle{N2, B}) where {N1,N2,B} =
+    CuArrayStyle{max(N1,N2), B}()
+
 # allocation of output arrays
 Base.similar(bc::Broadcasted{CuArrayStyle{N,B}}, ::Type{T}, dims) where {T,N,B} =
     similar(CuArray{T,length(dims),B}, dims)
