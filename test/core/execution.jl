@@ -40,7 +40,9 @@ end
 @testset "compilation params" begin
     @cuda dummy()
 
-    @test_throws CuError @cuda threads=2 maxthreads=1 dummy()
+    @test_throws "Number of threads per block exceeds kernel limit" begin
+        @cuda threads=2 maxthreads=1 dummy()
+    end
     @cuda threads=2 dummy()
 
     # sm_10 isn't supported by LLVM

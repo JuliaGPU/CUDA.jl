@@ -74,8 +74,9 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
     end
 end
 
-@noinline function diagnose_launch_failure(f, err; blockdim, threaddim, shmem)
-    if !isa(err, CuError) || err.code != ERROR_INVALID_VALUE
+@noinline function diagnose_launch_failure(f::CuFunction, err; blockdim, threaddim, shmem)
+    if !isa(err, CuError) || !in(err.code, [ERROR_INVALID_VALUE,
+                                            ERROR_LAUNCH_OUT_OF_RESOURCES])
         rethrow()
     end
 
@@ -109,6 +110,19 @@ end
     shmem_lim = attribute(dev, DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK)
     if shmem > shmem_lim
         error("Amount of dynamic shared memory exceeds device limit ($(Base.format_bytes(shmem)) > $(Base.format_bytes(shmem_lim))).")
+    end
+
+    # check kernel limits
+    fattr = attributes(f)
+    ## thread limit
+    threadlim = fattr[FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK]
+    if threaddim.x * threaddim.y * threaddim.z > threadlim
+        error("Number of threads per block exceeds kernel limit ($(threaddim.x * threaddim.y * threaddim.z) > $threadlim).")
+    end
+    ## shared memory limit
+    shmem_lim = fattr[FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES]
+    if shmem > shmem_lim
+        error("Amount of dynamic shared memory exceeds kernel limit ($(Base.format_bytes(shmem)) > $(Base.format_bytes(shmem_lim))).")
     end
 
     rethrow()
