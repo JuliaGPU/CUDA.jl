@@ -1096,7 +1096,7 @@ end
 
 ############################################################################################
 
-if VERSION >= v"1.10-"
+if VERSION >= v"1.12-"
 @testset "opaque closures" begin
 
 # basic closure, constructed from IRCode
@@ -1120,8 +1120,8 @@ end
 
 # basic closure, constructed from CodeInfo
 let
-    ir, rettyp = only(Base.code_typed(*, (Int, Int, Int)))
-    oc = CUDA.OpaqueClosure(ir)
+    ir, rettype = only(Base.code_typed(*, (Int, Int, Int)))
+    oc = CUDA.OpaqueClosure(ir; sig=Tuple{Int,Int,Int}, rettype, nargs=3)
 
     d = CuArray([1])
     a = CuArray([2])

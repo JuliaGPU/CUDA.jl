@@ -530,20 +530,23 @@ function generate_opaque_closure(config::CompilerConfig, src::CodeInfo,
     mi = ccall(:jl_specializations_get_linfo, Ref{MethodInstance},
                (Any, Any, Any), meth, full_sig, Core.svec())
     job = CompilerJob(mi, config)   # this captures the current world age
+    Base.@atomic meth.primary_world = job.world
+    Base.@atomic meth.deleted_world = typemax(UInt)
 
     # create a code instance and store it in the cache
     interp = GPUCompiler.get_interpreter(job)
     owner = Core.Compiler.cache_owner(interp)
     exctype = Any
     inferred_const = C_NULL
+    inferred = src
     const_flags = Int32(0)
     min_world = meth.primary_world
-    max_world = typemax(UInt)
+    max_world = meth.deleted_world
     ipo_effects = UInt32(0)
     effects = UInt32(0)
     analysis_results = nothing
     relocatability = UInt8(0)
-    ci = CodeInstance(mi, owner, rt, exctype, inferred_const, const_flags,
+    ci = CodeInstance(mi, owner, rt, exctype, inferred_const, inferred,
                       const_flags, min_world, max_world, ipo_effects, effects,
                       analysis_results, relocatability, src.debuginfo)
     Core.Compiler.setindex!(GPUCompiler.ci_cache(job), ci, mi)
