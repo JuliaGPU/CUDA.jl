@@ -15,7 +15,7 @@ precompile(cudaconvert, (Function,))
 precompile(Core.kwfunc(cudacall), (NamedTuple{(:threads, :blocks), Tuple{Int64, Int64}},typeof(cudacall),CuFunction,Type{Tuple{}}))
 precompile(Core.kwfunc(launch), (NamedTuple{(:threads, :blocks), Tuple{Int64, Int64}},typeof(launch),CuFunction))
 
-@static if VERSION >= v"1.11.-"
+@static if VERSION >= v"1.11.0-DEV.1603"
 using PrecompileTools: @setup_workload, @compile_workload
 @setup_workload let
     @compile_workload begin
