@@ -68,4 +68,10 @@ end
   g = cu([1 2]; host=true)
   h = f .+ g
   @test is_unified(h)
+
+  # however, differences in only shape shouldn't change the buffer type
+  i = cu([1]; device=true)
+  j = cu([1 2]; device=true)
+  k = i .+ j
+  @test !is_unified(k)
 end

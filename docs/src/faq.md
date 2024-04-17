@@ -56,3 +56,10 @@ their exported submodule handles, e.g., `CUBLAS.cublasGetVersion_v2`.
 Any help on designing or implementing high-level wrappers for this low-level functionality
 is greatly appreciated, so please consider contributing your uses of these APIs on the
 respective repositories.
+
+
+## When installing CUDA.jl on a cluster, why does Julia stall during precompilation?
+
+If you're working on a cluster, precompilation may stall if you have not requested 
+sufficient memory. You may also wish to make sure you have enough disk space prior
+to installing CUDA.jl.

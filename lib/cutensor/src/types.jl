@@ -170,6 +170,8 @@ mutable struct CuTensorPlan
     end
 end
 
+Base.show(io::IO, plan::CuTensorPlan) = @printf(io, "CuTensorPlan(%p)", plan.handle)
+
 Base.unsafe_convert(::Type{cutensorPlan_t}, plan::CuTensorPlan) = plan.handle
 
 Base.:(==)(a::CuTensorPlan, b::CuTensorPlan) = a.handle == b.handle
@@ -219,6 +221,8 @@ mutable struct CuTensorDescriptor
         return obj
     end
 end
+
+Base.show(io::IO, desc::CuTensorDescriptor) = @printf(io, "CuTensorDescriptor(%p)", desc.handle)
 
 Base.unsafe_convert(::Type{cutensorTensorDescriptor_t}, obj::CuTensorDescriptor) = obj.handle
 
