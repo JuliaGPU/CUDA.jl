@@ -234,7 +234,7 @@ function memory_limit_exceeded(bytes::Integer)
   used_bytes = if stream_ordered(dev) && driver_version() >= v"12.2"
     # we configured the memory pool to do this for us
     return false
-  elseif stream_ordered(dev) && driver_version() >= v"11.3"
+  elseif stream_ordered(dev)
     pool = memory_pool(dev)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else
@@ -255,7 +255,8 @@ end
 function stream_ordered(dev::CuDevice)
   devidx = deviceid(dev) + 1
   @memoize devidx::Int maxlen=ndevices() begin
-    memory_pools_supported(dev) && get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
+    CUDA.driver_version() >= v"11.3" && memory_pools_supported(dev) &&
+    get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
   end::Bool
 end
 
@@ -351,18 +352,14 @@ export OutOfGPUMemoryError
 struct MemoryInfo
   free_bytes::Int
   total_bytes::Int
-  pool_reserved_bytes::Union{Int,Missing,Nothing}
-  pool_used_bytes::Union{Int,Missing,Nothing}
+  pool_reserved_bytes::Union{Int,Nothing}
+  pool_used_bytes::Union{Int,Nothing}
 
   function MemoryInfo()
     free_bytes, total_bytes = Mem.info()
 
     pool_reserved_bytes, pool_used_bytes = if stream_ordered(device())
-      if driver_version() >= v"11.3"
-        cached_memory(), used_memory()
-      else
-        missing, missing
-      end
+      cached_memory(), used_memory()
     else
       nothing, nothing
     end
@@ -388,8 +385,6 @@ function memory_status(io::IO=stdout, info::MemoryInfo=MemoryInfo())
 
   if info.pool_reserved_bytes === nothing
     @printf(io, "No memory pool is in use.")
-  elseif info.pool_reserved_bytes === missing
-    @printf(io, "Memory pool statistics require CUDA 11.3.")
   else
     @printf(io, "Memory pool usage: %s (%s reserved)\n",
                 Base.format_bytes(info.pool_used_bytes),
@@ -769,15 +764,10 @@ end
 
 Returns the amount of memory from the CUDA memory pool that is currently in use by the
 application.
-
-!!! warning
-
-    This function is only available on CUDA driver 11.3 and later.
 """
 function used_memory()
   state = active_state()
-  if driver_version() >= v"11.3" && stream_ordered(state.device)
-    # we can only query the memory pool's reserved memory on CUDA 11.3 and later
+  if stream_ordered(state.device)
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_USED_MEM_CURRENT))
   else
@@ -789,15 +779,10 @@ end
     cached_memory()
 
 Returns the amount of backing memory currently allocated for the CUDA memory pool.
-
-!!! warning
-
-    This function is only available on CUDA driver 11.3 and later.
 """
 function cached_memory()
   state = active_state()
-  if driver_version() >= v"11.3" && stream_ordered(state.device)
-    # we can only query the memory pool's reserved memory on CUDA 11.3 and later
+  if stream_ordered(state.device)
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else
