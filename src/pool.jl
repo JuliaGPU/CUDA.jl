@@ -96,30 +96,56 @@ end
 const _memory_stats = PerDevice{MemoryStats}()
 function memory_stats(dev::CuDevice=device())
   get!(_memory_stats, dev) do
+    limits = memory_limits()
     device!(dev) do
-      MemoryStats(total_memory(), Threads.Atomic{Int}(0), Threads.Atomic{Float64}(0.0),
+      size = if limits.hard > 0
+        limits.hard
+      elseif limits.soft > 0
+        limits.soft
+      else
+        total_memory()
+      end
+      MemoryStats(size, Threads.Atomic{Int}(0), Threads.Atomic{Float64}(0.0),
                   Threads.Atomic{Float64}(0.0), Threads.Atomic{Int}(0),)
     end
   end
 end
 
-function maybe_collect()
+const _early_gc = LazyInitialized{Bool}()
+function maybe_collect(will_block::Bool=false)
+  enabled = get!(_early_gc) do
+    parse(Bool, get(ENV, "JULIA_CUDA_GC_EARLY", "true"))
+  end
+  enabled || return
   stats = memory_stats()
 
   # check that we're under memory pressure
   pressure = stats.live[] / stats.size
-  if pressure < 0.75
+  min_pressure = 0.75
+  ## if we're about to block, now may be a good opportunity to collect
+  if will_block
+    min_pressure = 0.50
+  end
+  if pressure < min_pressure
     return
   end
 
-  # we tolerate 5% GC time. if we freed a lot last time, bump that up to 10%
-  last_time = stats.last_time[]
+  # ensure we don't collect too often by checking the GC rate
   current_time = time()
+  last_time = stats.last_time[]
   gc_rate = stats.last_gc_time[] / (current_time - last_time)
-  allowed_gc_rate = if stats.last_freed[] > (0.1*stats.size)
-    0.1
-  else
-    0.05
+  ## we tolerate 5% GC time
+  allowed_gc_rate = 0.05
+  ## if we freed a lot last time, bump that up
+  if stats.last_freed[] > (0.1*stats.size)
+    allowed_gc_rate *= 2
+  end
+  ## if we're under a lot of pressure, we can be more aggressive
+  if pressure > 0.90
+    allowed_gc_rate *= 2
+  end
+  if pressure > 0.95
+    allowed_gc_rate *= 2
   end
   if gc_rate > allowed_gc_rate
     return
@@ -128,11 +154,12 @@ function maybe_collect()
 
   # finally, call the GC
   pre_gc_live = stats.live[]
-  gc_time = @elapsed GC.gc()
+  gc_time = @elapsed GC.gc(false)
   post_gc_live = stats.live[]
-  Threads.atomic_set!(stats.last_freed, memory_freed)
+  memory_freed = pre_gc_live - post_gc_live
+  stats.last_freed[] = memory_freed
   ## GC times can vary, so smooth them out
-  Threads.atomic_set!(stats.last_gc_time, 0.75*stats.last_gc_time[] + 0.25*gc_time)
+  stats.last_gc_time[] = 0.75*stats.last_gc_time[] + 0.25*gc_time
 
   return
 end
@@ -513,6 +540,8 @@ end
 @inline function _alloc(::Type{Mem.DeviceBuffer}, sz; stream::Union{Nothing,CuStream})
     state = active_state()
 
+    maybe_collect()
+
     time = Base.@elapsed begin
       buf = if stream_ordered(state.device)
         stream = something(stream, state.stream)
@@ -529,7 +558,6 @@ end
     end
 
     account!(memory_stats(state.device), sz)
-    maybe_collect()
 
     buf, time
 end

@@ -182,11 +182,11 @@ function device_synchronize(; blocking::Bool=false, spin::Bool=true)
         if spin && spinning_synchronization(isdone, legacy_stream())
             cuCtxSynchronize()
         else
-            maybe_collect()
+            maybe_collect(true)
             nonblocking_synchronize(context())
         end
     else
-        maybe_collect()
+        maybe_collect(true)
         cuCtxSynchronize()
     end
 
@@ -198,11 +198,11 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool
         if spin && spinning_synchronization(isdone, stream)
             cuStreamSynchronize(stream)
         else
-            maybe_collect()
+            maybe_collect(true)
             nonblocking_synchronize(stream)
         end
     else
-        maybe_collect()
+        maybe_collect(true)
         cuStreamSynchronize(stream)
     end
 
@@ -214,11 +214,11 @@ function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
         if spin && spinning_synchronization(isdone, event)
             cuEventSynchronize(event)
         else
-            maybe_collect()
+            maybe_collect(true)
             nonblocking_synchronize(event)
         end
     else
-        maybe_collect()
+        maybe_collect(true)
         cuEventSynchronize(event)
     end
 end
@@ -275,7 +275,7 @@ function device_synchronize(; blocking::Bool=false, spin::Bool=true)
             nonblocking_synchronize(stream)
         end
     end
-    maybe_collect()
+    maybe_collect(true)
     cuCtxSynchronize()
 
     check_exceptions()
@@ -287,7 +287,7 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool
             nonblocking_synchronize(stream)
         end
     end
-    maybe_collect()
+    maybe_collect(true)
     cuStreamSynchronize(stream)
 
     check_exceptions()
@@ -297,7 +297,7 @@ function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
     if use_nonblocking_synchronization && !blocking
         spin && spinning_synchronization(isdone, event)
     end
-    maybe_collect()
+    maybe_collect(true)
     cuEventSynchronize(event)
 end
 
