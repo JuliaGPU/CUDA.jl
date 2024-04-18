@@ -1713,41 +1713,36 @@ end
 
     if CUDA.CUBLAS.version() >= v"12.4.2"
         @testset "elty = $elty" for elty in [Float32, Float64]
-
-            transA = ['N' for i in 1:10]
-            transB = ['N' for i in 1:10]
-            alpha = rand(elty, 10)
-            beta = rand(elty, 10)
+            num_groups = 10
+            group_sizes = collect(1:num_groups)
+            transA = ['N' for i in 1:num_groups]
+            transB = ['N' for i in 1:num_groups]
+            alpha = rand(elty, num_groups)
+            beta = rand(elty, num_groups)
             # generate matrices
-            bA = [rand(elty,3*i,2*i) for i in 1:10]
-            bB = [rand(elty,2*i,5*i) for i in 1:10]
-            bC = [rand(elty,3*i,5*i) for i in 1:10]
+            bA = [[rand(elty,3*i,2*i) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bB = [[rand(elty,2*i,5*i) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bC = [[rand(elty,3*i,5*i) for j in 1:group_sizes[i]] for i in 1:num_groups]
             # move to device
-            bd_A = CuArray{elty, 2}[]
-            bd_B = CuArray{elty, 2}[]
-            bd_C = CuArray{elty, 2}[]
-            for i in 1:length(bA)
-                push!(bd_A,CuArray(bA[i]))
-                push!(bd_B,CuArray(bB[i]))
-                push!(bd_C,CuArray(bC[i]))
-            end
-
+            bd_A = [[CuArray(bA[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bd_B = [[CuArray(bB[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bd_C = [[CuArray(bC[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
             @testset "gemm_grouped_batched!" begin
                 # C = (alpha*A)*B + beta*C
                 CUBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A,bd_B,beta,bd_C)
-                for i in 1:length(bd_C)
-                    bC[i] = alpha[i] * bA[i] * bB[i] + beta[i] * bC[i]
-                    h_C = Array(bd_C[i])
-                    @test bC[i] ≈ h_C
+                for i in 1:num_groups, j in 1:group_sizes[i]
+                    bC[i][j] = alpha[i] * bA[i][j] * bB[i][j] + beta[i] * bC[i][j]
+                    h_C = Array(bd_C[i][j])
+                    @test bC[i][j] ≈ h_C
                 end
             end
 
             @testset "gemm_grouped_batched" begin
                 bd_C = CUBLAS.gemm_grouped_batched(transA,transB,bd_A,bd_B)
-                for i in 1:length(bd_C)
-                    bC[i] = bA[i] * bB[i]
-                    h_C = Array(bd_C[i])
-                    @test bC[i] ≈ h_C
+                for i in 1:num_groups, j in 1:group_sizes[i]
+                    bC[i][j] = bA[i][j] * bB[i][j]
+                    h_C = Array(bd_C[i][j])
+                    @test bC[i][j] ≈ h_C
                 end
             end
         end

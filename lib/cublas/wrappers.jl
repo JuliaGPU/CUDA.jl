@@ -1218,37 +1218,42 @@ for (fname, fname_64, elty) in ((:cublasSgemmGroupedBatched, :cublasSgemmGrouped
         function gemm_grouped_batched!(transA::Vector{Char},
                                        transB::Vector{Char},
                                        alpha::Vector{$elty},
-                                       A::Vector{<:StridedCuMatrix{$elty}},
-                                       B::Vector{<:StridedCuMatrix{$elty}},
+                                       A::Vector{<:Vector{<:StridedCuMatrix{$elty}}},
+                                       B::Vector{<:Vector{<:StridedCuMatrix{$elty}}},
                                        beta::Vector{$elty},
-                                       C::Vector{<:StridedCuMatrix{$elty}})
-            if length(A) != length(B) || length(A) != length(C)
-                throw(DimensionMismatch("A, B and C must contain the same number of matrices"))
-            end
+                                       C::Vector{<:Vector{<:StridedCuMatrix{$elty}}})
 
+            if length(A) != length(B) || length(A) != length(C)
+                throw(DimensionMismatch("A, B and C must contain the same number of groups"))
+            end
             group_count = length(A)
-            group_size = ones(Int64, group_count)
+            for i=1:group_count
+                if length(A[i]) != length(B[i]) || length(A[i]) != length(C[i])
+                    throw(DimensionMismatch("A, B and C must contain the same number of matrices"))
+                end
+            end
+            group_size = length.(A)
 
             for i = 1:group_count
-                m = size(A[i], transA[i] == 'N' ? 1 : 2)
-                k = size(A[i], transA[i] == 'N' ? 2 : 1)
-                n = size(B[i], transB[i] == 'N' ? 2 : 1)
-                if m != size(C[i],1) || n != size(C[i],2) || k != size(B[i], transB[i] == 'N' ? 1 : 2)
+                m = size(A[i][1], transA[i] == 'N' ? 1 : 2)
+                k = size(A[i][1], transA[i] == 'N' ? 2 : 1)
+                n = size(B[i][1], transB[i] == 'N' ? 2 : 1)
+                if m != size(C[i][1],1) || n != size(C[i][1],2) || k != size(B[i][1], transB[i] == 'N' ? 1 : 2)
                     throw(DimensionMismatch(""))
                 end
             end
 
             transa = convert.(cublasOperation_t, transA)
             transb = convert.(cublasOperation_t, transB)
-            m = [size(A[i], transA[i] == 'N' ? 1 : 2) for i = 1 : group_count]
-            k = [size(A[i], transA[i] == 'N' ? 2 : 1) for i = 1 : group_count]
-            n = [size(B[i], transB[i] == 'N' ? 2 : 1) for i = 1 : group_count]
-            lda = [max(1,stride(A[i],2)) for i = 1 : group_count]
-            ldb = [max(1,stride(B[i],2)) for i = 1 : group_count]
-            ldc = [max(1,stride(C[i],2)) for i = 1 : group_count]
-            Aptrs = unsafe_batch(A)
-            Bptrs = unsafe_batch(B)
-            Cptrs = unsafe_batch(C)
+            m = [size(A[i][1], transA[i] == 'N' ? 1 : 2) for i = 1 : group_count]
+            k = [size(A[i][1], transA[i] == 'N' ? 2 : 1) for i = 1 : group_count]
+            n = [size(B[i][1], transB[i] == 'N' ? 2 : 1) for i = 1 : group_count]
+            lda = [max(1,stride(A[i][1],2)) for i = 1 : group_count]
+            ldb = [max(1,stride(B[i][1],2)) for i = 1 : group_count]
+            ldc = [max(1,stride(C[i][1],2)) for i = 1 : group_count]
+            Aptrs = unsafe_batch(reduce(vcat, A))
+            Bptrs = unsafe_batch(reduce(vcat, B))
+            Cptrs = unsafe_batch(reduce(vcat, C))
 
             if CUBLAS.version() >= v"12.0"
                 $fname_64(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
@@ -1267,13 +1272,15 @@ for (fname, fname_64, elty) in ((:cublasSgemmGroupedBatched, :cublasSgemmGrouped
 end
 
 function gemm_grouped_batched(transA::Vector{Char}, transB::Vector{Char}, alpha::Vector{T},
-                              A::Vector{<:StridedCuMatrix{T}}, B::Vector{<:StridedCuMatrix{T}}) where T
-    beta = [zero(T) for i = 1:length(transA)]
-    C = CuMatrix{T}[similar(B[i], (size(A[i], transA[i] == 'N' ? 1 : 2), size(B[i], transB[i] == 'N' ? 2 : 1))) for i in 1:length(A)]
+                              A::Vector{<:Vector{<:StridedCuMatrix{T}}}, B::Vector{<:Vector{<:StridedCuMatrix{T}}}) where T
+    num_groups = length(A)
+    group_sizes = length.(A)
+    beta = [zero(T) for i = 1:num_groups]
+    C = [[similar(B[i][j], (size(A[i][j], transA[i] == 'N' ? 1 : 2), size(B[i][j], transB[i] == 'N' ? 2 : 1))) for j in 1:group_sizes[i]] for i in 1:num_groups]
     gemm_grouped_batched!(transA, transB, alpha, A, B, beta, C)
 end
 function gemm_grouped_batched(transA::Vector{Char}, transB::Vector{Char},
-                              A::Vector{<:StridedCuMatrix{T}}, B::Vector{<:StridedCuMatrix{T}}) where T
+                              A::Vector{<:Vector{<:StridedCuMatrix{T}}}, B::Vector{<:Vector{<:StridedCuMatrix{T}}}) where T
     alpha = [one(T) for i = 1:length(transA)]
     gemm_grouped_batched(transA, transB, alpha, A, B)
 end
