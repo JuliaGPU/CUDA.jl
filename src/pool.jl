@@ -120,15 +120,15 @@ function maybe_collect(will_block::Bool=false)
     elseif limits.soft > 0
       limits.soft
     else
+      size = free_memory() + stats.live[]
+      # NOTE: we use stats.live[] so that we only count memory allocated here, ensuring
+      #       the pressure calculation below reflects the heap we have control over.
+
+      # also include reserved bytes
       dev = device()
       if stream_ordered(dev)
-        free_memory() + stats.live[] + cached_memory()
-      else
-        free_memory() + stats.live[]
+        size += cached_memory() - used_memory()
       end
-      # NOTE: we use stats.live[] instead of used_memory(), i.e., exclusing non-CuArray
-      #       allocations that are not tracked by MemoryStats, to ensure that the pressure
-      #       calculation below reflects the heap we have control over.
     end
     stats.size_updated[] = current_time
   end
