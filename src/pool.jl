@@ -76,7 +76,8 @@ end
 
 struct MemoryStats
   # maximum size of the memory heap
-  size::Int
+  size::Threads.Atomic{Int}
+  size_updated::Threads.Atomic{Float64}
 
   # the amount of live bytes
   live::Threads.Atomic{Int}
@@ -96,18 +97,9 @@ end
 const _memory_stats = PerDevice{MemoryStats}()
 function memory_stats(dev::CuDevice=device())
   get!(_memory_stats, dev) do
-    limits = memory_limits()
-    device!(dev) do
-      size = if limits.hard > 0
-        limits.hard
-      elseif limits.soft > 0
-        limits.soft
-      else
-        total_memory()
-      end
-      MemoryStats(size, Threads.Atomic{Int}(0), Threads.Atomic{Float64}(0.0),
+      MemoryStats(Threads.Atomic{Int}(0), Threads.Atomic{Float64}(0.0),
+                  Threads.Atomic{Int}(0), Threads.Atomic{Float64}(0.0),
                   Threads.Atomic{Float64}(0.0), Threads.Atomic{Int}(0),)
-    end
   end
 end
 
@@ -118,11 +110,33 @@ function maybe_collect(will_block::Bool=false)
   end
   enabled || return
   stats = memory_stats()
+  current_time = time()
+
+  # periodically re-estimate the amount of memory available to this process.
+  if current_time - stats.size_updated[] > 10
+    limits = memory_limits()
+    stats.size[] = if limits.hard > 0
+      limits.hard
+    elseif limits.soft > 0
+      limits.soft
+    else
+      dev = device()
+      if stream_ordered(dev)
+        free_memory() + stats.live[] + cached_memory()
+      else
+        free_memory() + stats.live[]
+      end
+      # NOTE: we use stats.live[] instead of used_memory(), i.e., exclusing non-CuArray
+      #       allocations that are not tracked by MemoryStats, to ensure that the pressure
+      #       calculation below reflects the heap we have control over.
+    end
+    stats.size_updated[] = current_time
+  end
 
   # check that we're under memory pressure
-  pressure = stats.live[] / stats.size
+  pressure = stats.live[] / stats.size[]
   min_pressure = 0.75
-  ## if we're about to block, now may be a good opportunity to collect
+  ## if we're about to block anyway, now may be a good time for a GC pause
   if will_block
     min_pressure = 0.50
   end
@@ -131,13 +145,12 @@ function maybe_collect(will_block::Bool=false)
   end
 
   # ensure we don't collect too often by checking the GC rate
-  current_time = time()
   last_time = stats.last_time[]
   gc_rate = stats.last_gc_time[] / (current_time - last_time)
   ## we tolerate 5% GC time
   allowed_gc_rate = 0.05
   ## if we freed a lot last time, bump that up
-  if stats.last_freed[] > (0.1*stats.size)
+  if stats.last_freed[] > (0.1*stats.size[])
     allowed_gc_rate *= 2
   end
   ## if we're under a lot of pressure, we can be more aggressive
