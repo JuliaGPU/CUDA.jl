@@ -148,19 +148,23 @@ function maybe_collect(will_block::Bool=false)
   last_time = stats.last_time[]
   gc_rate = stats.last_gc_time[] / (current_time - last_time)
   ## we tolerate 5% GC time
-  allowed_gc_rate = 0.05
+  max_gc_rate = 0.05
   ## if we freed a lot last time, bump that up
-  if stats.last_freed[] > (0.1*stats.size[])
-    allowed_gc_rate *= 2
+  if stats.last_freed[] > 0.1*stats.size[]
+    max_gc_rate *= 2
   end
-  ## if we're under a lot of pressure, we can be more aggressive
+  ## if we're about to block, we can be more aggressive
+  if will_block
+    max_gc_rate *= 2
+  end
+  ## if we're under a lot of pressure, be even more aggressive
   if pressure > 0.90
-    allowed_gc_rate *= 2
+    max_gc_rate *= 2
   end
   if pressure > 0.95
-    allowed_gc_rate *= 2
+    max_gc_rate *= 2
   end
-  if gc_rate > allowed_gc_rate
+  if gc_rate > max_gc_rate
     return
   end
   stats.last_time[] = current_time
