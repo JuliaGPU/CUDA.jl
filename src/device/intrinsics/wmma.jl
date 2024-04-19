@@ -196,10 +196,10 @@ for ops in all_ldst_ops,
     ptr_ty = :(LLVMPtr{$arr_ty, $addr_space_int})
 
     if sz == 1
-        @eval $func_name(src_addr, stride) = tuple(ccall($ccall_name, llvmcall, $frag_ty, ($ptr_ty, Int32), src_addr, stride))
+        @eval @device_function $func_name(src_addr, stride) = tuple(ccall($ccall_name, llvmcall, $frag_ty, ($ptr_ty, Int32), src_addr, stride))
     else
         struct_ty = Symbol("LLVMStruct$sz")
-        @eval $func_name(src_addr, stride) = convert(NTuple{$sz, $frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$frag_ty}, ($ptr_ty, Int32), src_addr, stride))
+        @eval @device_function $func_name(src_addr, stride) = convert(NTuple{$sz, $frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$frag_ty}, ($ptr_ty, Int32), src_addr, stride))
     end
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_load) $func_name
@@ -263,7 +263,7 @@ export llvm_wmma_store
 
     ptr_ty = :(LLVMPtr{$arr_ty, $addr_space_int})
 
-    @eval $func_name(dst_addr, data, stride) = ccall($ccall_name, llvmcall, Nothing, ($ptr_ty, $(frag_types...), Int32), dst_addr, $(frag_vars...), stride)
+    @eval @device_function $func_name(dst_addr, data, stride) = ccall($ccall_name, llvmcall, Nothing, ($ptr_ty, $(frag_types...), Int32), dst_addr, $(frag_vars...), stride)
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_store) $func_name
 end
@@ -340,10 +340,10 @@ for ops in all_wmma_ops,
     c_vars = ntuple(i -> :(c[$i]), c_sz)
 
     if d_sz == 1
-        @eval $func_name(a, b, c) = tuple(ccall($ccall_name, llvmcall, $d_frag_ty, ($(a_types...), $(b_types...), $(c_types...)), $(a_vars...), $(b_vars...), $(c_vars...)))
+        @eval @device_function $func_name(a, b, c) = tuple(ccall($ccall_name, llvmcall, $d_frag_ty, ($(a_types...), $(b_types...), $(c_types...)), $(a_vars...), $(b_vars...), $(c_vars...)))
     else
         struct_ty = Symbol("LLVMStruct$d_sz")
-        @eval $func_name(a, b, c) = convert(NTuple{$d_sz, $d_frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$d_frag_ty}, ($(a_types...), $(b_types...), $(c_types...)), $(a_vars...), $(b_vars...), $(c_vars...)))
+        @eval @device_function $func_name(a, b, c) = convert(NTuple{$d_sz, $d_frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$d_frag_ty}, ($(a_types...), $(b_types...), $(c_types...)), $(a_vars...), $(b_vars...), $(c_vars...)))
     end
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_mma) $func_name

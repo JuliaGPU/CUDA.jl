@@ -13,7 +13,7 @@ Waits until all threads in the thread block have reached this point and all glob
 shared memory accesses made by these threads prior to `sync_threads()` are visible to all
 threads in the block.
 """
-@inline sync_threads() = ccall("llvm.nvvm.barrier0", llvmcall, Cvoid, ())
+@device_function @inline sync_threads() = ccall("llvm.nvvm.barrier0", llvmcall, Cvoid, ())
 
 """
     sync_threads_count(predicate)
@@ -22,7 +22,7 @@ Identical to `sync_threads()` with the additional feature that it evaluates pred
 all threads of the block and returns the number of threads for which `predicate` evaluates
 to true.
 """
-@inline sync_threads_count(predicate) =
+@device_function @inline sync_threads_count(predicate) =
     ccall("llvm.nvvm.barrier0.popc", llvmcall, Int32, (Int32,), predicate)
 
 """
@@ -32,7 +32,7 @@ Identical to `sync_threads()` with the additional feature that it evaluates pred
 all threads of the block and returns `true` if and only if `predicate` evaluates to `true`
 for all of them.
 """
-@inline sync_threads_and(predicate) =
+@device_function @inline sync_threads_and(predicate) =
     ccall("llvm.nvvm.barrier0.and", llvmcall, Int32, (Int32,), predicate) != Int32(0)
 
 """
@@ -42,7 +42,7 @@ Identical to `sync_threads()` with the additional feature that it evaluates pred
 all threads of the block and returns `true` if and only if `predicate` evaluates to `true`
 for any of them.
 """
-@inline sync_threads_or(predicate) =
+@device_function @inline sync_threads_or(predicate) =
     ccall("llvm.nvvm.barrier0.or", llvmcall, Int32, (Int32,), predicate) != Int32(0)
 
 """
@@ -56,7 +56,7 @@ the warp.
 !!! note
     Requires CUDA >= 9.0 and sm_6.2
 """
-@inline sync_warp(mask=FULL_MASK) =
+@device_function @inline sync_warp(mask=FULL_MASK) =
     ccall("llvm.nvvm.bar.warp.sync", llvmcall, Cvoid, (UInt32,), mask)
 
 
@@ -64,7 +64,7 @@ the warp.
 
 export barrier_sync
 
-barrier_sync(id=0) = ccall("llvm.nvvm.barrier.sync", llvmcall, Cvoid, (Int32,), id)
+@device_function @inline barrier_sync(id=0) = ccall("llvm.nvvm.barrier.sync", llvmcall, Cvoid, (Int32,), id)
 
 
 ## memory barriers (membar)
@@ -81,7 +81,7 @@ A memory fence that ensures that:
 - All reads from all memory made by the calling thread before the call to `threadfence_block()`
   are ordered before all reads from all memory made by the calling thread after the call to `threadfence_block()`.
 """
-@inline threadfence_block() = ccall("llvm.nvvm.membar.cta", llvmcall, Cvoid, ())
+@device_function @inline threadfence_block() = ccall("llvm.nvvm.membar.cta", llvmcall, Cvoid, ())
 
 """
     threadfence()
@@ -95,7 +95,7 @@ Note that for this ordering guarantee to be true, the observing threads must tru
 memory and not cached versions of it; this is requires the use of volatile loads and stores,
 which is not available from Julia right now.
 """
-@inline threadfence() = ccall("llvm.nvvm.membar.gl", llvmcall, Cvoid, ())
+@device_function @inline threadfence() = ccall("llvm.nvvm.membar.gl", llvmcall, Cvoid, ())
 
 """
     threadfence_system()
@@ -106,4 +106,4 @@ before the call to `threadfence_system()` are observed by all threads in the dev
 host threads, and all threads in peer devices as occurring before all writes to all
 memory made by the calling thread after the call to `threadfence_system()`.
 """
-@inline threadfence_system() = ccall("llvm.nvvm.membar.sys", llvmcall, Cvoid, ())
+@device_function @inline threadfence_system() = ccall("llvm.nvvm.membar.sys", llvmcall, Cvoid, ())

@@ -70,7 +70,7 @@ const grid_workspace = Ptr{grid_workspace_st}
     end
 end
 
-function get_grid_workspace()
+@device_function function get_grid_workspace()
     # interpret the address from envreg 1 and 2 as the driver's grid workspace
     hi = ccall("llvm.nvvm.read.ptx.sreg.envreg1", llvmcall, UInt32, ())
     lo = ccall("llvm.nvvm.read.ptx.sreg.envreg2", llvmcall, UInt32, ())
@@ -370,7 +370,7 @@ end
     return oldArrive
 end
 
-@inline function barrier_wait(gg::grid_group, token)
+@device_function @inline function barrier_wait(gg::grid_group, token)
     arrived = gg.details.barrier
 
     if is_cta_master()
@@ -548,11 +548,12 @@ end
 
 ## pipeline operations
 
-pipeline_commit() = ccall("llvm.nvvm.cp.async.commit.group", llvmcall, Cvoid, ())
+@device_function pipeline_commit() = ccall("llvm.nvvm.cp.async.commit.group", llvmcall, Cvoid, ())
 
-pipeline_wait_prior(n) =
+@device_function pipeline_wait_prior(n) =
     ccall("llvm.nvvm.cp.async.wait.group", llvmcall, Cvoid, (Int32,), n)
 
+# TODO device function?
 @generated function pipeline_memcpy_async(dst::LLVMPtr{T}, src::LLVMPtr{T}) where T
     size_and_align = sizeof(T)
     size_and_align in (4, 8, 16) || :(return error($"Unsupported size $size_and_align"))
