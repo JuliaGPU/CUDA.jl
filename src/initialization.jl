@@ -160,12 +160,6 @@ function __init__()
         end
     end
 
-    # ensure that operations executed by the REPL back-end finish before returning,
-    # because displaying values happens on a different task (CUDA.jl#831)
-    if isdefined(Base, :active_repl_backend)
-        push!(Base.active_repl_backend.ast_transforms, emit_cuda_synchronizer)
-    end
-
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("-nvptx-fma-level=1")
 
@@ -201,25 +195,6 @@ function __init__()
     end
 
     _initialized[] = true
-end
-
-function emit_cuda_synchronizer(ex)
-    quote
-        try
-            $(ex)
-        finally
-            $maybe_synchronize_cuda()
-        end
-    end
-end
-
-@inline function maybe_synchronize_cuda()
-    # NOTE: this does not use the validating `task_local_state!` (or the helpers built on
-    #       top of it, like `context()`) because we don't want to initialize CUDA here.
-    if task_local_state() !== nothing && isvalid(task_local_state().context)
-        device_synchronize()
-    end
-    return
 end
 
 
