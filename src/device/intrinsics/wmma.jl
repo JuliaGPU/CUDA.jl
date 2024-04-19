@@ -1,7 +1,7 @@
 export WMMA
 module WMMA
 
-using ..CUDA: AS
+using ..CUDA: AS, @device_function
 using Core: LLVMPtr
 
 ################################################################################

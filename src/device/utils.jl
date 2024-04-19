@@ -16,7 +16,7 @@ end
 macro device_override(ex)
     ex = macroexpand(__module__, ex)
     esc(quote
-        Base.Experimental.@overlay(CUDA.method_table, $ex)
+        Base.Experimental.@overlay($(CUDA).method_table, $ex)
     end)
 end
 
@@ -31,7 +31,7 @@ macro device_function(ex)
 
     esc(quote
         $(combinedef(def))
-        @device_override $ex
+        $(CUDA).@device_override $ex
     end)
 end
 
@@ -47,7 +47,7 @@ macro device_functions(ex)
                 push!(out.args, rewrite(arg))
             elseif Meta.isexpr(arg, [:function, :(=)])
                 # rewrite function definitions
-                push!(out.args, :(@device_function $arg))
+                push!(out.args, :($(CUDA).@device_function $arg))
             else
                 # preserve all the rest
                 push!(out.args, arg)

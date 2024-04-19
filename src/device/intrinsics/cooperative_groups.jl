@@ -24,7 +24,7 @@ Noteworthy missing functionality:
 module CG
 
 using ..CUDA
-using ..CUDA: i32, Aligned, alignment
+using ..CUDA: i32, Aligned, alignment, @device_function
 
 using ..LLVM.Interop
 using ..LLVMLoopInfo

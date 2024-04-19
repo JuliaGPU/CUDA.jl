@@ -96,14 +96,14 @@ Returns the thread index within the block.
 
 Returns the warp size (in threads).
 """
-@device_function @inline warpsize() = ccall("llvm.nvvm.read.ptx.sreg.warpsize", llvmcall, Int32, ())
+@inline warpsize() = ccall("llvm.nvvm.read.ptx.sreg.warpsize", llvmcall, Int32, ())
 
 """
     laneid()::Int32
 
 Returns the thread's lane within the warp.
 """
-@device_function @inline laneid() = ccall("llvm.nvvm.read.ptx.sreg.laneid", llvmcall, Int32, ()) + 1i32
+@inline laneid() = ccall("llvm.nvvm.read.ptx.sreg.laneid", llvmcall, Int32, ()) + 1i32
 
 """
     lanemask(pred)::UInt32
@@ -111,7 +111,7 @@ Returns the thread's lane within the warp.
 Returns a 32-bit mask indicating which threads in a warp satisfy the given predicate.
 Supported predicates are `==`, `<`, `<=`, `>=`, and `>`.
 """
-@device_function @inline function lanemask(pred::F) where F
+@inline function lanemask(pred::F) where F
     if pred === Base.:(==)
         ccall("llvm.nvvm.read.ptx.sreg.lanemask.eq", llvmcall, UInt32, ())
     elseif pred === Base.:(<)
@@ -133,7 +133,7 @@ end
 Returns a 32-bit mask indicating which threads in a warp are active with the current
 executing thread.
 """
-@device_function @inline active_mask() = @asmcall("activemask.b32 \$0;", "=r", false, UInt32, Tuple{})
+@inline active_mask() = @asmcall("activemask.b32 \$0;", "=r", false, UInt32, Tuple{})
 
 end
 
