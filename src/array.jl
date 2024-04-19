@@ -574,8 +574,8 @@ Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
 
 # general case: use CUDA APIs
 
-# NOTE: we only switch contexts here to avoid illegal memory accesses. synchronization is
-#       best-effort, since we don't keep track of streams using each array.
+# NOTE: we only switch contexts here to avoid illegal memory accesses.
+# our current programming model expects users to manage the active device.
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::Array{T}, soffs, n) where T
@@ -613,7 +613,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
     end
 
     # users expect values to be available after this call
-    synchronize()
+    synchronize(src)
   end
   return dest
 end
@@ -638,10 +638,6 @@ end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, doffs,
                              src::Array{T}, soffs, n) where T
-  # maintain stream-ordered semantics
-  # XXX: alternative, use an async CUDA memcpy if the stream isn't idle?
-  synchronize()
-
   GC.@preserve src dest begin
     ptr = pointer(src, soffs)
     unsafe_copyto!(pointer(dest, doffs; type=Mem.Host), ptr, n)
@@ -655,9 +651,6 @@ end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs,
                              src::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, soffs, n) where T
-  # maintain stream-ordered semantics
-  synchronize()
-
   GC.@preserve src dest begin
     ptr = pointer(dest, doffs)
     unsafe_copyto!(ptr, pointer(src, soffs; type=Mem.Host), n)
