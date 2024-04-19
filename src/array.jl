@@ -62,6 +62,9 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
 
   dims::Dims{N}
 
+  dirty::Bool         # whether the array has been modified since the last sync
+  stream::CuStream    # which stream is currently using the array
+
   function CuArray{T,N,B}(::UndefInitializer, dims::Dims{N}) where {T,N,B}
     check_eltype(T)
     maxsize = prod(dims) * sizeof(T)
@@ -73,14 +76,14 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
     end
     buf = alloc(B, bufsize)
     data = DataRef(_free_buffer, buf)
-    obj = new{T,N,B}(data, maxsize, 0, dims)
+    obj = new{T,N,B}(data, maxsize, 0, dims, false, stream())
     finalizer(unsafe_finalize!, obj)
   end
 
-  function CuArray{T,N}(data::DataRef{B}, dims::Dims{N};
+  function CuArray{T,N}(data::DataRef{B}, dims::Dims{N}; stream=CUDA.stream(),
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,B}
     check_eltype(T)
-    obj = new{T,N,B}(data, maxsize, offset, dims)
+    obj = new{T,N,B}(data, maxsize, offset, dims, true, stream)
     finalizer(unsafe_finalize!, obj)
   end
 end
@@ -443,49 +446,45 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
 ## interop with libraries
 
-# when CPU-accessible buffers are converted to a device pointer, we assume it will be
-# accessed asynchronously. we keep track of that in the task local storage, and use that
-# information to perform additional synchronization when converting the buffer to a host
-# pointer. TODO: optimize this! it currently halves the performance of scalar indexing.
-function mark_async(buf::Union{Mem.HostBuffer,Mem.UnifiedBuffer})
-  ptr = convert(Ptr{Nothing}, buf)
-  tls = task_local_storage()
-  if haskey(tls, :CUDA_ASYNC_BUFFERS)
-    async_buffers = tls[:CUDA_ASYNC_BUFFERS]::Vector{Ptr{Nothing}}
-    in(ptr, async_buffers) && return
-    pushfirst!(async_buffers, ptr)
-  else
-    tls[:CUDA_ASYNC_BUFFERS] = [ptr]
-  end
-  return
-end
-function ensure_sync(buf::Union{Mem.HostBuffer,Mem.UnifiedBuffer})
-  tls = task_local_storage()
-  haskey(tls, :CUDA_ASYNC_BUFFERS) || return
-  async_buffers = tls[:CUDA_ASYNC_BUFFERS]::Vector{Ptr{Nothing}}
-  ptr = convert(Ptr{Nothing}, buf)
-  in(ptr, async_buffers) || return
-  synchronize()
-  filter!(!isequal(ptr), async_buffers)
-  return
-end
+# every time an array is used, it is converted to a pointer. we use this point to perform
+# additional synchronization to ensure the data is available to the caller. to do this,
+# we keep track of two pieces of information:
+# - the dirty bit, set to true every time an asynchronous operation is performed, i.e.,
+#   every time a device pointer is derived from the array;
+# - the owning stream, keeping track of the stream that last accessed the array.
 
 function Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T}
-  buf = x.data[]
-  if is_unified(x) || is_host(x)
-    mark_async(buf)
+  # when converting to a device pointer, we need to synchronize when the streams mismatch
+  if x.dirty
+    current_stream = stream()
+    if x.stream != current_stream
+      synchronize(x)
+      x.stream = current_stream
+    end
   end
+  x.dirty = true
+
+  buf = x.data[]
   convert(CuPtr{T}, buf) + x.offset*Base.elsize(x)
 end
 
 function Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T}
-  buf = x.data[]
   if is_device(x)
     throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
-  elseif is_unified(x) || is_host(x)
-    ensure_sync(buf)
   end
+
+  # when converting to a host pointer, we always need to synchronize dirty arrays
+  if x.dirty
+    synchronize(x)
+  end
+
+  buf = x.data[]
   convert(Ptr{T}, buf) + x.offset*Base.elsize(x)
+end
+
+function synchronize(x::CuArray)
+  synchronize(x.stream)
+  x.dirty = false
 end
 
 
@@ -838,7 +837,7 @@ end
 
 function GPUArrays.derive(::Type{T}, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
   offset = (a.offset * Base.elsize(a)) ÷ sizeof(T) + offset
-  CuArray{T,N}(copy(a.data), dims; a.maxsize, offset)
+  CuArray{T,N}(copy(a.data), dims; a.stream, a.maxsize, offset)
 end
 
 
