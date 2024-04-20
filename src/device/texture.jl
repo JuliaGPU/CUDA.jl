@@ -6,8 +6,8 @@ struct LinearInterpolation   <: TextureInterpolationMode end
 struct CubicInterpolation    <: TextureInterpolationMode end
 
 abstract type TextureMemorySource end
-struct ArrayMemory   <: TextureMemorySource end
-struct LinearMemory  <: TextureMemorySource end
+struct ArrayMemorySource   <: TextureMemorySource end
+struct LinearMemorySource  <: TextureMemorySource end
 
 """
     CuDeviceTexture{T,N,M,NC,I}
@@ -67,7 +67,7 @@ for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
                     NTuple{4,$dispatch_rettyp}})
 
     # tex1D only supports array memory
-    @eval tex(texObject::CuDeviceTexture{<:$eltyp,1,ArrayMemory}, x::Number) =
+    @eval tex(texObject::CuDeviceTexture{<:$eltyp,1,ArrayMemorySource}, x::Number) =
         Tuple(ccall($("llvm.nvvm.tex.unified.1d.$llvm_rettyp.f32"), llvmcall,
                     $julia_rettyp, (CUtexObject, Float32), texObject, x))
 

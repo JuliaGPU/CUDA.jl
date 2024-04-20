@@ -90,7 +90,7 @@ end
 sort!(tests; by=(file)->stat("$(@__DIR__)/$file.jl").size, rev=true)
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)
-    if CUDA.default_memory != Mem.Device && name == "indexing scalar"
+    if CUDA.default_memory != CUDA.DeviceMemory && name == "indexing scalar"
         # GPUArrays' scalar indexing tests assume that indexing is not supported
         continue
     end

@@ -121,7 +121,7 @@ Re-starting your active Julia session...
 julia> using CUDA
 
 julia> CuArray([1]) .+ 1
-1-element CuArray{Int64, 1, CUDA.Mem.DeviceBuffer}:
+1-element CuArray{Int64, 1, CUDA.DeviceMemory}:
  2
 
 julia> exit()

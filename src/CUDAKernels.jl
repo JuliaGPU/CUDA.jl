@@ -35,8 +35,8 @@ Adapt.adapt_storage(::KA.CPU, a::CuArray) = convert(Array, a)
 ## memory operations
 
 function KA.copyto!(::CUDABackend, A, B)
-    A isa Array && __pin!(A)
-    B isa Array && __pin!(B)
+    A isa Array && CUDA.pin(A)
+    B isa Array && CUDA.pin(B)
 
     GC.@preserve A B begin
         destptr = pointer(A)
@@ -45,22 +45,6 @@ function KA.copyto!(::CUDABackend, A, B)
         unsafe_copyto!(destptr, srcptr, N, async=true)
     end
     return A
-end
-
-# - IdDict does not free the memory
-# - WeakRef dict does not unique the key by objectid
-const __pinned_memory = Dict{UInt64, WeakRef}()
-
-function __pin!(a)
-    # use pointer instead of objectid?
-    oid = objectid(a)
-    if haskey(__pinned_memory, oid) && __pinned_memory[oid].value !== nothing
-        return nothing
-    end
-    ad = Mem.register(Mem.Host, pointer(a), sizeof(a))
-    finalizer(_ -> Mem.unregister(ad), a)
-    __pinned_memory[oid] = WeakRef(a)
-    return nothing
 end
 
 ## kernel launch

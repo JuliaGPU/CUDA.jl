@@ -143,7 +143,7 @@ end
 mutable struct CuTensorPlan
     ctx::CuContext
     handle::cutensorPlan_t
-    workspace::CuVector{UInt8,Mem.DeviceBuffer}
+    workspace::CuVector{UInt8,DeviceMemory}
     scalar_type::DataType
 
     function CuTensorPlan(desc, pref; workspacePref=CUTENSOR_WORKSPACE_DEFAULT)

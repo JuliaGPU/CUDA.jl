@@ -141,19 +141,20 @@ function Adapt.adapt_storage(::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,N}
   # prefetch unified memory as we're likely to use it on the GPU
   # TODO: make this configurable?
   if is_unified(xs)
-    buf = xs.data[]::Mem.UnifiedBuffer
+    mem = xs.data[]::UnifiedMemory
 
     can_prefetch = sizeof(xs) > 0
     ## prefetching isn't supported during stream capture
     can_prefetch &= !is_capturing()
     ## we can only prefetch pageable memory
-    can_prefetch &= !Mem.__pinned(convert(Ptr{T}, buf), buf.ctx)
+    can_prefetch &= !__pinned(convert(Ptr{T}, mem), mem.ctx)
     ## pageable memory needs to be accessible concurrently
     can_prefetch &= attribute(device(), DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1
 
     if can_prefetch
-        subbuf = Mem.UnifiedBuffer(buf.ctx, pointer(xs), sizeof(xs))
-        Mem.prefetch(subbuf)
+        # TODO: `view` on buffers?
+        subbuf = UnifiedMemory(mem.ctx, pointer(xs), sizeof(xs))
+        prefetch(subbuf)
     end
   end
 

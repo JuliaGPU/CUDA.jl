@@ -868,7 +868,7 @@ function Base.getproperty(x::Ptr{CUstreamBatchMemOpParams_union}, f::Symbol)
     f === :waitValue && return Ptr{CUstreamMemOpWaitValueParams_st}(x + 0)
     f === :writeValue && return Ptr{CUstreamMemOpWriteValueParams_st}(x + 0)
     f === :flushRemoteWrites && return Ptr{CUstreamMemOpFlushRemoteWritesParams_st}(x + 0)
-    f === :memoryBarrier && return Ptr{CUstreamMemOpMemoryBarrierParams_st}(x + 0)
+    f === :memoryBarrier && return Ptr{CUstreampMemoryBarrierParams_st}(x + 0)
     f === :pad && return Ptr{NTuple{6,cuuint64_t}}(x + 0)
     return getfield(x, f)
 end
@@ -6051,7 +6051,7 @@ struct CUstreamMemOpFlushRemoteWritesParams_st
     flags::Cuint
 end
 
-struct CUstreamMemOpMemoryBarrierParams_st
+struct CUstreampMemoryBarrierParams_st
     operation::CUstreamBatchMemOpType
     flags::Cuint
 end

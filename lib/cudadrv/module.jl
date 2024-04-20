@@ -14,7 +14,9 @@ function checked_cuModuleLoadDataEx(_module, image, numOptions, options, optionV
     #      available, but cached by the allocator. by configuring the allocator with a
     #      release threshold, we have it actually free up that memory, but that requires
     #      synchronizing all streams to make sure pending frees are actually executed.
-    device_synchronize()
+    if !is_capturing()
+        device_synchronize()
+    end
 
     # FIXME: maybe all CUDA API calls need to run under retry_reclaim?
     #        that would require a redesign of the memory pool,

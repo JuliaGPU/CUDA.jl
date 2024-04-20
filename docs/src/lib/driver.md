@@ -111,22 +111,22 @@ memory. Each of these buffers can be allocated by calling `alloc` with the type 
 first argument, and freed by calling `free`. Certain buffers have specific methods defined.
 
 ```@docs
-Mem.DeviceBuffer
-Mem.alloc(::Type{Mem.DeviceBuffer}, ::Integer)
+DeviceMemory
+alloc(::Type{DeviceMemory}, ::Integer)
 ```
 
 ```@docs
-Mem.HostBuffer
-Mem.alloc(::Type{Mem.HostBuffer}, ::Integer, flags)
-Mem.register(::Type{Mem.HostBuffer}, ::Ptr, ::Integer, flags)
-Mem.unregister(::Mem.HostBuffer)
+HostMemory
+alloc(::Type{HostMemory}, ::Integer, flags)
+register(::Type{HostMemory}, ::Ptr, ::Integer, flags)
+unregister(::HostMemory)
 ```
 
 ```@docs
-Mem.UnifiedBuffer
-Mem.alloc(::Type{Mem.UnifiedBuffer}, ::Integer, ::CUDA.CUmemAttach_flags)
-Mem.prefetch(::Mem.UnifiedBuffer, bytes::Integer; device, stream)
-Mem.advise(::Mem.UnifiedBuffer, ::CUDA.CUmem_advise, ::Integer; device)
+UnifiedMemory
+alloc(::Type{UnifiedMemory}, ::Integer, ::CUDA.CUmemAttach_flags)
+prefetch(::UnifiedMemory, bytes::Integer; device, stream)
+advise(::UnifiedMemory, ::CUDA.CUmem_advise, ::Integer; device)
 ```
 
 To work with these buffers, you need to `convert` them to a `Ptr` or `CuPtr`. Several
@@ -137,7 +137,7 @@ methods then work with these raw pointers:
 ### Memory info
 
 ```@docs
-CUDA.memory_status
+CUDA.pool_status
 CUDA.free_memory
 CUDA.total_memory
 ```

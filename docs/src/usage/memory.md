@@ -73,13 +73,13 @@ julia> cpu = [1,2]
  1
  2
 
-julia> gpu = CuVector{Int,Mem.Unified}(cpu)
-2-element CuArray{Int64, 1, CUDA.Mem.UnifiedBuffer}:
+julia> gpu = CuVector{Int,CUDA.UnifiedMemory}(cpu)
+2-element CuArray{Int64, 1, CUDA.UnifiedMemory}:
  1
  2
 
 julia> gpu = cu(cpu; unified=true)
-2-element CuArray{Int64, 1, CUDA.Mem.UnifiedBuffer}:
+2-element CuArray{Int64, 1, CUDA.UnifiedMemory}:
  1
  2
 ```
@@ -113,7 +113,7 @@ unified memory using the `CuArray` constructor or `cu` function:
 julia> cpu = [1,2];
 
 julia> gpu = unsafe_wrap(CuArray, cpu)
-2-element CuArray{Int64, 1, CUDA.Mem.UnifiedBuffer}:
+2-element CuArray{Int64, 1, CUDA.UnifiedMemory}:
  1
  2
 
@@ -145,19 +145,19 @@ memory while it isn't. When memory pressure is high, the pool will automatically
 objects:
 
 ```julia-repl
-julia> CUDA.memory_status()             # initial state
+julia> CUDA.pool_status()             # initial state
 Effective GPU memory usage: 16.12% (2.537 GiB/15.744 GiB)
 Memory pool usage: 0 bytes (0 bytes reserved)
 
 julia> a = CuArray{Int}(undef, 1024);   # allocate 8KB
 
-julia> CUDA.memory_status()
+julia> CUDA.pool_status()
 Effective GPU memory usage: 16.35% (2.575 GiB/15.744 GiB)
 Memory pool usage: 8.000 KiB (32.000 MiB reserved)
 
 julia> a = nothing; GC.gc(true)
 
-julia> CUDA.memory_status()             # 8KB is now cached
+julia> CUDA.pool_status()             # 8KB is now cached
 Effective GPU memory usage: 16.34% (2.573 GiB/15.744 GiB)
 Memory pool usage: 0 bytes (32.000 MiB reserved)
 
@@ -168,7 +168,7 @@ If for some reason you need all cached memory to be reclaimed, call `CUDA.reclai
 ```julia-repl
 julia> CUDA.reclaim()
 
-julia> CUDA.memory_status()
+julia> CUDA.pool_status()
 Effective GPU memory usage: 16.17% (2.546 GiB/15.744 GiB)
 Memory pool usage: 0 bytes (0 bytes reserved)
 ```
