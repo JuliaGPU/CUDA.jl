@@ -141,7 +141,8 @@ function Adapt.adapt_storage(::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,N}
   # prefetch unified memory as we're likely to use it on the GPU
   # TODO: make this configurable?
   if is_unified(xs)
-    mem = xs.data[]::UnifiedMemory
+    # XXX: use convert to pointer and/or prefect(CuArray)
+    mem = xs.data[].mem::UnifiedMemory
 
     can_prefetch = sizeof(xs) > 0
     ## prefetching isn't supported during stream capture

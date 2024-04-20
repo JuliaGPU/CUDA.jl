@@ -1,5 +1,89 @@
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, is_device, is_unified, is_host
 
+# TODO: split in files
+
+
+## managed memory
+
+# to provide an array type that can be used across GPUs and CPUs, we need to keep track of
+# who is using the memory, and whether it may have been changed behind our back.
+
+# XXX: immutable with atomic refs?
+mutable struct Managed{M}
+  const mem::M
+
+  dirty::Bool         # whether the memory has been modified since the last sync
+  stream::CuStream    # which stream is currently using the memory
+
+  Managed(mem::AbstractMemory; dirty=false, stream=CUDA.stream()) =
+    new{typeof(mem)}(mem, dirty, stream)
+end
+
+# wait for the current owner of memory to finish processing
+function maybe_synchronize(managed::Managed)
+  if managed.dirty
+    maybe_synchronize(managed.stream)
+    managed.dirty = false
+  end
+end
+function synchronize(managed::Managed)
+  # XXX: we can't always rely on the dirty flag to be correct, as memory can be modified
+  #      after it was cleared (e.g. if a pointer to memory was stored somewhere). so when
+  #      certain APIs ask to synchronize, _always_ synchronize.
+  synchronize(managed.stream)
+  managed.dirty = false
+end
+
+# take over memory for processing
+function take_ownership(managed::Managed)
+  current_stream = stream()
+
+  if managed.stream != current_stream
+    maybe_synchronize(managed)
+    managed.stream = current_stream
+  end
+end
+
+function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
+  # TODO: maybe consider checking, if there's a context mismatch, if P2P is enabled?
+
+  #  make sure any asynchronous operations that we weren't submitted by the current stream
+  # have finished.
+  take_ownership(managed)
+  convert(CuPtr{T}, managed.mem)
+end
+
+function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
+  if M == DeviceMemory
+    throw(ArgumentError("cannot take the CPU address of GPU memory"))
+  end
+  # make sure _any_ work on the memory has finished.
+  maybe_synchronize(managed)
+  convert(Ptr{T}, managed.mem)
+end
+
+function _free_memory(managed, early)
+  context!(managed.mem.ctx; skip_destroyed=true) do
+    # during task or process finalization, the local stream might be destroyed already, so
+    # use the default stream. additionally, since we don't use per-thread APIs, this default
+    # stream follows legacy semantics and will synchronize all other streams. this protects
+    # against freeing resources that are still in use.
+    #
+    # TODO: although this is still an asynchronous operation, even when using the default
+    # stream, it synchronizes "too much". we could do better, e.g., by keeping track of all
+    # streams involved, or by refcounting uses and decrementing that refcount after the
+    # operation using `cuLaunchHostFunc`. See CUDA.jl#778 and CUDA.jl#780 for details.
+    s = early ? stream() : default_stream()
+
+    # TODO: we want to use stream synchronization here, now that we keep track of it.
+    #       however, this is a buffer free, not an array free. maybe put the dirty/owner
+    #       stuff in the buffer, while moving it out of the memory wrappers?
+    #       returning simple pointers there is probably easier.
+
+    pool_free(managed.mem; stream=s)
+  end
+end
+
 
 ## array type
 
@@ -55,15 +139,12 @@ function check_eltype(T)
 end
 
 mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
-  data::DataRef{M}
+  data::DataRef{Managed{M}}
 
   maxsize::Int  # maximum data size; excluding any selector bytes
   offset::Int   # offset of the data in memory, in number of elements
 
   dims::Dims{N}
-
-  dirty::Bool         # whether the array has been modified since the last sync
-  stream::CuStream    # which stream is currently using the array
 
   function CuArray{T,N,M}(::UndefInitializer, dims::Dims{N}) where {T,N,M}
     check_eltype(T)
@@ -75,33 +156,16 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
       maxsize
     end
     mem = pool_alloc(M, bufsize)
-    data = DataRef(_free_memory, mem)
-    obj = new{T,N,M}(data, maxsize, 0, dims, false, stream())
+    data = DataRef(_free_memory, Managed(mem))
+    obj = new{T,N,M}(data, maxsize, 0, dims)
     finalizer(unsafe_finalize!, obj)
   end
 
-  function CuArray{T,N}(data::DataRef{M}, dims::Dims{N}; stream=CUDA.stream(),
+  function CuArray{T,N}(data::DataRef{Managed{M}}, dims::Dims{N}; stream=CUDA.stream(),
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,M}
     check_eltype(T)
-    obj = new{T,N,M}(data, maxsize, offset, dims, true, stream)
+    obj = new{T,N,M}(data, maxsize, offset, dims)
     finalizer(unsafe_finalize!, obj)
-  end
-end
-
-function _free_memory(mem, early)
-  context!(mem.ctx; skip_destroyed=true) do
-    # during task or process finalization, the local stream might be destroyed already, so
-    # use the default stream. additionally, since we don't use per-thread APIs, this default
-    # stream follows legacy semantics and will synchronize all other streams. this protects
-    # against freeing resources that are still in use.
-    #
-    # TODO: although this is still an asynchronous operation, even when using the default
-    # stream, it synchronizes "too much". we could do better, e.g., by keeping track of all
-    # streams involved, or by refcounting uses and decrementing that refcount after the
-    # operation using `cuLaunchHostFunc`. See CUDA.jl#778 and CUDA.jl#780 for details.
-    s = early ? stream() : default_stream()
-
-    pool_free(mem; stream=s)
   end
 end
 
@@ -149,9 +213,6 @@ const default_memory = let str = Preferences.@load_preference("default_memory", 
 end
 CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N} =
   CuArray{T,N,default_memory}(undef, dims)
-is_device(a::CuArray) = isa(a.data[], DeviceMemory)
-is_unified(a::CuArray) = isa(a.data[], UnifiedMemory)
-is_host(a::CuArray) = isa(a.data[], HostMemory)
 
 # memory, type and dimensionality specified
 CuArray{T,N,M}(::UndefInitializer, dims::NTuple{N,Integer}) where {T,N,M} =
@@ -238,7 +299,7 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
   mem = _unsafe_wrap_managed(T, ptr, dims; own, ctx)
-  data = DataRef(own ? _free_memory : (args...) -> (#= do nothing =#), mem)
+  data = DataRef(own ? _free_memory : Returns(nothing), Managed(mem))
   CuArray{T,N}(data, dims)
 end
 function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
@@ -248,7 +309,7 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
   if typeof(mem) !== M
     throw(ArgumentError("Declared memory type does not match inferred memory type."))
   end
-  data = DataRef(own ? _free_memory : (args...) -> (#= do nothing =#), mem)
+  data = DataRef(own ? _free_memory : Returns(nothing), Managed(mem))
   CuArray{T,N}(data, dims)
 end
 function _unsafe_wrap_managed(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int};
@@ -314,7 +375,7 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
 
   if driver_version() >= v"12.2" && attribute(device(), DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
     # HMM: supports coherently accessing pageable memory without calling cudaHostRegister
-    finalizer = (args...) -> (#= do nothing =#)
+    finalizer = Returns(nothing)
   else
     __pin(p, sz)
     finalizer = function (args...)
@@ -325,7 +386,7 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
   end
 
   mem = UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
-  data = DataRef(finalizer, mem)
+  data = DataRef(finalizer, Managed(mem))
   CuArray{T,N}(data, dims)
 end
 function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int};
@@ -362,11 +423,15 @@ Base.elsize(::Type{<:CuArray{T}}) where {T} = sizeof(T)
 Base.size(x::CuArray) = x.dims
 Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 
-context(A::CuArray) = A.data[].ctx
-device(A::CuArray) = device(A.data[].ctx)
+context(A::CuArray) = A.data[].mem.ctx
+device(A::CuArray) = device(A.data[].mem.ctx)
 
 memory_type(x::CuArray) = memory_type(typeof(x))
 memory_type(::Type{<:CuArray{<:Any,<:Any,M}}) where {M} = @isdefined(M) ? M : Any
+
+is_device(a::CuArray) = memory_type(a) == DeviceMemory
+is_unified(a::CuArray) = memory_type(a) == UnifiedMemory
+is_host(a::CuArray) = memory_type(a) == HostMemory
 
 
 ## derived types
@@ -443,49 +508,12 @@ CuArray{T,N}(xs::CuArray{T,N,M}) where {T,N,M} = copy(xs)
 
 Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
-
-## interop with libraries
-
-# every time an array is used, it is converted to a pointer. we use this point to perform
-# additional synchronization to ensure the data is available to the caller. to do this,
-# we keep track of two pieces of information:
-# - the dirty bit, set to true every time an asynchronous operation is performed, i.e.,
-#   every time a device pointer is derived from the array;
-# - the owning stream, keeping track of the stream that last accessed the array.
-
-function Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T}
-  # when converting to a device pointer, we need to synchronize when the streams mismatch
-  if x.dirty
-    current_stream = stream()
-    if x.stream != current_stream
-      synchronize(x)
-      x.stream = current_stream
-    end
-  end
-  x.dirty = true
-
-  mem = x.data[]
-  convert(CuPtr{T}, mem) + x.offset*Base.elsize(x)
-end
-
-function Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T}
-  if is_device(x)
-    throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
-  end
-
-  # when converting to a host pointer, we always need to synchronize dirty arrays
-  if x.dirty
-    synchronize(x)
-  end
-
-  mem = x.data[]
-  convert(Ptr{T}, mem) + x.offset*Base.elsize(x)
-end
-
-function synchronize(x::CuArray)
-  synchronize(x.stream)
-  x.dirty = false
-end
+# defer the conversion to Managed, where we handle memory consistency
+# XXX: conversion to Memory or Managed memory by cconvert?
+Base.unsafe_convert(typ::Type{Ptr{T}}, x::CuArray{T}) where {T} =
+  convert(typ, x.data[]) + x.offset * Base.elsize(x)
+Base.unsafe_convert(typ::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
+  convert(typ, x.data[]) + x.offset * Base.elsize(x)
 
 
 ## indexing
@@ -510,6 +538,8 @@ end
 
 
 ## memory copying
+
+synchronize(x::CuArray) = synchronize(x.data[])
 
 if VERSION >= v"1.11.0-DEV.753"
 function typetagdata(a::Array, i=1)
@@ -830,7 +860,7 @@ end
 
 function GPUArrays.derive(::Type{T}, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
   offset = (a.offset * Base.elsize(a)) ÷ sizeof(T) + offset
-  CuArray{T,N}(copy(a.data), dims; a.stream, a.maxsize, offset)
+  CuArray{T,N}(copy(a.data), dims; a.maxsize, offset)
 end
 
 
@@ -875,13 +905,14 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
   # replace the data with a new one. this 'unshares' the array.
   # as a result, we can safely support resizing unowned buffers.
   new_data = context!(context(A)) do
-    mem = alloc(typeof(A.data[]), bufsize)
+    mem = alloc(memory_type(A), bufsize)
     ptr = convert(CuPtr{T}, mem)
     m = min(length(A), n)
     if m > 0
+      synchronize(A)
       unsafe_copyto!(ptr, pointer(A), m)
     end
-    DataRef(_free_memory, mem)
+    DataRef(_free_memory, Managed(mem; dirty=true))
   end
   unsafe_free!(A)
 
