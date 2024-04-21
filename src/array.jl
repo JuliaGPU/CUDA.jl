@@ -45,7 +45,11 @@ function take_ownership(managed::Managed)
 end
 
 function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
-  # TODO: maybe consider checking, if there's a context mismatch, if P2P is enabled?
+  if M == DeviceMemory && context() != managed.mem.ctx
+    origin_device = device(managed.mem.ctx)
+    throw(ArgumentError("cannot take the GPU address for device $(device()) of GPU memory allocated on device $origin_device"))
+    # TODO: check and enable P2P if possible
+  end
 
   #  make sure any asynchronous operations that we weren't submitted by the current stream
   # have finished.
