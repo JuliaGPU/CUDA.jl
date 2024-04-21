@@ -11,6 +11,8 @@ Create a CUDA stream.
 """
 mutable struct CuStream
     handle::CUstream
+    valid::Bool
+
     ctx::CuContext
 
     function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
@@ -24,16 +26,16 @@ mutable struct CuStream
         end
 
         ctx = current_context()
-        obj = new(handle_ref[], ctx)
+        obj = new(handle_ref[], true, ctx)
         finalizer(unsafe_destroy!, obj)
         return obj
     end
 
-    global default_stream() = new(convert(CUstream, C_NULL))
+    global default_stream() = new(convert(CUstream, C_NULL), true)
 
-    global legacy_stream() = new(convert(CUstream, 1))
+    global legacy_stream() = new(convert(CUstream, 1), true)
 
-    global per_thread_stream() = new(convert(CUstream, 2))
+    global per_thread_stream() = new(convert(CUstream, 2), true)
 end
 
 """
@@ -85,6 +87,7 @@ function unsafe_destroy!(s::CuStream)
     context!(s.ctx; skip_destroyed=true) do
         cuStreamDestroy_v2(s)
     end
+    s.valid = false
 end
 
 function Base.show(io::IO, stream::CuStream)
@@ -93,6 +96,18 @@ function Base.show(io::IO, stream::CuStream)
     if isdefined(stream, :ctx)
         print(io, ", ", stream.ctx)
     end
+end
+
+"""
+    isvalid(s::CuStream)
+
+Determines if the stream object is still valid, i.e., if it has not been garbage collected.
+This is only useful for use in finalizers, which do not guarantee order of execution (i.e.,
+a stream may have been destroyed before an object relying on it has).
+"""
+
+function isvalid(s::CuStream)
+    return s.valid
 end
 
 """

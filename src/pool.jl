@@ -632,7 +632,7 @@ end
 
       # for safety, we default to the default stream and force this operation to be ordered
       # against all other streams. to opt out of this, pass a specific stream instead.
-      actual_free(mem; stream=something(stream, default_stream()))
+      actual_free(mem; stream=@something(stream, default_stream()))
     else
       actual_free(mem)
     end

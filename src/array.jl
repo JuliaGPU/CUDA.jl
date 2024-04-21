@@ -67,8 +67,10 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
 end
 
 function managed_free(managed)
-  context!(managed.mem.ctx; skip_destroyed=true) do
-    pool_free(managed.mem; managed.stream)
+  if isvalid(managed.mem.ctx) && isvalid(managed.stream)
+    context!(managed.mem.ctx) do
+      pool_free(managed.mem; managed.stream)
+    end
   end
 end
 
