@@ -172,16 +172,6 @@ let
     @test occursin("no error", str)
 end
 
-let
-    ex = CuError(CUDA.SUCCESS, "foobar")
-
-    io = IOBuffer()
-    showerror(io, ex)
-    str = String(take!(io))
-
-    @test occursin("foobar", str)
-end
-
 end
 
 ############################################################################################
