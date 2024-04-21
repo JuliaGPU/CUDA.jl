@@ -69,7 +69,7 @@ end
 function managed_free(managed)
   if isvalid(managed.mem.ctx) && isvalid(managed.stream)
     context!(managed.mem.ctx) do
-      pool_free(managed.mem; managed.stream)
+      pool_free(managed.mem, managed.stream)
     end
   end
 end

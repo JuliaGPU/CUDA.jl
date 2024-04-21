@@ -45,33 +45,6 @@ Base.:(-)(a::AllocStats, b::AllocStats) = (;
 const alloc_stats = AllocStats()
 
 
-## CUDA allocator
-
-function actual_alloc(bytes::Integer; async::Bool=false,
-                      stream::Union{CuStream,Nothing}=nothing,
-                      pool::Union{CuMemoryPool,Nothing}=nothing)
-  memory_limit_exceeded(bytes) && return nothing
-
-  # try the actual allocation
-  mem = try
-    alloc(DeviceMemory, bytes; async, stream, pool)
-  catch err
-    isa(err, OutOfGPUMemoryError) || rethrow()
-    return nothing
-  end
-
-  return mem
-end
-
-function actual_free(mem::DeviceMemory;
-                     stream::Union{CuStream,Nothing}=nothing)
-  # free the memory
-  free(mem; stream)
-
-  return
-end
-
-
 ## memory accounting
 
 struct MemoryStats
@@ -530,19 +503,20 @@ end
 ## public interface
 
 """
-    pool_alloc([::BufferType], sz; [stream::CuStream])
+    pool_alloc([DeviceMemory], sz)::AbstractMemory
 
-Allocate a number of bytes `sz` from the memory pool. Returns a buffer object; may throw
-an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
+Allocate a number of bytes `sz` from the memory pool on the current stream. Returns a memory
+object; may throw an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be
+satisfied.
 """
-@inline pool_alloc(sz::Integer; kwargs...) = pool_alloc(DeviceMemory, sz; kwargs...)
-@inline function pool_alloc(::Type{B}, sz; stream::Union{Nothing,CuStream}=nothing) where {B<:AbstractMemory}
+@inline pool_alloc(sz::Integer) = pool_alloc(DeviceMemory, sz)
+@inline function pool_alloc(::Type{B}, sz) where {B<:AbstractMemory}
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return B()
 
   # _alloc reports its own time measurement, since it may spend time in garbage collection
   # (and using Base.@timed/gc_num to exclude that time is too expensive)
-  mem, time = _pool_alloc(B, sz; stream)
+  mem, time = _pool_alloc(B, sz)
 
   Threads.atomic_add!(alloc_stats.alloc_count, 1)
   Threads.atomic_add!(alloc_stats.alloc_bytes, sz)
@@ -551,22 +525,31 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 
   return mem
 end
-@inline function _pool_alloc(::Type{DeviceMemory}, sz; stream::Union{Nothing,CuStream})
+@inline function _pool_alloc(::Type{DeviceMemory}, sz)
     state = active_state()
 
     maybe_collect()
 
+    actual_alloc = if stream_ordered(state.device)
+      pool = pool_mark(state.device) # mark the pool as active
+      (bytes) -> alloc(DeviceMemory, bytes; async=true, state.stream, pool)
+    else
+      (bytes) -> alloc(DeviceMemory, bytes; async=false)
+    end
+
     time = Base.@elapsed begin
-      mem = if stream_ordered(state.device)
-        stream = something(stream, state.stream)
-        pool = pool_mark(state.device) # mark the pool as active
-        retry_reclaim(isnothing) do
-          actual_alloc(sz; async=true, stream, pool)
+      mem = retry_reclaim(isnothing) do
+        memory_limit_exceeded(sz) && return nothing
+
+        # try the actual allocation
+        mem = try
+          actual_alloc(sz)
+        catch err
+          isa(err, OutOfGPUMemoryError) || rethrow()
+          return nothing
         end
-      else
-        retry_reclaim(isnothing) do
-          actual_alloc(sz; async=false)
-        end
+
+        return mem
       end
       mem === nothing && throw(OutOfGPUMemoryError(sz))
     end
@@ -575,13 +558,13 @@ end
 
     mem, time
 end
-@inline function _pool_alloc(::Type{UnifiedMemory}, sz; stream::Union{Nothing,CuStream})
+@inline function _pool_alloc(::Type{UnifiedMemory}, sz)
   time = Base.@elapsed begin
     mem = alloc(UnifiedMemory, sz)
   end
   mem, time
 end
-@inline function _pool_alloc(::Type{HostMemory}, sz; stream::Union{Nothing,CuStream})
+@inline function _pool_alloc(::Type{HostMemory}, sz)
   time = Base.@elapsed begin
     mem = alloc(HostMemory, sz)
   end
@@ -589,12 +572,12 @@ end
 end
 
 """
-    free(mem)
+    pool_free(mem, stream)
 
-Releases memory to the pool.
+Releases memory to the pool. If possible, this operation will not block but will be ordered
+against `stream`.
 """
-@inline function pool_free(mem::AbstractMemory;
-                           stream::Union{Nothing,CuStream}=nothing)
+@inline function pool_free(mem::AbstractMemory, stream::CuStream)
   # XXX: have @timeit use the root timer, since we may be called from a finalizer
 
   # 0-byte allocations shouldn't hit the pool
@@ -605,7 +588,7 @@ Releases memory to the pool.
   # so perform our own error handling.
   try
     time = Base.@elapsed begin
-      _pool_free(mem; stream)
+      _pool_free(mem, stream)
     end
 
     Threads.atomic_add!(alloc_stats.free_count, 1)
@@ -619,7 +602,7 @@ Releases memory to the pool.
 
   return
 end
-@inline function _pool_free(mem::DeviceMemory; stream::Union{Nothing,CuStream})
+@inline function _pool_free(mem::DeviceMemory, stream::CuStream)
     # verify that the caller has switched contexts
     if mem.ctx != context()
       error("Trying to free $mem from an unrelated context")
@@ -632,14 +615,14 @@ end
 
       # for safety, we default to the default stream and force this operation to be ordered
       # against all other streams. to opt out of this, pass a specific stream instead.
-      actual_free(mem; stream=@something(stream, default_stream()))
+      free(mem; stream)
     else
-      actual_free(mem)
+      free(mem)
     end
     account!(memory_stats(dev), -sizeof(mem))
 end
-@inline _pool_free(mem::UnifiedMemory; stream::Union{Nothing,CuStream}) = free(mem)
-@inline _pool_free(mem::HostMemory; stream::Union{Nothing,CuStream}) = nothing # XXX
+@inline _pool_free(mem::UnifiedMemory, stream::CuStream) = free(mem)
+@inline _pool_free(mem::HostMemory, stream::CuStream) = nothing # XXX
 
 """
     reclaim([sz=typemax(Int)])
