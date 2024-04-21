@@ -165,7 +165,7 @@ mutable struct CuTensorPlan
         workspace = CuArray{UInt8}(undef, actualWorkspaceSize[])
 
         obj = new(context(), plan_ref[], workspace, required_scalar_type[])
-        finalizer(CUDA.unsafe_finalize!, obj)
+        finalizer(CUDA.unsafe_free!, obj)
         return obj
     end
 end
@@ -184,18 +184,9 @@ function unsafe_destroy!(plan::CuTensorPlan)
     end
 end
 
-# early freeing the plan and associated workspace
+# freeing the plan and associated workspace
 function CUDA.unsafe_free!(plan::CuTensorPlan)
     CUDA.unsafe_free!(plan.workspace)
-    if plan.handle != C_NULL
-        unsafe_destroy!(plan)
-        plan.handle = C_NULL
-    end
-end
-
-# GC-driven freeing of the plan and associated workspace
-function CUDA.unsafe_finalize!(plan::CuTensorPlan)
-    CUDA.unsafe_finalize!(plan.workspace)
     if plan.handle != C_NULL
         unsafe_destroy!(plan)
         plan.handle = C_NULL

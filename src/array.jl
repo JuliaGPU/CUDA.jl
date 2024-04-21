@@ -51,7 +51,7 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
     # TODO: check and enable P2P if possible
   end
 
-  #  make sure any asynchronous operations that we weren't submitted by the current stream
+  # make sure any asynchronous operations that we weren't submitted by the current stream
   # have finished.
   take_ownership(managed)
   convert(CuPtr{T}, managed.mem)
@@ -66,25 +66,9 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
   convert(Ptr{T}, managed.mem)
 end
 
-function _free_memory(managed, early)
+function managed_free(managed)
   context!(managed.mem.ctx; skip_destroyed=true) do
-    # during task or process finalization, the local stream might be destroyed already, so
-    # use the default stream. additionally, since we don't use per-thread APIs, this default
-    # stream follows legacy semantics and will synchronize all other streams. this protects
-    # against freeing resources that are still in use.
-    #
-    # TODO: although this is still an asynchronous operation, even when using the default
-    # stream, it synchronizes "too much". we could do better, e.g., by keeping track of all
-    # streams involved, or by refcounting uses and decrementing that refcount after the
-    # operation using `cuLaunchHostFunc`. See CUDA.jl#778 and CUDA.jl#780 for details.
-    s = early ? stream() : default_stream()
-
-    # TODO: we want to use stream synchronization here, now that we keep track of it.
-    #       however, this is a buffer free, not an array free. maybe put the dirty/owner
-    #       stuff in the buffer, while moving it out of the memory wrappers?
-    #       returning simple pointers there is probably easier.
-
-    pool_free(managed.mem; stream=s)
+    pool_free(managed.mem; managed.stream)
   end
 end
 
@@ -160,16 +144,16 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
       maxsize
     end
     mem = pool_alloc(M, bufsize)
-    data = DataRef(_free_memory, Managed(mem))
+    data = DataRef(managed_free, Managed(mem))
     obj = new{T,N,M}(data, maxsize, 0, dims)
-    finalizer(unsafe_finalize!, obj)
+    finalizer(unsafe_free!, obj)
   end
 
   function CuArray{T,N}(data::DataRef{Managed{M}}, dims::Dims{N}; stream=CUDA.stream(),
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,M}
     check_eltype(T)
     obj = new{T,N,M}(data, maxsize, offset, dims)
-    finalizer(unsafe_finalize!, obj)
+    finalizer(unsafe_free!, obj)
   end
 end
 
@@ -180,8 +164,7 @@ Release the memory of an array for reuse by future allocations. This operation i
 performed automatically by the GC when an array goes out of scope, but can be called
 earlier to reduce pressure on the memory allocator.
 """
-unsafe_free!(xs::CuArray) = GPUArrays.unsafe_free!(xs.data, true)
-unsafe_finalize!(xs::CuArray) = GPUArrays.unsafe_free!(xs.data, false)
+unsafe_free!(xs::CuArray) = GPUArrays.unsafe_free!(xs.data)
 
 
 ## alias detection
@@ -303,7 +286,7 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
   mem = _unsafe_wrap_managed(T, ptr, dims; own, ctx)
-  data = DataRef(own ? _free_memory : Returns(nothing), Managed(mem))
+  data = DataRef(own ? managed_free : Returns(nothing), Managed(mem))
   CuArray{T,N}(data, dims)
 end
 function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
@@ -313,7 +296,7 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
   if typeof(mem) !== M
     throw(ArgumentError("Declared memory type does not match inferred memory type."))
   end
-  data = DataRef(own ? _free_memory : Returns(nothing), Managed(mem))
+  data = DataRef(own ? managed_free : Returns(nothing), Managed(mem))
   CuArray{T,N}(data, dims)
 end
 function _unsafe_wrap_managed(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int};
@@ -916,7 +899,7 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
       synchronize(A)
       unsafe_copyto!(ptr, pointer(A), m)
     end
-    DataRef(_free_memory, Managed(mem; dirty=true))
+    DataRef(managed_free, Managed(mem; dirty=true))
   end
   unsafe_free!(A)
 
