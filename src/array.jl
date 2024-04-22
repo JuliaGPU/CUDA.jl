@@ -1,7 +1,5 @@
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, is_device, is_unified, is_host
 
-# TODO: split in files
-
 
 ## array type
 
@@ -214,22 +212,22 @@ unsafe_wrap
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
-  mem = _unsafe_wrap_managed(T, ptr, dims; own, ctx)
+  mem = _unsafe_wrap_managed(T, ptr, dims, ctx)
   data = DataRef(own ? pool_free : Returns(nothing), Managed(mem))
   CuArray{T,N}(data, dims)
 end
 function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N,M}
-  mem = _unsafe_wrap_managed(T, ptr, dims; own, ctx)
+  mem = _unsafe_wrap_managed(T, ptr, dims, ctx)
   if typeof(mem) !== M
     throw(ArgumentError("Declared memory type does not match inferred memory type."))
   end
   data = DataRef(own ? pool_free : Returns(nothing), Managed(mem))
   CuArray{T,N}(data, dims)
 end
-function _unsafe_wrap_managed(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int};
-                      own::Bool=false, ctx::CuContext=context()) where {T,N}
+function _unsafe_wrap_managed(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int},
+                              ctx::CuContext) where {T,N}
   isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
   sz = prod(dims) * sizeof(T)
 

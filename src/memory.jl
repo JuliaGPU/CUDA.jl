@@ -1,78 +1,62 @@
 # high-level memory management
 
-using Printf
-using Logging
-
 
 ## allocation statistics
 
 mutable struct AllocStats
-  alloc_count::Threads.Atomic{Int}
-  alloc_bytes::Threads.Atomic{Int}
+  Base.@atomic alloc_count::Int
+  Base.@atomic alloc_bytes::Int
 
-  free_count::Threads.Atomic{Int}
-  free_bytes::Threads.Atomic{Int}
+  Base.@atomic free_count::Int
+  Base.@atomic free_bytes::Int
 
-  total_time::Threads.Atomic{Float64}
-
-  function AllocStats()
-    new(Threads.Atomic{Int}(0), Threads.Atomic{Int}(0),
-        Threads.Atomic{Int}(0), Threads.Atomic{Int}(0),
-        Threads.Atomic{Float64}(0.0))
-  end
-
-  function AllocStats(alloc_count::Integer, alloc_bytes::Integer,
-                      free_count::Integer, free_bytes::Integer,
-                      total_time::Float64)
-    new(Threads.Atomic{Int}(alloc_count), Threads.Atomic{Int}(alloc_bytes),
-        Threads.Atomic{Int}(free_count), Threads.Atomic{Int}(free_bytes),
-        Threads.Atomic{Float64}(total_time))
-  end
+  Base.@atomic total_time::Float64
 end
 
+AllocStats() = AllocStats(0, 0, 0, 0, 0.0)
+
 Base.copy(alloc_stats::AllocStats) =
-  AllocStats(alloc_stats.alloc_count[], alloc_stats.alloc_bytes[],
-             alloc_stats.free_count[], alloc_stats.free_bytes[],
-             alloc_stats.total_time[])
+  AllocStats(alloc_stats.alloc_count, alloc_stats.alloc_bytes,
+             alloc_stats.free_count, alloc_stats.free_bytes,
+             alloc_stats.total_time)
 
 Base.:(-)(a::AllocStats, b::AllocStats) = (;
-    alloc_count = a.alloc_count[] - b.alloc_count[],
-    alloc_bytes = a.alloc_bytes[] - b.alloc_bytes[],
-    free_count  = a.free_count[]  - b.free_count[],
-    free_bytes  = a.free_bytes[]  - b.free_bytes[],
-    total_time  = a.total_time[]  - b.total_time[])
+    alloc_count = a.alloc_count - b.alloc_count,
+    alloc_bytes = a.alloc_bytes - b.alloc_bytes,
+    free_count  = a.free_count  - b.free_count,
+    free_bytes  = a.free_bytes  - b.free_bytes,
+    total_time  = a.total_time  - b.total_time)
 
 const alloc_stats = AllocStats()
 
 
 ## memory accounting
 
-struct MemoryStats
+mutable struct MemoryStats
   # maximum size of the memory heap
-  size::Threads.Atomic{Int}
-  size_updated::Threads.Atomic{Float64}
+  Base.@atomic size::Int
+  Base.@atomic size_updated::Float64
 
   # the amount of live bytes
-  live::Threads.Atomic{Int}
+  Base.@atomic live::Int
 
-  last_time::Threads.Atomic{Float64}
-  last_gc_time::Threads.Atomic{Float64}
-  last_freed::Threads.Atomic{Int}
+  Base.@atomic last_time::Float64
+  Base.@atomic last_gc_time::Float64
+  Base.@atomic last_freed::Int
 end
+MemoryStats() = MemoryStats(0, 0.0, 0, 0.0, 0.0, 0)
 
 function account!(stats::MemoryStats, bytes::Integer)
-  Threads.atomic_add!(stats.live, bytes)
+  Base.@atomic stats.live += bytes
   if bytes > 0
-    Threads.atomic_add!(stats.live, 1)
+    Base.@atomic stats.live += 1
   end
 end
 
 const _memory_stats = PerDevice{MemoryStats}()
 function memory_stats(dev::CuDevice=device())
   get!(_memory_stats, dev) do
-      MemoryStats(Threads.Atomic{Int}(0), Threads.Atomic{Float64}(0.0),
-                  Threads.Atomic{Int}(0), Threads.Atomic{Float64}(0.0),
-                  Threads.Atomic{Float64}(0.0), Threads.Atomic{Int}(0),)
+      MemoryStats()
   end
 end
 
@@ -86,15 +70,15 @@ function maybe_collect(will_block::Bool=false)
   current_time = time()
 
   # periodically re-estimate the amount of memory available to this process.
-  if current_time - stats.size_updated[] > 10
+  if current_time - stats.size_updated > 10
     limits = memory_limits()
-    stats.size[] = if limits.hard > 0
+    Base.@atomic stats.size = if limits.hard > 0
       limits.hard
     elseif limits.soft > 0
       limits.soft
     else
-      size = free_memory() + stats.live[]
-      # NOTE: we use stats.live[] so that we only count memory allocated here, ensuring
+      size = free_memory() + stats.live
+      # NOTE: we use stats.live so that we only count memory allocated here, ensuring
       #       the pressure calculation below reflects the heap we have control over.
 
       # also include reserved bytes
@@ -105,11 +89,11 @@ function maybe_collect(will_block::Bool=false)
 
       size
     end
-    stats.size_updated[] = current_time
+    Base.@atomic stats.size_updated = current_time
   end
 
   # check that we're under memory pressure
-  pressure = stats.live[] / stats.size[]
+  pressure = stats.live / stats.size
   min_pressure = 0.75
   ## if we're about to block anyway, now may be a good time for a GC pause
   if will_block
@@ -120,12 +104,12 @@ function maybe_collect(will_block::Bool=false)
   end
 
   # ensure we don't collect too often by checking the GC rate
-  last_time = stats.last_time[]
-  gc_rate = stats.last_gc_time[] / (current_time - last_time)
+  last_time = stats.last_time
+  gc_rate = stats.last_gc_time / (current_time - last_time)
   ## we tolerate 5% GC time
   max_gc_rate = 0.05
   ## if we freed a lot last time, bump that up
-  if stats.last_freed[] > 0.1*stats.size[]
+  if stats.last_freed > 0.1*stats.size
     max_gc_rate *= 2
   end
   ## if we're about to block, we can be more aggressive
@@ -142,16 +126,16 @@ function maybe_collect(will_block::Bool=false)
   if gc_rate > max_gc_rate
     return
   end
-  stats.last_time[] = current_time
+  Base.@atomic stats.last_time = current_time
 
   # finally, call the GC
-  pre_gc_live = stats.live[]
+  pre_gc_live = stats.live
   gc_time = @elapsed GC.gc(false)
-  post_gc_live = stats.live[]
+  post_gc_live = stats.live
   memory_freed = pre_gc_live - post_gc_live
-  stats.last_freed[] = memory_freed
+  Base.@atomic stats.last_freed = memory_freed
   ## GC times can vary, so smooth them out
-  stats.last_gc_time[] = 0.75*stats.last_gc_time[] + 0.25*gc_time
+  Base.@atomic stats.last_gc_time = 0.75*stats.last_gc_time + 0.25*gc_time
 
   return
 end
@@ -220,7 +204,7 @@ function memory_limit_exceeded(bytes::Integer)
     # NOTE: cannot use `memory_info()`, because it only reports total & free memory.
     #       computing `total - free` would include memory allocated by other processes.
     #       NVML does report used memory, but is slow, and not available on all platforms.
-    memory_stats().live[]
+    memory_stats().live
   end
 
   return used_bytes + bytes > limit.hard
@@ -582,9 +566,9 @@ cannot be satisfied.
   # (and using Base.@timed/gc_num to exclude that time is too expensive)
   mem, time = _pool_alloc(B, sz)
 
-  Threads.atomic_add!(alloc_stats.alloc_count, 1)
-  Threads.atomic_add!(alloc_stats.alloc_bytes, sz)
-  Threads.atomic_add!(alloc_stats.total_time, time)
+  Base.@atomic alloc_stats.alloc_count += 1
+  Base.@atomic alloc_stats.alloc_bytes += sz
+  Base.@atomic alloc_stats.total_time += time
   # NOTE: total_time might be an over-estimation if we trigger GC somewhere else
 
   return Managed(mem)
@@ -660,9 +644,9 @@ against the stream that last used the memory.
       _pool_free(mem, managed.stream)
     end
 
-    Threads.atomic_add!(alloc_stats.free_count, 1)
-    Threads.atomic_add!(alloc_stats.free_bytes, sz)
-    Threads.atomic_add!(alloc_stats.total_time, time)
+    Base.@atomic alloc_stats.free_count += 1
+    Base.@atomic alloc_stats.free_bytes += sz
+    Base.@atomic alloc_stats.total_time += time
   catch ex
     Base.showerror_nostdio(ex, "WARNING: Error while freeing $mem")
     Base.show_backtrace(Core.stdout, catch_backtrace())
@@ -691,7 +675,7 @@ end
     account!(memory_stats(dev), -sizeof(mem))
 end
 @inline _pool_free(mem::UnifiedMemory, stream::CuStream) = free(mem)
-@inline _pool_free(mem::HostMemory, stream::CuStream) = nothing # XXX
+@inline _pool_free(mem::HostMemory, stream::CuStream) = free(mem)
 
 """
     reclaim([sz=typemax(Int)])
@@ -725,9 +709,9 @@ macro allocated(ex)
         let
             local f
             function f()
-                b0 = alloc_stats.alloc_bytes[]
+                b0 = alloc_stats.alloc_bytes
                 $(esc(ex))
-                alloc_stats.alloc_bytes[] - b0
+                alloc_stats.alloc_bytes - b0
             end
             f()
         end

@@ -43,6 +43,8 @@ using Libdl
 
 import NVTX
 
+using Printf
+
 
 ## source code includes
 
