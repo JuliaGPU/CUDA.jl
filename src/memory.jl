@@ -1,4 +1,4 @@
-# GPU memory management and pooling
+# high-level memory management
 
 using Printf
 using Logging
@@ -500,19 +500,83 @@ end
 end
 
 
+## managed memory
+
+# to safely use allocated memory across tasks and devices, we don't simply return raw
+# memory objects, but wrap them in a manager that ensures synchronization and ownership.
+
+# XXX: immutable with atomic refs?
+mutable struct Managed{M}
+  const mem::M
+
+  dirty::Bool         # whether the memory has been modified since the last sync
+  stream::CuStream    # which stream is currently using the memory
+
+  Managed(mem::AbstractMemory; dirty=false, stream=CUDA.stream()) =
+    new{typeof(mem)}(mem, dirty, stream)
+end
+
+# wait for the current owner of memory to finish processing
+function maybe_synchronize(managed::Managed)
+  if managed.dirty
+    maybe_synchronize(managed.stream)
+    managed.dirty = false
+  end
+end
+function synchronize(managed::Managed)
+  # XXX: we can't always rely on the dirty flag to be correct, as memory can be modified
+  #      after it was cleared (e.g. if a pointer to memory was stored somewhere). so when
+  #      certain APIs ask to synchronize, _always_ synchronize.
+  synchronize(managed.stream)
+  managed.dirty = false
+end
+
+# take over memory for processing
+function take_ownership(managed::Managed)
+  current_stream = stream()
+
+  if managed.stream != current_stream
+    maybe_synchronize(managed)
+    managed.stream = current_stream
+  end
+end
+
+function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
+  if M == DeviceMemory && context() != managed.mem.ctx
+    origin_device = device(managed.mem.ctx)
+    throw(ArgumentError("cannot take the GPU address for device $(device()) of GPU memory allocated on device $origin_device"))
+    # TODO: check and enable P2P if possible
+  end
+
+  # make sure any asynchronous operations that we weren't submitted by the current stream
+  # have finished.
+  take_ownership(managed)
+  convert(CuPtr{T}, managed.mem)
+end
+
+function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
+  if M == DeviceMemory
+    throw(ArgumentError("cannot take the CPU address of GPU memory"))
+  end
+  # make sure _any_ work on the memory has finished.
+  maybe_synchronize(managed)
+  convert(Ptr{T}, managed.mem)
+end
+
+
 ## public interface
 
 """
-    pool_alloc([DeviceMemory], sz)::AbstractMemory
+    pool_alloc([DeviceMemory], sz)::Managed{<:AbstractMemory}
 
-Allocate a number of bytes `sz` from the memory pool on the current stream. Returns a memory
-object; may throw an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be
-satisfied.
+Allocate a number of bytes `sz` from the memory pool on the current stream. Returns a
+managed memory object; may throw an [`OutOfGPUMemoryError`](@ref) if the allocation request
+cannot be satisfied.
 """
 @inline pool_alloc(sz::Integer) = pool_alloc(DeviceMemory, sz)
 @inline function pool_alloc(::Type{B}, sz) where {B<:AbstractMemory}
   # 0-byte allocations shouldn't hit the pool
-  sz == 0 && return B()
+  sz == 0 && return Managed(B())
 
   # _alloc reports its own time measurement, since it may spend time in garbage collection
   # (and using Base.@timed/gc_num to exclude that time is too expensive)
@@ -523,7 +587,7 @@ satisfied.
   Threads.atomic_add!(alloc_stats.total_time, time)
   # NOTE: total_time might be an over-estimation if we trigger GC somewhere else
 
-  return mem
+  return Managed(mem)
 end
 @inline function _pool_alloc(::Type{DeviceMemory}, sz)
     state = active_state()
@@ -572,13 +636,18 @@ end
 end
 
 """
-    pool_free(mem, stream)
+    pool_free(mem::Managed{<:AbstractMemory})
 
 Releases memory to the pool. If possible, this operation will not block but will be ordered
-against `stream`.
+against the stream that last used the memory.
 """
-@inline function pool_free(mem::AbstractMemory, stream::CuStream)
+@inline function pool_free(managed::Managed{<:AbstractMemory})
   # XXX: have @timeit use the root timer, since we may be called from a finalizer
+
+  # ensure this allocation is still alive
+  isvalid(managed.mem.ctx) || return
+  isvalid(managed.stream) || return
+  mem = managed.mem
 
   # 0-byte allocations shouldn't hit the pool
   sz = sizeof(mem)
@@ -587,8 +656,8 @@ against `stream`.
   # this function is typically called from a finalizer, where we can't switch tasks,
   # so perform our own error handling.
   try
-    time = Base.@elapsed begin
-      _pool_free(mem, stream)
+    time = Base.@elapsed context!(mem.ctx) do
+      _pool_free(mem, managed.stream)
     end
 
     Threads.atomic_add!(alloc_stats.free_count, 1)

@@ -68,7 +68,7 @@ include("device/random.jl")
 include("device/quirks.jl")
 
 # array essentials
-include("pool.jl")
+include("memory.jl")
 include("array.jl")
 
 # compiler libraries
