@@ -642,8 +642,6 @@ Releases memory to the pool. If possible, this operation will not block but will
 against the stream that last used the memory.
 """
 @inline function pool_free(managed::Managed{<:AbstractMemory})
-  # XXX: have @timeit use the root timer, since we may be called from a finalizer
-
   # ensure this allocation is still alive
   isvalid(managed.mem.ctx) || return
   isvalid(managed.stream) || return
@@ -731,13 +729,11 @@ macro allocated(ex)
     end
 end
 
-
 """
     @time ex
 
 Run expression `ex` and report on execution time and GPU/CPU memory behavior. The GPU is
 synchronized right before and after executing `ex` to exclude any external effects.
-
 """
 macro time(ex)
     quote
@@ -784,13 +780,10 @@ end
 
 macro timed(ex)
     quote
-        while false; end # compiler heuristic: compile this block (alter this if the heuristic changes)
+        Base.Experimental.@force_compile
 
-        # @time(d) might surround an application, so be sure to initialize CUDA before that
-        CUDA.prepare_cuda_state()
-
-        # coarse synchronization to exclude effects from previously-executed code
-        synchronize()
+        # coars-graned synchronization to exclude effects from previously-executed code
+        device_synchronize()
 
         local gpu_mem_stats0 = copy(alloc_stats)
         local cpu_mem_stats0 = Base.gc_num()
