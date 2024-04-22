@@ -244,6 +244,7 @@ end
 function pool_create(dev::CuDevice)
   if pool_status(dev) === nothing
       limits = memory_limits()
+      pool_status!(dev::CuDevice, false)
 
       # create a custom memory pool and assign it to the device
       # so that other libraries and applications will use it.
