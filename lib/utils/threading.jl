@@ -16,6 +16,7 @@ struct LazyInitialized{T,F}
     # 2: initialized
     guard::Threads.Atomic{Int}
     value::Base.RefValue{T}
+    # XXX: use Base.ThreadSynchronizer instead?
 
     validator::F
 end
@@ -54,7 +55,9 @@ end
           rethrow()
         end
     else
-        yield()
+        ccall(:jl_cpu_suspend, Cvoid, ())
+        # Temporary solution before we have gc transition support in codegen.
+        ccall(:jl_gc_safepoint, Cvoid, ())
     end
     return
 end
