@@ -512,18 +512,10 @@ function synchronize(managed::Managed)
   end
 end
 
-# take over memory for processing
-function take_ownership(managed::Managed)
-  current_stream = stream()
-
-  if managed.stream != current_stream
-    synchronize(managed)
-    managed.stream = current_stream
-  end
-end
-
 function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
   state = active_state()
+
+  # make sure we can access this memory from the current device
   if M == DeviceMemory && state.context != managed.mem.ctx
     synchronize(managed)
     origin_device = device(managed.mem.ctx)
@@ -541,9 +533,13 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
     end
   end
 
-  # make sure any asynchronous operations that we weren't submitted by the
-  # current stream have finished.
-  take_ownership(managed)
+  # wait for other streams working on this memory to finish
+  if managed.stream != state.stream
+    synchronize(managed)
+    managed.stream = state.stream
+  end
+
+  managed.dirty = true
   convert(CuPtr{T}, managed.mem)
 end
 
@@ -560,7 +556,7 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
            allocating using `cu(...; unified=true)`."""))
   end
 
-  # make sure _any_ work on the memory has finished.
+  # make sure any work on the memory has finished.
   synchronize(managed)
   convert(Ptr{T}, managed.mem)
 end
