@@ -198,7 +198,7 @@ function memory_limit_exceeded(bytes::Integer)
     # we configured the memory pool to do this for us
     return false
   elseif stream_ordered(dev)
-    pool = memory_pool(dev)
+    pool = pool_create(dev)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else
     # NOTE: cannot use `memory_info()`, because it only reports total & free memory.
@@ -223,7 +223,7 @@ function stream_ordered(dev::CuDevice)
   end::Bool
 end
 
-# per-device flag indicating the status of a pool.
+# per-device flag indicating the status of the memory pool.
 # `nothing` indicates the pool hasn't been initialized,
 # `false` indicates the pool is idle, and `true` indicates it is active.
 const _pool_status = PerDevice{Base.RefValue{Bool}}()
@@ -240,7 +240,8 @@ function pool_status!(dev::CuDevice, val)
   box[] = val
   return
 end
-function pool_mark(dev::CuDevice)
+
+function pool_create(dev::CuDevice)
   if pool_status(dev) === nothing
       limits = memory_limits()
 
@@ -261,11 +262,11 @@ function pool_mark(dev::CuDevice)
       if isinteractive() && !isassigned(__pool_cleanup)
         __pool_cleanup[] = errormonitor(Threads.@spawn pool_cleanup())
       end
+
+      pool
   else
-      pool = memory_pool(dev)
+      memory_pool(dev)
   end
-  pool_status!(dev, true)
-  return pool
 end
 
 # reclaim unused pool memory after a certain time
@@ -459,7 +460,7 @@ end
         device_synchronize()
       elseif phase == 5
         # in case we had a release threshold configured
-        trim(memory_pool(state.device))
+        trim(pool_create(state.device))
       else
         break
       end
@@ -496,23 +497,19 @@ mutable struct Managed{M}
   dirty::Bool         # whether the memory has been modified since the last sync
   stream::CuStream    # which stream is currently using the memory
 
-  Managed(mem::AbstractMemory; dirty=false, stream=CUDA.stream()) =
+  function Managed(mem::AbstractMemory; dirty=true, stream=CUDA.stream())
+    # NOTE: memory starts as dirty, because stream-ordered allocations are only
+    #       guaranteed to be physically allocated at a synchronization event.
     new{typeof(mem)}(mem, dirty, stream)
+  end
 end
 
 # wait for the current owner of memory to finish processing
-function maybe_synchronize(managed::Managed)
+function synchronize(managed::Managed)
   if managed.dirty
-    maybe_synchronize(managed.stream)
+    synchronize(managed.stream)
     managed.dirty = false
   end
-end
-function synchronize(managed::Managed)
-  # XXX: we can't always rely on the dirty flag to be correct, as memory can be modified
-  #      after it was cleared (e.g. if a pointer to memory was stored somewhere). so when
-  #      certain APIs ask to synchronize, _always_ synchronize.
-  synchronize(managed.stream)
-  managed.dirty = false
 end
 
 # take over memory for processing
@@ -520,30 +517,51 @@ function take_ownership(managed::Managed)
   current_stream = stream()
 
   if managed.stream != current_stream
-    maybe_synchronize(managed)
+    synchronize(managed)
     managed.stream = current_stream
   end
 end
 
 function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
-  if M == DeviceMemory && context() != managed.mem.ctx
+  state = active_state()
+  if M == DeviceMemory && state.context != managed.mem.ctx
+    synchronize(managed)
     origin_device = device(managed.mem.ctx)
-    throw(ArgumentError("cannot take the GPU address for device $(device()) of GPU memory allocated on device $origin_device"))
-    # TODO: check and enable P2P if possible
+    if maybe_enable_peer_access(state.device, origin_device) != 1
+        throw(ArgumentError(
+            """cannot take the GPU address of inaccessible device memory.
+
+               You are trying to use memory from GPU $(deviceid(origin_device)) while executing on GPU $(deviceid(state.device)).
+               P2P access between these devices is not possible; either switch execution to GPU $(deviceid(origin_device))
+               by calling `CUDA.device!($(deviceid(origin_device)))`, or copy the data to an array allocated on device $(deviceid(state.device))."""))
+    end
+    if stream_ordered(origin_device)
+      pool = pool_create(origin_device)
+      access!(pool, state.device, ACCESS_FLAGS_PROT_READWRITE)
+    end
   end
 
-  # make sure any asynchronous operations that we weren't submitted by the current stream
-  # have finished.
+  # make sure any asynchronous operations that we weren't submitted by the
+  # current stream have finished.
   take_ownership(managed)
   convert(CuPtr{T}, managed.mem)
 end
 
 function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
   if M == DeviceMemory
-    throw(ArgumentError("cannot take the CPU address of GPU memory"))
+    throw(ArgumentError(
+        """cannot take the CPU address of GPU memory.
+
+           You are probably falling back to or otherwise calling CPU functionality
+           with GPU array inputs. This is not supported by regular device memory;
+           ensure this operation is supported by CUDA.jl, and if it isn't, try to
+           avoid it or rephrase it in terms of supported operations. Alternatively,
+           you can consider using GPU arrays backed by unified memory by
+           allocating using `cu(...; unified=true)`."""))
   end
+
   # make sure _any_ work on the memory has finished.
-  maybe_synchronize(managed)
+  synchronize(managed)
   convert(Ptr{T}, managed.mem)
 end
 
@@ -579,7 +597,9 @@ end
     maybe_collect()
 
     actual_alloc = if stream_ordered(state.device)
-      pool = pool_mark(state.device) # mark the pool as active
+      pool_status!(state.device, true)
+
+      pool = pool_create(state.device)
       (bytes) -> alloc(DeviceMemory, bytes; async=true, state.stream, pool)
     else
       (bytes) -> alloc(DeviceMemory, bytes; async=false)
@@ -663,9 +683,6 @@ end
 
     dev = device()
     if stream_ordered(dev)
-      # mark the pool as active
-      pool_mark(dev)
-
       # for safety, we default to the default stream and force this operation to be ordered
       # against all other streams. to opt out of this, pass a specific stream instead.
       free(mem; stream)
@@ -689,7 +706,7 @@ function reclaim(sz::Int=typemax(Int))
   if stream_ordered(dev)
       device_synchronize()
       synchronize(context())
-      trim(memory_pool(dev))
+      trim(pool_create(dev))
   else
     0
   end
@@ -810,7 +827,7 @@ application.
 function used_memory()
   state = active_state()
   if stream_ordered(state.device)
-    pool = memory_pool(state.device)
+    pool = pool_create(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_USED_MEM_CURRENT))
   else
     missing
@@ -825,7 +842,7 @@ Returns the amount of backing memory currently allocated for the CUDA memory poo
 function cached_memory()
   state = active_state()
   if stream_ordered(state.device)
-    pool = memory_pool(state.device)
+    pool = pool_create(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else
     missing

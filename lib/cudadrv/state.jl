@@ -336,15 +336,6 @@ end
 device!(dev::Integer, flags=nothing) = device!(CuDevice(dev), flags)
 device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
 
-"""
-    deviceid()::Int
-    deviceid(dev::CuDevice)::Int
-
-Get the ID number of the current device of execution. This is a 0-indexed number,
-corresponding to the device ID as known to CUDA.
-"""
-deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev))
-
 
 ## math mode
 

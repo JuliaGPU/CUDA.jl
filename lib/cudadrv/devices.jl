@@ -2,7 +2,7 @@
 
 export
     CuDevice, current_device, has_device,
-    name, uuid, parent_uuid, totalmem, can_access_peer
+    name, deviceid, uuid, parent_uuid, totalmem, can_access_peer
 
 """
     CuDevice(ordinal::Integer)
@@ -87,6 +87,14 @@ function name(dev::CuDevice)
     buf[end] = 0
     return unsafe_string(pointer(buf))
 end
+
+"""
+    deviceid(dev::CuDevice)::Int
+
+Get the ID number of the current device of execution. This is a 0-indexed number,
+corresponding to the device ID as known to CUDA.
+"""
+deviceid(dev::CuDevice) = Int(convert(CUdevice, dev))
 
 function uuid(dev::CuDevice)
     driver_version() < v"11.4" && return parent_uuid(dev)

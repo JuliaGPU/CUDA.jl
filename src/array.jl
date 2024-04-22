@@ -826,7 +826,7 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
       synchronize(A)
       unsafe_copyto!(ptr, pointer(A), m)
     end
-    DataRef(pool_free, Managed(mem; dirty=true))
+    DataRef(pool_free, Managed(mem))
   end
   unsafe_free!(A)
 
