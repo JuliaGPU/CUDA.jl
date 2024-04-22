@@ -129,6 +129,8 @@ function maybe_collect(will_block::Bool=false)
       if stream_ordered(dev)
         size += cached_memory() - used_memory()
       end
+
+      size
     end
     stats.size_updated[] = current_time
   end
