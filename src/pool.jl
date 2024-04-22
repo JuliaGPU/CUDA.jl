@@ -6,15 +6,6 @@ using Logging
 
 ## allocation statistics
 
-# PPC doesn't support floating-point atomics, so use a ref (which behaves mostly similar)
-if Float64 <: Threads.AtomicTypes
-const MaybeAtomicFloat64 = Threads.Atomic{Float64}
-_add_total_time!(stats, time) = Threads.atomic_add!(stats.total_time, time)
-else
-const MaybeAtomicFloat64 = Base.RefValue{Float64}
-_add_total_time!(stats, time) = (stats.total_time[] += time)
-end
-
 mutable struct AllocStats
   alloc_count::Threads.Atomic{Int}
   alloc_bytes::Threads.Atomic{Int}
@@ -22,12 +13,12 @@ mutable struct AllocStats
   free_count::Threads.Atomic{Int}
   free_bytes::Threads.Atomic{Int}
 
-  total_time::MaybeAtomicFloat64
+  total_time::Threads.Atomic{Float64}
 
   function AllocStats()
     new(Threads.Atomic{Int}(0), Threads.Atomic{Int}(0),
         Threads.Atomic{Int}(0), Threads.Atomic{Int}(0),
-        MaybeAtomicFloat64(0.0))
+        Threads.Atomic{Float64}(0.0))
   end
 
   function AllocStats(alloc_count::Integer, alloc_bytes::Integer,
@@ -35,7 +26,7 @@ mutable struct AllocStats
                       total_time::Float64)
     new(Threads.Atomic{Int}(alloc_count), Threads.Atomic{Int}(alloc_bytes),
         Threads.Atomic{Int}(free_count), Threads.Atomic{Int}(free_bytes),
-        MaybeAtomicFloat64(total_time))
+        Threads.Atomic{Float64}(total_time))
   end
 end
 
@@ -81,10 +72,117 @@ function actual_free(buf::Mem.DeviceBuffer;
 end
 
 
-## memory limits
+## memory accounting
 
-# to enforce a hard memory limit, we need to keep track of the amount currently allocated.
-const memory_use = Threads.Atomic{Int}(0)
+struct MemoryStats
+  # maximum size of the memory heap
+  size::Threads.Atomic{Int}
+  size_updated::Threads.Atomic{Float64}
+
+  # the amount of live bytes
+  live::Threads.Atomic{Int}
+
+  last_time::Threads.Atomic{Float64}
+  last_gc_time::Threads.Atomic{Float64}
+  last_freed::Threads.Atomic{Int}
+end
+
+function account!(stats::MemoryStats, bytes::Integer)
+  Threads.atomic_add!(stats.live, bytes)
+  if bytes > 0
+    Threads.atomic_add!(stats.live, 1)
+  end
+end
+
+const _memory_stats = PerDevice{MemoryStats}()
+function memory_stats(dev::CuDevice=device())
+  get!(_memory_stats, dev) do
+      MemoryStats(Threads.Atomic{Int}(0), Threads.Atomic{Float64}(0.0),
+                  Threads.Atomic{Int}(0), Threads.Atomic{Float64}(0.0),
+                  Threads.Atomic{Float64}(0.0), Threads.Atomic{Int}(0),)
+  end
+end
+
+const _early_gc = LazyInitialized{Bool}()
+function maybe_collect(will_block::Bool=false)
+  enabled = get!(_early_gc) do
+    parse(Bool, get(ENV, "JULIA_CUDA_GC_EARLY", "true"))
+  end
+  enabled || return
+  stats = memory_stats()
+  current_time = time()
+
+  # periodically re-estimate the amount of memory available to this process.
+  if current_time - stats.size_updated[] > 10
+    limits = memory_limits()
+    stats.size[] = if limits.hard > 0
+      limits.hard
+    elseif limits.soft > 0
+      limits.soft
+    else
+      size = free_memory() + stats.live[]
+      # NOTE: we use stats.live[] so that we only count memory allocated here, ensuring
+      #       the pressure calculation below reflects the heap we have control over.
+
+      # also include reserved bytes
+      dev = device()
+      if stream_ordered(dev)
+        size += cached_memory() - used_memory()
+      end
+    end
+    stats.size_updated[] = current_time
+  end
+
+  # check that we're under memory pressure
+  pressure = stats.live[] / stats.size[]
+  min_pressure = 0.75
+  ## if we're about to block anyway, now may be a good time for a GC pause
+  if will_block
+    min_pressure = 0.50
+  end
+  if pressure < min_pressure
+    return
+  end
+
+  # ensure we don't collect too often by checking the GC rate
+  last_time = stats.last_time[]
+  gc_rate = stats.last_gc_time[] / (current_time - last_time)
+  ## we tolerate 5% GC time
+  max_gc_rate = 0.05
+  ## if we freed a lot last time, bump that up
+  if stats.last_freed[] > 0.1*stats.size[]
+    max_gc_rate *= 2
+  end
+  ## if we're about to block, we can be more aggressive
+  if will_block
+    max_gc_rate *= 2
+  end
+  ## if we're under a lot of pressure, be even more aggressive
+  if pressure > 0.90
+    max_gc_rate *= 2
+  end
+  if pressure > 0.95
+    max_gc_rate *= 2
+  end
+  if gc_rate > max_gc_rate
+    return
+  end
+  stats.last_time[] = current_time
+
+  # finally, call the GC
+  pre_gc_live = stats.live[]
+  gc_time = @elapsed GC.gc(false)
+  post_gc_live = stats.live[]
+  memory_freed = pre_gc_live - post_gc_live
+  stats.last_freed[] = memory_freed
+  ## GC times can vary, so smooth them out
+  stats.last_gc_time[] = 0.75*stats.last_gc_time[] + 0.25*gc_time
+
+  return
+end
+
+
+## memory limits
 
 # parse a memory limit, e.g. "1.5GiB" or "50%, to the number of bytes
 function parse_limit(str::AbstractString)
@@ -140,14 +238,14 @@ function memory_limit_exceeded(bytes::Integer)
   used_bytes = if stream_ordered(dev) && driver_version() >= v"12.2"
     # we configured the memory pool to do this for us
     return false
-  elseif stream_ordered(dev) && driver_version() >= v"11.3"
+  elseif stream_ordered(dev)
     pool = memory_pool(dev)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else
     # NOTE: cannot use `Mem.info()`, because it only reports total & free memory, not used.
     #       computing `total - free` would include memory allocated by other processes.
     #       NVML does report used memory, but is slow, and not available on all platforms.
-    memory_use[]
+    memory_stats().live[]
   end
 
   return used_bytes + bytes > limit.hard
@@ -161,7 +259,8 @@ end
 function stream_ordered(dev::CuDevice)
   devidx = deviceid(dev) + 1
   @memoize devidx::Int maxlen=ndevices() begin
-    memory_pools_supported(dev) && get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
+    CUDA.driver_version() >= v"11.3" && memory_pools_supported(dev) &&
+    get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
   end::Bool
 end
 
@@ -250,25 +349,21 @@ function pool_cleanup()
 end
 
 
-## interface
+## OOM handling
 
 export OutOfGPUMemoryError
 
 struct MemoryInfo
   free_bytes::Int
   total_bytes::Int
-  pool_reserved_bytes::Union{Int,Missing,Nothing}
-  pool_used_bytes::Union{Int,Missing,Nothing}
+  pool_reserved_bytes::Union{Int,Nothing}
+  pool_used_bytes::Union{Int,Nothing}
 
   function MemoryInfo()
     free_bytes, total_bytes = Mem.info()
 
     pool_reserved_bytes, pool_used_bytes = if stream_ordered(device())
-      if driver_version() >= v"11.3"
-        cached_memory(), used_memory()
-      else
-        missing, missing
-      end
+      cached_memory(), used_memory()
     else
       nothing, nothing
     end
@@ -294,8 +389,6 @@ function memory_status(io::IO=stdout, info::MemoryInfo=MemoryInfo())
 
   if info.pool_reserved_bytes === nothing
     @printf(io, "No memory pool is in use.")
-  elseif info.pool_reserved_bytes === missing
-    @printf(io, "Memory pool statistics require CUDA 11.3.")
   else
     @printf(io, "Memory pool usage: %s (%s reserved)\n",
                 Base.format_bytes(info.pool_used_bytes),
@@ -431,6 +524,9 @@ end
   return orig_ret
 end
 
+
+## public interface
+
 """
     alloc([::BufferType], sz; [stream::CuStream])
 
@@ -446,10 +542,9 @@ an [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   # (and using Base.@timed/gc_num to exclude that time is too expensive)
   buf, time = _alloc(B, sz; stream)
 
-  Threads.atomic_add!(memory_use, sz)
   Threads.atomic_add!(alloc_stats.alloc_count, 1)
   Threads.atomic_add!(alloc_stats.alloc_bytes, sz)
-  _add_total_time!(alloc_stats, time)
+  Threads.atomic_add!(alloc_stats.total_time, time)
   # NOTE: total_time might be an over-estimation if we trigger GC somewhere else
 
   return buf
@@ -457,7 +552,8 @@ end
 @inline function _alloc(::Type{Mem.DeviceBuffer}, sz; stream::Union{Nothing,CuStream})
     state = active_state()
 
-    gctime = 0.0
+    maybe_collect()
+
     time = Base.@elapsed begin
       buf = if stream_ordered(state.device)
         stream = something(stream, state.stream)
@@ -473,7 +569,9 @@ end
       buf === nothing && throw(OutOfGPUMemoryError(sz))
     end
 
-    buf, time - gctime
+    account!(memory_stats(state.device), sz)
+
+    buf, time
 end
 @inline function _alloc(::Type{Mem.UnifiedBuffer}, sz; stream::Union{Nothing,CuStream})
   time = Base.@elapsed begin
@@ -508,10 +606,9 @@ Releases a buffer `buf` to the memory pool.
       _free(buf; stream)
     end
 
-    Threads.atomic_sub!(memory_use, sz)
     Threads.atomic_add!(alloc_stats.free_count, 1)
     Threads.atomic_add!(alloc_stats.free_bytes, sz)
-    _add_total_time!(alloc_stats, time)
+    Threads.atomic_add!(alloc_stats.total_time, time)
   catch ex
     Base.showerror_nostdio(ex, "WARNING: Error while freeing $buf")
     Base.show_backtrace(Core.stdout, catch_backtrace())
@@ -537,6 +634,7 @@ end
     else
       actual_free(buf)
     end
+    account!(memory_stats(dev), -sizeof(buf))
 end
 @inline _free(buf::Mem.UnifiedBuffer; stream::Union{Nothing,CuStream}) = Mem.free(buf)
 @inline _free(buf::Mem.HostBuffer; stream::Union{Nothing,CuStream}) = nothing
@@ -670,15 +768,10 @@ end
 
 Returns the amount of memory from the CUDA memory pool that is currently in use by the
 application.
-
-!!! warning
-
-    This function is only available on CUDA driver 11.3 and later.
 """
 function used_memory()
   state = active_state()
-  if driver_version() >= v"11.3" && stream_ordered(state.device)
-    # we can only query the memory pool's reserved memory on CUDA 11.3 and later
+  if stream_ordered(state.device)
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_USED_MEM_CURRENT))
   else
@@ -690,15 +783,10 @@ end
     cached_memory()
 
 Returns the amount of backing memory currently allocated for the CUDA memory pool.
-
-!!! warning
-
-    This function is only available on CUDA driver 11.3 and later.
 """
 function cached_memory()
   state = active_state()
-  if driver_version() >= v"11.3" && stream_ordered(state.device)
-    # we can only query the memory pool's reserved memory on CUDA 11.3 and later
+  if stream_ordered(state.device)
     pool = memory_pool(state.device)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else

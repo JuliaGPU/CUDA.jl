@@ -133,12 +133,12 @@ function gpu_entry(dev)
     cap = capability(dev)
     mig = uuid != parent_uuid(dev)
     compute_mode = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE)
-    available_memory = device!(dev) do
-        mem = CUDA.available_memory()
+    free_memory = device!(dev) do
+        mem = CUDA.free_memory()
         device_reset!()
         mem
     end
-    (; id, name, cap, uuid="$(mig ? "MIG" : "GPU")-$uuid", compute_mode, available_memory)
+    (; id, name, cap, uuid="$(mig ? "MIG" : "GPU")-$uuid", compute_mode, free_memory)
 end
 gpus = if do_gpu_list
     # parse the list of GPUs
@@ -160,7 +160,7 @@ ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")
 if !set_jobs
     cpu_jobs = Sys.CPU_THREADS
     cpu_memory_jobs = Int(Sys.free_memory()) ÷ (2 * 2^30)
-    gpu_memory_jobs = first(gpus).available_memory ÷ (2 * 2^30)
+    gpu_memory_jobs = first(gpus).free_memory ÷ (2 * 2^30)
     jobs = max(1, min(cpu_jobs, cpu_memory_jobs, gpu_memory_jobs))
 end
 @info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the `JULIA_CPU_THREADS` environment variable."

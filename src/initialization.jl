@@ -72,9 +72,9 @@ function __init__()
         return
     end
 
-    if driver < v"11.2"
+    if driver < v"11.3"
         @warn """The NVIDIA driver on this system only supports up to CUDA $driver.
-                 For performance reasons, it is recommended to upgrade to a driver that supports CUDA 11.2 or higher."""
+                 For performance reasons, it is recommended to upgrade to a driver that supports CUDA 11.3 or higher."""
     end
 
     # check that we have a runtime

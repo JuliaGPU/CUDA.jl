@@ -153,7 +153,7 @@ function versioninfo(io::IO=stdout)
             cap = capability(dev)
             mem = device!(dev) do
                 # this requires a device context, so we prefer NVML
-                (free=available_memory(), total=total_memory())
+                (free=free_memory(), total=total_memory())
             end
             (; str, cap, mem)
         end
