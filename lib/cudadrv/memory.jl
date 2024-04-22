@@ -886,11 +886,11 @@ end
 
 Returns the free amount of memory (in bytes), available for allocation by the CUDA context.
 """
-free_memory() = memory_info()[1]
+free_memory() = Int(memory_info()[1])
 
 """
     total_memory()
 
 Returns the total amount of memory (in bytes), available for allocation by the CUDA context.
 """
-total_memory() = memory_info()[2]
+total_memory() = Int(memory_info()[2])

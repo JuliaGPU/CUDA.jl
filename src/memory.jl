@@ -84,7 +84,7 @@ function maybe_collect(will_block::Bool=false)
       # also include reserved bytes
       dev = device()
       if stream_ordered(dev)
-        size += cached_memory() - used_memory()
+        size += (cached_memory() - used_memory())::Int
       end
 
       size
@@ -130,7 +130,7 @@ function maybe_collect(will_block::Bool=false)
 
   # finally, call the GC
   pre_gc_live = stats.live
-  gc_time = @elapsed GC.gc(false)
+  gc_time = Base.@elapsed GC.gc(false)
   post_gc_live = stats.live
   memory_freed = pre_gc_live - post_gc_live
   Base.@atomic stats.last_freed = memory_freed
