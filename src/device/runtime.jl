@@ -30,7 +30,7 @@ function precompile_runtime()
 end
 
 struct KernelState
-    exception_flag::Ptr{Cvoid}
+    exception_flag::Ptr{UInt8}
     random_seed::UInt32
 end
 
@@ -39,7 +39,7 @@ end
 function signal_exception()
     ptr = kernel_state().exception_flag
     if ptr !== C_NULL
-        unsafe_store!(convert(Ptr{Int}, ptr), 1)
+        unsafe_store!(ptr, 1)
         threadfence_system()
     else
         @cuprintf("""
