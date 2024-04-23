@@ -42,59 +42,64 @@ end
 
 # FIXME: these trample over our globally-managed context
 
-# @testset "primary context" begin
+@testset "primary context" begin
 
-# pctx = CuPrimaryContext(device())
+# we need to start from scratch for these tests
+dev = device()
+device_reset!()
+@test_throws UndefRefError current_context()
 
-# @test !isactive(pctx)
-# unsafe_reset!(pctx)
-# @test !isactive(pctx)
+pctx = CuPrimaryContext(dev)
 
-# @test flags(pctx) == 0
-# setflags!(pctx, CUDA.CTX_SCHED_BLOCKING_SYNC)
-# @test flags(pctx) == CUDA.CTX_SCHED_BLOCKING_SYNC
+@test !isactive(pctx)
+unsafe_reset!(pctx)
+@test !isactive(pctx)
 
-# let global_ctx = nothing
-#     CuContext(pctx) do ctx
-#         @test CUDA.isvalid(ctx)
-#         @test isactive(pctx)
-#         global_ctx = ctx
-#     end
-#     @test !isactive(pctx)
-#     @test !CUDA.isvalid(global_ctx)
-# end
+@test flags(pctx) == 0
+setflags!(pctx, CUDA.CTX_SCHED_BLOCKING_SYNC)
+@test flags(pctx) == CUDA.CTX_SCHED_BLOCKING_SYNC
 
-# CuContext(pctx) do ctx
-#     @test CUDA.isvalid(ctx)
-#     @test isactive(pctx)
+let global_ctx = nothing
+    CuContext(pctx) do ctx
+        @test CUDA.isvalid(ctx)
+        @test isactive(pctx)
+        global_ctx = ctx
+    end
+    @test !isactive(pctx) broken=true
+    @test !CUDA.isvalid(global_ctx) broken=true
+end
 
-#     unsafe_reset!(pctx)
+let
+    ctx = CuContext(pctx)
+    @test CUDA.isvalid(ctx)
+    @test isactive(pctx)
 
-#     @test !isactive(pctx)
-#     @test !CUDA.isvalid(ctx)
-# end
+    unsafe_reset!(pctx)
 
-# let
-#     @test !isactive(pctx)
+    @test !isactive(pctx)
+    @test !CUDA.isvalid(ctx)
+end
 
-#     ctx1 = CuContext(pctx)
-#     @test isactive(pctx)
-#     @test CUDA.isvalid(ctx1)
+let
+    @test !isactive(pctx)
 
-#     unsafe_reset!(pctx)
-#     @test !isactive(pctx)
-#     @test !CUDA.isvalid(ctx1)
-#     CUDA.valid_contexts
+    ctx1 = CuContext(pctx)
+    @test isactive(pctx)
+    @test CUDA.isvalid(ctx1)
 
-#     ctx2 = CuContext(pctx)
-#     @test isactive(pctx)
-#     @test !CUDA.isvalid(ctx1)
-#     @test CUDA.isvalid(ctx2)
+    unsafe_reset!(pctx)
+    @test !isactive(pctx)
+    @test !CUDA.isvalid(ctx1)
 
-#     unsafe_reset!(pctx)
-# end
+    ctx2 = CuContext(pctx)
+    @test isactive(pctx)
+    @test !CUDA.isvalid(ctx1)
+    @test CUDA.isvalid(ctx2)
 
-# end
+    unsafe_reset!(pctx)
+end
+
+end
 
 
 @testset "cache config" begin
