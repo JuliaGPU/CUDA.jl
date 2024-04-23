@@ -7,6 +7,7 @@
 Profile the GPU execution of `code`.
 
 There are two modes of operation, depending on whether `external` is `true` or `false`.
+The default value depends on whether Julia is being run under an external profiler.
 
 ## Integrated profiler (`external=false`, the default)
 
@@ -25,7 +26,7 @@ slowest 25%, while entries colored in red are among the slowest 5% of all operat
 !!! compat "CUDA 11.2" Older versions of CUDA, before 11.2, contain bugs that may prevent
     the `CUDA.@profile` macro to work. It is recommended to use a newer runtime.
 
-## External profilers (`external=true`)
+## External profilers (`external=true`, when an external profiler is detected)
 
 For more advanced profiling, it is possible to use an external profiling tool, such as
 NSight Systems or NSight Compute. When doing so, it is often advisable to only enable the
@@ -38,7 +39,14 @@ macro profile(ex...)
     kwargs = ex[1:end-1]
 
     # extract keyword arguments that are handled by this macro
-    external = false
+    external = quote
+        if $Profile.detect_cupti()
+            @info "This Julia session is already being profiled; defaulting to the external profiler." maxlog=1 _id=:profile
+            true
+        else
+            false
+        end
+    end
     remaining_kwargs = Expr[]
     for kwarg in kwargs
         if Meta.isexpr(kwarg, :(=))
@@ -131,6 +139,26 @@ function profile_externally(f)
     finally
         stop()
     end
+end
+
+const _cupti_active = Ref{Union{Nothing,Bool}}(nothing)
+function detect_cupti()
+    if _cupti_active[] !== nothing
+        return _cupti_active[]
+    end
+
+    subscribed = try
+        cfg = CUPTI.ActivityConfig([])
+        CUPTI.enable!(cfg) do
+            # do nothing
+        end
+        false
+    catch err
+        isa(err, CUPTIError) || rethrow()
+        err.code == CUPTI.ERROR_MULTIPLE_SUBSCRIBERS_NOT_SUPPORTED || rethrow()
+        true
+    end
+    _cupti_active[] = subscribed
 end
 
 function find_nsys()

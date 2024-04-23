@@ -136,22 +136,27 @@ corresponds to the device-side `broadcast` kernel.
 
 If you want more details, or a graphical representation, we recommend using external
 profilers. To inform those external tools which code needs to be profiled (e.g., to exclude
-warm-up iterations or other noninteresting elements) you can use `CUDA.@profile` with the
-`external=true` keyword argument to surround interesting code with:
+warm-up iterations or other noninteresting elements) you can also use `CUDA.@profile` to
+surround interesting code with:
 
 ```julia
 julia> a = CUDA.rand(1024,1024,1024);
 
 julia> sin.(a);  # warmup
 
-julia> CUDA.@profile external=true sin.(a);
+julia> CUDA.@profile sin.(a);
+[ Info: This Julia session is already being profiled; defaulting to the external profiler.
 
 julia>
 ```
 
-This only activates an external profiler, and does not perform any profiling itself. NVIDIA
-provides two tools for profiling CUDA applications: NSight Systems and NSight Compute for
-respectively timeline profiling and more detailed kernel analysis. Both tools are
+Note that the external profiler is automatically detected, and makes `CUDA.@profile` switch
+to a mode where it merely activates an external profiler and does not do perform any
+profiling itself. In case the detection does not work, this mode can be forcibly activated
+by passing `external=true` to `CUDA.@profile`.
+
+NVIDIA provides two tools for profiling CUDA applications: NSight Systems and NSight Compute
+for respectively timeline profiling and more detailed kernel analysis. Both tools are
 well-integrated with the Julia GPU packages, and make it possible to iteratively profile
 without having to restart Julia.
 
@@ -180,7 +185,7 @@ julia> a = CUDA.rand(1024,1024,1024);
 
 julia> sin.(a);
 
-julia> CUDA.@profile external=true sin.(a);
+julia> CUDA.@profile sin.(a);
 start executed
 Processing events...
 Capturing symbol files...
@@ -205,7 +210,7 @@ You can open the resulting `.qdrep` file with `nsight-sys`:
 !!! info
 
     If NSight Systems does not capture any kernel launch, even though you have used
-    `CUDA.@profile external=true`, try starting `nsys` with `--trace cuda`.
+    `CUDA.@profile`, try starting `nsys` with `--trace cuda`.
 
 #### NVIDIA Nsight Compute
 
@@ -253,7 +258,7 @@ julia> a = CUDA.rand(1024,1024,1024);
 
 julia> sin.(a);
 
-julia> CUDA.@profile external=true sin.(a);
+julia> CUDA.@profile sin.(a);
 ```
 
 Once that's finished, the Nsight Compute GUI window will have plenty details on our kernel:
