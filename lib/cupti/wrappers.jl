@@ -267,7 +267,7 @@ function process(f, cfg::ActivityConfig)
 
     # extract typed activity records
     for (ctx_handle, stream_id, buf_ptr, sz, valid_sz) in cfg.results
-        ctx = CUDA.UniqueCuContext(ctx_handle)
+        ctx = ctx_handle == C_NULL ? nothing : CUDA.UniqueCuContext(ctx_handle)
         # XXX: can we reconstruct the stream from the stream ID?
 
         record_ptr = Ref{Ptr{CUpti_Activity}}(C_NULL)

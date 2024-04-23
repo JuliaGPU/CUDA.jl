@@ -24,6 +24,7 @@ deletion, or use do-block syntax with this constructor.
 """
 mutable struct CuContext
     handle::CUcontext
+    device::CuDevice
     valid::Bool
 
     function CuContext(dev::CuDevice, flags=0)
@@ -39,7 +40,18 @@ mutable struct CuContext
         UniqueCuContext(handle_ref[])
     end
 
-    global UnsafeCuContext(handle::CUcontext) = new(handle, true)
+    global function UnsafeCuContext(handle::CUcontext)
+        # because of context uniqueing, this function is called rarely,
+        # so it's OK to look up the device by temporarily activating the context
+        cuCtxPushCurrent_v2(handle)
+        dev = try
+            current_device()
+        finally
+            cuCtxPopCurrent_v2(Ref{CUcontext}())
+        end
+
+        new(handle, dev, true)
+    end
 
     unsafe
 end
@@ -85,6 +97,7 @@ const MAX_CONTEXTS = 1024
 const context_objects = Vector{CuContext}(undef, MAX_CONTEXTS)
 const context_lock = Base.ThreadSynchronizer()
 function UniqueCuContext(handle::CUcontext)
+    @assert handle != C_NULL
     @lock context_lock begin
         # look if there's an existing object for this handle
         i = 1
@@ -131,7 +144,9 @@ Base.unsafe_convert(::Type{CUcontext}, ctx::CuContext) = ctx.handle
 
 function Base.show(io::IO, ctx::CuContext)
     if ctx.handle != C_NULL
-        fields = [@sprintf("%p", ctx.handle), @sprintf("instance %x", objectid(ctx))]
+        fields = [@sprintf("%p", ctx.handle),
+                  "$(ctx.device)",
+                  @sprintf("instance %x", objectid(ctx))]
         if !isvalid(ctx)
             push!(fields, "invalidated")
         end
@@ -317,10 +332,9 @@ end
 Returns the device for a context.
 """
 function device(ctx::CuContext)
-    push!(CuContext, ctx)
-    dev = current_device()
-    pop!(CuContext)
-    return dev
+    # cuCtxGetDevice assumes the context is current, so instead we store the device
+    # in the context object
+    return ctx.device
 end
 
 """
