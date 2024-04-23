@@ -43,7 +43,6 @@ steps:
   # then, test supported CUDA toolkits (installed through the artifact system)
   - group: "CUDA"
     key: "cuda"
-    depends_on: "julia"
     steps:
       - label: "CUDA {{matrix.cuda}}"
         plugins:
@@ -84,6 +83,33 @@ steps:
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"" >LocalPreferences.toml
           echo -e "[CUDA_Driver_jll]\ncompat = \"false\"" >>LocalPreferences.toml
 
+  - group: "Memory"
+    key: "memory"
+    steps:
+      - label: "CuArray with {{matrix.memory}} memory"
+        plugins:
+          - JuliaCI/julia#v1:
+              version: "1.10"
+          - JuliaCI/julia-test#v1:
+              test_args: "--quickfail core base libraries"
+          - JuliaCI/julia-coverage#v1:
+              dirs:
+                - src
+                - lib
+                - examples
+        agents:
+          queue: "juliagpu"
+          cuda: "*"
+        if: build.message !~ /\[skip tests\]/ && build.message !~ /\[skip memory\]/ && !build.pull_request.draft
+        timeout_in_minutes: 30
+        matrix:
+          setup:
+            memory:
+              - "unified"
+              - "host"
+        commands: |
+          echo -e "[CUDA]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
+
   - group: ":nesting_dolls: Subpackages"
     depends_on: "cuda"
     steps:
@@ -121,6 +147,7 @@ steps:
             using Pkg
 
             println("--- :julia: Instantiating project")
+            Pkg.add(; url="https://github.com/leios/GPUArrays.jl/", rev="yoyoyo_rebase_time")
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
               Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix.package}}")))
               try
@@ -157,6 +184,7 @@ steps:
           julia --project -e '
             using Pkg
 
+            Pkg.add(; url="https://github.com/leios/GPUArrays.jl/", rev="yoyoyo_rebase_time")
             println("--- :julia: Instantiating project")
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
               Pkg.instantiate()
@@ -248,11 +276,15 @@ steps:
               run_tests: false
         command: |
           julia --project -e '
+            using Pkg
+            Pkg.add(; url="https://github.com/leios/GPUArrays.jl/", rev="yoyoyo_rebase_time")
             using CUDA
             @assert !CUDA.functional()
             @assert !isdefined(CUDA, :libcudart)
             CUDA.set_runtime_version!(v"11.6")'
           julia --project -e '
+            using Pkg
+            Pkg.add(; url="https://github.com/leios/GPUArrays.jl/", rev="yoyoyo_rebase_time")
             using CUDA
             @assert !CUDA.functional()
             @assert isdefined(CUDA, :libcudart)'
@@ -407,6 +439,7 @@ steps:
           julia --project -e '
             using Pkg
 
+            Pkg.add(; url="https://github.com/leios/GPUArrays.jl/", rev="yoyoyo_rebase_time")
             println("--- :julia: Instantiating project")
             Pkg.resolve()
             Pkg.instantiate()
@@ -441,6 +474,7 @@ steps:
         command: |
           julia --project -e '
             using Pkg
+            Pkg.add(; url="https://github.com/leios/GPUArrays.jl/", rev="yoyoyo_rebase_time")
             ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
 
             println("--- :julia: Instantiating project")
