@@ -42,23 +42,6 @@ Returns the current device.
 """
 current_device()
 
-"""
-    has_device()
-
-Returns whether there is an active device.
-"""
-function has_device()
-    device_ref = Ref{CUdevice}()
-    res = unchecked_cuCtxGetDevice(device_ref)
-    if res == SUCCESS
-        return true
-    elseif res == ERROR_INVALID_CONTEXT
-        return false
-    else
-        throw_api_error(res)
-    end
-end
-
 const DEVICE_CPU = _CuDevice(CUdevice(-1))
 const DEVICE_INVALID = _CuDevice(CUdevice(-2))
 

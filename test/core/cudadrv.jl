@@ -1,6 +1,12 @@
 @testset "context" begin
 
+# perform an API call to ensure everything is initialized
+# (or the low-level driver calls below can fail)
+synchronize()
+
 ctx = current_context()
+@test CUDA.isvalid(ctx)
+
 dev = current_device()
 exclusive = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
 

@@ -194,6 +194,9 @@ function __init__()
         end
     end
 
+    # global state that needs to be initialized
+    fill!(context_validity, true)
+
     _initialized[] = true
 end
 

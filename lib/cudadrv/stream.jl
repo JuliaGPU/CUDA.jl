@@ -2,7 +2,7 @@
 
 export
     CuStream, default_stream, legacy_stream, per_thread_stream,
-    priority, priority_range, synchronize, device_synchronize
+    unique_id, priority, priority_range, synchronize, device_synchronize
 
 """
     CuStream(; flags=STREAM_DEFAULT, priority=nothing)
@@ -13,7 +13,7 @@ mutable struct CuStream
     const handle::CUstream
     Base.@atomic valid::Bool
 
-    const ctx::CuContext
+    const ctx::Union{Nothing,CuContext}
 
     function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
                         priority::Union{Nothing,Integer}=nothing)
@@ -84,6 +84,7 @@ Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 @enum_without_prefix CUstream_flags_enum CU_
 
 function unsafe_destroy!(s::CuStream)
+    @assert s.ctx !== nothing "Cannot destroy unassociated stream"
     context!(s.ctx; skip_destroyed=true) do
         cuStreamDestroy_v2(s)
     end
@@ -93,9 +94,16 @@ end
 function Base.show(io::IO, stream::CuStream)
     print(io, "CuStream(")
     @printf(io, "%p", stream.handle)
-    if isdefined(stream, :ctx)
+    if stream.ctx !== nothing
         print(io, ", ", stream.ctx)
     end
+    print(io, ")")
+end
+
+function unique_id(s::CuStream)
+    id = Ref{Culonglong}()
+    cuStreamGetId(s, id)
+    return id[]
 end
 
 """

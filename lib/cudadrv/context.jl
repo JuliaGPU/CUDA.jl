@@ -3,12 +3,14 @@
 export
     CuPrimaryContext, CuContext, current_context, has_context, activate,
     unsafe_reset!, isactive, flags, setflags!,
-    device, device_synchronize
+    unique_id, device, device_synchronize
 
 
 ## construction and destruction
 
 @enum_without_prefix CUctx_flags CU_
+
+const MAX_CONTEXTS = 1024
 
 """
     CuContext(dev::CuDevice, flags=CTX_SCHED_AUTO)
@@ -20,107 +22,62 @@ the system cleans up the resources allocated to it.
 
 When you are done using the context, call [`CUDA.unsafe_destroy!`](@ref) to mark it for
 deletion, or use do-block syntax with this constructor.
-
 """
-mutable struct CuContext
+struct CuContext
     handle::CUcontext
-    device::CuDevice
-    valid::Bool
+    id::Int
 
-    function CuContext(dev::CuDevice, flags=0)
-        handle_ref = Ref{CUcontext}()
-        cuCtxCreate_v2(handle_ref, flags, dev)
-        UniqueCuContext(handle_ref[])
-    end
+    function CuContext(handle::CUcontext)
+        handle == C_NULL && throw(UndefRefError())
 
-    global function current_context()
-        handle_ref = Ref{CUcontext}()
-        cuCtxGetCurrent(handle_ref)
-        handle_ref[] == C_NULL && throw(UndefRefError())
-        UniqueCuContext(handle_ref[])
-    end
+        id_ref = Ref{Culonglong}()
+        res = unchecked_cuCtxGetId(handle, id_ref)
+        res == ERROR_CONTEXT_IS_DESTROYED && throw(UndefRefError())
+        res != SUCCESS && throw_api_error(res)
+        id = id_ref[]
 
-    global function UnsafeCuContext(handle::CUcontext)
-        # because of context uniqueing, this function is called rarely,
-        # so it's OK to look up the device by temporarily activating the context
-        cuCtxPushCurrent_v2(handle)
-        dev = try
-            current_device()
-        finally
-            cuCtxPopCurrent_v2(Ref{CUcontext}())
+        if id > MAX_CONTEXTS
+            throw(ArgumentError("""too many contexts created ($id > $MAX_CONTEXTS).
+                                   This is unexpected; please file an issue."""))
         end
 
-        new(handle, dev, true)
+        new(handle, id)
     end
+end
 
-    unsafe
+function CuContext(dev::CuDevice, flags=0)
+    handle_ref = Ref{CUcontext}()
+    cuCtxCreate_v2(handle_ref, flags, dev)
+    CuContext(handle_ref[])
 end
 
 """
     current_context()
 
-Returns the current context.
+Returns the current context. Throws an undefined reference error if the current thread
+has no context bound to it, or if the bound context has been destroyed.
 
 !!! warning
 
     This is a low-level API, returning the current context as known to the CUDA driver.
     For most users, it is recommended to use the [`context`](@ref) method instead.
 """
-current_context()
-
-"""
-    has_context()
-
-Returns whether there is an active context.
-"""
-function has_context()
+global function current_context()
     handle_ref = Ref{CUcontext}()
     cuCtxGetCurrent(handle_ref)
-    handle_ref[] != C_NULL
+    handle_ref[] == C_NULL && throw(UndefRefError())
+    CuContext(handle_ref[])
 end
 
 # we need to know when a context has been destroyed, to make sure we don't destroy resources
-# after the owning context has been destroyed already. this is complicated by the fact that
-# contexts obtained from a primary context have the same handle before and after primary
-# context destruction, so we cannot use a simple mapping from context handle to a validity
-# bit. instead, we unique the context objects and put a validity bit in there.
-isvalid(ctx::CuContext) = ctx.valid
+# after the owning context has been destroyed already. handles of contexts can be reused,
+# but their unique IDs aren't, so use that to index a list of validity bits.
+const context_validity = BitArray(undef, MAX_CONTEXTS)
+isvalid(ctx::CuContext) = @inbounds context_validity[ctx.id]
 function invalidate!(ctx::CuContext)
-    ctx.valid = false
+    # XXX: this is racy, but it's unlikely that multiple threads would hit this
+    @inbounds context_validity[ctx.id] = false
     return
-end
-# to make this work, every function returning a context (e.g. `cuCtxGetCurrent`, attribute
-# functions, etc) need to return the same context objects. because looking up a context is a
-# very common operation (often executed from finalizers), we need to ensure this look-up is
-# fast and does not switch tasks. we do this by scanning a simple linear vector.
-const MAX_CONTEXTS = 1024
-const context_objects = Vector{CuContext}(undef, MAX_CONTEXTS)
-const context_lock = Base.ThreadSynchronizer()
-function UniqueCuContext(handle::CUcontext)
-    @assert handle != C_NULL
-    @lock context_lock begin
-        # look if there's an existing object for this handle
-        i = 1
-        @inbounds while i <= MAX_CONTEXTS && isassigned(context_objects, i)
-            if context_objects[i].handle == handle
-                if isvalid(context_objects[i])
-                    return context_objects[i]
-                else
-                    # this object was invalidated, so we can reuse its slot
-                    break
-                end
-            end
-            i += 1
-        end
-        if i == MAX_CONTEXTS
-            error("Exceeded maximum amount of CUDA contexts. This is unexpected; please file an issue.")
-        end
-
-        # we've got a slot we can write to
-        new_object = UnsafeCuContext(handle)
-        @inbounds context_objects[i] = new_object
-        return new_object
-    end
 end
 
 """
@@ -138,23 +95,13 @@ end
 
 Base.unsafe_convert(::Type{CUcontext}, ctx::CuContext) = ctx.handle
 
-# NOTE: we don't implement `isequal` or `hash` in order to fall back to `===` and `objectid`
-#       as contexts are unique, and with primary device contexts identical handles might be
-#       returned after resetting the context (device) and all associated resources.
-
 function Base.show(io::IO, ctx::CuContext)
-    if ctx.handle != C_NULL
-        fields = [@sprintf("%p", ctx.handle),
-                  "$(ctx.device)",
-                  @sprintf("instance %x", objectid(ctx))]
-        if !isvalid(ctx)
-            push!(fields, "invalidated")
-        end
-
-        print(io, "CuContext(", join(fields, ", "), ")")
-    else
-        print(io, "CuContext(NULL)")
+    fields = [@sprintf("%p", ctx.handle), "id=$(ctx.id)"]
+    if !isvalid(ctx)
+        push!(fields, "invalidated")
     end
+
+    print(io, "CuContext(", join(fields, ", "), ")")
 end
 
 
@@ -211,11 +158,6 @@ struct CuPrimaryContext
     dev::CuDevice
 end
 
-# we need to keep track of contexts derived from primary contexts,
-# so that we can invalidate them when the primary context is reset.
-const derived_contexts = Dict{CuPrimaryContext,CuContext}()
-const derived_lock = ReentrantLock()
-
 """
     CuContext(pctx::CuPrimaryContext)
 
@@ -230,9 +172,7 @@ by using the `do`-block syntax.
 function CuContext(pctx::CuPrimaryContext)
     handle_ref = Ref{CUcontext}()
     cuDevicePrimaryCtxRetain(handle_ref, pctx.dev)
-    ctx = UniqueCuContext(handle_ref[])
-    Base.@lock derived_lock derived_contexts[pctx] = ctx
-    return ctx
+    CuContext(handle_ref[])
 end
 
 function CuContext(f::Function, pctx::CuPrimaryContext)
@@ -251,19 +191,24 @@ Lower the refcount of a context, possibly freeing up all resources associated wi
 does not respect any users of the context, and might make other objects unusable.
 """
 function unsafe_release!(pctx::CuPrimaryContext)
-    if driver_version() >= v"11"
-        cuDevicePrimaryCtxRelease_v2(dev)
-    else
-        cuDevicePrimaryCtxRelease(dev)
+    # get the unique id of the context derived from this primary context
+    # XXX: this does another retain, so we need to release twice
+    ctx = CuContext(pctx)
+
+    for x in 1:2
+        if driver_version() >= v"11"
+            cuDevicePrimaryCtxRelease_v2(pctx.dev)
+        else
+            cuDevicePrimaryCtxRelease(pctx.dev)
+        end
     end
 
     # if this releases the last reference, invalidate all derived contexts
     if !isactive(pctx)
-        ctx = @lock derived_lock get(derived_contexts, pctx, nothing)
-        if ctx !== nothing
-            invalidate!(ctx)
-        end
+        invalidate!(ctx)
     end
+
+    return
 end
 
 """
@@ -274,17 +219,16 @@ in the current process. Note that this forcibly invalidates all contexts derived
 primary context, and as a result outstanding resources might become invalid.
 """
 function unsafe_reset!(pctx::CuPrimaryContext)
+    # get the unique id of the context derived from this primary context
+    ctx = CuContext(pctx)
+
     if driver_version() >= v"11"
         cuDevicePrimaryCtxReset_v2(pctx.dev)
     else
         cuDevicePrimaryCtxReset(pctx.dev)
     end
 
-    # invalidate all derived contexts
-    ctx = @lock derived_lock get(derived_contexts, pctx, nothing)
-    if ctx !== nothing
-        invalidate!(ctx)
-    end
+    invalidate!(ctx)
 
     return
 end
@@ -332,9 +276,10 @@ end
 Returns the device for a context.
 """
 function device(ctx::CuContext)
-    # cuCtxGetDevice assumes the context is current, so instead we store the device
-    # in the context object
-    return ctx.device
+    push!(CuContext, ctx)
+    dev = current_device()
+    pop!(CuContext)
+    return dev
 end
 
 """
