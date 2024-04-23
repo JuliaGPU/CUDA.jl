@@ -495,48 +495,66 @@ end
 mutable struct Managed{M}
   const mem::M
 
-  dirty::Bool         # whether the memory has been modified since the last sync
-  stream::CuStream    # which stream is currently using the memory
+  # which stream is currently using the memory.
+  stream::CuStream
 
-  function Managed(mem::AbstractMemory; dirty=true, stream=CUDA.stream())
+  # whether there are outstanding operations that haven't been synchronized
+  dirty::Bool
+
+  # whether the memory has been captured in a way that would make the dirty bit unreliable
+  captured::Bool
+
+  function Managed(mem::AbstractMemory; stream=CUDA.stream(), dirty=true, captured=false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
-    new{typeof(mem)}(mem, dirty, stream)
+    new{typeof(mem)}(mem, stream, dirty, captured)
   end
 end
 
 # wait for the current owner of memory to finish processing
 function synchronize(managed::Managed)
-  if managed.dirty
-    synchronize(managed.stream)
-    managed.dirty = false
+  synchronize(managed.stream)
+  managed.dirty = false
+end
+function maybe_synchronize(managed::Managed)
+  if managed.dirty || managed.captured
+    synchronize(managed)
   end
 end
 
 function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
   state = active_state()
 
-  # make sure we can access this memory from the current device
+  # accessing memory during stream capture: taint the memory so that we always synchronize
+  if is_capturing(state.stream)
+    managed.captured = true
+  end
+
+  # accessing memory on another device: ensure the data is ready and accessible
   if M == DeviceMemory && state.context != managed.mem.ctx
-    synchronize(managed)
-    origin_device = device(managed.mem.ctx)
-    if maybe_enable_peer_access(state.device, origin_device) != 1
+    maybe_synchronize(managed)
+    source_device = device(managed.mem.ctx)
+
+    # enable peer-to-peer access
+    if maybe_enable_peer_access(state.device, source_device) != 1
         throw(ArgumentError(
             """cannot take the GPU address of inaccessible device memory.
 
-               You are trying to use memory from GPU $(deviceid(origin_device)) while executing on GPU $(deviceid(state.device)).
-               P2P access between these devices is not possible; either switch execution to GPU $(deviceid(origin_device))
-               by calling `CUDA.device!($(deviceid(origin_device)))`, or copy the data to an array allocated on device $(deviceid(state.device))."""))
+               You are trying to use memory from GPU $(deviceid(source_device)) while executing on GPU $(deviceid(state.device)).
+               P2P access between these devices is not possible; either switch execution to GPU $(deviceid(source_device))
+               by calling `CUDA.device!($(deviceid(source_device)))`, or copy the data to an array allocated on device $(deviceid(state.device))."""))
     end
-    if stream_ordered(origin_device)
-      pool = pool_create(origin_device)
+
+    # set pool visibility
+    if stream_ordered(source_device)
+      pool = pool_create(source_device)
       access!(pool, state.device, ACCESS_FLAGS_PROT_READWRITE)
     end
   end
 
-  # wait for other streams working on this memory to finish
+  # accessing memory on another stream: ensure the data is ready and take ownership
   if managed.stream != state.stream
-    synchronize(managed)
+    maybe_synchronize(managed)
     managed.stream = state.stream
   end
 
@@ -545,6 +563,7 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
 end
 
 function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
+  # accessing memory on the CPU: only allowed for host or unified allocations
   if M == DeviceMemory
     throw(ArgumentError(
         """cannot take the CPU address of GPU memory.
