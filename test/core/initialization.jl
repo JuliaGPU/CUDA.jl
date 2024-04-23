@@ -33,23 +33,33 @@ context!(ctx)
 @test context!(()->true, ctx)
 @inferred context!(()->42, ctx)
 
+# setting flags is only possible on a new context
 @test_throws ErrorException device!(0, CUDA.CU_CTX_SCHED_YIELD)
+device_reset!()
+device!(0, CUDA.CU_CTX_SCHED_YIELD)
 
-if CUDA.can_reset_device()
-    # NVIDIA bug #3240770
-    device_reset!()
+# reset on a different task
+let ctx = context()
+    @test CUDA.isvalid(ctx)
+    @test ctx == fetch(@async context())
 
-    device!(0, CUDA.CU_CTX_SCHED_YIELD)
+    @sync @async device_reset!()
 
-    # reset on a different task
-    let ctx = context()
-        @test CUDA.isvalid(ctx)
-        @test ctx == fetch(@async context())
+    @test CUDA.isvalid(context())
+    @test ctx != context()
+end
 
-        @sync @async device_reset!()
-
-        @test CUDA.isvalid(context())
-        @test ctx != context()
+# ensure that resetting the device really does get rid of the context
+if has_nvml()
+    pid = getpid()
+    try
+        nvml_dev = NVML.Device(uuid(device()))
+        @test haskey(NVML.compute_processes(nvml_dev), pid)
+        device_reset!()
+        @test !haskey(NVML.compute_processes(nvml_dev), pid)
+    catch err
+        isa(err, NVML.NVMLError) || rethrow()
+        err.code in [NVML.ERROR_NOT_SUPPORTED, NVML.ERROR_NO_PERMISSION] || rethrow()
     end
 end
 

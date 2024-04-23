@@ -302,10 +302,6 @@ function device!(f::Function, dev::CuDevice)
     context!(f, ctx)
 end
 
-# NVIDIA bug #3240770
-can_reset_device() = !(Base.thisminor(driver_version()) == v"11.2" &&
-                       any(dev->stream_ordered(dev), devices()))
-
 """
     device_reset!(dev::CuDevice=device())
 
@@ -313,11 +309,6 @@ Reset the CUDA state associated with a device. This call with release the underl
 context, at which point any objects allocated in that context will be invalidated.
 """
 function device_reset!(dev::CuDevice=device())
-    if !can_reset_device()
-        @error "Due to a bug in CUDA, resetting the device is not possible on CUDA 11.2 when using the stream-ordered memory allocator."
-        return
-    end
-
     # unconditionally reset the primary context (don't just release it),
     # as there might be users outside of CUDA.jl
     pctx = CuPrimaryContext(dev)
