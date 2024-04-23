@@ -662,9 +662,6 @@ Releases memory to the pool. If possible, this operation will not block but will
 against the stream that last used the memory.
 """
 @inline function pool_free(managed::Managed{<:AbstractMemory})
-  # ensure this allocation is still alive
-  isvalid(managed.mem.ctx) || return
-  isvalid(managed.stream) || return
   mem = managed.mem
 
   # 0-byte allocations shouldn't hit the pool
@@ -674,9 +671,7 @@ against the stream that last used the memory.
   # this function is typically called from a finalizer, where we can't switch tasks,
   # so perform our own error handling.
   try
-    time = Base.@elapsed context!(mem.ctx) do
-      _pool_free(mem, managed.stream)
-    end
+    time = Base.@elapsed _pool_free(mem, managed.stream)
 
     Base.@atomic alloc_stats.free_count += 1
     Base.@atomic alloc_stats.free_bytes += sz
@@ -690,20 +685,23 @@ against the stream that last used the memory.
   return
 end
 @inline function _pool_free(mem::DeviceMemory, stream::CuStream)
-    # verify that the caller has switched contexts
-    if mem.ctx != context()
-      error("Trying to free $mem from an unrelated context")
-    end
-
-    dev = device()
-    if stream_ordered(dev)
-      # for safety, we default to the default stream and force this operation to be ordered
-      # against all other streams. to opt out of this, pass a specific stream instead.
-      free(mem; stream)
+    if mem.async
+      # stream-ordered allocations are not tied to a context. we always need to free them,
+      # and if the owning context (or stream) was destroyed, use a new (or default) one.
+      if isvalid(mem.ctx) && isvalid(stream)
+        context!(mem.ctx) do
+          free(mem; stream)
+        end
+      else
+        free(mem; stream=default_stream())
+      end
     else
-      free(mem)
+      # regular allocations are tied to a context, so ignore if the context was destroyed
+      context!(mem.ctx; skip_destroyed=true) do
+        free(mem)
+      end
     end
-    account!(memory_stats(dev), -sizeof(mem))
+    account!(memory_stats(device(mem.ctx)), -sizeof(mem))
 end
 @inline _pool_free(mem::UnifiedMemory, stream::CuStream) = free(mem)
 @inline _pool_free(mem::HostMemory, stream::CuStream) = free(mem)
