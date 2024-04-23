@@ -10,10 +10,10 @@ export
 Create a CUDA stream.
 """
 mutable struct CuStream
-    handle::CUstream
-    valid::Bool
+    const handle::CUstream
+    Base.@atomic valid::Bool
 
-    ctx::CuContext
+    const ctx::CuContext
 
     function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
                         priority::Union{Nothing,Integer}=nothing)
@@ -87,7 +87,7 @@ function unsafe_destroy!(s::CuStream)
     context!(s.ctx; skip_destroyed=true) do
         cuStreamDestroy_v2(s)
     end
-    s.valid = false
+    Base.@atomic s.valid = false
 end
 
 function Base.show(io::IO, stream::CuStream)
