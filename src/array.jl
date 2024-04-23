@@ -582,6 +582,10 @@ end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, doffs,
                              src::Array{T}, soffs, n) where T
+  # maintain stream-ordered semantics: even though the pointer conversion should sync when
+  # needed, it's possible that misses captured memory, so ensure copying is always correct.
+  synchronize(dest)
+
   GC.@preserve src dest begin
     ptr = pointer(src, soffs)
     unsafe_copyto!(pointer(dest, doffs; type=HostMemory), ptr, n)
@@ -595,6 +599,10 @@ end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs,
                              src::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, soffs, n) where T
+  # maintain stream-ordered semantics: even though the pointer conversion should sync when
+  # needed, it's possible that misses captured memory, so ensure copying is always correct.
+  synchronize(src)
+
   GC.@preserve src dest begin
     ptr = pointer(dest, doffs)
     unsafe_copyto!(ptr, pointer(src, soffs; type=HostMemory), n)
