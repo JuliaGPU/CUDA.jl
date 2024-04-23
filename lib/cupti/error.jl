@@ -106,3 +106,5 @@ function description(err)
     end
 end
 ## COV_EXCL_STOP
+
+@enum_without_prefix CUptiResult CUPTI_
