@@ -31,6 +31,7 @@ Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, mem::AbstractMemory)
 Device memory residing on the GPU.
 """
 struct DeviceMemory <: AbstractMemory
+    dev::CuDevice
     ctx::CuContext
     ptr::CuPtr{Cvoid}
     bytesize::Int
@@ -38,7 +39,7 @@ struct DeviceMemory <: AbstractMemory
     async::Bool
 end
 
-DeviceMemory() = DeviceMemory(context(), CU_NULL, 0, false)
+DeviceMemory() = DeviceMemory(device(), context(), CU_NULL, 0, false)
 
 Base.pointer(mem::DeviceMemory) = mem.ptr
 Base.sizeof(mem::DeviceMemory) = mem.bytesize
@@ -75,7 +76,7 @@ function alloc(::Type{DeviceMemory}, bytesize::Integer;
         cuMemAlloc_v2(ptr_ref, bytesize)
     end
 
-    return DeviceMemory(context(), reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, async)
+    return DeviceMemory(device(), context(), reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, async)
 end
 
 function free(mem::DeviceMemory; stream::Union{Nothing,CuStream}=nothing)

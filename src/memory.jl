@@ -533,7 +533,7 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
   # accessing memory on another device: ensure the data is ready and accessible
   if M == DeviceMemory && state.context != managed.mem.ctx
     maybe_synchronize(managed)
-    source_device = device(managed.mem.ctx)
+    source_device = managed.mem.dev
 
     # enable peer-to-peer access
     if maybe_enable_peer_access(state.device, source_device) != 1
@@ -701,7 +701,7 @@ end
         free(mem)
       end
     end
-    account!(memory_stats(device(mem.ctx)), -sizeof(mem))
+    account!(memory_stats(mem.dev), -sizeof(mem))
 end
 @inline _pool_free(mem::UnifiedMemory, stream::CuStream) = free(mem)
 @inline _pool_free(mem::HostMemory, stream::CuStream) = free(mem)
