@@ -174,7 +174,8 @@ macro debug_ccall(ex)
 end
 
 render_arg(io, arg) = print(io, arg)
-render_arg(io, arg::Union{<:Base.RefValue, AbstractArray}) = summary(io, arg)
+render_arg(io, arg::AbstractArray) = summary(io, arg)
+render_arg(io, arg::Base.RefValue{T}) where {T} = print(io, "Ref{", T, "}")
 
 
 ## version of ccall that calls jl_gc_safe_enter|leave around the inner ccall
