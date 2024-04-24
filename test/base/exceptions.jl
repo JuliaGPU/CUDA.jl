@@ -16,7 +16,7 @@ script = """
 
     cpu = zeros(Int)
     gpu = CuArray(cpu)
-    @cuda kernel(gpu, 1.2)
+    @cuda threads=2 kernel(gpu, 1.3)
     synchronize()
 
     # FIXME: on some platforms (Windows...), for some users, the exception flag change
@@ -29,7 +29,6 @@ script = """
 
 # NOTE: kernel exceptions aren't always caught on the CPU as a KernelException.
 #       on older devices, we emit a `trap` which causes a CUDA error...
-#
 
 let (proc, out, err) = julia_exec(`-g0 -e $script`)
     @test !success(proc)
@@ -41,14 +40,14 @@ end
 let (proc, out, err) = julia_exec(`-g1 -e $script`)
     @test !success(proc)
     @test occursin(host_error_re, err)
-    @test occursin(device_error_re, out)
+    @test count(device_error_re, out) == 1
     @test occursin("run Julia on debug level 2", out)
 end
 
 let (proc, out, err) = julia_exec(`-g2 -e $script`)
     @test !success(proc)
     @test occursin(host_error_re, err)
-    @test occursin(device_error_re, out)
+    @test count(device_error_re, out) == 1
     @test occursin("[1] Int64 at $(joinpath(".", "float.jl"))", out)
     @test occursin("[4] kernel at $(joinpath(".", "none"))", out)
 end
