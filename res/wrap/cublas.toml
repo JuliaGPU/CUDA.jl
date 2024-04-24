@@ -797,3 +797,6 @@ needs_context = false
 6 = "PtrOrCuPtr{Cvoid}"
 7 = "CuPtr{Cvoid}"
 9 = "CuPtr{Cvoid}"
+
+[api.cublasLtMatmulDescSetAttribute]
+3 = "PtrOrCuPtr{Cvoid}"
