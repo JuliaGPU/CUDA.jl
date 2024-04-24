@@ -84,8 +84,8 @@ function run(a, b)
     results = Vector{Any}(undef, 2)
 
     # pre-allocate and pin destination CPU memory
-    results[1] = Mem.pin(Array{eltype(a)}(undef, size(a)))
-    results[2] = Mem.pin(Array{eltype(a)}(undef, size(a)))
+    results[1] = CUDA.pin(Array{eltype(a)}(undef, size(a)))
+    results[2] = CUDA.pin(Array{eltype(a)}(undef, size(a)))
 
     # computation
     @sync begin

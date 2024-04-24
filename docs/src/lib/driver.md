@@ -106,38 +106,72 @@ CuModule(::CuLinkImage, args...)
 
 ## Memory Management
 
-Three kinds of memory buffers can be allocated: device memory, host memory, and unified
-memory. Each of these buffers can be allocated by calling `alloc` with the type of buffer as
-first argument, and freed by calling `free`. Certain buffers have specific methods defined.
+Different kinds of memory objects can be created, representing different kinds of memory
+that the CUDA toolkit supports. Each of these memory objects can be allocated by calling
+`alloc` with the type of memory as first argument, and freed by calling `free`. Certain
+kinds of memory have specific methods defined.
+
+### Device memory
+
+This memory is accessible only by the GPU, and is the most common kind of memory used in
+CUDA programming.
 
 ```@docs
-Mem.DeviceBuffer
-Mem.alloc(::Type{Mem.DeviceBuffer}, ::Integer)
+CUDA.DeviceMemory
+CUDA.alloc(::Type{CUDA.DeviceMemory}, ::Integer)
 ```
 
+### Unified memory
+
+Unified memory is accessible by both the CPU and the GPU, and is managed by the CUDA
+runtime. It is automatically migrated between the CPU and the GPU as needed, which
+simplifies programming but can lead to performance issues if not used carefully.
+
 ```@docs
-Mem.HostBuffer
-Mem.alloc(::Type{Mem.HostBuffer}, ::Integer, flags)
-Mem.register(::Type{Mem.HostBuffer}, ::Ptr, ::Integer, flags)
-Mem.unregister(::Mem.HostBuffer)
+CUDA.UnifiedMemory
+CUDA.alloc(::Type{CUDA.UnifiedMemory}, ::Integer, ::CUDA.CUmemAttach_flags)
+CUDA.prefetch(::CUDA.UnifiedMemory, bytes::Integer; device, stream)
+CUDA.advise(::CUDA.UnifiedMemory, ::CUDA.CUmem_advise, ::Integer; device)
 ```
 
+### Host memory
+
+Host memory resides on the CPU, but is accessible by the GPU via the PCI bus. This is the
+slowest kind of memory, but is useful for communicating between running kernels and the
+host (e.g., to update counters or flags).
+
 ```@docs
-Mem.UnifiedBuffer
-Mem.alloc(::Type{Mem.UnifiedBuffer}, ::Integer, ::CUDA.CUmemAttach_flags)
-Mem.prefetch(::Mem.UnifiedBuffer, bytes::Integer; device, stream)
-Mem.advise(::Mem.UnifiedBuffer, ::CUDA.CUmem_advise, ::Integer; device)
+CUDA.HostMemory
+CUDA.alloc(::Type{CUDA.HostMemory}, ::Integer, flags)
+CUDA.register(::Type{CUDA.HostMemory}, ::Ptr, ::Integer, flags)
+CUDA.unregister(::CUDA.HostMemory)
 ```
 
-To work with these buffers, you need to `convert` them to a `Ptr` or `CuPtr`. Several
-methods then work with these raw pointers:
+### Array memory
 
-
-
-### Memory info
+Array memory is a special kind of memory that is optimized for 2D and 3D access patterns. The memory is opaquely managed by the CUDA runtime, and is typically only used on combination with texture intrinsics.
 
 ```@docs
-CUDA.memory_status
+CUDA.ArrayMemory
+CUDA.alloc(::Type{CUDA.ArrayMemory{T}}, ::Dims) where T
+```
+
+### Pointers
+
+To work with these buffers, you need to `convert` them to a `Ptr`, `CuPtr`, or in the case
+of `ArrayMemory` an `CuArrayPtr`. You can then use common Julia methods on these pointers,
+such as `unsafe_copyto!`. CUDA.jl also provides some specialized functionality that does not
+match standard Julia functionality:
+
+```@docs
+CUDA.unsafe_copy2d!
+CUDA.unsafe_copy3d!
+CUDA.memset
+```
+
+### Other
+
+```@docs
 CUDA.free_memory
 CUDA.total_memory
 ```

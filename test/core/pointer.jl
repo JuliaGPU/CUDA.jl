@@ -41,7 +41,7 @@ ccall(:clock, Nothing, (Ptr{Int},), a)
 @test_throws Exception ccall(:clock, Nothing, (CuPtr{Int},), a)
 ccall(:clock, Nothing, (PtrOrCuPtr{Int},), a)
 
-data = GPUArrays.DataRef((args...) -> (#=do nothing=#), Mem.DeviceBuffer())
+data = GPUArrays.DataRef(Returns(nothing), CUDA.Managed(CUDA.DeviceMemory()))
 b = CuArray{eltype(a), ndims(a)}(data, size(a))
 ccall(:clock, Nothing, (CuPtr{Int},), b)
 @test_throws Exception ccall(:clock, Nothing, (Ptr{Int},), b)

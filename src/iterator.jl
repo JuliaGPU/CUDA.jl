@@ -13,11 +13,11 @@ an adaptor can be specified as the first argument, e.g., to change the element t
 
 ```julia
 julia> first(CuIterator([[1.]]))
-1-element CuArray{Float64, 1, CUDA.Mem.DeviceBuffer}:
+1-element CuArray{Float64, 1, CUDA.DeviceMemory}:
  1.0
 
 julia> first(CuIterator(CuArray{Float32}, [[1.]]))
-1-element CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}:
+1-element CuArray{Float32, 1, CUDA.DeviceMemory}:
  1.0
 ```
 

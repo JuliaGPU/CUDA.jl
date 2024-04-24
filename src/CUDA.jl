@@ -43,6 +43,8 @@ using Libdl
 
 import NVTX
 
+using Printf
+
 
 ## source code includes
 
@@ -68,7 +70,7 @@ include("device/random.jl")
 include("device/quirks.jl")
 
 # array essentials
-include("pool.jl")
+include("memory.jl")
 include("array.jl")
 
 # compiler libraries
@@ -125,7 +127,7 @@ export CUDABackend
 # StaticArrays is still a direct dependency, so directly include the extension
 include("../ext/StaticArraysExt.jl")
 
-include("deprecated.jl")
 include("precompile.jl")
+include("deprecated.jl")
 
 end
