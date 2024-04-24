@@ -6325,7 +6325,7 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasLtMatmulDescSetAttribute(matmulDesc::cublasLtMatmulDesc_t,
                                                            attr::cublasLtMatmulDescAttributes_t,
-                                                           buf::Ptr{Cvoid},
+                                                           buf::PtrOrCuPtr{Cvoid},
                                                            sizeInBytes::Csize_t)::cublasStatus_t
 end
 
