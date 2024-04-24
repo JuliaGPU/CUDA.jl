@@ -269,6 +269,11 @@ end
 
 ## array memory
 
+"""
+    ArrayMemory
+
+Array memory residing on the GPU, possibly in a specially-formatted way.
+"""
 mutable struct ArrayMemory{T,N} <: AbstractMemory
     ctx::CuContext
     ptr::CuArrayPtr{T}
@@ -293,6 +298,12 @@ Base.convert(::Type{CuArrayPtr{T}}, mem::ArrayMemory{T}) where {T} =
 Base.convert(::Type{CuArrayPtr{Nothing}}, mem::ArrayMemory)  =
     convert(CuArrayPtr{Nothing}, pointer(mem))
 
+"""
+    alloc(ArrayMemory, dims::Dims)
+
+Allocate array memory with dimensions `dims`. The memory is accessible on the GPU, but
+can only be used in conjunction with special intrinsics (e.g., texture intrinsics).
+"""
 function alloc(::Type{<:ArrayMemory{T}}, dims::Dims{N}) where {T,N}
     format = convert(CUarray_format, eltype(T))
 
@@ -450,12 +461,23 @@ Base.unsafe_copyto!(dst::CuArrayPtr, src, N::Integer; kwargs...) =
 Base.unsafe_copyto!(dst, src::CuArrayPtr, N::Integer; kwargs...) =
     Base.unsafe_copyto!(dst, src, 0, N; kwargs...)
 
+"""
+    unsafe_copy2d!(dst, dstTyp, src, srcTyp, width, height=1;
+                   dstPos=(1,1), dstPitch=0,
+                   srcPos=(1,1), srcPitch=0,
+                   async=false, stream=nothing)
+
+Perform a 2D memory copy between pointers `src` and `dst`, at respectively position `srcPos`
+and `dstPos` (1-indexed). Pitch can be specified for both the source and destination;
+consult the CUDA documentation for more details. This call is executed asynchronously if
+`async` is set, otherwise `stream` is synchronized.
+"""
 function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:AbstractMemory},
                         src::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, srcTyp::Type{<:AbstractMemory},
                         width::Integer, height::Integer=1;
-                        dstPos::CuDim=(1,1), srcPos::CuDim=(1,1),
-                        dstPitch::Integer=0, srcPitch::Integer=0,
-                        async::Bool=false, stream::CuStream=stream()) where T
+                        dstPos::CuDim=(1,1), dstPitch::Integer=0,
+                        srcPos::CuDim=(1,1), srcPitch::Integer=0,
+                        async::Bool=false, stream::CuStream=CUDA.stream()) where T
     srcPos = CuDim3(srcPos)
     @assert srcPos.z == 1
     dstPos = CuDim3(dstPos)
@@ -529,8 +551,8 @@ end
                    async=false, stream=nothing)
 
 Perform a 3D memory copy between pointers `src` and `dst`, at respectively position `srcPos`
-and `dstPos` (1-indexed). Both pitch and destination can be specified for both the source
-and destination; consult the CUDA documentation for more details. This call is executed
+and `dstPos` (1-indexed). Both pitch and height can be specified for both the source and
+destination; consult the CUDA documentation for more details. This call is executed
 asynchronously if `async` is set, otherwise `stream` is synchronized.
 """
 function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:AbstractMemory},
