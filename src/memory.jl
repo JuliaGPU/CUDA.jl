@@ -577,7 +577,7 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
   end
 
   # make sure any work on the memory has finished.
-  synchronize(managed)
+  maybe_synchronize(managed)
   convert(Ptr{T}, managed.mem)
 end
 
