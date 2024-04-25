@@ -3,7 +3,7 @@ steps:
   - group: ":skull: sortfail"
     key: "sortfail"
     steps:
-      - label: "Julia {{matrix.julia}}"
+      - label: "xxxx"
         plugins:
           - JuliaCI/julia#v1:
               version: "{{matrix.julia}}"
