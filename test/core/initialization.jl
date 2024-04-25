@@ -51,7 +51,9 @@ end
 if has_nvml()
     pid = getpid()
     try
-        nvml_dev = NVML.Device(uuid(device()))
+        cuda_dev = device()
+        mig = uuid(cuda_dev) != parent_uuid(cuda_dev)
+        nvml_dev = NVML.Device(uuid(cuda_dev); mig)
         @test haskey(NVML.compute_processes(nvml_dev), pid)
         device_reset!()
         @test !haskey(NVML.compute_processes(nvml_dev), pid)
