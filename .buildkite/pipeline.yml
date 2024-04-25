@@ -16,8 +16,7 @@ steps:
                 - examples
         agents:
           queue: "juliagpu"
-          cuda: 
-            - "12.3"
+          cuda: "*"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
         if: build.message !~ /\[skip tests\]/ && build.message !~ /\[skip julia\]/
@@ -26,6 +25,8 @@ steps:
           setup:
             julia:
               - "1.8"
+              - "1.9"
+              - "1.10"
               
   # first, test supported Julia versions (using local CUDA as installed on the system)
   - group: ":julia: Julia"
