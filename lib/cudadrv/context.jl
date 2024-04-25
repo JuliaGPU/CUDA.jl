@@ -54,7 +54,7 @@ has no context bound to it, or if the bound context has been destroyed.
     This is a low-level API, returning the current context as known to the CUDA driver.
     For most users, it is recommended to use the [`context`](@ref) method instead.
 """
-global function current_context()
+function current_context()
     handle_ref = Ref{CUcontext}()
     cuCtxGetCurrent(handle_ref)
     handle_ref[] == C_NULL && throw(UndefRefError())

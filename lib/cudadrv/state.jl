@@ -93,9 +93,7 @@ end
 @inline function prepare_cuda_state()
     state = task_local_state!()
 
-    # NOTE: current_context() is too slow to use here (taking a lock, accessing a dict)
-    #       so we use the raw handle. is that safe though, when we reset the device?
-    #ctx = current_context()
+    # current_context() is too slow to use here (as it also calls cuCtxGetId)
     ctx = Ref{CUcontext}()
     cuCtxGetCurrent(ctx)
     if ctx[] != state.context.handle
