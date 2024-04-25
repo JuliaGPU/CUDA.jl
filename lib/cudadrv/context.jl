@@ -56,7 +56,7 @@ has no context bound to it, or if the bound context has been destroyed.
 """
 global function current_context()
     handle_ref = Ref{CUcontext}()
-    @inline cuCtxGetCurrent(handle_ref) # JuliaGPU/CUDA.jl#2347
+    cuCtxGetCurrent(handle_ref)
     handle_ref[] == C_NULL && throw(UndefRefError())
     CuContext(handle_ref[])
 end

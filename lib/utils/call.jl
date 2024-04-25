@@ -25,8 +25,12 @@ macro checked(ex)
     body = ex.args[2]
     @assert Meta.isexpr(body, :block)
 
+    # make sure these functions are inlined
+    pushfirst!(body.args, Expr(:meta, :inline))
+
     # generate a "safe" version that performs a check
     safe_body = quote
+        @inline
         check() do
             $body
         end
@@ -218,11 +222,8 @@ function ccall_macro_lower(func, rettype, types, args, nreq)
     end
 
     quote
-        # the added operations push our simple ccall wrappers over the inlining limit
         @inline
-
         $(cconvert_exprs...)
-
         GC.@preserve $(cconvert_args...) $(call)
     end
 end
