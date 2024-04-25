@@ -196,9 +196,7 @@ function ccall_macro_lower(func, rettype, types, args, nreq)
     for (typ, arg) in zip(types, args)
         var = gensym("$(func)_cconvert")
         push!(cconvert_args, var)
-        push!(cconvert_exprs, quote
-            $var = Base.cconvert($(esc(typ)), $(esc(arg)))
-        end)
+        push!(cconvert_exprs, :($var = Base.cconvert($(esc(typ)), $(esc(arg)))))
     end
 
     unsafe_convert_exprs = []
@@ -206,9 +204,7 @@ function ccall_macro_lower(func, rettype, types, args, nreq)
     for (typ, arg) in zip(types, cconvert_args)
         var = gensym("$(func)_unsafe_convert")
         push!(unsafe_convert_args, var)
-        push!(unsafe_convert_exprs, quote
-            $var = Base.unsafe_convert($(esc(typ)), $arg)
-        end)
+        push!(unsafe_convert_exprs, :($var = Base.unsafe_convert($(esc(typ)), $arg)))
     end
 
     call = quote
@@ -222,9 +218,12 @@ function ccall_macro_lower(func, rettype, types, args, nreq)
     end
 
     quote
+        # the added operations push our simple ccall wrappers over the inlining limit
+        @inline
+
         $(cconvert_exprs...)
 
-        GC.@preserve $(cconvert_args...)  $(call)
+        GC.@preserve $(cconvert_args...) $(call)
     end
 end
 

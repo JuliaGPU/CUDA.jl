@@ -23,7 +23,7 @@ function initialize_context()
     end
 end
 
-function check(f)
+@inline function check(f)
     res = f()
     if res != NVML_SUCCESS
         throw_api_error(res)

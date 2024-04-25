@@ -177,3 +177,11 @@ end
     proc, out, err = julia_exec(`-e $script`, "CUDA_VISIBLE_DEVICES"=>"-1")
     @test success(proc)
 end
+
+
+## allocations
+
+@test @allocated(current_context()) == 0
+@test @allocated(context()) == 0
+@test @allocated(stream()) == 0
+@test @allocated(device()) == 0
