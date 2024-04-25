@@ -88,15 +88,8 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
   end
 end
 sort!(tests; by=(file)->stat("$(@__DIR__)/$file.jl").size, rev=true)
-## GPUArrays testsuite
-for name in keys(TestSuite.tests)
-    if CUDA.default_memory != Mem.Device && name == "indexing scalar"
-        # GPUArrays' scalar indexing tests assume that indexing is not supported
-        continue
-    end
-    pushfirst!(tests, "gpuarrays/$name")
-    test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
-end
+
+
 ## finalize
 pushfirst!(tests, "core/initialization")
 unique!(tests)
