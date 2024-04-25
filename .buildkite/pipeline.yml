@@ -18,7 +18,6 @@ steps:
           queue: "juliagpu"
           cuda: 
             - "12.3"
-          gpu: "a100"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
         if: build.message !~ /\[skip tests\]/ && build.message !~ /\[skip julia\]/
