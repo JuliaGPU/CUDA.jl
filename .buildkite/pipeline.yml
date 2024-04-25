@@ -23,6 +23,8 @@ steps:
         timeout_in_minutes: 60
         matrix:
           setup:
+            cuda: 
+              - "12.3"
             julia:
               - "1.8"
               - "1.9"
