@@ -10,13 +10,13 @@ script = """
     using CUDA
 
     function kernel(arr, val)
-        arr[1] = val
+        arr[threadIdx().x] = val
         return
     end
 
     cpu = zeros(Int)
     gpu = CuArray(cpu)
-    @cuda kernel(gpu, 1.2)
+    @cuda threads=3 kernel(gpu, 1)
     synchronize()
 
     # FIXME: on some platforms (Windows...), for some users, the exception flag change
@@ -29,7 +29,6 @@ script = """
 
 # NOTE: kernel exceptions aren't always caught on the CPU as a KernelException.
 #       on older devices, we emit a `trap` which causes a CUDA error...
-#
 
 let (proc, out, err) = julia_exec(`-g0 -e $script`)
     @test !success(proc)
@@ -41,16 +40,20 @@ end
 let (proc, out, err) = julia_exec(`-g1 -e $script`)
     @test !success(proc)
     @test occursin(host_error_re, err)
-    @test occursin(device_error_re, out)
-    @test occursin("run Julia on debug level 2", out)
+    @test count(device_error_re, out) == 1
+    @test count("BoundsError", out) == 1
+    @test count("Out-of-bounds array access", out) == 1
+    @test occursin("Stacktrace not available", out)
 end
 
 let (proc, out, err) = julia_exec(`-g2 -e $script`)
     @test !success(proc)
     @test occursin(host_error_re, err)
-    @test occursin(device_error_re, out)
-    @test occursin("[1] Int64 at $(joinpath(".", "float.jl"))", out)
-    @test occursin("[4] kernel at $(joinpath(".", "none"))", out)
+    @test count(device_error_re, out) == 1
+    @test count("BoundsError", out) == 1
+    @test count("Out-of-bounds array access", out) == 1
+    @test occursin("] checkbounds at $(joinpath(".", "abstractarray.jl"))", out)
+    @test occursin("] kernel at $(joinpath(".", "none"))", out)
 end
 
 end
