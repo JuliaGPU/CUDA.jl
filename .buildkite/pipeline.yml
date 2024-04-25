@@ -30,6 +30,7 @@ steps:
   # first, test supported Julia versions (using local CUDA as installed on the system)
   - group: ":julia: Julia"
     key: "julia"
+    depends_on: "xxxx"
     steps:
       - label: "Julia {{matrix.julia}}"
         plugins:
