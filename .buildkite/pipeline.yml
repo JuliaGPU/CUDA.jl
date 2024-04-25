@@ -1,6 +1,6 @@
 steps:
   # zero-th, try to get sort to fail
-  - group: ":julia: Julia"
+  - group: ":skull: sortfail"
     key: "julia"
     steps:
       - label: "Julia {{matrix.julia}}"
