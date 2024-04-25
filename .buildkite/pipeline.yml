@@ -1,39 +1,7 @@
 steps:
-  # zero-th, try to get sort to fail
-  - group: ":skull: sortfail"
-    key: "sortfail"
-    steps:
-      - label: "sortfail"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "{{matrix.julia}}"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail"
-          - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
-        agents:
-          queue: "juliagpu"
-          cuda: "*"
-        commands: |
-          echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
-        if: build.message !~ /\[skip tests\]/ && build.message !~ /\[skip julia\]/
-        timeout_in_minutes: 60
-        matrix:
-          setup:
-            cuda: 
-              - "12.3"
-            julia:
-              - "1.8"
-              - "1.9"
-              - "1.10"
-              
   # first, test supported Julia versions (using local CUDA as installed on the system)
   - group: ":julia: Julia"
     key: "julia"
-    depends_on: "sortfail"
     steps:
       - label: "Julia {{matrix.julia}}"
         plugins:
