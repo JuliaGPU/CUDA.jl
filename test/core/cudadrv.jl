@@ -6,6 +6,7 @@ synchronize()
 
 ctx = current_context()
 @test CUDA.isvalid(ctx)
+@test unique_id(ctx) > 0
 
 dev = current_device()
 exclusive = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
@@ -843,6 +844,7 @@ end
 @testset "stream" begin
 
 s = CuStream()
+@test unique_id(s) > 0
 synchronize(s)
 @test CUDA.isdone(s)
 

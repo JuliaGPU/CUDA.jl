@@ -23,7 +23,7 @@ deletion, or use do-block syntax with this constructor.
 """
 struct CuContext
     handle::CUcontext
-    id::Int
+    id::UInt64
 
     function CuContext(handle::CUcontext)
         handle == C_NULL && throw(UndefRefError())
@@ -99,6 +99,12 @@ end
 
 
 ## core context API
+
+function unique_id(ctx::CuContext)
+    id_ref = Ref{Culonglong}()
+    cuCtxGetId(ctx, id_ref)
+    return id_ref[]
+end
 
 """
     push!(CuContext, ctx::CuContext)

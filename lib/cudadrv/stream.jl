@@ -101,9 +101,9 @@ function Base.show(io::IO, stream::CuStream)
 end
 
 function unique_id(s::CuStream)
-    id = Ref{Culonglong}()
-    cuStreamGetId(s, id)
-    return id[]
+    id_ref = Ref{Culonglong}()
+    cuStreamGetId(s, id_ref)
+    return id_ref[]
 end
 
 """
