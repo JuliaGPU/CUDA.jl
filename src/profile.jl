@@ -687,7 +687,7 @@ function Base.show(io::IO, results::ProfileResults)
             # filter spammy API calls
             filter(results.host) do row
                 !in(row.name, [# context and stream queries we use for nonblocking sync
-                               "cuCtxGetCurrent", "cuStreamQuery",
+                               "cuCtxGetCurrent", "cuCtxGetId", "cuStreamQuery",
                                # occupancy API, done before every kernel launch
                                "cuOccupancyMaxPotentialBlockSize",
                                # driver pointer set-up
