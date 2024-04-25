@@ -3,7 +3,7 @@ steps:
   - group: ":skull: sortfail"
     key: "sortfail"
     steps:
-      - label: "xxxx"
+      - label: "sortfail"
         plugins:
           - JuliaCI/julia#v1:
               version: "{{matrix.julia}}"
@@ -16,7 +16,8 @@ steps:
                 - examples
         agents:
           queue: "juliagpu"
-          cuda: "12.3"
+          cuda: 
+            - "12.3"
           gpu: "a100"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
@@ -30,7 +31,7 @@ steps:
   # first, test supported Julia versions (using local CUDA as installed on the system)
   - group: ":julia: Julia"
     key: "julia"
-    depends_on: "xxxx"
+    depends_on: "sortfail"
     steps:
       - label: "Julia {{matrix.julia}}"
         plugins:
