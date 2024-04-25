@@ -10,8 +10,6 @@ export
 
 @enum_without_prefix CUctx_flags CU_
 
-const MAX_CONTEXTS = 1024
-
 """
     CuContext(dev::CuDevice, flags=CTX_SCHED_AUTO)
     CuContext(f::Function, ...)
@@ -34,14 +32,8 @@ struct CuContext
         res = unchecked_cuCtxGetId(handle, id_ref)
         res == ERROR_CONTEXT_IS_DESTROYED && throw(UndefRefError())
         res != SUCCESS && throw_api_error(res)
-        id = id_ref[]
 
-        if id > MAX_CONTEXTS
-            throw(ArgumentError("""too many contexts created ($id > $MAX_CONTEXTS).
-                                   This is unexpected; please file an issue."""))
-        end
-
-        new(handle, id)
+        new(handle, id_ref[])
     end
 end
 
@@ -69,15 +61,17 @@ global function current_context()
     CuContext(handle_ref[])
 end
 
-# we need to know when a context has been destroyed, to make sure we don't destroy resources
-# after the owning context has been destroyed already. handles of contexts can be reused,
-# but their unique IDs aren't, so use that to index a list of validity bits.
-const context_validity = BitArray(undef, MAX_CONTEXTS)
-isvalid(ctx::CuContext) = @inbounds context_validity[ctx.id]
-function invalidate!(ctx::CuContext)
-    # XXX: this is racy, but it's unlikely that multiple threads would hit this
-    @inbounds context_validity[ctx.id] = false
-    return
+function isvalid(ctx::CuContext)
+    # we first try an API call to see if the context handle is usable
+    id_ref = Ref{Culonglong}()
+    res = unchecked_cuCtxGetId(ctx, id_ref)
+    res == ERROR_CONTEXT_IS_DESTROYED && return false
+    res != SUCCESS && throw_api_error(res)
+
+    # do detect handle reuse, which happens when destroying and re-creating a context,
+    # we ensure that the id for the current version of this context matches the id we
+    # saved during construction of the original object
+    return ctx.id == id_ref[]
 end
 
 """
@@ -89,7 +83,6 @@ respect any users of the context, and might make other objects unusable.
 function unsafe_destroy!(ctx::CuContext)
     if isvalid(ctx)
         cuCtxDestroy_v2(ctx)
-        invalidate!(ctx)
     end
 end
 
@@ -191,21 +184,10 @@ Lower the refcount of a context, possibly freeing up all resources associated wi
 does not respect any users of the context, and might make other objects unusable.
 """
 function unsafe_release!(pctx::CuPrimaryContext)
-    # get the unique id of the context derived from this primary context
-    # XXX: this does another retain, so we need to release twice
-    ctx = CuContext(pctx)
-
-    for x in 1:2
-        if driver_version() >= v"11"
-            cuDevicePrimaryCtxRelease_v2(pctx.dev)
-        else
-            cuDevicePrimaryCtxRelease(pctx.dev)
-        end
-    end
-
-    # if this releases the last reference, invalidate all derived contexts
-    if !isactive(pctx)
-        invalidate!(ctx)
+    if driver_version() >= v"11"
+        cuDevicePrimaryCtxRelease_v2(pctx.dev)
+    else
+        cuDevicePrimaryCtxRelease(pctx.dev)
     end
 
     return
@@ -219,16 +201,11 @@ in the current process. Note that this forcibly invalidates all contexts derived
 primary context, and as a result outstanding resources might become invalid.
 """
 function unsafe_reset!(pctx::CuPrimaryContext)
-    # get the unique id of the context derived from this primary context
-    ctx = CuContext(pctx)
-
     if driver_version() >= v"11"
         cuDevicePrimaryCtxReset_v2(pctx.dev)
     else
         cuDevicePrimaryCtxReset(pctx.dev)
     end
-
-    invalidate!(ctx)
 
     return
 end
