@@ -41,8 +41,8 @@ end
 
 end
 
-# FIXME: these trample over our globally-managed context
 
+if CUDA.driver_version() >= v"12"
 @testset "primary context" begin
 
 # we need to start from scratch for these tests
@@ -100,6 +100,7 @@ let
     unsafe_reset!(pctx)
 end
 
+end
 end
 
 

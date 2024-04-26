@@ -28,12 +28,17 @@ struct CuContext
     function CuContext(handle::CUcontext)
         handle == C_NULL && throw(UndefRefError())
 
-        id_ref = Ref{Culonglong}()
-        res = unchecked_cuCtxGetId(handle, id_ref)
-        res == ERROR_CONTEXT_IS_DESTROYED && throw(UndefRefError())
-        res != SUCCESS && throw_api_error(res)
+        id = if driver_version() >= v"12"
+            id_ref = Ref{Culonglong}()
+            res = unchecked_cuCtxGetId(handle, id_ref)
+            res == ERROR_CONTEXT_IS_DESTROYED && throw(UndefRefError())
+            res != SUCCESS && throw_api_error(res)
+            id_ref[]
+        else
+            typemax(UInt64)
+        end
 
-        new(handle, id_ref[])
+        new(handle, id)
     end
 end
 
@@ -63,15 +68,23 @@ end
 
 function isvalid(ctx::CuContext)
     # we first try an API call to see if the context handle is usable
-    id_ref = Ref{Culonglong}()
-    res = unchecked_cuCtxGetId(ctx, id_ref)
-    res == ERROR_CONTEXT_IS_DESTROYED && return false
-    res != SUCCESS && throw_api_error(res)
+    if driver_version() >= v"12"
+        id_ref = Ref{Culonglong}()
+        res = unchecked_cuCtxGetId(ctx, id_ref)
+        res == ERROR_CONTEXT_IS_DESTROYED && return false
+        res != SUCCESS && throw_api_error(res)
 
-    # do detect handle reuse, which happens when destroying and re-creating a context,
-    # we ensure that the id for the current version of this context matches the id we
-    # saved during construction of the original object
-    return ctx.id == id_ref[]
+        # detect handle reuse, which happens when destroying and re-creating a context, by
+        # looking at the context's unique ID (which does change on re-creation)
+        return ctx.id == id_ref[]
+    else
+        version_ref = Ref{Cuint}()
+        res = unchecked_cuCtxGetApiVersion(ctx, version_ref)
+        res == ERROR_INVALID_CONTEXT && return false
+
+        # we can't detect handle reuse, so we just assume the context is valid
+        return true
+    end
 end
 
 """
@@ -89,9 +102,12 @@ end
 Base.unsafe_convert(::Type{CUcontext}, ctx::CuContext) = ctx.handle
 
 function Base.show(io::IO, ctx::CuContext)
-    fields = [@sprintf("%p", ctx.handle), "id=$(ctx.id)"]
+    fields = [@sprintf("%p", ctx.handle)]
+    if driver_version() >= v"12"
+        push!(fields, "id=$(ctx.id)")
+    end
     if !isvalid(ctx)
-        push!(fields, "invalidated")
+        push!(fields, "destroyed")
     end
 
     print(io, "CuContext(", join(fields, ", "), ")")

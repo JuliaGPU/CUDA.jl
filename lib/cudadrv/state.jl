@@ -305,8 +305,20 @@ end
 
 Reset the CUDA state associated with a device. This call with release the underlying
 context, at which point any objects allocated in that context will be invalidated.
+
+Note that this does not guarantee to free up all memory allocations, as many are not bound
+to a context, so it is generally not useful to call this function to free up memory.
+
+!!! warning
+
+    This function is only reliable on CUDA driver >= v12.0, and may lead to crashes if
+    used on older drivers.
 """
 function device_reset!(dev::CuDevice=device())
+    if driver_version() < v"12"
+        @error "CUDA.device_reset! is not reliable on CUDA driver < v12 (you are using v$(driver_version().major).$(driver_version().minor)), and may lead to crashes." maxlog=1
+    end
+
     # unconditionally reset the primary context (don't just release it),
     # as there might be users outside of CUDA.jl
     pctx = CuPrimaryContext(dev)
