@@ -8,13 +8,15 @@ struct HandleCache{K,V}
 
     active_handles::Set{Pair{K,V}}
     idle_handles::Dict{K,Vector{V}}
-    lock::ReentrantLock
+    lock::Base.ThreadSynchronizer
+    # XXX: we use a thread-safe spinlock because the handle cache is used from finalizers.
+    #      once finalizers run on their own thread, use a regular ReentrantLock
 
     max_entries::Int
 
     function HandleCache{K,V}(ctor, dtor; max_entries::Int=32) where {K,V}
         obj = new{K,V}(ctor, dtor, Set{Pair{K,V}}(), Dict{K,Vector{V}}(),
-                       ReentrantLock(), max_entries)
+                       Base.ThreadSynchronizer(), max_entries)
 
         # register a hook to wipe the current context's cache when under memory pressure
         push!(CUDA.reclaim_hooks, ()->empty!(obj))
