@@ -142,7 +142,7 @@ function gpu_entry(dev)
 end
 gpus = if do_gpu_list
     # parse the list of GPUs
-    map(gpu_list) do str
+    map(split(gpu_list, ',')) do str
         id = parse(Int, str)
         gpu_entry(CuDevice(id))
     end
@@ -153,7 +153,7 @@ else
     first(entries, 1)
 end
 @info("Testing using device " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
-      ". To change this, specify the `--gpus` argument to the tests, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
+      ". To change this, specify the `--gpu` argument to the tests, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
 ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")
 
 # determine parallelism

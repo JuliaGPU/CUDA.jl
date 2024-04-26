@@ -564,13 +564,22 @@ end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
-  context!(context(src)) do
-    GC.@preserve src dest begin
-      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if Base.isbitsunion(T)
-        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+  if device(src) == device(dest) ||
+     maybe_enable_peer_access(device(src), device(dest)) == 1
+    # use direct device-to-device copy
+    context!(context(src)) do
+      GC.@preserve src dest begin
+        unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+        if Base.isbitsunion(T)
+          unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+        end
       end
     end
+  else
+    # stage through host memory
+    tmp = Vector{T}(undef, n)
+    unsafe_copyto!(tmp, 1, src, soffs, n)
+    unsafe_copyto!(dest, doffs, tmp, 1, n)
   end
   return dest
 end
