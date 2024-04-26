@@ -9,19 +9,22 @@
 export HandleCache
 
 struct HandleCache{K,V}
+    ctor
+    dtor
+
     active_handles::Set{Pair{K,V}}      # for debugging, and to prevent handle finalization
     idle_handles::Dict{K,Vector{V}}
     lock::ReentrantLock
 
     max_entries::Int
 
-    function HandleCache{K,V}(max_entries::Int=32) where {K,V}
-        return new{K,V}(Set{Pair{K,V}}(), Dict{K,Vector{V}}(), ReentrantLock(), max_entries)
+    function HandleCache{K,V}(ctor, dtor; max_entries::Int=32) where {K,V}
+        return new{K,V}(ctor, dtor, Set{Pair{K,V}}(), Dict{K,Vector{V}}(), ReentrantLock(), max_entries)
     end
 end
 
 # remove a handle from the cache, or create a new one
-function Base.pop!(ctor::Function, cache::HandleCache{K,V}, key::K) where {K,V}
+function Base.pop!(cache::HandleCache{K,V}, key::K) where {K,V}
     # check the cache
     handle = @lock cache.lock begin
         if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
@@ -35,7 +38,7 @@ function Base.pop!(ctor::Function, cache::HandleCache{K,V}, key::K) where {K,V}
     # we could (and used to) run `GC.gc(false)` here to free up old handles,
     # but that can be expensive when using lots of short-lived tasks.
     if handle === nothing
-        handle = ctor()
+        handle = cache.ctor(key)
     end
 
     # add the handle to the active set
@@ -47,7 +50,7 @@ function Base.pop!(ctor::Function, cache::HandleCache{K,V}, key::K) where {K,V}
 end
 
 # put a handle in the cache, or destroy it if it doesn't fit
-function Base.push!(dtor::Function, cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
+function Base.push!(cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
     saved = @lock cache.lock begin
         delete!(cache.active_handles, key=>handle)
 
@@ -65,12 +68,12 @@ function Base.push!(dtor::Function, cache::HandleCache{K,V}, key::K, handle::V) 
     end
 
     if !saved
-        dtor()
+        cache.dtor(key, handle)
     end
 end
 
 # shorthand version to put a handle back without having to remember the key
-function Base.push!(dtor::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
+function Base.push!(cache::HandleCache{K,V}, handle::V) where {K,V}
     key = @lock cache.lock begin
         key = nothing
         for entry in cache.active_handles
@@ -85,5 +88,5 @@ function Base.push!(dtor::Function, cache::HandleCache{K,V}, handle::V) where {K
         key
     end
 
-    push!(dtor, cache, key, handle)
+    push!(cache, key, handle)
 end

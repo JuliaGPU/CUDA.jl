@@ -190,7 +190,19 @@ end
 
 # we keep this for the GPUArrays.jl tests
 
-const idle_gpuarray_rngs = HandleCache{CuContext,GPUArrays.RNG}()
+function gpuarrays_rng_ctor(ctx)
+    context!(ctx) do
+        N = attribute(device(), DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
+        buf = CuArray{NTuple{4, UInt32}}(undef, N)
+        GPUArrays.RNG(buf)
+    end
+end
+function gpuarrays_rng_dtor(ctx, rng)
+    context!(ctx) do
+        # no need to do anything, as the RNG is collected by its finalizer
+    end
+end
+const idle_gpuarray_rngs = HandleCache{CuContext,GPUArrays.RNG}(gpuarrays_rng_ctor, gpuarrays_rng_dtor)
 
 function GPUArrays.default_rng(::Type{<:CuArray})
     cuda = CUDA.active_state()
@@ -203,19 +215,13 @@ function GPUArrays.default_rng(::Type{<:CuArray})
 
     # get library state
     @noinline function new_state(cuda)
-        new_rng = pop!(idle_gpuarray_rngs, cuda.context) do
-            N = attribute(cuda.device, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
-            buf = CuArray{NTuple{4, UInt32}}(undef, N)
-            GPUArrays.RNG(buf)
-        end
-
+        new_rng = pop!(idle_gpuarray_rngs, cuda.context)
         finalizer(current_task()) do task
-            push!(idle_gpuarray_rngs, cuda.context, new_rng) do
-                # no need to do anything, as the RNG is collected by its finalizer
-            end
+            push!(idle_gpuarray_rngs, cuda.context, new_rng)
         end
 
         Random.seed!(new_rng)
+
         (; rng=new_rng)
     end
     state = get!(states, cuda.context) do

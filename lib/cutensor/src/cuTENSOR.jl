@@ -36,8 +36,20 @@ include("operations.jl")
 # high-level integrations
 include("interfaces.jl")
 
-# cache for created, but unused handles
-const idle_handles = HandleCache{CuContext,cutensorHandle_t}()
+
+## handles
+
+function handle_ctor(ctx)
+    context!(ctx) do
+        cutensorCreate()
+    end
+end
+function handle_dtor(ctx, handle)
+    context!(ctx) do
+        cutensorDestroy(handle)
+    end
+end
+const idle_handles = HandleCache{CuContext,cutensorHandle_t}(handle_ctor, handle_dtor)
 
 function handle()
     cuda = CUDA.active_state()
@@ -50,14 +62,9 @@ function handle()
 
     # get library state
     @noinline function new_state(cuda)
-        new_handle = pop!(idle_handles, cuda.context) do
-            cutensorCreate()
-        end
-
+        new_handle = pop!(idle_handles, cuda.context)
         finalizer(current_task()) do task
-            push!(idle_handles, cuda.context, new_handle) do
-                cutensorDestroy(new_handle)
-            end
+            push!(idle_handles, cuda.context, new_handle)
         end
 
         (; handle=new_handle)
