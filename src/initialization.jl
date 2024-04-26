@@ -59,7 +59,7 @@ function __init__()
     end
 
     driver = try
-        driver_version()
+        set_driver_version()
     catch err
         @debug "CUDA driver failed to report a version" exception=(err, catch_backtrace())
         _initialization_error[] = "CUDA driver not functional"
