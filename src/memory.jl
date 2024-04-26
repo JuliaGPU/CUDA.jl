@@ -419,6 +419,8 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
     end
 end
 
+const reclaim_hooks = Any[]
+
 """
     retry_reclaim(retry_if) do
         # code that may fail due to insufficient GPU memory
@@ -462,6 +464,10 @@ end
       elseif phase == 5
         # in case we had a release threshold configured
         trim(pool_create(state.device))
+      elseif phase == 6
+        for hook in reclaim_hooks
+          hook()
+        end
       else
         break
       end
@@ -470,6 +476,10 @@ end
         GC.gc(false)
       elseif phase == 2
         GC.gc(true)
+      elseif phase == 3
+        for hook in reclaim_hooks
+          hook()
+        end
       else
         break
       end
@@ -715,6 +725,9 @@ actually reclaimed.
 """
 function reclaim(sz::Int=typemax(Int))
   dev = device()
+  for hook in reclaim_hooks
+    hook()
+  end
   if stream_ordered(dev)
       device_synchronize()
       synchronize(context())

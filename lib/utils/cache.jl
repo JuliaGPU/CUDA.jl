@@ -1,25 +1,25 @@
 # a cache for library handles
 
-# TODO:
-# - keep track of the (estimated?) size of cache contents
-# - clean the caches when memory is needed. this will require registering the destructor
-#   upfront, so that it can set the environment (e.g. switch to the appropriate context).
-#   alternatively, register the `unsafe_free!`` methods with the pool instead of the cache.
-
 export HandleCache
 
 struct HandleCache{K,V}
     ctor
     dtor
 
-    active_handles::Set{Pair{K,V}}      # for debugging, and to prevent handle finalization
+    active_handles::Set{Pair{K,V}}
     idle_handles::Dict{K,Vector{V}}
     lock::ReentrantLock
 
     max_entries::Int
 
     function HandleCache{K,V}(ctor, dtor; max_entries::Int=32) where {K,V}
-        return new{K,V}(ctor, dtor, Set{Pair{K,V}}(), Dict{K,Vector{V}}(), ReentrantLock(), max_entries)
+        obj = new{K,V}(ctor, dtor, Set{Pair{K,V}}(), Dict{K,Vector{V}}(),
+                       ReentrantLock(), max_entries)
+
+        # register a hook to wipe the current context's cache when under memory pressure
+        push!(CUDA.reclaim_hooks, ()->empty!(obj))
+
+        return obj
     end
 end
 
@@ -90,4 +90,18 @@ function Base.push!(cache::HandleCache{K,V}, handle::V) where {K,V}
     end
 
     push!(cache, key, handle)
+end
+
+# empty the cache
+# XXX: often we only need to empty the handles for a single context, however, we don't
+#      know for sure that the key is a context (see e.g. cuFFT), so we wipe everything
+function Base.empty!(cache::HandleCache{K,V}) where {K,V}
+    @lock cache.lock begin
+        for (key, handles) in cache.idle_handles
+            for handle in handles
+                cache.dtor(key, handle)
+            end
+        end
+        empty!(cache.idle_handles)
+    end
 end
