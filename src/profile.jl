@@ -373,16 +373,30 @@ function capture(cfg)
 
             name = if record.kind == CUPTI.CUPTI_ACTIVITY_KIND_DRIVER
                 ref = Ref{Cstring}(C_NULL)
-                CUPTI.cuptiGetCallbackName(CUPTI.CUPTI_CB_DOMAIN_DRIVER_API,
-                                            record.cbid, ref)
-                unsafe_string(ref[])
+                res = CUPTI.unchecked_cuptiGetCallbackName(CUPTI.CUPTI_CB_DOMAIN_DRIVER_API,
+                                                           record.cbid, ref)
+                if res == CUPTI.SUCCESS
+                    unsafe_string(ref[])
+                elseif res == CUPTI.ERROR_INVALID_PARAMETER
+                    # this can happen when using a driver that's newer than the toolkit.
+                    # try to recover it from our API wrappers
+                    name = string(CUPTI.CUpti_driver_api_trace_cbid_enum(record.cbid))
+                    prefix = "CUPTI_DRIVER_TRACE_CBID_"
+                    if startswith(name, prefix)
+                        name[length(prefix)+1:end]
+                    else
+                        "<unknown driver API>"
+                    end
+                else
+                    CUPTI.throw_api_error(res)
+                end
             elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_RUNTIME
                 ref = Ref{Cstring}(C_NULL)
                 CUPTI.cuptiGetCallbackName(CUPTI.CUPTI_CB_DOMAIN_RUNTIME_API,
-                                            record.cbid, ref)
+                                           record.cbid, ref)
                 unsafe_string(ref[])
             else
-                "<unknown>"
+                "<unknown activity kind>"
             end
 
             push!(host_trace, (; id, start=t0, stop=t1, name,
