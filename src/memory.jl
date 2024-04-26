@@ -540,8 +540,8 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
         throw(ArgumentError(
             """cannot take the GPU address of inaccessible device memory.
 
-               You are trying to use memory from GPU $(deviceid(source_device)) while executing on GPU $(deviceid(state.device)).
-               P2P access between these devices is not possible; either switch execution to GPU $(deviceid(source_device))
+               You are trying to use memory from GPU $(deviceid(source_device)) on GPU $(deviceid(state.device)).
+               P2P access between these devices is not possible; either switch to GPU $(deviceid(source_device))
                by calling `CUDA.device!($(deviceid(source_device)))`, or copy the data to an array allocated on device $(deviceid(state.device))."""))
     end
 

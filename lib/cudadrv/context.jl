@@ -411,3 +411,39 @@ enable_peer_access(peer::CuContext, flags=0) =
     cuCtxEnablePeerAccess(peer, flags)
 
 disable_peer_access(peer::CuContext) = cuCtxDisablePeerAccess(peer)
+
+# matrix of set-up peer accesses:
+# - -1: unsupported
+# -  0: not set-up yet
+# -  1: supported
+const peer_access = Ref{Matrix{Int}}()
+function maybe_enable_peer_access(src::CuDevice, dst::CuDevice)
+    global peer_access
+
+    src_idx = deviceid(src)+1
+    dst_idx = deviceid(dst)+1
+
+    if !isassigned(peer_access)
+        peer_access[] = Base.zeros(Int8, ndevices(), ndevices())
+    end
+
+    # we need to take care only to enable P2P access when it is supported,
+    # as well as not to call this function multiple times, to avoid errors.
+    if peer_access[][src_idx, dst_idx] == 0
+        if can_access_peer(src, dst)
+            device!(src) do
+                try
+                    enable_peer_access(context(dst))
+                    peer_access[][src_idx, dst_idx] = 1
+                catch err
+                    @warn "Enabling peer-to-peer access between $src and $dst failed; please file an issue." exception=(err,catch_backtrace())
+                    peer_access[][src_idx, dst_idx] = -1
+                end
+            end
+        else
+            peer_access[][src_idx, dst_idx] = -1
+        end
+    end
+
+    return peer_access[][src_idx, dst_idx]
+end
