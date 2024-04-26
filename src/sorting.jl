@@ -912,15 +912,13 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false, dims=1)
     args1 = (c, I(c_len), one(I), one(I), one(I), by, lt, Val(rev), Val(dims))
     kernel1 = @cuda launch=false comparator_small_kernel(args1...)
     config1 = launch_configuration(kernel1.fun, shmem = threads -> bitonic_shmem(c, threads))
-    threads1 = config1.threads
     # blocksize for kernel1 MUST be a power of 2
     threads1 = prevpow(2, config1.threads)
 
     args2 = (c, I(c_len), one(I), one(I), by, lt, Val(rev), Val(dims))
     kernel2 = @cuda launch=false comparator_kernel(args2...)
     config2 = launch_configuration(kernel2.fun, shmem = threads -> bitonic_shmem(c, threads))
-    # blocksize for kernel2 MUST be a power of 2
-    threads2 = prevpow(2, config2.threads)
+    threads2 =  config2.threads
 
     # determines cutoff for when to use kernel1 vs kernel2
     log_threads = threads1 |> log2 |> Int
