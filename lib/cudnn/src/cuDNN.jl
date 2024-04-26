@@ -71,7 +71,7 @@ function handle_ctor(ctx)
     end
 end
 function handle_dtor(ctx, handle)
-    context!(ctx) do
+    context!(ctx; skip_destroyed=true) do
         cudnnDestroy(handle)
     end
 end

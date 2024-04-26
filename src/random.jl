@@ -198,7 +198,7 @@ function gpuarrays_rng_ctor(ctx)
     end
 end
 function gpuarrays_rng_dtor(ctx, rng)
-    context!(ctx) do
+    context!(ctx; skip_destroyed=true) do
         # no need to do anything, as the RNG is collected by its finalizer
     end
 end

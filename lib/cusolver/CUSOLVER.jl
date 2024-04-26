@@ -53,7 +53,7 @@ function dense_handle_ctor(ctx)
     end
 end
 function dense_handle_dtor(ctx, handle)
-    context!(ctx) do
+    context!(ctx; skip_destroyed=true) do
         cusolverDnDestroy(handle)
     end
 end
@@ -105,7 +105,7 @@ function sparse_handle_ctor(ctx)
     end
 end
 function sparse_handle_dtor(ctx, handle)
-    context!(ctx) do
+    context!(ctx; skip_destroyed=true) do
         cusolverSpDestroy(handle)
     end
 end
