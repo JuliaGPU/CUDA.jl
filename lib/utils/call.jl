@@ -25,8 +25,12 @@ macro checked(ex)
     body = ex.args[2]
     @assert Meta.isexpr(body, :block)
 
+    # make sure these functions are inlined
+    pushfirst!(body.args, Expr(:meta, :inline))
+
     # generate a "safe" version that performs a check
     safe_body = quote
+        @inline
         check() do
             $body
         end
@@ -174,7 +178,8 @@ macro debug_ccall(ex)
 end
 
 render_arg(io, arg) = print(io, arg)
-render_arg(io, arg::Union{<:Base.RefValue, AbstractArray}) = summary(io, arg)
+render_arg(io, arg::AbstractArray) = summary(io, arg)
+render_arg(io, arg::Base.RefValue{T}) where {T} = print(io, "Ref{", T, "}")
 
 
 ## version of ccall that calls jl_gc_safe_enter|leave around the inner ccall
@@ -195,9 +200,7 @@ function ccall_macro_lower(func, rettype, types, args, nreq)
     for (typ, arg) in zip(types, args)
         var = gensym("$(func)_cconvert")
         push!(cconvert_args, var)
-        push!(cconvert_exprs, quote
-            $var = Base.cconvert($(esc(typ)), $(esc(arg)))
-        end)
+        push!(cconvert_exprs, :($var = Base.cconvert($(esc(typ)), $(esc(arg)))))
     end
 
     unsafe_convert_exprs = []
@@ -205,9 +208,7 @@ function ccall_macro_lower(func, rettype, types, args, nreq)
     for (typ, arg) in zip(types, cconvert_args)
         var = gensym("$(func)_unsafe_convert")
         push!(unsafe_convert_args, var)
-        push!(unsafe_convert_exprs, quote
-            $var = Base.unsafe_convert($(esc(typ)), $arg)
-        end)
+        push!(unsafe_convert_exprs, :($var = Base.unsafe_convert($(esc(typ)), $arg)))
     end
 
     call = quote
@@ -221,9 +222,9 @@ function ccall_macro_lower(func, rettype, types, args, nreq)
     end
 
     quote
+        @inline
         $(cconvert_exprs...)
-
-        GC.@preserve $(cconvert_args...)  $(call)
+        GC.@preserve $(cconvert_args...) $(call)
     end
 end
 

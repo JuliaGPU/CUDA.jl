@@ -93,9 +93,7 @@ end
 @inline function prepare_cuda_state()
     state = task_local_state!()
 
-    # NOTE: current_context() is too slow to use here (taking a lock, accessing a dict)
-    #       so we use the raw handle. is that safe though, when we reset the device?
-    #ctx = current_context()
+    # current_context() is too slow to use here (as it also calls cuCtxGetId)
     ctx = Ref{CUcontext}()
     cuCtxGetCurrent(ctx)
     if ctx[] != state.context.handle
@@ -302,20 +300,23 @@ function device!(f::Function, dev::CuDevice)
     context!(f, ctx)
 end
 
-# NVIDIA bug #3240770
-can_reset_device() = !(Base.thisminor(driver_version()) == v"11.2" &&
-                       any(dev->stream_ordered(dev), devices()))
-
 """
     device_reset!(dev::CuDevice=device())
 
 Reset the CUDA state associated with a device. This call with release the underlying
 context, at which point any objects allocated in that context will be invalidated.
+
+Note that this does not guarantee to free up all memory allocations, as many are not bound
+to a context, so it is generally not useful to call this function to free up memory.
+
+!!! warning
+
+    This function is only reliable on CUDA driver >= v12.0, and may lead to crashes if
+    used on older drivers.
 """
 function device_reset!(dev::CuDevice=device())
-    if !can_reset_device()
-        @error "Due to a bug in CUDA, resetting the device is not possible on CUDA 11.2 when using the stream-ordered memory allocator."
-        return
+    if driver_version() < v"12"
+        @error "CUDA.device_reset! is not reliable on CUDA driver < v12 (you are using v$(driver_version().major).$(driver_version().minor)), and may lead to crashes." maxlog=1
     end
 
     # unconditionally reset the primary context (don't just release it),

@@ -59,7 +59,7 @@ function __init__()
     end
 
     driver = try
-        driver_version()
+        set_driver_version()
     catch err
         @debug "CUDA driver failed to report a version" exception=(err, catch_backtrace())
         _initialization_error[] = "CUDA driver not functional"
@@ -189,7 +189,7 @@ function __init__()
         # warn about Tegra being incompatible with our artifacts
         if is_tegra()
             @warn """You are using a Tegra device, which is currently not supported by the CUDA.jl artifacts.
-                     Please install the CUDA toolkit, and call `CUDA.set_runtime_version!("local")` to use it.
+                     Please install the CUDA toolkit, and call `CUDA.set_runtime_version!(local_toolkit=true)`.
                      For more information, see JuliaGPU/CUDA.jl#1978."""
         end
     end

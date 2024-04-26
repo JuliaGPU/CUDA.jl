@@ -115,7 +115,6 @@ function runtests(f, name, time_source=:cuda)
         res = vcat(collect(data), cpu_rss, gpu_rss)
 
         GC.gc(true)
-        CUDA.can_reset_device() && device_reset!()
         res
     finally
         Test.TESTSET_PRINT_ENABLE[] = old_print_setting

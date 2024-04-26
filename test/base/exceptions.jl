@@ -1,5 +1,5 @@
 # these tests spawn subprocesses, so reset the current context to conserve memory
-CUDA.can_reset_device() && device_reset!()
+device_reset!()
 
 host_error_re = r"ERROR: (KernelException: exception thrown during kernel execution on device|CUDA error: an illegal instruction was encountered|CUDA error: unspecified launch failure)"
 device_error_re = r"ERROR: a \w+ was thrown during kernel execution"

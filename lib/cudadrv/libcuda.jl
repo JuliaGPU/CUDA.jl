@@ -31,7 +31,7 @@ end
     end
 end
 
-function check(f)
+@inline function check(f)
     res = f()
     if res != SUCCESS
         throw_api_error(res)
@@ -3269,7 +3269,6 @@ end
 end
 
 @checked function cuCtxCreate_v3(pctx, paramsArray, numParams, flags, dev)
-    initialize_context()
     @gcsafe_ccall libcuda.cuCtxCreate_v3(pctx::Ptr{CUcontext},
                                          paramsArray::Ptr{CUexecAffinityParam},
                                          numParams::Cint, flags::Cuint,
@@ -3299,7 +3298,6 @@ end
 end
 
 @checked function cuCtxGetId(ctx, ctxId)
-    initialize_context()
     @gcsafe_ccall libcuda.cuCtxGetId(ctx::CUcontext, ctxId::Ptr{Culonglong})::CUresult
 end
 
@@ -3329,7 +3327,6 @@ end
 end
 
 @checked function cuCtxGetApiVersion(ctx, version)
-    initialize_context()
     @gcsafe_ccall libcuda.cuCtxGetApiVersion(ctx::CUcontext, version::Ptr{Cuint})::CUresult
 end
 

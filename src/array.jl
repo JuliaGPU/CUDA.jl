@@ -238,7 +238,7 @@ function _unsafe_wrap_managed(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int},
       UnifiedMemory(ctx, ptr, sz)
     elseif typ == CU_MEMORYTYPE_DEVICE
       # TODO: can we identify whether this pointer was allocated asynchronously?
-      DeviceMemory(ctx, ptr, sz, false)
+      DeviceMemory(device(ctx), ctx, ptr, sz, false)
     elseif typ == CU_MEMORYTYPE_HOST
       HostMemory(ctx, host_pointer(ptr), sz)
     else

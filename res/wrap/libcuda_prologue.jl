@@ -26,7 +26,7 @@ end
     end
 end
 
-function check(f)
+@inline function check(f)
     res = f()
     if res != SUCCESS
         throw_api_error(res)

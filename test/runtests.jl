@@ -135,7 +135,9 @@ function gpu_entry(dev)
     compute_mode = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE)
     free_memory = device!(dev) do
         mem = CUDA.free_memory()
-        device_reset!()
+        if CUDA.driver_version() >= v"12"
+            device_reset!()
+        end
         mem
     end
     (; id, name, cap, uuid="$(mig ? "MIG" : "GPU")-$uuid", compute_mode, free_memory)

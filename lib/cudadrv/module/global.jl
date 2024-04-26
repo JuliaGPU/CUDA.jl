@@ -22,7 +22,7 @@ struct CuGlobal{T}
         if nbytes_ref[] != sizeof(T)
             throw(ArgumentError("size of global '$name' does not match type parameter type $T"))
         end
-        buf = DeviceMemory(context(), ptr_ref[], nbytes_ref[], false)
+        buf = DeviceMemory(device(), context(), ptr_ref[], nbytes_ref[], false)
 
         return new{T}(buf)
     end
