@@ -1,12 +1,5 @@
 # Version management
 
-"""
-    driver_version()
-
-Returns the latest version of CUDA supported by the loaded driver.
-"""
-driver_version
-
 # because of this API call being used so frequently, we use a manual cache set in __init__
 # (@memoize's lazy/thread-safe initialization is too expensive for this purpose)
 const _driver_version = Ref{VersionNumber}()
@@ -17,6 +10,12 @@ function set_driver_version()
     minor, patch = divrem(ver, 10)
     _driver_version[] = VersionNumber(major, minor, patch)
 end
+
+"""
+    driver_version()
+
+Returns the latest version of CUDA supported by the loaded driver.
+"""
 function driver_version()
     assume(isassigned(_driver_version))
     _driver_version[]
