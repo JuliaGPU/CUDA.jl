@@ -798,7 +798,7 @@ end
 Identify the context memory was allocated in.
 """
 context(ptr::Union{Ptr,CuPtr}) =
-    UniqueCuContext(attribute(CUcontext, ptr, POINTER_ATTRIBUTE_CONTEXT))
+    CuContext(attribute(CUcontext, ptr, POINTER_ATTRIBUTE_CONTEXT))
 
 """
     device(ptr)
