@@ -38,6 +38,7 @@ function Base.pop!(cache::HandleCache{K,V}, key::K) where {K,V}
     # we could (and used to) run `GC.gc(false)` here to free up old handles,
     # but that can be expensive when using lots of short-lived tasks.
     if handle === nothing
+        CUDA.maybe_collect()
         handle = cache.ctor(key)
     end
 
