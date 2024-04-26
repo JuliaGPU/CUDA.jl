@@ -2,8 +2,8 @@
 
 export
     CuPrimaryContext, CuContext, current_context, has_context, activate,
-    unsafe_reset!, isactive, flags, setflags!,
-    unique_id, device, device_synchronize
+    unsafe_reset!, isactive, flags, setflags!, unique_id, api_version,
+    device, device_synchronize
 
 
 ## construction and destruction
@@ -100,12 +100,6 @@ end
 
 ## core context API
 
-function unique_id(ctx::CuContext)
-    id_ref = Ref{Culonglong}()
-    cuCtxGetId(ctx, id_ref)
-    return id_ref[]
-end
-
 """
     push!(CuContext, ctx::CuContext)
 
@@ -140,6 +134,18 @@ function CuContext(f::Function, dev::CuDevice, args...)
         pop!(CuContext)
         unsafe_destroy!(ctx)
     end
+end
+
+function unique_id(ctx::CuContext)
+    id_ref = Ref{Culonglong}()
+    cuCtxGetId(ctx, id_ref)
+    return id_ref[]
+end
+
+function api_version(ctx::CuContext)
+    version = Ref{Cuint}()
+    cuCtxGetApiVersion(ctx, version)
+    return version[]
 end
 
 
