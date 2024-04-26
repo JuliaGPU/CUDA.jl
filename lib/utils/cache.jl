@@ -96,12 +96,16 @@ end
 # XXX: often we only need to empty the handles for a single context, however, we don't
 #      know for sure that the key is a context (see e.g. cuFFT), so we wipe everything
 function Base.empty!(cache::HandleCache{K,V}) where {K,V}
-    @lock cache.lock begin
-        for (key, handles) in cache.idle_handles
-            for handle in handles
-                cache.dtor(key, handle)
-            end
+    handles = @lock cache.lock begin
+        all_handles = Pair{K,V}[]
+        for (key, handles) in cache.idle_handles, handle in handles
+            push!(all_handles, key=>handle)
         end
         empty!(cache.idle_handles)
+        all_handles
+    end
+
+    for (key,handle) in handles
+        cache.dtor(key, handle)
     end
 end
