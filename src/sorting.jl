@@ -908,18 +908,20 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false, dims=1)
 
     # compile kernels (using Int32 for indexing, if possible, yielding a 70% speedup)
     I = c_len <= typemax(Int32) ? Int32 : Int
+
     args1 = (c, I(c_len), one(I), one(I), one(I), by, lt, Val(rev), Val(dims))
     kernel1 = @cuda launch=false comparator_small_kernel(args1...)
-
     config1 = launch_configuration(kernel1.fun, shmem = threads -> bitonic_shmem(c, threads))
+    # blocksize for kernel1 MUST be a power of 2
+    threads1 = prevpow(2, config1.threads)
+
     args2 = (c, I(c_len), one(I), one(I), by, lt, Val(rev), Val(dims))
     kernel2 = @cuda launch=false comparator_kernel(args2...)
     config2 = launch_configuration(kernel2.fun, shmem = threads -> bitonic_shmem(c, threads))
-    # blocksize for kernel2 MUST be a power of 2
-    threads2 = prevpow(2, config2.threads)
+    threads2 =  config2.threads
 
     # determines cutoff for when to use kernel1 vs kernel2
-    log_threads = threads2 |> log2 |> Int
+    log_threads = threads1 |> log2 |> Int
 
     # These two outer loops are the same as the serial version outlined here:
     # https://en.wikipedia.org/wiki/Bitonic_sorter#Example_code
@@ -940,11 +942,11 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false, dims=1)
                 pseudo_block_length = 1 << abs(j_final + 1 - j)
                 # N_pseudo_blocks = how many pseudo-blocks are in this layer of the network
                 N_pseudo_blocks = nextpow(2, c_len) ÷ pseudo_block_length
-                pseudo_blocks_per_block = threads2 ÷ pseudo_block_length
+                pseudo_blocks_per_block = threads1 ÷ pseudo_block_length
 
                 # grid dimensions
                 N_blocks = max(1, N_pseudo_blocks ÷ pseudo_blocks_per_block), other_block_dims...
-                block_size = pseudo_block_length, threads2 ÷ pseudo_block_length
+                block_size = pseudo_block_length, threads1 ÷ pseudo_block_length
                 kernel1(args1...; blocks=N_blocks, threads=block_size,
                         shmem=bitonic_shmem(c, block_size))
                 break
