@@ -1,7 +1,8 @@
 module cuStateVec
 
 using CUDA
-using CUDA: CUstream, cudaDataType, cudaEvent_t, @checked, HandleCache, with_workspace, libraryPropertyType
+using CUDA.APIUtils
+using CUDA: CUstream, cudaDataType, cudaEvent_t, libraryPropertyType
 using CUDA: unsafe_free!, retry_reclaim, initialize_context, isdebug
 
 using CEnum: @cenum
@@ -31,18 +32,34 @@ const cudaDataType_t = cudaDataType
 # core library
 include("libcustatevec.jl")
 
+# low-level wrappers
 include("error.jl")
 include("types.jl")
+include("wrappers.jl")
 include("statevec.jl")
 
+
+## handles
+
+function handle_ctor(ctx)
+    context!(ctx) do
+        custatevecCreate()
+    end
+end
+function handle_dtor(ctx, handle)
+    context!(ctx; skip_destroyed=true) do
+        custatevecDestroy(handle)
+    end
+end
+const idle_handles = HandleCache{CuContext,custatevecHandle_t}(handle_ctor, handle_dtor)
+
+# fat handle, includes a cache
 struct cuStateVecHandle
     handle::custatevecHandle_t
     cache::CuVector{UInt8}
 end
-Base.unsafe_convert(::Type{Ptr{custatevecContext}}, handle::cuStateVecHandle) = handle.handle
-
-# cache for created, but unused handles
-const idle_handles = HandleCache{CuContext,custatevecHandle_t}()
+Base.unsafe_convert(::Type{Ptr{custatevecContext}}, handle::cuStateVecHandle) =
+    handle.handle
 
 function handle()
     cuda = CUDA.active_state()
@@ -55,24 +72,14 @@ function handle()
 
     # get library state
     @noinline function new_state(cuda)
-        new_handle = pop!(idle_handles, cuda.context) do
-            handle = Ref{custatevecHandle_t}()
-            custatevecCreate(handle)
-            handle[]
-        end
+        new_handle = pop!(idle_handles, cuda.context)
 
         cache = CuVector{UInt8}(undef, 0)
         fat_handle = cuStateVecHandle(new_handle, cache)
 
         finalizer(current_task()) do task
-            # wipe the cache when storing the handle
-            resize!(cache, 0)
-
-            push!(idle_handles, cuda.context, new_handle) do
-                context!(cuda.context; skip_destroyed=true) do
-                    custatevecDestroy(new_handle)
-                end
-            end
+            CUDA.unsafe_free!(cache)
+            push!(idle_handles, cuda.context, new_handle)
         end
 
         custatevecSetStream(new_handle, cuda.stream)
@@ -93,14 +100,6 @@ function handle()
     end
 
     return state.handle
-end
-
-function version()
-  ver = custatevecGetVersion()
-  major, ver = divrem(ver, 1000)
-  minor, patch = divrem(ver, 100)
-
-  VersionNumber(major, minor, patch)
 end
 
 

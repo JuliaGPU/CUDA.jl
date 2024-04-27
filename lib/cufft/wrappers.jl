@@ -43,7 +43,7 @@ function cufftMakePlan(xtype::cufftType_t, xdims::Dims, region)
         end
         if ((region...,) == ((1:nrank)...,))
             # handle simple case, transforming the first nrank dimensions, ... simply! (for robustness)
-            # arguments are: plan, rank, transform-sizes, inembed, istride, idist, onembed, ostride, odist, type batch 
+            # arguments are: plan, rank, transform-sizes, inembed, istride, idist, onembed, ostride, odist, type batch
             cufftMakePlanMany(handle, nrank, Cint[rsz...], C_NULL, 1, 1, C_NULL, 1, 1,
                              xtype, batch, worksize_ref)
         else
@@ -151,13 +151,12 @@ function cufftMakePlan(xtype::cufftType_t, xdims::Dims, region)
     handle, worksize_ref[]
 end
 
-# plan cache
-const cufftHandleCacheKey = Tuple{CuContext, cufftType_t, Dims, Any}
-const idle_handles = HandleCache{cufftHandleCacheKey, cufftHandle}()
-function cufftGetPlan(args...)
 
-    ctx = context()
-    handle = pop!(idle_handles, (ctx, args...)) do
+## plan cache
+
+const cufftHandleCacheKey = Tuple{CuContext, cufftType_t, Dims, Any}
+function handle_ctor((ctx, args...))
+    context!(ctx) do
         # make the plan
         handle, worksize = cufftMakePlan(args...)
 
@@ -165,15 +164,22 @@ function cufftGetPlan(args...)
         #       instead relying on the automatic allocation strategy.
         handle
     end
+end
+function handle_dtor((ctx, args...), handle)
+    context!(ctx; skip_destroyed=true) do
+        cufftDestroy(handle)
+    end
+end
+const idle_handles = HandleCache{cufftHandleCacheKey, cufftHandle}(handle_ctor, handle_dtor)
 
-    # assign to the current stream
+function cufftGetPlan(args...)
+    ctx = context()
+    handle = pop!(idle_handles, (ctx, args...))
+
     cufftSetStream(handle, stream())
 
     return handle
 end
 function cufftReleasePlan(plan)
-    push!(idle_handles, plan) do
-        cufftDestroy(plan)
-    end
-
+    push!(idle_handles, plan)
 end

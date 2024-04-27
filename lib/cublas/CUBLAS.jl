@@ -71,9 +71,20 @@ function math_mode!(handle, mode)
     return
 end
 
-# cache for created, but unused handles
-const idle_handles = HandleCache{CuContext,cublasHandle_t}()
-const idle_xt_handles = HandleCache{Any,cublasXtHandle_t}()
+
+## handles
+
+function handle_ctor(ctx)
+    context!(ctx) do
+        cublasCreate()
+    end
+end
+function handle_dtor(ctx, handle)
+    context!(ctx; skip_destroyed=true) do
+        cublasDestroy_v2(handle)
+    end
+end
+const idle_handles = HandleCache{CuContext,cublasHandle_t}(handle_ctor, handle_dtor)
 
 function handle()
     cuda = CUDA.active_state()
@@ -86,20 +97,12 @@ function handle()
 
     # get library state
     @noinline function new_state(cuda)
-        new_handle = pop!(idle_handles, cuda.context) do
-            cublasCreate()
-        end
-
+        new_handle = pop!(idle_handles, cuda.context)
         finalizer(current_task()) do task
-            push!(idle_handles, cuda.context, new_handle) do
-                context!(cuda.context; skip_destroyed=true) do
-                    cublasDestroy_v2(new_handle)
-                end
-            end
+            push!(idle_handles, cuda.context, new_handle)
         end
 
         cublasSetStream_v2(new_handle, cuda.stream)
-
         math_mode!(new_handle, cuda.math_mode)
 
         (; handle=new_handle, cuda.stream, cuda.math_mode)
@@ -129,6 +132,34 @@ function handle()
     return state.handle
 end
 
+
+## xt handles
+
+function xt_handle_ctor(ctx)
+    context!(ctx) do
+        cublasXtCreate()
+    end
+end
+function xt_handle_dtor(ctx, handle)
+    context!(ctx; skip_destroyed=true) do
+        cublasXtDestroy(handle)
+    end
+end
+const idle_xt_handles =
+    HandleCache{CuContext,cublasXtHandle_t}(xt_handle_ctor, xt_handle_dtor)
+
+function devices!(devs::Vector{CuDevice})
+    task_local_storage(:CUBLASxt_devices, sort(devs; by=deviceid))
+    return
+end
+
+devices() = get!(task_local_storage(), :CUBLASxt_devices) do
+    # by default, select all devices
+    sort(collect(CUDA.devices()); by=deviceid)
+end::Vector{CuDevice}
+
+ndevices() = length(devices())
+
 function xt_handle()
     cuda = CUDA.active_state()
 
@@ -147,15 +178,9 @@ function xt_handle()
 
     # get library state
     @noinline function new_state(cuda)
-        new_handle = pop!(idle_xt_handles, cuda.context) do
-            cublasXtCreate()
-        end
-
+        new_handle = pop!(idle_xt_handles, cuda.context)
         finalizer(current_task()) do task
-            push!(idle_xt_handles, cuda.context, new_handle) do
-                # TODO: which context do we need to destroy this on?
-                cublasXtDestroy(new_handle)
-            end
+            push!(idle_xt_handles, cuda.context, new_handle)
         end
 
         devs = convert.(Cint, devices())
@@ -169,18 +194,6 @@ function xt_handle()
 
     return state.handle
 end
-
-function devices!(devs::Vector{CuDevice})
-    task_local_storage(:CUBLASxt_devices, sort(devs; by=deviceid))
-    return
-end
-
-devices() = get!(task_local_storage(), :CUBLASxt_devices) do
-    # by default, select all devices
-    sort(collect(CUDA.devices()); by=deviceid)
-end::Vector{CuDevice}
-
-ndevices() = length(devices())
 
 
 ## logging

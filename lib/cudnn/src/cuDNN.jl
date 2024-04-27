@@ -62,8 +62,20 @@ function math_mode(mode=CUDA.math_mode())
     end
 end
 
-# cache for created, but unused handles
-const idle_handles = HandleCache{CuContext,cudnnHandle_t}()
+
+## handles
+
+function handle_ctor(ctx)
+    context!(ctx) do
+        cudnnCreate()
+    end
+end
+function handle_dtor(ctx, handle)
+    context!(ctx; skip_destroyed=true) do
+        cudnnDestroy(handle)
+    end
+end
+const idle_handles = HandleCache{CuContext,cudnnHandle_t}(handle_ctor, handle_dtor)
 
 function handle()
     cuda = CUDA.active_state()
@@ -76,16 +88,9 @@ function handle()
 
     # get library state
     @noinline function new_state(cuda)
-        new_handle = pop!(idle_handles, cuda.context) do
-            cudnnCreate()
-        end
-
+        new_handle = pop!(idle_handles, cuda.context)
         finalizer(current_task()) do task
-            push!(idle_handles, cuda.context, new_handle) do
-                context!(cuda.context; skip_destroyed=true) do
-                    cudnnDestroy(new_handle)
-                end
-            end
+            push!(idle_handles, cuda.context, new_handle)
         end
 
         cudnnSetStream(new_handle, cuda.stream)

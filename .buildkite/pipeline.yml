@@ -140,8 +140,12 @@ steps:
               try
                 Pkg.instantiate()
               catch
-                # if we fail to instantiate, assume that we need a newer CUDA.jl
-                Pkg.develop(path=".")
+                # if we fail to instantiate, assume that we need newer dependencies
+                deps = [PackageSpec(path=".")]
+                if "{{matrix.package}}" == "cuTensorNet"
+                  push!(deps, PackageSpec(path="lib/cutensor"))
+                end
+                Pkg.develop(deps)
               end
 
               Pkg.add("CUDA_Runtime_jll")

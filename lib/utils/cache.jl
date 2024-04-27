@@ -1,27 +1,32 @@
 # a cache for library handles
 
-# TODO:
-# - keep track of the (estimated?) size of cache contents
-# - clean the caches when memory is needed. this will require registering the destructor
-#   upfront, so that it can set the environment (e.g. switch to the appropriate context).
-#   alternatively, register the `unsafe_free!`` methods with the pool instead of the cache.
-
 export HandleCache
 
 struct HandleCache{K,V}
-    active_handles::Set{Pair{K,V}}      # for debugging, and to prevent handle finalization
+    ctor
+    dtor
+
+    active_handles::Set{Pair{K,V}}
     idle_handles::Dict{K,Vector{V}}
-    lock::ReentrantLock
+    lock::Base.ThreadSynchronizer
+    # XXX: we use a thread-safe spinlock because the handle cache is used from finalizers.
+    #      once finalizers run on their own thread, use a regular ReentrantLock
 
     max_entries::Int
 
-    function HandleCache{K,V}(max_entries::Int=32) where {K,V}
-        return new{K,V}(Set{Pair{K,V}}(), Dict{K,Vector{V}}(), ReentrantLock(), max_entries)
+    function HandleCache{K,V}(ctor, dtor; max_entries::Int=32) where {K,V}
+        obj = new{K,V}(ctor, dtor, Set{Pair{K,V}}(), Dict{K,Vector{V}}(),
+                       Base.ThreadSynchronizer(), max_entries)
+
+        # register a hook to wipe the current context's cache when under memory pressure
+        push!(CUDA.reclaim_hooks, ()->empty!(obj))
+
+        return obj
     end
 end
 
 # remove a handle from the cache, or create a new one
-function Base.pop!(ctor::Function, cache::HandleCache{K,V}, key::K) where {K,V}
+function Base.pop!(cache::HandleCache{K,V}, key::K) where {K,V}
     # check the cache
     handle = @lock cache.lock begin
         if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
@@ -35,7 +40,8 @@ function Base.pop!(ctor::Function, cache::HandleCache{K,V}, key::K) where {K,V}
     # we could (and used to) run `GC.gc(false)` here to free up old handles,
     # but that can be expensive when using lots of short-lived tasks.
     if handle === nothing
-        handle = ctor()
+        CUDA.maybe_collect()
+        handle = cache.ctor(key)
     end
 
     # add the handle to the active set
@@ -47,7 +53,7 @@ function Base.pop!(ctor::Function, cache::HandleCache{K,V}, key::K) where {K,V}
 end
 
 # put a handle in the cache, or destroy it if it doesn't fit
-function Base.push!(dtor::Function, cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
+function Base.push!(cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
     saved = @lock cache.lock begin
         delete!(cache.active_handles, key=>handle)
 
@@ -65,12 +71,12 @@ function Base.push!(dtor::Function, cache::HandleCache{K,V}, key::K, handle::V) 
     end
 
     if !saved
-        dtor()
+        cache.dtor(key, handle)
     end
 end
 
 # shorthand version to put a handle back without having to remember the key
-function Base.push!(dtor::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
+function Base.push!(cache::HandleCache{K,V}, handle::V) where {K,V}
     key = @lock cache.lock begin
         key = nothing
         for entry in cache.active_handles
@@ -85,5 +91,23 @@ function Base.push!(dtor::Function, cache::HandleCache{K,V}, handle::V) where {K
         key
     end
 
-    push!(dtor, cache, key, handle)
+    push!(cache, key, handle)
+end
+
+# empty the cache
+# XXX: often we only need to empty the handles for a single context, however, we don't
+#      know for sure that the key is a context (see e.g. cuFFT), so we wipe everything
+function Base.empty!(cache::HandleCache{K,V}) where {K,V}
+    handles = @lock cache.lock begin
+        all_handles = Pair{K,V}[]
+        for (key, handles) in cache.idle_handles, handle in handles
+            push!(all_handles, key=>handle)
+        end
+        empty!(cache.idle_handles)
+        all_handles
+    end
+
+    for (key,handle) in handles
+        cache.dtor(key, handle)
+    end
 end

@@ -21,8 +21,21 @@ include("wrappers.jl")
 # high-level integrations
 include("random.jl")
 
-# cache for created, but unused handles
-const idle_curand_rngs = HandleCache{CuContext,RNG}()
+
+## handles
+
+function handle_ctor(ctx)
+    context!(ctx) do
+        RNG()
+    end
+end
+function handle_dtor(ctx, handle)
+    context!(ctx; skip_destroyed=true) do
+        # no need to do anything, as the RNG is collected by its finalizer
+        # TODO: early free?
+    end
+end
+const idle_curand_rngs = HandleCache{CuContext,RNG}(handle_ctor, handle_dtor)
 
 function default_rng()
     cuda = CUDA.active_state()
@@ -35,17 +48,13 @@ function default_rng()
 
     # get library state
     @noinline function new_state(cuda)
-        new_rng = pop!(idle_curand_rngs, cuda.context) do
-            RNG()
-        end
-
+        new_rng = pop!(idle_curand_rngs, cuda.context)
         finalizer(current_task()) do task
-            push!(idle_curand_rngs, cuda.context, new_rng) do
-                # no need to do anything, as the RNG is collected by its finalizer
-            end
+            push!(idle_curand_rngs, cuda.context, new_rng)
         end
 
         Random.seed!(new_rng)
+
         (; rng=new_rng)
     end
     state = get!(states, cuda.context) do
