@@ -11,7 +11,7 @@ CUDNN_jll = "62b44479-cb7b-5706-934f-f13b2eb2e645"
 
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
-CUDA = "~5.3, ~5.4"
+CUDA = "~5.4"
 CUDA_Runtime_Discovery = "0.2"
 CUDNN_jll = "~9.0"
 julia = "1.8"
