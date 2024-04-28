@@ -18,6 +18,11 @@ function EnzymeCore.compiler_job_from_backend(::CUDABackend, @nospecialize(F::Ty
     return GPUCompiler.CompilerJob(mi, CUDA.compiler_config(CUDA.device()))
 end
 
+function metaf(fn, args::Vararg{Any, N}) where N
+    EnzymeCore.autodiff_deferred(Forward, fn, Const, args...)
+    nothing
+end
+
 function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(cufunction)},
                                         ::Type{<:Duplicated}, f::Const{F},
                                         tt::Const{TT}; kwargs...) where {F,TT}
