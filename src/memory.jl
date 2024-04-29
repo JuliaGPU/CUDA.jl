@@ -223,28 +223,10 @@ function stream_ordered(dev::CuDevice)
   end::Bool
 end
 
-# per-device flag indicating the status of the memory pool.
-# `nothing` indicates the pool hasn't been initialized,
-# `false` indicates the pool is idle, and `true` indicates it is active.
-const _pool_status = PerDevice{Base.RefValue{Bool}}()
-function pool_status(dev::CuDevice)
-  status = get(_pool_status, dev, nothing)
-  status === nothing && return nothing
-  return status[]
-end
-function pool_status!(dev::CuDevice, val)
-  box = get!(_pool_status, dev) do
-    # nothing=uninitialized, false=idle, true=active
-    Ref{Bool}()
-  end
-  box[] = val
-  return
-end
-
+const _memory_pools = PerDevice{CuMemoryPool}()
 function pool_create(dev::CuDevice)
-  if pool_status(dev) === nothing
+  get!(_memory_pools, dev) do
       limits = memory_limits()
-      pool_status!(dev::CuDevice, false)
 
       # create a custom memory pool and assign it to the device
       # so that other libraries and applications will use it.
@@ -265,9 +247,22 @@ function pool_create(dev::CuDevice)
       end
 
       pool
-  else
-      memory_pool(dev)
   end
+end
+
+# per-device flag indicating the status of the memory pool.
+const _pool_status = PerDevice{Base.RefValue{Bool}}()
+function pool_mark(dev::CuDevice)
+  status = get(_pool_status, dev, nothing)
+  status === nothing && return nothing
+  return status[]
+end
+function pool_mark!(dev::CuDevice, val)
+  box = get!(_pool_status, dev) do
+    Ref{Bool}()
+  end
+  box[] = val
+  return
 end
 
 # reclaim unused pool memory after a certain time
@@ -289,7 +284,7 @@ function pool_cleanup()
     for (i, dev) in enumerate(devices())
       stream_ordered(dev) || continue
 
-      status = pool_status(dev)
+      status = pool_mark(dev)
       status === nothing && continue
 
       if status
@@ -297,7 +292,7 @@ function pool_cleanup()
       else
         idle_counters[i] += 1
       end
-      pool_status!(dev, false)
+      pool_mark!(dev, false)
 
       if idle_counters[i] == 5
         # the pool hasn't been used for a while, so reclaim unused buffers
@@ -606,9 +601,10 @@ cannot be satisfied.
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return Managed(B())
 
-  # _alloc reports its own time measurement, since it may spend time in garbage collection
-  # (and using Base.@timed/gc_num to exclude that time is too expensive)
-  mem, time = _pool_alloc(B, sz)
+  maybe_collect()
+  time = Base.@elapsed begin
+    mem = _pool_alloc(B, sz)
+  end
 
   Base.@atomic alloc_stats.alloc_count += 1
   Base.@atomic alloc_stats.alloc_bytes += sz
@@ -620,49 +616,39 @@ end
 @inline function _pool_alloc(::Type{DeviceMemory}, sz)
     state = active_state()
 
-    maybe_collect()
-
-    actual_alloc = if stream_ordered(state.device)
-      pool_status!(state.device, true)
-
+    if stream_ordered(state.device)
+      pool_mark!(state.device, true)
       pool = pool_create(state.device)
-      (bytes) -> alloc(DeviceMemory, bytes; async=true, state.stream, pool)
-    else
-      (bytes) -> alloc(DeviceMemory, bytes; async=false)
     end
 
-    time = Base.@elapsed begin
-      mem = retry_reclaim(isnothing) do
+    mem = let pool = pool # closure capture bug
+      retry_reclaim(isnothing) do
         memory_limit_exceeded(sz) && return nothing
 
         # try the actual allocation
-        mem = try
-          actual_alloc(sz)
+        try
+          if stream_ordered(state.device)
+            alloc(DeviceMemory, sz; async=true, state.stream, pool)
+          else
+            alloc(DeviceMemory, sz; async=false)
+          end
         catch err
           isa(err, OutOfGPUMemoryError) || rethrow()
           return nothing
         end
-
-        return mem
       end
-      mem === nothing && throw(OutOfGPUMemoryError(sz))
     end
+    mem === nothing && throw(OutOfGPUMemoryError(sz))
 
     account!(memory_stats(state.device), sz)
 
-    mem, time
+    mem
 end
 @inline function _pool_alloc(::Type{UnifiedMemory}, sz)
-  time = Base.@elapsed begin
-    mem = alloc(UnifiedMemory, sz)
-  end
-  mem, time
+  alloc(UnifiedMemory, sz)
 end
 @inline function _pool_alloc(::Type{HostMemory}, sz)
-  time = Base.@elapsed begin
-    mem = alloc(HostMemory, sz)
-  end
-  mem, time
+  alloc(HostMemory, sz)
 end
 
 """
