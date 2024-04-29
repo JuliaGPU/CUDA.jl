@@ -359,11 +359,7 @@ steps:
               - "1.8"
               - "1.9"
               - "1.10"
-              - "nightly"
-          adjustments:
-            - with:
-                julia: "nightly"
-              soft_fail: true
+              - "1.11"
         timeout_in_minutes: 30
 
 env:
