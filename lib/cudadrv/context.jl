@@ -101,7 +101,9 @@ end
 
 Base.unsafe_convert(::Type{CUcontext}, ctx::CuContext) = ctx.handle
 
-function Base.show(io::IO, ctx::CuContext)
+Base.show(io::IO, ctx::CuContext) = @printf io "CuContext(%p)" ctx.handle
+
+function Base.show(io::IO, ::MIME"text/plain", ctx::CuContext)
     fields = [@sprintf("%p", ctx.handle)]
     if driver_version() >= v"12"
         push!(fields, "id=$(ctx.id)")
