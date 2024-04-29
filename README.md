@@ -101,7 +101,7 @@ root of this repository lists the relevant papers.
 
 ## Project Status
 
-The package is tested against, and being developed for, Julia 1.6 and above. Main
+The package is tested against, and being developed for, Julia 1.8 and above. Main
 development and testing happens on x86 Linux, but the package is expected to work on
 Windows, and on ARM and PowerPC as well.
 
