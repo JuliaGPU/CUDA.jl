@@ -251,7 +251,7 @@ function nonblocking_synchronize(stream::CuStream)
                     err isa EOFError && break
                     rethrow()
                 end
-                if unchecked_cuStreamQuery(stream) != ERROR_NOT_READY
+                if isdone(stream)
                     break
                 end
             end
