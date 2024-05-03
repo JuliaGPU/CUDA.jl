@@ -198,19 +198,24 @@ end
 
 mutable struct CuTensorDescriptor
     handle::cutensorTensorDescriptor_t
-
-    function CuTensorDescriptor(a; size = size(a), strides = strides(a), eltype = eltype(a))
-        sz = collect(Int64, size)
-        st = collect(Int64, strides)
-        alignmentRequirement::UInt32 = 128
-
+    # inner constructor handles creation and finalizer of the descriptor
+    function CuTensorDescriptor(sz::Vector{Int64}, st::Vector{Int64}, eltype::DataType,
+                                alignmentRequirement::UInt32=UInt32(128))
         desc = Ref{cutensorTensorDescriptor_t}()
-        cutensorCreateTensorDescriptor(handle(), desc, length(sz), sz, st, eltype, alignmentRequirement)
+        length(st) == (N = length(sz)) || throw(ArgumentError("size and stride vectors must have the same length"))
+        cutensorCreateTensorDescriptor(handle(), desc, N, sz, st, eltype, alignmentRequirement)
 
         obj = new(desc[])
         finalizer(unsafe_destroy!, obj)
         return obj
     end
+end
+
+# outer constructor restricted to DenseCuArray, but could be extended
+function CuTensorDescriptor(a::DenseCuArray; size=size(a), strides=strides(a), eltype=eltype(a))
+    sz = collect(Int64, size)
+    st = collect(Int64, strides)
+    return CuTensorDescriptor(sz, st, eltype)
 end
 
 Base.show(io::IO, desc::CuTensorDescriptor) = @printf(io, "CuTensorDescriptor(%p)", desc.handle)

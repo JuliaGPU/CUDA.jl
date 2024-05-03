@@ -12,12 +12,12 @@ is_binary(op::cutensorOperator_t) = (op ∈ (OP_ADD, OP_MUL, OP_MAX, OP_MIN))
 
 function elementwise_trinary_execute!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(beta::Number),
-        @nospecialize(B::DenseCuArray), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(B::AbstractArray), Binds::ModeType, opB::cutensorOperator_t,
         @nospecialize(gamma::Number),
-        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
-        @nospecialize(D::DenseCuArray), Dinds::ModeType, opAB::cutensorOperator_t,
+        @nospecialize(C::AbstractArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::AbstractArray), Dinds::ModeType, opAB::cutensorOperator_t,
         opABC::cutensorOperator_t;
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
@@ -45,12 +45,12 @@ end
 
 function elementwise_trinary_execute!(plan::CuTensorPlan,
                                       @nospecialize(alpha::Number),
-                                      @nospecialize(A::DenseCuArray),
+                                      @nospecialize(A::AbstractArray),
                                       @nospecialize(beta::Number),
-                                      @nospecialize(B::DenseCuArray),
+                                      @nospecialize(B::AbstractArray),
                                       @nospecialize(gamma::Number),
-                                      @nospecialize(C::DenseCuArray),
-                                      @nospecialize(D::DenseCuArray))
+                                      @nospecialize(C::AbstractArray),
+                                      @nospecialize(D::AbstractArray))
     scalar_type = plan.scalar_type
     cutensorElementwiseTrinaryExecute(handle(), plan,
                                       Ref{scalar_type}(alpha), A,
@@ -61,10 +61,10 @@ function elementwise_trinary_execute!(plan::CuTensorPlan,
 end
 
 function plan_elementwise_trinary(
-        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(B::DenseCuArray), Binds::ModeType, opB::cutensorOperator_t,
-        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
-        @nospecialize(D::DenseCuArray), Dinds::ModeType, opAB::cutensorOperator_t,
+        @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B::AbstractArray), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(C::AbstractArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::AbstractArray), Dinds::ModeType, opAB::cutensorOperator_t,
         opABC::cutensorOperator_t;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
@@ -109,10 +109,10 @@ end
 
 function elementwise_binary_execute!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(gamma::Number),
-        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
-        @nospecialize(D::DenseCuArray), Dinds::ModeType, opAC::cutensorOperator_t;
+        @nospecialize(C::AbstractArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::AbstractArray), Dinds::ModeType, opAC::cutensorOperator_t;
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
         compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
@@ -137,10 +137,10 @@ end
 
 function elementwise_binary_execute!(plan::CuTensorPlan,
                                      @nospecialize(alpha::Number),
-                                     @nospecialize(A::DenseCuArray),
+                                     @nospecialize(A::AbstractArray),
                                      @nospecialize(gamma::Number),
-                                     @nospecialize(C::DenseCuArray),
-                                     @nospecialize(D::DenseCuArray))
+                                     @nospecialize(C::AbstractArray),
+                                     @nospecialize(D::AbstractArray))
     scalar_type = plan.scalar_type
     cutensorElementwiseBinaryExecute(handle(), plan,
                                      Ref{scalar_type}(alpha), A,
@@ -150,9 +150,9 @@ function elementwise_binary_execute!(plan::CuTensorPlan,
 end
 
 function plan_elementwise_binary(
-        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
-        @nospecialize(D::DenseCuArray), Dinds::ModeType, opAC::cutensorOperator_t;
+        @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(C::AbstractArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::AbstractArray), Dinds::ModeType, opAC::cutensorOperator_t;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
@@ -191,8 +191,8 @@ end
 
 function permute!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(B::DenseCuArray), Binds::ModeType;
+        @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B::AbstractArray), Binds::ModeType;
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
         compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
@@ -216,8 +216,8 @@ end
 
 function permute!(plan::CuTensorPlan,
                   @nospecialize(alpha::Number),
-                  @nospecialize(A::DenseCuArray),
-                  @nospecialize(B::DenseCuArray))
+                  @nospecialize(A::AbstractArray),
+                  @nospecialize(B::AbstractArray))
     scalar_type = plan.scalar_type
     cutensorPermute(handle(), plan,
                     Ref{scalar_type}(alpha), A, B,
@@ -226,8 +226,8 @@ function permute!(plan::CuTensorPlan,
 end
 
 function plan_permutation(
-        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(B::DenseCuArray), Binds::ModeType;
+        @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B::AbstractArray), Binds::ModeType;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
@@ -258,10 +258,10 @@ end
 
 function contract!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(B::DenseCuArray), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B::AbstractArray), Binds::ModeType, opB::cutensorOperator_t,
         @nospecialize(beta::Number),
-        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(C::AbstractArray), Cinds::ModeType, opC::cutensorOperator_t,
         opOut::cutensorOperator_t;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
@@ -286,10 +286,10 @@ end
 
 function contract!(plan::CuTensorPlan,
                    @nospecialize(alpha::Number),
-                   @nospecialize(A::DenseCuArray),
-                   @nospecialize(B::DenseCuArray),
+                   @nospecialize(A::AbstractArray),
+                   @nospecialize(B::AbstractArray),
                    @nospecialize(beta::Number),
-                   @nospecialize(C::DenseCuArray))
+                   @nospecialize(C::AbstractArray))
     scalar_type = plan.scalar_type
     cutensorContract(handle(), plan,
                      Ref{scalar_type}(alpha), A, B,
@@ -299,9 +299,9 @@ function contract!(plan::CuTensorPlan,
 end
 
 function plan_contraction(
-        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(B::DenseCuArray), Binds::ModeType, opB::cutensorOperator_t,
-        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B::AbstractArray), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(C::AbstractArray), Cinds::ModeType, opC::cutensorOperator_t,
         opOut::cutensorOperator_t;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
@@ -342,9 +342,9 @@ end
 
 function reduce!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(beta::Number),
-        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(C::AbstractArray), Cinds::ModeType, opC::cutensorOperator_t,
         opReduce::cutensorOperator_t;
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
@@ -367,9 +367,9 @@ end
 
 function reduce!(plan::CuTensorPlan,
                  @nospecialize(alpha::Number),
-                 @nospecialize(A::DenseCuArray),
+                 @nospecialize(A::AbstractArray),
                  @nospecialize(beta::Number),
-                 @nospecialize(C::DenseCuArray))
+                 @nospecialize(C::AbstractArray))
     scalar_type = plan.scalar_type
     cutensorReduce(handle(), plan,
                    Ref{scalar_type}(alpha), A,
@@ -379,8 +379,8 @@ function reduce!(plan::CuTensorPlan,
 end
 
 function plan_reduction(
-        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(C::AbstractArray), Cinds::ModeType, opC::cutensorOperator_t,
         opReduce::cutensorOperator_t;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
