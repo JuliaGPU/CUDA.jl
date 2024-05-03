@@ -11,7 +11,7 @@
 # If that isn't sufficient, and you identified a kernel that executes slowly, you can try using NSight Compute to analyze that kernel in detail. Some things to try in order of importance:
 # * Optimize memory accesses, e.g., avoid needless global accesses (buffering in shared memory instead) or coalesce accesses;
 # * Launch more threads on each streaming multiprocessor, this can be achieved by lowering register pressure or reducing shared memory usage, the tips below outline the various ways in which register pressure can be reduced;
-# * Use 32 bit types like `Float32` and `Int32` instead of 64 bit types like `Float64` and `Int`/`Int64`;
+# * Use Float32's instead of Float64's;
 # * Avoid the use of control flow which cause threads in the same warp to diverge, i.e., make sure `while` or `for` loops behave identically across the entire warp, and replace `if`s that diverge within a warp with `ifelse`s;
 # * Increase the arithmetic intensity in order for the GPU to be able to hide the latency of memory accesses.
 
