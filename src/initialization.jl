@@ -133,6 +133,14 @@ function __init__()
         end
     end
 
+    # ensure that we have a JIT compiler
+    if !CUDA_JIT_jll.is_available()
+        @error """The CUDA_JIT JLL has not been packaged for your platform, $(Base.BinaryPlatforms.triplet(CUDA_Runtime_jll.host_platform)).
+                  Please open an issue."""
+        _initialization_error[] = "CUDA JIT compiler not found"
+        return
+    end
+
     # if we're not running under an external profiler, let CUPTI handle NVTX events
     # XXX: JuliaGPU/NVTX.jl#37
     if !NVTX.isactive() && !Sys.iswindows()

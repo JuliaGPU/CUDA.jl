@@ -36,7 +36,7 @@ function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::L
         return
     end
 
-    lib = parse(LLVM.Module, read(libdevice))
+    lib = parse(LLVM.Module, read(CUDA_JIT_jll.libdevice))
 
     # override libdevice's triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
@@ -179,7 +179,7 @@ end
                                          cap=nothing, ptx=nothing, kwargs...)
     # determine the toolchain
     llvm_support = llvm_compat()
-    cuda_support = cuda_compat()
+    cuda_support = cuda_compat(runtime=CUDA_JIT_version)
 
     # determine the PTX ISA to use. we want at least 6.2, but will use newer if possible.
     requested_ptx = something(ptx, v"6.2")
@@ -207,7 +207,7 @@ end
 
     # determine the compute capabilities to use. this should match the capability of the
     # current device, but if LLVM doesn't support it, we can target an older capability
-    # and pass a different `-arch` to `ptxa`.
+    # and pass a different `-arch` to `ptxas`.
     ptx_support = ptx_compat(cuda_ptx)
     requested_cap = something(cap, min(capability(dev), maximum(ptx_support.cap)))
     llvm_caps = filter(<=(requested_cap), llvm_support.cap)
@@ -230,11 +230,8 @@ end
         cuda_cap = maximum(cuda_caps)
     end
 
-    # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
-    debuginfo = runtime_version() >= v"11.7"
-
     # create GPUCompiler objects
-    target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo, kwargs...)
+    target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo=true, kwargs...)
     params = CUDACompilerParams(; cap=cuda_cap, ptx=cuda_ptx)
     CompilerConfig(target, params; kernel, name, always_inline)
 end
@@ -339,7 +336,7 @@ function compile(@nospecialize(job::CompilerJob))
         "--output-file", ptxas_output,
         ptx_input
     ])
-    proc, log = run_and_collect(`$(ptxas()) $ptxas_opts`)
+    proc, log = run_and_collect(`$(CUDA_JIT_jll.ptxas()) $ptxas_opts`)
     log = strip(log)
     if !success(proc)
         reason = proc.termsignal > 0 ? "ptxas received signal $(proc.termsignal)" :
@@ -370,12 +367,12 @@ function compile(@nospecialize(job::CompilerJob))
         append!(nvlink_opts, [
             "--verbose", "--extra-warnings",
             "--arch", arch,
-            "--library-path", dirname(libcudadevrt),
+            "--library-path", dirname(CUDA_JIT_jll.libcudadevrt),
             "--library", "cudadevrt",
             "--output-file", nvlink_output,
             ptxas_output
         ])
-        proc, log = run_and_collect(`$(nvlink()) $nvlink_opts`)
+        proc, log = run_and_collect(`$(CUDA_JIT_jll.nvlink()) $nvlink_opts`)
         log = strip(log)
         if !success(proc)
             reason = proc.termsignal > 0 ? "nvlink received signal $(proc.termsignal)" :

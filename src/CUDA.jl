@@ -36,6 +36,9 @@ else
     using CUDA_Runtime_jll
     const CUDA_Runtime = CUDA_Runtime_jll
 end
+import CUDA_JIT_jll
+const CUDA_JIT_version = v"12.4"
+# XXX: we don't have `Base.pkgversion` before Julia 1.9
 
 import Preferences
 
