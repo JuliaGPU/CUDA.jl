@@ -12,6 +12,6 @@ cuQuantum_jll = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
 CUDA = "~5.4"
-CUDA_Runtime_Discovery = "0.2"
+CUDA_Runtime_Discovery = "0.2, 0.3"
 cuQuantum_jll = "~24.03"
 julia = "1.8"
