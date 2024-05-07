@@ -78,11 +78,31 @@ end
     let
         a = [1]
         p = pointer(a)
-        for AT in [CuArray, CuArray{Int}, CuArray{Int,1}, CuArray{Int,1,CUDA.UnifiedMemory}],
+
+        # automatic memory selection
+        for AT in [CuArray, CuArray{Int}, CuArray{Int,1}],
             b in [unsafe_wrap(AT, p, 1), unsafe_wrap(AT, p, (1,)), unsafe_wrap(AT, a)]
-            @test typeof(b) == CuArray{Int,1,CUDA.UnifiedMemory}
+            @test typeof(b) <: CuArray{Int,1}
             @test pointer(b) == reinterpret(CuPtr{Int}, p)
             @test size(b) == (1,)
+        end
+
+        # host memory
+        for AT in [CuArray{Int,1,CUDA.HostMemory}],
+            b in [unsafe_wrap(AT, p, 1), unsafe_wrap(AT, p, (1,)), unsafe_wrap(AT, a)]
+            @test typeof(b) <: CuArray{Int,1,CUDA.HostMemory}
+            @test pointer(b) == reinterpret(CuPtr{Int}, p)
+            @test size(b) == (1,)
+        end
+
+        # unified memory (requires HMM)
+        if CUDA.supports_hmm(device())
+          for AT in [CuArray{Int,1,CUDA.UnifiedMemory}],
+              b in [unsafe_wrap(AT, p, 1), unsafe_wrap(AT, p, (1,)), unsafe_wrap(AT, a)]
+              @test typeof(b) <: CuArray{Int,1,CUDA.UnifiedMemory}
+              @test pointer(b) == reinterpret(CuPtr{Int}, p)
+              @test size(b) == (1,)
+          end
         end
     end
 
