@@ -13,6 +13,14 @@ else
     using ..EnzymeCore.EnzymeRules
 end
 
+function EnzymeCore.EnzymeRules.inactive(::typeof(CUDA.CUBLAS.handle))
+    return nothing
+end
+function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDA.CUBLAS.version))
+    return nothing
+end
+
+
 function EnzymeCore.compiler_job_from_backend(::CUDABackend, @nospecialize(F::Type), @nospecialize(TT::Type))
     mi = GPUCompiler.methodinstance(F, TT)
     return GPUCompiler.CompilerJob(mi, CUDA.compiler_config(CUDA.device()))
@@ -58,15 +66,6 @@ function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(cudaconvert)},
             return tup
         end
     end
-end
-
-function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(cufunction)},
-                                        ::Type{BatchDuplicated{T,N}}, f::Const{F},
-                                        tt::Const{TT}; kwargs...) where {F,TT,T,N}
-    res = ofn.val(f.val, tt.val; kwargs...)
-    return BatchDuplicated(res, ntuple(Val(N)) do _
-        res
-    end)
 end
 
 function EnzymeCore.EnzymeRules.forward(ofn::EnzymeCore.Annotation{CUDA.HostKernel{F,TT}},
