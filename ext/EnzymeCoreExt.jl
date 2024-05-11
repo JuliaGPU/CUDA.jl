@@ -61,7 +61,34 @@ function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(cudaconvert)},
             ofn.val(x.dval[i])
         end
         if RT <: BatchDuplicated
-            return BatchDuplicated(ofv.val(x.val, tup))
+            return BatchDuplicated(ofv.val(x.val), tup)
+        else
+            return tup
+        end
+    end
+end
+
+function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(synchronize)},
+                                        ::Type{RT}, args::NTuple{N, Annotation}; kwargs...) where {RT, N}
+    pargs = ntuple(Val(N)) do i
+        Base.@_inline_meta
+        args.val
+    end
+    res = ofn.val(pargs...; kwargs...)
+
+    if RT <: Duplicated
+        return Duplicated(res, res)
+    elseif RT <: Const
+        return res
+    elseif RT <: DuplicatedNoNeed
+        return res
+    else
+        tup = ntuple(Val(EnzymeRules.batch_width(RT))) do i
+            Base.@_inline_meta
+            res
+        end
+        if RT <: BatchDuplicated
+            return BatchDuplicated(res, tup)
         else
             return tup
         end
