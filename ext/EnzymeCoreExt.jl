@@ -83,5 +83,91 @@ function EnzymeCore.EnzymeRules.forward(ofn::EnzymeCore.Annotation{CUDA.HostKern
     return nothing
 end
 
+function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(Base.fill!)}, ::Type{RT}, A::EnzymeCore.Annotation{<:DenseCuArray{T}}, x) where {RT, T <: CUDA.MemsetCompatTypes}
+    if A isa Const || A isa Duplicated || A isa BatchDuplicated
+        ofn.val(A.val, x.val)
+    end
+
+    if A isa Duplicated || A isa DuplicatedNoNeed
+        ofn.val(A.dval, x isa Const ? zero(T) : x.dval)
+    elseif A isa BatchDuplicated || A isa BatchDuplicatedNoNeed
+        ntuple(Val(EnzymeRules.batch_width(A))) do i
+            Base.@_inline_meta
+            ofn.val(A.dval[i], x isa Const ? zero(T) : x.dval[i])
+            nothing
+        end
+    end
+
+    if RT <: Duplicated
+        return A
+    elseif RT <: Const
+        return A.val
+    elseif RT <: DuplicatedNoNeed
+        return A.dval
+    elseif RT <: BatchDuplicated
+        return A
+    else
+        return A.dval
+    end
+end
+
+
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(Base.fill!)}, ::Type{RT}, A::EnzymeCore.Annotation{<:DenseCuArray{T}}, x) where {RT, T <: CUDA.MemsetCompatTypes}
+    if A isa Const || A isa Duplicated || A isa BatchDuplicated
+        ofn.val(A.val, x.val)
+    end
+
+    if A isa Duplicated || A isa DuplicatedNoNeed
+        ofn.val(A.dval, zero(T))
+    elseif A isa BatchDuplicated || A isa BatchDuplicatedNoNeed
+        ntuple(Val(EnzymeRules.batch_width(A))) do i
+            Base.@_inline_meta
+            ofn.val(A.dval[i], zero(T))
+            nothing
+        end
+    end
+
+    primal = if EnzymeRules.needs_primal(config)
+        A.val
+    else
+        nothing
+    end
+    
+    shadow = if EnzymeRules.needs_shadow(config)
+        A.dval
+    else
+        nothing
+    end
+    return EnzymeRules.AugmentedReturn(primal, shadow, nothing)
+end
+
+function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.fill!)}, ::Type{RT}, A::EnzymeCore.Annotation{<:DenseCuArray{T}}, x) where {RT, T <: CUDA.MemsetCompatTypes}
+    dx = if x isa Active 
+        if A isa Duplicated || A isa DuplicatedNoNeed
+            sum(A.dval)
+        elseif A isa BatchDuplicated || A isa BatchDuplicatedNoNeed
+            ntuple(Val(EnzymeRules.batch_width(A))) do i
+                Base.@_inline_meta
+                sum(A.dval[i])
+            end
+        end
+    else
+        nothing
+    end
+
+    # re-zero shadow
+    if A isa Duplicated || A isa DuplicatedNoNeed
+        ofn.val(A.dval, zero(T))
+    elseif A isa BatchDuplicated || A isa BatchDuplicatedNoNeed
+        ntuple(Val(EnzymeRules.batch_width(A))) do i
+            Base.@_inline_meta
+            ofn.val(A.dval[i], zero(T))
+            nothing
+        end
+    end
+
+    return (nothing, nothing, dx)
+end
+
 end # module
 
