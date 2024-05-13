@@ -255,9 +255,6 @@ function compile(@nospecialize(job::CompilerJob))
                      "__nvvm_reflect" #= TODO: should have been optimized away =#]
     needs_cudadevrt = !isempty(setdiff(LLVM.name.(undefined_fs), intrinsic_fns))
 
-    # find externally-initialized global variables; we'll access those using CUDA APIs.
-    external_gvars = filter(isextinit, collect(globals(meta.ir))) .|> LLVM.name
-
     # prepare invocations of CUDA compiler tools
     ptxas_opts = String[]
     nvlink_opts = String[]
@@ -399,7 +396,7 @@ function compile(@nospecialize(job::CompilerJob))
         rm(ptxas_output)
     end
 
-    return (image, entry=LLVM.name(meta.entry), external_gvars)
+    return (image, entry=LLVM.name(meta.entry))
 end
 
 # link into an executable kernel
