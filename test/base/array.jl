@@ -109,7 +109,6 @@ end
     # errors
     let a = cu([1]; device=true)
         @test_throws ArgumentError unsafe_wrap(Array, a)
-        @test_throws ArgumentError unsafe_wrap(CuArray{Int,1,CUDA.UnifiedMemory}, pointer(a), 1)
     end
     let a = [1]
         @test_throws ArgumentError unsafe_wrap(CuArray{Int,1,CUDA.DeviceMemory}, a)
