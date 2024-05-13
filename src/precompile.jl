@@ -6,7 +6,7 @@ precompile(CuArray, (Vector{Int},))
 precompile(compiler_cache, (CuContext,))
 #precompile(compiler_config, (CuDevice,))
 precompile(compile, (CompilerJob,))
-precompile(link, (CompilerJob,NamedTuple{(:image, :entry, :external_gvars), Tuple{Vector{UInt8}, String, Vector{String}}}))
+precompile(link, (CompilerJob,NamedTuple{(:image, :entry), Tuple{Vector{UInt8}, String}}))
 precompile(create_exceptions!, (CuModule,))
 precompile(run_and_collect, (Cmd,))
 
