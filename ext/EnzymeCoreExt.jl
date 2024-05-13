@@ -56,7 +56,7 @@ function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(cudaconvert)},
     elseif RT <: DuplicatedNoNeed
         return ofn.val(x.val)
     else
-        tup = ntuple(Val(EnzymeRules.batch_width(RT))) do i
+        tup = ntuple(Val(EnzymeRules.batch_size(RT))) do i
             Base.@_inline_meta
             ofn.val(x.dval[i])
         end
@@ -83,7 +83,7 @@ function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(synchronize)},
     elseif RT <: DuplicatedNoNeed
         return res
     else
-        tup = ntuple(Val(EnzymeRules.batch_width(RT))) do i
+        tup = ntuple(Val(EnzymeRules.batch_size(RT))) do i
             Base.@_inline_meta
             res
         end
