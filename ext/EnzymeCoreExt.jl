@@ -141,7 +141,7 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(Base.
     return EnzymeRules.AugmentedReturn(primal, shadow, nothing)
 end
 
-function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.fill!)}, ::Type{RT}, A::EnzymeCore.Annotation{<:DenseCuArray{T}}, x) where {RT, T <: CUDA.MemsetCompatTypes}
+function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.fill!)}, ::Type{RT}, tape, A::EnzymeCore.Annotation{<:DenseCuArray{T}}, x) where {RT, T <: CUDA.MemsetCompatTypes}
     dx = if x isa Active 
         if A isa Duplicated || A isa DuplicatedNoNeed
             sum(A.dval)
