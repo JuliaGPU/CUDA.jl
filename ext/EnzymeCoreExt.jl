@@ -166,7 +166,7 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.fill!)}, 
         end
     end
 
-    return (nothing, nothing, dx)
+    return (nothing, dx)
 end
 
 end # module
