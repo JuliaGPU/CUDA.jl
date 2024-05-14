@@ -69,7 +69,7 @@ function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(cudaconvert)},
 end
 
 function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(synchronize)},
-                                        ::Type{RT}, args::NTuple{N, Annotation}; kwargs...) where {RT, N}
+                                        ::Type{RT}, args::NTuple{N, EnzymeCore.Annotation}; kwargs...) where {RT, N}
     pargs = ntuple(Val(N)) do i
         Base.@_inline_meta
         args.val
