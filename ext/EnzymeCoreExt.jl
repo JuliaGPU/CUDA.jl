@@ -117,14 +117,16 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(Base.
         ofn.val(A.val, x.val)
     end
 
-    if A isa Duplicated || A isa DuplicatedNoNeed
-        ofn.val(A.dval, zero(T))
-    elseif A isa BatchDuplicated || A isa BatchDuplicatedNoNeed
-        ntuple(Val(EnzymeRules.batch_width(A))) do i
-            Base.@_inline_meta
-            ofn.val(A.dval[i], zero(T))
-            nothing
-        end
+    if !(T <: AbstractFloat)
+      if A isa Duplicated || A isa DuplicatedNoNeed
+          ofn.val(A.dval, zero(T))
+      elseif A isa BatchDuplicated || A isa BatchDuplicatedNoNeed
+          ntuple(Val(EnzymeRules.batch_width(A))) do i
+              Base.@_inline_meta
+              ofn.val(A.dval[i], zero(T))
+              nothing
+          end
+      end
     end
 
     primal = if EnzymeRules.needs_primal(config)
@@ -156,14 +158,16 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.fill!)}, 
     end
 
     # re-zero shadow
-    if A isa Duplicated || A isa DuplicatedNoNeed
-        ofn.val(A.dval, zero(T))
-    elseif A isa BatchDuplicated || A isa BatchDuplicatedNoNeed
-        ntuple(Val(EnzymeRules.batch_width(A))) do i
-            Base.@_inline_meta
-            ofn.val(A.dval[i], zero(T))
-            nothing
-        end
+    if (T <: AbstractFloat)
+      if A isa Duplicated || A isa DuplicatedNoNeed
+          ofn.val(A.dval, zero(T))
+      elseif A isa BatchDuplicated || A isa BatchDuplicatedNoNeed
+          ntuple(Val(EnzymeRules.batch_width(A))) do i
+              Base.@_inline_meta
+              ofn.val(A.dval[i], zero(T))
+              nothing
+          end
+      end
     end
 
     return (nothing, dx)
