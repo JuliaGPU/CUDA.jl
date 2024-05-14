@@ -110,6 +110,8 @@ const cuda_ptx_db = Dict(
     v"8.0" => between(v"12.0", highest),
     v"8.1" => between(v"12.1", highest),
     v"8.2" => between(v"12.2", highest),
+    v"8.3" => between(v"12.3", highest),
+    v"8.4" => between(v"12.4", highest),
 )
 
 function cuda_ptx_support(ver::VersionNumber)
