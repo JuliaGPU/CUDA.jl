@@ -5,8 +5,13 @@ module EnzymeCoreExt
 using CUDA
 import CUDA: GPUCompiler, CUDABackend
 
-isdefined(Base, :get_extension) ? (import EnzymeCore) : (import ..EnzymeCore)
-isdefined(Base, :get_extension) ? (using EnzymeCore) : (using ..EnzymeCore)
+if isdefined(Base, :get_extension)
+    using EnzymeCore
+    using EnzymeCore.EnzymeRules
+else
+    using ..EnzymeCore
+    using ..EnzymeCore.EnzymeRules
+end
 
 function EnzymeCore.compiler_job_from_backend(::CUDABackend, @nospecialize(F::Type), @nospecialize(TT::Type))
     mi = GPUCompiler.methodinstance(F, TT)
