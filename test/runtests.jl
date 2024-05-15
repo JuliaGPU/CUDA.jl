@@ -90,10 +90,6 @@ end
 sort!(tests; by=(file)->stat("$(@__DIR__)/$file.jl").size, rev=true)
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)
-    if CUDA.default_memory != CUDA.DeviceMemory && name == "indexing scalar"
-        # GPUArrays' scalar indexing tests assume that indexing is not supported
-        continue
-    end
     pushfirst!(tests, "gpuarrays/$name")
     test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
 end
@@ -111,7 +107,22 @@ if do_list
 end
 
 # filter tests
-if !isempty(ARGS)
+if isempty(ARGS)
+  # default to running all tests, except:
+  filter!(tests) do test
+    # package extensions often require additional dependencies,
+    # which we don't want to put in our test env by default.
+    startswith(test, "extensions") && return false
+
+    if CUDA.default_memory != CUDA.DeviceMemory && test == "gpuarrays/indexing scalar"
+        # GPUArrays' scalar indexing tests assume that indexing is not supported
+        return false
+    end
+
+    return true
+  end
+else
+  # let the user filter
   filter!(tests) do test
     any(arg->startswith(test, arg), ARGS)
   end

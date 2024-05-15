@@ -1,6 +1,5 @@
-using EnzymeCore
+using Enzyme, EnzymeCore
 using GPUCompiler
-using Enzyme
 
 @testset "compiler_job_from_backend" begin
     @test EnzymeCore.compiler_job_from_backend(CUDABackend(), typeof(()->nothing), Tuple{}) isa GPUCompiler.CompilerJob

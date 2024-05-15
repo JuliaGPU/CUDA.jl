@@ -75,34 +75,6 @@ steps:
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"" >LocalPreferences.toml
           echo -e "[CUDA_Driver_jll]\ncompat = \"false\"" >>LocalPreferences.toml
 
-  - group: "Memory"
-    key: "memory"
-    depends_on: "julia"
-    steps:
-      - label: "CuArray with {{matrix.memory}} memory"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.10"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core base libraries"
-          - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
-        agents:
-          queue: "juliagpu"
-          cuda: "*"
-        if: build.message !~ /\[skip tests\]/ && build.message !~ /\[skip memory\]/ && !build.pull_request.draft
-        timeout_in_minutes: 30
-        matrix:
-          setup:
-            memory:
-              - "unified"
-              - "host"
-        commands: |
-          echo -e "[CUDA]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
-
   - group: ":nesting_dolls: Subpackages"
     depends_on: "cuda"
     steps:
@@ -158,7 +130,7 @@ steps:
   - group: ":telescope: Downstream"
     depends_on: "cuda"
     steps:
-      - label: "NNlib.jl on CUDA 12"
+      - label: "NNlib.jl"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.10"
@@ -182,8 +154,6 @@ steps:
                 exit(3)
               end
               Pkg.develop(path=joinpath(pwd(), "lib", "cudnn"))
-
-              write("LocalPreferences.toml", "[CUDA_Runtime_jll]\nversion = \"12.0\"")
             end
 
             println("+++ :julia: Running tests")
@@ -191,6 +161,45 @@ steps:
         env:
           NNLIB_TEST_CUDA: "true"
           NNLIB_TEST_CPU: "false"
+        agents:
+          queue: "juliagpu"
+          cuda: "*"
+        if: build.message !~ /\[skip tests\]/ && build.message !~ /\[skip downstream\]/ && !build.pull_request.draft
+        timeout_in_minutes: 30
+        soft_fail:
+          - exit_status: 3
+      - label: "Enzyme.jl"
+        plugins:
+          - JuliaCI/julia#v1:
+              version: "1.10"
+          - JuliaCI/julia-coverage#v1:
+              dirs:
+                - src
+                - lib
+                - examples
+        command: |
+          julia -e '
+            using Pkg
+
+            println("--- :julia: Instantiating project")
+            withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
+              # add Enzyme to the test deps
+              Pkg.activate("test")
+              Pkg.add(["Enzyme", "EnzymeCore"])
+
+              # to check compatibility, also add Enzyme to the main environment
+              # (or Pkg.test, which merges both environments, could fail)
+              Pkg.activate(".")
+              try
+                Pkg.develop("Enzyme")
+              catch err
+                @error "Could not install Enzyme" exception=(err,catch_backtrace())
+                exit(3)
+              end
+            end
+
+            println("+++ :julia: Running tests")
+            Pkg.test(; coverage=true, test_args=`extensions/enzyme`)'
         agents:
           queue: "juliagpu"
           cuda: "*"
@@ -269,6 +278,30 @@ steps:
           JULIA_CUDA_USE_COMPAT: 'false'  # NVIDIA bug #3418723: injection tools prevent probing libcuda
         if: build.message !~ /\[skip tests\]/ && build.message !~ /\[skip special\]/ && !build.pull_request.draft
         timeout_in_minutes: 30
+
+      - label: "CuArray with {{matrix.memory}} memory"
+        plugins:
+          - JuliaCI/julia#v1:
+              version: "1.10"
+          - JuliaCI/julia-test#v1:
+              test_args: "--quickfail core base libraries"
+          - JuliaCI/julia-coverage#v1:
+              dirs:
+                - src
+                - lib
+                - examples
+        agents:
+          queue: "juliagpu"
+          cuda: "*"
+        if: build.message !~ /\[skip tests\]/ && build.message !~ /\[skip special\]/ && !build.pull_request.draft
+        timeout_in_minutes: 30
+        matrix:
+          setup:
+            memory:
+              - "unified"
+              - "host"
+        commands: |
+          echo -e "[CUDA]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
 
       - label: "MultiGPU"
         plugins:
