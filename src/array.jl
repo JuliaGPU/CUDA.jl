@@ -285,7 +285,7 @@ end
 
 # unmanaged pointer to CuArray
 supports_hmm(dev) = driver_version() >= v"12.2" &&
-                    attribute(device(), DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
+                    attribute(dev, DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
 function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int};
                           ctx::CuContext=context()) where {T,N,M<:AbstractMemory}
   isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
@@ -299,11 +299,12 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int}
     DataRef(Returns(nothing), Managed(mem))
   elseif M == HostMemory
     # register as device-accessible host memory
-    __pin(p, sz)
-    mem = HostMemory(ctx, p, sz)
+    mem = context!(ctx) do
+      register(HostMemory, p, sz, MEMHOSTREGISTER_DEVICEMAP)
+    end
     DataRef(Managed(mem)) do args...
       context!(ctx; skip_destroyed=true) do
-        __unpin(p, ctx)
+        unregister(mem)
       end
     end
   else

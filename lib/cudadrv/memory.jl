@@ -132,13 +132,13 @@ const MEMHOSTALLOC_WRITECOMBINED = CU_MEMHOSTALLOC_WRITECOMBINED
 
 Allocate `bytesize` bytes of page-locked memory on the host. This memory is accessible from
 the CPU, and makes it possible to perform faster memory copies to the GPU. Furthermore, if
-`flags` is set to `HOSTALLOC_DEVICEMAP` the memory is also accessible from the GPU.
-These accesses are direct, and go through the PCI bus.
-If `flags` is set to `HOSTALLOC_PORTABLE`, the memory is considered mapped by all CUDA contexts,
-not just the one that created the memory, which is useful if the memory needs to be accessed from
+`flags` is set to `MEMHOSTALLOC_DEVICEMAP` the memory is also accessible from the GPU. These
+accesses are direct, and go through the PCI bus. If `flags` is set to
+`MEMHOSTALLOC_PORTABLE`, the memory is considered mapped by all CUDA contexts, not just the
+one that created the memory, which is useful if the memory needs to be accessed from
 multiple devices. Multiple `flags` can be set at one time using a bytewise `OR`:
 
-    flags = HOSTALLOC_PORTABLE | HOSTALLOC_DEVICEMAP
+    flags = MEMHOSTALLOC_PORTABLE | MEMHOSTALLOC_DEVICEMAP
 
 """
 function alloc(::Type{HostMemory}, bytesize::Integer, flags=0)
@@ -160,9 +160,9 @@ const MEMHOSTREGISTER_IOMEMORY = CU_MEMHOSTREGISTER_IOMEMORY
 
 Page-lock the host memory pointed to by `ptr`. Subsequent transfers to and from devices will
 be faster, and can be executed asynchronously. If the `MEMHOSTREGISTER_DEVICEMAP` flag is
-specified, the buffer will also be accessible directly from the GPU.
-These accesses are direct, and go through the PCI bus.
-If the `MEMHOSTREGISTER_PORTABLE` flag is specified, any CUDA context can access the memory.
+specified, the buffer will also be accessible directly from the GPU. These accesses are
+direct, and go through the PCI bus. If the `MEMHOSTREGISTER_PORTABLE` flag is specified, any
+CUDA context can access the memory.
 """
 function register(::Type{HostMemory}, ptr::Ptr, bytesize::Integer, flags=0)
     bytesize == 0 && throw(ArgumentError("Cannot register an empty range of memory."))
