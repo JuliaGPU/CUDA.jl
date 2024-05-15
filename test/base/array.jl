@@ -75,33 +75,46 @@ end
     end
 
     # unmanaged memory -> CuArray
+    # note that the device-side pointer may differ from the host one (i.e., on Tegra)
     let
-        a = [1]
-        p = pointer(a)
-
         # automatic memory selection
         for AT in [CuArray, CuArray{Int}, CuArray{Int,1}],
-            b in [unsafe_wrap(AT, p, 1), unsafe_wrap(AT, p, (1,)), unsafe_wrap(AT, a)]
+            f in [a->unsafe_wrap(AT, pointer(a), 1),
+                  a->unsafe_wrap(AT, pointer(a), (1,)),
+                  a->unsafe_wrap(AT, a)]
+            a = [1]
+            b = f(a)
+
             @test typeof(b) <: CuArray{Int,1}
-            @test pointer(b) == reinterpret(CuPtr{Int}, p)
             @test size(b) == (1,)
+            @test Array(b) == a
         end
 
         # host memory
         for AT in [CuArray{Int,1,CUDA.HostMemory}],
-            b in [unsafe_wrap(AT, p, 1), unsafe_wrap(AT, p, (1,)), unsafe_wrap(AT, a)]
+            f in [a->unsafe_wrap(AT, pointer(a), 1),
+                  a->unsafe_wrap(AT, pointer(a), (1,)),
+                  a->unsafe_wrap(AT, a)]
+            a = [1]
+            b = f(a)
+
             @test typeof(b) <: CuArray{Int,1,CUDA.HostMemory}
-            @test pointer(b) == reinterpret(CuPtr{Int}, p)
             @test size(b) == (1,)
+            @test Array(b) == a
         end
 
         # unified memory (requires HMM)
         if CUDA.supports_hmm(device())
           for AT in [CuArray{Int,1,CUDA.UnifiedMemory}],
-              b in [unsafe_wrap(AT, p, 1), unsafe_wrap(AT, p, (1,)), unsafe_wrap(AT, a)]
+              f in [a->unsafe_wrap(AT, pointer(a), 1),
+                    a->unsafe_wrap(AT, pointer(a), (1,)),
+                    a->unsafe_wrap(AT, a)]
+              a = [1]
+              b = f(a)
+
               @test typeof(b) <: CuArray{Int,1,CUDA.UnifiedMemory}
-              @test pointer(b) == reinterpret(CuPtr{Int}, p)
               @test size(b) == (1,)
+              @test Array(b) == a
           end
         end
     end
