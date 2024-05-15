@@ -185,13 +185,6 @@ function __init__()
                          Ensure that you have not set the LD_LIBRARY_PATH environment variable, or that it does not contain paths to CUDA libraries."""
             end
         end
-
-        # warn about Tegra being incompatible with our artifacts
-        if is_tegra()
-            @warn """You are using a Tegra device, which is currently not supported by the CUDA.jl artifacts.
-                     Please install the CUDA toolkit, and call `CUDA.set_runtime_version!(local_toolkit=true)`.
-                     For more information, see JuliaGPU/CUDA.jl#1978."""
-        end
     end
 
     _initialized[] = true

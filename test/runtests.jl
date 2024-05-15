@@ -171,6 +171,23 @@ if first(gpus).compute_mode == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
     jobs = 1
 end
 
+# install compute sanitizer
+if do_sanitize
+    # install CUDA_SDK_jll in a temporary environment
+    using Pkg
+    project = Base.active_project()
+    Pkg.activate(; temp=true)
+    Pkg.add("CUDA_SDK_jll")
+    using CUDA_SDK_jll
+    Pkg.activate(project)
+
+    compute_sanitizer = joinpath(CUDA_SDK_jll.artifact_dir, "cuda/compute-sanitizer/compute-sanitizer")
+    if Sys.iswindows()
+        compute_sanitizer *= ".exe"
+    end
+    @info "Running under " * read(`$compute_sanitizer --version`, String)
+end
+
 # add workers
 const test_exeflags = Base.julia_cmd()
 filter!(test_exeflags.exec) do c
@@ -183,7 +200,11 @@ push!(test_exeflags.exec, "--project=$(Base.active_project())")
 const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
     exename = if do_sanitize
-        `$(CUDA.compute_sanitizer_cmd(sanitize_tool)) $test_exename`
+        ```$compute_sanitizer --tool $sanitize_tool
+                              --launch-timeout=0
+                              --target-processes=all
+                              --report-api-errors=no
+                              $test_exename```
     else
         test_exename
     end

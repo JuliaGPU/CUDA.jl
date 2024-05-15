@@ -207,7 +207,7 @@ end
 
     # determine the compute capabilities to use. this should match the capability of the
     # current device, but if LLVM doesn't support it, we can target an older capability
-    # and pass a different `-arch` to `ptxa`.
+    # and pass a different `-arch` to `ptxas`.
     ptx_support = ptx_compat(cuda_ptx)
     requested_cap = something(cap, min(capability(dev), maximum(ptx_support.cap)))
     llvm_caps = filter(<=(requested_cap), llvm_support.cap)
