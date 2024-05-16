@@ -1963,6 +1963,70 @@ end
             end
         end
 
+        for (opchar,opfun) in (('N',identity), ('T',transpose), ('C',adjoint))
+
+            @testset "getrs_batched!" begin
+                A                   = [rand(elty,n,n) for _ in 1:k];
+                d_A                 = [CuArray(a) for a in A];
+                d_pivot, info, d_LU = CUDA.CUBLAS.getrf_batched!(d_A, true);
+                @test d_LU == d_A
+                B                   = [rand(elty,n,m) for _ in 1:k];
+                d_B                 = [CuArray(b) for b in B];
+                info2, d_Bhat       = CUDA.CUBLAS.getrs_batched!(opchar, d_LU, d_B, d_pivot);
+                @test d_Bhat == d_B
+                h_Bhat              = [collect(bh) for bh in d_Bhat];
+                for i in 1:k
+                    @test h_Bhat[i] ≈ opfun(A[i]) \ B[i]
+                end
+            end
+
+            @testset "getrs_batched" begin
+                A                   = [rand(elty,n,n) for _ in 1:k];
+                d_A                 = [CuArray(a) for a in A];
+                d_pivot, info, d_LU = CUDA.CUBLAS.getrf_batched(d_A, true);
+                @test d_LU != d_A
+                B                   = [rand(elty,n,m) for _ in 1:k];
+                d_B                 = [CuArray(b) for b in B];
+                info2, d_Bhat       = CUDA.CUBLAS.getrs_batched(opchar, d_LU, d_B, d_pivot);
+                @test d_Bhat != d_B
+                h_Bhat              = [collect(bh) for bh in d_Bhat];
+                for i in 1:k
+                    @test h_Bhat[i] ≈ opfun(A[i]) \ B[i]
+                end
+            end
+
+            @testset "getrs_strided_batched!" begin
+                A                   = rand(elty,n,n,k);
+                d_A                 = CuArray(A);
+                d_pivot, info, d_LU = CUDA.CUBLAS.getrf_strided_batched!(d_A, true);
+                @test d_LU == d_A
+                B                   = rand(elty,n,m,k);
+                d_B                 = CuArray(B);
+                info2, d_Bhat       = CUDA.CUBLAS.getrs_strided_batched!(opchar, d_LU, d_B, d_pivot);
+                @test d_Bhat == d_B
+                h_Bhat              = collect(d_Bhat);
+                for i in 1:k
+                    @test h_Bhat[:,:,i] ≈ opfun(A[:,:,i]) \ B[:,:,i]
+                end
+            end
+
+            @testset "getrs_strided_batched" begin
+                A                   = rand(elty,n,n,k);
+                d_A                 = CuArray(A);
+                d_pivot, info, d_LU = CUDA.CUBLAS.getrf_strided_batched(d_A, true);
+                @test d_LU != d_A
+                B                   = rand(elty,n,m,k);
+                d_B                 = CuArray(B);
+                info2, d_Bhat       = CUDA.CUBLAS.getrs_strided_batched(opchar, d_LU, d_B, d_pivot);
+                @test d_Bhat != d_B
+                h_Bhat              = collect(d_Bhat);
+                for i in 1:k
+                    @test h_Bhat[:,:,i] ≈ opfun(A[:,:,i]) \ B[:,:,i]
+                end
+            end
+
+        end
+
         @testset "getri_strided_batched" begin
             # generate strided matrix
             A = rand(elty,m,m,10)
