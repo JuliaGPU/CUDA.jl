@@ -528,9 +528,14 @@ function maybe_synchronize(managed::Managed)
 end
 
 function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
-  state = active_state()
+  # let null pointers pass through as-is
+  ptr = convert(CuPtr{T}, managed.mem)
+  if ptr == CU_NULL
+    return ptr
+  end
 
   # accessing memory during stream capture: taint the memory so that we always synchronize
+  state = active_state()
   if is_capturing(state.stream)
     managed.captured = true
   end
@@ -564,10 +569,16 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
   end
 
   managed.dirty = true
-  convert(CuPtr{T}, managed.mem)
+  return ptr
 end
 
 function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
+  # let null pointers pass through as-is
+  ptr = convert(Ptr{T}, managed.mem)
+  if ptr == C_NULL
+    return ptr
+  end
+
   # accessing memory on the CPU: only allowed for host or unified allocations
   if M == DeviceMemory
     throw(ArgumentError(
@@ -583,7 +594,7 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
 
   # make sure any work on the memory has finished.
   maybe_synchronize(managed)
-  convert(Ptr{T}, managed.mem)
+  return ptr
 end
 
 

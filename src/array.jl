@@ -76,7 +76,7 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
     finalizer(unsafe_free!, obj)
   end
 
-  function CuArray{T,N}(data::DataRef{Managed{M}}, dims::Dims{N}; stream=CUDA.stream(),
+  function CuArray{T,N}(data::DataRef{Managed{M}}, dims::Dims{N};
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,M}
     check_eltype(T)
     obj = new{T,N,M}(data, maxsize, offset, dims)
