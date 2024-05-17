@@ -68,11 +68,42 @@ function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(cudaconvert)},
     end
 end
 
+function EnzymeCore.EnzymeRules.forward(ofn::Const{Type{<:CuArray}},
+        ::Type{RT}, uval::EnzymeCore.Annotation{UndefInitializer}, args::NTuple{N, EnzymeCore.Annotation}) where {RT, N}
+    primargs = ntuple(Val(N)) do i
+        Base.@_inline_meta
+        args[i].val
+    end
+    if RT <: Duplicated
+        shadow = ofn.val(uval.val, primargs...)
+        fill!(shadow, 0)
+        return Duplicated(ofn.val(uval.val, primargs...), shadow)
+    elseif RT <: Const
+        return ofn.val(uval.val, primargs...)
+    elseif RT <: DuplicatedNoNeed
+        shadow = ofn.val(uval.val, primargs...)
+        fill!(shadow, 0)
+        shadow
+    else
+        tup = ntuple(Val(EnzymeCore.batch_size(RT))) do i
+            Base.@_inline_meta
+            shadow = ofn.val(uval.val, primargs...)
+            fill!(shadow, 0)
+            shadow
+        end
+        if RT <: BatchDuplicated
+            return BatchDuplicated(ofv.val(uval.val), tup)
+        else
+            return tup
+        end
+    end
+end
+
 function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(synchronize)},
                                         ::Type{RT}, args::NTuple{N, EnzymeCore.Annotation}; kwargs...) where {RT, N}
     pargs = ntuple(Val(N)) do i
         Base.@_inline_meta
-        args.val
+        args[i].val
     end
     res = ofn.val(pargs...; kwargs...)
 
@@ -200,5 +231,81 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.fill!)}, 
     return (nothing, dx)
 end
 
+
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{<:CuArray}}, ::Type{RT}, A::EnzymeCore.Annotation{UndefInitializer}, args::NTuple{N, EnzymeCore.Annotation}) where {RT, N}
+    primargs = ntuple(Val(N)) do i
+        Base.@_inline_meta
+        args[i].val
+    end
+    if RT <: Duplicated
+        shadow = ofn.val(uval.val, primargs...)
+        fill!(shadow, 0)
+        return Duplicated(ofn.val(uval.val, primargs...), shadow)
+    elseif RT <: Const
+        return ofn.val(uval.val, primargs...)
+    elseif RT <: DuplicatedNoNeed
+        shadow = ofn.val(uval.val, primargs...)
+        fill!(shadow, 0)
+        shadow
+    else
+        tup = ntuple(Val(EnzymeCore.batch_size(RT))) do i
+            Base.@_inline_meta
+            shadow = ofn.val(uval.val, primargs...)
+            fill!(shadow, 0)
+            shadow
+        end
+        if RT <: BatchDuplicated
+            return BatchDuplicated(ofv.val(uval.val), tup)
+        else
+            return tup
+        end
+    end
+    if A isa Const || A isa Duplicated || A isa BatchDuplicated
+        ofn.val(A.val, x.val)
+    end
+
+    if !(T <: AbstractFloat)
+      if A isa Duplicated || A isa DuplicatedNoNeed
+          ofn.val(A.dval, zero(T))
+      elseif A isa BatchDuplicated || A isa BatchDuplicatedNoNeed
+          ntuple(Val(EnzymeRules.batch_width(A))) do i
+              Base.@_inline_meta
+              ofn.val(A.dval[i], zero(T))
+              nothing
+          end
+      end
+    end
+
+    primal = if EnzymeRules.needs_primal(config)
+        ofn.val(a.val, primargs...)
+    else
+        nothing
+    end
+    
+    shadow = if EnzymeRules.needs_shadow(config)
+        if EnzymeRules.width(config) == 1
+            subshadow = ofn.val(uval.val, primargs...)
+            fill!(subshadow, 0)
+            subshadow
+        else
+          ntuple(Val(EnzymeRules.width(config))) do i
+              Base.@_inline_meta
+              subshadow = ofn.val(uval.val, primargs...)
+              fill!(subshadow, 0)
+              subshadow
+          end
+        end
+    else
+        nothing
+    end
+    return EnzymeRules.AugmentedReturn(primal, shadow, nothing)
+end
+
+function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{<:CuArray}}, ::Type{RT}, tape, A::EnzymeCore.Annotation{UndefInitializer}, args...) where {RT}
+    ntuple(Val(length(args)+1)) do i
+          Base.@_inline_meta
+          nothing
+    end
+end
 end # module
 
