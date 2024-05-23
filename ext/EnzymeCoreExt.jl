@@ -68,8 +68,8 @@ function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(cudaconvert)},
     end
 end
 
-function EnzymeCore.EnzymeRules.forward(ofn::Const{Type{<:CuArray}},
-        ::Type{RT}, uval::EnzymeCore.Annotation{UndefInitializer}, args::Vararg{EnzymeCore.Annotation, N}) where {RT, N}
+function EnzymeCore.EnzymeRules.forward(ofn::Const{Type{CT}},
+        ::Type{RT}, uval::EnzymeCore.Annotation{UndefInitializer}, args::Vararg{EnzymeCore.Annotation, N}) where {CT <: CuArray, RT, N}
     primargs = ntuple(Val(N)) do i
         Base.@_inline_meta
         args[i].val
@@ -232,7 +232,7 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.fill!)}, 
 end
 
 
-function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{<:CuArray}}, ::Type{RT}, A::EnzymeCore.Annotation{UndefInitializer}, args::Vararg{EnzymeCore.Annotation, N}) where {RT, N}
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, ::Type{RT}, A::EnzymeCore.Annotation{UndefInitializer}, args::Vararg{EnzymeCore.Annotation, N}) where {CT <: CuArray, RT, N}
     primargs = ntuple(Val(N)) do i
         Base.@_inline_meta
         args[i].val
@@ -301,8 +301,8 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{<:CuArr
     return EnzymeRules.AugmentedReturn(primal, shadow, nothing)
 end
 
-function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{<:CuArray}}, ::Type{RT}, tape, A::EnzymeCore.Annotation{UndefInitializer}, args...) where {RT}
-    ntuple(Val(length(args)+1)) do i
+function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}, tape, A::EnzymeCore.Annotation{UndefInitializer}, args::Vararg{EnzymeCore.Annotation, N}) where {CT <: CuArray, RT, N}
+    ntuple(Val(N+1)) do i
           Base.@_inline_meta
           nothing
     end
