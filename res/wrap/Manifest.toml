@@ -17,9 +17,9 @@ version = "0.5.0"
 
 [[CSTParser]]
 deps = ["Tokenize"]
-git-tree-sha1 = "b544d62417a99d091c569b95109bc9d8c223e9e3"
+git-tree-sha1 = "0157e592151e39fa570645e2b2debcdfb8a0f112"
 uuid = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
-version = "3.4.2"
+version = "3.4.3"
 
 [[CUDA_Driver_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
@@ -35,9 +35,9 @@ version = "0.12.1+0"
 
 [[CUDA_SDK_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "752d5810571b8639702ada3b098cf550babb1967"
+git-tree-sha1 = "6be192823cc703b93728c13b7183d1b4446be0d1"
 uuid = "6cbf2f2e-7e60-5632-ac76-dca2274e0be0"
-version = "12.4.1+0"
+version = "12.4.1+2"
 
 [[CUDNN_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
@@ -53,9 +53,9 @@ version = "2.0.1+0"
 
 [[Clang]]
 deps = ["CEnum", "Clang_jll", "Downloads", "Pkg", "TOML"]
-git-tree-sha1 = "be935fd478265159ffdb1a949489a5f91319fb95"
+git-tree-sha1 = "2397d5da17ba4970f772a9888b208a0a1d77eb5d"
 uuid = "40e3b903-d033-50b4-a0cc-940c62c95e31"
-version = "0.18.1"
+version = "0.18.3"
 
 [[Clang_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "TOML", "Zlib_jll", "libLLVM_jll"]
@@ -85,7 +85,7 @@ version = "4.14.0"
 [[CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.0+0"
+version = "1.1.1+0"
 
 [[Crayons]]
 git-tree-sha1 = "249fe38abf76d48563e2f4556bebd215aa317e15"
@@ -276,9 +276,9 @@ uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 version = "1.10.0"
 
 [[Tokenize]]
-git-tree-sha1 = "5b5a892ba7704c0977013bd0f9c30f5d962181e0"
+git-tree-sha1 = "468b4685af4abe0e9fd4d7bf495a6554a6276e75"
 uuid = "0796e94c-ce3b-5d07-9a54-7f471281c624"
-version = "0.5.28"
+version = "0.5.29"
 
 [[URIs]]
 git-tree-sha1 = "67db6cc7b3821e19ebe75791a9dd19c9b1188f2b"
