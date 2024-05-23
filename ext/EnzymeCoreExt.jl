@@ -239,7 +239,7 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, :
     end
 
     primal = if EnzymeRules.needs_primal(config)
-        ofn.val(a.val, primargs...)
+        ofn.val(uval.val, primargs...)
     else
         nothing
     end
