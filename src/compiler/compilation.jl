@@ -95,8 +95,15 @@ function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
             debuglocation!(builder, first(instructions(top_bb)))
 
             # call the `deferred_codegen` marker function
-            T_ptr = LLVM.Int64Type()
-            deferred_codegen_ft = LLVM.FunctionType(T_ptr, [T_ptr])
+            T_ptr = if LLVM.version() >= v"17"
+                LLVM.PointerType()
+            elseif VERSION >= v"1.12.0-DEV.225"
+                LLVM.PointerType(LLVM.Int8Type())
+            else
+                LLVM.Int64Type()
+            end
+            T_id = convert(LLVMType, Int)
+            deferred_codegen_ft = LLVM.FunctionType(T_ptr, [T_id])
             deferred_codegen = if haskey(functions(mod), "deferred_codegen")
                 functions(mod)["deferred_codegen"]
             else
