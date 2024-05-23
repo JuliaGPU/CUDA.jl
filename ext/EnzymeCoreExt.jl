@@ -50,27 +50,27 @@ end
 function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(cudaconvert)},
                                         ::Type{RT}, x::IT) where {RT, IT}
     if RT <: Duplicated
-        return RT(ofn.val(x.val), ofn.val(x.dval))
+        RT(ofn.val(x.val), ofn.val(x.dval))
     elseif RT <: Const
-        return ofn.val(x.val)::eltype(RT)
+        ofn.val(x.val)::eltype(RT)
     elseif RT <: DuplicatedNoNeed
-        return ofn.val(x.val)::eltype(RT)
+        ofn.val(x.val)::eltype(RT)
     else
         tup = ntuple(Val(EnzymeCore.batch_size(RT))) do i
             Base.@_inline_meta
             ofn.val(x.dval[i])::eltype(RT)
         end
         if RT <: BatchDuplicated
-            return BatchDuplicated(ofv.val(x.val), tup)
+            BatchDuplicated(ofv.val(x.val), tup)
         else
-            return tup
+            tup
         end
     end
 end
 
 function EnzymeCore.EnzymeRules.forward(ofn::Const{Type{CT}},
-        ::Type{RT}, uval::EnzymeCore.Annotation{UndefInitializer}, args::Vararg{EnzymeCore.Annotation, N}) where {CT <: CuArray, RT, N}
-    primargs = ntuple(Val(N)) do i
+        ::Type{RT}, uval::EnzymeCore.Annotation{UndefInitializer}, args...) where {CT <: CuArray, RT}
+    primargs = ntuple(Val(length(args))) do i
         Base.@_inline_meta
         args[i].val
     end
@@ -232,8 +232,8 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.fill!)}, 
 end
 
 
-function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, ::Type{RT}, uval::EnzymeCore.Annotation{UndefInitializer}, args::Vararg{EnzymeCore.Annotation, N}) where {CT <: CuArray, RT, N}
-    primargs = ntuple(Val(N)) do i
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, ::Type{RT}, uval::EnzymeCore.Annotation{UndefInitializer}, args...) where {CT <: CuArray, RT}
+    primargs = ntuple(Val(length(args))) do i
         Base.@_inline_meta
         args[i].val
     end
