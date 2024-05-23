@@ -174,6 +174,13 @@ function __init__()
         return
     end
 
+    # warn if we're not using an official build of Julia
+    official_release = startswith(Base.TAGGED_RELEASE_BANNER, "Official")
+    if !official_release
+        @warn """You are using a non-official build of Julia. This may cause issues with CUDA.jl.
+                 Please consider using an official build from https://julialang.org/downloads/."""
+    end
+
     @static if !isdefined(Base, :get_extension)
         @require ChainRulesCore="d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4" begin
             include("../ext/ChainRulesCoreExt.jl")
