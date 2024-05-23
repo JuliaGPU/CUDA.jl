@@ -75,19 +75,19 @@ function EnzymeCore.EnzymeRules.forward(ofn::Const{Type{CT}},
         args[i].val
     end
     if RT <: Duplicated
-        shadow = ofn.val(uval.val, primargs...)
+        shadow = ofn.val(uval.val, primargs...)::CT
         fill!(shadow, 0)
         return Duplicated(ofn.val(uval.val, primargs...), shadow)
     elseif RT <: Const
         return ofn.val(uval.val, primargs...)
     elseif RT <: DuplicatedNoNeed
-        shadow = ofn.val(uval.val, primargs...)
+        shadow = ofn.val(uval.val, primargs...)::CT
         fill!(shadow, 0)
         shadow
     else
         tup = ntuple(Val(EnzymeCore.batch_size(RT))) do i
             Base.@_inline_meta
-            shadow = ofn.val(uval.val, primargs...)
+            shadow = ofn.val(uval.val, primargs...)::CT
             fill!(shadow, 0)
             shadow
         end
@@ -239,20 +239,20 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, :
     end
 
     primal = if EnzymeRules.needs_primal(config)
-        ofn.val(uval.val, primargs...)::eltype(RT)
+        ofn.val(uval.val, primargs...)::CT
     else
         nothing
     end
     
     shadow = if EnzymeRules.needs_shadow(config)
         if EnzymeRules.width(config) == 1
-            subshadow = ofn.val(uval.val, primargs...)::eltype(RT)
+            subshadow = ofn.val(uval.val, primargs...)::CT
             fill!(subshadow, 0)
             subshadow
         else
           ntuple(Val(EnzymeRules.width(config))) do i
               Base.@_inline_meta
-              subshadow = ofn.val(uval.val, primargs...)::eltype(RT)
+              subshadow = ofn.val(uval.val, primargs...)::CT
               fill!(subshadow, 0)
               subshadow
           end
