@@ -77,24 +77,24 @@ function EnzymeCore.EnzymeRules.forward(ofn::Const{Type{CT}},
     if RT <: Duplicated
         shadow = ofn.val(uval.val, primargs...)::CT
         fill!(shadow, 0)
-        return Duplicated(ofn.val(uval.val, primargs...), shadow)
+        Duplicated{CT}(ofn.val(uval.val, primargs...), shadow)
     elseif RT <: Const
-        return ofn.val(uval.val, primargs...)
+        ofn.val(uval.val, primargs...)
     elseif RT <: DuplicatedNoNeed
         shadow = ofn.val(uval.val, primargs...)::CT
         fill!(shadow, 0)
-        shadow
+        shadow::CT
     else
         tup = ntuple(Val(EnzymeCore.batch_size(RT))) do i
             Base.@_inline_meta
             shadow = ofn.val(uval.val, primargs...)::CT
             fill!(shadow, 0)
-            shadow
+            shadow::CT
         end
         if RT <: BatchDuplicated
-            return BatchDuplicated(ofv.val(uval.val), tup)
+            BatchDuplicated(ofv.val(uval.val), tup)
         else
-            return tup
+            tup
         end
     end
 end
@@ -260,7 +260,7 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, :
     else
         nothing
     end
-    return EnzymeRules.AugmentedReturn(primal, shadow, nothing)
+    return EnzymeRules.AugmentedReturn{EnzymeRules.needs_primal(config) ? CT : Nothing, EnzymeRules.needs_shadow(config) ? (EnzymeRules.width(config) == 1 ? CT : NTuple{EnzymeRules.width(config), CT}) : Nothing,, Nothing}(primal, shadow, nothing)
 end
 
 function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}, tape, A::EnzymeCore.Annotation{UndefInitializer}, args::Vararg{EnzymeCore.Annotation, N}) where {CT <: CuArray, RT, N}
