@@ -41,9 +41,9 @@ version = "12.5.0+0"
 
 [[CUDNN_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "cbf7d75f8c58b147bdf6acea2e5bc96cececa6d4"
+git-tree-sha1 = "f286c44edd5f86a5429425b568e52f49dd5ce38f"
 uuid = "62b44479-cb7b-5706-934f-f13b2eb2e645"
-version = "9.0.0+1"
+version = "9.1.1+0"
 
 [[CUTENSOR_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
