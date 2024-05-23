@@ -232,7 +232,7 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.fill!)}, 
 end
 
 
-function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, ::Type{RT}, A::EnzymeCore.Annotation{UndefInitializer}, args::Vararg{EnzymeCore.Annotation, N}) where {CT <: CuArray, RT, N}
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, ::Type{RT}, uval::EnzymeCore.Annotation{UndefInitializer}, args::Vararg{EnzymeCore.Annotation, N}) where {CT <: CuArray, RT, N}
     primargs = ntuple(Val(N)) do i
         Base.@_inline_meta
         args[i].val
