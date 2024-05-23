@@ -237,44 +237,6 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, :
         Base.@_inline_meta
         args[i].val
     end
-    if RT <: Duplicated
-        shadow = ofn.val(uval.val, primargs...)
-        fill!(shadow, 0)
-        return Duplicated(ofn.val(uval.val, primargs...), shadow)
-    elseif RT <: Const
-        return ofn.val(uval.val, primargs...)
-    elseif RT <: DuplicatedNoNeed
-        shadow = ofn.val(uval.val, primargs...)
-        fill!(shadow, 0)
-        shadow
-    else
-        tup = ntuple(Val(EnzymeCore.batch_size(RT))) do i
-            Base.@_inline_meta
-            shadow = ofn.val(uval.val, primargs...)
-            fill!(shadow, 0)
-            shadow
-        end
-        if RT <: BatchDuplicated
-            return BatchDuplicated(ofv.val(uval.val), tup)
-        else
-            return tup
-        end
-    end
-    if A isa Const || A isa Duplicated || A isa BatchDuplicated
-        ofn.val(A.val, x.val)
-    end
-
-    if !(T <: AbstractFloat)
-      if A isa Duplicated || A isa DuplicatedNoNeed
-          ofn.val(A.dval, zero(T))
-      elseif A isa BatchDuplicated || A isa BatchDuplicatedNoNeed
-          ntuple(Val(EnzymeRules.batch_width(A))) do i
-              Base.@_inline_meta
-              ofn.val(A.dval[i], zero(T))
-              nothing
-          end
-      end
-    end
 
     primal = if EnzymeRules.needs_primal(config)
         ofn.val(a.val, primargs...)
