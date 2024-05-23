@@ -25,6 +25,7 @@ const cudaDataType_t = cudaDataType
 
 # core library
 include("libcublas.jl")
+include("libcublasLt.jl")
 include("libcublas_deprecated.jl")
 
 # low-level wrappers
