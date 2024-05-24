@@ -269,5 +269,10 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}
           nothing
     end
 end
+
+function EnzymeCore.EnzymeRules.noalias(::Type{CT}, ::UndefInitializer, args...) where {CT <: CuArray}
+    return nothing
+end
+
 end # module
 
