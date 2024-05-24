@@ -54,3 +54,25 @@ end
     @test all(A .≈ 1)
     @test all(dA .≈ 0)
 end
+
+alloc(x) = CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}(undef, (x,))
+
+@testset "Forward allocate" begin
+    dup = Enzyme.autodiff(Forward, alloc, Duplicated, Const(10))
+    @test all(dup[2] .≈ 0.0)
+
+    dup = Enzyme.autodiff(Forward, alloc, DuplicatedNoNeed, Const(10))
+    @test all(dup[1] .≈ 0.0)
+end
+
+@testset "Reverse allocate" begin
+    fwd, rev = Enzyme.autodiff_thunk(ReverseSplitWithPrimal, Const{typeof(alloc)}, Duplicated, Const{Int})
+    tape, prim, shad = fwd(Const(alloc), Const(10))
+    @test all(shad .≈ 0.0)
+end
+
+# TODO once reverse kernels are in
+# function togpu(x)
+#     x = CuArray(x)
+#     square!(x)
+# end
