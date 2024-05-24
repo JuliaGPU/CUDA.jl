@@ -136,18 +136,17 @@ end
 
 ## xt handles
 
-function xt_handle_ctor(ctx)
-    context!(ctx) do
-        cublasXtCreate()
-    end
+function xt_handle_ctor(ctxs)
+    cublasXtCreate()
 end
-function xt_handle_dtor(ctx, handle)
-    context!(ctx; skip_destroyed=true) do
-        cublasXtDestroy(handle)
+function xt_handle_dtor(ctxs, handle)
+    for ctx in ctxs
+        isvalid(ctx) || return
     end
+    cublasXtDestroy(handle)
 end
 const idle_xt_handles =
-    HandleCache{CuContext,cublasXtHandle_t}(xt_handle_ctor, xt_handle_dtor)
+    HandleCache{Vector{CuContext},cublasXtHandle_t}(xt_handle_ctor, xt_handle_dtor)
 
 function devices!(devs::Vector{CuDevice})
     task_local_storage(:CUBLASxt_devices, sort(devs; by=deviceid))
@@ -170,18 +169,20 @@ function xt_handle()
         Dict{UInt,LibraryState}()
     end::Dict{UInt,LibraryState}
 
-    # derive a key from the selected devices
+    # for performance, don't use a tuple of contexts to index the TLS
     key = zero(UInt)
     for dev in devices()
-        # we hash the device context to support device resets
         key = hash(context(dev), key)
     end
 
     # get library state
     @noinline function new_state(cuda)
-        new_handle = pop!(idle_xt_handles, cuda.context)
+        # these are the actual contexts
+        ctxs = [context(dev) for dev in devices()]
+
+        new_handle = pop!(idle_xt_handles, ctxs)
         finalizer(current_task()) do task
-            push!(idle_xt_handles, cuda.context, new_handle)
+            push!(idle_xt_handles, ctxs, new_handle)
         end
 
         devs = convert.(Cint, devices())
