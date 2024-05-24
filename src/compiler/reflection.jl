@@ -52,8 +52,9 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
     end
 
     # NVIDIA bug #4604961: CUPTI in CUDA 12.4 Update 1 does not capture profiled events
-    #                      unless the activity API is first activated
-    if runtime_version() == v"12.4"
+    #                      unless the activity API is first activated. This is fixed in
+    #                      12.5 Update 1, but we can only check the minor runtime version.
+    if v"12.4" <= runtime_version() <= v"12.5"
         cfg = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL,
                                     CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API])
         CUPTI.enable!(cfg) do
@@ -89,8 +90,9 @@ function code_sass(f::Base.Callable, io::IO=stdout; raw::Bool=false)
     end
 
     # NVIDIA bug #4604961: CUPTI in CUDA 12.4 Update 1 does not capture profiled events
-    #                      unless the activity API is first activated
-    if runtime_version() == v"12.4"
+    #                      unless the activity API is first activated. This is fixed in
+    #                      12.5 Update 1, but we can only check the minor runtime version.
+    if v"12.4" <= runtime_version() <= v"12.5"
         cfg = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL,
                                     CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API])
         CUPTI.enable!(cfg) do

@@ -66,9 +66,9 @@ function __init__()
         return
     end
 
-    if driver < v"11"
-        @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 11.x or higher (yours is for CUDA $driver)"
-        _initialization_error[] = "CUDA driver too old"
+    if !(v"11" <= driver < v"13-")
+        @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 11.x or 12.x (yours is for CUDA $driver)"
+        _initialization_error[] = "CUDA driver unsupported"
         return
     end
 
@@ -79,19 +79,45 @@ function __init__()
 
     # check that we have a runtime
     if !CUDA_Runtime.is_available()
+        # try to find out why
+        reason = if CUDA_Runtime != CUDA_Runtime_jll
+            """You requested use of a local CUDA toolkit, but not all
+               required components were discovered.
+
+               Try running with `JULIA_DEBUG=CUDA_Runtime_Discovery` in
+               your environment and re-loading CUDA.jl for more details."""
+        elseif !Sys.iswindows() && !Sys.islinux() && !in(Sys.ARCH, [:x86_64, :aarch64])
+            """You are using an unsupported platform: this version of CUDA.jl
+               only supports Linux (x86_64, aarch64) and Windows (x86_64).
+
+               Consider downgrading CUDA.jl (refer to the README for a list of
+               supported platforms) or manually installing the CUDA toolkit and make
+               CUDA.jl use it by calling `CUDA.set_runtime_version!(local_toolkit=true)`."""
+        elseif CUDA_Runtime_jll.host_platform["cuda"] == "none"
+            """CUDA.jl's JLLs were precompiled without an NVIDIA driver present.
+               This can happen when installing CUDA.jl on an HPC log-in node,
+               or in a container. In that case, you need to specify which CUDA
+               version to use at run time by calling `CUDA.set_runtime_version!`
+               or provisioning the preference it sets at compile time.
+
+               If you are not running in a container or on an HPC log-in node,
+               try re-compiling the CUDA runtime JLL and re-loading CUDA.jl:
+                    pkg = Base.PkgId(Base.UUID("76a88914-d11a-5bdc-97e0-2f5a05c973a2"),
+                                     "CUDA_Runtime_jll")
+                    Base.compilecache(pkg)
+                    # re-start Julia and re-load CUDA.jl"""
+        else
+            """Could not diagnose why the CUDA runtime is not available.
+
+               If the issue persists, please file a support ticket with the following details:
+               - host platform: $(Base.BinaryPlatforms.triplet(CUDA_Runtime_jll.host_platform))
+               - libcuda: $libcuda (loaded through JLL: $(CUDA_Driver_jll.is_available()))
+               - driver version: $driver
+               """
+        end
         @error """CUDA.jl could not find an appropriate CUDA runtime to use.
 
-                  This can have several reasons:
-                  * you are using an unsupported platform: this version of CUDA.jl
-                    only supports Linux (x86_64, aarch64, ppc64le) and Windows (x86_64),
-                    while your platform was identified as $(Base.BinaryPlatforms.triplet(CUDA_Runtime_jll.host_platform));
-                  * you precompiled CUDA.jl in an environment where the CUDA driver
-                    was not available (i.e., a container, or an HPC login node).
-                    in that case, you need to specify which CUDA version to use
-                    by calling `CUDA.set_runtime_version!`;
-                  * you requested use of a local CUDA toolkit, but not all
-                    required components were discovered. try running with
-                    JULIA_DEBUG=all in your environment for more details.
+                  $reason
 
                   For more details, refer to the CUDA.jl documentation at
                   https://cuda.juliagpu.org/stable/installation/overview/"""
@@ -146,6 +172,13 @@ function __init__()
     catch err
         _initialization_error[] = "CUDA initialization failed: " * sprint(showerror, err)
         return
+    end
+
+    # warn if we're not using an official build of Julia
+    official_release = startswith(Base.TAGGED_RELEASE_BANNER, "Official")
+    if !official_release
+        @warn """You are using a non-official build of Julia. This may cause issues with CUDA.jl.
+                 Please consider using an official build from https://julialang.org/downloads/."""
     end
 
     @static if !isdefined(Base, :get_extension)

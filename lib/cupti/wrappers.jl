@@ -225,7 +225,7 @@ function process(f, cfg::ActivityConfig)
     ## kernel activities
     activity_types[CUPTI_ACTIVITY_KIND_KERNEL] =
         if cuda_version >= v"12.0"
-            CUpti_ActivityKernel5
+            CUpti_ActivityKernel9
         elseif cuda_version >= v"11.8"
             CUpti_ActivityKernel8
         elseif cuda_version >= v"11.6"
