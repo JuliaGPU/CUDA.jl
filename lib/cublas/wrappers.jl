@@ -1868,7 +1868,7 @@ function getrf_batched!(A::Vector{<:StridedCuMatrix}, pivot::Bool)
     return getrf_batched!(n, Aptrs, lda, pivot)..., A
 end
 function getrf_batched(A::Vector{<:StridedCuMatrix}, pivot::Bool)
-    getrf_batched!(copy(A), pivot)
+    getrf_batched!(deepcopy(A), pivot)
 end
 
 # CUDA has no strided batched getrf, but we can at least avoid constructing costly views
