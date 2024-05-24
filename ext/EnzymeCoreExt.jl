@@ -77,7 +77,7 @@ function EnzymeCore.EnzymeRules.forward(ofn::Const{Type{CT}},
     if RT <: Duplicated
         shadow = ofn.val(uval.val, primargs...)::CT
         fill!(shadow, 0)
-        Duplicated{CT}(ofn.val(uval.val, primargs...), shadow)
+        Duplicated(ofn.val(uval.val, primargs...), shadow)
     elseif RT <: Const
         ofn.val(uval.val, primargs...)
     elseif RT <: DuplicatedNoNeed
