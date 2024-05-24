@@ -61,7 +61,7 @@ alloc(x) = CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}(undef, (x,))
     @test all(dup[2] .≈ 0.0)
     
     dup = Enzyme.autodiff(Forward, alloc, DuplicatedNoNeed, Const(10))
-    @test all(dup .≈ 0.0)
+    @test all(dup[1] .≈ 0.0)
 end
 
 @testset "Reverse allocate" begin
