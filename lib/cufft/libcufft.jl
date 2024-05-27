@@ -296,6 +296,7 @@ end
 
 @cenum cufftProperty_t::UInt32 begin
     NVFFT_PLAN_PROPERTY_INT64_PATIENT_JIT = 1
+    NVFFT_PLAN_PROPERTY_INT64_MAX_NUM_HOST_THREADS = 2
 end
 
 const cufftProperty = cufftProperty_t

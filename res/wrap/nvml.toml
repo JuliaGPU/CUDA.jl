@@ -27,6 +27,8 @@ output_ignorelist = [
     "nvmlGpuFabricInfo_v2",
     "NVML_DEVICE_PCI_BUS_ID_LEGACY_FMT",
     "NVML_DEVICE_PCI_BUS_ID_FMT",
+    "nvmlClockOffset_v1",
+    "nvmlDeviceCapabilities_v1"
 ]
 
 
