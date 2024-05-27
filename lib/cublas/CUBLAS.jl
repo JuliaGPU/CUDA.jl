@@ -141,7 +141,7 @@ function xt_handle_ctor(ctxs)
 end
 function xt_handle_dtor(ctxs, handle)
     for ctx in ctxs
-        isvalid(ctx) || return
+        CUDA.isvalid(ctx) || return
     end
     cublasXtDestroy(handle)
 end
