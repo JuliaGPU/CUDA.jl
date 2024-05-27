@@ -1,5 +1,10 @@
 CUDA.pool_alloc(0)
 
+try
+    CuArray{Int}(undef, 10^20)
+catch err
+    isa(err, CUDA.OutOfGPUMemoryError) || rethrow(err)
+end
 @test_throws OutOfGPUMemoryError CuArray{Int}(undef, 10^20)
 
 @testset "@allocated" begin
