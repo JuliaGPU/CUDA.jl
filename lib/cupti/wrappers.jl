@@ -4,6 +4,27 @@ function version()
     VersionNumber(version_ref[])
 end
 
+# XXX: `cuptiGetVersion` returns something more like the API version, and doesn't change
+#      in between update releases (even when those contain functional changes/fixes)...
+#      NVIDIA suggests to instead use the version number as attached to the filename.
+function library_version()
+    filename = basename(realpath(libcupti))
+    rx = if Sys.islinux()
+        r"libcupti.so.(\d+)\.(\d+)\.(\d+)"
+    elseif Sys.iswindows()
+        r"libcupti64_(\d+)_(\d+)_(\d+).dll"
+    else
+        error("Unsupported platform; please file an issue with the following information:\n$(sprint(versioninfo))")
+    end
+    m = match(rx, filename)
+    if m === nothing
+        error("Could not extract version number from CUPTI library `$filename`; please file an issue.")
+    end
+    VersionNumber(parse(Int, m.captures[1]),
+                  parse(Int, m.captures[2]),
+                  parse(Int, m.captures[3]))
+end
+
 
 #
 # callback API
