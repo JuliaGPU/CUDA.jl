@@ -185,6 +185,15 @@ function xt_handle()
             push!(idle_xt_handles, ctxs, new_handle)
         end
 
+        # if we're using the stream-ordered allocator,
+        # make sure allocations are visible on all devices
+        async_devs = filter(memory_pools_supported, devices())
+        for dev in async_devs
+            other_devs = filter(!isequal(dev), async_devs)
+            pool = CUDA.pool_create(dev)
+            access!(pool, other_devs, CUDA.CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
+        end
+
         devs = convert.(Cint, devices())
         cublasXtDeviceSelect(new_handle, length(devs), devs)
 
