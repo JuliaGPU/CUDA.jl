@@ -208,14 +208,20 @@ function __init__()
 
     if !local_toolkit
         # scan for CUDA libraries that may have been loaded from system paths
+        # note that this must cover more that the libraries provided by the
+        # runtime JLL, in order to detect possible conditional dependencies.
         runtime_libraries = ["cudart",
                              "nvperf", "nvvm", "nvrtc", "nvJitLink",
                              "cublas", "cupti", "cusparse", "cufft", "curand", "cusolver"]
         for lib in Libdl.dllist()
             contains(lib, "artifacts") && continue
             if any(rtlib -> contains(lib, rtlib), runtime_libraries)
-                @warn """CUDA runtime library $(basename(lib)) was loaded from a system path. This may cause errors.
-                         Ensure that you have not set the LD_LIBRARY_PATH environment variable, or that it does not contain paths to CUDA libraries."""
+                @warn """CUDA runtime library `$(basename(lib))` was loaded from a system path, `$lib`.
+
+                         This may cause errors. Ensure that you have not set the LD_LIBRARY_PATH
+                         environment variable, or that it does not contain paths to CUDA libraries.
+
+                         In any other case, please file an issue."""
             end
         end
     end
