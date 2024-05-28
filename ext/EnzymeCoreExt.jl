@@ -19,7 +19,12 @@ end
 function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDA.CUBLAS.version))
     return nothing
 end
-
+function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDA.context!), args...)
+    return nothing
+end
+function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDA.is_pinned), args...)
+    return nothing
+end
 
 function EnzymeCore.compiler_job_from_backend(::CUDABackend, @nospecialize(F::Type), @nospecialize(TT::Type))
     mi = GPUCompiler.methodinstance(F, TT)
