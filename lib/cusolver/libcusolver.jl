@@ -4854,9 +4854,9 @@ end
                                                 d_info::CuPtr{Cint})::cusolverStatus_t
 end
 
-@checked function cusolverDnXlarft_bufferSize(handle, params, direct, storev, N, K,
-                                              dataTypeV, d_V, ldv, dataTypeTau, d_tau,
-                                              dataTypeT, d_T, ldt, computeType,
+@checked function cusolverDnXlarft_bufferSize(handle, params, direct, storev, n, k,
+                                              dataTypeV, V, ldv, dataTypeTau, tau,
+                                              dataTypeT, T, ldt, computeType,
                                               workspaceInBytesOnDevice,
                                               workspaceInBytesOnHost)
     initialize_context()
@@ -4864,33 +4864,32 @@ end
                                                           params::cusolverDnParams_t,
                                                           direct::cusolverDirectMode_t,
                                                           storev::cusolverStorevMode_t,
-                                                          N::Int64, K::Int64,
+                                                          n::Int64, k::Int64,
                                                           dataTypeV::cudaDataType,
-                                                          d_V::CuPtr{Cvoid}, ldv::Int64,
+                                                          V::CuPtr{Cvoid}, ldv::Int64,
                                                           dataTypeTau::cudaDataType,
-                                                          d_tau::CuPtr{Cvoid},
+                                                          tau::CuPtr{Cvoid},
                                                           dataTypeT::cudaDataType,
-                                                          d_T::CuPtr{Cvoid}, ldt::Int64,
+                                                          T::CuPtr{Cvoid}, ldt::Int64,
                                                           computeType::cudaDataType,
                                                           workspaceInBytesOnDevice::Ptr{Csize_t},
                                                           workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
 end
 
-@checked function cusolverDnXlarft(handle, params, direct, storev, N, K, dataTypeV, d_V,
-                                   ldv, dataTypeTau, d_tau, dataTypeT, d_T, ldt,
-                                   computeType, bufferOnDevice, workspaceInBytesOnDevice,
-                                   bufferOnHost, workspaceInBytesOnHost)
+@checked function cusolverDnXlarft(handle, params, direct, storev, n, k, dataTypeV, V, ldv,
+                                   dataTypeTau, tau, dataTypeT, T, ldt, computeType,
+                                   bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost,
+                                   workspaceInBytesOnHost)
     initialize_context()
     @gcsafe_ccall libcusolver.cusolverDnXlarft(handle::cusolverDnHandle_t,
                                                params::cusolverDnParams_t,
                                                direct::cusolverDirectMode_t,
-                                               storev::cusolverStorevMode_t, N::Int64,
-                                               K::Int64, dataTypeV::cudaDataType,
-                                               d_V::CuPtr{Cvoid}, ldv::Int64,
-                                               dataTypeTau::cudaDataType,
-                                               d_tau::CuPtr{Cvoid}, dataTypeT::cudaDataType,
-                                               d_T::CuPtr{Cvoid}, ldt::Int64,
-                                               computeType::cudaDataType,
+                                               storev::cusolverStorevMode_t, n::Int64,
+                                               k::Int64, dataTypeV::cudaDataType,
+                                               V::CuPtr{Cvoid}, ldv::Int64,
+                                               dataTypeTau::cudaDataType, tau::CuPtr{Cvoid},
+                                               dataTypeT::cudaDataType, T::CuPtr{Cvoid},
+                                               ldt::Int64, computeType::cudaDataType,
                                                bufferOnDevice::CuPtr{Cvoid},
                                                workspaceInBytesOnDevice::Csize_t,
                                                bufferOnHost::Ptr{Cvoid},
