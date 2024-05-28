@@ -19,7 +19,12 @@ end
 function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDA.CUBLAS.version))
     return nothing
 end
-
+function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDA.context!), args...)
+    return nothing
+end
+function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDA.is_pinned), args...)
+    return nothing
+end
 
 function EnzymeCore.compiler_job_from_backend(::CUDABackend, @nospecialize(F::Type), @nospecialize(TT::Type))
     mi = GPUCompiler.methodinstance(F, TT)
@@ -90,6 +95,32 @@ function EnzymeCore.EnzymeRules.forward(ofn::Const{Type{CT}},
             shadow = ofn.val(uval.val, primargs...)::CT
             fill!(shadow, 0)
             shadow::CT
+        end
+        if RT <: BatchDuplicated
+            BatchDuplicated(ofv.val(uval.val), tup)
+        else
+            tup
+        end
+    end
+end
+
+function EnzymeCore.EnzymeRules.forward(ofn::Const{Type{CT}},
+        ::Type{RT}, uval::EnzymeCore.Annotation{DR}, args...; kwargs...) where {CT <: CuArray, DR <: CUDA.DataRef, RT}
+    primargs = ntuple(Val(length(args))) do i
+        Base.@_inline_meta
+        args[i].val
+    end
+    if RT <: Duplicated
+        shadow = ofn.val(uval.val, primargs...; kwargs...)
+        Duplicated(ofn.val(uval.dval, primargs...; kwargs...), shadow)
+    elseif RT <: Const
+        ofn.val(uval.val, primargs...; kwargs...)
+    elseif RT <: DuplicatedNoNeed
+        ofn.val(uval.dval, primargs...; kwargs...)
+    else
+        tup = ntuple(Val(EnzymeCore.batch_size(RT))) do i
+            Base.@_inline_meta
+            shadow = ofn.val(uval.dval[i], primargs...; kwargs...)
         end
         if RT <: BatchDuplicated
             BatchDuplicated(ofv.val(uval.val), tup)
@@ -269,5 +300,44 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}
           nothing
     end
 end
+
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, ::Type{RT}, uval::EnzymeCore.Annotation{DR}, args...; kwargs...) where {CT <: CuArray, DR <: CUDA.DataRef, RT}
+    primargs = ntuple(Val(length(args))) do i
+        Base.@_inline_meta
+        args[i].val
+    end
+
+    primal = if EnzymeRules.needs_primal(config)
+        ofn.val(uval.val, primargs...; kwargs...)
+    else
+        nothing
+    end
+    
+    shadow = if EnzymeRules.needs_shadow(config)
+        if EnzymeRules.width(config) == 1
+            ofn.val(uval.dval, primargs...; kwargs...)
+        else
+          ntuple(Val(EnzymeRules.width(config))) do i
+              Base.@_inline_meta
+              ofn.val(uval.dval[i], primargs...; kwargs...)
+          end
+        end
+    else
+        nothing
+    end
+    return EnzymeRules.AugmentedReturn{(EnzymeRules.needs_primal(config) ? CT : Nothing), (EnzymeRules.needs_shadow(config) ? (EnzymeRules.width(config) == 1 ? CT : NTuple{EnzymeRules.width(config), CT}) : Nothing), Nothing}(primal, shadow, nothing)
+end
+
+function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}, tape, A::EnzymeCore.Annotation{DR}, args::Vararg{EnzymeCore.Annotation, N}; kwargs...) where {CT <: CuArray, DR <: CUDA.DataRef, RT, N}
+    ntuple(Val(N+1)) do i
+          Base.@_inline_meta
+          nothing
+    end
+end
+
+function EnzymeCore.EnzymeRules.noalias(::Type{CT}, ::UndefInitializer, args...) where {CT <: CuArray}
+    return nothing
+end
+
 end # module
 
