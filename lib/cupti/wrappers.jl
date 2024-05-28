@@ -12,7 +12,7 @@ function library_version()
     rx = if Sys.islinux()
         r"libcupti.so.(\d+)\.(\d+)\.(\d+)"
     elseif Sys.iswindows()
-        r"libcupti64_(\d+)_(\d+)_(\d+).dll"
+        r"cupti64_(\d+).(\d+).(\d+).dll"
     else
         error("Unsupported platform; please file an issue with the following information:\n$(sprint(versioninfo))")
     end
