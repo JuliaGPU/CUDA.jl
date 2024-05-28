@@ -76,7 +76,6 @@ firstsum(x, y) = first(x .+ y)
     y = CuArray(3*ones(5))
     dx = CuArray([1.0, 0.0, 0.0, 0.0, 0.0])
     dy = CuArray([0.2, 0.0, 0.1, 0.0, 0.0])
-    f(x, y)
     res = autodiff(Forward, firstsum, Duplicated, Duplicated(x, dx), Duplicated(y, dy))
     @test res[1] ≈ 8
     @test res[2] ≈ 1.2
