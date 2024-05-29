@@ -627,28 +627,36 @@ end
 @inline function _pool_alloc(::Type{DeviceMemory}, sz)
     state = active_state()
 
-    if stream_ordered(state.device)
+    mem = if stream_ordered(state.device)
       pool_mark!(state.device, true)
       pool = pool_create(state.device)
-    end
 
-    mem = let pool = pool # closure capture bug
       retry_reclaim(isnothing) do
         memory_limit_exceeded(sz) && return nothing
 
         # try the actual allocation
         try
-          if stream_ordered(state.device)
-            alloc(DeviceMemory, sz; async=true, state.stream, pool)
-          else
-            alloc(DeviceMemory, sz; async=false)
-          end
+          alloc(DeviceMemory, sz; async=true, state.stream, pool)
+        catch err
+          isa(err, OutOfGPUMemoryError) || rethrow()
+          return nothing
+        end
+      end
+    else
+      retry_reclaim(isnothing) do
+        memory_limit_exceeded(sz) && return nothing
+
+        # try the actual allocation
+        try
+          alloc(DeviceMemory, sz; async=false)
         catch err
           isa(err, OutOfGPUMemoryError) || rethrow()
           return nothing
         end
       end
     end
+    # NOTE: the `retry_reclaim` body is duplicated to work around
+    #       closure capture issues with the `pool` variable
     mem === nothing && throw(OutOfGPUMemoryError(sz))
 
     account!(memory_stats(state.device), sz)

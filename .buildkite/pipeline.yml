@@ -280,6 +280,25 @@ steps:
         if: build.message !~ /\[skip tests\]/ && build.message !~ /\[skip special\]/ && !build.pull_request.draft
         timeout_in_minutes: 30
 
+      - label: "Legacy memory allocator"
+        plugins:
+          - JuliaCI/julia#v1:
+              version: "1.10"
+          - JuliaCI/julia-test#v1:
+              test_args: "--quickfail core base"
+          - JuliaCI/julia-coverage#v1:
+              dirs:
+                - src
+                - lib
+                - examples
+        agents:
+          queue: "juliagpu"
+          cuda: "*"
+        env:
+          JULIA_CUDA_MEMORY_POOL: 'none'
+        if: build.message !~ /\[skip tests\]/ && build.message !~ /\[skip special\]/ && !build.pull_request.draft
+        timeout_in_minutes: 30
+
       - label: "CuArray with {{matrix.memory}} memory"
         plugins:
           - JuliaCI/julia#v1:
