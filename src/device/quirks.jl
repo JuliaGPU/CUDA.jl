@@ -84,3 +84,9 @@ end
     end
     return v
 end
+
+# rational.jl
+@device_override @noinline Base.__throw_rational_argerror_zero(::Type{T}) where {T} =
+    @gputhrow "ArgumentError" "invalid rational: 0//0"
+@device_override @noinline Base.__throw_rational_argerror_typemin(::Type{T}) where {T} =
+    @gputhrow "OverflowError" "rational numerator is typemin"
