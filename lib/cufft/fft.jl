@@ -455,3 +455,12 @@ function Base.:(*)(p::cCuFFTPlan{T,K,false,N}, x::DenseCuArray{T,M}) where {T,K,
     unsafe_execute_trailing!(p,x, y)
     y
 end
+
+## support adjoints of FFT plans
+
+AbstractFFTs.AdjointStyle(::cCuFFTPlan) = AbstractFFTs.FFTAdjointStyle()
+AbstractFFTs.AdjointStyle(::rCuFFTPlan{T, CUFFT_FORWARD}) where {T} = AbstractFFTs.RFFTAdjointStyle()
+AbstractFFTs.AdjointStyle(p::rCuFFTPlan{T, CUFFT_INVERSE}) where {T} = AbstractFFTs.IRFFTAdjointStyle(p.osz[first(p.region)])
+
+# manually resolve ambiguity in adjoint plan application
+Base.:(*)(p::AbstractFFTs.AdjointPlan{T}, x::CuArray) where T = Base.invoke(*, Tuple{AbstractFFTs.AdjointPlan, AbstractArray}, p, x)
