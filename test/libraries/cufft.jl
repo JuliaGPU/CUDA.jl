@@ -342,3 +342,10 @@ end
 
     @test Array(dy) ≈ y
 end
+
+@testset "CUDA.jl#2409" begin
+    x = CUDA.zeros(ComplexF32, 4)
+    p = plan_ifft(x)
+    @test p isa AbstractFFTs.ScaledPlan
+    @test convert(CUFFT.cufftHandle, p) === convert(CUFFT.cufftHandle, p.p)
+end
