@@ -347,5 +347,10 @@ end
     x = CUDA.zeros(ComplexF32, 4)
     p = plan_ifft(x)
     @test p isa AbstractFFTs.ScaledPlan
-    @test convert(CUFFT.cufftHandle, p) === convert(CUFFT.cufftHandle, p.p)
+    # Initialize sz ref to invalid value
+    sz = Ref{Csize_t}(typemax(Csize_t))
+    # This will call the new convert method for ScaledPlan
+    CUFFT.cufftGetSize(p, sz)
+    # Make sure the value was modified
+    @test sz[] != typemax(Csize_t)
 end
