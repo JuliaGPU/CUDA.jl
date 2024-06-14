@@ -174,9 +174,9 @@ end
 
 # GEMV
 # legacy method
-LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, _add::MulAddMul) =
+LinearAlgebra.generic_matvecmul!(Y::StridedCuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, _add::MulAddMul) =
     LinearAlgebra.generic_matvecmul!(Y, tA, A, B, _add.alpha, _add.beta)
-function LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, alpha::Number, beta::Number)
+function LinearAlgebra.generic_matvecmul!(Y::StridedCuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, alpha::Number, beta::Number)
     mA, nA = tA == 'N' ? size(A) : reverse(size(A))
 
     if nA != length(B)
@@ -211,10 +211,10 @@ function LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::Stri
 end
 
 if VERSION < v"1.10.0-DEV.1365"
-@inline LinearAlgebra.gemv!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, a::Number, b::Number) =
+@inline LinearAlgebra.gemv!(Y::StridedCuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, a::Number, b::Number) =
     LinearAlgebra.generic_matvecmul!(Y, tA, A, B, MulAddMul(a, b))
 # disambiguation with LinearAlgebra.jl
-@inline LinearAlgebra.gemv!(Y::CuVector{T}, tA::AbstractChar, A::StridedCuMatrix{T}, B::StridedCuVector{T}, a::Number, b::Number) where {T<:CublasFloat} =
+@inline LinearAlgebra.gemv!(Y::StridedCuVector{T}, tA::AbstractChar, A::StridedCuMatrix{T}, B::StridedCuVector{T}, a::Number, b::Number) where {T<:CublasFloat} =
     LinearAlgebra.generic_matvecmul!(Y, tA, A, B, MulAddMul(a, b))
 end
 
