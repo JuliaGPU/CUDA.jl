@@ -746,10 +746,10 @@ function LinearAlgebra.kron!(C::CuMatrix{TC}, A::CuMatrix{TA}, B::CuMatrix{TB}) 
 
     config = launch_configuration(kernel.fun)
     dim_ratio = sizes[1] / sizes[2]
-    max_threads_i = floor(Int, sqrt(config.threads * dim_ratio))
-    max_threads_j = floor(Int, sqrt(config.threads / dim_ratio))
-    max_blocks_i = floor(Int, sqrt(config.blocks * dim_ratio))
-    max_blocks_j = floor(Int, sqrt(config.blocks / dim_ratio))
+    max_threads_i = max(1, floor(Int, sqrt(config.threads * dim_ratio)))
+    max_threads_j = max(1, floor(Int, sqrt(config.threads / dim_ratio)))
+    max_blocks_i = max(1, floor(Int, sqrt(config.blocks * dim_ratio)))
+    max_blocks_j = max(1, floor(Int, sqrt(config.blocks / dim_ratio)))
 
     threads_i = min(sizes[1], max_threads_i)
     threads_j = min(sizes[2], max_threads_j)
