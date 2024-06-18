@@ -130,7 +130,7 @@ function maybe_collect(will_block::Bool=false)
 
   # finally, call the GC
   pre_gc_live = stats.live
-  gc_time = Base.@elapsed GC.gc(false)
+  gc_time = Base.@elapsed GC.gc(pressure > 0.9 ? true : false)
   post_gc_live = stats.live
   memory_freed = pre_gc_live - post_gc_live
   Base.@atomic stats.last_freed = memory_freed
