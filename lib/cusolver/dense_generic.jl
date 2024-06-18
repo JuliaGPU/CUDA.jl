@@ -1,17 +1,3 @@
-mutable struct CuSolverParameters
-    parameters::cusolverDnParams_t
-
-    function CuSolverParameters()
-        parameters_ref = Ref{cusolverDnParams_t}()
-        cusolverDnCreateParams(parameters_ref)
-        obj = new(parameters_ref[])
-        finalizer(cusolverDnDestroyParams, obj)
-        obj
-    end
-end
-
-Base.unsafe_convert(::Type{cusolverDnParams_t}, params::CuSolverParameters) = params.parameters
-
 # Xpotrf
 function Xpotrf!(uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     chkuplo(uplo)
