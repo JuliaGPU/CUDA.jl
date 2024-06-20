@@ -60,15 +60,18 @@ higher-up depot; to clear preferences nondestructively, use
 """
 function set_runtime_version!(version::Union{Nothing,VersionNumber}=nothing;
                               local_toolkit::Union{Nothing,Bool}=nothing)
-    if version !== nothing
-        version = "$(version.major).$(version.minor)"
+    # store stringified properties
+    let version = isnothing(version) ? nothing : "$(version.major).$(version.minor)"
+        Preferences.set_preferences!(CUDA_Runtime_jll, "version" => version; force=true)
     end
-    Preferences.set_preferences!(CUDA_Runtime_jll, "version" => version; force=true)
-    Preferences.set_preferences!(CUDA_Runtime_jll, "local" => local_toolkit; force=true)
+    let local_toolkit = isnothing(local_toolkit) ? nothing : string(local_toolkit)
+        Preferences.set_preferences!(CUDA_Runtime_jll, "local" => local_toolkit; force=true)
+    end
+
     io = IOBuffer()
     print(io, "Configure the active project to use ")
     if version !== nothing
-        print(io, "CUDA $version")
+        print(io, "CUDA $(version.major).$(version.minor)")
     else
         print(io, "the default CUDA")
     end

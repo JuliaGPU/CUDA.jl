@@ -1065,7 +1065,7 @@ end
                                                             bsrSortedColInd::CuPtr{Cint},
                                                             blockSize::Cint,
                                                             info::bsrsm2Info_t,
-                                                            pBufferSize::CuPtr{Csize_t})::cusparseStatus_t
+                                                            pBufferSize::Ptr{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseDbsrsm2_bufferSizeExt(handle, dirA, transA, transB, mb, n, nnzb,
