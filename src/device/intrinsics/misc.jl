@@ -1,5 +1,6 @@
 export clock, nanosleep
 
+@device_functions begin
 """
     exit()
 
@@ -33,4 +34,6 @@ Puts a thread for a given amount `t`(in nanoseconds).
 @inline function nanosleep(t::Unsigned)
     @asmcall("nanosleep.u32 \$0;", "r", true,
              Cvoid, Tuple{UInt32}, convert(UInt32, t))
+end
+
 end

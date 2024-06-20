@@ -6,6 +6,7 @@
 export sync_threads, sync_warp
 export sync_threads_count, sync_threads_and, sync_threads_or
 
+@device_functions begin
 """
     sync_threads()
 
@@ -64,7 +65,7 @@ the warp.
 
 export barrier_sync
 
-barrier_sync(id=0) = ccall("llvm.nvvm.barrier.sync", llvmcall, Cvoid, (Int32,), id)
+@inline barrier_sync(id=0) = ccall("llvm.nvvm.barrier.sync", llvmcall, Cvoid, (Int32,), id)
 
 
 ## memory barriers (membar)
@@ -107,3 +108,5 @@ host threads, and all threads in peer devices as occurring before all writes to 
 memory made by the calling thread after the call to `threadfence_system()`.
 """
 @inline threadfence_system() = ccall("llvm.nvvm.membar.sys", llvmcall, Cvoid, ())
+
+end
