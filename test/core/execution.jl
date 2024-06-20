@@ -1095,3 +1095,87 @@ end
 end
 
 ############################################################################################
+
+if VERSION >= v"1.12-"
+@testset "opaque closures" begin
+
+# static closure, constructed from IRCode
+let
+    ir, rettyp = only(Base.code_ircode(+, (Int, Int)))
+    oc = CUDA.OpaqueClosure(ir)
+
+    c = CuArray([0])
+    a = CuArray([1])
+    b = CuArray([2])
+
+    function kernel(oc, c, a, b)
+        i = threadIdx().x
+        @inbounds c[i] = oc(a[i], b[i])
+        return
+    end
+    @cuda threads=1 kernel(oc, c, a, b)
+
+    @test Array(c)[] == 3
+end
+
+# static closure, constructed from CodeInfo
+let
+    ir, rettype = only(Base.code_typed(*, (Int, Int, Int)))
+    oc = CUDA.OpaqueClosure(ir; sig=Tuple{Int,Int,Int}, rettype, nargs=3)
+
+    d = CuArray([1])
+    a = CuArray([2])
+    b = CuArray([3])
+    c = CuArray([4])
+
+    function kernel(oc, d, a, b, c)
+        i = threadIdx().x
+        @inbounds d[i] = oc(a[i], b[i], c[i])
+        return
+    end
+    @cuda threads=1 kernel(oc, d, a, b, c)
+
+    @test Array(d)[] == 24
+end
+
+# dynamic closure, constructing IRCode based on argument types
+let
+    tfunc(arg1, arg2) = Core.Compiler.return_type(+, Tuple{arg1,arg2})
+    function builder(arg1, arg2)
+        ir, rettyp = only(Base.code_ircode(+, (arg1, arg2)))
+        return ir
+    end
+
+    oc = CUDA.JITOpaqueClosure(builder, tfunc; nargs=2)
+
+    function kernel(oc, c, a, b)
+        i = threadIdx().x
+        @inbounds c[i] = oc(a[i], b[i])
+        return
+    end
+
+    let
+        c = CuArray([0])
+        a = CuArray([1])
+        b = CuArray([2])
+
+        @cuda threads=1 kernel(oc, c, a, b)
+
+        @test Array(c)[] == 3
+    end
+
+    let
+        c = CuArray([3f0])
+        a = CuArray([4f0])
+        b = CuArray([5f0])
+
+        @cuda threads=1 kernel(oc, c, a, b)
+
+        @test Array(c)[] == 9f0
+    end
+end
+
+end
+end
+
+############################################################################################
