@@ -172,6 +172,117 @@ function EnzymeCore.EnzymeRules.forward(ofn::EnzymeCore.Annotation{CUDA.HostKern
     return nothing
 end
 
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(cufunction)},
+                                            ::Type{RT}, f::Const{F},
+                                            tt::Const{TT}; kwargs...) where {F,CT, RT<:EnzymeCore.Annotation{CT}, TT}
+    res = ofn.val(f.val, tt.val; kwargs...)
+
+    primal = if EnzymeRules.needs_primal(config)
+        res
+    else
+        nothing
+    end
+    
+    shadow = if EnzymeRules.needs_shadow(config)
+        if EnzymeRules.width(config) == 1
+            res
+        else
+          ntuple(Val(EnzymeRules.width(config))) do i
+              Base.@_inline_meta
+              res
+          end
+        end
+    else
+        nothing
+    end
+    return EnzymeRules.AugmentedReturn{(EnzymeRules.needs_primal(config) ? CT : Nothing), (EnzymeRules.needs_shadow(config) ? (EnzymeRules.width(config) == 1 ? CT : NTuple{EnzymeRules.width(config), CT}) : Nothing), Nothing}(primal, shadow, nothing)
+end
+
+function EnzymeCore.EnzymeRules.reverse(config, ofn::EnzymeCore.Const{typeof(cufunction)},::Type{RT}, subtape, f, tt; kwargs...) where RT
+    return (nothing, nothing)
+end
+
+function meta_augf(f, tape::CuArray{TapeType}, ::Val{ModifiedBetween}, args::Vararg{Any, N}) where {N, ModifiedBetween, TapeType}
+    forward, _ = EnzymeCore.autodiff_deferred_thunk(
+        ReverseSplitModified(ReverseSplitWithPrimal, Val(ModifiedBetween)),
+        TapeType,
+        Const{Core.Typeof(f)},
+        Const{Nothing},
+        map(typeof, args)...,
+    )
+
+    I = (blockIdx().x, blockIdx().y, blockIdx().z, threadIdx().x, threadIdx().y, threadIdx().z)
+    subtape[I] = forward(Const(f), args...)[1]
+    nothing
+end
+
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::EnzymeCore.Annotation{CUDA.HostKernel{F,TT}},
+                                        ::Type{Const{Nothing}}, args0...;
+                                        threads::CuDim=1, blocks::CuDim=1, kwargs...) where {F,TT}
+    args = ((cudaconvert(arg) for arg in args0)...,)
+    ModifiedBetween = overwritten(config)
+    TapeType = EnzymeCore.tape_type(
+        EnzymeCore.compiler_job_from_backend(CUDABackend(), typeof(Base.identity), Tuple{Float64}),
+        ReverseSplitModified(ReverseSplitWithPrimal, Val(ModifiedBetween)),
+        Const{F},
+        Const{Nothing},
+        map(typeof, args)...,
+    )
+    threads = CuDim3(threads)
+    blocks = CuDim3(blocks)
+    subtape = CuArray{TapeType}(undef, (blocks.x, blocks.y, blocks.z, threads.x, threads.y, threads.z))
+
+    GC.@preserve args0 subtape, begin
+        args = (cudaconvert(subtape), Val(ModifiedBetween), args...)
+        T2 = (F, typeof(subtape), Val{ModifiedBetween},   (typeof(a) for a in args)...)
+        TT2 = Tuple{T2...}
+        cuf = cufunction(meta_augf, TT2)
+        res = cuf(ofn.val.f, args...; threads, blocks, kwargs...)
+    end
+
+    return AugmentedReturn{Nothing,Nothing,Any}(nothing, nothing, subtape)
+end
+
+function meta_revf(f, tape::CuArray{TapeType}, ::Val{ModifiedBetween},  args::Vararg{Any, N}) where {N, ModifiedBetween, TapeType}
+    _, reverse = EnzymeCore.autodiff_deferred_thunk(
+        EnzymeCore.compiler_job_from_backend(CUDABackend(), typeof(Base.identity), Tuple{Float64}),
+        ReverseSplitModified(ReverseSplitWithPrimal, Val(ModifiedBetween)),
+        TapeType,
+        Const{Core.Typeof(f)},
+        Const{Nothing},
+        map(typeof, args)...,
+    )
+
+    I = (blockIdx().x, blockIdx().y, blockIdx().z, threadIdx().x, threadIdx().y, threadIdx().z)
+    reverse(Const(f), args..., subtape[I])
+    nothing
+end
+
+function EnzymeCore.EnzymeRules.reverse(config, ofn::EnzymeCore.Annotation{CUDA.HostKernel{F,TT}},
+                                        ::Type{Const{Nothing}}, subtape, args0...;
+                                        threads::CuDim=1, blocks::CuDim=1, kwargs...) where {F,TT}
+    args = ((cudaconvert(arg) for arg in args0)...,)
+    ModifiedBetween = overwritten(config)
+    TapeType = EnzymeCore.tape_type(
+        ReverseSplitModified(ReverseSplitWithPrimal, Val(ModifiedBetween)),
+        Const{F},
+        Const{Nothing},
+        map(typeof, args)...,
+    )
+    threads = CuDim3(threads)
+    blocks = CuDim3(blocks)
+
+    GC.@preserve args0 subtape, begin
+        args = (cudaconvert(subtape), Val(ModifiedBetween),(cudaconvert(a) for a in args)...,)
+        T2 = (F, typeof(subtape), Val{ModifiedBetween}, (typeof(a) for a in args)...)
+        TT2 = Tuple{T2...}
+        cuf = cufunction(meta_revf, TT2)
+        res = cuf(ofn.val.f, args...; threads, blocks, kwargs...)
+    end
+
+    return AugmentedReturn{Nothing,Nothing,Any}(nothing, nothing, subtape)
+end
+
 function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(Base.fill!)}, ::Type{RT}, A::EnzymeCore.Annotation{<:DenseCuArray{T}}, x) where {RT, T <: CUDA.MemsetCompatTypes}
     if A isa Const || A isa Duplicated || A isa BatchDuplicated
         ofn.val(A.val, x.val)
