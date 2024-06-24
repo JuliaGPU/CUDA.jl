@@ -16,7 +16,6 @@ precompile(Core.kwfunc(cudacall), (NamedTuple{(:threads, :blocks), Tuple{Int64, 
 precompile(Core.kwfunc(launch), (NamedTuple{(:threads, :blocks), Tuple{Int64, Int64}},typeof(launch),CuFunction))
 
 using PrecompileTools: @setup_workload, @compile_workload
-@static if VERSION >= v"1.11.0-DEV.1603"
 @setup_workload let
     @compile_workload begin
         target = PTXCompilerTarget(; cap=v"7.5")
@@ -26,5 +25,4 @@ using PrecompileTools: @setup_workload, @compile_workload
         job = CompilerJob(mi, config)
         GPUCompiler.code_native(devnull, job)
     end
-end
 end
