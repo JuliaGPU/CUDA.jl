@@ -97,6 +97,74 @@ As shown above, the `threadIdx` etc. values from CUDA C are available as functio
 a `NamedTuple` with `x`, `y`, and `z` fields. The intrinsics return 1-based indices.
 
 
+## Kernel compilation requirements
+
+For custom kernels to work they need to need to meet certain requirements.
+
+First, the memory must be accessible on the GPU. This can be enforced by using the correct
+types, e.g. CuArray's data with bits type. Custom structs can be ported as described in the
+[corresponding tutorial](https://cuda.juliagpu.org/dev/tutorials/custom_structs/).
+
+Second, we are not allowed to have runtime dispatches. All function calls
+need to be determined at compile time. Here it is important to note that runtime dispatches
+can also be introduced by functions which are not fully specialized. Let us take this example:
+
+```julia-repl
+julia> function my_inner_kernel!(f, t) # does not specialize
+           t .= f.(t)
+       end
+my_inner_kernel! (generic function with 1 method)
+
+julia> function my_outer_kernel(f, a)
+           i = threadIdx().x
+           my_inner_kernel!(f, @view a[i, :])
+           return nothing
+       end
+my_outer_kernel (generic function with 1 method)
+
+julia> a = CUDA.rand(Int, (2,2))
+2×2 CuArray{Int64, 2, CUDA.DeviceMemory}:
+ 5153094658246882343  -1636555237989902283
+ 2088126782868946458  -5701665962120018867
+
+julia> id(x) = x
+id (generic function with 1 method)
+
+julia> @cuda threads=size(a, 1) my_outer_kernel(id, a)
+ERROR: InvalidIRError: compiling MethodInstance for my_outer_kernel(::typeof(id), ::CuDeviceMatrix{Int64, 1}) resulted in invalid LLVM IR
+Reason: unsupported dynamic function invocation (call to my_inner_kernel!(f, t) @ Main REPL[27]:1)
+```
+
+Here the function `my_inner_kernel!` is not specialized. We can force specialization
+in this case as follows:
+
+```julia-repl
+julia> function my_inner_kernel2!(f::F, t::T) where {F,T} # forces specialization
+           t .= f.(t)
+       end
+my_inner_kernel2! (generic function with 1 method)
+
+julia> function my_outer_kernel2(f, a)
+           i = threadIdx().x
+           my_inner_kernel2!(f, @view a[i, :])
+           return nothing
+       end
+my_outer_kernel2 (generic function with 1 method)
+
+julia> a = CUDA.rand(Int, (2,2))
+2×2 CuArray{Int64, 2, CUDA.DeviceMemory}:
+  3193805011610800677  4871385510397812058
+ -9060544314843886881  8829083170181145736
+
+julia> id(x) = x
+id (generic function with 1 method)
+
+julia> @cuda threads=size(a, 1) my_outer_kernel2(id, a)
+CUDA.HostKernel for my_outer_kernel2(typeof(id), CuDeviceMatrix{Int64, 1})
+```
+
+More cases and details on specialization can be found in [the Julia manual](https://docs.julialang.org/en/v1/manual/performance-tips/#Be-aware-of-when-Julia-avoids-specializing).
+
 ## Synchronization
 
 To synchronize threads in a block, use the `sync_threads()` function. More advanced variants
