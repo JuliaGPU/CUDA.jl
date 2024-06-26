@@ -1,6 +1,7 @@
 export WMMA
 module WMMA
 
+import ..LLVM
 using ..CUDA: AS
 using Core: LLVMPtr
 
@@ -186,7 +187,10 @@ for ops in all_ldst_ops,
     func_name = Symbol(join(filter(!isempty, ["llvm", "wmma", "load", mat, layout, shape, addr_space, stride, elem_type]), "_"))
 
     # Name of the LLVM intrinsic
-    llvm_intr = "llvm.nvvm.wmma.$shape.load.$mat.$layout.stride.$elem_type.p$(addr_space_int)i8"
+    llvm_intr = "llvm.nvvm.wmma.$shape.load.$mat.$layout.stride.$elem_type.p$(addr_space_int)"
+    if LLVM.version() < v"17"
+        llvm_intr *= "i8"
+    end
 
     # Determine types + size for this (matrix, elem_type) combination
     arr_ty, frag_ty, sz = get_frag_info(mat, elem_type, shape)
@@ -252,7 +256,10 @@ export llvm_wmma_store
     func_name = Symbol(join(filter(!isempty, ["llvm", "wmma", "store", mat, layout, shape, addr_space, stride, elem_type]), "_"))
 
     # Name of the LLVM intrinsic
-    llvm_intr = "llvm.nvvm.wmma.$shape.store.$mat.$layout.stride.$elem_type.p$(addr_space_int)i8"
+    llvm_intr = "llvm.nvvm.wmma.$shape.store.$mat.$layout.stride.$elem_type.p$(addr_space_int)"
+    if LLVM.version() < v"17"
+        llvm_intr *= "i8"
+    end
 
     # Determine types + size for this (matrix, elem_type) combination
     arr_ty, frag_ty, sz = get_frag_info(mat, elem_type, shape)

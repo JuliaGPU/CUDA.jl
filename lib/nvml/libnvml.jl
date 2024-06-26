@@ -349,6 +349,21 @@ const nvmlVgpuLicenseInfo_t = nvmlVgpuLicenseInfo_st
                                                                 licenseInfo::Ptr{nvmlVgpuLicenseInfo_t})::nvmlReturn_t
 end
 
+@cenum nvmlDriverModel_enum::UInt32 begin
+    NVML_DRIVER_WDDM = 0
+    NVML_DRIVER_WDM = 1
+    NVML_DRIVER_MCDM = 2
+end
+
+const nvmlDriverModel_t = nvmlDriverModel_enum
+
+@checked function nvmlDeviceGetDriverModel_v2(device, current, pending)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetDriverModel_v2(device::nvmlDevice_t,
+                                                          current::Ptr{nvmlDriverModel_t},
+                                                          pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
+end
+
 @cenum nvmlMemoryErrorType_enum::UInt32 begin
     NVML_MEMORY_ERROR_TYPE_CORRECTED = 0
     NVML_MEMORY_ERROR_TYPE_UNCORRECTED = 1
@@ -786,7 +801,8 @@ const nvmlBrandType_t = nvmlBrandType_enum
     NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MIN = 4
     NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_CURR = 5
     NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MAX = 6
-    NVML_TEMPERATURE_THRESHOLD_COUNT = 7
+    NVML_TEMPERATURE_THRESHOLD_GPS_CURR = 7
+    NVML_TEMPERATURE_THRESHOLD_COUNT = 8
 end
 
 const nvmlTemperatureThresholds_t = nvmlTemperatureThresholds_enum
@@ -851,13 +867,6 @@ end
 
 const nvmlClockId_t = nvmlClockId_enum
 
-@cenum nvmlDriverModel_enum::UInt32 begin
-    NVML_DRIVER_WDDM = 0
-    NVML_DRIVER_WDM = 1
-end
-
-const nvmlDriverModel_t = nvmlDriverModel_enum
-
 @cenum nvmlPStates_enum::UInt32 begin
     NVML_PSTATE_0 = 0
     NVML_PSTATE_1 = 1
@@ -879,6 +888,17 @@ const nvmlDriverModel_t = nvmlDriverModel_enum
 end
 
 const nvmlPstates_t = nvmlPStates_enum
+
+struct nvmlClockOffset_v1_t
+    version::Cuint
+    type::nvmlClockType_t
+    pstate::nvmlPstates_t
+    clockOffsetMHz::Cint
+    minClockOffsetMHz::Cint
+    maxClockOffsetMHz::Cint
+end
+
+const nvmlClockOffset_t = nvmlClockOffset_v1_t
 
 @cenum nvmlGom_enum::UInt32 begin
     NVML_GOM_ALL_ON = 0
@@ -1088,8 +1108,8 @@ struct nvmlVgpuSchedulerParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#340"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#341"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#344"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#345"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1139,8 +1159,8 @@ struct nvmlVgpuSchedulerSetParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#336"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#337"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#339"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#340"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1240,13 +1260,13 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"##Ctag#339"
+struct var"##Ctag#341"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
     decThreshold::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#339"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#341"}, f::Symbol)
     f === :bIsPresent && return Ptr{Cuint}(x + 0)
     f === :percentage && return Ptr{Cuint}(x + 4)
     f === :incThreshold && return Ptr{Cuint}(x + 8)
@@ -1254,14 +1274,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#339"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#339", f::Symbol)
-    r = Ref{var"##Ctag#339"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#339"}, r)
+function Base.getproperty(x::var"##Ctag#341", f::Symbol)
+    r = Ref{var"##Ctag#341"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#341"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#339"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#341"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1271,7 +1291,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
-    f === :utilization && return Ptr{NTuple{8,var"##Ctag#339"}}(x + 4)
+    f === :utilization && return Ptr{NTuple{8,var"##Ctag#341"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -2074,6 +2094,18 @@ end
                                                                 maxOffset::Ptr{Cint})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetClockOffsets(device, info)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetClockOffsets(device::nvmlDevice_t,
+                                                        info::Ptr{nvmlClockOffset_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetClockOffsets(device, info)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceSetClockOffsets(device::nvmlDevice_t,
+                                                        info::Ptr{nvmlClockOffset_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetPowerManagementMode(device, mode)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetPowerManagementMode(device::nvmlDevice_t,
@@ -2270,13 +2302,6 @@ end
                                                        sessionInfo::Ptr{nvmlFBCSessionInfo_t})::nvmlReturn_t
 end
 
-@checked function nvmlDeviceGetDriverModel(device, current, pending)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetDriverModel(device::nvmlDevice_t,
-                                                       current::Ptr{nvmlDriverModel_t},
-                                                       pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
-end
-
 @checked function nvmlDeviceGetVbiosVersion(device, version, length)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetVbiosVersion(device::nvmlDevice_t,
@@ -2436,6 +2461,22 @@ end
 @checked function nvmlSystemGetConfComputeKeyRotationThresholdInfo(pKeyRotationThrInfo)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlSystemGetConfComputeKeyRotationThresholdInfo(pKeyRotationThrInfo::Ptr{nvmlConfComputeGetKeyRotationThresholdInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetConfComputeUnprotectedMemSize(device, sizeKiB)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceSetConfComputeUnprotectedMemSize(device::nvmlDevice_t,
+                                                                         sizeKiB::Culonglong)::nvmlReturn_t
+end
+
+@checked function nvmlSystemSetConfComputeGpusReadyState(isAcceptingWork)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlSystemSetConfComputeGpusReadyState(isAcceptingWork::Cuint)::nvmlReturn_t
+end
+
+@checked function nvmlSystemSetConfComputeKeyRotationThresholdInfo(pKeyRotationThrInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlSystemSetConfComputeKeyRotationThresholdInfo(pKeyRotationThrInfo::Ptr{nvmlConfComputeSetKeyRotationThresholdInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlSystemGetConfComputeSettings(settings)
@@ -2697,22 +2738,6 @@ end
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceSetMemClkVfOffset(device::nvmlDevice_t,
                                                           offset::Cint)::nvmlReturn_t
-end
-
-@checked function nvmlDeviceSetConfComputeUnprotectedMemSize(device, sizeKiB)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceSetConfComputeUnprotectedMemSize(device::nvmlDevice_t,
-                                                                         sizeKiB::Culonglong)::nvmlReturn_t
-end
-
-@checked function nvmlSystemSetConfComputeGpusReadyState(isAcceptingWork)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlSystemSetConfComputeGpusReadyState(isAcceptingWork::Cuint)::nvmlReturn_t
-end
-
-@checked function nvmlSystemSetConfComputeKeyRotationThresholdInfo(pKeyRotationThrInfo)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlSystemSetConfComputeKeyRotationThresholdInfo(pKeyRotationThrInfo::Ptr{nvmlConfComputeSetKeyRotationThresholdInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceSetAccountingMode(device, mode)
@@ -3716,26 +3741,26 @@ mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"##Ctag#338"
+struct var"##Ctag#343"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
 end
-function Base.getproperty(x::Ptr{var"##Ctag#338"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#343"}, f::Symbol)
     f === :shortName && return Ptr{Cstring}(x + 0)
     f === :longName && return Ptr{Cstring}(x + 8)
     f === :unit && return Ptr{Cstring}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#338", f::Symbol)
-    r = Ref{var"##Ctag#338"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#338"}, r)
+function Base.getproperty(x::var"##Ctag#343", f::Symbol)
+    r = Ref{var"##Ctag#343"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#343"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#338"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#343"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3747,7 +3772,7 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :metricId && return Ptr{Cuint}(x + 0)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
-    f === :metricInfo && return Ptr{var"##Ctag#338"}(x + 16)
+    f === :metricInfo && return Ptr{var"##Ctag#343"}(x + 16)
     return getfield(x, f)
 end
 
@@ -3855,53 +3880,45 @@ end
                                                               status::Ptr{nvmlEccSramErrorStatus_t})::nvmlReturn_t
 end
 
-struct var"##Ctag#336"
+struct nvmlDeviceCapabilities_v1_t
+    version::Cuint
+    capMask::Cuint
+end
+
+const nvmlDeviceCapabilities_t = nvmlDeviceCapabilities_v1_t
+
+@checked function nvmlDeviceGetCapabilities(device, caps)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetCapabilities(device::nvmlDevice_t,
+                                                        caps::Ptr{nvmlDeviceCapabilities_t})::nvmlReturn_t
+end
+
+struct var"##Ctag#339"
     avgFactor::Cuint
     frequency::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#336"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#339"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :frequency && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#336", f::Symbol)
-    r = Ref{var"##Ctag#336"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#336"}, r)
+function Base.getproperty(x::var"##Ctag#339", f::Symbol)
+    r = Ref{var"##Ctag#339"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#339"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#336"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#337"
-    timeslice::Cuint
-end
-function Base.getproperty(x::Ptr{var"##Ctag#337"}, f::Symbol)
-    f === :timeslice && return Ptr{Cuint}(x + 0)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#337", f::Symbol)
-    r = Ref{var"##Ctag#337"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#337"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#337"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#339"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
 struct var"##Ctag#340"
-    avgFactor::Cuint
     timeslice::Cuint
 end
 function Base.getproperty(x::Ptr{var"##Ctag#340"}, f::Symbol)
-    f === :avgFactor && return Ptr{Cuint}(x + 0)
-    f === :timeslice && return Ptr{Cuint}(x + 4)
+    f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
@@ -3916,22 +3933,43 @@ function Base.setproperty!(x::Ptr{var"##Ctag#340"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#341"
+struct var"##Ctag#344"
+    avgFactor::Cuint
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#341"}, f::Symbol)
-    f === :timeslice && return Ptr{Cuint}(x + 0)
+function Base.getproperty(x::Ptr{var"##Ctag#344"}, f::Symbol)
+    f === :avgFactor && return Ptr{Cuint}(x + 0)
+    f === :timeslice && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#341", f::Symbol)
-    r = Ref{var"##Ctag#341"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#341"}, r)
+function Base.getproperty(x::var"##Ctag#344", f::Symbol)
+    r = Ref{var"##Ctag#344"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#344"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#341"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#344"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"##Ctag#345"
+    timeslice::Cuint
+end
+function Base.getproperty(x::Ptr{var"##Ctag#345"}, f::Symbol)
+    f === :timeslice && return Ptr{Cuint}(x + 0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"##Ctag#345", f::Symbol)
+    r = Ref{var"##Ctag#345"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#345"}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"##Ctag#345"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -4046,6 +4084,8 @@ const NVML_DEVICE_ARCH_AMPERE = 7
 const NVML_DEVICE_ARCH_ADA = 8
 
 const NVML_DEVICE_ARCH_HOPPER = 9
+
+const NVML_DEVICE_ARCH_T23X = 11
 
 const NVML_DEVICE_ARCH_UNKNOWN = 0xffffffff
 
@@ -4481,9 +4521,15 @@ const NVML_FI_DEV_TEMPERATURE_MEM_MAX_TLIMIT = 195
 
 const NVML_FI_DEV_TEMPERATURE_GPU_MAX_TLIMIT = 196
 
-const NVML_FI_DEV_IS_MIG_MODE_INDEPENDENT_MIG_QUERY_CAPABLE = 199
+const NVML_FI_DEV_PCIE_COUNT_TX_BYTES = 197
 
-const NVML_FI_MAX = 200
+const NVML_FI_DEV_PCIE_COUNT_RX_BYTES = 198
+
+const NVML_FI_DEV_NVLINK_GET_POWER_THRESHOLD_MAX = 199
+
+const NVML_FI_DEV_IS_MIG_MODE_INDEPENDENT_MIG_QUERY_CAPABLE = 200
+
+const NVML_FI_MAX = 223
 
 const nvmlEventTypeSingleBitEccError = Clonglong(0x0000000000000001)
 
@@ -4706,3 +4752,7 @@ const NVML_NVLINK_LOW_POWER_THRESHOLD_MIN = 0x01
 const NVML_NVLINK_LOW_POWER_THRESHOLD_MAX = 0x1fff
 
 const NVML_NVLINK_LOW_POWER_THRESHOLD_RESET = 0xffffffff
+
+const NVML_NVLINK_LOW_POWER_THRESHOLD_DEFAULT = NVML_NVLINK_LOW_POWER_THRESHOLD_RESET
+
+const NVML_DEV_CAP_EGM = 1 << 0

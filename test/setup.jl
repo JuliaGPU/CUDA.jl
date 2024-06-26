@@ -1,6 +1,9 @@
 using Distributed, Test, CUDA
 using CUDA: i32
 
+# ensure CUDA.jl is functional
+@assert CUDA.functional(true)
+
 # GPUArrays has a testsuite that isn't part of the main package.
 # Include it directly.
 import GPUArrays

@@ -72,7 +72,8 @@ function wrap(name, headers; targets=headers, defines=[], include_dirs=[])
 
     # only keep the wrapped headers
     # NOTE: normally we'd do this by using `-isystem` instead of `-I` above,
-    #       but in the case of CUDA most headers are in a single directory.
+    #       but in the case of CUDA most headers are in a single directory,
+    #       and some headers like cublas_api.h cannot be included directly.
     replace!(get_nodes(ctx.dag)) do node
         path = normpath(Clang.get_filename(node.cursor))
         should_wrap = any(targets) do target
@@ -276,9 +277,11 @@ function main(name="all")
     end
 
     if name == "all" || name == "cublas"
-        wrap("cublas", ["$cuda/cublas_v2.h", "$cuda/cublasXt.h", "$cuda/cublasLt.h"];
+        wrap("cublas", ["$cuda/cublas_v2.h", "$cuda/cublasXt.h"];
             targets=[r"cublas.*.h"],
             include_dirs=[cuda])
+
+        wrap("cublasLt", ["$cuda/cublasLt.h"]; include_dirs=[cuda])
     end
 
 

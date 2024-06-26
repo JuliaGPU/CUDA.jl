@@ -193,7 +193,7 @@ end
     valid_kernel() = return
     invalid_kernel() = 1
 
-    if can_use_cupti()
+    if can_use_cupti() && CUPTI.library_version() != v"2024.2.0" # NVIDIA bug #4667039
         @test CUDA.code_sass(devnull, valid_kernel, Tuple{}) == nothing
         @test_throws CUDA.KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
     end
@@ -204,7 +204,7 @@ end
 
     @eval kernel_341(ptr) = (@inbounds unsafe_store!(ptr, $(Symbol("dummy_^"))(unsafe_load(ptr))); nothing)
 
-    if can_use_cupti()
+    if can_use_cupti() && CUPTI.library_version() != v"2024.2.0" # NVIDIA bug #4667039
         CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
     end
 end
@@ -212,7 +212,7 @@ end
 @testset "device runtime" begin
     kernel() = (CUDA.cudaGetLastError(); return)
 
-    if can_use_cupti()
+    if can_use_cupti() && CUPTI.library_version() != v"2024.2.0" # NVIDIA bug #4667039
         CUDA.code_sass(devnull, kernel, Tuple{})
     end
 end

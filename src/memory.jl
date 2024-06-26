@@ -130,7 +130,7 @@ function maybe_collect(will_block::Bool=false)
 
   # finally, call the GC
   pre_gc_live = stats.live
-  gc_time = Base.@elapsed GC.gc(false)
+  gc_time = Base.@elapsed GC.gc(pressure > 0.9 ? true : false)
   post_gc_live = stats.live
   memory_freed = pre_gc_live - post_gc_live
   Base.@atomic stats.last_freed = memory_freed
@@ -528,9 +528,14 @@ function maybe_synchronize(managed::Managed)
 end
 
 function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
-  state = active_state()
+  # let null pointers pass through as-is
+  ptr = convert(CuPtr{T}, managed.mem)
+  if ptr == CU_NULL
+    return ptr
+  end
 
   # accessing memory during stream capture: taint the memory so that we always synchronize
+  state = active_state()
   if is_capturing(state.stream)
     managed.captured = true
   end
@@ -564,10 +569,16 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
   end
 
   managed.dirty = true
-  convert(CuPtr{T}, managed.mem)
+  return ptr
 end
 
 function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
+  # let null pointers pass through as-is
+  ptr = convert(Ptr{T}, managed.mem)
+  if ptr == C_NULL
+    return ptr
+  end
+
   # accessing memory on the CPU: only allowed for host or unified allocations
   if M == DeviceMemory
     throw(ArgumentError(
@@ -583,7 +594,7 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
 
   # make sure any work on the memory has finished.
   maybe_synchronize(managed)
-  convert(Ptr{T}, managed.mem)
+  return ptr
 end
 
 
@@ -616,28 +627,36 @@ end
 @inline function _pool_alloc(::Type{DeviceMemory}, sz)
     state = active_state()
 
-    if stream_ordered(state.device)
+    mem = if stream_ordered(state.device)
       pool_mark!(state.device, true)
       pool = pool_create(state.device)
-    end
 
-    mem = let pool = pool # closure capture bug
       retry_reclaim(isnothing) do
         memory_limit_exceeded(sz) && return nothing
 
         # try the actual allocation
         try
-          if stream_ordered(state.device)
-            alloc(DeviceMemory, sz; async=true, state.stream, pool)
-          else
-            alloc(DeviceMemory, sz; async=false)
-          end
+          alloc(DeviceMemory, sz; async=true, state.stream, pool)
+        catch err
+          isa(err, OutOfGPUMemoryError) || rethrow()
+          return nothing
+        end
+      end
+    else
+      retry_reclaim(isnothing) do
+        memory_limit_exceeded(sz) && return nothing
+
+        # try the actual allocation
+        try
+          alloc(DeviceMemory, sz; async=false)
         catch err
           isa(err, OutOfGPUMemoryError) || rethrow()
           return nothing
         end
       end
     end
+    # NOTE: the `retry_reclaim` body is duplicated to work around
+    #       closure capture issues with the `pool` variable
     mem === nothing && throw(OutOfGPUMemoryError(sz))
 
     account!(memory_stats(state.device), sz)

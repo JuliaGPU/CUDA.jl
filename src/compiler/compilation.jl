@@ -95,8 +95,15 @@ function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
             debuglocation!(builder, first(instructions(top_bb)))
 
             # call the `deferred_codegen` marker function
-            T_ptr = LLVM.Int64Type()
-            deferred_codegen_ft = LLVM.FunctionType(T_ptr, [T_ptr])
+            T_ptr = if LLVM.version() >= v"17"
+                LLVM.PointerType()
+            elseif VERSION >= v"1.12.0-DEV.225"
+                LLVM.PointerType(LLVM.Int8Type())
+            else
+                LLVM.Int64Type()
+            end
+            T_id = convert(LLVMType, Int)
+            deferred_codegen_ft = LLVM.FunctionType(T_ptr, [T_id])
             deferred_codegen = if haskey(functions(mod), "deferred_codegen")
                 functions(mod)["deferred_codegen"]
             else
@@ -207,13 +214,11 @@ end
 
     # determine the compute capabilities to use. this should match the capability of the
     # current device, but if LLVM doesn't support it, we can target an older capability
-    # and pass a different `-arch` to `ptxa`.
+    # and pass a different `-arch` to `ptxas`.
     ptx_support = ptx_compat(cuda_ptx)
-    requested_cap = something(cap, min(capability(dev), maximum(ptx_support.cap)))
+    requested_cap = @something(cap, min(capability(dev), maximum(ptx_support.cap)))
     llvm_caps = filter(<=(requested_cap), llvm_support.cap)
-    cuda_caps = filter(<=(capability(dev)), cuda_support.cap)
     if cap !== nothing
-        # the user requested a specific compute capability.
         ## use the highest capability supported by LLVM
         isempty(llvm_caps) &&
             error("Requested compute capability $cap is not supported by LLVM $(LLVM.version())")
@@ -221,10 +226,12 @@ end
         ## use the capability as-is to invoke CUDA
         cuda_cap = cap
     else
-        # try to do the best thing (i.e., use the highest compute capability)
+        ## use the highest capability supported by LLVM
         isempty(llvm_caps) &&
             error("Compute capability $(requested_cap) is not supported by LLVM $(LLVM.version())")
         llvm_cap = maximum(llvm_caps)
+        ## use the highest capability supported by CUDA
+        cuda_caps = filter(<=(capability(dev)), cuda_support.cap)
         isempty(cuda_caps) &&
             error("Compute capability $(requested_cap) is not supported by CUDA driver $(driver_version()) / runtime $(runtime_version())")
         cuda_cap = maximum(cuda_caps)
@@ -254,9 +261,6 @@ function compile(@nospecialize(job::CompilerJob))
     intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
                      "__nvvm_reflect" #= TODO: should have been optimized away =#]
     needs_cudadevrt = !isempty(setdiff(LLVM.name.(undefined_fs), intrinsic_fns))
-
-    # find externally-initialized global variables; we'll access those using CUDA APIs.
-    external_gvars = filter(isextinit, collect(globals(meta.ir))) .|> LLVM.name
 
     # prepare invocations of CUDA compiler tools
     ptxas_opts = String[]
@@ -399,7 +403,7 @@ function compile(@nospecialize(job::CompilerJob))
         rm(ptxas_output)
     end
 
-    return (image, entry=LLVM.name(meta.entry), external_gvars)
+    return (image, entry=LLVM.name(meta.entry))
 end
 
 # link into an executable kernel

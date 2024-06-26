@@ -90,10 +90,6 @@ end
 sort!(tests; by=(file)->stat("$(@__DIR__)/$file.jl").size, rev=true)
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)
-    if CUDA.default_memory != CUDA.DeviceMemory && name == "indexing scalar"
-        # GPUArrays' scalar indexing tests assume that indexing is not supported
-        continue
-    end
     pushfirst!(tests, "gpuarrays/$name")
     test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
 end
@@ -111,7 +107,22 @@ if do_list
 end
 
 # filter tests
-if !isempty(ARGS)
+if isempty(ARGS)
+  # default to running all tests, except:
+  filter!(tests) do test
+    # package extensions often require additional dependencies,
+    # which we don't want to put in our test env by default.
+    startswith(test, "extensions") && return false
+
+    if CUDA.default_memory != CUDA.DeviceMemory && test == "gpuarrays/indexing scalar"
+        # GPUArrays' scalar indexing tests assume that indexing is not supported
+        return false
+    end
+
+    return true
+  end
+else
+  # let the user filter
   filter!(tests) do test
     any(arg->startswith(test, arg), ARGS)
   end
@@ -171,6 +182,23 @@ if first(gpus).compute_mode == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
     jobs = 1
 end
 
+# install compute sanitizer
+if do_sanitize
+    # install CUDA_SDK_jll in a temporary environment
+    using Pkg
+    project = Base.active_project()
+    Pkg.activate(; temp=true)
+    Pkg.add("CUDA_SDK_jll")
+    using CUDA_SDK_jll
+    Pkg.activate(project)
+
+    compute_sanitizer = joinpath(CUDA_SDK_jll.artifact_dir, "cuda/compute-sanitizer/compute-sanitizer")
+    if Sys.iswindows()
+        compute_sanitizer *= ".exe"
+    end
+    @info "Running under " * read(`$compute_sanitizer --version`, String)
+end
+
 # add workers
 const test_exeflags = Base.julia_cmd()
 filter!(test_exeflags.exec) do c
@@ -183,7 +211,11 @@ push!(test_exeflags.exec, "--project=$(Base.active_project())")
 const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
     exename = if do_sanitize
-        `$(CUDA.compute_sanitizer_cmd(sanitize_tool)) $test_exename`
+        ```$compute_sanitizer --tool $sanitize_tool
+                              --launch-timeout=0
+                              --target-processes=all
+                              --report-api-errors=no
+                              $test_exename```
     else
         test_exename
     end

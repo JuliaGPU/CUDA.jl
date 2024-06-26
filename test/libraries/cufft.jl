@@ -342,3 +342,15 @@ end
 
     @test Array(dy) ≈ y
 end
+
+@testset "CUDA.jl#2409" begin
+    x = CUDA.zeros(ComplexF32, 4)
+    p = plan_ifft(x)
+    @test p isa AbstractFFTs.ScaledPlan
+    # Initialize sz ref to invalid value
+    sz = Ref{Csize_t}(typemax(Csize_t))
+    # This will call the new convert method for ScaledPlan
+    CUFFT.cufftGetSize(p, sz)
+    # Make sure the value was modified
+    @test sz[] != typemax(Csize_t)
+end

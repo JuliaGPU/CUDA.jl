@@ -104,7 +104,7 @@ function compute_processes(dev::Device)
     count_ref = Ref{Cuint}(0)
     res = unchecked_nvmlDeviceGetComputeRunningProcesses(dev, count_ref, C_NULL)
     if res == NVML_SUCCESS
-        return nothing
+        return Dict()
     elseif res !== NVML_ERROR_INSUFFICIENT_SIZE
         throw_api_error(res)
     end

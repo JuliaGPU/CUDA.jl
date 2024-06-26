@@ -44,7 +44,7 @@
 
 # ### Minimise Runtime Exceptions
 
-# Many common operations can throw errors at runtime in Julia, they often do this by branching and calling a function in that branch both of which are slow on GPUs. Using `@inbounds` when indexing into arrays will eliminate exceptions due to bounds checking. You can also use `assume` from the package LLVM.jl to get rid of exceptions, e.g.
+# Many common operations can throw errors at runtime in Julia, they often do this by branching and calling a function in that branch both of which are slow on GPUs. Using `@inbounds` when indexing into arrays will eliminate exceptions due to bounds checking. Note that running code with `--check-bounds=yes` (the default for `Pkg.test`) will always emit bounds checking. You can also use `assume` from the package LLVM.jl to get rid of exceptions, e.g.
 
 # ```julia
 # using LLVM.Interop

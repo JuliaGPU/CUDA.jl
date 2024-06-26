@@ -76,7 +76,7 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
     finalizer(unsafe_free!, obj)
   end
 
-  function CuArray{T,N}(data::DataRef{Managed{M}}, dims::Dims{N}; stream=CUDA.stream(),
+  function CuArray{T,N}(data::DataRef{Managed{M}}, dims::Dims{N};
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,M}
     check_eltype(T)
     obj = new{T,N,M}(data, maxsize, offset, dims)
@@ -212,42 +212,44 @@ unsafe_wrap
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
-  mem = _unsafe_wrap_managed(T, ptr, dims, ctx)
-  data = DataRef(own ? pool_free : Returns(nothing), Managed(mem))
-  CuArray{T,N}(data, dims)
-end
-function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
-                          ptr::CuPtr{T}, dims::NTuple{N,Int};
-                          own::Bool=false, ctx::CuContext=context()) where {T,N,M}
-  mem = _unsafe_wrap_managed(T, ptr, dims, ctx)
-  if typeof(mem) !== M
-    throw(ArgumentError("Declared memory type does not match inferred memory type."))
-  end
-  data = DataRef(own ? pool_free : Returns(nothing), Managed(mem))
-  CuArray{T,N}(data, dims)
-end
-function _unsafe_wrap_managed(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int},
-                              ctx::CuContext) where {T,N}
-  isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
-  sz = prod(dims) * sizeof(T)
-
-  # identify the memory
-  mem = try
+  # identify the memory type
+  M = try
     typ = memory_type(ptr)
     if is_managed(ptr)
-      UnifiedMemory(ctx, ptr, sz)
+      UnifiedMemory
     elseif typ == CU_MEMORYTYPE_DEVICE
-      # TODO: can we identify whether this pointer was allocated asynchronously?
-      DeviceMemory(device(ctx), ctx, ptr, sz, false)
+      DeviceMemory
     elseif typ == CU_MEMORYTYPE_HOST
-      HostMemory(ctx, host_pointer(ptr), sz)
+      HostMemory
     else
       error("Unknown memory type; please file an issue.")
     end
   catch err
       throw(ArgumentError("Could not identify the memory type; are you passing a valid CUDA pointer to unsafe_wrap?"))
   end
-  return mem
+
+  unsafe_wrap(CuArray{T,N,M}, ptr, dims; own, ctx)
+end
+function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
+                          ptr::CuPtr{T}, dims::NTuple{N,Int};
+                          own::Bool=false, ctx::CuContext=context()) where {T,N,M}
+  isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
+  sz = prod(dims) * sizeof(T)
+
+  # create a memory object
+  mem = if M == UnifiedMemory
+    UnifiedMemory(ctx, ptr, sz)
+  elseif M == DeviceMemory
+    # TODO: can we identify whether this pointer was allocated asynchronously?
+    DeviceMemory(device(ctx), ctx, ptr, sz, false)
+  elseif M == HostMemory
+    HostMemory(ctx, host_pointer(ptr), sz)
+  else
+    throw(ArgumentError("Unknown memory type $M"))
+  end
+
+  data = DataRef(own ? pool_free : Returns(nothing), Managed(mem))
+  CuArray{T,N}(data, dims)
 end
 # integer size input
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
@@ -282,52 +284,55 @@ function Base.unsafe_wrap(::Union{Type{Array},Type{Array{T}},Type{Array{T,N}}},
 end
 
 # unmanaged pointer to CuArray
-function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
-                          p::Ptr{T}, dims::NTuple{N,Int}; ctx::CuContext=context()) where {T,N}
+supports_hmm(dev) = driver_version() >= v"12.2" &&
+                    attribute(dev, DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
+function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int};
+                          ctx::CuContext=context()) where {T,N,M<:AbstractMemory}
   isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
   sz = prod(dims) * sizeof(T)
 
-  finalizer = if driver_version() >= v"12.2" && attribute(device(), DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
-    # HMM: supports coherently accessing pageable memory without calling cudaHostRegister
-    Returns(nothing)
-  else
-    __pin(p, sz)
-    function (args...)
+  data = if M == UnifiedMemory
+    # HMM extends unified memory to include system memory
+    supports_hmm(device(ctx)) ||
+      throw(ArgumentError("Cannot wrap system memory as unified memory on your system"))
+    mem = UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
+    DataRef(Returns(nothing), Managed(mem))
+  elseif M == HostMemory
+    # register as device-accessible host memory
+    mem = context!(ctx) do
+      register(HostMemory, p, sz, MEMHOSTREGISTER_DEVICEMAP)
+    end
+    DataRef(Managed(mem)) do args...
       context!(ctx; skip_destroyed=true) do
-        __unpin(p, ctx)
+        unregister(mem)
       end
     end
+  else
+    throw(ArgumentError("Cannot wrap system memory as $M"))
   end
 
-  mem = UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
-  data = DataRef(finalizer, Managed(mem))
   CuArray{T,N}(data, dims)
 end
-function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int};
-                          ctx::CuContext=context()) where {T,N,M}
-  if M !== UnifiedMemory
-    throw(ArgumentError("Can only wrap an unmanaged pointer to a CuArray with a UnifiedMemory"))
+function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
+                          p::Ptr{T}, dims::NTuple{N,Int}; ctx::CuContext=context()) where {T,N}
+  if supports_hmm(device(ctx))
+    Base.unsafe_wrap(CuArray{T,N,UnifiedMemory}, p, dims; ctx)
+  else
+    Base.unsafe_wrap(CuArray{T,N,HostMemory}, p, dims; ctx)
   end
-  unsafe_wrap(CuArray{T,N}, p, dims; ctx)
 end
 # integer size input
-function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
-                          p::Ptr{T}, dim::Int) where {T}
+Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
+                 p::Ptr{T}, dim::Int) where {T} =
   unsafe_wrap(CuArray{T,1}, p, (dim,))
-end
-function Base.unsafe_wrap(::Type{CuArray{T,1,M}}, p::Ptr{T}, dim::Int) where {T,M}
+Base.unsafe_wrap(::Type{CuArray{T,1,M}}, p::Ptr{T}, dim::Int) where {T,M} =
   unsafe_wrap(CuArray{T,1,M}, p, (dim,))
-end
 # array input
-function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
-                          a::Array{T,N}) where {T,N}
-  p = pointer(a)
-  unsafe_wrap(CuArray{T,N}, p, size(a))
-end
-function Base.unsafe_wrap(::Type{CuArray{T,1,M}}, a::Array{T,1}) where {T,M}
-  p = pointer(a)
-  unsafe_wrap(CuArray{T,1,M}, p, size(a))
-end
+Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
+                 a::Array{T,N}) where {T,N} =
+  unsafe_wrap(CuArray{T,N}, pointer(a), size(a))
+Base.unsafe_wrap(::Type{CuArray{T,N,M}}, a::Array{T,N}) where {T,N,M} =
+  unsafe_wrap(CuArray{T,N,M}, pointer(a), size(a))
 
 
 ## array interface

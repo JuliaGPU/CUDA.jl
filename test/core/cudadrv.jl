@@ -6,7 +6,9 @@ synchronize()
 
 ctx = current_context()
 @test CUDA.isvalid(ctx)
-@test unique_id(ctx) > 0
+if CUDA.driver_version() >= v"12"
+    @test unique_id(ctx) > 0
+end
 
 dev = current_device()
 exclusive = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
@@ -845,9 +847,11 @@ end
 @testset "stream" begin
 
 s = CuStream()
-@test unique_id(s) > 0
 synchronize(s)
 @test CUDA.isdone(s)
+if CUDA.driver_version() >= v"12"
+    @test unique_id(s) > 0
+end
 
 let s2 = CuStream()
     @test s != s2

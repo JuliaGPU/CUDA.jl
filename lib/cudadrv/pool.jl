@@ -101,11 +101,18 @@ end
 
 """
     access!(pool::CuMemoryPool, dev::CuDevice, flags::CUmemAccess_flags)
+    access!(pool::CuMemoryPool, devs::Vector{CuDevice}, flags::CUmemAccess_flags)
 
-Control the visibility of memory pool `pool` on device `dev`.
+Control the visibility of memory pool `pool` on device `dev` or a list of devices `devs`.
 """
-function access!(pool::CuMemoryPool, dev::CuDevice, flags::CUmemAccess_flags)
-    location = CUmemLocation(CU_MEM_LOCATION_TYPE_DEVICE, dev.handle)
-    access = CUmemAccessDesc(location, flags)
-    cuMemPoolSetAccess(pool, Ref(access), 1)
+function access!(pool::CuMemoryPool, devs::Vector{CuDevice}, flags::CUmemAccess_flags)
+    map = Vector{CUmemAccessDesc}(undef, length(devs))
+    for (i, dev) in enumerate(devs)
+        location = CUmemLocation(CU_MEM_LOCATION_TYPE_DEVICE, dev.handle)
+        access = CUmemAccessDesc(location, flags)
+        map[i] = access
+    end
+    cuMemPoolSetAccess(pool, map, length(map))
 end
+access!(pool::CuMemoryPool, dev::CuDevice, flags::CUmemAccess_flags) =
+    access!(pool, [dev], flags)

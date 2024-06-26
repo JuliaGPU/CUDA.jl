@@ -781,22 +781,3 @@ needs_context = false
 8 = "CuPtr{Ptr{T}}"
 10 = "CuPtr{Ptr{T}}"
 13 = "CuPtr{Ptr{T}}"
-
-[api.cublasLtMatmul.argtypes]
-3 = "PtrOrCuPtr{Cvoid}"
-4 = "CuPtr{Cvoid}"
-6 = "CuPtr{Cvoid}"
-8 = "PtrOrCuPtr{Cvoid}"
-9 = "CuPtr{Cvoid}"
-11 = "CuPtr{Cvoid}"
-14 = "CuPtr{Cvoid}"
-
-[api.cublasLtMatrixTransform.argtypes]
-3 = "PtrOrCuPtr{Cvoid}"
-4 = "CuPtr{Cvoid}"
-6 = "PtrOrCuPtr{Cvoid}"
-7 = "CuPtr{Cvoid}"
-9 = "CuPtr{Cvoid}"
-
-[api.cublasLtMatmulDescSetAttribute]
-3 = "PtrOrCuPtr{Cvoid}"

@@ -22,6 +22,8 @@ abstract type CuFFTPlan{T<:cufftNumber, K, inplace} <: Plan{T} end
 
 # for some reason, cufftHandle is an integer and not a pointer...
 Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = p.handle
+# we also need to be able to convert CuFFTPlans that have been wrapped in a ScaledPlan
+Base.convert(::Type{cufftHandle}, p::ScaledPlan{T,P,N}) where {T,N,P<:CuFFTPlan} = convert(cufftHandle, p.p)
 
 function CUDA.unsafe_free!(plan::CuFFTPlan)
     if plan.handle != C_NULL

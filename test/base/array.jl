@@ -75,21 +75,53 @@ end
     end
 
     # unmanaged memory -> CuArray
+    # note that the device-side pointer may differ from the host one (i.e., on Tegra)
     let
-        a = [1]
-        p = pointer(a)
-        for AT in [CuArray, CuArray{Int}, CuArray{Int,1}, CuArray{Int,1,CUDA.UnifiedMemory}],
-            b in [unsafe_wrap(AT, p, 1), unsafe_wrap(AT, p, (1,)), unsafe_wrap(AT, a)]
-            @test typeof(b) == CuArray{Int,1,CUDA.UnifiedMemory}
-            @test pointer(b) == reinterpret(CuPtr{Int}, p)
+        # automatic memory selection
+        for AT in [CuArray, CuArray{Int}, CuArray{Int,1}],
+            f in [a->unsafe_wrap(AT, pointer(a), 1),
+                  a->unsafe_wrap(AT, pointer(a), (1,)),
+                  a->unsafe_wrap(AT, a)]
+            a = [1]
+            b = f(a)
+
+            @test typeof(b) <: CuArray{Int,1}
             @test size(b) == (1,)
+            @test Array(b) == a
+        end
+
+        # host memory
+        for AT in [CuArray{Int,1,CUDA.HostMemory}],
+            f in [a->unsafe_wrap(AT, pointer(a), 1),
+                  a->unsafe_wrap(AT, pointer(a), (1,)),
+                  a->unsafe_wrap(AT, a)]
+            a = [1]
+            b = f(a)
+
+            @test typeof(b) <: CuArray{Int,1,CUDA.HostMemory}
+            @test size(b) == (1,)
+            @test Array(b) == a
+        end
+
+        # unified memory (requires HMM)
+        if CUDA.supports_hmm(device())
+          for AT in [CuArray{Int,1,CUDA.UnifiedMemory}],
+              f in [a->unsafe_wrap(AT, pointer(a), 1),
+                    a->unsafe_wrap(AT, pointer(a), (1,)),
+                    a->unsafe_wrap(AT, a)]
+              a = [1]
+              b = f(a)
+
+              @test typeof(b) <: CuArray{Int,1,CUDA.UnifiedMemory}
+              @test size(b) == (1,)
+              @test Array(b) == a
+          end
         end
     end
 
     # errors
     let a = cu([1]; device=true)
         @test_throws ArgumentError unsafe_wrap(Array, a)
-        @test_throws ArgumentError unsafe_wrap(CuArray{Int,1,CUDA.UnifiedMemory}, pointer(a), 1)
     end
     let a = [1]
         @test_throws ArgumentError unsafe_wrap(CuArray{Int,1,CUDA.DeviceMemory}, a)

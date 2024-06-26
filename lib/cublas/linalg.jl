@@ -173,8 +173,10 @@ end
 #
 
 # GEMV
-
-function LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, _add::MulAddMul)
+# legacy method
+LinearAlgebra.generic_matvecmul!(Y::StridedCuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, _add::MulAddMul) =
+    LinearAlgebra.generic_matvecmul!(Y, tA, A, B, _add.alpha, _add.beta)
+function LinearAlgebra.generic_matvecmul!(Y::StridedCuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, alpha::Number, beta::Number)
     mA, nA = tA == 'N' ? size(A) : reverse(size(A))
 
     if nA != length(B)
@@ -194,7 +196,6 @@ function LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::Stri
     end
 
     T = eltype(Y)
-    alpha, beta = _add.alpha, _add.beta
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
         if T <: CublasFloat && eltype(A) == eltype(B) == T
             if tA in ('N', 'T', 'C')
@@ -206,14 +207,14 @@ function LinearAlgebra.generic_matvecmul!(Y::CuVector, tA::AbstractChar, A::Stri
             end
         end
     end
-    LinearAlgebra.generic_matmatmul!(Y, tA, 'N', A, B, MulAddMul(alpha, beta))
+    LinearAlgebra.generic_matmatmul!(Y, tA, 'N', A, B, alpha, beta)
 end
 
 if VERSION < v"1.10.0-DEV.1365"
-@inline LinearAlgebra.gemv!(Y::CuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, a::Number, b::Number) =
+@inline LinearAlgebra.gemv!(Y::StridedCuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, a::Number, b::Number) =
     LinearAlgebra.generic_matvecmul!(Y, tA, A, B, MulAddMul(a, b))
 # disambiguation with LinearAlgebra.jl
-@inline LinearAlgebra.gemv!(Y::CuVector{T}, tA::AbstractChar, A::StridedCuMatrix{T}, B::StridedCuVector{T}, a::Number, b::Number) where {T<:CublasFloat} =
+@inline LinearAlgebra.gemv!(Y::StridedCuVector{T}, tA::AbstractChar, A::StridedCuMatrix{T}, B::StridedCuVector{T}, a::Number, b::Number) where {T<:CublasFloat} =
     LinearAlgebra.generic_matvecmul!(Y, tA, A, B, MulAddMul(a, b))
 end
 
@@ -221,10 +222,10 @@ end
 
 if VERSION >= v"1.10-"
 # multiplication
-LinearAlgebra.generic_trimatmul!(c::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, b::AbstractVector{T}) where {T<:CublasFloat} =
+LinearAlgebra.generic_trimatmul!(c::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, b::StridedCuVector{T}) where {T<:CublasFloat} =
     trmv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, A, c === b ? c : copyto!(c, b))
 # division
-LinearAlgebra.generic_trimatdiv!(C::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::AbstractVector{T}) where {T<:CublasFloat} =
+LinearAlgebra.generic_trimatdiv!(C::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuVector{T}) where {T<:CublasFloat} =
     trsv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, A, C === B ? C : copyto!(C, B))
 else
 ## direct multiplication/division
@@ -282,10 +283,10 @@ end # VERSION
 #
 
 # GEMM
-
-function LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul)
+LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul) =
+    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
+function LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, alpha::Number, beta::Number)
     T = eltype(C)
-    alpha, beta = _add.alpha, _add.beta
     mA, nA = size(A, tA == 'N' ? 1 : 2), size(A, tA == 'N' ? 2 : 1)
     mB, nB = size(B, tB == 'N' ? 1 : 2), size(B, tB == 'N' ? 2 : 1)
 
@@ -745,10 +746,10 @@ function LinearAlgebra.kron!(C::CuMatrix{TC}, A::CuMatrix{TA}, B::CuMatrix{TB}) 
 
     config = launch_configuration(kernel.fun)
     dim_ratio = sizes[1] / sizes[2]
-    max_threads_i = floor(Int, sqrt(config.threads * dim_ratio))
-    max_threads_j = floor(Int, sqrt(config.threads / dim_ratio))
-    max_blocks_i = floor(Int, sqrt(config.blocks * dim_ratio))
-    max_blocks_j = floor(Int, sqrt(config.blocks / dim_ratio))
+    max_threads_i = max(1, floor(Int, sqrt(config.threads * dim_ratio)))
+    max_threads_j = max(1, floor(Int, sqrt(config.threads / dim_ratio)))
+    max_blocks_i = max(1, floor(Int, sqrt(config.blocks * dim_ratio)))
+    max_blocks_j = max(1, floor(Int, sqrt(config.blocks / dim_ratio)))
 
     threads_i = min(sizes[1], max_threads_i)
     threads_j = min(sizes[2], max_threads_j)

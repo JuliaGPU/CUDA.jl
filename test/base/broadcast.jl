@@ -75,3 +75,9 @@ end
   k = i .+ j
   @test !is_unified(k)
 end
+
+# https://github.com/JuliaGPU/CUDA.jl/issues/1926
+@testset "Broadcast rational" begin
+  @test testf((x) -> (2 // 3 .* x),  rand(2, 3))
+  @test testf((x) -> (f(x) = 2 // 3 * x; f.(x)),  rand(2, 3))
+end
