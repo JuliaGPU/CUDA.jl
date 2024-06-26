@@ -1748,6 +1748,49 @@ end
         end
     end
 
+    # Group size hardcoded to one
+    if CUDA.CUBLAS.version() >= v"12.4.2"
+        @testset "elty = $elty" for elty in [Float32, Float64]
+
+            transA = ['N' for i in 1:10]
+            transB = ['N' for i in 1:10]
+            alpha = rand(elty, 10)
+            beta = rand(elty, 10)
+            # generate matrices
+            bA = [rand(elty,3*i,2*i) for i in 1:10]
+            bB = [rand(elty,2*i,5*i) for i in 1:10]
+            bC = [rand(elty,3*i,5*i) for i in 1:10]
+            # move to device
+            bd_A = CuArray{elty, 2}[]
+            bd_B = CuArray{elty, 2}[]
+            bd_C = CuArray{elty, 2}[]
+            for i in 1:length(bA)
+                push!(bd_A,CuArray(bA[i]))
+                push!(bd_B,CuArray(bB[i]))
+                push!(bd_C,CuArray(bC[i]))
+            end
+
+            @testset "gemm_grouped_batched!" begin
+                # C = (alpha*A)*B + beta*C
+                CUBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A,bd_B,beta,bd_C)
+                for i in 1:length(bd_C)
+                    bC[i] = alpha[i] * bA[i] * bB[i] + beta[i] * bC[i]
+                    h_C = Array(bd_C[i])
+                    @test bC[i] ≈ h_C
+                end
+            end
+
+            @testset "gemm_grouped_batched" begin
+                bd_C = CUBLAS.gemm_grouped_batched(transA,transB,bd_A,bd_B)
+                for i in 1:length(bd_C)
+                    bC[i] = bA[i] * bB[i]
+                    h_C = Array(bd_C[i])
+                    @test bC[i] ≈ h_C
+                end
+            end
+        end
+    end
+
     @testset "mixed-precision matmul" begin
         m,k,n = 4,4,4
         cudaTypes = (Float16, Complex{Float16}, BFloat16, Complex{BFloat16}, Float32, Complex{Float32},
