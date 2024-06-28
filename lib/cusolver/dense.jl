@@ -894,47 +894,47 @@ end
 # LAPACK
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
-        LinearAlgebra.LAPACK.potrf!(uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.potrf!(uplo, A)
-        LinearAlgebra.LAPACK.potrs!(uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuVecOrMat{$elty}) = CUSOLVER.potrs!(uplo, A, B)
-        LinearAlgebra.LAPACK.potri!(uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.potri!(uplo, A)
-        LinearAlgebra.LAPACK.getrf!(A::StridedCuMatrix{$elty}) = CUSOLVER.getrf!(A)
-        LinearAlgebra.LAPACK.getrf!(A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}) = CUSOLVER.getrf!(A, ipiv)
-        LinearAlgebra.LAPACK.geqrf!(A::StridedCuMatrix{$elty}) = CUSOLVER.geqrf!(A)
-        LinearAlgebra.LAPACK.geqrf!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = CUSOLVER.geqrf!(A, tau)
-        LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}) = sytrf!(uplo, A)
-        LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}) = CUSOLVER.sytrf!(uplo, A, ipiv)
-        LinearAlgebra.LAPACK.getrs!(trans::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}, B::StridedCuVecOrMat{$elty}) = CUSOLVER.getrs!(trans, A, ipiv, B)
-        LinearAlgebra.LAPACK.ormqr!(side::Char, trans::Char, A::CuMatrix{$elty}, tau::CuVector{$elty}, C::CuVecOrMat{$elty}) = CUSOLVER.ormqr!(side, trans, A, tau, C)
-        LinearAlgebra.LAPACK.orgqr!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = CUSOLVER.orgqr!(A, tau)
-        LinearAlgebra.LAPACK.gebrd!(A::StridedCuMatrix{$elty}) = CUSOLVER.gebrd!(A)
-        LinearAlgebra.LAPACK.gesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.gesvd!(jobu, jobvt, A)
+        LAPACK.potrf!(uplo::Char, A::StridedCuMatrix{$elty}) = potrf!(uplo, A)
+        LAPACK.potrs!(uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuVecOrMat{$elty}) = potrs!(uplo, A, B)
+        LAPACK.potri!(uplo::Char, A::StridedCuMatrix{$elty}) = potri!(uplo, A)
+        LAPACK.getrf!(A::StridedCuMatrix{$elty}) = getrf!(A)
+        LAPACK.getrf!(A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}) = getrf!(A, ipiv)
+        LAPACK.geqrf!(A::StridedCuMatrix{$elty}) = geqrf!(A)
+        LAPACK.geqrf!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = geqrf!(A, tau)
+        LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}) = sytrf!(uplo, A)
+        LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}) = sytrf!(uplo, A, ipiv)
+        LAPACK.getrs!(trans::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}, B::StridedCuVecOrMat{$elty}) = getrs!(trans, A, ipiv, B)
+        LAPACK.ormqr!(side::Char, trans::Char, A::CuMatrix{$elty}, tau::CuVector{$elty}, C::CuVecOrMat{$elty}) = ormqr!(side, trans, A, tau, C)
+        LAPACK.orgqr!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = orgqr!(A, tau)
+        LAPACK.gebrd!(A::StridedCuMatrix{$elty}) = gebrd!(A)
+        LAPACK.gesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{$elty}) = gesvd!(jobu, jobvt, A)
     end
 end
 
 for elty in (:Float32, :Float64)
     @eval begin
-        LinearAlgebra.LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.syevd!(jobz, uplo, A)
-        LinearAlgebra.LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = CUSOLVER.sygvd!(itype, jobz, uplo, A, B)
+        LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = syevd!(jobz, uplo, A)
+        LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = sygvd!(itype, jobz, uplo, A, B)
     end
 end
 
 for elty in (:ComplexF32, :ComplexF64)
     @eval begin
-        LinearAlgebra.LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.heevd!(jobz, uplo, A)
-        LinearAlgebra.LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = CUSOLVER.hegvd!(itype, jobz, uplo, A, B)
+        LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = heevd!(jobz, uplo, A)
+        LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = hegvd!(itype, jobz, uplo, A, B)
     end
 end
 
 if VERSION >= v"1.10"
     for elty in (:Float32, :Float64)
         @eval begin
-            LinearAlgebra.LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.syevd!(jobz, uplo, A)
+            LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = syevd!(jobz, uplo, A)
         end
     end
 
     for elty in (:ComplexF32, :ComplexF64)
         @eval begin
-            LinearAlgebra.LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.heevd!(jobz, uplo, A)
+            LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = heevd!(jobz, uplo, A)
         end
     end
 end
