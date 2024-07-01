@@ -47,6 +47,21 @@ end
 
 const cufftResult = cufftResult_t
 
+@cenum cudaDatatype_t::UInt32 begin
+    CUDA_R_16F = 2       # 16 bit real
+    CUDA_C_16F = 6       # 16 bit complex
+    CUDA_R_32F = 0       # 32 bit real
+    CUDA_C_32F = 4       # 32 bit complex
+    CUDA_R_64F = 1       # 64 bit real
+    CUDA_C_64F = 5       # 64 bit complex
+    CUDA_R_8I = 3        # 8 bit real as a signed integer
+    CUDA_C_8I = 7        # 8 bit complex as a pair of signed integers
+    CUDA_R_8U = 8        # 8 bit real as an unsigned integer
+    CUDA_C_8U = 9       # 8 bit complex as a pair of unsigned integers
+end
+
+const cudaDatatype = cudaDatatype_t
+
 const cufftReal = Cfloat
 
 const cufftDoubleReal = Cdouble
@@ -143,16 +158,16 @@ end
                                                workSize::Ptr{Csize_t})::cufftResult
 end
 
-@checked function cufftGetSizeMany64(plan, rank, n, inembed, istride, idist, onembed,
-                                     ostride, odist, type, batch, workSize)
+@checked function cufftXtMakePlanMany(plan, rank, n,
+                                      inembed, istride, idist, inputtype,
+                                      onembed, ostride, odist, outputtype,
+                                      batch, workSize, executiontype)
     initialize_context()
-    @gcsafe_ccall libcufft.cufftGetSizeMany64(plan::cufftHandle, rank::Cint,
-                                              n::Ptr{Clonglong}, inembed::Ptr{Clonglong},
-                                              istride::Clonglong, idist::Clonglong,
-                                              onembed::Ptr{Clonglong}, ostride::Clonglong,
-                                              odist::Clonglong, type::cufftType,
-                                              batch::Clonglong,
-                                              workSize::Ptr{Csize_t})::cufftResult
+    @gcsafe_ccall libcufft.cufftXtMakePlanMany(
+        plan::cufftHandle, rank::Cint, n::Ptr{Clonglong},
+        inembed::Ptr{Clonglong}, istride::Clonglong, idist::Clonglong, inputtype::cudaDataType,
+        onembed::Ptr{Clonglong}, ostride::Clonglong, odist::Clonglong,  outputtype::cudaDataType,
+        batch::Clonglong, workSize::Ptr{Csize_t}, executiontype::cudaDataType)::cufftResult
 end
 
 @checked function cufftEstimate1d(nx, type, batch, workSize)
@@ -218,6 +233,30 @@ end
                                             workArea::Ptr{Csize_t})::cufftResult
 end
 
+@checked function cufftGetSizeMany64(plan, rank, n, inembed, istride, idist, onembed,
+                                     ostride, odist, type, batch, workSize)
+    initialize_context()
+    @gcsafe_ccall libcufft.cufftGetSizeMany64(plan::cufftHandle, rank::Cint,
+                                              n::Ptr{Clonglong}, inembed::Ptr{Clonglong},
+                                              istride::Clonglong, idist::Clonglong,
+                                              onembed::Ptr{Clonglong}, ostride::Clonglong,
+                                              odist::Clonglong, type::cufftType,
+                                              batch::Clonglong,
+                                              workSize::Ptr{Csize_t})::cufftResult
+end
+
+@checked function cufftXtGetSizeMany(plan, rank, n,
+                                     inembed, istride, idist, inputtype,
+                                     onembed, ostride, odist, outputtype,
+                                     batch, workSize, executiontype)
+    initialize_context()
+    @gcsafe_ccall libcufft.cufftXtGetSizeMany(
+        plan::cufftHandle, rank::Cint, n::Ptr{Clonglong},
+        inembed::Ptr{Clonglong}, istride::Clonglong, idist::Clonglong, inputtype::cudaDataType,
+        onembed::Ptr{Clonglong}, ostride::Clonglong, odist::Clonglong,  outputtype::cudaDataType,
+        batch::Clonglong, workSize::Ptr{Csize_t}, executiontype::cudaDataType)::cufftResult
+end
+
 @checked function cufftGetSize(handle, workSize)
     initialize_context()
     @gcsafe_ccall libcufft.cufftGetSize(handle::cufftHandle,
@@ -272,6 +311,12 @@ end
     initialize_context()
     @gcsafe_ccall libcufft.cufftExecZ2D(plan::cufftHandle, idata::CuPtr{cufftDoubleComplex},
                                         odata::CuPtr{cufftDoubleReal})::cufftResult
+end
+
+@checked function cufftXtExec(plan, input, output, direction)
+    initialize_context()
+    @gcsafe_ccall libcufft.cufftXtExec(plan::cufftHandle, input::CuPtr{Cvoid},
+                                       output::Cuptr{Cvoid}, direction::Cint)::cufftResult
 end
 
 @checked function cufftSetStream(plan, stream)
