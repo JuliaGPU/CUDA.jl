@@ -77,7 +77,7 @@ function batched(X::AbstractArray{T,N},region) where {T <: Complex,N}
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 end
 
-@testset for T in [ComplexF32, ComplexF64]
+@testset for T in [ComplexF16, ComplexF32, ComplexF64]
 
 @testset "simple" begin
     @testset "$(n)D" for n = 1:3

@@ -35,30 +35,41 @@ function CUDA.unsafe_free!(plan::CuFFTPlan)
 end
 
 mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
-    # handle to Cuda low level plan. Note that this plan sometimes has lower dimensions 
+    # handle to Cuda low level plan. Note that this plan sometimes has lower dimensions
     # to handle more transform cases such as individual directions
     handle::cufftHandle 
     ctx::CuContext
     stream::CuStream
-    sz::NTuple{N,Int} # Julia size of input array
-    osz::NTuple{N,Int} # Julia size of output array
-    xtype::cufftType
+    input_size::NTuple{N,Int}   # Julia size of input array
+    output_size::NTuple{N,Int}  # Julia size of output array
     region::Any
-    pinv::ScaledPlan # required by AbstractFFT API
+    pinv::ScaledPlan            # required by AbstractFFT API
 
-    function cCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, sizex::NTuple{N, Int},
-                                       sizey::Tuple, region, xtype
-                                      ) where {T<:cufftNumber,K,inplace,N}
-        # TODO: enforce consistency of sizey
-        p = new(handle, context(), stream(), sizex, sizey, xtype, region)
+    function cCuFFTPlan{T,K,inplace,N}(handle::cufftHandle,
+                                       input_size::NTuple{N,Int}, output_size::Tuple{N,Int}, region;
+                                       execution_type::Type{ET}=T
+                                       ) where {T<:cufftNumber,K,inplace,N,ET<:cufftNumber}
+        abs(K) == 1 || throw(ArgumentError("FFT direction must be either -1 (forward) or +1 (inverse)"))
+        inplace isa Bool || throw(ArgumentError("FFT inplace argument must be a Bool"))
+        p = new(handle, context(), stream(), input_size, output_size, region)
         finalizer(unsafe_free!, p)
         p
     end
 
+    function cCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, sizex::NTuple{N,Int},
+                                       sizey::Tuple{N,Int}, region, xtype::cufftType,
+                                       ) where {T<:cufftNumber,K,inplace,N}
+        if !((T == Complex{Float32} && xtype == CUFFT_C2C) ||
+            (T == Complex{Float64} && xtype == CUFFT_Z2Z))
+            throw(ArgumentError("FFT type $xtype does not match data type $T"))
+        end
+        cuFFTPlan{T,K,inplace,N}(handle, sizex, sizey, region)
+    end
+
     function cCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, X::DenseCuArray{T,N},
-        sizey::Tuple, region, xtype
-       ) where {T<:cufftNumber,K,inplace,N}
-       cCuFFTPlan{T,K,inplace,N}(handle, size(X), sizey, region, xtype)
+                                       sizey::Tuple{N,Int}, region, xtype
+                                       ) where {T<:cufftNumber,K,inplace,N}
+        cCuFFTPlan{T,K,inplace,N}(handle, size(X), sizey, region, xtype)
     end
 end
 
@@ -267,7 +278,7 @@ function plan_inv(p::cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}) where {T,N,inplace}
     handle = cufftGetPlan(p.xtype, sizex, p.region)
     ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}(handle,  p.sz,  p.sz, p.region,
                                                      p.xtype),
-                        normalization(real(T),  p.sz, p.region))
+               normalization(real(T), p.sz, p.region))
 end
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}) where {T,N,inplace}
@@ -276,7 +287,7 @@ function plan_inv(p::cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}) where {T,N,inplace}
     handle = cufftGetPlan(p.xtype, sizex, p.region)
     ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}(handle,  p.sz,  p.sz, p.region,
                                                      p.xtype),
-                        normalization(real(T),  p.sz, p.region))
+               normalization(real(T),  p.sz, p.region))
 end
 
 function plan_inv(p::rCuFFTPlan{T,CUFFT_INVERSE,inplace,N}
@@ -326,12 +337,12 @@ function assert_applicable(p::CuFFTPlan{T,K,inplace}, X::DenseCuArray{T},
     end
 end
 
-function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,<:Any,M},
-                         x::DenseCuArray{cufftComplex,N},
-                         y::DenseCuArray{cufftComplex,N}) where {K,M,N}
-    @assert plan.xtype == CUFFT_C2C
+
+function unsafe_execute!(plan::cCuFFTPlan{T,K,<:Any,M},
+                         x::DenseCuArray{T,N},
+                         y::DenseCuArray{T}) where {T,K,M,N}
     update_stream(plan)
-    cufftExecC2C(plan, x, y, K)
+    cufftXtExec(plan, x, y, K)
 end
 
 function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,true,M},
@@ -357,14 +368,6 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftReal,K,<:Any,M},
     @assert plan.xtype == CUFFT_R2C
     update_stream(plan)
     cufftExecR2C(plan, x, y)
-end
-
-function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,<:Any,M},
-                         x::DenseCuArray{cufftDoubleComplex,N},
-                         y::DenseCuArray{cufftDoubleComplex}) where {K,M,N}
-    @assert plan.xtype == CUFFT_Z2Z
-    update_stream(plan)
-    cufftExecZ2Z(plan, x, y, K)
 end
 
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,true,M},
