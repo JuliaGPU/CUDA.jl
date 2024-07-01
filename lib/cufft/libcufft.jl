@@ -2,6 +2,7 @@
 # To re-generated, execute res/wrap.jl
 
 using CEnum
+using CUDA: cudaDataType
 
 # CUFFT uses CUDA runtime objects, which are compatible with our driver usage
 const cudaStream_t = CUstream
@@ -316,7 +317,7 @@ end
 @checked function cufftXtExec(plan, input, output, direction)
     initialize_context()
     @gcsafe_ccall libcufft.cufftXtExec(plan::cufftHandle, input::CuPtr{Cvoid},
-                                       output::Cuptr{Cvoid}, direction::Cint)::cufftResult
+                                       output::CuPtr{Cvoid}, direction::Cint)::cufftResult
 end
 
 @checked function cufftSetStream(plan, stream)
