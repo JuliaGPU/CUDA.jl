@@ -1837,24 +1837,32 @@ for (fname, elty) in ((:cublasDgetrfBatched, :Float64),
                       (:cublasZgetrfBatched, :ComplexF64),
                       (:cublasCgetrfBatched, :ComplexF32))
     @eval begin
-        function getrf_batched!(n, ptrs::CuVector{CuPtr{$elty}}, lda, pivot::Bool)
+        function getrf_batched!(n, ptrs::CuVector{CuPtr{$elty}}, lda, pivot::TP, _info::TI) where
+                    {TP<:Union{Bool,DenseCuArray{<:Any, 2}},
+                     TI<:Union{Nothing,CuArray{Cint}}}
             batchSize = length(ptrs)
-            info = CuArray{Cint}(undef, batchSize)
-            if pivot
-                pivotArray = CuArray{Cint}(undef, (n, batchSize))
-                $fname(handle(), n, ptrs, lda, pivotArray, info, batchSize)
+            info = TI<:Nothing ? CuArray{Cint}(undef, batchSize) : _info
+            finalizer(unsafe_free!, ptrs)
+            if TP<:DenseCuArray
+                $fname(handle(), n, ptrs, lda, pivot, info, batchSize)
+                return pivot, info
             else
-                $fname(handle(), n, ptrs, lda, CU_NULL, info, batchSize)
-                pivotArray = CUDA.zeros(Cint, (n, batchSize))
+                if pivot
+                    pivotArray = CuArray{Cint}(undef, (n, batchSize))
+                    $fname(handle(), n, ptrs, lda, pivotArray, info, batchSize)
+                else
+                    $fname(handle(), n, ptrs, lda, CU_NULL, info, batchSize)
+                    pivotArray = CUDA.zeros(Cint, (n, batchSize))
+                end
+                return pivotArray, info
             end
-            unsafe_free!(ptrs)
-
-            return pivotArray, info
         end
     end
 end
 
-function getrf_batched!(A::Vector{<:StridedCuMatrix}, pivot::Bool)
+function getrf_batched!(A::Vector{<:StridedCuMatrix},
+                        pivot::Union{Bool,DenseCuArray{<:Any, 2}},
+                        info::Union{Nothing,CuArray{Cint}}=nothing)
     for As in A
         m,n = size(As)
         if m != n
@@ -1865,14 +1873,18 @@ function getrf_batched!(A::Vector{<:StridedCuMatrix}, pivot::Bool)
     lda = max(1,stride(A[1],2))
 
     Aptrs = unsafe_batch(A)
-    return getrf_batched!(n, Aptrs, lda, pivot)..., A
+    return getrf_batched!(n, Aptrs, lda, pivot, info)..., A
 end
-function getrf_batched(A::Vector{<:StridedCuMatrix}, pivot::Bool)
-    getrf_batched!(deepcopy(A), pivot)
+function getrf_batched(A::Vector{<:StridedCuMatrix},
+                       pivot::Union{Bool,DenseCuArray{<:Any, 2}},
+                       info::Union{Nothing,CuArray{Cint}}=nothing)
+    getrf_batched!(deepcopy(A), pivot, info)
 end
 
 # CUDA has no strided batched getrf, but we can at least avoid constructing costly views
-function getrf_strided_batched!(A::DenseCuArray{<:Any, 3}, pivot::Bool)
+function getrf_strided_batched!(A::DenseCuArray{<:Any, 3},
+                                pivot::Union{Bool,DenseCuArray{<:Any, 2}},
+                                info::Union{Nothing,CuArray{Cint}}=nothing)
     m,n = size(A,1), size(A,2)
     if m != n
         throw(DimensionMismatch("All matrices must be square!"))
@@ -1880,10 +1892,12 @@ function getrf_strided_batched!(A::DenseCuArray{<:Any, 3}, pivot::Bool)
     lda = max(1,stride(A,2))
 
     Aptrs = unsafe_strided_batch(A)
-    return getrf_batched!(n, Aptrs, lda, pivot)..., A
+    return getrf_batched!(n, Aptrs, lda, pivot, info)..., A
 end
-function getrf_strided_batched(A::DenseCuArray{<:Any, 3}, pivot::Bool)
-    getrf_strided_batched!(copy(A), pivot)
+function getrf_strided_batched(A::DenseCuArray{<:Any, 3},
+                               pivot::Union{Bool,DenseCuArray{<:Any, 2}},
+                               info::Union{Nothing,CuArray{Cint}}=nothing)
+    getrf_strided_batched!(copy(A), pivot, info)
 end
 
 
