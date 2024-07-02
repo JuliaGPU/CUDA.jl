@@ -1968,8 +1968,14 @@ end
             @testset "getrs_batched!" begin
                 A                   = [rand(elty,n,n) for _ in 1:k];
                 d_A                 = [CuArray(a) for a in A];
+                d_A2                = deepcopy(d_A);
                 d_pivot, info, d_LU = CUDA.CUBLAS.getrf_batched!(d_A, true);
                 @test d_LU == d_A
+                d_pivot2            = similar(d_pivot);
+                info2               = similar(info);
+                CUDA.CUBLAS.getrf_batched!(d_A2, d_pivot2, info2);
+                @test isapprox(d_pivot, d_pivot2)
+                @test isapprox(info, info2)
                 B                   = [rand(elty,n,m) for _ in 1:k];
                 d_B                 = [CuArray(b) for b in B];
                 info2, d_Bhat       = CUDA.CUBLAS.getrs_batched!(opchar, d_LU, d_B, d_pivot);
@@ -1983,8 +1989,14 @@ end
             @testset "getrs_batched" begin
                 A                   = [rand(elty,n,n) for _ in 1:k];
                 d_A                 = [CuArray(a) for a in A];
+                d_A2                = deepcopy(d_A);
                 d_pivot, info, d_LU = CUDA.CUBLAS.getrf_batched(d_A, true);
                 @test d_LU != d_A
+                d_pivot2            = similar(d_pivot);
+                info2               = similar(info);
+                CUDA.CUBLAS.getrf_batched(d_A2, d_pivot2, info2);
+                @test isapprox(d_pivot, d_pivot2)
+                @test isapprox(info, info2)
                 B                   = [rand(elty,n,m) for _ in 1:k];
                 d_B                 = [CuArray(b) for b in B];
                 info2, d_Bhat       = CUDA.CUBLAS.getrs_batched(opchar, d_LU, d_B, d_pivot);
@@ -1998,8 +2010,14 @@ end
             @testset "getrs_strided_batched!" begin
                 A                   = rand(elty,n,n,k);
                 d_A                 = CuArray(A);
+                d_A2                = copy(d_A);
                 d_pivot, info, d_LU = CUDA.CUBLAS.getrf_strided_batched!(d_A, true);
                 @test d_LU == d_A
+                d_pivot2            = similar(d_pivot);
+                info2               = similar(info);
+                CUDA.CUBLAS.getrf_strided_batched!(d_A2, d_pivot2, info2);
+                @test isapprox(d_pivot, d_pivot2)
+                @test isapprox(info, info2)
                 B                   = rand(elty,n,m,k);
                 d_B                 = CuArray(B);
                 info2, d_Bhat       = CUDA.CUBLAS.getrs_strided_batched!(opchar, d_LU, d_B, d_pivot);
@@ -2013,8 +2031,14 @@ end
             @testset "getrs_strided_batched" begin
                 A                   = rand(elty,n,n,k);
                 d_A                 = CuArray(A);
+                d_A2                = copy(d_A);
                 d_pivot, info, d_LU = CUDA.CUBLAS.getrf_strided_batched(d_A, true);
                 @test d_LU != d_A
+                d_pivot2            = similar(d_pivot);
+                info2               = similar(info);
+                CUDA.CUBLAS.getrf_strided_batched(d_A2, d_pivot2, info2);
+                @test isapprox(d_pivot, d_pivot2)
+                @test isapprox(info, info2)
                 B                   = rand(elty,n,m,k);
                 d_B                 = CuArray(B);
                 info2, d_Bhat       = CUDA.CUBLAS.getrs_strided_batched(opchar, d_LU, d_B, d_pivot);
