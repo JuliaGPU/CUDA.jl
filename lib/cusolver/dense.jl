@@ -113,7 +113,8 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
                             (:cusolverDnCgetrf_bufferSize, :cusolverDnCgetrf, :ComplexF32),
                             (:cusolverDnZgetrf_bufferSize, :cusolverDnZgetrf, :ComplexF64))
     @eval begin
-        function getrf!(A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint})
+        function getrf!(A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint},
+                        devinfo::CuArray{Cint}, cache = nothing)
             m,n = size(A)
             lda = max(1, stride(A, 2))
 
@@ -123,22 +124,27 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
+            with_workspace(cache, bufferSize) do buffer
                 $fname(dense_handle(), m, n, A, lda, buffer, ipiv, devinfo)
             end
 
             info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
             chkargsok(BlasInt(info))
 
             A, ipiv, info
         end
 
-        function getrf!(A::StridedCuMatrix{$elty})
+        function getrf!(A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}, cache = nothing)
+            devinfo = CuArray{Cint}(undef, 1)
+            A = getrf!(A, ipiv, devinfo, cache)
+            unsafe_free!(devinfo)
+            A
+        end
+
+        function getrf!(A::StridedCuMatrix{$elty}, cache = nothing)
             m,n = size(A)
             ipiv = CuArray{Cint}(undef, min(m, n))
-            getrf!(A, ipiv)
+            getrf!(A, ipiv, cache)
         end
     end
 end
@@ -186,9 +192,8 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
                             (:cusolverDnCsytrf_bufferSize, :cusolverDnCsytrf, :ComplexF32),
                             (:cusolverDnZsytrf_bufferSize, :cusolverDnZsytrf, :ComplexF64))
     @eval begin
-        function sytrf!(uplo::Char,
-                        A::StridedCuMatrix{$elty},
-                        ipiv::CuVector{Cint})
+        function sytrf!(uplo::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint},
+                        devinfo::CuArray{Cint}, cache = nothing)
             chkuplo(uplo)
             n = checksquare(A)
             lda = max(1, stride(A, 2))
@@ -199,23 +204,29 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
+            with_workspace(cache, bufferSize) do buffer
                 $fname(dense_handle(), uplo, n, A, lda, ipiv,
                        buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
             end
 
             info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
             chkargsok(BlasInt(info))
 
             A, ipiv, info
         end
 
-        function sytrf!(uplo::Char, A::StridedCuMatrix{$elty})
+        function sytrf!(uplo::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint},
+                        cache = nothing)
+            devinfo = CuArray{Cint}(undef, 1)
+            A = sytrf!(uplo, A, ipiv, devinfo, cache)
+            unsafe_free!(devinfo)
+            A
+        end
+
+        function sytrf!(uplo::Char, A::StridedCuMatrix{$elty}, cache = nothing)
             n = checksquare(A)
             ipiv = CuArray{Cint}(undef, n)
-            sytrf!(uplo, A, ipiv)
+            sytrf!(uplo, A, ipiv, cache)
         end
     end
 end
@@ -229,7 +240,8 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
         function getrs!(trans::Char,
                         A::StridedCuMatrix{$elty},
                         ipiv::CuVector{Cint},
-                        B::StridedCuVecOrMat{$elty})
+                        B::StridedCuVecOrMat{$elty},
+                        devinfo::CuArray{Cint})
 
             # Support transa = 'C' for real matrices
             trans = $elty <: Real && trans == 'C' ? 'T' : trans
@@ -246,15 +258,24 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
             lda  = max(1, stride(A, 2))
             ldb  = max(1, stride(B, 2))
 
-            devinfo = CuArray{Cint}(undef, 1)
             $fname(dense_handle(), trans, n, nrhs, A, lda, ipiv, B, ldb, devinfo)
 
             info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
             chkargsok(BlasInt(info))
 
             B
         end
+
+        function getrs!(trans::Char,
+                        A::StridedCuMatrix{$elty},
+                        ipiv::CuVector{Cint},
+                        B::StridedCuVecOrMat{$elty})
+            devinfo = CuArray{Cint}(undef, 1)
+            B = getrs!(trans, A, ipiv, B, devinfo)
+            unsafe_free!(devinfo)
+            B
+        end
+
     end
 end
 

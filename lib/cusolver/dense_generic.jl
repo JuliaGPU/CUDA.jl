@@ -141,30 +141,34 @@ function Xgeqrf!(A::StridedCuMatrix{T}) where {T <: BlasFloat}
 end
 
 # Xsytrs
-function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::StridedCuMatrix{T}) where {T <: BlasFloat}
+function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::StridedCuMatrix{T},
+                info::CuVector{Cint}, cache_gpu=nothing, cache_cpu=nothing) where {T <: BlasFloat}
     chkuplo(uplo)
     n = checksquare(A)
     nrhs = size(B, 2)
     lda = max(1, stride(A, 2))
     ldb = max(1, stride(B, 2))
-    info = CuVector{Cint}(undef, 1)
 
-    function bufferSize()
-        out_cpu = Ref{Csize_t}(0)
-        out_gpu = Ref{Csize_t}(0)
-        cusolverDnXsytrs_bufferSize(dense_handle(), uplo, n, nrhs, T, A,
-                                    lda, p, T, B, ldb, out_gpu, out_cpu)
-        out_gpu[], out_cpu[]
-    end
-    with_workspaces(bufferSize()...) do buffer_gpu, buffer_cpu
+    out_gpu, out_cpu = Ref{Csize_t}(0), Ref{Csize_t}(0)
+    cusolverDnXsytrs_bufferSize(dense_handle(), uplo, n, nrhs, T, A,
+                                lda, p, T, B, ldb, out_gpu, out_cpu)
+
+    with_workspaces(cache_gpu, cache_cpu, out_gpu[], out_cpu[]) do buffer_gpu, buffer_cpu
         cusolverDnXsytrs(dense_handle(), uplo, n, nrhs, T, A, lda, p,
                          T, B, ldb, buffer_gpu, sizeof(buffer_gpu),
                          buffer_cpu, sizeof(buffer_cpu), info)
     end
 
     flag = @allowscalar info[1]
-    unsafe_free!(info)
     chkargsok(BlasInt(flag))
+    B
+end
+
+function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::StridedCuMatrix{T},
+                cache_gpu=nothing, cache_cpu=nothing) where {T <: BlasFloat}
+    info = CuVector{Cint}(undef, 1)
+    B = sytrs!(uplo, A, p, B, info, cache_gpu, cache_cpu)
+    unsafe_free!(info)
     B
 end
 

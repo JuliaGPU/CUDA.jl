@@ -35,18 +35,30 @@ p = 5
     end
 
     @testset "sytrs!" begin
-        for uplo in ('L', 'U')
-            A = rand(elty,n,n)
-            B = rand(elty,n,p)
-            A = A + transpose(A)
-            d_A = CuMatrix(A)
-            d_B = CuMatrix(B)
-            d_A, d_ipiv, _ = CUSOLVER.sytrf!(uplo, d_A)
-            d_ipiv = CuVector{Int64}(d_ipiv)
-            A, ipiv, _ = LAPACK.sytrf!(uplo, A)
-            CUSOLVER.sytrs!(uplo, d_A, d_ipiv, d_B)
-            LAPACK.sytrs!(uplo, A, ipiv, B)
-            @test B ≈ collect(d_B)
+        info = CuArray{Cint}(undef, 1)
+        workspace_gpu = CuArray{UInt8}(undef, 1)
+        workspace_cpu = Array{UInt8}(undef, 1)
+        for fn in (
+                   (uplo,A,ipiv,B) -> CUSOLVER.sytrs!(uplo, A, ipiv, B),
+                   (uplo,A,ipiv,B) -> CUSOLVER.sytrs!(uplo, A, ipiv, B, info),
+                   (uplo,A,ipiv,B) -> CUSOLVER.sytrs!(uplo, A, ipiv, B,
+                                                      workspace_gpu, workspace_cpu),
+                   (uplo,A,ipiv,B) -> CUSOLVER.sytrs!(uplo, A, ipiv, B, info,
+                                                      workspace_gpu, workspace_cpu),
+                  )
+            for uplo in ('L', 'U')
+                A = rand(elty,n,n)
+                B = rand(elty,n,p)
+                A = A + transpose(A)
+                d_A = CuMatrix(A)
+                d_B = CuMatrix(B)
+                d_A, d_ipiv, _ = CUSOLVER.sytrf!(uplo, d_A)
+                d_ipiv = CuVector{Int64}(d_ipiv)
+                A, ipiv, _ = LAPACK.sytrf!(uplo, A)
+                fn(uplo, d_A, d_ipiv, d_B)
+                LAPACK.sytrs!(uplo, A, ipiv, B)
+                @test B ≈ collect(d_B)
+            end
         end
     end
 
