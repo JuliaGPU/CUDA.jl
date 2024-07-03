@@ -48,21 +48,6 @@ end
 
 const cufftResult = cufftResult_t
 
-@cenum cudaDatatype_t::UInt32 begin
-    CUDA_R_16F = 2       # 16 bit real
-    CUDA_C_16F = 6       # 16 bit complex
-    CUDA_R_32F = 0       # 32 bit real
-    CUDA_C_32F = 4       # 32 bit complex
-    CUDA_R_64F = 1       # 64 bit real
-    CUDA_C_64F = 5       # 64 bit complex
-    CUDA_R_8I = 3        # 8 bit real as a signed integer
-    CUDA_C_8I = 7        # 8 bit complex as a pair of signed integers
-    CUDA_R_8U = 8        # 8 bit real as an unsigned integer
-    CUDA_C_8U = 9       # 8 bit complex as a pair of unsigned integers
-end
-
-const cudaDatatype = cudaDatatype_t
-
 const cufftReal = Cfloat
 
 const cufftDoubleReal = Cdouble

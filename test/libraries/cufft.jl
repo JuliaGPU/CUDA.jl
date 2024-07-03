@@ -4,9 +4,65 @@ using CUDA
 
 import FFTW
 
+using AbstractFFTs
 using LinearAlgebra
 
 @test CUFFT.version() isa VersionNumber
+
+# FFTW does not support Float16, so we roll our own
+
+function AbstractFFTs.fft!(x::Array{Complex{Float16}}, dims...)
+    y = Array{Complex{Float32}}(x)
+    fft!(y, dims...)
+    x .= y
+end
+function AbstractFFTs.bfft!(x::Array{Complex{Float16}}, dims...)
+    y = Array{Complex{Float32}}(x)
+    bfft!(y, dims...)
+    x .= y
+end
+function AbstractFFTs.ifft!(x::Array{Complex{Float16}}, dims...)
+    y = Array{Complex{Float32}}(x)
+    ifft!(y, dims...)
+    x .= y
+end
+
+AbstractFFTs.rfft(x::Array{Float16}, dims...) = Array{Complex{Float16}}(rfft(Array{Float32}(x), dims...))
+
+struct WrappedFloat16Operator
+    op
+end
+Base.:*(A::WrappedFloat16Operator, b::Array{Float16}) = Array{Float16}(A.op * Array{Float32}(b))
+Base.:*(A::WrappedFloat16Operator, b::Array{Complex{Float16}}) = Array{Complex{Float16}}(A.op * Array{Complex{Float32}}(b))
+function LinearAlgebra.mul!(C::Array{Float16}, A::WrappedFloat16Operator, B::Array{Float16}, α, β)
+    C32 = Array{Float32}(C)
+    B32 = Array{Float32}(B)
+    mul!(C32, A.op, B32, α, β)
+    C .= C32
+end
+function LinearAlgebra.mul!(C::Array{Complex{Float16}}, A::WrappedFloat16Operator, B::Array{Complex{Float16}}, α, β)
+    C32 = Array{Complex{Float32}}(C)
+    B32 = Array{Complex{Float32}}(B)
+    mul!(C32, A.op, B32, α, β)
+    C .= C32
+end
+
+function AbstractFFTs.plan_fft(x::Array{Complex{Float16}}, dims...)
+    y = similar(x, Complex{Float32})
+    WrappedFloat16Operator(plan_fft(y, dims...))
+end
+function AbstractFFTs.plan_bfft(x::Array{Complex{Float16}}, dims...)
+    y = similar(x, Complex{Float32})
+    WrappedFloat16Operator(plan_bfft(y, dims...))
+end
+function AbstractFFTs.plan_ifft(x::Array{Complex{Float16}}, dims...)
+    y = similar(x, Complex{Float32})
+    WrappedFloat16Operator(plan_ifft(y, dims...))
+end
+function AbstractFFTs.plan_rfft(x::Array{Float16}, dims...)
+    y = similar(x, Float32)
+    WrappedFloat16Operator(plan_rfft(y, dims...))
+end
 
 # notes:
 #   plan_bfft does not need separate testing since it is used by plan_ifft
@@ -81,7 +137,10 @@ end
 
 @testset "simple" begin
     @testset "$(n)D" for n = 1:3
-        dims = ntuple(i -> 40, n)
+        # Float16 FFTs must have a length that is a power of 2
+        sz = T == ComplexF16 ? 32 : 40
+        dims = ntuple(i -> sz, n)
+        @show T n
         @test testf(fft!, rand(T, dims))
         @test testf(ifft!, rand(T, dims))
 
@@ -159,7 +218,6 @@ end
         X = rand(T, dims)
         @test_throws ArgumentError batched(X,region)
     end
-
 end
 
 end
@@ -205,7 +263,7 @@ function batched(X::AbstractArray{T,N},region) where {T <: Real,N}
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 end
 
-@testset for T in [Float32, Float64]
+@testset for T in [Float16, Float32, Float64]
 
 @testset "1D" begin
     X = rand(T, N1)

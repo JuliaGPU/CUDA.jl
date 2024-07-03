@@ -21,6 +21,16 @@ complexfloat(x::DenseCuArray{T}) where {T<:Real} = copy1(typeof(complex(cufftflo
 
 realfloat(x::DenseCuArray{T}) where {T<:Real} = copy1(typeof(cufftfloat(zero(T))), x)
 
+function _cufftType(input_type::Type{<:cufftNumber}, output_type::Type{<:cufftNumber})
+    input_type == cufftReal && output_type == cufftComplex && return CUFFT_R2C
+    input_type == cufftComplex && output_type == cufftReal && return CUFFT_C2R
+    input_type == cufftComplex && output_type == cufftComplex && return CUFFT_C2C
+    input_type == cufftDoubleReal && output_type == cufftDoubleComplex && return CUFFT_D2Z
+    input_type == cufftDoubleComplex && output_type == cufftDoubleReal && return CUFFT_Z2D
+    input_type == cufftDoubleComplex && output_type == cufftDoubleComplex && return CUFFT_Z2Z
+    throw(ArgumentError("There is no cufftType for input_type=$input_type and output_type=$output_type"))
+end
+
 function copy1(::Type{T}, x) where T
     y = CuArray{T}(undef, map(length, axes(x)))
     #copy!(y, x)
