@@ -77,7 +77,7 @@ end
     CUDA.code_warntype(devnull, dummy, Tuple{})
     CUDA.code_llvm(devnull, dummy, Tuple{})
     CUDA.code_ptx(devnull, dummy, Tuple{})
-    if can_use_cupti() && CUPTI.library_version() != v"2024.2.0" # NVIDIA bug #4667039
+    if can_use_cupti() && !(v"2024.2.0" <= CUPTI.library_version()) # NVIDIA bug #4667039
         # functions defined in Julia
         sass = sprint(io->CUDA.code_sass(io, dummy, Tuple{}))
         @test occursin(".text._Z5dummy", sass)
@@ -96,7 +96,7 @@ end
     @device_code_warntype io=devnull @cuda dummy()
     @device_code_llvm io=devnull @cuda dummy()
     @device_code_ptx io=devnull @cuda dummy()
-    if can_use_cupti() && CUPTI.library_version() != v"2024.2.0" # NVIDIA bug #4667039
+    if can_use_cupti() && !(v"2024.2.0" <= CUPTI.library_version()) # NVIDIA bug #4667039
         # functions defined in Julia
         sass = sprint(io->@device_code_sass io=io @cuda dummy())
         @test occursin(".text._Z5dummy", sass)
@@ -120,7 +120,7 @@ end
     @test occursin("dummy", sprint(io->(@device_code_llvm io=io optimize=false @cuda dummy())))
     @test occursin("dummy", sprint(io->(@device_code_llvm io=io @cuda dummy())))
     @test occursin("dummy", sprint(io->(@device_code_ptx io=io @cuda dummy())))
-    if can_use_cupti() && CUPTI.library_version() != v"2024.2.0" # NVIDIA bug #4667039
+    if can_use_cupti() && !(v"2024.2.0" <= CUPTI.library_version()) # NVIDIA bug #4667039
         @test occursin("dummy", sprint(io->(@device_code_sass io=io @cuda dummy())))
     end
 
