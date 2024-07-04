@@ -35,9 +35,9 @@ version = "0.12.1+0"
 
 [[CUDA_SDK_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "1691bf2d27aad90aff1caaef945cac954012d68d"
+git-tree-sha1 = "80fd67c63eb0b0f7228383ace9d7b293f6306727"
 uuid = "6cbf2f2e-7e60-5632-ac76-dca2274e0be0"
-version = "12.5.0+0"
+version = "12.5.1+0"
 
 [[CUDNN_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
