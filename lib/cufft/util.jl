@@ -1,10 +1,6 @@
-const cufftNumber = Union{cufftDoubleReal,cufftReal,Float16,cufftDoubleComplex,cufftComplex,Complex{Float16}}
 const cufftReals = Union{cufftDoubleReal,cufftReal,Float16}
 const cufftComplexes = Union{cufftDoubleComplex,cufftComplex,Complex{Float16}}
-const cufftDouble = Union{cufftDoubleReal,cufftDoubleComplex}
-const cufftSingle = Union{cufftReal,cufftComplex}
-const cufftTypeDouble = Union{Type{cufftDoubleReal},Type{cufftDoubleComplex}}
-const cufftTypeSingle = Union{Type{cufftReal},Type{cufftComplex}}
+const cufftNumber = Union{cufftReals,cufftComplexes}
 
 cufftfloat(x) = _cufftfloat(float(x))
 _cufftfloat(::Type{T}) where {T<:cufftReals} = T

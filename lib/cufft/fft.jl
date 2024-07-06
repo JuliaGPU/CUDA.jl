@@ -31,7 +31,7 @@ Base.convert(::Type{cufftHandle}, p::ScaledPlan{T,P,N}) where {T,N,P<:CuFFTPlan}
 function CUDA.unsafe_free!(plan::CuFFTPlan)
     if plan.handle != C_NULL
         context!(plan.ctx; skip_destroyed=true) do
-            cufftReleasePlan(plan.handle)
+            cufftDestroyPlan(plan.handle)
         end
         plan.handle = C_NULL
     end
@@ -40,7 +40,7 @@ end
 mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
     # handle to Cuda low level plan. Note that this plan sometimes has lower dimensions
     # to handle more transform cases such as individual directions
-    handle::cufftHandle 
+    handle::cufftHandle
     ctx::CuContext
     stream::CuStream
     input_size::NTuple{N,Int}   # Julia size of input array
@@ -210,7 +210,7 @@ function plan_fft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
 
     md = plan_max_dims(region, size(X))
     sizex = size(X)[1:md]
-    handle = cufftGetPlan(T, T, sizex, region)
+    handle = cufftMakePlan(T, T, sizex, region)
 
     cCuFFTPlan{T,K,inplace,N}(handle, X, size(X), region)
 end
@@ -223,7 +223,7 @@ function plan_bfft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
 
     md = plan_max_dims(region, size(X))
     sizex = size(X)[1:md]
-    handle = cufftGetPlan(T, T, sizex, region)
+    handle = cufftMakePlan(T, T, sizex, region)
 
     cCuFFTPlan{T,K,inplace,N}(handle, X, size(X), region)
 end
@@ -236,7 +236,7 @@ function plan_fft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
 
     md = plan_max_dims(region,size(X))
     sizex = size(X)[1:md]
-    handle = cufftGetPlan(T, T, sizex, region)
+    handle = cufftMakePlan(T, T, sizex, region)
 
     cCuFFTPlan{T,K,inplace,N}(handle, X, size(X), region)
 end
@@ -248,7 +248,7 @@ function plan_bfft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
 
     md = plan_max_dims(region,size(X))
     sizex = size(X)[1:md]
-    handle = cufftGetPlan(T, T, sizex, region)
+    handle = cufftMakePlan(T, T, sizex, region)
 
     cCuFFTPlan{T,K,inplace,N}(handle, size(X), size(X), region)
 end
@@ -263,7 +263,7 @@ function plan_rfft(X::DenseCuArray{T,N}, region) where {T<:cufftReals,N}
     # X = front_view(X, md)
     sizex = size(X)[1:md]
 
-    handle = cufftGetPlan(T, Complex{T}, sizex, region)
+    handle = cufftMakePlan(T, Complex{T}, sizex, region)
 
     ydims = collect(size(X))
     ydims[region[1]] = div(ydims[region[1]],2)+1
@@ -279,7 +279,7 @@ function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::Any) where {T<:cuf
     ydims = collect(size(X))
     ydims[region[1]] = d
 
-    handle = cufftGetPlan(T, Complex{T}, (ydims...,), region)
+    handle = cufftMakePlan(T, Complex{T}, (ydims...,), region)
 
     rCuFFTPlan{T,K,inplace,N}(handle, size(X), (ydims...,), region)
 end
@@ -291,7 +291,7 @@ end
 function plan_inv(p::cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}) where {T,N,inplace}
     md = plan_max_dims(p.region, p.input_size)
     sizex = p.input_size[1:md]
-    handle = cufftGetPlan(T, T, sizex, p.region)
+    handle = cufftMakePlan(T, T, sizex, p.region)
     ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}(handle,  p.input_size,  p.input_size, p.region),
                normalization(real(T), p.input_size, p.region))
 end
@@ -299,7 +299,7 @@ end
 function plan_inv(p::cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}) where {T,N,inplace}
     md = plan_max_dims(p.region,p.input_size)
     sizex = p.input_size[1:md]
-    handle = cufftGetPlan(T, T, sizex, p.region)
+    handle = cufftMakePlan(T, T, sizex, p.region)
     ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}(handle,  p.input_size,  p.input_size, p.region),
                normalization(real(T),  p.input_size, p.region))
 end
@@ -309,7 +309,7 @@ function plan_inv(p::rCuFFTPlan{T,R,CUFFT_INVERSE,inplace,N}
     T == Complex{R} || throw(ArgumentError("Cannot invert plan with mismatching types"))
     md_osz = plan_max_dims(p.region, p.output_size)
     sz_X = p.output_size[1:md_osz]
-    handle = cufftGetPlan(R, T, sz_X, p.region)
+    handle = cufftMakePlan(R, T, sz_X, p.region)
     ScaledPlan(rCuFFTPlan{R,T,CUFFT_FORWARD,inplace,N}(handle, p.output_size, p.input_size, p.region),
                normalization(R, p.output_size, p.region))
 end
@@ -319,7 +319,7 @@ function plan_inv(p::rCuFFTPlan{T,R,CUFFT_FORWARD,inplace,N}
     R == Complex{T} || throw(ArgumentError("Cannot invert plan with mismatching types"))
     md_sz = plan_max_dims(p.region,p.input_size)
     sz_Y = p.input_size[1:md_sz]
-    handle = cufftGetPlan(R, T, sz_Y, p.region)
+    handle = cufftMakePlan(R, T, sz_Y, p.region)
     ScaledPlan(rCuFFTPlan{R,T,CUFFT_INVERSE,inplace,N}(handle, p.output_size, p.input_size, p.region),
                normalization(T, p.input_size, p.region))
 end

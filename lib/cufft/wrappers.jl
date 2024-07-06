@@ -1,7 +1,5 @@
 # wrappers of low-level functionality
 
-using CUDA: cudaDataType
-
 function cufftGetProperty(property::libraryPropertyType)
   value_ref = Ref{Cint}()
   cufftGetProperty(property, value_ref)
@@ -24,10 +22,6 @@ function cufftMakePlan(input_type::Type{<:cufftNumber}, output_type::Type{<:cuff
     csz = copy(sz)
     csz[1] = div(sz[1],2) + 1
     batch = prod(xdims) ÷ prod(sz)
-    # initialize the plan handle
-    handle_ref = Ref{cufftHandle}()
-    cufftCreate(handle_ref)
-    handle = handle_ref[]
 
     # make the plan
     worksize_ref = Ref{Csize_t}()
@@ -35,6 +29,12 @@ function cufftMakePlan(input_type::Type{<:cufftNumber}, output_type::Type{<:cuff
     if nrank > 3
         throw(ArgumentError("only up to three transform dimensions are allowed in one plan"))
     end
+
+    # initialize the plan handle
+    handle_ref = Ref{cufftHandle}()
+    cufftCreate(handle_ref)
+    handle = handle_ref[]
+
     if (region...,) == ((1:nrank)...,)
         # handle simple case, transforming the first nrank dimensions, ... simply! (for robustness)
         # arguments are: plan, rank, transform-sizes, inembed, istride, idist, itype, onembed, ostride, odist, otype, batch
@@ -82,6 +82,7 @@ function cufftMakePlan(input_type::Type{<:cufftNumber}, output_type::Type{<:cuff
         else
             # multiple non-sequential transforms
             if any(diff(collect(region)) .< 1)
+                cufftDestroy(handle)
                 throw(ArgumentError("region must be an increasing sequence"))
             end
             cdims = collect(xdims)
@@ -122,6 +123,7 @@ function cufftMakePlan(input_type::Type{<:cufftNumber}, output_type::Type{<:cuff
             # CUFFT represents batches by a single stride (_dist)
             # so we must verify that region is consistent with this:
             if ngaps > 1
+                cufftDestroy(handle)
                 throw(ArgumentError("batch regions must be sequential"))
             end
 
@@ -147,38 +149,39 @@ function cufftMakePlan(input_type::Type{<:cufftNumber}, output_type::Type{<:cuff
                             batch, worksize_ref, convert(cudaDataType, execution_type))
     end
 
-    handle, worksize_ref[]
+    # handle, worksize_ref[]
+    handle
 end
 
 
-## plan cache
-
-const cufftHandleCacheKey = Tuple{CuContext, Type, Type, Dims, Any}
-function handle_ctor((ctx, args...))
-    context!(ctx) do
-        # make the plan
-        handle, worksize = cufftMakePlan(args...)
-
-        # NOTE: we currently do not use the worksize to allocate our own workarea,
-        #       instead relying on the automatic allocation strategy.
-        handle
-    end
-end
-function handle_dtor((ctx, args...), handle)
-    context!(ctx; skip_destroyed=true) do
-        cufftDestroy(handle)
-    end
-end
-const idle_handles = HandleCache{cufftHandleCacheKey, cufftHandle}(handle_ctor, handle_dtor)
-
-function cufftGetPlan(args...)
-    ctx = context()
-    handle = pop!(idle_handles, (ctx, args...))
-
-    cufftSetStream(handle, stream())
-
-    return handle
-end
-function cufftReleasePlan(plan)
-    push!(idle_handles, plan)
-end
+# ## plan cache
+# 
+# const cufftHandleCacheKey = Tuple{CuContext, Type, Type, Dims, Any}
+# function handle_ctor((ctx, args...))
+#     context!(ctx) do
+#         # make the plan
+#         handle, worksize = cufftMakePlan(args...)
+# 
+#         # NOTE: we currently do not use the worksize to allocate our own workarea,
+#         #       instead relying on the automatic allocation strategy.
+#         handle
+#     end
+# end
+# function handle_dtor((ctx, args...), handle)
+#     context!(ctx; skip_destroyed=true) do
+#         cufftDestroy(handle)
+#     end
+# end
+# const idle_handles = HandleCache{cufftHandleCacheKey, cufftHandle}(handle_ctor, handle_dtor)
+# 
+# function cufftGetPlan(args...)
+#     ctx = context()
+#     handle = pop!(idle_handles, (ctx, args...))
+# 
+#     cufftSetStream(handle, stream())
+# 
+#     return handle
+# end
+# function cufftReleasePlan(plan)
+#     push!(idle_handles, plan)
+# end

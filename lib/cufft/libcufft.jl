@@ -428,8 +428,8 @@ end
 
 @checked function cufftXtMemcpy(plan, dstPointer, srcPointer, type)
     initialize_context()
-    @gcsafe_ccall libcufft.cufftXtMemcpy(plan::cufftHandle, dstPointer::Ptr{Cvoid},
-                                         srcPointer::Ptr{Cvoid},
+    @gcsafe_ccall libcufft.cufftXtMemcpy(plan::cufftHandle, dstPointer::CuPtr{Cvoid},
+                                         srcPointer::CuPtr{Cvoid},
                                          type::cufftXtCopyType)::cufftResult
 end
 
@@ -490,7 +490,7 @@ end
 
 @checked function cufftXtQueryPlan(plan, queryStruct, queryType)
     initialize_context()
-    @gcsafe_ccall libcufft.cufftXtQueryPlan(plan::cufftHandle, queryStruct::Ptr{Cvoid},
+    @gcsafe_ccall libcufft.cufftXtQueryPlan(plan::cufftHandle, queryStruct::CuPtr{Cvoid},
                                             queryType::cufftXtQueryType)::cufftResult
 end
 
@@ -583,8 +583,8 @@ end
 
 @checked function cufftXtExec(plan, input, output, direction)
     initialize_context()
-    @gcsafe_ccall libcufft.cufftXtExec(plan::cufftHandle, input::Ptr{Cvoid},
-                                       output::Ptr{Cvoid}, direction::Cint)::cufftResult
+    @gcsafe_ccall libcufft.cufftXtExec(plan::cufftHandle, input::CuPtr{Cvoid},
+                                       output::CuPtr{Cvoid}, direction::Cint)::cufftResult
 end
 
 @checked function cufftXtExecDescriptor(plan, input, output, direction)

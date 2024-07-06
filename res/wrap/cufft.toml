@@ -50,3 +50,14 @@ needs_context = false
 [api.cufftExecZ2D.argtypes]
 2 = "CuPtr{cufftDoubleComplex}"
 3 = "CuPtr{cufftDoubleReal}"
+
+[api.cufftXtExec.argtypes]
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+
+[api.cufftXtMemcpy.argtypes]
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+
+[api.cufftXtQueryPlan.argtypes]
+2 = "CuPtr{Cvoid}"
