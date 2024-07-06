@@ -32,7 +32,8 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
 
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), uplo, n, A, lda, buffer, length(buffer), devinfo)
+                $fname(dense_handle(), uplo, n, A, lda,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
             end
 
             info = @allowscalar devinfo[1]
@@ -93,7 +94,8 @@ for (bname, fname,elty) in ((:cusolverDnSpotri_bufferSize, :cusolverDnSpotri, :F
 
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), uplo, n, A, lda, buffer, length(buffer), devinfo)
+                $fname(dense_handle(), uplo, n, A, lda,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
             end
 
             info = @allowscalar devinfo[1]
@@ -159,7 +161,8 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
 
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), m, n, A, lda, tau, buffer, length(buffer), devinfo)
+                $fname(dense_handle(), m, n, A, lda, tau,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
             end
 
             info = @allowscalar devinfo[1]
@@ -198,7 +201,8 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
 
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), uplo, n, A, lda, ipiv, buffer, length(buffer), devinfo)
+                $fname(dense_handle(), uplo, n, A, lda, ipiv,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
             end
 
             info = @allowscalar devinfo[1]
@@ -299,7 +303,7 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace(bufferSize) do buffer
                 $fname(dense_handle(), side, trans, m, n, k, A, lda, tau, C, ldc,
-                    buffer, length(buffer), devinfo)
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
             end
 
             info = @allowscalar devinfo[1]
@@ -331,7 +335,8 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
 
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), m, n, k, A, lda, tau, buffer, length(buffer), devinfo)
+                $fname(dense_handle(), m, n, k, A, lda, tau,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
             end
 
             info = @allowscalar devinfo[1]
@@ -371,7 +376,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
             TAUP    = CuArray{$elty}(undef, k)
 
             with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), m, n, A, lda, D, E, TAUQ, TAUP, buffer, length(buffer), devinfo)
+                $fname(dense_handle(), m, n, A, lda, D, E, TAUQ, TAUP,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
             end
 
             info = @allowscalar devinfo[1]
@@ -427,9 +433,9 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
 
             rwork   = CuArray{$relty}(undef, min(m, n) - 1)
             devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do work
+            with_workspace(bufferSize) do buffer
                 $fname(dense_handle(), jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt,
-                    work, length(work), rwork, devinfo)
+                       buffer, sizeof(buffer) ÷ sizeof($elty), rwork, devinfo)
             end
             unsafe_free!(rwork)
 
@@ -486,9 +492,9 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
             end
 
             devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do work
+            with_workspace(bufferSize) do buffer
                 $fname(dense_handle(), jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
-                       work, length(work), devinfo, params[])
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo, params[])
             end
 
             info = @allowscalar devinfo[1]
@@ -538,9 +544,9 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
             end
 
             devinfo = CuArray{Cint}(undef, batchSize)
-            with_workspace(bufferSize) do work
+            with_workspace(bufferSize) do buffer
                 $fname(dense_handle(), jobz, m, n, A, lda, S, U, ldu, V, ldv,
-                       work, length(work), devinfo, params[], batchSize)
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo, params[], batchSize)
             end
 
             info = @allowscalar collect(devinfo)
@@ -597,10 +603,10 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
             # residual storage
             h_RnrmF = Array{Cdouble}(undef, batchSize)
 
-            with_workspace(bufferSize) do work
+            with_workspace(bufferSize) do buffer
                 $fname(dense_handle(), jobz, rank, m, n, A, lda, strideA,
                        S, strideS, U, ldu, strideU, V, ldv, strideV,
-                       work, length(work), devinfo, h_RnrmF, batchSize)
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo, h_RnrmF, batchSize)
             end
 
             info = @allowscalar collect(devinfo)
@@ -638,7 +644,7 @@ for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSiz
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace(bufferSize) do buffer
                 $fname(dense_handle(), jobz, uplo, n, A, lda, W,
-                       buffer, length(buffer), devinfo)
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
             end
 
             info = @allowscalar devinfo[1]
@@ -683,7 +689,7 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace(bufferSize) do buffer
                 $fname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
-                    buffer, length(buffer), devinfo)
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
             end
 
             info = @allowscalar devinfo[1]
@@ -735,7 +741,7 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
             devinfo = CuArray{Cint}(undef, 1)
             with_workspace(bufferSize) do buffer
                 $fname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
-                    buffer, length(buffer), devinfo, params[])
+                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo, params[])
             end
 
             info = @allowscalar devinfo[1]
@@ -786,9 +792,9 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
             end
 
             # Run the solver
-            with_workspace(bufferSize) do work
-                $fname(dense_handle(), jobz, uplo, n, A, lda, W, work,
-                       length(work), devinfo, params[], batchSize)
+            with_workspace(bufferSize) do buffer
+                $fname(dense_handle(), jobz, uplo, n, A, lda, W, buffer,
+                       sizeof(buffer) ÷ sizeof($elty), devinfo, params[], batchSize)
             end
 
             # Copy the solver info and delete the device memory
@@ -894,47 +900,47 @@ end
 # LAPACK
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
-        LinearAlgebra.LAPACK.potrf!(uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.potrf!(uplo, A)
-        LinearAlgebra.LAPACK.potrs!(uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuVecOrMat{$elty}) = CUSOLVER.potrs!(uplo, A, B)
-        LinearAlgebra.LAPACK.potri!(uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.potri!(uplo, A)
-        LinearAlgebra.LAPACK.getrf!(A::StridedCuMatrix{$elty}) = CUSOLVER.getrf!(A)
-        LinearAlgebra.LAPACK.getrf!(A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}) = CUSOLVER.getrf!(A, ipiv)
-        LinearAlgebra.LAPACK.geqrf!(A::StridedCuMatrix{$elty}) = CUSOLVER.geqrf!(A)
-        LinearAlgebra.LAPACK.geqrf!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = CUSOLVER.geqrf!(A, tau)
-        LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}) = sytrf!(uplo, A)
-        LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}) = CUSOLVER.sytrf!(uplo, A, ipiv)
-        LinearAlgebra.LAPACK.getrs!(trans::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}, B::StridedCuVecOrMat{$elty}) = CUSOLVER.getrs!(trans, A, ipiv, B)
-        LinearAlgebra.LAPACK.ormqr!(side::Char, trans::Char, A::CuMatrix{$elty}, tau::CuVector{$elty}, C::CuVecOrMat{$elty}) = CUSOLVER.ormqr!(side, trans, A, tau, C)
-        LinearAlgebra.LAPACK.orgqr!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = CUSOLVER.orgqr!(A, tau)
-        LinearAlgebra.LAPACK.gebrd!(A::StridedCuMatrix{$elty}) = CUSOLVER.gebrd!(A)
-        LinearAlgebra.LAPACK.gesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.gesvd!(jobu, jobvt, A)
+        LAPACK.potrf!(uplo::Char, A::StridedCuMatrix{$elty}) = potrf!(uplo, A)
+        LAPACK.potrs!(uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuVecOrMat{$elty}) = potrs!(uplo, A, B)
+        LAPACK.potri!(uplo::Char, A::StridedCuMatrix{$elty}) = potri!(uplo, A)
+        LAPACK.getrf!(A::StridedCuMatrix{$elty}) = getrf!(A)
+        LAPACK.getrf!(A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}) = getrf!(A, ipiv)
+        LAPACK.geqrf!(A::StridedCuMatrix{$elty}) = geqrf!(A)
+        LAPACK.geqrf!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = geqrf!(A, tau)
+        LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}) = sytrf!(uplo, A)
+        LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}) = sytrf!(uplo, A, ipiv)
+        LAPACK.getrs!(trans::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}, B::StridedCuVecOrMat{$elty}) = getrs!(trans, A, ipiv, B)
+        LAPACK.ormqr!(side::Char, trans::Char, A::CuMatrix{$elty}, tau::CuVector{$elty}, C::CuVecOrMat{$elty}) = ormqr!(side, trans, A, tau, C)
+        LAPACK.orgqr!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = orgqr!(A, tau)
+        LAPACK.gebrd!(A::StridedCuMatrix{$elty}) = gebrd!(A)
+        LAPACK.gesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{$elty}) = gesvd!(jobu, jobvt, A)
     end
 end
 
 for elty in (:Float32, :Float64)
     @eval begin
-        LinearAlgebra.LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.syevd!(jobz, uplo, A)
-        LinearAlgebra.LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = CUSOLVER.sygvd!(itype, jobz, uplo, A, B)
+        LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = syevd!(jobz, uplo, A)
+        LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = sygvd!(itype, jobz, uplo, A, B)
     end
 end
 
 for elty in (:ComplexF32, :ComplexF64)
     @eval begin
-        LinearAlgebra.LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.heevd!(jobz, uplo, A)
-        LinearAlgebra.LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = CUSOLVER.hegvd!(itype, jobz, uplo, A, B)
+        LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = heevd!(jobz, uplo, A)
+        LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = hegvd!(itype, jobz, uplo, A, B)
     end
 end
 
 if VERSION >= v"1.10"
     for elty in (:Float32, :Float64)
         @eval begin
-            LinearAlgebra.LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.syevd!(jobz, uplo, A)
+            LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = syevd!(jobz, uplo, A)
         end
     end
 
     for elty in (:ComplexF32, :ComplexF64)
         @eval begin
-            LinearAlgebra.LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = CUSOLVER.heevd!(jobz, uplo, A)
+            LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = heevd!(jobz, uplo, A)
         end
     end
 end

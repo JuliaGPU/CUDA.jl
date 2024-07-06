@@ -5999,6 +5999,7 @@ end
     CUSPARSE_SPMM_CSR_ALG2 = 6
     CUSPARSE_SPMM_CSR_ALG3 = 12
     CUSPARSE_SPMM_BLOCKED_ELL_ALG1 = 13
+    CUSPARSE_SPMM_BSR_ALG1 = 14
 end
 
 @checked function cusparseSpMM_bufferSize(handle, opA, opB, alpha, matA, matB, beta, matC,

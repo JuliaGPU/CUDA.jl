@@ -128,10 +128,8 @@ using Printf
 #
 
 function profile_externally(f)
-    # wait for the device to become idle (and trigger a GC to avoid interference)
+    # wait for the device to become idle
     CUDA.cuCtxSynchronize()
-    GC.gc(false)
-    GC.gc(true)
 
     start()
     try
@@ -293,11 +291,13 @@ function profile_internally(f; concurrent=true, kwargs...)
     end
     cfg = CUPTI.ActivityConfig(activity_kinds)
 
-    # wait for the device to become idle (and trigger a GC to avoid interference)
+    # wait for the device to become idle
     CUDA.cuCtxSynchronize()
 
     CUPTI.enable!(cfg) do
-        # sink the initial profiler overhead into a synchronization call
+        # perform dummy operations to "warm up" the profiler, and avoid slow first calls.
+        # we'll skip everything up until the synchronization call during processing
+        CuArray([1])
         CUDA.cuCtxSynchronize()
 
         f()
@@ -710,7 +710,8 @@ function Base.show(io::IO, results::ProfileResults)
                                # called a lot during compilation
                                "cuDeviceGetAttribute",
                                # done before every memory operation
-                               "cuPointerGetAttribute", "cuDeviceGetMemPool"])
+                               "cuPointerGetAttribute", "cuDeviceGetMemPool",
+                               "cuStreamGetCaptureInfo"])
             end
         end
 

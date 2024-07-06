@@ -65,7 +65,7 @@ function versioninfo(io::IO=stdout)
         mod = getfield(CUDA, lib)
         println(io, "- $lib: ", mod.version())
     end
-    println(io, "- CUPTI: ", CUPTI.version())
+    println(io, "- CUPTI: $(CUPTI.library_version()) (API $(CUPTI.version()))")
     println(io, "- NVML: ", has_nvml() ? NVML.version() : "missing")
     println(io)
 
