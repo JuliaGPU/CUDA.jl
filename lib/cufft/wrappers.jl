@@ -10,7 +10,7 @@ version() = VersionNumber(cufftGetProperty(CUDA.MAJOR_VERSION),
                           cufftGetProperty(CUDA.MINOR_VERSION),
                           cufftGetProperty(CUDA.PATCH_LEVEL))
 
-function cufftMakePlan(input_type::Type{<:cufftNumber}, output_type::Type{<:cufftNumber}, xdims::Dims, region)
+function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cufftNumber}, xdims::Dims, region)
     if any(diff(collect(region)) .< 1)
         throw(ArgumentError("region must be an increasing sequence"))
     end
@@ -65,8 +65,8 @@ function cufftMakePlan(input_type::Type{<:cufftNumber}, output_type::Type{<:cuff
                 idist = 1
                 cdist = 1
             end
-            inembed = Cint[rsz...]
-            cnembed = (length(csz) > 1) ? Cint[reverse(csz)...] : Cint[csz[1]]
+            inembed = Clonglong[rsz...]
+            cnembed = (length(csz) > 1) ? Clonglong[reverse(csz)...] : Clonglong[csz[1]]
             ostride = istride
             if input_type <: Real
                 odist = cdist
@@ -127,8 +127,8 @@ function cufftMakePlan(input_type::Type{<:cufftNumber}, output_type::Type{<:cuff
                 throw(ArgumentError("batch regions must be sequential"))
             end
 
-            inembed = Cint[reverse(nem)...]
-            cnembed = Cint[reverse(cem)...]
+            inembed = Clonglong[reverse(nem)...]
+            cnembed = Clonglong[reverse(cem)...]
             ostride = istride
             if input_type <: Real
                 odist = cdist
@@ -143,45 +143,44 @@ function cufftMakePlan(input_type::Type{<:cufftNumber}, output_type::Type{<:cuff
             end
         end
         execution_type = promote_type(input_type, output_type)
-        cufftXtMakePlanMany(handle, nrank, Clonglong[rsz...],
-                            inembed, istride, idist, convert(cudaDataType, input_type),
-                            onembed, ostride, odist, convert(cudaDataType, output_type),
-                            batch, worksize_ref, convert(cudaDataType, execution_type))
+        res = cufftXtMakePlanMany(handle, nrank, Clonglong[rsz...],
+                                  inembed, istride, idist, convert(cudaDataType, input_type),
+                                  onembed, ostride, odist, convert(cudaDataType, output_type),
+                                  batch, worksize_ref, convert(cudaDataType, execution_type))
     end
 
-    # handle, worksize_ref[]
-    handle
+    handle, worksize_ref[]
 end
 
 
-# ## plan cache
-# 
-# const cufftHandleCacheKey = Tuple{CuContext, Type, Type, Dims, Any}
-# function handle_ctor((ctx, args...))
-#     context!(ctx) do
-#         # make the plan
-#         handle, worksize = cufftMakePlan(args...)
-# 
-#         # NOTE: we currently do not use the worksize to allocate our own workarea,
-#         #       instead relying on the automatic allocation strategy.
-#         handle
-#     end
-# end
-# function handle_dtor((ctx, args...), handle)
-#     context!(ctx; skip_destroyed=true) do
-#         cufftDestroy(handle)
-#     end
-# end
-# const idle_handles = HandleCache{cufftHandleCacheKey, cufftHandle}(handle_ctor, handle_dtor)
-# 
-# function cufftGetPlan(args...)
-#     ctx = context()
-#     handle = pop!(idle_handles, (ctx, args...))
-# 
-#     cufftSetStream(handle, stream())
-# 
-#     return handle
-# end
-# function cufftReleasePlan(plan)
-#     push!(idle_handles, plan)
-# end
+## plan cache
+
+const cufftHandleCacheKey = Tuple{CuContext, Type, Type, Dims, Any}
+function handle_ctor((ctx, args...))
+    context!(ctx) do
+        # make the plan
+        handle, worksize = cufftMakePlan(args...)
+
+        # NOTE: we currently do not use the worksize to allocate our own workarea,
+        #       instead relying on the automatic allocation strategy.
+        handle
+    end
+end
+function handle_dtor((ctx, args...), handle)
+    context!(ctx; skip_destroyed=true) do
+        cufftDestroy(handle)
+    end
+end
+const idle_handles = HandleCache{cufftHandleCacheKey, cufftHandle}(handle_ctor, handle_dtor)
+
+function cufftGetPlan(args...)
+    ctx = context()
+    handle = pop!(idle_handles, (ctx, args...))
+
+    cufftSetStream(handle, stream())
+
+    return handle
+end
+function cufftReleasePlan(plan)
+    push!(idle_handles, plan)
+end
