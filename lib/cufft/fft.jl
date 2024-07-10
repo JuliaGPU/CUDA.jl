@@ -8,11 +8,10 @@ import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!, plan_ifft,
 
 using LinearAlgebra
 
-Base.:(*)(p::Plan{T}, x::DenseCuArray) where {T} = p * copy1(T, x)
-Base.:(*)(p::ScaledPlan, x::DenseCuArray) = rmul!(p.p * x, p.scale)
-
 input_type(plan::ScaledPlan) = input_type(plan.p)
 output_type(plan::ScaledPlan) = output_type(plan.p)
+
+Base.:(*)(p::ScaledPlan, x::DenseCuArray) = rmul!(p.p * x, p.scale)
 
 ## plan structure
 
@@ -35,7 +34,7 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N} <: Plan{T}
     input_size::NTuple{N,Int}   # Julia size of input array
     output_size::NTuple{N,Int}  # Julia size of output array
     region::Any
-    pinv::ScaledPlan            # unused, required by AbstractFFT API
+    pinv::ScaledPlan{S}         # required by AbstractFFTs API, will be defined by AbstractFFTs if needed
 
     function CuFFTPlan{T,S,K,inplace,N}(handle::cufftHandle,
                                         input_size::NTuple{N,Int}, output_size::NTuple{N,Int}, region
@@ -80,7 +79,7 @@ function Base.show(io::IO, p::CuFFTPlan{T,S,K,inplace}) where {T,S,K,inplace}
           S == T ? "$T " : "$(S)-to-$(T) ",
           K == CUFFT_FORWARD ? "forward " : "backward ",
           "plan for ")
-    showfftdims(io, p.input_size, T)
+    showfftdims(io, p.input_size, S)
 end
 
 output_type(::CuFFTPlan{T,S}) where {T,S} = T
@@ -245,8 +244,8 @@ end
 
 function plan_inv(p::CuFFTPlan{T,S,CUFFT_FORWARD,inplace,N}
                   ) where {T<:cufftNumber,S<:cufftNumber,N,inplace}
-    md_sz = plan_max_dims(p.region,p.input_size)
-    sz_Y = p.input_size[1:md_sz]
+    md_isz = plan_max_dims(p.region, p.input_size)
+    sz_Y = p.input_size[1:md_isz]
     handle = cufftGetPlan(S, T, sz_Y, p.region)
     ScaledPlan(CuFFTPlan{S,T,CUFFT_INVERSE,inplace,N}(handle, p.output_size, p.input_size, p.region),
                normalization(real(S), p.input_size, p.region))
@@ -279,7 +278,7 @@ function assert_applicable(p::CuFFTPlan{T,S,K,inplace}, X::DenseCuArray{S},
 end
 
 
-function unsafe_execute!(plan::CuFFTPlan{T,S}, x::DenseCuArray{T}, y::DenseCuArray{S}) where {T,S}
+function unsafe_execute!(plan::CuFFTPlan{T,S,K,inplace}, x::DenseCuArray{S}, y::DenseCuArray{T}) where {T,S,K,inplace}
     update_stream(plan)
     cufftXtExec(plan, x, y, K)
 end
@@ -306,9 +305,13 @@ end
 
 ## high-level integrations
 
-function LinearAlgebra.mul!(y::DenseCuArray{T}, p::CuFFTPlan{T,S}, x::DenseCuArray{S}
-                           ) where {T,S}
-    assert_applicable(p,x,y)
+function LinearAlgebra.mul!(y::DenseCuArray{T}, p::CuFFTPlan{T,S,K,inplace}, x::DenseCuArray{S}
+                           ) where {T,S,K,inplace}
+    assert_applicable(p, x, y)
+    if !inplace && T<:Real
+        # Out-of-place complex-to-real FFT will always overwrite input buffer.
+        x = copy(x)
+    end
     unsafe_execute_trailing!(p, x, y)
     y
 end
@@ -319,7 +322,12 @@ function Base.:(*)(p::CuFFTPlan{T,S,K,true}, x::DenseCuArray{S}) where {T,S,K}
     x
 end
 
-function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::DenseCuArray{S,M}) where {T,S,K,M}
+function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::DenseCuArray{S1,M}) where {T,S,K,S1,M}
+    if S1 != S ||  T<:Real
+        # Convert to the expected input type. Also,
+        # Out-of-place complex-to-real FFT will always overwrite input buffer.
+        x = copy1(S, x)
+    end
     assert_applicable(p, x)
     y = CuArray{T,M}(undef, p.output_size)
     unsafe_execute_trailing!(p, x, y)

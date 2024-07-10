@@ -101,9 +101,11 @@ N4 = 8
 rtol(::Type{Float16}) = 1e-2
 rtol(::Type{Float32}) = 1e-5
 rtol(::Type{Float64}) = 1e-12
+rtol(::Type{I}) where {I<:Integer} = rtol(float(I))
 atol(::Type{Float16}) = 1e-3
 atol(::Type{Float32}) = 1e-8
 atol(::Type{Float64}) = 1e-15
+atol(::Type{I}) where {I<:Integer} = atol(float(I))
 rtol(::Type{Complex{T}}) where {T} = rtol(T)
 atol(::Type{Complex{T}}) where {T} = atol(T)
 
