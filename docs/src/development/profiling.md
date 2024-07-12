@@ -276,6 +276,53 @@ the API calls that have been made:
 
 !["NVIDIA Nsight Compute - API inspection"](nsight_compute-api.png)
 
+#### Troubleshooting NSight Compute
+
+##### I am getting an error that says "could not load library "libpcre2-8"
+
+Try a newer version of Nsight Compute. If this is not possible, try launching it with
+```
+LD_LIBRARY_PATH=$(/path/to/julia -e 'println(joinpath(Sys.BINDIR, Base.LIBDIR, "julia"))') ncu --mode=launch /path/to/julia
+```
+
+##### I try to connect over ssh, but I cannot find the process in the "Attach" tab
+
+Make sure you are using the same version of NSight Compute on the host and the device.
+
+Make sure that the port that is used by NSight Compute (49152 by default) is accessible via ssh.
+Try connecting via ssh with port forwarding:
+```
+ssh user@host.com -L 49152:localhost:49152
+```
+Then, in the "Connect to process" window of NSight Compute, add a connection to `localhost`.
+If you get an error like
+```
+bind [127.0.0.1]:49152: Address already in use
+```
+try closing all instances of vscode, as vscode might automatically forward the port 49152 when
+launching NSight Compute in a terminal within vscode.
+
+##### When I start Julia with Nsight Compute, I only see the Julia logo, but not the REPL prompt
+
+In some versions of NSight Compute, you might have to start Julia without the `--project` option
+and switch the environment from inside Julia.
+
+##### The NSight Compute window closes with "Disconnected from the application" once I click "Resume"
+
+Make sure that everything is precompiled before starting Julia with NSight Compute.
+Alternatively, disable auto profiling, resume, wait until the precompilation is finished, and then
+enable auto profiling again.
+
+##### I only see the "API Stream" tab and no tab with details on my kernel on the right
+
+Scroll down in the "API Stream" tab and look for errors in the "Details" column.
+If it says "The user does not have permission to access NVIDIA GPU Performance Counters
+on the target device", add this config:
+```
+$ cat /etc/modprobe.d/nvprof.conf
+options nvidia NVreg_RestrictProfilingToAdminUsers=0
+```
+and reload the `nvidia.ko` kernel module with those options.
 
 ## Source-code annotations
 
