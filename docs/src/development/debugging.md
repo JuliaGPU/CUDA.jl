@@ -93,7 +93,7 @@ To disable all debug info emission, start Julia with the flag `-g0`.
 
 To debug kernel issues like memory errors or race conditions, you can use CUDA's `compute-sanitizer` tool. Refer to the [manual](https://docs.nvidia.com/compute-sanitizer/ComputeSanitizer/index.html#using-compute-sanitizer) for more information.
 
-To use `compute-sanitizer`, you need to install the `CUDA-SDK-jll` package in your environment first.
+To use `compute-sanitizer`, you need to install the `CUDA_SDK_jll` package in your environment first.
 
 To spawn a new Julia session under `compute-sanitizer`:
 ```
