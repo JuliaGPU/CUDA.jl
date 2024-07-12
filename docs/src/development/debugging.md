@@ -124,6 +124,11 @@ julia> exit()
 Process(`.julia/artifacts/feb6b469b6047f344fec54df2619d65f6b704bdb/cuda/compute-sanitizer/compute-sanitizer --launch-timeout=0 --target-processes=all --report-api-errors=no julia`, ProcessExited(0))
 ```
 
+By default, `compute-sanitizer` launches the `memcheck` tool, which is great for dealing with
+memory issues. Other tools can be selected with the `--tool` argument, e.g., to find thread
+synchronization hazards use `--tool synccheck`, `racecheck` can be used to find shared memory
+data races, and `initcheck` is useful for spotting uses of uninitialized device memory.
+
 
 ## `cuda-gdb`
 
