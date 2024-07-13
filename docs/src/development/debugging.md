@@ -111,7 +111,7 @@ julia> options = ["--launch-timeout=0", "--target-processes=all", "--report-api-
  "--report-api-errors=no"
 
 # Run the executable with Julia
-julia> run(`$compute_sanitizer $options$(Base.julia_cmd())`)
+julia> run(`$compute_sanitizer $options $(Base.julia_cmd())`)
 ========= COMPUTE-SANITIZER
 julia> using CUDA
 
