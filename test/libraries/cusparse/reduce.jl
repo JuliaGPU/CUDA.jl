@@ -1,7 +1,7 @@
 using CUDA.CUSPARSE, SparseArrays
 
-# XXX: these tests cause GC corruption on 1.10+ (see JuliaGPU/CUDA.jl#2027)
-if VERSION < v"1.10-"
+# XXX: these tests cause GC corruption (see JuliaGPU/CUDA.jl#2027)
+if false
 
 m,n = 5,6
 p = 0.5

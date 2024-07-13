@@ -36,7 +36,7 @@ end
 # HACK: callback function for `launch_configuration` on platforms without support for
 #       trampolines as used by `@cfunction` (JuliaLang/julia#27174, JuliaLang/julia#32154)
 _shmem_cb = nothing
-@gcunsafe_callback function _shmem_cint_cb(x::Cint)
+function _shmem_cint_cb(x::Cint)
     Cint(something(_shmem_cb)(x))
 end
 _shmem_cb_lock = Threads.ReentrantLock()
@@ -60,7 +60,7 @@ function launch_configuration(fun::CuFunction; shmem::Union{Integer,Base.Callabl
     if isa(shmem, Integer)
         cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, C_NULL, shmem, max_threads)
     elseif Sys.ARCH == :x86 || Sys.ARCH == :x86_64
-        @gcunsafe_callback function shmem_cint(threads)
+        function shmem_cint(threads)
             Cint(shmem(threads))
         end
         cb = @cfunction($shmem_cint, Cint, (Cint,))

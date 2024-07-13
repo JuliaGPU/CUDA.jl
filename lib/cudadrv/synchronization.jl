@@ -101,8 +101,6 @@ end
 # nonblocking sync
 #
 
-@static if VERSION >= v"1.9.2"
-
 # if we support foreign threads, perform the actual synchronization on a separate thread.
 
 const SyncObject = Union{CuContext, CuStream, CuEvent}
@@ -221,84 +219,4 @@ function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
         maybe_collect(true)
         cuEventSynchronize(event)
     end
-end
-
-else
-
-# without thread adoption, have CUDA notify an async condition that wakes the libuv loop.
-# this is not ideal: stream callbacks are deprecated, and do not fire in case of errors.
-# furthermore, they do not trigger CUDA's synchronization hooks (see NVIDIA bug #3383169)
-# requiring us to perform the actual API call again after nonblocking synchronization.
-
-function nonblocking_synchronize(stream::CuStream)
-    # wait for an event signalled by CUDA
-    event = Base.Event()
-    launch(; stream) do
-        notify(event)
-    end
-
-    # if an error occurs, the callback may never fire, so use a timer to detect such cases
-    dev = device()
-    timer = Timer(0; interval=1)
-
-    Base.@sync begin
-        Threads.@spawn try
-            device!(dev)
-            while true
-                try
-                    Base.wait(timer)
-                catch err
-                    err isa EOFError && break
-                    rethrow()
-                end
-                if isdone(stream)
-                    break
-                end
-            end
-        finally
-            notify(event)
-        end
-
-        Threads.@spawn begin
-            Base.wait(event)
-            close(timer)
-        end
-    end
-
-    return
-end
-
-function device_synchronize(; blocking::Bool=false, spin::Bool=true)
-    if use_nonblocking_synchronization && !blocking
-        stream = legacy_stream()
-        if !spin || !spinning_synchronization(isdone, stream)
-            nonblocking_synchronize(stream)
-        end
-    end
-    maybe_collect(true)
-    cuCtxSynchronize()
-
-    check_exceptions()
-end
-
-function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool=true)
-    if use_nonblocking_synchronization && !blocking
-        if !spin || !spinning_synchronization(isdone, stream)
-            nonblocking_synchronize(stream)
-        end
-    end
-    maybe_collect(true)
-    cuStreamSynchronize(stream)
-
-    check_exceptions()
-end
-
-function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
-    if use_nonblocking_synchronization && !blocking
-        spin && spinning_synchronization(isdone, event)
-    end
-    maybe_collect(true)
-    cuEventSynchronize(event)
-end
-
 end

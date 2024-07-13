@@ -15,7 +15,7 @@ end
 
 ############################################################################################
 
-@static if VERSION >= v"1.9" && CUDA.runtime_version() >= v"11.2" && can_use_cupti()
+@static if can_use_cupti()
 @testset "integrated" begin
 
 # smoke test

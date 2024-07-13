@@ -142,7 +142,7 @@ function log_message(sev, udata, dbg_ptr, ptr)
     return
 end
 
-@gcunsafe_callback function _log_message(sev, dbg, str)
+function _log_message(sev, dbg, str)
     lines = split(str, '\0')
     msg = join(lines, '\n')
     if sev == CUDNN_SEV_INFO

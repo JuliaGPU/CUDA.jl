@@ -384,13 +384,10 @@ end
     @test check_sortperm(Float64, 1000000; rev=true)
     @test check_sortperm(Float64, 1000000; by=x->abs(x-0.5))
     @test check_sortperm(Float64, 1000000; rev=true, by=x->abs(x-0.5))
+    @test check_sortperm(Float32, (100_000, 16); dims=1)
+    @test check_sortperm(Float32, (100_000, 16); dims=2)
+    @test check_sortperm(Float32, (100, 256, 256); dims=1)
 
-    if VERSION >= v"1.9"
-        # Base.jl didn't implement sortperm(;dims) until 1.9
-        @test check_sortperm(Float32, (100_000, 16); dims=1)
-        @test check_sortperm(Float32, (100_000, 16); dims=2)
-        @test check_sortperm(Float32, (100, 256, 256); dims=1)
-    end
     # check with Int32 indices
     @test check_sortperm!(collect(Int32(1):Int32(1000000)), Float32, 1000000)
     # `initialized` kwarg

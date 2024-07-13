@@ -68,9 +68,9 @@ documentation](https://juliagpu.github.io/CUDA.jl/stable/).
 
 ## Requirements
 
-The latest development version of CUDA.jl requires **Julia 1.8** or higher. If you are using
-an older version of Julia, you need to use a previous version of CUDA.jl. This will happen
-automatically when you install the package using Julia's package manager.
+The latest development version of CUDA.jl requires **Julia 1.10** or higher. If you are
+using an older version of Julia, you need to use a previous version of CUDA.jl. This will
+happen automatically when you install the package using Julia's package manager.
 
 Note that CUDA.jl may not work with a custom build of Julia; it is recommended that you
 install Julia using the [official binaries](https://julialang.org/downloads/) or
@@ -107,7 +107,7 @@ root of this repository lists the relevant papers.
 
 ## Project Status
 
-The package is tested against, and being developed for, Julia 1.8 and above. Main
+The package is tested against, and being developed for, Julia 1.10 and above. Main
 development and testing happens on x86 Linux, but the package is expected to work on
 Windows and ARM and as well.
 
