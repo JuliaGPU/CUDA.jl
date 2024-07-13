@@ -17,7 +17,7 @@ facilitate this style of debugging:
 - `@cuprintln` (like `println`): to print text and values. This macro does support string
   interpolation, but the types it can print are restricted to C primitives.
 
-The `@cuaassert` macro (like `@assert`) can also be useful to find issues and abort execution.
+The `@cuassert` macro (like `@assert`) can also be useful to find issues and abort execution.
 
 
 ## Stack trace information
