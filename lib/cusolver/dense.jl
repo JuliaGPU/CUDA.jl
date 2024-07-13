@@ -931,16 +931,14 @@ for elty in (:ComplexF32, :ComplexF64)
     end
 end
 
-if VERSION >= v"1.10"
-    for elty in (:Float32, :Float64)
-        @eval begin
-            LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = syevd!(jobz, uplo, A)
-        end
+for elty in (:Float32, :Float64)
+    @eval begin
+        LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = syevd!(jobz, uplo, A)
     end
+end
 
-    for elty in (:ComplexF32, :ComplexF64)
-        @eval begin
-            LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = heevd!(jobz, uplo, A)
-        end
+for elty in (:ComplexF32, :ComplexF64)
+    @eval begin
+        LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = heevd!(jobz, uplo, A)
     end
 end

@@ -33,8 +33,8 @@ end
 # multiple subscribers aren't supported, so make sure we only call CUPTI once
 const callback_lock = ReentrantLock()
 
-@gcunsafe_callback function callback(userdata::Ptr{Cvoid}, domain::CUpti_CallbackDomain,
-                                     id::CUpti_CallbackId, data_ptr::Ptr{Cvoid})
+function callback(userdata::Ptr{Cvoid}, domain::CUpti_CallbackDomain,
+                  id::CUpti_CallbackId, data_ptr::Ptr{Cvoid})
     cfg = Base.unsafe_pointer_to_objref(userdata)::CallbackConfig
 
     # decode the callback data
@@ -147,7 +147,7 @@ end
 const activity_lock = ReentrantLock()
 const activity_config = Ref{Union{Nothing,ActivityConfig}}(nothing)
 
-@gcunsafe_callback function request_buffer(dest_ptr, sz_ptr, max_num_records_ptr)
+function request_buffer(dest_ptr, sz_ptr, max_num_records_ptr)
     # this function is called by CUPTI, but directly from the application, so it should be
     # fine to perform I/O or allocate memory here.
 
@@ -178,7 +178,7 @@ const activity_config = Ref{Union{Nothing,ActivityConfig}}(nothing)
     return
 end
 
-@gcunsafe_callback function complete_buffer(ctx_handle, stream_id, buf_ptr, sz, valid_sz)
+function complete_buffer(ctx_handle, stream_id, buf_ptr, sz, valid_sz)
     # this function is called by a CUPTI worker thread while our application may be waiting
     # for `cuptiActivityFlushAll` to complete. that means we cannot do I/O here, or we could
     # yield while the application cannot make any progress.

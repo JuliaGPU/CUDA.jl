@@ -236,7 +236,7 @@ function log_message(ptr)
     return
 end
 
-@gcunsafe_callback function _log_message(blob)
+function _log_message(blob)
     # the message format isn't documented, but it looks like a message starts with a capital
     # and the severity (e.g. `I!`), and subsequent lines start with a lowercase mark (`!i`)
     #

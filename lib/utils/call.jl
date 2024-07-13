@@ -1,7 +1,7 @@
 # utilities for calling foreign functionality more conveniently
 
 export @checked, with_workspace, with_workspaces,
-       @debug_ccall, @gcsafe_ccall, @gcunsafe_callback
+       @debug_ccall, @gcsafe_ccall
 
 
 ## function wrapper for checking the return value of a function
@@ -241,37 +241,4 @@ mode using the `@gcunsafe` macro.
 """
 macro gcsafe_ccall(expr)
     ccall_macro_lower(Base.ccall_macro_parse(expr)...)
-end
-
-"""
-    @gcunsafe_callback function callback(...)
-        ...
-    end
-
-Mark a callback function as unsafe for the GC to run. This is normally the default for
-Julia code, and is meant to be used in combination with `@gcsafe_ccall`.
-"""
-macro gcunsafe_callback(ex)
-    if VERSION >= v"1.9"
-        # on 1.9+, `@cfunction` already transitions to GC-unsafe mode
-        return esc(ex)
-    end
-
-    # parse the function definition
-    @assert Meta.isexpr(ex, :function)
-    sig = ex.args[1]
-    @assert Meta.isexpr(sig, :call)
-    body = ex.args[2]
-    @assert Meta.isexpr(body, :block)
-
-    gcunsafe_body = quote
-        gc_state = @ccall(jl_gc_unsafe_enter()::Int8)
-        try
-            $body
-        finally
-            @ccall(jl_gc_unsafe_leave(gc_state::Int8)::Cvoid)
-        end
-    end
-
-    return esc(Expr(:function, sig, gcunsafe_body))
 end

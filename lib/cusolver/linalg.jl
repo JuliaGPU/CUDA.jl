@@ -185,24 +185,6 @@ CuMatrix{T}(Q::QRCompactWYQ) where {T} = error("QRCompactWY format is not suppor
 Matrix{T}(Q::QRPackedQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
 Matrix{T}(Q::QRCompactWYQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
 
-if VERSION < v"1.10-"
-# extracting the full matrix can be done with `collect` (which defaults to `Array`)
-function Base.collect(src::Union{QRPackedQ{<:Any,<:CuArray,<:CuArray},
-                                 QRCompactWYQ{<:Any,<:CuArray,<:CuArray}})
-    dest = similar(src)
-    copyto!(dest, I)
-    lmul!(src, dest)
-    collect(dest)
-end
-
-# avoid the generic similar fallback that returns a CPU array
-Base.similar(Q::Union{QRPackedQ{<:Any,<:CuArray,<:CuArray},
-                      QRCompactWYQ{<:Any,<:CuArray,<:CuArray}},
-             ::Type{T}, dims::Dims{N}) where {T,N} =
-    CuArray{T,N}(undef, dims)
-
-end
-
 function Base.getindex(Q::QRPackedQ{<:Any, <:CuArray}, ::Colon, j::Int)
     y = CUDA.zeros(eltype(Q), size(Q, 2))
     y[j] = 1
@@ -308,14 +290,10 @@ end
 ## LU
 
 function _check_lu_success(info, allowsingular)
-    if VERSION >= v"1.11.0-DEV.1535"
-        if info < 0 # zero pivot error from unpivoted LU
-            LinearAlgebra.checknozeropivot(-info)
-        else
-            allowsingular || LinearAlgebra.checknonsingular(info)
-        end
+    if info < 0 # zero pivot error from unpivoted LU
+        LinearAlgebra.checknozeropivot(-info)
     else
-        LinearAlgebra.checknonsingular(info)
+        allowsingular || LinearAlgebra.checknonsingular(info)
     end
 end
 
@@ -333,10 +311,8 @@ function Base.getproperty(F::LU{T,<:StridedCuMatrix}, d::Symbol) where T
         L = tril!(getfield(F, :factors)[1:m, 1:min(m,n)])
         L[1:m+1:end] .= one(T)   # set the diagonal (linear indexing trick)
         return L
-    elseif VERSION >= v"1.9.0-DEV.1775"
-        invoke(getproperty, Tuple{LU{T}, Symbol}, F, d)
     else
-        invoke(getproperty, Tuple{LU{T,<:StridedMatrix}, Symbol}, F, d)
+        invoke(getproperty, Tuple{LU{T}, Symbol}, F, d)
     end
 end
 

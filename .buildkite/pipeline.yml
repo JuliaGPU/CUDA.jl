@@ -29,8 +29,6 @@ steps:
         matrix:
           setup:
             julia:
-              - "1.8"
-              - "1.9"
               - "1.10"
               - "1.11"
               - "nightly"
@@ -466,8 +464,6 @@ steps:
         matrix:
           setup:
             julia:
-              - "1.8"
-              - "1.9"
               - "1.10"
               - "1.11"
         timeout_in_minutes: 30

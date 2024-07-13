@@ -41,7 +41,7 @@ macro memoize(ex...)
     @gensym global_cache
 
     # in the presence of thread adoption, we need to use the maximum thread ID
-    nthreads = :( VERSION >= v"1.9" ? Threads.maxthreadid() : Threads.nthreads() )
+    nthreads = :( Threads.maxthreadid() )
 
     # generate code to access memoized values
     # (assuming the global_cache can be indexed with the thread ID)
