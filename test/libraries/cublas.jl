@@ -1713,6 +1713,44 @@ end
 
     if CUDA.CUBLAS.version() >= v"12.4.2"
         @testset "elty = $elty" for elty in [Float32, Float64]
+            num_groups = 10
+            group_sizes = collect(1:num_groups)
+            transA = ['N' for i in 1:num_groups]
+            transB = ['N' for i in 1:num_groups]
+            alpha = rand(elty, num_groups)
+            beta = rand(elty, num_groups)
+            # generate matrices
+            bA = [[rand(elty,3*i,2*i) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bB = [[rand(elty,2*i,5*i) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bC = [[rand(elty,3*i,5*i) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            # move to device
+            bd_A = [[CuArray(bA[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bd_B = [[CuArray(bB[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bd_C = [[CuArray(bC[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            @testset "gemm_grouped_batched!" begin
+                # C = (alpha*A)*B + beta*C
+                CUBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A,bd_B,beta,bd_C)
+                for i in 1:num_groups, j in 1:group_sizes[i]
+                    bC[i][j] = alpha[i] * bA[i][j] * bB[i][j] + beta[i] * bC[i][j]
+                    h_C = Array(bd_C[i][j])
+                    @test bC[i][j] ≈ h_C
+                end
+            end
+
+            @testset "gemm_grouped_batched" begin
+                bd_C = CUBLAS.gemm_grouped_batched(transA,transB,bd_A,bd_B)
+                for i in 1:num_groups, j in 1:group_sizes[i]
+                    bC[i][j] = bA[i][j] * bB[i][j]
+                    h_C = Array(bd_C[i][j])
+                    @test bC[i][j] ≈ h_C
+                end
+            end
+        end
+    end
+
+    # Group size hardcoded to one
+    if CUDA.CUBLAS.version() >= v"12.4.2"
+        @testset "elty = $elty" for elty in [Float32, Float64]
 
             transA = ['N' for i in 1:10]
             transB = ['N' for i in 1:10]
