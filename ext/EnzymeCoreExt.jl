@@ -211,8 +211,26 @@ function meta_augf(f, tape::CuDeviceArray{TapeType}, ::Val{ModifiedBetween}, arg
         map(typeof, args)...,
     )
 
-    I = (blockIdx().x, blockIdx().y, blockIdx().z, threadIdx().x, threadIdx().y, threadIdx().z)
-    tape[I] = forward(Const(f), args...)[1]
+    idx = 0
+    # idx *= gridDim().x
+    idx += blockIdx().x
+    
+    idx *= gridDim().y
+    idx += blockIdx().y
+    
+    idx *= gridDim().z
+    idx += blockIdx().z
+    
+    idx *= blockDim().x
+    idx += threadIdx().x
+    
+    idx *= blockDim().y
+    idx += threadIdx().y
+   
+    idx *= blockDim().z
+    idx += threadIdx().z
+
+    @inbounds tape[idx] = forward(Const(f), args...)[1]
     nothing
 end
 
@@ -230,17 +248,17 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::EnzymeCore.Annotat
     )
     threads = CuDim3(threads)
     blocks = CuDim3(blocks)
-    subtape = CuArray{TapeType}(undef, (blocks.x, blocks.y, blocks.z, threads.x, threads.y, threads.z))
+    subtape = CuArray{TapeType}(undef, blocks.x*blocks.y*blocks.z*threads.x*threads.y*threads.z)
 
     GC.@preserve args0 subtape, begin
         subtape2 = cudaconvert(subtape)
         T2 = (F, typeof(subtape2), Val{ModifiedBetween},   (typeof(a) for a in args)...)
         TT2 = Tuple{T2...}
         cuf = cufunction(meta_augf, TT2)
-        res = cuf(ofn.val.f, subtape2, Val(ModifiedBetween), args...; threads, blocks, kwargs...)
+        res = cuf(ofn.val.f, subtape2, Val(ModifiedBetween), args...; threads=(threads.x, threads.y, threads.z), blocks=(blocks.x, blocks.y, blocks.z), kwargs...)
     end
 
-    return AugmentedReturn{Nothing,Nothing,Any}(nothing, nothing, subtape)
+    return AugmentedReturn{Nothing,Nothing,CuArray}(nothing, nothing, subtape)
 end
 
 function meta_revf(f, tape::CuDeviceArray{TapeType}, ::Val{ModifiedBetween},  args::Vararg{Any, N}) where {N, ModifiedBetween, TapeType}
@@ -253,8 +271,25 @@ function meta_revf(f, tape::CuDeviceArray{TapeType}, ::Val{ModifiedBetween},  ar
         map(typeof, args)...,
     )
 
-    I = (blockIdx().x, blockIdx().y, blockIdx().z, threadIdx().x, threadIdx().y, threadIdx().z)
-    reverse(Const(f), args..., tape[I])
+    idx = 0
+    # idx *= gridDim().x
+    idx += blockIdx().x
+    
+    idx *= gridDim().y
+    idx += blockIdx().y
+    
+    idx *= gridDim().z
+    idx += blockIdx().z
+    
+    idx *= blockDim().x
+    idx += threadIdx().x
+    
+    idx *= blockDim().y
+    idx += threadIdx().y
+   
+    idx *= blockDim().z
+    idx += threadIdx().z
+    reverse(Const(f), args..., @inbounds tape[idx])
     nothing
 end
 
@@ -277,10 +312,13 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::EnzymeCore.Annotation{CUDA.
         T2 = (F, typeof(subtape2), Val{ModifiedBetween}, (typeof(a) for a in args)...)
         TT2 = Tuple{T2...}
         cuf = cufunction(meta_revf, TT2)
-        res = cuf(ofn.val.f, subtape2, Val(ModifiedBetween), args...; threads, blocks, kwargs...)
+        res = cuf(ofn.val.f, subtape2, Val(ModifiedBetween), args...; threads=(threads.x, threads.y, threads.z), blocks=(blocks.x, blocks.y, blocks.z), kwargs...)
     end
 
-    return AugmentedReturn{Nothing,Nothing,Any}(nothing, nothing, subtape)
+    return ntuple(Val(length(args0))) do i
+        Base.@_inline_meta
+        nothing
+    end
 end
 
 function EnzymeCore.EnzymeRules.forward(ofn::Const{typeof(Base.fill!)}, ::Type{RT}, A::EnzymeCore.Annotation{<:DenseCuArray{T}}, x) where {RT, T <: CUDA.MemsetCompatTypes}
