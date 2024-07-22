@@ -43,6 +43,8 @@ using Libdl
 
 import NVTX
 
+import KernelAbstractions as KA
+
 using Printf
 
 
@@ -85,7 +87,7 @@ include("compiler/reflection.jl")
 
 # KernelAbstractions
 include("CUDAKernels.jl")
-import .CUDAKernels: CUDABackend, KA
+import .CUDAKernels: CUDABackend, KA.launch_config
 export CUDABackend
 
 # array implementation

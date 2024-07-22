@@ -11,12 +11,13 @@
 @inline function GPUArrays.launch_heuristic(::CUDABackend, f::F, args::Vararg{Any,N};
                                             elements::Int, elements_per_thread::Int) where {F,N}
 
+    obj = f(CUDABackend())
     ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, nothing,
                                                                   nothing)
 
     # this might not be the final context, since we may tune the workgroupsize
     ctx = KA.mkcontext(obj, ndrange, iterspace)
-    kernel = @cuda launch=false f(ctx, args...)
+    kernel = @cuda launch=false obj.f(ctx, args...)
 
     # launching many large blocks) lowers performance, as observed with broadcast, so cap
     # the block size if we don't have a grid-stride kernel (which would keep the grid small)
