@@ -12,7 +12,8 @@
                                             elements::Int, elements_per_thread::Int) where {F,N}
 
     obj = f(CUDABackend())
-    ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, nothing,
+    ndrange = ceil(Int, elements / elements_per_thread)
+    ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange,
                                                                   nothing)
 
     # this might not be the final context, since we may tune the workgroupsize
