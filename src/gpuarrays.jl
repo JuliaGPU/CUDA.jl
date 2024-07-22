@@ -1,8 +1,5 @@
 # GPUArrays.jl interface
 
-import KernelAbstractions
-import KernelAbstractions: Backend
-
 #
 # Device functionality
 #
@@ -10,11 +7,16 @@ import KernelAbstractions: Backend
 
 ## execution
 
-struct CuArrayBackend <: Backend end
 
-@inline function GPUArrays.launch_heuristic(::CuArrayBackend, f::F, args::Vararg{Any,N};
+@inline function GPUArrays.launch_heuristic(::CUDABackend, f::F, args::Vararg{Any,N};
                                             elements::Int, elements_per_thread::Int) where {F,N}
-    kernel = @cuda launch=false f(CuKernelContext(), args...)
+
+    ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, nothing,
+                                                                  nothing)
+
+    # this might not be the final context, since we may tune the workgroupsize
+    ctx = KA.mkcontext(obj, ndrange, iterspace)
+    kernel = @cuda launch=false f(ctx, args...)
 
     # launching many large blocks) lowers performance, as observed with broadcast, so cap
     # the block size if we don't have a grid-stride kernel (which would keep the grid small)
