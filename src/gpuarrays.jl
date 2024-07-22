@@ -7,16 +7,11 @@
 
 ## execution
 
+@inline function GPUArrays.launch_heuristic(::CUDABackend, obj::O, args::Vararg{Any,N};
+                                            elements::Int, elements_per_thread::Int) where {O,N}
 
-@inline function GPUArrays.launch_heuristic(::CUDABackend, f::F, args::Vararg{Any,N};
-                                            elements::Int, elements_per_thread::Int) where {F,N}
-
-    obj = f(CUDABackend())
     ndrange = ceil(Int, elements / elements_per_thread)
-    ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange,
-                                                                  nothing)
-
-    # this might not be the final context, since we may tune the workgroupsize
+    ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange, nothing)
     ctx = KA.mkcontext(obj, ndrange, iterspace)
     kernel = @cuda launch=false obj.f(ctx, args...)
 
