@@ -250,7 +250,7 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::EnzymeCore.Annotat
     blocks = CuDim3(blocks)
     subtape = CuArray{TapeType}(undef, blocks.x*blocks.y*blocks.z*threads.x*threads.y*threads.z)
 
-    GC.@preserve args0 subtape, begin
+    GC.@preserve args subtape, begin
         subtape2 = cudaconvert(subtape)
         T2 = (F, typeof(subtape2), Val{ModifiedBetween},   (typeof(a) for a in args)...)
         TT2 = Tuple{T2...}
@@ -263,7 +263,6 @@ end
 
 function meta_revf(f, tape::CuDeviceArray{TapeType}, ::Val{ModifiedBetween},  args::Vararg{Any, N}) where {N, ModifiedBetween, TapeType}
     _, reverse = EnzymeCore.autodiff_deferred_thunk(
-        EnzymeCore.compiler_job_from_backend(CUDABackend(), typeof(Base.identity), Tuple{Float64}),
         ReverseSplitModified(ReverseSplitWithPrimal, Val(ModifiedBetween)),
         TapeType,
         Const{Core.Typeof(f)},
