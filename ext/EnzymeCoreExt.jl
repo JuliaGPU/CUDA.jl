@@ -213,22 +213,23 @@ function meta_augf(f, tape::CuDeviceArray{TapeType}, ::Val{ModifiedBetween}, arg
 
     idx = 0
     # idx *= gridDim().x
-    idx += blockIdx().x
+    idx += blockIdx().x-1
     
     idx *= gridDim().y
-    idx += blockIdx().y
+    idx += blockIdx().y-1
     
     idx *= gridDim().z
-    idx += blockIdx().z
+    idx += blockIdx().z-1
     
     idx *= blockDim().x
-    idx += threadIdx().x
+    idx += threadIdx().x-1
     
     idx *= blockDim().y
-    idx += threadIdx().y
+    idx += threadIdx().y-1
    
     idx *= blockDim().z
-    idx += threadIdx().z
+    idx += threadIdx().z-1
+    idx += 1
 
     @inbounds tape[idx] = forward(Const(f), args...)[1]
     nothing
@@ -272,22 +273,23 @@ function meta_revf(f, tape::CuDeviceArray{TapeType}, ::Val{ModifiedBetween},  ar
 
     idx = 0
     # idx *= gridDim().x
-    idx += blockIdx().x
+    idx += blockIdx().x-1
     
     idx *= gridDim().y
-    idx += blockIdx().y
+    idx += blockIdx().y-1
     
     idx *= gridDim().z
-    idx += blockIdx().z
+    idx += blockIdx().z-1
     
     idx *= blockDim().x
-    idx += threadIdx().x
+    idx += threadIdx().x-1
     
     idx *= blockDim().y
-    idx += threadIdx().y
+    idx += threadIdx().y-1
    
     idx *= blockDim().z
-    idx += threadIdx().z
+    idx += threadIdx().z-1
+    idx += 1
     reverse(Const(f), args..., @inbounds tape[idx])
     nothing
 end
