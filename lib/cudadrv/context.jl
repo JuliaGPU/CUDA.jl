@@ -402,8 +402,13 @@ function maybe_enable_peer_access(src::CuDevice, dst::CuDevice)
                     enable_peer_access(context(dst))
                     peer_access[][src_idx, dst_idx] = 1
                 catch err
-                    @warn "Enabling peer-to-peer access between $src and $dst failed; please file an issue." exception=(err,catch_backtrace())
-                    peer_access[][src_idx, dst_idx] = -1
+                    if err.code == CUDA.CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED
+                        @warn "peer-to-peer access between $src and $dst is already enabled"
+                        CUDA.peer_access[][src_idx, dst_idx] = 1
+                    else
+                        @warn "Enabling peer-to-peer access between $src and $dst failed; please file an issue." exception=(err,catch_backtrace())
+                        CUDA.peer_access[][src_idx, dst_idx] = -1
+                    end
                 end
             end
         else
