@@ -324,7 +324,7 @@ end
 
 function SparseArrays.spdiagm(v::CuArray{Tv}) where {Tv}
     nzVal = v
-    N = Int32(length(v))
+    N = Int32(length(nzVal))
     
     colPtr = CuArray(one(Int32):(N + one(Int32)))
     rowVal = CuArray(one(Int32):N)
