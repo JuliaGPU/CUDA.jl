@@ -322,6 +322,16 @@ function SparseArrays.sparsevec(I::CuArray{Ti}, V::CuArray{Tv}, n::Integer) wher
     CuSparseVector(I, V, n)
 end
 
+function SparseArrays.spdiagm(v::CuArray{Tv}) where {Tv}
+    nzVal = v
+    N = Int32(length(v))
+    
+    colPtr = CuArray(one(Int32):(N + one(Int32)))
+    rowVal = CuArray(one(Int32):N)
+    dims = (N, N)
+    CuSparseMatrixCSC(colPtr, rowVal, nzVal, dims)
+end
+
 LinearAlgebra.issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = size(M, 1) == size(M, 2) ? norm(M - transpose(M), Inf) == 0 : false
 LinearAlgebra.ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = size(M, 1) == size(M, 2) ? norm(M - adjoint(M), Inf) == 0 : false
 LinearAlgebra.issymmetric(M::Symmetric{CuSparseMatrixCSC}) = true
