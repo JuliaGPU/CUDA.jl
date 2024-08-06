@@ -541,7 +541,7 @@ end
 
 @testset "SparseArrays" begin
     @testset "spdiagm(CuVector{$elty})" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-        ref_vec = collect(elty,100:121)
+        ref_vec = collect(elty, 100:121)
         cuda_vec = CuVector(ref_vec)
 
         ref_spdiagm = spdiagm(ref_vec) # SparseArrays
@@ -551,7 +551,7 @@ end
 
         @test ref_cuda_sparse.rowVal == cuda_spdiagm.rowVal
 
-        @test ref_cuda_sparse.nzVal== cuda_spdiagm.nzVal
+        @test ref_cuda_sparse.nzVal == cuda_spdiagm.nzVal
 
         @test ref_cuda_sparse.colPtr == cuda_spdiagm.colPtr
     end
