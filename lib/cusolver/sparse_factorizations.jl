@@ -1,16 +1,4 @@
-mutable struct SparseQRInfo
-    info::csrqrInfo_t
-
-    function SparseQRInfo()
-        info_ref = Ref{csrqrInfo_t}()
-        cusolverSpCreateCsrqrInfo(info_ref)
-        obj = new(info_ref[])
-        finalizer(cusolverSpDestroyCsrqrInfo, obj)
-        obj
-    end
-end
-
-Base.unsafe_convert(::Type{csrqrInfo_t}, info::SparseQRInfo) = info.info
+## ----- Sparse QR -----
 
 mutable struct SparseQR{T <: BlasFloat} <: Factorization{T}
   n::Cint
@@ -155,19 +143,7 @@ for (bname, iname, fname, sname, pname, elty, relty) in
     end
 end
 
-mutable struct SparseCholeskyInfo
-    info::csrcholInfo_t
-
-    function SparseCholeskyInfo()
-        info_ref = Ref{csrcholInfo_t}()
-        cusolverSpCreateCsrcholInfo(info_ref)
-        obj = new(info_ref[])
-        finalizer(cusolverSpDestroyCsrcholInfo, obj)
-        obj
-    end
-end
-
-Base.unsafe_convert(::Type{csrcholInfo_t}, info::SparseCholeskyInfo) = info.info
+## ----- Sparse Cholesky -----
 
 mutable struct SparseCholesky{T <: BlasFloat} <: Factorization{T}
     n::Cint
