@@ -284,6 +284,15 @@ the host and the device, and make sure it's the latest version available. You do
 administrative permissions to install NSight Compute, the `runfile` downloaded from the
 NVIDIA home page can be executed as a regular user.
 
+##### Kernel sources only report `File not found`
+
+When profiling a remote application, NSight Compute will not be able to find the sources of
+kernels, and instead show `File not found` errors in the Source view. Although it is
+possible to point NSight Compute to a local version of the remote file, it is recommended
+to enable "Auto-Resolve Remote Source File" in the global Profile preferences (Tools menu
+> Preferences). With that option set to "Yes", clicking the "Resolve" button will
+automatically download and use the remote version of the requested source file.
+
 ##### `Could not load library "libpcre2-8`
 
 This is caused by an incompatibility between Julia and NSight Compute, and should be fixed
