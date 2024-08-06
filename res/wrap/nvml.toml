@@ -28,7 +28,9 @@ output_ignorelist = [
     "NVML_DEVICE_PCI_BUS_ID_LEGACY_FMT",
     "NVML_DEVICE_PCI_BUS_ID_FMT",
     "nvmlClockOffset_v1",
-    "nvmlDeviceCapabilities_v1"
+    "nvmlDeviceCapabilities_v1",
+    "nvmlVgpuTypeBar1Info_v1",
+    "nvmlSystemDriverBranchInfo_v1",
 ]
 
 
