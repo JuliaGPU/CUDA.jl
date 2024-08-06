@@ -322,7 +322,7 @@ function SparseArrays.sparsevec(I::CuArray{Ti}, V::CuArray{Tv}, n::Integer) wher
     CuSparseVector(I, V, n)
 end
 
-function SparseArrays.spdiagm(v::CuArray{Tv}) where {Tv}
+function SparseArrays.spdiagm(v::CuVector{Tv}) where {Tv}
     nzVal = v
     N = Int32(length(nzVal))
     
