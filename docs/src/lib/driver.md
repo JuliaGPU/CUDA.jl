@@ -21,7 +21,6 @@ CUDA.description(::CuError)
 
 ```@docs
 CUDA.driver_version()
-CUDA.system_driver_version()
 CUDA.runtime_version()
 CUDA.set_runtime_version!
 CUDA.reset_runtime_version!
