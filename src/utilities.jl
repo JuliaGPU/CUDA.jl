@@ -49,14 +49,9 @@ function versioninfo(io::IO=stdout)
     end
     println(io, "CUDA driver $(driver_version().major).$(driver_version().minor)")
     if has_nvml()
-        print(io, "NVIDIA driver $(NVML.driver_version())")
+        println(io, "NVIDIA driver $(NVML.driver_version())")
     else
-        print(io, "Unknown NVIDIA driver")
-    end
-    if system_driver_version() !== nothing
-        println(io, ", originally for CUDA $(system_driver_version().major).$(system_driver_version().minor)")
-    else
-        println(io)
+        println(io, "Unknown NVIDIA driver")
     end
     println(io)
 
