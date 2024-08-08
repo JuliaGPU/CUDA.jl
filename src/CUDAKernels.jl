@@ -25,7 +25,6 @@ KA.zeros(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.zeros(T, dims)
 KA.ones(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.ones(T, dims)
 
 KA.get_backend(::CuArray) = CUDABackend()
-KA.get_backend(::CUSPARSE.AbstractCuSparseArray) = CUDABackend()
 KA.synchronize(::CUDABackend) = synchronize()
 
 Adapt.adapt_storage(::CUDABackend, a::Array) = Adapt.adapt(CuArray, a)

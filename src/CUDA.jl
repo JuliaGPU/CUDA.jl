@@ -43,6 +43,8 @@ using Libdl
 
 import NVTX
 
+import KernelAbstractions as KA
+
 using Printf
 
 
@@ -83,8 +85,12 @@ include("compiler/execution.jl")
 include("compiler/exceptions.jl")
 include("compiler/reflection.jl")
 
+# KernelAbstractions
+include("CUDAKernels.jl")
+import .CUDAKernels: CUDABackend, KA.launch_config
+export CUDABackend
+
 # array implementation
-include("gpuarrays.jl")
 include("utilities.jl")
 include("texture.jl")
 
@@ -111,6 +117,9 @@ export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND
 const has_cusolvermg = CUSOLVER.has_cusolvermg
 export has_cusolvermg
 
+# KA Backend Definition
+KA.get_backend(::CUSPARSE.AbstractCuSparseArray) = CUDABackend()
+
 # random depends on CURAND
 include("random.jl")
 
@@ -118,11 +127,6 @@ include("random.jl")
 include("../lib/nvml/NVML.jl")
 const has_nvml = NVML.has_nvml
 export NVML, has_nvml
-
-# KernelAbstractions
-include("CUDAKernels.jl")
-import .CUDAKernels: CUDABackend
-export CUDABackend
 
 # StaticArrays is still a direct dependency, so directly include the extension
 include("../ext/StaticArraysExt.jl")
