@@ -126,52 +126,82 @@ k = 1
     end
 
     @testset "getrf!" begin
-        A = rand(elty,m,n)
-        d_A = CuArray(A)
-        d_A,d_ipiv,info = CUSOLVER.getrf!(d_A)
-        LinearAlgebra.checknonsingular(info)
-        h_A = collect(d_A)
-        h_ipiv = collect(d_ipiv)
-        alu = LinearAlgebra.LU(h_A, convert(Vector{BlasInt},h_ipiv), zero(BlasInt))
-        @test A ≈ Array(alu)
+        devinfo = CuArray{Cint}(undef, 1)
+        ipiv = CuArray{Cint}(undef, min(m, n))
+        workspace = CuArray{UInt8}(undef, 1)
+        for fn in (
+                   A -> CUSOLVER.getrf!(A),
+                   A -> CUSOLVER.getrf!(A, ipiv),
+                   A -> CUSOLVER.getrf!(A, ipiv, devinfo),
+                   A -> CUSOLVER.getrf!(A, workspace),
+                   A -> CUSOLVER.getrf!(A, ipiv, workspace),
+                   A -> CUSOLVER.getrf!(A, ipiv, devinfo, workspace),
+                  )
+            A = rand(elty,m,n)
+            d_A = CuArray(A)
+            d_A,d_ipiv,info = fn(d_A)
+            LinearAlgebra.checknonsingular(info)
+            h_A = collect(d_A)
+            h_ipiv = collect(d_ipiv)
+            alu = LinearAlgebra.LU(h_A, convert(Vector{BlasInt},h_ipiv), zero(BlasInt))
+            @test A ≈ Array(alu)
+        end
 
         d_A,d_ipiv,info = CUSOLVER.getrf!(CUDA.zeros(elty,n,n))
         @test_throws LinearAlgebra.SingularException LinearAlgebra.checknonsingular(info)
     end
 
     @testset "getrs!" begin
-        A          = rand(elty,n,n)
-        d_A        = CuArray(A)
-        d_A,d_ipiv = CUSOLVER.getrf!(d_A)
-        B          = rand(elty,n,n)
-        d_B        = CuArray(B)
-        d_B        = CUSOLVER.getrs!('N',d_A,d_ipiv,d_B)
-        h_B        = collect(d_B)
-        @test h_B  ≈ A\B
-        A          = rand(elty,m,n)
-        d_A        = CuArray(A)
-        @test_throws DimensionMismatch CUSOLVER.getrs!('N',d_A,d_ipiv,d_B)
-        A          = rand(elty,n,n)
-        d_A        = CuArray(A)
-        B          = rand(elty,m,n)
-        d_B        = CuArray(B)
-        @test_throws DimensionMismatch CUSOLVER.getrs!('N',d_A,d_ipiv,d_B)
+        devinfo = CuArray{Cint}(undef, 1)
+        for fn in (
+                   (A,ipiv,B) -> CUSOLVER.getrs!('N', A, ipiv, B),
+                   (A,ipiv,B) -> CUSOLVER.getrs!('N', A, ipiv, B, devinfo),
+                  )
+            A          = rand(elty,n,n)
+            d_A        = CuArray(A)
+            d_A,d_ipiv = CUSOLVER.getrf!(d_A)
+            B          = rand(elty,n,n)
+            d_B        = CuArray(B)
+            d_B        = fn(d_A,d_ipiv,d_B)
+            h_B        = collect(d_B)
+            @test h_B  ≈ A\B
+            A          = rand(elty,m,n)
+            d_A        = CuArray(A)
+            @test_throws DimensionMismatch fn(d_A,d_ipiv,d_B)
+            A          = rand(elty,n,n)
+            d_A        = CuArray(A)
+            B          = rand(elty,m,n)
+            d_B        = CuArray(B)
+            @test_throws DimensionMismatch fn(d_A,d_ipiv,d_B)
+        end
     end
 
     @testset "sytrf!" begin
-        A = rand(elty,n,n)
-        A = A + A' #symmetric
-        d_A = CuArray(A)
-        d_A,d_ipiv,info = CUSOLVER.sytrf!('U',d_A)
-        LinearAlgebra.checknonsingular(info)
-        h_A = collect(d_A)
-        h_ipiv = collect(d_ipiv)
-        A, ipiv = LAPACK.sytrf!('U',A)
-        @test ipiv == h_ipiv
-        @test A ≈ h_A
-        A    = rand(elty,m,n)
-        d_A  = CuArray(A)
-        @test_throws DimensionMismatch CUSOLVER.sytrf!('U',d_A)
+        devinfo = CuArray{Cint}(undef, 1)
+        ipiv = CuArray{Cint}(undef, n)
+        workspace = CuArray{UInt8}(undef, 1)
+        for fn in (
+                   A -> CUSOLVER.sytrf!('U', A),
+                   A -> CUSOLVER.sytrf!('U', A, ipiv),
+                   A -> CUSOLVER.sytrf!('U', A, ipiv, devinfo),
+                   A -> CUSOLVER.sytrf!('U', A, workspace),
+                   A -> CUSOLVER.sytrf!('U', A, ipiv, workspace),
+                   A -> CUSOLVER.sytrf!('U', A, ipiv, devinfo, workspace),
+                  )
+            A = rand(elty,n,n)
+            A = A + A' #symmetric
+            d_A = CuArray(A)
+            d_A,d_ipiv,info = fn(d_A)
+            LinearAlgebra.checknonsingular(info)
+            h_A = collect(d_A)
+            h_ipiv = collect(d_ipiv)
+            A, lp_ipiv = LAPACK.sytrf!('U',A)
+            @test lp_ipiv == h_ipiv
+            @test A ≈ h_A
+            A    = rand(elty,m,n)
+            d_A  = CuArray(A)
+            @test_throws DimensionMismatch CUSOLVER.sytrf!('U',d_A)
+        end
 
         d_A,d_ipiv,info = CUSOLVER.sytrf!('U',CUDA.zeros(elty,n,n))
         @test_throws LinearAlgebra.SingularException LinearAlgebra.checknonsingular(info)
