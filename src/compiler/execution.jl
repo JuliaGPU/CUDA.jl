@@ -6,7 +6,7 @@ export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch]
-const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath]
+const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :cap, :ptx]
 const LAUNCH_KWARGS = [:cooperative, :blocks, :threads, :shmem, :stream]
 
 
@@ -31,7 +31,15 @@ Several keyword arguments are supported that influence the behavior of `@cuda`.
 macro cuda(ex...)
     # destructure the `@cuda` expression
     call = ex[end]
-    kwargs = ex[1:end-1]
+    kwargs = map(ex[1:end-1]) do kwarg
+        if kwarg isa Symbol
+            :($kwarg = $kwarg)
+        elseif Meta.isexpr(kwarg, :(=))
+            kwarg
+        else
+            throw(ArgumentError("Invalid keyword argument '$kwarg'"))
+        end
+    end
 
     # destructure the kernel call
     Meta.isexpr(call, :call) || throw(ArgumentError("second argument to @cuda should be a function call"))
@@ -121,35 +129,61 @@ end
 
 ## host to device value conversion
 
-struct Adaptor end
+struct KernelAdaptor end
 
 # convert CUDA host pointers to device pointers
 # TODO: use ordinary ptr?
-Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = reinterpret(LLVMPtr{T,AS.Generic}, p)
+Adapt.adapt_storage(to::KernelAdaptor, p::CuPtr{T}) where {T} =
+    reinterpret(LLVMPtr{T,AS.Generic}, p)
 
-# Base.RefValue isn't GPU compatible, so provide a compatible alternative
-struct CuRefValue{T} <: Ref{T}
-  x::T
+# convert CUDA host arrays to device arrays
+function Adapt.adapt_storage(::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,N}
+  # prefetch unified memory as we're likely to use it on the GPU
+  # TODO: make this configurable?
+  if is_unified(xs)
+    # XXX: use convert to pointer and/or prefect(CuArray)
+    mem = xs.data[].mem::UnifiedMemory
+
+    can_prefetch = sizeof(xs) > 0
+    ## prefetching isn't supported during stream capture
+    can_prefetch &= !is_capturing()
+    ## we can only prefetch pageable memory
+    can_prefetch &= !__pinned(convert(Ptr{T}, mem), mem.ctx)
+    ## pageable memory needs to be accessible concurrently
+    can_prefetch &= attribute(device(), DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1
+
+    if can_prefetch
+        # TODO: `view` on buffers?
+        subbuf = UnifiedMemory(mem.ctx, pointer(xs), sizeof(xs))
+        prefetch(subbuf)
+    end
+  end
+
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
 end
-Base.getindex(r::CuRefValue{T}) where T = r.x
-Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
+
+# Base.RefValue isn't GPU compatible, so provide a compatible alternative.
+# Note that it isn't safe to use unified or heterogeneous memory to support a
+# mutable Ref, because there's no guarantee that the memory would be kept alive
+# long enough (especially with broadcast using ephemeral Refs for scalar args).
+struct CuRefValue{T} <: Ref{T}
+    val::T
+end
+Base.getindex(r::CuRefValue{T}) where T = r.val
+Adapt.adapt_structure(to::KernelAdaptor, ref::Base.RefValue) =
+    CuRefValue(adapt(to, ref[]))
 
 # broadcast sometimes passes a ref(type), resulting in a GPU-incompatible DataType box.
 # avoid that by using a special kind of ref that knows about the boxed type.
 struct CuRefType{T} <: Ref{DataType} end
 Base.getindex(r::CuRefType{T}) where T = T
-Adapt.adapt_structure(to::Adaptor, r::Base.RefValue{<:Union{DataType,Type}}) = CuRefType{r[]}()
+Adapt.adapt_structure(to::KernelAdaptor, r::Base.RefValue{<:Union{DataType,Type}}) =
+    CuRefType{r[]}()
 
 # case where type is the function being broadcasted
-Adapt.adapt_structure(to::Adaptor, bc::Base.Broadcast.Broadcasted{Style, <:Any, Type{T}}) where {Style, T} =
-    Base.Broadcast.Broadcasted{Style}((x...) -> T(x...), adapt(to, bc.args), bc.axes)
-
-Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
-  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
-
-# we materialize ReshapedArray/ReinterpretArray/SubArray/... directly as a device array
-Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
-  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+Adapt.adapt_structure(to::KernelAdaptor,
+                      bc::Broadcast.Broadcasted{Style, <:Any, Type{T}}) where {Style, T} =
+    Broadcast.Broadcasted{Style}((x...) -> T(x...), adapt(to, bc.args), bc.axes)
 
 """
     cudaconvert(x)
@@ -159,9 +193,9 @@ converted to a GPU-friendly format. By default, the function does nothing and re
 input object `x` as-is.
 
 Do not add methods to this function, but instead extend the underlying Adapt.jl package and
-register methods for the the `CUDA.Adaptor` type.
+register methods for the the `CUDA.KernelAdaptor` type.
 """
-cudaconvert(arg) = adapt(Adaptor(), arg)
+cudaconvert(arg) = adapt(KernelAdaptor(), arg)
 
 
 ## abstract kernel functionality
@@ -175,14 +209,25 @@ abstract type AbstractKernel{F,TT} end
     (::HostKernel)(args...; kwargs...)
     (::DeviceKernel)(args...; kwargs...)
 
-Low-level interface to call a compiled kernel, passing GPU-compatible arguments in `args`.
-For a higher-level interface, use [`@cuda`](@ref).
+Low-level interface to call a compiled kernel, passing GPU-compatible arguments
+in `args`. For a higher-level interface, use [`@cuda`](@ref).
+
+A `HostKernel` is callable on the host, and a `DeviceKernel` is callable on the
+device (created by `@cuda` with `dynamic=true`).
 
 The following keyword arguments are supported:
-- `threads` (defaults to 1)
-- `blocks` (defaults to 1)
-- `shmem` (defaults to 0)
-- `stream` (defaults to the default stream)
+- `threads` (default: `1`): Number of threads per block, or a 1-, 2- or 3-tuple of dimensions
+  (e.g. `threads=(32, 32)` for a 2D block of 32×32 threads).
+  Use [`threadIdx()`](@ref) and [`blockDim()`](@ref) to query from within the kernel.
+- `blocks` (default: `1`): Number of thread blocks to launch, or a 1-, 2- or 3-tuple of
+  dimensions (e.g. `blocks=(2, 4, 2)` for a 3D grid of blocks).
+  Use [`blockIdx()`](@ref) and [`gridDim()`](@ref) to query from within the kernel.
+- `shmem`(default: `0`): Amount of dynamic shared memory in bytes to allocate per thread block;
+  used by [`CuDynamicSharedArray`](@ref).
+- `stream` (default: [`stream()`](@ref)): [`CuStream`](@ref) to launch the kernel on.
+- `cooperative` (default: `false`): whether to launch a cooperative kernel that supports
+  grid synchronization (see [`CG.this_grid`](@ref) and [`CG.sync`](@ref)).
+  Note that this requires care wrt. the number of blocks launched.
 """
 AbstractKernel
 
@@ -214,7 +259,7 @@ end
 
     # add the kernel state, passing an instance with a unique seed
     pushfirst!(call_t, KernelState)
-    pushfirst!(call_args, :(KernelState(kernel.state.exception_flag, make_seed(kernel))))
+    pushfirst!(call_args, :(KernelState(kernel.state.exception_info, make_seed(kernel))))
 
     # finalize types
     call_tt = Base.to_tuple_type(call_t)
@@ -307,6 +352,7 @@ The following keyword arguments are supported:
 - `name`: override the name that the kernel will have in the generated code
 - `always_inline`: inline all function calls in the kernel
 - `fastmath`: use less precise square roots and flush denormals
+- `cap` and `ptx`: to override the compute capability and PTX version to compile for
 
 The output of this function is automatically cached, i.e. you can simply call `cufunction`
 in a hot path without degrading performance. New code will be generated automatically, when
@@ -328,8 +374,7 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
         kernel = get(_kernel_instances, key, nothing)
         if kernel === nothing
             # create the kernel state object
-            exception_ptr = create_exceptions!(fun.mod)
-            state = KernelState(exception_ptr, UInt32(0))
+            state = KernelState(create_exceptions!(fun.mod), UInt32(0))
 
             kernel = HostKernel{F,tt}(f, fun, state)
             _kernel_instances[key] = kernel
@@ -341,7 +386,7 @@ end
 # cache of kernel instances
 const _kernel_instances = Dict{Any, Any}()
 
-function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
+function (kernel::HostKernel)(args::Vararg{Any,N}; threads::CuDim=1, blocks::CuDim=1, kwargs...) where {N}
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
 end
 
@@ -375,7 +420,8 @@ No keyword arguments are supported.
     DeviceKernel{F,tt}(f, fun, kernel_state())
 end
 
-(kernel::DeviceKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
+@inline (kernel::DeviceKernel)(args::Vararg{Any,N}; kwargs...) where {N} =
+    call(kernel, args...; kwargs...)
 
 # re-use the parent kernel's seed to avoid need for the RNG
 make_seed(::DeviceKernel) = kernel_state().random_seed

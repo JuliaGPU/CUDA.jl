@@ -18,6 +18,8 @@ using BFloat16s: BFloat16
 
 using ExprTools: splitdef, combinedef
 
+using LLVMLoopInfo
+
 using CUDA_Driver_jll
 
 import CUDA_Runtime_jll
@@ -40,6 +42,8 @@ import Preferences
 using Libdl
 
 import NVTX
+
+using Printf
 
 
 ## source code includes
@@ -66,7 +70,7 @@ include("device/random.jl")
 include("device/quirks.jl")
 
 # array essentials
-include("pool.jl")
+include("memory.jl")
 include("array.jl")
 
 # compiler libraries
@@ -120,6 +124,10 @@ include("CUDAKernels.jl")
 import .CUDAKernels: CUDABackend
 export CUDABackend
 
+# StaticArrays is still a direct dependency, so directly include the extension
+include("../ext/StaticArraysExt.jl")
+
 include("precompile.jl")
+include("deprecated.jl")
 
 end

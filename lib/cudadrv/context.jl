@@ -2,25 +2,13 @@
 
 export
     CuPrimaryContext, CuContext, current_context, has_context, activate,
-    unsafe_reset!, isactive, flags, setflags!,
+    unsafe_reset!, isactive, flags, setflags!, unique_id, api_version,
     device, device_synchronize
 
 
 ## construction and destruction
 
 @enum_without_prefix CUctx_flags CU_
-
-"""
-    CuPrimaryContext(dev::CuDevice)
-
-Create a primary CUDA context for a given device.
-
-Each primary context is unique per device and is shared with CUDA runtime API. It is meant
-for interoperability with (applications using) the runtime API.
-"""
-struct CuPrimaryContext
-    dev::CuDevice
-end
 
 """
     CuContext(dev::CuDevice, flags=CTX_SCHED_AUTO)
@@ -32,91 +20,71 @@ the system cleans up the resources allocated to it.
 
 When you are done using the context, call [`CUDA.unsafe_destroy!`](@ref) to mark it for
 deletion, or use do-block syntax with this constructor.
-
 """
-mutable struct CuContext
+struct CuContext
     handle::CUcontext
-    valid::Bool
+    id::UInt64
 
-    function new_unique(handle)
-        # XXX: this makes it dangerous to call this function from finalizers.
-        #      can we do without the lock?
-        Base.@lock context_lock get!(valid_contexts, handle) do
-            new(handle, true)
+    function CuContext(handle::CUcontext)
+        handle == C_NULL && throw(UndefRefError())
+
+        id = if driver_version() >= v"12"
+            id_ref = Ref{Culonglong}()
+            res = unchecked_cuCtxGetId(handle, id_ref)
+            res == ERROR_CONTEXT_IS_DESTROYED && throw(UndefRefError())
+            res != SUCCESS && throw_api_error(res)
+            id_ref[]
+        else
+            typemax(UInt64)
         end
-    end
 
-    function CuContext(dev::CuDevice, flags=0)
-        handle_ref = Ref{CUcontext}()
-        cuCtxCreate_v2(handle_ref, flags, dev)
-        new_unique(handle_ref[])
+        new(handle, id)
     end
-
-    function CuContext(pctx::CuPrimaryContext)
-        handle_ref = Ref{CUcontext}()
-        cuDevicePrimaryCtxRetain(handle_ref, pctx.dev)
-        return new_unique(handle_ref[])
-    end
-
-    global function current_context()
-        handle_ref = Ref{CUcontext}()
-        cuCtxGetCurrent(handle_ref)
-        handle_ref[] == C_NULL && throw(UndefRefError())
-        new_unique(handle_ref[])
-    end
-
-    # for outer constructors
-    global _CuContext(handle::CUcontext) = new_unique(handle)
 end
 
-"""
-    CuContext(pctx::CuPrimaryContext)
-
-Retain the primary context on the GPU, returning a context compatible with the driver API.
-The primary context will be released when the returned driver context is finalized.
-
-As these contexts are refcounted by CUDA, you should not call [`CUDA.unsafe_destroy!`](@ref)
-on them but use [`CUDA.unsafe_release!`](@ref) instead (available with do-block syntax as
-well).
-"""
-CuContext(pctx::CuPrimaryContext)
+function CuContext(dev::CuDevice, flags=0)
+    handle_ref = Ref{CUcontext}()
+    cuCtxCreate_v2(handle_ref, flags, dev)
+    CuContext(handle_ref[])
+end
 
 """
     current_context()
 
-Returns the current context.
+Returns the current context. Throws an undefined reference error if the current thread
+has no context bound to it, or if the bound context has been destroyed.
 
 !!! warning
 
     This is a low-level API, returning the current context as known to the CUDA driver.
     For most users, it is recommended to use the [`context`](@ref) method instead.
 """
-current_context()
-
-"""
-    has_context()
-
-Returns whether there is an active context.
-"""
-function has_context()
+function current_context()
     handle_ref = Ref{CUcontext}()
     cuCtxGetCurrent(handle_ref)
-    handle_ref[] != C_NULL
+    handle_ref[] == C_NULL && throw(UndefRefError())
+    CuContext(handle_ref[])
 end
 
-# the `valid` bit serves two purposes: make sure we don't double-free a context (in case we
-# early-freed it ourselves before the GC kicked in), and to make sure we don't free derived
-# resources after the owning context has been destroyed (which can happen due to
-# out-of-order finalizer execution)
-const valid_contexts = Dict{CUcontext,CuContext}()
-const context_lock = ReentrantLock()
-isvalid(ctx::CuContext) = ctx.valid
-# NOTE: we can't just look up by the handle, because contexts derived from a primary one
-#       have the same handle even though they might have been destroyed in the meantime.
-function invalidate!(ctx::CuContext)
-    Base.@lock context_lock delete!(valid_contexts, ctx.handle)
-    ctx.valid = false
-    return
+function isvalid(ctx::CuContext)
+    # we first try an API call to see if the context handle is usable
+    if driver_version() >= v"12"
+        id_ref = Ref{Culonglong}()
+        res = unchecked_cuCtxGetId(ctx, id_ref)
+        res == ERROR_CONTEXT_IS_DESTROYED && return false
+        res != SUCCESS && throw_api_error(res)
+
+        # detect handle reuse, which happens when destroying and re-creating a context, by
+        # looking at the context's unique ID (which does change on re-creation)
+        return ctx.id == id_ref[]
+    else
+        version_ref = Ref{Cuint}()
+        res = unchecked_cuCtxGetApiVersion(ctx, version_ref)
+        res == ERROR_INVALID_CONTEXT && return false
+
+        # we can't detect handle reuse, so we just assume the context is valid
+        return true
+    end
 end
 
 """
@@ -128,27 +96,23 @@ respect any users of the context, and might make other objects unusable.
 function unsafe_destroy!(ctx::CuContext)
     if isvalid(ctx)
         cuCtxDestroy_v2(ctx)
-        invalidate!(ctx)
     end
 end
 
 Base.unsafe_convert(::Type{CUcontext}, ctx::CuContext) = ctx.handle
 
-# NOTE: we don't implement `isequal` or `hash` in order to fall back to `===` and `objectid`
-#       as contexts are unique, and with primary device contexts identical handles might be
-#       returned after resetting the context (device) and all associated resources.
+Base.show(io::IO, ctx::CuContext) = @printf io "CuContext(%p)" ctx.handle
 
-function Base.show(io::IO, ctx::CuContext)
-    if ctx.handle != C_NULL
-        fields = [@sprintf("%p", ctx.handle), @sprintf("instance %x", objectid(ctx))]
-        if !isvalid(ctx)
-            push!(fields, "invalidated")
-        end
-
-        print(io, "CuContext(", join(fields, ", "), ")")
-    else
-        print(io, "CuContext(NULL)")
+function Base.show(io::IO, ::MIME"text/plain", ctx::CuContext)
+    fields = [@sprintf("%p", ctx.handle)]
+    if driver_version() >= v"12"
+        push!(fields, "id=$(ctx.id)")
     end
+    if !isvalid(ctx)
+        push!(fields, "destroyed")
+    end
+
+    print(io, "CuContext(", join(fields, ", "), ")")
 end
 
 
@@ -190,27 +154,48 @@ function CuContext(f::Function, dev::CuDevice, args...)
     end
 end
 
+function unique_id(ctx::CuContext)
+    id_ref = Ref{Culonglong}()
+    cuCtxGetId(ctx, id_ref)
+    return id_ref[]
+end
+
+function api_version(ctx::CuContext)
+    version = Ref{Cuint}()
+    cuCtxGetApiVersion(ctx, version)
+    return version[]
+end
+
 
 ## primary context management
 
 """
-    CUDA.unsafe_release!(ctx::CuContext)
+    CuPrimaryContext(dev::CuDevice)
 
-Lower the refcount of a context, possibly freeing up all resources associated with it. This
-does not respect any users of the context, and might make other objects unusable.
+Create a primary CUDA context for a given device.
+
+Each primary context is unique per device and is shared with CUDA runtime API. It is meant
+for interoperability with (applications using) the runtime API.
 """
-function unsafe_release!(ctx::CuContext)
-    if isvalid(ctx)
-        dev = device(ctx)
-        pctx = CuPrimaryContext(dev)
-        if driver_version() >= v"11"
-            cuDevicePrimaryCtxRelease_v2(dev)
-        else
-            cuDevicePrimaryCtxRelease(dev)
-        end
-        isactive(pctx) || invalidate!(ctx)
-    end
-    return
+struct CuPrimaryContext
+    dev::CuDevice
+end
+
+"""
+    CuContext(pctx::CuPrimaryContext)
+
+Derive a context from a primary context.
+
+Calling this function increases the reference count of the primary context. The returned
+context *should not* be free with the `unsafe_destroy!` function that's used with ordinary
+contexts. Instead, the refcount of the primary context should be decreased by calling
+`unsafe_release!`, or set to zero by calling `unsafe_reset!`. The easiest way to do this is
+by using the `do`-block syntax.
+"""
+function CuContext(pctx::CuPrimaryContext)
+    handle_ref = Ref{CUcontext}()
+    cuDevicePrimaryCtxRetain(handle_ref, pctx.dev)
+    CuContext(handle_ref[])
 end
 
 function CuContext(f::Function, pctx::CuPrimaryContext)
@@ -218,8 +203,24 @@ function CuContext(f::Function, pctx::CuPrimaryContext)
     try
         f(ctx)
     finally
-        unsafe_release!(ctx)
+        unsafe_release!(pctx)
     end
+end
+
+"""
+    CUDA.unsafe_release!(pctx::CuPrimaryContext)
+
+Lower the refcount of a context, possibly freeing up all resources associated with it. This
+does not respect any users of the context, and might make other objects unusable.
+"""
+function unsafe_release!(pctx::CuPrimaryContext)
+    if driver_version() >= v"11"
+        cuDevicePrimaryCtxRelease_v2(pctx.dev)
+    else
+        cuDevicePrimaryCtxRelease(pctx.dev)
+    end
+
+    return
 end
 
 """
@@ -230,13 +231,12 @@ in the current process. Note that this forcibly invalidates all contexts derived
 primary context, and as a result outstanding resources might become invalid.
 """
 function unsafe_reset!(pctx::CuPrimaryContext)
-    ctx = CuContext(pctx)
-    invalidate!(ctx)
     if driver_version() >= v"11"
         cuDevicePrimaryCtxReset_v2(pctx.dev)
     else
         cuDevicePrimaryCtxReset(pctx.dev)
     end
+
     return
 end
 
@@ -377,3 +377,44 @@ enable_peer_access(peer::CuContext, flags=0) =
     cuCtxEnablePeerAccess(peer, flags)
 
 disable_peer_access(peer::CuContext) = cuCtxDisablePeerAccess(peer)
+
+# matrix of set-up peer accesses:
+# - -1: unsupported
+# -  0: not set-up yet
+# -  1: supported
+const peer_access = Ref{Matrix{Int}}()
+function maybe_enable_peer_access(src::CuDevice, dst::CuDevice)
+    global peer_access
+
+    src_idx = deviceid(src)+1
+    dst_idx = deviceid(dst)+1
+
+    if !isassigned(peer_access)
+        peer_access[] = Base.zeros(Int8, ndevices(), ndevices())
+    end
+
+    # we need to take care only to enable P2P access when it is supported,
+    # as well as not to call this function multiple times, to avoid errors.
+    if peer_access[][src_idx, dst_idx] == 0
+        if can_access_peer(src, dst)
+            device!(src) do
+                try
+                    enable_peer_access(context(dst))
+                    peer_access[][src_idx, dst_idx] = 1
+                catch err
+                    if err.code == CUDA.CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED
+                        @warn "Peer-to-peer access between $src and $dst was unexpectedly already enabled"
+                        CUDA.peer_access[][src_idx, dst_idx] = 1
+                    else
+                        @warn "Enabling peer-to-peer access between $src and $dst failed; please file an issue." exception=(err,catch_backtrace())
+                        CUDA.peer_access[][src_idx, dst_idx] = -1
+                    end
+                end
+            end
+        else
+            peer_access[][src_idx, dst_idx] = -1
+        end
+    end
+
+    return peer_access[][src_idx, dst_idx]
+end

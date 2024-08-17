@@ -1,6 +1,21 @@
 ## gpucompiler interface implementation
 
-struct CUDACompilerParams <: AbstractCompilerParams end
+Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
+    # the PTX ISA version and compute capability to target at the CUDA level.
+    # XXX: these aren't visible by kernel code, as the `compute_capability()` etc intrinsics
+    #      return the versions that are used by LLVM. however, we can't safely use the
+    #      CUDA-level compatibility, as that may result in instruction selection errors.
+    cap::VersionNumber
+    ptx::VersionNumber
+end
+
+function Base.hash(params::CUDACompilerParams, h::UInt)
+    h = hash(params.cap, h)
+    h = hash(params.ptx, h)
+
+    return h
+end
+
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
 const CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
 
@@ -80,8 +95,15 @@ function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
             debuglocation!(builder, first(instructions(top_bb)))
 
             # call the `deferred_codegen` marker function
-            T_ptr = LLVM.Int64Type()
-            deferred_codegen_ft = LLVM.FunctionType(T_ptr, [T_ptr])
+            T_ptr = if LLVM.version() >= v"17"
+                LLVM.PointerType()
+            elseif VERSION >= v"1.12.0-DEV.225"
+                LLVM.PointerType(LLVM.Int8Type())
+            else
+                LLVM.Int64Type()
+            end
+            T_id = convert(LLVMType, Int)
+            deferred_codegen_ft = LLVM.FunctionType(T_ptr, [T_id])
             deferred_codegen = if haskey(functions(mod), "deferred_codegen")
                 functions(mod)["deferred_codegen"]
             else
@@ -104,67 +126,11 @@ function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
     return entry
 end
 
-
-## compiler implementation (cache, configure, compile, and link)
-
-# cache of compilation caches, per context
-const _compiler_caches = Dict{CuContext, Dict{Any, CuFunction}}();
-function compiler_cache(ctx::CuContext)
-    cache = get(_compiler_caches, ctx, nothing)
-    if cache === nothing
-        cache = Dict{Any, CuFunction}()
-        _compiler_caches[ctx] = cache
-    end
-    return cache
-end
-
-# cache of compiler configurations, per device (but additionally configurable via kwargs)
-const _toolchain = Ref{Any}()
-const _compiler_configs = Dict{UInt, CUDACompilerConfig}()
-function compiler_config(dev; kwargs...)
-    h = hash(dev, hash(kwargs))
-    config = get(_compiler_configs, h, nothing)
-    if config === nothing
-        config = _compiler_config(dev; kwargs...)
-        _compiler_configs[h] = config
-    end
-    return config
-end
-@noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false, kwargs...)
-    # determine the toolchain (cached, because this is slow)
-    if !isassigned(_toolchain)
-        _toolchain[] = supported_toolchain()
-    end
-    toolchain = _toolchain[]::@NamedTuple{cap::Vector{VersionNumber}, ptx::Vector{VersionNumber}}
-
-    # select the highest capability that is supported by both the entire toolchain, and our
-    # device. this is allowed to be lower than the actual device capability (e.g. `sm_89`
-    # for a `sm_90` device), because we'll invoke `ptxas` using a higher capability later.
-    caps = filter(toolchain_cap -> toolchain_cap <= capability(dev), toolchain.cap)
-    isempty(caps) &&
-        error("Your $(CUDA.name(dev)) GPU with capability v$(capability(dev)) is not supported anymore")
-    cap = maximum(caps)
-
-    # select the PTX ISA we assume to be available
-    # (we actually only need 6.2, but NVPTX doesn't support that)
-    ptx = v"6.3"
-
-    # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
-    debuginfo = runtime_version() >= v"11.7"
-
-    # create GPUCompiler objects
-    target = PTXCompilerTarget(; cap, ptx, debuginfo, kwargs...)
-    params = CUDACompilerParams()
-    CompilerConfig(target, params; kernel, name, always_inline)
-end
-
-# compile to executable machine code
-function compile(@nospecialize(job::CompilerJob))
-    # lower to PTX
-    # TODO: on 1.9, this actually creates a context. cache those.
-    asm, meta = JuliaContext() do ctx
-        GPUCompiler.compile(:asm, job)
-    end
+function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
+    @assert format == LLVM.API.LLVMAssemblyFile
+    asm = invoke(GPUCompiler.mcgen,
+                 Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, typeof(format)},
+                 job, mod, format)
 
     # remove extraneous debug info on lower debug levels
     if Base.JLOptions().debug_level < 2
@@ -180,6 +146,114 @@ function compile(@nospecialize(job::CompilerJob))
         asm = replace(asm, r"(\.target .+), debug" => s"\1")
     end
 
+    # if LLVM couldn't target the requested PTX ISA, bump it in the assembly.
+    if job.config.target.ptx != job.config.params.ptx
+        ptx = job.config.params.ptx
+        asm = replace(asm, r"(\.version .+)" => ".version $(ptx.major).$(ptx.minor)")
+    end
+
+    # no need to bump the `.target` directive; we can do that by passing `-arch` to `ptxas`
+
+    asm
+end
+
+
+## compiler implementation (cache, configure, compile, and link)
+
+# cache of compilation caches, per context
+const _compiler_caches = Dict{CuContext, Dict{Any, CuFunction}}();
+function compiler_cache(ctx::CuContext)
+    cache = get(_compiler_caches, ctx, nothing)
+    if cache === nothing
+        cache = Dict{Any, CuFunction}()
+        _compiler_caches[ctx] = cache
+    end
+    return cache
+end
+
+# cache of compiler configurations, per device (but additionally configurable via kwargs)
+const _compiler_configs = Dict{UInt, CUDACompilerConfig}()
+function compiler_config(dev; kwargs...)
+    h = hash(dev, hash(kwargs))
+    config = get(_compiler_configs, h, nothing)
+    if config === nothing
+        config = _compiler_config(dev; kwargs...)
+        _compiler_configs[h] = config
+    end
+    return config
+end
+@noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
+                                         cap=nothing, ptx=nothing, kwargs...)
+    # determine the toolchain
+    llvm_support = llvm_compat()
+    cuda_support = cuda_compat()
+
+    # determine the PTX ISA to use. we want at least 6.2, but will use newer if possible.
+    requested_ptx = something(ptx, v"6.2")
+    llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
+    cuda_ptxs = filter(>=(requested_ptx), cuda_support.ptx)
+    if ptx !== nothing
+        # the user requested a specific PTX ISA
+        ## use the highest ISA supported by LLVM
+        isempty(llvm_ptxs) &&
+            error("Requested PTX ISA $ptx is not supported by LLVM $(LLVM.version())")
+        llvm_ptx = maximum(llvm_ptxs)
+        ## use the ISA as-is to invoke CUDA
+        cuda_ptx = ptx
+    else
+        # try to do the best thing (i.e., use the newest PTX ISA)
+        # XXX: is it safe to just use the latest PTX ISA? isn't it possible for, e.g.,
+        #      instructions to get deprecated?
+        isempty(llvm_ptxs) &&
+            error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(LLVM.version())")
+        llvm_ptx = maximum(llvm_ptxs)
+        isempty(cuda_ptxs) &&
+            error("CUDA.jl requires PTX $requested_ptx, which is not supported by CUDA driver $(driver_version()) / runtime $(runtime_version())")
+        cuda_ptx = maximum(cuda_ptxs)
+    end
+
+    # determine the compute capabilities to use. this should match the capability of the
+    # current device, but if LLVM doesn't support it, we can target an older capability
+    # and pass a different `-arch` to `ptxas`.
+    ptx_support = ptx_compat(cuda_ptx)
+    requested_cap = @something(cap, min(capability(dev), maximum(ptx_support.cap)))
+    llvm_caps = filter(<=(requested_cap), llvm_support.cap)
+    if cap !== nothing
+        ## use the highest capability supported by LLVM
+        isempty(llvm_caps) &&
+            error("Requested compute capability $cap is not supported by LLVM $(LLVM.version())")
+        llvm_cap = maximum(llvm_caps)
+        ## use the capability as-is to invoke CUDA
+        cuda_cap = cap
+    else
+        ## use the highest capability supported by LLVM
+        isempty(llvm_caps) &&
+            error("Compute capability $(requested_cap) is not supported by LLVM $(LLVM.version())")
+        llvm_cap = maximum(llvm_caps)
+        ## use the highest capability supported by CUDA
+        cuda_caps = filter(<=(capability(dev)), cuda_support.cap)
+        isempty(cuda_caps) &&
+            error("Compute capability $(requested_cap) is not supported by CUDA driver $(driver_version()) / runtime $(runtime_version())")
+        cuda_cap = maximum(cuda_caps)
+    end
+
+    # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
+    debuginfo = runtime_version() >= v"11.7"
+
+    # create GPUCompiler objects
+    target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo, kwargs...)
+    params = CUDACompilerParams(; cap=cuda_cap, ptx=cuda_ptx)
+    CompilerConfig(target, params; kernel, name, always_inline)
+end
+
+# compile to executable machine code
+function compile(@nospecialize(job::CompilerJob))
+    # lower to PTX
+    # TODO: on 1.9, this actually creates a context. cache those.
+    asm, meta = JuliaContext() do ctx
+        GPUCompiler.compile(:asm, job)
+    end
+
     # check if we'll need the device runtime
     undefined_fs = filter(collect(functions(meta.ir))) do f
         isdeclaration(f) && !LLVM.isintrinsic(f)
@@ -187,9 +261,6 @@ function compile(@nospecialize(job::CompilerJob))
     intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
                      "__nvvm_reflect" #= TODO: should have been optimized away =#]
     needs_cudadevrt = !isempty(setdiff(LLVM.name.(undefined_fs), intrinsic_fns))
-
-    # find externally-initialized global variables; we'll access those using CUDA APIs.
-    external_gvars = filter(isextinit, collect(globals(meta.ir))) .|> LLVM.name
 
     # prepare invocations of CUDA compiler tools
     ptxas_opts = String[]
@@ -206,16 +277,52 @@ function compile(@nospecialize(job::CompilerJob))
         push!(ptxas_opts, "--compile-only")
     end
 
-    # use the highest device capability that's supported by CUDA. note that we're allowed
-    # to query this because the compilation cache is sharded by the device context.
-    # XXX: put this in the CompilerTarget to avoid device introspection?
-    #      on the other hand, GPUCompiler doesn't care about the actual device capability...
-    dev = device()
-    caps = filter(toolchain_cap -> toolchain_cap <= capability(dev), cuda_compat().cap)
-    cap = maximum(caps)
-    # NOTE: we should already have warned about compute compatibility mismatches
-    #       during TLS state set-up.
+    ptx = job.config.params.ptx
+    cap = job.config.params.cap
     arch = "sm_$(cap.major)$(cap.minor)"
+
+    # validate use of parameter memory
+    argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
+        !isghosttype(dt) && !Core.Compiler.isconstType(dt)
+    end
+    param_usage = sum(sizeof, argtypes)
+    param_limit = 4096
+    if cap >= v"7.0" && ptx >= v"8.1"
+        param_limit = 32764
+    end
+    if param_usage > param_limit
+        msg = """Kernel invocation uses too much parameter memory.
+                 $(Base.format_bytes(param_usage)) exceeds the $(Base.format_bytes(param_limit)) limit imposed by sm_$(cap.major)$(cap.minor) / PTX v$(ptx.major).$(ptx.minor)."""
+
+        try
+            details = "\n\nRelevant parameters:"
+
+            source_types = job.source.specTypes.parameters
+            source_argnames = Base.method_argnames(job.source.def)
+            while length(source_argnames) < length(source_types)
+                # this is probably due to a trailing vararg; repeat its name
+                push!(source_argnames, source_argnames[end])
+            end
+
+            for (i, typ) in enumerate(source_types)
+                if isghosttype(typ) || Core.Compiler.isconstType(typ)
+                    continue
+                end
+                name = source_argnames[i]
+                details *= "\n  [$(i-1)] $name::$typ uses $(Base.format_bytes(sizeof(typ)))"
+            end
+            details *= "\n"
+
+            if cap >= v"7.0" && ptx < v"8.1" && param_usage < 32764
+                details *= "\nNote: use a newer CUDA to support more parameters on your device.\n"
+            end
+
+            msg *= details
+        catch err
+            @error "Failed to analyze kernel parameter usage; please file an issue with a reproducer."
+        end
+        error(msg)
+    end
 
     # compile to machine code
     # NOTE: we use tempname since mktemp doesn't support suffixes, and mktempdir is slow
@@ -247,6 +354,9 @@ function compile(@nospecialize(job::CompilerJob))
             msg *= "\n" * log
         end
         msg *= "\nIf you think this is a bug, please file an issue and attach $(ptx_input)"
+        if parse(Bool, get(ENV, "BUILDKITE", "false"))
+            run(`buildkite-agent artifact upload $(ptx_input)`)
+        end
         error(msg)
     elseif !isempty(log)
         @debug "PTX compiler log:\n" * log
@@ -293,7 +403,7 @@ function compile(@nospecialize(job::CompilerJob))
         rm(ptxas_output)
     end
 
-    return (image, entry=LLVM.name(meta.entry), external_gvars)
+    return (image, entry=LLVM.name(meta.entry))
 end
 
 # link into an executable kernel

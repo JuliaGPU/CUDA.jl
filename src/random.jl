@@ -42,6 +42,8 @@ end
 Random.seed!(rng::RNG) = Random.seed!(rng, make_seed())
 
 function Random.rand!(rng::RNG, A::AnyCuArray)
+    isempty(A) && return A
+
     function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32) where {T}
         device_rng = Random.default_rng()
 
@@ -64,11 +66,16 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
         return
     end
 
-    kernel = @cuda launch=false name="rand!" kernel(A, rng.seed, rng.counter)
-    config = launch_configuration(kernel.fun; max_threads=64)
-    threads = max(32, min(config.threads, length(A)))
-    blocks = min(config.blocks, cld(length(A), threads))
-    kernel(A, rng.seed, rng.counter; threads=threads, blocks=blocks)
+    # XXX: because of how random numbers are generated, the launch configuration
+    #      affects the results. as such, use a constant number of threads, set
+    #      very low for compatibility, and a deterministic number of blocks.
+    #      this is not ideal, but otherwise generated numbers have observed to
+    #      be different between otherwise identical inputs (eltype, dims)
+    #      depending on whether it was a direct CuArray or a wrapped SubArray.
+    threads = 32
+    blocks = cld(length(A), threads)
+
+    @cuda threads=threads blocks=blocks name="rand!" kernel(A, rng.seed, rng.counter)
 
     new_counter = Int64(rng.counter) + length(A)
     overflow, remainder = fldmod(new_counter, typemax(UInt32))
@@ -79,6 +86,8 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
 end
 
 function Random.randn!(rng::RNG, A::AnyCuArray{<:Union{AbstractFloat,Complex{<:AbstractFloat}}})
+    isempty(A) && return A
+
     function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32) where {T<:Real}
         device_rng = Random.default_rng()
 
@@ -145,7 +154,7 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:Union{AbstractFloat,Complex{<:A
     config = launch_configuration(kernel.fun; max_threads=64)
     threads = max(32, min(config.threads, length(A)÷2))
     blocks = min(config.blocks, cld(cld(length(A), 2), threads))
-    kernel(A, rng.seed, rng.counter; threads=threads, blocks=blocks)
+    kernel(A, rng.seed, rng.counter; threads, blocks)
 
     new_counter = Int64(rng.counter) + length(A)
     overflow, remainder = fldmod(new_counter, typemax(UInt32))
@@ -181,7 +190,19 @@ end
 
 # we keep this for the GPUArrays.jl tests
 
-const idle_gpuarray_rngs = HandleCache{CuContext,GPUArrays.RNG}()
+function gpuarrays_rng_ctor(ctx)
+    context!(ctx) do
+        N = attribute(device(), DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
+        buf = CuArray{NTuple{4, UInt32}}(undef, N)
+        GPUArrays.RNG(buf)
+    end
+end
+function gpuarrays_rng_dtor(ctx, rng)
+    context!(ctx; skip_destroyed=true) do
+        # no need to do anything, as the RNG is collected by its finalizer
+    end
+end
+const idle_gpuarray_rngs = HandleCache{CuContext,GPUArrays.RNG}(gpuarrays_rng_ctor, gpuarrays_rng_dtor)
 
 function GPUArrays.default_rng(::Type{<:CuArray})
     cuda = CUDA.active_state()
@@ -194,19 +215,13 @@ function GPUArrays.default_rng(::Type{<:CuArray})
 
     # get library state
     @noinline function new_state(cuda)
-        new_rng = pop!(idle_gpuarray_rngs, cuda.context) do
-            N = attribute(cuda.device, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
-            buf = CuArray{NTuple{4, UInt32}}(undef, N)
-            GPUArrays.RNG(buf)
-        end
-
+        new_rng = pop!(idle_gpuarray_rngs, cuda.context)
         finalizer(current_task()) do task
-            push!(idle_gpuarray_rngs, cuda.context, new_rng) do
-                # no need to do anything, as the RNG is collected by its finalizer
-            end
+            push!(idle_gpuarray_rngs, cuda.context, new_rng)
         end
 
         Random.seed!(new_rng)
+
         (; rng=new_rng)
     end
     state = get!(states, cuda.context) do

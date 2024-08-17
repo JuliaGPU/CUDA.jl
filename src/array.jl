@@ -1,4 +1,4 @@
-export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, is_unified
+export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, is_device, is_unified, is_host
 
 
 ## array type
@@ -40,7 +40,7 @@ end
 # CuArray only supports element types that are allocated inline (`Base.allocatedinline`).
 # These come in three forms:
 # 1. plain bitstypes (`Int`, `(Float32, Float64)`, plain immutable structs, etc).
-#    these are simply stored contiguously in the buffer.
+#    these are simply stored contiguously in memory.
 # 2. structs of unions (`struct Foo; x::Union{Int, Float32}; end`)
 #    these are stored with a selector at the end (handled by Julia).
 # 3. bitstype unions (`Union{Int, Float32}`, etc)
@@ -54,15 +54,15 @@ function check_eltype(T)
   end
 end
 
-mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
-  data::DataRef{B}
+mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
+  data::DataRef{Managed{M}}
 
   maxsize::Int  # maximum data size; excluding any selector bytes
-  offset::Int   # offset of the data in the buffer, in number of elements
+  offset::Int   # offset of the data in memory, in number of elements
 
   dims::Dims{N}
 
-  function CuArray{T,N,B}(::UndefInitializer, dims::Dims{N}) where {T,N,B}
+  function CuArray{T,N,M}(::UndefInitializer, dims::Dims{N}) where {T,N,M}
     check_eltype(T)
     maxsize = prod(dims) * sizeof(T)
     bufsize = if Base.isbitsunion(T)
@@ -71,34 +71,16 @@ mutable struct CuArray{T,N,B} <: AbstractGPUArray{T,N}
     else
       maxsize
     end
-    buf = alloc(B, bufsize)
-    data = DataRef(_free_buffer, buf)
-    obj = new{T,N,B}(data, maxsize, 0, dims)
-    finalizer(unsafe_finalize!, obj)
+    data = DataRef(pool_free, pool_alloc(M, bufsize))
+    obj = new{T,N,M}(data, maxsize, 0, dims)
+    finalizer(unsafe_free!, obj)
   end
 
-  function CuArray{T,N}(data::DataRef{B}, dims::Dims{N};
-                        maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,B}
+  function CuArray{T,N}(data::DataRef{Managed{M}}, dims::Dims{N};
+                        maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,M}
     check_eltype(T)
-    obj = new{T,N,B}(copy(data), maxsize, offset, dims)
-    finalizer(unsafe_finalize!, obj)
-  end
-end
-
-function _free_buffer(buf, early)
-  context!(buf.ctx; skip_destroyed=true) do
-    # during task or process finalization, the local stream might be destroyed already, so
-    # use the default stream. additionally, since we don't use per-thread APIs, this default
-    # stream follows legacy semantics and will synchronize all other streams. this protects
-    # against freeing resources that are still in use.
-    #
-    # TODO: although this is still an asynchronous operation, even when using the default
-    # stream, it synchronizes "too much". we could do better, e.g., by keeping track of all
-    # streams involved, or by refcounting uses and decrementing that refcount after the
-    # operation using `cuLaunchHostFunc`. See CUDA.jl#778 and CUDA.jl#780 for details.
-    s = early ? stream() : default_stream()
-
-    free(buf; stream=s)
+    obj = new{T,N,M}(data, maxsize, offset, dims)
+    finalizer(unsafe_free!, obj)
   end
 end
 
@@ -109,8 +91,7 @@ Release the memory of an array for reuse by future allocations. This operation i
 performed automatically by the GC when an array goes out of scope, but can be called
 earlier to reduce pressure on the memory allocator.
 """
-unsafe_free!(xs::CuArray) = GPUArrays.unsafe_free!(xs.data, true)
-unsafe_finalize!(xs::CuArray) = GPUArrays.unsafe_free!(xs.data, false)
+unsafe_free!(xs::CuArray) = GPUArrays.unsafe_free!(xs.data)
 
 
 ## alias detection
@@ -132,16 +113,26 @@ const CuVector{T} = CuArray{T,1}
 const CuMatrix{T} = CuArray{T,2}
 const CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
-# default to non-unified memory
+# unspecified memory allocation
+const default_memory = let str = Preferences.@load_preference("default_memory", "device")
+  if str == "device"
+    DeviceMemory
+  elseif str == "unified"
+    UnifiedMemory
+  elseif str == "host"
+    HostMemory
+  else
+    error("unknown default memory type: $default_memory")
+  end
+end
 CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N} =
-  CuArray{T,N,Mem.DeviceBuffer}(undef, dims)
-is_unified(a::CuArray) = isa(a.data[], Mem.UnifiedBuffer)
+  CuArray{T,N,default_memory}(undef, dims)
 
-# buffer, type and dimensionality specified
-CuArray{T,N,B}(::UndefInitializer, dims::NTuple{N,Integer}) where {T,N,B} =
-  CuArray{T,N,B}(undef, convert(Tuple{Vararg{Int}}, dims))
-CuArray{T,N,B}(::UndefInitializer, dims::Vararg{Integer,N}) where {T,N,B} =
-  CuArray{T,N,B}(undef, convert(Tuple{Vararg{Int}}, dims))
+# memory, type and dimensionality specified
+CuArray{T,N,M}(::UndefInitializer, dims::NTuple{N,Integer}) where {T,N,M} =
+  CuArray{T,N,M}(undef, convert(Tuple{Vararg{Int}}, dims))
+CuArray{T,N,M}(::UndefInitializer, dims::Vararg{Integer,N}) where {T,N,M} =
+  CuArray{T,N,M}(undef, convert(Tuple{Vararg{Int}}, dims))
 
 # type and dimensionality specified
 CuArray{T,N}(::UndefInitializer, dims::NTuple{N,Integer}) where {T,N} =
@@ -156,14 +147,14 @@ CuArray{T}(::UndefInitializer, dims::Vararg{Integer,N}) where {T,N} =
   CuArray{T,N}(undef, convert(Tuple{Vararg{Int}}, dims))
 
 # empty vector constructor
-CuArray{T,1,B}() where {T,B} = CuArray{T,1,B}(undef, 0)
+CuArray{T,1,M}() where {T,M} = CuArray{T,1,M}(undef, 0)
 CuArray{T,1}() where {T} = CuArray{T,1}(undef, 0)
 
 # do-block constructors
 for (ctor, tvars) in (:CuArray => (),
                       :(CuArray{T}) => (:T,),
                       :(CuArray{T,N}) => (:T, :N),
-                      :(CuArray{T,N,B}) => (:T, :N, :B))
+                      :(CuArray{T,N,M}) => (:T, :N, :M))
   @eval begin
     function $ctor(f::Function, args...) where {$(tvars...)}
       xs = $ctor(args...)
@@ -176,12 +167,12 @@ for (ctor, tvars) in (:CuArray => (),
   end
 end
 
-Base.similar(a::CuArray{T,N,B}) where {T,N,B} =
-  CuArray{T,N,B}(undef, size(a))
-Base.similar(a::CuArray{T,<:Any,B}, dims::Base.Dims{N}) where {T,N,B} =
-  CuArray{T,N,B}(undef, dims)
-Base.similar(a::CuArray{<:Any,<:Any,B}, ::Type{T}, dims::Base.Dims{N}) where {T,N,B} =
-  CuArray{T,N,B}(undef, dims)
+Base.similar(a::CuArray{T,N,M}) where {T,N,M} =
+  CuArray{T,N,M}(undef, size(a))
+Base.similar(a::CuArray{T,<:Any,M}, dims::Base.Dims{N}) where {T,N,M} =
+  CuArray{T,N,M}(undef, dims)
+Base.similar(a::CuArray{<:Any,<:Any,M}, ::Type{T}, dims::Base.Dims{N}) where {T,N,M} =
+  CuArray{T,N,M}(undef, dims)
 
 function Base.copy(a::CuArray{T,N}) where {T,N}
   b = similar(a)
@@ -194,70 +185,154 @@ function Base.deepcopy_internal(x::CuArray, dict::IdDict)
 end
 
 
+## unsafe_wrap
+
 """
+  # simple case, wrapping a CuArray around an existing GPU pointer
   unsafe_wrap(CuArray, ptr::CuPtr{T}, dims; own=false, ctx=context())
 
-Wrap a `CuArray` object around the data at the address given by `ptr`. The pointer
-element type `T` determines the array element type. `dims` is either an integer (for a 1d
-array) or a tuple of the array dimensions. `own` optionally specified whether Julia should
-take ownership of the memory, calling `cudaFree` when the array is no longer referenced. The
-`ctx` argument determines the CUDA context where the data is allocated in.
+  # wraps a CPU array object around a unified GPU array
+  unsafe_wrap(Array, a::CuArray)
+
+  # wraps a GPU array object around a CPU array.
+  # if your system supports HMM, this is a fast operation.
+  # in other cases, it has to use page locking, which can be slow.
+  unsafe_wrap(CuArray, ptr::ptr{T}, dims)
+  unsafe_wrap(CuArray, a::Array)
+
+Wrap a `CuArray` object around the data at the address given by the CUDA-managed pointer
+`ptr`. The element type `T` determines the array element type. `dims` is either an integer
+(for a 1d array) or a tuple of the array dimensions. `own` optionally specified whether
+Julia should take ownership of the memory, calling `cudaFree` when the array is no longer
+referenced. The `ctx` argument determines the CUDA context where the data is allocated in.
 """
+unsafe_wrap
+
+# managed pointer to CuArray
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
-  buf = _unsafe_wrap(T, ptr, dims; own, ctx)
-  data = DataRef(own ? _free_buffer : (args...) -> (#= do nothing =#), buf)
-  CuArray{T, length(dims)}(data, dims)
-end
-function Base.unsafe_wrap(::Type{CuArray{T,N,B}},
-                          ptr::CuPtr{T}, dims::NTuple{N,Int};
-                          own::Bool=false, ctx::CuContext=context()) where {T,N,B}
-  buf = _unsafe_wrap(T, ptr, dims; own, ctx)
-  if typeof(buf) !== B
-    error("Declared buffer type does not match inferred buffer type.")
-  end
-  data = DataRef(own ? _free_buffer : (args...) -> (#= do nothing =#), buf)
-  CuArray{T, length(dims)}(data, dims)
-end
-
-function _unsafe_wrap(::Type{T}, ptr::CuPtr{T}, dims::NTuple{N,Int};
-                      own::Bool=false, ctx::CuContext=context()) where {T,N}
-  isbitstype(T) || error("Can only unsafe_wrap a pointer to a bits type")
-  sz = prod(dims) * sizeof(T)
-
-  # identify the buffer
-  buf = try
+  # identify the memory type
+  M = try
     typ = memory_type(ptr)
     if is_managed(ptr)
-      Mem.UnifiedBuffer(ctx, ptr, sz)
+      UnifiedMemory
     elseif typ == CU_MEMORYTYPE_DEVICE
-      # TODO: can we identify whether this pointer was allocated asynchronously?
-      Mem.DeviceBuffer(ctx, ptr, sz, false)
+      DeviceMemory
     elseif typ == CU_MEMORYTYPE_HOST
-      Mem.HostBuffer(ctx, host_pointer(ptr), sz)
+      HostMemory
     else
       error("Unknown memory type; please file an issue.")
     end
   catch err
-      error("Could not identify the buffer type; are you passing a valid CUDA pointer to unsafe_wrap?")
+      throw(ArgumentError("Could not identify the memory type; are you passing a valid CUDA pointer to unsafe_wrap?"))
   end
-  return buf
-end
 
-function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
+  unsafe_wrap(CuArray{T,N,M}, ptr, dims; own, ctx)
+end
+function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
+                          ptr::CuPtr{T}, dims::NTuple{N,Int};
+                          own::Bool=false, ctx::CuContext=context()) where {T,N,M}
+  isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
+  sz = prod(dims) * sizeof(T)
+
+  # create a memory object
+  mem = if M == UnifiedMemory
+    UnifiedMemory(ctx, ptr, sz)
+  elseif M == DeviceMemory
+    # TODO: can we identify whether this pointer was allocated asynchronously?
+    DeviceMemory(device(ctx), ctx, ptr, sz, false)
+  elseif M == HostMemory
+    HostMemory(ctx, host_pointer(ptr), sz)
+  else
+    throw(ArgumentError("Unknown memory type $M"))
+  end
+
+  data = DataRef(own ? pool_free : Returns(nothing), Managed(mem))
+  CuArray{T,N}(data, dims)
+end
+# integer size input
+function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
                           p::CuPtr{T}, dim::Int;
                           own::Bool=false, ctx::CuContext=context()) where {T}
-  unsafe_wrap(Atype, p, (dim,); own, ctx)
+  unsafe_wrap(CuArray{T,1}, p, (dim,); own, ctx)
 end
-function Base.unsafe_wrap(Atype::Type{CuArray{T,1,B}},
-                          p::CuPtr{T}, dim::Int;
-                          own::Bool=false, ctx::CuContext=context()) where {T,B}
-  unsafe_wrap(Atype, p, (dim,); own, ctx)
+function Base.unsafe_wrap(::Type{CuArray{T,1,M}}, p::CuPtr{T}, dim::Int;
+                          own::Bool=false, ctx::CuContext=context()) where {T,M}
+  unsafe_wrap(CuArray{T,1,M}, p, (dim,); own, ctx)
 end
 
-Base.unsafe_wrap(T::Type{<:CuArray}, ::Ptr, dims::NTuple{N,Int}; kwargs...) where {N} =
-  throw(ArgumentError("cannot wrap a CPU pointer with a $T"))
+# managed pointer to Array
+function Base.unsafe_wrap(::Union{Type{Array},Type{Array{T}},Type{Array{T,N}}},
+                          p::CuPtr{T}, dims::NTuple{N,Int};
+                          own::Bool=false) where {T,N}
+  if !is_managed(p) && memory_type(p) != CU_MEMORYTYPE_HOST
+    throw(ArgumentError("Can only create a CPU array object from a unified or host CUDA array"))
+  end
+  unsafe_wrap(Array{T,N}, reinterpret(Ptr{T}, p), dims; own)
+end
+# integer size input
+function Base.unsafe_wrap(::Union{Type{Array},Type{Array{T}},Type{Array{T,1}}},
+                          p::CuPtr{T}, dim::Int; own::Bool=false) where {T}
+  unsafe_wrap(Array{T,1}, p, (dim,); own)
+end
+# array input
+function Base.unsafe_wrap(::Union{Type{Array},Type{Array{T}},Type{Array{T,N}}},
+                          a::CuArray{T,N}) where {T,N}
+  p = pointer(a; type=HostMemory)
+  unsafe_wrap(Array, p, size(a))
+end
+
+# unmanaged pointer to CuArray
+supports_hmm(dev) = driver_version() >= v"12.2" &&
+                    attribute(dev, DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
+function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int};
+                          ctx::CuContext=context()) where {T,N,M<:AbstractMemory}
+  isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
+  sz = prod(dims) * sizeof(T)
+
+  data = if M == UnifiedMemory
+    # HMM extends unified memory to include system memory
+    supports_hmm(device(ctx)) ||
+      throw(ArgumentError("Cannot wrap system memory as unified memory on your system"))
+    mem = UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
+    DataRef(Returns(nothing), Managed(mem))
+  elseif M == HostMemory
+    # register as device-accessible host memory
+    mem = context!(ctx) do
+      register(HostMemory, p, sz, MEMHOSTREGISTER_DEVICEMAP)
+    end
+    DataRef(Managed(mem)) do args...
+      context!(ctx; skip_destroyed=true) do
+        unregister(mem)
+      end
+    end
+  else
+    throw(ArgumentError("Cannot wrap system memory as $M"))
+  end
+
+  CuArray{T,N}(data, dims)
+end
+function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
+                          p::Ptr{T}, dims::NTuple{N,Int}; ctx::CuContext=context()) where {T,N}
+  if supports_hmm(device(ctx))
+    Base.unsafe_wrap(CuArray{T,N,UnifiedMemory}, p, dims; ctx)
+  else
+    Base.unsafe_wrap(CuArray{T,N,HostMemory}, p, dims; ctx)
+  end
+end
+# integer size input
+Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
+                 p::Ptr{T}, dim::Int) where {T} =
+  unsafe_wrap(CuArray{T,1}, p, (dim,))
+Base.unsafe_wrap(::Type{CuArray{T,1,M}}, p::Ptr{T}, dim::Int) where {T,M} =
+  unsafe_wrap(CuArray{T,1,M}, p, (dim,))
+# array input
+Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
+                 a::Array{T,N}) where {T,N} =
+  unsafe_wrap(CuArray{T,N}, pointer(a), size(a))
+Base.unsafe_wrap(::Type{CuArray{T,N,M}}, a::Array{T,N}) where {T,N,M} =
+  unsafe_wrap(CuArray{T,N,M}, pointer(a), size(a))
 
 
 ## array interface
@@ -267,8 +342,15 @@ Base.elsize(::Type{<:CuArray{T}}) where {T} = sizeof(T)
 Base.size(x::CuArray) = x.dims
 Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 
-context(A::CuArray) = A.data[].ctx
-device(A::CuArray) = device(A.data[].ctx)
+context(A::CuArray) = A.data[].mem.ctx
+device(A::CuArray) = device(A.data[].mem.ctx)
+
+memory_type(x::CuArray) = memory_type(typeof(x))
+memory_type(::Type{<:CuArray{<:Any,<:Any,M}}) where {M} = @isdefined(M) ? M : Any
+
+is_device(a::CuArray) = memory_type(a) == DeviceMemory
+is_unified(a::CuArray) = memory_type(a) == UnifiedMemory
+is_host(a::CuArray) = memory_type(a) == HostMemory
 
 
 ## derived types
@@ -299,9 +381,15 @@ const StridedCuVector{T} = StridedCuArray{T,1}
 const StridedCuMatrix{T} = StridedCuArray{T,2}
 const StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
 
-Base.pointer(x::StridedCuArray{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
-@inline function Base.pointer(x::StridedCuArray{T}, i::Integer) where T
-    Base.unsafe_convert(CuPtr{T}, x) + Base._memory_offset(x, i)
+@inline function Base.pointer(x::StridedCuArray{T}, i::Integer=1; type=DeviceMemory) where T
+    PT = if type == DeviceMemory
+      CuPtr{T}
+    elseif type == HostMemory
+      Ptr{T}
+    else
+      error("unknown memory type")
+    end
+    Base.unsafe_convert(PT, x) + Base._memory_offset(x, i)
 end
 
 # anything that's (secretly) backed by a CuArray
@@ -313,17 +401,17 @@ const AnyCuVecOrMat{T} = Union{AnyCuVector{T}, AnyCuMatrix{T}}
 
 ## interop with other arrays
 
-@inline function CuArray{T,N,B}(xs::AbstractArray{<:Any,N}) where {T,N,B}
-  A = CuArray{T,N,B}(undef, size(xs))
+@inline function CuArray{T,N,M}(xs::AbstractArray{<:Any,N}) where {T,N,M}
+  A = CuArray{T,N,M}(undef, size(xs))
   copyto!(A, convert(Array{T}, xs))
   return A
 end
 
 @inline CuArray{T,N}(xs::AbstractArray{<:Any,N}) where {T,N} =
-  CuArray{T,N,Mem.Device}(xs)
+  CuArray{T,N,default_memory}(xs)
 
-@inline CuArray{T,N}(xs::CuArray{<:Any,N,B}) where {T,N,B} =
-  CuArray{T,N,B}(xs)
+@inline CuArray{T,N}(xs::CuArray{<:Any,N,M}) where {T,N,M} =
+  CuArray{T,N,M}(xs)
 
 # underspecified constructors
 CuArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(xs)
@@ -331,21 +419,32 @@ CuArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(xs)
 CuArray(A::AbstractArray{T,N}) where {T,N} = CuArray{T,N}(A)
 
 # copy xs to match Array behavior
-CuArray{T,N,B}(xs::CuArray{T,N,B}) where {T,N,B} = copy(xs)
-CuArray{T,N}(xs::CuArray{T,N,B}) where {T,N,B} = copy(xs)
+CuArray{T,N,M}(xs::CuArray{T,N,M}) where {T,N,M} = copy(xs)
+CuArray{T,N}(xs::CuArray{T,N,M}) where {T,N,M} = copy(xs)
 
 
 ## conversions
 
 Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
+# defer the conversion to Managed, where we handle memory consistency
+# XXX: conversion to Memory or Managed memory by cconvert?
+Base.unsafe_convert(typ::Type{Ptr{T}}, x::CuArray{T}) where {T} =
+  convert(typ, x.data[]) + x.offset * Base.elsize(x)
+Base.unsafe_convert(typ::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
+  convert(typ, x.data[]) + x.offset * Base.elsize(x)
 
-## interop with C libraries
 
-Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T} =
-  throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
-function Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T}
-  convert(CuPtr{T}, x.data[]) + x.offset*Base.elsize(x)
+## indexing
+
+function Base.getindex(x::CuArray{<:Any, <:Any, <:Union{HostMemory,UnifiedMemory}}, I::Int)
+  @boundscheck checkbounds(x, I)
+  unsafe_load(pointer(x, I; type=HostMemory))
+end
+
+function Base.setindex!(x::CuArray{<:Any, <:Any, <:Union{HostMemory,UnifiedMemory}}, v, I::Int)
+  @boundscheck checkbounds(x, I)
+  unsafe_store!(pointer(x, I; type=HostMemory), v)
 end
 
 
@@ -359,9 +458,26 @@ end
 
 ## memory copying
 
+synchronize(x::CuArray) = synchronize(x.data[])
+
+if VERSION >= v"1.11.0-DEV.753"
+function typetagdata(a::Array, i=1)
+  ptr_or_offset = Int(a.ref.ptr_or_offset)
+  @ccall(jl_genericmemory_typetagdata(a.ref.mem::Any)::Ptr{UInt8}) + ptr_or_offset + i - 1
+end
+else
 typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
-typetagdata(a::CuArray, i=1) =
-  convert(CuPtr{UInt8}, a.data[]) + a.maxsize + a.offset + i - 1
+end
+function typetagdata(a::CuArray, i=1; type=DeviceMemory)
+  PT = if type == DeviceMemory
+    CuPtr{UInt8}
+  elseif type == HostMemory
+    Ptr{UInt8}
+  else
+    error("unknown memory type")
+  end
+  convert(PT, a.data[]) + a.maxsize + a.offset + i - 1
+end
 
 function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
                       n::Integer) where T
@@ -551,8 +667,8 @@ end
 
 # general case: use CUDA APIs
 
-# NOTE: we only switch contexts here to avoid illegal memory accesses. synchronization is
-#       best-effort, since we don't keep track of streams using each array.
+# NOTE: we only switch contexts here to avoid illegal memory accesses.
+# our current programming model expects users to manage the active device.
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::Array{T}, soffs, n) where T
@@ -560,7 +676,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
     if use_nonblocking_synchronization
-      is_pinned(pointer(src)) || nonblocking_synchronize(stream())
+      is_pinned(pointer(src)) || synchronize()
     end
 
     GC.@preserve src dest begin
@@ -579,7 +695,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
     # operations on unpinned memory cannot be executed asynchronously, and synchronize
     # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
     if use_nonblocking_synchronization
-      is_pinned(pointer(dest)) || nonblocking_synchronize(stream())
+      is_pinned(pointer(dest)) || synchronize()
     end
 
     GC.@preserve src dest begin
@@ -590,20 +706,29 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
     end
 
     # users expect values to be available after this call
-    synchronize()
+    synchronize(src)
   end
   return dest
 end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
-  context!(context(src)) do
-    GC.@preserve src dest begin
-      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if Base.isbitsunion(T)
-        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+  if device(src) == device(dest) ||
+     maybe_enable_peer_access(device(src), device(dest)) == 1
+    # use direct device-to-device copy
+    context!(context(src)) do
+      GC.@preserve src dest begin
+        unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+        if Base.isbitsunion(T)
+          unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+        end
       end
     end
+  else
+    # stage through host memory
+    tmp = Vector{T}(undef, n)
+    unsafe_copyto!(tmp, 1, src, soffs, n)
+    unsafe_copyto!(dest, doffs, tmp, 1, n)
   end
   return dest
 end
@@ -613,34 +738,35 @@ end
 # NOTE: synchronization is best-effort, since we don't keep track of the
 #       dependencies and streams using each array backed by unified memory.
 
-function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, doffs,
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, doffs,
                              src::Array{T}, soffs, n) where T
-  # maintain stream-ordered semantics
-  # XXX: alternative, use an async CUDA memcpy if the stream isn't idle?
-  synchronize()
+  # maintain stream-ordered semantics: even though the pointer conversion should sync when
+  # needed, it's possible that misses captured memory, so ensure copying is always correct.
+  synchronize(dest)
 
   GC.@preserve src dest begin
-    cpu_ptr = pointer(src, soffs)
-    unsafe_copyto!(host_pointer(pointer(dest, doffs)), cpu_ptr, n)
+    ptr = pointer(src, soffs)
+    unsafe_copyto!(pointer(dest, doffs; type=HostMemory), ptr, n)
     if Base.isbitsunion(T)
-      cpu_ptr = typetagdata(src, soffs)
-      unsafe_copyto!(host_pointer(typetagdata(dest, doffs)), cpu_ptr, n)
+      ptr = typetagdata(src, soffs)
+      unsafe_copyto!(typetagdata(dest, doffs; type=HostMemory), ptr, n)
     end
   end
   return dest
 end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs,
-                             src::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, soffs, n) where T
-  # maintain stream-ordered semantics
-  synchronize()
+                             src::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, soffs, n) where T
+  # maintain stream-ordered semantics: even though the pointer conversion should sync when
+  # needed, it's possible that misses captured memory, so ensure copying is always correct.
+  synchronize(src)
 
   GC.@preserve src dest begin
-    cpu_ptr = pointer(dest, doffs)
-    unsafe_copyto!(cpu_ptr, host_pointer(pointer(src, soffs)), n)
+    ptr = pointer(dest, doffs)
+    unsafe_copyto!(ptr, pointer(src, soffs; type=HostMemory), n)
     if Base.isbitsunion(T)
-      cpu_ptr = typetagdata(dest, doffs)
-      unsafe_copyto!(cpu_ptr, host_pointer(typetagdata(src, soffs)), n)
+      ptr = typetagdata(dest, doffs)
+      unsafe_copyto!(ptr, typetagdata(src, soffs; type=HostMemory), n)
     end
   end
 
@@ -649,7 +775,7 @@ end
 
 # optimization: memcpy between host or unified arrays without context switching
 
-function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, doffs,
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
   context!(context(src)) do
     GC.@preserve src dest begin
@@ -663,7 +789,7 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffe
 end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
-                             src::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, soffs, n) where T
+                             src::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, soffs, n) where T
   context!(context(dest)) do
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
@@ -675,8 +801,8 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
   return dest
 end
 
-function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, doffs,
-                             src::DenseCuArray{T,<:Any,<:Union{Mem.UnifiedBuffer,Mem.HostBuffer}}, soffs, n) where T
+function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, doffs,
+                             src::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, soffs, n) where T
   GC.@preserve src dest begin
     unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
     if Base.isbitsunion(T)
@@ -700,28 +826,28 @@ Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
   isbitstype(AT) ? xs : convert(CuArray{T}, xs)
 Adapt.adapt_storage(::Type{<:CuArray{T, N}}, xs::AT) where {T, N, AT<:AbstractArray} =
   isbitstype(AT) ? xs : convert(CuArray{T,N}, xs)
-Adapt.adapt_storage(::Type{<:CuArray{T, N, B}}, xs::AT) where {T, N, B, AT<:AbstractArray} =
-  isbitstype(AT) ? xs : convert(CuArray{T,N,B}, xs)
+Adapt.adapt_storage(::Type{<:CuArray{T, N, M}}, xs::AT) where {T, N, M, AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuArray{T,N,M}, xs)
 
 
 ## opinionated gpu array adaptor
 
 # eagerly converts Float64 to Float32, for performance reasons
 
-struct CuArrayAdaptor{B} end
+struct CuArrayKernelAdaptor{M} end
 
-Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T,N,B} =
-  isbits(xs) ? xs : CuArray{T,N,B}(xs)
+Adapt.adapt_storage(::CuArrayKernelAdaptor{M}, xs::AbstractArray{T,N}) where {T,N,M} =
+  isbits(xs) ? xs : CuArray{T,N,M}(xs)
 
-Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:AbstractFloat,N,B} =
-  isbits(xs) ? xs : CuArray{Float32,N,B}(xs)
+Adapt.adapt_storage(::CuArrayKernelAdaptor{M}, xs::AbstractArray{T,N}) where {T<:AbstractFloat,N,M} =
+  isbits(xs) ? xs : CuArray{Float32,N,M}(xs)
 
-Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Complex{<:AbstractFloat},N,B} =
-  isbits(xs) ? xs : CuArray{ComplexF32,N,B}(xs)
+Adapt.adapt_storage(::CuArrayKernelAdaptor{M}, xs::AbstractArray{T,N}) where {T<:Complex{<:AbstractFloat},N,M} =
+  isbits(xs) ? xs : CuArray{ComplexF32,N,M}(xs)
 
 # not for Float16
-Adapt.adapt_storage(::CuArrayAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Union{Float16,BFloat16},N,B} =
-  isbits(xs) ? xs : CuArray{T,N,B}(xs)
+Adapt.adapt_storage(::CuArrayKernelAdaptor{M}, xs::AbstractArray{T,N}) where {T<:Union{Float16,BFloat16},N,M} =
+  isbits(xs) ? xs : CuArray{T,N,M}(xs)
 
 """
     cu(A; unified=false)
@@ -740,32 +866,46 @@ Uses Adapt.jl to act inside some wrapper structs.
 
 ```
 julia> cu(ones(3)')
-1×3 adjoint(::CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}) with eltype Float32:
+1×3 adjoint(::CuArray{Float32, 1, CUDA.DeviceMemory}) with eltype Float32:
  1.0  1.0  1.0
 
 julia> cu(zeros(1, 3); unified=true)
-1×3 CuArray{Float32, 2, CUDA.Mem.UnifiedBuffer}:
+1×3 CuArray{Float32, 2, CUDA.UnifiedMemory}:
  0.0  0.0  0.0
 
 julia> cu(1:3)
 1:3
 
 julia> CuArray(ones(3)')  # ignores Adjoint, preserves Float64
-1×3 CuArray{Float64, 2, CUDA.Mem.DeviceBuffer}:
+1×3 CuArray{Float64, 2, CUDA.DeviceMemory}:
  1.0  1.0  1.0
 
 julia> adapt(CuArray, ones(3)')  # this restores Adjoint wrapper
-1×3 adjoint(::CuArray{Float64, 1, CUDA.Mem.DeviceBuffer}) with eltype Float64:
+1×3 adjoint(::CuArray{Float64, 1, CUDA.DeviceMemory}) with eltype Float64:
  1.0  1.0  1.0
 
 julia> CuArray(1:3)
-3-element CuArray{Int64, 1, CUDA.Mem.DeviceBuffer}:
+3-element CuArray{Int64, 1, CUDA.DeviceMemory}:
  1
  2
  3
 ```
 """
-@inline cu(xs; unified::Bool=false) = adapt(CuArrayAdaptor{unified ? Mem.UnifiedBuffer : Mem.DeviceBuffer}(), xs)
+@inline function cu(xs; device::Bool=false, unified::Bool=false, host::Bool=false)
+  if device + unified + host > 1
+    throw(ArgumentError("Can only specify one of `device`, `unified`, or `host`"))
+  end
+  memory = if device
+    DeviceMemory
+  elseif unified
+    UnifiedMemory
+  elseif host
+    HostMemory
+  else
+    default_memory
+  end
+  adapt(CuArrayKernelAdaptor{memory}(), xs)
+end
 
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
@@ -790,7 +930,7 @@ function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
   context!(context(A)) do
-    Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A))
+    memset(convert(CuPtr{U}, pointer(A)), y, length(A))
   end
   A
 end
@@ -798,9 +938,9 @@ end
 
 ## derived arrays
 
-function GPUArrays.derive(::Type{T}, N::Int, a::CuArray, dims::Dims, offset::Int) where {T}
+function GPUArrays.derive(::Type{T}, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
   offset = (a.offset * Base.elsize(a)) ÷ sizeof(T) + offset
-  CuArray{T,N}(a.data, dims; a.maxsize, offset)
+  CuArray{T,N}(copy(a.data), dims; a.maxsize, offset)
 end
 
 
@@ -845,13 +985,14 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
   # replace the data with a new one. this 'unshares' the array.
   # as a result, we can safely support resizing unowned buffers.
   new_data = context!(context(A)) do
-    buf = alloc(typeof(A.data[]), bufsize)
-    ptr = convert(CuPtr{T}, buf)
+    mem = alloc(memory_type(A), bufsize)
+    ptr = convert(CuPtr{T}, mem)
     m = min(length(A), n)
     if m > 0
+      synchronize(A)
       unsafe_copyto!(ptr, pointer(A), m)
     end
-    DataRef(_free_buffer, buf)
+    DataRef(pool_free, Managed(mem))
   end
   unsafe_free!(A)
 

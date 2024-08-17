@@ -2,7 +2,7 @@
 
 export
     CuStream, default_stream, legacy_stream, per_thread_stream,
-    priority, priority_range, synchronize, device_synchronize
+    unique_id, priority, priority_range, synchronize, device_synchronize
 
 """
     CuStream(; flags=STREAM_DEFAULT, priority=nothing)
@@ -10,8 +10,10 @@ export
 Create a CUDA stream.
 """
 mutable struct CuStream
-    handle::CUstream
-    ctx::CuContext
+    const handle::CUstream
+    Base.@atomic valid::Bool
+
+    const ctx::Union{Nothing,CuContext}
 
     function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
                         priority::Union{Nothing,Integer}=nothing)
@@ -24,16 +26,16 @@ mutable struct CuStream
         end
 
         ctx = current_context()
-        obj = new(handle_ref[], ctx)
+        obj = new(handle_ref[], true, ctx)
         finalizer(unsafe_destroy!, obj)
         return obj
     end
 
-    global default_stream() = new(convert(CUstream, C_NULL))
+    global default_stream() = new(convert(CUstream, C_NULL), true)
 
-    global legacy_stream() = new(convert(CUstream, 1))
+    global legacy_stream() = new(convert(CUstream, 1), true)
 
-    global per_thread_stream() = new(convert(CUstream, 2))
+    global per_thread_stream() = new(convert(CUstream, 2), true)
 end
 
 """
@@ -82,17 +84,38 @@ Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 @enum_without_prefix CUstream_flags_enum CU_
 
 function unsafe_destroy!(s::CuStream)
+    @assert s.ctx !== nothing "Cannot destroy unassociated stream"
     context!(s.ctx; skip_destroyed=true) do
         cuStreamDestroy_v2(s)
     end
+    Base.@atomic s.valid = false
 end
 
 function Base.show(io::IO, stream::CuStream)
     print(io, "CuStream(")
     @printf(io, "%p", stream.handle)
-    if isdefined(stream, :ctx)
+    if stream.ctx !== nothing
         print(io, ", ", stream.ctx)
     end
+    print(io, ")")
+end
+
+function unique_id(s::CuStream)
+    id_ref = Ref{Culonglong}()
+    cuStreamGetId(s, id_ref)
+    return id_ref[]
+end
+
+"""
+    isvalid(s::CuStream)
+
+Determines if the stream object is still valid, i.e., if it has not been garbage collected.
+This is only useful for use in finalizers, which do not guarantee order of execution (i.e.,
+a stream may have been destroyed before an object relying on it has).
+"""
+
+function isvalid(s::CuStream)
+    return s.valid
 end
 
 """
@@ -102,7 +125,7 @@ Return `false` if a stream is busy (has task running or queued)
 and `true` if that stream is free.
 """
 function isdone(s::CuStream)
-    res = unsafe_cuStreamQuery(s)
+    res = unchecked_cuStreamQuery(s)
     if res == ERROR_NOT_READY
         return false
     elseif res == SUCCESS

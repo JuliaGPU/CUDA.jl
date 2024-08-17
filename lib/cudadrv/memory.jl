@@ -1,47 +1,37 @@
 # Raw memory management
 
-export Mem, attribute, attribute!, memory_type, is_managed
-
-module Mem
-
-using ..CUDA
-using ..CUDA: @enum_without_prefix, CUstream, CUdevice, CuDim3, CUarray, CUarray_format
-using ..CUDA.APIUtils
-
-using Base: @deprecate_binding
-
-using Printf
+export attribute, attribute!, memory_type, is_managed
 
 
 #
-# buffers
+# operations on memory
 #
 
 # a chunk of memory allocated using the CUDA APIs. this memory can reside on the host, on
-# the gpu, or can represent specially-formatted memory (like texture arrays). depending on
-# all that, the buffer may be `convert`ed to a Ptr, CuPtr, or CuArrayPtr.
+# the GPU, or can represent specially-formatted memory (like texture arrays). depending on
+# all that, the memory object may be `convert`ed to a Ptr, CuPtr, or CuArrayPtr.
 
-abstract type AbstractBuffer end
+abstract type AbstractMemory end
 
-Base.convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, buf::AbstractBuffer) =
-    throw(ArgumentError("Illegal conversion of a $(typeof(buf)) to a $T"))
+Base.convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, mem::AbstractMemory) =
+    throw(ArgumentError("Illegal conversion of a $(typeof(mem)) to a $T"))
 
 # ccall integration
 #
 # taking the pointer of a buffer means returning the underlying pointer,
 # and not the pointer of the buffer object itself.
-Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, buf::AbstractBuffer) = convert(T, buf)
+Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, mem::AbstractMemory) = convert(T, mem)
 
 
-## device buffer
+## device memory
 
 """
-    Mem.DeviceBuffer
-    Mem.Device
+    DeviceMemory
 
-A buffer of device memory residing on the GPU.
+Device memory residing on the GPU.
 """
-struct DeviceBuffer <: AbstractBuffer
+struct DeviceMemory <: AbstractMemory
+    dev::CuDevice
     ctx::CuContext
     ptr::CuPtr{Cvoid}
     bytesize::Int
@@ -49,265 +39,273 @@ struct DeviceBuffer <: AbstractBuffer
     async::Bool
 end
 
-DeviceBuffer() = DeviceBuffer(context(), CU_NULL, 0, false)
+DeviceMemory() = DeviceMemory(device(), context(), CU_NULL, 0, false)
 
-Base.pointer(buf::DeviceBuffer) = buf.ptr
-Base.sizeof(buf::DeviceBuffer) = buf.bytesize
+Base.pointer(mem::DeviceMemory) = mem.ptr
+Base.sizeof(mem::DeviceMemory) = mem.bytesize
 
-Base.show(io::IO, buf::DeviceBuffer) =
-    @printf(io, "DeviceBuffer(%s at %p)", Base.format_bytes(sizeof(buf)), Int(pointer(buf)))
+Base.show(io::IO, mem::DeviceMemory) =
+    @printf(io, "DeviceMemory(%s at %p)", Base.format_bytes(sizeof(mem)), Int(pointer(mem)))
 
-Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
-    convert(CuPtr{T}, pointer(buf))
+Base.convert(::Type{CuPtr{T}}, mem::DeviceMemory) where {T} =
+    convert(CuPtr{T}, pointer(mem))
 
 """
-    Mem.alloc(DeviceBuffer, bytesize::Integer;
-              [async=false], [stream::CuStream], [pool::CuMemoryPool])
+    alloc(DeviceMemory, bytesize::Integer;
+          [async=false], [stream::CuStream], [pool::CuMemoryPool])
 
 Allocate `bytesize` bytes of memory on the device. This memory is only accessible on the
 GPU, and requires explicit calls to `unsafe_copyto!`, which wraps `cuMemcpy`,
 for access on the CPU.
 """
-function alloc(::Type{DeviceBuffer}, bytesize::Integer;
+function alloc(::Type{DeviceMemory}, bytesize::Integer;
                async::Bool=memory_pools_supported(device()),
                stream::Union{Nothing,CuStream}=nothing,
                pool::Union{Nothing,CuMemoryPool}=nothing)
-    bytesize == 0 && return DeviceBuffer()
+    bytesize == 0 && return DeviceMemory()
 
-    ptr_ref = Ref{CUDA.CUdeviceptr}()
+    ptr_ref = Ref{CUdeviceptr}()
     if async
-        stream = stream===nothing ? CUDA.stream() : stream
+        stream = @something stream CUDA.stream()
         if pool !== nothing
-            CUDA.cuMemAllocFromPoolAsync(ptr_ref, bytesize, pool, stream)
+            cuMemAllocFromPoolAsync(ptr_ref, bytesize, pool, stream)
         else
-            CUDA.cuMemAllocAsync(ptr_ref, bytesize, stream)
+            cuMemAllocAsync(ptr_ref, bytesize, stream)
         end
     else
-        CUDA.cuMemAlloc_v2(ptr_ref, bytesize)
+        cuMemAlloc_v2(ptr_ref, bytesize)
     end
 
-    return DeviceBuffer(context(), reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, async)
+    return DeviceMemory(device(), context(), reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, async)
 end
 
-function free(buf::DeviceBuffer; stream::Union{Nothing,CuStream}=nothing)
-    pointer(buf) == CU_NULL && return
+function free(mem::DeviceMemory; stream::Union{Nothing,CuStream}=nothing)
+    pointer(mem) == CU_NULL && return
 
-    if buf.async
-        stream = stream===nothing ? CUDA.stream() : stream
-        CUDA.cuMemFreeAsync(buf, stream)
+    if mem.async
+        stream = @something stream CUDA.stream()
+        cuMemFreeAsync(mem, stream)
     else
-        CUDA.cuMemFree_v2(buf)
+        cuMemFree_v2(mem)
     end
 end
 
 
-## host buffer
+## host memory
 
 """
-    Mem.HostBuffer
-    Mem.Host
+    HostMemory
 
-A buffer of pinned memory on the CPU, possibly accessible on the GPU.
+Pinned memory residing on the CPU, possibly accessible on the GPU.
 """
-struct HostBuffer <: AbstractBuffer
+struct HostMemory <: AbstractMemory
     ctx::CuContext
     ptr::Ptr{Cvoid}
     bytesize::Int
 end
 
-HostBuffer() = HostBuffer(context(), C_NULL, 0)
+HostMemory() = HostMemory(context(), C_NULL, 0)
 
-Base.pointer(buf::HostBuffer) = buf.ptr
-Base.sizeof(buf::HostBuffer) = buf.bytesize
+Base.pointer(mem::HostMemory) = mem.ptr
+Base.sizeof(mem::HostMemory) = mem.bytesize
 
-Base.show(io::IO, buf::HostBuffer) =
-    @printf(io, "HostBuffer(%s at %p)", Base.format_bytes(sizeof(buf)), Int(pointer(buf)))
+Base.show(io::IO, mem::HostMemory) =
+    @printf(io, "HostMemory(%s at %p)", Base.format_bytes(sizeof(mem)), Int(pointer(mem)))
 
-Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where {T} =
-    convert(Ptr{T}, pointer(buf))
+Base.convert(::Type{Ptr{T}}, mem::HostMemory) where {T} =
+    convert(Ptr{T}, pointer(mem))
 
-function Base.convert(::Type{CuPtr{T}}, buf::HostBuffer) where {T}
-    pointer(buf) == C_NULL && return convert(CuPtr{T}, CU_NULL)
+function Base.convert(::Type{CuPtr{T}}, mem::HostMemory) where {T}
+    pointer(mem) == C_NULL && return convert(CuPtr{T}, CU_NULL)
     ptr_ref = Ref{CuPtr{Cvoid}}()
-    CUDA.cuMemHostGetDevicePointer_v2(ptr_ref, pointer(buf), #=flags=# 0)
+    cuMemHostGetDevicePointer_v2(ptr_ref, pointer(mem), #=flags=# 0)
     convert(CuPtr{T}, ptr_ref[])
 end
 
 
-@deprecate_binding HOSTALLOC_DEFAULT 0 false
-const HOSTALLOC_PORTABLE = CUDA.CU_MEMHOSTALLOC_PORTABLE
-const HOSTALLOC_DEVICEMAP = CUDA.CU_MEMHOSTALLOC_DEVICEMAP
-const HOSTALLOC_WRITECOMBINED = CUDA.CU_MEMHOSTALLOC_WRITECOMBINED
+const MEMHOSTALLOC_PORTABLE = CU_MEMHOSTALLOC_PORTABLE
+const MEMHOSTALLOC_DEVICEMAP = CU_MEMHOSTALLOC_DEVICEMAP
+const MEMHOSTALLOC_WRITECOMBINED = CU_MEMHOSTALLOC_WRITECOMBINED
 
 """
-    Mem.alloc(HostBuffer, bytesize::Integer, [flags])
+    alloc(HostMemory, bytesize::Integer, [flags])
 
 Allocate `bytesize` bytes of page-locked memory on the host. This memory is accessible from
 the CPU, and makes it possible to perform faster memory copies to the GPU. Furthermore, if
-`flags` is set to `HOSTALLOC_DEVICEMAP` the memory is also accessible from the GPU.
-These accesses are direct, and go through the PCI bus.
-If `flags` is set to `HOSTALLOC_PORTABLE`, the memory is considered mapped by all CUDA contexts,
-not just the one that created the memory, which is useful if the memory needs to be accessed from
+`flags` is set to `MEMHOSTALLOC_DEVICEMAP` the memory is also accessible from the GPU. These
+accesses are direct, and go through the PCI bus. If `flags` is set to
+`MEMHOSTALLOC_PORTABLE`, the memory is considered mapped by all CUDA contexts, not just the
+one that created the memory, which is useful if the memory needs to be accessed from
 multiple devices. Multiple `flags` can be set at one time using a bytewise `OR`:
 
-    flags = HOSTALLOC_PORTABLE | HOSTALLOC_DEVICEMAP
+    flags = MEMHOSTALLOC_PORTABLE | MEMHOSTALLOC_DEVICEMAP
 
 """
-function alloc(::Type{HostBuffer}, bytesize::Integer, flags=0)
-    bytesize == 0 && return HostBuffer()
+function alloc(::Type{HostMemory}, bytesize::Integer, flags=0)
+    bytesize == 0 && return HostMemory()
 
     ptr_ref = Ref{Ptr{Cvoid}}()
-    CUDA.cuMemHostAlloc(ptr_ref, bytesize, flags)
+    cuMemHostAlloc(ptr_ref, bytesize, flags)
 
-    return HostBuffer(context(), ptr_ref[], bytesize)
+    return HostMemory(context(), ptr_ref[], bytesize)
 end
 
 
-const HOSTREGISTER_PORTABLE = CUDA.CU_MEMHOSTREGISTER_PORTABLE
-const HOSTREGISTER_DEVICEMAP = CUDA.CU_MEMHOSTREGISTER_DEVICEMAP
-const HOSTREGISTER_IOMEMORY = CUDA.CU_MEMHOSTREGISTER_IOMEMORY
+const MEMHOSTREGISTER_PORTABLE = CU_MEMHOSTREGISTER_PORTABLE
+const MEMHOSTREGISTER_DEVICEMAP = CU_MEMHOSTREGISTER_DEVICEMAP
+const MEMHOSTREGISTER_IOMEMORY = CU_MEMHOSTREGISTER_IOMEMORY
 
 """
-    Mem.register(HostBuffer, ptr::Ptr, bytesize::Integer, [flags])
+    register(HostMemory, ptr::Ptr, bytesize::Integer, [flags])
 
 Page-lock the host memory pointed to by `ptr`. Subsequent transfers to and from devices will
-be faster, and can be executed asynchronously. If the `HOSTREGISTER_DEVICEMAP` flag is
-specified, the buffer will also be accessible directly from the GPU.
-These accesses are direct, and go through the PCI bus.
-If the `HOSTREGISTER_PORTABLE` flag is specified, any CUDA context can access the memory.
+be faster, and can be executed asynchronously. If the `MEMHOSTREGISTER_DEVICEMAP` flag is
+specified, the buffer will also be accessible directly from the GPU. These accesses are
+direct, and go through the PCI bus. If the `MEMHOSTREGISTER_PORTABLE` flag is specified, any
+CUDA context can access the memory.
 """
-function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer, flags=0)
+function register(::Type{HostMemory}, ptr::Ptr, bytesize::Integer, flags=0)
     bytesize == 0 && throw(ArgumentError("Cannot register an empty range of memory."))
 
-    CUDA.cuMemHostRegister_v2(ptr, bytesize, flags)
+    cuMemHostRegister_v2(ptr, bytesize, flags)
 
-    return HostBuffer(context(), ptr, bytesize)
+    return HostMemory(context(), ptr, bytesize)
 end
 
 """
-    Mem.unregister(HostBuffer)
+    unregister(::HostMemory)
 
-Unregisters a memory range that was registered with [`Mem.register`](@ref).
+Unregisters a memory range that was registered with [`register`](@ref).
 """
-function unregister(buf::HostBuffer)
-    CUDA.cuMemHostUnregister(buf)
+function unregister(mem::HostMemory)
+    cuMemHostUnregister(mem)
 end
 
 
-function free(buf::HostBuffer)
-    if pointer(buf) != CU_NULL
-        CUDA.cuMemFreeHost(buf)
+function free(mem::HostMemory)
+    if pointer(mem) != CU_NULL
+        cuMemFreeHost(mem)
     end
 end
 
 
-## unified buffer
+## unified memory
 
 """
-    Mem.UnifiedBuffer
-    Mem.Unified
+    UnifiedMemory
 
-A managed buffer that is accessible on both the CPU and GPU.
+Unified memory that is accessible on both the CPU and GPU.
 """
-struct UnifiedBuffer <: AbstractBuffer
+struct UnifiedMemory <: AbstractMemory
     ctx::CuContext
     ptr::CuPtr{Cvoid}
     bytesize::Int
 end
 
-UnifiedBuffer() = UnifiedBuffer(context(), CU_NULL, 0)
+UnifiedMemory() = UnifiedMemory(context(), CU_NULL, 0)
 
-Base.pointer(buf::UnifiedBuffer) = buf.ptr
-Base.sizeof(buf::UnifiedBuffer) = buf.bytesize
+Base.pointer(mem::UnifiedMemory) = mem.ptr
+Base.sizeof(mem::UnifiedMemory) = mem.bytesize
 
-Base.show(io::IO, buf::UnifiedBuffer) =
-    @printf(io, "UnifiedBuffer(%s at %p)", Base.format_bytes(sizeof(buf)), Int(pointer(buf)))
+Base.show(io::IO, mem::UnifiedMemory) =
+    @printf(io, "UnifiedMemory(%s at %p)", Base.format_bytes(sizeof(mem)), Int(pointer(mem)))
 
-Base.convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where {T} =
-    convert(Ptr{T}, reinterpret(Ptr{Cvoid}, pointer(buf)))
+Base.convert(::Type{Ptr{T}}, mem::UnifiedMemory) where {T} =
+    convert(Ptr{T}, reinterpret(Ptr{Cvoid}, pointer(mem)))
 
-Base.convert(::Type{CuPtr{T}}, buf::UnifiedBuffer) where {T} =
-    convert(CuPtr{T}, pointer(buf))
+Base.convert(::Type{CuPtr{T}}, mem::UnifiedMemory) where {T} =
+    convert(CuPtr{T}, pointer(mem))
 
-@enum_without_prefix CUDA.CUmemAttach_flags CU_MEM_
+@enum_without_prefix CUmemAttach_flags CU_
 
 """
-    Mem.alloc(UnifiedBuffer, bytesize::Integer, [flags::CUmemAttach_flags])
+    alloc(UnifiedMemory, bytesize::Integer, [flags::CUmemAttach_flags])
 
 Allocate `bytesize` bytes of unified memory. This memory is accessible from both the CPU and
 GPU, with the CUDA driver automatically copying upon first access.
 """
-function alloc(::Type{UnifiedBuffer}, bytesize::Integer,
-              flags::CUDA.CUmemAttach_flags=ATTACH_GLOBAL)
-    bytesize == 0 && return UnifiedBuffer()
+function alloc(::Type{UnifiedMemory}, bytesize::Integer,
+              flags::CUmemAttach_flags=MEM_ATTACH_GLOBAL)
+    bytesize == 0 && return UnifiedMemory()
 
     ptr_ref = Ref{CuPtr{Cvoid}}()
-    CUDA.cuMemAllocManaged(ptr_ref, bytesize, flags)
+    cuMemAllocManaged(ptr_ref, bytesize, flags)
 
-    return UnifiedBuffer(context(), ptr_ref[], bytesize)
+    return UnifiedMemory(context(), ptr_ref[], bytesize)
 end
 
 
-function free(buf::UnifiedBuffer)
-    if pointer(buf) != CU_NULL
-        CUDA.cuMemFree_v2(buf)
+function free(mem::UnifiedMemory)
+    if pointer(mem) != CU_NULL
+        cuMemFree_v2(mem)
     end
 end
 
 
 """
-    prefetch(::UnifiedBuffer, [bytes::Integer]; [device::CuDevice], [stream::CuStream])
+    prefetch(::UnifiedMemory, [bytes::Integer]; [device::CuDevice], [stream::CuStream])
 
 Prefetches memory to the specified destination device.
 """
-function prefetch(buf::UnifiedBuffer, bytes::Integer=sizeof(buf);
+function prefetch(mem::UnifiedMemory, bytes::Integer=sizeof(mem);
                   device::CuDevice=device(), stream::CuStream=stream())
-    bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
-    CUDA.cuMemPrefetchAsync(buf, bytes, device, stream)
+    bytes > sizeof(mem) && throw(BoundsError(mem, bytes))
+    cuMemPrefetchAsync(mem, bytes, device, stream)
 end
 
 
-@enum_without_prefix CUDA.CUmem_advise CU_MEM_
+@enum_without_prefix CUmem_advise CU_
 
 """
-    advise(::UnifiedBuffer, advice::CUDA.CUmem_advise, [bytes::Integer]; [device::CuDevice])
+    advise(::UnifiedMemory, advice::CUDA.CUmem_advise, [bytes::Integer]; [device::CuDevice])
 
 Advise about the usage of a given memory range.
 """
-function advise(buf::UnifiedBuffer, advice::CUDA.CUmem_advise, bytes::Integer=sizeof(buf);
+function advise(mem::UnifiedMemory, advice::CUmem_advise, bytes::Integer=sizeof(mem);
                 device::CuDevice=device())
-    bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
-    CUDA.cuMemAdvise(buf, bytes, advice, device)
+    bytes > sizeof(mem) && throw(BoundsError(mem, bytes))
+    cuMemAdvise(mem, bytes, advice, device)
 end
 
 
-## array buffer
+## array memory
 
-mutable struct ArrayBuffer{T,N} <: AbstractBuffer
+"""
+    ArrayMemory
+
+Array memory residing on the GPU, possibly in a specially-formatted way.
+"""
+mutable struct ArrayMemory{T,N} <: AbstractMemory
     ctx::CuContext
     ptr::CuArrayPtr{T}
     dims::Dims{N}
 end
 
-Base.pointer(buf::ArrayBuffer) = buf.ptr
-Base.sizeof(buf::ArrayBuffer) = error("Opaque array buffers do not have a definite size")
-Base.size(buf::ArrayBuffer) = buf.dims
-Base.length(buf::ArrayBuffer) = prod(buf.dims)
-Base.ndims(buf::ArrayBuffer{<:Any,N}) where {N} = N
+Base.pointer(mem::ArrayMemory) = mem.ptr
+Base.sizeof(mem::ArrayMemory) = error("Opaque array memory does not have a definite size")
+Base.size(mem::ArrayMemory) = mem.dims
+Base.length(mem::ArrayMemory) = prod(mem.dims)
+Base.ndims(mem::ArrayMemory{<:Any,N}) where {N} = N
 
-Base.show(io::IO, buf::ArrayBuffer{T,1}) where {T} =
-    @printf(io, "%g-element ArrayBuffer{%s,%g}(%p)", length(buf), string(T), 1, Int(pointer(buf)))
-Base.show(io::IO, buf::ArrayBuffer{T}) where {T} =
-    @printf(io, "%s ArrayBuffer{%s,%g}(%p)", Base.inds2string(size(buf)), string(T), ndims(buf), Int(pointer(buf)))
+Base.show(io::IO, mem::ArrayMemory{T,1}) where {T} =
+    @printf(io, "%g-element ArrayMemory{%s,%g}(%p)", length(mem), string(T), 1, Int(pointer(mem)))
+Base.show(io::IO, mem::ArrayMemory{T}) where {T} =
+    @printf(io, "%s ArrayMemory{%s,%g}(%p)", Base.inds2string(size(mem)), string(T), ndims(mem), Int(pointer(mem)))
 
-# array buffers are typed, so refuse arbitrary conversions
-Base.convert(::Type{CuArrayPtr{T}}, buf::ArrayBuffer{T}) where {T} =
-    convert(CuArrayPtr{T}, pointer(buf))
+# array memory is typed, so refuse arbitrary conversions
+Base.convert(::Type{CuArrayPtr{T}}, mem::ArrayMemory{T}) where {T} =
+    convert(CuArrayPtr{T}, pointer(mem))
 # ... except for CuArrayPtr{Nothing}, which is used to call untyped API functions
-Base.convert(::Type{CuArrayPtr{Nothing}}, buf::ArrayBuffer)  =
-    convert(CuArrayPtr{Nothing}, pointer(buf))
+Base.convert(::Type{CuArrayPtr{Nothing}}, mem::ArrayMemory)  =
+    convert(CuArrayPtr{Nothing}, pointer(mem))
 
-function alloc(::Type{<:ArrayBuffer{T}}, dims::Dims{N}) where {T,N}
+"""
+    alloc(ArrayMemory, dims::Dims)
+
+Allocate array memory with dimensions `dims`. The memory is accessible on the GPU, but
+can only be used in conjunction with special intrinsics (e.g., texture intrinsics).
+"""
+function alloc(::Type{<:ArrayMemory{T}}, dims::Dims{N}) where {T,N}
     format = convert(CUarray_format, eltype(T))
 
     if N == 2
@@ -334,52 +332,69 @@ function alloc(::Type{<:ArrayBuffer{T}}, dims::Dims{N}) where {T,N}
         "CUDA arrays (texture memory) can only have 1, 2 or 3 dimensions"
     end
 
-    allocateArray_ref = Ref(CUDA.CUDA_ARRAY3D_DESCRIPTOR(
+    allocateArray_ref = Ref(CUDA_ARRAY3D_DESCRIPTOR(
         width, # Width::Csize_t
         height, # Height::Csize_t
         depth, # Depth::Csize_t
         format, # Format::CUarray_format
-        UInt32(CUDA.nchans(T)), # NumChannels::UInt32
+        UInt32(nchans(T)), # NumChannels::UInt32
         0))
 
     handle_ref = Ref{CUarray}()
-    CUDA.cuArray3DCreate_v2(handle_ref, allocateArray_ref)
+    cuArray3DCreate_v2(handle_ref, allocateArray_ref)
     ptr = reinterpret(CuArrayPtr{T}, handle_ref[])
 
-    return ArrayBuffer{T,N}(context(), ptr, dims)
+    return ArrayMemory{T,N}(context(), ptr, dims)
 end
 
-function free(buf::ArrayBuffer)
-    CUDA.cuArrayDestroy(buf)
+function free(mem::ArrayMemory)
+    cuArrayDestroy(mem)
 end
 
+function Base.convert(::Type{CUarray_format}, T::Type)
+    if T === UInt8
+        return CU_AD_FORMAT_UNSIGNED_INT8
+    elseif T === UInt16
+        return CU_AD_FORMAT_UNSIGNED_INT16
+    elseif T === UInt32
+        return CU_AD_FORMAT_UNSIGNED_INT32
+    elseif T === Int8
+        return CU_AD_FORMAT_SIGNED_INT8
+    elseif T === Int16
+        return CU_AD_FORMAT_SIGNED_INT16
+    elseif T === Int32
+        return CU_AD_FORMAT_SIGNED_INT32
+    elseif T === Float16
+        return CU_AD_FORMAT_HALF
+    elseif T === Float32
+        return CU_AD_FORMAT_FLOAT
+    else
+        throw(ArgumentError("CUDA does not support texture arrays for element type $T."))
+    end
+end
 
-## convenience aliases
-
-const Device  = DeviceBuffer
-const Host    = HostBuffer
-const Unified = UnifiedBuffer
-const Array   = ArrayBuffer
+nchans(::Type{<:NTuple{C}}) where {C} = C
+nchans(::Type) = 1
 
 
 
 #
-# pointers
+# operations on pointers
 #
 
 ## initialization
 
 """
-    Mem.set!(buf::CuPtr, value::Union{UInt8,UInt16,UInt32}, len::Integer; [stream::CuStream])
+    memset(mem::CuPtr, value::Union{UInt8,UInt16,UInt32}, len::Integer; [stream::CuStream])
 
 Initialize device memory by copying `val` for `len` times.
 """
-set!
+memset
 
 for T in [UInt8, UInt16, UInt32]
     bits = 8*sizeof(T)
     fn = Symbol("cuMemsetD$(bits)Async")
-    @eval function set!(ptr::CuPtr{$T}, value::$T, len::Integer; stream::CuStream=stream())
+    @eval function memset(ptr::CuPtr{$T}, value::$T, len::Integer; stream::CuStream=stream())
         $(getproperty(CUDA, fn))(ptr, value, len, stream)
         return
     end
@@ -387,6 +402,8 @@ end
 
 
 ## copy operations
+
+# XXX: also provide low-level memcpy?
 
 for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", :CuPtr, :Ptr),
                                  ("cuMemcpyHtoDAsync_v2", :Ptr,   :CuPtr),
@@ -406,12 +423,11 @@ function Base.unsafe_copyto!(dst::CuPtr{T}, src::CuPtr{T}, N::Integer;
     dst_dev = device(dst)
     src_dev = device(src)
     if dst_dev == src_dev
-        CUDA.cuMemcpyDtoDAsync_v2(dst, src, N*sizeof(T), stream)
+        cuMemcpyDtoDAsync_v2(dst, src, N*sizeof(T), stream)
     else
-        maybe_enable_peer_access(src_dev, dst_dev)
-        CUDA.cuMemcpyPeerAsync(dst, context(dst_dev),
-                               src, context(src_dev),
-                               N*sizeof(T), stream)
+        cuMemcpyPeerAsync(dst, context(dst_dev),
+                          src, context(src_dev),
+                          N*sizeof(T), stream)
     end
     async || synchronize(stream)
     return dst
@@ -420,7 +436,7 @@ end
 function Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::Ptr{T}, N::Integer;
                              stream::CuStream=stream(),
                              async::Bool=false) where T
-    CUDA.cuMemcpyHtoAAsync_v2(dst, doffs, src, N*sizeof(T), stream)
+    cuMemcpyHtoAAsync_v2(dst, doffs, src, N*sizeof(T), stream)
     async || synchronize(stream)
     return dst
 end
@@ -428,16 +444,16 @@ end
 function Base.unsafe_copyto!(dst::Ptr{T}, src::CuArrayPtr{T}, soffs::Integer, N::Integer;
                              stream::CuStream=stream(),
                              async::Bool=false) where T
-    CUDA.cuMemcpyAtoHAsync_v2(dst, src, soffs, N*sizeof(T), stream)
+    cuMemcpyAtoHAsync_v2(dst, src, soffs, N*sizeof(T), stream)
     async || synchronize(stream)
     return dst
 end
 
 Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::CuPtr{T}, N::Integer) where {T} =
-    CUDA.cuMemcpyDtoA_v2(dst, doffs, src, N*sizeof(T))
+    cuMemcpyDtoA_v2(dst, doffs, src, N*sizeof(T))
 
 Base.unsafe_copyto!(dst::CuPtr{T}, src::CuArrayPtr{T}, soffs::Integer, N::Integer) where {T} =
-    CUDA.cuMemcpyAtoD_v2(dst, src, soffs, N*sizeof(T))
+    cuMemcpyAtoD_v2(dst, src, soffs, N*sizeof(T))
 
 Base.unsafe_copyto!(dst::CuArrayPtr, src, N::Integer; kwargs...) =
     Base.unsafe_copyto!(dst, 0, src, N; kwargs...)
@@ -445,62 +461,73 @@ Base.unsafe_copyto!(dst::CuArrayPtr, src, N::Integer; kwargs...) =
 Base.unsafe_copyto!(dst, src::CuArrayPtr, N::Integer; kwargs...) =
     Base.unsafe_copyto!(dst, src, 0, N; kwargs...)
 
-function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:AbstractBuffer},
-                        src::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, srcTyp::Type{<:AbstractBuffer},
+"""
+    unsafe_copy2d!(dst, dstTyp, src, srcTyp, width, height=1;
+                   dstPos=(1,1), dstPitch=0,
+                   srcPos=(1,1), srcPitch=0,
+                   async=false, stream=nothing)
+
+Perform a 2D memory copy between pointers `src` and `dst`, at respectively position `srcPos`
+and `dstPos` (1-indexed). Pitch can be specified for both the source and destination;
+consult the CUDA documentation for more details. This call is executed asynchronously if
+`async` is set, otherwise `stream` is synchronized.
+"""
+function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:AbstractMemory},
+                        src::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, srcTyp::Type{<:AbstractMemory},
                         width::Integer, height::Integer=1;
-                        dstPos::CuDim=(1,1), srcPos::CuDim=(1,1),
-                        dstPitch::Integer=0, srcPitch::Integer=0,
-                        async::Bool=false, stream::CuStream=stream()) where T
-    srcPos = CUDA.CuDim3(srcPos)
+                        dstPos::CuDim=(1,1), dstPitch::Integer=0,
+                        srcPos::CuDim=(1,1), srcPitch::Integer=0,
+                        async::Bool=false, stream::CuStream=CUDA.stream()) where T
+    srcPos = CuDim3(srcPos)
     @assert srcPos.z == 1
-    dstPos = CUDA.CuDim3(dstPos)
+    dstPos = CuDim3(dstPos)
     @assert dstPos.z == 1
 
-    srcMemoryType, srcHost, srcDevice, srcArray = if srcTyp == Host
-        CUDA.CU_MEMORYTYPE_HOST,
+    srcMemoryType, srcHost, srcDevice, srcArray = if srcTyp == HostMemory
+        CU_MEMORYTYPE_HOST,
         src::Ptr,
         0,
         0
-    elseif srcTyp == Mem.Device
-        CUDA.CU_MEMORYTYPE_DEVICE,
+    elseif srcTyp == DeviceMemory
+        CU_MEMORYTYPE_DEVICE,
         0,
         src::CuPtr,
         0
-    elseif srcTyp == Mem.Unified
-        CUDA.CU_MEMORYTYPE_UNIFIED,
+    elseif srcTyp == UnifiedMemory
+        CU_MEMORYTYPE_UNIFIED,
         0,
         reinterpret(CuPtr{Cvoid}, src),
         0
-    elseif srcTyp == Mem.Array
-        CUDA.CU_MEMORYTYPE_ARRAY,
+    elseif srcTyp == ArrayMemory
+        CU_MEMORYTYPE_ARRAY,
         0,
         0,
         src::CuArrayPtr
     end
 
-    dstMemoryType, dstHost, dstDevice, dstArray = if dstTyp == Host
-        CUDA.CU_MEMORYTYPE_HOST,
+    dstMemoryType, dstHost, dstDevice, dstArray = if dstTyp == HostMemory
+        CU_MEMORYTYPE_HOST,
         dst::Ptr,
         0,
         0
-    elseif dstTyp == Mem.Device
-        CUDA.CU_MEMORYTYPE_DEVICE,
+    elseif dstTyp == DeviceMemory
+        CU_MEMORYTYPE_DEVICE,
         0,
         dst::CuPtr,
         0
-    elseif dstTyp == Mem.Unified
-        CUDA.CU_MEMORYTYPE_UNIFIED,
+    elseif dstTyp == UnifiedMemory
+        CU_MEMORYTYPE_UNIFIED,
         0,
         reinterpret(CuPtr{Cvoid}, dst),
         0
-    elseif dstTyp == Mem.Array
-        CUDA.CU_MEMORYTYPE_ARRAY,
+    elseif dstTyp == ArrayMemory
+        CU_MEMORYTYPE_ARRAY,
         0,
         0,
         dst::CuArrayPtr
     end
 
-    params_ref = Ref(CUDA.CUDA_MEMCPY2D(
+    params_ref = Ref(CUDA_MEMCPY2D(
         # source
         (srcPos.x-1)*sizeof(T), srcPos.y-1,
         srcMemoryType, srcHost, srcDevice, srcArray,
@@ -512,7 +539,7 @@ function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
         # extent
         width*sizeof(T), height
     ))
-    CUDA.cuMemcpy2DAsync_v2(params_ref, stream)
+    cuMemcpy2DAsync_v2(params_ref, stream)
     async || synchronize(stream)
     return dst
 end
@@ -524,24 +551,24 @@ end
                    async=false, stream=nothing)
 
 Perform a 3D memory copy between pointers `src` and `dst`, at respectively position `srcPos`
-and `dstPos` (1-indexed). Both pitch and destination can be specified for both the source
-and destination; consult the CUDA documentation for more details. This call is executed
+and `dstPos` (1-indexed). Both pitch and height can be specified for both the source and
+destination; consult the CUDA documentation for more details. This call is executed
 asynchronously if `async` is set, otherwise `stream` is synchronized.
 """
-function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:AbstractBuffer},
-                        src::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, srcTyp::Type{<:AbstractBuffer},
+function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:AbstractMemory},
+                        src::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, srcTyp::Type{<:AbstractMemory},
                         width::Integer, height::Integer=1, depth::Integer=1;
                         dstPos::CuDim=(1,1,1), srcPos::CuDim=(1,1,1),
                         dstPitch::Integer=0, dstHeight::Integer=0,
                         srcPitch::Integer=0, srcHeight::Integer=0,
                         async::Bool=false, stream::CuStream=stream()) where T
-    srcPos = CUDA.CuDim3(srcPos)
-    dstPos = CUDA.CuDim3(dstPos)
+    srcPos = CuDim3(srcPos)
+    dstPos = CuDim3(dstPos)
 
     # JuliaGPU/CUDA.jl#863: cuMemcpy3DAsync calculates wrong offset
     #                       when using the stream-ordered memory allocator
     # NOTE: we apply the workaround unconditionally, since we want to keep this call cheap.
-    if v"11.2" <= CUDA.driver_version() <= v"11.3" #&& CUDA.pools[device()].stream_ordered
+    if v"11.2" <= driver_version() <= v"11.3" #&& pools[device()].stream_ordered
         srcOffset = (srcPos.x-1)*sizeof(T) + srcPitch*((srcPos.y-1) + srcHeight*(srcPos.z-1))
         dstOffset = (dstPos.x-1)*sizeof(T) + dstPitch*((dstPos.y-1) + dstHeight*(dstPos.z-1))
     else
@@ -549,51 +576,51 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
         dstOffset = 0
     end
 
-    srcMemoryType, srcHost, srcDevice, srcArray = if srcTyp == Host
-        CUDA.CU_MEMORYTYPE_HOST,
+    srcMemoryType, srcHost, srcDevice, srcArray = if srcTyp == HostMemory
+        CU_MEMORYTYPE_HOST,
         src::Ptr + srcOffset,
         0,
         0
-    elseif srcTyp == Mem.Device
-        CUDA.CU_MEMORYTYPE_DEVICE,
+    elseif srcTyp == DeviceMemory
+        CU_MEMORYTYPE_DEVICE,
         0,
         src::CuPtr + srcOffset,
         0
-    elseif srcTyp == Mem.Unified
-        CUDA.CU_MEMORYTYPE_UNIFIED,
+    elseif srcTyp == UnifiedMemory
+        CU_MEMORYTYPE_UNIFIED,
         0,
         reinterpret(CuPtr{Cvoid}, src) + srcOffset,
         0
-    elseif srcTyp == Mem.Array
-        CUDA.CU_MEMORYTYPE_ARRAY,
+    elseif srcTyp == ArrayMemory
+        CU_MEMORYTYPE_ARRAY,
         0,
         0,
         src::CuArrayPtr + srcOffset
     end
 
-    dstMemoryType, dstHost, dstDevice, dstArray = if dstTyp == Host
-        CUDA.CU_MEMORYTYPE_HOST,
+    dstMemoryType, dstHost, dstDevice, dstArray = if dstTyp == HostMemory
+        CU_MEMORYTYPE_HOST,
         dst::Ptr + dstOffset,
         0,
         0
-    elseif dstTyp == Mem.Device
-        CUDA.CU_MEMORYTYPE_DEVICE,
+    elseif dstTyp == DeviceMemory
+        CU_MEMORYTYPE_DEVICE,
         0,
         dst::CuPtr + dstOffset,
         0
-    elseif dstTyp == Mem.Unified
-        CUDA.CU_MEMORYTYPE_UNIFIED,
+    elseif dstTyp == UnifiedMemory
+        CU_MEMORYTYPE_UNIFIED,
         0,
         reinterpret(CuPtr{Cvoid}, dst) + dstOffset,
         0
-    elseif dstTyp == Mem.Array
-        CUDA.CU_MEMORYTYPE_ARRAY,
+    elseif dstTyp == ArrayMemory
+        CU_MEMORYTYPE_ARRAY,
         0,
         0,
         dst::CuArrayPtr + dstOffset
     end
 
-    params_ref = Ref(CUDA.CUDA_MEMCPY3D(
+    params_ref = Ref(CUDA_MEMCPY3D(
         # source
         srcOffset==0 ? (srcPos.x-1)*sizeof(T) : 0,
         srcOffset==0 ? srcPos.y-1             : 0,
@@ -613,7 +640,7 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
         # extent
         width*sizeof(T), height, depth
     ))
-    CUDA.cuMemcpy3DAsync_v2(params_ref, stream)
+    cuMemcpy3DAsync_v2(params_ref, stream)
     async || synchronize(stream)
     return dst
 end
@@ -630,19 +657,43 @@ end
 
 ## memory pinning
 
+const __pin_lock = ReentrantLock()
+
+# - IdDict does not free the memory
+# - WeakRef dict does not unique the key by objectid
+const __pinned_objects = Dict{Tuple{CuContext,Ptr{Cvoid}}, WeakRef}()
+
 function pin(a::AbstractArray)
     ctx = context()
-    ptr = __pin(a)
+    ptr = pointer(a)
+
+    Base.@lock __pin_lock begin
+        # only pin an object once per context
+        key = (ctx, convert(Ptr{Nothing}, ptr))
+        if haskey(__pinned_objects, key) && __pinned_objects[key].value !== nothing
+            return nothing
+        end
+        __pinned_objects[key] = WeakRef(a)
+    end
+
+     __pin(ptr, sizeof(a))
     finalizer(a) do _
         __unpin(ptr, ctx)
     end
+
     a
 end
 
-function __pin(a::Base.Array)
-    ptr = convert(Ptr{Cvoid}, pointer(a))
-    __pin(ptr, sizeof(a))
-    return ptr
+function pin(ref::Base.RefValue{T}) where T
+    ctx = context()
+    ptr = Base.unsafe_convert(Ptr{T}, ref)
+
+    __pin(ptr, sizeof(T))
+    finalizer(ref) do _
+        __unpin(ptr, ctx)
+    end
+
+    ref
 end
 
 # derived arrays should always pin the parent memory range, because we may end up copying
@@ -656,12 +707,11 @@ end
 __pin(a::Union{SubArray, Base.ReinterpretArray, Base.ReshapedArray}) = __pin(parent(a))
 
 # refcount the pinning per context, since we can only pin a memory range once
-const __pin_lock = ReentrantLock()
-const __pins = Dict{Tuple{CuContext,Ptr{Cvoid}}, HostBuffer}()
+const __pinned_memory = Dict{Tuple{CuContext,Ptr{Cvoid}}, HostMemory}()
 const __pin_count = Dict{Tuple{CuContext,Ptr{Cvoid}}, Int}()
-function __pin(ptr::Ptr{Nothing}, sz::Int)
+function __pin(ptr::Ptr, sz::Int)
     ctx = context()
-    key = (ctx,ptr)
+    key = (ctx, convert(Ptr{Nothing}, ptr))
 
     Base.@lock __pin_lock begin
         pin_count = if haskey(__pin_count, key)
@@ -669,110 +719,49 @@ function __pin(ptr::Ptr{Nothing}, sz::Int)
         else
             __pin_count[key] = 1
         end
-        @assert pin_count >= 1  # should have been caught by double-unpin check in __unpin
 
         if pin_count == 1
-            buf = Mem.register(Mem.Host, ptr, sz)
-            __pins[key] = buf
+            mem = register(HostMemory, ptr, sz)
+            __pinned_memory[key] = mem
         elseif Base.JLOptions().debug_level >= 2
             # make sure we're pinning the exact same range
-            @assert haskey(__pins, key) "Cannot find buffer for $ptr with pin count $pin_count."
-            buf = __pins[key]
-            @assert sz == sizeof(buf) "Mismatch between pin request of $ptr: $sz vs. $(sizeof(buf))."
+            @assert haskey(__pinned_memory, key) "Cannot find memory for $ptr with pin count $pin_count."
+            mem = __pinned_memory[key]
+            @assert sz == sizeof(mem) "Mismatch between pin request of $ptr: $sz vs. $(sizeof(mem))."
         end
     end
 
     return
 end
-function __unpin(ptr::Ptr{Nothing}, ctx::CuContext)
-    key = (ctx,ptr)
+function __unpin(ptr::Ptr, ctx::CuContext)
+    key = (ctx, convert(Ptr{Nothing}, ptr))
 
     Base.@lock __pin_lock begin
         @assert haskey(__pin_count, key) "Cannot unpin unmanaged pointer $ptr."
         pin_count = __pin_count[key] -= 1
-        @assert pin_count >= 0 "Double unpin for $ptr"
 
         if pin_count == 0
-            buf = @inbounds __pins[key]
+            mem = @inbounds __pinned_memory[key]
             context!(ctx; skip_destroyed=true) do
-                Mem.unregister(buf)
+                unregister(mem)
             end
-            delete!(__pins, key)
+            delete!(__pinned_memory, key)
         end
     end
 
     return
 end
-
-## p2p handling
-
-# matrix of set-up peer accesses:
-# - -1: unsupported
-# -  0: not set-up yet
-# -  1: supported
-const peer_access = Ref{Matrix{Int}}()
-function maybe_enable_peer_access(src::CuDevice, dst::CuDevice)
-    global peer_access
-
-    src_idx = deviceid(src)+1
-    dst_idx = deviceid(dst)+1
-
-    if !isassigned(peer_access)
-        peer_access[] = Base.zeros(Int8, ndevices(), ndevices())
+function __pinned(ptr::Ptr, ctx::CuContext)
+    key = (ctx, convert(Ptr{Nothing}, ptr))
+    Base.@lock __pin_lock begin
+        haskey(__pin_count, key)
     end
-
-    # we need to take care only to enable P2P access when it is supported,
-    # as well as not to call this function multiple times, to avoid errors.
-    if peer_access[][src_idx, dst_idx] == 0
-        if can_access_peer(src, dst)
-            device!(src) do
-                try
-                    enable_peer_access(context(dst))
-                    if memory_pools_supported(src)
-                        src_pool = default_memory_pool(src)
-                        access!(src_pool, dst, CUDA.ACCESS_FLAGS_PROT_READWRITE)
-                    end
-                    peer_access[][src_idx, dst_idx] = 1
-                catch err
-                    @warn "Enabling peer-to-peer access between $src and $dst failed; please file an issue." exception=(err,catch_backtrace())
-                    peer_access[][src_idx, dst_idx] = -1
-                end
-            end
-        else
-            peer_access[][src_idx, dst_idx] = -1
-        end
-    end
-
-    return peer_access[][src_idx, dst_idx]
 end
-
-## memory info
-
-function info()
-    free_ref = Ref{Csize_t}()
-    total_ref = Ref{Csize_t}()
-    CUDA.cuMemGetInfo_v2(free_ref, total_ref)
-    return convert(Int, free_ref[]), convert(Int, total_ref[])
-end
-
-end # module Mem
-
-"""
-    available_memory()
-
-Returns the available amount of memory (in bytes), available for allocation by the CUDA context.
-"""
-available_memory() = Mem.info()[1]
-
-"""
-    total_memory()
-
-Returns the total amount of memory (in bytes), available for allocation by the CUDA context.
-"""
-total_memory() = Mem.info()[2]
 
 
 ## pointer attributes
+
+# TODO: iterable struct
 
 """
     attribute(X, ptr::Union{Ptr,CuPtr}, attr)
@@ -805,15 +794,15 @@ end
 """
     context(ptr)
 
-Identify the context a CUDA memory buffer was allocated in.
+Identify the context memory was allocated in.
 """
 context(ptr::Union{Ptr,CuPtr}) =
-    _CuContext(attribute(CUcontext, ptr, POINTER_ATTRIBUTE_CONTEXT))
+    CuContext(attribute(CUcontext, ptr, POINTER_ATTRIBUTE_CONTEXT))
 
 """
     device(ptr)
 
-Identify the device a CUDA memory buffer was allocated on.
+Identify the device memory was allocated on.
 """
 device(x::Union{Ptr,CuPtr}) =
     CuDevice(convert(Int, attribute(Cuint, x, POINTER_ATTRIBUTE_DEVICE_ORDINAL)))
@@ -846,7 +835,7 @@ function is_pinned(ptr::Ptr)
     # calling `memory_type` with an expensive try/catch we perform low-level API calls.
     ptr = reinterpret(CuPtr{Nothing}, ptr)
     data_ref = Ref{Cuint}()
-    res = unsafe_cuPointerGetAttribute(data_ref, POINTER_ATTRIBUTE_MEMORY_TYPE, ptr)
+    res = unchecked_cuPointerGetAttribute(data_ref, POINTER_ATTRIBUTE_MEMORY_TYPE, ptr)
     if res == ERROR_INVALID_VALUE
         false
     elseif res == SUCCESS
@@ -857,29 +846,30 @@ function is_pinned(ptr::Ptr)
 end
 
 
-## shared texture/array stuff
 
-function Base.convert(::Type{CUarray_format}, T::Type)
-    if T === UInt8
-        return CU_AD_FORMAT_UNSIGNED_INT8
-    elseif T === UInt16
-        return CU_AD_FORMAT_UNSIGNED_INT16
-    elseif T === UInt32
-        return CU_AD_FORMAT_UNSIGNED_INT32
-    elseif T === Int8
-        return CU_AD_FORMAT_SIGNED_INT8
-    elseif T === Int16
-        return CU_AD_FORMAT_SIGNED_INT16
-    elseif T === Int32
-        return CU_AD_FORMAT_SIGNED_INT32
-    elseif T === Float16
-        return CU_AD_FORMAT_HALF
-    elseif T === Float32
-        return CU_AD_FORMAT_FLOAT
-    else
-        throw(ArgumentError("CUDA does not support texture arrays for element type $T."))
-    end
+#
+# other
+#
+
+## memory info
+
+function memory_info()
+    free_ref = Ref{Csize_t}()
+    total_ref = Ref{Csize_t}()
+    cuMemGetInfo_v2(free_ref, total_ref)
+    return convert(Int, free_ref[]), convert(Int, total_ref[])
 end
 
-nchans(::Type{<:NTuple{C}}) where {C} = C
-nchans(::Type) = 1
+"""
+    free_memory()
+
+Returns the free amount of memory (in bytes), available for allocation by the CUDA context.
+"""
+free_memory() = Int(memory_info()[1])
+
+"""
+    total_memory()
+
+Returns the total amount of memory (in bytes), available for allocation by the CUDA context.
+"""
+total_memory() = Int(memory_info()[2])

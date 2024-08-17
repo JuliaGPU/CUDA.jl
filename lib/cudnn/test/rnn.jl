@@ -34,7 +34,7 @@ using cuDNN:
         CUDNN_TENSOR_OP_MATH,                  # 1,
         CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION, # 2,
         CUDNN_FMA_MATH,                        # 3,
-    #/* For auxFlags in cudnnSetRNNDescriptor_v8() and cudnnSetRNNPaddingMode() */
+    #/* For auxFlags in cudnnSetRNNDescriptor_v8() */
         CUDNN_RNN_PADDED_IO_DISABLED, # 0
         CUDNN_RNN_PADDED_IO_ENABLED,  # (1U << 0)
     cudnnForwardMode_t,

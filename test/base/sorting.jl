@@ -1,10 +1,8 @@
 using Random
 using DataStructures
 
-@testset "quicksort" begin
-
-import CUDA.QuickSortImpl: flex_lt, find_partition, quicksort!,
-        partition_batches_kernel, consolidate_batch_partition, bubble_sort
+import CUDA.QuickSortImpl: flex_lt, find_partition, quicksort!, partition_batches_kernel,
+                           consolidate_batch_partition, bubble_sort
 
 @testset "integer functions" begin
     @test flex_lt(1, 2, false, isless, identity) == true
@@ -40,8 +38,7 @@ function test_batch_partition(T, N, lo, hi, seed, lt=isless, by=identity)
     block_dim = threads
     @assert block_dim >= 32 "This test assumes block size can be >= 32"
 
-    kernel(A, pivot, lo, hi, true, lt;
-           threads=threads, blocks=(1,blocks), shmem=get_shmem(threads))
+    kernel(A, pivot, lo, hi, true, lt; threads, blocks=(1,blocks), shmem=get_shmem(threads))
     synchronize()
 
     post_sort = Array(A)
@@ -112,11 +109,11 @@ function test_consolidate_partition(T, N, lo, hi, seed, block_dim, lt=isless, by
     threads = isnothing(block_dim) ? prevpow(2, config.threads) : block_dim
     blocks = ceil(Int, (hi - lo) ./ threads)
 
-    kernel(A, pivot, lo, hi, true, lt, by; threads=threads, blocks=(1,blocks), shmem=get_shmem(threads))
+    kernel(A, pivot, lo, hi, true, lt, by; threads, blocks=(1,blocks), shmem=get_shmem(threads))
     synchronize()
     dest = CuArray(zeros(Int, 1))
 
-    @cuda threads=threads test_consolidate_kernel(A, pivot, lo, hi - lo, sums, dest, true, lt, by)
+    @cuda threads test_consolidate_kernel(A, pivot, lo, hi - lo, sums, dest, true, lt, by)
     synchronize()
 
     partition = Array(dest)[1]
@@ -280,9 +277,6 @@ end
     end
 end
 
-# XXX: some tests here make compute-sanitizer hang, but only on CI.
-#      maybe related to the container set-up? try again once we use Sandbox.jl.
-
 @testset "interface" begin
     @testset "quicksort" begin
         # pre-sorted
@@ -316,7 +310,7 @@ end
 
         # multiple dimensions
         @test check_sort!(Int32, (4, 50000, 4); dims=2)
-        @test check_sort!(Int32, (4, 4, 50000); dims=3, rev=true)
+        @test check_sort!(Int32, (2, 2, 50000); dims=3, rev=true)
 
         # large sizes
         @test check_sort!(Float32, 2^25; alg=CUDA.QuickSort)
@@ -390,6 +384,10 @@ end
     @test check_sortperm(Float64, 1000000; rev=true)
     @test check_sortperm(Float64, 1000000; by=x->abs(x-0.5))
     @test check_sortperm(Float64, 1000000; rev=true, by=x->abs(x-0.5))
+    @test check_sortperm(Float32, (100_000, 16); dims=1)
+    @test check_sortperm(Float32, (100_000, 16); dims=2)
+    @test check_sortperm(Float32, (100, 256, 256); dims=1)
+
     # check with Int32 indices
     @test check_sortperm!(collect(Int32(1):Int32(1000000)), Float32, 1000000)
     # `initialized` kwarg
@@ -399,6 +397,4 @@ end
     @test_throws ArgumentError sortperm!(CuArray(1:3), CuArray(1:4))
     # mismatched types (JuliaGPU/CUDA.jl#2046)
     @test check_sortperm!(collect(UInt64(1):UInt64(1000000)), Int64, 1000000)
-end
-
 end

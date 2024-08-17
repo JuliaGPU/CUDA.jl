@@ -66,39 +66,45 @@ end
 Add PTX code to a pending link operation.
 """
 function add_data!(link::CuLink, name::String, code::String)
-    data = unsafe_wrap(Vector{UInt8}, code)
+    GC.@preserve code begin
+        # cuLinkAddData takes a Ptr{Cvoid} instead of a Cstring, because it accepts both
+        # source and binary, so do the conversion (ensuring no embedded NULLs) ourselves
+        data = Base.unsafe_convert(Cstring, code)
 
-    # there shouldn't be any embedded NULLs
-    checked_data = Base.unsafe_convert(Cstring, data)
-
-    res = unsafe_cuLinkAddData_v2(link, JIT_INPUT_PTX, pointer(checked_data), length(data),
-                                  name, 0, C_NULL, C_NULL)
-    if res == ERROR_NO_BINARY_FOR_GPU ||
-       res == ERROR_INVALID_IMAGE ||
-       res == ERROR_INVALID_PTX
-        throw(CuError(res, unsafe_string(pointer(link.options[JIT_ERROR_LOG_BUFFER]))))
-    elseif res != SUCCESS
-        throw_api_error(res)
+        try
+            cuLinkAddData_v2(link, JIT_INPUT_PTX, pointer(data), length(code), name, 0,
+                             C_NULL, C_NULL)
+        catch err
+            if isa(err, CuError) && err.code in (ERROR_NO_BINARY_FOR_GPU,
+                                                 ERROR_INVALID_IMAGE,
+                                                 ERROR_INVALID_PTX)
+                options = decode(link.optionKeys, link.optionVals)
+                error(unsafe_string(pointer(link.options[JIT_ERROR_LOG_BUFFER])))
+            else
+                rethrow()
+            end
+        end
     end
 end
 
 """
-    add_data!(link::CuLink, name::String, data::Vector{UInt8}, type::CUjitInputType)
+    add_data!(link::CuLink, name::String, data::Vector{UInt8})
 
 Add object code to a pending link operation.
 """
 function add_data!(link::CuLink, name::String, data::Vector{UInt8})
-    res = unsafe_cuLinkAddData_v2(link, JIT_INPUT_OBJECT, pointer(data), length(data),
-                                  name, 0, C_NULL, C_NULL)
-    if res == ERROR_NO_BINARY_FOR_GPU ||
-       res == ERROR_INVALID_IMAGE ||
-       res == ERROR_INVALID_PTX
-        throw(CuError(res, unsafe_string(pointer(link.options[JIT_ERROR_LOG_BUFFER]))))
-    elseif res != SUCCESS
-        throw_api_error(res)
+    try
+        cuLinkAddData_v2(link, JIT_INPUT_OBJECT, data, length(data), name, 0, C_NULL, C_NULL)
+    catch err
+        if isa(err, CuError) && err.code in (ERROR_NO_BINARY_FOR_GPU,
+                                             ERROR_INVALID_IMAGE,
+                                             ERROR_INVALID_PTX)
+            options = decode(link.optionKeys, link.optionVals)
+            error(unsafe_string(pointer(link.options[JIT_ERROR_LOG_BUFFER])))
+        else
+            rethrow()
+        end
     end
-
-    return
 end
 
 """
@@ -134,21 +140,22 @@ function complete(link::CuLink)
     cubin_ref = Ref{Ptr{Cvoid}}()
     size_ref = Ref{Csize_t}()
 
-    res = unsafe_cuLinkComplete(link, cubin_ref, size_ref)
-    if res == CUDA_ERROR_NO_BINARY_FOR_GPU || res == CUDA_ERROR_INVALID_IMAGE
-        options = decode(link.optionKeys, link.optionVals)
-        throw(CuError(res, options[JIT_ERROR_LOG_BUFFER]))
-    elseif res != SUCCESS
-        throw_api_error(res)
+    try
+        cuLinkComplete(link, cubin_ref, size_ref)
+    catch err
+        if isa(err, CuError) && (err.code == ERROR_NO_BINARY_FOR_GPU || err.code == ERROR_INVALID_IMAGE)
+            options = decode(link.optionKeys, link.optionVals)
+            error(options[JIT_ERROR_LOG_BUFFER])
+        else
+            rethrow()
+        end
     end
 
-    @debug begin
+    if isdebug(:CuLink)
         options = decode(link.optionKeys, link.optionVals)
-        if isempty(options[JIT_INFO_LOG_BUFFER])
-            """JIT info log is empty"""
-        else
-            """JIT info log:
-               $(options[JIT_INFO_LOG_BUFFER])"""
+        if !isempty(options[JIT_INFO_LOG_BUFFER])
+            @debug """JIT info log:
+                      $(options[JIT_INFO_LOG_BUFFER])"""
         end
     end
 

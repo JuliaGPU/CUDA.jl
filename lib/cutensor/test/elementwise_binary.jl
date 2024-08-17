@@ -1,17 +1,18 @@
-using CUDA, cuTENSOR
+@testset "elementwise binary" begin
+
+using cuTENSOR: elementwise_binary_execute!
+
 using LinearAlgebra
 
-# using host memory with cuTENSOR doesn't work on Windows
-can_pin = !Sys.iswindows()
+eltypes = [(Float16, Float16),
+           (Float32, Float32),
+           (Float64, Float64),
+           (ComplexF32, ComplexF32),
+           (ComplexF64, ComplexF64),
+           (ComplexF64, ComplexF32),
+           (Float32, Float16),
+           (Float64, Float32)]
 
-eltypes = ((Float16, Float16),
-            #(Float16, Float32),
-            (Float32, Float32),
-            #(Float32, Float64),
-            (Float64, Float64),
-            #(ComplexF16, ComplexF16), (ComplexF16, ComplexF32),
-            (ComplexF32, ComplexF32), #(ComplexF32, ComplexF64),
-            (ComplexF64, ComplexF64))
 @testset for N=2:5
     @testset for (eltyA, eltyC) in eltypes
         # setup
@@ -27,92 +28,54 @@ eltypes = ((Float16, Float16),
         dA    = CuArray(A)
         C     = rand(eltyC, dimsC...)
         dC    = CuArray(C)
-        can_pin && Mem.pin(A)
-        can_pin && Mem.pin(C)
 
         # simple case
-        opA   = cuTENSOR.CUTENSOR_OP_IDENTITY
-        opC   = cuTENSOR.CUTENSOR_OP_IDENTITY
+        opA   = cuTENSOR.OP_IDENTITY
+        opC   = cuTENSOR.OP_IDENTITY
         dD    = similar(dC, eltyD)
-        opAC  = cuTENSOR.CUTENSOR_OP_ADD
-        dD    = cuTENSOR.elementwiseBinary!(1, dA, indsA, opA, 1, dC, indsC, opC,
-                                            dD, indsC, opAC)
+        opAC  = cuTENSOR.OP_ADD
+        dD    = elementwise_binary_execute!(1, dA, indsA, opA, 1, dC, indsC, opC, dD, indsC, opAC)
         D = collect(dD)
         @test D ≈ permutedims(A, p) .+ C
-        if can_pin
-            Dsimple = similar(C)
-             Mem.pin(Dsimple)
-            Dsimple = CUDA.@sync cuTENSOR.elementwiseBinary!(1, A, indsA, opA, 1, C, indsC, opC,
-                                                             Dsimple, indsC, opAC)
-            @test Dsimple ≈ permutedims(A, p) .+ C
-        end
 
         # using integers as indices
-        dD = cuTENSOR.elementwiseBinary!(1, dA, 1:N, opA, 1, dC, p, opC, dD, p, opAC)
+        dD = elementwise_binary_execute!(1, dA, 1:N, opA, 1, dC, p, opC, dD, p, opAC)
         D = collect(dD)
         @test D ≈ permutedims(A, p) .+ C
-        if can_pin
-            Dint = zeros(eltyC, dimsC...)
-            Mem.pin(Dint)
-            Dint = CUDA.@sync cuTENSOR.elementwiseBinary!(1, A, 1:N, opA, 1, C, p, opC, Dint, p, opAC)
-            @test Dint ≈ permutedims(A, p) .+ C
-        end
 
         # multiplication as binary operator
-        opAC = cuTENSOR.CUTENSOR_OP_MUL
-        dD = cuTENSOR.elementwiseBinary!(1, dA, indsA, opA, 1, dC, indsC, opC,
-                                            dD, indsC, opAC)
+        opAC = cuTENSOR.OP_MUL
+        dD = elementwise_binary_execute!(1, dA, indsA, opA, 1, dC, indsC, opC, dD, indsC, opAC)
         D = collect(dD)
         @test D ≈ permutedims(A, p) .* C
-        if can_pin
-            Dmult = zeros(eltyC, dimsC...)
-            Mem.pin(Dmult)
-            Dmult = CUDA.@sync cuTENSOR.elementwiseBinary!(1, A, indsA, opA, 1, C, indsC, opC,
-                                                           Dmult, indsC, opAC)
-            @test Dmult ≈ permutedims(A, p) .* C
-        end
 
         # with non-trivial coefficients and conjugation
-        opA = eltyA <: Complex ? cuTENSOR.CUTENSOR_OP_CONJ :
-                                cuTENSOR.CUTENSOR_OP_IDENTITY
-        opC = cuTENSOR.CUTENSOR_OP_IDENTITY
-        opAC = cuTENSOR.CUTENSOR_OP_ADD
+        opA = eltyA <: Complex ? cuTENSOR.OP_CONJ : cuTENSOR.OP_IDENTITY
+        opC = cuTENSOR.OP_IDENTITY
+        opAC = cuTENSOR.OP_ADD
         α = rand(eltyD)
         γ = rand(eltyD)
-        dD = cuTENSOR.elementwiseBinary!(α, dA, indsA, opA, γ, dC, indsC, opC,
-                                            dD, indsC, opAC)
+        dD = elementwise_binary_execute!(α, dA, indsA, opA, γ, dC, indsC, opC, dD, indsC, opAC)
         D = collect(dD)
         @test D ≈ α .* conj.(permutedims(A, p)) .+ γ .* C
-        if can_pin
-            Dnontrivial = similar(C)
-            Mem.pin(Dnontrivial)
-            Dnontrivial = CUDA.@sync cuTENSOR.elementwiseBinary!(α, A, indsA, opA, γ, C, indsC, opC,
-                                                                 Dnontrivial, indsC, opAC)
-            @test Dnontrivial ≈ α .* conj.(permutedims(A, p)) .+ γ .* C
-        end
 
         # test in-place, and more complicated unary and binary operations
-        opA = eltyA <: Complex ? cuTENSOR.CUTENSOR_OP_IDENTITY :
-                                cuTENSOR.CUTENSOR_OP_SQRT
+        opA = eltyA <: Complex ? cuTENSOR.OP_IDENTITY : cuTENSOR.OP_SQRT
         # because we use rand, entries of A will be positive when elty is real
-        opC = eltyC <: Complex ? cuTENSOR.CUTENSOR_OP_CONJ :
-                                cuTENSOR.CUTENSOR_OP_IDENTITY
-        opAC = eltyD <: Complex ? cuTENSOR.CUTENSOR_OP_ADD :
-                                cuTENSOR.CUTENSOR_OP_MAX
+        opC = eltyC <: Complex ? cuTENSOR.OP_CONJ : cuTENSOR.OP_IDENTITY
+        opAC = eltyD <: Complex ? cuTENSOR.OP_ADD : cuTENSOR.OP_MAX
         α = rand(eltyD)
         γ = rand(eltyD)
-        dD = cuTENSOR.elementwiseBinary!(α, dA, indsA, opA, γ, dC, indsC, opC,
-                                            dC, indsC, opAC)
+        dD = elementwise_binary_execute!(α, dA, indsA, opA, γ, dC, indsC, opC, dC, indsC, opAC)
         D = collect(dC)
         if eltyD <: Complex
             if eltyA <: Complex
                 @test D ≈ α .* permutedims(A, p) .+ γ .* conj.(C)
             else
-                @test D ≈ α .* sqrt.(convert.(eltyD, permutedims(A, p))) .+
-                            γ .* conj.(C)
+                @test D ≈ α .* sqrt.(eltyD.(permutedims(A, p))) .+ γ .* conj.(C)
             end
         else
-            @test D ≈ max.(α .* sqrt.(convert.(eltyD, permutedims(A, p))), γ .* C)
+            @test D ≈ max.(α .* sqrt.(eltyD.(permutedims(A, p))), γ .* C)
         end
 
         # using CuTensor type
@@ -141,4 +104,6 @@ eltypes = ((Float16, Float16),
         hD = collect(ctD.data)
         @test hD ≈ α.*permutedims(A, p) .+ γ.*C
     end
+end
+
 end

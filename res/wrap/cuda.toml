@@ -10,6 +10,7 @@ output_ignorelist = [
     "CUstream", "CUstream_st",
     # these change often
     "CUDA_VERSION",
+    "_CONCAT_OUTER",
 ]
 
 
@@ -74,6 +75,9 @@ needs_context = false
 [api.cuCtxCreate_v2]
 needs_context = false
 
+[api.cuCtxCreate_v3]
+needs_context = false
+
 [api.cuCtxDestroy_v2]
 needs_context = false
 
@@ -90,6 +94,12 @@ needs_context = false
 needs_context = false
 
 [api.cuCtxGetDevice]
+needs_context = false
+
+[api.cuCtxGetId]
+needs_context = false
+
+[api.cuCtxGetApiVersion]
 needs_context = false
 
 [api.cuDeviceGetLuid]

@@ -58,7 +58,7 @@ Return `false` if there is outstanding work preceding the most recent
 call to `record(e)` and `true` if all captured work has been completed.
 """
 function isdone(e::CuEvent)
-    res = unsafe_cuEventQuery(e)
+    res = unchecked_cuEventQuery(e)
     if res == ERROR_NOT_READY
         return false
     elseif res == SUCCESS
@@ -89,18 +89,38 @@ function elapsed(start::CuEvent, stop::CuEvent)
 end
 
 """
-    @elapsed ex
+    @elapsed [blocking=false] ex
 
 A macro to evaluate an expression, discarding the resulting value, instead returning the
 number of seconds it took to execute on the GPU, as a floating-point number.
+
+See also: [`@sync`](@ref).
 """
-macro elapsed(ex)
+macro elapsed(ex...)
+    # destructure the `@elapsed` expression
+    code = ex[end]
+    kwargs = ex[1:end-1]
+
+    # decode keyword arguments
+    blocking = false
+    for kwarg in kwargs
+        Meta.isexpr(kwarg, :(=)) || error("Invalid keyword argument $kwarg")
+        key, val = kwarg.args
+        if key == :blocking
+            isa(val, Bool) ||
+                error("Invalid value for keyword argument $kwarg; expected Bool, got $(val)")
+            blocking = val
+        else
+            error("Unknown keyword argument $kwarg")
+        end
+    end
+
     quote
         t0, t1 = CuEvent(), CuEvent()
         record(t0)
-        $(esc(ex))
+        $(esc(code))
         record(t1)
-        synchronize(t1)
+        synchronize(t1; blocking=$blocking)
         elapsed(t0, t1)
     end
 end

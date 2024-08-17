@@ -17,7 +17,7 @@ facilitate this style of debugging:
 - `@cuprintln` (like `println`): to print text and values. This macro does support string
   interpolation, but the types it can print are restricted to C primitives.
 
-The `@cuaassert` macro (like `@assert`) can also be useful to find issues and abort execution.
+The `@cuassert` macro (like `@assert`) can also be useful to find issues and abort execution.
 
 
 ## Stack trace information
@@ -91,43 +91,43 @@ To disable all debug info emission, start Julia with the flag `-g0`.
 
 ## `compute-sanitizer`
 
-To debug kernel issues like memory errors or race conditions, you can use CUDA's
-`compute-sanitizer` tool. Refer to the
-[manual](https://docs.nvidia.com/compute-sanitizer/ComputeSanitizer/index.html#using-compute-sanitizer)
-for more information.
+To debug kernel issues like memory errors or race conditions, you can use CUDA's `compute-sanitizer` tool. Refer to the [manual](https://docs.nvidia.com/compute-sanitizer/ComputeSanitizer/index.html#using-compute-sanitizer) for more information.
 
-To facilitate using the compute sanitizer, CUDA.jl ships the tool as part of its artifacts.
-You can get the path to the tool using the following function:
+To use `compute-sanitizer`, you need to install the `CUDA_SDK_jll` package in your environment first.
 
+To spawn a new Julia session under `compute-sanitizer`:
 ```
-julia> using CUDA
+julia> using CUDA_SDK_jll
 
-julia> CUDA.compute_sanitizer()
-".julia/artifacts/7b09e1deca842d1e5467b6f7a8ec5a96d47ae0b4/bin/compute-sanitizer"
+# Get location of compute_sanitizer executable
+julia> compute_sanitizer = joinpath(CUDA_SDK_jll.artifact_dir, "cuda/compute-sanitizer/compute-sanitizer")
+.julia/artifacts/feb6b469b6047f344fec54df2619d65f6b704bdb/cuda/compute-sanitizer/compute-sanitizer
 
-# including recommended options for use with Julia and CUDA.jl
-julia> CUDA.compute_sanitizer_cmd()
-`.julia/artifacts/7b09e1deca842d1e5467b6f7a8ec5a96d47ae0b4/bin/compute-sanitizer --tool memcheck --launch-timeout=0 --target-processes=all --report-api-errors=no`
-```
+# Recommended options for use with Julia and CUDA.jl
+julia> options = ["--launch-timeout=0", "--target-processes=all", "--report-api-errors=no"]
+3-element Vector{String}:
+ "--launch-timeout=0"
+ "--target-processes=all"
+ "--report-api-errors=no"
 
-To quickly spawn a new Julia session under `compute-sanitizer`, another helper function is
-provided:
-
-```
-julia> CUDA.run_compute_sanitizer()
-Re-starting your active Julia session...
-
+# Run the executable with Julia
+julia> run(`$compute_sanitizer $options $(Base.julia_cmd())`)
 ========= COMPUTE-SANITIZER
 julia> using CUDA
 
 julia> CuArray([1]) .+ 1
-1-element CuArray{Int64, 1, CUDA.Mem.DeviceBuffer}:
+1-element CuArray{Int64, 1, CUDA.DeviceMemory}:
  2
 
 julia> exit()
 ========= ERROR SUMMARY: 0 errors
-Process(`.julia/artifacts/7b09e1deca842d1e5467b6f7a8ec5a96d47ae0b4/bin/compute-sanitizer --tool memcheck --launch-timeout=0 --target-processes=all --report-api-errors=no julia -g1`, ProcessExited(0))
+Process(`.julia/artifacts/feb6b469b6047f344fec54df2619d65f6b704bdb/cuda/compute-sanitizer/compute-sanitizer --launch-timeout=0 --target-processes=all --report-api-errors=no julia`, ProcessExited(0))
 ```
+
+By default, `compute-sanitizer` launches the `memcheck` tool, which is great for dealing with
+memory issues. Other tools can be selected with the `--tool` argument, e.g., to find thread
+synchronization hazards use `--tool synccheck`, `racecheck` can be used to find shared memory
+data races, and `initcheck` is useful for spotting uses of uninitialized device memory.
 
 
 ## `cuda-gdb`

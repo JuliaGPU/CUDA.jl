@@ -34,7 +34,7 @@ if do_help
                --list             List all available tests.
                --quickfail        Fail the entire run as soon as a single test errored.
                --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS).
-               --gpu=1,2,...      Which GPUs to use (comma-separated list of indices, default: all)
+               --gpu=0,1,...      Comma-separated list of GPUs to use (default: 0)
                --sanitize[=tool]  Run the tests under `compute-sanitizer`.
 
                Remaining arguments filter the tests that will be executed.""")
@@ -54,13 +54,8 @@ end
 include("setup.jl")     # make sure everything is precompiled
 
 # choose tests
-const tests = ["core$(path_separator)initialization"]    # needs to run first
+const tests = []
 const test_runners = Dict()
-## GPUArrays testsuite
-for name in keys(TestSuite.tests)
-    push!(tests, "gpuarrays$(path_separator)$name")
-    test_runners["gpuarrays$(path_separator)$name"] = ()->TestSuite.tests[name](CuArray)
-end
 ## files in the test folder
 for (rootpath, dirs, files) in walkdir(@__DIR__)
   # find Julia files
@@ -82,12 +77,24 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
     end
   end
 
+  # unify path separators
+  files = map(files) do file
+    replace(file, path_separator => '/')
+  end
+
   append!(tests, files)
-  sort(files; by=(file)->stat("$(@__DIR__)/$file.jl").size, rev=true) # large (slow) tests first
   for file in files
     test_runners[file] = ()->include("$(@__DIR__)/$file.jl")
   end
 end
+sort!(tests; by=(file)->stat("$(@__DIR__)/$file.jl").size, rev=true)
+## GPUArrays testsuite
+for name in keys(TestSuite.tests)
+    pushfirst!(tests, "gpuarrays/$name")
+    test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
+end
+## finalize
+pushfirst!(tests, "core/initialization")
 unique!(tests)
 
 # list tests, if requested
@@ -100,7 +107,22 @@ if do_list
 end
 
 # filter tests
-if !isempty(ARGS)
+if isempty(ARGS)
+  # default to running all tests, except:
+  filter!(tests) do test
+    # package extensions often require additional dependencies,
+    # which we don't want to put in our test env by default.
+    startswith(test, "extensions") && return false
+
+    if CUDA.default_memory != CUDA.DeviceMemory && test == "gpuarrays/indexing scalar"
+        # GPUArrays' scalar indexing tests assume that indexing is not supported
+        return false
+    end
+
+    return true
+  end
+else
+  # let the user filter
   filter!(tests) do test
     any(arg->startswith(test, arg), ARGS)
   end
@@ -119,31 +141,63 @@ function gpu_entry(dev)
     id = deviceid(dev)
     name = CUDA.name(dev)
     uuid = CUDA.uuid(dev)
-    cap = CUDA.capability(dev)
-    mig = uuid != CUDA.parent_uuid(dev)
-    (; id, name, cap, uuid="$(mig ? "MIG" : "GPU")-$uuid")
+    cap = capability(dev)
+    mig = uuid != parent_uuid(dev)
+    compute_mode = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE)
+    free_memory = device!(dev) do
+        mem = CUDA.free_memory()
+        if CUDA.driver_version() >= v"12"
+            device_reset!()
+        end
+        mem
+    end
+    (; id, name, cap, uuid="$(mig ? "MIG" : "GPU")-$uuid", compute_mode, free_memory)
 end
 gpus = if do_gpu_list
     # parse the list of GPUs
-    map(gpu_list) do str
+    map(split(gpu_list, ',')) do str
         id = parse(Int, str)
         gpu_entry(CuDevice(id))
     end
 else
-    # find all GPUs
-    map(gpu_entry, CUDA.devices())
+    # pick the first non-exclusive GPU
+    entries = map(gpu_entry, devices())
+    filter!(entry->entry.compute_mode != CUDA.CU_COMPUTEMODE_PROHIBITED, entries)
+    first(entries, 1)
 end
 @info("Testing using device " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
-      ". To change this, specify the `--gpus` argument to the tests, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
+      ". To change this, specify the `--gpu` argument to the tests, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
 ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")
 
 # determine parallelism
 if !set_jobs
     cpu_jobs = Sys.CPU_THREADS
-    memory_jobs = Int(Sys.free_memory()) ÷ (2 * 2^30)
-    jobs = min(cpu_jobs, memory_jobs)
+    cpu_memory_jobs = Int(Sys.free_memory()) ÷ (2 * 2^30)
+    gpu_memory_jobs = first(gpus).free_memory ÷ (2 * 2^30)
+    jobs = max(1, min(cpu_jobs, cpu_memory_jobs, gpu_memory_jobs))
 end
 @info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the `JULIA_CPU_THREADS` environment variable."
+if first(gpus).compute_mode == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
+    @warn "Running tests on a GPU in exclusive mode; reducing parallelism to 1."
+    jobs = 1
+end
+
+# install compute sanitizer
+if do_sanitize
+    # install CUDA_SDK_jll in a temporary environment
+    using Pkg
+    project = Base.active_project()
+    Pkg.activate(; temp=true)
+    Pkg.add("CUDA_SDK_jll")
+    using CUDA_SDK_jll
+    Pkg.activate(project)
+
+    compute_sanitizer = joinpath(CUDA_SDK_jll.artifact_dir, "cuda/compute-sanitizer/compute-sanitizer")
+    if Sys.iswindows()
+        compute_sanitizer *= ".exe"
+    end
+    @info "Running under " * read(`$compute_sanitizer --version`, String)
+end
 
 # add workers
 const test_exeflags = Base.julia_cmd()
@@ -157,7 +211,11 @@ push!(test_exeflags.exec, "--project=$(Base.active_project())")
 const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
     exename = if do_sanitize
-        `$(CUDA.compute_sanitizer_cmd(sanitize_tool)) $test_exename`
+        ```$compute_sanitizer --tool $sanitize_tool
+                              --launch-timeout=0
+                              --target-processes=all
+                              --report-api-errors=no
+                              $test_exename```
     else
         test_exename
     end
@@ -311,9 +369,9 @@ try
 
                     # tests that muck with the context should not be timed with CUDA events,
                     # since they won't be valid at the end of the test anymore.
-                    time_source = in(test, ["core$(path_separator)initialization",
-                                            "base$(path_separator)examples",
-                                            "base$(path_separator)exceptions"]) ? :julia : :cuda
+                    time_source = in(test, ["core/initialization",
+                                            "base/examples",
+                                            "base/exceptions"]) ? :julia : :cuda
 
                     # run the test
                     running_tests[test] = now()

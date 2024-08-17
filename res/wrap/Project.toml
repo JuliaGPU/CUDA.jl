@@ -1,6 +1,6 @@
 [deps]
 CSTParser = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
-CUDA_full_jll = "4f82f1eb-248c-5f56-a42e-99106d144614"
+CUDA_SDK_jll = "6cbf2f2e-7e60-5632-ac76-dca2274e0be0"
 CUDNN_jll = "62b44479-cb7b-5706-934f-f13b2eb2e645"
 CUTENSOR_jll = "35b6c64b-1ee1-5834-92a3-3f624899209a"
 Clang = "40e3b903-d033-50b4-a0cc-940c62c95e31"

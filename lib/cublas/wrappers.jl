@@ -5,17 +5,21 @@
 
 function cublasCreate()
   handle_ref = Ref{cublasHandle_t}()
-  check(CUBLAS_STATUS_NOT_INITIALIZED) do
-    unsafe_cublasCreate_v2(handle_ref)
-  end
+  cublasCreate_v2(handle_ref)
   handle_ref[]
+end
+
+function cublasGetVersion(handle)
+  version = Ref{Cint}()
+  cublasGetVersion_v2(handle, version)
+  major, ver = divrem(version[], 10000)
+  minor, patch = divrem(ver, 100)
+  VersionNumber(major, minor, patch)
 end
 
 function cublasXtCreate()
   handle_ref = Ref{cublasXtHandle_t}()
-  check(CUBLAS_STATUS_NOT_INITIALIZED) do
-    unsafe_cublasXtCreate(handle_ref)
-  end
+  cublasXtCreate(handle_ref)
   handle_ref[]
 end
 
@@ -75,15 +79,19 @@ end
 
 # Level 1
 ## copy
-for (fname, elty) in ((:cublasDcopy_v2,:Float64),
-                      (:cublasScopy_v2,:Float32),
-                      (:cublasZcopy_v2,:ComplexF64),
-                      (:cublasCcopy_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDcopy_v2, :cublasDcopy_v2_64, :Float64),
+                                (:cublasScopy_v2, :cublasScopy_v2_64, :Float32),
+                                (:cublasZcopy_v2, :cublasZcopy_v2_64, :ComplexF64),
+                                (:cublasCcopy_v2, :cublasCcopy_v2_64, :ComplexF32))
     @eval begin
         function copy!(n::Integer,
                        x::StridedCuArray{$elty},
                        y::StridedCuArray{$elty},)
+            if CUBLAS.version() >= v"12.0"
+              $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1))
+            else
               $fname(handle(), n, x, stride(x, 1), y, stride(y, 1))
+            end
             y
         end
     end
@@ -93,15 +101,19 @@ function copy!(n::Integer, x::StridedCuArray{T}, y::StridedCuArray{T}) where {T 
 end
 
 ## scal
-for (fname, elty) in ((:cublasDscal_v2,:Float64),
-                      (:cublasSscal_v2,:Float32),
-                      (:cublasZscal_v2,:ComplexF64),
-                      (:cublasCscal_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDscal_v2, :cublasDscal_v2_64, :Float64),
+                                (:cublasSscal_v2, :cublasSscal_v2_64, :Float32),
+                                (:cublasZscal_v2, :cublasZscal_v2_64, :ComplexF64),
+                                (:cublasCscal_v2, :cublasCscal_v2_64, :ComplexF32))
     @eval begin
         function scal!(n::Integer,
                        alpha::Number,
                        x::StridedCuArray{$elty})
-            $fname(handle(), n, alpha, x, stride(x, 1))
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), n, alpha, x, stride(x, 1))
+            else
+                $fname(handle(), n, alpha, x, stride(x, 1))
+            end
             x
         end
     end
@@ -112,13 +124,17 @@ function scal!(n::Integer, alpha::Number, x::StridedCuArray{Float16})
     return x
 end
 # specific variants in case x is complex and alpha is real
-for (fname, elty, celty) in ((:cublasCsscal_v2, :Float32, :ComplexF32),
-                             (:cublasZdscal_v2, :Float64, :ComplexF64))
+for (fname, fname_64, elty, celty) in ((:cublasCsscal_v2, :cublasCsscal_v2_64, :Float32, :ComplexF32),
+                                       (:cublasZdscal_v2, :cublasZdscal_v2_64, :Float64, :ComplexF64))
     @eval begin
         function scal!(n::Integer,
                        alpha::$elty,
                        x::StridedCuArray{$celty})
-            $fname(handle(), n, alpha, x, stride(x, 1))
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), n, alpha, x, stride(x, 1))
+            else
+                $fname(handle(), n, alpha, x, stride(x, 1))
+            end
             x
         end
     end
@@ -132,18 +148,22 @@ function scal!(n::Integer, alpha::Number, x::StridedCuArray{ComplexF16})
 end
 
 ## dot, dotc, dotu
-for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
-                             (:dot,:cublasSdot_v2,:Float32),
-                             (:dotc,:cublasZdotc_v2,:ComplexF64),
-                             (:dotc,:cublasCdotc_v2,:ComplexF32),
-                             (:dotu,:cublasZdotu_v2,:ComplexF64),
-                             (:dotu,:cublasCdotu_v2,:ComplexF32))
+for (jname, fname, fname_64, elty) in ((:dot, :cublasDdot_v2, :cublasDdot_v2_64, :Float64),
+                                       (:dot, :cublasSdot_v2, :cublasSdot_v2_64, :Float32),
+                                       (:dotc, :cublasZdotc_v2, :cublasZdotc_v2_64, :ComplexF64),
+                                       (:dotc, :cublasCdotc_v2, :cublasCdotc_v2_64, :ComplexF32),
+                                       (:dotu, :cublasZdotu_v2, :cublasZdotu_v2_64, :ComplexF64),
+                                       (:dotu, :cublasCdotu_v2, :cublasCdotu_v2_64, :ComplexF32))
     @eval begin
         function $jname(n::Integer,
                         x::StridedCuArray{$elty},
                         y::StridedCuArray{$elty})
             result = Ref{$elty}()
-            $fname(handle(), n, x, stride(x, 1), y, stride(y, 1), result)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1), result)
+            else
+                $fname(handle(), n, x, stride(x, 1), y, stride(y, 1), result)
+            end
             return result[]
         end
     end
@@ -161,15 +181,19 @@ function dotu(n::Integer, x::StridedCuArray{ComplexF16}, y::DenseCuArray{Complex
 end
 
 ## nrm2
-for (fname, elty, ret_type) in ((:cublasDnrm2_v2,:Float64,:Float64),
-                                (:cublasSnrm2_v2,:Float32,:Float32),
-                                (:cublasDznrm2_v2,:ComplexF64,:Float64),
-                                (:cublasScnrm2_v2,:ComplexF32,:Float32))
+for (fname, fname_64, elty, ret_type) in ((:cublasDnrm2_v2, :cublasDnrm2_v2_64, :Float64, :Float64),
+                                          (:cublasSnrm2_v2, :cublasSnrm2_v2_64, :Float32, :Float32),
+                                          (:cublasDznrm2_v2, :cublasDznrm2_v2_64, :ComplexF64, :Float64),
+                                          (:cublasScnrm2_v2, :cublasScnrm2_v2_64, :ComplexF32, :Float32))
     @eval begin
         function nrm2(n::Integer,
                       X::StridedCuArray{$elty})
             result = Ref{$ret_type}()
-            $fname(handle(), n, X, stride(X, 1), result)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), n, X, stride(X, 1), result)
+            else
+                $fname(handle(), n, X, stride(X, 1), result)
+            end
             return result[]
         end
     end
@@ -188,31 +212,39 @@ function nrm2(n::Integer, x::StridedCuArray{ComplexF16})
 end
 
 ## asum
-for (fname, elty, ret_type) in ((:cublasDasum_v2,:Float64,:Float64),
-                                (:cublasSasum_v2,:Float32,:Float32),
-                                (:cublasDzasum_v2,:ComplexF64,:Float64),
-                                (:cublasScasum_v2,:ComplexF32,:Float32))
+for (fname, fname_64, elty, ret_type) in ((:cublasDasum_v2, :cublasDasum_v2_64, :Float64, :Float64),
+                                          (:cublasSasum_v2, :cublasSasum_v2_64, :Float32, :Float32),
+                                          (:cublasDzasum_v2, :cublasDzasum_v2_64, :ComplexF64, :Float64),
+                                          (:cublasScasum_v2, :cublasScasum_v2_64, :ComplexF32, :Float32))
     @eval begin
         function asum(n::Integer,
                       x::StridedCuArray{$elty})
             result = Ref{$ret_type}()
-            $fname(handle(), n, x, stride(x, 1), result)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), n, x, stride(x, 1), result)
+            else
+                $fname(handle(), n, x, stride(x, 1), result)
+            end
             return result[]
         end
     end
 end
 
 ## axpy
-for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
-                      (:cublasSaxpy_v2,:Float32),
-                      (:cublasZaxpy_v2,:ComplexF64),
-                      (:cublasCaxpy_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDaxpy_v2, :cublasDaxpy_v2_64, :Float64),
+                                (:cublasSaxpy_v2, :cublasSaxpy_v2_64, :Float32),
+                                (:cublasZaxpy_v2, :cublasZaxpy_v2_64, :ComplexF64),
+                                (:cublasCaxpy_v2, :cublasCaxpy_v2_64, :ComplexF32))
     @eval begin
         function axpy!(n::Integer,
                        alpha::Number,
                        dx::StridedCuArray{$elty},
                        dy::StridedCuArray{$elty})
-            $fname(handle(), n, alpha, dx, stride(dx, 1), dy, stride(dy, 1))
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), n, alpha, dx, stride(dx, 1), dy, stride(dy, 1))
+            else
+                $fname(handle(), n, alpha, dx, stride(dx, 1), dy, stride(dy, 1))
+            end
             dy
         end
     end
@@ -233,34 +265,42 @@ function axpy!(n::Integer, alpha::Number, dx::StridedCuArray{ComplexF16}, dy::St
 end
 
 ## rot
-for (fname, elty, sty) in ((:cublasSrot_v2,:Float32,:Number),
-                           (:cublasDrot_v2,:Float64,:Number),
-                           (:cublasCrot_v2,:ComplexF32,:Number),
-                           (:cublasCsrot_v2,:ComplexF32,:Real),
-                           (:cublasZrot_v2,:ComplexF64,:Number),
-                           (:cublasZdrot_v2,:ComplexF64,:Real))
+for (fname, fname_64, elty, sty) in ((:cublasSrot_v2, :cublasSrot_v2_64, :Float32, :Number),
+                                     (:cublasDrot_v2, :cublasDrot_v2_64, :Float64, :Number),
+                                     (:cublasCrot_v2, :cublasCrot_v2_64, :ComplexF32, :Number),
+                                     (:cublasCsrot_v2, :cublasCsrot_v2_64, :ComplexF32, :Real),
+                                     (:cublasZrot_v2, :cublasZrot_v2_64, :ComplexF64, :Number),
+                                     (:cublasZdrot_v2, :cublasZdrot_v2_64, :ComplexF64, :Real))
     @eval begin
         function rot!(n::Integer,
                       x::StridedCuArray{$elty},
                       y::StridedCuArray{$elty},
                       c::Real,
                       s::$sty)
-            $fname(handle(), n, x, stride(x, 1), y, stride(y, 1), c, s)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1), c, s)
+            else
+                $fname(handle(), n, x, stride(x, 1), y, stride(y, 1), c, s)
+            end
             x, y
         end
     end
 end
 
 ## swap
-for (fname, elty) in ((:cublasSswap_v2,:Float32),
-                      (:cublasDswap_v2,:Float64),
-                      (:cublasCswap_v2,:ComplexF32),
-                      (:cublasZswap_v2,:ComplexF64))
+for (fname, fname_64, elty) in ((:cublasSswap_v2, :cublasSswap_v2_64, :Float32),
+                                (:cublasDswap_v2, :cublasDswap_v2_64, :Float64),
+                                (:cublasCswap_v2, :cublasCswap_v2_64, :ComplexF32),
+                                (:cublasZswap_v2, :cublasZswap_v2_64, :ComplexF64))
     @eval begin
         function swap!(n::Integer,
                        x::StridedCuArray{$elty},
                        y::StridedCuArray{$elty})
-            $fname(handle(), n, x, stride(x, 1), y, stride(y, 1))
+            if CUBLAS.version() >= v"12.0"
+               $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1))
+            else
+                $fname(handle(), n, x, stride(x, 1), y, stride(y, 1))
+            end
             x, y
         end
     end
@@ -278,15 +318,20 @@ end
 
 ## iamax
 # TODO: fix iamax in julia base
-for (fname, elty) in ((:cublasIdamax_v2,:Float64),
-                      (:cublasIsamax_v2,:Float32),
-                      (:cublasIzamax_v2,:ComplexF64),
-                      (:cublasIcamax_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasIdamax_v2, :cublasIdamax_v2_64, :Float64),
+                                (:cublasIsamax_v2, :cublasIsamax_v2_64, :Float32),
+                                (:cublasIzamax_v2, :cublasIzamax_v2_64, :ComplexF64),
+                                (:cublasIcamax_v2, :cublasIcamax_v2_64, :ComplexF32))
     @eval begin
         function iamax(n::Integer,
                        dx::StridedCuArray{$elty})
-            result = Ref{Cint}()
-            $fname(handle(), n, dx, stride(dx, 1), result)
+            if CUBLAS.version() >= v"12.0"
+                result = Ref{Int64}()
+                $fname_64(handle(), n, dx, stride(dx, 1), result)
+            else
+                result = Ref{Cint}()
+                $fname(handle(), n, dx, stride(dx, 1), result)
+            end
             return result[]
         end
     end
@@ -295,15 +340,20 @@ iamax(dx::StridedCuArray) = iamax(length(dx), dx)
 
 ## iamin
 # iamin is not in standard blas is a CUBLAS extension
-for (fname, elty) in ((:cublasIdamin_v2,:Float64),
-                      (:cublasIsamin_v2,:Float32),
-                      (:cublasIzamin_v2,:ComplexF64),
-                      (:cublasIcamin_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasIdamin_v2, :cublasIdamin_v2_64, :Float64),
+                                (:cublasIsamin_v2, :cublasIsamin_v2_64, :Float32),
+                                (:cublasIzamin_v2, :cublasIzamin_v2_64, :ComplexF64),
+                                (:cublasIcamin_v2, :cublasIcamin_v2_64, :ComplexF32))
     @eval begin
         function iamin(n::Integer,
                        dx::StridedCuArray{$elty},)
-            result = Ref{Cint}()
-            $fname(handle(), n, dx, stride(dx, 1), result)
+            if CUBLAS.version() >= v"12.0"
+                result = Ref{Int64}()
+                $fname_64(handle(), n, dx, stride(dx, 1), result)
+            else
+                result = Ref{Cint}()
+                $fname(handle(), n, dx, stride(dx, 1), result)
+            end
             return result[]
         end
     end
@@ -313,10 +363,10 @@ iamin(dx::StridedCuArray) = iamin(length(dx), dx)
 # Level 2
 ## mv
 ### gemv
-for (fname, elty) in ((:cublasDgemv_v2,:Float64),
-                      (:cublasSgemv_v2,:Float32),
-                      (:cublasZgemv_v2,:ComplexF64),
-                      (:cublasCgemv_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDgemv_v2, :cublasDgemv_v2_64, :Float64),
+                                (:cublasSgemv_v2, :cublasSgemv_v2_64, :Float32),
+                                (:cublasZgemv_v2, :cublasZgemv_v2_64, :ComplexF64),
+                                (:cublasCgemv_v2, :cublasCgemv_v2_64, :ComplexF32))
     @eval begin
         function gemv!(trans::Char,
                        alpha::Number,
@@ -332,7 +382,11 @@ for (fname, elty) in ((:cublasDgemv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
+            else
+                $fname(handle(), trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
+            end
             y
         end
     end
@@ -345,13 +399,13 @@ function gemv(trans::Char, A::StridedCuMatrix{T}, x::StridedCuVector{T}) where T
     gemv!(trans, one(T), A, x, zero(T), similar(x, T, size(A, (trans == 'N' ? 1 : 2))))
 end
 
-for (fname, eltyin, eltyout) in
-    ((:cublasDgemvBatched,:Float64, :Float64),
-     (:cublasSgemvBatched,:Float32, :Float32),
-     (:cublasHSHgemvBatched,:Float16, :Float16),
-     (:cublasHSSgemvBatched,:Float16, :Float32),
-     (:cublasZgemvBatched,:ComplexF64, :ComplexF64),
-     (:cublasCgemvBatched,:ComplexF32, :ComplexF32))
+for (fname, fname_64, eltyin, eltyout) in (
+    (:cublasDgemvBatched, :cublasDgemvBatched_64, :Float64, :Float64),
+    (:cublasSgemvBatched, :cublasSgemvBatched_64, :Float32, :Float32),
+    (:cublasHSHgemvBatched, :cublasHSHgemvBatched, :Float16, :Float16),
+    (:cublasHSSgemvBatched, :cublasHSSgemvBatched, :Float16, :Float32),
+    (:cublasZgemvBatched, :cublasZgemvBatched_64, :ComplexF64, :ComplexF64),
+    (:cublasCgemvBatched, :cublasCgemvBatched_64, :ComplexF32, :ComplexF32))
     @eval begin
         function gemv_batched!(trans::Char,
                             alpha::Number,
@@ -377,7 +431,11 @@ for (fname, eltyin, eltyout) in
             Aptrs = unsafe_batch(A)
             xptrs = unsafe_batch(x)
             yptrs = unsafe_batch(y)
-            $fname(handle(), trans, m, n, alpha, Aptrs, lda, xptrs, incx, beta, yptrs, incy, length(A))
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), trans, m, n, alpha, Aptrs, lda, xptrs, incx, beta, yptrs, incy, length(A))
+            else
+                $fname(handle(), trans, m, n, alpha, Aptrs, lda, xptrs, incx, beta, yptrs, incy, length(A))
+            end
             unsafe_free!(yptrs)
             unsafe_free!(xptrs)
             unsafe_free!(Aptrs)
@@ -387,13 +445,13 @@ for (fname, eltyin, eltyout) in
     end
 end
 
-for (fname, eltyin, eltyout) in
-    ((:cublasDgemvStridedBatched,:Float64, :Float64),
-     (:cublasSgemvStridedBatched,:Float32, :Float32),
-     (:cublasHSHgemvStridedBatched,:Float16, :Float16),
-     (:cublasHSSgemvStridedBatched,:Float16, :Float32),
-     (:cublasZgemvStridedBatched,:ComplexF64, :ComplexF64),
-     (:cublasCgemvStridedBatched,:ComplexF32, :ComplexF32))
+for (fname, fname_64, eltyin, eltyout) in (
+    (:cublasDgemvStridedBatched, :cublasDgemvStridedBatched_64, :Float64, :Float64),
+    (:cublasSgemvStridedBatched, :cublasSgemvStridedBatched_64, :Float32, :Float32),
+    (:cublasHSHgemvStridedBatched, :cublasHSHgemvStridedBatched, :Float16, :Float16),
+    (:cublasHSSgemvStridedBatched, :cublasHSSgemvStridedBatched, :Float16, :Float32),
+    (:cublasZgemvStridedBatched, :cublasZgemvStridedBatched_64, :ComplexF64, :ComplexF64),
+    (:cublasCgemvStridedBatched, :cublasCgemvStridedBatched_64, :ComplexF32, :ComplexF32))
     @eval begin
         function gemv_strided_batched!(trans::Char,
                             alpha::Number,
@@ -417,18 +475,21 @@ for (fname, eltyin, eltyout) in
             stridex = size(x, 2) == 1 ? 0 : stride(x, 2)
             stridey = stride(y, 2)
             batchCount = size(A, 3)
-            $fname(handle(), trans, m, n, alpha, A, lda, strideA, x, incx, stridex, beta, y, incy, stridey, batchCount)
-
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), trans, m, n, alpha, A, lda, strideA, x, incx, stridex, beta, y, incy, stridey, batchCount)
+            else
+                $fname(handle(), trans, m, n, alpha, A, lda, strideA, x, incx, stridex, beta, y, incy, stridey, batchCount)
+            end
             y
         end
     end
 end
 
 ### (GB) general banded matrix-vector multiplication
-for (fname, elty) in ((:cublasDgbmv_v2,:Float64),
-                      (:cublasSgbmv_v2,:Float32),
-                      (:cublasZgbmv_v2,:ComplexF64),
-                      (:cublasCgbmv_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDgbmv_v2, :cublasDgbmv_v2_64, :Float64),
+                                (:cublasSgbmv_v2, :cublasSgbmv_v2_64, :Float32),
+                                (:cublasZgbmv_v2, :cublasZgbmv_v2_64, :ComplexF64),
+                                (:cublasCgbmv_v2, :cublasCgbmv_v2_64, :ComplexF32))
     @eval begin
         function gbmv!(trans::Char,
                        m::Integer,
@@ -446,7 +507,11 @@ for (fname, elty) in ((:cublasDgbmv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), trans, m, n, kl, ku, alpha, A, lda, x, incx, beta, y, incy)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), trans, m, n, kl, ku, alpha, A, lda, x, incx, beta, y, incy)
+            else
+                $fname(handle(), trans, m, n, kl, ku, alpha, A, lda, x, incx, beta, y, incy)
+            end
             y
         end
     end
@@ -464,8 +529,8 @@ function gbmv(trans::Char, m::Integer, kl::Integer, ku::Integer,
 end
 
 ### spmv
-for (fname, elty) in ((:cublasDspmv_v2,:Float64),
-                      (:cublasSspmv_v2,:Float32))
+for (fname, fname_64, elty) in ((:cublasDspmv_v2, :cublasDspmv_v2_64, :Float64),
+                                (:cublasSspmv_v2, :cublasSspmv_v2_64, :Float32))
     @eval begin
         function spmv!(uplo::Char,
                        alpha::Number,
@@ -477,7 +542,11 @@ for (fname, elty) in ((:cublasDspmv_v2,:Float64),
             if n != length(x) || n != length(y) throw(DimensionMismatch("")) end
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), uplo, n, alpha, AP, x, incx, beta, y, incy)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, n, alpha, AP, x, incx, beta, y, incy)
+            else
+                $fname(handle(), uplo, n, alpha, AP, x, incx, beta, y, incy)
+            end
             y
         end
     end
@@ -491,10 +560,10 @@ function spmv(uplo::Char, AP::StridedCuVector{T}, x::StridedCuVector{T}) where T
 end
 
 ### symv
-for (fname, elty) in ((:cublasDsymv_v2,:Float64),
-                      (:cublasSsymv_v2,:Float32),
-                      (:cublasZsymv_v2,:ComplexF64),
-                      (:cublasCsymv_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDsymv_v2, :cublasDsymv_v2_64, :Float64),
+                                (:cublasSsymv_v2, :cublasSsymv_v2_64, :Float32),
+                                (:cublasZsymv_v2, :cublasZsymv_v2_64, :ComplexF64),
+                                (:cublasCsymv_v2, :cublasCsymv_v2_64, :ComplexF32))
     # Note that the complex symv are not BLAS but auiliary functions in LAPACK
     @eval begin
         function symv!(uplo::Char,
@@ -509,7 +578,11 @@ for (fname, elty) in ((:cublasDsymv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), uplo, n, alpha, A, lda, x, incx, beta, y, incy)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, n, alpha, A, lda, x, incx, beta, y, incy)
+            else
+                $fname(handle(), uplo, n, alpha, A, lda, x, incx, beta, y, incy)
+            end
             y
         end
     end
@@ -524,8 +597,8 @@ end
 
 ### hemv
 # TODO: fix chemv_ function call bug in julia
-for (fname, elty) in ((:cublasZhemv_v2,:ComplexF64),
-                      (:cublasChemv_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasZhemv_v2, :cublasZhemv_v2_64, :ComplexF64),
+                                (:cublasChemv_v2, :cublasChemv_v2_64, :ComplexF32))
     @eval begin
         function hemv!(uplo::Char,
                        alpha::Number,
@@ -540,7 +613,11 @@ for (fname, elty) in ((:cublasZhemv_v2,:ComplexF64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), uplo, n, alpha, A, lda, x, incx, beta, y, incy)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, n, alpha, A, lda, x, incx, beta, y, incy)
+            else
+                $fname(handle(), uplo, n, alpha, A, lda, x, incx, beta, y, incy)
+            end
             y
         end
     end
@@ -557,8 +634,8 @@ end
 ### sbmv, (SB) symmetric banded matrix-vector multiplication
 # cublas only has this for D and S
 # TODO: check in julia, blas may not have sbmv for C and Z!
-for (fname, elty) in ((:cublasDsbmv_v2,:Float64),
-                      (:cublasSsbmv_v2,:Float32))
+for (fname, fname_64, elty) in ((:cublasDsbmv_v2, :cublasDsbmv_v2_64, :Float64),
+                                (:cublasSsbmv_v2, :cublasSsbmv_v2_64, :Float32))
     @eval begin
         function sbmv!(uplo::Char,
                        k::Integer,
@@ -575,7 +652,11 @@ for (fname, elty) in ((:cublasDsbmv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
+            else
+                $fname(handle(), uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
+            end
             y
         end
     end
@@ -591,8 +672,8 @@ function sbmv(uplo::Char, k::Integer, A::StridedCuMatrix{T},
 end
 
 ### hbmv, (HB) Hermitian banded matrix-vector multiplication
-for (fname, elty) in ((:cublasZhbmv_v2,:ComplexF64),
-                      (:cublasChbmv_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasZhbmv_v2, :cublasZhbmv_v2_64, :ComplexF64),
+                                (:cublasChbmv_v2, :cublasChbmv_v2_64, :ComplexF32))
     @eval begin
         function hbmv!(uplo::Char,
                        k::Integer,
@@ -608,7 +689,11 @@ for (fname, elty) in ((:cublasZhbmv_v2,:ComplexF64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
+            else
+                $fname(handle(), uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
+            end
             y
         end
     end
@@ -624,10 +709,10 @@ function hbmv(uplo::Char, k::Integer, A::StridedCuMatrix{T},
 end
 
 ### tbmv, (TB) triangular banded matrix-vector multiplication
-for (fname, elty) in ((:cublasStbmv_v2,:Float32),
-                      (:cublasDtbmv_v2,:Float64),
-                      (:cublasZtbmv_v2,:ComplexF64),
-                      (:cublasCtbmv_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasStbmv_v2, :cublasStbmv_v2_64, :Float32),
+                                (:cublasDtbmv_v2, :cublasDtbmv_v2_64, :Float64),
+                                (:cublasZtbmv_v2, :cublasZtbmv_v2_64, :ComplexF64),
+                                (:cublasCtbmv_v2, :cublasCtbmv_v2_64, :ComplexF32))
     @eval begin
         function tbmv!(uplo::Char,
                        trans::Char,
@@ -641,7 +726,11 @@ for (fname, elty) in ((:cublasStbmv_v2,:Float32),
             if n != length(x) throw(DimensionMismatch("")) end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            $fname(handle(), uplo, trans, diag, n, k, A, lda, x, incx)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, trans, diag, n, k, A, lda, x, incx)
+            else
+                $fname(handle(), uplo, trans, diag, n, k, A, lda, x, incx)
+            end
             x
         end
     end
@@ -652,10 +741,10 @@ function tbmv(uplo::Char, trans::Char, diag::Char, k::Integer,
 end
 
 ### tbsv, (TB) triangular banded matrix solve
-for (fname, elty) in ((:cublasStbsv_v2,:Float32),
-                      (:cublasDtbsv_v2,:Float64),
-                      (:cublasZtbsv_v2,:ComplexF64),
-                      (:cublasCtbsv_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasStbsv_v2, :cublasStbsv_v2_64, :Float32),
+                                (:cublasDtbsv_v2, :cublasDtbsv_v2_64, :Float64),
+                                (:cublasZtbsv_v2, :cublasZtbsv_v2_64, :ComplexF64),
+                                (:cublasCtbsv_v2, :cublasCtbsv_v2_64, :ComplexF32))
     @eval begin
         function tbsv!(uplo::Char,
                        trans::Char,
@@ -669,7 +758,11 @@ for (fname, elty) in ((:cublasStbsv_v2,:Float32),
             if n != length(x) throw(DimensionMismatch("")) end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            $fname(handle(), uplo, trans, diag, n, k, A, lda, x, incx)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, trans, diag, n, k, A, lda, x, incx)
+            else
+                $fname(handle(), uplo, trans, diag, n, k, A, lda, x, incx)
+            end
             x
         end
     end
@@ -680,10 +773,10 @@ function tbsv(uplo::Char, trans::Char, diag::Char, k::Integer,
 end
 
 ### trmv, Triangular matrix-vector multiplication
-for (fname, elty) in ((:cublasDtrmv_v2,:Float64),
-                      (:cublasStrmv_v2,:Float32),
-                      (:cublasZtrmv_v2,:ComplexF64),
-                      (:cublasCtrmv_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDtrmv_v2, :cublasDtrmv_v2_64, :Float64),
+                                (:cublasStrmv_v2, :cublasStrmv_v2_64, :Float32),
+                                (:cublasZtrmv_v2, :cublasZtrmv_v2_64, :ComplexF64),
+                                (:cublasCtrmv_v2, :cublasCtrmv_v2_64, :ComplexF32))
     @eval begin
         function trmv!(uplo::Char,
                        trans::Char,
@@ -697,7 +790,11 @@ for (fname, elty) in ((:cublasDtrmv_v2,:Float64),
             end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            $fname(handle(), uplo, trans, diag, n, A, lda, x, incx)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, trans, diag, n, A, lda, x, incx)
+            else
+                $fname(handle(), uplo, trans, diag, n, A, lda, x, incx)
+            end
             x
         end
     end
@@ -708,10 +805,10 @@ function trmv(uplo::Char, trans::Char, diag::Char,
 end
 
 ### trsv, Triangular matrix-vector solve
-for (fname, elty) in ((:cublasDtrsv_v2,:Float64),
-                      (:cublasStrsv_v2,:Float32),
-                      (:cublasZtrsv_v2,:ComplexF64),
-                      (:cublasCtrsv_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDtrsv_v2, :cublasDtrsv_v2_64, :Float64),
+                                (:cublasStrsv_v2, :cublasStrsv_v2_64, :Float32),
+                                (:cublasZtrsv_v2, :cublasZtrsv_v2_64, :ComplexF64),
+                                (:cublasCtrsv_v2, :cublasCtrsv_v2_64, :ComplexF32))
     @eval begin
         function trsv!(uplo::Char,
                        trans::Char,
@@ -725,7 +822,11 @@ for (fname, elty) in ((:cublasDtrsv_v2,:Float64),
             end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            $fname(handle(), uplo, trans, diag, n, A, lda, x, incx)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, trans, diag, n, A, lda, x, incx)
+            else
+                $fname(handle(), uplo, trans, diag, n, A, lda, x, incx)
+            end
             x
         end
     end
@@ -736,10 +837,10 @@ function trsv(uplo::Char, trans::Char, diag::Char,
 end
 
 ### ger
-for (fname, elty) in ((:cublasDger_v2,:Float64),
-                      (:cublasSger_v2,:Float32),
-                      (:cublasZgerc_v2,:ComplexF64),
-                      (:cublasCgerc_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDger_v2, :cublasDger_v2_64, :Float64),
+                                (:cublasSger_v2, :cublasSger_v2_64, :Float32),
+                                (:cublasZgerc_v2, :cublasZgerc_v2_64, :ComplexF64),
+                                (:cublasCgerc_v2, :cublasCgerc_v2_64, :ComplexF32))
     @eval begin
         function ger!(alpha::Number,
                       x::StridedCuVector{$elty},
@@ -751,15 +852,19 @@ for (fname, elty) in ((:cublasDger_v2,:Float64),
             incx = stride(x,1)
             incy = stride(y,1)
             lda = max(1,stride(A,2))
-            $fname(handle(), m, n, alpha, x, incx, y, incy, A, lda)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), m, n, alpha, x, incx, y, incy, A, lda)
+            else
+                $fname(handle(), m, n, alpha, x, incx, y, incy, A, lda)
+            end
             A
         end
     end
 end
 
 ### spr
-for (fname, elty) in ((:cublasDspr_v2,:Float64),
-                      (:cublasSspr_v2,:Float32))
+for (fname, fname_64, elty) in ((:cublasDspr_v2, :cublasDspr_v2_64, :Float64),
+                                (:cublasSspr_v2, :cublasSspr_v2_64, :Float32))
     @eval begin
         function spr!(uplo::Char,
                       alpha::Number,
@@ -768,7 +873,11 @@ for (fname, elty) in ((:cublasDspr_v2,:Float64),
             n = round(Int, (sqrt(8*length(AP))-1)/2)
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
-            $fname(handle(), uplo, n, alpha, x, incx, AP)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, n, alpha, x, incx, AP)
+            else
+                $fname(handle(), uplo, n, alpha, x, incx, AP)
+            end
             AP
         end
     end
@@ -776,10 +885,10 @@ end
 
 ### syr
 # TODO: check calls in julia b/c blas may not define syr for Z and C
-for (fname, elty) in ((:cublasDsyr_v2,:Float64),
-                      (:cublasSsyr_v2,:Float32),
-                      (:cublasZsyr_v2,:ComplexF64),
-                      (:cublasCsyr_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDsyr_v2, :cublasDsyr_v2_64, :Float64),
+                                (:cublasSsyr_v2, :cublasSsyr_v2_64, :Float32),
+                                (:cublasZsyr_v2, :cublasZsyr_v2_64, :ComplexF64),
+                                (:cublasCsyr_v2, :cublasCsyr_v2_64, :ComplexF32))
     @eval begin
         function syr!(uplo::Char,
                       alpha::Number,
@@ -790,15 +899,19 @@ for (fname, elty) in ((:cublasDsyr_v2,:Float64),
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            $fname(handle(), uplo, n, alpha, x, incx, A, lda)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, n, alpha, x, incx, A, lda)
+            else
+                $fname(handle(), uplo, n, alpha, x, incx, A, lda)
+            end
             A
         end
     end
 end
 
 ### her
-for (fname, elty) in ((:cublasZher_v2,:ComplexF64),
-                      (:cublasCher_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasZher_v2, :cublasZher_v2_64, :ComplexF64),
+                                (:cublasCher_v2, :cublasCher_v2_64, :ComplexF32))
     @eval begin
         function her!(uplo::Char,
                       alpha::Number,
@@ -809,15 +922,19 @@ for (fname, elty) in ((:cublasZher_v2,:ComplexF64),
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            $fname(handle(), uplo, n, alpha, x, incx, A, lda)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, n, alpha, x, incx, A, lda)
+            else
+                $fname(handle(), uplo, n, alpha, x, incx, A, lda)
+            end
             A
         end
     end
 end
 
 ### her2
-for (fname, elty) in ((:cublasZher2_v2,:ComplexF64),
-                      (:cublasCher2_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasZher2_v2, :cublasZher2_v2_64, :ComplexF64),
+                                (:cublasCher2_v2, :cublasCher2_v2_64, :ComplexF32))
     @eval begin
         function her2!(uplo::Char,
                       alpha::Number,
@@ -831,7 +948,11 @@ for (fname, elty) in ((:cublasZher2_v2,:ComplexF64),
             incx = stride(x,1)
             incy = stride(y,1)
             lda = max(1,stride(A,2))
-            $fname(handle(), uplo, n, alpha, x, incx, y, incy, A, lda)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, n, alpha, x, incx, y, incy, A, lda)
+            else
+                $fname(handle(), uplo, n, alpha, x, incx, y, incy, A, lda)
+            end
             A
         end
     end
@@ -839,12 +960,11 @@ end
 
 # Level 3
 ## (GE) general matrix-matrix multiplication
-for (fname, elty) in
-        ((:cublasDgemm_v2,:Float64),
-         (:cublasSgemm_v2,:Float32),
-         (:cublasHgemm, :Float16),
-         (:cublasZgemm_v2,:ComplexF64),
-         (:cublasCgemm_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDgemm_v2, :cublasDgemm_v2_64, :Float64),
+                                (:cublasSgemm_v2, :cublasSgemm_v2_64, :Float32),
+                                (:cublasHgemm, :cublasHgemm, :Float16),
+                                (:cublasZgemm_v2, :cublasZgemm_v2_64, :ComplexF64),
+                                (:cublasCgemm_v2, :cublasCgemm_v2_64, :ComplexF32))
     @eval begin
         function gemm!(transA::Char,
                        transB::Char,
@@ -862,7 +982,11 @@ for (fname, elty) in
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            else
+                $fname(handle(), transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            end
             C
         end
     end
@@ -1087,13 +1211,152 @@ end
     return CuArray(ptrs)
 end
 
+## (GE) general matrix-matrix multiplication grouped batched
+for (fname, fname_64, elty) in ((:cublasSgemmGroupedBatched, :cublasSgemmGroupedBatched_64, :Float32),
+                                (:cublasDgemmGroupedBatched, :cublasDgemmGroupedBatched_64, :Float64))
+    @eval begin
+        function gemm_grouped_batched!(transA::Vector{Char},
+                                       transB::Vector{Char},
+                                       alpha::Vector{$elty},
+                                       A::Vector{<:Vector{<:StridedCuMatrix{$elty}}},
+                                       B::Vector{<:Vector{<:StridedCuMatrix{$elty}}},
+                                       beta::Vector{$elty},
+                                       C::Vector{<:Vector{<:StridedCuMatrix{$elty}}})
+
+            if length(A) != length(B) || length(A) != length(C)
+                throw(DimensionMismatch("A, B and C must contain the same number of groups"))
+            end
+            group_count = length(A)
+            for i=1:group_count
+                if length(A[i]) != length(B[i]) || length(A[i]) != length(C[i])
+                    throw(DimensionMismatch("A, B and C must contain the same number of matrices"))
+                end
+            end
+            group_size = length.(A)
+
+            for i = 1:group_count
+                m = size(A[i][1], transA[i] == 'N' ? 1 : 2)
+                k = size(A[i][1], transA[i] == 'N' ? 2 : 1)
+                n = size(B[i][1], transB[i] == 'N' ? 2 : 1)
+                if m != size(C[i][1],1) || n != size(C[i][1],2) || k != size(B[i][1], transB[i] == 'N' ? 1 : 2)
+                    throw(DimensionMismatch(""))
+                end
+            end
+
+            transa = convert.(cublasOperation_t, transA)
+            transb = convert.(cublasOperation_t, transB)
+            m = [size(A[i][1], transA[i] == 'N' ? 1 : 2) for i = 1 : group_count]
+            k = [size(A[i][1], transA[i] == 'N' ? 2 : 1) for i = 1 : group_count]
+            n = [size(B[i][1], transB[i] == 'N' ? 2 : 1) for i = 1 : group_count]
+            lda = [max(1,stride(A[i][1],2)) for i = 1 : group_count]
+            ldb = [max(1,stride(B[i][1],2)) for i = 1 : group_count]
+            ldc = [max(1,stride(C[i][1],2)) for i = 1 : group_count]
+            Aptrs = unsafe_batch(reduce(vcat, A))
+            Bptrs = unsafe_batch(reduce(vcat, B))
+            Cptrs = unsafe_batch(reduce(vcat, C))
+
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
+                          Bptrs, ldb, beta, Cptrs, ldc, group_count, group_size)
+            else
+                $fname(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
+                          Bptrs, ldb, beta, Cptrs, ldc, group_count, group_size)
+            end
+            unsafe_free!(Cptrs)
+            unsafe_free!(Bptrs)
+            unsafe_free!(Aptrs)
+
+            C
+        end
+    end
+
+    # Group size hardcoded to one
+    @eval begin
+        function gemm_grouped_batched!(transA::Vector{Char},
+                                       transB::Vector{Char},
+                                       alpha::Vector{$elty},
+                                       A::Vector{<:StridedCuMatrix{$elty}},
+                                       B::Vector{<:StridedCuMatrix{$elty}},
+                                       beta::Vector{$elty},
+                                       C::Vector{<:StridedCuMatrix{$elty}})
+            if length(A) != length(B) || length(A) != length(C)
+                throw(DimensionMismatch("A, B and C must contain the same number of matrices"))
+            end
+
+            group_count = length(A)
+            group_size = ones(Int64, group_count)
+
+            for i = 1:group_count
+                m = size(A[i], transA[i] == 'N' ? 1 : 2)
+                k = size(A[i], transA[i] == 'N' ? 2 : 1)
+                n = size(B[i], transB[i] == 'N' ? 2 : 1)
+                if m != size(C[i],1) || n != size(C[i],2) || k != size(B[i], transB[i] == 'N' ? 1 : 2)
+                    throw(DimensionMismatch(""))
+                end
+            end
+
+            transa = convert.(cublasOperation_t, transA)
+            transb = convert.(cublasOperation_t, transB)
+            m = [size(A[i], transA[i] == 'N' ? 1 : 2) for i = 1 : group_count]
+            k = [size(A[i], transA[i] == 'N' ? 2 : 1) for i = 1 : group_count]
+            n = [size(B[i], transB[i] == 'N' ? 2 : 1) for i = 1 : group_count]
+            lda = [max(1,stride(A[i],2)) for i = 1 : group_count]
+            ldb = [max(1,stride(B[i],2)) for i = 1 : group_count]
+            ldc = [max(1,stride(C[i],2)) for i = 1 : group_count]
+            Aptrs = unsafe_batch(A)
+            Bptrs = unsafe_batch(B)
+            Cptrs = unsafe_batch(C)
+
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
+                          Bptrs, ldb, beta, Cptrs, ldc, group_count, group_size)
+            else
+                $fname(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
+                          Bptrs, ldb, beta, Cptrs, ldc, group_count, group_size)
+            end
+            unsafe_free!(Cptrs)
+            unsafe_free!(Bptrs)
+            unsafe_free!(Aptrs)
+            C
+        end
+    end
+end
+
+function gemm_grouped_batched(transA::Vector{Char}, transB::Vector{Char}, alpha::Vector{T},
+                              A::Vector{<:Vector{<:StridedCuMatrix{T}}}, B::Vector{<:Vector{<:StridedCuMatrix{T}}}) where T
+    num_groups = length(A)
+    group_sizes = length.(A)
+    beta = [zero(T) for i = 1:num_groups]
+    C = [[similar(B[i][j], (size(A[i][j], transA[i] == 'N' ? 1 : 2), size(B[i][j], transB[i] == 'N' ? 2 : 1))) for j in 1:group_sizes[i]] for i in 1:num_groups]
+    gemm_grouped_batched!(transA, transB, alpha, A, B, beta, C)
+end
+
+function gemm_grouped_batched(transA::Vector{Char}, transB::Vector{Char},
+                              A::Vector{<:Vector{<:StridedCuMatrix{T}}}, B::Vector{<:Vector{<:StridedCuMatrix{T}}}) where T
+    alpha = [one(T) for i = 1:length(transA)]
+    gemm_grouped_batched(transA, transB, alpha, A, B)
+end
+
+# Group size hardcoded to one
+function gemm_grouped_batched(transA::Vector{Char}, transB::Vector{Char}, alpha::Vector{T},
+    A::Vector{<:StridedCuMatrix{T}}, B::Vector{<:StridedCuMatrix{T}}) where T
+beta = [zero(T) for i = 1:length(transA)]
+C = CuMatrix{T}[similar(B[i], (size(A[i], transA[i] == 'N' ? 1 : 2), size(B[i], transB[i] == 'N' ? 2 : 1))) for i in 1:length(A)]
+gemm_grouped_batched!(transA, transB, alpha, A, B, beta, C)
+end
+
+function gemm_grouped_batched(transA::Vector{Char}, transB::Vector{Char},
+    A::Vector{<:StridedCuMatrix{T}}, B::Vector{<:StridedCuMatrix{T}}) where T
+alpha = [one(T) for i = 1:length(transA)]
+gemm_grouped_batched(transA, transB, alpha, A, B)
+end
+
 ## (GE) general matrix-matrix multiplication batched
-for (fname, elty) in
-        ((:cublasDgemmBatched,:Float64),
-         (:cublasSgemmBatched,:Float32),
-         (:cublasHgemmBatched,:Float16),
-         (:cublasZgemmBatched,:ComplexF64),
-         (:cublasCgemmBatched,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDgemmBatched, :cublasDgemmBatched_64, :Float64),
+                                (:cublasSgemmBatched, :cublasSgemmBatched_64, :Float32),
+                                (:cublasHgemmBatched, :cublasHgemmBatched, :Float16),
+                                (:cublasZgemmBatched, :cublasZgemmBatched_64, :ComplexF64),
+                                (:cublasCgemmBatched, :cublasCgemmBatched_64, :ComplexF32))
     @eval begin
         function gemm_batched!(transA::Char,
                                transB::Char,
@@ -1123,8 +1386,13 @@ for (fname, elty) in
             Aptrs = unsafe_batch(A)
             Bptrs = unsafe_batch(B)
             Cptrs = unsafe_batch(C)
-            $fname(handle(), transA, transB, m, n, k, alpha, Aptrs, lda, Bptrs,
-                   ldb, beta, Cptrs, ldc, length(A))
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), transA, transB, m, n, k, alpha, Aptrs, lda, Bptrs,
+                          ldb, beta, Cptrs, ldc, length(A))
+            else
+                $fname(handle(), transA, transB, m, n, k, alpha, Aptrs, lda, Bptrs,
+                       ldb, beta, Cptrs, ldc, length(A))
+            end
             unsafe_free!(Cptrs)
             unsafe_free!(Bptrs)
             unsafe_free!(Aptrs)
@@ -1145,12 +1413,11 @@ function gemm_batched(transA::Char, transB::Char,
 end
 
 ## (GE) general matrix-matrix multiplication strided batched
-for (fname, elty) in
-        ((:cublasDgemmStridedBatched,:Float64),
-         (:cublasSgemmStridedBatched,:Float32),
-         (:cublasHgemmStridedBatched,:Float16),
-         (:cublasZgemmStridedBatched,:ComplexF64),
-         (:cublasCgemmStridedBatched,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDgemmStridedBatched, :cublasDgemmStridedBatched_64, :Float64),
+                                (:cublasSgemmStridedBatched, :cublasSgemmStridedBatched_64, :Float32),
+                                (:cublasHgemmStridedBatched, :cublasHgemmStridedBatched, :Float16),
+                                (:cublasZgemmStridedBatched, :cublasZgemmStridedBatched_64, :ComplexF64),
+                                (:cublasCgemmStridedBatched, :cublasCgemmStridedBatched_64, :ComplexF32))
     @eval begin
         function gemm_strided_batched!(transA::Char,
                                transB::Char,
@@ -1177,8 +1444,13 @@ for (fname, elty) in
            strideB = size(B, 3) == 1 ? 0 : stride(B, 3)
            strideC = stride(C, 3)
            batchCount = size(C, 3)
-           $fname(handle(), transA, transB, m, n, k, alpha, A, lda, strideA, B,
-                  ldb, strideB, beta, C, ldc, strideC, batchCount)
+           if CUBLAS.version() >= v"12.0"
+              $fname_64(handle(), transA, transB, m, n, k, alpha, A, lda, strideA, B,
+                     ldb, strideB, beta, C, ldc, strideC, batchCount)
+           else
+              $fname(handle(), transA, transB, m, n, k, alpha, A, lda, strideA, B,
+                     ldb, strideB, beta, C, ldc, strideC, batchCount)
+           end
            C
         end
     end
@@ -1196,10 +1468,10 @@ function gemm_strided_batched(transA::Char, transB::Char, A::AbstractArray{T, 3}
 end
 
 ## (Sy) symmetric matrix-matrix and matrix-vector multiplication
-for (fname, elty) in ((:cublasDsymm_v2,:Float64),
-                      (:cublasSsymm_v2,:Float32),
-                      (:cublasZsymm_v2,:ComplexF64),
-                      (:cublasCsymm_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDsymm_v2, :cublasDsymm_v2_64, :Float64),
+                                (:cublasSsymm_v2, :cublasSsymm_v2_64, :Float32),
+                                (:cublasZsymm_v2, :cublasZsymm_v2_64, :ComplexF64),
+                                (:cublasCsymm_v2, :cublasCsymm_v2_64, :ComplexF32))
     # TODO: fix julia dimension checks in symm!
     @eval begin
         function symm!(side::Char,
@@ -1219,8 +1491,11 @@ for (fname, elty) in ((:cublasDsymm_v2,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), side, uplo, m, n, alpha, A, lda, B, ldb,
-                   beta, C, ldc)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
+            else
+                $fname(handle(), side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
+            end
             C
         end
     end
@@ -1235,10 +1510,10 @@ function symm(side::Char, uplo::Char,
 end
 
 ## syrk
-for (fname, elty) in ((:cublasDsyrk_v2,:Float64),
-                      (:cublasSsyrk_v2,:Float32),
-                      (:cublasZsyrk_v2,:ComplexF64),
-                      (:cublasCsyrk_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDsyrk_v2, :cublasDsyrk_v2_64, :Float64),
+                                (:cublasSsyrk_v2, :cublasSsyrk_v2_64, :Float32),
+                                (:cublasZsyrk_v2, :cublasZsyrk_v2_64, :ComplexF64),
+                                (:cublasCsyrk_v2, :cublasCsyrk_v2_64, :ComplexF32))
     @eval begin
         function syrk!(uplo::Char,
                        trans::Char,
@@ -1253,7 +1528,11 @@ for (fname, elty) in ((:cublasDsyrk_v2,:Float64),
             k  = size(A, trans == 'N' ? 2 : 1)
             lda = max(1,stride(A,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
+            else
+                $fname(handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
+            end
             C
         end
     end
@@ -1266,10 +1545,10 @@ function syrk(uplo::Char, trans::Char, A::StridedCuVecOrMat)
     syrk(uplo, trans, one(eltype(A)), A)
 end
 
-for (fname, elty) in ((:cublasDsyrkx,:Float64),
-                      (:cublasSsyrkx,:Float32),
-                      (:cublasZsyrkx,:ComplexF64),
-                      (:cublasCsyrkx,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDsyrkx, :cublasDsyrkx_64, :Float64),
+                                (:cublasSsyrkx, :cublasSsyrkx_64, :Float32),
+                                (:cublasZsyrkx, :cublasZsyrkx_64, :ComplexF64),
+                                (:cublasCsyrkx, :cublasCsyrkx_64, :ComplexF32))
     @eval begin
         function syrkx!(uplo::Char,
                        trans::Char,
@@ -1286,7 +1565,11 @@ for (fname, elty) in ((:cublasDsyrkx,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            else
+                $fname(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            end
             C
         end
     end
@@ -1301,8 +1584,8 @@ function syrkx(uplo::Char, trans::Char, A::StridedCuVecOrMat{T}, B::StridedCuVec
 end
 
 ## hemm
-for (fname, elty) in ((:cublasZhemm_v2,:ComplexF64),
-                      (:cublasChemm_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasZhemm_v2, :cublasZhemm_v2_64, :ComplexF64),
+                                (:cublasChemm_v2, :cublasChemm_v2_64, :ComplexF32))
     @eval begin
         function hemm!(side::Char,
                        uplo::Char,
@@ -1321,7 +1604,11 @@ for (fname, elty) in ((:cublasZhemm_v2,:ComplexF64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
+            else
+                $fname(handle(), side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
+            end
             C
         end
     end
@@ -1336,8 +1623,8 @@ function hemm(uplo::Char, trans::Char, A::StridedCuMatrix{T}, B::StridedCuMatrix
 end
 
 ## herk
-for (fname, elty) in ((:cublasZherk_v2,:ComplexF64),
-                      (:cublasCherk_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasZherk_v2, :cublasZherk_v2_64, :ComplexF64),
+                                (:cublasCherk_v2, :cublasCherk_v2_64, :ComplexF32))
     @eval begin
         function herk!(uplo::Char,
                        trans::Char,
@@ -1352,7 +1639,11 @@ for (fname, elty) in ((:cublasZherk_v2,:ComplexF64),
             k  = size(A, trans == 'N' ? 2 : 1)
             lda = max(1,stride(A,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
+            else
+                $fname(handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
+            end
             C
         end
    end
@@ -1366,10 +1657,10 @@ function herk(uplo::Char, trans::Char, A::StridedCuVecOrMat{T}) where T
 end
 
 ## syr2k
-for (fname, elty) in ((:cublasDsyr2k_v2,:Float64),
-                      (:cublasSsyr2k_v2,:Float32),
-                      (:cublasZsyr2k_v2,:ComplexF64),
-                      (:cublasCsyr2k_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDsyr2k_v2, :cublasDsyr2k_v2_64, :Float64),
+                                (:cublasSsyr2k_v2, :cublasSsyr2k_v2_64, :Float32),
+                                (:cublasZsyr2k_v2, :cublasZsyr2k_v2_64, :ComplexF64),
+                                (:cublasCsyr2k_v2, :cublasCsyr2k_v2_64, :ComplexF32))
     @eval begin
         function syr2k!(uplo::Char,
                         trans::Char,
@@ -1391,7 +1682,11 @@ for (fname, elty) in ((:cublasDsyr2k_v2,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            else
+                $fname(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            end
             C
         end
     end
@@ -1410,8 +1705,8 @@ function syr2k(uplo::Char, trans::Char, A::StridedCuVecOrMat, B::StridedCuVecOrM
 end
 
 ## her2k
-for (fname, elty) in ((:cublasZher2k_v2,:ComplexF64),
-                       (:cublasCher2k_v2,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasZher2k_v2, :cublasZher2k_v2_64, :ComplexF64),
+                                (:cublasCher2k_v2, :cublasCher2k_v2_64, :ComplexF32))
     @eval begin
         function her2k!(uplo::Char,
                         trans::Char,
@@ -1434,7 +1729,11 @@ for (fname, elty) in ((:cublasZher2k_v2,:ComplexF64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            else
+                $fname(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            end
             C
         end
    end
@@ -1510,11 +1809,10 @@ function trsm(side::Char, uplo::Char, transa::Char, diag::Char,alpha::Number,
 end
 
 ## (TR) triangular triangular matrix solution batched
-for (fname, elty) in
-        ((:cublasDtrsmBatched,:Float64),
-         (:cublasStrsmBatched,:Float32),
-         (:cublasZtrsmBatched,:ComplexF64),
-         (:cublasCtrsmBatched,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDtrsmBatched, :cublasDtrsmBatched_64, :Float64),
+                                (:cublasStrsmBatched, :cublasStrsmBatched_64, :Float32),
+                                (:cublasZtrsmBatched, :cublasZtrsmBatched_64, :ComplexF64),
+                                (:cublasCtrsmBatched, :cublasCtrsmBatched_64, :ComplexF32))
     @eval begin
         function trsm_batched!(side::Char,
                                uplo::Char,
@@ -1538,7 +1836,11 @@ for (fname, elty) in
             ldb = max(1,stride(B[1],2))
             Aptrs = unsafe_batch(A)
             Bptrs = unsafe_batch(B)
-            $fname(handle(), side, uplo, transa, diag, m, n, alpha, Aptrs, lda, Bptrs, ldb, length(A))
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), side, uplo, transa, diag, m, n, alpha, Aptrs, lda, Bptrs, ldb, length(A))
+            else
+                $fname(handle(), side, uplo, transa, diag, m, n, alpha, Aptrs, lda, Bptrs, ldb, length(A))
+            end
             unsafe_free!(Bptrs)
             unsafe_free!(Aptrs)
 
@@ -1556,10 +1858,10 @@ end
 
 # BLAS-like extensions
 ## geam
-for (fname, elty) in ((:cublasDgeam,:Float64),
-                      (:cublasSgeam,:Float32),
-                      (:cublasZgeam,:ComplexF64),
-                      (:cublasCgeam,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDgeam, :cublasDgeam_64, :Float64),
+                                (:cublasSgeam, :cublasSgeam_64, :Float32),
+                                (:cublasZgeam, :cublasZgeam_64, :ComplexF64),
+                                (:cublasCgeam, :cublasCgeam_64, :ComplexF32))
     @eval begin
         function geam!(transa::Char,
                        transb::Char,
@@ -1578,7 +1880,11 @@ for (fname, elty) in ((:cublasDgeam,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
+            else
+                $fname(handle(), transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
+            end
             C
         end
     end
@@ -1599,30 +1905,37 @@ end
 
 ## getrfBatched - performs LU factorizations
 
-for (fname, elty) in
-        ((:cublasDgetrfBatched,:Float64),
-         (:cublasSgetrfBatched,:Float32),
-         (:cublasZgetrfBatched,:ComplexF64),
-         (:cublasCgetrfBatched,:ComplexF32))
+for (fname, elty) in ((:cublasDgetrfBatched, :Float64),
+                      (:cublasSgetrfBatched, :Float32),
+                      (:cublasZgetrfBatched, :ComplexF64),
+                      (:cublasCgetrfBatched, :ComplexF32))
     @eval begin
-        function getrf_batched!(n, ptrs::CuVector{CuPtr{$elty}}, lda, pivot::Bool)
+        function getrf_batched!(n, ptrs::CuVector{CuPtr{$elty}}, lda, pivot::TP, _info::TI) where
+                    {TP<:Union{Bool,DenseCuArray{<:Any, 2}},
+                     TI<:Union{Nothing,CuArray{Cint}}}
             batchSize = length(ptrs)
-            info = CuArray{Cint}(undef, batchSize)
-            if pivot
-                pivotArray = CuArray{Cint}(undef, (n, batchSize))
-                $fname(handle(), n, ptrs, lda, pivotArray, info, batchSize)
+            info = TI<:Nothing ? CuArray{Cint}(undef, batchSize) : _info
+            finalizer(unsafe_free!, ptrs)
+            if TP<:DenseCuArray
+                $fname(handle(), n, ptrs, lda, pivot, info, batchSize)
+                return pivot, info
             else
-                $fname(handle(), n, ptrs, lda, CU_NULL, info, batchSize)
-                pivotArray = CUDA.zeros(Cint, (n, batchSize))
+                if pivot
+                    pivotArray = CuArray{Cint}(undef, (n, batchSize))
+                    $fname(handle(), n, ptrs, lda, pivotArray, info, batchSize)
+                else
+                    $fname(handle(), n, ptrs, lda, CU_NULL, info, batchSize)
+                    pivotArray = CUDA.zeros(Cint, (n, batchSize))
+                end
+                return pivotArray, info
             end
-            unsafe_free!(ptrs)
-
-            return pivotArray, info
         end
     end
 end
 
-function getrf_batched!(A::Vector{<:StridedCuMatrix}, pivot::Bool)
+function getrf_batched!(A::Vector{<:StridedCuMatrix},
+                        pivot::Union{Bool,DenseCuArray{<:Any, 2}},
+                        info::Union{Nothing,CuArray{Cint}}=nothing)
     for As in A
         m,n = size(As)
         if m != n
@@ -1633,14 +1946,18 @@ function getrf_batched!(A::Vector{<:StridedCuMatrix}, pivot::Bool)
     lda = max(1,stride(A[1],2))
 
     Aptrs = unsafe_batch(A)
-    return getrf_batched!(n, Aptrs, lda, pivot)..., A
+    return getrf_batched!(n, Aptrs, lda, pivot, info)..., A
 end
-function getrf_batched(A::Vector{<:StridedCuMatrix}, pivot::Bool)
-    getrf_batched!(copy(A), pivot)
+function getrf_batched(A::Vector{<:StridedCuMatrix},
+                       pivot::Union{Bool,DenseCuArray{<:Any, 2}},
+                       info::Union{Nothing,CuArray{Cint}}=nothing)
+    getrf_batched!(deepcopy(A), pivot, info)
 end
 
 # CUDA has no strided batched getrf, but we can at least avoid constructing costly views
-function getrf_strided_batched!(A::DenseCuArray{<:Any, 3}, pivot::Bool)
+function getrf_strided_batched!(A::DenseCuArray{<:Any, 3},
+                                pivot::Union{Bool,DenseCuArray{<:Any, 2}},
+                                info::Union{Nothing,CuArray{Cint}}=nothing)
     m,n = size(A,1), size(A,2)
     if m != n
         throw(DimensionMismatch("All matrices must be square!"))
@@ -1648,20 +1965,104 @@ function getrf_strided_batched!(A::DenseCuArray{<:Any, 3}, pivot::Bool)
     lda = max(1,stride(A,2))
 
     Aptrs = unsafe_strided_batch(A)
-    return getrf_batched!(n, Aptrs, lda, pivot)..., A
+    return getrf_batched!(n, Aptrs, lda, pivot, info)..., A
 end
-function getrf_strided_batched(A::DenseCuArray{<:Any, 3}, pivot::Bool)
-    getrf_strided_batched!(copy(A), pivot)
+function getrf_strided_batched(A::DenseCuArray{<:Any, 3},
+                               pivot::Union{Bool,DenseCuArray{<:Any, 2}},
+                               info::Union{Nothing,CuArray{Cint}}=nothing)
+    getrf_strided_batched!(copy(A), pivot, info)
+end
+
+
+## getrsBatched - solves system of linear equations
+
+for (fname, elty) in ((:cublasDgetrsBatched, :Float64),
+                      (:cublasSgetrsBatched, :Float32),
+                      (:cublasZgetrsBatched, :ComplexF64),
+                      (:cublasCgetrsBatched, :ComplexF32))
+    @eval begin
+        function getrs_batched!(trans::Char,
+                                n, nrhs,
+                                Aptrs::CuVector{CuPtr{$elty}}, lda,
+                                pivotArray::CuPtr,
+                                Bptrs::CuVector{CuPtr{$elty}}, ldb)
+            batchSize = length(Aptrs)
+            info = Ref{Cint}()
+            $fname(handle(), trans, n, nrhs, Aptrs, lda, pivotArray, Bptrs, ldb, info, batchSize)
+            unsafe_free!(Aptrs)
+            unsafe_free!(Bptrs)
+
+            return info
+        end
+    end
+end
+
+function getrs_batched!(trans::Char,
+                        A::Vector{<:StridedCuMatrix},
+                        B::Vector{<:StridedCuMatrix},
+                        pivotArray::T=nothing) where T<:Union{Nothing,CuMatrix{Cint}}
+    for (As,Bs) in zip(A,B)
+        m,n = size(As)
+        if m != n
+            throw(DimensionMismatch("All A matrices must be square!"))
+        end
+        o = size(Bs,1)
+        if m != o
+            throw(DimensionMismatch("Rows in A and B must be equal!"))
+        end
+    end
+    m,n = size(A[1])
+    lda = max(1,stride(A[1],2))
+    ldb = max(1,stride(B[1],2))
+    nrhs = size(B[1],2)
+
+    Aptrs = unsafe_batch(A)
+    Bptrs = unsafe_batch(B)
+    pivotptr = T==Nothing ? CU_NULL : pointer(pivotArray)
+    return getrs_batched!(trans, n, nrhs, Aptrs, lda, pivotptr, Bptrs, ldb), B
+end
+function getrs_batched(trans::Char,
+                       A::Vector{<:StridedCuMatrix},
+                       B::Vector{<:StridedCuMatrix},
+                       pivotArray::Union{Nothing,CuMatrix{Cint}}=nothing)
+    getrs_batched!(trans, A, deepcopy(B), pivotArray)
+end
+
+# CUDA has no strided batched getrs, but we can at least avoid constructing costly views
+function getrs_strided_batched!(trans::Char,
+                                A::DenseCuArray{<:Any, 3},
+                                B::DenseCuArray{<:Any, 3},
+                                pivotArray::T=nothing) where T<:Union{Nothing,CuMatrix{Cint}}
+    m,n = size(A,1), size(A,2)
+    if m != n
+        throw(DimensionMismatch("All matrices must be square!"))
+    end
+    o = size(B,1)
+    if m != o
+        throw(DimensionMismatch("Rows in A and B must be equal!"))
+    end
+    lda = max(1,stride(A,2))
+    ldb = max(1,stride(B,2))
+    nrhs = size(B,2)
+
+    Aptrs = unsafe_strided_batch(A)
+    Bptrs = unsafe_strided_batch(B)
+    pivotptr = T==Nothing ? CU_NULL : pointer(pivotArray)
+    return getrs_batched!(trans, n, nrhs, Aptrs, lda, pivotptr, Bptrs, ldb), B
+end
+function getrs_strided_batched(trans::Char,
+                               A::DenseCuArray{<:Any, 3},
+                               B::DenseCuArray{<:Any, 3},
+                               pivotArray::Union{Nothing,CuMatrix{Cint}}=nothing)
+    getrs_strided_batched!(trans, A, copy(B), pivotArray)
 end
 
 
 ## getriBatched - performs batched matrix inversion
-
-for (fname, elty) in
-        ((:cublasDgetriBatched,:Float64),
-         (:cublasSgetriBatched,:Float32),
-         (:cublasZgetriBatched,:ComplexF64),
-         (:cublasCgetriBatched,:ComplexF32))
+for (fname, elty) in ((:cublasDgetriBatched, :Float64),
+                      (:cublasSgetriBatched, :Float32),
+                      (:cublasZgetriBatched, :ComplexF64),
+                      (:cublasCgetriBatched, :ComplexF32))
     @eval begin
         function getri_batched(A::Vector{<:StridedCuMatrix{$elty}},
                                pivotArray::CuMatrix{Cint})
@@ -1685,15 +2086,7 @@ for (fname, elty) in
 
             pivotArray, info, C
         end
-    end
-end
-## getriBatched - performs batched matrix inversion, no allocations inside
-for (fname, elty) in
-    ((:cublasDgetriBatched, :Float64),
-     (:cublasSgetriBatched, :Float32),
-     (:cublasZgetriBatched, :ComplexF64),
-     (:cublasCgetriBatched, :ComplexF32))
-    @eval begin
+
         function getri_batched!(n, Aptrs::CuVector{CuPtr{$elty}},
                           lda, Cptrs::CuVector{CuPtr{$elty}},ldc,
                           pivotArray::CuArray{Cint})
@@ -1704,16 +2097,7 @@ for (fname, elty) in
             unsafe_free!(Aptrs)
             return info
         end
-    end
-end
 
-
-for (fname, elty) in
-        ((:cublasDgetriBatched, :Float64),
-         (:cublasSgetriBatched, :Float32),
-         (:cublasZgetriBatched, :ComplexF64),
-         (:cublasCgetriBatched, :ComplexF32))
-    @eval begin
         function getri_batched!(A::Vector{<:StridedCuMatrix{$elty}},
                                 C::Vector{<:StridedCuMatrix{$elty}},
                                 pivotArray::CuMatrix{Cint})
@@ -1781,12 +2165,10 @@ for (fname, elty) in
 end
 
 ## geqrfBatched - performs batched QR factorizations
-
-for (fname, elty) in
-        ((:cublasDgeqrfBatched,:Float64),
-         (:cublasSgeqrfBatched,:Float32),
-         (:cublasZgeqrfBatched,:ComplexF64),
-         (:cublasCgeqrfBatched,:ComplexF32))
+for (fname, elty) in ((:cublasDgeqrfBatched, :Float64),
+                      (:cublasSgeqrfBatched, :Float32),
+                      (:cublasZgeqrfBatched, :ComplexF64),
+                      (:cublasCgeqrfBatched, :ComplexF32))
     @eval begin
         function geqrf_batched!(A::Vector{<:StridedCuMatrix{$elty}})
             m,n = size(A[1])
@@ -1798,12 +2180,12 @@ for (fname, elty) in
                 push!(TauArray, CuArray(hTauArray[i]))
             end
             Tauptrs = unsafe_batch(TauArray)
-            info    = zero(Cint)
-            $fname(handle(), m, n, Aptrs, lda, Tauptrs, [info], length(A))
+            info = Ref{Cint}()
+            $fname(handle(), m, n, Aptrs, lda, Tauptrs, info, length(A))
             unsafe_free!(Tauptrs)
 
-            if info != 0
-                throw(ArgumentError,string("Invalid value at ",-info))
+            if info[] != 0
+                throw(ArgumentError,string("Invalid value at ",-info[]))
             end
 
             TauArray, A
@@ -1815,12 +2197,10 @@ function geqrf_batched(A::Vector{<:CuMatrix})
 end
 
 ## gelsBatched - performs batched least squares
-
-for (fname, elty) in
-        ((:cublasDgelsBatched,:Float64),
-         (:cublasSgelsBatched,:Float32),
-         (:cublasZgelsBatched,:ComplexF64),
-         (:cublasCgelsBatched,:ComplexF32))
+for (fname, elty) in ((:cublasDgelsBatched, :Float64),
+                      (:cublasSgelsBatched, :Float32),
+                      (:cublasZgelsBatched, :ComplexF64),
+                      (:cublasCgelsBatched, :ComplexF32))
     @eval begin
         function gels_batched!(trans::Char,
                               A::Vector{<:StridedCuMatrix{$elty}},
@@ -1849,14 +2229,14 @@ for (fname, elty) in
             ldc = max(1,stride(A[1],2))
             Aptrs = unsafe_batch(A)
             Cptrs = unsafe_batch(C)
-            info  = zero(Cint)
+            info  = Ref{Cint}()
             infoarray = CUDA.zeros(Cint, length(A))
-            $fname(handle(), trans, m, n, nrhs, Aptrs, lda, Cptrs, ldc, [info], infoarray, length(A))
+            $fname(handle(), trans, m, n, nrhs, Aptrs, lda, Cptrs, ldc, info, infoarray, length(A))
             unsafe_free!(Cptrs)
             unsafe_free!(Aptrs)
 
-            if info != 0
-                throw(ArgumentError,string("Invalid value at ",-info))
+            if info[] != 0
+                throw(ArgumentError,string("Invalid value at ",-info[]))
             end
 
             A, C, infoarray
@@ -1868,10 +2248,10 @@ function gels_batched(trans::Char, A::Vector{<:CuMatrix{T}}, C::Vector{<:CuMatri
 end
 
 ## dgmm
-for (fname, elty) in ((:cublasDdgmm,:Float64),
-                      (:cublasSdgmm,:Float32),
-                      (:cublasZdgmm,:ComplexF64),
-                      (:cublasCdgmm,:ComplexF32))
+for (fname, fname_64, elty) in ((:cublasDdgmm, :cublasDdgmm_64, :Float64),
+                                (:cublasSdgmm, :cublasSdgmm_64, :Float32),
+                                (:cublasZdgmm, :cublasZdgmm_64, :ComplexF64),
+                                (:cublasCdgmm, :cublasCdgmm_64, :ComplexF32))
     @eval begin
         function dgmm!(mode::Char,
                        A::StridedCuMatrix{$elty},
@@ -1886,7 +2266,11 @@ for (fname, elty) in ((:cublasDdgmm,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(X,1)
             ldc = max(1,stride(C,2))
-            $fname(handle(), mode, m, n, A, lda, X, incx, C, ldc)
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), mode, m, n, A, lda, X, incx, C, ldc)
+            else
+                $fname(handle(), mode, m, n, A, lda, X, incx, C, ldc)
+            end
             C
         end
     end

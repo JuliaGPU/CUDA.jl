@@ -25,16 +25,11 @@ Base.convert(::Type{Optional{T}}, x::Optional) where T = convert(Optional{T}, x[
 
 """
     CuError(code)
-    CuError(code, details)
 
-Create a CUDA error object with error code `code`. The optional `details` parameter
-indicates whether extra information, such as error logs, is known.
+Create a CUDA error object with error code `code`.
 """
 struct CuError <: Exception
     code::CUresult
-    details::Optional{String}
-
-    CuError(code, details=nothing) = new(code, details)
 end
 
 Base.convert(::Type{CUresult}, err::CuError) = err.code
@@ -81,11 +76,6 @@ function Base.showerror(io::IO, err::CuError)
         print(io, "CUDA error (code $(reinterpret(Int32, err.code)), $(err.code))")
     else
         print(io, "CUDA error: $(description(err)) (code $(reinterpret(Int32, err.code)), $(name(err)))")
-    end
-
-    if err.details[] !== nothing
-        print(io, "\n")
-        print(io, err.details[])
     end
 end
 

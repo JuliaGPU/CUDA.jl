@@ -54,24 +54,78 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
                 stream::CuStream=stream()) where {N}
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
-    (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) ||
-        throw(ArgumentError("Grid dimensions should be non-null"))
-    (threaddim.x>0 && threaddim.y>0 && threaddim.z>0) ||
-        throw(ArgumentError("Block dimensions should be non-null"))
 
-    pack_arguments(args...) do kernelParams
-        if cooperative
-            cuLaunchCooperativeKernel(f,
-                                      blockdim.x, blockdim.y, blockdim.z,
-                                      threaddim.x, threaddim.y, threaddim.z,
-                                      shmem, stream, kernelParams)
-        else
-            cuLaunchKernel(f,
-                           blockdim.x, blockdim.y, blockdim.z,
-                           threaddim.x, threaddim.y, threaddim.z,
-                           shmem, stream, kernelParams, C_NULL)
+    try
+        pack_arguments(args...) do kernelParams
+            if cooperative
+                cuLaunchCooperativeKernel(f,
+                                          blockdim.x, blockdim.y, blockdim.z,
+                                          threaddim.x, threaddim.y, threaddim.z,
+                                          shmem, stream, kernelParams)
+            else
+                cuLaunchKernel(f,
+                               blockdim.x, blockdim.y, blockdim.z,
+                               threaddim.x, threaddim.y, threaddim.z,
+                               shmem, stream, kernelParams, C_NULL)
+            end
+        end
+    catch err
+        diagnose_launch_failure(f, err; blockdim, threaddim, shmem)
+    end
+end
+
+@noinline function diagnose_launch_failure(f::CuFunction, err; blockdim, threaddim, shmem)
+    if !isa(err, CuError) || !in(err.code, [ERROR_INVALID_VALUE,
+                                            ERROR_LAUNCH_OUT_OF_RESOURCES])
+        rethrow()
+    end
+
+    # essentials
+    (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) ||
+        error("Grid dimensions should be non-null")
+    (threaddim.x>0 && threaddim.y>0 && threaddim.z>0) ||
+        error("Block dimensions should be non-null")
+
+    # check device limits
+    dev = device()
+    ## block size limit
+    threadlim = CuDim3(attribute(dev, DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X),
+                       attribute(dev, DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y),
+                       attribute(dev, DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z))
+    for dim in (:x, :y, :z)
+        if getfield(threaddim, dim) > getfield(threadlim, dim)
+            error("Number of threads in $(dim)-dimension exceeds device limit ($(getfield(threaddim, dim)) > $(getfield(threadlim, dim))).")
         end
     end
+    ## grid size limit
+    blocklim = CuDim3(attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_X),
+                      attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y),
+                      attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z))
+    for dim in (:x, :y, :z)
+        if getfield(blockdim, dim) > getfield(blocklim, dim)
+            error("Number of blocks in $(dim)-dimension exceeds device limit ($(getfield(blockdim, dim)) > $(getfield(blocklim, dim))).")
+        end
+    end
+    ## shared memory limit
+    shmem_lim = attribute(dev, DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK)
+    if shmem > shmem_lim
+        error("Amount of dynamic shared memory exceeds device limit ($(Base.format_bytes(shmem)) > $(Base.format_bytes(shmem_lim))).")
+    end
+
+    # check kernel limits
+    fattr = attributes(f)
+    ## thread limit
+    threadlim = fattr[FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK]
+    if threaddim.x * threaddim.y * threaddim.z > threadlim
+        error("Number of threads per block exceeds kernel limit ($(threaddim.x * threaddim.y * threaddim.z) > $threadlim).")
+    end
+    ## shared memory limit
+    shmem_lim = fattr[FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES]
+    if shmem > shmem_lim
+        error("Amount of dynamic shared memory exceeds kernel limit ($(Base.format_bytes(shmem)) > $(Base.format_bytes(shmem_lim))).")
+    end
+
+    rethrow()
 end
 
 # convert the argument values to match the kernel's signature (specified by the user)
@@ -110,12 +164,12 @@ For example:
     vadd = CuFunction(md, "vadd")
     a = rand(Float32, 10)
     b = rand(Float32, 10)
-    ad = Mem.alloc(DeviceBuffer, 10*sizeof(Float32))
+    ad = alloc(CUDA.DeviceMemory, 10*sizeof(Float32))
     unsafe_copyto!(ad, convert(Ptr{Cvoid}, a), 10*sizeof(Float32)))
-    bd = Mem.alloc(DeviceBuffer, 10*sizeof(Float32))
+    bd = alloc(CUDA.DeviceMemory, 10*sizeof(Float32))
     unsafe_copyto!(bd, convert(Ptr{Cvoid}, b), 10*sizeof(Float32)))
     c = zeros(Float32, 10)
-    cd = Mem.alloc(DeviceBuffer, 10*sizeof(Float32))
+    cd = alloc(CUDA.DeviceMemory, 10*sizeof(Float32))
 
     cudacall(vadd, (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, cd; threads=10)
     unsafe_copyto!(convert(Ptr{Cvoid}, c), cd, 10*sizeof(Float32)))
@@ -127,14 +181,34 @@ being slightly faster.
 """
 cudacall
 
-# FIXME: can we make this infer properly?
-cudacall(f, types::Tuple, args...; kwargs...) =
-    cudacall(f, Base.to_tuple_type(types), args...; kwargs...)
+cudacall(f::F, types::Tuple, args::Vararg{Any,N}; kwargs...) where {N,F} =
+    cudacall(f, _to_tuple_type(types), args...; kwargs...)
 
-function cudacall(f, types::Type, args...; kwargs...)
-    convert_arguments(types, args...) do pointers...
+function cudacall(f::F, types::Type{T}, args::Vararg{Any,N}; kwargs...) where {T,N,F}
+    launch_closure = function (pointers::Vararg{Any,N})
         launch(f, pointers...; kwargs...)
     end
+    convert_arguments(launch_closure, types, args...)
+end
+
+# From `julia/base/reflection.jl`, adjusted to add specialization on `t`.
+function _to_tuple_type(t)
+    if isa(t, Tuple) || isa(t, AbstractArray) || isa(t, SimpleVector)
+        t = Tuple{t...}
+    end
+    if isa(t, Type) && t <: Tuple
+        for p in (Base.unwrap_unionall(t)::DataType).parameters
+            if isa(p, Core.TypeofVararg)
+                p = Base.unwrapva(p)
+            end
+            if !(isa(p, Type) || isa(p, TypeVar))
+                error("argument tuple type must contain only types")
+            end
+        end
+    else
+        error("expected tuple type")
+    end
+    t
 end
 
 

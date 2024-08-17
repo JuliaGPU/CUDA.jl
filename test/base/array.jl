@@ -1,68 +1,33 @@
 using LinearAlgebra
 import Adapt
+using ChainRulesCore: add!!, is_inplaceable_destination
 
 @testset "constructors" begin
-  xs = CuArray{Int}(undef, 2, 3)
-  @test device(xs) == device()
-  @test context(xs) == context()
-  @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
-  @test collect(cu[1, 2, 3]) == [1, 2, 3]
-  @test collect(cu([1, 2, 3])) == [1, 2, 3]
-  @test testf(vec, rand(5,3))
-  @test cu(1:3) === 1:3
-  @test Base.elsize(xs) == sizeof(Int)
-  @test pointer(CuArray{Int, 2}(xs)) != pointer(xs)
+  let xs = CuArray{Int}(undef, 2, 3)
+    # basic properties
+    @test device(xs) == device()
+    @test context(xs) == context()
+    @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
+    @test collect(cu[1, 2, 3]) == [1, 2, 3]
+    @test collect(cu([1, 2, 3])) == [1, 2, 3]
+    @test testf(vec, rand(5,3))
+    @test cu(1:3) === 1:3
+    @test Base.elsize(xs) == sizeof(Int)
+    @test pointer(CuArray{Int, 2}(xs)) != pointer(xs)
 
-  # test aggressive conversion to Float32, but only for floats, and only with `cu`
-  @test cu([1]) isa CuArray{Int}
-  @test cu(Float64[1]) isa CuArray{Float32}
-  @test cu(ComplexF64[1+1im]) isa CuArray{ComplexF32}
-  @test Adapt.adapt(CuArray, Float64[1]) isa CuArray{Float64}
-  @test Adapt.adapt(CuArray, ComplexF64[1]) isa CuArray{ComplexF64}
-  @test Adapt.adapt(CuArray{Float16}, Float64[1]) isa CuArray{Float16}
-
-  @test_throws ArgumentError Base.unsafe_convert(Ptr{Int}, xs)
-  @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
-
-  # unsafe_wrap
-  let
-    arr = CuArray{Int}(undef, 2)
-    ptr = pointer(arr)
-    B = Mem.DeviceBuffer
-
-    ## compare the fields we care about
-    function test_eq(a, T, N, dims)
-      @test eltype(a) == T
-      @test ndims(a) == N
-      @test a.data[].ptr == ptr
-      @test a.data[].ctx == context()
-      @test a.maxsize == arr.maxsize
-      @test a.offset == arr.offset
-      @test a.dims == dims
-    end
-
-    test_eq(unsafe_wrap(CuArray, ptr, 2),                Int, 1, (2,))
-    test_eq(unsafe_wrap(CuArray{Int}, ptr, 2),           Int, 1, (2,))
-    test_eq(unsafe_wrap(CuArray{Int,1}, ptr, 2),         Int, 1, (2,))
-    test_eq(unsafe_wrap(CuArray{Int,1,B}, ptr, 2),       Int, 1, (2,))
-    test_eq(unsafe_wrap(CuArray, ptr, (1,2)),            Int, 2, (1,2))
-    test_eq(unsafe_wrap(CuArray{Int}, ptr, (1,2)),       Int, 2, (1,2))
-    test_eq(unsafe_wrap(CuArray{Int,2}, ptr, (1,2)),     Int, 2, (1,2))
-    test_eq(unsafe_wrap(CuArray{Int,2,B}, ptr, (1,2)),   Int, 2, (1,2))
-
-    @test_throws ErrorException unsafe_wrap(CuArray{Int,1,Mem.HostBuffer}, ptr, 2)
-    @test_throws ErrorException unsafe_wrap(CuArray{Int,2,Mem.HostBuffer}, ptr, (1,2))
+    # test aggressive conversion to Float32, but only for floats, and only with `cu`
+    @test cu([1]) isa CuArray{Int}
+    @test cu(Float64[1]) isa CuArray{Float32}
+    @test cu(ComplexF64[1+1im]) isa CuArray{ComplexF32}
+    @test Adapt.adapt(CuArray, Float64[1]) isa CuArray{Float64}
+    @test Adapt.adapt(CuArray, ComplexF64[1]) isa CuArray{ComplexF64}
+    @test Adapt.adapt(CuArray{Float16}, Float64[1]) isa CuArray{Float16}
   end
-  let buf = Mem.alloc(Mem.Host, sizeof(Int), Mem.HOSTALLOC_DEVICEMAP)
-    gpu_ptr = convert(CuPtr{Int}, buf)
-    gpu_arr = unsafe_wrap(CuArray, gpu_ptr, 1)
-    gpu_arr .= 42
 
-    synchronize()
-
-    cpu_ptr = convert(Ptr{Int}, buf)
-    cpu_arr = unsafe_wrap(Array, cpu_ptr, 1)
-    @test cpu_arr == [42]
+  # test pointer conversions
+  let xs = CuVector{Int,CUDA.DeviceMemory}(undef, 1)
+    @test_throws ArgumentError Base.unsafe_convert(Ptr{Int}, xs)
+    @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
   end
 
   @test collect(CUDA.zeros(2, 2)) == zeros(Float32, 2, 2)
@@ -86,6 +51,96 @@ import Adapt
   end
 end
 
+@testset "unsafe_wrap" begin
+    # managed memory -> CuArray
+    for a in [cu([1]; device=true), cu([1]; unified=true)]
+        p = pointer(a)
+        for AT in [CuArray, CuArray{Int}, CuArray{Int,1}, typeof(a)],
+            b in [unsafe_wrap(AT, p, 1), unsafe_wrap(AT, p, (1,))]
+            @test typeof(b) == typeof(a)
+            @test pointer(b) == p
+            @test size(b) == (1,)
+        end
+    end
+
+    # managed memory -> Array
+    let a = cu([1]; unified=true)
+        p = pointer(a)
+        for AT in [Array, Array{Int}, Array{Int,1}],
+            b in [unsafe_wrap(AT, p, 1), unsafe_wrap(AT, p, (1,)), unsafe_wrap(AT, a)]
+            @test typeof(b) == Array{Int,1}
+            @test pointer(b) == reinterpret(Ptr{Int}, p)
+            @test size(b) == (1,)
+        end
+    end
+
+    # unmanaged memory -> CuArray
+    # note that the device-side pointer may differ from the host one (i.e., on Tegra)
+    let
+        # automatic memory selection
+        for AT in [CuArray, CuArray{Int}, CuArray{Int,1}],
+            f in [a->unsafe_wrap(AT, pointer(a), 1),
+                  a->unsafe_wrap(AT, pointer(a), (1,)),
+                  a->unsafe_wrap(AT, a)]
+            a = [1]
+            b = f(a)
+
+            @test typeof(b) <: CuArray{Int,1}
+            @test size(b) == (1,)
+            @test Array(b) == a
+        end
+
+        # host memory
+        for AT in [CuArray{Int,1,CUDA.HostMemory}],
+            f in [a->unsafe_wrap(AT, pointer(a), 1),
+                  a->unsafe_wrap(AT, pointer(a), (1,)),
+                  a->unsafe_wrap(AT, a)]
+            a = [1]
+            b = f(a)
+
+            @test typeof(b) <: CuArray{Int,1,CUDA.HostMemory}
+            @test size(b) == (1,)
+            @test Array(b) == a
+        end
+
+        # unified memory (requires HMM)
+        if CUDA.supports_hmm(device())
+          for AT in [CuArray{Int,1,CUDA.UnifiedMemory}],
+              f in [a->unsafe_wrap(AT, pointer(a), 1),
+                    a->unsafe_wrap(AT, pointer(a), (1,)),
+                    a->unsafe_wrap(AT, a)]
+              a = [1]
+              b = f(a)
+
+              @test typeof(b) <: CuArray{Int,1,CUDA.UnifiedMemory}
+              @test size(b) == (1,)
+              @test Array(b) == a
+          end
+        end
+    end
+
+    # errors
+    let a = cu([1]; device=true)
+        @test_throws ArgumentError unsafe_wrap(Array, a)
+    end
+    let a = [1]
+        @test_throws ArgumentError unsafe_wrap(CuArray{Int,1,CUDA.DeviceMemory}, a)
+    end
+
+    # some actual operations
+    let buf = CUDA.alloc(CUDA.HostMemory, sizeof(Int), CUDA.MEMHOSTALLOC_DEVICEMAP)
+        gpu_ptr = convert(CuPtr{Int}, buf)
+        gpu_arr = unsafe_wrap(CuArray, gpu_ptr, 1)
+        gpu_arr .= 42
+
+        synchronize()
+
+        cpu_ptr = convert(Ptr{Int}, buf)
+        cpu_arr = unsafe_wrap(Array, cpu_ptr, 1)
+        @test cpu_arr == [42]
+    end
+end
+
 @testset "adapt" begin
   A = rand(Float32, 3, 3)
   dA = CuArray(A)
@@ -95,7 +150,7 @@ end
 
   @test Adapt.adapt(CuArray{Float64}, A) isa CuArray{Float64}
   @test Adapt.adapt(CuArray{Float64,2}, A) isa CuArray{Float64,2}
-  @test Adapt.adapt(CuArray{Float64,2, Mem.UnifiedBuffer}, A) isa CuArray{Float64,2, Mem.UnifiedBuffer}
+  @test Adapt.adapt(CuArray{Float64,2, CUDA.UnifiedMemory}, A) isa CuArray{Float64,2, CUDA.UnifiedMemory}
 end
 
 @testset "view" begin
@@ -144,8 +199,8 @@ end
   @testset "CPU array source" begin
       a = rand(3)
       i = rand(1:3, 2)
-      @test testf(view, a, i)
-      @test testf(view, a, view(i, 2:2))
+      @test testf(view, a, Ref(i))
+      @test testf(view, a, Ref(view(i, 2:2)))
   end
 
   @testset "unmanaged view" begin
@@ -799,13 +854,13 @@ end
   dev = device()
 
   let
-    a = CuVector{Int}(undef, 1)
+    a = CuVector{Int,CUDA.DeviceMemory}(undef, 1)
     @test !is_unified(a)
     @test !is_managed(pointer(a))
   end
 
   let
-    a = CuVector{Int,Mem.UnifiedBuffer}(undef, 1)
+    a = CuVector{Int,CUDA.UnifiedMemory}(undef, 1)
     @test is_unified(a)
     @test is_managed(pointer(a))
     a .= 0
@@ -822,58 +877,52 @@ end
   end
 
   let
-    # default ctor: device memory
-    let a = CUDA.rand(1)
-      @test !is_unified(a)
-      @test !is_managed(pointer(a))
-    end
-
-    for B = [Mem.DeviceBuffer, Mem.UnifiedBuffer]
+    for B = [CUDA.DeviceMemory, CUDA.UnifiedMemory]
       a = CuVector{Float32,B}(rand(Float32, 1))
-      @test !xor(B == Mem.UnifiedBuffer, is_unified(a))
+      @test !xor(B == CUDA.UnifiedMemory, is_unified(a))
 
       # check that buffer types are preserved
       let b = similar(a)
         @test eltype(b) == eltype(a)
-        @test !xor(B == Mem.UnifiedBuffer, is_unified(b))
+        @test !xor(B == CUDA.UnifiedMemory, is_unified(b))
       end
       let b = CuArray(a)
         @test eltype(b) == eltype(a)
-        @test !xor(B == Mem.UnifiedBuffer, is_unified(b))
+        @test !xor(B == CUDA.UnifiedMemory, is_unified(b))
       end
       let b = CuArray{Float64}(a)
         @test eltype(b) == Float64
-        @test !xor(B == Mem.UnifiedBuffer, is_unified(b))
+        @test !xor(B == CUDA.UnifiedMemory, is_unified(b))
       end
 
       # change buffer type
-      let b = CuVector{Float32,Mem.DeviceBuffer}(a)
+      let b = CuVector{Float32,CUDA.DeviceMemory}(a)
         @test eltype(b) == eltype(a)
         @test !is_unified(b)
       end
-      let b = CuVector{Float32,Mem.UnifiedBuffer}(a)
+      let b = CuVector{Float32,CUDA.UnifiedMemory}(a)
         @test eltype(b) == eltype(a)
         @test is_unified(b)
       end
 
       # change type and buffer type
-      let b = CuVector{Float64,Mem.DeviceBuffer}(a)
+      let b = CuVector{Float64,CUDA.DeviceMemory}(a)
         @test eltype(b) == Float64
         @test !is_unified(b)
       end
-      let b = CuVector{Float64,Mem.UnifiedBuffer}(a)
+      let b = CuVector{Float64,CUDA.UnifiedMemory}(a)
         @test eltype(b) == Float64
         @test is_unified(b)
       end
     end
 
     # cu: supports unified keyword
-    let a = cu(rand(Float64, 1); unified=true)
-      @test is_unified(a)
+    let a = cu(rand(Float64, 1); device=true)
+      @test !is_unified(a)
       @test eltype(a) == Float32
     end
-    let a = cu(rand(Float64, 1))
-      @test !is_unified(a)
+    let a = cu(rand(Float64, 1); unified=true)
+      @test is_unified(a)
       @test eltype(a) == Float32
     end
   end
@@ -882,7 +931,7 @@ end
 @testset "issue: invalid handling of device pointers" begin
   # failed when DEVICE_ATTRIBUTE_CAN_USE_HOST_POINTER_FOR_REGISTERED_MEM == 0
   cpu = rand(2,2)
-  buf = Mem.register(Mem.Host, pointer(cpu), sizeof(cpu), Mem.HOSTREGISTER_DEVICEMAP)
+  buf = CUDA.register(CUDA.HostMemory, pointer(cpu), sizeof(cpu), CUDA.MEMHOSTREGISTER_DEVICEMAP)
   gpu_ptr = convert(CuPtr{eltype(cpu)}, buf)
   gpu = unsafe_wrap(CuArray, gpu_ptr, size(cpu))
   @test Array(gpu) == cpu
@@ -907,9 +956,9 @@ if length(devices()) > 1
 
   @testset "issue 1263" begin
     function unified_cuarray(::Type{T}, dims::NTuple{N}) where {T, N}
-        buf = Mem.alloc(Mem.Unified, prod(dims) * sizeof(T))
+        buf = CUDA.alloc(CUDA.UnifiedMemory, prod(dims) * sizeof(T))
         array = unsafe_wrap(CuArray{T, N}, convert(CuPtr{T}, buf), dims)
-        finalizer(_ -> Mem.free(buf), array)
+        finalizer(_ -> CUDA.free(buf), array)
         return array
     end
 
@@ -933,9 +982,9 @@ if length(devices()) > 1
     @test Array(dA) == B
 
     function host_cuarray(::Type{T}, dims::NTuple{N}) where {T, N}
-        buf = Mem.alloc(Mem.Unified, prod(dims) * sizeof(T))
+        buf = CUDA.alloc(CUDA.UnifiedMemory, prod(dims) * sizeof(T))
         array = unsafe_wrap(CuArray{T, N}, convert(CuPtr{T}, buf), dims)
-        finalizer(_ -> Mem.free(buf), array)
+        finalizer(_ -> CUDA.free(buf), array)
         return array
     end
 
@@ -986,4 +1035,14 @@ if length(devices()) > 1
     @test Array(a) == Array(b) == data
   end
 end
+end
+
+@testset "inplaceability" begin
+  a = CUDA.rand(10, 10)
+  @test is_inplaceable_destination(a)
+  a′ = copy(a)
+  b = CUDA.rand(10, 10)
+  c = add!!(a, b)
+  @test c == a′ + b
+  @test c === a
 end

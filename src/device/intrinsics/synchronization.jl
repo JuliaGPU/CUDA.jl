@@ -1,8 +1,10 @@
 # Synchronization (B.6)
 
+
+## simple synchronization (bar)
+
 export sync_threads, sync_warp
 export sync_threads_count, sync_threads_and, sync_threads_or
-export threadfence, threadfence_block, threadfence_system
 
 """
     sync_threads()
@@ -14,61 +16,37 @@ threads in the block.
 @inline sync_threads() = ccall("llvm.nvvm.barrier0", llvmcall, Cvoid, ())
 
 """
-    sync_threads_count(predicate::Int32)
+    sync_threads_count(predicate)
 
-Identical to `__syncthreads()` with the additional feature that it evaluates predicate for
+Identical to `sync_threads()` with the additional feature that it evaluates predicate for
 all threads of the block and returns the number of threads for which `predicate` evaluates
-to non-zero.
+to true.
 """
-@inline sync_threads_count(predicate::Int32) = ccall("llvm.nvvm.barrier0.popc", llvmcall, Int32, (Int32,), predicate)
+@inline sync_threads_count(predicate) =
+    ccall("llvm.nvvm.barrier0.popc", llvmcall, Int32, (Int32,), predicate)
 
 """
-    sync_threads_count(predicate::Bool)
+    sync_threads_and(predicate)
 
-Identical to `__syncthreads()` with the additional feature that it evaluates predicate for
-all threads of the block and returns the number of threads for which `predicate` evaluates
-to `true`.
-"""
-@inline sync_threads_count(predicate::Bool) = sync_threads_count(Int32(predicate))
-
-"""
-    sync_threads_and(predicate::Int32)
-
-Identical to `__syncthreads()` with the additional feature that it evaluates predicate for
-all threads of the block and returns non-zero if and only if `predicate` evaluates to
-non-zero for all of them.
-"""
-@inline sync_threads_and(predicate::Int32) = ccall("llvm.nvvm.barrier0.and", llvmcall, Int32, (Int32,), predicate)
-
-"""
-    sync_threads_and(predicate::Bool)
-
-Identical to `__syncthreads()` with the additional feature that it evaluates predicate for
+Identical to `sync_threads()` with the additional feature that it evaluates predicate for
 all threads of the block and returns `true` if and only if `predicate` evaluates to `true`
 for all of them.
 """
-@inline sync_threads_and(predicate::Bool) = ifelse(sync_threads_and(Int32(predicate)) != Int32(0), true, false)
+@inline sync_threads_and(predicate) =
+    ccall("llvm.nvvm.barrier0.and", llvmcall, Int32, (Int32,), predicate) != Int32(0)
 
 """
-    sync_threads_or(predicate::Int32)
+    sync_threads_or(predicate)
 
-Identical to `__syncthreads()` with the additional feature that it evaluates predicate for
-all threads of the block and returns non-zero if and only if `predicate` evaluates to
-non-zero for any of them.
-"""
-@inline sync_threads_or(predicate::Int32) = ccall("llvm.nvvm.barrier0.or", llvmcall, Int32, (Int32,), predicate)
-
-"""
-    sync_threads_or(predicate::Bool)
-
-Identical to `__syncthreads()` with the additional feature that it evaluates predicate for
+Identical to `sync_threads()` with the additional feature that it evaluates predicate for
 all threads of the block and returns `true` if and only if `predicate` evaluates to `true`
 for any of them.
 """
-@inline sync_threads_or(predicate::Bool) = ifelse(sync_threads_or(Int32(predicate)) != Int32(0), true, false)
+@inline sync_threads_or(predicate) =
+    ccall("llvm.nvvm.barrier0.or", llvmcall, Int32, (Int32,), predicate) != Int32(0)
 
 """
-    sync_warp(mask::Integer=0xffffffff)
+    sync_warp(mask::Integer=FULL_MASK)
 
 Waits threads in the warp, selected by means of the bitmask `mask`, have reached this point
 and all global and shared memory accesses made by these threads prior to `sync_warp()` are
@@ -78,10 +56,20 @@ the warp.
 !!! note
     Requires CUDA >= 9.0 and sm_6.2
 """
-@inline function sync_warp(mask::Integer=0xffffffff)
-    @asmcall("bar.warp.sync \$0;", "r", true,
-             Cvoid, Tuple{UInt32}, convert(UInt32, mask))
-end
+@inline sync_warp(mask=FULL_MASK) =
+    ccall("llvm.nvvm.bar.warp.sync", llvmcall, Cvoid, (UInt32,), mask)
+
+
+## generalized synchronization (barrier)
+
+export barrier_sync
+
+barrier_sync(id=0) = ccall("llvm.nvvm.barrier.sync", llvmcall, Cvoid, (Int32,), id)
+
+
+## memory barriers (membar)
+
+export threadfence, threadfence_block, threadfence_system
 
 """
     threadfence_block()

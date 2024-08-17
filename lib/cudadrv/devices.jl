@@ -2,7 +2,7 @@
 
 export
     CuDevice, current_device, has_device,
-    name, uuid, parent_uuid, totalmem, can_access_peer
+    name, deviceid, uuid, parent_uuid, totalmem, can_access_peer
 
 """
     CuDevice(ordinal::Integer)
@@ -20,7 +20,7 @@ struct CuDevice
 
     global function current_device()
         device_ref = Ref{CUdevice}()
-        res = unsafe_cuCtxGetDevice(device_ref)
+        res = unchecked_cuCtxGetDevice(device_ref)
         res == ERROR_INVALID_CONTEXT && throw(UndefRefError())
         res != SUCCESS && throw_api_error(res)
         return _CuDevice(device_ref[])
@@ -41,23 +41,6 @@ Returns the current device.
     For most users, it is recommended to use the [`device`](@ref) method instead.
 """
 current_device()
-
-"""
-    has_device()
-
-Returns whether there is an active device.
-"""
-function has_device()
-    device_ref = Ref{CUdevice}()
-    res = unsafe_cuCtxGetDevice(device_ref)
-    if res == SUCCESS
-        return true
-    elseif res == ERROR_INVALID_CONTEXT
-        return false
-    else
-        throw_api_error(res)
-    end
-end
 
 const DEVICE_CPU = _CuDevice(CUdevice(-1))
 const DEVICE_INVALID = _CuDevice(CUdevice(-2))
@@ -87,6 +70,14 @@ function name(dev::CuDevice)
     buf[end] = 0
     return unsafe_string(pointer(buf))
 end
+
+"""
+    deviceid(dev::CuDevice)::Int
+
+Get the ID number of the current device of execution. This is a 0-indexed number,
+corresponding to the device ID as known to CUDA.
+"""
+deviceid(dev::CuDevice) = Int(convert(CUdevice, dev))
 
 function uuid(dev::CuDevice)
     driver_version() < v"11.4" && return parent_uuid(dev)

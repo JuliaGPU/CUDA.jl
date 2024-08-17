@@ -28,6 +28,6 @@ end
     @test mod.checks[] == 0
     @test mod.foo() == getpid()
     @test mod.checks[] == 1
-    @test mod.unsafe_foo() == getpid()
+    @test mod.unchecked_foo() == getpid()
     @test mod.checks[] == 1
 end

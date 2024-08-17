@@ -7,6 +7,8 @@ epilogue_file_path = "./libcusparse_epilogue.jl"
 output_ignorelist = [
     # generates bad code
     "CUSPARSE_CPP_VERSION",
+    "CUSPARSE_DEPRECATED_REPLACE_WITH",
+    "CUSPARSE_DEPRECATED_ENUM_REPLACE_WITH",
     # these change often
     "CUSPARSE_VERSION",
     "CUSPARSE_VER_.*",
@@ -34,146 +36,42 @@ needs_context = false
 [api.cusparseGetErrorString]
 needs_context = false
 
-[api.cusparseSaxpyi.argtypes]
-3 = "Ref{Cfloat}"
-4 = "CuPtr{Cfloat}"
+[api."cusparse𝕏axpyi".argtypes]
+3 = "Ref{T}"
+4 = "CuPtr{T}"
 5 = "CuPtr{Cint}"
-6 = "CuPtr{Cfloat}"
+6 = "CuPtr{T}"
 
-[api.cusparseDaxpyi.argtypes]
-3 = "Ref{Cdouble}"
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cint}"
-6 = "CuPtr{Cdouble}"
-
-[api.cusparseCaxpyi.argtypes]
-3 = "Ref{cuComplex}"
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{Cint}"
-6 = "CuPtr{cuComplex}"
-
-[api.cusparseZaxpyi.argtypes]
-3 = "Ref{cuDoubleComplex}"
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{Cint}"
-6 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseSgthr.argtypes]
-3 = "CuPtr{Cfloat}"
-4 = "CuPtr{Cfloat}"
+[api."cusparse𝕏gthr".argtypes]
+3 = "CuPtr{T}"
+4 = "CuPtr{T}"
 5 = "CuPtr{Cint}"
 
-[api.cusparseDgthr.argtypes]
-3 = "CuPtr{Cdouble}"
-4 = "CuPtr{Cdouble}"
+[api."cusparse𝕏gthrz".argtypes]
+3 = "CuPtr{T}"
+4 = "CuPtr{T}"
 5 = "CuPtr{Cint}"
 
-[api.cusparseCgthr.argtypes]
-3 = "CuPtr{cuComplex}"
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{Cint}"
-
-[api.cusparseZgthr.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{Cint}"
-
-[api.cusparseSgthrz.argtypes]
-3 = "CuPtr{Cfloat}"
-4 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cint}"
-
-[api.cusparseDgthrz.argtypes]
-3 = "CuPtr{Cdouble}"
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cint}"
-
-[api.cusparseCgthrz.argtypes]
-3 = "CuPtr{cuComplex}"
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{Cint}"
-
-[api.cusparseZgthrz.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{Cint}"
-
-[api.cusparseSsctr.argtypes]
-3 = "CuPtr{Cfloat}"
+[api."cusparse𝕏sctr".argtypes]
+3 = "CuPtr{T}"
 4 = "CuPtr{Cint}"
-5 = "CuPtr{Cfloat}"
+5 = "CuPtr{T}"
 
-[api.cusparseDsctr.argtypes]
-3 = "CuPtr{Cdouble}"
+[api."cusparse𝕏roti".argtypes]
+3 = "CuPtr{T}"
 4 = "CuPtr{Cint}"
-5 = "CuPtr{Cdouble}"
+5 = "CuPtr{T}"
+6 = "Ref{T}"
+7 = "Ref{T}"
 
-[api.cusparseCsctr.argtypes]
-3 = "CuPtr{cuComplex}"
-4 = "CuPtr{Cint}"
-5 = "CuPtr{cuComplex}"
-
-[api.cusparseZsctr.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
-4 = "CuPtr{Cint}"
-5 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseSroti.argtypes]
-3 = "CuPtr{Cfloat}"
-4 = "CuPtr{Cint}"
-5 = "CuPtr{Cfloat}"
-6 = "Ref{Cfloat}"
-7 = "Ref{Cfloat}"
-
-[api.cusparseDroti.argtypes]
-3 = "CuPtr{Cdouble}"
-4 = "CuPtr{Cint}"
-5 = "CuPtr{Cdouble}"
-6 = "Ref{Cdouble}"
-7 = "Ref{Cdouble}"
-
-[api.cusparseSgemvi.argtypes]
-5 = "Ref{Cfloat}"
-6 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
+[api."cusparse𝕏gemvi".argtypes]
+5 = "Ref{T}"
+6 = "CuPtr{T}"
+9 = "CuPtr{T}"
 10 = "CuPtr{Cint}"
-11 = "Ref{Cfloat}"
-12 = "CuPtr{Cfloat}"
+11 = "Ref{T}"
+12 = "CuPtr{T}"
 14 = "CuPtr{Cvoid}"
-
-[api.cusparseDgemvi.argtypes]
-5 = "Ref{Cdouble}"
-6 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-10 = "CuPtr{Cint}"
-11 = "Ref{Cdouble}"
-12 = "CuPtr{Cdouble}"
-14 = "CuPtr{Cvoid}"
-
-[api.cusparseCgemvi.argtypes]
-5 = "Ref{cuComplex}"
-6 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-10 = "CuPtr{Cint}"
-11 = "Ref{cuComplex}"
-12 = "CuPtr{cuComplex}"
-14 = "CuPtr{Cvoid}"
-
-[api.cusparseZgemvi.argtypes]
-5 = "Ref{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-10 = "CuPtr{Cint}"
-11 = "Ref{cuDoubleComplex}"
-12 = "CuPtr{cuDoubleComplex}"
-14 = "CuPtr{Cvoid}"
-
-[api.cusparseCsrmvEx_bufferSize.argtypes]
-10 = "CuPtr{Cvoid}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-14 = "CuPtr{Cvoid}"
-18 = "CuPtr{Cvoid}"
 
 [api.cusparseCsrmvEx.argtypes]
 10 = "CuPtr{Cvoid}"
@@ -183,1216 +81,330 @@ needs_context = false
 18 = "CuPtr{Cvoid}"
 21 = "CuPtr{Cvoid}"
 
-[api.cusparseSbsrmv.argtypes]
-7 = "Ref{Cfloat}"
-9 = "CuPtr{Cfloat}"
+[api.cusparseCsrmvEx_bufferSize.argtypes]
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cint}"
+13 = "CuPtr{Cint}"
+14 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏bsrmv".argtypes]
+7 = "Ref{T}"
+9 = "CuPtr{T}"
 10 = "CuPtr{Cint}"
 11 = "CuPtr{Cint}"
-13 = "CuPtr{Cfloat}"
-14 = "Ref{Cfloat}"
-15 = "CuPtr{Cfloat}"
+13 = "CuPtr{T}"
+14 = "Ref{T}"
+15 = "CuPtr{T}"
 
-[api.cusparseDbsrmv.argtypes]
-7 = "Ref{Cdouble}"
-9 = "CuPtr{Cdouble}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-13 = "CuPtr{Cdouble}"
-14 = "Ref{Cdouble}"
-15 = "CuPtr{Cdouble}"
-
-[api.cusparseCbsrmv.argtypes]
-7 = "Ref{cuComplex}"
-9 = "CuPtr{cuComplex}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-13 = "CuPtr{cuComplex}"
-14 = "Ref{cuComplex}"
-15 = "CuPtr{cuComplex}"
-
-[api.cusparseZbsrmv.argtypes]
-7 = "Ref{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-13 = "CuPtr{cuDoubleComplex}"
-14 = "Ref{cuDoubleComplex}"
-15 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseSbsrxmv.argtypes]
-8 = "Ref{Cfloat}"
-10 = "CuPtr{Cfloat}"
+[api."cusparse𝕏bsrxmv".argtypes]
+8 = "Ref{T}"
+10 = "CuPtr{T}"
 11 = "CuPtr{Cint}"
 12 = "CuPtr{Cint}"
 13 = "CuPtr{Cint}"
 14 = "CuPtr{Cint}"
-16 = "CuPtr{Cfloat}"
-17 = "Ref{Cfloat}"
-18 = "CuPtr{Cfloat}"
+16 = "CuPtr{T}"
+17 = "Ref{T}"
+18 = "CuPtr{T}"
 
-[api.cusparseDbsrxmv.argtypes]
-8 = "Ref{Cdouble}"
-10 = "CuPtr{Cdouble}"
-11 = "CuPtr{Cint}"
+[api."cusparse𝕏csrsv2_bufferSize".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+
+[api."cusparse𝕏csrsv2_bufferSizeExt".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+
+[api."cusparse𝕏csrsv2_analysis".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+11 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏csrsv2_solve".argtypes]
+5 = "Ref{T}"
+7 = "CuPtr{T}"
+8 = "CuPtr{Cint}"
+9 = "CuPtr{Cint}"
+11 = "CuPtr{T}"
+12 = "CuPtr{T}"
+14 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏bsrsv2_bufferSize".argtypes]
+7 = "CuPtr{T}"
+8 = "CuPtr{Cint}"
+9 = "CuPtr{Cint}"
+
+[api."cusparse𝕏bsrsv2_bufferSizeExt".argtypes]
+7 = "CuPtr{T}"
+8 = "CuPtr{Cint}"
+9 = "CuPtr{Cint}"
+
+[api."cusparse𝕏bsrsv2_analysis".argtypes]
+7 = "CuPtr{T}"
+8 = "CuPtr{Cint}"
+9 = "CuPtr{Cint}"
+13 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏bsrsv2_solve".argtypes]
+6 = "Ref{T}"
+8 = "CuPtr{T}"
+9 = "CuPtr{Cint}"
+10 = "CuPtr{Cint}"
+13 = "CuPtr{T}"
+14 = "CuPtr{T}"
+16 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏bsrmm".argtypes]
+9 = "Ref{T}"
+11 = "CuPtr{T}"
 12 = "CuPtr{Cint}"
 13 = "CuPtr{Cint}"
+15 = "CuPtr{T}"
+17 = "Ref{T}"
+18 = "CuPtr{T}"
+
+[api."cusparse𝕏gemmi".argtypes]
+6 = "Ref{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
+10 = "CuPtr{Cint}"
+11 = "CuPtr{Cint}"
+12 = "Ref{T}"
+13 = "CuPtr{T}"
+
+[api."cusparse𝕏csrsm2_bufferSizeExt".argtypes]
+8 = "Ref{T}"
+10 = "CuPtr{T}"
+11 = "CuPtr{Cint}"
+12 = "CuPtr{Cint}"
+13 = "CuPtr{T}"
+
+[api."cusparse𝕏csrsm2_analysis".argtypes]
+8 = "Ref{T}"
+10 = "CuPtr{T}"
+11 = "CuPtr{Cint}"
+12 = "CuPtr{Cint}"
+13 = "CuPtr{T}"
+17 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏csrsm2_solve".argtypes]
+8 = "Ref{T}"
+10 = "CuPtr{T}"
+11 = "CuPtr{Cint}"
+12 = "CuPtr{Cint}"
+13 = "CuPtr{T}"
+17 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏bsrsm2_bufferSize".argtypes]
+9 = "CuPtr{T}"
+10 = "CuPtr{Cint}"
+11 = "CuPtr{Cint}"
+
+[api."cusparse𝕏bsrsm2_bufferSizeExt".argtypes]
+9 = "CuPtr{T}"
+10 = "CuPtr{Cint}"
+11 = "CuPtr{Cint}"
+
+[api."cusparse𝕏bsrsm2_analysis".argtypes]
+9 = "CuPtr{T}"
+10 = "CuPtr{Cint}"
+11 = "CuPtr{Cint}"
+15 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏bsrsm2_solve".argtypes]
+8 = "Ref{T}"
+10 = "CuPtr{T}"
+11 = "CuPtr{Cint}"
+12 = "CuPtr{Cint}"
+15 = "CuPtr{T}"
+17 = "CuPtr{T}"
+20 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏csrilu02".argtypes]
+5 = "CuPtr{T}"
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+10 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏csrilu02_bufferSize".argtypes]
+5 = "CuPtr{T}"
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+
+[api."cusparse𝕏csrilu02_bufferSizeExt".argtypes]
+5 = "CuPtr{T}"
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+
+[api."cusparse𝕏csrilu02_analysis".argtypes]
+5 = "CuPtr{T}"
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+10 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏bsrilu02".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+12 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏bsrilu02_bufferSize".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+
+[api."cusparse𝕏bsrilu02_bufferSizeExt".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+
+[api."cusparse𝕏bsrilu02_analysis".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+12 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏csric02_bufferSize".argtypes]
+5 = "CuPtr{T}"
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+
+[api."cusparse𝕏csric02".argtypes]
+5 = "CuPtr{T}"
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+10 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏csric02_bufferSizeExt".argtypes]
+5 = "CuPtr{T}"
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+
+[api."cusparse𝕏csric02_analysis".argtypes]
+5 = "CuPtr{T}"
+6 = "CuPtr{Cint}"
+7 = "CuPtr{Cint}"
+10 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏bsric02".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+12 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏bsric02_bufferSize".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+
+[api."cusparse𝕏bsric02_bufferSizeExt".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+
+[api."cusparse𝕏bsric02_analysis".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+12 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏gtsv2_bufferSizeExt".argtypes]
+4 = "CuPtr{T}"
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+7 = "CuPtr{T}"
+
+[api."cusparse𝕏gtsv2".argtypes]
+4 = "CuPtr{T}"
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏gtsv2_nopivot".argtypes]
+4 = "CuPtr{T}"
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏gtsv2_nopivot_bufferSizeExt".argtypes]
+4 = "CuPtr{T}"
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+7 = "CuPtr{T}"
+
+[api."cusparse𝕏gtsv2StridedBatch".argtypes]
+3 = "CuPtr{T}"
+4 = "CuPtr{T}"
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+9 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏gtsv2StridedBatch_bufferSizeExt".argtypes]
+3 = "CuPtr{T}"
+4 = "CuPtr{T}"
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+
+[api."cusparse𝕏gtsvInterleavedBatch_bufferSizeExt".argtypes]
+4 = "CuPtr{T}"
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+7 = "CuPtr{T}"
+
+[api."cusparse𝕏gtsvInterleavedBatch".argtypes]
+4 = "CuPtr{T}"
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏gpsvInterleavedBatch_bufferSizeExt".argtypes]
+4 = "CuPtr{T}"
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+7 = "CuPtr{T}"
+8 = "CuPtr{T}"
+9 = "CuPtr{T}"
+
+[api."cusparse𝕏gpsvInterleavedBatch".argtypes]
+4 = "CuPtr{T}"
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+7 = "CuPtr{T}"
+8 = "CuPtr{T}"
+9 = "CuPtr{T}"
+11 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏csrgemm2".argtypes]
+5 = "Ref{T}"
+8 = "CuPtr{T}"
+9 = "CuPtr{Cint}"
+10 = "CuPtr{Cint}"
+13 = "CuPtr{T}"
 14 = "CuPtr{Cint}"
-16 = "CuPtr{Cdouble}"
-17 = "Ref{Cdouble}"
-18 = "CuPtr{Cdouble}"
-
-[api.cusparseCbsrxmv.argtypes]
-8 = "Ref{cuComplex}"
-10 = "CuPtr{cuComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-14 = "CuPtr{Cint}"
-16 = "CuPtr{cuComplex}"
-17 = "Ref{cuComplex}"
-18 = "CuPtr{cuComplex}"
-
-[api.cusparseZbsrxmv.argtypes]
-8 = "Ref{cuDoubleComplex}"
-10 = "CuPtr{cuDoubleComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-14 = "CuPtr{Cint}"
-16 = "CuPtr{cuDoubleComplex}"
-17 = "Ref{cuDoubleComplex}"
-18 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseScsrsv2_bufferSize.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseDcsrsv2_bufferSize.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseCcsrsv2_bufferSize.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseZcsrsv2_bufferSize.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseScsrsv2_bufferSizeExt.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseDcsrsv2_bufferSizeExt.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseCcsrsv2_bufferSizeExt.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseZcsrsv2_bufferSizeExt.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseScsrsv2_analysis.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{Cvoid}"
-
-[api.cusparseDcsrsv2_analysis.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsrsv2_analysis.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsrsv2_analysis.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{Cvoid}"
-
-[api.cusparseScsrsv2_solve.argtypes]
-5 = "Ref{Cfloat}"
-7 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-11 = "CuPtr{Cfloat}"
-12 = "CuPtr{Cfloat}"
-14 = "CuPtr{Cvoid}"
-
-[api.cusparseDcsrsv2_solve.argtypes]
-5 = "Ref{Cdouble}"
-7 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-11 = "CuPtr{Cdouble}"
-12 = "CuPtr{Cdouble}"
-14 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsrsv2_solve.argtypes]
-5 = "Ref{cuComplex}"
-7 = "CuPtr{cuComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-11 = "CuPtr{cuComplex}"
-12 = "CuPtr{cuComplex}"
-14 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsrsv2_solve.argtypes]
-5 = "Ref{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-11 = "CuPtr{cuDoubleComplex}"
-12 = "CuPtr{cuDoubleComplex}"
-14 = "CuPtr{Cvoid}"
-
-[api.cusparseSbsrsv2_bufferSize.argtypes]
-7 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseDbsrsv2_bufferSize.argtypes]
-7 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseCbsrsv2_bufferSize.argtypes]
-7 = "CuPtr{cuComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseZbsrsv2_bufferSize.argtypes]
-7 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseSbsrsv2_bufferSizeExt.argtypes]
-7 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseDbsrsv2_bufferSizeExt.argtypes]
-7 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseCbsrsv2_bufferSizeExt.argtypes]
-7 = "CuPtr{cuComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseZbsrsv2_bufferSizeExt.argtypes]
-7 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseSbsrsv2_analysis.argtypes]
-7 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-13 = "CuPtr{Cvoid}"
-
-[api.cusparseDbsrsv2_analysis.argtypes]
-7 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-13 = "CuPtr{Cvoid}"
-
-[api.cusparseCbsrsv2_analysis.argtypes]
-7 = "CuPtr{cuComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-13 = "CuPtr{Cvoid}"
-
-[api.cusparseZbsrsv2_analysis.argtypes]
-7 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-13 = "CuPtr{Cvoid}"
-
-[api.cusparseSbsrsv2_solve.argtypes]
-6 = "Ref{Cfloat}"
-8 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-13 = "CuPtr{Cfloat}"
-14 = "CuPtr{Cfloat}"
-16 = "CuPtr{Cvoid}"
-
-[api.cusparseDbsrsv2_solve.argtypes]
-6 = "Ref{Cdouble}"
-8 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-13 = "CuPtr{Cdouble}"
-14 = "CuPtr{Cdouble}"
-16 = "CuPtr{Cvoid}"
-
-[api.cusparseCbsrsv2_solve.argtypes]
-6 = "Ref{cuComplex}"
-8 = "CuPtr{cuComplex}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-13 = "CuPtr{cuComplex}"
-14 = "CuPtr{cuComplex}"
-16 = "CuPtr{Cvoid}"
-
-[api.cusparseZbsrsv2_solve.argtypes]
-6 = "Ref{cuDoubleComplex}"
-8 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-13 = "CuPtr{cuDoubleComplex}"
-14 = "CuPtr{cuDoubleComplex}"
-16 = "CuPtr{Cvoid}"
-
-[api.cusparseSbsrmm.argtypes]
-9 = "Ref{Cfloat}"
-11 = "CuPtr{Cfloat}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-15 = "CuPtr{Cfloat}"
-17 = "Ref{Cfloat}"
-18 = "CuPtr{Cfloat}"
-
-[api.cusparseDbsrmm.argtypes]
-9 = "Ref{Cdouble}"
-11 = "CuPtr{Cdouble}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-15 = "CuPtr{Cdouble}"
-17 = "Ref{Cdouble}"
-18 = "CuPtr{Cdouble}"
-
-[api.cusparseCbsrmm.argtypes]
-9 = "Ref{cuComplex}"
-11 = "CuPtr{cuComplex}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-15 = "CuPtr{cuComplex}"
-17 = "Ref{cuComplex}"
-18 = "CuPtr{cuComplex}"
-
-[api.cusparseZbsrmm.argtypes]
-9 = "Ref{cuDoubleComplex}"
-11 = "CuPtr{cuDoubleComplex}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-15 = "CuPtr{cuDoubleComplex}"
-17 = "Ref{cuDoubleComplex}"
-18 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseSgemmi.argtypes]
-6 = "Ref{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-12 = "Ref{Cfloat}"
-13 = "CuPtr{Cfloat}"
-
-[api.cusparseDgemmi.argtypes]
-6 = "Ref{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-12 = "Ref{Cdouble}"
-13 = "CuPtr{Cdouble}"
-
-[api.cusparseCgemmi.argtypes]
-6 = "Ref{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-12 = "Ref{cuComplex}"
-13 = "CuPtr{cuComplex}"
-
-[api.cusparseZgemmi.argtypes]
-6 = "Ref{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-12 = "Ref{cuDoubleComplex}"
-13 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseScsrsm2_bufferSizeExt.argtypes]
-8 = "Ref{Cfloat}"
-10 = "CuPtr{Cfloat}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cfloat}"
-
-[api.cusparseDcsrsm2_bufferSizeExt.argtypes]
-8 = "Ref{Cdouble}"
-10 = "CuPtr{Cdouble}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cdouble}"
-
-[api.cusparseCcsrsm2_bufferSizeExt.argtypes]
-8 = "Ref{cuComplex}"
-10 = "CuPtr{cuComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{cuComplex}"
-
-[api.cusparseZcsrsm2_bufferSizeExt.argtypes]
-8 = "Ref{cuDoubleComplex}"
-10 = "CuPtr{cuDoubleComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseScsrsm2_analysis.argtypes]
-8 = "Ref{Cfloat}"
-10 = "CuPtr{Cfloat}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cfloat}"
-17 = "CuPtr{Cvoid}"
-
-[api.cusparseDcsrsm2_analysis.argtypes]
-8 = "Ref{Cdouble}"
-10 = "CuPtr{Cdouble}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cdouble}"
-17 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsrsm2_analysis.argtypes]
-8 = "Ref{cuComplex}"
-10 = "CuPtr{cuComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{cuComplex}"
-17 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsrsm2_analysis.argtypes]
-8 = "Ref{cuDoubleComplex}"
-10 = "CuPtr{cuDoubleComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{cuDoubleComplex}"
-17 = "CuPtr{Cvoid}"
-
-[api.cusparseScsrsm2_solve.argtypes]
-8 = "Ref{Cfloat}"
-10 = "CuPtr{Cfloat}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cfloat}"
-17 = "CuPtr{Cvoid}"
-
-[api.cusparseDcsrsm2_solve.argtypes]
-8 = "Ref{Cdouble}"
-10 = "CuPtr{Cdouble}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cdouble}"
-17 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsrsm2_solve.argtypes]
-8 = "Ref{cuComplex}"
-10 = "CuPtr{cuComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{cuComplex}"
-17 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsrsm2_solve.argtypes]
-8 = "Ref{cuDoubleComplex}"
-10 = "CuPtr{cuDoubleComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{cuDoubleComplex}"
-17 = "CuPtr{Cvoid}"
-
-[api.cusparseSbsrsm2_bufferSize.argtypes]
-9 = "CuPtr{Cfloat}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-
-[api.cusparseDbsrsm2_bufferSize.argtypes]
-9 = "CuPtr{Cdouble}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-
-[api.cusparseCbsrsm2_bufferSize.argtypes]
-9 = "CuPtr{cuComplex}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-
-[api.cusparseZbsrsm2_bufferSize.argtypes]
-9 = "CuPtr{cuDoubleComplex}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-
-[api.cusparseSbsrsm2_bufferSizeExt.argtypes]
-9 = "CuPtr{Cfloat}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-14 = "CuPtr{Csize_t}"
-
-[api.cusparseDbsrsm2_bufferSizeExt.argtypes]
-9 = "CuPtr{Cdouble}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-
-[api.cusparseCbsrsm2_bufferSizeExt.argtypes]
-9 = "CuPtr{cuComplex}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-
-[api.cusparseZbsrsm2_bufferSizeExt.argtypes]
-9 = "CuPtr{cuDoubleComplex}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-
-[api.cusparseSbsrsm2_analysis.argtypes]
-9 = "CuPtr{Cfloat}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
-
-[api.cusparseDbsrsm2_analysis.argtypes]
-9 = "CuPtr{Cdouble}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
-
-[api.cusparseCbsrsm2_analysis.argtypes]
-9 = "CuPtr{cuComplex}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
-
-[api.cusparseZbsrsm2_analysis.argtypes]
-9 = "CuPtr{cuDoubleComplex}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
-
-[api.cusparseSbsrsm2_solve.argtypes]
-8 = "Ref{Cfloat}"
-10 = "CuPtr{Cfloat}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-15 = "CuPtr{Cfloat}"
-17 = "CuPtr{Cfloat}"
-20 = "CuPtr{Cvoid}"
-
-[api.cusparseDbsrsm2_solve.argtypes]
-8 = "Ref{Cdouble}"
-10 = "CuPtr{Cdouble}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-15 = "CuPtr{Cdouble}"
-17 = "CuPtr{Cdouble}"
-20 = "CuPtr{Cvoid}"
-
-[api.cusparseCbsrsm2_solve.argtypes]
-8 = "Ref{cuComplex}"
-10 = "CuPtr{cuComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-15 = "CuPtr{cuComplex}"
-17 = "CuPtr{cuComplex}"
-20 = "CuPtr{Cvoid}"
-
-[api.cusparseZbsrsm2_solve.argtypes]
-8 = "Ref{cuDoubleComplex}"
-10 = "CuPtr{cuDoubleComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-15 = "CuPtr{cuDoubleComplex}"
-17 = "CuPtr{cuDoubleComplex}"
-20 = "CuPtr{Cvoid}"
-
-[api.cusparseScsrilu02_bufferSize.argtypes]
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseDcsrilu02_bufferSize.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseCcsrilu02_bufferSize.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseZcsrilu02_bufferSize.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseScsrilu02_bufferSizeExt.argtypes]
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseDcsrilu02_bufferSizeExt.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseCcsrilu02_bufferSizeExt.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseZcsrilu02_bufferSizeExt.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseScsrilu02_analysis.argtypes]
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseDcsrilu02_analysis.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsrilu02_analysis.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsrilu02_analysis.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseScsrilu02.argtypes]
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseDcsrilu02.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsrilu02.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsrilu02.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseSbsrilu02_bufferSize.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseDbsrilu02_bufferSize.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseCbsrilu02_bufferSize.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseZbsrilu02_bufferSize.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseSbsrilu02_bufferSizeExt.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseDbsrilu02_bufferSizeExt.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseCbsrilu02_bufferSizeExt.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseZbsrilu02_bufferSizeExt.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseSbsrilu02_analysis.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseDbsrilu02_analysis.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseCbsrilu02_analysis.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseZbsrilu02_analysis.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseSbsrilu02.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseDbsrilu02.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseCbsrilu02.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseZbsrilu02.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseScsric02_bufferSize.argtypes]
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseDcsric02_bufferSize.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseCcsric02_bufferSize.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseZcsric02_bufferSize.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseScsric02_bufferSizeExt.argtypes]
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseDcsric02_bufferSizeExt.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseCcsric02_bufferSizeExt.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseZcsric02_bufferSizeExt.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseScsric02_analysis.argtypes]
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseDcsric02_analysis.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsric02_analysis.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsric02_analysis.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseScsric02.argtypes]
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseDcsric02.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsric02.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsric02.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseSbsric02_bufferSize.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseDbsric02_bufferSize.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseCbsric02_bufferSize.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseZbsric02_bufferSize.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseSbsric02_bufferSizeExt.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseDbsric02_bufferSizeExt.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseCbsric02_bufferSizeExt.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseZbsric02_bufferSizeExt.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseSbsric02_analysis.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseDbsric02_analysis.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseCbsric02_analysis.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseZbsric02_analysis.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseSbsric02.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseDbsric02.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseCbsric02.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseZbsric02.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
-
-[api.cusparseSgtsv2_bufferSizeExt.argtypes]
-4 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-
-[api.cusparseDgtsv2_bufferSizeExt.argtypes]
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-
-[api.cusparseCgtsv2_bufferSizeExt.argtypes]
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-
-[api.cusparseZgtsv2_bufferSizeExt.argtypes]
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseSgtsv2.argtypes]
-4 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseDgtsv2.argtypes]
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseCgtsv2.argtypes]
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseZgtsv2.argtypes]
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseSgtsv2_nopivot_bufferSizeExt.argtypes]
-4 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-
-[api.cusparseDgtsv2_nopivot_bufferSizeExt.argtypes]
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-
-[api.cusparseCgtsv2_nopivot_bufferSizeExt.argtypes]
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-
-[api.cusparseZgtsv2_nopivot_bufferSizeExt.argtypes]
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseSgtsv2_nopivot.argtypes]
-4 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseDgtsv2_nopivot.argtypes]
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseCgtsv2_nopivot.argtypes]
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseZgtsv2_nopivot.argtypes]
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseSgtsv2StridedBatch_bufferSizeExt.argtypes]
-3 = "CuPtr{Cfloat}"
-4 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
-
-[api.cusparseDgtsv2StridedBatch_bufferSizeExt.argtypes]
-3 = "CuPtr{Cdouble}"
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
-
-[api.cusparseCgtsv2StridedBatch_bufferSizeExt.argtypes]
-3 = "CuPtr{cuComplex}"
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
-
-[api.cusparseZgtsv2StridedBatch_bufferSizeExt.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseSgtsv2StridedBatch.argtypes]
-3 = "CuPtr{Cfloat}"
-4 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseDgtsv2StridedBatch.argtypes]
-3 = "CuPtr{Cdouble}"
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseCgtsv2StridedBatch.argtypes]
-3 = "CuPtr{cuComplex}"
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseZgtsv2StridedBatch.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseSgtsvInterleavedBatch_bufferSizeExt.argtypes]
-4 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-
-[api.cusparseDgtsvInterleavedBatch_bufferSizeExt.argtypes]
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-
-[api.cusparseCgtsvInterleavedBatch_bufferSizeExt.argtypes]
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-
-[api.cusparseZgtsvInterleavedBatch_bufferSizeExt.argtypes]
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseSgtsvInterleavedBatch.argtypes]
-4 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseDgtsvInterleavedBatch.argtypes]
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseCgtsvInterleavedBatch.argtypes]
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseZgtsvInterleavedBatch.argtypes]
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{Cvoid}"
-
-[api.cusparseSgpsvInterleavedBatch_bufferSizeExt.argtypes]
-4 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-
-[api.cusparseDgpsvInterleavedBatch_bufferSizeExt.argtypes]
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-
-[api.cusparseCgpsvInterleavedBatch_bufferSizeExt.argtypes]
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-8 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-
-[api.cusparseZgpsvInterleavedBatch_bufferSizeExt.argtypes]
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseSgpsvInterleavedBatch.argtypes]
-4 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-11 = "CuPtr{Cvoid}"
-
-[api.cusparseDgpsvInterleavedBatch.argtypes]
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-11 = "CuPtr{Cvoid}"
-
-[api.cusparseCgpsvInterleavedBatch.argtypes]
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-8 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-11 = "CuPtr{Cvoid}"
-
-[api.cusparseZgpsvInterleavedBatch.argtypes]
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-11 = "CuPtr{Cvoid}"
-
-[api.cusparseScsrgemm2_bufferSizeExt.argtypes]
-5 = "Ref{Cfloat}"
+15 = "CuPtr{Cint}"
+16 = "Ref{T}"
+19 = "CuPtr{T}"
+20 = "CuPtr{Cint}"
+21 = "CuPtr{Cint}"
+23 = "CuPtr{T}"
+24 = "CuPtr{Cint}"
+25 = "CuPtr{Cint}"
+27 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏csrgemm2_bufferSizeExt".argtypes]
+5 = "Ref{T}"
 8 = "CuPtr{Cint}"
 9 = "CuPtr{Cint}"
 12 = "CuPtr{Cint}"
 13 = "CuPtr{Cint}"
-14 = "Ref{Cfloat}"
-17 = "CuPtr{Cint}"
-18 = "CuPtr{Cint}"
-
-[api.cusparseDcsrgemm2_bufferSizeExt.argtypes]
-5 = "Ref{Cdouble}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-14 = "Ref{Cdouble}"
-17 = "CuPtr{Cint}"
-18 = "CuPtr{Cint}"
-
-[api.cusparseCcsrgemm2_bufferSizeExt.argtypes]
-5 = "Ref{cuComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-14 = "Ref{cuComplex}"
-17 = "CuPtr{Cint}"
-18 = "CuPtr{Cint}"
-
-[api.cusparseZcsrgemm2_bufferSizeExt.argtypes]
-5 = "Ref{cuDoubleComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-14 = "Ref{cuDoubleComplex}"
+14 = "Ref{T}"
 17 = "CuPtr{Cint}"
 18 = "CuPtr{Cint}"
 
@@ -1407,125 +419,32 @@ needs_context = false
 19 = "PtrOrCuPtr{Cint}"
 21 = "CuPtr{Cvoid}"
 
-[api.cusparseScsrgemm2.argtypes]
-5 = "Ref{Cfloat}"
-8 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-13 = "CuPtr{Cfloat}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-16 = "Ref{Cfloat}"
-19 = "CuPtr{Cfloat}"
-20 = "CuPtr{Cint}"
-21 = "CuPtr{Cint}"
-23 = "CuPtr{Cfloat}"
-24 = "CuPtr{Cint}"
-25 = "CuPtr{Cint}"
-27 = "CuPtr{Cvoid}"
-
-[api.cusparseDcsrgemm2.argtypes]
-5 = "Ref{Cdouble}"
-8 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-13 = "CuPtr{Cdouble}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-16 = "Ref{Cdouble}"
-19 = "CuPtr{Cdouble}"
-20 = "CuPtr{Cint}"
-21 = "CuPtr{Cint}"
-23 = "CuPtr{Cdouble}"
-24 = "CuPtr{Cint}"
-25 = "CuPtr{Cint}"
-27 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsrgemm2.argtypes]
-5 = "Ref{cuComplex}"
-8 = "CuPtr{cuComplex}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-13 = "CuPtr{cuComplex}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-16 = "Ref{cuComplex}"
-19 = "CuPtr{cuComplex}"
-20 = "CuPtr{Cint}"
-21 = "CuPtr{Cint}"
-23 = "CuPtr{cuComplex}"
-24 = "CuPtr{Cint}"
-25 = "CuPtr{Cint}"
-27 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsrgemm2.argtypes]
-5 = "Ref{cuDoubleComplex}"
-8 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-13 = "CuPtr{cuDoubleComplex}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-16 = "Ref{cuDoubleComplex}"
-19 = "CuPtr{cuDoubleComplex}"
-20 = "CuPtr{Cint}"
-21 = "CuPtr{Cint}"
-23 = "CuPtr{cuDoubleComplex}"
-24 = "CuPtr{Cint}"
-25 = "CuPtr{Cint}"
-27 = "CuPtr{Cvoid}"
-
-[api.cusparseScsrgeam2_bufferSizeExt.argtypes]
-4 = "Ref{Cfloat}"
-7 = "CuPtr{Cfloat}"
+[api."cusparse𝕏csrgeam2_bufferSizeExt".argtypes]
+4 = "Ref{T}"
+7 = "CuPtr{T}"
 8 = "CuPtr{Cint}"
 9 = "CuPtr{Cint}"
-10 = "Ref{Cfloat}"
-13 = "CuPtr{Cfloat}"
+10 = "Ref{T}"
+13 = "CuPtr{T}"
 14 = "CuPtr{Cint}"
 15 = "CuPtr{Cint}"
-17 = "CuPtr{Cfloat}"
+17 = "CuPtr{T}"
 18 = "CuPtr{Cint}"
 19 = "CuPtr{Cint}"
 
-[api.cusparseDcsrgeam2_bufferSizeExt.argtypes]
-4 = "Ref{Cdouble}"
-7 = "CuPtr{Cdouble}"
+[api."cusparse𝕏csrgeam2".argtypes]
+4 = "Ref{T}"
+7 = "CuPtr{T}"
 8 = "CuPtr{Cint}"
 9 = "CuPtr{Cint}"
-10 = "Ref{Cdouble}"
-13 = "CuPtr{Cdouble}"
+10 = "Ref{T}"
+13 = "CuPtr{T}"
 14 = "CuPtr{Cint}"
 15 = "CuPtr{Cint}"
-17 = "CuPtr{Cdouble}"
+17 = "CuPtr{T}"
 18 = "CuPtr{Cint}"
 19 = "CuPtr{Cint}"
-
-[api.cusparseCcsrgeam2_bufferSizeExt.argtypes]
-4 = "Ref{cuComplex}"
-7 = "CuPtr{cuComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-10 = "Ref{cuComplex}"
-13 = "CuPtr{cuComplex}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-17 = "CuPtr{cuComplex}"
-18 = "CuPtr{Cint}"
-19 = "CuPtr{Cint}"
-
-[api.cusparseZcsrgeam2_bufferSizeExt.argtypes]
-4 = "Ref{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-10 = "Ref{cuDoubleComplex}"
-13 = "CuPtr{cuDoubleComplex}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-17 = "CuPtr{cuDoubleComplex}"
-18 = "CuPtr{Cint}"
-19 = "CuPtr{Cint}"
+20 = "CuPtr{Cvoid}"
 
 [api.cusparseXcsrgeam2Nnz.argtypes]
 6 = "CuPtr{Cint}"
@@ -1536,273 +455,58 @@ needs_context = false
 14 = "PtrOrCuPtr{Cint}"
 15 = "CuPtr{Cvoid}"
 
-[api.cusparseScsrgeam2.argtypes]
-4 = "Ref{Cfloat}"
-7 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-10 = "Ref{Cfloat}"
-13 = "CuPtr{Cfloat}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-17 = "CuPtr{Cfloat}"
-18 = "CuPtr{Cint}"
-19 = "CuPtr{Cint}"
-20 = "CuPtr{Cvoid}"
-
-[api.cusparseDcsrgeam2.argtypes]
-4 = "Ref{Cdouble}"
-7 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-10 = "Ref{Cdouble}"
-13 = "CuPtr{Cdouble}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-17 = "CuPtr{Cdouble}"
-18 = "CuPtr{Cint}"
-19 = "CuPtr{Cint}"
-20 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsrgeam2.argtypes]
-4 = "Ref{cuComplex}"
-7 = "CuPtr{cuComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-10 = "Ref{cuComplex}"
-13 = "CuPtr{cuComplex}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-17 = "CuPtr{cuComplex}"
-18 = "CuPtr{Cint}"
-19 = "CuPtr{Cint}"
-20 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsrgeam2.argtypes]
-4 = "Ref{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-10 = "Ref{cuDoubleComplex}"
-13 = "CuPtr{cuDoubleComplex}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-17 = "CuPtr{cuDoubleComplex}"
-18 = "CuPtr{Cint}"
-19 = "CuPtr{Cint}"
-20 = "CuPtr{Cvoid}"
-
-[api.cusparseScsrcolor.argtypes]
-5 = "CuPtr{Cfloat}"
+[api."cusparse𝕏csrcolor".argtypes]
+5 = "CuPtr{T}"
 6 = "CuPtr{Cint}"
 7 = "CuPtr{Cint}"
 10 = "CuPtr{Cint}"
 11 = "CuPtr{Cint}"
 
-[api.cusparseDcsrcolor.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-
-[api.cusparseCcsrcolor.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-
-[api.cusparseZcsrcolor.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-
-[api.cusparseSnnz.argtypes]
-6 = "CuPtr{Cfloat}"
+[api."cusparse𝕏nnz".argtypes]
+6 = "CuPtr{T}"
 8 = "CuPtr{Cint}"
 9 = "PtrOrCuPtr{Cint}"
 
-[api.cusparseDnnz.argtypes]
-6 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cint}"
-9 = "PtrOrCuPtr{Cint}"
-
-[api.cusparseCnnz.argtypes]
-6 = "CuPtr{cuComplex}"
-8 = "CuPtr{Cint}"
-9 = "PtrOrCuPtr{Cint}"
-
-[api.cusparseZnnz.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{Cint}"
-9 = "PtrOrCuPtr{Cint}"
-
-[api.cusparseSnnz_compress.argtypes]
-4 = "CuPtr{Cfloat}"
+[api."cusparse𝕏nnz_compress".argtypes]
+4 = "CuPtr{T}"
 5 = "CuPtr{Cint}"
 6 = "CuPtr{Cint}"
 7 = "PtrOrCuPtr{Cint}"
 
-[api.cusparseDnnz_compress.argtypes]
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cint}"
-6 = "CuPtr{Cint}"
-7 = "PtrOrCuPtr{Cint}"
-
-[api.cusparseCnnz_compress.argtypes]
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{Cint}"
-6 = "CuPtr{Cint}"
-7 = "PtrOrCuPtr{Cint}"
-
-[api.cusparseZnnz_compress.argtypes]
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{Cint}"
-6 = "CuPtr{Cint}"
-7 = "PtrOrCuPtr{Cint}"
-
-[api.cusparseScsr2csr_compress.argtypes]
-5 = "CuPtr{Cfloat}"
+[api."cusparse𝕏csr2csr_compress".argtypes]
+5 = "CuPtr{T}"
 6 = "CuPtr{Cint}"
 7 = "CuPtr{Cint}"
 9 = "CuPtr{Cint}"
-10 = "CuPtr{Cfloat}"
+10 = "CuPtr{T}"
 11 = "CuPtr{Cint}"
 12 = "CuPtr{Cint}"
 
-[api.cusparseDcsr2csr_compress.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
+[api."cusparse𝕏dense2csr".argtypes]
+5 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cdouble}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-
-[api.cusparseCcsr2csr_compress.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{cuComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-
-[api.cusparseZcsr2csr_compress.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{cuDoubleComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-
-[api.cusparseSdense2csr.argtypes]
-5 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cfloat}"
+8 = "CuPtr{T}"
 9 = "CuPtr{Cint}"
 10 = "CuPtr{Cint}"
 
-[api.cusparseDdense2csr.argtypes]
-5 = "CuPtr{Cdouble}"
+[api."cusparse𝕏csr2dense".argtypes]
+5 = "CuPtr{T}"
+6 = "CuPtr{Cint}"
 7 = "CuPtr{Cint}"
-8 = "CuPtr{Cdouble}"
+8 = "CuPtr{T}"
+
+[api."cusparse𝕏dense2csc".argtypes]
+5 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{T}"
 9 = "CuPtr{Cint}"
 10 = "CuPtr{Cint}"
 
-[api.cusparseCdense2csr.argtypes]
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{cuComplex}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-
-[api.cusparseZdense2csr.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-
-[api.cusparseScsr2dense.argtypes]
-5 = "CuPtr{Cfloat}"
+[api."cusparse𝕏csc2dense".argtypes]
+5 = "CuPtr{T}"
 6 = "CuPtr{Cint}"
 7 = "CuPtr{Cint}"
-8 = "CuPtr{Cfloat}"
-
-[api.cusparseDcsr2dense.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cdouble}"
-
-[api.cusparseCcsr2dense.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{cuComplex}"
-
-[api.cusparseZcsr2dense.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{cuDoubleComplex}"
-
-[api.cusparseSdense2csc.argtypes]
-5 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-
-[api.cusparseDdense2csc.argtypes]
-5 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-
-[api.cusparseCdense2csc.argtypes]
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{cuComplex}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-
-[api.cusparseZdense2csc.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-
-[api.cusparseScsc2dense.argtypes]
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cfloat}"
-
-[api.cusparseDcsc2dense.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cdouble}"
-
-[api.cusparseCcsc2dense.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{cuComplex}"
-
-[api.cusparseZcsc2dense.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{cuDoubleComplex}"
+8 = "CuPtr{T}"
 
 [api.cusparseXcoo2csr.argtypes]
 2 = "CuPtr{Cint}"
@@ -1818,145 +522,40 @@ needs_context = false
 10 = "CuPtr{Cint}"
 11 = "PtrOrCuPtr{Cint}"
 
-[api.cusparseScsr2bsr.argtypes]
-6 = "CuPtr{Cfloat}"
+[api."cusparse𝕏csr2bsr".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
-11 = "CuPtr{Cfloat}"
+11 = "CuPtr{T}"
 12 = "CuPtr{Cint}"
 13 = "CuPtr{Cint}"
 
-[api.cusparseDcsr2bsr.argtypes]
-6 = "CuPtr{Cdouble}"
+[api."cusparse𝕏bsr2csr".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
-11 = "CuPtr{Cdouble}"
+11 = "CuPtr{T}"
 12 = "CuPtr{Cint}"
 13 = "CuPtr{Cint}"
 
-[api.cusparseCcsr2bsr.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{cuComplex}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-
-[api.cusparseZcsr2bsr.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{cuDoubleComplex}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-
-[api.cusparseSbsr2csr.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{Cfloat}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-
-[api.cusparseDbsr2csr.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{Cdouble}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-
-[api.cusparseCbsr2csr.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{cuComplex}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-
-[api.cusparseZbsr2csr.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{cuDoubleComplex}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-
-[api.cusparseSgebsr2gebsc_bufferSize.argtypes]
-5 = "CuPtr{Cfloat}"
+[api."cusparse𝕏gebsr2gebsc".argtypes]
+5 = "CuPtr{T}"
 6 = "CuPtr{Cint}"
 7 = "CuPtr{Cint}"
-
-[api.cusparseDgebsr2gebsc_bufferSize.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseCgebsr2gebsc_bufferSize.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseZgebsr2gebsc_bufferSize.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseSgebsr2gebsc_bufferSizeExt.argtypes]
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseDgebsr2gebsc_bufferSizeExt.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseCgebsr2gebsc_bufferSizeExt.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseZgebsr2gebsc_bufferSizeExt.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseSgebsr2gebsc.argtypes]
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{Cfloat}"
+10 = "CuPtr{T}"
 11 = "CuPtr{Cint}"
 12 = "CuPtr{Cint}"
 15 = "CuPtr{Cvoid}"
 
-[api.cusparseDgebsr2gebsc.argtypes]
-5 = "CuPtr{Cdouble}"
+[api."cusparse𝕏gebsr2gebsc_bufferSize".argtypes]
+5 = "CuPtr{T}"
 6 = "CuPtr{Cint}"
 7 = "CuPtr{Cint}"
-10 = "CuPtr{Cdouble}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
 
-[api.cusparseCgebsr2gebsc.argtypes]
-5 = "CuPtr{cuComplex}"
+[api."cusparse𝕏gebsr2gebsc_bufferSizeExt".argtypes]
+5 = "CuPtr{T}"
 6 = "CuPtr{Cint}"
 7 = "CuPtr{Cint}"
-10 = "CuPtr{cuComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
-
-[api.cusparseZgebsr2gebsc.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-10 = "CuPtr{cuDoubleComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
 
 [api.cusparseXgebsr2csr.argtypes]
 6 = "CuPtr{Cint}"
@@ -1964,75 +563,30 @@ needs_context = false
 11 = "CuPtr{Cint}"
 12 = "CuPtr{Cint}"
 
-[api.cusparseSgebsr2csr.argtypes]
-6 = "CuPtr{Cfloat}"
+[api."cusparse𝕏gebsr2csr".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
-12 = "CuPtr{Cfloat}"
+12 = "CuPtr{T}"
 13 = "CuPtr{Cint}"
 14 = "CuPtr{Cint}"
 
-[api.cusparseDgebsr2csr.argtypes]
-6 = "CuPtr{Cdouble}"
+[api."cusparse𝕏csr2gebsr".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
-12 = "CuPtr{Cdouble}"
-13 = "CuPtr{Cint}"
-14 = "CuPtr{Cint}"
+10 = "CuPtr{T}"
+11 = "CuPtr{Cint}"
+12 = "CuPtr{Cint}"
+15 = "CuPtr{Cvoid}"
 
-[api.cusparseCgebsr2csr.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{cuComplex}"
-13 = "CuPtr{Cint}"
-14 = "CuPtr{Cint}"
-
-[api.cusparseZgebsr2csr.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-12 = "CuPtr{cuDoubleComplex}"
-13 = "CuPtr{Cint}"
-14 = "CuPtr{Cint}"
-
-[api.cusparseScsr2gebsr_bufferSize.argtypes]
-6 = "CuPtr{Cfloat}"
+[api."cusparse𝕏csr2gebsr_bufferSize".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
 
-[api.cusparseDcsr2gebsr_bufferSize.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseCcsr2gebsr_bufferSize.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseZcsr2gebsr_bufferSize.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseScsr2gebsr_bufferSizeExt.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseDcsr2gebsr_bufferSizeExt.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseCcsr2gebsr_bufferSizeExt.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-
-[api.cusparseZcsr2gebsr_bufferSizeExt.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
+[api."cusparse𝕏csr2gebsr_bufferSizeExt".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
 
@@ -2043,79 +597,22 @@ needs_context = false
 12 = "PtrOrCuPtr{Cint}"
 13 = "CuPtr{Cvoid}"
 
-[api.cusparseScsr2gebsr.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-10 = "CuPtr{Cfloat}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
-
-[api.cusparseDcsr2gebsr.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-10 = "CuPtr{Cdouble}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsr2gebsr.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-10 = "CuPtr{cuComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsr2gebsr.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-10 = "CuPtr{cuDoubleComplex}"
-11 = "CuPtr{Cint}"
-12 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
-
-[api.cusparseSgebsr2gebsr_bufferSize.argtypes]
-7 = "CuPtr{Cfloat}"
+[api."cusparse𝕏gebsr2gebsr_bufferSize".argtypes]
+7 = "CuPtr{T}"
 8 = "CuPtr{Cint}"
 9 = "CuPtr{Cint}"
 
-[api.cusparseDgebsr2gebsr_bufferSize.argtypes]
-7 = "CuPtr{Cdouble}"
+[api."cusparse𝕏gebsr2gebsr".argtypes]
+7 = "CuPtr{T}"
 8 = "CuPtr{Cint}"
 9 = "CuPtr{Cint}"
+13 = "CuPtr{T}"
+14 = "CuPtr{Cint}"
+15 = "CuPtr{Cint}"
+18 = "CuPtr{Cvoid}"
 
-[api.cusparseCgebsr2gebsr_bufferSize.argtypes]
-7 = "CuPtr{cuComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseZgebsr2gebsr_bufferSize.argtypes]
-7 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseSgebsr2gebsr_bufferSizeExt.argtypes]
-7 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseDgebsr2gebsr_bufferSizeExt.argtypes]
-7 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseCgebsr2gebsr_bufferSizeExt.argtypes]
-7 = "CuPtr{cuComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-
-[api.cusparseZgebsr2gebsr_bufferSizeExt.argtypes]
-7 = "CuPtr{cuDoubleComplex}"
+[api."cusparse𝕏gebsr2gebsr_bufferSizeExt".argtypes]
+7 = "CuPtr{T}"
 8 = "CuPtr{Cint}"
 9 = "CuPtr{Cint}"
 
@@ -2125,42 +622,6 @@ needs_context = false
 12 = "CuPtr{Cint}"
 15 = "PtrOrCuPtr{Cint}"
 16 = "CuPtr{Cvoid}"
-
-[api.cusparseSgebsr2gebsr.argtypes]
-7 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-13 = "CuPtr{Cfloat}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-18 = "CuPtr{Cvoid}"
-
-[api.cusparseDgebsr2gebsr.argtypes]
-7 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-13 = "CuPtr{Cdouble}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-18 = "CuPtr{Cvoid}"
-
-[api.cusparseCgebsr2gebsr.argtypes]
-7 = "CuPtr{cuComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-13 = "CuPtr{cuComplex}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-18 = "CuPtr{Cvoid}"
-
-[api.cusparseZgebsr2gebsr.argtypes]
-7 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{Cint}"
-9 = "CuPtr{Cint}"
-13 = "CuPtr{cuDoubleComplex}"
-14 = "CuPtr{Cint}"
-15 = "CuPtr{Cint}"
-18 = "CuPtr{Cvoid}"
 
 [api.cusparseCreateIdentityPermutation.argtypes]
 3 = "CuPtr{Cint}"
@@ -2181,17 +642,13 @@ needs_context = false
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cvoid}"
 
-[api.cusparseXcsrsort_bufferSizeExt.argtypes]
-5 = "CuPtr{Cint}"
-6 = "CuPtr{Cint}"
-
 [api.cusparseXcsrsort.argtypes]
 6 = "CuPtr{Cint}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
 9 = "CuPtr{Cvoid}"
 
-[api.cusparseXcscsort_bufferSizeExt.argtypes]
+[api.cusparseXcsrsort_bufferSizeExt.argtypes]
 5 = "CuPtr{Cint}"
 6 = "CuPtr{Cint}"
 
@@ -2201,249 +658,114 @@ needs_context = false
 8 = "CuPtr{Cint}"
 9 = "CuPtr{Cvoid}"
 
-[api.cusparseScsru2csr_bufferSizeExt.argtypes]
-5 = "CuPtr{Cfloat}"
+[api.cusparseXcscsort_bufferSizeExt.argtypes]
+5 = "CuPtr{Cint}"
+6 = "CuPtr{Cint}"
+
+[api."cusparse𝕏csru2csr".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{Cint}"
+8 = "CuPtr{Cint}"
+10 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏csru2csr_bufferSizeExt".argtypes]
+5 = "CuPtr{T}"
 6 = "CuPtr{Cint}"
 7 = "CuPtr{Cint}"
 
-[api.cusparseDcsru2csr_bufferSizeExt.argtypes]
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseCcsru2csr_bufferSizeExt.argtypes]
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseZcsru2csr_bufferSizeExt.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{Cint}"
-7 = "CuPtr{Cint}"
-
-[api.cusparseScsru2csr.argtypes]
-6 = "CuPtr{Cfloat}"
+[api."cusparse𝕏csr2csru".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
 10 = "CuPtr{Cvoid}"
 
-[api.cusparseDcsru2csr.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsru2csr.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsru2csr.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseScsr2csru.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseDcsr2csru.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseCcsr2csru.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseZcsr2csru.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseSpruneDense2csr_bufferSizeExt.argtypes]
-4 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cfloat}"
+[api."cusparse𝕏pruneDense2csr_bufferSizeExt".argtypes]
+4 = "CuPtr{T}"
+8 = "CuPtr{T}"
 9 = "CuPtr{Cint}"
 10 = "CuPtr{Cint}"
 
-[api.cusparseDpruneDense2csr_bufferSizeExt.argtypes]
-4 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-
-[api.cusparseSpruneDense2csrNnz.argtypes]
-4 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cint}"
-9 = "PtrOrCuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseDpruneDense2csrNnz.argtypes]
-4 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cint}"
-9 = "PtrOrCuPtr{Cint}"
-10 = "CuPtr{Cvoid}"
-
-[api.cusparseSpruneDense2csr.argtypes]
-4 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cfloat}"
+[api."cusparse𝕏pruneDense2csr".argtypes]
+4 = "CuPtr{T}"
+8 = "CuPtr{T}"
 9 = "CuPtr{Cint}"
 10 = "CuPtr{Cint}"
 11 = "CuPtr{Cvoid}"
 
-[api.cusparseDpruneDense2csr.argtypes]
-4 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-11 = "CuPtr{Cvoid}"
+[api."cusparse𝕏pruneDense2csrNnz".argtypes]
+4 = "CuPtr{T}"
+8 = "CuPtr{Cint}"
+9 = "PtrOrCuPtr{Cint}"
+10 = "CuPtr{Cvoid}"
 
-[api.cusparseSpruneCsr2csr_bufferSizeExt.argtypes]
-6 = "CuPtr{Cfloat}"
+[api."cusparse𝕏pruneCsr2csr_bufferSizeExt".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
-11 = "CuPtr{Cfloat}"
+11 = "CuPtr{T}"
 12 = "CuPtr{Cint}"
 13 = "CuPtr{Cint}"
 
-[api.cusparseDpruneCsr2csr_bufferSizeExt.argtypes]
-6 = "CuPtr{Cdouble}"
+[api."cusparse𝕏pruneCsr2csr".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
-11 = "CuPtr{Cdouble}"
+11 = "CuPtr{T}"
 12 = "CuPtr{Cint}"
 13 = "CuPtr{Cint}"
+14 = "CuPtr{Cvoid}"
 
-[api.cusparseSpruneCsr2csrNnz.argtypes]
-6 = "CuPtr{Cfloat}"
+[api."cusparse𝕏pruneCsr2csrNnz".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
 11 = "CuPtr{Cint}"
 12 = "PtrOrCuPtr{Cint}"
 13 = "CuPtr{Cvoid}"
 
-[api.cusparseDpruneCsr2csrNnz.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-12 = "PtrOrCuPtr{Cint}"
-13 = "CuPtr{Cvoid}"
-
-[api.cusparseSpruneCsr2csr.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{Cfloat}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-14 = "CuPtr{Cvoid}"
-
-[api.cusparseDpruneCsr2csr.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{Cdouble}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-14 = "CuPtr{Cvoid}"
-
-[api.cusparseSpruneDense2csrByPercentage_bufferSizeExt.argtypes]
-4 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cfloat}"
+[api."cusparse𝕏pruneDense2csrByPercentage_bufferSizeExt".argtypes]
+4 = "CuPtr{T}"
+8 = "CuPtr{T}"
 9 = "CuPtr{Cint}"
 10 = "CuPtr{Cint}"
 
-[api.cusparseDpruneDense2csrByPercentage_bufferSizeExt.argtypes]
-4 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-
-[api.cusparseSpruneDense2csrNnzByPercentage.argtypes]
-4 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cint}"
-9 = "PtrOrCuPtr{Cint}"
-11 = "CuPtr{Cvoid}"
-
-[api.cusparseDpruneDense2csrNnzByPercentage.argtypes]
-4 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cint}"
-9 = "PtrOrCuPtr{Cint}"
-11 = "CuPtr{Cvoid}"
-
-[api.cusparseSpruneDense2csrByPercentage.argtypes]
-4 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cfloat}"
+[api."cusparse𝕏pruneDense2csrByPercentage".argtypes]
+4 = "CuPtr{T}"
+8 = "CuPtr{T}"
 9 = "CuPtr{Cint}"
 10 = "CuPtr{Cint}"
 12 = "CuPtr{Cvoid}"
 
-[api.cusparseDpruneDense2csrByPercentage.argtypes]
-4 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cint}"
-10 = "CuPtr{Cint}"
-12 = "CuPtr{Cvoid}"
+[api."cusparse𝕏pruneDense2csrNnzByPercentage".argtypes]
+4 = "CuPtr{T}"
+8 = "CuPtr{Cint}"
+9 = "PtrOrCuPtr{Cint}"
+11 = "CuPtr{Cvoid}"
 
-[api.cusparseSpruneCsr2csrByPercentage_bufferSizeExt.argtypes]
-6 = "CuPtr{Cfloat}"
+[api."cusparse𝕏pruneCsr2csrByPercentage_bufferSizeExt".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
-11 = "CuPtr{Cfloat}"
+11 = "CuPtr{T}"
 12 = "CuPtr{Cint}"
 13 = "CuPtr{Cint}"
 
-[api.cusparseDpruneCsr2csrByPercentage_bufferSizeExt.argtypes]
-6 = "CuPtr{Cdouble}"
+[api."cusparse𝕏pruneCsr2csrByPercentage".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
-11 = "CuPtr{Cdouble}"
+11 = "CuPtr{T}"
 12 = "CuPtr{Cint}"
 13 = "CuPtr{Cint}"
+15 = "CuPtr{Cvoid}"
 
-[api.cusparseSpruneCsr2csrNnzByPercentage.argtypes]
-6 = "CuPtr{Cfloat}"
+[api."cusparse𝕏pruneCsr2csrNnzByPercentage".argtypes]
+6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
 11 = "CuPtr{Cint}"
 12 = "PtrOrCuPtr{Cint}"
 14 = "CuPtr{Cvoid}"
-
-[api.cusparseDpruneCsr2csrNnzByPercentage.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{Cint}"
-12 = "PtrOrCuPtr{Cint}"
-14 = "CuPtr{Cvoid}"
-
-[api.cusparseSpruneCsr2csrByPercentage.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{Cfloat}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
-
-[api.cusparseDpruneCsr2csrByPercentage.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Cint}"
-11 = "CuPtr{Cdouble}"
-12 = "CuPtr{Cint}"
-13 = "CuPtr{Cint}"
-15 = "CuPtr{Cvoid}"
 
 [api.cusparseCsr2cscEx2.argtypes]
 5 = "CuPtr{Cvoid}"
@@ -2547,12 +869,12 @@ needs_context = false
 2 = "PtrOrCuPtr{Cvoid}"
 3 = "PtrOrCuPtr{Cvoid}"
 
-[api.cusparseSpVV_bufferSize.argtypes]
-5 = "PtrOrCuPtr{Cvoid}"
-
 [api.cusparseSpVV.argtypes]
 5 = "PtrOrCuPtr{Cvoid}"
 7 = "CuPtr{Cvoid}"
+
+[api.cusparseSpVV_bufferSize.argtypes]
+5 = "PtrOrCuPtr{Cvoid}"
 
 [api.cusparseSpMV.argtypes]
 3 = "PtrOrCuPtr{Cvoid}"
@@ -2619,9 +941,19 @@ needs_context = false
 4 = "PtrOrCuPtr{Cvoid}"
 7 = "PtrOrCuPtr{Cvoid}"
 
+[api.cusparseSDDMM.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+7 = "PtrOrCuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+
 [api.cusparseBlockedEllGet.argtypes]
 6 = "CuPtr{Ptr{Cvoid}}"
 7 = "CuPtr{Ptr{Cvoid}}"
+
+[api.cusparseSpMV_preprocess.argtypes]
+3 = "PtrOrCuPtr{Cvoid}"
+6 = "PtrOrCuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
 
 [api.cusparseSpMM_preprocess.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
@@ -2629,11 +961,6 @@ needs_context = false
 11 = "CuPtr{Cvoid}"
 
 [api.cusparseSDDMM_preprocess.argtypes]
-4 = "PtrOrCuPtr{Cvoid}"
-7 = "PtrOrCuPtr{Cvoid}"
-11 = "CuPtr{Cvoid}"
-
-[api.cusparseSDDMM.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
 7 = "PtrOrCuPtr{Cvoid}"
 11 = "CuPtr{Cvoid}"
@@ -2651,6 +978,12 @@ needs_context = false
 
 [api.cusparseSpSV_analysis.argtypes]
 10 = "CuPtr{Cvoid}"
+
+[api.cusparseSpSV_updateMatrix.argtypes]
+3 = "CuPtr{Cvoid}"
+
+[api.cusparseSpSM_updateMatrix.argtypes]
+3 = "CuPtr{Cvoid}"
 
 [api.cusparseSpGEMMreuse_workEstimation.argtypes]
 10 = "CuPtr{Cvoid}"

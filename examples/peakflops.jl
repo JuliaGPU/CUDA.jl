@@ -48,7 +48,7 @@ function peakflops(n::Integer=5000, dev::CuDevice=CuDevice(0))
         synchronize()
 
         secs = CUDA.@elapsed begin
-            kernel(d_a, d_b, d_c, d_out; threads=threads, blocks=blocks)
+            kernel(d_a, d_b, d_c, d_out; threads, blocks)
         end
         flopcount = 200*len
         flops = flopcount / secs

@@ -8,11 +8,11 @@
 # * Identify problematic kernel invocations: you may be launching thousands of kernels which could be fused into a single call;
 # * Find stalls, where the CPU isn't submitting work fast enough to keep the GPU busy.
 
-# If that isn't sufficient, and you identified a kernel that executes slowly, you can try using NSight Compute to analyze that kernel in detail. Some things to look out for in order of importance
-# * Memory optimizations are the most important area for performance. Hence optimizing memory accesses, e.g., avoiding needless global accesses (buffering in shared memory instead) and coalescing accesses can lead to big performance improvements;
-# * Launching more threads on each streaming multiprocessor can be acheived by lowering register pressure and reducing shared memory usage, the tips below outline the various ways in which register pressure can be reduced;
-# * Using Float32's instead of Float64's can provide significantly better performance;
-# * Avoid using control flow instructions such as `if` which cause branches, e.g. replace an `if` with an `ifelse` if possible;
+# If that isn't sufficient, and you identified a kernel that executes slowly, you can try using NSight Compute to analyze that kernel in detail. Some things to try in order of importance:
+# * Optimize memory accesses, e.g., avoid needless global accesses (buffering in shared memory instead) or coalesce accesses;
+# * Launch more threads on each streaming multiprocessor, this can be achieved by lowering register pressure or reducing shared memory usage, the tips below outline the various ways in which register pressure can be reduced;
+# * Use 32 bit types like `Float32` and `Int32` instead of 64 bit types like `Float64` and `Int`/`Int64`;
+# * Avoid the use of control flow which cause threads in the same warp to diverge, i.e., make sure `while` or `for` loops behave identically across the entire warp, and replace `if`s that diverge within a warp with `ifelse`s;
 # * Increase the arithmetic intensity in order for the GPU to be able to hide the latency of memory accesses.
 
 # ### Inlining
@@ -22,11 +22,11 @@
 # ### Limiting the Maximum Number of Registers Per Thread
 
 # The number of threads that can be launched is partly determined by the number of registers a kernel uses. This is due to registers being shared between all threads on a multiprocessor.
-# Setting the maximum number of registers per thread will force less registers to be used which can increase thread count at the expense of having to spill registers into local memory, this may improve performance. To set the max registers to 32 use `@cuda max_registers=32`.
+# Setting the maximum number of registers per thread will force less registers to be used which can increase thread count at the expense of having to spill registers into local memory, this may improve performance. To set the max registers to 32 use `@cuda maxregs=32`.
 
 # ### FastMath
 
-# Use `@fastmath` to use faster versions of common mathematical functions and for even faster square roots use `@cuda fastmath=true`.
+# Use `@fastmath` to use faster versions of common mathematical functions and use `@cuda fastmath=true` for even faster square roots.
 
 # ## Resources
 
@@ -36,7 +36,7 @@
 
 # The [CUDA C++ Best Practices Guide](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html) is relevant for Julia.
 
-# The following notebooks also have some good tips: [JuliaCon 2021 GPU Workshop](https://github.com/maleadt/juliacon21-gpu_workshop/blob/main/deep_dive/CUDA.ipynb), [Advanced Julia GPU Training](https://github.com/JuliaComputing/Training/tree/master/AdvancedGPU)
+# The following notebooks also have some good tips: [JuliaCon 2021 GPU Workshop](https://github.com/maleadt/juliacon21-gpu_workshop/blob/main/deep_dive/CUDA.ipynb), [Advanced Julia GPU Training](https://github.com/JuliaComputing/Training/tree/master/AdvancedGPU).
 
 # Also see the [perf](https://github.com/JuliaGPU/CUDA.jl/tree/master/perf) folder for some optimised code examples.
 
@@ -44,10 +44,10 @@
 
 # ### Minimise Runtime Exceptions
 
-# Many common operations can throw errors at runtime in Julia, they often do this by branching and calling a function in that branch both of which are slow on GPUs. Using `@inbounds` when indexing into arrays will eliminate exceptions due to bounds checking. You can also use `assume` from the package LLVM.jl to get rid of exceptions, e.g.
+# Many common operations can throw errors at runtime in Julia, they often do this by branching and calling a function in that branch both of which are slow on GPUs. Using `@inbounds` when indexing into arrays will eliminate exceptions due to bounds checking. Note that running code with `--check-bounds=yes` (the default for `Pkg.test`) will always emit bounds checking. You can also use `assume` from the package LLVM.jl to get rid of exceptions, e.g.
 
 # ```julia
-# using LLVM, LLVM.Interop
+# using LLVM.Interop
 
 # function test(x, y)
 #     assume(x > 0)
@@ -61,9 +61,9 @@
 
 # ### 32-bit Integers
 
-# Use 32-bit integers where possible. A common source of register pressure is the use of 64-bit integers when only 32-bits are required. For example, the hardware's indices are 32-bit integers, but Julia's literals are Int64's which results in expressions like blockIdx().x-1 to be promoted to 64-bit integers. To use 32-bit integers we can instead replace the `1` with `Int32(1)` or more succintly `1i32` if you run `using CUDA: i32`
+# Use 32-bit integers where possible. A common source of register pressure is the use of 64-bit integers when only 32-bits are required. For example, the hardware's indices are 32-bit integers, but Julia's literals are Int64's which results in expressions like `blockIdx().x-1` to be promoted to 64-bit integers. To use 32-bit integers we can instead replace the `1` with `Int32(1)` or more succintly `1i32` if you run `using CUDA: i32`.
 
-# To see how much of a difference this makes let's use a kernel introduced in the [introduction](../introduction) for inplace addition.
+# To see how much of a difference this makes let's use a kernel introduced in the introductory tutorial for inplace addition.
 
 using CUDA, BenchmarkTools
 
@@ -81,7 +81,7 @@ end
 # ```julia
 # x_d = CUDA.fill(1.0f0, 2^28)
 # y_d = CUDA.fill(2.0f0, 2^28)
-# 
+#
 # CUDA.registers(@cuda gpu_add3!(y_d, x_d))
 # ```
 
@@ -89,7 +89,7 @@ end
 #   29
 # ```
 
-# Our kernel using 32-bit integers is below
+# Our kernel using 32-bit integers is below:
 
 function gpu_add4!(y, x)
     index = (blockIdx().x - Int32(1)) * blockDim().x + threadIdx().x

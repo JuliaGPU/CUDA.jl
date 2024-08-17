@@ -13,7 +13,7 @@ using cuDNN:
         cudnnGetAttnDescriptor,
         cudnnDataType_t,
         cudnnDropoutDescriptor_t,
-    cudnnAttnQueryMap_t,
+    #cudnnAttnQueryMap_t,
         CUDNN_ATTN_QUERYMAP_ALL_TO_ONE, # 0         /* multiple Q-s map to a single (K,V) set when beam size > 1, beam sizes for (K,V) = 1 */
         CUDNN_ATTN_QUERYMAP_ONE_TO_ONE, # (1U << 0) /* multiple Q-s map to multiple (K,V) sets when beam size > 1, beam sizes for (K,V) = beam size for (Q) */
         CUDNN_ATTN_DISABLE_PROJ_BIASES, # 0         /* no biases in attention input and output projections */

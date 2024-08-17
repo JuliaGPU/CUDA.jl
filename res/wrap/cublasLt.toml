@@ -1,0 +1,31 @@
+[general]
+library_name = "libcublasLt"
+output_file_path = "../../lib/cublas/libcublasLt.jl"
+
+
+[codegen]
+use_ccall_macro = true
+always_NUL_terminated_string = true
+
+
+[api]
+checked_rettypes = [ "cublasStatus_t" ]
+
+[api.cublasLtMatmul.argtypes]
+3 = "PtrOrCuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+8 = "PtrOrCuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
+
+[api.cublasLtMatrixTransform.argtypes]
+3 = "PtrOrCuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+6 = "PtrOrCuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+
+[api.cublasLtMatmulDescSetAttribute.argtypes]
+3 = "PtrOrCuPtr{Cvoid}"

@@ -3,7 +3,7 @@
 # helper type for writing Int32 literals
 # TODO: upstream this
 struct Literal{T} end
-Base.:(*)(x, ::Type{Literal{T}}) where {T} = T(x)
+Base.:(*)(x::Number, ::Type{Literal{T}}) where {T} = T(x)
 const i32 = Literal{Int32}
 
 # local method table for device functions
@@ -58,3 +58,29 @@ macro device_functions(ex)
 
     esc(rewrite(ex))
 end
+
+
+## alignment API
+
+# we don't expose this as Aligned{N}, because we want to have the T typevar first
+# to facilitate use in function signatures as ::Aligned{<:T}
+
+struct Aligned{T, N}
+    data::T
+end
+
+alignment(::Aligned{<:Any, N}) where {N} = N
+Base.getindex(x::Aligned) = x.data
+
+"""
+    CUDA.align{N}(obj)
+
+Construct an aligned object, providing alignment information to APIs that require it.
+"""
+struct align{N} end
+(::Type{align{N}})(data::T) where {T,N} = Aligned{T,N}(data)
+
+# default alignment for common types
+Aligned(x::Aligned) = x
+Aligned(x::Ptr{T}) where T = align{Base.datatype_alignment(T)}(x)
+Aligned(x::LLVMPtr{T}) where T = align{Base.datatype_alignment(T)}(x)

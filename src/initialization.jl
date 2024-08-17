@@ -59,39 +59,65 @@ function __init__()
     end
 
     driver = try
-        driver_version()
+        set_driver_version()
     catch err
         @debug "CUDA driver failed to report a version" exception=(err, catch_backtrace())
         _initialization_error[] = "CUDA driver not functional"
         return
     end
 
-    if driver < v"11"
-        @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 11.x or higher (yours is for CUDA $driver)"
-        _initialization_error[] = "CUDA driver too old"
+    if !(v"11" <= driver < v"13-")
+        @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 11.x or 12.x (yours is for CUDA $driver)"
+        _initialization_error[] = "CUDA driver unsupported"
         return
     end
 
-    if driver < v"11.2"
+    if driver < v"11.3"
         @warn """The NVIDIA driver on this system only supports up to CUDA $driver.
-                 For performance reasons, it is recommended to upgrade to a driver that supports CUDA 11.2 or higher."""
+                 For performance reasons, it is recommended to upgrade to a driver that supports CUDA 11.3 or higher."""
     end
 
     # check that we have a runtime
     if !CUDA_Runtime.is_available()
+        # try to find out why
+        reason = if CUDA_Runtime != CUDA_Runtime_jll
+            """You requested use of a local CUDA toolkit, but not all
+               required components were discovered.
+
+               Try running with `JULIA_DEBUG=CUDA_Runtime_Discovery` in
+               your environment and re-loading CUDA.jl for more details."""
+        elseif !Sys.iswindows() && !Sys.islinux() && !in(Sys.ARCH, [:x86_64, :aarch64])
+            """You are using an unsupported platform: this version of CUDA.jl
+               only supports Linux (x86_64, aarch64) and Windows (x86_64).
+
+               Consider downgrading CUDA.jl (refer to the README for a list of
+               supported platforms) or manually installing the CUDA toolkit and make
+               CUDA.jl use it by calling `CUDA.set_runtime_version!(local_toolkit=true)`."""
+        elseif CUDA_Runtime_jll.host_platform["cuda"] == "none"
+            """CUDA.jl's JLLs were precompiled without an NVIDIA driver present.
+               This can happen when installing CUDA.jl on an HPC log-in node,
+               or in a container. In that case, you need to specify which CUDA
+               version to use at run time by calling `CUDA.set_runtime_version!`
+               or provisioning the preference it sets at compile time.
+
+               If you are not running in a container or on an HPC log-in node,
+               try re-compiling the CUDA runtime JLL and re-loading CUDA.jl:
+                    pkg = Base.PkgId(Base.UUID("76a88914-d11a-5bdc-97e0-2f5a05c973a2"),
+                                     "CUDA_Runtime_jll")
+                    Base.compilecache(pkg)
+                    # re-start Julia and re-load CUDA.jl"""
+        else
+            """Could not diagnose why the CUDA runtime is not available.
+
+               If the issue persists, please file a support ticket with the following details:
+               - host platform: $(Base.BinaryPlatforms.triplet(CUDA_Runtime_jll.host_platform))
+               - libcuda: $libcuda (loaded through JLL: $(CUDA_Driver_jll.is_available()))
+               - driver version: $driver
+               """
+        end
         @error """CUDA.jl could not find an appropriate CUDA runtime to use.
 
-                  This can have several reasons:
-                  * you are using an unsupported platform: this version of CUDA.jl
-                    only supports Linux (x86_64, aarch64, ppc64le) and Windows (x86_64),
-                    while your platform was identified as $(Base.BinaryPlatforms.triplet(CUDA_Runtime_jll.host_platform));
-                  * you precompiled CUDA.jl in an environment where the CUDA driver
-                    was not available (i.e., a container, or an HPC login node).
-                    in that case, you need to specify which CUDA version to use
-                    by calling `CUDA.set_runtime_version!`;
-                  * you requested use of a local CUDA toolkit, but not all
-                    required components were discovered. try running with
-                    JULIA_DEBUG=all in your environment for more details.
+                  $reason
 
                   For more details, refer to the CUDA.jl documentation at
                   https://cuda.juliagpu.org/stable/installation/overview/"""
@@ -148,16 +174,23 @@ function __init__()
         return
     end
 
+    # warn if we're not using an official build of Julia
+    official_release = startswith(Base.TAGGED_RELEASE_BANNER, "Official")
+    if !official_release
+        @warn """You are using a non-official build of Julia. This may cause issues with CUDA.jl.
+                 Please consider using an official build from https://julialang.org/downloads/."""
+    end
+
     @static if !isdefined(Base, :get_extension)
+        @require ChainRulesCore="d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4" begin
+            include("../ext/ChainRulesCoreExt.jl")
+        end
         @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" begin
             include("../ext/SpecialFunctionsExt.jl")
         end
-    end
-
-    # ensure that operations executed by the REPL back-end finish before returning,
-    # because displaying values happens on a different task (CUDA.jl#831)
-    if isdefined(Base, :active_repl_backend)
-        push!(Base.active_repl_backend.ast_transforms, synchronize_cuda_tasks)
+        @require EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869" begin
+            include("../ext/EnzymeCoreExt.jl")
+        end
     end
 
     # enable generation of FMA instructions to mimic behavior of nvcc
@@ -165,48 +198,35 @@ function __init__()
 
     # warn about old, deprecated environment variables
     if haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER") && !local_toolkit
-        @error """JULIA_CUDA_USE_BINARYBUILDER is deprecated, and CUDA.jl always uses artifacts now.
-                  To use a local installation, use overrides or preferences to customize the artifact.
-                  Please check the CUDA.jl or Pkg.jl documentation for more details."""
+        @error """JULIA_CUDA_USE_BINARYBUILDER is deprecated. Call `CUDA.jl.set_runtime_version!` to use a local toolkit."""
         # we do not warn about this when we're already using the new preference,
         # because during the transition clusters will be deploying both mechanisms.
     end
     if haskey(ENV, "JULIA_CUDA_VERSION")
-        @error """JULIA_CUDA_VERSION is deprecated. Call `CUDA.jl.set_runtime_version!` to use a different version instead."""
+        @error """JULIA_CUDA_VERSION is deprecated. Call `CUDA.jl.set_runtime_version!` to use a different version."""
     end
 
     if !local_toolkit
         # scan for CUDA libraries that may have been loaded from system paths
+        # note that this must cover more that the libraries provided by the
+        # runtime JLL, in order to detect possible conditional dependencies.
         runtime_libraries = ["cudart",
                              "nvperf", "nvvm", "nvrtc", "nvJitLink",
                              "cublas", "cupti", "cusparse", "cufft", "curand", "cusolver"]
         for lib in Libdl.dllist()
             contains(lib, "artifacts") && continue
             if any(rtlib -> contains(lib, rtlib), runtime_libraries)
-                @warn """CUDA runtime library $(basename(lib)) was loaded from a system path. This may cause errors.
-                         Ensure that you have not set the LD_LIBRARY_PATH environment variable, or that it does not contain paths to CUDA libraries."""
-            end
-        end
+                @warn """CUDA runtime library `$(basename(lib))` was loaded from a system path, `$lib`.
 
-        # warn about Tegra being incompatible with our artifacts
-        if is_tegra()
-            @warn """You are using a Tegra device, which is currently not supported by the CUDA.jl artifacts.
-                     Please install the CUDA toolkit, and call `CUDA.set_runtime_version!("local")` to use it.
-                     For more information, see JuliaGPU/CUDA.jl#1978."""
+                         This may cause errors. Ensure that you have not set the LD_LIBRARY_PATH
+                         environment variable, or that it does not contain paths to CUDA libraries.
+
+                         In any other case, please file an issue."""
+            end
         end
     end
 
     _initialized[] = true
-end
-
-function synchronize_cuda_tasks(ex)
-    quote
-        try
-            $(ex)
-        finally
-            $task_local_state() !== nothing && $device_synchronize()
-        end
-    end
 end
 
 

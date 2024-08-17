@@ -715,6 +715,22 @@ end
             @test_throws ArgumentError mul!(dhA, dhA, dsA)
             @test_throws DimensionMismatch mul!(d_C1, d_A, dsA)
         end
+        @testset "strided gemm!" begin
+            denseA = CUDA.rand(elty, 4,4)
+            denseB = CUDA.rand(elty, 4,4)
+            denseC = CUDA.zeros(elty, 4,4)
+
+            stridedA = view(denseA, 1:2, 1:2)::SubArray
+            stridedB = view(denseB, 1:2, 1:2)::SubArray
+            stridedC = view(denseC, 1:2, 1:2)::SubArray
+
+            CUBLAS.gemm!('N', 'N', true, stridedA, stridedB, false, stridedC)
+            @test Array(stridedC) ≈ Array(stridedA) * Array(stridedB)
+
+            stridedC .= 0
+            mul!(stridedC, stridedA, stridedB, true, false)
+            @test Array(stridedC) ≈ Array(stridedA) * Array(stridedB)
+        end
         if capability(device()) > v"5.0"
             @testset "gemmEx!" begin
                 α = rand(elty)
@@ -1581,7 +1597,7 @@ end
         end
     end
 
-    @testset for elty in [Float16, Float32, Float64, ComplexF32, ComplexF64]
+    @testset "elty = $elty" for elty in [Float16, Float32, Float64, ComplexF32, ComplexF64]
         elty == Float16 && capability(device()) < v"5.3" && continue
 
         alpha = rand(elty)
@@ -1692,6 +1708,86 @@ end
             h_C = Array(bd_C)
             @test bC ≈ h_C
             @test_throws DimensionMismatch CUBLAS.gemm_strided_batched('N', 'N', alpha, bd_A, bd_bad)
+        end
+    end
+
+    if CUDA.CUBLAS.version() >= v"12.4.2"
+        @testset "elty = $elty" for elty in [Float32, Float64]
+            num_groups = 10
+            group_sizes = collect(1:num_groups)
+            transA = ['N' for i in 1:num_groups]
+            transB = ['N' for i in 1:num_groups]
+            alpha = rand(elty, num_groups)
+            beta = rand(elty, num_groups)
+            # generate matrices
+            bA = [[rand(elty,3*i,2*i) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bB = [[rand(elty,2*i,5*i) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bC = [[rand(elty,3*i,5*i) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            # move to device
+            bd_A = [[CuArray(bA[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bd_B = [[CuArray(bB[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bd_C = [[CuArray(bC[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            @testset "gemm_grouped_batched!" begin
+                # C = (alpha*A)*B + beta*C
+                CUBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A,bd_B,beta,bd_C)
+                for i in 1:num_groups, j in 1:group_sizes[i]
+                    bC[i][j] = alpha[i] * bA[i][j] * bB[i][j] + beta[i] * bC[i][j]
+                    h_C = Array(bd_C[i][j])
+                    @test bC[i][j] ≈ h_C
+                end
+            end
+
+            @testset "gemm_grouped_batched" begin
+                bd_C = CUBLAS.gemm_grouped_batched(transA,transB,bd_A,bd_B)
+                for i in 1:num_groups, j in 1:group_sizes[i]
+                    bC[i][j] = bA[i][j] * bB[i][j]
+                    h_C = Array(bd_C[i][j])
+                    @test bC[i][j] ≈ h_C
+                end
+            end
+        end
+    end
+
+    # Group size hardcoded to one
+    if CUDA.CUBLAS.version() >= v"12.4.2"
+        @testset "elty = $elty" for elty in [Float32, Float64]
+
+            transA = ['N' for i in 1:10]
+            transB = ['N' for i in 1:10]
+            alpha = rand(elty, 10)
+            beta = rand(elty, 10)
+            # generate matrices
+            bA = [rand(elty,3*i,2*i) for i in 1:10]
+            bB = [rand(elty,2*i,5*i) for i in 1:10]
+            bC = [rand(elty,3*i,5*i) for i in 1:10]
+            # move to device
+            bd_A = CuArray{elty, 2}[]
+            bd_B = CuArray{elty, 2}[]
+            bd_C = CuArray{elty, 2}[]
+            for i in 1:length(bA)
+                push!(bd_A,CuArray(bA[i]))
+                push!(bd_B,CuArray(bB[i]))
+                push!(bd_C,CuArray(bC[i]))
+            end
+
+            @testset "gemm_grouped_batched!" begin
+                # C = (alpha*A)*B + beta*C
+                CUBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A,bd_B,beta,bd_C)
+                for i in 1:length(bd_C)
+                    bC[i] = alpha[i] * bA[i] * bB[i] + beta[i] * bC[i]
+                    h_C = Array(bd_C[i])
+                    @test bC[i] ≈ h_C
+                end
+            end
+
+            @testset "gemm_grouped_batched" begin
+                bd_C = CUBLAS.gemm_grouped_batched(transA,transB,bd_A,bd_B)
+                for i in 1:length(bd_C)
+                    bC[i] = bA[i] * bB[i]
+                    h_C = Array(bd_C[i])
+                    @test bC[i] ≈ h_C
+                end
+            end
         end
     end
 
@@ -1905,6 +2001,94 @@ end
             end
         end
 
+        for (opchar,opfun) in (('N',identity), ('T',transpose), ('C',adjoint))
+
+            @testset "getrs_batched!" begin
+                A                   = [rand(elty,n,n) for _ in 1:k];
+                d_A                 = [CuArray(a) for a in A];
+                d_A2                = deepcopy(d_A);
+                d_pivot, info, d_LU = CUDA.CUBLAS.getrf_batched!(d_A, true);
+                @test d_LU == d_A
+                d_pivot2            = similar(d_pivot);
+                info2               = similar(info);
+                CUDA.CUBLAS.getrf_batched!(d_A2, d_pivot2, info2);
+                @test isapprox(d_pivot, d_pivot2)
+                @test isapprox(info, info2)
+                B                   = [rand(elty,n,m) for _ in 1:k];
+                d_B                 = [CuArray(b) for b in B];
+                info2, d_Bhat       = CUDA.CUBLAS.getrs_batched!(opchar, d_LU, d_B, d_pivot);
+                @test d_Bhat == d_B
+                h_Bhat              = [collect(bh) for bh in d_Bhat];
+                for i in 1:k
+                    @test h_Bhat[i] ≈ opfun(A[i]) \ B[i]
+                end
+            end
+
+            @testset "getrs_batched" begin
+                A                   = [rand(elty,n,n) for _ in 1:k];
+                d_A                 = [CuArray(a) for a in A];
+                d_A2                = deepcopy(d_A);
+                d_pivot, info, d_LU = CUDA.CUBLAS.getrf_batched(d_A, true);
+                @test d_LU != d_A
+                d_pivot2            = similar(d_pivot);
+                info2               = similar(info);
+                CUDA.CUBLAS.getrf_batched(d_A2, d_pivot2, info2);
+                @test isapprox(d_pivot, d_pivot2)
+                @test isapprox(info, info2)
+                B                   = [rand(elty,n,m) for _ in 1:k];
+                d_B                 = [CuArray(b) for b in B];
+                info2, d_Bhat       = CUDA.CUBLAS.getrs_batched(opchar, d_LU, d_B, d_pivot);
+                @test d_Bhat != d_B
+                h_Bhat              = [collect(bh) for bh in d_Bhat];
+                for i in 1:k
+                    @test h_Bhat[i] ≈ opfun(A[i]) \ B[i]
+                end
+            end
+
+            @testset "getrs_strided_batched!" begin
+                A                   = rand(elty,n,n,k);
+                d_A                 = CuArray(A);
+                d_A2                = copy(d_A);
+                d_pivot, info, d_LU = CUDA.CUBLAS.getrf_strided_batched!(d_A, true);
+                @test d_LU == d_A
+                d_pivot2            = similar(d_pivot);
+                info2               = similar(info);
+                CUDA.CUBLAS.getrf_strided_batched!(d_A2, d_pivot2, info2);
+                @test isapprox(d_pivot, d_pivot2)
+                @test isapprox(info, info2)
+                B                   = rand(elty,n,m,k);
+                d_B                 = CuArray(B);
+                info2, d_Bhat       = CUDA.CUBLAS.getrs_strided_batched!(opchar, d_LU, d_B, d_pivot);
+                @test d_Bhat == d_B
+                h_Bhat              = collect(d_Bhat);
+                for i in 1:k
+                    @test h_Bhat[:,:,i] ≈ opfun(A[:,:,i]) \ B[:,:,i]
+                end
+            end
+
+            @testset "getrs_strided_batched" begin
+                A                   = rand(elty,n,n,k);
+                d_A                 = CuArray(A);
+                d_A2                = copy(d_A);
+                d_pivot, info, d_LU = CUDA.CUBLAS.getrf_strided_batched(d_A, true);
+                @test d_LU != d_A
+                d_pivot2            = similar(d_pivot);
+                info2               = similar(info);
+                CUDA.CUBLAS.getrf_strided_batched(d_A2, d_pivot2, info2);
+                @test isapprox(d_pivot, d_pivot2)
+                @test isapprox(info, info2)
+                B                   = rand(elty,n,m,k);
+                d_B                 = CuArray(B);
+                info2, d_Bhat       = CUDA.CUBLAS.getrs_strided_batched(opchar, d_LU, d_B, d_pivot);
+                @test d_Bhat != d_B
+                h_Bhat              = collect(d_Bhat);
+                for i in 1:k
+                    @test h_Bhat[:,:,i] ≈ opfun(A[:,:,i]) \ B[:,:,i]
+                end
+            end
+
+        end
+
         @testset "getri_strided_batched" begin
             # generate strided matrix
             A = rand(elty,m,m,10)
@@ -2068,10 +2252,12 @@ end
         A = rand(elty,m,n)
         C = rand(elty,m,n)
         x = rand(elty,m)
+        y = rand(elty,n)
         # move to device
         d_A = CuArray(A)
         d_C = CuArray(C)
         d_x = CuArray(x)
+        d_y = CuArray(y)
         C = diagm(0 => x) * A
         @testset "dgmm!" begin
             # compute
@@ -2090,6 +2276,19 @@ end
             # move to host and compare
             h_C = Array(d_C)
             @test C ≈ h_C
+        end
+        @testset "diagonal -- mul!" begin
+            XA = rand(elty,m,n)
+            d_XA = CuArray(XA)
+            d_X = Diagonal(d_x)
+            mul!(d_XA, d_X, d_A)
+            Array(d_XA) ≈ Diagonal(x) * A
+
+            AY = rand(elty,m,n)
+            d_AY = CuArray(AY)
+            d_Y = Diagonal(d_y)
+            mul!(d_AY, d_A, d_Y)
+            Array(d_AY) ≈ A * Diagonal(y)
         end
     end # extensions
 

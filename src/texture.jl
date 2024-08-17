@@ -2,7 +2,7 @@
 
 # NOTE: the API for texture support is not final yet. some thoughts:
 #
-# - instead of CuTextureArray, use CuArray with an ArrayBuffer. This array could then
+# - instead of CuTextureArray, use CuArray with an ArrayMemory. This array could then
 #   adapt to a CuTexture, or do the same for CuDeviceArray.
 
 #
@@ -22,7 +22,7 @@ objects.
     Experimental API. Subject to change without deprecation.
 """
 mutable struct CuTextureArray{T,N}
-    buf::Mem.ArrayBuffer{T}
+    mem::ArrayMemory{T}
     dims::Dims{N}
     ctx::CuContext
 
@@ -37,8 +37,8 @@ mutable struct CuTextureArray{T,N}
         Experimental API. Subject to change without deprecation.
     """
     function CuTextureArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
-        buf = Mem.alloc(Mem.Array{T}, dims)
-        t = new{T,N}(buf, dims, context())
+        mem = alloc(ArrayMemory{T}, dims)
+        t = new{T,N}(mem, dims, context())
         finalizer(unsafe_destroy!, t)
         return t
     end
@@ -46,11 +46,11 @@ end
 
 function unsafe_destroy!(t::CuTextureArray)
     context!(t.ctx; skip_destroyed=true) do
-        Mem.free(t.buf)
+        free(t.mem)
     end
 end
 
-Base.unsafe_convert(T::Type{CUarray}, t::CuTextureArray) = Base.unsafe_convert(T, t.buf)
+Base.unsafe_convert(T::Type{CUarray}, t::CuTextureArray) = Base.unsafe_convert(T, t.mem)
 
 
 ## array interface
@@ -62,7 +62,7 @@ Base.eltype(tm::CuTextureArray{T,N}) where {T,N} = T
 
 Base.sizeof(tm::CuTextureArray) = sizeof(eltype(tm)) * length(tm)
 
-Base.pointer(t::CuTextureArray) = t.buf.ptr
+Base.pointer(t::CuTextureArray) = t.mem.ptr
 
 
 ## interop with other arrays
@@ -70,7 +70,7 @@ Base.pointer(t::CuTextureArray) = t.buf.ptr
 """
     CuTextureArray(A::AbstractArray)
 
-Allocate and initialize a texture buffer from host memory in `A`.
+Allocate and initialize a texture array from host memory in `A`.
 
 !!! warning
     Experimental API. Subject to change without deprecation.
@@ -84,7 +84,7 @@ end
 """
     CuTextureArray(A::CuArray)
 
-Allocate and initialize a texture buffer from device memory in `A`.
+Allocate and initialize a texture array from device memory in `A`.
 
 !!! warning
     Experimental API. Subject to change without deprecation.
@@ -111,17 +111,17 @@ end
 
 function Base.copyto!(dst::CuTextureArray{T,2}, src::Union{Array{T,2}, CuArray{T,2}}) where {T}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
-    Mem.unsafe_copy2d!(pointer(dst), Mem.Array,
-                       pointer(src), isa(src, Array) ? Mem.Host : Mem.Device,
-                       size(dst)...)
+    unsafe_copy2d!(pointer(dst), ArrayMemory,
+                   pointer(src), isa(src, Array) ? HostMemory : DeviceMemory,
+                   size(dst)...)
     return dst
 end
 
 function Base.copyto!(dst::CuTextureArray{T,3}, src::Union{Array{T,3}, CuArray{T,3}}) where {T}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
-    Mem.unsafe_copy3d!(pointer(dst), Mem.Array,
-                       pointer(src), isa(src, Array) ? Mem.Host : Mem.Device,
-                       size(dst)...)
+    unsafe_copy3d!(pointer(dst), ArrayMemory,
+                   pointer(src), isa(src, Array) ? HostMemory : DeviceMemory,
+                   size(dst)...)
     return dst
 end
 
@@ -316,9 +316,9 @@ CuTexture(x::CuArray{T,N}; kwargs...) where {T,N} =
     CuTexture{T,N}(x; kwargs...)
 
 memory_source(::Any) = error("Unknown texture source $(typeof(t))")
-memory_source(::CuArray) = LinearMemory()
-memory_source(::CuTextureArray) = ArrayMemory()
+memory_source(::CuArray) = LinearMemorySource()
+memory_source(::CuTextureArray) = ArrayMemorySource()
 
-Adapt.adapt_storage(::Adaptor, t::CuTexture{T,N}) where {T,N} =
+Adapt.adapt_storage(::KernelAdaptor, t::CuTexture{T,N}) where {T,N} =
     CuDeviceTexture{T,N,typeof(memory_source(parent(t))),
                     t.normalized_coordinates, typeof(t.interpolation)}(size(t), t.handle)

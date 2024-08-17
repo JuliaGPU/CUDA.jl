@@ -30,26 +30,6 @@ using Julia. It features a user-friendly array abstraction, a compiler for writi
 kernels in Julia, and wrappers for various CUDA libraries.
 
 
-## Requirements
-
-The latest development version of CUDA.jl requires **Julia 1.8** or higher. If you are using
-an older version of Julia, you need to use a previous version of CUDA.jl. This will happen
-automatically when you install the package using Julia's package manager.
-
-CUDA.jl currently also requires a CUDA-capable GPU with **compute capability 3.5** (Kepler)
-or higher, and an accompanying NVIDIA driver with support for **CUDA 11.0** or newer. These
-requirements are not enforced by the Julia package manager when installing CUDA.jl.
-Depending on your system and GPU, you may need to install an older version of the package:
-
-* CUDA.jl v4.4 will be the last version with support for CUDA 11.0-11.3 (deprecated in v5.0)
-* CUDA.jl v4.0 is the last version to work with CUDA 10.2 (removed in v4.1)
-* CUDA.jl v3.13 is the last version to work with CUDA 10.1 (removed in v4.0)
-* CUDA.jl v1.3 is the last version to work with CUDA 9-10.0 (removed in v2.0)
-
-Finally, you should be using a platform **supported by NVIDIA**. Currently, that means using
-64-bit Linux or Windows, with an X86, ARM, or PowerPC host processor.
-
-
 ## Quick start
 
 Before all, make sure you have a recent NVIDIA driver. On Windows, also make sure you have
@@ -86,6 +66,35 @@ For more usage instructions and other information, please refer to [the
 documentation](https://juliagpu.github.io/CUDA.jl/stable/).
 
 
+## Requirements
+
+The latest development version of CUDA.jl requires **Julia 1.10** or higher. If you are
+using an older version of Julia, you need to use a previous version of CUDA.jl. This will
+happen automatically when you install the package using Julia's package manager.
+
+Note that CUDA.jl may not work with a custom build of Julia; it is recommended that you
+install Julia using the [official binaries](https://julialang.org/downloads/) or
+[juliaup](https://github.com/JuliaLang/juliaup).
+
+The latest version of CUDA.jl also has certain requirements that cannot be enforced by the
+package manager:
+
+- Host platform: only 64-bit Linux and Windows are supported;
+- Device hardware: only NVIDIA GPUs with **compute capability 3.5** (Kepler) or higher are
+  supported;
+- NVIDIA driver: a driver for **CUDA 11.0** or newer is required;
+- CUDA toolkit (in case you need to use your own): only **CUDA toolkit 11.4** or newer are
+  supported.
+
+If you cannot meet these requirements, you may need to install an older version of CUDA.jl:
+
+* CUDA.jl v5.3 is the last version with support for PowerPC (removed in v5.4)
+* CUDA.jl v4.4 is the last version with support for CUDA 11.0-11.3 (deprecated in v5.0)
+* CUDA.jl v4.0 is the last version to work with CUDA 10.2 (removed in v4.1)
+* CUDA.jl v3.13 is the last version to work with CUDA 10.1 (removed in v4.0)
+* CUDA.jl v1.3 is the last version to work with CUDA 9-10.0 (removed in v2.0)
+
+
 ## Supporting and Citing
 
 Much of the software in this ecosystem was developed as part of academic research. If you
@@ -98,9 +107,9 @@ root of this repository lists the relevant papers.
 
 ## Project Status
 
-The package is tested against, and being developed for, Julia 1.6 and above. Main
+The package is tested against, and being developed for, Julia 1.10 and above. Main
 development and testing happens on x86 Linux, but the package is expected to work on
-Windows, and on ARM and PowerPC as well.
+Windows and ARM and as well.
 
 
 ## Questions and Contributions

@@ -2,21 +2,19 @@
 @test has_cuda_gpu(true)
 
 # the API shouldn't have been initialized
-@test !has_context()
-@test !has_device()
+@test_throws UndefRefError current_context()
+@test_throws UndefRefError current_device()
 
 ctx = context()
 dev = device()
 
 # querying Julia's side of things shouldn't cause initialization
-@test !has_context()
-@test !has_device()
+@test_throws UndefRefError current_context()
+@test_throws UndefRefError current_device()
 
 # now cause initialization
 a = CuArray([42])
-@test has_context()
 @test current_context() == ctx
-@test has_device()
 @test current_device() == dev
 
 # ... on a different task
@@ -33,12 +31,10 @@ context!(ctx)
 @test context!(()->true, ctx)
 @inferred context!(()->42, ctx)
 
+# setting flags is only possible on a new context
 @test_throws ErrorException device!(0, CUDA.CU_CTX_SCHED_YIELD)
-
-if CUDA.can_reset_device()
-    # NVIDIA bug #3240770
+if CUDA.driver_version() >= v"12"
     device_reset!()
-
     device!(0, CUDA.CU_CTX_SCHED_YIELD)
 
     # reset on a different task
@@ -50,6 +46,22 @@ if CUDA.can_reset_device()
 
         @test CUDA.isvalid(context())
         @test ctx != context()
+    end
+
+    # ensure that resetting the device really does get rid of the context
+    if has_nvml()
+        pid = getpid()
+        try
+            cuda_dev = device()
+            mig = uuid(cuda_dev) != parent_uuid(cuda_dev)
+            nvml_dev = NVML.Device(uuid(cuda_dev); mig)
+            @test haskey(NVML.compute_processes(nvml_dev), pid)
+            device_reset!()
+            @test !haskey(NVML.compute_processes(nvml_dev), pid)
+        catch err
+            isa(err, NVML.NVMLError) || rethrow()
+            err.code in [NVML.ERROR_NOT_SUPPORTED, NVML.ERROR_NO_PERMISSION] || rethrow()
+        end
     end
 end
 
@@ -78,13 +90,15 @@ if length(devices()) > 1
 
     @test device() == CuDevice(0)
 
-    # reset on a task
-    task = @async begin
-        device!(1)
-        device_reset!()
+    if CUDA.driver_version() >= v"12"
+        # reset on a task
+        task = @async begin
+            device!(1)
+            device_reset!()
+        end
+        fetch(task)
+        @test device() == CuDevice(0)
     end
-    fetch(task)
-    @test device() == CuDevice(0)
 
     # math_mode
     old_mm = CUDA.math_mode()
@@ -117,7 +131,7 @@ if length(devices()) > 1
     @test device() == CuDevice(0)
 end
 
-@test deviceid() >= 0
+@test deviceid(device()) >= 0
 @test deviceid(CuDevice(0)) == 0
 if length(devices()) > 1
     @test deviceid(CuDevice(1)) == 1
@@ -167,3 +181,11 @@ end
     proc, out, err = julia_exec(`-e $script`, "CUDA_VISIBLE_DEVICES"=>"-1")
     @test success(proc)
 end
+
+
+## allocations
+
+@test @allocated(current_context()) == 0
+@test @allocated(context()) == 0
+@test @allocated(stream()) == 0
+@test @allocated(device()) == 0

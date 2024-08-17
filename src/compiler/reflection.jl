@@ -1,8 +1,7 @@
 # code reflection entry-points
 
 using .CUPTI
-using .CUPTI: CUpti_CallbackDomain, CUpti_CallbackId, CUpti_SubscriberHandle,
-              CUpti_ResourceData, CUpti_ModuleResourceData
+using .CUPTI: CUpti_ModuleResourceData
 
 
 
@@ -10,34 +9,22 @@ using .CUPTI: CUpti_CallbackDomain, CUpti_CallbackId, CUpti_SubscriberHandle,
 # code_* replacements
 #
 
-function code_sass_callback(userdata::Ptr{Cvoid}, domain::CUpti_CallbackDomain,
-                            cbid::CUpti_CallbackId, cbdada::Ptr{Cvoid})
-    dest = Base.unsafe_pointer_to_objref(userdata)::Ref{Any}
-
-    if domain == CUPTI.CUPTI_CB_DOMAIN_RESOURCE
-        cbdada = unsafe_load(reinterpret(Ptr{CUpti_ResourceData}, cbdada))
-        if cbid == CUPTI.CUPTI_CBID_RESOURCE_MODULE_LOADED
-            resourceDescriptor =
-                unsafe_load(reinterpret(Ptr{CUpti_ModuleResourceData}, cbdada.resourceDescriptor))
-            cubin = unsafe_wrap(Vector{Cchar}, pointer(resourceDescriptor.pCubin),
-                                resourceDescriptor.cubinSize)
-            dest[] = copy(cubin)
-        end
-    end
-
-    return
-end
-
 """
     code_sass([io], f, types; raw=false)
+    code_sass(f, [io]; raw=false)
 
-Prints the SASS code generated for the method matching the given generic function and type
-signature to `io` which defaults to `stdout`.
+Prints the SASS code corresponding to one or more CUDA modules to `io`, which defaults to
+`stdout`.
 
-The following keyword arguments are supported:
+If providing both `f` and `types`, it is assumed that this uniquely identifies a kernel
+function, for which SASS code will be generated, and printed to `io`.
+
+If only providing a callable function `f`, typically specified using the `do` syntax, the
+SASS code for all modules executed during evaluation of `f` will be printed. This can be
+convenient to display the SASS code for functions whose source code is not available.
 
 - `raw`: dump the assembly like `nvdisasm` reports it, without post-processing;
-- all keyword arguments from [`cufunction`](@ref)
+- in the case of specifying `f` and `types`: all keyword arguments from [`cufunction`](@ref)
 
 See also: [`@device_code_sass`](@ref)
 """
@@ -49,8 +36,8 @@ function code_sass(io::IO, @nospecialize(func), @nospecialize(types); kwargs...)
     code_sass(io, job; kwargs...)
 end
 
-# multiple subscribers aren't supported, so make sure we only call CUPTI once
-const cupti_lock = ReentrantLock()
+code_sass(@nospecialize(func), @nospecialize(types); kwargs...) =
+    code_sass(stdout, func, types; kwargs...)
 
 function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
     if !job.config.kernel
@@ -64,35 +51,80 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
         return
     end
 
-    compiled = compile(job)
-
-    cubin = Ref{Any}()
-    callback = @cfunction(code_sass_callback, Cvoid,
-                          (Ptr{Cvoid}, CUpti_CallbackDomain, CUpti_CallbackId, Ptr{Cvoid}))
-
-    # JIT compile and capture the generated object file
-    lock(cupti_lock) do
-        subscriber_ref = Ref{CUpti_SubscriberHandle}()
-        res = CUPTI.unsafe_cuptiSubscribe(subscriber_ref, callback, Base.pointer_from_objref(cubin))
-        if res === CUPTI.CUPTI_ERROR_INSUFFICIENT_PRIVILEGES
-            error("""Insufficient privilege: You don't have permissions to profile GPU code, which is required for `code_sass`.
-                    Get administrative privileges or allow all users to profile: https://developer.nvidia.com/ERR_NVGPUCTRPERM#SolnAdminTag""")
-        elseif res != CUPTI.CUPTI_SUCCESS
-            throw(CUPTIError(res))
-        end
-        subscriber = subscriber_ref[]
-        try
-            CUPTI.cuptiEnableDomain(1, subscriber, CUPTI.CUPTI_CB_DOMAIN_RESOURCE)
-            link(job, compiled)
-        finally
-            CUPTI.cuptiUnsubscribe(subscriber)
+    # NVIDIA bug #4604961: CUPTI in CUDA 12.4 Update 1 does not capture profiled events
+    # unless the activity API is first activated. This is fixed in 12.5 Update 1.
+    if v"2024.1.1" <= CUPTI.library_version() <= v"2024.2.0"
+        cfg = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL,
+                                    CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API])
+        CUPTI.enable!(cfg) do
+            # do nothing
         end
     end
 
-    # disassemble to SASS
-    isassigned(cubin) || error("No kernels compiled")
+    cfg = CUPTI.CallbackConfig([CUPTI.CUPTI_CB_DOMAIN_RESOURCE]) do domain, id, data
+        # only process relevant callbacks
+        id == CUPTI.CUPTI_CBID_RESOURCE_MODULE_LOADED || return
+        resourceDescriptor =
+            unsafe_load(convert(Ptr{CUpti_ModuleResourceData}, data.resourceDescriptor))
+
+        cubin = unsafe_wrap(Vector{Cchar}, pointer(resourceDescriptor.pCubin),
+                            resourceDescriptor.cubinSize)
+        disassemble_cubin(io, cubin; raw)
+    end
+
+    compiled = compile(job)
+    CUPTI.enable!(cfg) do
+        link(job, compiled)
+    end
+
+    return
+end
+
+function code_sass(f::Base.Callable, io::IO=stdout; raw::Bool=false)
+    # NVIDIA bug #3964667: CUPTI in CUDA 11.7+ broken for sm_35 devices
+    if runtime_version() >= v"11.7" && capability(device()) <= v"3.7"
+        @error """SASS code generation is not supported on this device.
+                  Please downgrade to CUDA 11.6 or lower, or use a more recent device."""
+        return
+    end
+
+    # NVIDIA bug #4604961: CUPTI in CUDA 12.4 Update 1 does not capture profiled events
+    # unless the activity API is first activated. This is fixed in 12.5 Update 1.
+    if v"2024.1.1" <= CUPTI.library_version() <= v"2024.2.0"
+        cfg = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL,
+                                    CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API])
+        CUPTI.enable!(cfg) do
+            # do nothing
+        end
+    end
+
+    seen_modules = Set{UInt32}()
+    cfg = CUPTI.CallbackConfig([CUPTI.CUPTI_CB_DOMAIN_RESOURCE]) do domain, id, data
+        # only process relevant callbacks
+        id == CUPTI.CUPTI_CBID_RESOURCE_MODULE_PROFILED || return
+        resourceDescriptor =
+            unsafe_load(convert(Ptr{CUpti_ModuleResourceData}, data.resourceDescriptor))
+
+        # only process each module once
+        if resourceDescriptor.moduleId in seen_modules
+            return
+        end
+        push!(seen_modules, resourceDescriptor.moduleId)
+
+        cubin = unsafe_wrap(Vector{Cchar}, pointer(resourceDescriptor.pCubin),
+                            resourceDescriptor.cubinSize)
+        disassemble_cubin(io, cubin; raw)
+    end
+
+    CUPTI.enable!(f, cfg)
+
+    return
+end
+
+# disassemble a cubin to SASS
+function disassemble_cubin(io::IO, cubin::Vector{Cchar}; raw::Bool)
     mktemp() do cubin_path,cubin_io
-        write(cubin_io, cubin[])
+        write(cubin_io, cubin)
         flush(cubin_io)
 
         cmd = `$(nvdisasm()) --print-code --print-line-info $cubin_path`
@@ -100,7 +132,7 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
             if !raw
                 # nvdisasm output is pretty verbose;
                 # perform some clean-up and make it look like @code_native
-                line = replace(line, r"/\*[0-9a-f]{4}\*/" => "        ") # strip inst addr
+                line = replace(line, r"/\*[0-9a-f]{4,5}\*/" => " "^8)    # strip inst addr
                 line = replace(line, r"^[ ]{30}" => "   ")               # reduce leading spaces
                 line = replace(line, r"[\s+]//##" => ";")                # change line info tag
                 line = replace(line, r"^\." => "\n.")                    # break before new BBs
@@ -110,9 +142,6 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
         end
     end
 end
-
-code_sass(@nospecialize(func), @nospecialize(types); kwargs...) =
-    code_sass(stdout, func, types; kwargs...)
 
 
 # forward the rest to GPUCompiler with an appropriate CompilerJob
@@ -179,16 +208,22 @@ export @device_code_lowered, @device_code_typed, @device_code_warntype,
     @device_code_sass [io::IO=stdout, ...] ex
 
 Evaluates the expression `ex` and prints the result of [`CUDA.code_sass`](@ref) to
-`io` for every compiled CUDA kernel. For other supported keywords, see
+`io` for every executed CUDA kernel. For other supported keywords, see
 [`CUDA.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
-    function hook(job::CompilerJob; io::IO=stdout, kwargs...)
-        println(io, "// $job")
-        println(io)
-        code_sass(io, job; kwargs...)
+    code = ex[end]
+    kwargs = ex[1:end-1]
+
+    function hook(f; io::IO=stdout, kwargs...)
+        code_sass(f, io; kwargs...)
     end
-    GPUCompiler.emit_hooked_compilation(hook, ex...)
+
+    quote
+        $hook(; $(map(esc, kwargs)...)) do
+            $(esc(code))
+        end
+    end
 end
 
 

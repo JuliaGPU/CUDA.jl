@@ -21,8 +21,11 @@ using LLVM.Interop: assume
 using CEnum: @cenum
 
 
+const cudaDataType_t = cudaDataType
+
 # core library
 include("libcublas.jl")
+include("libcublasLt.jl")
 include("libcublas_deprecated.jl")
 
 # low-level wrappers
@@ -69,9 +72,20 @@ function math_mode!(handle, mode)
     return
 end
 
-# cache for created, but unused handles
-const idle_handles = HandleCache{CuContext,cublasHandle_t}()
-const idle_xt_handles = HandleCache{Any,cublasXtHandle_t}()
+
+## handles
+
+function handle_ctor(ctx)
+    context!(ctx) do
+        cublasCreate()
+    end
+end
+function handle_dtor(ctx, handle)
+    context!(ctx; skip_destroyed=true) do
+        cublasDestroy_v2(handle)
+    end
+end
+const idle_handles = HandleCache{CuContext,cublasHandle_t}(handle_ctor, handle_dtor)
 
 function handle()
     cuda = CUDA.active_state()
@@ -84,20 +98,12 @@ function handle()
 
     # get library state
     @noinline function new_state(cuda)
-        new_handle = pop!(idle_handles, cuda.context) do
-            cublasCreate()
-        end
-
+        new_handle = pop!(idle_handles, cuda.context)
         finalizer(current_task()) do task
-            push!(idle_handles, cuda.context, new_handle) do
-                context!(cuda.context; skip_destroyed=true) do
-                    cublasDestroy_v2(new_handle)
-                end
-            end
+            push!(idle_handles, cuda.context, new_handle)
         end
 
         cublasSetStream_v2(new_handle, cuda.stream)
-
         math_mode!(new_handle, cuda.math_mode)
 
         (; handle=new_handle, cuda.stream, cuda.math_mode)
@@ -127,6 +133,33 @@ function handle()
     return state.handle
 end
 
+
+## xt handles
+
+function xt_handle_ctor(ctxs)
+    cublasXtCreate()
+end
+function xt_handle_dtor(ctxs, handle)
+    for ctx in ctxs
+        CUDA.isvalid(ctx) || return
+    end
+    cublasXtDestroy(handle)
+end
+const idle_xt_handles =
+    HandleCache{Vector{CuContext},cublasXtHandle_t}(xt_handle_ctor, xt_handle_dtor)
+
+function devices!(devs::Vector{CuDevice})
+    task_local_storage(:CUBLASxt_devices, sort(devs; by=deviceid))
+    return
+end
+
+devices() = get!(task_local_storage(), :CUBLASxt_devices) do
+    # by default, select all devices
+    sort(collect(CUDA.devices()); by=deviceid)
+end::Vector{CuDevice}
+
+ndevices() = length(devices())
+
 function xt_handle()
     cuda = CUDA.active_state()
 
@@ -136,24 +169,29 @@ function xt_handle()
         Dict{UInt,LibraryState}()
     end::Dict{UInt,LibraryState}
 
-    # derive a key from the selected devices
+    # for performance, don't use a tuple of contexts to index the TLS
     key = zero(UInt)
     for dev in devices()
-        # we hash the device context to support device resets
         key = hash(context(dev), key)
     end
 
     # get library state
     @noinline function new_state(cuda)
-        new_handle = pop!(idle_xt_handles, cuda.context) do
-            cublasXtCreate()
+        # these are the actual contexts
+        ctxs = [context(dev) for dev in devices()]
+
+        new_handle = pop!(idle_xt_handles, ctxs)
+        finalizer(current_task()) do task
+            push!(idle_xt_handles, ctxs, new_handle)
         end
 
-        finalizer(current_task()) do task
-            push!(idle_xt_handles, cuda.context, new_handle) do
-                # TODO: which context do we need to destroy this on?
-                cublasXtDestroy(new_handle)
-            end
+        # if we're using the stream-ordered allocator,
+        # make sure allocations are visible on all devices
+        async_devs = filter(memory_pools_supported, devices())
+        for dev in async_devs
+            other_devs = filter(!isequal(dev), async_devs)
+            pool = CUDA.pool_create(dev)
+            access!(pool, other_devs, CUDA.CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
         end
 
         devs = convert.(Cint, devices())
@@ -167,18 +205,6 @@ function xt_handle()
 
     return state.handle
 end
-
-function devices!(devs::Vector{CuDevice})
-    task_local_storage(:CUBLASxt_devices, sort(devs; by=deviceid))
-    return
-end
-
-devices() = get!(task_local_storage(), :CUBLASxt_devices) do
-    # by default, select all devices
-    sort(collect(CUDA.devices()); by=deviceid)
-end::Vector{CuDevice}
-
-ndevices() = length(devices())
 
 
 ## logging
@@ -237,28 +263,28 @@ end
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    precompiling && return
 
     if !CUDA_Runtime.is_available()
-        #@error "cuBLAS is not available"
+        #precompiling || @error "cuBLAS is not available"
         return
     end
 
     # register a log callback
-    log_cond[] = Base.AsyncCondition() do async_cond
-        blob = ""
-        while true
-            message_length = log_cursor[]
-            blob = unsafe_string(pointer(log_buffer), message_length)
-            if Threads.atomic_cas!(log_cursor, message_length, UInt(0)) == message_length
-                break
+    if !Sys.iswindows() && # NVIDIA bug #3321130 &&
+       !precompiling && (isdebug(:init, CUBLAS) || Base.JLOptions().debug_level >= 2)
+        log_cond[] = Base.AsyncCondition() do async_cond
+            blob = ""
+            while true
+                message_length = log_cursor[]
+                blob = unsafe_string(pointer(log_buffer), message_length)
+                if Threads.atomic_cas!(log_cursor, message_length, UInt(0)) == message_length
+                    break
+                end
             end
+            _log_message(blob)
+            return
         end
-        _log_message(blob)
-        return
-    end
-    if (isdebug(:init, CUBLAS) || Base.JLOptions().debug_level >= 2) &&
-       !Sys.iswindows() # NVIDIA bug #3321130
+
         callback = @cfunction(log_message, Nothing, (Cstring,))
         cublasSetLoggerCallback(callback)
     end

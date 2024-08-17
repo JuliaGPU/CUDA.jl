@@ -31,3 +31,35 @@ function Base.convert(::Type{cusolverEigMode_t}, jobz::Char)
         throw(ArgumentError("Unknown eigenvalue solver mode $jobz."))
     end
 end
+
+function Base.convert(::Type{cusolverEigRange_t}, range::Char)
+    if range == 'A'
+        CUSOLVER_EIG_RANGE_ALL
+    elseif range == 'V'
+        CUSOLVER_EIG_RANGE_V
+    elseif range == 'I'
+        CUSOLVER_EIG_RANGE_I
+    else
+        throw(ArgumentError("Unknown eigenvalue solver range $range."))
+    end
+end
+
+function Base.convert(::Type{cusolverStorevMode_t}, storev::Char)
+    if storev == 'C'
+        CUBLAS_STOREV_COLUMNWISE
+    elseif storev == 'R'
+        CUBLAS_STOREV_ROWWISE
+    else
+        throw(ArgumentError("Unknown storage mode $storev."))
+    end
+end
+
+function Base.convert(::Type{cusolverDirectMode_t}, direct::Char)
+    if direct == 'F'
+        CUBLAS_DIRECT_FORWARD
+    elseif direct == 'B'
+        CUBLAS_DIRECT_BACKWARD
+    else
+        throw(ArgumentError("Unknown direction mode $direct."))
+    end
+end

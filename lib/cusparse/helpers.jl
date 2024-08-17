@@ -36,6 +36,14 @@ end
 mutable struct CuDenseVectorDescriptor
     handle::cusparseDnVecDescr_t
 
+    function CuDenseVectorDescriptor(T::DataType, n::Integer)
+        desc_ref = Ref{cusparseDnVecDescr_t}()
+        cusparseCreateDnVec(desc_ref, n, CU_NULL, T)
+        obj = new(desc_ref[])
+        finalizer(cusparseDestroyDnVec, obj)
+        obj
+    end
+
     function CuDenseVectorDescriptor(x::DenseCuVector)
         desc_ref = Ref{cusparseDnVecDescr_t}()
         cusparseCreateDnVec(desc_ref, length(x), x, eltype(x))
@@ -71,12 +79,36 @@ Base.unsafe_convert(::Type{cusparseSpVecDescr_t}, desc::CuSparseVectorDescriptor
 mutable struct CuDenseMatrixDescriptor
     handle::cusparseDnMatDescr_t
 
+    function CuDenseMatrixDescriptor(T::DataType, m::Integer, n::Integer; transposed::Bool=false)
+        desc_ref = Ref{cusparseDnMatDescr_t}()
+        if transposed
+            cusparseCreateDnMat(desc_ref, n, m, m, CU_NULL, T, 'R')
+        else
+            cusparseCreateDnMat(desc_ref, m, n, m, CU_NULL, T, 'C')
+        end
+        obj = new(desc_ref[])
+        finalizer(cusparseDestroyDnMat, obj)
+        obj
+    end
+
     function CuDenseMatrixDescriptor(A::DenseCuMatrix; transposed::Bool=false)
         desc_ref = Ref{cusparseDnMatDescr_t}()
         if transposed
             cusparseCreateDnMat(desc_ref, reverse(size(A))..., stride(A,2), A, eltype(A), 'R')
         else
             cusparseCreateDnMat(desc_ref, size(A)..., stride(A,2), A, eltype(A), 'C')
+        end
+        obj = new(desc_ref[])
+        finalizer(cusparseDestroyDnMat, obj)
+        obj
+    end
+
+    function CuDenseMatrixDescriptor(A::DenseCuArray{T, 3}; transposed::Bool=false) where T
+        desc_ref = Ref{cusparseDnMatDescr_t}()
+        if transposed
+            cusparseCreateDnMat(desc_ref, size(A,2), size(A,1), stride(A,2), A, eltype(A), 'R')
+        else
+            cusparseCreateDnMat(desc_ref, size(A,1), size(A,2), stride(A,2), A, eltype(A), 'C')
         end
         obj = new(desc_ref[])
         finalizer(cusparseDestroyDnMat, obj)
@@ -117,6 +149,28 @@ mutable struct CuSparseMatrixDescriptor
     function CuSparseMatrixDescriptor(::Type{CuSparseMatrixCOO}, Tv::DataType, Ti::DataType, m::Integer, n::Integer, IndexBase::Char)
         desc_ref = Ref{cusparseSpMatDescr_t}()
         cusparseCreateCoo(desc_ref, m, n, Ti(0), CU_NULL, CU_NULL, CU_NULL, Ti, IndexBase, Tv)
+        obj = new(desc_ref[])
+        finalizer(cusparseDestroySpMat, obj)
+        return obj
+    end
+
+    function CuSparseMatrixDescriptor(A::CuSparseArrayCSR, IndexBase::Char; transposed::Bool=false)
+        desc_ref = Ref{cusparseSpMatDescr_t}()
+        if transposed
+            cusparseCreateCsc(
+                desc_ref,
+                reverse(size(A)[1:2])..., nnz(A) ÷ size(A,3),
+                A.rowPtr, A.colVal, nonzeros(A),
+                eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A))
+            )
+        else
+            cusparseCreateCsr(
+                desc_ref,
+                size(A)[1:2]..., nnz(A) ÷ size(A,3),
+                A.rowPtr, A.colVal, nonzeros(A),
+                eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A))
+            )
+        end
         obj = new(desc_ref[])
         finalizer(cusparseDestroySpMat, obj)
         return obj
@@ -182,6 +236,21 @@ mutable struct CuSparseMatrixDescriptor
         finalizer(cusparseDestroySpMat, obj)
         return obj
     end
+
+    function CuSparseMatrixDescriptor(A::CuSparseMatrixBSR, IndexBase::Char)
+        desc_ref = Ref{cusparseSpMatDescr_t}()
+        cusparseCreateBsr(
+            desc_ref,
+            size(A)..., nnz(A),
+            A.blockDim, A.blockDim,
+            A.rowPtr, A.colVal, nonzeros(A),
+            eltype(A.rowPtr), eltype(A.colVal), IndexBase,
+            eltype(nonzeros(A)), A.dir
+        )
+        obj = new(desc_ref[])
+        finalizer(cusparseDestroySpMat, obj)
+        return obj
+    end
 end
 
 Base.unsafe_convert(::Type{cusparseSpMatDescr_t}, desc::CuSparseMatrixDescriptor) = desc.handle
@@ -227,3 +296,59 @@ mutable struct CuSparseSpSMDescriptor
 end
 
 Base.unsafe_convert(::Type{cusparseSpSMDescr_t}, desc::CuSparseSpSMDescriptor) = desc.handle
+
+mutable struct IC0Info
+    info::csric02Info_t
+
+    function IC0Info()
+        info_ref = Ref{csric02Info_t}()
+        cusparseCreateCsric02Info(info_ref)
+        obj = new(info_ref[])
+        finalizer(cusparseDestroyCsric02Info, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{csric02Info_t}, info::IC0Info) = info.info
+
+mutable struct IC0InfoBSR
+    info::bsric02Info_t
+
+    function IC0InfoBSR()
+        info_ref = Ref{bsric02Info_t}()
+        cusparseCreateBsric02Info(info_ref)
+        obj = new(info_ref[])
+        finalizer(cusparseDestroyBsric02Info, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{bsric02Info_t}, info::IC0InfoBSR) = info.info
+
+mutable struct ILU0Info
+    info::csrilu02Info_t
+
+    function ILU0Info()
+        info_ref = Ref{csrilu02Info_t}()
+        cusparseCreateCsrilu02Info(info_ref)
+        obj = new(info_ref[])
+        finalizer(cusparseDestroyCsrilu02Info, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{csrilu02Info_t}, info::ILU0Info) = info.info
+
+mutable struct ILU0InfoBSR
+    info::bsrilu02Info_t
+
+    function ILU0InfoBSR()
+        info_ref = Ref{bsrilu02Info_t}()
+        cusparseCreateBsrilu02Info(info_ref)
+        obj = new(info_ref[])
+        finalizer(cusparseDestroyBsrilu02Info, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{bsrilu02Info_t}, info::ILU0InfoBSR) = info.info

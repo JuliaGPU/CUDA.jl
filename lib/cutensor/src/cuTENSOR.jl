@@ -7,6 +7,8 @@ using CUDA: retry_reclaim, initialize_context, isdebug
 
 using CEnum: @cenum
 
+using Printf: @printf
+
 if CUDA.local_toolkit
     using CUDA_Runtime_Discovery
 else
@@ -27,34 +29,42 @@ include("libcutensor.jl")
 
 # low-level wrappers
 include("error.jl")
-include("tensor.jl")
-include("wrappers.jl")
+include("utils.jl")
+include("types.jl")
+include("operations.jl")
 
 # high-level integrations
 include("interfaces.jl")
 
-# cache for created, but unused handles
-const idle_handles = HandleCache{CuContext,Ptr{cutensorHandle_t}}()
+
+## handles
+
+function handle_ctor(ctx)
+    context!(ctx) do
+        cutensorCreate()
+    end
+end
+function handle_dtor(ctx, handle)
+    context!(ctx; skip_destroyed=true) do
+        cutensorDestroy(handle)
+    end
+end
+const idle_handles = HandleCache{CuContext,cutensorHandle_t}(handle_ctor, handle_dtor)
 
 function handle()
     cuda = CUDA.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::Ptr{cutensorHandle_t}}
+    LibraryState = @NamedTuple{handle::cutensorHandle_t}
     states = get!(task_local_storage(), :cuTENSOR) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
 
     # get library state
     @noinline function new_state(cuda)
-        new_handle = pop!(idle_handles, cuda.context) do
-            cutensorCreate()
-        end
-
+        new_handle = pop!(idle_handles, cuda.context)
         finalizer(current_task()) do task
-            push!(idle_handles, cuda.context, new_handle) do
-                cutensorDestroy(new_handle)
-            end
+            push!(idle_handles, cuda.context, new_handle)
         end
 
         (; handle=new_handle)
@@ -94,8 +104,8 @@ function __init__()
     # find the library
     global libcutensor
     if CUDA.local_toolkit
-        dirs = CUDA_Runtime.find_toolkit()
-        path = CUDA_Runtime.get_library(dirs, "cutensor"; optional=true)
+        dirs = CUDA_Runtime_Discovery.find_toolkit()
+        path = CUDA_Runtime_Discovery.get_library(dirs, "cutensor"; optional=true)
         if path === nothing
             precompiling || @error "cuTENSOR is not available on your system (looked in $(join(dirs, ", ")))"
             return
@@ -110,7 +120,7 @@ function __init__()
     end
 
     # register a log callback
-    if isdebug(:init, cuTENSOR) || Base.JLOptions().debug_level >= 2
+    if !precompiling && (isdebug(:init, cuTENSOR) || Base.JLOptions().debug_level >= 2)
         callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
         cutensorLoggerSetCallback(callback)
         cutensorLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")

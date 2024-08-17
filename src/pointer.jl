@@ -73,8 +73,15 @@ Base.:(==)(x::CuPtr, y::CuPtr) = UInt(x) == UInt(y)
 Base.:(<)(x::CuPtr,  y::CuPtr) = UInt(x) < UInt(y)
 Base.:(-)(x::CuPtr,  y::CuPtr) = UInt(x) - UInt(y)
 
+if VERSION >= v"1.12.0-DEV.225"
+Base.:(+)(x::CuPtr{T}, y::Integer) where T =
+    reinterpret(CuPtr{T}, Base.add_ptr(reinterpret(Ptr{T}, x), (y % UInt) % UInt))
+Base.:(-)(x::CuPtr{T}, y::Integer) where T =
+    reinterpret(CuPtr{T}, Base.sub_ptr(reinterpret(Ptr{T}, x), (y % UInt) % UInt))
+else
 Base.:(+)(x::CuPtr, y::Integer) = oftype(x, Base.add_ptr(UInt(x), (y % UInt) % UInt))
 Base.:(-)(x::CuPtr, y::Integer) = oftype(x, Base.sub_ptr(UInt(x), (y % UInt) % UInt))
+end
 Base.:(+)(x::Integer, y::CuPtr) = y + x
 
 
@@ -129,6 +136,10 @@ function Base.unsafe_convert(::Type{PtrOrCuPtr{T}}, val) where {T}
     return Base.bitcast(PtrOrCuPtr{T}, ptr)
 end
 
+# avoid ambiguities when passing PtrOrCuPtr instances
+# NOTE: this happens now with `@gcsafe_ccall` due to the double `ccall`
+Base.unsafe_convert(::Type{PtrOrCuPtr{T}}, x::PtrOrCuPtr{T}) where {T} = x
+
 
 #
 # CUDA array pointer
@@ -182,8 +193,15 @@ Base.:(==)(x::CuArrayPtr, y::CuArrayPtr) = UInt(x) == UInt(y)
 Base.:(<)(x::CuArrayPtr,  y::CuArrayPtr) = UInt(x) < UInt(y)
 Base.:(-)(x::CuArrayPtr,  y::CuArrayPtr) = UInt(x) - UInt(y)
 
+if VERSION >= v"1.12.0-DEV.225"
+Base.:(+)(x::CuArrayPtr{T}, y::Integer) where T =
+    reinterpret(CuArrayPtr{T}, Base.add_ptr(reinterpret(Ptr{T}, x), (y % UInt) % UInt))
+Base.:(-)(x::CuArrayPtr{T}, y::Integer) where T =
+    reinterpret(CuArrayPtr{T}, Base.sub_ptr(reinterpret(Ptr{T}, x), (y % UInt) % UInt))
+else
 Base.:(+)(x::CuArrayPtr, y::Integer) = oftype(x, Base.add_ptr(UInt(x), (y % UInt) % UInt))
 Base.:(-)(x::CuArrayPtr, y::Integer) = oftype(x, Base.sub_ptr(UInt(x), (y % UInt) % UInt))
+end
 Base.:(+)(x::Integer, y::CuArrayPtr) = y + x
 
 
@@ -269,3 +287,7 @@ Base.convert(::Type{RefOrCuRef{T}}, x::Array{T}) where {T} = convert(Ref{T}, x)
 Base.convert(::Type{RefOrCuRef{T}}, x::AbstractArray{T}) where {T} = convert(CuRef{T}, x)
 Base.unsafe_convert(P::Type{RefOrCuRef{T}}, b::CuRefArray{T}) where T =
     Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(CuRef{T}, b))
+
+# avoid ambiguities when passing RefOrCuRef instances
+# NOTE: this happens now with `@gcsafe_ccall` due to the double `ccall`
+Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::RefOrCuRef{T}) where {T} = x

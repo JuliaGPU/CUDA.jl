@@ -11,10 +11,14 @@ dummy() = return
 @testset "launch configuration" begin
     @cuda dummy()
 
+    threads = 1
+    @cuda threads dummy()
     @cuda threads=1 dummy()
     @cuda threads=(1,1) dummy()
     @cuda threads=(1,1,1) dummy()
 
+    blocks = 1
+    @cuda blocks dummy()
     @cuda blocks=1 dummy()
     @cuda blocks=(1,1) dummy()
     @cuda blocks=(1,1,1) dummy()
@@ -36,8 +40,23 @@ end
 @testset "compilation params" begin
     @cuda dummy()
 
-    @test_throws CuError @cuda threads=2 maxthreads=1 dummy()
+    @test_throws "Number of threads per block exceeds kernel limit" begin
+        @cuda threads=2 maxthreads=1 dummy()
+    end
     @cuda threads=2 dummy()
+
+    # sm_10 isn't supported by LLVM
+    @test_throws "not supported by LLVM" @cuda launch=false cap=v"1.0" dummy()
+    # sm_20 is, but not by any CUDA version we support
+    @test_throws "Failed to compile PTX code" @cuda launch=false cap=v"2.0" dummy()
+    # there isn't any capability other than the device's that's guaruanteed to work
+    @cuda launch=false cap=capability(device()) dummy()
+    # but we should be able to see it in the generated PTX code
+    asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=v"5.0"))
+    @test contains(asm, ".target sm_50")
+
+    asm = sprint(io->CUDA.code_ptx(io, dummy, (); ptx=v"6.3"))
+    @test contains(asm, ".version 6.3")
 end
 
 
@@ -58,8 +77,18 @@ end
     CUDA.code_warntype(devnull, dummy, Tuple{})
     CUDA.code_llvm(devnull, dummy, Tuple{})
     CUDA.code_ptx(devnull, dummy, Tuple{})
-    if can_use_cupti()
-        CUDA.code_sass(devnull, dummy, Tuple{})
+    if can_use_cupti() && !(v"2024.2.0" <= CUPTI.library_version()) # NVIDIA bug #4667039
+        # functions defined in Julia
+        sass = sprint(io->CUDA.code_sass(io, dummy, Tuple{}))
+        @test occursin(".text._Z5dummy", sass)
+
+        # external functions
+        sass = sprint(io->begin
+            CUDA.code_sass(io) do
+                CUBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
+            end
+        end)
+        @test occursin("copy_kernel", sass)
     end
 
     @device_code_lowered @cuda dummy()
@@ -67,8 +96,18 @@ end
     @device_code_warntype io=devnull @cuda dummy()
     @device_code_llvm io=devnull @cuda dummy()
     @device_code_ptx io=devnull @cuda dummy()
-    if can_use_cupti()
-        @device_code_sass io=devnull @cuda dummy()
+    if can_use_cupti() && !(v"2024.2.0" <= CUPTI.library_version()) # NVIDIA bug #4667039
+        # functions defined in Julia
+        sass = sprint(io->@device_code_sass io=io @cuda dummy())
+        @test occursin(".text._Z5dummy", sass)
+
+        # external functions
+        sass = sprint(io->begin
+            @device_code_sass io=io begin
+                CUBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
+            end
+        end)
+        @test occursin("copy_kernel", sass)
     end
 
     mktempdir() do dir
@@ -81,7 +120,7 @@ end
     @test occursin("dummy", sprint(io->(@device_code_llvm io=io optimize=false @cuda dummy())))
     @test occursin("dummy", sprint(io->(@device_code_llvm io=io @cuda dummy())))
     @test occursin("dummy", sprint(io->(@device_code_ptx io=io @cuda dummy())))
-    if can_use_cupti()
+    if can_use_cupti() && !(v"2024.2.0" <= CUPTI.library_version()) # NVIDIA bug #4667039
         @test occursin("dummy", sprint(io->(@device_code_sass io=io @cuda dummy())))
     end
 
@@ -457,7 +496,7 @@ end
     @eval struct Host   end
     @eval struct Device end
 
-    Adapt.adapt_storage(::CUDA.Adaptor, a::Host) = Device()
+    Adapt.adapt_storage(::CUDA.KernelAdaptor, a::Host) = Device()
 
     Base.convert(::Type{Int}, ::Host)   = 1
     Base.convert(::Type{Int}, ::Device) = 2
@@ -582,6 +621,11 @@ end
     @test f(2) == 2
 end
 
+@testset "parameter space" begin
+    kernel(x) = nothing
+    @test_throws "Kernel invocation uses too much parameter memory" @cuda kernel(ntuple(_->UInt64(1), 2^13))
+end
+
 end
 
 ############################################################################################
@@ -674,7 +718,7 @@ end
 
         threads = 256
         out = CuArray{OT}(undef, (1,))
-        @cuda threads=threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
+        @cuda threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
         Array(out)[1]
     end
 
@@ -726,7 +770,7 @@ end
 
         threads = 256
         out = CuArray{OT}(undef, (1,))
-        @cuda threads=threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
+        @cuda threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
         Array(out)[1]
     end
 
@@ -1025,40 +1069,6 @@ end
     @cuda threads=1 dp_6arg_kernel(1, 1, 1, 1, 1, 1)
     @cuda threads=1 main_5arg_kernel()
     @cuda threads=1 main_6arg_kernel()
-end
-
-end
-
-############################################################################################
-
-if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
-
-@testset "cooperative groups" begin
-    function kernel_vadd(a, b, c)
-        i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
-        grid_handle = this_grid()
-        c[i] = a[i] + b[i]
-        sync_grid(grid_handle)
-        c[i] = c[1]
-        return nothing
-    end
-
-    # cooperative kernels are additionally limited in the number of blocks that can be launched
-    maxBlocks = attribute(device(), CUDA.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
-    kernel = cufunction(kernel_vadd, NTuple{3, CuDeviceArray{Float32,2,AS.Global}})
-    maxThreads = CUDA.maxthreads(kernel)
-
-    a = rand(Float32, maxBlocks, maxThreads)
-    b = rand(Float32, size(a)) * 100
-    c = similar(a)
-    d_a = CuArray(a)
-    d_b = CuArray(b)
-    d_c = CuArray(c)  # output array
-
-    @cuda cooperative=true threads=maxThreads blocks=maxBlocks kernel_vadd(d_a, d_b, d_c)
-
-    c = Array(d_c)
-    @test all(c[1] .== c)
 end
 
 end

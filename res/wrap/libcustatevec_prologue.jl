@@ -13,14 +13,13 @@ const int2 = Tuple{Int32,Int32}
     end
 end
 
-function check(f, errs...)
-    res = retry_reclaim(in((CUSTATEVEC_STATUS_ALLOC_FAILED, errs...))) do
-        f()
-    end
+@inline function check(f)
+    retry_if(res) = res in (CUSTATEVEC_STATUS_NOT_INITIALIZED,
+                            CUSTATEVEC_STATUS_ALLOC_FAILED,
+                            CUSTATEVEC_STATUS_INTERNAL_ERROR)
+    res = retry_reclaim(f, retry_if)
 
     if res != CUSTATEVEC_STATUS_SUCCESS
         throw_api_error(res)
     end
-
-    return
 end

@@ -86,13 +86,9 @@ needs_context = false
 3 = "CuPtr{Cvoid}"
 6 = "PtrOrCuPtr{Cvoid}"
 
-[api.cublasSnrm2_v2.argtypes]
-3 = "CuPtr{Cfloat}"
-5 = "RefOrCuRef{Cfloat}"
-
-[api.cublasDnrm2_v2.argtypes]
-3 = "CuPtr{Cdouble}"
-5 = "RefOrCuRef{Cdouble}"
+[api."cublas𝕏nrm2_v2".argtypes]
+3 = "CuPtr{T}"
+5 = "RefOrCuRef{T}"
 
 [api.cublasScnrm2_v2.argtypes]
 3 = "CuPtr{cuComplex}"
@@ -112,59 +108,32 @@ needs_context = false
 6 = "CuPtr{Cvoid}"
 9 = "PtrOrCuPtr{Cvoid}"
 
-[api.cublasSdot_v2.argtypes]
-3 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-7 = "RefOrCuRef{Cfloat}"
+[api."cublas𝕏dot_v2".argtypes]
+3 = "CuPtr{T}"
+5 = "CuPtr{T}"
+7 = "RefOrCuRef{T}"
 
-[api.cublasDdot_v2.argtypes]
-3 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-7 = "RefOrCuRef{Cdouble}"
+[api."cublas𝕏dotu_v2".argtypes]
+3 = "CuPtr{T}"
+5 = "CuPtr{T}"
+7 = "RefOrCuRef{T}"
 
-[api.cublasCdotu_v2.argtypes]
-3 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-7 = "RefOrCuRef{cuComplex}"
-
-[api.cublasCdotc_v2.argtypes]
-3 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-7 = "RefOrCuRef{cuComplex}"
-
-[api.cublasZdotu_v2.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "RefOrCuRef{cuDoubleComplex}"
-
-[api.cublasZdotc_v2.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "RefOrCuRef{cuDoubleComplex}"
+[api."cublas𝕏dotc_v2".argtypes]
+3 = "CuPtr{T}"
+5 = "CuPtr{T}"
+7 = "RefOrCuRef{T}"
 
 [api.cublasScalEx.argtypes]
 3 = "PtrOrCuPtr{Cvoid}"
 5 = "CuPtr{Cvoid}"
 
-[api.cublasSscal_v2.argtypes]
-3 = "RefOrCuRef{Cfloat}"
-4 = "CuPtr{Cfloat}"
-
-[api.cublasDscal_v2.argtypes]
-3 = "RefOrCuRef{Cdouble}"
-4 = "CuPtr{Cdouble}"
-
-[api.cublasCscal_v2.argtypes]
-3 = "RefOrCuRef{cuComplex}"
-4 = "CuPtr{cuComplex}"
+[api."cublas𝕏scal_v2".argtypes]
+3 = "RefOrCuRef{T}"
+4 = "CuPtr{T}"
 
 [api.cublasCsscal_v2.argtypes]
 3 = "RefOrCuRef{Cfloat}"
 4 = "CuPtr{cuComplex}"
-
-[api.cublasZscal_v2.argtypes]
-3 = "RefOrCuRef{cuDoubleComplex}"
-4 = "CuPtr{cuDoubleComplex}"
 
 [api.cublasZdscal_v2.argtypes]
 3 = "RefOrCuRef{Cdouble}"
@@ -175,61 +144,22 @@ needs_context = false
 5 = "CuPtr{Cvoid}"
 8 = "CuPtr{Cvoid}"
 
-[api.cublasSaxpy_v2.argtypes]
-3 = "RefOrCuRef{Cfloat}"
-4 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
-
-[api.cublasDaxpy_v2.argtypes]
-3 = "RefOrCuRef{Cdouble}"
-4 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
-
-[api.cublasCaxpy_v2.argtypes]
-3 = "RefOrCuRef{cuComplex}"
-4 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
-
-[api.cublasZaxpy_v2.argtypes]
-3 = "RefOrCuRef{cuDoubleComplex}"
-4 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
+[api."cublas𝕏axpy_v2".argtypes]
+3 = "RefOrCuRef{T}"
+4 = "CuPtr{T}"
+6 = "CuPtr{T}"
 
 [api.cublasCopyEx.argtypes]
 3 = "CuPtr{Cvoid}"
 6 = "CuPtr{Cvoid}"
 
-[api.cublasScopy_v2.argtypes]
-3 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
+[api."cublas𝕏copy_v2".argtypes]
+3 = "CuPtr{T}"
+5 = "CuPtr{T}"
 
-[api.cublasDcopy_v2.argtypes]
-3 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-
-[api.cublasCcopy_v2.argtypes]
-3 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-
-[api.cublasZcopy_v2.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasSswap_v2.argtypes]
-3 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-
-[api.cublasDswap_v2.argtypes]
-3 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-
-[api.cublasCswap_v2.argtypes]
-3 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-
-[api.cublasZswap_v2.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
+[api."cublas𝕏swap_v2".argtypes]
+3 = "CuPtr{T}"
+5 = "CuPtr{T}"
 
 [api.cublasSwapEx.argtypes]
 3 = "CuPtr{Cvoid}"
@@ -279,13 +209,9 @@ needs_context = false
 3 = "CuPtr{Cvoid}"
 6 = "PtrOrCuPtr{Cvoid}"
 
-[api.cublasSasum_v2.argtypes]
-3 = "CuPtr{Cfloat}"
-5 = "RefOrCuRef{Cfloat}"
-
-[api.cublasDasum_v2.argtypes]
-3 = "CuPtr{Cdouble}"
-5 = "RefOrCuRef{Cdouble}"
+[api."cublas𝕏asum_v2".argtypes]
+3 = "CuPtr{T}"
+5 = "RefOrCuRef{T}"
 
 [api.cublasScasum_v2.argtypes]
 3 = "CuPtr{cuComplex}"
@@ -295,35 +221,17 @@ needs_context = false
 3 = "CuPtr{cuDoubleComplex}"
 5 = "RefOrCuRef{Cdouble}"
 
-[api.cublasSrot_v2.argtypes]
-3 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-7 = "RefOrCuRef{Cfloat}"
-8 = "RefOrCuRef{Cfloat}"
-
-[api.cublasDrot_v2.argtypes]
-3 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-7 = "RefOrCuRef{Cdouble}"
-8 = "RefOrCuRef{Cdouble}"
-
-[api.cublasCrot_v2.argtypes]
-3 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
-7 = "RefOrCuRef{Cfloat}"
-8 = "RefOrCuRef{cuComplex}"
+[api."cublas𝕏rot_v2".argtypes]
+3 = "CuPtr{T}"
+5 = "CuPtr{T}"
+7 = "RefOrCuRef{S}"
+8 = "RefOrCuRef{T}"
 
 [api.cublasCsrot_v2.argtypes]
 3 = "CuPtr{cuComplex}"
 5 = "CuPtr{cuComplex}"
 7 = "RefOrCuRef{Cfloat}"
 8 = "RefOrCuRef{Cfloat}"
-
-[api.cublasZrot_v2.argtypes]
-3 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "RefOrCuRef{Cdouble}"
-8 = "RefOrCuRef{cuDoubleComplex}"
 
 [api.cublasZdrot_v2.argtypes]
 3 = "CuPtr{cuDoubleComplex}"
@@ -337,62 +245,32 @@ needs_context = false
 9 = "PtrOrCuPtr{Cvoid}"
 10 = "PtrOrCuPtr{Cvoid}"
 
-[api.cublasSrotg_v2.argtypes]
-2 = "RefOrCuRef{Cfloat}"
-3 = "RefOrCuRef{Cfloat}"
-4 = "RefOrCuRef{Cfloat}"
-5 = "RefOrCuRef{Cfloat}"
-
-[api.cublasDrotg_v2.argtypes]
-2 = "RefOrCuRef{Cdouble}"
-3 = "RefOrCuRef{Cdouble}"
-4 = "PtrOrCuPtr{Cdouble}"
-5 = "PtrOrCuPtr{Cdouble}"
-
-[api.cublasCrotg_v2.argtypes]
-2 = "RefOrCuRef{cuComplex}"
-3 = "RefOrCuRef{cuComplex}"
-4 = "RefOrCuRef{Cfloat}"
-5 = "RefOrCuRef{cuComplex}"
-
-[api.cublasZrotg_v2.argtypes]
-2 = "RefOrCuRef{cuDoubleComplex}"
-3 = "RefOrCuRef{cuDoubleComplex}"
-4 = "RefOrCuRef{Cdouble}"
-5 = "RefOrCuRef{cuDoubleComplex}"
+[api."cublas𝕏rotg_v2".argtypes]
+2 = "RefOrCuRef{T}"
+3 = "RefOrCuRef{T}"
+4 = "PtrOrCuPtr{S}"
+5 = "PtrOrCuPtr{T}"
 
 [api.cublasRotgEx.argtypes]
 5 = "PtrOrCuPtr{Cvoid}"
 6 = "PtrOrCuPtr{Cvoid}"
 
-[api.cublasSrotm_v2.argtypes]
-3 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
-7 = "PtrOrCuPtr{Cfloat}"
-
-[api.cublasDrotm_v2.argtypes]
-3 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
-7 = "PtrOrCuPtr{Cdouble}"
+[api."cublas𝕏rotm_v2".argtypes]
+3 = "CuPtr{T}"
+5 = "CuPtr{T}"
+7 = "PtrOrCuPtr{T}"
 
 [api.cublasRotmEx.argtypes]
 3 = "CuPtr{Cvoid}"
 6 = "CuPtr{Cvoid}"
 9 = "PtrOrCuPtr{Cvoid}"
 
-[api.cublasSrotmg_v2.argtypes]
-2 = "RefOrCuRef{Cfloat}"
-3 = "RefOrCuRef{Cfloat}"
-4 = "RefOrCuRef{Cfloat}"
-5 = "RefOrCuRef{Cfloat}"
-6 = "PtrOrCuPtr{Cfloat}"
-
-[api.cublasDrotmg_v2.argtypes]
-2 = "RefOrCuRef{Cdouble}"
-3 = "RefOrCuRef{Cdouble}"
-4 = "RefOrCuRef{Cdouble}"
-5 = "RefOrCuRef{Cdouble}"
-6 = "PtrOrCuPtr{Cdouble}"
+[api."cublas𝕏rotmg_v2".argtypes]
+2 = "RefOrCuRef{T}"
+3 = "RefOrCuRef{T}"
+4 = "RefOrCuRef{T}"
+5 = "RefOrCuRef{T}"
+6 = "PtrOrCuPtr{T}"
 
 [api.cublasRotmgEx.argtypes]
 2 = "PtrOrCuPtr{Cvoid}"
@@ -401,165 +279,38 @@ needs_context = false
 8 = "PtrOrCuPtr{Cvoid}"
 10 = "PtrOrCuPtr{Cvoid}"
 
-[api.cublasSgemv_v2.argtypes]
-5 = "RefOrCuRef{Cfloat}"
-6 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cfloat}"
-10 = "RefOrCuRef{Cfloat}"
-11 = "CuPtr{Cfloat}"
+[api."cublas𝕏gemv_v2".argtypes]
+5 = "RefOrCuRef{T}"
+6 = "CuPtr{T}"
+8 = "CuPtr{T}"
+10 = "RefOrCuRef{T}"
+11 = "CuPtr{T}"
 
-[api.cublasDgemv_v2.argtypes]
-5 = "RefOrCuRef{Cdouble}"
-6 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cdouble}"
-10 = "RefOrCuRef{Cdouble}"
-11 = "CuPtr{Cdouble}"
+[api."cublas𝕏gbmv_v2".argtypes]
+7 = "RefOrCuRef{T}"
+8 = "CuPtr{T}"
+10 = "CuPtr{T}"
+12 = "RefOrCuRef{T}"
+13 = "CuPtr{T}"
 
-[api.cublasCgemv_v2.argtypes]
-5 = "RefOrCuRef{cuComplex}"
-6 = "CuPtr{cuComplex}"
-8 = "CuPtr{cuComplex}"
-10 = "RefOrCuRef{cuComplex}"
-11 = "CuPtr{cuComplex}"
+[api."cublas𝕏trmv_v2".argtypes]
+6 = "CuPtr{T}"
+8 = "CuPtr{T}"
 
-[api.cublasZgemv_v2.argtypes]
-5 = "RefOrCuRef{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{cuDoubleComplex}"
-10 = "RefOrCuRef{cuDoubleComplex}"
-11 = "CuPtr{cuDoubleComplex}"
+[api."cublas𝕏tbmv_v2".argtypes]
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
 
-[api.cublasSgbmv_v2.argtypes]
-7 = "RefOrCuRef{Cfloat}"
-8 = "CuPtr{Cfloat}"
-10 = "CuPtr{Cfloat}"
-12 = "RefOrCuRef{Cfloat}"
-13 = "CuPtr{Cfloat}"
+[api."cublas𝕏tpmv_v2".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{T}"
 
-[api.cublasDgbmv_v2.argtypes]
-7 = "RefOrCuRef{Cdouble}"
-8 = "CuPtr{Cdouble}"
-10 = "CuPtr{Cdouble}"
-12 = "RefOrCuRef{Cdouble}"
-13 = "CuPtr{Cdouble}"
-
-[api.cublasCgbmv_v2.argtypes]
-7 = "RefOrCuRef{cuComplex}"
-8 = "CuPtr{cuComplex}"
-10 = "CuPtr{cuComplex}"
-12 = "RefOrCuRef{cuComplex}"
-13 = "CuPtr{cuComplex}"
-
-[api.cublasZgbmv_v2.argtypes]
-7 = "RefOrCuRef{cuDoubleComplex}"
-8 = "CuPtr{cuDoubleComplex}"
-10 = "CuPtr{cuDoubleComplex}"
-12 = "RefOrCuRef{cuDoubleComplex}"
-13 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasStrmv_v2.argtypes]
-6 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cfloat}"
-
-[api.cublasDtrmv_v2.argtypes]
-6 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cdouble}"
-
-[api.cublasCtrmv_v2.argtypes]
-6 = "CuPtr{cuComplex}"
-8 = "CuPtr{cuComplex}"
-
-[api.cublasZtrmv_v2.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasStbmv_v2.argtypes]
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-
-[api.cublasDtbmv_v2.argtypes]
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-
-[api.cublasCtbmv_v2.argtypes]
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-
-[api.cublasZtbmv_v2.argtypes]
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasStpmv_v2.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-
-[api.cublasDtpmv_v2.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-
-[api.cublasCtpmv_v2.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-
-[api.cublasZtpmv_v2.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasSgemvBatched.argtypes]
-5 = "RefOrCuRef{Cfloat}"
-6 = "CuPtr{Ptr{Cfloat}}"
-8 = "CuPtr{Ptr{Cfloat}}"
-10 = "RefOrCuRef{Cfloat}"
-11 = "CuPtr{Ptr{Cfloat}}"
-
-[api.cublasSgemvBatched_64.argtypes]
-5 = "RefOrCuRef{Cfloat}"
-6 = "CuPtr{Ptr{Cfloat}}"
-8 = "CuPtr{Ptr{Cfloat}}"
-10 = "RefOrCuRef{Cfloat}"
-11 = "CuPtr{Ptr{Cfloat}}"
-
-[api.cublasDgemvBatched.argtypes]
-5 = "RefOrCuRef{Cdouble}"
-6 = "CuPtr{Ptr{Cdouble}}"
-8 = "CuPtr{Ptr{Cdouble}}"
-10 = "RefOrCuRef{Cdouble}"
-11 = "CuPtr{Ptr{Cdouble}}"
-
-[api.cublasDgemvBatched_64.argtypes]
-5 = "RefOrCuRef{Cdouble}"
-6 = "CuPtr{Ptr{Cdouble}}"
-8 = "CuPtr{Ptr{Cdouble}}"
-10 = "RefOrCuRef{Cdouble}"
-11 = "CuPtr{Ptr{Cdouble}}"
-
-[api.cublasCgemvBatched.argtypes]
-5 = "RefOrCuRef{cuComplex}"
-6 = "CuPtr{Ptr{cuComplex}}"
-8 = "CuPtr{Ptr{cuComplex}}"
-10 = "RefOrCuRef{cuComplex}"
-11 = "CuPtr{Ptr{cuComplex}}"
-
-[api.cublasCgemvBatched_64.argtypes]
-5 = "RefOrCuRef{cuComplex}"
-6 = "CuPtr{Ptr{cuComplex}}"
-8 = "CuPtr{Ptr{cuComplex}}"
-10 = "RefOrCuRef{cuComplex}"
-11 = "CuPtr{Ptr{cuComplex}}"
-
-[api.cublasZgemvBatched.argtypes]
-5 = "RefOrCuRef{cuDoubleComplex}"
-6 = "CuPtr{Ptr{cuDoubleComplex}}"
-8 = "CuPtr{Ptr{cuDoubleComplex}}"
-10 = "RefOrCuRef{cuDoubleComplex}"
-11 = "CuPtr{Ptr{cuDoubleComplex}}"
-
-[api.cublasZgemvBatched_64.argtypes]
-5 = "RefOrCuRef{cuDoubleComplex}"
-6 = "CuPtr{Ptr{cuDoubleComplex}}"
-8 = "CuPtr{Ptr{cuDoubleComplex}}"
-10 = "RefOrCuRef{cuDoubleComplex}"
-11 = "CuPtr{Ptr{cuDoubleComplex}}"
+[api."cublas𝕏gemvBatched".argtypes]
+5 = "RefOrCuRef{T}"
+6 = "CuPtr{Ptr{T}}"
+8 = "CuPtr{Ptr{T}}"
+10 = "RefOrCuRef{T}"
+11 = "CuPtr{Ptr{T}}"
 
 [api.cublasHSHgemvBatched.argtypes]
 5 = "RefOrCuRef{Cfloat}"
@@ -575,61 +326,12 @@ needs_context = false
 10 = "RefOrCuRef{Cfloat}"
 11 = "CuPtr{Ptr{Cfloat}}"
 
-[api.cublasSgemvStridedBatched.argtypes]
-5 = "RefOrCuRef{Cfloat}"
-6 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-12 = "RefOrCuRef{Cfloat}"
-13 = "CuPtr{Cfloat}"
-
-[api.cublasSgemvStridedBatched_64.argtypes]
-5 = "RefOrCuRef{Cfloat}"
-6 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-12 = "RefOrCuRef{Cfloat}"
-13 = "CuPtr{Cfloat}"
-
-[api.cublasDgemvStridedBatched.argtypes]
-5 = "RefOrCuRef{Cdouble}"
-6 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-12 = "RefOrCuRef{Cdouble}"
-13 = "CuPtr{Cdouble}"
-
-[api.cublasDgemvStridedBatched_64.argtypes]
-5 = "RefOrCuRef{Cdouble}"
-6 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-12 = "RefOrCuRef{Cdouble}"
-13 = "CuPtr{Cdouble}"
-
-[api.cublasCgemvStridedBatched.argtypes]
-5 = "RefOrCuRef{cuComplex}"
-6 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-12 = "RefOrCuRef{cuComplex}"
-13 = "CuPtr{cuComplex}"
-
-[api.cublasCgemvStridedBatched_64.argtypes]
-5 = "RefOrCuRef{cuComplex}"
-6 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-12 = "RefOrCuRef{cuComplex}"
-13 = "CuPtr{cuComplex}"
-
-[api.cublasZgemvStridedBatched.argtypes]
-5 = "RefOrCuRef{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-12 = "RefOrCuRef{cuDoubleComplex}"
-13 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasZgemvStridedBatched_64.argtypes]
-5 = "RefOrCuRef{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-12 = "RefOrCuRef{cuDoubleComplex}"
-13 = "CuPtr{cuDoubleComplex}"
+[api."cublas𝕏gemvStridedBatched".argtypes]
+5 = "RefOrCuRef{T}"
+6 = "CuPtr{T}"
+9 = "CuPtr{T}"
+12 = "RefOrCuRef{T}"
+13 = "CuPtr{T}"
 
 [api.cublasHSSgemvStridedBatched.argtypes]
 5 = "RefOrCuRef{Cfloat}"
@@ -652,352 +354,148 @@ needs_context = false
 12 = "RefOrCuRef{Cfloat}"
 13 = "CuPtr{Cfloat}"
 
-[api.cublasStrsv_v2.argtypes]
-6 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cfloat}"
+[api."cublas𝕏trsv_v2".argtypes]
+6 = "CuPtr{T}"
+8 = "CuPtr{T}"
 
-[api.cublasDtrsv_v2.argtypes]
-6 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cdouble}"
+[api."cublas𝕏tpsv_v2".argtypes]
+6 = "CuPtr{T}"
+7 = "CuPtr{T}"
 
-[api.cublasCtrsv_v2.argtypes]
-6 = "CuPtr{cuComplex}"
-8 = "CuPtr{cuComplex}"
+[api."cublas𝕏tbsv_v2".argtypes]
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
 
-[api.cublasZtrsv_v2.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{cuDoubleComplex}"
+[api."cublas𝕏symv_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "RefOrCuRef{T}"
+10 = "CuPtr{T}"
 
-[api.cublasStpsv_v2.argtypes]
-6 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
+[api."cublas𝕏hemv_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "RefOrCuRef{T}"
+10 = "CuPtr{T}"
 
-[api.cublasDtpsv_v2.argtypes]
-6 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
+[api."cublas𝕏sbmv_v2".argtypes]
+5 = "RefOrCuRef{T}"
+6 = "CuPtr{T}"
+8 = "CuPtr{T}"
+10 = "RefOrCuRef{T}"
+11 = "CuPtr{T}"
 
-[api.cublasCtpsv_v2.argtypes]
-6 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
+[api."cublas𝕏hbmv_v2".argtypes]
+5 = "RefOrCuRef{T}"
+6 = "CuPtr{T}"
+8 = "CuPtr{T}"
+10 = "RefOrCuRef{T}"
+11 = "CuPtr{T}"
 
-[api.cublasZtpsv_v2.argtypes]
-6 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
+[api."cublas𝕏spmv_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+8 = "RefOrCuRef{T}"
+9 = "CuPtr{T}"
 
-[api.cublasStbsv_v2.argtypes]
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
+[api."cublas𝕏hpmv_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+6 = "CuPtr{T}"
+8 = "RefOrCuRef{T}"
+9 = "CuPtr{T}"
 
-[api.cublasDtbsv_v2.argtypes]
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
+[api."cublas𝕏ger_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
 
-[api.cublasCtbsv_v2.argtypes]
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
+[api."cublas𝕏geru_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
 
-[api.cublasZtbsv_v2.argtypes]
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
+[api."cublas𝕏gerc_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
 
-[api.cublasSsymv_v2.argtypes]
-4 = "RefOrCuRef{Cfloat}"
-5 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "RefOrCuRef{Cfloat}"
-10 = "CuPtr{Cfloat}"
+[api."cublas𝕏syr_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
 
-[api.cublasDsymv_v2.argtypes]
-4 = "RefOrCuRef{Cdouble}"
-5 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "RefOrCuRef{Cdouble}"
-10 = "CuPtr{Cdouble}"
+[api."cublas𝕏her_v2".argtypes]
+4 = "RefOrCuRef{S}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
 
-[api.cublasCsymv_v2.argtypes]
-4 = "RefOrCuRef{cuComplex}"
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "RefOrCuRef{cuComplex}"
-10 = "CuPtr{cuComplex}"
+[api."cublas𝕏spr_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
 
-[api.cublasZsymv_v2.argtypes]
-4 = "RefOrCuRef{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "RefOrCuRef{cuDoubleComplex}"
-10 = "CuPtr{cuDoubleComplex}"
+[api."cublas𝕏hpr_v2".argtypes]
+4 = "RefOrCuRef{S}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
 
-[api.cublasChemv_v2.argtypes]
-4 = "RefOrCuRef{cuComplex}"
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "RefOrCuRef{cuComplex}"
-10 = "CuPtr{cuComplex}"
+[api."cublas𝕏syr2_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
 
-[api.cublasZhemv_v2.argtypes]
-4 = "RefOrCuRef{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "RefOrCuRef{cuDoubleComplex}"
-10 = "CuPtr{cuDoubleComplex}"
+[api."cublas𝕏her2_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
 
-[api.cublasSsbmv_v2.argtypes]
-5 = "RefOrCuRef{Cfloat}"
-6 = "CuPtr{Cfloat}"
-8 = "CuPtr{Cfloat}"
-10 = "RefOrCuRef{Cfloat}"
-11 = "CuPtr{Cfloat}"
+[api."cublas𝕏spr2_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
 
-[api.cublasDsbmv_v2.argtypes]
-5 = "RefOrCuRef{Cdouble}"
-6 = "CuPtr{Cdouble}"
-8 = "CuPtr{Cdouble}"
-10 = "RefOrCuRef{Cdouble}"
-11 = "CuPtr{Cdouble}"
+[api."cublas𝕏hpr2_v2".argtypes]
+4 = "RefOrCuRef{T}"
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
 
-[api.cublasChbmv_v2.argtypes]
-5 = "RefOrCuRef{cuComplex}"
-6 = "CuPtr{cuComplex}"
-8 = "CuPtr{cuComplex}"
-10 = "RefOrCuRef{cuComplex}"
-11 = "CuPtr{cuComplex}"
+[api."cublas𝕏gemm_v2".argtypes]
+7 = "RefOrCuRef{T}"
+8 = "CuPtr{T}"
+10 = "CuPtr{T}"
+12 = "RefOrCuRef{T}"
+13 = "CuPtr{T}"
 
-[api.cublasZhbmv_v2.argtypes]
-5 = "RefOrCuRef{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-8 = "CuPtr{cuDoubleComplex}"
-10 = "RefOrCuRef{cuDoubleComplex}"
-11 = "CuPtr{cuDoubleComplex}"
+[api."cublas𝕏gemm3m".argtypes]
+7 = "RefOrCuRef{T}"
+8 = "CuPtr{T}"
+10 = "CuPtr{T}"
+12 = "RefOrCuRef{T}"
+13 = "CuPtr{T}"
 
-[api.cublasSspmv_v2.argtypes]
-4 = "RefOrCuRef{Cfloat}"
-5 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
-8 = "RefOrCuRef{Cfloat}"
-9 = "CuPtr{Cfloat}"
-
-[api.cublasDspmv_v2.argtypes]
-4 = "RefOrCuRef{Cdouble}"
-5 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
-8 = "RefOrCuRef{Cdouble}"
-9 = "CuPtr{Cdouble}"
-
-[api.cublasChpmv_v2.argtypes]
-4 = "RefOrCuRef{cuComplex}"
-5 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
-8 = "RefOrCuRef{cuComplex}"
-9 = "CuPtr{cuComplex}"
-
-[api.cublasZhpmv_v2.argtypes]
-4 = "RefOrCuRef{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-8 = "RefOrCuRef{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasSger_v2.argtypes]
-4 = "RefOrCuRef{Cfloat}"
-5 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-
-[api.cublasDger_v2.argtypes]
-4 = "RefOrCuRef{Cdouble}"
-5 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-
-[api.cublasCgeru_v2.argtypes]
-4 = "RefOrCuRef{cuComplex}"
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-
-[api.cublasCgerc_v2.argtypes]
-4 = "RefOrCuRef{cuComplex}"
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-
-[api.cublasZgeru_v2.argtypes]
-4 = "RefOrCuRef{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasZgerc_v2.argtypes]
-4 = "RefOrCuRef{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasSsyr_v2.argtypes]
-4 = "RefOrCuRef{Cfloat}"
-5 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-
-[api.cublasDsyr_v2.argtypes]
-4 = "RefOrCuRef{Cdouble}"
-5 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-
-[api.cublasCsyr_v2.argtypes]
-4 = "RefOrCuRef{cuComplex}"
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-
-[api.cublasZsyr_v2.argtypes]
-4 = "RefOrCuRef{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasCher_v2.argtypes]
-4 = "RefOrCuRef{Cfloat}"
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-
-[api.cublasZher_v2.argtypes]
-4 = "RefOrCuRef{Cdouble}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasSspr_v2.argtypes]
-4 = "RefOrCuRef{Cfloat}"
-5 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-
-[api.cublasDspr_v2.argtypes]
-4 = "RefOrCuRef{Cdouble}"
-5 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-
-[api.cublasChpr_v2.argtypes]
-4 = "RefOrCuRef{Cfloat}"
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-
-[api.cublasZhpr_v2.argtypes]
-4 = "RefOrCuRef{Cdouble}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasSsyr2_v2.argtypes]
-4 = "RefOrCuRef{Cfloat}"
-5 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-
-[api.cublasDsyr2_v2.argtypes]
-4 = "RefOrCuRef{Cdouble}"
-5 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-
-[api.cublasCsyr2_v2.argtypes]
-4 = "RefOrCuRef{cuComplex}"
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-
-[api.cublasZsyr2_v2.argtypes]
-4 = "RefOrCuRef{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasCher2_v2.argtypes]
-4 = "RefOrCuRef{cuComplex}"
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-
-[api.cublasZher2_v2.argtypes]
-4 = "RefOrCuRef{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasSspr2_v2.argtypes]
-4 = "RefOrCuRef{Cfloat}"
-5 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-
-[api.cublasDspr2_v2.argtypes]
-4 = "RefOrCuRef{Cdouble}"
-5 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-
-[api.cublasChpr2_v2.argtypes]
-4 = "RefOrCuRef{cuComplex}"
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-
-[api.cublasZhpr2_v2.argtypes]
-4 = "RefOrCuRef{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasSgemm_v2.argtypes]
-7 = "RefOrCuRef{Cfloat}"
-8 = "CuPtr{Cfloat}"
-10 = "CuPtr{Cfloat}"
-12 = "RefOrCuRef{Cfloat}"
-13 = "CuPtr{Cfloat}"
-
-[api.cublasDgemm_v2.argtypes]
-7 = "RefOrCuRef{Cdouble}"
-8 = "CuPtr{Cdouble}"
-10 = "CuPtr{Cdouble}"
-12 = "RefOrCuRef{Cdouble}"
-13 = "CuPtr{Cdouble}"
-
-[api.cublasCgemm_v2.argtypes]
-7 = "RefOrCuRef{cuComplex}"
-8 = "CuPtr{cuComplex}"
-10 = "CuPtr{cuComplex}"
-12 = "RefOrCuRef{cuComplex}"
-13 = "CuPtr{cuComplex}"
-
-[api.cublasCgemm3m.argtypes]
-7 = "RefOrCuRef{cuComplex}"
-8 = "CuPtr{cuComplex}"
-10 = "CuPtr{cuComplex}"
-12 = "RefOrCuRef{cuComplex}"
-13 = "CuPtr{cuComplex}"
-
-[api.cublasCgemm3mEx.argtypes]
-7 = "RefOrCuRef{cuComplex}"
+[api."cublas𝕏gemm3mEx".argtypes]
+7 = "RefOrCuRef{T}"
 8 = "CuPtr{Cvoid}"
 11 = "CuPtr{Cvoid}"
-14 = "RefOrCuRef{cuComplex}"
+14 = "RefOrCuRef{T}"
 15 = "CuPtr{Cvoid}"
 
-[api.cublasZgemm_v2.argtypes]
-7 = "RefOrCuRef{cuDoubleComplex}"
-8 = "CuPtr{cuDoubleComplex}"
-10 = "CuPtr{cuDoubleComplex}"
-12 = "RefOrCuRef{cuDoubleComplex}"
-13 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasZgemm3m.argtypes]
-7 = "RefOrCuRef{cuDoubleComplex}"
-8 = "CuPtr{cuDoubleComplex}"
-10 = "CuPtr{cuDoubleComplex}"
-12 = "RefOrCuRef{cuDoubleComplex}"
-13 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasSgemmEx.argtypes]
-7 = "RefOrCuRef{Cfloat}"
+[api."cublas𝕏gemmEx".argtypes]
+7 = "RefOrCuRef{T}"
 8 = "CuPtr{Cvoid}"
 11 = "CuPtr{Cvoid}"
-14 = "RefOrCuRef{Cfloat}"
+14 = "RefOrCuRef{T}"
 15 = "CuPtr{Cvoid}"
 
 [api.cublasGemmEx.argtypes]
@@ -1007,289 +505,113 @@ needs_context = false
 14 = "PtrOrCuPtr{Cvoid}"
 15 = "CuPtr{Cvoid}"
 
-[api.cublasCgemmEx.argtypes]
-7 = "RefOrCuRef{cuComplex}"
-8 = "CuPtr{Cvoid}"
-11 = "CuPtr{Cvoid}"
-14 = "RefOrCuRef{cuComplex}"
-15 = "CuPtr{Cvoid}"
-
 [api.cublasUint8gemmBias.argtypes]
 8 = "CuPtr{Cuchar}"
 11 = "CuPtr{Cuchar}"
 14 = "CuPtr{Cuchar}"
 
-[api.cublasSsyrk_v2.argtypes]
-6 = "RefOrCuRef{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "RefOrCuRef{Cfloat}"
-10 = "CuPtr{Cfloat}"
+[api."cublas𝕏syrk_v2".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "CuPtr{T}"
+9 = "RefOrCuRef{T}"
+10 = "CuPtr{T}"
 
-[api.cublasDsyrk_v2.argtypes]
-6 = "RefOrCuRef{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "RefOrCuRef{Cdouble}"
-10 = "CuPtr{Cdouble}"
-
-[api.cublasCsyrk_v2.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "RefOrCuRef{cuComplex}"
-10 = "CuPtr{cuComplex}"
-
-[api.cublasZsyrk_v2.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "RefOrCuRef{cuDoubleComplex}"
-10 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasCsyrkEx.argtypes]
-6 = "RefOrCuRef{cuComplex}"
+[api."cublas𝕏syrkEx".argtypes]
+6 = "RefOrCuRef{T}"
 7 = "CuPtr{Cvoid}"
-10 = "RefOrCuRef{cuComplex}"
+10 = "RefOrCuRef{T}"
 11 = "CuPtr{Cvoid}"
 
-[api.cublasCsyrk3mEx.argtypes]
-6 = "RefOrCuRef{cuComplex}"
+[api."cublas𝕏syrk3mEx".argtypes]
+6 = "RefOrCuRef{T}"
 7 = "CuPtr{Cvoid}"
-10 = "RefOrCuRef{cuComplex}"
+10 = "RefOrCuRef{T}"
 11 = "CuPtr{Cvoid}"
 
-[api.cublasCherk_v2.argtypes]
-6 = "RefOrCuRef{Cfloat}"
-7 = "CuPtr{cuComplex}"
-9 = "RefOrCuRef{Cfloat}"
-10 = "CuPtr{cuComplex}"
+[api."cublas𝕏herk_v2".argtypes]
+6 = "RefOrCuRef{S}"
+7 = "CuPtr{T}"
+9 = "RefOrCuRef{S}"
+10 = "CuPtr{T}"
 
-[api.cublasZherk_v2.argtypes]
-6 = "RefOrCuRef{Cdouble}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "RefOrCuRef{Cdouble}"
-10 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasCherkEx.argtypes]
-6 = "RefOrCuRef{Cfloat}"
+[api."cublas𝕏herkEx".argtypes]
+6 = "RefOrCuRef{S}"
 7 = "CuPtr{Cvoid}"
-10 = "RefOrCuRef{Cfloat}"
+10 = "RefOrCuRef{S}"
 11 = "CuPtr{Cvoid}"
 
-[api.cublasCherk3mEx.argtypes]
-6 = "RefOrCuRef{Cfloat}"
+[api."cublas𝕏herk3mEx".argtypes]
+6 = "RefOrCuRef{S}"
 7 = "CuPtr{Cvoid}"
-10 = "RefOrCuRef{Cfloat}"
+10 = "RefOrCuRef{S}"
 11 = "CuPtr{Cvoid}"
 
-[api.cublasSsyr2k_v2.argtypes]
-6 = "RefOrCuRef{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-11 = "RefOrCuRef{Cfloat}"
-12 = "CuPtr{Cfloat}"
+[api."cublas𝕏syr2k_v2".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
+11 = "RefOrCuRef{T}"
+12 = "CuPtr{T}"
 
-[api.cublasDsyr2k_v2.argtypes]
-6 = "RefOrCuRef{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-11 = "RefOrCuRef{Cdouble}"
-12 = "CuPtr{Cdouble}"
+[api."cublas𝕏her2k_v2".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
+11 = "RefOrCuRef{S}"
+12 = "CuPtr{T}"
 
-[api.cublasCsyr2k_v2.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-11 = "RefOrCuRef{cuComplex}"
-12 = "CuPtr{cuComplex}"
+[api."cublas𝕏syrkx".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
+11 = "RefOrCuRef{T}"
+12 = "CuPtr{T}"
 
-[api.cublasZsyr2k_v2.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-11 = "RefOrCuRef{cuDoubleComplex}"
-12 = "CuPtr{cuDoubleComplex}"
+[api."cublas𝕏herkx".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
+11 = "RefOrCuRef{S}"
+12 = "CuPtr{T}"
 
-[api.cublasCher2k_v2.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-11 = "RefOrCuRef{Cfloat}"
-12 = "CuPtr{cuComplex}"
+[api."cublas𝕏symm_v2".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
+11 = "RefOrCuRef{T}"
+12 = "CuPtr{T}"
 
-[api.cublasZher2k_v2.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-11 = "RefOrCuRef{Cdouble}"
-12 = "CuPtr{cuDoubleComplex}"
+[api."cublas𝕏hemm_v2".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
+11 = "RefOrCuRef{T}"
+12 = "CuPtr{T}"
 
-[api.cublasSsyrkx.argtypes]
-6 = "RefOrCuRef{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-11 = "RefOrCuRef{Cfloat}"
-12 = "CuPtr{Cfloat}"
+[api."cublas𝕏trsm_v2".argtypes]
+8 = "RefOrCuRef{T}"
+9 = "CuPtr{T}"
+11 = "CuPtr{T}"
 
-[api.cublasDsyrkx.argtypes]
-6 = "RefOrCuRef{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-11 = "RefOrCuRef{Cdouble}"
-12 = "CuPtr{Cdouble}"
+[api."cublas𝕏trmm_v2".argtypes]
+8 = "RefOrCuRef{T}"
+9 = "CuPtr{T}"
+11 = "CuPtr{T}"
+13 = "CuPtr{T}"
 
-[api.cublasCsyrkx.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-11 = "RefOrCuRef{cuComplex}"
-12 = "CuPtr{cuComplex}"
+[api."cublas𝕏gemmBatched".argtypes]
+7 = "RefOrCuRef{T}"
+8 = "CuPtr{Ptr{T}}"
+10 = "CuPtr{Ptr{T}}"
+12 = "RefOrCuRef{T}"
+13 = "CuPtr{Ptr{T}}"
 
-[api.cublasZsyrkx.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-11 = "RefOrCuRef{cuDoubleComplex}"
-12 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasCherkx.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-11 = "RefOrCuRef{Cfloat}"
-12 = "CuPtr{cuComplex}"
-
-[api.cublasZherkx.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-11 = "RefOrCuRef{Cdouble}"
-12 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasSsymm_v2.argtypes]
-6 = "RefOrCuRef{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
-11 = "RefOrCuRef{Cfloat}"
-12 = "CuPtr{Cfloat}"
-
-[api.cublasDsymm_v2.argtypes]
-6 = "RefOrCuRef{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
-11 = "RefOrCuRef{Cdouble}"
-12 = "CuPtr{Cdouble}"
-
-[api.cublasCsymm_v2.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-11 = "RefOrCuRef{cuComplex}"
-12 = "CuPtr{cuComplex}"
-
-[api.cublasZsymm_v2.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-11 = "RefOrCuRef{cuDoubleComplex}"
-12 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasChemm_v2.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
-11 = "RefOrCuRef{cuComplex}"
-12 = "CuPtr{cuComplex}"
-
-[api.cublasZhemm_v2.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-11 = "RefOrCuRef{cuDoubleComplex}"
-12 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasStrsm_v2.argtypes]
-8 = "RefOrCuRef{Cfloat}"
-9 = "CuPtr{Cfloat}"
-11 = "CuPtr{Cfloat}"
-
-[api.cublasDtrsm_v2.argtypes]
-8 = "RefOrCuRef{Cdouble}"
-9 = "CuPtr{Cdouble}"
-11 = "CuPtr{Cdouble}"
-
-[api.cublasCtrsm_v2.argtypes]
-8 = "RefOrCuRef{cuComplex}"
-9 = "CuPtr{cuComplex}"
-11 = "CuPtr{cuComplex}"
-
-[api.cublasZtrsm_v2.argtypes]
-8 = "RefOrCuRef{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-11 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasStrmm_v2.argtypes]
-8 = "RefOrCuRef{Cfloat}"
-9 = "CuPtr{Cfloat}"
-11 = "CuPtr{Cfloat}"
-13 = "CuPtr{Cfloat}"
-
-[api.cublasDtrmm_v2.argtypes]
-8 = "RefOrCuRef{Cdouble}"
-9 = "CuPtr{Cdouble}"
-11 = "CuPtr{Cdouble}"
-13 = "CuPtr{Cdouble}"
-
-[api.cublasCtrmm_v2.argtypes]
-8 = "RefOrCuRef{cuComplex}"
-9 = "CuPtr{cuComplex}"
-11 = "CuPtr{cuComplex}"
-13 = "CuPtr{cuComplex}"
-
-[api.cublasZtrmm_v2.argtypes]
-8 = "RefOrCuRef{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
-11 = "CuPtr{cuDoubleComplex}"
-13 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasHgemmBatched.argtypes]
-7 = "RefOrCuRef{Float16}"
-8 = "CuPtr{Ptr{Float16}}"
-10 = "CuPtr{Ptr{Float16}}"
-12 = "RefOrCuRef{Float16}"
-13 = "CuPtr{Ptr{Float16}}"
-
-[api.cublasSgemmBatched.argtypes]
-7 = "RefOrCuRef{Cfloat}"
-8 = "CuPtr{Ptr{Cfloat}}"
-10 = "CuPtr{Ptr{Cfloat}}"
-12 = "RefOrCuRef{Cfloat}"
-13 = "CuPtr{Ptr{Cfloat}}"
-
-[api.cublasDgemmBatched.argtypes]
-7 = "RefOrCuRef{Cdouble}"
-8 = "CuPtr{Ptr{Cdouble}}"
-10 = "CuPtr{Ptr{Cdouble}}"
-12 = "RefOrCuRef{Cdouble}"
-13 = "CuPtr{Ptr{Cdouble}}"
-
-[api.cublasCgemmBatched.argtypes]
-7 = "RefOrCuRef{cuComplex}"
-8 = "CuPtr{Ptr{cuComplex}}"
-10 = "CuPtr{Ptr{cuComplex}}"
-12 = "RefOrCuRef{cuComplex}"
-13 = "CuPtr{Ptr{cuComplex}}"
-
-[api.cublasCgemm3mBatched.argtypes]
-7 = "RefOrCuRef{cuComplex}"
-8 = "CuPtr{Ptr{cuComplex}}"
-10 = "CuPtr{Ptr{cuComplex}}"
-12 = "RefOrCuRef{cuComplex}"
-13 = "CuPtr{Ptr{cuComplex}}"
-
-[api.cublasZgemmBatched.argtypes]
-7 = "RefOrCuRef{cuDoubleComplex}"
-8 = "CuPtr{Ptr{cuDoubleComplex}}"
-10 = "CuPtr{Ptr{cuDoubleComplex}}"
-12 = "RefOrCuRef{cuDoubleComplex}"
-13 = "CuPtr{Ptr{cuDoubleComplex}}"
+[api."cublas𝕏gemm3mBatched".argtypes]
+7 = "RefOrCuRef{T}"
+8 = "CuPtr{Ptr{T}}"
+10 = "CuPtr{Ptr{T}}"
+12 = "RefOrCuRef{T}"
+13 = "CuPtr{Ptr{T}}"
 
 [api.cublasGemmBatchedEx.argtypes]
 7 = "PtrOrCuPtr{Cvoid}"
@@ -1305,525 +627,157 @@ needs_context = false
 16 = "PtrOrCuPtr{Cvoid}"
 17 = "CuPtr{Cvoid}"
 
-[api.cublasHgemmStridedBatched.argtypes]
-7 = "RefOrCuRef{Float16}"
-8 = "CuPtr{Float16}"
-11 = "CuPtr{Float16}"
-14 = "RefOrCuRef{Float16}"
-15 = "CuPtr{Float16}"
+[api."cublas𝕏gemmStridedBatched".argtypes]
+7 = "RefOrCuRef{T}"
+8 = "CuPtr{T}"
+11 = "CuPtr{T}"
+14 = "RefOrCuRef{T}"
+15 = "CuPtr{T}"
 
-[api.cublasSgemmStridedBatched.argtypes]
-7 = "RefOrCuRef{Cfloat}"
-8 = "CuPtr{Cfloat}"
-11 = "CuPtr{Cfloat}"
-14 = "RefOrCuRef{Cfloat}"
-15 = "CuPtr{Cfloat}"
+[api."cublas𝕏gemm3mStridedBatched".argtypes]
+7 = "RefOrCuRef{T}"
+8 = "CuPtr{T}"
+11 = "CuPtr{T}"
+14 = "RefOrCuRef{T}"
+15 = "CuPtr{T}"
 
-[api.cublasDgemmStridedBatched.argtypes]
-7 = "RefOrCuRef{Cdouble}"
-8 = "CuPtr{Cdouble}"
-11 = "CuPtr{Cdouble}"
-14 = "RefOrCuRef{Cdouble}"
-15 = "CuPtr{Cdouble}"
+[api."cublas𝕏geam".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "CuPtr{T}"
+9 = "RefOrCuRef{T}"
+10 = "CuPtr{T}"
+12 = "CuPtr{T}"
 
-[api.cublasCgemmStridedBatched.argtypes]
-7 = "RefOrCuRef{cuComplex}"
-8 = "CuPtr{cuComplex}"
-11 = "CuPtr{cuComplex}"
-14 = "RefOrCuRef{cuComplex}"
-15 = "CuPtr{cuComplex}"
-
-[api.cublasCgemm3mStridedBatched.argtypes]
-7 = "RefOrCuRef{cuComplex}"
-8 = "CuPtr{cuComplex}"
-11 = "CuPtr{cuComplex}"
-14 = "RefOrCuRef{cuComplex}"
-15 = "CuPtr{cuComplex}"
-
-[api.cublasZgemmStridedBatched.argtypes]
-7 = "RefOrCuRef{cuDoubleComplex}"
-8 = "CuPtr{cuDoubleComplex}"
-11 = "CuPtr{cuDoubleComplex}"
-14 = "RefOrCuRef{cuDoubleComplex}"
-15 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasSgeam.argtypes]
-6 = "RefOrCuRef{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "RefOrCuRef{Cfloat}"
-10 = "CuPtr{Cfloat}"
-12 = "CuPtr{Cfloat}"
-
-[api.cublasDgeam.argtypes]
-6 = "RefOrCuRef{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "RefOrCuRef{Cdouble}"
-10 = "CuPtr{Cdouble}"
-12 = "CuPtr{Cdouble}"
-
-[api.cublasCgeam.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "RefOrCuRef{cuComplex}"
-10 = "CuPtr{cuComplex}"
-12 = "CuPtr{cuComplex}"
-
-[api.cublasZgeam.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "RefOrCuRef{cuDoubleComplex}"
-10 = "CuPtr{cuDoubleComplex}"
-12 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasSgetrfBatched.argtypes]
-3 = "CuPtr{Ptr{Cfloat}}"
+[api."cublas𝕏getrfBatched".argtypes]
+3 = "CuPtr{Ptr{T}}"
 5 = "CuPtr{Cint}"
 6 = "CuPtr{Cint}"
 
-[api.cublasDgetrfBatched.argtypes]
-3 = "CuPtr{Ptr{Cdouble}}"
+[api."cublas𝕏getriBatched".argtypes]
+3 = "CuPtr{Ptr{T}}"
 5 = "CuPtr{Cint}"
-6 = "CuPtr{Cint}"
-
-[api.cublasCgetrfBatched.argtypes]
-3 = "CuPtr{Ptr{cuComplex}}"
-5 = "CuPtr{Cint}"
-6 = "CuPtr{Cint}"
-
-[api.cublasZgetrfBatched.argtypes]
-3 = "CuPtr{Ptr{cuDoubleComplex}}"
-5 = "CuPtr{Cint}"
-6 = "CuPtr{Cint}"
-
-[api.cublasSgetriBatched.argtypes]
-3 = "CuPtr{Ptr{Cfloat}}"
-5 = "CuPtr{Cint}"
-6 = "CuPtr{Ptr{Cfloat}}"
+6 = "CuPtr{Ptr{T}}"
 8 = "CuPtr{Cint}"
 
-[api.cublasDgetriBatched.argtypes]
-3 = "CuPtr{Ptr{Cdouble}}"
-5 = "CuPtr{Cint}"
-6 = "CuPtr{Ptr{Cdouble}}"
-8 = "CuPtr{Cint}"
-
-[api.cublasCgetriBatched.argtypes]
-3 = "CuPtr{Ptr{cuComplex}}"
-5 = "CuPtr{Cint}"
-6 = "CuPtr{Ptr{cuComplex}}"
-8 = "CuPtr{Cint}"
-
-[api.cublasZgetriBatched.argtypes]
-3 = "CuPtr{Ptr{cuDoubleComplex}}"
-5 = "CuPtr{Cint}"
-6 = "CuPtr{Ptr{cuDoubleComplex}}"
-8 = "CuPtr{Cint}"
-
-[api.cublasSgetrsBatched.argtypes]
-5 = "CuPtr{Ptr{Cfloat}}"
+[api."cublas𝕏getrsBatched".argtypes]
+5 = "CuPtr{Ptr{T}}"
 7 = "CuPtr{Cint}"
-8 = "CuPtr{Ptr{Cfloat}}"
+8 = "CuPtr{Ptr{T}}"
 
-[api.cublasDgetrsBatched.argtypes]
-5 = "CuPtr{Ptr{Cdouble}}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Ptr{Cdouble}}"
+[api."cublas𝕏trsmBatched".argtypes]
+8 = "RefOrCuRef{T}"
+9 = "CuPtr{Ptr{T}}"
+11 = "CuPtr{Ptr{T}}"
 
-[api.cublasCgetrsBatched.argtypes]
-5 = "CuPtr{Ptr{cuComplex}}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Ptr{cuComplex}}"
-
-[api.cublasZgetrsBatched.argtypes]
-5 = "CuPtr{Ptr{cuDoubleComplex}}"
-7 = "CuPtr{Cint}"
-8 = "CuPtr{Ptr{cuDoubleComplex}}"
-
-[api.cublasStrsmBatched.argtypes]
-8 = "RefOrCuRef{Cfloat}"
-9 = "CuPtr{Ptr{Cfloat}}"
-11 = "CuPtr{Ptr{Cfloat}}"
-
-[api.cublasDtrsmBatched.argtypes]
-8 = "RefOrCuRef{Cdouble}"
-9 = "CuPtr{Ptr{Cdouble}}"
-11 = "CuPtr{Ptr{Cdouble}}"
-
-[api.cublasCtrsmBatched.argtypes]
-8 = "RefOrCuRef{cuComplex}"
-9 = "CuPtr{Ptr{cuComplex}}"
-11 = "CuPtr{Ptr{cuComplex}}"
-
-[api.cublasZtrsmBatched.argtypes]
-8 = "RefOrCuRef{cuDoubleComplex}"
-9 = "CuPtr{Ptr{cuDoubleComplex}}"
-11 = "CuPtr{Ptr{cuDoubleComplex}}"
-
-[api.cublasSmatinvBatched.argtypes]
-3 = "CuPtr{Ptr{Cfloat}}"
-5 = "CuPtr{Ptr{Cfloat}}"
+[api."cublas𝕏matinvBatched".argtypes]
+3 = "CuPtr{Ptr{T}}"
+5 = "CuPtr{Ptr{T}}"
 7 = "CuPtr{Cint}"
 
-[api.cublasDmatinvBatched.argtypes]
-3 = "CuPtr{Ptr{Cdouble}}"
-5 = "CuPtr{Ptr{Cdouble}}"
-7 = "CuPtr{Cint}"
+[api."cublas𝕏geqrfBatched".argtypes]
+4 = "CuPtr{Ptr{T}}"
+6 = "CuPtr{Ptr{T}}"
 
-[api.cublasCmatinvBatched.argtypes]
-3 = "CuPtr{Ptr{cuComplex}}"
-5 = "CuPtr{Ptr{cuComplex}}"
-7 = "CuPtr{Cint}"
-
-[api.cublasZmatinvBatched.argtypes]
-3 = "CuPtr{Ptr{cuDoubleComplex}}"
-5 = "CuPtr{Ptr{cuDoubleComplex}}"
-7 = "CuPtr{Cint}"
-
-[api.cublasSgeqrfBatched.argtypes]
-4 = "CuPtr{Ptr{Cfloat}}"
-6 = "CuPtr{Ptr{Cfloat}}"
-
-[api.cublasDgeqrfBatched.argtypes]
-4 = "CuPtr{Ptr{Cdouble}}"
-6 = "CuPtr{Ptr{Cdouble}}"
-
-[api.cublasCgeqrfBatched.argtypes]
-4 = "CuPtr{Ptr{cuComplex}}"
-6 = "CuPtr{Ptr{cuComplex}}"
-
-[api.cublasZgeqrfBatched.argtypes]
-4 = "CuPtr{Ptr{cuDoubleComplex}}"
-6 = "CuPtr{Ptr{cuDoubleComplex}}"
-
-[api.cublasSgelsBatched.argtypes]
-6 = "CuPtr{Ptr{Cfloat}}"
-8 = "CuPtr{Ptr{Cfloat}}"
+[api."cublas𝕏gelsBatched".argtypes]
+6 = "CuPtr{Ptr{T}}"
+8 = "CuPtr{Ptr{T}}"
 11 = "CuPtr{Cint}"
 
-[api.cublasDgelsBatched.argtypes]
-6 = "CuPtr{Ptr{Cdouble}}"
-8 = "CuPtr{Ptr{Cdouble}}"
-11 = "CuPtr{Cint}"
+[api."cublas𝕏dgmm".argtypes]
+5 = "CuPtr{T}"
+7 = "CuPtr{T}"
+9 = "CuPtr{T}"
 
-[api.cublasCgelsBatched.argtypes]
-6 = "CuPtr{Ptr{cuComplex}}"
-8 = "CuPtr{Ptr{cuComplex}}"
-11 = "CuPtr{Cint}"
+[api."cublas𝕏tpttr".argtypes]
+4 = "CuPtr{T}"
+5 = "CuPtr{T}"
 
-[api.cublasZgelsBatched.argtypes]
-6 = "CuPtr{Ptr{cuDoubleComplex}}"
-8 = "CuPtr{Ptr{cuDoubleComplex}}"
-11 = "CuPtr{Cint}"
+[api."cublas𝕏trttp".argtypes]
+4 = "CuPtr{T}"
+6 = "CuPtr{T}"
 
-[api.cublasSdgmm.argtypes]
-5 = "CuPtr{Cfloat}"
-7 = "CuPtr{Cfloat}"
-9 = "CuPtr{Cfloat}"
+[api."cublasXt𝕏gemm".argtypes]
+7 = "RefOrCuRef{T}"
+8 = "PtrOrCuPtr{T}"
+10 = "PtrOrCuPtr{T}"
+12 = "RefOrCuRef{T}"
+13 = "PtrOrCuPtr{T}"
 
-[api.cublasDdgmm.argtypes]
-5 = "CuPtr{Cdouble}"
-7 = "CuPtr{Cdouble}"
-9 = "CuPtr{Cdouble}"
+[api."cublasXt𝕏syrk".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "PtrOrCuPtr{T}"
+9 = "RefOrCuRef{T}"
+10 = "PtrOrCuPtr{T}"
 
-[api.cublasCdgmm.argtypes]
-5 = "CuPtr{cuComplex}"
-7 = "CuPtr{cuComplex}"
-9 = "CuPtr{cuComplex}"
+[api."cublasXt𝕏herk".argtypes]
+6 = "RefOrCuRef{S}"
+7 = "PtrOrCuPtr{T}"
+9 = "RefOrCuRef{S}"
+10 = "PtrOrCuPtr{T}"
 
-[api.cublasZdgmm.argtypes]
-5 = "CuPtr{cuDoubleComplex}"
-7 = "CuPtr{cuDoubleComplex}"
-9 = "CuPtr{cuDoubleComplex}"
+[api."cublasXt𝕏syr2k".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "PtrOrCuPtr{T}"
+9 = "PtrOrCuPtr{T}"
+11 = "RefOrCuRef{T}"
+12 = "PtrOrCuPtr{T}"
 
-[api.cublasStpttr.argtypes]
-4 = "CuPtr{Cfloat}"
-5 = "CuPtr{Cfloat}"
+[api."cublasXt𝕏herkx".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "PtrOrCuPtr{T}"
+9 = "PtrOrCuPtr{T}"
+11 = "RefOrCuRef{S}"
+12 = "PtrOrCuPtr{T}"
 
-[api.cublasDtpttr.argtypes]
-4 = "CuPtr{Cdouble}"
-5 = "CuPtr{Cdouble}"
+[api."cublasXt𝕏trsm".argtypes]
+8 = "RefOrCuRef{T}"
+9 = "PtrOrCuPtr{T}"
+11 = "PtrOrCuPtr{T}"
 
-[api.cublasCtpttr.argtypes]
-4 = "CuPtr{cuComplex}"
-5 = "CuPtr{cuComplex}"
+[api."cublasXt𝕏symm".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "PtrOrCuPtr{T}"
+9 = "PtrOrCuPtr{T}"
+11 = "RefOrCuRef{T}"
+12 = "PtrOrCuPtr{T}"
 
-[api.cublasZtpttr.argtypes]
-4 = "CuPtr{cuDoubleComplex}"
-5 = "CuPtr{cuDoubleComplex}"
+[api."cublasXt𝕏hemm".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "PtrOrCuPtr{T}"
+9 = "PtrOrCuPtr{T}"
+11 = "RefOrCuRef{T}"
+12 = "PtrOrCuPtr{T}"
 
-[api.cublasStrttp.argtypes]
-4 = "CuPtr{Cfloat}"
-6 = "CuPtr{Cfloat}"
+[api."cublasXt𝕏syrkx".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "PtrOrCuPtr{T}"
+9 = "PtrOrCuPtr{T}"
+11 = "RefOrCuRef{T}"
+12 = "PtrOrCuPtr{T}"
 
-[api.cublasDtrttp.argtypes]
-4 = "CuPtr{Cdouble}"
-6 = "CuPtr{Cdouble}"
+[api."cublasXt𝕏her2k".argtypes]
+6 = "RefOrCuRef{T}"
+7 = "PtrOrCuPtr{T}"
+9 = "PtrOrCuPtr{T}"
+11 = "RefOrCuRef{S}"
+12 = "PtrOrCuPtr{T}"
 
-[api.cublasCtrttp.argtypes]
-4 = "CuPtr{cuComplex}"
-6 = "CuPtr{cuComplex}"
+[api."cublasXt𝕏spmm".argtypes]
+6 = "Ref{T}"
+8 = "PtrOrCuPtr{T}"
+10 = "Ref{T}"
+11 = "PtrOrCuPtr{T}"
 
-[api.cublasZtrttp.argtypes]
-4 = "CuPtr{cuDoubleComplex}"
-6 = "CuPtr{cuDoubleComplex}"
-
-[api.cublasXtSgemm.argtypes]
-7 = "RefOrCuRef{Cfloat}"
-8 = "PtrOrCuPtr{Cfloat}"
-10 = "PtrOrCuPtr{Cfloat}"
-12 = "RefOrCuRef{Cfloat}"
-13 = "PtrOrCuPtr{Cfloat}"
-
-[api.cublasXtDgemm.argtypes]
-7 = "RefOrCuRef{Cdouble}"
-8 = "PtrOrCuPtr{Cdouble}"
-10 = "PtrOrCuPtr{Cdouble}"
-12 = "RefOrCuRef{Cdouble}"
-13 = "PtrOrCuPtr{Cdouble}"
-
-[api.cublasXtCgemm.argtypes]
-7 = "RefOrCuRef{cuComplex}"
-8 = "PtrOrCuPtr{cuComplex}"
-10 = "PtrOrCuPtr{cuComplex}"
-12 = "RefOrCuRef{cuComplex}"
-13 = "PtrOrCuPtr{cuComplex}"
-
-[api.cublasXtZgemm.argtypes]
-7 = "RefOrCuRef{cuDoubleComplex}"
-8 = "PtrOrCuPtr{cuDoubleComplex}"
-10 = "PtrOrCuPtr{cuDoubleComplex}"
-12 = "RefOrCuRef{cuDoubleComplex}"
-13 = "PtrOrCuPtr{cuDoubleComplex}"
-
-[api.cublasXtSsyrk.argtypes]
-6 = "RefOrCuRef{Cfloat}"
-7 = "PtrOrCuPtr{Cfloat}"
-9 = "RefOrCuRef{Cfloat}"
-10 = "PtrOrCuPtr{Cfloat}"
-
-[api.cublasXtDsyrk.argtypes]
-6 = "RefOrCuRef{Cdouble}"
-7 = "PtrOrCuPtr{Cdouble}"
-9 = "RefOrCuRef{Cdouble}"
-10 = "PtrOrCuPtr{Cdouble}"
-
-[api.cublasXtCsyrk.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "PtrOrCuPtr{cuComplex}"
-9 = "RefOrCuRef{cuComplex}"
-10 = "PtrOrCuPtr{cuComplex}"
-
-[api.cublasXtZsyrk.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "PtrOrCuPtr{cuDoubleComplex}"
-9 = "RefOrCuRef{cuDoubleComplex}"
-10 = "PtrOrCuPtr{cuDoubleComplex}"
-
-[api.cublasXtCherk.argtypes]
-6 = "RefOrCuRef{Cfloat}"
-7 = "PtrOrCuPtr{cuComplex}"
-9 = "RefOrCuRef{Cfloat}"
-10 = "PtrOrCuPtr{cuComplex}"
-
-[api.cublasXtZherk.argtypes]
-6 = "RefOrCuRef{Cdouble}"
-7 = "PtrOrCuPtr{cuDoubleComplex}"
-9 = "RefOrCuRef{Cdouble}"
-10 = "PtrOrCuPtr{cuDoubleComplex}"
-
-[api.cublasXtSsyr2k.argtypes]
-6 = "RefOrCuRef{Cfloat}"
-7 = "PtrOrCuPtr{Cfloat}"
-9 = "PtrOrCuPtr{Cfloat}"
-11 = "RefOrCuRef{Cfloat}"
-12 = "PtrOrCuPtr{Cfloat}"
-
-[api.cublasXtDsyr2k.argtypes]
-6 = "RefOrCuRef{Cdouble}"
-7 = "PtrOrCuPtr{Cdouble}"
-9 = "PtrOrCuPtr{Cdouble}"
-11 = "RefOrCuRef{Cdouble}"
-12 = "PtrOrCuPtr{Cdouble}"
-
-[api.cublasXtCsyr2k.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "PtrOrCuPtr{cuComplex}"
-9 = "PtrOrCuPtr{cuComplex}"
-11 = "RefOrCuRef{cuComplex}"
-12 = "PtrOrCuPtr{cuComplex}"
-
-[api.cublasXtZsyr2k.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "PtrOrCuPtr{cuDoubleComplex}"
-9 = "PtrOrCuPtr{cuDoubleComplex}"
-11 = "RefOrCuRef{cuDoubleComplex}"
-12 = "PtrOrCuPtr{cuDoubleComplex}"
-
-[api.cublasXtCherkx.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "PtrOrCuPtr{cuComplex}"
-9 = "PtrOrCuPtr{cuComplex}"
-11 = "RefOrCuRef{Cfloat}"
-12 = "PtrOrCuPtr{cuComplex}"
-
-[api.cublasXtZherkx.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "PtrOrCuPtr{cuDoubleComplex}"
-9 = "PtrOrCuPtr{cuDoubleComplex}"
-11 = "RefOrCuRef{Cdouble}"
-12 = "PtrOrCuPtr{cuDoubleComplex}"
-
-[api.cublasXtStrsm.argtypes]
-8 = "RefOrCuRef{Cfloat}"
-9 = "PtrOrCuPtr{Cfloat}"
-11 = "PtrOrCuPtr{Cfloat}"
-
-[api.cublasXtDtrsm.argtypes]
-8 = "RefOrCuRef{Cdouble}"
-9 = "PtrOrCuPtr{Cdouble}"
-11 = "PtrOrCuPtr{Cdouble}"
-
-[api.cublasXtCtrsm.argtypes]
-8 = "RefOrCuRef{cuComplex}"
-9 = "PtrOrCuPtr{cuComplex}"
-11 = "PtrOrCuPtr{cuComplex}"
-
-[api.cublasXtZtrsm.argtypes]
-8 = "RefOrCuRef{cuDoubleComplex}"
-9 = "PtrOrCuPtr{cuDoubleComplex}"
-11 = "PtrOrCuPtr{cuDoubleComplex}"
-
-[api.cublasXtSsymm.argtypes]
-6 = "RefOrCuRef{Cfloat}"
-7 = "PtrOrCuPtr{Cfloat}"
-9 = "PtrOrCuPtr{Cfloat}"
-11 = "RefOrCuRef{Cfloat}"
-12 = "PtrOrCuPtr{Cfloat}"
-
-[api.cublasXtDsymm.argtypes]
-6 = "RefOrCuRef{Cdouble}"
-7 = "PtrOrCuPtr{Cdouble}"
-9 = "PtrOrCuPtr{Cdouble}"
-11 = "RefOrCuRef{Cdouble}"
-12 = "PtrOrCuPtr{Cdouble}"
-
-[api.cublasXtCsymm.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "PtrOrCuPtr{cuComplex}"
-9 = "PtrOrCuPtr{cuComplex}"
-11 = "RefOrCuRef{cuComplex}"
-12 = "PtrOrCuPtr{cuComplex}"
-
-[api.cublasXtZsymm.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "PtrOrCuPtr{cuDoubleComplex}"
-9 = "PtrOrCuPtr{cuDoubleComplex}"
-11 = "RefOrCuRef{cuDoubleComplex}"
-12 = "PtrOrCuPtr{cuDoubleComplex}"
-
-[api.cublasXtChemm.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "PtrOrCuPtr{cuComplex}"
-9 = "PtrOrCuPtr{cuComplex}"
-11 = "RefOrCuRef{cuComplex}"
-12 = "PtrOrCuPtr{cuComplex}"
-
-[api.cublasXtZhemm.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "PtrOrCuPtr{cuDoubleComplex}"
-9 = "PtrOrCuPtr{cuDoubleComplex}"
-11 = "RefOrCuRef{cuDoubleComplex}"
-12 = "PtrOrCuPtr{cuDoubleComplex}"
-
-[api.cublasXtSsyrkx.argtypes]
-6 = "RefOrCuRef{Cfloat}"
-7 = "PtrOrCuPtr{Cfloat}"
-9 = "PtrOrCuPtr{Cfloat}"
-11 = "RefOrCuRef{Cfloat}"
-12 = "PtrOrCuPtr{Cfloat}"
-
-[api.cublasXtDsyrkx.argtypes]
-6 = "RefOrCuRef{Cdouble}"
-7 = "PtrOrCuPtr{Cdouble}"
-9 = "PtrOrCuPtr{Cdouble}"
-11 = "RefOrCuRef{Cdouble}"
-12 = "PtrOrCuPtr{Cdouble}"
-
-[api.cublasXtCsyrkx.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "PtrOrCuPtr{cuComplex}"
-9 = "PtrOrCuPtr{cuComplex}"
-11 = "RefOrCuRef{cuComplex}"
-12 = "PtrOrCuPtr{cuComplex}"
-
-[api.cublasXtZsyrkx.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "PtrOrCuPtr{cuDoubleComplex}"
-9 = "PtrOrCuPtr{cuDoubleComplex}"
-11 = "RefOrCuRef{cuDoubleComplex}"
-12 = "PtrOrCuPtr{cuDoubleComplex}"
-
-[api.cublasXtCher2k.argtypes]
-6 = "RefOrCuRef{cuComplex}"
-7 = "PtrOrCuPtr{cuComplex}"
-9 = "PtrOrCuPtr{cuComplex}"
-11 = "RefOrCuRef{Cfloat}"
-12 = "PtrOrCuPtr{cuComplex}"
-
-[api.cublasXtZher2k.argtypes]
-6 = "RefOrCuRef{cuDoubleComplex}"
-7 = "PtrOrCuPtr{cuDoubleComplex}"
-9 = "PtrOrCuPtr{cuDoubleComplex}"
-11 = "RefOrCuRef{Cdouble}"
-12 = "PtrOrCuPtr{cuDoubleComplex}"
-
-[api.cublasXtSspmm.argtypes]
-6 = "Ref{Cfloat}"
-8 = "PtrOrCuPtr{Cfloat}"
-10 = "Ref{Cfloat}"
-11 = "PtrOrCuPtr{Cfloat}"
-
-[api.cublasXtDspmm.argtypes]
-6 = "Ref{Cdouble}"
-8 = "PtrOrCuPtr{Cdouble}"
-10 = "Ref{Cdouble}"
-11 = "PtrOrCuPtr{Cdouble}"
-
-[api.cublasXtCspmm.argtypes]
-6 = "Ref{cuComplex}"
-8 = "PtrOrCuPtr{cuComplex}"
-10 = "Ref{cuComplex}"
-11 = "PtrOrCuPtr{cuComplex}"
-
-[api.cublasXtZspmm.argtypes]
-6 = "Ref{cuDoubleComplex}"
-8 = "PtrOrCuPtr{cuDoubleComplex}"
-10 = "Ref{cuDoubleComplex}"
-11 = "PtrOrCuPtr{cuDoubleComplex}"
-
-[api.cublasXtStrmm.argtypes]
-8 = "RefOrCuRef{Cfloat}"
-9 = "PtrOrCuPtr{Cfloat}"
-11 = "PtrOrCuPtr{Cfloat}"
-13 = "PtrOrCuPtr{Cfloat}"
-
-[api.cublasXtDtrmm.argtypes]
-8 = "RefOrCuRef{Cdouble}"
-9 = "PtrOrCuPtr{Cdouble}"
-11 = "PtrOrCuPtr{Cdouble}"
-13 = "PtrOrCuPtr{Cdouble}"
-
-[api.cublasXtCtrmm.argtypes]
-8 = "RefOrCuRef{cuComplex}"
-9 = "PtrOrCuPtr{cuComplex}"
-11 = "PtrOrCuPtr{cuComplex}"
-13 = "PtrOrCuPtr{cuComplex}"
-
-[api.cublasXtZtrmm.argtypes]
-8 = "RefOrCuRef{cuDoubleComplex}"
-9 = "PtrOrCuPtr{cuDoubleComplex}"
-11 = "PtrOrCuPtr{cuDoubleComplex}"
-13 = "PtrOrCuPtr{cuDoubleComplex}"
+[api."cublasXt𝕏trmm".argtypes]
+8 = "RefOrCuRef{T}"
+9 = "PtrOrCuPtr{T}"
+11 = "PtrOrCuPtr{T}"
+13 = "PtrOrCuPtr{T}"
 
 [api.cublasSetWorkspace_v2.argtypes]
 2 = "CuPtr{Cvoid}"
+
+[api."cublas𝕏gemmGroupedBatched".argtypes]
+8 = "CuPtr{Ptr{T}}"
+10 = "CuPtr{Ptr{T}}"
+13 = "CuPtr{Ptr{T}}"

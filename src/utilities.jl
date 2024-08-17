@@ -49,14 +49,9 @@ function versioninfo(io::IO=stdout)
     end
     println(io, "CUDA driver $(driver_version().major).$(driver_version().minor)")
     if has_nvml()
-        print(io, "NVIDIA driver $(NVML.driver_version())")
+        println(io, "NVIDIA driver $(NVML.driver_version())")
     else
-        print(io, "Unknown NVIDIA driver")
-    end
-    if system_driver_version() !== nothing
-        println(io, ", originally for CUDA $(system_driver_version().major).$(system_driver_version().minor)")
-    else
-        println(io)
+        println(io, "Unknown NVIDIA driver")
     end
     println(io)
 
@@ -65,42 +60,22 @@ function versioninfo(io::IO=stdout)
         mod = getfield(CUDA, lib)
         println(io, "- $lib: ", mod.version())
     end
-    println(io, "- CUPTI: ", CUPTI.version())
+    println(io, "- CUPTI: $(CUPTI.library_version()) (API $(CUPTI.version()))")
     println(io, "- NVML: ", has_nvml() ? NVML.version() : "missing")
     println(io)
 
     println(io, "Julia packages: ")
-    if VERSION >= v"1.9"
-        println(io, "- CUDA: $(Base.pkgversion(CUDA))")
-        for name in [:CUDA_Driver_jll, :CUDA_Runtime_jll, :CUDA_Runtime_Discovery]
-            isdefined(CUDA, name) || continue
-            mod = getfield(CUDA, name)
-            println(io, "- $(name): $(Base.pkgversion(mod))")
-        end
-    else
-        ## get a hold of Pkg without adding a dependency on the package
-        Pkg = let
-            id = Base.PkgId(Base.UUID("44cfe95a-1eb2-52ea-b672-e2afdf69b78f"), "Pkg")
-            Base.loaded_modules[id]
-        end
-        ## look at the Project.toml to determine our version
-        project = Pkg.Operations.read_project(Pkg.Types.projectfile_path(pkgdir(CUDA)))
-        println(io, "- CUDA.jl: $(project.version)")
-        ## dependencies
-        ## XXX: Pkg.dependencies uses the active project, so may be inaccurate
-        deps = Pkg.dependencies()
-        versions = Dict(map(uuid->deps[uuid].name => deps[uuid].version, collect(keys(deps))))
-        for dep in ["CUDA_Driver_jll", "CUDA_Runtime_jll", "CUDA_Runtime_Discovery"]
-            haskey(versions, dep) && println(io, "- $dep: $(versions[dep])")
-        end
+    println(io, "- CUDA: $(Base.pkgversion(CUDA))")
+    for name in [:CUDA_Driver_jll, :CUDA_Runtime_jll, :CUDA_Runtime_Discovery]
+        isdefined(CUDA, name) || continue
+        mod = getfield(CUDA, name)
+        println(io, "- $(name): $(Base.pkgversion(mod))")
     end
     println(io)
 
     println(io, "Toolchain:")
     println(io, "- Julia: $VERSION")
     println(io, "- LLVM: $(LLVM.version())")
-    println(io, "- PTX ISA support: $(join(map(ver->"$(ver.major).$(ver.minor)", supported_toolchain().ptx), ", "))")
-    println(io, "- Device capability support: $(join(map(ver->"sm_$(ver.major)$(ver.minor)", supported_toolchain().cap), ", "))")
     println(io)
 
     env = filter(var->startswith(var, "JULIA_CUDA"), keys(ENV))
@@ -108,6 +83,23 @@ function versioninfo(io::IO=stdout)
         println(io, "Environment:")
         for var in env
             println(io, "- $var: $(ENV[var])")
+        end
+        println(io)
+    end
+
+    prefs = [
+        "nonblocking_synchronization" => Preferences.load_preference(CUDA, "nonblocking_synchronization"),
+        "default_memory" => Preferences.load_preference(CUDA, "default_memory"),
+        "CUDA_Runtime_jll.version" => Preferences.load_preference(CUDA_Runtime_jll, "version"),
+        "CUDA_Runtime_jll.local" => Preferences.load_preference(CUDA_Runtime_jll, "local"),
+        "CUDA_Driver_jll.compat" => Preferences.load_preference(CUDA_Driver_jll, "compat"),
+    ]
+    if any(x->!isnothing(x[2]), prefs)
+        println(io, "Preferences:")
+        for (key, val) in prefs
+            if !isnothing(val)
+                println(io, "- $key: $val")
+            end
         end
         println(io)
     end
@@ -138,7 +130,7 @@ function versioninfo(io::IO=stdout)
             cap = capability(dev)
             mem = device!(dev) do
                 # this requires a device context, so we prefer NVML
-                (free=available_memory(), total=total_memory())
+                (free=free_memory(), total=total_memory())
             end
             (; str, cap, mem)
         end
@@ -159,23 +151,4 @@ function versioninfo(io::IO=stdout)
         end
         println(io, "  $(i-1): $str (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(mem.free)) / $(Base.format_bytes(mem.total)) available)")
     end
-end
-
-# this helper function encodes options for compute-sanitizer useful with Julia applications
-function compute_sanitizer_cmd(tool::String="memcheck")
-    sanitizer = CUDA.compute_sanitizer()
-    `$sanitizer --tool $tool --launch-timeout=0 --target-processes=all --report-api-errors=no`
-end
-
-"""
-    run_compute_sanitizer([julia_args=``]; [tool="memcheck", sanitizer_args=``])
-
-Run a new Julia session under the CUDA compute-sanitizer tool `tool`. This is useful to
-detect various GPU-related issues, like memory errors or race conditions.
-"""
-function run_compute_sanitizer(julia_args=``; tool::String="memcheck", sanitizer_args=``)
-    cmd = `$(Base.julia_cmd()) --project=$(Base.active_project())`
-
-    println("Re-starting your active Julia session...")
-    run(`$(CUDA.compute_sanitizer_cmd(tool)) $sanitizer_args $cmd $julia_args`)
 end

@@ -44,8 +44,8 @@ CUBLAS functions:
 * [x] gemv (in julia/blas.jl)
 * [x] ger (in julia/blas.jl)
 * [x] sbmv (in julia/blas.jl)
-* [ ] spmv
-* [ ] spr
+* [x] spmv
+* [x] spr
 * [ ] spr2
 * [x] symv (in julia/blas.jl)
 * [x] syr (in julia/blas.jl)
@@ -87,6 +87,7 @@ CUBLAS functions:
 * [x] geam
 * [x] dgmm
 * [x] getrfBatched
+* [x] getrsBatched
 * [x] getriBatched
 * [x] geqrfBatched
 * [x] gelsBatched

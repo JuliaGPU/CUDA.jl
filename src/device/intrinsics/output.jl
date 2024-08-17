@@ -91,12 +91,12 @@ export @cuprint, @cuprintln
 
 # simple conversions, defining an expression and the resulting argument type. nothing fancy,
 # `@cuprint` pretty directly maps to `@cuprintf`; we should just support `write(::IO)`.
-const cuprint_conversions = Dict(
-    Float32         => (x->:(Float64($x)),                  Float64),
-    Ptr{<:Any}      => (x->:(convert(Ptr{Cvoid}, $x)),      Ptr{Cvoid}),
-    LLVMPtr{<:Any}  => (x->:(reinterpret(Ptr{Cvoid}, $x)),  Ptr{Cvoid}),
-    Bool            => (x->:(Int32($x)),                    Int32),
-)
+const cuprint_conversions = [
+    Float32         => (x->:(Float64($x)),          Float64),
+    Ptr{<:Any}      => (x->:(reinterpret(Int, $x)), Ptr{Cvoid}),
+    LLVMPtr{<:Any}  => (x->:(reinterpret(Int, $x)), Ptr{Cvoid}),
+    Bool            => (x->:(Int32($x)),            Int32),
+]
 
 # format specifiers
 const cuprint_specifiers = Dict(
@@ -133,10 +133,10 @@ const cuprint_specifiers = Dict(
 
         # try to convert arguments if they are not supported directly
         if !haskey(cuprint_specifiers, T)
-            for Tmatch in keys(cuprint_conversions)
+            for (Tmatch, rule) in cuprint_conversions
                 if T <: Tmatch
-                    conv, T = cuprint_conversions[Tmatch]
-                    part = conv(part)
+                    part = rule[1](part)
+                    T = rule[2]
                     break
                 end
             end
@@ -168,7 +168,7 @@ const cuprint_specifiers = Dict(
             fmt *= string(T.parameters[1])
         else
             @warn("@cuprint does not support values of type $T")
-            fmt *= "$(string(T.parameters[1]))(...)"
+            fmt *= "$(T)(...)"
         end
     end
 

@@ -14,11 +14,12 @@ examples = find_sources(examples_dir)
 filter!(file -> readline(file) != "# EXCLUDE FROM TESTING", examples)
 
 cd(examples_dir) do
-    global examples
-    examples = relpath.(examples, Ref(examples_dir))
     @testset for example in examples
-        proc, out, err = julia_exec(`$example`)
-        isempty(err) || println(err)
-        @test success(proc)
+        mod = @eval module $(gensym()) end
+        @eval mod begin
+            redirect_stdout(devnull) do
+                include($example)
+            end
+        end
     end
 end

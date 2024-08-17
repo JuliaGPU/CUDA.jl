@@ -47,3 +47,37 @@ end
   @test eltype(A .+ ComplexF32.(1)) == ComplexF64
   @test eltype(ComplexF32.(A) .+ ComplexF32.(1)) == ComplexF32
 end
+
+# https://github.com/JuliaGPU/CUDA.jl/issues/2191
+@testset "preserving buffer types" begin
+  a = cu([1]; unified=true)
+  @test is_unified(a)
+
+  # unified-ness should be preserved
+  b = a .+ 1
+  @test is_unified(b)
+
+  # when there's a conflict, we should defer to unified memory
+  c = cu([1]; device=true)
+  d = cu([1]; host=true)
+  e = c .+ d
+  @test is_unified(e)
+
+  # this should also work with differently-sized inputs
+  f = cu([1]; device=true)
+  g = cu([1 2]; host=true)
+  h = f .+ g
+  @test is_unified(h)
+
+  # however, differences in only shape shouldn't change the buffer type
+  i = cu([1]; device=true)
+  j = cu([1 2]; device=true)
+  k = i .+ j
+  @test !is_unified(k)
+end
+
+# https://github.com/JuliaGPU/CUDA.jl/issues/1926
+@testset "Broadcast rational" begin
+  @test testf((x) -> (2 // 3 .* x),  rand(2, 3))
+  @test testf((x) -> (f(x) = 2 // 3 * x; f.(x)),  rand(2, 3))
+end

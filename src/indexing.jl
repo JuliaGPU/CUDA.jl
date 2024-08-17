@@ -12,10 +12,13 @@ using Base.Cartesian
 # TODO: it should still be possible to use the same technique;
 #       Base.LogicalIndex basically contains the same as our `findall` here does.
 Base.to_index(::CuArray, I::AbstractArray{Bool}) = findall(I)
-## same for the trailing Array{Bool} optimization (see `_maybe_linear_logical_index` in Base)
-Base.to_indices(A::CuArray, inds,
-                I::Tuple{Union{Array{Bool,N}, BitArray{N}}}) where {N} =
-    (Base.to_index(A, I[1]),)
+if VERSION >= v"1.11.0-DEV.1157"
+    Base.to_indices(A::CuArray, I::Tuple{AbstractArray{Bool}}) = (Base.to_index(A, I[1]),)
+else
+    Base.to_indices(A::CuArray, inds,
+                    I::Tuple{Union{Array{Bool,N}, BitArray{N}}}) where {N} =
+        (Base.to_index(A, I[1]),)
+end
 
 
 ## find*
@@ -44,7 +47,7 @@ function Base.findall(bools::AnyCuArray{Bool})
         config = launch_configuration(kernel.fun)
         threads = min(length(indices), config.threads)
         blocks = cld(length(indices), threads)
-        kernel(ys, bools, indices; threads=threads, blocks=blocks)
+        kernel(ys, bools, indices; threads, blocks)
     end
 
     unsafe_free!(indices)

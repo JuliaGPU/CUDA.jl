@@ -61,6 +61,75 @@ julia> cu(cpu)
     badly on the GPU. If this is unwanted, use `adapt` directly.
 
 
+## Unified memory
+
+The `CuArray` constructor and the `cu` function default to allocating device memory, which
+can be accessed only from the GPU. It is also possible to allocate unified memory, which is
+accessible from both the CPU and GPU with the driver taking care of data movement:
+
+```julia-repl
+julia> cpu = [1,2]
+2-element Vector{Int64}:
+ 1
+ 2
+
+julia> gpu = CuVector{Int,CUDA.UnifiedMemory}(cpu)
+2-element CuArray{Int64, 1, CUDA.UnifiedMemory}:
+ 1
+ 2
+
+julia> gpu = cu(cpu; unified=true)
+2-element CuArray{Int64, 1, CUDA.UnifiedMemory}:
+ 1
+ 2
+```
+
+Using unified memory has several advantages: it is possible to allocate more memory than the
+GPU has available, and the memory can be accessed efficiently from the CPU, either directly
+or by wrapping the `CuArray` using an `Array`:
+
+```julia-repl
+julia> gpu[1]  # no scalar indexing error!
+1
+
+julia> cpu_again = unsafe_wrap(Array, gpu)
+2-element Vector{Int64}:
+ 1
+ 2
+```
+
+This may make it significantly easier to port code to the GPU, as you can incrementally
+port parts of your application without having to worry about executing CPU code, or
+triggering an `AbstractArray` fallback. It may come at a cost however, as unified memory
+needs to be paged in and out of the GPU memory, and cannot be allocated asynchronously. To
+alleviate this cost, CUDA.jl automatically prefetches unified memory when passing it to a
+kernel.
+
+On recent systems (CUDA 12.2 with the open-source NVIDIA driver) it is also possible to do
+the reverse, and access CPU memory from the GPU without having to explicitly allocate
+unified memory using the `CuArray` constructor or `cu` function:
+
+```julia-repl
+julia> cpu = [1,2];
+
+julia> gpu = unsafe_wrap(CuArray, cpu)
+2-element CuArray{Int64, 1, CUDA.UnifiedMemory}:
+ 1
+ 2
+
+julia> gpu .+= 1;
+
+julia> cpu
+2-element Vector{Int64}:
+ 2
+ 3
+```
+
+Right now, CUDA.jl still defaults to allocating device memory, but this may change in the
+future. If you want to change the default behavior, you can set the `default_memory`
+preference to `unified` or `host` instead of `device`.
+
+
 ## Garbage collection
 
 Instances of the `CuArray` type are managed by the Julia garbage collector. This means that
@@ -76,19 +145,19 @@ memory while it isn't. When memory pressure is high, the pool will automatically
 objects:
 
 ```julia-repl
-julia> CUDA.memory_status()             # initial state
+julia> CUDA.pool_status()             # initial state
 Effective GPU memory usage: 16.12% (2.537 GiB/15.744 GiB)
 Memory pool usage: 0 bytes (0 bytes reserved)
 
 julia> a = CuArray{Int}(undef, 1024);   # allocate 8KB
 
-julia> CUDA.memory_status()
+julia> CUDA.pool_status()
 Effective GPU memory usage: 16.35% (2.575 GiB/15.744 GiB)
 Memory pool usage: 8.000 KiB (32.000 MiB reserved)
 
 julia> a = nothing; GC.gc(true)
 
-julia> CUDA.memory_status()             # 8KB is now cached
+julia> CUDA.pool_status()             # 8KB is now cached
 Effective GPU memory usage: 16.34% (2.573 GiB/15.744 GiB)
 Memory pool usage: 0 bytes (32.000 MiB reserved)
 
@@ -99,7 +168,7 @@ If for some reason you need all cached memory to be reclaimed, call `CUDA.reclai
 ```julia-repl
 julia> CUDA.reclaim()
 
-julia> CUDA.memory_status()
+julia> CUDA.pool_status()
 Effective GPU memory usage: 16.17% (2.546 GiB/15.744 GiB)
 Memory pool usage: 0 bytes (0 bytes reserved)
 ```

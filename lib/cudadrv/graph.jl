@@ -28,16 +28,19 @@ mutable struct CuGraph
         return obj
     end
 
-    global function capture(f::Function; flags=STREAM_CAPTURE_MODE_GLOBAL, throw_error::Bool=true)
-        cuStreamBeginCapture_v2(stream(), flags)
-
+    global function capture(f::Function; flags=STREAM_CAPTURE_MODE_GLOBAL,
+                            throw_error::Bool=true)
+        # graph capture does not support asynchronous memory operations, so disable the GC
+        gc_state = GC.enable(false)
         ctx = current_context()
         obj = nothing
         try
+            cuStreamBeginCapture_v2(stream(), flags)
             f()
         finally
             handle_ref = Ref{CUgraph}()
-            err = unsafe_cuStreamEndCapture(stream(), handle_ref)
+            err = unchecked_cuStreamEndCapture(stream(), handle_ref)
+            GC.enable(gc_state)
             if err == ERROR_STREAM_CAPTURE_INVALIDATED && !throw_error
                 return nothing
             elseif err != CUDA_SUCCESS

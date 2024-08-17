@@ -72,6 +72,22 @@ Base.length(g::CuSparseDeviceMatrixCOO) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixCOO) = g.dims
 SparseArrays.nnz(g::CuSparseDeviceMatrixCOO) = g.nnz
 
+struct CuSparseDeviceArrayCSR{Tv, Ti, N, M, A} <: AbstractSparseArray{Tv, Ti, N}
+    rowPtr::CuDeviceArray{Ti, M, A} 
+    colVal::CuDeviceArray{Ti, M, A} 
+    nzVal::CuDeviceArray{Tv, M, A} 
+    dims::NTuple{N, Int}
+    nnz::Ti
+end
+
+function CuSparseDeviceArrayCSR{Tv, Ti, N, A}(rowPtr::CuArray{<:Integer, M}, colVal::CuArray{<:Integer, M}, nzVal::CuArray{Tv, M}, dims::NTuple{N,<:Integer}) where {Tv, Ti<:Integer, M, N, A}
+    @assert M == N - 1 "CuSparseDeviceArrayCSR requires ndims(rowPtr) == ndims(colVal) == ndims(nzVal) == length(dims) - 1"
+    CuSparseDeviceArrayCSR{Tv, Ti, N, M, A}(rowPtr, colVal, nzVal, dims, length(nzVal))
+end
+
+Base.length(g::CuSparseDeviceArrayCSR) = prod(g.dims)
+Base.size(g::CuSparseDeviceArrayCSR) = g.dims
+SparseArrays.nnz(g::CuSparseDeviceArrayCSR) = g.nnz
 
 # input/output
 
@@ -106,5 +122,12 @@ function Base.show(io::IO, ::MIME"text/plain", A::CuSparseDeviceMatrixCOO)
     println(io, "$(length(A))-element device sparse matrix COO at:")
     println(io, "  rowPtr: $(A.rowPtr)")
     println(io, "  colInd: $(A.colInd)")
+    print(io,   "  nzVal:  $(A.nzVal)")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", A::CuSparseDeviceArrayCSR)
+    println(io, "$(length(A))-element device sparse array CSR at:")
+    println(io, "  rowPtr: $(A.rowPtr)")
+    println(io, "  colVal: $(A.colVal)")
     print(io,   "  nzVal:  $(A.nzVal)")
 end

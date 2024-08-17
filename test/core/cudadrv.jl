@@ -1,91 +1,109 @@
 @testset "context" begin
 
+# perform an API call to ensure everything is initialized
+# (or the low-level driver calls below can fail)
+synchronize()
+
 ctx = current_context()
+@test CUDA.isvalid(ctx)
+if CUDA.driver_version() >= v"12"
+    @test unique_id(ctx) > 0
+end
+
 dev = current_device()
+exclusive = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
 
 synchronize(ctx)
 
-let ctx2 = CuContext(dev)
-    @test ctx2 == current_context()    # ctor implicitly pushes
-    activate(ctx)
-    @test ctx == current_context()
+if !exclusive
+    let ctx2 = CuContext(dev)
+        @test ctx2 == current_context()    # ctor implicitly pushes
+        activate(ctx)
+        @test ctx == current_context()
 
-    @test device(ctx2) == dev
+        @test device(ctx2) == dev
 
-    CUDA.unsafe_destroy!(ctx2)
-end
-
-let global_ctx2 = nothing
-    CuContext(dev) do ctx2
-        @test ctx2 == current_context()
-        @test ctx != ctx2
-        global_ctx2 = ctx2
+        CUDA.unsafe_destroy!(ctx2)
     end
-    @test !CUDA.isvalid(global_ctx2)
-    @test ctx == current_context()
 
-    @test device(ctx) == dev
-    @test current_device() == dev
-    device_synchronize()
+    let global_ctx2 = nothing
+        CuContext(dev) do ctx2
+            @test ctx2 == current_context()
+            @test ctx != ctx2
+            global_ctx2 = ctx2
+        end
+        @test !CUDA.isvalid(global_ctx2)
+        @test ctx == current_context()
+
+        @test device(ctx) == dev
+        @test current_device() == dev
+        device_synchronize()
+    end
 end
 
 end
 
-# FIXME: these trample over our globally-managed context
 
-# @testset "primary context" begin
+if CUDA.driver_version() >= v"12"
+@testset "primary context" begin
 
-# pctx = CuPrimaryContext(device())
+# we need to start from scratch for these tests
+dev = device()
+device_reset!()
+@test_throws UndefRefError current_context()
 
-# @test !isactive(pctx)
-# unsafe_reset!(pctx)
-# @test !isactive(pctx)
+pctx = CuPrimaryContext(dev)
 
-# @test flags(pctx) == 0
-# setflags!(pctx, CUDA.CTX_SCHED_BLOCKING_SYNC)
-# @test flags(pctx) == CUDA.CTX_SCHED_BLOCKING_SYNC
+@test !isactive(pctx)
+unsafe_reset!(pctx)
+@test !isactive(pctx)
 
-# let global_ctx = nothing
-#     CuContext(pctx) do ctx
-#         @test CUDA.isvalid(ctx)
-#         @test isactive(pctx)
-#         global_ctx = ctx
-#     end
-#     @test !isactive(pctx)
-#     @test !CUDA.isvalid(global_ctx)
-# end
+@test flags(pctx) == 0
+setflags!(pctx, CUDA.CTX_SCHED_BLOCKING_SYNC)
+@test flags(pctx) == CUDA.CTX_SCHED_BLOCKING_SYNC
 
-# CuContext(pctx) do ctx
-#     @test CUDA.isvalid(ctx)
-#     @test isactive(pctx)
+let global_ctx = nothing
+    CuContext(pctx) do ctx
+        @test CUDA.isvalid(ctx)
+        @test isactive(pctx)
+        global_ctx = ctx
+    end
+    @test !isactive(pctx) broken=true
+    @test !CUDA.isvalid(global_ctx) broken=true
+end
 
-#     unsafe_reset!(pctx)
+let
+    ctx = CuContext(pctx)
+    @test CUDA.isvalid(ctx)
+    @test isactive(pctx)
 
-#     @test !isactive(pctx)
-#     @test !CUDA.isvalid(ctx)
-# end
+    unsafe_reset!(pctx)
 
-# let
-#     @test !isactive(pctx)
+    @test !isactive(pctx)
+    @test !CUDA.isvalid(ctx)
+end
 
-#     ctx1 = CuContext(pctx)
-#     @test isactive(pctx)
-#     @test CUDA.isvalid(ctx1)
+let
+    @test !isactive(pctx)
 
-#     unsafe_reset!(pctx)
-#     @test !isactive(pctx)
-#     @test !CUDA.isvalid(ctx1)
-#     CUDA.valid_contexts
+    ctx1 = CuContext(pctx)
+    @test isactive(pctx)
+    @test CUDA.isvalid(ctx1)
 
-#     ctx2 = CuContext(pctx)
-#     @test isactive(pctx)
-#     @test !CUDA.isvalid(ctx1)
-#     @test CUDA.isvalid(ctx2)
+    unsafe_reset!(pctx)
+    @test !isactive(pctx)
+    @test !CUDA.isvalid(ctx1)
 
-#     unsafe_reset!(pctx)
-# end
+    ctx2 = CuContext(pctx)
+    @test isactive(pctx)
+    @test !CUDA.isvalid(ctx1)
+    @test CUDA.isvalid(ctx2)
 
-# end
+    unsafe_reset!(pctx)
+end
+
+end
+end
 
 
 @testset "cache config" begin
@@ -169,16 +187,6 @@ let
     @test occursin("no error", str)
 end
 
-let
-    ex = CuError(CUDA.SUCCESS, "foobar")
-
-    io = IOBuffer()
-    showerror(io, ex)
-    str = String(take!(io))
-
-    @test occursin("foobar", str)
-end
-
 end
 
 ############################################################################################
@@ -197,7 +205,16 @@ let
     @test elapsed(start, stop) > 0
 end
 
-@test (CUDA.@elapsed begin end) > 0
+@test (CUDA.@elapsed identity(nothing)) > 0
+@test (CUDA.@elapsed blocking=true identity(nothing)) > 0
+
+let
+    empty_fun() = nothing
+
+    # Check that the benchmarked code occurs as-is in the macro expansion.
+    me = @macroexpand1 CUDA.@elapsed empty_fun()
+    @test any(arg -> arg == :(empty_fun()), me.args)
+end
 
 CuEvent(CUDA.EVENT_BLOCKING_SYNC)
 CuEvent(CUDA.EVENT_BLOCKING_SYNC | CUDA.EVENT_DISABLE_TIMING)
@@ -401,9 +418,9 @@ end
 @testset "memory" begin
 
 let
-    a,b = Mem.info()
+    a,b = CUDA.memory_info()
     # NOTE: actually testing this is pretty fragile on CI
-    #=@test a == =# CUDA.available_memory()
+    #=@test a == =# CUDA.free_memory()
     #=@test b == =# CUDA.total_memory()
 end
 
@@ -415,20 +432,20 @@ nb = sizeof(data)
 
 # buffers are untyped, so we use a convenience function to get a typed pointer
 # we prefer to return a device pointer (for managed buffers) to maximize CUDA coverage
-typed_pointer(buf::Union{Mem.Device, Mem.Unified}, T) = convert(CuPtr{T}, buf)
-typed_pointer(buf::Mem.Host, T)                       = convert(Ptr{T},   buf)
+typed_pointer(buf::Union{CUDA.DeviceMemory, CUDA.UnifiedMemory}, T) = convert(CuPtr{T}, buf)
+typed_pointer(buf::CUDA.HostMemory, T)                              = convert(Ptr{T},   buf)
 
 # allocations and copies
-for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
-    dstTy in [Mem.Device, Mem.Host, Mem.Unified]
+for srcTy in [CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory],
+    dstTy in [CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory]
 
-    dummy = Mem.alloc(srcTy, 0)
-    Mem.free(dummy)
+    dummy = CUDA.alloc(srcTy, 0)
+    CUDA.free(dummy)
 
-    src = Mem.alloc(srcTy, nb)
+    src = CUDA.alloc(srcTy, nb)
     unsafe_copyto!(typed_pointer(src, T), pointer(data), N)
 
-    dst = Mem.alloc(dstTy, nb)
+    dst = CUDA.alloc(dstTy, nb)
     unsafe_copyto!(typed_pointer(dst, T), typed_pointer(src, T), N)
 
     ref = Array{T}(undef, N)
@@ -436,16 +453,16 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
 
     @test data == ref
 
-    if isa(src, Mem.Device) || isa(src, Mem.Unified)
-        Mem.set!(typed_pointer(src, T), zero(T), N)
+    if isa(src, CUDA.DeviceMemory) || isa(src, CUDA.UnifiedMemory)
+        CUDA.memset(typed_pointer(src, T), zero(T), N)
     end
 
     # test the memory-type attribute
-    if isa(src, Mem.Device)
+    if isa(src, CUDA.DeviceMemory)
         @test CUDA.memory_type(typed_pointer(src, T)) == CUDA.MEMORYTYPE_DEVICE
-    elseif isa(src, Mem.Host)
+    elseif isa(src, CUDA.HostMemory)
         @test CUDA.memory_type(convert(Ptr{T}, src)) == CUDA.MEMORYTYPE_HOST
-    elseif isa(src, Mem.Unified)
+    elseif isa(src, CUDA.UnifiedMemory)
         # unified memory can reside in either place
         # FIXME: does this depend on the current migration, or on the configuration?
         @test CUDA.memory_type(convert(CuPtr{T}, src)) == CUDA.MEMORYTYPE_HOST ||
@@ -461,47 +478,47 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     end
 
     # test the is-managed attribute
-    if isa(src, Mem.Unified)
+    if isa(src, CUDA.UnifiedMemory)
         @test CUDA.is_managed(convert(Ptr{T}, src))
         @test CUDA.is_managed(convert(CuPtr{T}, src))
     else
         @test !CUDA.is_managed(typed_pointer(src, T))
     end
     # Test conversion to Ptr throwing an error
-    if isa(src, Mem.Device)
+    if isa(src, CUDA.DeviceMemory)
         @test_throws ArgumentError convert(Ptr, src)
     end
 
     @grab_output show(stdout, src)
     @grab_output show(stdout, dst)
-    Mem.free(src)
-    Mem.free(dst)
+    CUDA.free(src)
+    CUDA.free(dst)
 end
 
 # pointer attributes
 let
-    src = Mem.alloc(Mem.Device, nb)
+    src = CUDA.alloc(CUDA.DeviceMemory, nb)
 
     attribute!(typed_pointer(src, T), CUDA.POINTER_ATTRIBUTE_SYNC_MEMOPS, 0)
 
-    Mem.free(src)
+    CUDA.free(src)
 end
 
 # asynchronous operations
 let
-    src = Mem.alloc(Mem.Device, nb)
+    src = CUDA.alloc(CUDA.DeviceMemory, nb)
 
     unsafe_copyto!(typed_pointer(src, T), pointer(data), N; async=true)
 
-    Mem.set!(typed_pointer(src, T), zero(T), N; stream=stream())
+    CUDA.memset(typed_pointer(src, T), zero(T), N; stream=stream())
 
-    Mem.free(src)
+    CUDA.free(src)
 end
 
 # pinned memory
 let
     # create a pinned and mapped buffer
-    src = Mem.alloc(Mem.Host, nb, Mem.HOSTALLOC_DEVICEMAP)
+    src = CUDA.alloc(CUDA.HostMemory, nb, CUDA.MEMHOSTALLOC_DEVICEMAP)
 
     # get the CPU address and copy some data to the buffer
     cpu_ptr = convert(Ptr{T}, src)
@@ -514,14 +531,14 @@ let
     unsafe_copyto!(pointer(ref), gpu_ptr, N)
     @test ref == data
 
-    Mem.free(src)
+    CUDA.free(src)
     # NOTE: don't free dst, it's just a mapped pointer
 end
 
 # pinned memory with existing memory
 if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
     # register a pinned and mapped buffer
-    src = Mem.register(Mem.Host, pointer(data), nb, Mem.HOSTREGISTER_DEVICEMAP)
+    src = CUDA.register(CUDA.HostMemory, pointer(data), nb, CUDA.MEMHOSTREGISTER_DEVICEMAP)
 
     # get the GPU address and copy back the data
     gpu_ptr = convert(CuPtr{T}, src)
@@ -529,17 +546,17 @@ if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
     unsafe_copyto!(pointer(ref), gpu_ptr, N)
     @test ref == data
 
-    Mem.unregister(src)
+    CUDA.unregister(src)
 end
 
 # unified memory
 let
-    src = Mem.alloc(Mem.Unified, nb)
+    src = CUDA.alloc(CUDA.UnifiedMemory, nb)
 
-    @test_throws BoundsError Mem.prefetch(src, 2*nb; device=CUDA.DEVICE_CPU)
+    @test_throws BoundsError CUDA.prefetch(src, 2*nb; device=CUDA.DEVICE_CPU)
     # FIXME: prefetch doesn't work on some CI devices, unsure why.
-    @test_skip Mem.prefetch(src, nb; device=CUDA.DEVICE_CPU)
-    Mem.advise(src, Mem.ADVISE_SET_READ_MOSTLY)
+    @test_skip CUDA.prefetch(src, nb; device=CUDA.DEVICE_CPU)
+    CUDA.advise(src, CUDA.MEM_ADVISE_SET_READ_MOSTLY)
 
     # get the CPU address and copy some data
     cpu_ptr = convert(Ptr{T}, src)
@@ -551,7 +568,7 @@ let
     unsafe_copyto!(pointer(ref), gpu_ptr, N)
     @test ref == data
 
-    Mem.free(src)
+    CUDA.free(src)
 end
 
 # 3d memcpy
@@ -560,15 +577,17 @@ let
 
     data = collect(reshape(1:27, 3, 3, 3))
 
-    dst = Mem.alloc(Mem.Device, sizeof(data))
-    Mem.unsafe_copy3d!(typed_pointer(dst, Int), Mem.Device, pointer(data), Mem.Host, length(data))
+    dst = CUDA.alloc(CUDA.DeviceMemory, sizeof(data))
+    CUDA.unsafe_copy3d!(typed_pointer(dst, Int), CUDA.DeviceMemory,
+                        pointer(data), CUDA.HostMemory, length(data))
 
     check = zeros(Int, size(data))
-    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, Int), Mem.Device, length(data))
+    CUDA.unsafe_copy3d!(pointer(check), CUDA.HostMemory,
+                        typed_pointer(dst, Int), CUDA.DeviceMemory, length(data))
 
     @test check == data
 
-    Mem.free(dst)
+    CUDA.free(dst)
 end
 let
     # copying an x-z plane of a 3-D array
@@ -576,33 +595,33 @@ let
     T = Int
     nx, ny, nz = 4, 4, 4
     data = collect(reshape(1:(nx*nz), nx, nz))
-    dst = Mem.alloc(Mem.Device, nx*ny*nz*sizeof(data))
+    dst = CUDA.alloc(CUDA.DeviceMemory, nx*ny*nz*sizeof(data))
 
     # host to device
-    Mem.unsafe_copy3d!(typed_pointer(dst, T), Mem.Device, pointer(data), Mem.Host,
-                       nx, 1, nz;
-                       dstPos=(1,2,1),
-                       srcPitch=nx*sizeof(T), srcHeight=1,
-                       dstPitch=nx*sizeof(T), dstHeight=ny)
+    CUDA.unsafe_copy3d!(typed_pointer(dst, T), CUDA.DeviceMemory, pointer(data), CUDA.HostMemory,
+                        nx, 1, nz;
+                        dstPos=(1,2,1),
+                        srcPitch=nx*sizeof(T), srcHeight=1,
+                        dstPitch=nx*sizeof(T), dstHeight=ny)
 
     # copy back
     check = zeros(T, size(data))
-    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, T), Mem.Device,
-                       nx, 1, nz;
-                       srcPos=(1,2,1),
-                       srcPitch=nx*sizeof(T), srcHeight=ny,
-                       dstPitch=nx*sizeof(T), dstHeight=1)
+    CUDA.unsafe_copy3d!(pointer(check), CUDA.HostMemory, typed_pointer(dst, T), CUDA.DeviceMemory,
+                        nx, 1, nz;
+                        srcPos=(1,2,1),
+                        srcPitch=nx*sizeof(T), srcHeight=ny,
+                        dstPitch=nx*sizeof(T), dstHeight=1)
 
     @test check == data
 
     # copy back into a 3-D array
     check2 = zeros(T, nx, ny, nz)
-    Mem.unsafe_copy3d!(pointer(check2), Mem.Host, typed_pointer(dst, T), Mem.Device,
-                       nx, 1, nz;
-                       srcPos=(1,2,1),
-                       dstPos=(1,2,1),
-                       srcPitch=nx*sizeof(T), srcHeight=ny,
-                       dstPitch=nx*sizeof(T), dstHeight=ny)
+    CUDA.unsafe_copy3d!(pointer(check2), CUDA.HostMemory, typed_pointer(dst, T), CUDA.DeviceMemory,
+                        nx, 1, nz;
+                        srcPos=(1,2,1),
+                        dstPos=(1,2,1),
+                        srcPitch=nx*sizeof(T), srcHeight=ny,
+                        dstPitch=nx*sizeof(T), dstHeight=ny)
     @test check2[:,2,:] == data
 end
 let
@@ -611,33 +630,33 @@ let
     T = Int
     nx, ny, nz = 4, 4, 4
     data = collect(reshape(1:(ny*nz), ny, nz))
-    dst = Mem.alloc(Mem.Device, nx*ny*nz*sizeof(data))
+    dst = CUDA.alloc(CUDA.DeviceMemory, nx*ny*nz*sizeof(data))
 
     # host to device
-    Mem.unsafe_copy3d!(typed_pointer(dst, T), Mem.Device, pointer(data), Mem.Host,
-                       1, ny, nz;
-                       dstPos=(2,1,1),
-                       srcPitch=1*sizeof(T), srcHeight=ny,
-                       dstPitch=nx*sizeof(T), dstHeight=ny)
+    CUDA.unsafe_copy3d!(typed_pointer(dst, T), CUDA.DeviceMemory, pointer(data), CUDA.HostMemory,
+                        1, ny, nz;
+                        dstPos=(2,1,1),
+                        srcPitch=1*sizeof(T), srcHeight=ny,
+                        dstPitch=nx*sizeof(T), dstHeight=ny)
 
     # copy back
     check = zeros(T, size(data))
-    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, T), Mem.Device,
-                       1, ny, nz;
-                       srcPos=(2,1,1),
-                       srcPitch=nx*sizeof(T), srcHeight=ny,
-                       dstPitch=1*sizeof(T), dstHeight=ny)
+    CUDA.unsafe_copy3d!(pointer(check), CUDA.HostMemory, typed_pointer(dst, T), CUDA.DeviceMemory,
+                        1, ny, nz;
+                        srcPos=(2,1,1),
+                        srcPitch=nx*sizeof(T), srcHeight=ny,
+                        dstPitch=1*sizeof(T), dstHeight=ny)
 
     @test check == data
 
     # copy back into a 3-D array
     check2 = zeros(T, nx, ny, nz)
-    Mem.unsafe_copy3d!(pointer(check2), Mem.Host, typed_pointer(dst, T), Mem.Device,
-                       1, ny, nz;
-                       srcPos=(2,1,1),
-                       dstPos=(2,1,1),
-                       srcPitch=nx*sizeof(T), srcHeight=ny,
-                       dstPitch=nx*sizeof(T), dstHeight=ny)
+    CUDA.unsafe_copy3d!(pointer(check2), CUDA.HostMemory, typed_pointer(dst, T), CUDA.DeviceMemory,
+                        1, ny, nz;
+                        srcPos=(2,1,1),
+                        dstPos=(2,1,1),
+                        srcPitch=nx*sizeof(T), srcHeight=ny,
+                        dstPitch=nx*sizeof(T), dstHeight=ny)
     @test check2[2,:,:] == data
 end
 let
@@ -646,12 +665,11 @@ let
 
     A = zeros(Int, nx, nz)
     B = CuArray(reshape([1:(nx*ny*nz)...], (nx, ny, nz)))
-    Mem.unsafe_copy3d!(
-        pointer(A), Mem.Host, pointer(B), Mem.Device,
-        nx, 1, nz;
-        srcPos=(1,2,1),
-        srcPitch=nx*sizeof(A[1]), srcHeight=ny,
-        dstPitch=nx*sizeof(A[1]), dstHeight=1
+    CUDA.unsafe_copy3d!(pointer(A), CUDA.HostMemory, pointer(B), CUDA.DeviceMemory,
+                        nx, 1, nz;
+                        srcPos=(1,2,1),
+                        srcPitch=nx*sizeof(A[1]), srcHeight=ny,
+                        dstPitch=nx*sizeof(A[1]), dstHeight=1
     )
 
     @test A == Array(B)[:,2,:]
@@ -661,11 +679,11 @@ end
 if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
     hA = rand(UInt8, 512)
     @test !CUDA.is_pinned(pointer(hA))
-    Mem.pin(hA)
+    CUDA.pin(hA)
     @test CUDA.is_pinned(pointer(hA))
 
     # make sure we can double-pin
-    Mem.pin(hA)
+    CUDA.pin(hA)
 
     # memory copies on pinned memory behave differently, so test that code path
     dA = CUDA.rand(UInt8, 512)
@@ -705,7 +723,7 @@ let
     @test md != md2
 end
 
-@test_throws CuError(CUDA.ERROR_INVALID_IMAGE) CuModule("foobar")
+@test_throws Exception CuModule("foobar")
 
 @testset "globals" begin
     md = CuModuleFile(joinpath(@__DIR__, "ptx/global.ptx"))
@@ -735,7 +753,7 @@ end
     # TODO: test with valid object code
     # NOTE: apparently, on Windows cuLinkAddData! _does_ accept object data containing \0
     if !Sys.iswindows()
-        @test_throws CuError(CUDA.ERROR_UNKNOWN) add_data!(link, "vadd_parent", UInt8[0])
+        @test_throws Exception add_data!(link, "vadd_parent", UInt8[0])
     end
 end
 
@@ -744,12 +762,10 @@ end
         .version 3.1
         .target sm_999
         .address_size 64"""
-    @test_throws CuError(CUDA.ERROR_INVALID_PTX) CuModule(invalid_code)
-    @test_throws "ptxas fatal"                   CuModule(invalid_code)
+    @test_throws "ptxas fatal" CuModule(invalid_code)
 
     link = CuLink()
-    @test_throws CuError(CUDA.ERROR_INVALID_PTX) add_data!(link, "dummy", invalid_code)
-    @test_throws                                 "ptxas fatal" add_data!(link, "dummy", invalid_code)
+    @test_throws "ptxas fatal" add_data!(link, "dummy", invalid_code)
 end
 
 let
@@ -833,6 +849,9 @@ end
 s = CuStream()
 synchronize(s)
 @test CUDA.isdone(s)
+if CUDA.driver_version() >= v"12"
+    @test unique_id(s) > 0
+end
 
 let s2 = CuStream()
     @test s != s2

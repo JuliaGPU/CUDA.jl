@@ -1,7 +1,8 @@
 # Indexing and dimensions (B.4)
 
 export
-    threadIdx, blockDim, blockIdx, gridDim, laneid, warpsize, active_mask, FULL_MASK
+    threadIdx, blockDim, blockIdx, gridDim,
+    laneid, lanemask, warpsize, active_mask, FULL_MASK
 
 @generated function _index(::Val{name}, ::Val{range}) where {name, range}
     @dispose ctx=Context() begin
@@ -103,6 +104,28 @@ Returns the warp size (in threads).
 Returns the thread's lane within the warp.
 """
 @inline laneid() = ccall("llvm.nvvm.read.ptx.sreg.laneid", llvmcall, Int32, ()) + 1i32
+
+"""
+    lanemask(pred)::UInt32
+
+Returns a 32-bit mask indicating which threads in a warp satisfy the given predicate.
+Supported predicates are `==`, `<`, `<=`, `>=`, and `>`.
+"""
+@inline function lanemask(pred::F) where F
+    if pred === Base.:(==)
+        ccall("llvm.nvvm.read.ptx.sreg.lanemask.eq", llvmcall, UInt32, ())
+    elseif pred === Base.:(<)
+        ccall("llvm.nvvm.read.ptx.sreg.lanemask.lt", llvmcall, UInt32, ())
+    elseif pred === Base.:(<=)
+        ccall("llvm.nvvm.read.ptx.sreg.lanemask.le", llvmcall, UInt32, ())
+    elseif pred === Base.:(>=)
+        ccall("llvm.nvvm.read.ptx.sreg.lanemask.ge", llvmcall, UInt32, ())
+    elseif pred === Base.:(>)
+        ccall("llvm.nvvm.read.ptx.sreg.lanemask.gt", llvmcall, UInt32, ())
+    else
+        throw(ArgumentError("invalid lanemask function"))
+    end
+end
 
 """
     active_mask()

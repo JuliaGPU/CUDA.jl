@@ -1,18 +1,21 @@
-authors = ["Katharine Hyatt <kshyatt@gmail.com>"]
 name = "cuTensorNet"
 uuid = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
-version = "1.1.0"
-
-[compat]
-CEnum = "0.2, 0.3, 0.4"
-CUDA = "~5.0"
-cuQuantum_jll = "~22.11"
-cuTENSOR = "~1.0, ~1.1, ~1.2"
-julia = "1.6"
+authors = ["Katharine Hyatt <kshyatt@gmail.com>"]
+version = "1.2.1"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUDA_Runtime_Discovery = "1af6417a-86b4-443c-805f-a4643ffb695f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 cuQuantum_jll = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
 cuTENSOR = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
+
+[compat]
+CEnum = "0.2, 0.3, 0.4, 0.5"
+CUDA = "~5.4"
+CUDA_Runtime_Discovery = "0.2, 0.3"
+cuQuantum_jll = "~24.3"
+cuTENSOR = "2"
+julia = "1.8"
+LinearAlgebra = "1"

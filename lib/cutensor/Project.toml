@@ -1,16 +1,20 @@
 name = "cuTENSOR"
 uuid = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
 authors = ["Tim Besard <tim.besard@gmail.com>"]
-version = "1.2.0"
+version = "2.1.1"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUDA_Runtime_Discovery = "1af6417a-86b4-443c-805f-a4643ffb695f"
 CUTENSOR_jll = "35b6c64b-1ee1-5834-92a3-3f624899209a"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
-CUTENSOR_jll = "~1.7"
-CUDA = "~5.0"
-CEnum = "0.2, 0.3, 0.4"
-julia = "1.6"
+CEnum = "0.2, 0.3, 0.4, 0.5"
+CUDA = "~5.4"
+CUDA_Runtime_Discovery = "0.2, 0.3"
+CUTENSOR_jll = "~2.0"
+LinearAlgebra = "1"
+julia = "1.8"

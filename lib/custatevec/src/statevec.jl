@@ -10,8 +10,22 @@ function applyMatrix!(sv::CuStateVec, matrix::Union{Matrix, CuMatrix}, adjoint::
         custatevecApplyMatrixGetWorkspaceSize(handle(), eltype(sv), sv.nbits, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), length(targets), length(controls), compute_type(eltype(sv), eltype(matrix)), out)
         out[]
     end
-    with_workspace(bufferSize) do buffer
-        custatevecApplyMatrix(handle(), sv.data, eltype(sv), sv.nbits, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), compute_type(eltype(sv), eltype(matrix)), buffer, length(buffer))
+    with_workspace(handle().cache, bufferSize) do buffer
+        custatevecApplyMatrix(handle(), sv.data, eltype(sv), sv.nbits, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), compute_type(eltype(sv), eltype(matrix)), buffer, sizeof(buffer))
+    end
+    sv
+end
+
+function applyMatrixBatched!(sv::CuStateVec, n_svs::Int, map_type::custatevecMatrixMapType_t, matrix_inds::Vector{Int}, matrix::Union{Vector, CuVector}, n_matrices::Int, adjoint::Bool, targets::Vector{<:Integer}, controls::Vector{<:Integer}, controlValues::Vector{<:Integer}=fill(one(Int32), length(controls)))
+    sv_stride    = div(length(sv.data), n_svs)
+    n_index_bits = Int(log2(div(length(sv.data), n_svs)))
+    function bufferSize()
+        out = Ref{Csize_t}()
+        custatevecApplyMatrixBatchedGetWorkspaceSize(handle(), eltype(sv), n_index_bits, n_svs, sv_stride, map_type, matrix_inds, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, length(targets), length(controls), compute_type(eltype(sv), eltype(matrix)), out)
+        out[]
+    end
+    with_workspace(handle().cache, bufferSize) do buffer
+        custatevecApplyMatrixBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, map_type, matrix_inds, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), compute_type(eltype(sv), eltype(matrix)), buffer, sizeof(buffer))
     end
     sv
 end
@@ -22,15 +36,15 @@ function applyGeneralizedPermutationMatrix!(sv::CuStateVec, permutation::Union{V
         custatevecApplyGeneralizedPermutationMatrixGetWorkspaceSize(handle(), eltype(sv), sv.nbits, permutation, diagonals, eltype(diagonals), convert(Vector{Int32}, targets), length(targets), length(controls), out)
         out[]
     end
-    with_workspace(bufferSize) do buffer
-        custatevecApplyGeneralizedPermutationMatrix(handle(), sv.data, eltype(sv), sv.nbits, permutation, diagonals, eltype(diagonals), Int32(adjoint), convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), buffer, length(buffer))
+    with_workspace(handle().cache, bufferSize) do buffer
+        custatevecApplyGeneralizedPermutationMatrix(handle(), sv.data, eltype(sv), sv.nbits, permutation, diagonals, eltype(diagonals), Int32(adjoint), convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), buffer, sizeof(buffer))
     end
     sv
 end
 
 function abs2SumOnZBasis(sv::CuStateVec, basisInds::Vector{<:Integer})
-    abs2sum0 = Ref{Float64}[]
-    abs2sum1 = Ref{Float64}[]
+    abs2sum0 = Ref{Float64}(0.0)
+    abs2sum1 = Ref{Float64}(0.0)
     custatevecAbs2SumOnZBasis(handle(), sv.data, eltype(sv), sv.nbits, abs2sum0, abs2sum1, basisInds, length(basisInds))
     return abs2sum0[], abs2sum1[]
 end
@@ -52,9 +66,32 @@ function collapseByBitString!(sv::CuStateVec, bitstring::Union{Vector{<:Integer}
     sv
 end
 
+function collapseByBitStringBatched!(sv::CuStateVec, n_svs::Int, bitstrings::Vector{<:Integer}, bitordering::Vector{<:Integer}, norms::Vector{Float64})
+    function bufferSize()
+        out = Ref{Csize_t}()
+        custatevecCollapseByBitStringBatchedGetWorkspaceSize(handle(), n_svs, convert(Vector{custatevecIndex_t}, bitstrings), norms, out)
+        out[]
+    end
+    sv_stride    = div(length(sv.data), n_svs)
+    n_index_bits = Int(log2(div(length(sv.data), n_svs)))
+    with_workspace(handle().cache, bufferSize) do buffer
+        custatevecCollapseByBitStringBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, convert(Vector{custatevecIndex_t}, bitstrings), convert(Vector{Int32}, bitordering), n_index_bits, norms, buffer, sizeof(buffer))
+    end
+    sv
+end
+
 function abs2SumArray(sv::CuStateVec, bitordering::Vector{<:Integer}, maskBitString::Vector{<:Integer}, maskOrdering::Vector{<:Integer})
     abs2sum = Vector{Float64}(undef, 2^length(bitordering))
     custatevecAbs2SumArray(handle(), sv.data, eltype(sv), sv.nbits, abs2sum, convert(Vector{Int32}, bitordering), length(bitordering), convert(Vector{Int32}, maskBitString), convert(Vector{Int32}, maskOrdering), length(maskOrdering))
+    return abs2sum
+end
+
+function abs2SumArrayBatched(sv::CuStateVec, n_svs::Int, bitordering::Vector{<:Integer}, maskBitStrings::Vector{<:Integer}, maskOrdering::Vector{<:Integer})
+    abs2sum      = zeros(Float64, n_svs * 2^length(bitordering))
+    sv_stride    = div(length(sv.data), n_svs)
+    n_index_bits = Int(log2(div(length(sv.data), n_svs)))
+    sum_stride   = 2^length(bitordering)
+    custatevecAbs2SumArrayBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, abs2sum, sum_stride, convert(Vector{Int32}, bitordering), length(bitordering), convert(Vector{Int32}, maskBitStrings), convert(Vector{Int32}, maskOrdering), length(maskOrdering))
     return abs2sum
 end
 
@@ -80,15 +117,15 @@ function expectation(sv::CuStateVec, matrix::Union{Matrix, CuMatrix}, basis_bits
     end
     expVal = Ref{Float64}()
     residualNorm = Ref{Float64}()
-    with_workspace(bufferSize) do buffer
-        custatevecComputeExpectation(handle(), sv.data, eltype(sv), sv.nbits, expVal, Float64, residualNorm, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, convert(Vector{Int32}, basis_bits), length(basis_bits), compute_type(eltype(sv), eltype(matrix)), buffer, length(buffer))
+    with_workspace(handle().cache, bufferSize) do buffer
+        custatevecComputeExpectation(handle(), sv.data, eltype(sv), sv.nbits, expVal, Float64, residualNorm, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, convert(Vector{Int32}, basis_bits), length(basis_bits), compute_type(eltype(sv), eltype(matrix)), buffer, sizeof(buffer))
     end
     return expVal[], residualNorm[]
 end
 
-function expectationsOnPauliBasis(sv::CuStateVec, pauliOps::Vector{Pauli}, basisInds::Vector{Vector{<:Integer}})
-    exp_vals = Vector{Float64}(undef, length(pauliOps))
-    cupaulis = CuStateVecPauli.(pauliOps)
+function expectationsOnPauliBasis(sv::CuStateVec, pauliOps::Vector{Vector{Pauli}}, basisInds::Vector{Vector{Int}})
+    exp_vals = zeros(Float64, length(pauliOps))
+    cupaulis = [[CuStateVecPauli(O) for O in op] for op in pauliOps]
     custatevecComputeExpectationsOnPauliBasis(handle(), sv.data, eltype(sv), sv.nbits, exp_vals, cupaulis, length(pauliOps), convert(Vector{Vector{Int32}}, basisInds), length.(basisInds))
     return exp_vals
 end
@@ -96,8 +133,8 @@ end
 function sample(sv::CuStateVec, sampled_bits::Vector{<:Integer}, shot_count)
     sampler = CuStateVecSampler(sv, UInt32(shot_count))
     bitstrings = Vector{custatevecIndex_t}(undef, shot_count)
-    with_workspace(sampler.ws_size) do buffer
-        custatevecSamplerPreprocess(handle(), sampler.handle, buffer, length(buffer))
+    with_workspace(handle().cache, sampler.ws_size) do buffer
+        custatevecSamplerPreprocess(handle(), sampler.handle, buffer, sizeof(buffer))
         custatevecSamplerSample(handle(), sampler.handle, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), rand(shot_count), shot_count, CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
     end
     return bitstrings
@@ -118,7 +155,7 @@ function swapIndexBitsMultiDevice!(sub_svs::Vector{CuStateVec}, devices::Vector{
     end
     device!(original_device)
     sub_data = map(sv->sv.data, sub_svs)
-    global_index_bits = mapreduce(sv->sv.nbits, +, sub_svs) 
+    global_index_bits = mapreduce(sv->sv.nbits, +, sub_svs)
     custatevecMultiDeviceSwapIndexBits(handles, length(handles), sub_data, eltype(first(sub_svs)), first(sub_svs).nbits, global_index_bits, convert(Vector{Pair{Int32, Int32}}, indexBitSwaps), length(indexBitSwaps), convert(Vector{Int32}, maskBitString), convert(Vector{Int32}, maskOrdering), length(maskOrdering), device_network_type)
     return sub_svs
 end
@@ -128,16 +165,23 @@ function testMatrixType(matrix::Union{Matrix, CuMatrix}, adjoint::Bool, matrix_t
     n == m || throw(DimensionMismatch("matrix must be square, but has dimensions ($n, $m)."))
     n_targets = log2(n)
     n_targets > 15 && throw(ArgumentError("matrix must be smaller than 2^15 x 2^15"))
-    
-    residualNorm = Ref{Float64}()
 
+    residualNorm = Ref{Float64}()
     function bufferSize()
         out = Ref{Csize_t}()
         custatevecTestMatrixTypeGetWorkspaceSize(handle(), matrix_type, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, n_targets, Int32(adjoint), compute_type, out)
         out[]
     end
-    with_workspace(bufferSize) do buffer
-        custatevecTestMatrixType(handle(), residualNorm, matrix_type, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, n_targets, Int32(adjoint), compute_type, buffer, length(buffer))
+    with_workspace(handle().cache, bufferSize) do buffer
+        custatevecTestMatrixType(handle(), residualNorm, matrix_type, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, n_targets, Int32(adjoint), compute_type, buffer, sizeof(buffer))
     end
     return residualNorm[]
+end
+
+function accessorSet(a::CuStateVecAccessor, external_buf::Union{Vector, CuVector}, i_begin::Int, i_end::Int)
+    custatevecAccessorSet(handle(), a, external_buf, i_begin, i_end)
+end
+
+function accessorGet(a::CuStateVecAccessor, external_buf::Union{Vector, CuVector}, i_begin::Int, i_end::Int)
+    custatevecAccessorGet(handle(), a, external_buf, i_begin, i_end)
 end

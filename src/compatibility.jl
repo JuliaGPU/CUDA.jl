@@ -1,9 +1,13 @@
 # compatibility of Julia, CUDA and LLVM
 
+# NOTE: Target architectures with suffix “a”, such as sm_90a, include
+# architecture-accelerated features that are supported on the specified architecture only,
+# hence such targets do not follow the onion layer model. Therefore, PTX code generated for
+# such targets cannot be run on later generation devices. Architecture-accelerated features
+# can only be used with targets that support these features.
+
 const lowest = v"0"
 const highest = v"999"
-
-join_capabilities(vers) = join(map(ver->"$(ver.major).$(ver.minor)", sort(collect(vers))), ", ", " and ")
 
 
 ## version range
@@ -28,30 +32,31 @@ Base.intersect(v::VersionNumber, r::VersionRange) =
 # - https://en.wikipedia.org/wiki/CUDA#GPUs_supported
 # - ptxas |& grep -A 10 '\--gpu-name'
 const cuda_cap_db = Dict(
-    v"1.0" => between(lowest, v"6.5"),
-    v"1.1" => between(lowest, v"6.5"),
-    v"1.2" => between(lowest, v"6.5"),
-    v"1.3" => between(lowest, v"6.5"),
-    v"2.0" => between(lowest, v"8.0"),
-    v"2.1" => between(lowest, v"8.0"),
-    v"3.0" => between(v"4.2", v"10.2"),
-    v"3.2" => between(v"6.0", v"10.2"),
-    v"3.5" => between(v"5.0", v"11.8"),
-    v"3.7" => between(v"6.5", highest),
-    v"5.0" => between(v"6.0", highest),
-    v"5.2" => between(v"7.0", highest),
-    v"5.3" => between(v"7.5", highest),
-    v"6.0" => between(v"8.0", highest),
-    v"6.1" => between(v"8.0", highest),
-    v"6.2" => between(v"8.0", highest),
-    v"7.0" => between(v"9.0", highest),
-    v"7.2" => between(v"9.2", highest),
-    v"7.5" => between(v"10.0", highest),
-    v"8.0" => between(v"11.0", highest),
-    v"8.6" => between(v"11.1", highest),
-    v"8.7" => between(v"11.4", highest),
-    v"8.9" => between(v"11.8", highest),
-    v"9.0" => between(v"11.8", highest),
+    v"1.0"   => between(lowest, v"6.5"),
+    v"1.1"   => between(lowest, v"6.5"),
+    v"1.2"   => between(lowest, v"6.5"),
+    v"1.3"   => between(lowest, v"6.5"),
+    v"2.0"   => between(lowest, v"8.0"),
+    v"2.1"   => between(lowest, v"8.0"),
+    v"3.0"   => between(v"4.2", v"10.2"),
+    v"3.2"   => between(v"6.0", v"10.2"),
+    v"3.5"   => between(v"5.0", v"11.8"),
+    v"3.7"   => between(v"6.5", highest),
+    v"5.0"   => between(v"6.0", highest),
+    v"5.2"   => between(v"7.0", highest),
+    v"5.3"   => between(v"7.5", highest),
+    v"6.0"   => between(v"8.0", highest),
+    v"6.1"   => between(v"8.0", highest),
+    v"6.2"   => between(v"8.0", highest),
+    v"7.0"   => between(v"9.0", highest),
+    v"7.2"   => between(v"9.2", highest),
+    v"7.5"   => between(v"10.0", highest),
+    v"8.0"   => between(v"11.0", highest),
+    v"8.6"   => between(v"11.1", highest),
+    v"8.7"   => between(v"11.4", highest),
+    v"8.9"   => between(v"11.8", highest),
+    v"9.0"   => between(v"11.8", highest),
+    #v"9.0a" => between(v"12.0", highest),
 )
 
 function cuda_cap_support(ver::VersionNumber)
@@ -67,8 +72,7 @@ end
 
 ## PTX ISAs supported by the CUDA toolkit
 
-# Source:
-# - PTX ISA document, Release History table
+# Source: PTX ISA document, Release History table
 const cuda_ptx_db = Dict(
     v"1.0" => between(v"1.0", highest),
     v"1.1" => between(v"1.1", highest),
@@ -104,6 +108,11 @@ const cuda_ptx_db = Dict(
     v"7.7" => between(v"11.7", highest),
     v"7.8" => between(v"11.8", highest),
     v"8.0" => between(v"12.0", highest),
+    v"8.1" => between(v"12.1", highest),
+    v"8.2" => between(v"12.2", highest),
+    v"8.3" => between(v"12.3", highest),
+    v"8.4" => between(v"12.4", highest),
+    v"8.5" => between(v"12.5", highest),
 )
 
 function cuda_ptx_support(ver::VersionNumber)
@@ -117,30 +126,72 @@ function cuda_ptx_support(ver::VersionNumber)
 end
 
 
+## devices supported by each PTX ISA
+
+# Source: PTX ISA document, Release History table
+const ptx_cap_db = Dict(
+    v"1.0"   => between(v"1.0", highest),
+    v"1.1"   => between(v"1.0", highest),
+    v"1.2"   => between(v"1.2", highest),
+    v"1.3"   => between(v"1.2", highest),
+    v"2.0"   => between(v"2.0", highest),
+    v"3.0"   => between(v"3.1", highest),
+    v"3.2"   => between(v"4.0", highest),
+    v"3.5"   => between(v"3.1", highest),
+    v"3.7"   => between(v"4.1", highest),
+    v"5.0"   => between(v"4.0", highest),
+    v"5.2"   => between(v"4.1", highest),
+    v"5.3"   => between(v"4.2", highest),
+    v"6.0"   => between(v"5.0", highest),
+    v"6.1"   => between(v"5.0", highest),
+    v"6.2"   => between(v"5.0", highest),
+    v"7.0"   => between(v"6.0", highest),
+    v"7.2"   => between(v"6.1", highest),
+    v"7.5"   => between(v"6.3", highest),
+    v"8.0"   => between(v"7.0", highest),
+    v"8.6"   => between(v"7.1", highest),
+    v"8.7"   => between(v"7.4", highest),
+    v"8.9"   => between(v"7.8", highest),
+    v"9.0"   => between(v"7.8", highest),
+    #v"9.0a" => between(v"8.0", highest)
+)
+
+function ptx_cap_support(ver::VersionNumber)
+    caps = Set{VersionNumber}()
+    for (cap,r) in ptx_cap_db
+        if ver in r
+            push!(caps, cap)
+        end
+    end
+    return caps
+end
+
+
 ## devices supported by the LLVM NVPTX back-end
 
 # Source: LLVM/lib/Target/NVPTX/NVPTX.td
 const llvm_cap_db = Dict(
-    v"2.0" => between(v"3.2", highest),
-    v"2.1" => between(v"3.2", highest),
-    v"3.0" => between(v"3.2", highest),
-    v"3.2" => between(v"3.7", highest),
-    v"3.5" => between(v"3.2", highest),
-    v"3.7" => between(v"3.7", highest),
-    v"5.0" => between(v"3.5", highest),
-    v"5.2" => between(v"3.7", highest),
-    v"5.3" => between(v"3.7", highest),
-    v"6.0" => between(v"3.9", highest),
-    v"6.1" => between(v"3.9", highest),
-    v"6.2" => between(v"3.9", highest),
-    v"7.0" => between(v"6.0", highest),
-    v"7.2" => between(v"7.0", highest),
-    v"7.5" => between(v"8.0", highest),
-    v"8.0" => between(v"11.0", highest),
-    v"8.6" => between(v"13.0", highest),
-    v"8.7" => between(v"16.0", highest),
-    v"8.9" => between(v"16.0", highest),
-    v"9.0" => between(v"16.0", highest),
+    v"2.0"   => between(v"3.2", highest),
+    v"2.1"   => between(v"3.2", highest),
+    v"3.0"   => between(v"3.2", highest),
+    v"3.2"   => between(v"3.7", highest),
+    v"3.5"   => between(v"3.2", highest),
+    v"3.7"   => between(v"3.7", highest),
+    v"5.0"   => between(v"3.5", highest),
+    v"5.2"   => between(v"3.7", highest),
+    v"5.3"   => between(v"3.7", highest),
+    v"6.0"   => between(v"3.9", highest),
+    v"6.1"   => between(v"3.9", highest),
+    v"6.2"   => between(v"3.9", highest),
+    v"7.0"   => between(v"6", highest),
+    v"7.2"   => between(v"7", highest),
+    v"7.5"   => between(v"8", highest),
+    v"8.0"   => between(v"11", highest),
+    v"8.6"   => between(v"13", highest),
+    v"8.7"   => between(v"16", highest),
+    v"8.9"   => between(v"16", highest),
+    v"9.0"   => between(v"16", highest),
+    #v"9.0a" => between(v"18", highest),
 )
 
 function llvm_cap_support(ver::VersionNumber)
@@ -166,20 +217,25 @@ const llvm_ptx_db = Dict(
     v"4.2" => between(v"3.7", highest),
     v"4.3" => between(v"3.9", highest),
     v"5.0" => between(v"3.9", highest),
-    v"6.0" => between(v"6.0", highest),
-    v"6.1" => between(v"7.0", highest),
-    v"6.3" => between(v"8.0", highest),
-    v"6.4" => between(v"9.0", highest),
-    v"6.5" => between(v"11.0", highest),
-    v"7.0" => between(v"11.0", highest),
-    v"7.1" => between(v"13.0", highest),
-    v"7.2" => between(v"13.0", highest),
-    v"7.3" => between(v"14.0", highest),
-    v"7.4" => between(v"14.0", highest),
-    v"7.5" => between(v"14.0", highest),
-    v"7.6" => between(v"16.0", highest),
-    v"7.7" => between(v"16.0", highest),
-    v"7.8" => between(v"16.0", highest),
+    v"6.0" => between(v"6", highest),
+    v"6.1" => between(v"7", highest),
+    v"6.3" => between(v"8", highest),
+    v"6.4" => between(v"9", highest),
+    v"6.5" => between(v"11", highest),
+    v"7.0" => between(v"11", highest),
+    v"7.1" => between(v"13", highest),
+    v"7.2" => between(v"13", highest),
+    v"7.3" => between(v"14", highest),
+    v"7.4" => between(v"14", highest),
+    v"7.5" => between(v"14", highest),
+    v"7.6" => between(v"16", highest),
+    v"7.7" => between(v"16", highest),
+    v"7.8" => between(v"16", highest),
+    v"8.0" => between(v"17", highest),
+    v"8.1" => between(v"17", highest),
+    v"8.2" => between(v"18", highest),
+    v"8.3" => between(v"18", highest),
+    v"8.4" => between(v"19", highest),
 )
 
 function llvm_ptx_support(ver::VersionNumber)
@@ -216,15 +272,6 @@ function cuda_compat(driver=driver_version(), runtime=runtime_version())
     return (cap=cap_support, ptx=ptx_support)
 end
 
-function supported_toolchain()
-    llvm_support = llvm_compat()
-    cuda_support = cuda_compat()
-
-    target_support = sort(collect(llvm_support.cap ∩ cuda_support.cap))
-    isempty(target_support) && error("Your toolchain does not support any device capability")
-
-    ptx_support = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
-    isempty(ptx_support) && error("Your toolchain does not support any PTX ISA")
-
-    return (cap=target_support, ptx=ptx_support)
+function ptx_compat(ptx)
+    return (cap=ptx_cap_support(ptx),)
 end

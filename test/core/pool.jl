@@ -1,4 +1,4 @@
-CUDA.alloc(0)
+CUDA.pool_alloc(0)
 
 @test_throws OutOfGPUMemoryError CuArray{Int}(undef, 10^20)
 
@@ -35,8 +35,8 @@ end
         end == 41
 end
 
-@testset "memory_status" begin
-    CUDA.memory_status(devnull)
+@testset "pool_status" begin
+    CUDA.pool_status(devnull)
     CUDA.used_memory()
     CUDA.cached_memory()
 end
