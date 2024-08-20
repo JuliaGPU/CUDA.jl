@@ -30,7 +30,7 @@ using Base: @deprecate_binding
 @deprecate_binding HOSTREGISTER_IOMEMORY CUDA.MEMHOSTREGISTER_IOMEMORY false
 
 @deprecate register(args...) CUDA.register(args...) false
-@deprecate unregister(args...) CUDA.register(args...) false
+@deprecate unregister(args...) CUDA.unregister(args...) false
 
 @deprecate_binding ATTACH_GLOBAL CUDA.MEM_ATTACH_GLOBAL false
 @deprecate_binding ATTACH_HOST CUDA.MEM_ATTACH_HOST false
