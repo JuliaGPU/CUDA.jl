@@ -672,7 +672,7 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(GPUArrays._map
         end
     end
 
-    return (nothing, nothing, nothing, nothing)
+    return (nothing, nothing, nothing)
 end
 
 end # module
