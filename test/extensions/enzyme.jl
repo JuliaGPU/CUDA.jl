@@ -107,7 +107,7 @@ end
     x = CuArray([1.0, 2.0, 3.0, 4.0])
     dx = CuArray([100., 300.0, 500.0, 700.0])
     res = Enzyme.autodiff(Forward, sum, Duplicated(x, dx))
-    @test res ≈ 100+300+500+700
+    @test res[1] ≈ 100+300+500+700.
 end
 
 @testset "Reverse sum" begin
