@@ -2289,6 +2289,18 @@ end
             d_Y = Diagonal(d_y)
             mul!(d_AY, d_A, d_Y)
             Array(d_AY) ≈ A * Diagonal(y)
+
+            XA = rand(elty,m,n)
+            d_XA = CuArray(XA')
+            d_X = Diagonal(d_x)
+            mul!(d_XA, d_X, d_A')
+            Array(d_XA) ≈ Diagonal(x) * A'
+
+            AY = rand(elty,m,n)
+            d_AY = CuArray(AY')
+            d_Y = Diagonal(d_y)
+            mul!(d_AY, d_A', d_Y)
+            Array(d_AY) ≈ A' * Diagonal(y)
         end
     end # extensions
 
