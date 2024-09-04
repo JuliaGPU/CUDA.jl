@@ -103,6 +103,20 @@ firstsum(x, y) = first(x .+ y)
     #@test res[2] ≈ 1.2
 end
 
+@testset "Forward sum" begin
+    x = CuArray([1.0, 2.0, 3.0, 4.0])
+    dx = CuArray([100., 300.0, 500.0, 700.0])
+    res = Enzyme.autodiff(Forward, sum, Duplicated(x, dx))
+    @test res[1] ≈ 100+300+500+700.
+end
+
+@testset "Reverse sum" begin
+    x = CuArray([1.0, 2.0, 3.0, 4.0])
+    dx = CuArray([0., 0.0, 0.0, 0.0])
+    Enzyme.autodiff(Reverse, sum, Duplicated(x, dx))
+    @test all(dx .≈ 1.0)
+end
+
 # TODO once reverse kernels are in
 # function togpu(x)
 #     x = CuArray(x)
