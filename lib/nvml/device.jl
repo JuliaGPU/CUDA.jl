@@ -55,7 +55,7 @@ Base.IteratorSize(::DeviceIterator) = Base.HasLength()
 function name(dev::Device)
     buf = Vector{Cchar}(undef, NVML_DEVICE_NAME_V2_BUFFER_SIZE)
     nvmlDeviceGetName(dev, pointer(buf), length(buf))
-    return unsafe_string(pointer(buf))
+    return GC.@preserve buf unsafe_string(pointer(buf))
 end
 
 function brand(dev::Device)
@@ -67,7 +67,7 @@ end
 function uuid(dev::Device)
     buf = Vector{Cchar}(undef, NVML_DEVICE_UUID_V2_BUFFER_SIZE)
     nvmlDeviceGetUUID(dev, pointer(buf), length(buf))
-    uuid_str = unsafe_string(pointer(buf))
+    uuid_str = GC.@preserve buf unsafe_string(pointer(buf))
     @assert startswith(uuid_str, "GPU-") || startswith(uuid_str, "MIG-")
     return Base.UUID(uuid_str[5:end])
 end
@@ -75,7 +75,7 @@ end
 function serial(dev::Device)
     buf = Vector{Cchar}(undef, NVML_DEVICE_SERIAL_BUFFER_SIZE)
     nvmlDeviceGetSerial(dev, pointer(buf), length(buf))
-    return unsafe_string(pointer(buf))
+    return GC.@preserve buf unsafe_string(pointer(buf))
 end
 
 function index(dev::Device)
