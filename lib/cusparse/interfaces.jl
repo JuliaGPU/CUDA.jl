@@ -73,6 +73,7 @@ function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::C
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     mv_wrapper(tA, alpha, A, B, beta, C)
 end
+
 function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::CuSparseMatrix{T}, B::CuSparseVector{T}, alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     mv_wrapper(tA, alpha, A, CuVector{T}(B), beta, C)
@@ -183,6 +184,12 @@ end
 for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
     @eval function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, B::$SparseMatrixType{T}) where {T <: BlasFloat}
         gemm('N', 'N', one(T), A, B, 'O')
+    end
+end
+
+for SparseMatrixType in (:CuSparseMatrixCSC,)
+    @eval function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, b::CuSparseVector{T}) where {T <: BlasFloat}
+        gemv('N', one(T), A, b, 'O')
     end
 end
 

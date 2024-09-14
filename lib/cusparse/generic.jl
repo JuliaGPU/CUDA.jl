@@ -574,6 +574,19 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     return C
 end
 
+function gemv(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
+              x::CuSparseVector{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+    m, n = size(A)
+    p = length(x)
+    p == n || throw(DimensionMismatch("dimensions must match: x has length $p, A has length $m × $n"))
+    # we model x as a CuSparseMatrixCSC with one column.
+    rowPtrB = CuVector{Int32}([1; nnz(x)+1])
+    B = CuSparseMatrixCSC(rowPtrB, x.iPtr, nonzeros(x), (n,1)))
+    C = gemm(transa, 'N', alpha, A, B, index, algo)
+    y = CuSparseVector(C.colVal, C.nzVal, m)
+    return y
+end
+
 for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
     @eval begin
         function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::$SparseMatrixType{T}, B::$SparseMatrixType{T},
