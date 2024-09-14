@@ -187,7 +187,7 @@ for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
     end
 end
 
-for SparseMatrixType in (:CuSparseMatrixCSC,)
+for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
     @eval function LinearAlgebra.:(*)(A::$SparseMatrixType{T}, b::CuSparseVector{T}) where {T <: BlasFloat}
         gemv('N', one(T), A, b, 'O')
     end
