@@ -614,12 +614,12 @@ function CuSparseMatrixCOO{Tv}(csc::CuSparseMatrixCSC{Tv}; index::SparseChar='O'
     coo = sort_coo(coo, 'R')
 end
 
-### BSR to COO and viceversa
+### BSR to COO and vice-versa
 
 CuSparseMatrixBSR(coo::CuSparseMatrixCOO, blockdim) = CuSparseMatrixBSR(CuSparseMatrixCSR(coo), blockdim) # no direct conversion
 CuSparseMatrixCOO(bsr::CuSparseMatrixBSR) = CuSparseMatrixCOO(CuSparseMatrixCSR(bsr)) # no direct conversion
 
-### BSR to CSC and viceversa
+### BSR to CSC and vice-versa
 
 CuSparseMatrixBSR(csc::CuSparseMatrixCSC, blockdim) = CuSparseMatrixBSR(CuSparseMatrixCSR(csc), blockdim) # no direct conversion
 CuSparseMatrixCSC(bsr::CuSparseMatrixBSR) = CuSparseMatrixCSC(CuSparseMatrixCSR(bsr)) # no direct conversion
@@ -667,4 +667,45 @@ end
 
 function CuSparseMatrixCOO(A::CuMatrix{T}; index::SparseChar='O') where {T}
     densetosparse(A, :coo, index)
+end
+
+## CuSparseVector to CuSparseMatrices and vice-versa
+function CuSparseVector(A::CuSparseMatrixCSC{T}) where T
+    m, n = size(A)
+    (n == 1) || error("A doesn't have one column and can't be converted to a CuSparseVector.")
+    CuSparseVector{T}(A.rowVal, A.nzVal, m)
+end
+
+# no direct conversion
+function CuSparseVector(A::CuSparseMatrixCSR{T}) where T
+    m, n = size(A)
+    (n == 1) || error("A doesn't have one column and can't be converted to a CuSparseVector.")
+    B = CuSparseMatrixCSC{T}(A)
+    CuSparseVector(B)
+end
+
+function CuSparseVector(A::CuSparseMatrixCOO{T}) where T
+    m, n = size(A)
+    (n == 1) || error("A doesn't have one column and can't be converted to a CuSparseVector.")
+    CuSparseVector{T}(A.rowInd, A.nzVal, m)
+end
+
+function CuSparseMatrixCSC(x::CuSparseVector{T}) where T
+    n = length(x)
+    colPtr = CuVector{Int32}([1; nnz(x)+1])
+    CuSparseMatrixCSC{T}(colPtr, x.iPtr, nonzeros(x), (n,1))
+end
+
+# no direct conversion
+function CuSparseMatrixCSR(x::CuSparseVector{T}) where T
+    A = CuSparseMatrixCSC(x)
+    CuSparseMatrixCSR{T}(A)
+end
+
+function CuSparseMatrixCOO(x::CuSparseVector{T}) where T
+    n = length(x)
+    nnzx = nnz(x)
+    colInd = CuVector{Int32}(undef, nnzx)
+    fill!(colInd, one(Int32))
+    CuSparseMatrixCOO{T}(x.iPtr, colInd, nonzeros(x), (n,1), nnzx)
 end
