@@ -39,8 +39,7 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
 
     # find groups of values that correspond to the same position in the matrix.
     # if there's no duplicates, `groups` will just be a vector of ones.
-    # otherwise, it will contain the number of duplicates for each group,
-    # with subsequent values that are part of the group set to zero.
+    # otherwise, it will contain gaps of zeros that indicates duplicate values.
     coo = sort_coo(coo, 'R')
     groups = similar(I, Int)
     function find_groups(groups, I, J)
@@ -51,14 +50,7 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
         len = 0
 
         # check if we're at the start of a new group
-        @inbounds if i == 1 || I[i] != I[i-1] || J[i] != J[i-1]
-            len = 1
-            while i+len <= length(groups) && I[i] == I[i+len] && J[i] == J[i+len]
-                len += 1
-            end
-        end
-
-        @inbounds groups[i] = len
+        @inbounds groups[i] = i == 1 || I[i] != I[i-1] || J[i] != J[i-1]
 
         return
     end
@@ -82,14 +74,16 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
             end
         end
 
-        total_lengths = cumsum(groups)  # TODO: add and use `scan!(; exclusive=true)`
+        # by scanning the mask of groups, we can find a mapping for old to new indices
+        indices = accumulate(+, groups)
+
         I = similar(I, ngroups)
         J = similar(J, ngroups)
         V = similar(V, ngroups)
 
-        # use one thread per value, and if it's at the start of a group,
+        # use one thread per (old) value, and if it's at the start of a group,
         # combine (if needed) all values and update the output vectors.
-        function combine_groups(groups, total_lengths, oldI, oldJ, oldV, newI, newJ, newV, combine)
+        function combine_groups(groups, indices, oldI, oldJ, oldV, newI, newJ, newV, combine)
             i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
             if i > length(groups)
                 return
@@ -97,34 +91,28 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
 
             # check if we're at the start of a group
             @inbounds if groups[i] != 0
-                # get an exclusive offset from the inclusive cumsum
-                offset = total_lengths[i] - groups[i] + 1
+                # get a destination index
+                j = indices[i]
 
                 # copy values
-                newI[i] = oldI[offset]
-                newJ[i] = oldJ[offset]
-                newV[i] = if groups[i] == 1
-                    oldV[offset]
-                else
-                    # combine all values in the group
-                    val = oldV[offset]
-                    j = 1
-                    while j < groups[i]
-                        val = combine(val, oldV[offset+j])
-                        j += 1
-                    end
-                    val
+                newI[j] = oldI[i]
+                newJ[j] = oldJ[i]
+                val = oldV[i]
+                while i < length(groups) && groups[i+1] == 0
+                    i += 1
+                    val = combine(val, oldV[i])
                 end
+                newV[j] = val
             end
 
             return
         end
-        kernel = @cuda launch=false combine_groups(groups, total_lengths, coo.rowInd, coo.colInd, coo.nzVal, I, J, V, combine)
+        kernel = @cuda launch=false combine_groups(groups, indices, coo.rowInd, coo.colInd, coo.nzVal, I, J, V, combine)
         config = launch_configuration(kernel.fun)
         threads = min(length(groups), config.threads)
         blocks = cld(length(groups), threads)
-        kernel(groups, total_lengths, coo.rowInd, coo.colInd, coo.nzVal, I, J, V, combine; threads, blocks)
-
+        kernel(groups, indices, coo.rowInd, coo.colInd, coo.nzVal, I, J, V, combine; threads, blocks)
+        synchronize()
         coo = CuSparseMatrixCOO{Tv}(I, J, V, (m, n))
     end
 

@@ -1117,4 +1117,15 @@ end
         @test Array(coo.colInd) == [1, 2, 3]
         @test Array(coo.nzVal) == [1f0, 2f0, 13f0]
     end
+
+    # JuliaGPU/CUDA.jl#2494
+    let
+        I = [1, 2, 1]
+        J = [1, 2, 1]
+        V = [10f0, 1f0, 2f0]
+        coo = sparse(cu(I), cu(J), cu(V); fmt=:coo)
+        @test Array(coo.rowInd) == [1, 2]
+        @test Array(coo.colInd) == [1, 2]
+        @test Array(coo.nzVal) == [12f0, 1f0]
+    end
 end
