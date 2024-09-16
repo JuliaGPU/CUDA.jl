@@ -15,9 +15,19 @@ end
 
 macro device_override(ex)
     ex = macroexpand(__module__, ex)
-    esc(quote
-        Base.Experimental.@overlay(CUDA.method_table, $ex)
-    end)
+    if VERSION >= v"1.12.0-DEV.745" || v"1.11-rc1" <= VERSION < v"1.12-"
+        # this requires that the overlay method f′ is consistent with f, i.e.,
+        #   - if f(x) returns a value, f′(x) must return the identical value.
+        #   - if f(x) throws an exception, f′(x) must also throw an exception
+        #     (although the exceptions do not need to be identical).
+        esc(quote
+            Base.Experimental.@consistent_overlay(CUDA.method_table, $ex)
+        end)
+    else
+        esc(quote
+            Base.Experimental.@overlay(CUDA.method_table, $ex)
+        end)
+    end
 end
 
 macro device_function(ex)
@@ -31,7 +41,9 @@ macro device_function(ex)
 
     esc(quote
         $(combinedef(def))
-        @device_override $ex
+
+        # NOTE: no use of `@consistent_overlay` here because the regular function errors
+        Base.Experimental.@overlay(CUDA.method_table, $ex)
     end)
 end
 
