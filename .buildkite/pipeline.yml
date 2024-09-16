@@ -158,21 +158,31 @@ steps:
           julia --project -e '
             using Pkg
 
-            println("--- :julia: Instantiating project")
+            cuda = pwd()
+            cudnn = joinpath(cuda, "lib", "cudnn")
+            nnlib = joinpath(DEPOT_PATH[1], "dev", "NNlib")
+
+            println("--- :julia: Installing TestEnv")
+            Pkg.activate()
+            Pkg.add("TestEnv")
+            using TestEnv
+
+            println("--- :julia: Installing NNlib")
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-              Pkg.instantiate()
+              Pkg.develop("NNlib")
+              Pkg.activate(nnlib)
 
               try
-                Pkg.develop("NNlib")
+                Pkg.develop([PackageSpec(path=cuda), PackageSpec(path=cudnn)])
+                TestEnv.activate()
               catch err
                 @error "Could not install NNlib" exception=(err,catch_backtrace())
                 exit(3)
               end
-              Pkg.develop(path=joinpath(pwd(), "lib", "cudnn"))
             end
 
             println("+++ :julia: Running tests")
-            Pkg.test("NNlib"; coverage=true)'
+            Pkg.test(; coverage=true)'
         env:
           NNLIB_TEST_CUDA: "true"
           NNLIB_TEST_CPU: "false"
