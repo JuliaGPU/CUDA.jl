@@ -85,9 +85,9 @@ function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
         # generate IR for calls to `deferred_codegen` and the resulting function pointer
         top_bb = first(blocks(entry))
         bb = BasicBlock(top_bb, "initialize_rng")
-        LLVM.@dispose builder=IRBuilder() begin
+        @dispose builder=IRBuilder() begin
             position!(builder, bb)
-            subprogram = LLVM.get_subprogram(entry)
+            subprogram = LLVM.subprogram(entry)
             if subprogram !== nothing
                 loc = DILocation(0, 0, subprogram)
                 debuglocation!(builder, loc)
