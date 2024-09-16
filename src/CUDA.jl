@@ -91,6 +91,7 @@ import .CUDAKernels: CUDABackend, KA.launch_config
 export CUDABackend
 
 # array implementation
+include("gpuarrays.jl")
 include("utilities.jl")
 include("texture.jl")
 
