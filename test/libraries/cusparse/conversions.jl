@@ -74,6 +74,24 @@ end
     end
 end
 
+if !(v"12.0" <= CUSPARSE.version() < v"12.1")
+    x = [0.0; 1.0; 2.0; 0.0; 3.0] |> SparseVector |> CuSparseVector
+    A = Matrix{Float64}(undef, 5, 1)
+    A[:, 1] .= [0.0; 1.0; 2.0; 0.0; 3.0]
+    A = SparseMatrixCSC(A)
+    for CuSparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+        @testset "conversion CuSparseVector --> $CuSparseMatrixType" begin
+            B = CuSparseMatrixType(x)
+            @test collect(B)[:] ≈ collect(x)
+        end
+        @testset "conversion $CuSparseMatrixType --> CuSparseVector" begin
+            B = CuSparseMatrixType(A)
+            y = CuSparseVector(B)
+            @test collect(B)[:] ≈ collect(y)
+        end
+    end
+end
+
 for (n, bd, p) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5)]
     v"12.0" <= CUSPARSE.version() < v"12.1" && n == 4 && continue
     @testset "conversions between CuSparseMatrices (n, bd, p) = ($n, $bd, $p)" begin
