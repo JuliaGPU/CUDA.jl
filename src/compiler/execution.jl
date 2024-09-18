@@ -194,13 +194,6 @@ input object `x` as-is.
 
 Do not add methods to this function, but instead extend the underlying Adapt.jl package and
 register methods for the the `CUDA.KernelAdaptor` type.
-
-!!! note
-
-    As an optimization, the compiler may choose not to call `cudaconvert` when it can prove
-    that the argument is already converted, by comparing against the type of the value that
-    the conversion would return. For semantically important conversions, ensure the type
-    of the value returned by `cudaconvert` is different from the input type.
 """
 cudaconvert(arg) = adapt(KernelAdaptor(), arg)
 
