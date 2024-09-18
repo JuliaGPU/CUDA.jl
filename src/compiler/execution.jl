@@ -111,7 +111,7 @@ macro cuda(ex...)
                     $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
                     if $launch
-                        $kernel($(var_exprs...); $(call_kwargs...))
+                        $kernel($kernel_args...; $(call_kwargs...), convert=Val(false))
                     end
                     $kernel
                 end
@@ -194,6 +194,13 @@ input object `x` as-is.
 
 Do not add methods to this function, but instead extend the underlying Adapt.jl package and
 register methods for the the `CUDA.KernelAdaptor` type.
+
+!!! note
+
+    As an optimization, the compiler may choose not to call `cudaconvert` when it can prove
+    that the argument is already converted, by comparing against the type of the value that
+    the conversion would return. For semantically important conversions, ensure the type
+    of the value returned by `cudaconvert` is different from the input type.
 """
 cudaconvert(arg) = adapt(KernelAdaptor(), arg)
 
@@ -238,15 +245,26 @@ function Base.show(io::IO, ::MIME"text/plain", k::AbstractKernel{F,TT}) where {F
     print(io, "CUDA.$(nameof(typeof(k))) for $(k.f)($(join(TT.parameters, ", ")))")
 end
 
-@inline @generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
+@inline @generated function (kernel::AbstractKernel{F,TT})(args::Vararg{Any,N};
+                                                           convert=Val(kernel isa HostKernel),
+                                                           call_kwargs...) where {F,TT,N}
     sig = Tuple{F, TT.parameters...}    # Base.signature_type with a function type
-    args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
+
+    # determine argument expressions
+    argexprs = [:(kernel.f)]
+    for i in 1:length(args)
+        if convert.parameters[1]
+            push!(argexprs, :(cudaconvert(args[$i])))
+        else
+            push!(argexprs, :(args[$i]))
+        end
+    end
 
     # filter out arguments that shouldn't be passed
     predicate = dt -> isghosttype(dt) || Core.Compiler.isconstType(dt)
     to_pass = map(!predicate, sig.parameters)
     call_t =                  Type[x[1] for x in zip(sig.parameters,  to_pass) if x[2]]
-    call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass)            if x[2]]
+    call_args = Union{Expr,Symbol}[x[1] for x in zip(argexprs,        to_pass) if x[2]]
 
     # replace non-isbits arguments (they should be unused, or compilation would have failed)
     # alternatively, make it possible to `launch` with non-isbits arguments.
@@ -386,10 +404,6 @@ end
 # cache of kernel instances
 const _kernel_instances = Dict{Any, Any}()
 
-function (kernel::HostKernel)(args::Vararg{Any,N}; threads::CuDim=1, blocks::CuDim=1, kwargs...) where {N}
-    call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
-end
-
 make_seed(::HostKernel) = Random.rand(UInt32)
 
 
@@ -419,9 +433,6 @@ No keyword arguments are supported.
     fun = CuDeviceFunction(fptr)
     DeviceKernel{F,tt}(f, fun, kernel_state())
 end
-
-@inline (kernel::DeviceKernel)(args::Vararg{Any,N}; kwargs...) where {N} =
-    call(kernel, args...; kwargs...)
 
 # re-use the parent kernel's seed to avoid need for the RNG
 make_seed(::DeviceKernel) = kernel_state().random_seed
