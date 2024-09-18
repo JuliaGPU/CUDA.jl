@@ -1023,7 +1023,7 @@ end
                                                                     nIndexBits::UInt32,
                                                                     nSVs::UInt32,
                                                                     svStride::custatevecIndex_t,
-                                                                    expectationValues::Ptr{double2},
+                                                                    expectationValues::Ptr{ComplexF64},
                                                                     matrices::Ptr{Cvoid},
                                                                     matrixDataType::cudaDataType_t,
                                                                     layout::custatevecMatrixLayout_t,
