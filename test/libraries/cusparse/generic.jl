@@ -367,7 +367,7 @@ for SparseMatrixType in keys(SPGEMM_ALGOS)
             db = CuSparseVector(b)
             alpha = rand(T)
             y = alpha * opa(A) * b
-            dy = gemv(transa, alpha, dA, db, 'O', algo)
+            dy = gemv(transa, alpha, dA, db, 'O')
             @test collect(dy) ≈ y
         end
     end

@@ -575,7 +575,7 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
 end
 
 """
-    y = gemv(transa, alpha, A, x, index, algo)
+    y = gemv(transa, alpha, A, x, index, [algo])
 
 Perform a product between a `CuSparseMatrix` and a `CuSparseVector`, returning a `CuSparseVector`.
 This function should only be used for highly sparse matrices and vectors, as the result is expected
