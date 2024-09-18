@@ -886,6 +886,111 @@ for (fname, elty) in ((:cusolverDnSpotrfBatched, :Float32),
     end
 end
 
+# gesv
+function gesv!(X::CuVecOrMat{T}, A::CuMatrix{T}, B::CuVecOrMat{T}; fallback::Bool=true,
+               residual_history::Bool=false, irs_precision::String="AUTO", refinement_solver::String="CLASSICAL",
+               maxiters::Int=0, maxiters_inner::Int=0, tol::Float64=0.0, tol_inner=Float64=0.0) where T <: BlasFloat
+
+    params = CuSolverIRSParameters()
+    info = CuSolverIRSInformation()
+    n = checksquare(A)
+    nrhs = size(B, 2)
+    lda = max(1, stride(A, 2))
+    ldb = max(1, stride(B, 2))
+    ldx = max(1, stride(X, 2))
+    devflag = CuArray{Cint}(undef, 1)
+    niters = Ref{Cint}()
+    buffer_size = Ref{Csize_t}(0)
+
+    if irs_precision == "AUTO"
+        (T = Float32)    && (irs_precision = "R_32F")
+        (T = Float64)    && (irs_precision = "R_64F")
+        (T = ComplexF32) && (irs_precision = "C_32F")
+        (T = ComplexF64) && (irs_precision = "C_64F")
+    else
+        (T == Float32)    && (irs_precision ∈ ("R_32F", "R_16F", "R_16BF", "R_TF32") || error("$irs_precision is not supported."))
+        (T == Float64)    && (irs_precision ∈ ("R_64F", "R_32F", "R_16F", "R_16BF", "R_TF32") || error("$irs_precision is not supported."))
+        (T == ComplexF32) && (irs_precision ∈ ("C_32F", "C_16F", "C_16BF", "C_TF32") || error("$irs_precision is not supported."))
+        (T == ComplexF64) && (irs_precision ∈ ("C_64F", "C_32F", "C_16F", "C_16BF", "C_TF32") || error("$irs_precision is not supported."))
+    end
+    cusolverDnIRSParamsSetSolverMainPrecision(params, T)
+    cusolverDnIRSParamsSetSolverLowestPrecision(params, irs_precision)
+    cusolverDnIRSParamsSetRefinementSolver(params, refinement_solver)
+    (tol != 0.0) && cusolverDnIRSParamsSetTol(params, tol)
+    (tol_inner != 0.0) && cusolverDnIRSParamsSetTolInner(params, tol_inner)
+    (maxiters != 0) && cusolverDnIRSParamsSetMaxIters(params, maxiters)
+    (maxiters_inner != 0) && cusolverDnIRSParamsSetMaxItersInner(params, maxiters_inner)
+    fallback ? cusolverDnIRSParamsEnableFallback(params) : cusolverDnIRSParamsDisableFallback(params)
+    residual_history && cusolverDnIRSInfosRequestResidual(info)
+
+    cusolverDnIRSXgesv_bufferSize(dense_handle(), params, n, nrhs, buffer_size)
+
+    with_workspace(buffer_size) do buffer
+        cusolverDnIRSXgesv(dense_handle(), params, info, n, nrhs, A, lda, B, ldb,
+                           dX, ldx, buffer, buffer_size, niter, devflag)
+    end
+
+    # Copy the solver flag and delete the device memory
+    flag = @allowscalar devflag[1]
+    unsafe_free!(devflag)
+    chklapackerror(BlasInt(flag))
+
+    return X, info
+end
+
+# gels
+function gels!(X::CuVecOrMat{T}, A::CuMatrix{T}, B::CuVecOrMat{T}; fallback::Bool=true,
+               residual_history::Bool=false, irs_precision::String="AUTO", refinement_solver::String="CLASSICAL",
+               maxiters::Int=0, maxiters_inner::Int=0, tol::Float64=0.0, tol_inner=Float64=0.0) where T <: BlasFloat
+
+    params = CuSolverIRSParameters()
+    info = CuSolverIRSInformation()
+    m,n = size(A)
+    nrhs = size(B, 2)
+    lda = max(1, stride(A, 2))
+    ldb = max(1, stride(B, 2))
+    ldx = max(1, stride(X, 2))
+    devflag = CuArray{Cint}(undef, 1)
+    niters = Ref{Cint}()
+    buffer_size = Ref{Csize_t}(0)
+
+
+    if irs_precision == "AUTO"
+        (T = Float32)    && (irs_precision = "R_32F")
+        (T = Float64)    && (irs_precision = "R_64F")
+        (T = ComplexF32) && (irs_precision = "C_32F")
+        (T = ComplexF64) && (irs_precision = "C_64F")
+    else
+        (T == Float32)    && (irs_precision ∈ ("R_32F", "R_16F", "R_16BF", "R_TF32") || error("$irs_precision is not supported."))
+        (T == Float64)    && (irs_precision ∈ ("R_64F", "R_32F", "R_16F", "R_16BF", "R_TF32") || error("$irs_precision is not supported."))
+        (T == ComplexF32) && (irs_precision ∈ ("C_32F", "C_16F", "C_16BF", "C_TF32") || error("$irs_precision is not supported."))
+        (T == ComplexF64) && (irs_precision ∈ ("C_64F", "C_32F", "C_16F", "C_16BF", "C_TF32") || error("$irs_precision is not supported."))
+    end
+    cusolverDnIRSParamsSetSolverMainPrecision(params, T)
+    cusolverDnIRSParamsSetSolverLowestPrecision(params, irs_precision)
+    cusolverDnIRSParamsSetRefinementSolver(params, refinement_solver)
+    (tol != 0.0) && cusolverDnIRSParamsSetTol(params, tol)
+    (tol_inner != 0.0) && cusolverDnIRSParamsSetTolInner(params, tol_inner)
+    (maxiters != 0) && cusolverDnIRSParamsSetMaxIters(params, maxiters)
+    (maxiters_inner != 0) && cusolverDnIRSParamsSetMaxItersInner(params, maxiters_inner)
+    fallback ? cusolverDnIRSParamsEnableFallback(params) : cusolverDnIRSParamsDisableFallback(params)
+    residual_history && cusolverDnIRSInfosRequestResidual(info)
+
+    cusolverDnIRSXgels_bufferSize(dense_handle(), params, m, n, nrhs, buffer_size)
+
+    with_workspace(buffer_size) do buffer
+        cusolverDnIRSXgels(dense_handle(), params, info, m, n, nrhs, A, lda, B, ldb,
+                           dX, ldx, buffer, buffer_size, niters, devflag)
+    end
+
+    # Copy the solver flag and delete the device memory
+    flag = @allowscalar devflag[1]
+    unsafe_free!(devflag)
+    chklapackerror(BlasInt(flag))
+
+    return X, info
+end
+
 # LAPACK
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin

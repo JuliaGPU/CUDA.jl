@@ -29,6 +29,8 @@ function description(err)
         "an internal operation failed"
     elseif err.code == CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED
         "the matrix type is not supported."
+    elseif err.code == CUSOLVER_STATUS_NOT_SUPPORTED
+        "the parameter combination is not supported."
     else
         "no description for this error"
     end
