@@ -123,7 +123,7 @@ steps:
 
             println("--- :julia: Instantiating project")
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-              Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix.package}}")))
+              Pkg.activate(joinpath("lib", lowercase("{{matrix.package}}")))
               try
                 Pkg.instantiate()
               catch
@@ -136,7 +136,8 @@ steps:
               end
 
               Pkg.add("CUDA_Runtime_jll")
-              write("LocalPreferences.toml", "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"")
+              write(joinpath("lib", lowercase("{{matrix.package}}"), "LocalPreferences.toml"),
+                    "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"")
             end
 
             println("+++ :julia: Running tests")
