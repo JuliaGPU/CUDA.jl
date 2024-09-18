@@ -1,7 +1,7 @@
 # generic APIs
 
 export gather!, scatter!, axpby!, rot!
-export vv!, sv!, sm!, gemm, gemm!, sddmm!
+export vv!, sv!, sm!, gemv, gemm, gemm!, sddmm!
 export bmm!
 
 ## API functions
