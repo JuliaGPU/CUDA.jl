@@ -1,5 +1,4 @@
 # compatibility with EnzymeCore
-
 module EnzymeCoreExt
 
 using CUDA
