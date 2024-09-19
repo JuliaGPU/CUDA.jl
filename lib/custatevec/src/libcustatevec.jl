@@ -986,6 +986,55 @@ end
                                                          collapse::custatevecCollapseOp_t)::custatevecStatus_t
 end
 
+@checked function custatevecComputeExpectationBatchedGetWorkspaceSize(handle, svDataType,
+                                                                      nIndexBits, nSVs,
+                                                                      svStride, matrices,
+                                                                      matrixDataType,
+                                                                      layout, nMatrices,
+                                                                      nBasisBits,
+                                                                      computeType,
+                                                                      extraWorkspaceSizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcustatevec.custatevecComputeExpectationBatchedGetWorkspaceSize(handle::custatevecHandle_t,
+                                                                                    svDataType::cudaDataType_t,
+                                                                                    nIndexBits::UInt32,
+                                                                                    nSVs::UInt32,
+                                                                                    svStride::custatevecIndex_t,
+                                                                                    matrices::Ptr{Cvoid},
+                                                                                    matrixDataType::cudaDataType_t,
+                                                                                    layout::custatevecMatrixLayout_t,
+                                                                                    nMatrices::UInt32,
+                                                                                    nBasisBits::UInt32,
+                                                                                    computeType::custatevecComputeType_t,
+                                                                                    extraWorkspaceSizeInBytes::Ptr{Csize_t})::custatevecStatus_t
+end
+
+@checked function custatevecComputeExpectationBatched(handle, batchedSv, svDataType,
+                                                      nIndexBits, nSVs, svStride,
+                                                      expectationValues, matrices,
+                                                      matrixDataType, layout, nMatrices,
+                                                      basisBits, nBasisBits, computeType,
+                                                      extraWorkspace,
+                                                      extraWorkspaceSizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcustatevec.custatevecComputeExpectationBatched(handle::custatevecHandle_t,
+                                                                    batchedSv::Ptr{Cvoid},
+                                                                    svDataType::cudaDataType_t,
+                                                                    nIndexBits::UInt32,
+                                                                    nSVs::UInt32,
+                                                                    svStride::custatevecIndex_t,
+                                                                    expectationValues::Ptr{ComplexF64},
+                                                                    matrices::Ptr{Cvoid},
+                                                                    matrixDataType::cudaDataType_t,
+                                                                    layout::custatevecMatrixLayout_t,
+                                                                    nMatrices::UInt32,
+                                                                    basisBits::Ptr{Int32},
+                                                                    nBasisBits::UInt32,
+                                                                    computeType::custatevecComputeType_t,
+                                                                    extraWorkspace::Ptr{Cvoid},
+                                                                    extraWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
+end
+
 mutable struct custatevecSubSVMigratorDescriptor end
 
 const custatevecSubSVMigratorDescriptor_t = Ptr{custatevecSubSVMigratorDescriptor}

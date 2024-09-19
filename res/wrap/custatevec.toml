@@ -134,3 +134,6 @@ needs_context = false
 
 [api.custatevecSwapIndexBits.argtypes]
 2 = "CuPtr{Cvoid}"
+
+[api.custatevecComputeExpectationBatched.argtypes]
+7 = "Ptr{ComplexF64}"
