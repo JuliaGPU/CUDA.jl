@@ -32,7 +32,7 @@ function EnzymeCore.compiler_job_from_backend(::CUDABackend, @nospecialize(F::Ty
 end
 
 function metaf(config, fn, args::Vararg{Any, N}) where N
-    EnzymeCore.autodiff_deferred(EnzymeCore.set_runtime_activity(Forward, config), fn, Const, args...)
+    EnzymeCore.autodiff_deferred(EnzymeCore.set_runtime_activity(Forward, config), Const(fn), Const, args...)
     nothing
 end
 
