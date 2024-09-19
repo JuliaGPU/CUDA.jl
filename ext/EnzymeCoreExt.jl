@@ -31,8 +31,8 @@ function EnzymeCore.compiler_job_from_backend(::CUDABackend, @nospecialize(F::Ty
     return GPUCompiler.CompilerJob(mi, CUDA.compiler_config(CUDA.device()))
 end
 
-function metaf(fn, args::Vararg{Any, N}) where N
-    EnzymeCore.autodiff_deferred(Forward, fn, Const, args...)
+function metaf(config, fn, args::Vararg{Any, N}) where N
+    EnzymeCore.autodiff_deferred(EnzymeCore.set_runtime_activity(Forward, config), fn, Const, args...)
     nothing
 end
 
@@ -226,10 +226,10 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::EnzymeCore.Annotation{CUDA.
 
     GC.@preserve args begin
         args = ((cudaconvert(a) for a in args)...,)
-        T2 = (F, (typeof(a) for a in args)...)
+	T2 = (typeof(config), F, (typeof(a) for a in args)...)
         TT2 = Tuple{T2...}
         cuf = cufunction(metaf, TT2)
-        res = cuf(ofn.val.f, args...; kwargs...)
+        res = cuf(config, ofn.val.f, args...; kwargs...)
     end
 
     return nothing
@@ -265,9 +265,10 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::EnzymeCore.Const{typeof(cuf
     return (nothing, nothing)
 end
 
-function meta_augf(f, tape::CuDeviceArray{TapeType}, ::Val{ModifiedBetween}, args::Vararg{Any, N}) where {N, ModifiedBetween, TapeType}
+function meta_augf(config, f, tape::CuDeviceArray{TapeType}, args::Vararg{Any, N}) where {N, TapeType}
+    ModifiedBetween = overwritten(config)
     forward, _ = EnzymeCore.autodiff_deferred_thunk(
-        ReverseSplitModified(ReverseSplitWithPrimal, Val(ModifiedBetween)),
+        ReverseSplitModified(EnzymeCore.set_runtime_activity(ReverseSplitWithPrimal, config), Val(ModifiedBetween)),
         TapeType,
         Const{Core.Typeof(f)},
         Const{Nothing},
@@ -305,7 +306,7 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::EnzymeCore.Annotat
     ModifiedBetween = overwritten(config)
     TapeType = EnzymeCore.tape_type(
         EnzymeCore.compiler_job_from_backend(CUDABackend(), typeof(Base.identity), Tuple{Float64}),
-        ReverseSplitModified(ReverseSplitWithPrimal, Val(ModifiedBetween)),
+	ReverseSplitModified(EnzymeCore.set_runtime_activity(ReverseSplitWithPrimal, config), Val(ModifiedBetween)),
         Const{F},
         Const{Nothing},
         map(typeof, args)...,
@@ -316,18 +317,19 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::EnzymeCore.Annotat
 
     GC.@preserve args subtape, begin
         subtape2 = cudaconvert(subtape)
-        T2 = (F, typeof(subtape2), Val{ModifiedBetween},   (typeof(a) for a in args)...)
+	T2 = (typeof(config), F, typeof(subtape2), (typeof(a) for a in args)...)
         TT2 = Tuple{T2...}
         cuf = cufunction(meta_augf, TT2)
-        res = cuf(ofn.val.f, subtape2, Val(ModifiedBetween), args...; threads=(threads.x, threads.y, threads.z), blocks=(blocks.x, blocks.y, blocks.z), kwargs...)
+        res = cuf(ofn.val.f, subtape2, args...; threads=(threads.x, threads.y, threads.z), blocks=(blocks.x, blocks.y, blocks.z), kwargs...)
     end
 
     return AugmentedReturn{Nothing,Nothing,CuArray}(nothing, nothing, subtape)
 end
 
-function meta_revf(f, tape::CuDeviceArray{TapeType}, ::Val{ModifiedBetween},  args::Vararg{Any, N}) where {N, ModifiedBetween, TapeType}
+function meta_revf(config, f, tape::CuDeviceArray{TapeType}, args::Vararg{Any, N}) where {N, TapeType}
+    ModifiedBetween = overwritten(config)
     _, reverse = EnzymeCore.autodiff_deferred_thunk(
-        ReverseSplitModified(ReverseSplitWithPrimal, Val(ModifiedBetween)),
+        ReverseSplitModified(EnzymeCore.set_runtime_activity(ReverseSplitWithPrimal, config), Val(ModifiedBetween)),
         TapeType,
         Const{Core.Typeof(f)},
         Const{Nothing},
@@ -363,7 +365,7 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::EnzymeCore.Annotation{CUDA.
     args = ((cudaconvert(arg) for arg in args0)...,)
     ModifiedBetween = overwritten(config)
     TapeType = EnzymeCore.tape_type(
-        ReverseSplitModified(ReverseSplitWithPrimal, Val(ModifiedBetween)),
+        ReverseSplitModified(EnzymeCore.set_runtime_activity(ReverseSplitWithPrimal, config), Val(ModifiedBetween)),
         Const{F},
         Const{Nothing},
         map(typeof, args)...,
@@ -373,10 +375,10 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::EnzymeCore.Annotation{CUDA.
 
     GC.@preserve args0 subtape, begin
         subtape2 = cudaconvert(subtape)
-        T2 = (F, typeof(subtape2), Val{ModifiedBetween}, (typeof(a) for a in args)...)
+	T2 = (typeof(config), F, typeof(subtape2), (typeof(a) for a in args)...)
         TT2 = Tuple{T2...}
         cuf = cufunction(meta_revf, TT2)
-        res = cuf(ofn.val.f, subtape2, Val(ModifiedBetween), args...; threads=(threads.x, threads.y, threads.z), blocks=(blocks.x, blocks.y, blocks.z), kwargs...)
+        res = cuf(ofn.val.f, subtape2, args...; threads=(threads.x, threads.y, threads.z), blocks=(blocks.x, blocks.y, blocks.z), kwargs...)
     end
 
     return ntuple(Val(length(args0))) do i
