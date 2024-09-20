@@ -67,12 +67,12 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(cudaconvert)},
         end
     elseif EnzymeRules.needs_shadow(config)
         if EnzymeRules.width(config) == 1
-            ofn.val(x.dval)::eltype(RT)
+            ofn.val(x.dval)::EnzymeCore.shadow_type(config, RT)
         else
-            ntuple(Val(EnzymeRules.width(config))) do i
+            (ntuple(Val(EnzymeRules.width(config))) do i
                 Base.@_inline_meta
                 ofn.val(x.dval[i])::eltype(RT)
-            end
+            end)::EnzymeCore.shadow_type(config, RT)
         end
     elseif EnzymeRules.needs_primal(config)
         ofn.val(uval.val)::eltype(RT)
