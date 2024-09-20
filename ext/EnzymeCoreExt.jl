@@ -320,7 +320,7 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::EnzymeCore.Annotat
 	T2 = (typeof(config), F, typeof(subtape2), (typeof(a) for a in args)...)
         TT2 = Tuple{T2...}
         cuf = cufunction(meta_augf, TT2)
-        res = cuf(ofn.val.f, subtape2, args...; threads=(threads.x, threads.y, threads.z), blocks=(blocks.x, blocks.y, blocks.z), kwargs...)
+        res = cuf(config, ofn.val.f, subtape2, args...; threads=(threads.x, threads.y, threads.z), blocks=(blocks.x, blocks.y, blocks.z), kwargs...)
     end
 
     return AugmentedReturn{Nothing,Nothing,CuArray}(nothing, nothing, subtape)
@@ -378,7 +378,7 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::EnzymeCore.Annotation{CUDA.
 	T2 = (typeof(config), F, typeof(subtape2), (typeof(a) for a in args)...)
         TT2 = Tuple{T2...}
         cuf = cufunction(meta_revf, TT2)
-        res = cuf(ofn.val.f, subtape2, args...; threads=(threads.x, threads.y, threads.z), blocks=(blocks.x, blocks.y, blocks.z), kwargs...)
+        res = cuf(config, ofn.val.f, subtape2, args...; threads=(threads.x, threads.y, threads.z), blocks=(blocks.x, blocks.y, blocks.z), kwargs...)
     end
 
     return ntuple(Val(length(args0))) do i
