@@ -133,7 +133,7 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}},
         if EnzymeRules.width(config) == 1
             shadow = ofn.val(uval.val, primargs...)::CT
             fill!(shadow, 0)
-            shadow
+	    shadow::shadow_type(config, RT)
         else
             tup = ntuple(Val(EnzymeRules.width(config))) do i
                 Base.@_inline_meta
@@ -141,7 +141,7 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}},
                 fill!(shadow, 0)
                 shadow::CT
             end
-            tup
+	    tup::shadow_type(config, RT)
         end
     elseif EnzymeRules.needs_primal(config)
         ofn.val(uval.val, primargs...)
