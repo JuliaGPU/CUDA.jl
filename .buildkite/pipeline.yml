@@ -221,11 +221,16 @@ steps:
               # to check compatibility, also add Enzyme to the main environment
               # (or Pkg.test, which merges both environments, could fail)
               Pkg.activate(".")
+              # Try to co-develop Enzyme and KA, if that fails, try just to dev Enzyme
               try
-                Pkg.develop("Enzyme")
+                Pkg.develop([PackageSpec("Enzyme"), PackageSpec("KernelAbstractions")])
               catch err
-                @error "Could not install Enzyme" exception=(err,catch_backtrace())
-                exit(3)
+                try
+                  Pkg.develop([PackageSpec("Enzyme")])
+                catch err
+                  @error "Could not install Enzyme" exception=(err,catch_backtrace())
+                  exit(3)
+                end
               end
             end
 
