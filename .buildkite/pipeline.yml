@@ -179,6 +179,8 @@ steps:
               catch err
                 @error "Could not install NNlib" exception=(err,catch_backtrace())
                 exit(3)
+              finally
+                Pkg.activate(nnlib)
               end
             end
 
