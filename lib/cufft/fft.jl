@@ -25,7 +25,7 @@ Base.:(*)(p::ScaledPlan, x::DenseCuArray) = rmul!(p.p * x, p.scale)
 
 # N is the number of dimensions
 
-mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N} <: Plan{T}
+mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N} <: Plan{S}
     # handle to Cuda low level plan. Note that this plan sometimes has lower dimensions
     # to handle more transform cases such as individual directions
     handle::cufftHandle
@@ -34,7 +34,7 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N} <: Plan{T}
     input_size::NTuple{N,Int}   # Julia size of input array
     output_size::NTuple{N,Int}  # Julia size of output array
     region::Any
-    pinv::ScaledPlan{S}         # required by AbstractFFTs API, will be defined by AbstractFFTs if needed
+    pinv::ScaledPlan{T}         # required by AbstractFFTs API, will be defined by AbstractFFTs if needed
 
     function CuFFTPlan{T,S,K,inplace,N}(handle::cufftHandle,
                                         input_size::NTuple{N,Int}, output_size::NTuple{N,Int}, region
