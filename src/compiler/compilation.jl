@@ -1,10 +1,6 @@
 ## gpucompiler interface implementation
 
 Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
-    # the PTX ISA version and compute capability to target at the CUDA level.
-    # XXX: these aren't visible by kernel code, as the `compute_capability()` etc intrinsics
-    #      return the versions that are used by LLVM. however, we can't safely use the
-    #      CUDA-level compatibility, as that may result in instruction selection errors.
     cap::VersionNumber
     ptx::VersionNumber
 end
