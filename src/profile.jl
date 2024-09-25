@@ -122,6 +122,8 @@ using Statistics
 using Crayons
 using Printf
 
+using demumble_jll
+
 
 #
 # external profiler
@@ -448,6 +450,9 @@ function capture(cfg)
                           dynamic=Int64(record.dynamicSharedMemory))
             local_mem = (thread=Int64(record.localMemoryPerThread),
                          total=Int64(record.localMemoryTotal))
+
+            # demangle the kernel name
+            name = chomp(read(`$(demumble()) $name`, String))
 
             push!(device_trace, (; id, start=t0, stop=t1, name,
                                    device=record.deviceId,
