@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.10.4"
+julia_version = "1.10.5"
 manifest_format = "2.0"
 project_hash = "7763ff99d9da256926f73cbb823e95c9a86611ff"
 
@@ -39,9 +39,9 @@ version = "0.15.2+0"
 
 [[deps.CUDA_SDK_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "b3e626d00ab811cb5b97e5ee640ca39963a7dc88"
+git-tree-sha1 = "40846c37236c010b8e78c8e8feb2cc5ef95cc584"
 uuid = "6cbf2f2e-7e60-5632-ac76-dca2274e0be0"
-version = "12.6.1+0"
+version = "12.6.2+0"
 
 [[deps.CUDNN_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]

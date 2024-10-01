@@ -4667,6 +4667,47 @@ end
                                                info::CuPtr{Cint})::cusolverStatus_t
 end
 
+@checked function cusolverDnXsyevBatched_bufferSize(handle, params, jobz, uplo, n,
+                                                    dataTypeA, A, lda, dataTypeW, W,
+                                                    computeType, workspaceInBytesOnDevice,
+                                                    workspaceInBytesOnHost, batchSize)
+    initialize_context()
+    @gcsafe_ccall libcusolver.cusolverDnXsyevBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                                params::cusolverDnParams_t,
+                                                                jobz::cusolverEigMode_t,
+                                                                uplo::cublasFillMode_t,
+                                                                n::Int64,
+                                                                dataTypeA::cudaDataType,
+                                                                A::Ptr{Cvoid}, lda::Int64,
+                                                                dataTypeW::cudaDataType,
+                                                                W::Ptr{Cvoid},
+                                                                computeType::cudaDataType,
+                                                                workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                                workspaceInBytesOnHost::Ptr{Csize_t},
+                                                                batchSize::Int64)::cusolverStatus_t
+end
+
+@checked function cusolverDnXsyevBatched(handle, params, jobz, uplo, n, dataTypeA, A, lda,
+                                         dataTypeW, W, computeType, bufferOnDevice,
+                                         workspaceInBytesOnDevice, bufferOnHost,
+                                         workspaceInBytesOnHost, info, batchSize)
+    initialize_context()
+    @gcsafe_ccall libcusolver.cusolverDnXsyevBatched(handle::cusolverDnHandle_t,
+                                                     params::cusolverDnParams_t,
+                                                     jobz::cusolverEigMode_t,
+                                                     uplo::cublasFillMode_t, n::Int64,
+                                                     dataTypeA::cudaDataType, A::Ptr{Cvoid},
+                                                     lda::Int64, dataTypeW::cudaDataType,
+                                                     W::Ptr{Cvoid},
+                                                     computeType::cudaDataType,
+                                                     bufferOnDevice::Ptr{Cvoid},
+                                                     workspaceInBytesOnDevice::Csize_t,
+                                                     bufferOnHost::Ptr{Cvoid},
+                                                     workspaceInBytesOnHost::Csize_t,
+                                                     info::Ptr{Cint},
+                                                     batchSize::Int64)::cusolverStatus_t
+end
+
 @checked function cusolverDnXsyevdx_bufferSize(handle, params, jobz, range, uplo, n,
                                                dataTypeA, A, lda, vl, vu, il, iu, h_meig,
                                                dataTypeW, W, computeType,
@@ -4710,6 +4751,51 @@ end
                                                 bufferOnHost::Ptr{Cvoid},
                                                 workspaceInBytesOnHost::Csize_t,
                                                 info::CuPtr{Cint})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgeev_bufferSize(handle, params, jobvl, jobvr, n, dataTypeA, A,
+                                             lda, dataTypeW, W, dataTypeVL, VL, ldvl,
+                                             dataTypeVR, VR, ldvr, computeType,
+                                             workspaceInBytesOnDevice,
+                                             workspaceInBytesOnHost)
+    initialize_context()
+    @gcsafe_ccall libcusolver.cusolverDnXgeev_bufferSize(handle::cusolverDnHandle_t,
+                                                         params::cusolverDnParams_t,
+                                                         jobvl::cusolverEigMode_t,
+                                                         jobvr::cusolverEigMode_t, n::Int64,
+                                                         dataTypeA::cudaDataType,
+                                                         A::Ptr{Cvoid}, lda::Int64,
+                                                         dataTypeW::cudaDataType,
+                                                         W::Ptr{Cvoid},
+                                                         dataTypeVL::cudaDataType,
+                                                         VL::Ptr{Cvoid}, ldvl::Int64,
+                                                         dataTypeVR::cudaDataType,
+                                                         VR::Ptr{Cvoid}, ldvr::Int64,
+                                                         computeType::cudaDataType,
+                                                         workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                         workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXgeev(handle, params, jobvl, jobvr, n, dataTypeA, A, lda,
+                                  dataTypeW, W, dataTypeVL, VL, ldvl, dataTypeVR, VR, ldvr,
+                                  computeType, bufferOnDevice, workspaceInBytesOnDevice,
+                                  bufferOnHost, workspaceInBytesOnHost, info)
+    initialize_context()
+    @gcsafe_ccall libcusolver.cusolverDnXgeev(handle::cusolverDnHandle_t,
+                                              params::cusolverDnParams_t,
+                                              jobvl::cusolverEigMode_t,
+                                              jobvr::cusolverEigMode_t, n::Int64,
+                                              dataTypeA::cudaDataType, A::Ptr{Cvoid},
+                                              lda::Int64, dataTypeW::cudaDataType,
+                                              W::Ptr{Cvoid}, dataTypeVL::cudaDataType,
+                                              VL::Ptr{Cvoid}, ldvl::Int64,
+                                              dataTypeVR::cudaDataType, VR::Ptr{Cvoid},
+                                              ldvr::Int64, computeType::cudaDataType,
+                                              bufferOnDevice::Ptr{Cvoid},
+                                              workspaceInBytesOnDevice::Csize_t,
+                                              bufferOnHost::Ptr{Cvoid},
+                                              workspaceInBytesOnHost::Csize_t,
+                                              info::Ptr{Cint})::cusolverStatus_t
 end
 
 @checked function cusolverDnXgesvd_bufferSize(handle, params, jobu, jobvt, m, n, dataTypeA,
@@ -4924,7 +5010,7 @@ end
     @gcsafe_ccall libcusolver.cusolverDnLoggerSetMask(mask::Cint)::cusolverStatus_t
 end
 
-# no prototype is found for this function at cusolverDn.h:4921:32, please use with caution
+# no prototype is found for this function at cusolverDn.h:5003:32, please use with caution
 @checked function cusolverDnLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcusolver.cusolverDnLoggerForceDisable()::cusolverStatus_t
