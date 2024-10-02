@@ -34,7 +34,7 @@ function Xpotrf!(uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     end
 
     flag = @allowscalar dh.info[1]
-    chkargsok(BlasInt(flag))
+    chkargsok(flag |> BlasInt)
     A, flag
 end
 
@@ -52,7 +52,7 @@ function Xpotrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) whe
     cusolverDnXpotrs(dh, params, uplo, n, nrhs, T, A, lda, T, B, ldb, dh.info)
 
     flag = @allowscalar dh.info[1]
-    chkargsok(BlasInt(flag))
+    chkargsok(flag |> BlasInt)
     B
 end
 
@@ -77,7 +77,7 @@ function Xgetrf!(A::StridedCuMatrix{T}, ipiv::CuVector{Int64}) where {T <: BlasF
     end
 
     flag = @allowscalar dh.info[1]
-    chkargsok(BlasInt(flag))
+    chkargsok(flag |> BlasInt)
     A, ipiv, flag
 end
 
@@ -100,7 +100,7 @@ function Xgetrs!(trans::Char, A::StridedCuMatrix{T}, ipiv::CuVector{Int64}, B::S
     cusolverDnXgetrs(dh, params, trans, n, nrhs, T, A, lda, ipiv, T, B, ldb, dh.info)
 
     flag = @allowscalar dh.info[1]
-    chkargsok(BlasInt(flag))
+    chkargsok(flag |> BlasInt)
     B
 end
 
@@ -125,7 +125,7 @@ function Xgeqrf!(A::StridedCuMatrix{T}, tau::CuVector{T}) where {T <: BlasFloat}
     end
 
     flag = @allowscalar dh.info[1]
-    chkargsok(BlasInt(flag))
+    chkargsok(flag |> BlasInt)
     A, tau
 end
 
@@ -159,7 +159,7 @@ function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::Stride
     end
 
     flag = @allowscalar dh.info[1]
-    chkargsok(BlasInt(flag))
+    chkargsok(flag |> BlasInt)
     B
 end
 
@@ -184,7 +184,7 @@ function trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{T}) where {T <: BlasF
     end
 
     flag = @allowscalar dh.info[1]
-    chkargsok(BlasInt(flag))
+    chkargsok(flag |> BlasInt)
     A
 end
 
@@ -262,7 +262,7 @@ function Xgesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}) where {T <: Bla
     end
 
     flag = @allowscalar dh.info[1]
-    chklapackerror(BlasInt(flag))
+    chklapackerror(flag |> BlasInt)
     U, Σ, Vt
 end
 
@@ -314,7 +314,7 @@ function Xgesvdp!(jobz::Char, econ::Int, A::StridedCuMatrix{T}) where {T <: Blas
     end
 
     flag = @allowscalar dh.info[1]
-    chklapackerror(BlasInt(flag))
+    chklapackerror(flag |> BlasInt)
     if jobz == 'N'
         return Σ, h_err_sigma[]
     elseif jobz == 'V'
@@ -343,7 +343,7 @@ function Xgesvdr!(jobu::Char, jobv::Char, A::StridedCuMatrix{T}, k::Integer;
     elseif jobv == 'N'
         CU_NULL
     else
-        throw(ArgumentError("jobv is incorrect. The values accepted are S' and 'N'."))
+        throw(ArgumentError("jobv is incorrect. The values accepted are 'S' and 'N'."))
     end
     lda = max(1, stride(A, 2))
     ldu = U == CU_NULL ? 1 : max(1, stride(U, 2))
@@ -367,7 +367,7 @@ function Xgesvdr!(jobu::Char, jobv::Char, A::StridedCuMatrix{T}, k::Integer;
     end
 
     flag = @allowscalar dh.info[1]
-    chklapackerror(BlasInt(flag))
+    chklapackerror(flag |> BlasInt)
     U, Σ, V
 end
 
@@ -395,7 +395,7 @@ function Xsyevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: Blas
     end
 
     flag = @allowscalar dh.info[1]
-    chkargsok(BlasInt(flag))
+    chkargsok(flag |> BlasInt)
 
     if jobz == 'N'
         return W
@@ -436,13 +436,58 @@ function Xsyevdx!(jobz::Char, range::Char, uplo::Char, A::StridedCuMatrix{T};
     end
 
     flag = @allowscalar dh.info[1]
-    chkargsok(BlasInt(flag))
+    chkargsok(flag |> BlasInt)
 
     if jobz == 'N'
         return W, h_meig[]
     elseif jobz == 'V'
         return W, A, h_meig[]
     end
+end
+
+# Xgeev
+function Xgeev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+    n = checksquare(A)
+    VL = if jobvl == 'V'
+        CuMatrix{T}(undef, n, n)
+    elseif jobvl == 'N'
+        CU_NULL
+    else
+        throw(ArgumentError("jobvl is incorrect. The values accepted are 'V' and 'N'."))
+    end
+    C = T <: Real ? Complex{T} : T
+    W = CuVector{C}(undef, n)
+    VR = if jobvr == 'V'
+        CuMatrix{T}(undef, n, n)
+    elseif jobvr == 'N'
+        CU_NULL
+    else
+        throw(ArgumentError("jobvr is incorrect. The values accepted are 'V' and 'N'."))
+    end
+    lda = max(1, stride(A, 2))
+    ldvl = VL == CU_NULL ? 1 : max(1, stride(VL, 2))
+    ldvr = VR == CU_NULL ? 1 : max(1, stride(VR, 2))
+    params = CuSolverParameters()
+    dh = dense_handle()
+
+    function bufferSize()
+        out_cpu = Ref{Csize_t}(0)
+        out_gpu = Ref{Csize_t}(0)
+        cusolverDnXgeev_bufferSize(dh, params, jobvl, jobvr, n, T, A,
+                                   lda, C, W, T, VL, ldvl, T, VR, ldvr,
+                                   T, out_gpu, out_cpu)
+        out_gpu[], out_cpu[]
+    end
+    with_workspaces(dh.workspace_gpu, dh.workspace_cpu, bufferSize()...) do buffer_gpu, buffer_cpu
+        cusolverDnXgeev(dh, params, jobvl, jobvr, n, T, A, lda, C,
+                        W, T, VL, ldvl, T, VR, ldvr, T, buffer_gpu,
+                        sizeof(buffer_gpu), buffer_cpu, sizeof(buffer_cpu), dh.info)
+    end
+
+    flag = @allowscalar dh.info[1]
+    chkargsok(flag |> BlasInt)
+
+    return W, VL, VR
 end
 
 # LAPACK
