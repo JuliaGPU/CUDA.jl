@@ -532,6 +532,30 @@ const cufftCallbackStoreR = Ptr{Cvoid}
 # typedef void ( * cufftCallbackStoreD ) ( void * dataOut , size_t offset , cufftDoubleReal element , void * callerInfo , void * sharedPointer )
 const cufftCallbackStoreD = Ptr{Cvoid}
 
+# typedef cufftComplex ( * cufftJITCallbackLoadC ) ( void * dataIn , unsigned long long offset , void * callerInfo , void * sharedPointer )
+const cufftJITCallbackLoadC = Ptr{Cvoid}
+
+# typedef cufftDoubleComplex ( * cufftJITCallbackLoadZ ) ( void * dataIn , unsigned long long offset , void * callerInfo , void * sharedPointer )
+const cufftJITCallbackLoadZ = Ptr{Cvoid}
+
+# typedef cufftReal ( * cufftJITCallbackLoadR ) ( void * dataIn , unsigned long long offset , void * callerInfo , void * sharedPointer )
+const cufftJITCallbackLoadR = Ptr{Cvoid}
+
+# typedef cufftDoubleReal ( * cufftJITCallbackLoadD ) ( void * dataIn , unsigned long long offset , void * callerInfo , void * sharedPointer )
+const cufftJITCallbackLoadD = Ptr{Cvoid}
+
+# typedef void ( * cufftJITCallbackStoreC ) ( void * dataOut , unsigned long long offset , cufftComplex element , void * callerInfo , void * sharedPointer )
+const cufftJITCallbackStoreC = Ptr{Cvoid}
+
+# typedef void ( * cufftJITCallbackStoreZ ) ( void * dataOut , unsigned long long offset , cufftDoubleComplex element , void * callerInfo , void * sharedPointer )
+const cufftJITCallbackStoreZ = Ptr{Cvoid}
+
+# typedef void ( * cufftJITCallbackStoreR ) ( void * dataOut , unsigned long long offset , cufftReal element , void * callerInfo , void * sharedPointer )
+const cufftJITCallbackStoreR = Ptr{Cvoid}
+
+# typedef void ( * cufftJITCallbackStoreD ) ( void * dataOut , unsigned long long offset , cufftDoubleReal element , void * callerInfo , void * sharedPointer )
+const cufftJITCallbackStoreD = Ptr{Cvoid}
+
 @checked function cufftXtSetCallback(plan, callback_routine, cbType, caller_info)
     initialize_context()
     @gcsafe_ccall libcufft.cufftXtSetCallback(plan::cufftHandle,
@@ -551,6 +575,29 @@ end
     @gcsafe_ccall libcufft.cufftXtSetCallbackSharedSize(plan::cufftHandle,
                                                         cbType::cufftXtCallbackType,
                                                         sharedSize::Csize_t)::cufftResult
+end
+
+@checked function __cufftXtSetJITCallback_12_7(plan, lto_callback_symbol_name,
+                                               lto_callback_fatbin,
+                                               lto_callback_fatbin_size, type, caller_info)
+    initialize_context()
+    @gcsafe_ccall libcufft.__cufftXtSetJITCallback_12_7(plan::cufftHandle,
+                                                        lto_callback_symbol_name::Cstring,
+                                                        lto_callback_fatbin::Ptr{Cvoid},
+                                                        lto_callback_fatbin_size::Csize_t,
+                                                        type::cufftXtCallbackType,
+                                                        caller_info::Ptr{Ptr{Cvoid}})::cufftResult
+end
+
+@checked function cufftXtSetJITCallback(plan, lto_callback_symbol_name, lto_callback_fatbin,
+                                        lto_callback_fatbin_size, type, caller_info)
+    initialize_context()
+    @gcsafe_ccall libcufft.cufftXtSetJITCallback(plan::cufftHandle,
+                                                 lto_callback_symbol_name::Cstring,
+                                                 lto_callback_fatbin::Ptr{Cvoid},
+                                                 lto_callback_fatbin_size::Csize_t,
+                                                 type::cufftXtCallbackType,
+                                                 caller_info::Ptr{Ptr{Cvoid}})::cufftResult
 end
 
 @checked function cufftXtMakePlanMany(plan, rank, n, inembed, istride, idist, inputtype,

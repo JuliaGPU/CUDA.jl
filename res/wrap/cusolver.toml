@@ -1254,3 +1254,27 @@ needs_context = false
 11 = "CuPtr{Cvoid}"
 13 = "CuPtr{Cvoid}"
 16 = "CuPtr{Cvoid}"
+
+[api.cusolverDnXsyevBatched_bufferSize.argtypes]
+7 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+
+[api.cusolverDnXsyevBatched.argtypes]
+7 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cint}"
+
+[api.cusolverDnXgeev_bufferSize.argtypes]
+7 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+
+[api.cusolverDnXgeev.argtypes]
+7 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
+18 = "CuPtr{Cvoid}"
+22 = "CuPtr{Cint}"
