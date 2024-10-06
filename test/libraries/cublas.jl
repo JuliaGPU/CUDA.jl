@@ -1824,7 +1824,11 @@ end
         end
 
         # also test an unsupported combination (falling back to GPUArrays)
-        let AT=BFloat16, BT=Int32, CT=Float64
+        if VERSION < v"1.11-"   # JuliaGPU/CUDA.jl#2441
+            AT=BFloat16
+            BT=Int32
+            CT=Float64
+
             A = AT.(rand(m,k))
             B = rand(BT, k,n)
             C = similar(B, CT)

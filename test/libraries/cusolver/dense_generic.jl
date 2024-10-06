@@ -6,6 +6,33 @@ n = 10
 p = 5
 
 @testset "cusolver -- generic API -- $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    if CUSOLVER.version() >= v"11.7.1"
+        @testset "geev!" begin
+            A = rand(elty,n,n)
+            d_A = CuMatrix(A)
+            d_B = copy(d_A)
+            W, VL, VR = CUSOLVER.Xgeev!('N', 'V', d_A)
+            if elty <: Complex
+                @test d_B * VR ≈ VR * Diagonal(W)
+            else
+                h_W = collect(W)
+                i = 1
+                while i <= n
+                    if h_W[i].im ≈ zero(elty)
+                        @test d_B * VR[:,i] ≈ h_W[i].re * VR[:,i]
+                        i = i + 1
+                    else
+                        V1 = VR[:,i] + im * VR[:,i+1]
+                        @test d_B * V1 ≈ h_W[i] * V1
+                        V2 = VR[:,i] - im * VR[:,i+1]
+                        @test d_B * V2 ≈ h_W[i+1] * V2
+                        i = i + 2
+                    end
+                end
+            end
+        end
+    end
+
     if CUSOLVER.version() >= v"11.6.0"
         @testset "larft!" begin
             @testset "direct = $direct" for direct in ('F', 'B')

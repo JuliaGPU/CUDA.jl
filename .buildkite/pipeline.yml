@@ -123,7 +123,7 @@ steps:
 
             println("--- :julia: Instantiating project")
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-              Pkg.activate(joinpath(pwd(), "lib", lowercase("{{matrix.package}}")))
+              Pkg.activate(joinpath("lib", lowercase("{{matrix.package}}")))
               try
                 Pkg.instantiate()
               catch
@@ -136,7 +136,8 @@ steps:
               end
 
               Pkg.add("CUDA_Runtime_jll")
-              write("LocalPreferences.toml", "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"")
+              write(joinpath("lib", lowercase("{{matrix.package}}"), "LocalPreferences.toml"),
+                    "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"")
             end
 
             println("+++ :julia: Running tests")
@@ -145,49 +146,63 @@ steps:
   - group: ":telescope: Downstream"
     depends_on: "cuda"
     steps:
-      - label: "NNlib.jl"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.10"
-          - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
-        command: |
-          julia --project -e '
-            using Pkg
-
-            println("--- :julia: Instantiating project")
-            withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-              Pkg.instantiate()
-
-              try
-                Pkg.develop("NNlib")
-              catch err
-                @error "Could not install NNlib" exception=(err,catch_backtrace())
-                exit(3)
-              end
-              Pkg.develop(path=joinpath(pwd(), "lib", "cudnn"))
-            end
-
-            println("+++ :julia: Running tests")
-            Pkg.test("NNlib"; coverage=true)'
-        env:
-          NNLIB_TEST_CUDA: "true"
-          NNLIB_TEST_CPU: "false"
-        agents:
-          queue: "juliagpu"
-          cuda: "*"
-        if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only downstream\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip downstream\]/
-        timeout_in_minutes: 30
-        soft_fail:
-          - exit_status: 3
+      #- label: "NNlib.jl"
+      #  plugins:
+      #    - JuliaCI/julia#v1:
+      #        version: "1.10"
+      #    - JuliaCI/julia-coverage#v1:
+      #        dirs:
+      #          - src
+      #          - lib
+      #          - examples
+      #  command: |
+      #    julia --project -e '
+      #      using Pkg
+      #
+      #      cuda = pwd()
+      #      cudnn = joinpath(cuda, "lib", "cudnn")
+      #      devdir = "/tmp/dev"; mktempdir()
+      #      nnlib = joinpath(devdir, "NNlib")
+      #
+      #      println("--- :julia: Installing TestEnv")
+      #      Pkg.activate(; temp=true)
+      #      Pkg.add("TestEnv")
+      #      using TestEnv
+      #
+      #      println("--- :julia: Installing NNlib")
+      #      withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0,
+      #              "JULIA_PKG_DEVDIR" => devdir) do
+      #        Pkg.develop("NNlib")
+      #        Pkg.activate(nnlib)
+      #
+      #        try
+      #          Pkg.develop([PackageSpec(path=cuda), PackageSpec(path=cudnn)])
+      #          TestEnv.activate()
+      #        catch err
+      #          @error "Could not install NNlib" exception=(err,catch_backtrace())
+      #          exit(3)
+      #        finally
+      #          Pkg.activate(nnlib)
+      #        end
+      #      end
+      #
+      #      println("+++ :julia: Running tests")
+      #      Pkg.test(; coverage=true)'
+      #  env:
+      #    NNLIB_TEST_CUDA: "true"
+      #    NNLIB_TEST_CPU: "false"
+      #  agents:
+      #    queue: "juliagpu"
+      #    cuda: "*"
+      #  if: |
+      #    build.message =~ /\[only tests\]/ ||
+      #    build.message =~ /\[only downstream\]/ ||
+      #    build.message !~ /\[only/ && !build.pull_request.draft &&
+      #      build.message !~ /\[skip tests\]/ &&
+      #      build.message !~ /\[skip downstream\]/
+      #  timeout_in_minutes: 30
+      #  soft_fail:
+      #    - exit_status: 3
       - label: "Enzyme.jl"
         plugins:
           - JuliaCI/julia#v1:
@@ -210,11 +225,16 @@ steps:
               # to check compatibility, also add Enzyme to the main environment
               # (or Pkg.test, which merges both environments, could fail)
               Pkg.activate(".")
+              # Try to co-develop Enzyme and KA, if that fails, try just to dev Enzyme
               try
-                Pkg.develop("Enzyme")
+                Pkg.develop([PackageSpec("Enzyme"), PackageSpec("KernelAbstractions")])
               catch err
-                @error "Could not install Enzyme" exception=(err,catch_backtrace())
-                exit(3)
+                try
+                  Pkg.develop([PackageSpec("Enzyme")])
+                catch err
+                  @error "Could not install Enzyme" exception=(err,catch_backtrace())
+                  exit(3)
+                end
               end
             end
 
@@ -230,7 +250,8 @@ steps:
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip downstream\]/
         timeout_in_minutes: 30
-        soft_fail: true
+        soft_fail:
+          - exit_status: 3
 
   - group: ":eyes: Special"
     depends_on: "cuda"

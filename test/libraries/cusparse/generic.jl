@@ -358,6 +358,19 @@ for SparseMatrixType in keys(SPGEMM_ALGOS)
             end
         end
     end
+
+    @testset "gemv $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        for (transa, opa) in [('N', identity)]
+            A = sprand(T,25,10,0.2)
+            b = sprand(T,10,0.3)
+            dA = SparseMatrixType(A)
+            db = CuSparseVector(b)
+            alpha = rand(T)
+            y = alpha * opa(A) * b
+            dy = gemv(transa, alpha, dA, db, 'O')
+            @test collect(dy) ≈ y
+        end
+    end
 end
 
 if CUSPARSE.version() >= v"11.4.1"

@@ -23,21 +23,20 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
             chkuplo(uplo)
             n = checksquare(A)
             lda = max(1, stride(A, 2))
+            dh = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), uplo, n, A, lda, out)
+                $bname(dh, uplo, n, A, lda, out)
                 out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), uplo, n, A, lda,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, uplo, n, A, lda,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             A, info
@@ -62,12 +61,11 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
             nrhs = size(B,2)
             lda  = max(1, stride(A, 2))
             ldb  = max(1, stride(B, 2))
+            dh = dense_handle()
 
-            devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), uplo, n, nrhs, A, lda, B, ldb, devinfo)
+            $fname(dh, uplo, n, nrhs, A, lda, B, ldb, dh.info)
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             B
@@ -85,21 +83,20 @@ for (bname, fname,elty) in ((:cusolverDnSpotri_bufferSize, :cusolverDnSpotri, :F
             chkuplo(uplo)
             n = checksquare(A)
             lda = max(1, stride(A, 2))
+            dh = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), uplo, n, A, lda, out)
+                $bname(dh, uplo, n, A, lda, out)
                 out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), uplo, n, A, lda,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, uplo, n, A, lda,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             A
@@ -116,20 +113,19 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
         function getrf!(A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint})
             m,n = size(A)
             lda = max(1, stride(A, 2))
+            dh = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), m, n, A, lda, out)
+                $bname(dh, m, n, A, lda, out)
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), m, n, A, lda, buffer, ipiv, devinfo)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, m, n, A, lda, buffer, ipiv, dh.info)
             end
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             A, ipiv, info
@@ -152,21 +148,20 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
         function geqrf!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty})
             m, n = size(A)
             lda  = max(1, stride(A, 2))
+            dh = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), m, n, A, lda, out)
+                $bname(dh, m, n, A, lda, out)
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), m, n, A, lda, tau,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, m, n, A, lda, tau,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             A, tau
@@ -192,21 +187,20 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
             chkuplo(uplo)
             n = checksquare(A)
             lda = max(1, stride(A, 2))
+            dh = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), n, A, lda, out)
+                $bname(dh, n, A, lda, out)
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), uplo, n, A, lda, ipiv,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, uplo, n, A, lda, ipiv,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             A, ipiv, info
@@ -245,12 +239,11 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
             nrhs = size(B, 2)
             lda  = max(1, stride(A, 2))
             ldb  = max(1, stride(B, 2))
+            dh = dense_handle()
 
-            devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), trans, n, nrhs, A, lda, ipiv, B, ldb, devinfo)
+            $fname(dh, trans, n, nrhs, A, lda, ipiv, B, ldb, dh.info)
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             B
@@ -293,21 +286,20 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
             end
             lda = max(1, stride(A, 2))
             ldc = max(1, stride(C, 2))
+            dh = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), side, trans, m, n, k, A, lda, tau, C, ldc, out)
+                $bname(dh, side, trans, m, n, k, A, lda, tau, C, ldc, out)
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), side, trans, m, n, k, A, lda, tau, C, ldc,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, side, trans, m, n, k, A, lda, tau, C, ldc,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             C
@@ -326,21 +318,20 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
             n = min(m, size(A, 2))
             lda = max(1, stride(A, 2))
             k = length(tau)
+            dh = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), m, n, k, A, lda, tau, out)
+                $bname(dh, m, n, k, A, lda, tau, out)
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), m, n, k, A, lda, tau,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, m, n, k, A, lda, tau,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             if n < size(A, 2)
@@ -361,27 +352,26 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
         function gebrd!(A::StridedCuMatrix{$elty})
             m, n = size(A)
             lda  = max(1, stride(A, 2))
+            dh = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), m, n, out)
+                $bname(dh, m, n, out)
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
             k       = min(m, n)
             D       = CuArray{$relty}(undef, k)
             E       = CUDA.zeros($relty, k)
             TAUQ    = CuArray{$elty}(undef, k)
             TAUP    = CuArray{$elty}(undef, k)
 
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), m, n, A, lda, D, E, TAUQ, TAUP,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, m, n, A, lda, D, E, TAUQ, TAUP,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             A, D, E, TAUQ, TAUP
@@ -424,23 +414,22 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
                 error("jobvt must be one of 'A', 'S', 'O', or 'N'")
             end
             ldvt    = Vt == CU_NULL ? 1 : max(1, stride(Vt, 2))
+            dh = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), m, n, out)
+                $bname(dh, m, n, out)
                 return out[] * sizeof($elty)
             end
 
             rwork   = CuArray{$relty}(undef, min(m, n) - 1)
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), rwork, devinfo)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), rwork, dh.info)
             end
             unsafe_free!(rwork)
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             return U, S, Vt
@@ -483,22 +472,21 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
             cusolverDnCreateGesvdjInfo(params)
             cusolverDnXgesvdjSetTolerance(params[], tol)
             cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
+            dh = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
+                $bname(dh, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
                        out, params[])
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo, params[])
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info, params[])
             end
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             cusolverDnDestroyGesvdjInfo(params[])
@@ -536,21 +524,22 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
             cusolverDnXgesvdjSetTolerance(params[], tol)
             cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
 
+            dh = dense_handle()
+            resize!(dh.info, batchSize)
+
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), jobz, m, n, A, lda, S, U, ldu, V, ldv,
+                $bname(dh, jobz, m, n, A, lda, S, U, ldu, V, ldv,
                        out, params[], batchSize)
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, batchSize)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), jobz, m, n, A, lda, S, U, ldu, V, ldv,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo, params[], batchSize)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, jobz, m, n, A, lda, S, U, ldu, V, ldv,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info, params[], batchSize)
             end
 
-            info = @allowscalar collect(devinfo)
-            unsafe_free!(devinfo)
+            info = @allowscalar collect(dh.info)
 
             # Double check the solver's exit status
             for i = 1:batchSize
@@ -591,26 +580,27 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
             ldv = max(1, stride(V, 2))
             strideV = stride(V, 3)
 
+            dh = dense_handle()
+            resize!(dh.info, batchSize)
+
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), jobz, rank, m, n, A, lda, strideA,
+                $bname(dh, jobz, rank, m, n, A, lda, strideA,
                        S, strideS, U, ldu, strideU, V, ldv, strideV,
                        out, batchSize)
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, batchSize)
             # residual storage
             h_RnrmF = Array{Cdouble}(undef, batchSize)
 
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), jobz, rank, m, n, A, lda, strideA,
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, jobz, rank, m, n, A, lda, strideA,
                        S, strideS, U, ldu, strideU, V, ldv, strideV,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo, h_RnrmF, batchSize)
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info, h_RnrmF, batchSize)
             end
 
-            info = @allowscalar collect(devinfo)
-            unsafe_free!(devinfo)
+            info = @allowscalar collect(dh.info)
 
             # Double check the solver's exit status
             for i = 1:batchSize
@@ -631,24 +621,23 @@ for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSiz
                         uplo::Char,
                         A::StridedCuMatrix{$elty})
             chkuplo(uplo)
-            n       = checksquare(A)
-            lda     = max(1, stride(A, 2))
-            W       = CuArray{$relty}(undef, n)
+            n   = checksquare(A)
+            lda = max(1, stride(A, 2))
+            W   = CuArray{$relty}(undef, n)
+            dh  = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), jobz, uplo, n, A, lda, W, out)
+                $bname(dh, jobz, uplo, n, A, lda, W, out)
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), jobz, uplo, n, A, lda, W,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, jobz, uplo, n, A, lda, W,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             if jobz == 'N'
@@ -675,25 +664,24 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
             if nB != nA
                 throw(DimensionMismatch("Dimensions of A ($nA, $nA) and B ($nB, $nB) must match!"))
             end
-            n       = nA
-            lda     = max(1, stride(A, 2))
-            ldb     = max(1, stride(B, 2))
-            W       = CuArray{$relty}(undef, n)
+            n   = nA
+            lda = max(1, stride(A, 2))
+            ldb = max(1, stride(B, 2))
+            W   = CuArray{$relty}(undef, n)
+            dh  = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W, out)
+                $bname(dh, itype, jobz, uplo, n, A, lda, B, ldb, W, out)
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, itype, jobz, uplo, n, A, lda, B, ldb, W,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             if jobz == 'N'
@@ -722,30 +710,29 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
             if nB != nA
                 throw(DimensionMismatch("Dimensions of A ($nA, $nA) and B ($nB, $nB) must match!"))
             end
-            n       = nA
-            lda     = max(1, stride(A, 2))
-            ldb     = max(1, stride(B, 2))
-            W       = CuArray{$relty}(undef, n)
-            params  = Ref{syevjInfo_t}(C_NULL)
+            n      = nA
+            lda    = max(1, stride(A, 2))
+            ldb    = max(1, stride(B, 2))
+            W      = CuArray{$relty}(undef, n)
+            params = Ref{syevjInfo_t}(C_NULL)
             cusolverDnCreateSyevjInfo(params)
             cusolverDnXsyevjSetTolerance(params[], tol)
             cusolverDnXsyevjSetMaxSweeps(params[], max_sweeps)
+            dh = dense_handle()
 
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
+                $bname(dh, itype, jobz, uplo, n, A, lda, B, ldb, W,
                        out, params[])
                 return out[] * sizeof($elty)
             end
 
-            devinfo = CuArray{Cint}(undef, 1)
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), devinfo, params[])
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, itype, jobz, uplo, n, A, lda, B, ldb, W,
+                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info, params[])
             end
 
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chkargsok(BlasInt(info))
 
             cusolverDnDestroySyevjInfo(params[])
@@ -772,12 +759,14 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
 
             # Set up information for the solver arguments
             chkuplo(uplo)
-            n       = checksquare(A)
-            lda     = max(1, stride(A, 2))
+            n         = checksquare(A)
+            lda       = max(1, stride(A, 2))
             batchSize = size(A,3)
-            W       = CuArray{$relty}(undef, n,batchSize)
-            params  = Ref{syevjInfo_t}(C_NULL)
-            devinfo = CuArray{Cint}(undef, batchSize)
+            W         = CuArray{$relty}(undef, n,batchSize)
+            params    = Ref{syevjInfo_t}(C_NULL)
+
+            dh = dense_handle()
+            resize!(dh.info, batchSize)
 
             # Initialize the solver parameters
             cusolverDnCreateSyevjInfo(params)
@@ -787,19 +776,18 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
             # Calculate the workspace size
             function bufferSize()
                 out = Ref{Cint}(0)
-                $bname(dense_handle(), jobz, uplo, n, A, lda, W, out, params[], batchSize)
+                $bname(dh, jobz, uplo, n, A, lda, W, out, params[], batchSize)
                 return out[] * sizeof($elty)
             end
 
             # Run the solver
-            with_workspace(bufferSize) do buffer
-                $fname(dense_handle(), jobz, uplo, n, A, lda, W, buffer,
-                       sizeof(buffer) ÷ sizeof($elty), devinfo, params[], batchSize)
+            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                $fname(dh, jobz, uplo, n, A, lda, W, buffer,
+                       sizeof(buffer) ÷ sizeof($elty), dh.info, params[], batchSize)
             end
 
             # Copy the solver info and delete the device memory
-            info = @allowscalar collect(devinfo)
-            unsafe_free!(devinfo)
+            info = @allowscalar collect(dh.info)
 
             # Double check the solver's exit status
             for i = 1:batchSize
@@ -843,17 +831,17 @@ for (fname, elty) in ((:cusolverDnSpotrsBatched, :Float32),
             lda = max(1, stride(A[1], 2))
             ldb = max(1, stride(B[1], 2))
             batchSize = length(A)
-            devinfo = CuArray{Cint}(undef, 1)
 
             Aptrs = unsafe_batch(A)
             Bptrs = unsafe_batch(B)
 
+            dh = dense_handle()
+
             # Run the solver
-            $fname(dense_handle(), uplo, n, nrhs, Aptrs, lda, Bptrs, ldb, devinfo, batchSize)
+            $fname(dh, uplo, n, nrhs, Aptrs, lda, Bptrs, ldb, dh.info, batchSize)
 
             # Copy the solver info and delete the device memory
-            info = @allowscalar devinfo[1]
-            unsafe_free!(devinfo)
+            info = @allowscalar dh.info[1]
             chklapackerror(BlasInt(info))
 
             return B
@@ -873,16 +861,17 @@ for (fname, elty) in ((:cusolverDnSpotrfBatched, :Float32),
             n = checksquare(A[1])
             lda = max(1, stride(A[1], 2))
             batchSize = length(A)
-            devinfo = CuArray{Cint}(undef, batchSize)
 
             Aptrs = unsafe_batch(A)
 
+            dh = dense_handle()
+            resize!(dh.info, batchSize)
+
             # Run the solver
-            $fname(dense_handle(), uplo, n, Aptrs, lda, devinfo, batchSize)
+            $fname(dh, uplo, n, Aptrs, lda, dh.info, batchSize)
 
             # Copy the solver info and delete the device memory
-            info = @allowscalar collect(devinfo)
-            unsafe_free!(devinfo)
+            info = @allowscalar collect(dh.info)
 
             # Double check the solver's exit status
             for i = 1:batchSize

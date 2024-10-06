@@ -186,10 +186,6 @@ render_arg(io, arg::Base.RefValue{T}) where {T} = print(io, "Ref{", T, "}")
 
 # TODO: replace with JuliaLang/julia#49933 once merged
 
-# note that this is generally only safe with functions that do not call back into Julia.
-# when callbacks occur, the code should ensure the GC is not running by wrapping the code
-# in the `@gcunsafe` macro
-
 function ccall_macro_lower(func, rettype, types, args, nreq)
     # instead of re-using ccall or Expr(:foreigncall) to perform argument conversion,
     # we need to do so ourselves in order to insert a jl_gc_safe_enter|leave
@@ -234,10 +230,6 @@ end
 Call a foreign function just like `@ccall`, but marking it safe for the GC to run. This is
 useful for functions that may block, so that the GC isn't blocked from running, but may also
 be required to prevent deadlocks (see JuliaGPU/CUDA.jl#2261).
-
-Note that this is generally only safe with non-Julia C functions that do not call back into
-Julia. When using callbacks, the code should make sure to transition back into GC-unsafe
-mode using the `@gcunsafe` macro.
 """
 macro gcsafe_ccall(expr)
     ccall_macro_lower(Base.ccall_macro_parse(expr)...)
