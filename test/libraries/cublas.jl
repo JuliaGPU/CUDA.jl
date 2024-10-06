@@ -2294,17 +2294,29 @@ end
             mul!(d_AY, d_A, d_Y)
             Array(d_AY) ≈ A * Diagonal(y)
 
-            XA = rand(elty,m,n)
-            d_XA = CuArray(XA')
-            d_X = Diagonal(d_x)
-            mul!(d_XA, d_X, d_A')
-            Array(d_XA) ≈ Diagonal(x) * A'
-
-            AY = rand(elty,m,n)
-            d_AY = CuArray(AY')
+            YA = rand(elty,n,m)
+            d_YA = CuArray(XA)
             d_Y = Diagonal(d_y)
-            mul!(d_AY, d_A', d_Y)
-            Array(d_AY) ≈ A' * Diagonal(y)
+            mul!(d_YA, d_Y, transpose(d_A))
+            Array(d_YA) ≈ Diagonal(y) * transpose(A)
+
+            AX = rand(elty,n,m)
+            d_AX = CuArray(AX)
+            d_X = Diagonal(d_x)
+            mul!(d_AX, transpose(d_A), d_X)
+            Array(d_AX) ≈ transpose(A) * Diagonal(x)
+
+            YA = rand(elty,n,m)
+            d_YA = CuArray(YA)
+            d_Y = Diagonal(d_y)
+            mul!(d_YA, d_Y, d_A')
+            Array(d_YA) ≈ Diagonal(y) * A'
+
+            AX = rand(elty,n,m)
+            d_AX = CuArray(AX)
+            d_X = Diagonal(d_x)
+            mul!(d_AX, d_A', d_X)
+            Array(d_AX) ≈ A' * Diagonal(x)
         end
     end # extensions
 
