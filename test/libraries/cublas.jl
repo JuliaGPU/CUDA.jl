@@ -2295,7 +2295,7 @@ end
             Array(d_AY) ≈ A * Diagonal(y)
 
             YA = rand(elty,n,m)
-            d_YA = CuArray(XA)
+            d_YA = CuArray(YA)
             d_Y = Diagonal(d_y)
             mul!(d_YA, d_Y, transpose(d_A))
             Array(d_YA) ≈ Diagonal(y) * transpose(A)
