@@ -338,6 +338,22 @@ function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::CuMatr
     return dgmm!('L', B, A.diag, C)
 end
 
+function LinearAlgebra.mul!(C::CuMatrix{T}, A::Transpose{T,<:CuMatrix}, B::Diagonal{T,<:CuVector}) where {T<:CublasFloat}
+    return dgmm!('R', CuMatrix(A), B.diag, C)
+end
+
+function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::Transpose{T,<:CuMatrix}) where {T<:CublasFloat}
+    return dgmm!('L', CuMatrix(B), A.diag, C)
+end
+
+function LinearAlgebra.mul!(C::CuMatrix{T}, A::Adjoint{T,<:CuMatrix}, B::Diagonal{T,<:CuVector}) where {T<:CublasFloat}
+    return dgmm!('R', CuMatrix(A), B.diag, C)
+end
+
+function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::Adjoint{T,<:CuMatrix}) where {T<:CublasFloat}
+    return dgmm!('L', CuMatrix(B), A.diag, C)
+end
+
 # symmetric mul!
 
 op_wrappers = ((identity, T -> 'N', identity),
