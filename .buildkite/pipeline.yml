@@ -161,7 +161,7 @@ steps:
       #
       #      cuda = pwd()
       #      cudnn = joinpath(cuda, "lib", "cudnn")
-      #      devdir = "/tmp/dev"; mktempdir()
+      #      devdir = mktempdir()
       #      nnlib = joinpath(devdir, "NNlib")
       #
       #      println("--- :julia: Installing TestEnv")
