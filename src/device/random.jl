@@ -59,7 +59,7 @@ struct Philox2x32{R} <: RandomNumbers.AbstractRNG{UInt64}
     # NOTE: the state is stored globally; see comments at the top of this file.
 end
 
-# default to 7 rounds; enough to pass SmallCrush
+# default to 7 rounds; enough to pass BigCrush
 @inline Philox2x32() = Philox2x32{7}()
 
 @inline function Base.getproperty(rng::Philox2x32, field::Symbol)
