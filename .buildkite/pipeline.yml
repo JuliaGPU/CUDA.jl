@@ -34,9 +34,6 @@ steps:
               - "nightly"
           adjustments:
             - with:
-                julia: "1.11"
-              soft_fail: true
-            - with:
                 julia: "nightly"
               soft_fail: true
 
@@ -48,7 +45,7 @@ steps:
       - label: "CUDA {{matrix.cuda}}"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.10"
+              version: "1.11"
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail core base libraries"
           - JuliaCI/julia-coverage#v1:
@@ -65,7 +62,7 @@ steps:
           build.message !~ /\[only/ && !build.pull_request.draft &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip cuda\]/
-        timeout_in_minutes: 30
+        timeout_in_minutes: 45
         matrix:
           setup:
             cuda:
@@ -116,7 +113,7 @@ steps:
           build.message !~ /\[only/ && !build.pull_request.draft &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip subpackages\]/
-        timeout_in_minutes: 15
+        timeout_in_minutes: 30
         commands: |
           julia -e '
             using Pkg
@@ -149,7 +146,7 @@ steps:
       #- label: "NNlib.jl"
       #  plugins:
       #    - JuliaCI/julia#v1:
-      #        version: "1.10"
+      #        version: "1.11"
       #    - JuliaCI/julia-coverage#v1:
       #        dirs:
       #          - src
@@ -206,7 +203,7 @@ steps:
       - label: "Enzyme.jl"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.10"
+              version: "1.10" # XXX: Enzyme.jl is broken on 1.11
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -259,7 +256,7 @@ steps:
       - label: "GPU-less environment"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.10"
+              version: "1.11"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -291,7 +288,7 @@ steps:
       - label: "Compute sanitizer"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.10"
+              version: "1.11"
           - JuliaCI/julia-test#v1:
               test_args: "--sanitize core base"
           - JuliaCI/julia-coverage#v1:
@@ -310,12 +307,12 @@ steps:
           build.message !~ /\[only/ && !build.pull_request.draft &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip special\]/
-        timeout_in_minutes: 30
+        timeout_in_minutes: 60
 
       - label: "Legacy memory allocator"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.10"
+              version: "1.11"
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail core base"
           - JuliaCI/julia-coverage#v1:
@@ -339,7 +336,7 @@ steps:
       - label: "CuArray with {{matrix.memory}} memory"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.10"
+              version: "1.11"
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail core base libraries"
           - JuliaCI/julia-coverage#v1:
@@ -356,7 +353,7 @@ steps:
           build.message !~ /\[only/ && !build.pull_request.draft &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip special\]/
-        timeout_in_minutes: 30
+        timeout_in_minutes: 45
         matrix:
           setup:
             memory:
@@ -368,7 +365,7 @@ steps:
       - label: "MultiGPU"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.10"
+              version: "1.11"
           - JuliaCI/julia-test#v1:
               test_args: "--gpu=0,1 core base libraries"
           - JuliaCI/julia-coverage#v1:
@@ -386,7 +383,7 @@ steps:
           build.message !~ /\[only/ && !build.pull_request.draft &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip special\]/
-        timeout_in_minutes: 30
+        timeout_in_minutes: 45
 
   # we want to benchmark every commit on the master branch, even if it failed CI
   - wait: ~
@@ -395,7 +392,7 @@ steps:
   - label: ":books: Documentation"
     plugins:
       - JuliaCI/julia#v1:
-          version: "1.10"
+          version: "1.11"
     command: |
       julia --project -e '
         println("--- :julia: Instantiating project")
@@ -423,7 +420,7 @@ steps:
       - label: "Benchmarks (dry run)"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.10"
+              version: "1.11"
         command: |
           julia --project -e '
             using Pkg
@@ -485,7 +482,7 @@ steps:
         matrix:
           setup:
             julia:
-              - "1.10"
+              - "1.11"
               - "1.11"
         timeout_in_minutes: 30
 
