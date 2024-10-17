@@ -84,7 +84,6 @@ include("compiler/exceptions.jl")
 include("compiler/reflection.jl")
 
 # array implementation
-include("gpuarrays.jl")
 include("utilities.jl")
 include("texture.jl")
 
