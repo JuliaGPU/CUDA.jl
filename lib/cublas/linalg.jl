@@ -13,17 +13,23 @@ LinearAlgebra.rmul!(x::StridedCuArray{<:CublasFloat}, k::Number) =
 LinearAlgebra.rmul!(x::DenseCuArray{<:CublasFloat}, k::Real) =
   invoke(rmul!, Tuple{typeof(x), Number}, x, k)
 
-function LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:Union{Float16, CublasReal}
+function LinearAlgebra.dot(x::StridedCuVector{T},
+                           y::StridedCuVector{T}) where T<:Union{Float16, CublasReal}
     n = length(x)
     n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
     dot(n, x, y)
 end
 
-function LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:Union{ComplexF16, CublasComplex}
+function LinearAlgebra.dot(x::StridedCuVector{T},
+                           y::StridedCuVector{T}) where T<:Union{ComplexF16, CublasComplex}
     n = length(x)
     n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
     dotc(n, x, y)
 end
+
+# resolve ambiguities with generic wrapper below
+LinearAlgebra.dot(x::CuArray{T}, y::CuArray{T}) where T<:Union{Float32, Float64} =
+    invoke(LinearAlgebra.dot, Tuple{StridedCuArray{T}, StridedCuArray{T}}, x, y)
 
 # generic fallback
 function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
@@ -97,14 +103,16 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
     end
 end
 
-function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}}, y::StridedCuVector{T}) where T<:Union{ComplexF16, CublasComplex}
+function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}},
+                            y::StridedCuVector{T}) where T<:Union{ComplexF16, CublasComplex}
     x = transx.parent
     n = length(x)
     n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
     return dotu(n, x, y)
 end
 
-function LinearAlgebra.norm(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasFloat}}, p::Real=2)
+function LinearAlgebra.norm(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasFloat}},
+                            p::Real=2)
     if p == 2
         return nrm2(x)
     else
