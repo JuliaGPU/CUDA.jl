@@ -58,7 +58,7 @@ eltypes = [(Float16, Float16),
         γ = rand(eltyC)
         dC = reduce!(α, dA, indsA, opA, γ, dC, indsC, opC, opReduce)
         @test reshape(collect(dC), (dimsC..., ones(Int,NA-NC)...)) ≈
-            α .* conj.(sum(permutedims(A, p); dims = ((NC+1:NA)...,))) .+ γ .* C
+            α * conj.(sum(permutedims(A, p); dims = ((NC+1:NA)...,))) + γ * C
     end
 end
 
