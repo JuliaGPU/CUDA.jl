@@ -16,6 +16,10 @@ end
     end
 
     @test testf(dot, rand(Bool, 1024, 1024), rand(Float64, 1024, 1024))
+
+    # https://discourse.julialang.org/t/result-of-inner-product-of-two-cuarray-with-views-is-incorrect/121539
+    @test testf(dot, view(rand(Float32, 100, 100), 2:99, 2:99),
+                     view(rand(Float32, 100, 100), 2:99, 2:99))
 end
 
 @testset "kron" begin
