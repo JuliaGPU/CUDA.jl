@@ -169,7 +169,8 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
 
         function geqrf!(A::StridedCuMatrix{$elty})
             m, n = size(A)
-            tau  = CuArray{$elty}(undef, min(m, n))
+            memty = memory_type(A)
+            tau  = CuArray{$elty, 1, memty}(undef, min(m, n))
             geqrf!(A, tau)
         end
     end
@@ -391,10 +392,11 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             (m < n) && throw(ArgumentError("CUSOLVER's gesvd requires m ≥ n"))
             lda = max(1, stride(A, 2))
 
+            memty = memory_type(A)
             U = if jobu === 'A'
-                CuArray{$elty}(undef, m, m)
+                CuArray{$elty, 2, memty}(undef, m, m)
             elseif jobu == 'S' || jobu === 'O'
-                CuArray{$elty}(undef, m, min(m, n))
+                CuArray{$elty, 2, memty}(undef, m, min(m, n))
             elseif jobu === 'N'
                 CU_NULL
             else
@@ -402,12 +404,12 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             end
             ldu     = U == CU_NULL ? 1 : max(1, stride(U, 2))
 
-            S       = CuArray{$relty}(undef, min(m, n))
+            S       = CuArray{$relty, 1, memty}(undef, min(m, n))
 
             Vt = if jobvt === 'A'
-                CuArray{$elty}(undef, n, n)
+                CuArray{$elty, 2, memty}(undef, n, n)
             elseif jobvt === 'S' || jobvt === 'O'
-                CuArray{$elty}(undef, min(m, n), n)
+                CuArray{$elty, 2, memty}(undef, min(m, n), n)
             elseif jobvt === 'N'
                 CU_NULL
             else
@@ -449,22 +451,22 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
                          max_sweeps::Int=100)
             m,n     = size(A)
             lda     = max(1, stride(A, 2))
-
+            memty   = memory_type(A)
             # Warning! For some reason, the solver needs to access U and V even
             # when only the values are requested
             U = if jobz === 'V' && econ == 1 && m > n
-                CuArray{$elty}(undef, m, n)
+                CuArray{$elty, 2, memty}(undef, m, n)
             else
-                CuArray{$elty}(undef, m, m)
+                CuArray{$elty, 2, memty}(undef, m, m)
             end
             ldu     = max(1, stride(U, 2))
 
-            S       = CuArray{$relty}(undef, min(m, n))
+            S       = CuArray{$relty, 1, memty}(undef, min(m, n))
 
             V = if jobz === 'V' && econ == 1 && m < n
-                CuArray{$elty}(undef, n, m)
+                CuArray{$elty, 2, memty}(undef, n, m)
             else
-                CuArray{$elty}(undef, n, n)
+                CuArray{$elty, 2, memty}(undef, n, n)
             end
             ldv     = max(1, stride(V, 2))
 
@@ -511,12 +513,13 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
             end
             lda = max(1, stride(A, 2))
 
-            U = CuArray{$elty}(undef, m, m, batchSize)
+            memty = memory_type(A)
+            U = CuArray{$elty, 3, memty}(undef, m, m, batchSize)
             ldu = max(1, stride(U, 2))
 
-            S = CuArray{$relty}(undef, min(m, n), batchSize)
+            S = CuArray{$relty, 2, memty}(undef, min(m, n), batchSize)
 
-            V = CuArray{$elty}(undef, n, n, batchSize)
+            V = CuArray{$elty, 3, memty}(undef, n, n, batchSize)
             ldv = max(1, stride(V, 2))
 
             params = Ref{gesvdjInfo_t}(C_NULL)
@@ -569,14 +572,15 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
             lda = max(1, stride(A, 2))
             strideA = stride(A, 3)
 
-            U = CuArray{$elty}(undef, m, rank, batchSize)
+            memty = memory_type(A)
+            U = CuArray{$elty, 3, memty}(undef, m, rank, batchSize)
             ldu = max(1, stride(U, 2))
             strideU = stride(U, 3)
 
-            S = CuArray{$relty}(undef, rank, batchSize)
+            S = CuArray{$relty, 2, memty}(undef, rank, batchSize)
             strideS = stride(S, 2)
 
-            V = CuArray{$elty}(undef, n, rank, batchSize)
+            V = CuArray{$elty, 3, memty}(undef, n, rank, batchSize)
             ldv = max(1, stride(V, 2))
             strideV = stride(V, 3)
 
