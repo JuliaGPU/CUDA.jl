@@ -32,6 +32,7 @@ if do_help
 
                --help             Show this text.
                --list             List all available tests.
+               --verbose          Print more information during testing.
                --quickfail        Fail the entire run as soon as a single test errored.
                --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS).
                --gpu=0,1,...      Comma-separated list of GPUs to use (default: 0)
@@ -42,6 +43,7 @@ if do_help
 end
 set_jobs, jobs = extract_flag!(ARGS, "--jobs"; typ=Int)
 do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
+do_verbose, _ = extract_flag!(ARGS, "--verbose")
 do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
 do_gpu_list, gpu_list = extract_flag!(ARGS, "--gpu")
 do_list, _ = extract_flag!(ARGS, "--list")
@@ -283,7 +285,7 @@ function print_testworker_stats(test, wrkr, resp)
     end
 end
 global print_testworker_started = (name, wrkr)->begin
-    if do_sanitize
+    if do_sanitize || do_verbose
         lock(print_lock)
         try
             printstyled(name, color=:white)
