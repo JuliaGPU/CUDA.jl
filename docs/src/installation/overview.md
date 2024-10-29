@@ -147,7 +147,15 @@ julia> CUDA.set_runtime_version!(local_toolkit=true)
 [ Info: Set CUDA.jl toolkit preference to use CUDA from the local system, please re-start Julia for this to take effect.
 ```
 
-After re-launching Julia:
+Calling `CUDA.set_runtime_version!(local_toolkit=true)` generates the following `LocalPreferences.toml` file in
+your active environment:
+
+```
+[CUDA_Runtime_jll]
+local = "true"
+```
+
+so that after re-launching Julia:
 
 ```
 julia> using CUDA
@@ -157,17 +165,9 @@ CUDA runtime 11.8, local installation
 ...
 ```
 
-Calling the above helper function generates the following `LocalPreferences.toml` file in
-your active environment:
-
-```
-[CUDA_Runtime_jll]
-local = "true"
-```
-
-This preference not only configures CUDA.jl to use a local toolkit, it also prevents
+The preference `local = "true"` under `CUDA_Runtime_jll` not only configures CUDA.jl to use a local toolkit, it also prevents
 downloading any artifact, so it may be interesting to set this preference before ever
-importing CUDA.jl (e.g., by putting this preference file in a system-wide depot).
+importing CUDA.jl (e.g., by putting a `LocalPreferences.toml` file in a system-wide depot).
 
 If CUDA.jl doesn't properly detect your local toolkit, it may be that certain libraries or
 binaries aren't on a globally-discoverable path. For more information, run Julia with the
