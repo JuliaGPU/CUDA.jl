@@ -46,13 +46,13 @@ eltypes = [(Float16, Float16, Float16),
         dD = elementwise_trinary_execute!(1, dA, indsA, opA, 1, dB, indsB, opB,
                                           1, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
-        @test D ≈ permutedims(A, pA) .+ permutedims(B, pB) .+ C
+        @test D ≈ permutedims(A, pA) + permutedims(B, pB) + C
 
         # using integers as indices
         dD = elementwise_trinary_execute!(1, dA, ipA, opA, 1, dB, ipB, opB,
                                           1, dC, 1:N, opC, dD, 1:N, opAB, opABC)
         D = collect(dD)
-        @test D ≈ permutedims(A, pA) .+ permutedims(B, pB) .+ C
+        @test D ≈ permutedims(A, pA) + permutedims(B, pB) + C
 
         # multiplication as binary operator
         opAB = cuTENSOR.OP_MUL
@@ -60,22 +60,21 @@ eltypes = [(Float16, Float16, Float16),
         dD = elementwise_trinary_execute!(1, dA, indsA, opA, 1, dB, indsB, opB,
                                           1, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
-        @test D ≈ (eltyD.(permutedims(A, pA)) .* eltyD.(permutedims(B, pB))) .+ C
+        @test D ≈ (eltyD.(permutedims(A, pA)) .* eltyD.(permutedims(B, pB))) + C
 
         opAB = cuTENSOR.OP_ADD
         opABC = cuTENSOR.OP_MUL
         dD = elementwise_trinary_execute!(1, dA, indsA, opA, 1, dB, indsB, opB,
                                           1, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
-        @test D ≈ (eltyD.(permutedims(A, pA)) .+ eltyD.(permutedims(B, pB))) .* C
+        @test D ≈ (eltyD.(permutedims(A, pA)) + eltyD.(permutedims(B, pB))) .* C
 
         opAB = cuTENSOR.OP_MUL
         opABC = cuTENSOR.OP_MUL
         dD = elementwise_trinary_execute!(1, dA, indsA, opA, 1, dB, indsB, opB,
                                           1, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
-        @test D ≈ eltyD.(permutedims(A, pA)) .*
-                  eltyD.(permutedims(B, pB)) .* C
+        @test D ≈ eltyD.(permutedims(A, pA)) .* eltyD.(permutedims(B, pB)) .* C
 
         # with non-trivial coefficients and conjugation
         α = rand(eltyD)
@@ -88,7 +87,7 @@ eltypes = [(Float16, Float16, Float16),
         dD = elementwise_trinary_execute!(α, dA, indsA, opA, β, dB, indsB, opB,
                                           γ, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
-        @test D ≈ α .* conj.(permutedims(A, pA)) .+ β .* permutedims(B, pB) .+ γ .* C
+        @test D ≈ α * conj.(permutedims(A, pA)) + β * permutedims(B, pB) + γ * C
 
         opB = eltyB <: Complex ? cuTENSOR.OP_CONJ : cuTENSOR.OP_IDENTITY
         opAB = cuTENSOR.OP_ADD
@@ -96,16 +95,14 @@ eltypes = [(Float16, Float16, Float16),
         dD = elementwise_trinary_execute!(α, dA, indsA, opA, β, dB, indsB, opB,
                                           γ, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
-        @test D ≈ α .* conj.(permutedims(A, pA)) .+
-                  β .* conj.(permutedims(B, pB)) .+ γ .* C
-
+        @test D ≈ α * conj.(permutedims(A, pA)) + β * conj.(permutedims(B, pB)) + γ * C
         opA = cuTENSOR.OP_IDENTITY
         opAB = cuTENSOR.OP_MUL
         opABC = cuTENSOR.OP_ADD
         dD = elementwise_trinary_execute!(α, dA, indsA, opA, β, dB, indsB, opB,
                                           γ, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
-        @test D ≈ α .* permutedims(A, pA) .* β .* conj.(permutedims(B, pB)) .+ γ .* C
+        @test D ≈ (α * permutedims(A, pA)) .* (β * conj.(permutedims(B, pB))) + γ * C
 
         # test in-place, and more complicated unary and binary operations
         opA = eltyA <: Complex ? cuTENSOR.OP_IDENTITY : cuTENSOR.OP_SQRT
@@ -122,24 +119,22 @@ eltypes = [(Float16, Float16, Float16),
         D = collect(dD)
         if eltyD <: Complex
             if eltyA <: Complex && eltyB <: Complex
-                @test D ≈ α .* permutedims(A, pA) .* β .* permutedims(B, pB) .+
-                            γ .* conj.(C)
+                @test D ≈ (α * permutedims(A, pA)) .*
+                          (β * permutedims(B, pB)) + γ * conj.(C)
             elseif eltyB <: Complex
-                @test D ≈ α .* sqrt.(eltyD.(permutedims(A, pA))) .*
-                          β .* permutedims(B, pB) .+ γ .* conj.(C)
+                @test D ≈ (α * sqrt.(eltyD.(permutedims(A, pA)))) .*
+                          (β * permutedims(B, pB)) + γ * conj.(C)
             elseif eltyB <: Complex
-                @test D ≈ α .* permutedims(A, pA) .*
-                          β .* sqrt.(eltyD.(permutedims(B, pB))) .+
-                          γ .* conj.(C)
+                @test D ≈ (α * permutedims(A, pA)) .*
+                          (β * sqrt.(eltyD.(permutedims(B, pB)))) + γ * conj.(C)
             else
-                @test D ≈ α .* sqrt.(eltyD.(permutedims(A, pA))) .*
-                          β .* sqrt.(eltyD.(permutedims(B, pB))) .+
-                          γ .* conj.(C)
+                @test D ≈ (α * sqrt.(eltyD.(permutedims(A, pA)))) .*
+                          (β * sqrt.(eltyD.(permutedims(B, pB)))) + γ * conj.(C)
             end
         else
-            @test D ≈ max.(min.(α .* sqrt.(eltyD.(permutedims(A, pA))),
-                                β .* sqrt.(eltyD.(permutedims(B, pB)))),
-                            γ .* C)
+            @test D ≈ max.(min.(α * sqrt.(eltyD.(permutedims(A, pA))),
+                                β * sqrt.(eltyD.(permutedims(B, pB)))),
+                            γ * C)
         end
     end
 end

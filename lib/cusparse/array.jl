@@ -299,6 +299,7 @@ SparseArrays.nnz(g::AbstractCuSparseArray) = g.nnz
 SparseArrays.nonzeros(g::AbstractCuSparseArray) = g.nzVal
 
 SparseArrays.nonzeroinds(g::AbstractCuSparseVector) = g.iPtr
+SparseArrays.rowvals(g::AbstractCuSparseVector) = nonzeroinds(g)
 
 SparseArrays.rowvals(g::CuSparseMatrixCSC) = g.rowVal
 SparseArrays.getcolptr(S::CuSparseMatrixCSC) = S.colPtr
@@ -325,7 +326,7 @@ end
 function SparseArrays.spdiagm(v::CuVector{Tv}) where {Tv}
     nzVal = v
     N = Int32(length(nzVal))
-    
+
     colPtr = CuArray(one(Int32):(N + one(Int32)))
     rowVal = CuArray(one(Int32):N)
     dims = (N, N)
@@ -594,14 +595,8 @@ Base.copy(Mat::CuSparseArrayCSR) = CuSparseArrayCSR(copy(Mat.rowPtr), copy(Mat.c
 # input/output
 
 for (gpu, cpu) in [:CuSparseVector => :SparseVector]
-    @eval function Base.show(io::IO, ::MIME"text/plain", x::$gpu)
-        xnnz = length(nonzeros(x))
-        print(io, length(x), "-element ", typeof(x), " with ", xnnz,
-            " stored ", xnnz == 1 ? "entry" : "entries")
-        if xnnz != 0
-            println(io, ":")
-            show(IOContext(io, :typeinfo => eltype(x)), $cpu(x))
-        end
+    @eval function Base.show(io::IO, mime::MIME"text/plain", x::$gpu)
+        @allowscalar @invoke show(io, mime, x::AbstractSparseVector)
     end
 end
 

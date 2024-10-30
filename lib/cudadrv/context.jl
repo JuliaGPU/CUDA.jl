@@ -292,8 +292,8 @@ end
 """
     synchronize(ctx::Context)
 
-Block for the all operations on `ctx` to complete. This is a heavyweight operation,
-typically you only need to call [`synchronize`](@ref) which only synchronizes the stream
+Block for all the operations on `ctx` to complete. This is a heavyweight operation,
+typically you only need to call [`synchronize()`](@ref) which only synchronizes the stream
 associated with the current task.
 """
 function synchronize(ctx::CuContext)
@@ -309,8 +309,8 @@ end
 """
     device_synchronize()
 
-Block for the all operations on `ctx` to complete. This is a heavyweight operation,
-typically you only need to call [`synchronize`](@ref) which only synchronizes the stream
+Block for all the operations on the device to complete. This is a heavyweight operation,
+typically you only need to call [`synchronize()`](@ref) which only synchronizes the stream
 associated with the current task.
 
 On the device, `device_synchronize` acts as a synchronization point for child grids in the

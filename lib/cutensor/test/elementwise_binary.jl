@@ -36,12 +36,12 @@ eltypes = [(Float16, Float16),
         opAC  = cuTENSOR.OP_ADD
         dD    = elementwise_binary_execute!(1, dA, indsA, opA, 1, dC, indsC, opC, dD, indsC, opAC)
         D = collect(dD)
-        @test D ≈ permutedims(A, p) .+ C
+        @test D ≈ permutedims(A, p) + C
 
         # using integers as indices
         dD = elementwise_binary_execute!(1, dA, 1:N, opA, 1, dC, p, opC, dD, p, opAC)
         D = collect(dD)
-        @test D ≈ permutedims(A, p) .+ C
+        @test D ≈ permutedims(A, p) + C
 
         # multiplication as binary operator
         opAC = cuTENSOR.OP_MUL
@@ -57,7 +57,7 @@ eltypes = [(Float16, Float16),
         γ = rand(eltyD)
         dD = elementwise_binary_execute!(α, dA, indsA, opA, γ, dC, indsC, opC, dD, indsC, opAC)
         D = collect(dD)
-        @test D ≈ α .* conj.(permutedims(A, p)) .+ γ .* C
+        @test D ≈ α * conj.(permutedims(A, p)) + γ * C
 
         # test in-place, and more complicated unary and binary operations
         opA = eltyA <: Complex ? cuTENSOR.OP_IDENTITY : cuTENSOR.OP_SQRT
@@ -70,12 +70,12 @@ eltypes = [(Float16, Float16),
         D = collect(dC)
         if eltyD <: Complex
             if eltyA <: Complex
-                @test D ≈ α .* permutedims(A, p) .+ γ .* conj.(C)
+                @test D ≈ α * permutedims(A, p) + γ * conj.(C)
             else
-                @test D ≈ α .* sqrt.(eltyD.(permutedims(A, p))) .+ γ .* conj.(C)
+                @test D ≈ α * sqrt.(eltyD.(permutedims(A, p))) + γ * conj.(C)
             end
         else
-            @test D ≈ max.(α .* sqrt.(eltyD.(permutedims(A, p))), γ .* C)
+            @test D ≈ max.(α * sqrt.(eltyD.(permutedims(A, p))), γ * C)
         end
 
         # using CuTensor type
@@ -85,24 +85,24 @@ eltypes = [(Float16, Float16),
         ctC = CuTensor(dC, indsC)
         ctD = ctA + ctC
         hD = collect(ctD.data)
-        @test hD ≈ permutedims(A, p) .+ C
+        @test hD ≈ permutedims(A, p) + C
         ctD = ctA - ctC
         hD = collect(ctD.data)
-        @test hD ≈ permutedims(A, p) .- C
+        @test hD ≈ permutedims(A, p) - C
 
         α = rand(eltyD)
         ctC_copy = copy(ctC)
         ctD = LinearAlgebra.axpy!(α, ctA, ctC_copy)
         @test ctD == ctC_copy
         hD = collect(ctD.data)
-        @test hD ≈ α.*permutedims(A, p) .+ C
+        @test hD ≈ α * permutedims(A, p) + C
 
         γ = rand(eltyD)
         ctC_copy = copy(ctC)
         ctD = LinearAlgebra.axpby!(α, ctA, γ, ctC_copy)
         @test ctD == ctC_copy
         hD = collect(ctD.data)
-        @test hD ≈ α.*permutedims(A, p) .+ γ.*C
+        @test hD ≈ α * permutedims(A, p) + γ * C
     end
 end
 
