@@ -169,7 +169,6 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
 
         function geqrf!(A::StridedCuMatrix{$elty})
             m, n = size(A)
-            memty = memory_type(A)
             tau = similar(A, $elty, min(m,n))
             geqrf!(A, tau)
         end
@@ -392,7 +391,6 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             (m < n) && throw(ArgumentError("CUSOLVER's gesvd requires m ≥ n"))
             lda = max(1, stride(A, 2))
 
-            memty = memory_type(A)
             U = if jobu === 'A'
                 similar(A, $elty, (m, m))
             elseif jobu == 'S' || jobu === 'O'
@@ -511,8 +509,6 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
                 throw(ArgumentError("CUSOLVER's gesvdjBatched currently requires m <=32 and n <= 32"))
             end
             lda = max(1, stride(A, 2))
-
-            memty = memory_type(A)
             
             U = similar(A, $elty, (m, m, batchSize))
             ldu = max(1, stride(U, 2))
@@ -571,8 +567,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
             end
             lda = max(1, stride(A, 2))
             strideA = stride(A, 3)
-
-            memty = memory_type(A)
+            
             U = similar(A, $elty, (m, rank, batchSize))
             ldu = max(1, stride(U, 2))
             strideU = stride(U, 3)
