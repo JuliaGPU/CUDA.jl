@@ -361,10 +361,10 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
             end
 
             k       = min(m, n)
-            D       = similar(A, $relty, k)
+            D       = CuArray{$relty}(undef, k)
             E       = CUDA.zeros($relty, k)
-            TAUQ    = similar(A, $elty, k)
-            TAUP    = similar(A, $elty, k)
+            TAUQ    = CuArray{$elty}(undef, k)
+            TAUP    = CuArray{$elty}(undef, k)
 
             with_workspace(dh.workspace_gpu, bufferSize) do buffer
                 $fname(dh, m, n, A, lda, D, E, TAUQ, TAUP,
@@ -567,7 +567,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
             end
             lda = max(1, stride(A, 2))
             strideA = stride(A, 3)
-            
+
             U = similar(A, $elty, (m, rank, batchSize))
             ldu = max(1, stride(U, 2))
             strideU = stride(U, 3)
