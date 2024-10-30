@@ -84,14 +84,7 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
   end
 end
 
-"""
-    CUDA.unsafe_free!(a::CuArray)
-
-Release the memory of an array for reuse by future allocations. This operation is
-performed automatically by the GC when an array goes out of scope, but can be called
-earlier to reduce pressure on the memory allocator.
-"""
-unsafe_free!(xs::CuArray) = GPUArrays.unsafe_free!(xs.data)
+GPUArrays.storage(a::CuArray) = a.data
 
 
 ## alias detection
