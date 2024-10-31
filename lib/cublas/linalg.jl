@@ -348,7 +348,7 @@ end
 
 function LinearAlgebra.mul!(C::CuMatrix{T}, A::Transpose{T,<:CuMatrix}, B::Diagonal{T,<:CuVector}) where {T<:CublasFloat}
     C .= A
-    C .*= B.diag'
+    C .*= transpose(B.diag)
     return C
 end
 
@@ -360,7 +360,7 @@ end
 
 function LinearAlgebra.mul!(C::CuMatrix{T}, A::Adjoint{T,<:CuMatrix}, B::Diagonal{T,<:CuVector}) where {T<:CublasFloat}
     C .= A
-    C .*= B.diag'
+    C .*= transpose(B.diag)
     return C
 end
 
