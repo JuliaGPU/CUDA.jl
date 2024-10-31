@@ -111,6 +111,10 @@ macro cuda(ex...)
                     $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
                     if $launch
+		    	@show $f_var, $(var_exprs...)
+			@show $kernel_f
+			@show $kernel_args
+			@show $(call_kwargs...)
                         $kernel($kernel_args...; $(call_kwargs...), convert=Val(false))
                     end
                     $kernel
@@ -385,6 +389,8 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
         kernel = get(_kernel_instances, key, nothing)
         if kernel === nothing
             # create the kernel state object
+	    @show f, tt
+	    println(string(fun.mod))
             state = KernelState(create_exceptions!(fun.mod), UInt32(0))
 
             kernel = HostKernel{F,tt}(f, fun, state)

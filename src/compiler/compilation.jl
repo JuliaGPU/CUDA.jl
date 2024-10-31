@@ -246,6 +246,10 @@ end
 function compile(@nospecialize(job::CompilerJob))
     # lower to PTX
     # TODO: on 1.9, this actually creates a context. cache those.
+    mod, _ = JuliaContext() do ctx
+        GPUCompiler.compile(:llvm, job)
+    end
+    println(string(mod))
     asm, meta = JuliaContext() do ctx
         GPUCompiler.compile(:asm, job)
     end
