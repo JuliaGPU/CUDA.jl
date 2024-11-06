@@ -290,7 +290,7 @@ When profiling a remote application, NSight Compute will not be able to find the
 kernels, and instead show `File not found` errors in the Source view. Although it is
 possible to point NSight Compute to a local version of the remote file, it is recommended
 to enable "Auto-Resolve Remote Source File" in the global Profile preferences (Tools menu
-> Preferences). With that option set to "Yes", clicking the "Resolve" button will
+-> Preferences). With that option set to "Yes", clicking the "Resolve" button will
 automatically download and use the remote version of the requested source file.
 
 ##### `Could not load library "libpcre2-8`
