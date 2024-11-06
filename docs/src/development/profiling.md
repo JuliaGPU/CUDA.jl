@@ -155,19 +155,19 @@ to a mode where it merely activates an external profiler and does not do perform
 profiling itself. In case the detection does not work, this mode can be forcibly activated
 by passing `external=true` to `CUDA.@profile`.
 
-NVIDIA provides two tools for profiling CUDA applications: NSight Systems and NSight Compute
+NVIDIA provides two tools for profiling CUDA applications: Nsight Systems and Nsight Compute
 for respectively timeline profiling and more detailed kernel analysis. Both tools are
 well-integrated with the Julia GPU packages, and make it possible to iteratively profile
 without having to restart Julia.
 
 #### NVIDIA Nsight Systems
 
-Generally speaking, the first external profiler you should use is NSight Systems, as it will
+Generally speaking, the first external profiler you should use is Nsight Systems, as it will
 give you a high-level overview of your application's performance characteristics. After
 downloading and installing the tool (a version might have been installed alongside with the
 CUDA toolkit, but it is recommended to download and install the latest version from the
 NVIDIA website), you need to launch Julia from the command-line, wrapped by the `nsys`
-utility from NSight Systems:
+utility from Nsight Systems:
 
 ```
 $ nsys launch julia
@@ -209,7 +209,7 @@ You can open the resulting `.qdrep` file with `nsight-sys`:
 
 !!! info
 
-    If NSight Systems does not capture any kernel launch, even though you have used
+    If Nsight Systems does not capture any kernel launch, even though you have used
     `CUDA.@profile`, try starting `nsys` with `--trace cuda`.
 
 #### NVIDIA Nsight Compute
@@ -243,7 +243,7 @@ to the running session by selecting it in the list in the `Attach` pane:
 
 !["NVIDIA Nsight Compute - Attaching to a session"](nsight_compute-attach.png)
 
-Note that this even works with remote systems, i.e., you can have NSight Compute connect
+Note that this even works with remote systems, i.e., you can have Nsight Compute connect
 over ssh to a remote system where you run Julia under `ncu`.
 
 Once you've successfully attached to a Julia process, you will see that the tool has stopped
@@ -277,26 +277,26 @@ the API calls that have been made:
 !["NVIDIA Nsight Compute - API inspection"](nsight_compute-api.png)
 
 
-#### Troubleshooting NSight Compute
+#### Troubleshooting Nsight Compute
 
-If you're running into issues, make sure you're using the same version of NSight Compute on
+If you're running into issues, make sure you're using the same version of Nsight Compute on
 the host and the device, and make sure it's the latest version available. You do not need
-administrative permissions to install NSight Compute, the `runfile` downloaded from the
+administrative permissions to install Nsight Compute, the `runfile` downloaded from the
 NVIDIA home page can be executed as a regular user.
 
 ##### Kernel sources only report `File not found`
 
-When profiling a remote application, NSight Compute will not be able to find the sources of
+When profiling a remote application, Nsight Compute will not be able to find the sources of
 kernels, and instead show `File not found` errors in the Source view. Although it is
-possible to point NSight Compute to a local version of the remote file, it is recommended
+possible to point Nsight Compute to a local version of the remote file, it is recommended
 to enable "Auto-Resolve Remote Source File" in the global Profile preferences (Tools menu
 -> Preferences). With that option set to "Yes", clicking the "Resolve" button will
 automatically download and use the remote version of the requested source file.
 
 ##### `Could not load library "libpcre2-8`
 
-This is caused by an incompatibility between Julia and NSight Compute, and should be fixed
-in the latest versions of NSight Compute. If it's not possible to upgrade, the following
+This is caused by an incompatibility between Julia and Nsight Compute, and should be fixed
+in the latest versions of Nsight Compute. If it's not possible to upgrade, the following
 workaround may help:
 
 ```
@@ -305,28 +305,28 @@ LD_LIBRARY_PATH=$(/path/to/julia -e 'println(joinpath(Sys.BINDIR, Base.LIBDIR, "
 
 ##### The Julia process is not listed in the "Attach" tab
 
-Make sure that the port that is used by NSight Compute (49152 by default) is accessible via
+Make sure that the port that is used by Nsight Compute (49152 by default) is accessible via
 ssh. To verify this, you can also try forwarding the port manually:
 
 ```
 ssh user@host.com -L 49152:localhost:49152
 ```
 
-Then, in the "Connect to process" window of NSight Compute, add a connection to `localhost`
+Then, in the "Connect to process" window of Nsight Compute, add a connection to `localhost`
 instead of the remote host.
 
 If SSH complains with `Address already in use`, that means the port is already in use. If
 you're using VSCode, try closing all instances as VSCode might automatically forward the
-port when launching NSight Compute in a terminal within VSCode.
+port when launching Nsight Compute in a terminal within VSCode.
 
-##### Julia in NSight Compute only shows the Julia logo, not the REPL prompt
+##### Julia in Nsight Compute only shows the Julia logo, not the REPL prompt
 
-In some versions of NSight Compute, you might have to start Julia without the `--project`
+In some versions of Nsight Compute, you might have to start Julia without the `--project`
 option and switch the environment from inside Julia.
 
 ##### "Disconnected from the application" once I click "Resume"
 
-Make sure that everything is precompiled before starting Julia with NSight Compute,
+Make sure that everything is precompiled before starting Julia with Nsight Compute,
 otherwise you end up profiling the precompilation process instead of your actual
 application.
 
@@ -348,7 +348,7 @@ The `nvidia.ko` kernel module needs to be reloaded after changing this configura
 your system may require regenerating the initramfs or even a reboot. Refer to your
 distribution's documentation for details.
 
-##### NSight Compute breaks on various API calls
+##### Nsight Compute breaks on various API calls
 
 Make sure `Break On API Error` is disabled in the `Debug` menu, as CUDA.jl purposefully
 triggers some API errors as part of its normal operation.
@@ -378,7 +378,7 @@ For more details, refer to the documentation of the NVTX.jl package.
 
 ## Compiler options
 
-Some tools, like NSight Systems Compute, also make it possible to do source-level profiling.
+Some tools, like Nsight Systems Compute, also make it possible to do source-level profiling.
 CUDA.jl will by default emit the necessary source line information, which you can disable by
 launching Julia with `-g0`. Conversely, launching with `-g2` will emit additional debug
 information, which can be useful in combination with tools like `cuda-gdb`, but might hurt
