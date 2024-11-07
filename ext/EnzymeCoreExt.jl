@@ -75,7 +75,7 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(cudaconvert)},
             end)::EnzymeCore.shadow_type(config, RT)
         end
     elseif EnzymeRules.needs_primal(config)
-        ofn.val(uval.val)::eltype(RT)
+        ofn.val(x.val)::eltype(RT)
     else
         nothing
     end
