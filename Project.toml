@@ -43,6 +43,7 @@ EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [extensions]
+AtomixExt = "Atomix"
 ChainRulesCoreExt = "ChainRulesCore"
 EnzymeCoreExt = "EnzymeCore"
 SpecialFunctionsExt = "SpecialFunctions"
@@ -50,7 +51,7 @@ SpecialFunctionsExt = "SpecialFunctions"
 [compat]
 AbstractFFTs = "0.4, 0.5, 1.0"
 Adapt = "4"
-Atomix = "0.1,1"
+Atomix = "0.1, 1"
 BFloat16s = "0.2, 0.3, 0.4, 0.5"
 CEnum = "0.2, 0.3, 0.4, 0.5"
 CUDA_Driver_jll = "0.10"
