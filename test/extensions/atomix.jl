@@ -75,7 +75,7 @@ end
         A = CUDA.ones(Int, 3)
         cuda() do
             GC.@preserve A begin
-                @atomic A[begin] += 1
+                Atomix.@atomic A[begin] += 1
             end
         end
         @test collect(A) == [2, 1, 1]
