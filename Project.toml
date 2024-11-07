@@ -37,6 +37,7 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 demumble_jll = "1e29f10c-031c-5a83-9565-69cddfc27673"
 
 [weakdeps]
+Atomix = "a9b6321e-bd34-4604-b9c9-b65b8de01458"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
@@ -49,6 +50,7 @@ SpecialFunctionsExt = "SpecialFunctions"
 [compat]
 AbstractFFTs = "0.4, 0.5, 1.0"
 Adapt = "4"
+Atomix = "1"
 BFloat16s = "0.2, 0.3, 0.4, 0.5"
 CEnum = "0.2, 0.3, 0.4, 0.5"
 CUDA_Driver_jll = "0.10"
