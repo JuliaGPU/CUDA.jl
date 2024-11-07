@@ -1,6 +1,7 @@
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+Atomix = "a9b6321e-bd34-4604-b9c9-b65b8de01458"
 BFloat16s = "ab4f0b2a-ad5b-11e8-123f-65d77653426b"
 CUDA_Driver_jll = "4ee394cb-3365-5eb0-8335-949819d2adfc"
 CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"

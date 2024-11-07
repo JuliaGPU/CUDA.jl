@@ -250,46 +250,6 @@ steps:
         soft_fail:
           - exit_status: 3
 
-    - label: "Atomix.jl"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.11
-          - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
-        command: |
-          julia -e '
-            using Pkg
-
-            println("--- :julia: Instantiating project")
-            withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-              # add Atomix to the test deps
-              Pkg.activate("test")
-              Pkg.add(["Atomix"])
-
-              # to check compatibility, also add Atomix to the main environment
-              # (or Pkg.test, which merges both environments, could fail)
-              Pkg.activate(".")
-              Pkg.develop([PackageSpec("Atomix")])
-            end
-
-            println("+++ :julia: Running tests")
-            Pkg.test(; coverage=true, test_args=`extensions/atomix`)'
-        agents:
-          queue: "juliagpu"
-          cuda: "*"
-        if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only downstream\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip downstream\]/
-        timeout_in_minutes: 30
-        soft_fail:
-          - exit_status: 3
-
   - group: ":eyes: Special"
     depends_on: "cuda"
     steps:
