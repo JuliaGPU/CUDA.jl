@@ -361,10 +361,10 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
             end
 
             k       = min(m, n)
-            D       = CuArray{$relty}(undef, k)
-            E       = CUDA.zeros($relty, k)
-            TAUQ    = CuArray{$elty}(undef, k)
-            TAUP    = CuArray{$elty}(undef, k)
+            D       = similar(A, $relty, k)
+            E       = fill!(similar(A, $relty, k), zero($relty))
+            TAUQ    = similar(A, $elty, k)
+            TAUP    = similar(A, $elty, k)
 
             with_workspace(dh.workspace_gpu, bufferSize) do buffer
                 $fname(dh, m, n, A, lda, D, E, TAUQ, TAUP,
