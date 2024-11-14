@@ -478,10 +478,14 @@ end
 
 @testset "findall" begin
     # 1D
+    @test testf(x->findall(x), rand(Bool, 0))
     @test testf(x->findall(x), rand(Bool, 100))
     @test testf(x->findall(y->y>0.5, x), rand(100))
 
     # ND
+    let x = rand(Bool, 0, 0)
+      @test findall(x) == Array(findall(CuArray(x)))
+    end
     let x = rand(Bool, 10, 10)
       @test findall(x) == Array(findall(CuArray(x)))
     end
