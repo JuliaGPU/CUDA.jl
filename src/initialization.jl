@@ -217,12 +217,11 @@ function __init__()
             contains(lib, "artifacts") && continue
             if any(rtlib -> contains(lib, rtlib), runtime_libraries)
                 @warn """CUDA runtime library `$(basename(lib))` was loaded from a system path, `$lib`.
-
-                         This may cause errors. However, if you're running under a profiler, this warning 
-                         is expected and can be ignored.
+                         This may cause errors.
                          
-                         Otherwise, ensure that your library path environment variable (e.g., `PATH` on 
-                         Windows or `LD_LIBRARY_PATH` on Linux) does not include CUDA library paths.
+                         If you're running under a profiler, this situation is expected. Otherwise,
+                         ensure that your library path environment variable (e.g., `PATH` on Windows
+                         or `LD_LIBRARY_PATH` on Linux) does not include CUDA library paths.
 
                          In any other case, please file an issue."""
             end
