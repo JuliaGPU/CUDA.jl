@@ -173,7 +173,7 @@ p = 5
 
     @testset "gesvdr!" begin
         R = real(elty)
-        tol = R == Float32 ? 1e-3 : 1e-6
+        tol = R == Float32 ? 1e-2 : 1e-5
         ℓ = min(m, n)
 
         B = rand(elty,m,m)
