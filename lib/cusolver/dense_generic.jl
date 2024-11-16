@@ -327,21 +327,22 @@ function Xgesvdr!(jobu::Char, jobv::Char, A::StridedCuMatrix{T}, k::Integer;
                   niters::Integer=2, p::Integer=2*k) where {T <: BlasFloat}
     m, n = size(A)
     ℓ = min(m,n)
+    p = min(p, ℓ-k)  # Ensure that p + k ≤ ℓ
     (1 ≤ k ≤ ℓ) || throw(ArgumentError("illegal choice of parameter k = $k, which must be between 1 and min(m,n) = $ℓ"))
     (k+p ≤ ℓ) || throw(ArgumentError("illegal choice of parameters k = $k and p = $p, which must satisfy k+p ≤ min(m,n) = $ℓ"))
     R = real(T)
     U = if jobu == 'S'
-        CuMatrix{T}(undef, m, k)
+        CuMatrix{T}(undef, m, m)
     elseif jobu == 'N'
-        CU_NULL
+        CuMatrix{T}(undef, m, ℓ)
     else
         throw(ArgumentError("jobu is incorrect. The values accepted are 'S' and 'N'."))
     end
     Σ = CuVector{R}(undef, ℓ)
     V = if jobv == 'S'
-        CuMatrix{T}(undef, n, k)
+        CuMatrix{T}(undef, n, n)
     elseif jobv == 'N'
-        CU_NULL
+        CuMatrix{T}(undef, n, ℓ)
     else
         throw(ArgumentError("jobv is incorrect. The values accepted are 'S' and 'N'."))
     end

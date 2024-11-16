@@ -171,22 +171,28 @@ p = 5
         @test A ≈ collect(U) * Diagonal(collect(Σ)) * collect(V)'
     end
 
-    # @testset "gesvdr!" begin
-    #     R = real(elty)
-    #     B = rand(elty,m,m)
-    #     FB = qr(B)
-    #     C = rand(elty,n,n)
-    #     FC = qr(C)
-    #     Σ = zeros(elty,m,n)
-    #     for i = 1:n
-    #         Σ[i,i] = i*one(R)
-    #     end
-    #     k = 3
-    #     A = FB.Q * Σ * FC.Q
-    #     d_A = CuMatrix(A)
-    #     U, Σ, V = CUSOLVER.Xgesvdr!('N', 'N', d_A, k)
-    #     @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * V')
-    # end
+    @testset "gesvdr!" begin
+        R = real(elty)
+        tol = R == Float32 ? 1e-2 : 1e-5
+        ℓ = min(m, n)
+
+        B = rand(elty,m,m)
+        FB = qr(B)
+        C = rand(elty,n,n)
+        FC = qr(C)
+        Σ = zeros(R,m,n)
+        for i = 1:ℓ
+            Σ[i,i] = (10-i+1)*one(R)
+        end
+        A = FB.Q * Σ * FC.Q
+        d_A = CuMatrix(A)
+
+        d_U, d_Σ, d_V = CUSOLVER.Xgesvdr!('N', 'N', d_A, 3)
+        @test norm(diag(Σ)[1:3] - collect(d_Σ[1:3])) ≤ tol
+
+        d_U, d_Σ, d_V = CUSOLVER.Xgesvdr!('S', 'S', d_A, ℓ)
+        @test norm(diag(Σ) - collect(d_Σ)) ≤ tol
+    end
 
     @testset "syevdx!" begin
         R = real(elty)
