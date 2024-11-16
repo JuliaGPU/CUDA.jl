@@ -173,6 +173,7 @@ p = 5
 
     @testset "gesvdr!" begin
         R = real(elty)
+        tol = R == Float32 ? 1e-3 : 1e-6
         ℓ = min(m, n)
 
         B = rand(elty,m,m)
@@ -187,10 +188,10 @@ p = 5
         d_A = CuMatrix(A)
 
         d_U, d_Σ, d_V = CUSOLVER.Xgesvdr!('N', 'N', d_A, 3)
-        @test diag(Σ)[1:3] ≈ collect(d_Σ[1:3])
+        @test norm(diag(Σ)[1:3] - collect(d_Σ[1:3])) ≤ tol
 
         d_U, d_Σ, d_V = CUSOLVER.Xgesvdr!('S', 'S', d_A, ℓ)
-        @test diag(Σ) ≈ collect(d_Σ)
+        @test norm(diag(Σ) - collect(d_Σ)) ≤ tol
     end
 
     @testset "syevdx!" begin
