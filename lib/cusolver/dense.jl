@@ -169,7 +169,7 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
 
         function geqrf!(A::StridedCuMatrix{$elty})
             m, n = size(A)
-            tau  = CuArray{$elty}(undef, min(m, n))
+            tau = similar(A, $elty, min(m,n))
             geqrf!(A, tau)
         end
     end
@@ -361,10 +361,10 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
             end
 
             k       = min(m, n)
-            D       = CuArray{$relty}(undef, k)
-            E       = CUDA.zeros($relty, k)
-            TAUQ    = CuArray{$elty}(undef, k)
-            TAUP    = CuArray{$elty}(undef, k)
+            D       = similar(A, $relty, k)
+            E       = fill!(similar(A, $relty, k), zero($relty))
+            TAUQ    = similar(A, $elty, k)
+            TAUP    = similar(A, $elty, k)
 
             with_workspace(dh.workspace_gpu, bufferSize) do buffer
                 $fname(dh, m, n, A, lda, D, E, TAUQ, TAUP,
@@ -392,9 +392,9 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             lda = max(1, stride(A, 2))
 
             U = if jobu === 'A'
-                CuArray{$elty}(undef, m, m)
+                similar(A, $elty, (m, m))
             elseif jobu == 'S' || jobu === 'O'
-                CuArray{$elty}(undef, m, min(m, n))
+                similar(A, $elty, (m, min(m, n)))
             elseif jobu === 'N'
                 CU_NULL
             else
@@ -402,12 +402,12 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             end
             ldu     = U == CU_NULL ? 1 : max(1, stride(U, 2))
 
-            S       = CuArray{$relty}(undef, min(m, n))
+            S       = similar(A, $relty, min(m, n))
 
             Vt = if jobvt === 'A'
-                CuArray{$elty}(undef, n, n)
+                similar(A, $elty, (n, n))
             elseif jobvt === 'S' || jobvt === 'O'
-                CuArray{$elty}(undef, min(m, n), n)
+                similar(A, $elty, (min(m, n), n))
             elseif jobvt === 'N'
                 CU_NULL
             else
@@ -449,22 +449,21 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
                          max_sweeps::Int=100)
             m,n     = size(A)
             lda     = max(1, stride(A, 2))
-
             # Warning! For some reason, the solver needs to access U and V even
             # when only the values are requested
             U = if jobz === 'V' && econ == 1 && m > n
-                CuArray{$elty}(undef, m, n)
+                similar(A, $elty, (m ,n))
             else
-                CuArray{$elty}(undef, m, m)
+                similar(A, $elty, (m, m))
             end
             ldu     = max(1, stride(U, 2))
 
-            S       = CuArray{$relty}(undef, min(m, n))
+            S       = similar(A, $relty, min(m,n))
 
             V = if jobz === 'V' && econ == 1 && m < n
-                CuArray{$elty}(undef, n, m)
+                similar(A, $elty, (n, m))
             else
-                CuArray{$elty}(undef, n, n)
+                similar(A, $elty, (n, n))
             end
             ldv     = max(1, stride(V, 2))
 
@@ -510,13 +509,13 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
                 throw(ArgumentError("CUSOLVER's gesvdjBatched currently requires m <=32 and n <= 32"))
             end
             lda = max(1, stride(A, 2))
-
-            U = CuArray{$elty}(undef, m, m, batchSize)
+            
+            U = similar(A, $elty, (m, m, batchSize))
             ldu = max(1, stride(U, 2))
 
-            S = CuArray{$relty}(undef, min(m, n), batchSize)
+            S = similar(A, $relty, (min(m, n), batchSize))
 
-            V = CuArray{$elty}(undef, n, n, batchSize)
+            V = similar(A, $elty, n, n, batchSize)
             ldv = max(1, stride(V, 2))
 
             params = Ref{gesvdjInfo_t}(C_NULL)
@@ -569,14 +568,14 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
             lda = max(1, stride(A, 2))
             strideA = stride(A, 3)
 
-            U = CuArray{$elty}(undef, m, rank, batchSize)
+            U = similar(A, $elty, (m, rank, batchSize))
             ldu = max(1, stride(U, 2))
             strideU = stride(U, 3)
 
-            S = CuArray{$relty}(undef, rank, batchSize)
+            S = similar(A, $relty, (rank, batchSize))
             strideS = stride(S, 2)
 
-            V = CuArray{$elty}(undef, n, rank, batchSize)
+            V = similar(A, $elty, (n, rank, batchSize))
             ldv = max(1, stride(V, 2))
             strideV = stride(V, 3)
 
