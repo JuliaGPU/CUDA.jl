@@ -96,7 +96,7 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:Union{AbstractFloat,Complex{<:A
 
         # grid-stride loop
         threadId = threadIdx().x
-        window = widemul(blockDim().x - 1i32, gridDim().x)
+        window = widemul(blockDim().x, gridDim().x)
         offset = widemul(blockIdx().x - 1i32, blockDim().x)
         while offset < length(A)
             i = threadId + offset
@@ -129,7 +129,7 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:Union{AbstractFloat,Complex{<:A
 
         # grid-stride loop
         threadId = threadIdx().x
-        window = widemul(blockDim().x - 1i32, gridDim().x)
+        window = widemul(blockDim().x, gridDim().x)
         offset = widemul(blockIdx().x - 1i32, blockDim().x)
         while offset < length(A)
             i = threadId + offset
