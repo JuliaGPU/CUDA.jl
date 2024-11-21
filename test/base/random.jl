@@ -198,3 +198,9 @@ end
     end
 end
 
+@testset "counter overflow" begin
+    rng = CUDA.RNG()
+    c = CUDA.zeros(Float16, (64, 32, 512, 32, 64))
+    rand!(rng, c)
+    randn!(rng, c)
+end
