@@ -624,6 +624,14 @@ end
 @testset "parameter space" begin
     kernel(x) = nothing
     @test_throws "Kernel invocation uses too much parameter memory" @cuda kernel(ntuple(_->UInt64(1), 2^13))
+
+    struct Foo{A, B, C}
+        a::A
+        b::B
+        c::C
+    end
+    f = Foo(Foo(1,1,1), Foo(Foo(1,1,1), 1,1), Foo(1,1,Foo(1,1,1)))
+    CUDA.@rprint_parameter_memory f
 end
 
 end
