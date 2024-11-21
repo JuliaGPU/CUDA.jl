@@ -150,11 +150,11 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:Union{AbstractFloat,Complex{<:A
         return
     end
 
-    kernel = @cuda launch=false name="rand!" kernel(A, rng.seed, rng.counter)
-    config = launch_configuration(kernel.fun; max_threads=64)
-    threads = max(32, min(config.threads, length(A)÷2))
-    blocks = min(config.blocks, cld(cld(length(A), 2), threads))
-    kernel(A, rng.seed, rng.counter; threads, blocks)
+    # see note in `rand!` about the launch configuration
+    threads = 32
+    blocks = cld(cld(length(A), 2), threads)
+
+    @cuda threads=threads blocks=blocks name="randn!" kernel(A, rng.seed, rng.counter)
 
     new_counter = Int64(rng.counter) + length(A)
     overflow, remainder = fldmod(new_counter, typemax(UInt32))
