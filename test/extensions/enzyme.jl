@@ -141,7 +141,7 @@ end
     dx = CuArray([0., 0.0, 0.0, 0.0])
     y = CuArray([5.0, 6.0, 7.0, 8.0])
     dy = CuArray([0., 0.0, 0.0, 0.0])
-    res = Enzyme.autodiff(Forward, setadd, Duplicated(out, dout), Duplicated(x, dx), Duplicated(y, dy))
+    res = Enzyme.autodiff(Reverse, setadd, Duplicated(out, dout), Duplicated(x, dx), Duplicated(y, dy))
     @show dout, dx, dy
     @test all(dx .≈ 1)
     @test all(dy .≈ 1)
