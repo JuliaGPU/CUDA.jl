@@ -117,6 +117,34 @@ end
     @test all(dx .≈ 1.0)
 end
 
+
+function setadd(out, x, y)
+  out .= x .+ y
+  nothing
+end
+
+@testset "Forward setadd" begin
+    out = CuArray([0.0, 0.0, 0.0, 0.0])
+    dout = CuArray([0.0, 0.0, 0.0, 0.0])
+    x = CuArray([1.0, 2.0, 3.0, 4.0])
+    dx = CuArray([100., 300.0, 500.0, 700.0])
+    y = CuArray([5.0, 6.0, 7.0, 8.0])
+    dy = CuArray([500., 600.0, 700.0, 800.0])
+    res = Enzyme.autodiff(Forward, setadd, Duplicated(out, dout), Duplicated(x, dx), Duplicated(y, dy))
+    @test all(dout .≈ dx .+ dy)
+end
+
+@testset "setadd sum" begin
+    out = CuArray([0.0, 0.0, 0.0, 0.0])
+    dout = CuArray([1.0, 1.0, 1.0, 1.0])
+    x = CuArray([1.0, 2.0, 3.0, 4.0])
+    dx = CuArray([0., 0.0, 0.0, 0.0])
+    y = CuArray([5.0, 6.0, 7.0, 8.0])
+    dy = CuArray([0., 0.0, 0.0, 0.0])
+    res = Enzyme.autodiff(Reverse, setadd, Duplicated(out, dout), Duplicated(x, dx), Duplicated(y, dy))
+    @test all(dx .≈ 1)
+    @test all(dy .≈ 1)
+end
 # TODO once reverse kernels are in
 # function togpu(x)
 #     x = CuArray(x)
