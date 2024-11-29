@@ -151,8 +151,7 @@ sumabs2(x) = sum(abs2.(x))
 @testset "Reverse sum abs2" begin
     x = CuArray([1.0, 2.0, 3.0, 4.0])
     dx = CuArray([0., 0.0, 0.0, 0.0])
-    f(x) = sum(abs2.(x))
-    Enzyme.autodiff(Reverse, f, Active, Duplicated(x, dx))
+    Enzyme.autodiff(Reverse, sumabs2, Active, Duplicated(x, dx))
     @test all(dx .≈ 2 .* x)
 end
 
