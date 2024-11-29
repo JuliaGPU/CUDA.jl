@@ -145,6 +145,16 @@ end
     @test all(dx .≈ 1)
     @test all(dy .≈ 1)
 end
+
+sumabs2(x) = sum(abs2.(x))
+
+@testset "Reverse sum abs2" begin
+    x = CuArray([1.0, 2.0, 3.0, 4.0])
+    dx = CuArray([0., 0.0, 0.0, 0.0])
+    Enzyme.autodiff(Reverse, f, Active, Duplicated(x, dx))
+    @test all(dx .≈ 2.*x)
+end
+
 # TODO once reverse kernels are in
 # function togpu(x)
 #     x = CuArray(x)
