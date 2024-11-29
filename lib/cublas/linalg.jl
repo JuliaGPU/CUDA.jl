@@ -28,7 +28,7 @@ function LinearAlgebra.dot(x::StridedCuVector{T},
 end
 
 # resolve ambiguities with generic wrapper below
-LinearAlgebra.dot(x::CuArray{T}, y::CuArray{T}) where T<:Union{Float32, Float64} =
+LinearAlgebra.dot(x::CuArray{T}, y::CuArray{T}) where T<:Union{Float32, Float64, ComplexF32, ComplexF64} =
     invoke(LinearAlgebra.dot, Tuple{StridedCuArray{T}, StridedCuArray{T}}, x, y)
 
 # generic fallback
