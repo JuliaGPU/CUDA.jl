@@ -491,7 +491,9 @@ julia> config = WMMA.Config{16, 16, 16, Float32}
 CUDA.WMMA.Config{16, 16, 16, Float32}
 ```
 """
-struct Config{M, N, K, d_type} end
+struct ConfigRounding{M, N, K, d_type, rounding} end
+
+Config{M, N, K, d_type} = ConfigRounding{M, N, K, d_type, RoundNearest}
 
 # ---------
 # Constants
