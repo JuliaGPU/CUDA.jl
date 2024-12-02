@@ -406,7 +406,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             Vt = if jobvt === 'A'
                 similar(A, $elty, (n, n))
             elseif jobvt === 'S' || jobvt === 'O'
-                similar(A, $elty, k, n))
+                similar(A, $elty, (k, n))
             elseif jobvt === 'N'
                 CU_NULL
             else
