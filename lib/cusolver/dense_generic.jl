@@ -227,7 +227,7 @@ function Xgesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}) where {T <: Bla
         CuMatrix{T}(undef, m, m)
     elseif jobu == 'S'
         CuMatrix{T}(undef, m, k)
-    elseif jobu == 'N' || jobvt == 'O'
+    elseif jobu == 'N' || jobu == 'O'
         CU_NULL
     else
         throw(ArgumentError("jobu is incorrect. The values accepted are 'A', 'S', 'O' and 'N'."))
