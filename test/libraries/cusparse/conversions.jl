@@ -10,7 +10,7 @@ using CUDA
     J = [2,3,4] |> cu
     V = Float32[1,2,3] |> cu
 
-    dense = rand(3,3) |> cu
+    dense = rand(Float32, 3,3) |> cu
 
     # check defaults
     @test sparse(I, J, V) isa CuSparseMatrixCSC
@@ -35,6 +35,54 @@ using CUDA
             x = sparse(dense; fmt=fmt)
             @test x isa T{Float32}
             @test collect(x) == collect(dense)
+        end
+    end
+end
+
+@testset "sparse -- empty matrix" begin
+    n, m = 0, 0
+    I = [] |> cu
+    J = [] |> cu
+    V = Float64[] |> cu
+
+    dense = rand(m,n) |> cu
+
+    # check defaults
+    @test sparse(I, J, V) isa CuSparseMatrixCSC
+    @test sparse(dense) isa CuSparseMatrixCSC
+
+    for (fmt, T) in  [(:coo, CuSparseMatrixCOO),
+                      (:csc, CuSparseMatrixCSC),
+                      (:csr, CuSparseMatrixCSR),
+                      (:bsr, CuSparseMatrixBSR)
+                     ]
+        @testset "sparse $T" begin
+            if fmt != :bsr # bsr not supported
+                x = sparse(I, J, V; fmt=fmt)
+                @test x isa T{Float64}
+                @test size(x) == (0, 0)
+
+                x = sparse(I, J, V, m, n; fmt=fmt)
+                @test x isa T{Float64}
+                @test  size(x) == (0, 0)
+
+                if fmt == :csc
+                    @test collect(x.colPtr) == [1]
+                end
+                if fmt == :csr
+                    @test collect(x.rowPtr) == [1]
+                end
+            end
+
+            x = sparse(dense; fmt=fmt)
+            @test x isa T{Float64}
+            @test collect(x) == collect(dense)
+            if fmt == :csc
+                @test collect(x.colPtr) == [1]
+            end
+            if fmt == :csr
+                @test collect(x.rowPtr) == [1]
+            end
         end
     end
 end
