@@ -222,21 +222,22 @@ function Xgesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}) where {T <: Bla
     m, n = size(A)
     R = real(T)
     (m < n) && throw(ArgumentError("The number of rows of A ($m) must be greater or equal to the number of columns of A ($n)"))
+    k = min(m, n)
     U = if jobu == 'A'
         CuMatrix{T}(undef, m, m)
-    elseif jobu == 'S' || jobu == 'O'
-        CuMatrix{T}(undef, m, min(m, n))
-    elseif jobu == 'N'
+    elseif jobu == 'S'
+        CuMatrix{T}(undef, m, k)
+    elseif jobu == 'N' || jobu == 'O'
         CU_NULL
     else
         throw(ArgumentError("jobu is incorrect. The values accepted are 'A', 'S', 'O' and 'N'."))
     end
-    Σ = CuVector{R}(undef, min(m, n))
+    Σ = CuVector{R}(undef, k)
     Vt = if jobvt == 'A'
         CuMatrix{T}(undef, n, n)
-    elseif jobvt == 'S' || jobvt == 'O'
-        CuMatrix{T}(undef, min(m, n), n)
-    elseif jobvt == 'N'
+    elseif jobvt == 'S'
+        CuMatrix{T}(undef, k, n)
+    elseif jobvt == 'N' || jobvt == 'O'
         CU_NULL
     else
         throw(ArgumentError("jobvt is incorrect. The values accepted are 'A', 'S', 'O' and 'N'."))
