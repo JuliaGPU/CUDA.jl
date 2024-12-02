@@ -69,6 +69,13 @@ function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cus
         end
         cusparseDenseToSparse_convert(handle(), desc_dense, desc_sparse, algo, buffer)
     end
+    # Issue with the CUDA routine `cusparseDenseToSparse_convert`
+    if (index == 'O') && (fmt == :csc) && (n == 0)
+        B.colPtr = CuVector{Cint}([1])
+    end
+    if (index == 'O') && (fmt == :csr) && (m == 0)
+        B.rowPtr = CuVector{Cint}([1])
+    end
     return B
 end
 
