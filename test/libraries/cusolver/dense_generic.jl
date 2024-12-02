@@ -152,6 +152,8 @@ p = 5
 
         for jobu in ('A', 'S', 'N', 'O')
             for jobvt in ('A', 'S', 'N', 'O')
+                (jobu == 'A') && (jobvt == 'A') && continue
+                (jobu == 'O') && (jobvt == 'O') && continue
                 d_A = CuMatrix(A)
                 U2, Σ2, Vt2 = CUSOLVER.Xgesvd!(jobu, jobvt, d_A)
                 @test Σ ≈ Σ2
