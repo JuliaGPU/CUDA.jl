@@ -194,6 +194,21 @@ k = 1
         @test p ≈ h_TAUP
     end
 
+    @testset "gesvd!" begin
+        A = rand(elty,m,n)
+        d_A = CuMatrix(A)
+        U, Σ, Vt = CUSOLVER.gesvd!('A', 'A', d_A)
+        @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * Vt)
+
+        for jobu in ('A', 'S', 'N', 'O')
+            for jobvt in ('A', 'S', 'N', 'O')
+                d_A = CuMatrix(A)
+                U2, Σ2, Vt2 = CUSOLVER.gesvd!(jobu, jobvt, d_A)
+                @test Σ ≈ Σ2
+            end
+        end
+    end
+
     @testset "syevd!" begin
         A              = rand(elty,m,m)
         A             += A'
