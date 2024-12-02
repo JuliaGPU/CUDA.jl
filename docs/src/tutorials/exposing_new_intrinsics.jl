@@ -20,24 +20,22 @@ CUDA.code_ptx(fma_rp, Tuple{Float64, Float64, Float64})
 # It is possible to see that the PTX code contains a call to the intrinsic `fma.rp.f64`; we add this function now 
 # to src/device/intrins/math.jl
 
-function test_fma!(out, x, y, z)
+function test_fma!(out, x, y)
     I = threadIdx().x
-    if I%4 == 0
-        out[I] = CUDA.fma_rn(x, y, z)
-    elseif I%4 ==1 
-        out[I] = CUDA.fma_rz(x, y, z)
-    elseif I%4 ==2 
-        out[I] = CUDA.fma_rm(x, y, z)
-    elseif I%4 ==3 
-        out[I] = CUDA.fma_rp(x, y, z)
-    end
+    z = typeof(x)(2)^(-(I+50))
+
+    out[I] = CUDA.fma_rn(x, y, z)
+    out[I+4] = CUDA.fma_rz(x, y, z)
+    out[I+8] = CUDA.fma_rm(x, y, z)
+    out[I+12] = CUDA.fma_rp(x, y, z)
+
     return 
 end
 
 # The first thread computes round to nearest and stores in the first entry, the second thread computes
 # round towards zero and store in the second, the third rounds towards minus infinity, the fourth towards plus infinity
 
-out_d = CuArray(zeros(4))
+out_d = CuArray(zeros(16))
 @cuda threads = 4 test_fma!(out_d, 1.0, 1.0, 2^(-54))
 out_h = Array(out_d)
 
