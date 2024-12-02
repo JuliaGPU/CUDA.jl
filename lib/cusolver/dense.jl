@@ -394,9 +394,9 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
 
             U = if jobu === 'A'
                 similar(A, $elty, (m, m))
-            elseif jobu == 'S' || jobu === 'O'
+            elseif jobu === 'S'
                 similar(A, $elty, (m, k))
-            elseif jobu === 'N'
+            elseif jobu === 'N' || jobu === 'O'
                 CU_NULL
             else
                 error("jobu must be one of 'A', 'S', 'O', or 'N'")
@@ -405,9 +405,9 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             S = similar(A, $relty, k)
             Vt = if jobvt === 'A'
                 similar(A, $elty, (n, n))
-            elseif jobvt === 'S' || jobvt === 'O'
+            elseif jobvt === 'S'
                 similar(A, $elty, (k, n))
-            elseif jobvt === 'N'
+            elseif jobvt === 'N' || jobvt === 'O'
                 CU_NULL
             else
                 error("jobvt must be one of 'A', 'S', 'O', or 'N'")
