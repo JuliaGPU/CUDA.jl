@@ -62,7 +62,7 @@ function test_add!(out, x, y)
 end
 
 out_d = CuArray(zeros(4))
-@cuda threads = 4 test_add!(out_d, 1.0, 2^(-53))
+@cuda threads = 4 test_add!(out_d, 1.0, 2^(-54))
 out_h = Array(out_d)
 
 function test_sub!(out, x, y)
@@ -81,4 +81,22 @@ end
 
 out_d = CuArray(zeros(4))
 @cuda threads = 4 test_sub!(out_d, 1.0, 2^(-53))
+out_h = Array(out_d)
+
+function test_mul!(out, x, y)
+    I = threadIdx().x
+    if I%4 == 0
+        out[I] = CUDA.mul_rn(x, y)
+    elseif I%4 ==1 
+        out[I] = CUDA.mul_rz(x, y)
+    elseif I%4 ==2 
+        out[I] = CUDA.mul_rm(x, y)
+    elseif I%4 ==3 
+        out[I] = CUDA.mul_rp(x, y)
+    end
+    return 
+end
+
+out_d = CuArray(zeros(4))
+@cuda threads = 4 test_mul!(out_d, 1.0 - 2^(-52), 1.0 + 2^(-52))
 out_h = Array(out_d)

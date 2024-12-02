@@ -401,8 +401,8 @@ end
 
 
 for type in [:f, :d]
-    for round in [:rn, :rm, :rz, :rp]
-        for op in [:add, :sub, :mul, :div]
+    for round in [:rn, :rz, :rm, :rp]
+        for op in [:add, :mul, :div]
     
         inp_type = Symbol("Float64")
         c_type = Symbol("Cdouble")
@@ -413,11 +413,20 @@ for type in [:f, :d]
 
         func_name = Symbol("$(op)_$(round)")
         intrinsic_name = "llvm.nvvm.$(op).$(round).$(type)"
+        #@info func_name, intrinsic_name
         
         @eval @device_function $func_name(x::$inp_type, y::$inp_type) = ccall($intrinsic_name, llvmcall, $c_type, ($c_type, $c_type), x, y)
         end
     end
 end
+
+
+@device_function sub_rn(x, y) = add_rn(x, -y) 
+@device_function sub_rz(x, y) = add_rz(x, -y) 
+@device_function sub_rm(x, y) = add_rm(x, -y) 
+@device_function sub_rp(x, y) = add_rp(x, -y) 
+
+
 
 @device_override Base.fma(x::Float64, y::Float64, z::Float64) = ccall("extern __nv_fma", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
 @device_override Base.fma(x::Float32, y::Float32, z::Float32) = ccall("extern __nv_fmaf", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
