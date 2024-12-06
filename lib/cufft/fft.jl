@@ -34,6 +34,7 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N} <: Plan{S}
     input_size::NTuple{N,Int}   # Julia size of input array
     output_size::NTuple{N,Int}  # Julia size of output array
     region::Any
+    buffer::CuArray{S}
     pinv::ScaledPlan{T}         # required by AbstractFFTs API, will be defined by AbstractFFTs if needed
 
     function CuFFTPlan{T,S,K,inplace,N}(handle::cufftHandle,
@@ -41,7 +42,8 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N} <: Plan{S}
                                         ) where {T<:cufftNumber,S<:cufftNumber,K,inplace,N}
         abs(K) == 1 || throw(ArgumentError("FFT direction must be either -1 (forward) or +1 (inverse)"))
         inplace isa Bool || throw(ArgumentError("FFT inplace argument must be a Bool"))
-        p = new{T,S,K,inplace,N}(handle, context(), stream(), input_size, output_size, region)
+        buffer = CuArray{S}(0)
+        p = new{T,S,K,inplace,N}(handle, context(), stream(), input_size, output_size, region, buffer)
         finalizer(unsafe_free!, p)
         p
     end
@@ -50,7 +52,8 @@ end
 function CuFFTPlan{T,S,K,inplace,N}(handle::cufftHandle, X::DenseCuArray{S,N},
                                     sizey::NTuple{N,Int}, region,
                                     ) where {T<:cufftNumber,S<:cufftNumber,K,inplace,N}
-    CuFFTPlan{T,S,K,inplace,N}(handle, size(X), sizey, region)
+    buffer = CuArray{S}(0)
+    CuFFTPlan{T,S,K,inplace,N}(handle, size(X), sizey, region, buffer)
 end
 
 function CUDA.unsafe_free!(plan::CuFFTPlan)
@@ -60,6 +63,7 @@ function CUDA.unsafe_free!(plan::CuFFTPlan)
         end
         plan.handle = C_NULL
     end
+    CUDA.unsafe_free!(plan.buffer)
 end
 
 function showfftdims(io, sz, T)
@@ -157,7 +161,8 @@ function plan_fft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     sizex = size(X)[1:md]
     handle = cufftGetPlan(T, T, sizex, region)
 
-    CuFFTPlan{T,T,K,inplace,N}(handle, X, size(X), region)
+    buffer = CuArray{T}(undef, 0)
+    CuFFTPlan{T,T,K,inplace,N}(handle, X, size(X), region, buffer)
 end
 
 
@@ -170,7 +175,8 @@ function plan_bfft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     sizex = size(X)[1:md]
     handle = cufftGetPlan(T, T, sizex, region)
 
-    CuFFTPlan{T,T,K,inplace,N}(handle, X, size(X), region)
+    buffer = CuArray{T}(undef, 0)
+    CuFFTPlan{T,T,K,inplace,N}(handle, X, size(X), region, buffer)
 end
 
 # out-of-place complex
@@ -183,7 +189,8 @@ function plan_fft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     sizex = size(X)[1:md]
     handle = cufftGetPlan(T, T, sizex, region)
 
-    CuFFTPlan{T,T,K,inplace,N}(handle, X, size(X), region)
+    buffer = CuArray{T}(undef, 0)
+    CuFFTPlan{T,T,K,inplace,N}(handle, X, size(X), region, buffer)
 end
 
 function plan_bfft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
@@ -195,7 +202,8 @@ function plan_bfft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     sizex = size(X)[1:md]
     handle = cufftGetPlan(T, T, sizex, region)
 
-    CuFFTPlan{T,T,K,inplace,N}(handle, size(X), size(X), region)
+    buffer = CuArray{T}(undef, 0)
+    CuFFTPlan{T,T,K,inplace,N}(handle, size(X), size(X), region, buffer)
 end
 
 # out-of-place real-to-complex
@@ -213,7 +221,8 @@ function plan_rfft(X::DenseCuArray{T,N}, region) where {T<:cufftReals,N}
     ydims = collect(size(X))
     ydims[region[1]] = div(ydims[region[1]],2)+1
 
-    CuFFTPlan{complex(T),T,K,inplace,N}(handle, size(X), (ydims...,), region)
+    buffer = CuArray{T}(undef, size(X))
+    CuFFTPlan{complex(T),T,K,inplace,N}(handle, size(X), (ydims...,), region, buffer)
 end
 
 function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::Any) where {T<:cufftComplexes,N}
@@ -226,7 +235,8 @@ function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::Any) where {T<:cuf
 
     handle = cufftGetPlan(real(T), T, (ydims...,), region)
 
-    CuFFTPlan{real(T),T,K,inplace,N}(handle, size(X), (ydims...,), region)
+    buffer = CuArray{T}(undef, 0)
+    CuFFTPlan{real(T),T,K,inplace,N}(handle, size(X), (ydims...,), region, buffer)
 end
 
 
@@ -309,10 +319,14 @@ function LinearAlgebra.mul!(y::DenseCuArray{T}, p::CuFFTPlan{T,S,K,inplace}, x::
                            ) where {T,S,K,inplace}
     assert_applicable(p, x, y)
     if !inplace && T<:Real
-        # Out-of-place complex-to-real FFT will always overwrite input buffer.
-        x = copy(x)
+        # Out-of-place complex-to-real FFT will always overwrite input x.
+        # We copy the input x in an auxiliary buffer.
+        z = p.buffer
+        copyto!(z, x)
+    else
+        z = x
     end
-    unsafe_execute_trailing!(p, x, y)
+    unsafe_execute_trailing!(p, z, y)
     y
 end
 
@@ -323,13 +337,21 @@ function Base.:(*)(p::CuFFTPlan{T,S,K,true}, x::DenseCuArray{S}) where {T,S,K}
 end
 
 function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::DenseCuArray{S1,M}) where {T,S,K,S1,M}
-    if S1 != S ||  T<:Real
-        # Convert to the expected input type. Also,
-        # Out-of-place complex-to-real FFT will always overwrite input buffer.
-        x = copy1(S, x)
+    if T<:Real
+        # Out-of-place complex-to-real FFT will always overwrite input x.
+        # We copy the input x in an auxiliary buffer.
+        z = p.buffer
+        copyto!(z, x)
+    else
+        if S1 != S
+            # Convert to the expected input type.
+            z = copy1(S, x)
+        else
+            z = x
+        end
     end
-    assert_applicable(p, x)
+    assert_applicable(p, z)
     y = CuArray{T,M}(undef, p.output_size)
-    unsafe_execute_trailing!(p, x, y)
+    unsafe_execute_trailing!(p, z, y)
     y
 end
