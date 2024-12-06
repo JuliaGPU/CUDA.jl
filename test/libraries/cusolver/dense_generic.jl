@@ -225,4 +225,32 @@ p = 5
             d_W, neig = CUSOLVER.Xsyevdx!('N', 'V', uplo, d_A, vl=3.5, vu= 7.5, il=1, iu=3)
         end
     end
+
+    @testset "syevBatched!" begin
+        batch_size = 5
+        for uplo in ('L', 'U')
+            A = rand(elty, n, n * batch_size)
+            B = rand(elty, n, n * batch_size)
+            for i = 1:batch_size
+                S = rand(elty,n,n)
+                S = S + S'
+                B[:,(i-1)*batch+1:i*batch] .= S
+                S = uplo == 'L' ? tril(S) : triu(S)
+                A[:,(i-1)*batch+1:i*batch] .= S
+            end
+            d_A = CuMatrix(A)
+            d_W, d_V = CUSOLVER.Xsyevd!('V', uplo, d_A)
+            W = collect(d_W)
+            V = collect(d_V)
+            for i = 1:batch_size
+                Bᵢ = B[:,(i-1)*batch+1:i*batch]
+                Wᵢ = Diagonal(W[(i-1)*batch+1:i*batch])
+                Vᵢ = V[:,(i-1)*batch+1:i*batch]
+                @test Bᵢ ≈ collect(Vᵢ * Diagonal(Wᵢ) * Vᵢ')
+            end
+
+            d_A = CuMatrix(A)
+            d_W = CUSOLVER.Xsyevd!('N', uplo, d_A)
+        end
+    end
 end

@@ -493,7 +493,7 @@ function Xgeev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: Bla
 end
 
 # XsyevBatched
-function XsyevBatched(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     chkuplo(uplo)
     n, num_matrices = size(A)
     batch_size = num_matrices ÷ n
