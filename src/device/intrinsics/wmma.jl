@@ -286,19 +286,15 @@ export llvm_wmma_store
         llvm_intr *= "i8"
     end
 
-    @info llvm_intr
     # Determine types + size for this (matrix, elem_type) combination
     arr_ty, frag_ty, sz = get_frag_info(mat, elem_type, shape)
-    @info arr_ty, frag_ty, sz
-
+    
     ccall_name = "$llvm_intr"
     frag_types = ntuple(i -> frag_ty, sz)
     frag_vars = ntuple(i -> :(data[$i]), sz)
-    @info frag_types, frag_vars
-
+    
     ptr_ty = :(LLVMPtr{$arr_ty, $addr_space_int})
-    @info ptr_ty
-
+    
     @eval $func_name(dst_addr, data, stride) = ccall($ccall_name, llvmcall, Nothing, ($ptr_ty, $(frag_types...), Int32), dst_addr, $(frag_vars...), stride)
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_store) $func_name
