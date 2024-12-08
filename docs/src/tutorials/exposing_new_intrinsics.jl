@@ -15,21 +15,21 @@
 fma_rp(x::Float64, y::Float64, z::Float64) = ccall("llvm.nvvm.fma.rp.d", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
 
 # We inspect the PTX code
-CUDA.code_ptx(fma_rp, Tuple{Float64, Float64, Float64})
+CUDA.code_ptx(fma_rp, Tuple{Float64,Float64,Float64})
 
 # It is possible to see that the PTX code contains a call to the intrinsic `fma.rp.f64`; we add this function now 
 # to src/device/intrins/math.jl
 
 function test_fma!(out, x, y)
     I = threadIdx().x
-    z = typeof(x)(2)^(-(I+50))
+    z = typeof(x)(2)^(-(I + 50))
 
     out[I] = CUDA.fma_rn(x, y, z)
     out[I+4] = CUDA.fma_rz(x, y, z)
     out[I+8] = CUDA.fma_rm(x, y, z)
     out[I+12] = CUDA.fma_rp(x, y, z)
 
-    return 
+    return
 end
 
 # The first thread computes round to nearest and stores in the first entry, the second thread computes
@@ -47,16 +47,16 @@ out_h = Array(out_d)
 
 function test_add!(out, x, y)
     I = threadIdx().x
-    if I%4 == 0
-        out[I] = CUDA.add_rn(x, y)
-    elseif I%4 ==1 
-        out[I] = CUDA.add_rz(x, y)
-    elseif I%4 ==2 
-        out[I] = CUDA.add_rm(x, y)
-    elseif I%4 ==3 
-        out[I] = CUDA.add_rp(x, y)
+    if I == 1
+        out[I] = CUDA.add(x, y, RoundNearest)
+    elseif I == 2
+        out[I] = CUDA.add(x, y, RoundToZero)
+    elseif I == 3
+        out[I] = CUDA.add(x, y, RoundUp)
+    elseif I == 4
+        out[I] = CUDA.add(x, y, RoundDown)
     end
-    return 
+    return
 end
 
 out_d = CuArray(zeros(4))
@@ -65,16 +65,16 @@ out_h = Array(out_d)
 
 function test_sub!(out, x, y)
     I = threadIdx().x
-    if I%4 == 0
-        out[I] = CUDA.sub_rn(x, y)
-    elseif I%4 ==1 
-        out[I] = CUDA.sub_rz(x, y)
-    elseif I%4 ==2 
-        out[I] = CUDA.sub_rm(x, y)
-    elseif I%4 ==3 
-        out[I] = CUDA.sub_rp(x, y)
+    if I == 1
+        out[I] = CUDA.sub(x, y, RoundNearest)
+    elseif I == 2
+        out[I] = CUDA.sub(x, y, RoundToZero)
+    elseif I == 3
+        out[I] = CUDA.sub(x, y, RoundUp)
+    elseif I == 4
+        out[I] = CUDA.sub(x, y, RoundDown)
     end
-    return 
+    return
 end
 
 out_d = CuArray(zeros(4))
@@ -83,16 +83,16 @@ out_h = Array(out_d)
 
 function test_mul!(out, x, y)
     I = threadIdx().x
-    if I%4 == 0
-        out[I] = CUDA.mul_rn(x, y)
-    elseif I%4 ==1 
-        out[I] = CUDA.mul_rz(x, y)
-    elseif I%4 ==2 
-        out[I] = CUDA.mul_rm(x, y)
-    elseif I%4 ==3 
-        out[I] = CUDA.mul_rp(x, y)
+    if I == 1
+        out[I] = CUDA.mul(x, y, RoundNearest)
+    elseif I == 2
+        out[I] = CUDA.mul(x, y, RoundToZero)
+    elseif I == 3
+        out[I] = CUDA.mul(x, y, RoundUp)
+    elseif I == 4
+        out[I] = CUDA.mul(x, y, RoundDown)
     end
-    return 
+    return
 end
 
 out_d = CuArray(zeros(4))
