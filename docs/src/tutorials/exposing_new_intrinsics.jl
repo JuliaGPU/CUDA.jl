@@ -13,6 +13,7 @@
 # Therefore, to call the rounded towards infinity `fma` for `.f64` we need to call the intrinsic `llvm.nvvm.fma.rp.d`
 
 fma_rp(x::Float64, y::Float64, z::Float64) = ccall("llvm.nvvm.fma.rp.d", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
+fma(x::T, y::T, z::T, ::RoundingMode{:Up}) where {T <: Union{Float32, Float64}} = fma_rp(x, y, z)
 
 # We inspect the PTX code
 CUDA.code_ptx(fma_rp, Tuple{Float64,Float64,Float64})
@@ -22,25 +23,25 @@ CUDA.code_ptx(fma_rp, Tuple{Float64,Float64,Float64})
 
 function test_fma!(out, x, y)
     I = threadIdx().x
-    z = typeof(x)(2)^(-(I + 50))
+    z = (2.0) ^ (-(I+53))
 
-    out[I] = CUDA.fma_rn(x, y, z)
-    out[I+4] = CUDA.fma_rz(x, y, z)
-    out[I+8] = CUDA.fma_rm(x, y, z)
-    out[I+12] = CUDA.fma_rp(x, y, z)
+    out[I] = fma(x, y, z, RoundNearest)
+    out[I+4] = fma(x, y, z, RoundToZero)
+    out[I+8] = fma(x, y, z, RoundUp)
+    out[I+12] = fma(x, y, z, RoundDown)
 
     return
 end
 
-# The first thread computes round to nearest and stores in the first entry, the second thread computes
-# round towards zero and store in the second, the third rounds towards minus infinity, the fourth towards plus infinity
+# The first four entries of the output are Rounded to Nearest, the entries 5 to 8 are rounded towards zero,
+# etc...
 
 out_d = CuArray(zeros(16))
-@cuda threads = 4 test_fma!(out_d, 1.0, 1.0, 2^(-54))
+@cuda threads = 4 test_fma!(out_d, 1.0, 1.0)
 out_h = Array(out_d)
 
 out_d = CuArray(zeros(4))
-@cuda threads = 4 test_fma!(out_d, -1.0, 1.0, 2^(-54))
+@cuda threads = 4 test_fma!(out_d, -1.0, 1.0)
 out_h = Array(out_d)
 
 # The binary operations as add, sub, mul, div have been implemented through a macro
