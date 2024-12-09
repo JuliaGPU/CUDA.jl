@@ -377,6 +377,10 @@ for ops in all_wmma_ops,
     else
         struct_ty = Symbol("LLVMStruct$d_sz")
         @eval $func_name(a, b, c) = convert(NTuple{$d_sz, $d_frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$d_frag_ty}, ($(a_types...), $(b_types...), $(c_types...)), $(a_vars...), $(b_vars...), $(c_vars...)))
+        @eval $func_name(a, b, c, ::RoundingMode{:Nearest}) = $func_name(a, b, c)
+        @eval $func_name(a, b, c, ::RoundingMode{:ToZero}) = $func_name(a, b, c)
+        @eval $func_name(a, b, c, ::RoundingMode{:Up}) = $func_name(a, b, c)
+        @eval $func_name(a, b, c, ::RoundingMode{:Down}) = $func_name(a, b, c) 
     end
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_mma) $func_name
@@ -562,26 +566,25 @@ end
 export Config
 
 """
-    WMMA.Config{M, N, K, d_type}
+    WMMA.Config{M, N, K, d_type, rounding}
 
 Type that contains all information for WMMA operations that cannot be inferred from the argument's types.
 
 WMMA instructions calculate the matrix multiply-accumulate operation ``D = A \\cdot B + C``, where ``A`` is a ``M \\times K`` matrix,
 ``B`` a ``K \\times N`` matrix, and ``C`` and ``D`` are ``M \\times N`` matrices.
 
-`d_type` refers to the type of the elements of matrix ``D``, and can be either `Float16` or `Float32`.
+`d_type` refers to the type of the elements of matrix ``D``, and can be either `Float16`, `Float32` or `Float64`.
+`rounding` refers to a rounding mode between RoundNearest, RoundToZero, RoundUp and RoundDown, only works with `Float64` 
 
 All WMMA operations take a `Config` as their final argument.
 
 # Examples
 ```jldoctest
-julia> config = WMMA.Config{16, 16, 16, Float32}
-CUDA.WMMA.Config{16, 16, 16, Float32}
+config = WMMA.Config{16, 16, 16, Float64, RoundNearest}
+CUDA.WMMA.Config{16, 16, 16, Float64, RoundingMode{:Nearest}()}
 ```
 """
-struct ConfigRounding{M, N, K, d_type, rounding} end
-
-Config{M, N, K, d_type} = ConfigRounding{M, N, K, d_type, RoundNearest}
+struct Config{M, N, K, d_type, rounding} end
 
 # ---------
 # Constants
@@ -692,7 +695,7 @@ for mat in ["a", "b", "c"]
     @eval @generated function $func_name(addr::LLVMPtr{T, AS},
                                          stride::Number,
                                          layout::Type{L},
-                                         config::Type{Config{M, N, K, D_TYPE}}) where {T, AS, L, M, N, K, D_TYPE}
+                                         config::Type{Config{M, N, K, D_TYPE, rounding}}) where {T, AS, L, M, N, K, D_TYPE, rounding}
 
         as_str                 = get_hl_as_info(AS)
         layout                 = get_hl_layout(L)
@@ -740,7 +743,7 @@ mma
 @generated function mma(a::Fragment{M, N, K, A_SZ, A_T, A_L, MatrixA},
                         b::Fragment{M, N, K, B_SZ, B_T, B_L, MatrixB},
                         c::Fragment{M, N, K, C_SZ, C_T, Unspecified, Accumulator},
-                        config::Type{Config{M, N, K, D_T}}) where {M, N, K, A_SZ, A_T, A_L, B_SZ, B_T, B_L, C_SZ, C_T, D_T}
+                        config::Type{Config{M, N, K, D_T, rounding}}) where {M, N, K, A_SZ, A_T, A_L, B_SZ, B_T, B_L, C_SZ, C_T, D_T}
 
     a_layout = get_hl_layout(A_L)
     b_layout = get_hl_layout(B_L)
@@ -761,7 +764,7 @@ mma
         b_unfl = unflatten(NTuple{$b_frag_sz, $b_frag_ty}, b.x)
         c_unfl = unflatten(NTuple{$c_frag_sz, $c_frag_ty}, c.x)
 
-        x = flatten($wrapper(a_unfl, b_unfl, c_unfl))
+        x = flatten($wrapper(a_unfl, b_unfl, c_unfl, rounding))
         return Fragment{$M, $N, $K, $d_num_els, $D_T, Unspecified, Accumulator}(x)
     end
 end
@@ -798,7 +801,7 @@ store_d
                             d::Fragment{M, N, K, D_SZ, T, Unspecified, Accumulator},
                             stride::Number,
                             layout::Type{L},
-                            config::Type{Config{M, N, K, T}}) where {T, AS, M, N, K, D_SZ, L}
+                            config::Type{Config{M, N, K, T, rounding}}) where {T, AS, M, N, K, D_SZ, L, rounding}
 
     as_str                             = get_hl_as_info(AS)
     layout                             = get_hl_layout(L)
