@@ -566,7 +566,7 @@ end
 export Config
 
 """
-    WMMA.Config{M, N, K, d_type, rounding}
+    WMMA.Config{M, N, K, d_type}
 
 Type that contains all information for WMMA operations that cannot be inferred from the argument's types.
 
@@ -574,7 +574,6 @@ WMMA instructions calculate the matrix multiply-accumulate operation ``D = A \\c
 ``B`` a ``K \\times N`` matrix, and ``C`` and ``D`` are ``M \\times N`` matrices.
 
 `d_type` refers to the type of the elements of matrix ``D``, and can be either `Float16`, `Float32` or `Float64`.
-`rounding` refers to a rounding mode between RoundNearest, RoundToZero, RoundUp and RoundDown, only works with `Float64` 
 
 All WMMA operations take a `Config` as their final argument.
 
@@ -584,7 +583,7 @@ config = WMMA.Config{16, 16, 16, Float64, RoundNearest}
 CUDA.WMMA.Config{16, 16, 16, Float64, RoundingMode{:Nearest}()}
 ```
 """
-struct Config{M, N, K, d_type, rounding} end
+struct Config{M, N, K, d_type} end
 
 # ---------
 # Constants
@@ -743,7 +742,7 @@ mma
 @generated function mma(a::Fragment{M, N, K, A_SZ, A_T, A_L, MatrixA},
                         b::Fragment{M, N, K, B_SZ, B_T, B_L, MatrixB},
                         c::Fragment{M, N, K, C_SZ, C_T, Unspecified, Accumulator},
-                        config::Type{Config{M, N, K, D_T, rounding}}) where {M, N, K, A_SZ, A_T, A_L, B_SZ, B_T, B_L, C_SZ, C_T, D_T}
+                        config::Type{Config{M, N, K, D_T}}) where {M, N, K, A_SZ, A_T, A_L, B_SZ, B_T, B_L, C_SZ, C_T, D_T}
 
     a_layout = get_hl_layout(A_L)
     b_layout = get_hl_layout(B_L)
@@ -801,7 +800,7 @@ store_d
                             d::Fragment{M, N, K, D_SZ, T, Unspecified, Accumulator},
                             stride::Number,
                             layout::Type{L},
-                            config::Type{Config{M, N, K, T, rounding}}) where {T, AS, M, N, K, D_SZ, L, rounding}
+                            config::Type{Config{M, N, K, T}}) where {T, AS, M, N, K, D_SZ, L}
 
     as_str                             = get_hl_as_info(AS)
     layout                             = get_hl_layout(L)
