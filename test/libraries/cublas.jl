@@ -478,8 +478,8 @@ end
             y = UpperTriangular(A) * x
             @test y ≈ Array(dy)
         end
-        # XXX: broken by https://github.com/JuliaLang/julia/pull/55764
-        false && @testset "lmul!(::UpperTriangular{Adjoint})" begin
+        if VERSION != v"1.11.2" # https://github.com/JuliaLang/julia/pull/55764
+        @testset "lmul!(::UpperTriangular{Adjoint})" begin
             dy = copy(dx)
             lmul!(adjoint(UpperTriangular(dA)), dy)
             y = adjoint(UpperTriangular(A)) * x
@@ -496,6 +496,7 @@ end
             lmul!(LowerTriangular(dA), dy)
             y = LowerTriangular(A) * x
             @test y ≈ Array(dy)
+        end
         end
         @testset "lmul!(::LowerTriangular{Adjoint})" begin
             dy = copy(dx)
@@ -543,6 +544,7 @@ end
             @test y ≈ h_y
         end
 
+        if VERSION != v"1.11.2" # https://github.com/JuliaLang/julia/pull/55764
         @testset "ldiv!(::UpperTriangular)" begin
             A = copy(sA)
             dA = CuArray(A)
@@ -594,6 +596,7 @@ end
 
         @testset "inv($TR)" for TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
             @test testf(x -> inv(TR(x)), rand(elty, m, m))
+        end
         end
 
         A = rand(elty,m,m)
@@ -1033,6 +1036,7 @@ end
             end
         end
 
+        if VERSION != v"1.11.2" # https://github.com/JuliaLang/julia/pull/55764
         @testset "triangular ldiv!" begin
             A = triu(rand(elty, m, m))
             B = rand(elty, m,m)
@@ -1046,6 +1050,7 @@ end
                 C = t(TR(A)) \ B
                 @test C ≈ Array(dC)
             end
+        end
         end
 
         let A = rand(elty, m,m), B = triu(rand(elty, m, m)), alpha = rand(elty)
@@ -1076,6 +1081,7 @@ end
             end
         end
 
+        if VERSION != v"1.11.2" # https://github.com/JuliaLang/julia/pull/55764
         @testset "triangular rdiv!" begin
             A = rand(elty, m,m)
             B = triu(rand(elty, m, m))
@@ -1089,6 +1095,7 @@ end
                 C = A / t(TR(B))
                 @test C ≈ Array(dC)
             end
+        end
         end
 
         @testset "Diagonal rdiv!" begin
