@@ -200,7 +200,12 @@ end
 
 @testset "counter overflow" begin
     rng = CUDA.RNG()
-    c = CUDA.zeros(Float16, (64, 32, 512, 32, 64))
-    rand!(rng, c)
-    randn!(rng, c)
+    # we may not be able to allocate over 4GB on the GPU, so use CPU memory
+    #c = CUDA.zeros(Float16, (64, 32, 512, 32, 64))
+    c = Array{Float16}(undef, 64, 32, 512, 32, 64)
+    GC.@preserve c begin
+        dc = unsafe_wrap(CuArray, c)
+        rand!(rng, dc)
+        randn!(rng, dc)
+    end
 end
