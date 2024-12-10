@@ -407,7 +407,8 @@ for ops in [wmma_double_ops],
     end
     # Name of the Julia wrapper function
     func_name = Symbol(join(filter(!isempty, ["llvm", "wmma", "mma", a_layout, b_layout, shape, a_elem_type, rnd]), "_"))
-    
+    func_name_no_round = Symbol(join(filter(!isempty, ["llvm", "wmma", "mma", a_layout, b_layout, shape, a_elem_type, rnd]), "_"))
+
     # Determine types + size for the (matrix, elem_type) combinations for matrix A, B, C and D
     a_arr_ty, a_frag_ty, a_sz = get_frag_info("a", a_elem_type, shape)
     b_arr_ty, b_frag_ty, b_sz = get_frag_info("b", b_elem_type, shape)
@@ -434,11 +435,24 @@ for ops in [wmma_double_ops],
     @eval @doc (@doc llvm_wmma_mma) $func_name
 end
 
+# TODO, rewrite this as a macro
+
 llvm_wmma_mma_col_col_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:Nearest}) = llvm_wmma_mma_col_col_m8n8k4_f64_rn(a_frag, b_frag, c_frag) 
 llvm_wmma_mma_col_col_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:ToZero}) = llvm_wmma_mma_col_col_m8n8k4_f64_rz(a_frag, b_frag, c_frag) 
 llvm_wmma_mma_col_col_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:Up}) = llvm_wmma_mma_col_col_m8n8k4_f64_rp(a_frag, b_frag, c_frag) 
 llvm_wmma_mma_col_col_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:Down}) = llvm_wmma_mma_col_col_m8n8k4_f64_rm(a_frag, b_frag, c_frag) 
-
+llvm_wmma_mma_row_col_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:Nearest}) = llvm_wmma_mma_row_col_m8n8k4_f64_rn(a_frag, b_frag, c_frag) 
+llvm_wmma_mma_row_col_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:ToZero}) = llvm_wmma_mma_row_col_m8n8k4_f64_rz(a_frag, b_frag, c_frag) 
+llvm_wmma_mma_row_col_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:Up}) = llvm_wmma_mma_row_col_m8n8k4_f64_rp(a_frag, b_frag, c_frag) 
+llvm_wmma_mma_row_col_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:Down}) = llvm_wmma_mma_row_col_m8n8k4_f64_rm(a_frag, b_frag, c_frag) 
+llvm_wmma_mma_col_row_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:Nearest}) = llvm_wmma_mma_col_row_m8n8k4_f64_rn(a_frag, b_frag, c_frag) 
+llvm_wmma_mma_col_row_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:ToZero}) = llvm_wmma_mma_col_row_m8n8k4_f64_rz(a_frag, b_frag, c_frag) 
+llvm_wmma_mma_col_row_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:Up}) = llvm_wmma_mma_col_row_m8n8k4_f64_rp(a_frag, b_frag, c_frag) 
+llvm_wmma_mma_col_row_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:Down}) = llvm_wmma_mma_col_row_m8n8k4_f64_rm(a_frag, b_frag, c_frag) 
+llvm_wmma_mma_row_row_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:Nearest}) = llvm_wmma_mma_row_row_m8n8k4_f64_rn(a_frag, b_frag, c_frag) 
+llvm_wmma_mma_row_row_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:ToZero}) = llvm_wmma_mma_row_row_m8n8k4_f64_rz(a_frag, b_frag, c_frag) 
+llvm_wmma_mma_row_row_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:Up}) = llvm_wmma_mma_row_row_m8n8k4_f64_rp(a_frag, b_frag, c_frag) 
+llvm_wmma_mma_row_row_m8n8k4_f64(a_frag, b_frag, c_frag, ::RoundingMode{:Down}) = llvm_wmma_mma_row_row_m8n8k4_f64_rm(a_frag, b_frag, c_frag)
 
 
 # elseif d_elem_type == "f64"
@@ -579,8 +593,8 @@ All WMMA operations take a `Config` as their final argument.
 
 # Examples
 ```jldoctest
-config = WMMA.Config{16, 16, 16, Float64, RoundNearest}
-CUDA.WMMA.Config{16, 16, 16, Float64, RoundingMode{:Nearest}()}
+config = WMMA.Config{16, 16, 16, Float64}
+CUDA.WMMA.Config{16, 16, 16, Float64}
 ```
 """
 struct Config{M, N, K, d_type} end
@@ -694,7 +708,7 @@ for mat in ["a", "b", "c"]
     @eval @generated function $func_name(addr::LLVMPtr{T, AS},
                                          stride::Number,
                                          layout::Type{L},
-                                         config::Type{Config{M, N, K, D_TYPE, rounding}}) where {T, AS, L, M, N, K, D_TYPE, rounding}
+                                         config::Type{Config{M, N, K, D_TYPE}}) where {T, AS, L, M, N, K, D_TYPE}
 
         as_str                 = get_hl_as_info(AS)
         layout                 = get_hl_layout(L)
@@ -742,7 +756,7 @@ mma
 @generated function mma(a::Fragment{M, N, K, A_SZ, A_T, A_L, MatrixA},
                         b::Fragment{M, N, K, B_SZ, B_T, B_L, MatrixB},
                         c::Fragment{M, N, K, C_SZ, C_T, Unspecified, Accumulator},
-                        config::Type{Config{M, N, K, D_T}}) where {M, N, K, A_SZ, A_T, A_L, B_SZ, B_T, B_L, C_SZ, C_T, D_T}
+                        config::Type{Config{M, N, K, D_T}}; rounding = RoundNearest) where {M, N, K, A_SZ, A_T, A_L, B_SZ, B_T, B_L, C_SZ, C_T, D_T}
 
     a_layout = get_hl_layout(A_L)
     b_layout = get_hl_layout(B_L)
