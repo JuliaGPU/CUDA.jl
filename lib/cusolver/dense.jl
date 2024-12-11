@@ -389,31 +389,30 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
                         A::StridedCuMatrix{$elty})
             m, n = size(A)
             (m < n) && throw(ArgumentError("CUSOLVER's gesvd requires m ≥ n"))
+            k = min(m, n)
             lda = max(1, stride(A, 2))
 
             U = if jobu === 'A'
                 similar(A, $elty, (m, m))
-            elseif jobu == 'S' || jobu === 'O'
-                similar(A, $elty, (m, min(m, n)))
-            elseif jobu === 'N'
+            elseif jobu === 'S'
+                similar(A, $elty, (m, k))
+            elseif jobu === 'N' || jobu === 'O'
                 CU_NULL
             else
                 error("jobu must be one of 'A', 'S', 'O', or 'N'")
             end
-            ldu     = U == CU_NULL ? 1 : max(1, stride(U, 2))
-
-            S       = similar(A, $relty, min(m, n))
-
+            ldu = U == CU_NULL ? 1 : max(1, stride(U, 2))
+            S = similar(A, $relty, k)
             Vt = if jobvt === 'A'
                 similar(A, $elty, (n, n))
-            elseif jobvt === 'S' || jobvt === 'O'
-                similar(A, $elty, (min(m, n), n))
-            elseif jobvt === 'N'
+            elseif jobvt === 'S'
+                similar(A, $elty, (k, n))
+            elseif jobvt === 'N' || jobvt === 'O'
                 CU_NULL
             else
                 error("jobvt must be one of 'A', 'S', 'O', or 'N'")
             end
-            ldvt    = Vt == CU_NULL ? 1 : max(1, stride(Vt, 2))
+            ldvt = Vt == CU_NULL ? 1 : max(1, stride(Vt, 2))
             dh = dense_handle()
 
             function bufferSize()
