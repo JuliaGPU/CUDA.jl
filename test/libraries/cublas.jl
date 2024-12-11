@@ -478,8 +478,7 @@ end
             y = UpperTriangular(A) * x
             @test y ≈ Array(dy)
         end
-        # XXX: broken by https://github.com/JuliaLang/julia/pull/55764
-        false && @testset "lmul!(::UpperTriangular{Adjoint})" begin
+        @testset "lmul!(::UpperTriangular{Adjoint})" begin
             dy = copy(dx)
             lmul!(adjoint(UpperTriangular(dA)), dy)
             y = adjoint(UpperTriangular(A)) * x
