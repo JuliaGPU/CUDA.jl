@@ -242,6 +242,8 @@ end
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
+include("rprint_parameter_memory.jl")
+
 # compile to executable machine code
 function compile(@nospecialize(job::CompilerJob))
     # lower to PTX
