@@ -25,7 +25,7 @@ end
 function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDA.is_pinned), args...)
     return nothing
 end
-function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDA.launch_configuration), args...; kwargs...)
+function EnzymeCore.EnzymeRules.inactive(::typeof(CUDA.launch_configuration), args...; kwargs...)
     return nothing
 end
 
