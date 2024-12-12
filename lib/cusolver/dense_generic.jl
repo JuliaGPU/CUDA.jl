@@ -190,6 +190,7 @@ end
 
 # Xlarft!
 function larft!(direct::Char, storev::Char, v::StridedCuMatrix{T}, tau::StridedCuVector{T}, t::StridedCuMatrix{T}) where {T <: BlasFloat}
+    CUSOLVER.version() < v"11.6.0" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     n, k = size(v)
     ktau = length(tau)
     mt, nt = size(t)
@@ -449,6 +450,7 @@ end
 
 # Xgeev
 function Xgeev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+    CUSOLVER.version() < v"11.7.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     n = checksquare(A)
     VL = if jobvl == 'V'
         CuMatrix{T}(undef, n, n)
@@ -494,6 +496,7 @@ end
 
 # XsyevBatched
 function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+    CUSOLVER.version() < v"11.7.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     chkuplo(uplo)
     n, num_matrices = size(A)
     batch_size = num_matrices ÷ n
