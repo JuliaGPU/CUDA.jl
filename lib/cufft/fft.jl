@@ -172,7 +172,7 @@ function plan_bfft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     sizex = size(X)[1:md]
     handle = cufftGetPlan(T, T, sizex, region)
 
-    CuFFTPlan{T,T,K,inplace,N,Nothing}(handle, X, size(X), region, buffer, nothing)
+    CuFFTPlan{T,T,K,inplace,N,Nothing}(handle, X, size(X), region, nothing)
 end
 
 # out-of-place complex
@@ -185,7 +185,7 @@ function plan_fft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     sizex = size(X)[1:md]
     handle = cufftGetPlan(T, T, sizex, region)
 
-    CuFFTPlan{T,T,K,inplace,N,Nothing}(handle, X, size(X), region, buffer, nothing)
+    CuFFTPlan{T,T,K,inplace,N,Nothing}(handle, X, size(X), region, nothing)
 end
 
 function plan_bfft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
@@ -197,7 +197,7 @@ function plan_bfft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     sizex = size(X)[1:md]
     handle = cufftGetPlan(T, T, sizex, region)
 
-    CuFFTPlan{T,T,K,inplace,N,Nothing}(handle, size(X), size(X), region, buffer, nothing)
+    CuFFTPlan{T,T,K,inplace,N,Nothing}(handle, size(X), size(X), region, nothing)
 end
 
 # out-of-place real-to-complex
