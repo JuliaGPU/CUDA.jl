@@ -221,12 +221,15 @@ function plan_rfft(X::DenseCuArray{T,N}, region) where {T<:cufftReals,N}
     ydims = collect(size(X))
     ydims[region[1]] = div(ydims[region[1]],2)+1
 
+    # The buffer is not needed for real-to-complex (`mul!`),
+    # but it’s required for complex-to-real (`ldiv!`).
     buffer = similar(X)
     B = typeof(buffer)
 
     CuFFTPlan{complex(T),T,K,inplace,N,R,B}(handle, size(X), (ydims...,), region, buffer)
 end
 
+# out-of-place complex-to-real
 function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region) where {T<:cufftComplexes,N}
     K = CUFFT_INVERSE
     inplace = false
@@ -238,7 +241,10 @@ function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region) where {T<:cufftCom
 
     handle = cufftGetPlan(real(T), T, (ydims...,), region)
 
-    CuFFTPlan{real(T),T,K,inplace,N,R,Nothing}(handle, size(X), (ydims...,), region, nothing)
+    buffer = similar(X)
+    B = typeof(buffer)
+
+    CuFFTPlan{real(T),T,K,inplace,N,R,B}(handle, size(X), (ydims...,), region, buffer)
 end
 
 
