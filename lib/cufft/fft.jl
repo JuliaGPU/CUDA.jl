@@ -25,7 +25,7 @@ Base.:(*)(p::ScaledPlan, x::DenseCuArray) = rmul!(p.p * x, p.scale)
 
 # N is the number of dimensions
 
-mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N,B} <: Plan{S}
+mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N,R,B} <: Plan{S}
     # handle to Cuda low level plan. Note that this plan sometimes has lower dimensions
     # to handle more transform cases such as individual directions
     handle::cufftHandle
@@ -33,26 +33,26 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N,B} <: Plan{S}
     stream::CuStream
     input_size::NTuple{N,Int}   # Julia size of input array
     output_size::NTuple{N,Int}  # Julia size of output array
-    region::NTuple{N,Int}
+    region::NTuple{R,Int}
     buffer::B                   # buffer for out-of-place complex-to-real FFT
     pinv::ScaledPlan{T}         # required by AbstractFFTs API, will be defined by AbstractFFTs if needed
 
-    function CuFFTPlan{T,S,K,inplace,N,B}(handle::cufftHandle,
-                                          input_size::NTuple{N,Int}, output_size::NTuple{N,Int},
-                                          region::NTuple{N,Int}, buffer::B
-                                          ) where {T<:cufftNumber,S<:cufftNumber,K,inplace,N,B}
+    function CuFFTPlan{T,S,K,inplace,N,R,B}(handle::cufftHandle,
+                                            input_size::NTuple{N,Int}, output_size::NTuple{N,Int},
+                                            region::NTuple{R,Int}, buffer::B
+                                            ) where {T<:cufftNumber,S<:cufftNumber,K,inplace,N,R,B}
         abs(K) == 1 || throw(ArgumentError("FFT direction must be either -1 (forward) or +1 (inverse)"))
         inplace isa Bool || throw(ArgumentError("FFT inplace argument must be a Bool"))
-        p = new{T,S,K,inplace,N,B}(handle, context(), stream(), input_size, output_size, region, buffer)
+        p = new{T,S,K,inplace,N,R,B}(handle, context(), stream(), input_size, output_size, region, buffer)
         finalizer(unsafe_free!, p)
         p
     end
 end
 
-function CuFFTPlan{T,S,K,inplace,N,B}(handle::cufftHandle, X::DenseCuArray{S,N},
-                                      sizey::NTuple{N,Int}, region::NTuple{N,Int}, buffer::B
-                                      ) where {T<:cufftNumber,S<:cufftNumber,K,inplace,N,B}
-    CuFFTPlan{T,S,K,inplace,N,B}(handle, size(X), sizey, region, buffer)
+function CuFFTPlan{T,S,K,inplace,N,R,B}(handle::cufftHandle, X::DenseCuArray{S,N},
+                                        sizey::NTuple{N,Int}, region::NTuple{R,Int}, buffer::B
+                                        ) where {T<:cufftNumber,S<:cufftNumber,K,inplace,N,R,B}
+    CuFFTPlan{T,S,K,inplace,N,R,B}(handle, size(X), sizey, region, buffer)
 end
 
 function CUDA.unsafe_free!(plan::CuFFTPlan)
@@ -62,7 +62,9 @@ function CUDA.unsafe_free!(plan::CuFFTPlan)
         end
         plan.handle = C_NULL
     end
-    CUDA.unsafe_free!(plan.buffer)
+    if !isnothing(plan.buffer)
+        CUDA.unsafe_free!(plan.buffer)
+    end
 end
 
 function showfftdims(io, sz, T)
@@ -154,57 +156,62 @@ end
 function plan_fft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     K = CUFFT_FORWARD
     inplace = true
-    region = NTuple{N,Int}(region)
+    R = length(region)
+    region = NTuple{R,Int}(region)
 
     md = plan_max_dims(region, size(X))
     sizex = size(X)[1:md]
     handle = cufftGetPlan(T, T, sizex, region)
 
-    CuFFTPlan{T,T,K,inplace,N,Nothing}(handle, X, size(X), region, nothing)
+    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
 
 function plan_bfft!(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     K = CUFFT_INVERSE
     inplace = true
-    region = NTuple{N,Int}(region)
+    R = length(region)
+    region = NTuple{R,Int}(region)
 
     md = plan_max_dims(region, size(X))
     sizex = size(X)[1:md]
     handle = cufftGetPlan(T, T, sizex, region)
 
-    CuFFTPlan{T,T,K,inplace,N,Nothing}(handle, X, size(X), region, nothing)
+    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
 
 # out-of-place complex
 function plan_fft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     K = CUFFT_FORWARD
     inplace = false
-    region = NTuple{N,Int}(region)
+    R = length(region)
+    region = NTuple{R,Int}(region)
 
     md = plan_max_dims(region,size(X))
     sizex = size(X)[1:md]
     handle = cufftGetPlan(T, T, sizex, region)
 
-    CuFFTPlan{T,T,K,inplace,N,Nothing}(handle, X, size(X), region, nothing)
+    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
 
 function plan_bfft(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
     K = CUFFT_INVERSE
     inplace = false
-    region = NTuple{N,Int}(region)
+    R = length(region)
+    region = NTuple{R,Int}(region)
 
     md = plan_max_dims(region,size(X))
     sizex = size(X)[1:md]
     handle = cufftGetPlan(T, T, sizex, region)
 
-    CuFFTPlan{T,T,K,inplace,N,Nothing}(handle, size(X), size(X), region, nothing)
+    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, size(X), size(X), region, nothing)
 end
 
 # out-of-place real-to-complex
 function plan_rfft(X::DenseCuArray{T,N}, region) where {T<:cufftReals,N}
     K = CUFFT_FORWARD
     inplace = false
-    region = NTuple{N,Int}(region)
+    R = length(region)
+    region = NTuple{R,Int}(region)
 
     md = plan_max_dims(region,size(X))
     sizex = size(X)[1:md]
@@ -217,41 +224,42 @@ function plan_rfft(X::DenseCuArray{T,N}, region) where {T<:cufftReals,N}
     buffer = similar(X)
     B = typeof(buffer)
 
-    CuFFTPlan{complex(T),T,K,inplace,N,B}(handle, size(X), (ydims...,), region, buffer)
+    CuFFTPlan{complex(T),T,K,inplace,N,R,B}(handle, size(X), (ydims...,), region, buffer)
 end
 
 function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region) where {T<:cufftComplexes,N}
     K = CUFFT_INVERSE
     inplace = false
-    region = NTuple{N,Int}(region)
+    R = length(region)
+    region = NTuple{R,Int}(region)
 
     ydims = collect(size(X))
     ydims[region[1]] = d
 
     handle = cufftGetPlan(real(T), T, (ydims...,), region)
 
-    CuFFTPlan{real(T),T,K,inplace,N,Nothing}(handle, size(X), (ydims...,), region, nothing)
+    CuFFTPlan{real(T),T,K,inplace,N,R,Nothing}(handle, size(X), (ydims...,), region, nothing)
 end
 
 
 # FIXME: plan_inv methods allocate needlessly (to provide type parameters)
 # Perhaps use FakeArray types to avoid this.
 
-function plan_inv(p::CuFFTPlan{T,S,CUFFT_INVERSE,inplace,N,B}
-                  ) where {T<:cufftNumber,S<:cufftNumber,inplace,N,B}
+function plan_inv(p::CuFFTPlan{T,S,CUFFT_INVERSE,inplace,N,R,B}
+                  ) where {T<:cufftNumber,S<:cufftNumber,inplace,N,R,B}
     md_osz = plan_max_dims(p.region, p.output_size)
     sz_X = p.output_size[1:md_osz]
     handle = cufftGetPlan(S, T, sz_X, p.region)
-    ScaledPlan(CuFFTPlan{S,T,CUFFT_FORWARD,inplace,N,B}(handle, p.output_size, p.input_size, p.region, p.buffer),
+    ScaledPlan(CuFFTPlan{S,T,CUFFT_FORWARD,inplace,N,R,B}(handle, p.output_size, p.input_size, p.region, p.buffer),
                normalization(real(T), p.output_size, p.region))
 end
 
-function plan_inv(p::CuFFTPlan{T,S,CUFFT_FORWARD,inplace,N,B}
-                  ) where {T<:cufftNumber,S<:cufftNumber,inplace,N,B}
+function plan_inv(p::CuFFTPlan{T,S,CUFFT_FORWARD,inplace,N,R,B}
+                  ) where {T<:cufftNumber,S<:cufftNumber,inplace,N,R,B}
     md_isz = plan_max_dims(p.region, p.input_size)
     sz_Y = p.input_size[1:md_isz]
     handle = cufftGetPlan(S, T, sz_Y, p.region)
-    ScaledPlan(CuFFTPlan{S,T,CUFFT_INVERSE,inplace,N,B}(handle, p.output_size, p.input_size, p.region, p.buffer),
+    ScaledPlan(CuFFTPlan{S,T,CUFFT_INVERSE,inplace,N,R,B}(handle, p.output_size, p.input_size, p.region, p.buffer),
                normalization(real(S), p.input_size, p.region))
 end
 
