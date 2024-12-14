@@ -7,31 +7,6 @@
 # NOTE: in the cublasMg preview, which also relies on this functionality, a separate library
 #       called 'cudalibmg' is introduced. factor this out when we actually ship that.
 
-mutable struct MatrixDescriptor
-    desc::cudaLibMgMatrixDesc_t
-
-    function MatrixDescriptor(a, grid; rowblocks = size(a, 1), colblocks = size(a, 2), elta=eltype(a) )
-        desc = Ref{cudaLibMgMatrixDesc_t}()
-        cusolverMgCreateMatrixDesc(desc, size(a, 1), size(a, 2), rowblocks, colblocks, elta, grid)
-        return new(desc[])
-    end
-end
-
-Base.unsafe_convert(::Type{cudaLibMgMatrixDesc_t}, obj::MatrixDescriptor) = obj.desc
-
-mutable struct DeviceGrid
-    desc::cudaLibMgGrid_t
-
-    function DeviceGrid(num_row_devs, num_col_devs, deviceIds, mapping)
-        @assert num_row_devs == 1 "Only 1-D column block cyclic is supported, so numRowDevices must be equal to 1."
-        desc = Ref{cudaLibMgGrid_t}()
-        cusolverMgCreateDeviceGrid(desc, num_row_devs, num_col_devs, deviceIds, mapping)
-        return new(desc[])
-    end
-end
-
-Base.unsafe_convert(::Type{cudaLibMgGrid_t}, obj::DeviceGrid) = obj.desc
-
 function allocateBuffers(n_row_devs, n_col_devs, mat::Matrix)
     mat_row_block_size = div(size(mat, 1), n_row_devs)
     mat_col_block_size = div(size(mat, 2), n_col_devs)

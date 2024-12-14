@@ -63,3 +63,63 @@ function Base.convert(::Type{cusolverDirectMode_t}, direct::Char)
         throw(ArgumentError("Unknown direction mode $direct."))
     end
 end
+
+function Base.convert(::Type{cusolverIRSRefinement_t}, irs::String)
+    if irs == "NOT_SET"
+        CUSOLVER_IRS_REFINE_NOT_SET
+    elseif irs == "NONE"
+        CUSOLVER_IRS_REFINE_NONE
+    elseif irs == "CLASSICAL"
+        CUSOLVER_IRS_REFINE_CLASSICAL
+    elseif "CLASSICAL_GMRES"
+        CUSOLVER_IRS_REFINE_CLASSICAL_GMRES
+    elseif "GMRES"
+        CUSOLVER_IRS_REFINE_GMRES
+    elseif "GMRES_GMRES"
+        CUSOLVER_IRS_REFINE_GMRES_GMRES
+    elseif "GMRES_NOPCOND"
+        CUSOLVER_IRS_REFINE_GMRES_NOPCOND
+    else
+        throw(ArgumentError("Unknown iterative refinement solver $irs."))
+    end
+end
+
+function Base.convert(::Type{cusolverPrecType_t}, T::String)
+    if T == "R_16F"
+        return CUSOLVER_R_16F
+    elseif T == "R_16BF"
+        return CUSOLVER_R_16BF
+    elseif T == "R_TF32"
+        return CUSOLVER_R_TF32
+    elseif T == "R_32F"
+        return CUSOLVER_R_32F
+    elseif T == "R_64F"
+        return CUSOLVER_R_64F
+    elseif T == "C_16F"
+        return CUSOLVER_C_16F
+    elseif T == "C_16BF"
+        return CUSOLVER_C_16BF
+    elseif T == "C_TF32"
+        return CUSOLVER_C_TF32
+    elseif T == "C_32F"
+        return CUSOLVER_C_32F
+    elseif T == "C_64F"
+        return CUSOLVER_C_64F
+    else
+        throw(ArgumentError("cusolverPrecType_t equivalent for input type $T does not exist!"))
+    end
+end
+
+function Base.convert(::Type{cusolverPrecType_t}, T::DataType)
+    if T === Float32
+        return CUSOLVER_R_32F
+    elseif T === Float64
+        return CUSOLVER_R_64F
+    elseif T === Complex{Float32}
+        return CUSOLVER_C_32F
+    elseif T === Complex{Float64}
+        return CUSOLVER_C_64F
+    else
+        throw(ArgumentError("cusolverPrecType_t equivalent for input type $T does not exist!"))
+    end
+end
