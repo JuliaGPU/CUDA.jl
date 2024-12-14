@@ -190,6 +190,7 @@ end
 
 # Xlarft!
 function larft!(direct::Char, storev::Char, v::StridedCuMatrix{T}, tau::StridedCuVector{T}, t::StridedCuMatrix{T}) where {T <: BlasFloat}
+    CUSOLVER.version() < v"11.6.0" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     n, k = size(v)
     ktau = length(tau)
     mt, nt = size(t)
@@ -449,6 +450,7 @@ end
 
 # Xgeev
 function Xgeev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+    CUSOLVER.version() < v"11.7.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     n = checksquare(A)
     VL = if jobvl == 'V'
         CuMatrix{T}(undef, n, n)
@@ -490,6 +492,44 @@ function Xgeev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: Bla
     chkargsok(flag |> BlasInt)
 
     return W, VL, VR
+end
+
+# XsyevBatched
+function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+    CUSOLVER.version() < v"11.7.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    chkuplo(uplo)
+    n, num_matrices = size(A)
+    batch_size = num_matrices ÷ n
+    R = real(T)
+    lda = max(1, stride(A, 2))
+    W = CuVector{R}(undef, n * batch_size)
+    params = CuSolverParameters()
+    dh = dense_handle()
+    resize!(dh.info, batch_size)
+
+    function bufferSize()
+        out_cpu = Ref{Csize_t}(0)
+        out_gpu = Ref{Csize_t}(0)
+        cusolverDnXsyevBatched_bufferSize(dh, params, jobz, uplo, n,
+                                          T, A, lda, R, W, T, out_gpu, out_cpu, batch_size)
+        out_gpu[], out_cpu[]
+    end
+    with_workspaces(dh.workspace_gpu, dh.workspace_cpu, bufferSize()...) do buffer_gpu, buffer_cpu
+        cusolverDnXsyevBatched(dh, params, jobz, uplo, n, T, A,
+                               lda, R, W, T, buffer_gpu, sizeof(buffer_gpu),
+                               buffer_cpu, sizeof(buffer_cpu), dh.info, batch_size)
+    end
+
+    info = @allowscalar collect(dh.info)
+    for i = 1:batch_size
+        chkargsok(info[i] |> BlasInt)
+    end
+
+    if jobz == 'N'
+        return W
+    elseif jobz == 'V'
+        return W, A
+    end
 end
 
 # LAPACK
