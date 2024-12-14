@@ -34,7 +34,7 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N,R,B} <: Plan{
     input_size::NTuple{N,Int}   # Julia size of input array
     output_size::NTuple{N,Int}  # Julia size of output array
     region::NTuple{R,Int}
-    buffer::B                   # buffer for out-of-place complex-to-real FFT
+    buffer::B                   # buffer for out-of-place complex-to-real FFT, or `nothing` if not needed
     pinv::ScaledPlan{T}         # required by AbstractFFTs API, will be defined by AbstractFFTs if needed
 
     function CuFFTPlan{T,S,K,inplace,N,R,B}(handle::cufftHandle,
