@@ -33,6 +33,7 @@ include("libcusolverMg.jl")
 include("libcusolverRF.jl")
 
 # low-level wrappers
+include("helpers.jl")
 include("error.jl")
 include("base.jl")
 include("sparse.jl")

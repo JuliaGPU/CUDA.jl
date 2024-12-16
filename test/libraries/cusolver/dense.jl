@@ -5,10 +5,36 @@ using LinearAlgebra: BlasInt
 
 m = 15
 n = 10
+p = 5
 l = 13
 k = 1
 
 @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "gesv!" begin
+        A = rand(elty, n, n)
+        X = zeros(elty, n, p)
+        B = rand(elty, n, p)
+        dA = CuArray(A)
+        dX = CuArray(X)
+        dB = CuArray(B)
+        CUSOLVER.gesv!(dX, dA, dB)
+        tol = real(elty) |> eps |> sqrt
+        dR = dB - dA * dX
+        @test norm(dR) <= tol
+    end
+
+    @testset "gels!" begin
+        A = rand(elty, m, n)
+        X = zeros(elty, n, p)
+        B = A * rand(elty, n, p)  # ensure that AX = B is consistent
+        dA = CuArray(A)
+        dX = CuArray(X)
+        dB = CuArray(B)
+        CUSOLVER.gels!(dX, dA, dB)
+        tol = real(elty) |> eps |> sqrt
+        dR = dB - dA * dX
+    end
+
     @testset "geqrf! -- orgqr!" begin
         A = rand(elty, m, n)
         dA = CuArray(A)
