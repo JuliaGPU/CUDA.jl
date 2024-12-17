@@ -1,7 +1,5 @@
 module CUDA
 
-using Base.ScopedValues
-
 using GPUCompiler
 
 using GPUArrays
