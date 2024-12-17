@@ -2,7 +2,7 @@
 
 *CUDA programming in Julia*
 
-[![][doi-img]][doi-url] [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] [![][buildkite-img]][buildkite-url] [![][codecov-img]][codecov-url] [![][codespeed-trend-img]][codespeed-trend-url] [![][codespeed-chart-img]][codespeed-chart-url]
+[![][doi-img]][doi-url] [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] [![][buildkite-img]][buildkite-url] [![][codecov-img]][codecov-url] [![][benchmark-img]][benchmark-url]
 
 [doi-img]: https://zenodo.org/badge/doi/10.1109/TPDS.2018.2872064.svg
 [doi-url]: https://ieeexplore.ieee.org/abstract/document/8471188
@@ -19,11 +19,8 @@
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CUDA.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDA.jl
 
-[codespeed-chart-img]: https://img.shields.io/badge/benchmarks-Chart-yellowgreen
-[codespeed-chart-url]: https://speed.juliagpu.org/timeline/#/?exe=9,11&env=1&base=none&ben=grid&revs=50
-
-[codespeed-trend-img]: https://img.shields.io/badge/benchmarks-Trend-yellowgreen
-[codespeed-trend-url]: https://speed.juliagpu.org/changes/?exe=9&env=1&tre=50
+[benchmark-img]: https://img.shields.io/badge/benchmarks-Chart-yellowgreen
+[benchmark-url]: https://cuda.juliagpu.org/bench/
 
 The CUDA.jl package is the main programming interface for working with NVIDIA CUDA GPUs
 using Julia. It features a user-friendly array abstraction, a compiler for writing CUDA
