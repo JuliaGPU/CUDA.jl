@@ -71,9 +71,21 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
     else
       maxsize
     end
-    data = DataRef(pool_free, pool_alloc(M, bufsize))
-    obj = new{T,N,M}(data, maxsize, 0, dims)
-    finalizer(unsafe_free!, obj)
+
+    function _alloc_f()
+        data = DataRef(pool_free, pool_alloc(M, bufsize))
+        obj = new{T,N,M}(data, maxsize, 0, dims)
+        finalizer(unsafe_free!, obj)
+    end
+
+    name = GPUArrays.CacheAllocatorName[]
+    # Do not use caching allocator if it is not set or
+    # the buffer is not a device memory.
+    return if !(M <: DeviceMemory) || name == :none
+        _alloc_f()
+    else
+        GPUArrays.alloc!(_alloc_f, CUDABackend(), name, T, dims)::CuArray{T, N, M}
+    end
   end
 
   function CuArray{T,N}(data::DataRef{Managed{M}}, dims::Dims{N};
