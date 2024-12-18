@@ -16,6 +16,9 @@
 # possible values: "device", "unified", "host"
 #default_memory = "device"
 
+# From PrecompileTools, whether or not to precompile the GPUCompiler + Inference stack
+#precompile_workload = true
+
 [CUDA_Driver_jll]
 # whether to attempt to load a forwards-compatibile userspace driver.
 # only turn this off if you experience issues, e.g., when using a local
