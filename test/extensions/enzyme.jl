@@ -87,10 +87,10 @@ end
 alloc(x) = CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}(undef, (x,))
 
 @testset "Forward allocate" begin
-    dup = Enzyme.autodiff(Forward, alloc, Duplicated, Const(10))
-    @test all(dup[2] .≈ 0.0)
+    dup = Enzyme.autodiff(ForwardWithPrimal, alloc, Duplicated, Const(10))
+    @test all(dup[1] .≈ 0.0)
     
-    dup = Enzyme.autodiff(Forward, alloc, DuplicatedNoNeed, Const(10))
+    dup = Enzyme.autodiff(Forward, alloc, Duplicated, Const(10))
     @test all(dup[1] .≈ 0.0)
 end
 
@@ -110,6 +110,58 @@ firstsum(x, y) = first(x .+ y)
     #res = CUDA.@allowscalar autodiff(Forward, firstsum, Duplicated, Duplicated(x, dx), Duplicated(y, dy))
     #@test res[1] ≈ 8
     #@test res[2] ≈ 1.2
+end
+
+@testset "Forward sum" begin
+    x = CuArray([1.0, 2.0, 3.0, 4.0])
+    dx = CuArray([100., 300.0, 500.0, 700.0])
+    res = Enzyme.autodiff(Forward, sum, Duplicated(x, dx))
+    @test res[1] ≈ 100+300+500+700.
+end
+
+@testset "Reverse sum" begin
+    x = CuArray([1.0, 2.0, 3.0, 4.0])
+    dx = CuArray([0., 0.0, 0.0, 0.0])
+    Enzyme.autodiff(Reverse, sum, Duplicated(x, dx))
+    @test all(dx .≈ 1.0)
+end
+
+
+function setadd(out, x, y)
+  out .= x .+ y
+  nothing
+end
+
+@testset "Forward setadd" begin
+    out = CuArray([0.0, 0.0, 0.0, 0.0])
+    dout = CuArray([0.0, 0.0, 0.0, 0.0])
+    x = CuArray([1.0, 2.0, 3.0, 4.0])
+    dx = CuArray([100., 300.0, 500.0, 700.0])
+    y = CuArray([5.0, 6.0, 7.0, 8.0])
+    dy = CuArray([500., 600.0, 700.0, 800.0])
+    res = Enzyme.autodiff(Forward, setadd, Duplicated(out, dout), Duplicated(x, dx), Duplicated(y, dy))
+    @test all(dout .≈ dx .+ dy)
+end
+
+@testset "setadd sum" begin
+    out = CuArray([0.0, 0.0, 0.0, 0.0])
+    dout = CuArray([1.0, 1.0, 1.0, 1.0])
+    x = CuArray([1.0, 2.0, 3.0, 4.0])
+    dx = CuArray([0., 0.0, 0.0, 0.0])
+    y = CuArray([5.0, 6.0, 7.0, 8.0])
+    dy = CuArray([0., 0.0, 0.0, 0.0])
+    res = Enzyme.autodiff(Reverse, setadd, Duplicated(out, dout), Duplicated(x, dx), Duplicated(y, dy))
+    @test all(dx .≈ 1)
+    @test all(dy .≈ 1)
+end
+
+sumabs2(x) = sum(abs2.(x))
+
+@testset "Reverse sum abs2" begin
+    x = CuArray([1.0, 2.0, 3.0, 4.0])
+    dx = CuArray([0., 0.0, 0.0, 0.0])
+    Enzyme.autodiff(Reverse, sumabs2, Active, Duplicated(x, dx))
+    @test all(dx .≈ 2 .* x)
 end
 
 # TODO once reverse kernels are in

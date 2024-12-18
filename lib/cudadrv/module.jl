@@ -66,7 +66,7 @@ mutable struct CuModule
                                                  ERROR_INVALID_IMAGE,
                                                  ERROR_INVALID_PTX)
                 options = decode(optionKeys, optionVals)
-                error(unsafe_string(pointer(options[JIT_ERROR_LOG_BUFFER])))
+                error(GC.@preserve options unsafe_string(pointer(options[JIT_ERROR_LOG_BUFFER])))
             else
                 rethrow()
             end

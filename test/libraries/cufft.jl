@@ -445,3 +445,13 @@ end
     # Make sure the value was modified
     @test sz[] != typemax(Csize_t)
 end
+
+@testset "CUDA.jl#2504" begin
+    x = CUDA.zeros(Float32, 4)
+    p = plan_rfft(x)
+    pinv = inv(p)
+    @test p isa AbstractFFTs.Plan{Float32}
+    @test eltype(p) === Float32
+    @test pinv isa AbstractFFTs.Plan{ComplexF32}
+    @test eltype(pinv) === ComplexF32
+end

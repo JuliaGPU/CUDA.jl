@@ -6,6 +6,63 @@ n = 10
 p = 5
 
 @testset "cusolver -- generic API -- $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    if CUSOLVER.version() >= v"11.7.1"
+        @testset "geev!" begin
+            A = rand(elty,n,n)
+            d_A = CuMatrix(A)
+            d_B = copy(d_A)
+            W, VL, VR = CUSOLVER.Xgeev!('N', 'V', d_A)
+            if elty <: Complex
+                @test d_B * VR ≈ VR * Diagonal(W)
+            else
+                h_W = collect(W)
+                i = 1
+                while i <= n
+                    if h_W[i].im ≈ zero(elty)
+                        @test d_B * VR[:,i] ≈ h_W[i].re * VR[:,i]
+                        i = i + 1
+                    else
+                        V1 = VR[:,i] + im * VR[:,i+1]
+                        @test d_B * V1 ≈ h_W[i] * V1
+                        V2 = VR[:,i] - im * VR[:,i+1]
+                        @test d_B * V2 ≈ h_W[i+1] * V2
+                        i = i + 2
+                    end
+                end
+            end
+        end
+
+        @testset "syevBatched!" begin
+            batch_size = 5
+            for uplo in ('L', 'U')
+                (uplo == 'L') && (elty == ComplexF32) && continue
+
+                A = rand(elty, n, n * batch_size)
+                B = rand(elty, n, n * batch_size)
+                for i = 1:batch_size
+                    S = rand(elty,n,n)
+                    S = S * S' + I
+                    B[:,(i-1)*n+1:i*n] .= S
+                    S = uplo == 'L' ? tril(S) : triu(S)
+                    A[:,(i-1)*n+1:i*n] .= S
+                end
+                d_A = CuMatrix(A)
+                d_W, d_V = CUSOLVER.XsyevBatched!('V', uplo, d_A)
+                W = collect(d_W)
+                V = collect(d_V)
+                for i = 1:batch_size
+                    Bᵢ = B[:,(i-1)*n+1:i*n]
+                    Wᵢ = Diagonal(W[(i-1)*n+1:i*n])
+                    Vᵢ = V[:,(i-1)*n+1:i*n]
+                    @test Bᵢ * Vᵢ ≈ Vᵢ * Diagonal(Wᵢ)
+                end
+
+                d_A = CuMatrix(A)
+                d_W = CUSOLVER.XsyevBatched!('N', uplo, d_A)
+            end
+        end
+    end
+
     if CUSOLVER.version() >= v"11.6.0"
         @testset "larft!" begin
             @testset "direct = $direct" for direct in ('F', 'B')
@@ -122,6 +179,16 @@ p = 5
         d_A = CuMatrix(A)
         U, Σ, Vt = CUSOLVER.Xgesvd!('A', 'A', d_A)
         @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * Vt)
+
+        for jobu in ('A', 'S', 'N', 'O')
+            for jobvt in ('A', 'S', 'N', 'O')
+                (jobu == 'A') && (jobvt == 'A') && continue
+                (jobu == 'O') && (jobvt == 'O') && continue
+                d_A = CuMatrix(A)
+                U2, Σ2, Vt2 = CUSOLVER.Xgesvd!(jobu, jobvt, d_A)
+                @test Σ ≈ Σ2
+            end
+        end
     end
 
     @testset "gesvdp!" begin
@@ -144,22 +211,28 @@ p = 5
         @test A ≈ collect(U) * Diagonal(collect(Σ)) * collect(V)'
     end
 
-    # @testset "gesvdr!" begin
-    #     R = real(elty)
-    #     B = rand(elty,m,m)
-    #     FB = qr(B)
-    #     C = rand(elty,n,n)
-    #     FC = qr(C)
-    #     Σ = zeros(elty,m,n)
-    #     for i = 1:n
-    #         Σ[i,i] = i*one(R)
-    #     end
-    #     k = 3
-    #     A = FB.Q * Σ * FC.Q
-    #     d_A = CuMatrix(A)
-    #     U, Σ, V = CUSOLVER.Xgesvdr!('N', 'N', d_A, k)
-    #     @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * V')
-    # end
+    @testset "gesvdr!" begin
+        R = real(elty)
+        tol = R == Float32 ? 1e-2 : 1e-5
+        ℓ = min(m, n)
+
+        B = rand(elty,m,m)
+        FB = qr(B)
+        C = rand(elty,n,n)
+        FC = qr(C)
+        Σ = zeros(R,m,n)
+        for i = 1:ℓ
+            Σ[i,i] = (10-i+1)*one(R)
+        end
+        A = FB.Q * Σ * FC.Q
+        d_A = CuMatrix(A)
+
+        d_U, d_Σ, d_V = CUSOLVER.Xgesvdr!('N', 'N', d_A, 3)
+        @test norm(diag(Σ)[1:3] - collect(d_Σ[1:3])) ≤ tol
+
+        d_U, d_Σ, d_V = CUSOLVER.Xgesvdr!('S', 'S', d_A, ℓ)
+        @test norm(diag(Σ) - collect(d_Σ)) ≤ tol
+    end
 
     @testset "syevdx!" begin
         R = real(elty)

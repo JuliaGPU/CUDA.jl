@@ -13,17 +13,23 @@ LinearAlgebra.rmul!(x::StridedCuArray{<:CublasFloat}, k::Number) =
 LinearAlgebra.rmul!(x::DenseCuArray{<:CublasFloat}, k::Real) =
   invoke(rmul!, Tuple{typeof(x), Number}, x, k)
 
-function LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:Union{Float16, CublasReal}
+function LinearAlgebra.dot(x::StridedCuVector{T},
+                           y::StridedCuVector{T}) where T<:Union{Float16, CublasReal}
     n = length(x)
     n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
     dot(n, x, y)
 end
 
-function LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:Union{ComplexF16, CublasComplex}
+function LinearAlgebra.dot(x::StridedCuVector{T},
+                           y::StridedCuVector{T}) where T<:Union{ComplexF16, CublasComplex}
     n = length(x)
     n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
     dotc(n, x, y)
 end
+
+# resolve ambiguities with generic wrapper below
+LinearAlgebra.dot(x::CuArray{T}, y::CuArray{T}) where T<:Union{Float32, Float64, ComplexF32, ComplexF64} =
+    invoke(LinearAlgebra.dot, Tuple{StridedCuArray{T}, StridedCuArray{T}}, x, y)
 
 # generic fallback
 function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
@@ -97,14 +103,16 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
     end
 end
 
-function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}}, y::StridedCuVector{T}) where T<:Union{ComplexF16, CublasComplex}
+function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}},
+                            y::StridedCuVector{T}) where T<:Union{ComplexF16, CublasComplex}
     x = transx.parent
     n = length(x)
     n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
     return dotu(n, x, y)
 end
 
-function LinearAlgebra.norm(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasFloat}}, p::Real=2)
+function LinearAlgebra.norm(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasFloat}},
+                            p::Real=2)
     if p == 2
         return nrm2(x)
     else
@@ -193,6 +201,19 @@ LinearAlgebra.generic_trimatmul!(c::StridedCuVector{T}, uploc, isunitc, tfun::Fu
 ## division
 LinearAlgebra.generic_trimatdiv!(C::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuVector{T}) where {T<:CublasFloat} =
     trsv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, A, C === B ? C : copyto!(C, B))
+
+# work around upstream breakage from JuliaLang/julia#55547
+@static if VERSION == v"1.11.2"
+const CuUpperOrUnitUpperTriangular = LinearAlgebra.UpperOrUnitUpperTriangular{
+    <:Any,<:Union{<:CuArray, Adjoint{<:Any, <:CuArray}, Transpose{<:Any, <:CuArray}}}
+const CuLowerOrUnitLowerTriangular = LinearAlgebra.LowerOrUnitLowerTriangular{
+    <:Any,<:Union{<:CuArray, Adjoint{<:Any, <:CuArray}, Transpose{<:Any, <:CuArray}}}
+
+LinearAlgebra.istriu(::CuUpperOrUnitUpperTriangular) = true
+LinearAlgebra.istril(::CuUpperOrUnitUpperTriangular) = false
+LinearAlgebra.istriu(::CuLowerOrUnitLowerTriangular) = false
+LinearAlgebra.istril(::CuLowerOrUnitLowerTriangular) = true
+end
 
 
 #
@@ -336,6 +357,30 @@ end
 
 function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::CuMatrix{T}) where {T<:CublasFloat}
     return dgmm!('L', B, A.diag, C)
+end
+
+function LinearAlgebra.mul!(C::CuMatrix{T}, A::Transpose{T,<:CuMatrix}, B::Diagonal{T,<:CuVector}) where {T<:CublasFloat}
+    C .= A
+    C .*= transpose(B.diag)
+    return C
+end
+
+function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::Transpose{T,<:CuMatrix}) where {T<:CublasFloat}
+    C .= B
+    C .*= A.diag
+    return C
+end
+
+function LinearAlgebra.mul!(C::CuMatrix{T}, A::Adjoint{T,<:CuMatrix}, B::Diagonal{T,<:CuVector}) where {T<:CublasFloat}
+    C .= A
+    C .*= transpose(B.diag)
+    return C
+end
+
+function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::Adjoint{T,<:CuMatrix}) where {T<:CublasFloat}
+    C .= B
+    C .*= A.diag
+    return C
 end
 
 # symmetric mul!

@@ -1,10 +1,6 @@
 ## gpucompiler interface implementation
 
 Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
-    # the PTX ISA version and compute capability to target at the CUDA level.
-    # XXX: these aren't visible by kernel code, as the `compute_capability()` etc intrinsics
-    #      return the versions that are used by LLVM. however, we can't safely use the
-    #      CUDA-level compatibility, as that may result in instruction selection errors.
     cap::VersionNumber
     ptx::VersionNumber
 end
@@ -85,9 +81,9 @@ function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
         # generate IR for calls to `deferred_codegen` and the resulting function pointer
         top_bb = first(blocks(entry))
         bb = BasicBlock(top_bb, "initialize_rng")
-        LLVM.@dispose builder=IRBuilder() begin
+        @dispose builder=IRBuilder() begin
             position!(builder, bb)
-            subprogram = LLVM.get_subprogram(entry)
+            subprogram = LLVM.subprogram(entry)
             if subprogram !== nothing
                 loc = DILocation(0, 0, subprogram)
                 debuglocation!(builder, loc)

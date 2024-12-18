@@ -198,3 +198,10 @@ end
     end
 end
 
+@testset "counter overflow" begin
+    rng = CUDA.RNG()
+    # we may not be able to allocate over 4GB on the GPU, so use unified memory
+    c = CuArray{Float16, 5, CUDA.UnifiedMemory}(undef, 64, 32, 512, 32, 64)
+    rand!(rng, c)
+    randn!(rng, c)
+end

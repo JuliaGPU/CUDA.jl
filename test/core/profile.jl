@@ -31,7 +31,7 @@ let
     str = string(CUDA.@profile @cuda identity(nothing))
 
     @test occursin("cuLaunchKernel", str)
-    @test occursin("_Z8identityv", str)
+    @test occursin("identity()", str)
 
     @test !occursin("cuCtxSynchronize", str)
     @test !occursin("ID", str)
@@ -42,7 +42,7 @@ let
     str = string(CUDA.@profile trace=true @cuda identity(nothing))
 
     @test occursin("cuLaunchKernel", str)
-    @test occursin("_Z8identityv", str)
+    @test occursin("identity()", str)
 
     @test occursin("ID", str)
 
@@ -54,7 +54,7 @@ let
     str = string(CUDA.@profile trace=true raw=true @cuda identity(nothing))
 
     @test occursin("cuLaunchKernel", str)
-    @test occursin("_Z8identityv", str)
+    @test occursin("identity()", str)
 
     @test occursin("ID", str)
 
@@ -65,12 +65,12 @@ end
 let
     str = string(CUDA.@bprofile @cuda identity(nothing))
     @test occursin("cuLaunchKernel", str)
-    @test occursin("_Z8identityv", str)
+    @test occursin("identity()", str)
     @test !occursin("cuCtxGetCurrent", str)
 
     str = string(CUDA.@bprofile raw=true @cuda identity(nothing))
     @test occursin("cuLaunchKernel", str)
-    @test occursin("_Z8identityv", str)
+    @test occursin("identity()", str)
     @test occursin("cuCtxGetCurrent", str)
 end
 

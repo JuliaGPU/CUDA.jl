@@ -1,7 +1,7 @@
 # generic APIs
 
 export gather!, scatter!, axpby!, rot!
-export vv!, sv!, sm!, gemm, gemm!, sddmm!
+export vv!, sv!, sm!, gemv, gemm, gemm!, sddmm!
 export bmm!
 
 ## API functions
@@ -572,6 +572,43 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     Cᵀ = gemm(transb, transa, alpha, Bᵀ, Aᵀ, index, algo)
     C = CuSparseMatrixCSC(Cᵀ.rowPtr, Cᵀ.colVal, Cᵀ.nzVal, reverse(size(Cᵀ)))
     return C
+end
+
+"""
+    y = gemv(transa, alpha, A, x, index, [algo])
+
+Perform a product between a `CuSparseMatrix` and a `CuSparseVector`, returning a `CuSparseVector`.
+This function should only be used for highly sparse matrices and vectors, as the result is expected
+to have many non-zeros in practice.
+For this reason, high-level functions like `mul!` and `*` internally convert the sparse vector into a
+dense vector to use a more efficient CUSPARSE routine.
+
+Supported formats for the sparse matrix are `CuSparseMatrixCSC` and `CuSparseMatrixCSR`.
+"""
+function gemv end
+
+function gemv(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
+              x::CuSparseVector{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+    m, n = size(A)
+    p = length(x)
+    p == n || throw(DimensionMismatch("dimensions must match: x has length $p, A has length $m × $n"))
+    # we model x as a CuSparseMatrixCSC with one column.
+    B = CuSparseMatrixCSC(x)
+    C = gemm(transa, 'N', alpha, A, B, index, algo)
+    y = CuSparseVector(C)
+    return y
+end
+
+function gemv(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
+              x::CuSparseVector{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+    m, n = size(A)
+    p = length(x)
+    p == n || throw(DimensionMismatch("dimensions must match: x has length $p, A has length $m × $n"))
+    # we model x as a CuSparseMatrixCSR with one column.
+    B = CuSparseMatrixCSR(x)
+    C = gemm(transa, 'N', alpha, A, B, index, algo)
+    y = CuSparseVector(C)
+    return y
 end
 
 for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)

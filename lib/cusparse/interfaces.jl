@@ -73,6 +73,7 @@ function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::C
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     mv_wrapper(tA, alpha, A, B, beta, C)
 end
+
 function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::CuSparseMatrix{T}, B::CuSparseVector{T}, alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     mv_wrapper(tA, alpha, A, CuVector{T}(B), beta, C)
@@ -241,6 +242,19 @@ for SparseMatrixType in (:CuSparseMatrixBSR,)
         end
     end
 end # SparseMatrixType loop
+
+# work around upstream breakage from JuliaLang/julia#55547
+@static if VERSION == v"1.11.2"
+const CuSparseUpperOrUnitUpperTriangular = LinearAlgebra.UpperOrUnitUpperTriangular{
+    <:Any,<:Union{<:AbstractCuSparseArray, Adjoint{<:Any, <:AbstractCuSparseArray}, Transpose{<:Any, <:AbstractCuSparseArray}}}
+const CuSparseLowerOrUnitLowerTriangular = LinearAlgebra.LowerOrUnitLowerTriangular{
+    <:Any,<:Union{<:AbstractCuSparseArray, Adjoint{<:Any, <:AbstractCuSparseArray}, Transpose{<:Any, <:AbstractCuSparseArray}}}
+
+LinearAlgebra.istriu(::CuSparseUpperOrUnitUpperTriangular) = true
+LinearAlgebra.istril(::CuSparseUpperOrUnitUpperTriangular) = false
+LinearAlgebra.istriu(::CuSparseLowerOrUnitLowerTriangular) = false
+LinearAlgebra.istril(::CuSparseLowerOrUnitLowerTriangular) = true
+end
 
 for SparseMatrixType in (:CuSparseMatrixCOO, :CuSparseMatrixCSR, :CuSparseMatrixCSC)
     @eval begin

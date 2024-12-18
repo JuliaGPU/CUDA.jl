@@ -68,7 +68,7 @@ function name(dev::CuDevice)
     buf = Vector{Cchar}(undef, buflen)
     cuDeviceGetName(pointer(buf), buflen, dev)
     buf[end] = 0
-    return unsafe_string(pointer(buf))
+    return GC.@preserve buf unsafe_string(pointer(buf))
 end
 
 """

@@ -27,7 +27,7 @@ function Base.findall(bools::AnyCuArray{Bool})
     I = keytype(bools)
     indices = cumsum(reshape(bools, prod(size(bools))))
 
-    n = @allowscalar indices[end]
+    n = isempty(indices) ? 0 : @allowscalar indices[end]
     ys = CuArray{I}(undef, n)
 
     if n > 0

@@ -28,17 +28,25 @@ end
 # remove a handle from the cache, or create a new one
 function Base.pop!(cache::HandleCache{K,V}, key::K) where {K,V}
     # check the cache
-    handle = @lock cache.lock begin
-        if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
-            nothing
+    handle, num_active_handles = @lock cache.lock begin
+        if haskey(cache.idle_handles, key) && !isempty(cache.idle_handles[key])
+            pop!(cache.idle_handles[key]), length(cache.active_handles)
         else
-            pop!(cache.idle_handles[key])
+            nothing, length(cache.active_handles)
         end
     end
 
-    # if we didn't find anything, create a new handle.
-    # we could (and used to) run `GC.gc(false)` here to free up old handles,
-    # but that can be expensive when using lots of short-lived tasks.
+    # if we didn't find anything, but lots of handles are active, try to free some
+    if handle === nothing && num_active_handles > cache.max_entries
+        GC.gc(false)
+        @lock cache.lock begin
+            if haskey(cache.idle_handles, key) && isempty(cache.idle_handles[key])
+                handle = pop!(cache.idle_handles[key])
+            end
+        end
+    end
+
+    # if we still didn't find anything, create a new handle
     if handle === nothing
         CUDA.maybe_collect()
         handle = cache.ctor(key)

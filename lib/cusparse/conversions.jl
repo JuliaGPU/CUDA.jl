@@ -39,8 +39,7 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
 
     # find groups of values that correspond to the same position in the matrix.
     # if there's no duplicates, `groups` will just be a vector of ones.
-    # otherwise, it will contain the number of duplicates for each group,
-    # with subsequent values that are part of the group set to zero.
+    # otherwise, it will contain gaps of zeros that indicates duplicate values.
     coo = sort_coo(coo, 'R')
     groups = similar(I, Int)
     function find_groups(groups, I, J)
@@ -51,14 +50,7 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
         len = 0
 
         # check if we're at the start of a new group
-        @inbounds if i == 1 || I[i] != I[i-1] || J[i] != J[i-1]
-            len = 1
-            while i+len <= length(groups) && I[i] == I[i+len] && J[i] == J[i+len]
-                len += 1
-            end
-        end
-
-        @inbounds groups[i] = len
+        @inbounds groups[i] = i == 1 || I[i] != I[i-1] || J[i] != J[i-1]
 
         return
     end
@@ -82,14 +74,16 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
             end
         end
 
-        total_lengths = cumsum(groups)  # TODO: add and use `scan!(; exclusive=true)`
+        # by scanning the mask of groups, we can find a mapping for old to new indices
+        indices = accumulate(+, groups)
+
         I = similar(I, ngroups)
         J = similar(J, ngroups)
         V = similar(V, ngroups)
 
-        # use one thread per value, and if it's at the start of a group,
+        # use one thread per (old) value, and if it's at the start of a group,
         # combine (if needed) all values and update the output vectors.
-        function combine_groups(groups, total_lengths, oldI, oldJ, oldV, newI, newJ, newV, combine)
+        function combine_groups(groups, indices, oldI, oldJ, oldV, newI, newJ, newV, combine)
             i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
             if i > length(groups)
                 return
@@ -97,34 +91,28 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
 
             # check if we're at the start of a group
             @inbounds if groups[i] != 0
-                # get an exclusive offset from the inclusive cumsum
-                offset = total_lengths[i] - groups[i] + 1
+                # get a destination index
+                j = indices[i]
 
                 # copy values
-                newI[i] = oldI[offset]
-                newJ[i] = oldJ[offset]
-                newV[i] = if groups[i] == 1
-                    oldV[offset]
-                else
-                    # combine all values in the group
-                    val = oldV[offset]
-                    j = 1
-                    while j < groups[i]
-                        val = combine(val, oldV[offset+j])
-                        j += 1
-                    end
-                    val
+                newI[j] = oldI[i]
+                newJ[j] = oldJ[i]
+                val = oldV[i]
+                while i < length(groups) && groups[i+1] == 0
+                    i += 1
+                    val = combine(val, oldV[i])
                 end
+                newV[j] = val
             end
 
             return
         end
-        kernel = @cuda launch=false combine_groups(groups, total_lengths, coo.rowInd, coo.colInd, coo.nzVal, I, J, V, combine)
+        kernel = @cuda launch=false combine_groups(groups, indices, coo.rowInd, coo.colInd, coo.nzVal, I, J, V, combine)
         config = launch_configuration(kernel.fun)
         threads = min(length(groups), config.threads)
         blocks = cld(length(groups), threads)
-        kernel(groups, total_lengths, coo.rowInd, coo.colInd, coo.nzVal, I, J, V, combine; threads, blocks)
-
+        kernel(groups, indices, coo.rowInd, coo.colInd, coo.nzVal, I, J, V, combine; threads, blocks)
+        synchronize()
         coo = CuSparseMatrixCOO{Tv}(I, J, V, (m, n))
     end
 
@@ -626,12 +614,12 @@ function CuSparseMatrixCOO{Tv}(csc::CuSparseMatrixCSC{Tv}; index::SparseChar='O'
     coo = sort_coo(coo, 'R')
 end
 
-### BSR to COO and viceversa
+### BSR to COO and vice-versa
 
 CuSparseMatrixBSR(coo::CuSparseMatrixCOO, blockdim) = CuSparseMatrixBSR(CuSparseMatrixCSR(coo), blockdim) # no direct conversion
 CuSparseMatrixCOO(bsr::CuSparseMatrixBSR) = CuSparseMatrixCOO(CuSparseMatrixCSR(bsr)) # no direct conversion
 
-### BSR to CSC and viceversa
+### BSR to CSC and vice-versa
 
 CuSparseMatrixBSR(csc::CuSparseMatrixCSC, blockdim) = CuSparseMatrixBSR(CuSparseMatrixCSR(csc), blockdim) # no direct conversion
 CuSparseMatrixCSC(bsr::CuSparseMatrixBSR) = CuSparseMatrixCSC(CuSparseMatrixCSR(bsr)) # no direct conversion
@@ -679,4 +667,45 @@ end
 
 function CuSparseMatrixCOO(A::CuMatrix{T}; index::SparseChar='O') where {T}
     densetosparse(A, :coo, index)
+end
+
+## CuSparseVector to CuSparseMatrices and vice-versa
+function CuSparseVector(A::CuSparseMatrixCSC{T}) where T
+    m, n = size(A)
+    (n == 1) || error("A doesn't have one column and can't be converted to a CuSparseVector.")
+    CuSparseVector{T}(A.rowVal, A.nzVal, m)
+end
+
+# no direct conversion
+function CuSparseVector(A::CuSparseMatrixCSR{T}) where T
+    m, n = size(A)
+    (n == 1) || error("A doesn't have one column and can't be converted to a CuSparseVector.")
+    B = CuSparseMatrixCSC{T}(A)
+    CuSparseVector(B)
+end
+
+function CuSparseVector(A::CuSparseMatrixCOO{T}) where T
+    m, n = size(A)
+    (n == 1) || error("A doesn't have one column and can't be converted to a CuSparseVector.")
+    CuSparseVector{T}(A.rowInd, A.nzVal, m)
+end
+
+function CuSparseMatrixCSC(x::CuSparseVector{T}) where T
+    n = length(x)
+    colPtr = CuVector{Int32}([1; nnz(x)+1])
+    CuSparseMatrixCSC{T}(colPtr, x.iPtr, nonzeros(x), (n,1))
+end
+
+# no direct conversion
+function CuSparseMatrixCSR(x::CuSparseVector{T}) where T
+    A = CuSparseMatrixCSC(x)
+    CuSparseMatrixCSR{T}(A)
+end
+
+function CuSparseMatrixCOO(x::CuSparseVector{T}) where T
+    n = length(x)
+    nnzx = nnz(x)
+    colInd = CuVector{Int32}(undef, nnzx)
+    fill!(colInd, one(Int32))
+    CuSparseMatrixCOO{T}(x.iPtr, colInd, nonzeros(x), (n,1), nnzx)
 end

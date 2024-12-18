@@ -292,8 +292,8 @@ end
 """
     synchronize(ctx::Context)
 
-Block for the all operations on `ctx` to complete. This is a heavyweight operation,
-typically you only need to call [`synchronize`](@ref) which only synchronizes the stream
+Block for all the operations on `ctx` to complete. This is a heavyweight operation,
+typically you only need to call [`synchronize()`](@ref) which only synchronizes the stream
 associated with the current task.
 """
 function synchronize(ctx::CuContext)
@@ -309,8 +309,8 @@ end
 """
     device_synchronize()
 
-Block for the all operations on `ctx` to complete. This is a heavyweight operation,
-typically you only need to call [`synchronize`](@ref) which only synchronizes the stream
+Block for all the operations on the device to complete. This is a heavyweight operation,
+typically you only need to call [`synchronize()`](@ref) which only synchronizes the stream
 associated with the current task.
 
 On the device, `device_synchronize` acts as a synchronization point for child grids in the
@@ -402,8 +402,13 @@ function maybe_enable_peer_access(src::CuDevice, dst::CuDevice)
                     enable_peer_access(context(dst))
                     peer_access[][src_idx, dst_idx] = 1
                 catch err
-                    @warn "Enabling peer-to-peer access between $src and $dst failed; please file an issue." exception=(err,catch_backtrace())
-                    peer_access[][src_idx, dst_idx] = -1
+                    if err.code == CUDA.CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED
+                        @warn "Peer-to-peer access between $src and $dst was unexpectedly already enabled"
+                        CUDA.peer_access[][src_idx, dst_idx] = 1
+                    else
+                        @warn "Enabling peer-to-peer access between $src and $dst failed; please file an issue." exception=(err,catch_backtrace())
+                        CUDA.peer_access[][src_idx, dst_idx] = -1
+                    end
                 end
             end
         else
