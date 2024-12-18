@@ -916,3 +916,11 @@ end
   @test c == a′ + b
   @test c === a
 end
+
+@testset "issue 2595" begin
+  # mixed-type reductions resulted in a deadlock because of union splitting over shfl
+  a = CUDA.zeros(Float32, 1)
+  b = CUDA.ones(Float64, 2)
+  sum!(a, b)
+  @test Array(a) == [2f0]
+end

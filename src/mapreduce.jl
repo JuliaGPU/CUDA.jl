@@ -88,7 +88,7 @@ Base.@propagate_inbounds _map_getindex(args::Tuple{}, I) = ()
 # Reduce an array across the grid. All elements to be processed can be addressed by the
 # product of the two iterators `Rreduce` and `Rother`, where the latter iterator will have
 # singleton entries for the dimensions that should be reduced (and vice versa).
-function partial_mapreduce_grid(f, op, neutral, Rreduce, Rother, shuffle, R, As...)
+function partial_mapreduce_grid(f, op, neutral, Rreduce, Rother, shuffle, R::AbstractArray{T}, As...) where T
     assume(length(Rother) > 0)
 
     # decompose the 1D hardware indices into separate ones for reduction (across threads
@@ -112,7 +112,7 @@ function partial_mapreduce_grid(f, op, neutral, Rreduce, Rother, shuffle, R, As.
             neutral
         end
 
-        val = op(neutral, neutral)
+        val::T = op(neutral, neutral)
 
         # reduce serially across chunks of input vector that don't fit in a block
         ireduce = threadIdx_reduce + (blockIdx_reduce - 1) * blockDim_reduce
