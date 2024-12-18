@@ -384,7 +384,6 @@ steps:
             build.message !~ /\[skip special\]/
         timeout_in_minutes: 45
 
-  # we want to benchmark every commit on the master branch, even if it failed CI
   - wait: ~
     continue_on_failure: true
 
@@ -412,78 +411,36 @@ steps:
         build.message !~ /\[skip docs\]/
     timeout_in_minutes: 15
 
-  - group: ":racehorse: Benchmarks"
-    steps:
-      # benchmarks outside of the master branch don't submit their results,
-      # so they can run on any system in the juliagpu queue.
-      - label: "Benchmarks (dry run)"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.11"
-        command: |
-          julia --project -e '
-            using Pkg
+  - label: ":racehorse: Benchmarks"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: "1.11"
+    env:
+      BENCHMARKS: "true"
+      CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
+      CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
+      CODESPEED_COMMIT: "$BUILDKITE_COMMIT"
+      CODESPEED_EXECUTABLE: "Julia {{matrix.julia}}"
+    command: |
+      julia --project=perf -e '
+        using Pkg
 
-            println("--- :julia: Instantiating project")
-            Pkg.resolve()
-            Pkg.instantiate()
-            Pkg.activate("perf")
-            Pkg.resolve()
-            Pkg.instantiate()
-            push!(LOAD_PATH, @__DIR__)
+        println("--- :julia: Instantiating project")
+        Pkg.develop([PackageSpec(path=pwd())])
 
-            println("+++ :julia: Benchmarking")
-            include("perf/runbenchmarks.jl")'
-        agents:
-          queue: "juliagpu"
-          cuda: "*"
-        if: |
-          build.message =~ /\[only benchmarks\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip benchmarks\]/
-        timeout_in_minutes: 30
-
-      # if we will submit results, use the benchmark queue so that we will
-      # be running on the same system each time
-      - label: "Benchmarks on Julia {{matrix.julia}}"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "{{matrix.julia}}"
-        env:
-          BENCHMARKS: "true"
-          CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
-          CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
-          CODESPEED_COMMIT: "$BUILDKITE_COMMIT"
-          CODESPEED_EXECUTABLE: "Julia {{matrix.julia}}"
-        command: |
-          julia --project -e '
-            using Pkg
-            ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
-
-            println("--- :julia: Instantiating project")
-            Pkg.resolve()
-            Pkg.instantiate()
-            Pkg.activate("perf")
-            Pkg.resolve()
-            Pkg.instantiate()
-            push!(LOAD_PATH, @__DIR__)
-
-            println("+++ :julia: Benchmarking")
-            include("perf/runbenchmarks.jl")'
-        agents:
-          queue: "benchmark"
-          gpu: "rtx2070"
-          cuda: "*"
-        if: |
-          build.branch =~ /^master$$/ && build.message =~ /\[only benchmarks\]/ ||
-          build.branch =~ /^master$$/ && build.message !~ /\[only/ &&
-            build.message !~ /\[skip benchmarks\]/
-        matrix:
-          setup:
-            julia:
-              - "1.11"
-              - "1.11"
-        timeout_in_minutes: 30
+        println("+++ :julia: Benchmarking")
+        include("perf/runbenchmarks.jl")'
+    artifact_paths:
+      - "benchmarkresults.json"
+    agents:
+      queue: "benchmark"
+      gpu: "rtx2070"
+      cuda: "*"
+    if: |
+      build.message =~ /\[only benchmarks\]/ ||
+      build.message !~ /\[only/ && !build.pull_request.draft &&
+        build.message !~ /\[skip benchmarks\]/
+    timeout_in_minutes: 30
 
 env:
   JULIA_PKG_SERVER_REGISTRY_PREFERENCE: "eager" # OK to downloading JLLs from GitHub
