@@ -489,5 +489,45 @@ function EnzymeCore.EnzymeRules.noalias(::Type{CT}, ::UndefInitializer, args...)
     return nothing
 end
 
+
+@inline function EnzymeCore.make_zero(
+    x::DenseCuArray{FT},
+) where {FT<:AbstractFloat}
+    return Base.zero(x)
+end
+@inline function EnzymeCore.make_zero(
+    x::DenseCuArray{Complex{FT}},
+) where {FT<:AbstractFloat}
+    return Base.zero(x)
+end
+
+@inline function EnzymeCore.make_zero(
+    ::Type{CT},
+    seen::IdDict,
+    prev::CT,
+    ::Val{copy_if_inactive} = Val(false),
+)::CT} where {copy_if_inactive,CT <: Union{DenseCuArray{FT},DenseCuArray{Complex{FT}}}, FT<:AbstractFloat}
+    if haskey(seen, prev)
+        return seen[prev]
+    end
+    newa = Base.zero(prev)
+    seen[prev] = newa
+    return newa
+end
+
+@inline function EnzymeCore.make_zero!(
+    prev::CT,
+    seen::ST,
+)::Nothing where {CT <: Union{DenseCuArray{FT},DenseCuArray{Complex{FT}}}, FT<:AbstractFloat,ST}
+    if !isnothing(seen)
+        if prev in seen
+            return nothing
+        end
+        push!(seen, prev)
+    end
+    fill!(prev, zero(T))
+    return nothing
+end
+
 end # module
 

@@ -7,6 +7,15 @@ using CUDA
     @test EnzymeCore.compiler_job_from_backend(CUDABackend(), typeof(()->nothing), Tuple{}) isa GPUCompiler.CompilerJob
 end
 
+@testset "Make_zero" begin
+   A = CUDA.ones(64)
+   dA = Enzyme.make_zero(A)
+   @test all(dA .≈ 0)
+   dA = CUDA.ones(64)
+   Enzyme.make_zero!(A)
+   @test all(dA .≈ 0)
+end
+
 function square_kernel!(x)
     i = threadIdx().x
     x[i] *= x[i]
