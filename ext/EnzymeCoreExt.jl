@@ -571,7 +571,7 @@ end
     seen::IdDict,
     prev::CT,
     ::Val{copy_if_inactive} = Val(false),
-)::CT} where {copy_if_inactive,CT <: Union{DenseCuArray{FT},DenseCuArray{Complex{FT}}}, FT<:AbstractFloat}
+)::CT where {copy_if_inactive,CT <: Union{DenseCuArray{FT},DenseCuArray{Complex{FT}}}, FT<:AbstractFloat}
     if haskey(seen, prev)
         return seen[prev]
     end
