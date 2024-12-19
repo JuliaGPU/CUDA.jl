@@ -59,6 +59,16 @@ This may take a while, as it will precompile the package and download a suitable
 the CUDA toolkit. If your GPU is not fully supported, the above command (or any other
 command that initializes the toolkit) will issue a warning.
 
+For quick testing, you can also use the `juliagpu/cuda.jl` container image from the GitHub
+Container Registry, which provides Julia, a precompiled version of CUDA.jl, and a matching
+CUDA toolkit:
+
+```sh
+docker run -it --rm --gpus=all ghcr.io/juliagpu/cuda.jl:latest
+# `latest` refers to the latest released version, `nightly` is the current master branch.
+# version-qualified names are available too, e.g., `v5.5.2-julia1.11-cuda12.6`
+```
+
 For more usage instructions and other information, please refer to [the
 documentation](https://juliagpu.github.io/CUDA.jl/stable/).
 
