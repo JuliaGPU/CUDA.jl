@@ -689,6 +689,20 @@ if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
     dA = CUDA.rand(UInt8, 512)
     copyto!(dA, hA)
     copyto!(hA, dA)
+
+    # memory copies with resized pinned memory (used to fail with CUDA_ERROR_INVALID_VALUE)
+    dA = rand(Float32, 100)
+    hA = Array(dA)
+    @test !CUDA.is_pinned(pointer(hA))
+    for n ∈ 100:2000
+        resize!(dA, n)
+        resize!(hA, n)
+        dA .= n
+        CUDA.pin(hA)
+        @test CUDA.is_pinned(pointer(hA))
+        copyto!(hA, dA)
+        copyto!(dA, hA)
+    end
 end
 
 end
