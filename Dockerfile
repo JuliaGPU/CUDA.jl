@@ -69,6 +69,17 @@ RUN mkdir -m 0777 /depot
 ENV JULIA_DEPOT_PATH=/usr/local/share/julia:
 COPY <<EOF /usr/local/share/julia/config/startup.jl
 if !isdir("/depot/environments/v$(VERSION.major).$(VERSION.minor)")
+    if isinteractive() && Base.JLOptions().quiet == 0
+        println("""Welcome to this CUDA.jl container!
+
+                   Since this is the first time you're running this container,
+                   we'll set up a user depot for you at `/depot`. For persistency,
+                   you can mount a volume at this location.
+
+                   The CUDA.jl package is pre-installed, and ready to be imported.
+                   Remember that you need to invoke Docker with e.g. `--gpus=all`
+                   to access the GPU.""")
+    end
     mkpath("/depot/environments")
     cp("/usr/local/share/julia/environments/v$(VERSION.major).$(VERSION.minor)",
        "/depot/environments/v$(VERSION.major).$(VERSION.minor)")
