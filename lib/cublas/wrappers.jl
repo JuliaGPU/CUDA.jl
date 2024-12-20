@@ -1215,8 +1215,25 @@ end
 @inline function unsafe_strided_batch(strided::DenseCuArray{T}) where {T}
     batchsize = last(size(strided))
     stride = prod(size(strided)[1:end-1])
-    ptrs = [pointer(strided, (i-1)*stride + 1) for i in 1:batchsize]
-    return CuArray(ptrs)
+    base_address = UInt64(pointer(strided))
+    offset = Base.elsize(strided) * stride
+
+    ptrs = CuArray{CuPtr{T}}(undef, batchsize)
+    nblocks = min(
+        cld(batchsize, 1024),
+        CUDA.attribute(device(strided), CUDA.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
+    )
+    @cuda threads = 1024 blocks = nblocks create_ptrs_kernel!(ptrs, base_address, offset)
+    return ptrs
+end
+
+function create_ptrs_kernel!(ptrs::CuDeviceArray{T}, base_address, offset) where {T}
+    index = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
+    stride = gridDim().x * blockDim().x
+    for i in index:stride:length(ptrs)
+        ptrs[i] = CuPtr{T}(base_address + (i - 1i32) * offset)
+    end
+    return nothing
 end
 
 ## (GE) general matrix-matrix multiplication grouped batched
