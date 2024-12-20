@@ -24,3 +24,14 @@ BroadcastStyle(::CUDA.CuArrayStyle{N1, B},
 # allocation of output arrays
 Base.similar(bc::Broadcasted{CuArrayStyle{N,B}}, ::Type{T}, dims) where {T,N,B} =
     similar(CuArray{T,length(dims),B}, dims)
+
+# Base.Broadcast can't handle Int32 axes
+# XXX: not using a quirk, as constprop/irinterpret is crucial here
+# XXX: 1.11 uses to_index i nstead of CartesianIndex
+Base.@propagate_inbounds Broadcast.newindex(arg::AnyCuDeviceArray, I::CartesianIndex) = CartesianIndex(_newindex(axes(arg), I.I))
+Base.@propagate_inbounds Broadcast.newindex(arg::AnyCuDeviceArray, I::Integer) = CartesianIndex(_newindex(axes(arg), (I,)))
+Base.@propagate_inbounds _newindex(ax::Tuple, I::Tuple) = # XXX: upstream this?
+  (ifelse(length(ax[1]) == 1, promote(ax[1][1], I[1])...), _newindex(Base.tail(ax), Base.tail(I))...)
+Base.@propagate_inbounds _newindex(ax::Tuple{}, I::Tuple) = ()
+Base.@propagate_inbounds _newindex(ax::Tuple, I::Tuple{}) = (ax[1][1], _newindex(Base.tail(ax), ())...)
+Base.@propagate_inbounds _newindex(ax::Tuple{}, I::Tuple{}) = ()
