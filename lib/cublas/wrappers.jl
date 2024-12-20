@@ -1219,10 +1219,7 @@ end
     offset = Base.elsize(strided) * stride
 
     ptrs = CuArray{CuPtr{T}}(undef, batchsize)
-    nblocks = min(
-        cld(batchsize, 1024),
-        CUDA.attribute(device(strided), CUDA.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
-    )
+    nblocks = cld(batchsize, 1024)
     @cuda threads = 1024 blocks = nblocks create_ptrs_kernel!(ptrs, base_address, offset)
     return ptrs
 end
