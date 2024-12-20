@@ -756,7 +756,7 @@ mma
 @generated function mma(a::Fragment{M, N, K, A_SZ, A_T, A_L, MatrixA},
                         b::Fragment{M, N, K, B_SZ, B_T, B_L, MatrixB},
                         c::Fragment{M, N, K, C_SZ, C_T, Unspecified, Accumulator},
-                        config::Type{Config{M, N, K, D_T}}; rounding = RoundNearest) where {M, N, K, A_SZ, A_T, A_L, B_SZ, B_T, B_L, C_SZ, C_T, D_T}
+                        config::Type{Config{M, N, K, D_T}}) where {M, N, K, A_SZ, A_T, A_L, B_SZ, B_T, B_L, C_SZ, C_T, D_T}
 
     a_layout = get_hl_layout(A_L)
     b_layout = get_hl_layout(B_L)
