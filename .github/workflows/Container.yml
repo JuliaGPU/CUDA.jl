@@ -1,4 +1,4 @@
-name: Publish Docker image
+name: Publish Docker container
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ on:
 
 jobs:
   push_to_registry:
-    name: Build container - Julia ${{ matrix.julia }} - CUDA ${{ matrix.cuda }}
+    name: Container for ${{ matrix.platform }} - Julia ${{ matrix.julia }} - CUDA ${{ matrix.cuda }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -30,9 +30,15 @@ jobs:
       matrix:
         julia: ["1.10", "1.11"]
         cuda: ["11.8", "12.6"]
+        platform: ["linux/amd64", "linux/arm64"]
         include:
           - julia: "1.11"
             cuda: "12.6"
+            platform: "linux/amd64"
+            default: true
+          - julia: "1.11"
+            cuda: "12.6"
+            platform: "linux/arm64"
             default: true
 
     steps:
@@ -68,6 +74,15 @@ jobs:
           CUDA_MAJOR=$(echo ${{ matrix.cuda }} | cut -d'.' -f1)
           echo "major=${CUDA_MAJOR}" >> $GITHUB_OUTPUT
 
+      - name: Set CPU target
+        id: cpu_target
+        run: |
+          if [[ "${{ matrix.platform }}" == "linux/amd64" ]]; then
+            echo "target=generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.platform }}" == "linux/arm64" ]]; then
+            echo "target=generic;cortex-a57;thunderx2t99;carmel,clone_all;apple-m1,base(3);neoverse-512tvb,base(3)" >> $GITHUB_OUTPUT
+          fi
+
       - name: Log in to registry
         uses: docker/login-action@v3
         with:
@@ -97,9 +112,11 @@ jobs:
           context: .
           push: true
           provenance: false # the build fetches the repo again, so provenance tracking is not useful
+          platforms: ${{ matrix.platform }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             JULIA_VERSION=${{ matrix.julia }}
             CUDA_VERSION=${{ matrix.cuda }}
             PACKAGE_SPEC=CUDA#${{ steps.pkg.outputs.ref }}
+            JULIA_CPU_TARGET=${{ steps.cpu_target.outputs.target }}
