@@ -581,9 +581,23 @@ end
 end
 
 @inline function EnzymeCore.make_zero!(
-    prev::CT,
+    prev::DenseCuArray{FT},
     seen::ST,
-)::Nothing where {CT <: Union{DenseCuArray{FT},DenseCuArray{Complex{FT}}}, FT<:AbstractFloat,ST}
+)::Nothing where {FT<:AbstractFloat,ST}
+    if !isnothing(seen)
+        if prev in seen
+            return nothing
+        end
+        push!(seen, prev)
+    end
+    fill!(prev, zero(T))
+    return nothing
+end
+
+@inline function EnzymeCore.make_zero!(
+    prev::DenseCuArray{Complex{FT}},
+    seen::ST,
+)::Nothing where {FT<:AbstractFloat,ST}
     if !isnothing(seen)
         if prev in seen
             return nothing
