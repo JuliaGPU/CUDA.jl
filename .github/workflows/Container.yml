@@ -1,0 +1,122 @@
+name: Publish Docker container
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build instead'
+        required: false
+        default: ''
+      mark_as_latest:
+        description: 'Mark as latest'
+        type: boolean
+        required: false
+        default: false
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - master
+
+jobs:
+  push_to_registry:
+    name: Container for ${{ matrix.platform }} - Julia ${{ matrix.julia }} - CUDA ${{ matrix.cuda }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        julia: ["1.10", "1.11"]
+        cuda: ["11.8", "12.6"]
+        platform: ["linux/amd64", "linux/arm64"]
+        include:
+          - julia: "1.11"
+            cuda: "12.6"
+            platform: "linux/amd64"
+            default: true
+          - julia: "1.11"
+            cuda: "12.6"
+            platform: "linux/arm64"
+            default: true
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Check out the package
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+          path: package
+
+      - name: Get package spec
+        id: pkg
+        run: |
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            echo "ref=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+            echo "name=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "ref=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "ref=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "name=dev" >> $GITHUB_OUTPUT
+          fi
+
+          VERSION=$(grep "^version = " package/Project.toml | cut -d'"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get CUDA major version
+        id: cuda
+        run: |
+          CUDA_MAJOR=$(echo ${{ matrix.cuda }} | cut -d'.' -f1)
+          echo "major=${CUDA_MAJOR}" >> $GITHUB_OUTPUT
+
+      - name: Set CPU target
+        id: cpu_target
+        run: |
+          if [[ "${{ matrix.platform }}" == "linux/amd64" ]]; then
+            echo "target=generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.platform }}" == "linux/arm64" ]]; then
+            echo "target=generic;cortex-a57;thunderx2t99;carmel,clone_all;apple-m1,base(3);neoverse-512tvb,base(3)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+              type=raw,value=${{ steps.pkg.outputs.name }}-julia${{ matrix.julia }}-cuda${{ steps.cuda.outputs.major }}
+              type=raw,value=${{ steps.pkg.outputs.name }},enable=${{ matrix.default == true && (github.ref_type == 'tag' || inputs.tag != '') }}
+              type=raw,value=latest,enable=${{ matrix.default == true && (github.ref_type == 'tag' || (inputs.tag != '' && inputs.mark_as_latest)) }}
+              type=raw,value=dev,enable=${{ matrix.default == true && github.ref_type == 'branch' && inputs.tag == '' }}
+          labels: |
+              org.opencontainers.image.version=${{ steps.pkg.outputs.version }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          provenance: false # the build fetches the repo again, so provenance tracking is not useful
+          platforms: ${{ matrix.platform }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            JULIA_VERSION=${{ matrix.julia }}
+            CUDA_VERSION=${{ matrix.cuda }}
+            PACKAGE_SPEC=CUDA#${{ steps.pkg.outputs.ref }}
+            JULIA_CPU_TARGET=${{ steps.cpu_target.outputs.target }}

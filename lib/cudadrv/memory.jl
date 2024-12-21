@@ -659,9 +659,14 @@ end
 
 const __pin_lock = ReentrantLock()
 
+struct PinnedObject
+    ref::WeakRef
+    size::Int  # memory size in bytes
+end
+
 # - IdDict does not free the memory
 # - WeakRef dict does not unique the key by objectid
-const __pinned_objects = Dict{Tuple{CuContext,Ptr{Cvoid}}, WeakRef}()
+const __pinned_objects = Dict{Tuple{CuContext,Ptr{Cvoid}}, PinnedObject}()
 
 function pin(a::AbstractArray)
     ctx = context()
@@ -670,10 +675,15 @@ function pin(a::AbstractArray)
     Base.@lock __pin_lock begin
         # only pin an object once per context
         key = (ctx, convert(Ptr{Nothing}, ptr))
-        if haskey(__pinned_objects, key) && __pinned_objects[key].value !== nothing
-            return nothing
+        if haskey(__pinned_objects, key) && __pinned_objects[key].ref.value !== nothing
+            if sizeof(a) == __pinned_objects[key].size
+                return nothing
+            else
+                # if the object size has changed, unpin it first; it will be re-pinned with the new size
+                __unpin(ptr, ctx)
+            end
         end
-        __pinned_objects[key] = WeakRef(a)
+        __pinned_objects[key] = PinnedObject(WeakRef(a), sizeof(a))
     end
 
      __pin(ptr, sizeof(a))

@@ -1,0 +1,49 @@
+name: Benchmarks
+permissions:
+  statuses: read        # find Buildkite URL from PR status
+  contents: write       # update benchmark contents in gh-pages branch
+  pull-requests: write  # comment on PR with benchmark results
+  deployments: write    # deploy GitHub pages website
+
+on:
+  pull_request_target:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Buildkite Artifacts
+        id: download
+        uses: EnricoMi/download-buildkite-artifact-action@v1
+        with:
+          buildkite_token: ${{ secrets.BUILDKITE_TOKEN }}
+          ignore_build_states: blocked,canceled,skipped,not_run
+          ignore_job_states: timed_out,failed
+          output_path: artifacts
+
+      - name: Locate Benchmarks Artifact
+        id: locate
+        if: ${{ steps.download.outputs.download-state == 'success' }}
+        run: echo "path=$(find artifacts -type f -name benchmarkresults.json 2>/dev/null)" >> $GITHUB_OUTPUT
+
+      - name: Upload Benchmark Results
+        if: ${{ steps.locate.outputs.path != '' }}
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: CUDA.jl Benchmarks
+          tool: "julia"
+          output-file-path: ${{ steps.locate.outputs.path }}
+          benchmark-data-dir-path: "bench"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-always: ${{ github.event_name == 'pull_request_target' }}
+          summary-always: true
+          alert-threshold: "125%"
+          fail-on-alert: false
+          auto-push: ${{ github.event_name != 'pull_request_target' }}
