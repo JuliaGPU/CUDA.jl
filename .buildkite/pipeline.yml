@@ -246,8 +246,7 @@ steps:
           build.message !~ /\[only/ && !build.pull_request.draft &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip downstream\]/
-        timeout_in_minutes: 30
-        soft_fail: true
+        timeout_in_minutes: 60
 
   - group: ":eyes: Special"
     depends_on: "cuda"
