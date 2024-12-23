@@ -590,7 +590,7 @@ end
         end
         push!(seen, prev)
     end
-    fill!(prev, zero(T))
+    fill!(prev, zero(FT))
     return nothing
 end
 
@@ -604,7 +604,7 @@ end
         end
         push!(seen, prev)
     end
-    fill!(prev, zero(T))
+    fill!(prev, zero(Complex{FT}))
     return nothing
 end
 
