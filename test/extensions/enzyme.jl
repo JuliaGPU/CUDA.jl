@@ -12,7 +12,7 @@ end
    dA = Enzyme.make_zero(A)
    @test all(dA .≈ 0)
    dA = CUDA.ones(64)
-   Enzyme.make_zero!(A)
+   Enzyme.make_zero!(dA)
    @test all(dA .≈ 0)
 end
 
