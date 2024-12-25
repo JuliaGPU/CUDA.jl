@@ -40,7 +40,7 @@ function Base.pop!(cache::HandleCache{K,V}, key::K) where {K,V}
     if handle === nothing && num_active_handles > cache.max_entries
         GC.gc(false)
         @lock cache.lock begin
-            if haskey(cache.idle_handles, key) && isempty(cache.idle_handles[key])
+            if haskey(cache.idle_handles, key) && !isempty(cache.idle_handles[key])
                 handle = pop!(cache.idle_handles[key])
             end
         end
