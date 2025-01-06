@@ -1,5 +1,5 @@
-const CuCacheAllocator = GPUArrays.PerDeviceCacheAllocator(CuArray; free_immediately=true)
+const CuCacheAllocator = GPUArrays.AllocCache.PerDeviceCacheAllocator(CuArray; free_immediately=true)
 
-GPUArrays.cache_allocator(::CUDABackend) = CuCacheAllocator
+GPUArrays.AllocCache.cache_allocator(::Type{<: CuArray}) = CuCacheAllocator
 
-GPUArrays.device(::CUDABackend) = CUDA.device()
+GPUArrays.AllocCache.device(::Type{<: CuArray}) = CUDA.device()
