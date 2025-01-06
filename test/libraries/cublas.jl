@@ -1851,6 +1851,17 @@ end
             @view(p[reshape(1:(out*inn),out,inn)]) * x
         end
     end
+
+    @testset "nrm2 with strided inputs" begin # JuliaGPU/CUDA.jl#2280
+        cudaTypes = (Float16, ComplexF16, CublasFloat)
+        for CT in cudaTypes
+            x = rand(CT, 10, 10, 10)
+            dx = CuArray(x)
+            dx_ = @view dx[3:6, 1:5, :]
+            x_ = @view x[3:6, 1:5, :] 
+            @test norm(dx_, 2) ≈ norm(x_, 2)
+        end
+    end
 end
 
 ############################################################################################
