@@ -170,15 +170,12 @@ k = 13
         @testset "xt_gemm cpu" begin
             A = rand(elty,m,k)
             B = rand(elty,k,n)
-            d_A  = CuArray(A)
-            d_B  = CuArray(B)
-            C    = CUBLAS.xt_gemm('N','N',A,B)
-            d_C2 = d_A * d_B
+            C = CUBLAS.xt_gemm('N','N',A,B)
+            C2  = A*B
             # compare
             @test C isa Array
-            h_C2 = Array(C2)
             @test C ≈ A*B
-            @test C ≈ Array(d_C2) 
+            @test C ≈ C2
         end
 
         @testset "symm!" begin
