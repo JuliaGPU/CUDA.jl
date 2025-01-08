@@ -3,12 +3,14 @@
 Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
     cap::VersionNumber
     ptx::VersionNumber
+    link_libdevice::Bool # Used by Reactant.jl
 end
 
+CUDACompilerParams(;cap::VersionNumber, ptx::VersionNumber) = CUDACompilerParams(cap=cap, ptx=ptx, link_libdevice=true)
 function Base.hash(params::CUDACompilerParams, h::UInt)
     h = hash(params.cap, h)
     h = hash(params.ptx, h)
-
+    h = hash(params.link_libdevice, h)
     return h
 end
 
@@ -27,6 +29,9 @@ GPUCompiler.isintrinsic(@nospecialize(job::CUDACompilerJob), fn::String) =
 # link libdevice
 function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module,
                                      undefined_fns::Vector{String})
+    if !job.config.params.link_libdevice
+        return # Don't link libdevice, used by Reactant.jl to raise NVVM intrinsics into MLIR
+    end
     # only link if there's undefined __nv_ functions
     if !any(fn->startswith(fn, "__nv_"), undefined_fns)
         return
