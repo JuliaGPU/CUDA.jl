@@ -316,7 +316,7 @@ k = 13
             A = triu(rand(elty, m, m))
             B = rand(elty,m,n)
             C = alpha*A*B
-            h_C = zeros(C)
+            h_C = zeros(elty, m, n)
             CUBLAS.xt_trmm!('L','U','N','N',alpha,copy(A),copy(B),h_C)
             @test C ≈ h_C
         end
