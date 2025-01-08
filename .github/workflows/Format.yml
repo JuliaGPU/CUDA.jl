@@ -43,7 +43,7 @@ jobs:
           [ $? -eq 2 ] && exit 1 || exit 0
 
       - name: Suggest changes
-        uses: parkerbxyz/suggest-changes@v1
+        uses: parkerbxyz/suggest-changes@v2
         with:
           comment: 'Runic suggested the following formatting changes.'
           event: 'COMMENT'
