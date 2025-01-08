@@ -1,0 +1,49 @@
+name: 'Format'
+
+on:
+  pull_request:
+    paths: ['**/*.jl']
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+  # needed for julia-actions/cache to delete old caches
+  actions: write
+
+  # needed for parkerbxyz/suggest-changes
+  pull-requests: write
+
+jobs:
+  runic:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+          arch: 'x64'
+      - uses: julia-actions/cache@v2
+
+      - name: Install Runic
+        run: |
+          julia --project=@runic -e 'using Pkg; Pkg.add("Runic")'
+          curl -o git-runic https://raw.githubusercontent.com/fredrikekre/Runic.jl/master/bin/git-runic
+          chmod +x git-runic
+
+      - name: Run Runic
+        run: |
+          set +e
+          ./git-runic origin/master
+          [ $? -eq 2 ] && exit 1 || exit 0
+
+      - name: Suggest changes
+        uses: parkerbxyz/suggest-changes@v1
+        with:
+          comment: 'Runic suggested the following formatting changes.'
+          event: 'COMMENT'
