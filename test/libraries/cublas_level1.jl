@@ -81,7 +81,7 @@ k = 13
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
         @test testf(axpy!, Ref(rand()), rand(T, m), rand(T, m))
-        @test testf(axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
+        @test testf(LinearAlgebra.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
 
         if T <: Complex
             @test testf(dot, rand(T, m), rand(T, m))
