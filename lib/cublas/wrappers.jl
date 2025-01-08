@@ -1213,22 +1213,27 @@ end
 
 # create a batch of pointers in device memory from a strided device array
 @inline function unsafe_strided_batch(strided::DenseCuArray{T}) where {T}
-    batchsize = last(size(strided))
-    stride = prod(size(strided)[1:end-1])
-
-    ptrs = CuArray{CuPtr{T}}(undef, batchsize)
-    nblocks = cld(batchsize, 256)
-    @cuda threads = 256 blocks = nblocks create_ptrs_kernel!(ptrs, strided, stride)
-    return ptrs
-end
-
-function create_ptrs_kernel!(ptrs::CuDeviceArray{T}, A, batch_stride) where {T}
-    index = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
-    stride = gridDim().x * blockDim().x
-    for i in index:stride:length(ptrs)
-        ptrs[i] = reinterpret(CuPtr{T}, pointer(A, (i - 1i32) * batch_stride + 1i32))
+    batch_size = last(size(strided))
+    batch_stride = prod(size(strided)[1:end-1])
+    #ptrs = [pointer(strided, (i-1)*batch_stride + 1) for i in 1:batch_size]
+    # fill the array on the GPU to avoid synchronous copies and support larger batch sizes
+    ptrs = CuArray{CuPtr{T}}(undef, batch_size)
+    function compute_pointers()
+        i = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
+        grid_stride = gridDim().x * blockDim().x
+        while i <= length(ptrs)
+            @inbounds ptrs[i] =
+                reinterpret(CuPtr{T}, pointer(strided, (i - 1i32) * batch_stride + 1i32))
+            i += grid_stride
+        end
+        return
     end
-    return nothing
+    kernel = @cuda launch = false compute_pointers()
+    config = launch_configuration(kernel.fun)
+    threads = min(config.threads, batch_size)
+    blocks = min(config.blocks, cld(batch_size, threads))
+    @cuda threads blocks compute_pointers()
+    return ptrs
 end
 
 ## (GE) general matrix-matrix multiplication grouped batched
