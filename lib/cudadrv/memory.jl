@@ -59,7 +59,7 @@ GPU, and requires explicit calls to `unsafe_copyto!`, which wraps `cuMemcpy`,
 for access on the CPU.
 """
 function alloc(::Type{DeviceMemory}, bytesize::Integer;
-               async::Bool=memory_pools_supported(device()),
+               async::Bool=false,
                stream::Union{Nothing,CuStream}=nothing,
                pool::Union{Nothing,CuMemoryPool}=nothing)
     bytesize == 0 && return DeviceMemory()
