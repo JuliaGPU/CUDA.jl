@@ -71,9 +71,13 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
     else
       maxsize
     end
-    data = DataRef(pool_free, pool_alloc(M, bufsize))
-    obj = new{T,N,M}(data, maxsize, 0, dims)
-    finalizer(unsafe_free!, obj)
+
+    GPUArrays.cached_alloc((CuArray, CUDA.device(), T, bufsize, M)) do
+        data = DataRef(pool_free, pool_alloc(M, bufsize))
+        obj = new{T,N,M}(data, maxsize, 0, dims)
+        finalizer(unsafe_free!, obj)
+        return obj
+    end::CuArray{T, N, M}
   end
 
   function CuArray{T,N}(data::DataRef{Managed{M}}, dims::Dims{N};
