@@ -123,8 +123,6 @@ include("CUDAKernels.jl")
 import .CUDAKernels: CUDABackend
 export CUDABackend
 
-include("cache_allocator.jl")
-
 # StaticArrays is still a direct dependency, so directly include the extension
 include("../ext/StaticArraysExt.jl")
 

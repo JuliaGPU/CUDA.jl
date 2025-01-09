@@ -78,11 +78,12 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
         finalizer(unsafe_free!, obj)
     end
 
-    name = GPUArrays.AllocCache.CacheAllocatorName[]
-    return if name ≡ nothing
+    cache = GPUArrays.ALLOC_CACHE[]
+    return if cache ≡ nothing
         _alloc_f()
     else
-        GPUArrays.AllocCache.alloc!(_alloc_f, CuArray, name, (M, T, dims))::CuArray{T, N, M}
+        cache_key = (CuArray, CUDA.device(), M, T, dims)
+        GPUArrays.alloc!(_alloc_f, cache, cache_key)::CuArray{T, N, M}
     end
   end
 
