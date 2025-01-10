@@ -838,14 +838,14 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
   # replace the data with a new one. this 'unshares' the array.
   # as a result, we can safely support resizing unowned buffers.
   new_data = context!(context(A)) do
-    mem = alloc(memory_type(A), bufsize)
+    mem = pool_alloc(memory_type(A), bufsize)
     ptr = convert(CuPtr{T}, mem)
     m = min(length(A), n)
     if m > 0
       synchronize(A)
       unsafe_copyto!(ptr, pointer(A), m)
     end
-    DataRef(pool_free, Managed(mem))
+    DataRef(pool_free, mem)
   end
   unsafe_free!(A)
 
