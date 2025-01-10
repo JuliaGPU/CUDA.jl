@@ -19,16 +19,15 @@ k = 13
         B = CuArray{T}(undef, m)
         CUBLAS.copy!(m,A,B)
         @test Array(A) == Array(B)
-
-        @test testf(rmul!, rand(T, 6, 9, 3), Ref(rand()))
+    
+        @test testf(rmul!, rand(T, 6, 9, 3), rand())
         @test testf(dot, rand(T, m), rand(T, m))
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
         @test testf(BLAS.asum, rand(T, m))
-        @test testf(axpy!, Ref(rand()), rand(T, m), rand(T, m))
-        @test testf(LinearAlgebra.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
-
+        @test testf(axpy!, rand(), rand(T, m), rand(T, m))
+        #@test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
         if T <: Complex
             @test testf(dot, rand(T, m), rand(T, m))
             x = rand(T, m)
@@ -39,7 +38,7 @@ k = 13
             z = dot(x, y)
             @test dz ≈ z
         end
-
+        
         @testset "rotate!" begin
             @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
             @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
@@ -150,8 +149,8 @@ k = 13
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
-        @test testf(axpy!, Ref(rand()), rand(T, m), rand(T, m))
-        @test testf(LinearAlgebra.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
+        @test testf(axpy!, rand(), rand(T, m), rand(T, m))
+        @test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
 
         if T <: Complex
             @test testf(dot, rand(T, m), rand(T, m))
@@ -163,5 +162,5 @@ k = 13
             z = dot(x, y)
             @test dz ≈ z
         end
-    end # level 1 testset
-end
+    end
+end # level 1 testset

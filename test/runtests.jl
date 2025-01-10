@@ -95,6 +95,11 @@ for name in keys(TestSuite.tests)
     pushfirst!(tests, "gpuarrays/$name")
     test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
 end
+## run CUBLAS tests before core/cudadrv to avoid badness related to the latter's
+## messing around with contexts
+pushfirst!(tests, "libraries/cublas/level3")
+pushfirst!(tests, "libraries/cublas/level3_gemm")
+pushfirst!(tests, "libraries/cublas/xt")
 ## finalize
 pushfirst!(tests, "core/initialization")
 unique!(tests)

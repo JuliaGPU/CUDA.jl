@@ -222,18 +222,12 @@ Base.eltype(x::Type{<:CuRef{T}}) where {T} = @isdefined(T) ? T : Any
 Base.convert(::Type{CuRef{T}}, x::CuRef{T}) where {T} = x
 
 # conversion or the actual ccall
-Base.unsafe_convert(::Type{CuRef{T}}, x::CuRef{T}) where {T} = Base.bitcast(CuRef{T}, Base.unsafe_convert(CuPtr{T}, x))
+#Base.unsafe_convert(::Type{CuRef{T}}, x::CuRef{T}) where {T} = Base.bitcast(CuRef{T}, Base.unsafe_convert(CuPtr{T}, x))
 Base.unsafe_convert(::Type{CuRef{T}}, x) where {T} = Base.bitcast(CuRef{T}, Base.unsafe_convert(CuPtr{T}, x))
-
+Base.unsafe_convert(::Type{CuPtr{T}}, x::CuRef{T}) where {T} = x
+Base.unsafe_convert(::Type{CuRef{T}}, x::CuRef{T}) where {T} = x
 # CuRef from literal pointer
 Base.convert(::Type{CuRef{T}}, x::CuPtr{T}) where {T} = x
-
-# indirect constructors using CuRef
-CuRef(x::Any) = CuRefArray(CuArray([x]))
-CuRef{T}(x) where {T} = CuRefArray{T}(CuArray(T[x]))
-CuRef{T}() where {T} = CuRefArray(CuArray{T}(undef, 1))
-Base.convert(::Type{CuRef{T}}, x) where {T} = CuRef{T}(x)
-
 
 ## CuRef object backed by a CUDA array at index i
 
@@ -254,6 +248,16 @@ function Base.unsafe_convert(P::Type{CuPtr{Any}}, b::CuRefArray{Any})
 end
 Base.unsafe_convert(::Type{CuPtr{Cvoid}}, b::CuRefArray{T}) where {T} =
     convert(CuPtr{Cvoid}, Base.unsafe_convert(CuPtr{T}, b))
+Base.unsafe_convert(::Type{CuRef{Cvoid}}, b::CuRefArray{T}) where {T} =
+    convert(CuRef{Cvoid}, Base.unsafe_convert(CuPtr{T}, b))
+
+# indirect constructors using CuRef
+CuRef(x::Any) = CuRefArray(CuArray([x]))
+CuRef{T}(x) where {T} = CuRefArray{T}(CuArray(T[x]))
+CuRef{T}(x::CuRefArray{T}) where {T} = x
+CuRef{T}() where {T} = CuRefArray(CuArray{T}(undef, 1))
+Base.convert(::Type{CuRef{T}}, x) where {T} = CuRef{T}(x)
+
 
 
 ## Union with all CuRef 'subtypes'

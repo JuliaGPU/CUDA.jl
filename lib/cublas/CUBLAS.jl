@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, i32
-using ..CUDA: unsafe_free!, retry_reclaim, isdebug, @sync, initialize_context
+using ..CUDA: unsafe_free!, retry_reclaim, isdebug, @sync, initialize_context, CuRefArray, AbstractMemory
 
 using ..CUDA: CUDA_Runtime
 using ..CUDA_Runtime
@@ -129,6 +129,9 @@ function handle()
     if state.math_mode != cuda.math_mode
         states[cuda.context] = state = update_math_mode(cuda, state)
     end
+
+    # set pointer mode to device
+    cublasSetPointerMode_v2(state.handle, CUBLAS_POINTER_MODE_DEVICE)
 
     return state.handle
 end
