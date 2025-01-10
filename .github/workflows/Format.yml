@@ -1,7 +1,7 @@
 name: 'Format'
 
 on:
-  pull_request:
+  pull_request_target:
     paths: ['**/*.jl']
     types: [opened, synchronize, reopened, ready_for_review]
 
@@ -11,7 +11,7 @@ permissions:
   # needed for julia-actions/cache to delete old caches
   actions: write
 
-  # needed for parkerbxyz/suggest-changes
+  # needed for googleapis/code-suggester
   pull-requests: write
 
 jobs:
@@ -21,6 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{github.event.pull_request.head.ref}}
+          repository: ${{github.event.pull_request.head.repo.full_name}}
           fetch-depth: 0
 
       - name: Setup Julia
@@ -35,15 +37,19 @@ jobs:
           julia --project=@runic -e 'using Pkg; Pkg.add("Runic")'
           curl -o git-runic https://raw.githubusercontent.com/fredrikekre/Runic.jl/master/bin/git-runic
           chmod +x git-runic
+          sudo mv git-runic /usr/local/bin
 
       - name: Run Runic
         run: |
           set +e
-          ./git-runic origin/master
+          git runic origin/master
           [ $? -eq 2 ] && exit 1 || exit 0
 
       - name: Suggest changes
-        uses: parkerbxyz/suggest-changes@v2
+        uses: googleapis/code-suggester@v2
+        env:
+          ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          comment: 'Runic suggested the following formatting changes.'
-          event: 'COMMENT'
+          command: review
+          pull_number: ${{ github.event.pull_request.number }}
+          git_dir: '.'
