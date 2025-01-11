@@ -552,6 +552,10 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
     end
 
     GC.@preserve src dest begin
+      # semantically, it is not safe for this operation to execute asynchronously, because
+      # the Array may be collected before the copy starts executing. However, when using
+      # unpinned memory, CUDA first stages a copy to a pinned buffer that will outlive
+      # the source array, making this operation safe.
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
       if Base.isbitsunion(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
