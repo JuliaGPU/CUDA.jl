@@ -30,6 +30,12 @@ end
 
 function has_nvml()
     @memoize begin
+        if CUDA.is_tegra()
+            # XXX: even though Orin supports NVML, we don't know how to
+            #      look up the device (CUDA.jl#2580)
+            return false
+        end
+
         if Libdl.dlopen(libnvml(); throw_error=false) === nothing
             return false
         end
