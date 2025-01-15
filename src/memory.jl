@@ -516,6 +516,8 @@ mutable struct Managed{M}
   end
 end
 
+Base.sizeof(managed::Managed) = sizeof(managed.mem)
+
 # wait for the current owner of memory to finish processing
 function synchronize(managed::Managed)
   synchronize(managed.stream)
