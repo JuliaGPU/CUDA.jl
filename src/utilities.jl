@@ -139,7 +139,6 @@ function versioninfo(io::IO=stdout)
             try
                 query_nvml()
             catch err
-                @show err
                 if !isa(err, NVML.NVMLError) ||
                    !in(err.code, [NVML.ERROR_NOT_SUPPORTED, NVML.ERROR_NO_PERMISSION])
                     rethrow()
