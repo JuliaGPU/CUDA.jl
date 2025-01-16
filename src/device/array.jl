@@ -45,6 +45,7 @@ Base.size(g::CuDeviceArray) = g.dims
 Base.sizeof(x::CuDeviceArray) = Base.elsize(x) * length(x)
 
 # we store the array length too; computing prod(size) is expensive
+Base.size(g::CuDeviceArray{<:Any,1}) = (g.len,)
 Base.length(g::CuDeviceArray) = g.len
 
 Base.pointer(x::CuDeviceArray{T,<:Any,A}) where {T,A} = Base.unsafe_convert(LLVMPtr{T,A}, x)
@@ -78,7 +79,11 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
 end
 
 @device_function @inline function arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
-    @boundscheck checkbounds(A, index)
+    # simplified bounds check to avoid the OneTo construction, which calls `max`
+    # and breaks elimination of redundant bounds checks in the generated code.
+    #@boundscheck checkbounds(A, index)
+    @boundscheck index <= length(A) || Base.throw_boundserror(A, index)
+
     if Base.isbitsunion(T)
         arrayref_union(A, index)
     else
@@ -120,7 +125,10 @@ end
 end
 
 @device_function @inline function arrayset(A::CuDeviceArray{T}, x::T, index::Integer) where {T}
-    @boundscheck checkbounds(A, index)
+    # simplified bounds check (see `arrayref`)
+    #@boundscheck checkbounds(A, index)
+    @boundscheck index <= length(A) || Base.throw_boundserror(A, index)
+
     if Base.isbitsunion(T)
         arrayset_union(A, x, index)
     else
@@ -151,7 +159,10 @@ end
 end
 
 @device_function @inline function const_arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
-    @boundscheck checkbounds(A, index)
+    # simplified bounds check (see `arrayset`)
+    #@boundscheck checkbounds(A, index)
+    @boundscheck index <= length(A) || Base.throw_boundserror(A, index)
+
     align = alignment(A)
     unsafe_cached_load(pointer(A), index, Val(align))
 end
