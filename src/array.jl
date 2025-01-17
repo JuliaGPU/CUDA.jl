@@ -527,12 +527,9 @@ Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::Array{T}, soffs, n) where T
   context!(context(dest)) do
-    # operations on unpinned memory cannot be executed asynchronously, and synchronize
-    # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
-    if use_nonblocking_synchronization
-      is_pinned(pointer(src)) || synchronize()
-    end
-
+    # the copy below may block in `libcuda`, so it'd be good to perform a nonblocking
+    # synchronization here, but the exact cases are hard to know and detect (e.g., unpinned
+    # memory normally blocks, but not for all sizes, and not on all memory architectures).
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
       if Base.isbitsunion(T)
@@ -546,12 +543,7 @@ end
 function Base.unsafe_copyto!(dest::Array{T}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
   context!(context(src)) do
-    # operations on unpinned memory cannot be executed asynchronously, and synchronize
-    # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
-    if use_nonblocking_synchronization
-      is_pinned(pointer(dest)) || synchronize()
-    end
-
+    # the copy below may block in `libcuda`; see the note above.
     GC.@preserve src dest begin
       # semantically, it is not safe for this operation to execute asynchronously, because
       # the Array may be collected before the copy starts executing. However, when using
