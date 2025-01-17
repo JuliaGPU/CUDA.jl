@@ -626,6 +626,20 @@ end
     @test_throws "Kernel invocation uses too much parameter memory" @cuda kernel(ntuple(_->UInt64(1), 2^13))
 end
 
+@testset "symbols" begin
+    function pass_symbol(x, name)
+        i = name == :var ? 1 : 2
+        x[i] = true
+        return nothing
+    end
+
+    x = CuArray([false, false])
+    @cuda pass_symbol(x, :var)
+    @test x[1]
+    @cuda pass_symbol(x, :not_var)
+    @test x[2]
+end
+
 end
 
 ############################################################################################

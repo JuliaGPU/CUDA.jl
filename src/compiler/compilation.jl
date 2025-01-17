@@ -242,6 +242,9 @@ end
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
+safe_sizeof(x::Any) = sizeof(x)
+safe_sizeof(::Type{Symbol}) = sizeof(Ptr{Cvoid})
+
 # compile to executable machine code
 function compile(@nospecialize(job::CompilerJob))
     # lower to PTX
@@ -281,7 +284,7 @@ function compile(@nospecialize(job::CompilerJob))
     argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
         !isghosttype(dt) && !Core.Compiler.isconstType(dt)
     end
-    param_usage = sum(sizeof, argtypes)
+    param_usage = sum(safe_sizeof, argtypes)
     param_limit = 4096
     if cap >= v"7.0" && ptx >= v"8.1"
         param_limit = 32764
