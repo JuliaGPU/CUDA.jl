@@ -8,7 +8,7 @@ mutable struct Arg{T}
     const val::T
 end
 
-function Base.unsafe_convert(P::Union{Type{Ptr{T}},Type{Ptr{Cvoid}}}, b::Arg{T})::P where T
+function Base.unsafe_convert(P::Union{Type{Ptr{T}}, Type{Ptr{Cvoid}}}, b::Arg{T})::P where {T}
     # TODO: What to do if T is not a leaftype (compare case 3 for RefValue)
     return pointer_from_objref(b)
 end
