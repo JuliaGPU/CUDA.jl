@@ -17,10 +17,6 @@ end
 
 # pack arguments in a buffer that CUDA expects
 @inline @generated function pack_arguments(f::Function, args...)
-    for arg in args
-        isbitstype(arg) || throw(ArgumentError("Arguments to kernel should be bitstype."))
-    end
-
     ex = quote end
 
     # If f has N parameters, then kernelParams needs to be an array of N pointers.
