@@ -634,9 +634,9 @@ end
         end
         x = CuArray([false, false])
         @cuda pass_symbol(x, :var)
-        @test x[1]
+        @test Array(x) == [true, false]
         @cuda pass_symbol(x, :not_var)
-        @test x[2]
+        @test Array(x) == [true, true]
     end
 
 end

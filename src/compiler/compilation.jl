@@ -243,6 +243,8 @@ end
 end
 
 safe_sizeof(x::Any) = sizeof(x)
+# `sizeof(Symbol)` fails since like Strings they have no definite size,
+# but for our purposes we only care that they have pointer-identity
 safe_sizeof(::Type{Symbol}) = sizeof(Ptr{Cvoid})
 
 # compile to executable machine code
