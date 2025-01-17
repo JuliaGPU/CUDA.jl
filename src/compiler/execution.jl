@@ -262,7 +262,7 @@ end
     # replace non-isbits arguments (they should be unused, or compilation would have failed)
     # alternatively, make it possible to `launch` with non-isbits arguments.
     for (i,dt) in enumerate(call_t)
-        if !isbitstype(dt)
+        if !(isbitstype(dt) || dt === Symbol)
             call_t[i] = Ptr{Any}
             call_args[i] = :C_NULL
         end

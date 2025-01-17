@@ -141,7 +141,11 @@ end
         converted_args[i] = gensym()
         arg_ptrs[i] = gensym()
         push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
-        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $(converted_args[i]))))
+        if types[i] === Symbol
+            push!(ex.args, :($(arg_ptrs[i]) = Base.pointer_from_objref($(converted_args[i]))))
+        else
+            push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $(converted_args[i]))))
+        end
     end
 
     append!(ex.args, (quote
