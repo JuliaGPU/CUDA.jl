@@ -7,11 +7,7 @@ on:
 
 permissions:
   contents: read
-
-  # needed for julia-actions/cache to delete old caches
   actions: write
-
-  # needed for googleapis/code-suggester
   pull-requests: write
 
 jobs:
@@ -19,7 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
         with:
           ref: ${{github.event.pull_request.head.ref}}
           repository: ${{github.event.pull_request.head.repo.full_name}}
@@ -40,16 +37,64 @@ jobs:
           sudo mv git-runic /usr/local/bin
 
       - name: Run Runic
+        id: runic
         run: |
           set +e
-          git runic origin/master
-          [ $? -eq 2 ] && exit 1 || exit 0
+          MERGE_BASE=$(git merge-base origin/${{ github.base_ref }} HEAD) || exit 2
+          DIFF=$(git runic --diff $MERGE_BASE)
+          EXIT_CODE=$?
 
-      - name: Suggest changes
-        uses: googleapis/code-suggester@v2
-        env:
-          ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          echo "diff<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIFF" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # if Runic failed, bail out
+          [ $EXIT_CODE -eq 2 ] && exit 1 || exit 0
+
+      - name: Find comment
+        uses: peter-evans/find-comment@v3
+        id: find-comment
         with:
-          command: review
-          pull_number: ${{ github.event.pull_request.number }}
-          git_dir: '.'
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: '<!-- runic-format-summary -->'
+
+      - name: Comment formatting suggestions
+        if: steps.runic.outputs.exit_code == 1
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            <!-- runic-format-summary -->
+
+            Your PR requires formatting changes to meet the project's style guidelines.
+            Please consider running [Runic](https://github.com/fredrikekre/Runic.jl) (`git runic ${{ github.base_ref }}`) to apply these changes.
+
+            <details>
+            <summary>Click here to view the suggested changes.</summary>
+
+            ```diff
+            ${{ steps.runic.outputs.diff }}
+            ```
+
+            </details>
+          edit-mode: replace
+
+      - name: Update stale comment
+        if: steps.runic.outputs.exit_code == 0 && steps.find-comment.outputs.comment-id
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            <!-- runic-format-summary -->
+
+            Your PR no longer requires formatting changes. Thank you for your contribution!
+          edit-mode: replace
+
+      # XXX: if Github ever supports allow-failure (actions/runner#2347)
+      #- name: Propagate exit code
+      #  run: |
+      #    exit ${{ steps.runic.outputs.exit_code }}
