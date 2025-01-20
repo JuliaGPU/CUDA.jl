@@ -259,15 +259,6 @@ end
     call_t =                  Type[x[1] for x in zip(sig.parameters,  to_pass) if x[2]]
     call_args = Union{Expr,Symbol}[x[1] for x in zip(argexprs,        to_pass) if x[2]]
 
-    # replace non-isbits arguments (they should be unused, or compilation would have failed)
-    # alternatively, make it possible to `launch` with non-isbits arguments.
-    for (i,dt) in enumerate(call_t)
-        if !isbitstype(dt)
-            call_t[i] = Ptr{Any}
-            call_args[i] = :C_NULL
-        end
-    end
-
     # add the kernel state, passing an instance with a unique seed
     pushfirst!(call_t, KernelState)
     pushfirst!(call_args, :(KernelState(kernel.state.exception_info, make_seed(kernel))))
