@@ -151,6 +151,8 @@ function Adapt.adapt_storage(::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,N}
     can_prefetch &= !__pinned(convert(Ptr{T}, mem), mem.ctx)
     ## pageable memory needs to be accessible concurrently
     can_prefetch &= attribute(device(), DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1
+    ## don't prefetch on multi device systems.
+    can_prefetch &= ndevices() == 1
 
     if can_prefetch
         # TODO: `view` on buffers?
