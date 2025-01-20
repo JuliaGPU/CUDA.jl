@@ -4,11 +4,11 @@ export cudacall
 
 # In contrast to `Base.RefValue` we just need a container for both pass-by-ref (Symbol),
 # and pass-by-value (immutable structs).
-mutable struct Arg{T}
+mutable struct ArgBox{T}
     const val::T
 end
 
-function Base.unsafe_convert(P::Union{Type{Ptr{T}}, Type{Ptr{Cvoid}}}, b::Arg{T})::P where {T}
+function Base.unsafe_convert(P::Union{Type{Ptr{T}}, Type{Ptr{Cvoid}}}, b::ArgBox{T})::P where {T}
     # TODO: What to do if T is not a leaftype (compare case 3 for RefValue)
     return pointer_from_objref(b)
 end
@@ -27,7 +27,7 @@ end
     arg_refs = Vector{Symbol}(undef, length(args))
     for i in 1:length(args)
         arg_refs[i] = gensym()
-        push!(ex.args, :($(arg_refs[i]) = $Arg(args[$i])))
+        push!(ex.args, :($(arg_refs[i]) = $ArgBox(args[$i])))
     end
 
     # generate an array with pointers
