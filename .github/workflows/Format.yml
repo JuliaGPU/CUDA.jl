@@ -22,6 +22,11 @@ jobs:
           repository: ${{github.event.pull_request.head.repo.full_name}}
           fetch-depth: 0
 
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/${{ github.repository }}
+          git fetch upstream
+
       - name: Setup Julia
         uses: julia-actions/setup-julia@v2
         with:
@@ -40,7 +45,7 @@ jobs:
         id: runic
         run: |
           set +e
-          MERGE_BASE=$(git merge-base origin/${{ github.base_ref }} HEAD) || exit 2
+          MERGE_BASE=$(git merge-base upstream/${{ github.base_ref }} HEAD) || exit 1
           DIFF=$(git runic --diff $MERGE_BASE)
           EXIT_CODE=$?
 
