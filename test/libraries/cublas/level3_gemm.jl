@@ -1,4 +1,3 @@
-
 using CUDA.CUBLAS
 using CUDA.CUBLAS: band, bandex
 
@@ -126,6 +125,7 @@ k = 13
             d_C1 = CuArray(C1)
             d_C2 = CuArray(C2)
             @test_throws DimensionMismatch CUBLAS.xt_gemm!('N','N',alpha,d_A,d_Bbad,beta,d_C1)
+            synchronize()
             CUBLAS.xt_gemm!('N','N',alpha,d_A,d_B,beta,d_C1)
             mul!(d_C2, d_A, d_B)
             h_C1 = Array(d_C1)
@@ -158,6 +158,7 @@ k = 13
             B = rand(elty,k,n)
             d_A = CuArray(A)
             d_B = CuArray(B)
+            synchronize()
             d_C = CUBLAS.xt_gemm('N','N',d_A,d_B)
             C  = A*B
             C2 = d_A * d_B

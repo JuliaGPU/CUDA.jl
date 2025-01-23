@@ -23,6 +23,7 @@ k = 13
             B = rand(elty,m,n)
             C = alpha*(A\B)
             h_C = copy(B)
+            synchronize()
             CUBLAS.xt_trsm!('L','U','N','N',alpha,copy(A),h_C)
             @test C ≈ h_C
         end
@@ -33,6 +34,7 @@ k = 13
             dA = CuArray(A)
             dB = CuArray(B)
             C  = alpha*(A\B)
+            synchronize()
             dC = CUBLAS.xt_trsm('L','U','N','N',alpha,dA,dB)
             # move to host and compare
             @test dC isa CuArray
@@ -44,6 +46,7 @@ k = 13
             A = triu(rand(elty, m, m))
             B = rand(elty,m,n)
             C  = alpha*(A\B)
+            synchronize()
             h_C = CUBLAS.xt_trsm('L','U','N','N',alpha,copy(A),copy(B))
             @test h_C isa Array
             @test C ≈ h_C
