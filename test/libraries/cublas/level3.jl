@@ -17,40 +17,6 @@ k = 13
 
 @testset "level 3" begin
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
-        @testset "xt_trsm! cpu" begin
-            alpha = rand(elty)
-            A = triu(rand(elty, m, m))
-            B = rand(elty,m,n)
-            C = alpha*(A\B)
-            h_C = copy(B)
-            synchronize()
-            CUBLAS.xt_trsm!('L','U','N','N',alpha,copy(A),h_C)
-            @test C ≈ h_C
-        end
-        @testset "xt_trsm gpu" begin
-            alpha = rand(elty)
-            A = triu(rand(elty, m, m))
-            B = rand(elty,m,n)
-            dA = CuArray(A)
-            dB = CuArray(B)
-            C  = alpha*(A\B)
-            synchronize()
-            dC = CUBLAS.xt_trsm('L','U','N','N',alpha,dA,dB)
-            # move to host and compare
-            @test dC isa CuArray
-            h_C = Array(dC)
-            @test C ≈ h_C
-        end
-        @testset "xt_trsm cpu" begin
-            alpha = rand(elty)
-            A = triu(rand(elty, m, m))
-            B = rand(elty,m,n)
-            C  = alpha*(A\B)
-            synchronize()
-            h_C = CUBLAS.xt_trsm('L','U','N','N',alpha,copy(A),copy(B))
-            @test h_C isa Array
-            @test C ≈ h_C
-        end
         @testset "trsm" begin
             # compute
             @testset "adjtype=$adjtype, uplotype=$uplotype" for
@@ -332,67 +298,6 @@ k = 13
             d_badC = CuArray(badC)
             @test_throws DimensionMismatch CUBLAS.syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_badC)
         end
-        @testset "xt_syrkx! gpu" begin
-            alpha = rand(elty)
-            beta = rand(elty)
-            # generate matrices
-            syrkx_A = rand(elty, n, k)
-            syrkx_B = rand(elty, n, k)
-            syrkx_C = rand(elty, n, n)
-            syrkx_C += syrkx_C'
-            d_syrkx_A = CuArray(syrkx_A)
-            d_syrkx_B = CuArray(syrkx_B)
-            d_syrkx_C = CuArray(syrkx_C)
-            # C = (alpha*A)*transpose(B) + beta*C
-            synchronize()
-            d_syrkx_C = CUBLAS.xt_syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_syrkx_C)
-            final_C = (alpha*syrkx_A)*transpose(syrkx_B) + beta*syrkx_C
-            # move to host and compare
-            h_C = Array(d_syrkx_C)
-            @test triu(final_C) ≈ triu(h_C)
-            badC = rand(elty, m, n)
-            d_badC = CuArray(badC)
-            @test_throws DimensionMismatch CUBLAS.xt_syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_badC)
-            badC = rand(elty, n+1, n+1)
-            d_badC = CuArray(badC)
-            @test_throws DimensionMismatch CUBLAS.xt_syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_badC)
-        end
-        @testset "xt_syrkx! cpu" begin
-            alpha = rand(elty)
-            beta = rand(elty)
-            # generate matrices
-            syrkx_A = rand(elty, n, k)
-            syrkx_B = rand(elty, n, k)
-            syrkx_C = rand(elty, n, n)
-            syrkx_C += syrkx_C'
-            final_C = (alpha*syrkx_A)*transpose(syrkx_B) + beta*syrkx_C
-            CUBLAS.xt_syrkx!('U','N',alpha,syrkx_A,syrkx_B,beta,syrkx_C)
-            # move to host and compare
-            @test triu(final_C) ≈ triu(syrkx_C)
-        end
-        @testset "xt_syrkx gpu" begin
-            # generate matrices
-            syrkx_A = rand(elty, n, k)
-            syrkx_B = rand(elty, n, k)
-            d_syrkx_A = CuArray(syrkx_A)
-            d_syrkx_B = CuArray(syrkx_B)
-            synchronize()
-            d_syrkx_C = CUBLAS.xt_syrkx('U','N',d_syrkx_A,d_syrkx_B)
-            final_C = syrkx_A*transpose(syrkx_B)
-            # move to host and compare
-            @test d_syrkx_C isa CuArray
-            h_C = Array(d_syrkx_C)
-            @test triu(final_C) ≈ triu(h_C)
-        end
-        @testset "xt_syrkx cpu" begin
-            # generate matrices
-            syrkx_A = rand(elty, n, k)
-            syrkx_B = rand(elty, n, k)
-            h_C = CUBLAS.xt_syrkx('U','N',syrkx_A,syrkx_B)
-            final_C = syrkx_A*transpose(syrkx_B)
-            @test h_C isa Array
-            @test triu(final_C) ≈ triu(h_C)
-        end
         @testset "syrk" begin
             A = rand(elty,m,k)
             d_A = CuArray(A)
@@ -402,30 +307,6 @@ k = 13
             C = triu(C)
             # move to host and compare
             h_C = Array(d_C)
-            h_C = triu(C)
-            @test C ≈ h_C
-        end
-        @testset "xt_syrk gpu" begin
-            # C = A*transpose(A)
-            A = rand(elty,m,k)
-            d_A = CuArray(A)
-            d_C = CUBLAS.xt_syrk('U','N',d_A)
-            C = A*transpose(A)
-            C = triu(C)
-            # move to host and compare
-            @test d_C isa CuArray
-            h_C = Array(d_C)
-            h_C = triu(C)
-            @test C ≈ h_C
-        end
-        @testset "xt_syrk cpu" begin
-            A = rand(elty,m,k)
-            # C = A*transpose(A)
-            h_C = CUBLAS.xt_syrk('U','N',copy(A))
-            C = A*transpose(A)
-            C = triu(C)
-            # move to host and compare
-            @test h_C isa Array
             h_C = triu(C)
             @test C ≈ h_C
         end
@@ -456,58 +337,6 @@ k = 13
                 h_C = triu(C)
                 @test C ≈ h_C
             end
-            @testset "xt_herk! gpu" begin
-                alpha = rand(elty)
-                beta = rand(elty)
-                A = rand(elty,m,m)
-                hA = A + A'
-                C = real(alpha)*(A*A') + real(beta)*copy(hA)
-                d_A = CuArray(A)
-                d_C = CuArray(hA)
-                synchronize()
-                CUBLAS.xt_herk!('U','N',real(alpha),d_A,real(beta),d_C)
-                C = triu(C)
-                # move to host and compare
-                h_C = Array(d_C)
-                h_C = triu(h_C)
-                @test C ≈ h_C
-            end
-            @testset "xt_herk! cpu" begin
-                alpha = rand(elty)
-                beta = rand(elty)
-                A = rand(elty,m,m)
-                hA = A + A'
-                h_C = copy(hA)
-                CUBLAS.xt_herk!('U','N',real(alpha),copy(A),real(beta),h_C)
-                C = real(alpha)*(A*A') + real(beta)*copy(hA)
-                C = triu(C)
-                # move to host and compare
-                h_C = triu(h_C)
-                @test C ≈ h_C
-            end
-            @testset "xt_herk gpu" begin
-                A = rand(elty,m,m)
-                d_A = CuArray(A)
-                synchronize()
-                d_C = CUBLAS.xt_herk('U','N',d_A)
-                C = A*A'
-                C = triu(C)
-                # move to host and compare
-                @test d_C isa CuArray
-                h_C = Array(d_C)
-                h_C = triu(h_C)
-                @test C ≈ h_C
-            end
-            @testset "xt_herk cpu" begin
-                A = rand(elty,m,m)
-                h_C = CUBLAS.xt_herk('U','N',copy(A))
-                C = A*A'
-                C = triu(C)
-                # move to host and compare
-                @test h_C isa Array
-                h_C = triu(h_C)
-                @test C ≈ h_C
-            end
         end
         @testset "syr2k!" begin
             alpha = rand(elty)
@@ -532,7 +361,6 @@ k = 13
             @test C ≈ h_C
             @test_throws DimensionMismatch CUBLAS.syr2k!('U','N',alpha,d_A,d_Bbad,beta,d_C)
         end
-
         @testset "syr2k" begin
             alpha = rand(elty)
             A = rand(elty,m,k)
@@ -573,92 +401,6 @@ k = 13
                 h_C = triu(h_C)
                 @test C ≈ h_C
                 @test_throws DimensionMismatch CUBLAS.her2k!('U','N',α,d_A,d_Bbad,β,d_C)
-            end
-
-            @testset "her2k" begin
-                A = rand(elty,m,k)
-                B = rand(elty,m,k)
-                d_A = CuArray(A)
-                d_B = CuArray(B)
-                C = A*B' + B*A'
-                d_C = CUBLAS.her2k('U','N',d_A,d_B)
-                # move back to host and compare
-                C = triu(C)
-                h_C = Array(d_C)
-                h_C = triu(h_C)
-                @test C ≈ h_C
-            end
-            @testset "xt_her2k! gpu" begin
-                elty1 = elty
-                elty2 = real(elty)
-                # generate parameters
-                α = rand(elty1)
-                β = rand(elty2)
-                A = rand(elty,m,k)
-                B = rand(elty,m,k)
-                d_A = CuArray(A)
-                d_B = CuArray(B)
-                C = rand(elty,m,m)
-                C = C + C'
-                d_C = CuArray(C)
-                C = α*(A*B') + conj(α)*(B*A') + β*C
-                synchronize()
-                CUBLAS.xt_her2k!('U','N',α,d_A,d_B,β,d_C)
-                # move back to host and compare
-                C = triu(C)
-                h_C = Array(d_C)
-                h_C = triu(h_C)
-                @test C ≈ h_C
-            end
-            @testset "xt_her2k! cpu" begin
-                elty1 = elty
-                elty2 = real(elty)
-                # generate parameters
-                α = rand(elty1)
-                β = rand(elty2)
-                A = rand(elty,m,k)
-                B = rand(elty,m,k)
-                C = rand(elty,m,m)
-                C = C + C'
-                h_C = copy(C)
-                C = α*(A*B') + conj(α)*(B*A') + β*C
-                CUBLAS.xt_her2k!('U','N',α,A,B,β,h_C)
-                # move back to host and compare
-                C = triu(C)
-                h_C = triu(h_C)
-                @test C ≈ h_C
-            end
-            @testset "xt_her2k gpu" begin
-                # generate parameters
-                A = rand(elty,m,k)
-                B = rand(elty,m,k)
-                d_A = CuArray(A)
-                d_B = CuArray(B)
-                C = rand(elty,m,m)
-                C = C + C'
-                C = (A*B') + (B*A')
-                synchronize()
-                d_C = CUBLAS.xt_her2k('U','N',d_A,d_B)
-                # move back to host and compare
-                C = triu(C)
-                @test d_C isa CuArray
-                h_C = Array(d_C)
-                h_C = triu(h_C)
-                @test C ≈ h_C
-            end
-            @testset "xt_her2k cpu" begin
-                A = rand(elty,m,k)
-                B = rand(elty,m,k)
-                C = rand(elty,m,m)
-                # generate parameters
-                C = C + C'
-                C = (A*B') + (B*A')
-                h_C = CUBLAS.xt_her2k('U','N',A,B)
-                # move back to host and compare
-                @test h_C isa Array
-                C = triu(C)
-                h_C = triu(h_C)
-                @test C ≈ h_C
             end
             @testset "her2k" begin
                 A = rand(elty,m,k)
