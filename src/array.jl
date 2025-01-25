@@ -823,6 +823,8 @@ the first `n` elements will be retained. If `n` is larger, the new elements are 
 guaranteed to be initialized.
 """
 function Base.resize!(A::CuVector{T}, n::Integer) where T
+  n == length(A) && return A
+
   # TODO: add additional space to allow for quicker resizing
   maxsize = n * sizeof(T)
   bufsize = if isbitstype(T)
