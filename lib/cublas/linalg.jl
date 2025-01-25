@@ -203,17 +203,17 @@ LinearAlgebra.generic_trimatdiv!(C::StridedCuVector{T}, uploc, isunitc, tfun::Fu
     trsv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, A, C === B ? C : copyto!(C, B))
 
 # work around upstream breakage from JuliaLang/julia#55547
-@static if VERSION == v"1.11.2"
-const CuUpperOrUnitUpperTriangular = LinearAlgebra.UpperOrUnitUpperTriangular{
-    <:Any,<:Union{<:CuArray, Adjoint{<:Any, <:CuArray}, Transpose{<:Any, <:CuArray}}}
-const CuLowerOrUnitLowerTriangular = LinearAlgebra.LowerOrUnitLowerTriangular{
-    <:Any,<:Union{<:CuArray, Adjoint{<:Any, <:CuArray}, Transpose{<:Any, <:CuArray}}}
-
-LinearAlgebra.istriu(::CuUpperOrUnitUpperTriangular) = true
-LinearAlgebra.istril(::CuUpperOrUnitUpperTriangular) = false
-LinearAlgebra.istriu(::CuLowerOrUnitLowerTriangular) = false
-LinearAlgebra.istril(::CuLowerOrUnitLowerTriangular) = true
+@static if VERSION >= v"1.11.2"
+    const CuUpperOrUnitUpperTriangular = LinearAlgebra.UpperOrUnitUpperTriangular{
+        <:Any,<:Union{<:CuArray, Adjoint{<:Any, <:CuArray}, Transpose{<:Any, <:CuArray}}}
+    const CuLowerOrUnitLowerTriangular = LinearAlgebra.LowerOrUnitLowerTriangular{
+        <:Any,<:Union{<:CuArray, Adjoint{<:Any, <:CuArray}, Transpose{<:Any, <:CuArray}}}
+    LinearAlgebra.istriu(::CuUpperOrUnitUpperTriangular) = true
+    LinearAlgebra.istril(::CuUpperOrUnitUpperTriangular) = false
+    LinearAlgebra.istriu(::CuLowerOrUnitLowerTriangular) = false
+    LinearAlgebra.istril(::CuLowerOrUnitLowerTriangular) = true
 end
+
 
 
 #

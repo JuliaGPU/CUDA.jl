@@ -185,7 +185,9 @@ end
 
 ## allocations
 
-@test @allocated(current_context()) == 0
-@test @allocated(context()) == 0
-@test @allocated(stream()) == 0
-@test @allocated(device()) == 0
+let broken = VERSION == v"1.11.3" && Base.JLOptions().code_coverage != 0
+    @test @allocated(current_context()) == 0 broken=broken
+    @test @allocated(context()) == 0 broken=broken
+    @test @allocated(stream()) == 0 broken=broken
+    @test @allocated(device()) == 0 broken=broken
+end
