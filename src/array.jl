@@ -841,8 +841,7 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
     ptr = convert(CuPtr{T}, mem)
     m = min(length(A), n)
     if m > 0
-      synchronize(A)
-      unsafe_copyto!(ptr, pointer(A), m)
+      GC.@preserve A unsafe_copyto!(ptr, pointer(A), m)
     end
     DataRef(pool_free, mem)
   end
