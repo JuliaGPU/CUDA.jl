@@ -780,7 +780,7 @@ function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
   context!(context(A)) do
-    memset(convert(CuPtr{U}, pointer(A)), y, length(A))
+    GC.@preserve A memset(convert(CuPtr{U}, pointer(A)), y, length(A))
   end
   A
 end
@@ -823,6 +823,8 @@ the first `n` elements will be retained. If `n` is larger, the new elements are 
 guaranteed to be initialized.
 """
 function Base.resize!(A::CuVector{T}, n::Integer) where T
+  n == length(A) && return A
+
   # TODO: add additional space to allow for quicker resizing
   maxsize = n * sizeof(T)
   bufsize = if isbitstype(T)
@@ -839,8 +841,7 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
     ptr = convert(CuPtr{T}, mem)
     m = min(length(A), n)
     if m > 0
-      synchronize(A)
-      unsafe_copyto!(ptr, pointer(A), m)
+      GC.@preserve A unsafe_copyto!(ptr, pointer(A), m)
     end
     DataRef(pool_free, mem)
   end
