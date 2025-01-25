@@ -780,7 +780,7 @@ function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
   context!(context(A)) do
-    memset(convert(CuPtr{U}, pointer(A)), y, length(A))
+    GC.@preserve A memset(convert(CuPtr{U}, pointer(A)), y, length(A))
   end
   A
 end
