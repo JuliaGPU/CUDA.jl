@@ -48,7 +48,7 @@ end
     @gputhrow "InexactError" "Inexact conversion"
 
 # abstractarray.jl
-@noinline throw_boundserror() =
+@inline throw_boundserror() =
     @gputhrow "BoundsError" "Out-of-bounds array access"
 @device_override @inline Base.throw_boundserror(A, I) = throw_boundserror()
 
