@@ -3,35 +3,7 @@ library_name = "libnvml()"
 output_file_path = "../../lib/nvml/libnvml.jl"
 prologue_file_path = "./libnvml_prologue.jl"
 
-output_ignorelist = [
-    # we can't handle NVML_STRUCT_VERSION
-    "^nvmlMemory_v2$",
-    "^nvmlGpuInstanceProfileInfo_v2$",
-    "^nvmlComputeInstanceProfileInfo_v2$",
-    "^nvmlPowerValue_v2$",
-    "^nvmlProcessDetailList_v1$",
-    "^nvmlC2cModeInfo_v1$",
-    "^nvmlGpuInstanceProfileInfo_v3$",
-    "^nvmlComputeInstanceProfileInfo_v3$",
-    "nvmlPciInfoExt_v1",
-    "nvmlVgpuHeterogeneousMode_v1",
-    "nvmlVgpuPlacementId_v1",
-    "nvmlVgpuPlacementList_v1",
-    "nvmlVgpuInstancesUtilizationInfo_v1",
-    "nvmlVgpuProcessesUtilizationInfo_v1",
-    "nvmlProcessesUtilizationInfo_v1",
-    "nvmlEccSramErrorStatus_v1",
-    "nvmlSystemConfComputeSettings_v1",
-    "nvmlConfComputeSetKeyRotationThresholdInfo_v1",
-    "nvmlConfComputeGetKeyRotationThresholdInfo_v1",
-    "nvmlGpuFabricInfo_v2",
-    "NVML_DEVICE_PCI_BUS_ID_LEGACY_FMT",
-    "NVML_DEVICE_PCI_BUS_ID_FMT",
-    "nvmlClockOffset_v1",
-    "nvmlDeviceCapabilities_v1",
-    "nvmlVgpuTypeBar1Info_v1",
-    "nvmlSystemDriverBranchInfo_v1",
-]
+output_ignorelist = []
 
 
 [codegen]
@@ -42,7 +14,7 @@ always_NUL_terminated_string = true
 [api]
 checked_rettypes = [ "nvmlReturn_t" ]
 
-[api.nvmlInit_v2]
+[api.nvmlInit]
 needs_context = false
 
 [api.nvmlInitWithFlags]
