@@ -55,7 +55,6 @@ end
 
 # core library
 include("libnvml.jl")
-include("libnvml_deprecated.jl")
 
 # wrappers
 include("error.jl")

@@ -32,336 +32,11 @@ end
     return
 end
 
-@cenum nvmlReturn_enum::UInt32 begin
-    NVML_SUCCESS = 0
-    NVML_ERROR_UNINITIALIZED = 1
-    NVML_ERROR_INVALID_ARGUMENT = 2
-    NVML_ERROR_NOT_SUPPORTED = 3
-    NVML_ERROR_NO_PERMISSION = 4
-    NVML_ERROR_ALREADY_INITIALIZED = 5
-    NVML_ERROR_NOT_FOUND = 6
-    NVML_ERROR_INSUFFICIENT_SIZE = 7
-    NVML_ERROR_INSUFFICIENT_POWER = 8
-    NVML_ERROR_DRIVER_NOT_LOADED = 9
-    NVML_ERROR_TIMEOUT = 10
-    NVML_ERROR_IRQ_ISSUE = 11
-    NVML_ERROR_LIBRARY_NOT_FOUND = 12
-    NVML_ERROR_FUNCTION_NOT_FOUND = 13
-    NVML_ERROR_CORRUPTED_INFOROM = 14
-    NVML_ERROR_GPU_IS_LOST = 15
-    NVML_ERROR_RESET_REQUIRED = 16
-    NVML_ERROR_OPERATING_SYSTEM = 17
-    NVML_ERROR_LIB_RM_VERSION_MISMATCH = 18
-    NVML_ERROR_IN_USE = 19
-    NVML_ERROR_MEMORY = 20
-    NVML_ERROR_NO_DATA = 21
-    NVML_ERROR_VGPU_ECC_NOT_SUPPORTED = 22
-    NVML_ERROR_INSUFFICIENT_RESOURCES = 23
-    NVML_ERROR_FREQ_NOT_SUPPORTED = 24
-    NVML_ERROR_ARGUMENT_VERSION_MISMATCH = 25
-    NVML_ERROR_DEPRECATED = 26
-    NVML_ERROR_NOT_READY = 27
-    NVML_ERROR_GPU_NOT_FOUND = 28
-    NVML_ERROR_INVALID_STATE = 29
-    NVML_ERROR_UNKNOWN = 999
-end
-
-const nvmlReturn_t = nvmlReturn_enum
-
-@checked function nvmlInit_v2()
-    @gcsafe_ccall (libnvml()).nvmlInit_v2()::nvmlReturn_t
-end
-
-mutable struct nvmlDevice_st end
-
-const nvmlDevice_t = Ptr{nvmlDevice_st}
-
-struct nvmlPciInfo_st
-    busIdLegacy::NTuple{16,Cchar}
-    domain::Cuint
-    bus::Cuint
-    device::Cuint
-    pciDeviceId::Cuint
-    pciSubSystemId::Cuint
-    busId::NTuple{32,Cchar}
-end
-
-const nvmlPciInfo_t = nvmlPciInfo_st
-
-@checked function nvmlDeviceGetPciInfo_v3(device, pci)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetPciInfo_v3(device::nvmlDevice_t,
-                                                      pci::Ptr{nvmlPciInfo_t})::nvmlReturn_t
-end
-
-@checked function nvmlDeviceGetCount_v2(deviceCount)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetCount_v2(deviceCount::Ptr{Cuint})::nvmlReturn_t
-end
-
-@checked function nvmlDeviceGetHandleByIndex_v2(index, device)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetHandleByIndex_v2(index::Cuint,
-                                                            device::Ptr{nvmlDevice_t})::nvmlReturn_t
-end
-
-@checked function nvmlDeviceGetHandleByPciBusId_v2(pciBusId, device)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetHandleByPciBusId_v2(pciBusId::Cstring,
-                                                               device::Ptr{nvmlDevice_t})::nvmlReturn_t
-end
-
-@checked function nvmlDeviceGetNvLinkRemotePciInfo_v2(device, link, pci)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetNvLinkRemotePciInfo_v2(device::nvmlDevice_t,
-                                                                  link::Cuint,
-                                                                  pci::Ptr{nvmlPciInfo_t})::nvmlReturn_t
-end
-
-@cenum nvmlDetachGpuState_enum::UInt32 begin
-    NVML_DETACH_GPU_KEEP = 0
-    NVML_DETACH_GPU_REMOVE = 1
-end
-
-const nvmlDetachGpuState_t = nvmlDetachGpuState_enum
-
-@cenum nvmlPcieLinkState_enum::UInt32 begin
-    NVML_PCIE_LINK_KEEP = 0
-    NVML_PCIE_LINK_SHUT_DOWN = 1
-end
-
-const nvmlPcieLinkState_t = nvmlPcieLinkState_enum
-
-@checked function nvmlDeviceRemoveGpu_v2(pciInfo, gpuState, linkState)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceRemoveGpu_v2(pciInfo::Ptr{nvmlPciInfo_t},
-                                                     gpuState::nvmlDetachGpuState_t,
-                                                     linkState::nvmlPcieLinkState_t)::nvmlReturn_t
-end
-
-@cenum nvmlGridLicenseFeatureCode_t::UInt32 begin
-    NVML_GRID_LICENSE_FEATURE_CODE_UNKNOWN = 0
-    NVML_GRID_LICENSE_FEATURE_CODE_VGPU = 1
-    NVML_GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX = 2
-    NVML_GRID_LICENSE_FEATURE_CODE_VWORKSTATION = 2
-    NVML_GRID_LICENSE_FEATURE_CODE_GAMING = 3
-    NVML_GRID_LICENSE_FEATURE_CODE_COMPUTE = 4
-end
-
-struct nvmlGridLicenseExpiry_st
-    year::Cuint
-    month::Cushort
-    day::Cushort
-    hour::Cushort
-    min::Cushort
-    sec::Cushort
-    status::Cuchar
-end
-
-const nvmlGridLicenseExpiry_t = nvmlGridLicenseExpiry_st
-
-struct nvmlGridLicensableFeature_st
-    featureCode::nvmlGridLicenseFeatureCode_t
-    featureState::Cuint
-    licenseInfo::NTuple{128,Cchar}
-    productName::NTuple{128,Cchar}
-    featureEnabled::Cuint
-    licenseExpiry::nvmlGridLicenseExpiry_t
-end
-
-const nvmlGridLicensableFeature_t = nvmlGridLicensableFeature_st
-
-struct nvmlGridLicensableFeatures_st
-    isGridLicenseSupported::Cint
-    licensableFeaturesCount::Cuint
-    gridLicensableFeatures::NTuple{3,nvmlGridLicensableFeature_t}
-end
-
-const nvmlGridLicensableFeatures_t = nvmlGridLicensableFeatures_st
-
-@checked function nvmlDeviceGetGridLicensableFeatures_v4(device, pGridLicensableFeatures)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetGridLicensableFeatures_v4(device::nvmlDevice_t,
-                                                                     pGridLicensableFeatures::Ptr{nvmlGridLicensableFeatures_t})::nvmlReturn_t
-end
-
-mutable struct nvmlEventSet_st end
-
-const nvmlEventSet_t = Ptr{nvmlEventSet_st}
-
-struct nvmlEventData_st
-    device::nvmlDevice_t
-    eventType::Culonglong
-    eventData::Culonglong
-    gpuInstanceId::Cuint
-    computeInstanceId::Cuint
-end
-
-const nvmlEventData_t = nvmlEventData_st
-
-@checked function nvmlEventSetWait_v2(set, data, timeoutms)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlEventSetWait_v2(set::nvmlEventSet_t,
-                                                  data::Ptr{nvmlEventData_t},
-                                                  timeoutms::Cuint)::nvmlReturn_t
-end
-
-struct nvmlDeviceAttributes_st
-    multiprocessorCount::Cuint
-    sharedCopyEngineCount::Cuint
-    sharedDecoderCount::Cuint
-    sharedEncoderCount::Cuint
-    sharedJpegCount::Cuint
-    sharedOfaCount::Cuint
-    gpuInstanceSliceCount::Cuint
-    computeInstanceSliceCount::Cuint
-    memorySizeMB::Culonglong
-end
-
-const nvmlDeviceAttributes_t = nvmlDeviceAttributes_st
-
-@checked function nvmlDeviceGetAttributes_v2(device, attributes)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetAttributes_v2(device::nvmlDevice_t,
-                                                         attributes::Ptr{nvmlDeviceAttributes_t})::nvmlReturn_t
-end
-
-mutable struct nvmlComputeInstance_st end
-
-const nvmlComputeInstance_t = Ptr{nvmlComputeInstance_st}
-
-mutable struct nvmlGpuInstance_st end
-
-const nvmlGpuInstance_t = Ptr{nvmlGpuInstance_st}
-
-struct nvmlComputeInstancePlacement_st
-    start::Cuint
-    size::Cuint
-end
-
-const nvmlComputeInstancePlacement_t = nvmlComputeInstancePlacement_st
-
-struct nvmlComputeInstanceInfo_st
-    device::nvmlDevice_t
-    gpuInstance::nvmlGpuInstance_t
-    id::Cuint
-    profileId::Cuint
-    placement::nvmlComputeInstancePlacement_t
-end
-
-const nvmlComputeInstanceInfo_t = nvmlComputeInstanceInfo_st
-
-@checked function nvmlComputeInstanceGetInfo_v2(computeInstance, info)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlComputeInstanceGetInfo_v2(computeInstance::nvmlComputeInstance_t,
-                                                            info::Ptr{nvmlComputeInstanceInfo_t})::nvmlReturn_t
-end
-
-struct nvmlProcessInfo_v2_st
-    pid::Cuint
-    usedGpuMemory::Culonglong
-    gpuInstanceId::Cuint
-    computeInstanceId::Cuint
-end
-
-const nvmlProcessInfo_t = nvmlProcessInfo_v2_st
-
-@checked function nvmlDeviceGetComputeRunningProcesses_v3(device, infoCount, infos)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetComputeRunningProcesses_v3(device::nvmlDevice_t,
-                                                                      infoCount::Ptr{Cuint},
-                                                                      infos::Ptr{nvmlProcessInfo_t})::nvmlReturn_t
-end
-
-@checked function nvmlDeviceGetGraphicsRunningProcesses_v3(device, infoCount, infos)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetGraphicsRunningProcesses_v3(device::nvmlDevice_t,
-                                                                       infoCount::Ptr{Cuint},
-                                                                       infos::Ptr{nvmlProcessInfo_t})::nvmlReturn_t
-end
-
-@checked function nvmlDeviceGetMPSComputeRunningProcesses_v3(device, infoCount, infos)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetMPSComputeRunningProcesses_v3(device::nvmlDevice_t,
-                                                                         infoCount::Ptr{Cuint},
-                                                                         infos::Ptr{nvmlProcessInfo_t})::nvmlReturn_t
-end
-
-struct nvmlExcludedDeviceInfo_st
-    pciInfo::nvmlPciInfo_t
-    uuid::NTuple{80,Cchar}
-end
-
-const nvmlExcludedDeviceInfo_t = nvmlExcludedDeviceInfo_st
-
-@checked function nvmlGetExcludedDeviceCount(deviceCount)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlGetExcludedDeviceCount(deviceCount::Ptr{Cuint})::nvmlReturn_t
-end
-
-@checked function nvmlGetExcludedDeviceInfoByIndex(index, info)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlGetExcludedDeviceInfoByIndex(index::Cuint,
-                                                               info::Ptr{nvmlExcludedDeviceInfo_t})::nvmlReturn_t
-end
-
-struct nvmlGpuInstancePlacement_st
-    start::Cuint
-    size::Cuint
-end
-
-const nvmlGpuInstancePlacement_t = nvmlGpuInstancePlacement_st
-
-@checked function nvmlDeviceGetGpuInstancePossiblePlacements_v2(device, profileId,
-                                                                placements, count)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetGpuInstancePossiblePlacements_v2(device::nvmlDevice_t,
-                                                                            profileId::Cuint,
-                                                                            placements::Ptr{nvmlGpuInstancePlacement_t},
-                                                                            count::Ptr{Cuint})::nvmlReturn_t
-end
-
-const nvmlVgpuInstance_t = Cuint
-
-struct nvmlVgpuLicenseExpiry_st
-    year::Cuint
-    month::Cushort
-    day::Cushort
-    hour::Cushort
-    min::Cushort
-    sec::Cushort
-    status::Cuchar
-end
-
-const nvmlVgpuLicenseExpiry_t = nvmlVgpuLicenseExpiry_st
-
-struct nvmlVgpuLicenseInfo_st
-    isLicensed::Cuchar
-    licenseExpiry::nvmlVgpuLicenseExpiry_t
-    currentState::Cuint
-end
-
-const nvmlVgpuLicenseInfo_t = nvmlVgpuLicenseInfo_st
-
-@checked function nvmlVgpuInstanceGetLicenseInfo_v2(vgpuInstance, licenseInfo)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlVgpuInstanceGetLicenseInfo_v2(vgpuInstance::nvmlVgpuInstance_t,
-                                                                licenseInfo::Ptr{nvmlVgpuLicenseInfo_t})::nvmlReturn_t
-end
-
-@cenum nvmlDriverModel_enum::UInt32 begin
-    NVML_DRIVER_WDDM = 0
-    NVML_DRIVER_WDM = 1
-    NVML_DRIVER_MCDM = 2
-end
-
-const nvmlDriverModel_t = nvmlDriverModel_enum
-
-@checked function nvmlDeviceGetDriverModel_v2(device, current, pending)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetDriverModel_v2(device::nvmlDevice_t,
-                                                          current::Ptr{nvmlDriverModel_t},
-                                                          pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
+macro NVML_STRUCT_VERSION(typename, version)
+    struct_typename = Symbol("nvml$(String(typename))_v$(version)_t")
+    struct_type = getfield(__module__, struct_typename)
+    struct_version = UInt32(sizeof(struct_type)) | (UInt32(version) << 24)
+    return :($struct_version)
 end
 
 @cenum nvmlMemoryErrorType_enum::UInt32 begin
@@ -371,6 +46,10 @@ end
 end
 
 const nvmlMemoryErrorType_t = nvmlMemoryErrorType_enum
+
+mutable struct nvmlDevice_st end
+
+const nvmlDevice_t = Ptr{nvmlDevice_st}
 
 struct nvmlPciInfoExt_v1_t
     version::Cuint
@@ -385,6 +64,18 @@ struct nvmlPciInfoExt_v1_t
 end
 
 const nvmlPciInfoExt_t = nvmlPciInfoExt_v1_t
+
+struct nvmlPciInfo_st
+    busIdLegacy::NTuple{16,Cchar}
+    domain::Cuint
+    bus::Cuint
+    device::Cuint
+    pciDeviceId::Cuint
+    pciSubSystemId::Cuint
+    busId::NTuple{32,Cchar}
+end
+
+const nvmlPciInfo_t = nvmlPciInfo_st
 
 struct nvmlEccErrorCounts_st
     l1Cache::Culonglong
@@ -435,7 +126,16 @@ end
 
 const nvmlProcessInfo_v1_t = nvmlProcessInfo_v1_st
 
+struct nvmlProcessInfo_v2_st
+    pid::Cuint
+    usedGpuMemory::Culonglong
+    gpuInstanceId::Cuint
+    computeInstanceId::Cuint
+end
+
 const nvmlProcessInfo_v2_t = nvmlProcessInfo_v2_st
+
+const nvmlProcessInfo_t = nvmlProcessInfo_v2_st
 
 struct nvmlProcessDetail_v1_t
     pid::Cuint
@@ -453,6 +153,20 @@ struct nvmlProcessDetailList_v1_t
 end
 
 const nvmlProcessDetailList_t = nvmlProcessDetailList_v1_t
+
+struct nvmlDeviceAttributes_st
+    multiprocessorCount::Cuint
+    sharedCopyEngineCount::Cuint
+    sharedDecoderCount::Cuint
+    sharedEncoderCount::Cuint
+    sharedJpegCount::Cuint
+    sharedOfaCount::Cuint
+    gpuInstanceSliceCount::Cuint
+    computeInstanceSliceCount::Cuint
+    memorySizeMB::Culonglong
+end
+
+const nvmlDeviceAttributes_t = nvmlDeviceAttributes_st
 
 struct nvmlC2cModeInfo_v1_t
     isC2cEnabled::Cuint
@@ -716,31 +430,12 @@ end
     NVML_THERMAL_CONTROLLER_UNKNOWN = -1
 end
 
-struct var"##Ctag#345"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:697:5)"
     controller::nvmlThermalController_t
     defaultMinTemp::Cint
     defaultMaxTemp::Cint
     currentTemp::Cint
     target::nvmlThermalTarget_t
-end
-function Base.getproperty(x::Ptr{var"##Ctag#345"}, f::Symbol)
-    f === :controller && return Ptr{nvmlThermalController_t}(x + 0)
-    f === :defaultMinTemp && return Ptr{Cint}(x + 4)
-    f === :defaultMaxTemp && return Ptr{Cint}(x + 8)
-    f === :currentTemp && return Ptr{Cint}(x + 12)
-    f === :target && return Ptr{nvmlThermalTarget_t}(x + 16)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#345", f::Symbol)
-    r = Ref{var"##Ctag#345"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#345"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#345"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct nvmlGpuThermalSettings_t
@@ -749,7 +444,9 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol)
     f === :count && return Ptr{Cuint}(x + 0)
-    f === :sensor && return Ptr{NTuple{3,var"##Ctag#345"}}(x + 4)
+    f === :sensor && return Ptr{NTuple{3,
+                                       var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:697:5)"}}(x +
+                                                                                                                                                                4)
     return getfield(x, f)
 end
 
@@ -764,12 +461,47 @@ function Base.setproperty!(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
+@cenum nvmlCoolerControl_enum::UInt32 begin
+    NVML_THERMAL_COOLER_SIGNAL_NONE = 0
+    NVML_THERMAL_COOLER_SIGNAL_TOGGLE = 1
+    NVML_THERMAL_COOLER_SIGNAL_VARIABLE = 2
+    NVML_THERMAL_COOLER_SIGNAL_COUNT = 3
+end
+
+const nvmlCoolerControl_t = nvmlCoolerControl_enum
+
+@cenum nvmlCoolerTarget_enum::UInt32 begin
+    NVML_THERMAL_COOLER_TARGET_NONE = 1
+    NVML_THERMAL_COOLER_TARGET_GPU = 2
+    NVML_THERMAL_COOLER_TARGET_MEMORY = 4
+    NVML_THERMAL_COOLER_TARGET_POWER_SUPPLY = 8
+    NVML_THERMAL_COOLER_TARGET_GPU_RELATED = 14
+end
+
+const nvmlCoolerTarget_t = nvmlCoolerTarget_enum
+
+struct nvmlCoolerInfo_v1_t
+    version::Cuint
+    index::Cuint
+    signalType::nvmlCoolerControl_t
+    target::nvmlCoolerTarget_t
+end
+
+const nvmlCoolerInfo_t = nvmlCoolerInfo_v1_t
+
 @cenum nvmlEnableState_enum::UInt32 begin
     NVML_FEATURE_DISABLED = 0
     NVML_FEATURE_ENABLED = 1
 end
 
 const nvmlEnableState_t = nvmlEnableState_enum
+
+struct nvmlDramEncryptionInfo_v1_t
+    version::Cuint
+    encryptionState::nvmlEnableState_t
+end
+
+const nvmlDramEncryptionInfo_t = nvmlDramEncryptionInfo_v1_t
 
 @cenum nvmlBrandType_enum::UInt32 begin
     NVML_BRAND_UNKNOWN = 0
@@ -816,6 +548,13 @@ end
 
 const nvmlTemperatureSensors_t = nvmlTemperatureSensors_enum
 
+struct nvmlMarginTemperature_v1_t
+    version::Cuint
+    marginTemperature::Cint
+end
+
+const nvmlMarginTemperature_t = nvmlMarginTemperature_v1_t
+
 @cenum nvmlComputeMode_enum::UInt32 begin
     NVML_COMPUTEMODE_DEFAULT = 0
     NVML_COMPUTEMODE_EXCLUSIVE_THREAD = 1
@@ -840,6 +579,19 @@ struct nvmlClkMonStatus_status
 end
 
 const nvmlClkMonStatus_t = nvmlClkMonStatus_status
+
+@cenum nvmlNvlinkVersion_enum::UInt32 begin
+    NVML_NVLINK_VERSION_INVALID = 0
+    NVML_NVLINK_VERSION_1_0 = 1
+    NVML_NVLINK_VERSION_2_0 = 2
+    NVML_NVLINK_VERSION_2_2 = 3
+    NVML_NVLINK_VERSION_3_0 = 4
+    NVML_NVLINK_VERSION_3_1 = 5
+    NVML_NVLINK_VERSION_4_0 = 6
+    NVML_NVLINK_VERSION_5_0 = 7
+end
+
+const nvmlNvlinkVersion_t = nvmlNvlinkVersion_enum
 
 @cenum nvmlEccCounterType_enum::UInt32 begin
     NVML_VOLATILE_ECC = 0
@@ -868,6 +620,14 @@ const nvmlClockType_t = nvmlClockType_enum
 end
 
 const nvmlClockId_t = nvmlClockId_enum
+
+@cenum nvmlDriverModel_enum::UInt32 begin
+    NVML_DRIVER_WDDM = 0
+    NVML_DRIVER_WDM = 1
+    NVML_DRIVER_MCDM = 2
+end
+
+const nvmlDriverModel_t = nvmlDriverModel_enum
 
 @cenum nvmlPStates_enum::UInt32 begin
     NVML_PSTATE_0 = 0
@@ -902,6 +662,28 @@ end
 
 const nvmlClockOffset_t = nvmlClockOffset_v1_t
 
+struct nvmlFanSpeedInfo_v1_t
+    version::Cuint
+    fan::Cuint
+    speed::Cuint
+end
+
+const nvmlFanSpeedInfo_t = nvmlFanSpeedInfo_v1_t
+
+struct nvmlDevicePerfModes_v1_t
+    version::Cuint
+    str::NTuple{2048,Cchar}
+end
+
+const nvmlDevicePerfModes_t = nvmlDevicePerfModes_v1_t
+
+struct nvmlDeviceCurrentClockFreqs_v1_t
+    version::Cuint
+    str::NTuple{2048,Cchar}
+end
+
+const nvmlDeviceCurrentClockFreqs_t = nvmlDeviceCurrentClockFreqs_v1_t
+
 @cenum nvmlGom_enum::UInt32 begin
     NVML_GOM_ALL_ON = 0
     NVML_GOM_COMPUTE = 1
@@ -914,10 +696,47 @@ const nvmlGpuOperationMode_t = nvmlGom_enum
     NVML_INFOROM_OEM = 0
     NVML_INFOROM_ECC = 1
     NVML_INFOROM_POWER = 2
-    NVML_INFOROM_COUNT = 3
+    NVML_INFOROM_DEN = 3
+    NVML_INFOROM_COUNT = 4
 end
 
 const nvmlInforomObject_t = nvmlInforomObject_enum
+
+@cenum nvmlReturn_enum::UInt32 begin
+    NVML_SUCCESS = 0
+    NVML_ERROR_UNINITIALIZED = 1
+    NVML_ERROR_INVALID_ARGUMENT = 2
+    NVML_ERROR_NOT_SUPPORTED = 3
+    NVML_ERROR_NO_PERMISSION = 4
+    NVML_ERROR_ALREADY_INITIALIZED = 5
+    NVML_ERROR_NOT_FOUND = 6
+    NVML_ERROR_INSUFFICIENT_SIZE = 7
+    NVML_ERROR_INSUFFICIENT_POWER = 8
+    NVML_ERROR_DRIVER_NOT_LOADED = 9
+    NVML_ERROR_TIMEOUT = 10
+    NVML_ERROR_IRQ_ISSUE = 11
+    NVML_ERROR_LIBRARY_NOT_FOUND = 12
+    NVML_ERROR_FUNCTION_NOT_FOUND = 13
+    NVML_ERROR_CORRUPTED_INFOROM = 14
+    NVML_ERROR_GPU_IS_LOST = 15
+    NVML_ERROR_RESET_REQUIRED = 16
+    NVML_ERROR_OPERATING_SYSTEM = 17
+    NVML_ERROR_LIB_RM_VERSION_MISMATCH = 18
+    NVML_ERROR_IN_USE = 19
+    NVML_ERROR_MEMORY = 20
+    NVML_ERROR_NO_DATA = 21
+    NVML_ERROR_VGPU_ECC_NOT_SUPPORTED = 22
+    NVML_ERROR_INSUFFICIENT_RESOURCES = 23
+    NVML_ERROR_FREQ_NOT_SUPPORTED = 24
+    NVML_ERROR_ARGUMENT_VERSION_MISMATCH = 25
+    NVML_ERROR_DEPRECATED = 26
+    NVML_ERROR_NOT_READY = 27
+    NVML_ERROR_GPU_NOT_FOUND = 28
+    NVML_ERROR_INVALID_STATE = 29
+    NVML_ERROR_UNKNOWN = 999
+end
+
+const nvmlReturn_t = nvmlReturn_enum
 
 @cenum nvmlMemoryLocation_enum::UInt32 begin
     NVML_MEMORY_LOCATION_L1_CACHE = 0
@@ -999,6 +818,19 @@ end
 
 const nvmlEccSramErrorStatus_t = nvmlEccSramErrorStatus_v1_t
 
+struct nvmlPlatformInfo_v1_t
+    version::Cuint
+    ibGuid::NTuple{16,Cuchar}
+    rackGuid::NTuple{16,Cuchar}
+    chassisPhysicalSlotNumber::Cuchar
+    computeSlotIndex::Cuchar
+    nodeIndex::Cuchar
+    peerType::Cuchar
+    moduleId::Cuchar
+end
+
+const nvmlPlatformInfo_t = nvmlPlatformInfo_v1_t
+
 const nvmlDeviceArchitecture_t = Cuint
 
 const nvmlBusType_t = Cuint
@@ -1014,29 +846,11 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"##Ctag#344"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1402:5)"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
     decThreshold::Cuint
-end
-function Base.getproperty(x::Ptr{var"##Ctag#344"}, f::Symbol)
-    f === :bIsPresent && return Ptr{Cuint}(x + 0)
-    f === :percentage && return Ptr{Cuint}(x + 4)
-    f === :incThreshold && return Ptr{Cuint}(x + 8)
-    f === :decThreshold && return Ptr{Cuint}(x + 12)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#344", f::Symbol)
-    r = Ref{var"##Ctag#344"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#344"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#344"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct nvmlGpuDynamicPstatesInfo_st
@@ -1045,7 +859,9 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
-    f === :utilization && return Ptr{NTuple{8,var"##Ctag#344"}}(x + 4)
+    f === :utilization && return Ptr{NTuple{8,
+                                            var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1402:5)"}}(x +
+                                                                                                                                                                      4)
     return getfield(x, f)
 end
 
@@ -1061,6 +877,14 @@ function Base.setproperty!(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol, v)
 end
 
 const nvmlGpuDynamicPstatesInfo_t = nvmlGpuDynamicPstatesInfo_st
+
+const nvmlPowerScopeType_t = Cuchar
+
+struct nvmlPowerValue_v2_t
+    version::Cuint
+    powerScope::nvmlPowerScopeType_t
+    powerValueMw::Cuint
+end
 
 @cenum nvmlGpuVirtualizationMode::UInt32 begin
     NVML_GPU_VIRTUALIZATION_MODE_NONE = 0
@@ -1093,6 +917,15 @@ end
 
 const nvmlVgpuGuestInfoState_t = nvmlVgpuGuestInfoState_enum
 
+@cenum nvmlGridLicenseFeatureCode_t::UInt32 begin
+    NVML_GRID_LICENSE_FEATURE_CODE_UNKNOWN = 0
+    NVML_GRID_LICENSE_FEATURE_CODE_VGPU = 1
+    NVML_GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX = 2
+    NVML_GRID_LICENSE_FEATURE_CODE_VWORKSTATION = 2
+    NVML_GRID_LICENSE_FEATURE_CODE_GAMING = 3
+    NVML_GRID_LICENSE_FEATURE_CODE_COMPUTE = 4
+end
+
 @cenum nvmlVgpuCapability_enum::UInt32 begin
     NVML_VGPU_CAP_NVLINK_P2P = 0
     NVML_VGPU_CAP_GPUDIRECT = 1
@@ -1122,12 +955,15 @@ const nvmlVgpuDriverCapability_t = nvmlVgpuDriverCapability_enum
     NVML_DEVICE_VGPU_CAP_MINI_QUARTER_GPU = 6
     NVML_DEVICE_VGPU_CAP_COMPUTE_MEDIA_ENGINE_GPU = 7
     NVML_DEVICE_VGPU_CAP_WARM_UPDATE = 8
-    NVML_DEVICE_VGPU_CAP_COUNT = 9
+    NVML_DEVICE_VGPU_CAP_HOMOGENEOUS_PLACEMENTS = 9
+    NVML_DEVICE_VGPU_CAP_COUNT = 10
 end
 
 const nvmlDeviceVgpuCapability_t = nvmlDeviceVgpuCapability_enum
 
 const nvmlVgpuTypeId_t = Cuint
+
+const nvmlVgpuInstance_t = Cuint
 
 struct nvmlVgpuHeterogeneousMode_v1_t
     version::Cuint
@@ -1150,7 +986,15 @@ struct nvmlVgpuPlacementList_v1_t
     placementIds::Ptr{Cuint}
 end
 
-const nvmlVgpuPlacementList_t = nvmlVgpuPlacementList_v1_t
+struct nvmlVgpuPlacementList_v2_t
+    version::Cuint
+    placementSize::Cuint
+    count::Cuint
+    placementIds::Ptr{Cuint}
+    mode::Cuint
+end
+
+const nvmlVgpuPlacementList_t = nvmlVgpuPlacementList_v2_t
 
 struct nvmlVgpuTypeBar1Info_v1_t
     version::Cuint
@@ -1226,13 +1070,24 @@ end
 
 const nvmlVgpuProcessesUtilizationInfo_t = nvmlVgpuProcessesUtilizationInfo_v1_t
 
+struct nvmlVgpuRuntimeState_v1_t
+    version::Cuint
+    size::Culonglong
+end
+
+const nvmlVgpuRuntimeState_t = nvmlVgpuRuntimeState_v1_t
+
 struct nvmlVgpuSchedulerParams_t
     data::NTuple{8,UInt8}
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#341"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#342"}(x + 0)
+    f === :vgpuSchedDataWithARR &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1792:5)"}(x +
+                                                                                                                                            0)
+    f === :vgpuSchedData &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1798:5)"}(x +
+                                                                                                                                            0)
     return getfield(x, f)
 end
 
@@ -1282,8 +1137,12 @@ struct nvmlVgpuSchedulerSetParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#346"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#347"}(x + 0)
+    f === :vgpuSchedDataWithARR &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1846:5)"}(x +
+                                                                                                                                            0)
+    f === :vgpuSchedData &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1852:5)"}(x +
+                                                                                                                                            0)
     return getfield(x, f)
 end
 
@@ -1318,6 +1177,67 @@ struct nvmlVgpuSchedulerCapabilities_st
 end
 
 const nvmlVgpuSchedulerCapabilities_t = nvmlVgpuSchedulerCapabilities_st
+
+struct nvmlVgpuLicenseExpiry_st
+    year::Cuint
+    month::Cushort
+    day::Cushort
+    hour::Cushort
+    min::Cushort
+    sec::Cushort
+    status::Cuchar
+end
+
+const nvmlVgpuLicenseExpiry_t = nvmlVgpuLicenseExpiry_st
+
+struct nvmlVgpuLicenseInfo_st
+    isLicensed::Cuchar
+    licenseExpiry::nvmlVgpuLicenseExpiry_t
+    currentState::Cuint
+end
+
+const nvmlVgpuLicenseInfo_t = nvmlVgpuLicenseInfo_st
+
+struct nvmlGridLicenseExpiry_st
+    year::Cuint
+    month::Cushort
+    day::Cushort
+    hour::Cushort
+    min::Cushort
+    sec::Cushort
+    status::Cuchar
+end
+
+const nvmlGridLicenseExpiry_t = nvmlGridLicenseExpiry_st
+
+struct nvmlGridLicensableFeature_st
+    featureCode::nvmlGridLicenseFeatureCode_t
+    featureState::Cuint
+    licenseInfo::NTuple{128,Cchar}
+    productName::NTuple{128,Cchar}
+    featureEnabled::Cuint
+    licenseExpiry::nvmlGridLicenseExpiry_t
+end
+
+const nvmlGridLicensableFeature_t = nvmlGridLicensableFeature_st
+
+struct nvmlGridLicensableFeatures_st
+    isGridLicenseSupported::Cint
+    licensableFeaturesCount::Cuint
+    gridLicensableFeatures::NTuple{3,nvmlGridLicensableFeature_t}
+end
+
+const nvmlGridLicensableFeatures_t = nvmlGridLicensableFeatures_st
+
+@cenum nvmlDeviceGpuRecoveryAction_s::UInt32 begin
+    NVML_GPU_RECOVERY_ACTION_NONE = 0
+    NVML_GPU_RECOVERY_ACTION_GPU_RESET = 1
+    NVML_GPU_RECOVERY_ACTION_NODE_REBOOT = 2
+    NVML_GPU_RECOVERY_ACTION_DRAIN_P2P = 3
+    NVML_GPU_RECOVERY_ACTION_DRAIN_AND_RESET = 4
+end
+
+const nvmlDeviceGpuRecoveryAction_t = nvmlDeviceGpuRecoveryAction_s
 
 struct nvmlNvLinkPowerThres_st
     lowPwrThreshold::Cuint
@@ -1401,6 +1321,20 @@ end
 
 const nvmlUnitFanSpeeds_t = nvmlUnitFanSpeeds_st
 
+mutable struct nvmlEventSet_st end
+
+const nvmlEventSet_t = Ptr{nvmlEventSet_st}
+
+struct nvmlEventData_st
+    device::nvmlDevice_t
+    eventType::Culonglong
+    eventData::Culonglong
+    gpuInstanceId::Cuint
+    computeInstanceId::Cuint
+end
+
+const nvmlEventData_t = nvmlEventData_st
+
 struct nvmlAccountingStats_st
     gpuUtilization::Cuint
     memoryUtilization::Cuint
@@ -1469,6 +1403,20 @@ struct nvmlFBCSessionInfo_st
 end
 
 const nvmlFBCSessionInfo_t = nvmlFBCSessionInfo_st
+
+@cenum nvmlDetachGpuState_enum::UInt32 begin
+    NVML_DETACH_GPU_KEEP = 0
+    NVML_DETACH_GPU_REMOVE = 1
+end
+
+const nvmlDetachGpuState_t = nvmlDetachGpuState_enum
+
+@cenum nvmlPcieLinkState_enum::UInt32 begin
+    NVML_PCIE_LINK_KEEP = 0
+    NVML_PCIE_LINK_SHUT_DOWN = 1
+end
+
+const nvmlPcieLinkState_t = nvmlPcieLinkState_enum
 
 struct nvmlConfComputeSystemCaps_st
     cpuCaps::Cuint
@@ -1560,12 +1508,8 @@ end
 
 const nvmlGpuFabricInfoV_t = nvmlGpuFabricInfo_v2_t
 
-const nvmlPowerScopeType_t = Cuchar
-
-struct nvmlPowerValue_v2_t
-    version::Cuint
-    powerScope::nvmlPowerScopeType_t
-    powerValueMw::Cuint
+@checked function nvmlInit_v2()
+    @gcsafe_ccall (libnvml()).nvmlInit_v2()::nvmlReturn_t
 end
 
 @checked function nvmlInitWithFlags(flags)
@@ -1681,6 +1625,23 @@ end
                                                  devices::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetCount_v2(deviceCount)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetCount_v2(deviceCount::Ptr{Cuint})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetAttributes_v2(device, attributes)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetAttributes_v2(device::nvmlDevice_t,
+                                                         attributes::Ptr{nvmlDeviceAttributes_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetHandleByIndex_v2(index, device)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetHandleByIndex_v2(index::Cuint,
+                                                            device::Ptr{nvmlDevice_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetHandleBySerial(serial, device)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetHandleBySerial(serial::Cstring,
@@ -1691,6 +1652,12 @@ end
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetHandleByUUID(uuid::Cstring,
                                                         device::Ptr{nvmlDevice_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetHandleByPciBusId_v2(pciBusId, device)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetHandleByPciBusId_v2(pciBusId::Cstring,
+                                                               device::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetName(device, name, length)
@@ -1869,6 +1836,12 @@ end
                                                       pci::Ptr{nvmlPciInfoExt_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetPciInfo_v3(device, pci)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetPciInfo_v3(device::nvmlDevice_t,
+                                                      pci::Ptr{nvmlPciInfo_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetMaxPcieLinkGeneration(device, maxLinkGen)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetMaxPcieLinkGeneration(device::nvmlDevice_t,
@@ -1996,6 +1969,12 @@ end
                                                        speed::Ptr{Cuint})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetFanSpeedRPM(device, fanSpeed)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetFanSpeedRPM(device::nvmlDevice_t,
+                                                       fanSpeed::Ptr{nvmlFanSpeedInfo_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetTargetFanSpeed(device, fan, targetSpeed)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetTargetFanSpeed(device::nvmlDevice_t, fan::Cuint,
@@ -2029,11 +2008,37 @@ end
                                                        temp::Ptr{Cuint})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetCoolerInfo(device, coolerInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetCoolerInfo(device::nvmlDevice_t,
+                                                      coolerInfo::Ptr{nvmlCoolerInfo_t})::nvmlReturn_t
+end
+
+struct nvmlTemperature_v1_t
+    version::Cuint
+    sensorType::nvmlTemperatureSensors_t
+    temperature::Cint
+end
+
+const nvmlTemperature_t = nvmlTemperature_v1_t
+
+@checked function nvmlDeviceGetTemperatureV(device, temperature)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetTemperatureV(device::nvmlDevice_t,
+                                                        temperature::Ptr{nvmlTemperature_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetTemperatureThreshold(device, thresholdType, temp)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetTemperatureThreshold(device::nvmlDevice_t,
                                                                 thresholdType::nvmlTemperatureThresholds_t,
                                                                 temp::Ptr{Cuint})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetMarginTemperature(device, marginTempInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetMarginTemperature(device::nvmlDevice_t,
+                                                             marginTempInfo::Ptr{nvmlMarginTemperature_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetThermalSettings(device, sensorIndex, pThermalSettings)
@@ -2136,6 +2141,18 @@ end
                                                         info::Ptr{nvmlClockOffset_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetPerformanceModes(device, perfModes)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetPerformanceModes(device::nvmlDevice_t,
+                                                            perfModes::Ptr{nvmlDevicePerfModes_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetCurrentClockFreqs(device, currentClockFreqs)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetCurrentClockFreqs(device::nvmlDevice_t,
+                                                             currentClockFreqs::Ptr{nvmlDeviceCurrentClockFreqs_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetPowerManagementMode(device, mode)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetPowerManagementMode(device::nvmlDevice_t,
@@ -2209,6 +2226,19 @@ end
     @gcsafe_ccall (libnvml()).nvmlDeviceGetCudaComputeCapability(device::nvmlDevice_t,
                                                                  major::Ptr{Cint},
                                                                  minor::Ptr{Cint})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetDramEncryptionMode(device, current, pending)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetDramEncryptionMode(device::nvmlDevice_t,
+                                                              current::Ptr{nvmlDramEncryptionInfo_t},
+                                                              pending::Ptr{nvmlDramEncryptionInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetDramEncryptionMode(device, dramEncryption)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceSetDramEncryptionMode(device::nvmlDevice_t,
+                                                              dramEncryption::Ptr{nvmlDramEncryptionInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetEccMode(device, current, pending)
@@ -2332,6 +2362,13 @@ end
                                                        sessionInfo::Ptr{nvmlFBCSessionInfo_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetDriverModel_v2(device, current, pending)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetDriverModel_v2(device::nvmlDevice_t,
+                                                          current::Ptr{nvmlDriverModel_t},
+                                                          pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetVbiosVersion(device, version, length)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetVbiosVersion(device::nvmlDevice_t,
@@ -2343,6 +2380,27 @@ end
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetBridgeChipInfo(device::nvmlDevice_t,
                                                           bridgeHierarchy::Ptr{nvmlBridgeChipHierarchy_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetComputeRunningProcesses_v3(device, infoCount, infos)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetComputeRunningProcesses_v3(device::nvmlDevice_t,
+                                                                      infoCount::Ptr{Cuint},
+                                                                      infos::Ptr{nvmlProcessInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetGraphicsRunningProcesses_v3(device, infoCount, infos)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetGraphicsRunningProcesses_v3(device::nvmlDevice_t,
+                                                                       infoCount::Ptr{Cuint},
+                                                                       infos::Ptr{nvmlProcessInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetMPSComputeRunningProcesses_v3(device, infoCount, infos)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetMPSComputeRunningProcesses_v3(device::nvmlDevice_t,
+                                                                         infoCount::Ptr{Cuint},
+                                                                         infos::Ptr{nvmlProcessInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetRunningProcessDetailList(device, plist)
@@ -2449,18 +2507,6 @@ end
                                                           gpuFabricInfo::Ptr{nvmlGpuFabricInfoV_t})::nvmlReturn_t
 end
 
-@checked function nvmlDeviceSetPowerManagementLimit_v2(device, powerValue)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceSetPowerManagementLimit_v2(device::nvmlDevice_t,
-                                                                   powerValue::Ptr{nvmlPowerValue_v2_t})::nvmlReturn_t
-end
-
-@checked function nvmlDeviceGetSramEccErrorStatus(device, status)
-    initialize_context()
-    @gcsafe_ccall (libnvml()).nvmlDeviceGetSramEccErrorStatus(device::nvmlDevice_t,
-                                                              status::Ptr{nvmlEccSramErrorStatus_t})::nvmlReturn_t
-end
-
 @checked function nvmlSystemGetConfComputeCapabilities(capabilities)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlSystemGetConfComputeCapabilities(capabilities::Ptr{nvmlConfComputeSystemCaps_t})::nvmlReturn_t
@@ -2537,6 +2583,12 @@ end
     @gcsafe_ccall (libnvml()).nvmlDeviceGetGspFirmwareMode(device::nvmlDevice_t,
                                                            isEnabled::Ptr{Cuint},
                                                            defaultMode::Ptr{Cuint})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetSramEccErrorStatus(device, status)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetSramEccErrorStatus(device::nvmlDevice_t,
+                                                              status::Ptr{nvmlEccSramErrorStatus_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetAccountingMode(device, mode)
@@ -2629,6 +2681,12 @@ end
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetProcessesUtilizationInfo(device::nvmlDevice_t,
                                                                     procesesUtilInfo::Ptr{nvmlProcessesUtilizationInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetPlatformInfo(device, platformInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetPlatformInfo(device::nvmlDevice_t,
+                                                        platformInfo::Ptr{nvmlPlatformInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlUnitSetLedState(unit, color)
@@ -2793,6 +2851,36 @@ end
     @gcsafe_ccall (libnvml()).nvmlDeviceClearAccountingPids(device::nvmlDevice_t)::nvmlReturn_t
 end
 
+@checked function nvmlDeviceSetPowerManagementLimit_v2(device, powerValue)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceSetPowerManagementLimit_v2(device::nvmlDevice_t,
+                                                                   powerValue::Ptr{nvmlPowerValue_v2_t})::nvmlReturn_t
+end
+
+struct nvmlNvlinkSupportedBwModes_v1_t
+    version::Cuint
+    bwModes::NTuple{23,Cuchar}
+    totalBwModes::Cuchar
+end
+
+const nvmlNvlinkSupportedBwModes_t = nvmlNvlinkSupportedBwModes_v1_t
+
+struct nvmlNvlinkGetBwMode_v1_t
+    version::Cuint
+    bIsBest::Cuint
+    bwMode::Cuchar
+end
+
+const nvmlNvlinkGetBwMode_t = nvmlNvlinkGetBwMode_v1_t
+
+struct nvmlNvlinkSetBwMode_v1_t
+    version::Cuint
+    bSetBest::Cuint
+    bwMode::Cuchar
+end
+
+const nvmlNvlinkSetBwMode_t = nvmlNvlinkSetBwMode_v1_t
+
 @checked function nvmlDeviceGetNvLinkState(device, link, isActive)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetNvLinkState(device::nvmlDevice_t, link::Cuint,
@@ -2811,6 +2899,13 @@ end
                                                             link::Cuint,
                                                             capability::nvmlNvLinkCapability_t,
                                                             capResult::Ptr{Cuint})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetNvLinkRemotePciInfo_v2(device, link, pci)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetNvLinkRemotePciInfo_v2(device::nvmlDevice_t,
+                                                                  link::Cuint,
+                                                                  pci::Ptr{nvmlPciInfo_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetNvLinkErrorCounter(device, link, counter, counterValue)
@@ -2893,6 +2988,24 @@ end
     @gcsafe_ccall (libnvml()).nvmlSystemGetNvlinkBwMode(nvlinkBwMode::Ptr{Cuint})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetNvlinkSupportedBwModes(device, supportedBwMode)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetNvlinkSupportedBwModes(device::nvmlDevice_t,
+                                                                  supportedBwMode::Ptr{nvmlNvlinkSupportedBwModes_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetNvlinkBwMode(device, getBwMode)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetNvlinkBwMode(device::nvmlDevice_t,
+                                                        getBwMode::Ptr{nvmlNvlinkGetBwMode_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetNvlinkBwMode(device, setBwMode)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceSetNvlinkBwMode(device::nvmlDevice_t,
+                                                        setBwMode::Ptr{nvmlNvlinkSetBwMode_t})::nvmlReturn_t
+end
+
 @checked function nvmlEventSetCreate(set)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlEventSetCreate(set::Ptr{nvmlEventSet_t})::nvmlReturn_t
@@ -2911,6 +3024,13 @@ end
                                                                eventTypes::Ptr{Culonglong})::nvmlReturn_t
 end
 
+@checked function nvmlEventSetWait_v2(set, data, timeoutms)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlEventSetWait_v2(set::nvmlEventSet_t,
+                                                  data::Ptr{nvmlEventData_t},
+                                                  timeoutms::Cuint)::nvmlReturn_t
+end
+
 @checked function nvmlEventSetFree(set)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlEventSetFree(set::nvmlEventSet_t)::nvmlReturn_t
@@ -2926,6 +3046,13 @@ end
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceQueryDrainState(pciInfo::Ptr{nvmlPciInfo_t},
                                                         currentState::Ptr{nvmlEnableState_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceRemoveGpu_v2(pciInfo, gpuState, linkState)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceRemoveGpu_v2(pciInfo::Ptr{nvmlPciInfo_t},
+                                                     gpuState::nvmlDetachGpuState_t,
+                                                     linkState::nvmlPcieLinkState_t)::nvmlReturn_t
 end
 
 @checked function nvmlDeviceDiscoverGpus(pciInfo)
@@ -3011,11 +3138,23 @@ end
                                                            fbReservation::Ptr{Culonglong})::nvmlReturn_t
 end
 
+@checked function nvmlVgpuInstanceGetRuntimeStateSize(vgpuInstance, pState)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlVgpuInstanceGetRuntimeStateSize(vgpuInstance::nvmlVgpuInstance_t,
+                                                                  pState::Ptr{nvmlVgpuRuntimeState_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceSetVgpuCapabilities(device, capability, state)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceSetVgpuCapabilities(device::nvmlDevice_t,
                                                             capability::nvmlDeviceVgpuCapability_t,
                                                             state::nvmlEnableState_t)::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetGridLicensableFeatures_v4(device, pGridLicensableFeatures)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetGridLicensableFeatures_v4(device::nvmlDevice_t,
+                                                                     pGridLicensableFeatures::Ptr{nvmlGridLicensableFeatures_t})::nvmlReturn_t
 end
 
 @checked function nvmlGetVgpuDriverCapabilities(capability, capResult)
@@ -3433,6 +3572,37 @@ end
     @gcsafe_ccall (libnvml()).nvmlVgpuInstanceClearAccountingPids(vgpuInstance::nvmlVgpuInstance_t)::nvmlReturn_t
 end
 
+@checked function nvmlVgpuInstanceGetLicenseInfo_v2(vgpuInstance, licenseInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlVgpuInstanceGetLicenseInfo_v2(vgpuInstance::nvmlVgpuInstance_t,
+                                                                licenseInfo::Ptr{nvmlVgpuLicenseInfo_t})::nvmlReturn_t
+end
+
+struct nvmlExcludedDeviceInfo_st
+    pciInfo::nvmlPciInfo_t
+    uuid::NTuple{80,Cchar}
+end
+
+const nvmlExcludedDeviceInfo_t = nvmlExcludedDeviceInfo_st
+
+@checked function nvmlGetExcludedDeviceCount(deviceCount)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlGetExcludedDeviceCount(deviceCount::Ptr{Cuint})::nvmlReturn_t
+end
+
+@checked function nvmlGetExcludedDeviceInfoByIndex(index, info)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlGetExcludedDeviceInfoByIndex(index::Cuint,
+                                                               info::Ptr{nvmlExcludedDeviceInfo_t})::nvmlReturn_t
+end
+
+struct nvmlGpuInstancePlacement_st
+    start::Cuint
+    size::Cuint
+end
+
+const nvmlGpuInstancePlacement_t = nvmlGpuInstancePlacement_st
+
 struct nvmlGpuInstanceProfileInfo_st
     id::Cuint
     isP2pSupported::Cuint
@@ -3494,6 +3664,17 @@ end
 
 const nvmlGpuInstanceInfo_t = nvmlGpuInstanceInfo_st
 
+mutable struct nvmlGpuInstance_st end
+
+const nvmlGpuInstance_t = Ptr{nvmlGpuInstance_st}
+
+struct nvmlComputeInstancePlacement_st
+    start::Cuint
+    size::Cuint
+end
+
+const nvmlComputeInstancePlacement_t = nvmlComputeInstancePlacement_st
+
 struct nvmlComputeInstanceProfileInfo_st
     id::Cuint
     sliceCount::Cuint
@@ -3541,6 +3722,20 @@ end
 
 const nvmlComputeInstanceProfileInfo_v3_t = nvmlComputeInstanceProfileInfo_v3_st
 
+struct nvmlComputeInstanceInfo_st
+    device::nvmlDevice_t
+    gpuInstance::nvmlGpuInstance_t
+    id::Cuint
+    profileId::Cuint
+    placement::nvmlComputeInstancePlacement_t
+end
+
+const nvmlComputeInstanceInfo_t = nvmlComputeInstanceInfo_st
+
+mutable struct nvmlComputeInstance_st end
+
+const nvmlComputeInstance_t = Ptr{nvmlComputeInstance_st}
+
 @checked function nvmlDeviceSetMigMode(device, mode, activationStatus)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceSetMigMode(device::nvmlDevice_t, mode::Cuint,
@@ -3566,6 +3761,15 @@ end
     @gcsafe_ccall (libnvml()).nvmlDeviceGetGpuInstanceProfileInfoV(device::nvmlDevice_t,
                                                                    profile::Cuint,
                                                                    info::Ptr{nvmlGpuInstanceProfileInfo_v2_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetGpuInstancePossiblePlacements_v2(device, profileId,
+                                                                placements, count)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetGpuInstancePossiblePlacements_v2(device::nvmlDevice_t,
+                                                                            profileId::Cuint,
+                                                                            placements::Ptr{nvmlGpuInstancePlacement_t},
+                                                                            count::Ptr{Cuint})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetGpuInstanceRemainingCapacity(device, profileId, count)
@@ -3691,6 +3895,12 @@ end
                                                                     computeInstance::Ptr{nvmlComputeInstance_t})::nvmlReturn_t
 end
 
+@checked function nvmlComputeInstanceGetInfo_v2(computeInstance, info)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlComputeInstanceGetInfo_v2(computeInstance::nvmlComputeInstance_t,
+                                                            info::Ptr{nvmlComputeInstanceInfo_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceIsMigDeviceHandle(device, isMigDevice)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceIsMigDeviceHandle(device::nvmlDevice_t,
@@ -3806,27 +4016,10 @@ mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"##Ctag#343"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:11771:5)"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
-end
-function Base.getproperty(x::Ptr{var"##Ctag#343"}, f::Symbol)
-    f === :shortName && return Ptr{Cstring}(x + 0)
-    f === :longName && return Ptr{Cstring}(x + 8)
-    f === :unit && return Ptr{Cstring}(x + 16)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#343", f::Symbol)
-    r = Ref{var"##Ctag#343"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#343"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#343"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct nvmlGpmMetric_t
@@ -3837,7 +4030,9 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :metricId && return Ptr{Cuint}(x + 0)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
-    f === :metricInfo && return Ptr{var"##Ctag#343"}(x + 16)
+    f === :metricInfo &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:11771:5)"}(x +
+                                                                                                                                             16)
     return getfield(x, f)
 end
 
@@ -3924,84 +4119,284 @@ const nvmlDeviceCapabilities_t = nvmlDeviceCapabilities_v1_t
                                                         caps::Ptr{nvmlDeviceCapabilities_t})::nvmlReturn_t
 end
 
-struct var"##Ctag#341"
+struct nvmlMask255_t
+    mask::NTuple{8,Cuint}
+end
+
+@cenum nvmlPowerProfileType_t::UInt32 begin
+    NVML_POWER_PROFILE_MAX_P = 0
+    NVML_POWER_PROFILE_MAX_Q = 1
+    NVML_POWER_PROFILE_COMPUTE = 2
+    NVML_POWER_PROFILE_MEMORY_BOUND = 3
+    NVML_POWER_PROFILE_NETWORK = 4
+    NVML_POWER_PROFILE_BALANCED = 5
+    NVML_POWER_PROFILE_LLM_INFERENCE = 6
+    NVML_POWER_PROFILE_LLM_TRAINING = 7
+    NVML_POWER_PROFILE_RBM = 8
+    NVML_POWER_PROFILE_DCPCIE = 9
+    NVML_POWER_PROFILE_HMMA_SPARSE = 10
+    NVML_POWER_PROFILE_HMMA_DENSE = 11
+    NVML_POWER_PROFILE_SYNC_BALANCED = 12
+    NVML_POWER_PROFILE_HPC = 13
+    NVML_POWER_PROFILE_MIG = 14
+    NVML_POWER_PROFILE_MAX = 15
+end
+
+struct nvmlWorkloadPowerProfileInfo_v1_t
+    version::Cuint
+    profileId::Cuint
+    priority::Cuint
+    conflictingMask::nvmlMask255_t
+end
+
+const nvmlWorkloadPowerProfileInfo_t = nvmlWorkloadPowerProfileInfo_v1_t
+
+struct nvmlWorkloadPowerProfileProfilesInfo_v1_t
+    version::Cuint
+    perfProfilesMask::nvmlMask255_t
+    perfProfile::NTuple{255,nvmlWorkloadPowerProfileInfo_t}
+end
+
+const nvmlWorkloadPowerProfileProfilesInfo_t = nvmlWorkloadPowerProfileProfilesInfo_v1_t
+
+struct nvmlWorkloadPowerProfileCurrentProfiles_v1_t
+    version::Cuint
+    perfProfilesMask::nvmlMask255_t
+    requestedProfilesMask::nvmlMask255_t
+    enforcedProfilesMask::nvmlMask255_t
+end
+
+const nvmlWorkloadPowerProfileCurrentProfiles_t = nvmlWorkloadPowerProfileCurrentProfiles_v1_t
+
+struct nvmlWorkloadPowerProfileRequestedProfiles_v1_t
+    version::Cuint
+    requestedProfilesMask::nvmlMask255_t
+end
+
+const nvmlWorkloadPowerProfileRequestedProfiles_t = nvmlWorkloadPowerProfileRequestedProfiles_v1_t
+
+@checked function nvmlDeviceWorkloadPowerProfileGetProfilesInfo(device, profilesInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceWorkloadPowerProfileGetProfilesInfo(device::nvmlDevice_t,
+                                                                            profilesInfo::Ptr{nvmlWorkloadPowerProfileProfilesInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceWorkloadPowerProfileGetCurrentProfiles(device, currentProfiles)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceWorkloadPowerProfileGetCurrentProfiles(device::nvmlDevice_t,
+                                                                               currentProfiles::Ptr{nvmlWorkloadPowerProfileCurrentProfiles_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceWorkloadPowerProfileSetRequestedProfiles(device,
+                                                                     requestedProfiles)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceWorkloadPowerProfileSetRequestedProfiles(device::nvmlDevice_t,
+                                                                                 requestedProfiles::Ptr{nvmlWorkloadPowerProfileRequestedProfiles_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceWorkloadPowerProfileClearRequestedProfiles(device,
+                                                                       requestedProfiles)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceWorkloadPowerProfileClearRequestedProfiles(device::nvmlDevice_t,
+                                                                                   requestedProfiles::Ptr{nvmlWorkloadPowerProfileRequestedProfiles_t})::nvmlReturn_t
+end
+
+struct nvmlPowerSmoothingProfile_v1_t
+    version::Cuint
+    profileId::Cuint
+    paramId::Cuint
+    value::Cdouble
+end
+
+const nvmlPowerSmoothingProfile_t = nvmlPowerSmoothingProfile_v1_t
+
+struct nvmlPowerSmoothingState_v1_t
+    version::Cuint
+    state::nvmlEnableState_t
+end
+
+const nvmlPowerSmoothingState_t = nvmlPowerSmoothingState_v1_t
+
+@checked function nvmlDevicePowerSmoothingActivatePresetProfile(device, profile)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDevicePowerSmoothingActivatePresetProfile(device::nvmlDevice_t,
+                                                                            profile::Ptr{nvmlPowerSmoothingProfile_t})::nvmlReturn_t
+end
+
+@checked function nvmlDevicePowerSmoothingUpdatePresetProfileParam(device, profile)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDevicePowerSmoothingUpdatePresetProfileParam(device::nvmlDevice_t,
+                                                                               profile::Ptr{nvmlPowerSmoothingProfile_t})::nvmlReturn_t
+end
+
+@checked function nvmlDevicePowerSmoothingSetState(device, state)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDevicePowerSmoothingSetState(device::nvmlDevice_t,
+                                                               state::Ptr{nvmlPowerSmoothingState_t})::nvmlReturn_t
+end
+
+@checked function nvmlInit()
+    @gcsafe_ccall (libnvml()).nvmlInit()::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetCount(deviceCount)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetCount(deviceCount::Ptr{Cuint})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetHandleByIndex(index, device)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetHandleByIndex(index::Cuint,
+                                                         device::Ptr{nvmlDevice_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetHandleByPciBusId(pciBusId, device)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetHandleByPciBusId(pciBusId::Cstring,
+                                                            device::Ptr{nvmlDevice_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetPciInfo(device, pci)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetPciInfo(device::nvmlDevice_t,
+                                                   pci::Ptr{nvmlPciInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetPciInfo_v2(device, pci)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetPciInfo_v2(device::nvmlDevice_t,
+                                                      pci::Ptr{nvmlPciInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetNvLinkRemotePciInfo(device, link, pci)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetNvLinkRemotePciInfo(device::nvmlDevice_t,
+                                                               link::Cuint,
+                                                               pci::Ptr{nvmlPciInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetGridLicensableFeatures(device, pGridLicensableFeatures)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetGridLicensableFeatures(device::nvmlDevice_t,
+                                                                  pGridLicensableFeatures::Ptr{nvmlGridLicensableFeatures_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetGridLicensableFeatures_v2(device, pGridLicensableFeatures)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetGridLicensableFeatures_v2(device::nvmlDevice_t,
+                                                                     pGridLicensableFeatures::Ptr{nvmlGridLicensableFeatures_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetGridLicensableFeatures_v3(device, pGridLicensableFeatures)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetGridLicensableFeatures_v3(device::nvmlDevice_t,
+                                                                     pGridLicensableFeatures::Ptr{nvmlGridLicensableFeatures_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceRemoveGpu(pciInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceRemoveGpu(pciInfo::Ptr{nvmlPciInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlEventSetWait(set, data, timeoutms)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlEventSetWait(set::nvmlEventSet_t,
+                                               data::Ptr{nvmlEventData_t},
+                                               timeoutms::Cuint)::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetAttributes(device, attributes)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetAttributes(device::nvmlDevice_t,
+                                                      attributes::Ptr{nvmlDeviceAttributes_t})::nvmlReturn_t
+end
+
+@checked function nvmlComputeInstanceGetInfo(computeInstance, info)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlComputeInstanceGetInfo(computeInstance::nvmlComputeInstance_t,
+                                                         info::Ptr{nvmlComputeInstanceInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetComputeRunningProcesses(device, infoCount, infos)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetComputeRunningProcesses(device::nvmlDevice_t,
+                                                                   infoCount::Ptr{Cuint},
+                                                                   infos::Ptr{nvmlProcessInfo_v1_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetComputeRunningProcesses_v2(device, infoCount, infos)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetComputeRunningProcesses_v2(device::nvmlDevice_t,
+                                                                      infoCount::Ptr{Cuint},
+                                                                      infos::Ptr{nvmlProcessInfo_v2_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetGraphicsRunningProcesses(device, infoCount, infos)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetGraphicsRunningProcesses(device::nvmlDevice_t,
+                                                                    infoCount::Ptr{Cuint},
+                                                                    infos::Ptr{nvmlProcessInfo_v1_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetGraphicsRunningProcesses_v2(device, infoCount, infos)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetGraphicsRunningProcesses_v2(device::nvmlDevice_t,
+                                                                       infoCount::Ptr{Cuint},
+                                                                       infos::Ptr{nvmlProcessInfo_v2_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetMPSComputeRunningProcesses(device, infoCount, infos)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetMPSComputeRunningProcesses(device::nvmlDevice_t,
+                                                                      infoCount::Ptr{Cuint},
+                                                                      infos::Ptr{nvmlProcessInfo_v1_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetMPSComputeRunningProcesses_v2(device, infoCount, infos)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetMPSComputeRunningProcesses_v2(device::nvmlDevice_t,
+                                                                         infoCount::Ptr{Cuint},
+                                                                         infos::Ptr{nvmlProcessInfo_v2_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetGpuInstancePossiblePlacements(device, profileId, placements,
+                                                             count)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetGpuInstancePossiblePlacements(device::nvmlDevice_t,
+                                                                         profileId::Cuint,
+                                                                         placements::Ptr{nvmlGpuInstancePlacement_t},
+                                                                         count::Ptr{Cuint})::nvmlReturn_t
+end
+
+@checked function nvmlVgpuInstanceGetLicenseInfo(vgpuInstance, licenseInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlVgpuInstanceGetLicenseInfo(vgpuInstance::nvmlVgpuInstance_t,
+                                                             licenseInfo::Ptr{nvmlVgpuLicenseInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetDriverModel(device, current, pending)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetDriverModel(device::nvmlDevice_t,
+                                                       current::Ptr{nvmlDriverModel_t},
+                                                       pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
+end
+
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1792:5)"
     avgFactor::Cuint
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#341"}, f::Symbol)
-    f === :avgFactor && return Ptr{Cuint}(x + 0)
-    f === :timeslice && return Ptr{Cuint}(x + 4)
-    return getfield(x, f)
-end
 
-function Base.getproperty(x::var"##Ctag#341", f::Symbol)
-    r = Ref{var"##Ctag#341"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#341"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#341"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#342"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1798:5)"
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#342"}, f::Symbol)
-    f === :timeslice && return Ptr{Cuint}(x + 0)
-    return getfield(x, f)
-end
 
-function Base.getproperty(x::var"##Ctag#342", f::Symbol)
-    r = Ref{var"##Ctag#342"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#342"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#342"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#346"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1846:5)"
     avgFactor::Cuint
     frequency::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#346"}, f::Symbol)
-    f === :avgFactor && return Ptr{Cuint}(x + 0)
-    f === :frequency && return Ptr{Cuint}(x + 4)
-    return getfield(x, f)
-end
 
-function Base.getproperty(x::var"##Ctag#346", f::Symbol)
-    r = Ref{var"##Ctag#346"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#346"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#346"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#347"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1852:5)"
     timeslice::Cuint
-end
-function Base.getproperty(x::Ptr{var"##Ctag#347"}, f::Symbol)
-    f === :timeslice && return Ptr{Cuint}(x + 0)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#347", f::Symbol)
-    r = Ref{var"##Ctag#347"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#347"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#347"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
 end
 
 const NVML_API_VERSION = 12
@@ -4014,6 +4409,18 @@ const NVML_DEVICE_PCI_BUS_ID_BUFFER_SIZE = 32
 
 const NVML_DEVICE_PCI_BUS_ID_BUFFER_V2_SIZE = 16
 
+const nvmlPciInfoExt_v1 = @NVML_STRUCT_VERSION(PciInfoExt, 1)
+
+const NVML_DEVICE_PCI_BUS_ID_LEGACY_FMT = "%04X:%02X:%02X.0"
+
+const NVML_DEVICE_PCI_BUS_ID_FMT = "%08X:%02X:%02X.0"
+
+const nvmlMemory_v2 = @NVML_STRUCT_VERSION(Memory, 2)
+
+const nvmlProcessDetailList_v1 = @NVML_STRUCT_VERSION(ProcessDetailList, 1)
+
+const nvmlC2cModeInfo_v1 = @NVML_STRUCT_VERSION(C2cModeInfo, 1)
+
 const NVML_NVLINK_MAX_LINKS = 18
 
 const NVML_TOPOLOGY_CPU = NVML_TOPOLOGY_NODE
@@ -4022,9 +4429,15 @@ const NVML_MAX_PHYSICAL_BRIDGE = 128
 
 const NVML_MAX_THERMAL_SENSORS_PER_GPU = 3
 
+const nvmlCoolerInfo_v1 = @NVML_STRUCT_VERSION(CoolerInfo, 1)
+
 const nvmlFlagDefault = 0x00
 
 const nvmlFlagForce = 0x01
+
+const nvmlDramEncryptionInfo_v1 = @NVML_STRUCT_VERSION(DramEncryptionInfo, 1)
+
+const nvmlMarginTemperature_v1 = @NVML_STRUCT_VERSION(MarginTemperature, 1)
 
 const MAX_CLK_DOMAINS = 32
 
@@ -4033,6 +4446,22 @@ const NVML_SINGLE_BIT_ECC = NVML_MEMORY_ERROR_TYPE_CORRECTED
 const NVML_DOUBLE_BIT_ECC = NVML_MEMORY_ERROR_TYPE_UNCORRECTED
 
 const NVML_MAX_GPU_PERF_PSTATES = 16
+
+const nvmlClockOffset_v1 = @NVML_STRUCT_VERSION(ClockOffset, 1)
+
+const nvmlFanSpeedInfo_v1 = @NVML_STRUCT_VERSION(FanSpeedInfo, 1)
+
+const NVML_PERF_MODES_BUFFER_SIZE = 2048
+
+const nvmlDevicePerfModes_v1 = @NVML_STRUCT_VERSION(DevicePerfModes, 1)
+
+const nvmlDeviceCurrentClockFreqs_v1 = @NVML_STRUCT_VERSION(DeviceCurrentClockFreqs, 1)
+
+const nvmlProcessesUtilizationInfo_v1 = @NVML_STRUCT_VERSION(ProcessesUtilizationInfo, 1)
+
+const nvmlEccSramErrorStatus_v1 = @NVML_STRUCT_VERSION(EccSramErrorStatus, 1)
+
+const nvmlPlatformInfo_v1 = @NVML_STRUCT_VERSION(PlatformInfo, 1)
 
 const NVML_GSP_FIRMWARE_VERSION_BUF_SIZE = 0x40
 
@@ -4114,6 +4543,14 @@ const NVML_PCIE_ATOMICS_CAP_CAS128 = 0x40
 
 const NVML_PCIE_ATOMICS_OPS_MAX = 7
 
+const NVML_POWER_SCOPE_GPU = Cuint(0)
+
+const NVML_POWER_SCOPE_MODULE = Cuint(1)
+
+const NVML_POWER_SCOPE_MEMORY = Cuint(2)
+
+const nvmlPowerValue_v2 = @NVML_STRUCT_VERSION(PowerValue, 2)
+
 const NVML_GRID_LICENSE_EXPIRY_NOT_AVAILABLE = 0
 
 const NVML_GRID_LICENSE_EXPIRY_INVALID = 1
@@ -4147,6 +4584,28 @@ const NVML_VGPU_PGPU_VIRTUALIZATION_CAP_MIGRATION = 0:0
 const NVML_VGPU_PGPU_VIRTUALIZATION_CAP_MIGRATION_NO = 0x00
 
 const NVML_VGPU_PGPU_VIRTUALIZATION_CAP_MIGRATION_YES = 0x01
+
+const NVML_VGPU_PGPU_HETEROGENEOUS_MODE = 0
+
+const NVML_VGPU_PGPU_HOMOGENEOUS_MODE = 1
+
+const nvmlVgpuHeterogeneousMode_v1 = @NVML_STRUCT_VERSION(VgpuHeterogeneousMode, 1)
+
+const nvmlVgpuPlacementId_v1 = @NVML_STRUCT_VERSION(VgpuPlacementId, 1)
+
+const nvmlVgpuPlacementList_v1 = @NVML_STRUCT_VERSION(VgpuPlacementList, 1)
+
+const nvmlVgpuPlacementList_v2 = @NVML_STRUCT_VERSION(VgpuPlacementList, 2)
+
+const nvmlVgpuTypeBar1Info_v1 = @NVML_STRUCT_VERSION(VgpuTypeBar1Info, 1)
+
+const nvmlVgpuInstancesUtilizationInfo_v1 = @NVML_STRUCT_VERSION(VgpuInstancesUtilizationInfo,
+                                                                 1)
+
+const nvmlVgpuProcessesUtilizationInfo_v1 = @NVML_STRUCT_VERSION(VgpuProcessesUtilizationInfo,
+                                                                 1)
+
+const nvmlVgpuRuntimeState_v1 = @NVML_STRUCT_VERSION(VgpuRuntimeState, 1)
 
 const NVML_VGPU_SCHEDULER_POLICY_UNKNOWN = 0
 
@@ -4574,9 +5033,9 @@ const NVML_FI_DEV_PCIE_COUNT_TX_BYTES = 197
 
 const NVML_FI_DEV_PCIE_COUNT_RX_BYTES = 198
 
-const NVML_FI_DEV_NVLINK_GET_POWER_THRESHOLD_MAX = 199
+const NVML_FI_DEV_IS_MIG_MODE_INDEPENDENT_MIG_QUERY_CAPABLE = 199
 
-const NVML_FI_DEV_IS_MIG_MODE_INDEPENDENT_MIG_QUERY_CAPABLE = 200
+const NVML_FI_DEV_NVLINK_GET_POWER_THRESHOLD_MAX = 200
 
 const NVML_FI_DEV_NVLINK_COUNT_XMIT_PACKETS = 201
 
@@ -4636,7 +5095,77 @@ const NVML_FI_DEV_PCIE_OUTBOUND_ATOMICS_MASK = 228
 
 const NVML_FI_DEV_PCIE_INBOUND_ATOMICS_MASK = 229
 
-const NVML_FI_MAX = 230
+const NVML_FI_DEV_GET_GPU_RECOVERY_ACTION = 230
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_0 = 235
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_1 = 236
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_2 = 237
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_3 = 238
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_4 = 239
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_5 = 240
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_6 = 241
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_7 = 242
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_8 = 243
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_9 = 244
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_10 = 245
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_11 = 246
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_12 = 247
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_13 = 248
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_14 = 249
+
+const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_15 = 250
+
+const NVML_FI_PWR_SMOOTHING_ENABLED = 251
+
+const NVML_FI_PWR_SMOOTHING_PRIV_LVL = 252
+
+const NVML_FI_PWR_SMOOTHING_IMM_RAMP_DOWN_ENABLED = 253
+
+const NVML_FI_PWR_SMOOTHING_APPLIED_TMP_CEIL = 254
+
+const NVML_FI_PWR_SMOOTHING_APPLIED_TMP_FLOOR = 255
+
+const NVML_FI_PWR_SMOOTHING_MAX_PERCENT_TMP_FLOOR_SETTING = 256
+
+const NVML_FI_PWR_SMOOTHING_MIN_PERCENT_TMP_FLOOR_SETTING = 257
+
+const NVML_FI_PWR_SMOOTHING_HW_CIRCUITRY_PERCENT_LIFETIME_REMAINING = 258
+
+const NVML_FI_PWR_SMOOTHING_MAX_NUM_PRESET_PROFILES = 259
+
+const NVML_FI_PWR_SMOOTHING_PROFILE_PERCENT_TMP_FLOOR = 260
+
+const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_UP_RATE = 261
+
+const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_DOWN_RATE = 262
+
+const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_DOWN_HYST_VAL = 263
+
+const NVML_FI_PWR_SMOOTHING_ACTIVE_PRESET_PROFILE = 264
+
+const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_PERCENT_TMP_FLOOR = 265
+
+const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_UP_RATE = 266
+
+const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_DOWN_RATE = 267
+
+const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_DOWN_HYST_VAL = 268
+
+const NVML_FI_MAX = 269
 
 const NVML_NVLINK_LOW_POWER_THRESHOLD_UNIT_100US = 0x00
 
@@ -4680,14 +5209,20 @@ const nvmlEventTypeNonFatalPoisonError = Clonglong(0x0000000000001000)
 
 const nvmlEventTypeFatalPoisonError = Clonglong(0x0000000000002000)
 
-const nvmlEventTypeAll = (((((((((((nvmlEventTypeNone | nvmlEventTypeSingleBitEccError) |
-                                   nvmlEventTypeDoubleBitEccError) | nvmlEventTypePState) |
-                                 nvmlEventTypeClock) | nvmlEventTypeXidCriticalError) |
-                               nvmlEventTypePowerSourceChange) | nvmlEventMigConfigChange) |
-                             nvmlEventTypeSingleBitEccErrorStorm) |
-                            nvmlEventTypeDramRetirementEvent) |
-                           nvmlEventTypeDramRetirementFailure) |
-                          nvmlEventTypeNonFatalPoisonError) | nvmlEventTypeFatalPoisonError
+const nvmlEventTypeGpuUnavailableError = Clonglong(0x0000000000004000)
+
+const nvmlEventTypeGpuRecoveryAction = Clonglong(0x0000000000008000)
+
+const nvmlEventTypeAll = (((((((((((((nvmlEventTypeNone | nvmlEventTypeSingleBitEccError) |
+                                     nvmlEventTypeDoubleBitEccError) | nvmlEventTypePState) |
+                                   nvmlEventTypeClock) | nvmlEventTypeXidCriticalError) |
+                                 nvmlEventTypePowerSourceChange) | nvmlEventMigConfigChange) |
+                               nvmlEventTypeSingleBitEccErrorStorm) |
+                              nvmlEventTypeDramRetirementEvent) |
+                             nvmlEventTypeDramRetirementFailure) |
+                            nvmlEventTypeNonFatalPoisonError) |
+                           nvmlEventTypeFatalPoisonError) |
+                          nvmlEventTypeGpuUnavailableError) | nvmlEventTypeGpuRecoveryAction
 
 const nvmlClocksEventReasonGpuIdle = Clonglong(0x0000000000000001)
 
@@ -4728,6 +5263,10 @@ const NVML_CC_SYSTEM_CPU_CAPS_AMD_SEV = 1
 
 const NVML_CC_SYSTEM_CPU_CAPS_INTEL_TDX = 2
 
+const NVML_CC_SYSTEM_CPU_CAPS_AMD_SEV_SNP = 3
+
+const NVML_CC_SYSTEM_CPU_CAPS_AMD_SNP_VTOM = 4
+
 const NVML_CC_SYSTEM_GPUS_CC_NOT_CAPABLE = 0
 
 const NVML_CC_SYSTEM_GPUS_CC_CAPABLE = 1
@@ -4750,6 +5289,8 @@ const NVML_CC_SYSTEM_MULTIGPU_NONE = 0
 
 const NVML_CC_SYSTEM_MULTIGPU_PROTECTED_PCIE = 1
 
+const nvmlSystemConfComputeSettings_v1 = @NVML_STRUCT_VERSION(SystemConfComputeSettings, 1)
+
 const NVML_CC_ACCEPTING_CLIENT_REQUESTS_FALSE = 0
 
 const NVML_CC_ACCEPTING_CLIENT_REQUESTS_TRUE = 1
@@ -4770,7 +5311,13 @@ const NVML_CC_CEC_ATTESTATION_REPORT_PRESENT = 1
 
 const NVML_CC_KEY_ROTATION_THRESHOLD_ATTACKER_ADVANTAGE_MIN = 50
 
-const NVML_CC_KEY_ROTATION_THRESHOLD_ATTACKER_ADVANTAGE_MAX = 75
+const NVML_CC_KEY_ROTATION_THRESHOLD_ATTACKER_ADVANTAGE_MAX = 65
+
+const nvmlConfComputeSetKeyRotationThresholdInfo_v1 = @NVML_STRUCT_VERSION(ConfComputeSetKeyRotationThresholdInfo,
+                                                                           1)
+
+const nvmlConfComputeGetKeyRotationThresholdInfo_v1 = @NVML_STRUCT_VERSION(ConfComputeGetKeyRotationThresholdInfo,
+                                                                           1)
 
 const NVML_GPU_FABRIC_UUID_LEN = 16
 
@@ -4790,13 +5337,39 @@ const NVML_GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_FALSE = 2
 
 const NVML_GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW = 0
 
-const NVML_GPU_FABRIC_HEALTH_MASK_WIDTH_DEGRADED_BW = 0x11
+const NVML_GPU_FABRIC_HEALTH_MASK_WIDTH_DEGRADED_BW = 0x03
 
-const NVML_POWER_SCOPE_GPU = Cuint(0)
+const NVML_GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_NOT_SUPPORTED = 0
 
-const NVML_POWER_SCOPE_MODULE = Cuint(1)
+const NVML_GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_TRUE = 1
 
-const NVML_POWER_SCOPE_MEMORY = Cuint(2)
+const NVML_GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_FALSE = 2
+
+const NVML_GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY = 2
+
+const NVML_GPU_FABRIC_HEALTH_MASK_WIDTH_ROUTE_RECOVERY = 0x03
+
+const NVML_GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_NOT_SUPPORTED = 0
+
+const NVML_GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE = 1
+
+const NVML_GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_FALSE = 2
+
+const NVML_GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY = 4
+
+const NVML_GPU_FABRIC_HEALTH_MASK_WIDTH_ROUTE_UNHEALTHY = 0x03
+
+const NVML_GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_NOT_SUPPORTED = 0
+
+const NVML_GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_TRUE = 1
+
+const NVML_GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_FALSE = 2
+
+const NVML_GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY = 6
+
+const NVML_GPU_FABRIC_HEALTH_MASK_WIDTH_ACCESS_TIMEOUT_RECOVERY = 0x03
+
+const nvmlGpuFabricInfo_v2 = @NVML_STRUCT_VERSION(GpuFabricInfo, 2)
 
 const NVML_INIT_FLAG_NO_GPUS = 1
 
@@ -4822,9 +5395,35 @@ const NVML_DEVICE_SERIAL_BUFFER_SIZE = 30
 
 const NVML_DEVICE_VBIOS_VERSION_BUFFER_SIZE = 32
 
+const nvmlSystemDriverBranchInfo_v1 = @NVML_STRUCT_VERSION(SystemDriverBranchInfo, 1)
+
 const NVML_AFFINITY_SCOPE_NODE = 0
 
 const NVML_AFFINITY_SCOPE_SOCKET = 1
+
+const nvmlTemperature_v1 = @NVML_STRUCT_VERSION(Temperature, 1)
+
+const NVML_NVLINK_BER_MANTISSA_SHIFT = 8
+
+const NVML_NVLINK_BER_MANTISSA_WIDTH = 0x0f
+
+const NVML_NVLINK_BER_EXP_SHIFT = 0
+
+const NVML_NVLINK_BER_EXP_WIDTH = 0xff
+
+const NVML_NVLINK_STATE_INACTIVE = 0x00
+
+const NVML_NVLINK_STATE_ACTIVE = 0x01
+
+const NVML_NVLINK_STATE_SLEEP = 0x02
+
+const NVML_NVLINK_TOTAL_SUPPORTED_BW_MODES = 23
+
+const nvmlNvlinkSupportedBwModes_v1 = @NVML_STRUCT_VERSION(NvlinkSupportedBwModes, 1)
+
+const nvmlNvlinkGetBwMode_v1 = @NVML_STRUCT_VERSION(NvlinkGetBwMode, 1)
+
+const nvmlNvlinkSetBwMode_v1 = @NVML_STRUCT_VERSION(NvlinkSetBwMode, 1)
 
 const NVML_DEVICE_MIG_DISABLE = 0x00
 
@@ -4850,9 +5449,25 @@ const NVML_GPU_INSTANCE_PROFILE_2_SLICE_REV1 = 0x08
 
 const NVML_GPU_INSTANCE_PROFILE_1_SLICE_REV2 = 0x09
 
-const NVML_GPU_INSTANCE_PROFILE_COUNT = 0x0a
+const NVML_GPU_INSTANCE_PROFILE_1_SLICE_GFX = 0x0a
+
+const NVML_GPU_INSTANCE_PROFILE_2_SLICE_GFX = 0x0b
+
+const NVML_GPU_INSTANCE_PROFILE_4_SLICE_GFX = 0x0c
+
+const NVML_GPU_INSTANCE_PROFILE_COUNT = 0x0d
+
+const NVML_GPU_INSTANCE_PROFILE_CAPS_P2P = 0x01
 
 const NVML_GPU_INTSTANCE_PROFILE_CAPS_P2P = 0x01
+
+const NVML_GPU_INSTANCE_PROFILE_CAPS_GFX = 0x02
+
+const NVML_COMPUTE_INSTANCE_PROFILE_CAPS_GFX = 0x01
+
+const nvmlGpuInstanceProfileInfo_v2 = @NVML_STRUCT_VERSION(GpuInstanceProfileInfo, 2)
+
+const nvmlGpuInstanceProfileInfo_v3 = @NVML_STRUCT_VERSION(GpuInstanceProfileInfo, 3)
 
 const NVML_COMPUTE_INSTANCE_PROFILE_1_SLICE = 0x00
 
@@ -4876,8 +5491,51 @@ const NVML_COMPUTE_INSTANCE_ENGINE_PROFILE_SHARED = 0x00
 
 const NVML_COMPUTE_INSTANCE_ENGINE_PROFILE_COUNT = 0x01
 
+const nvmlComputeInstanceProfileInfo_v2 = @NVML_STRUCT_VERSION(ComputeInstanceProfileInfo,
+                                                               2)
+
+const nvmlComputeInstanceProfileInfo_v3 = @NVML_STRUCT_VERSION(ComputeInstanceProfileInfo,
+                                                               3)
+
 const NVML_GPM_METRICS_GET_VERSION = 1
 
 const NVML_GPM_SUPPORT_VERSION = 1
 
 const NVML_DEV_CAP_EGM = 1 << 0
+
+const nvmlDeviceCapabilities_v1 = @NVML_STRUCT_VERSION(DeviceCapabilities, 1)
+
+const NVML_255_MASK_BITS_PER_ELEM = 32
+
+const NVML_255_MASK_NUM_ELEMS = 8
+
+const NVML_WORKLOAD_POWER_MAX_PROFILES = 255
+
+const nvmlWorkloadPowerProfileInfo_v1 = @NVML_STRUCT_VERSION(WorkloadPowerProfileInfo, 1)
+
+const nvmlWorkloadPowerProfileProfilesInfo_v1 = @NVML_STRUCT_VERSION(WorkloadPowerProfileProfilesInfo,
+                                                                     1)
+
+const nvmlWorkloadPowerProfileCurrentProfiles_v1 = @NVML_STRUCT_VERSION(WorkloadPowerProfileCurrentProfiles,
+                                                                        1)
+
+const nvmlWorkloadPowerProfileRequestedProfiles_v1 = @NVML_STRUCT_VERSION(WorkloadPowerProfileRequestedProfiles,
+                                                                          1)
+
+const NVML_POWER_SMOOTHING_MAX_NUM_PROFILES = 5
+
+const NVML_POWER_SMOOTHING_NUM_PROFILE_PARAMS = 4
+
+const NVML_POWER_SMOOTHING_ADMIN_OVERRIDE_NOT_SET = Cuint(0xffffffff)
+
+const NVML_POWER_SMOOTHING_PROFILE_PARAM_PERCENT_TMP_FLOOR = 0
+
+const NVML_POWER_SMOOTHING_PROFILE_PARAM_RAMP_UP_RATE = 1
+
+const NVML_POWER_SMOOTHING_PROFILE_PARAM_RAMP_DOWN_RATE = 2
+
+const NVML_POWER_SMOOTHING_PROFILE_PARAM_RAMP_DOWN_HYSTERESIS = 3
+
+const nvmlPowerSmoothingProfile_v1 = @NVML_STRUCT_VERSION(PowerSmoothingProfile, 1)
+
+const nvmlPowerSmoothingState_v1 = @NVML_STRUCT_VERSION(PowerSmoothingState, 1)

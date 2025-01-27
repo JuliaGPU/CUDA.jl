@@ -112,7 +112,7 @@ function compute_processes(dev::Device)
     # "Allocate more space for infos table in case new compute processes are spawned."
     count::Cuint = count_ref[] + 2
 
-    infos = Vector{nvmlProcessInfoV1_t}(undef, count)
+    infos = Vector{nvmlProcessInfo_v1_t}(undef, count)
     nvmlDeviceGetComputeRunningProcesses(dev, Ref(count), infos)
 
     return Dict(map(infos[1:count_ref[]]) do info

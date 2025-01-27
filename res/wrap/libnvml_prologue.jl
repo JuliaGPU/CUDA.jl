@@ -26,3 +26,10 @@ end
 
     return
 end
+
+macro NVML_STRUCT_VERSION(typename, version)
+    struct_typename = Symbol("nvml$(String(typename))_v$(version)_t")
+    struct_type = getfield(__module__, struct_typename)
+    struct_version = UInt32(sizeof(struct_type)) | (UInt32(version) << 24)
+    return :($struct_version)
+end

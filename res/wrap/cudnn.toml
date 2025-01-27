@@ -500,6 +500,9 @@ needs_context = false
 [api.cudnnGetCTCLossWorkspaceSize.argtypes]
 9 = "Ref{Csize_t}"
 
+[api.cudnnGetCTCLossWorkspaceSize_v8.argtypes]
+6 = "Ref{Csize_t}"
+
 [api.cudnnSetFusedOpsVariantParamPackAttribute.argtypes]
 3 = "PtrOrCuPtr{Cvoid}"
 
