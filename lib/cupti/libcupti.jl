@@ -80,6 +80,9 @@ end
     CUPTI_ERROR_VIRTUALIZED_DEVICE_INSUFFICIENT_PRIVILEGES = 40
     CUPTI_ERROR_CONFIDENTIAL_COMPUTING_NOT_SUPPORTED = 41
     CUPTI_ERROR_CMP_DEVICE_NOT_SUPPORTED = 42
+    CUPTI_ERROR_MIG_DEVICE_NOT_SUPPORTED = 43
+    CUPTI_ERROR_SLI_DEVICE_NOT_SUPPORTED = 44
+    CUPTI_ERROR_WSL_DEVICE_NOT_SUPPORTED = 45
     CUPTI_ERROR_UNKNOWN = 999
     CUPTI_ERROR_FORCE_INT = 2147483647
 end
@@ -173,23 +176,27 @@ struct CUpti_CallbackData
     correlationId::UInt32
 end
 
-struct var"##Ctag#632"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_callbacks.h:416:3)"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#632"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_callbacks.h:416:3)"},
+                          f::Symbol)
     f === :stream && return Ptr{CUstream}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#632", f::Symbol)
-    r = Ref{var"##Ctag#632"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#632"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_callbacks.h:416:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_callbacks.h:416:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_callbacks.h:416:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#632"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_callbacks.h:416:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -199,7 +206,9 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ResourceData}, f::Symbol)
     f === :context && return Ptr{CUcontext}(x + 0)
-    f === :resourceHandle && return Ptr{var"##Ctag#632"}(x + 8)
+    f === :resourceHandle &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_callbacks.h:416:3)"}(x +
+                                                                                                                                                     8)
     f === :resourceDescriptor && return Ptr{Ptr{Cvoid}}(x + 16)
     return getfield(x, f)
 end
@@ -915,7 +924,9 @@ end
     CUPTI_ACTIVITY_KIND_MEMORY_POOL = 50
     CUPTI_ACTIVITY_KIND_GRAPH_TRACE = 51
     CUPTI_ACTIVITY_KIND_JIT = 52
-    CUPTI_ACTIVITY_KIND_COUNT = 53
+    CUPTI_ACTIVITY_KIND_DEVICE_GRAPH_TRACE = 53
+    CUPTI_ACTIVITY_KIND_MEM_DECOMPRESS = 54
+    CUPTI_ACTIVITY_KIND_COUNT = 55
     CUPTI_ACTIVITY_KIND_FORCE_INT = 2147483647
 end
 
@@ -934,8 +945,12 @@ struct CUpti_ActivityObjectKindId
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityObjectKindId}, f::Symbol)
-    f === :pt && return Ptr{var"##Ctag#672"}(x + 0)
-    f === :dcs && return Ptr{var"##Ctag#673"}(x + 0)
+    f === :pt &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:671:3)"}(x +
+                                                                                                                                                     0)
+    f === :dcs &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:682:3)"}(x +
+                                                                                                                                                     0)
     return getfield(x, f)
 end
 
@@ -966,6 +981,7 @@ end
     CUPTI_ACTIVITY_OVERHEAD_LAZY_FUNCTION_LOADING = 327680
     CUPTI_ACTIVITY_OVERHEAD_COMMAND_BUFFER_FULL = 393216
     CUPTI_ACTIVITY_OVERHEAD_ACTIVITY_BUFFER_REQUEST = 458752
+    CUPTI_ACTIVITY_OVERHEAD_UVM_ACTIVITY_INIT = 524288
     CUPTI_ACTIVITY_OVERHEAD_FORCE_INT = 2147483647
 end
 
@@ -1222,6 +1238,7 @@ end
     CUPTI_CHANNEL_TYPE_INVALID = 0
     CUPTI_CHANNEL_TYPE_COMPUTE = 1
     CUPTI_CHANNEL_TYPE_ASYNC_MEMCPY = 2
+    CUPTI_CHANNEL_TYPE_DECOMP = 3
     CUPTI_CHANNEL_TYPE_FORCE_INT = 2147483647
 end
 
@@ -1233,154 +1250,293 @@ end
 end
 
 struct CUpti_ActivityUnifiedMemoryCounterConfig
-    scope::CUpti_ActivityUnifiedMemoryCounterScope
-    kind::CUpti_ActivityUnifiedMemoryCounterKind
-    deviceId::UInt32
-    enable::UInt32
+    data::NTuple{16,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityUnifiedMemoryCounterConfig}, f::Symbol)
+    f === :scope && return Ptr{CUpti_ActivityUnifiedMemoryCounterScope}(x + 0)
+    f === :kind && return Ptr{CUpti_ActivityUnifiedMemoryCounterKind}(x + 4)
+    f === :deviceId && return Ptr{UInt32}(x + 8)
+    f === :enable && return Ptr{UInt32}(x + 12)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityUnifiedMemoryCounterConfig, f::Symbol)
+    r = Ref{CUpti_ActivityUnifiedMemoryCounterConfig}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityUnifiedMemoryCounterConfig}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityUnifiedMemoryCounterConfig}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityAutoBoostState
-    enabled::UInt32
-    pid::UInt32
-end
-
-struct CUpti_ActivityPCSamplingConfig
-    size::UInt32
-    samplingPeriod::CUpti_ActivityPCSamplingPeriod
-    samplingPeriod2::UInt32
-end
-
-struct CUpti_Activity
-    kind::CUpti_ActivityKind
-end
-
-struct CUpti_ActivityMemcpy5
-    kind::CUpti_ActivityKind
-    copyKind::UInt8
-    srcKind::UInt8
-    dstKind::UInt8
-    flags::UInt8
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    correlationId::UInt32
-    runtimeCorrelationId::UInt32
-    pad::UInt32
-    reserved0::Ptr{Cvoid}
-    graphNodeId::UInt64
-    graphId::UInt32
-    channelID::UInt32
-    channelType::CUpti_ChannelType
-    pad2::UInt32
-end
-
-struct CUpti_ActivityMemcpyPtoP4
-    kind::CUpti_ActivityKind
-    copyKind::UInt8
-    srcKind::UInt8
-    dstKind::UInt8
-    flags::UInt8
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    srcDeviceId::UInt32
-    srcContextId::UInt32
-    dstDeviceId::UInt32
-    dstContextId::UInt32
-    correlationId::UInt32
-    reserved0::Ptr{Cvoid}
-    graphNodeId::UInt64
-    graphId::UInt32
-    channelID::UInt32
-    channelType::CUpti_ChannelType
-end
-
-struct CUpti_ActivityMemset4
-    kind::CUpti_ActivityKind
-    value::UInt32
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    correlationId::UInt32
-    flags::UInt16
-    memoryKind::UInt16
-    pad::UInt32
-    reserved0::Ptr{Cvoid}
-    graphNodeId::UInt64
-    graphId::UInt32
-    channelID::UInt32
-    channelType::CUpti_ChannelType
-    pad2::UInt32
-end
-
-struct CUpti_ActivityMemory
-    kind::CUpti_ActivityKind
-    memoryKind::CUpti_ActivityMemoryKind
-    address::UInt64
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    allocPC::UInt64
-    freePC::UInt64
-    processId::UInt32
-    deviceId::UInt32
-    contextId::UInt32
-    pad::UInt32
-    name::Cstring
-end
-
-struct var"##Ctag#620"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#620"}, f::Symbol)
+function Base.getproperty(x::Ptr{CUpti_ActivityAutoBoostState}, f::Symbol)
+    f === :enabled && return Ptr{UInt32}(x + 0)
+    f === :pid && return Ptr{UInt32}(x + 4)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityAutoBoostState, f::Symbol)
+    r = Ref{CUpti_ActivityAutoBoostState}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityAutoBoostState}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityAutoBoostState}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityPCSamplingConfig
+    data::NTuple{16,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityPCSamplingConfig}, f::Symbol)
+    f === :size && return Ptr{UInt32}(x + 0)
+    f === :samplingPeriod && return Ptr{CUpti_ActivityPCSamplingPeriod}(x + 4)
+    f === :samplingPeriod2 && return Ptr{UInt32}(x + 8)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityPCSamplingConfig, f::Symbol)
+    r = Ref{CUpti_ActivityPCSamplingConfig}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityPCSamplingConfig}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityPCSamplingConfig}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_Activity
+    data::NTuple{8,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_Activity}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_Activity, f::Symbol)
+    r = Ref{CUpti_Activity}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_Activity}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_Activity}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityMemcpy6
+    data::NTuple{96,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemcpy6}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :copyKind && return Ptr{UInt8}(x + 4)
+    f === :srcKind && return Ptr{UInt8}(x + 5)
+    f === :dstKind && return Ptr{UInt8}(x + 6)
+    f === :flags && return Ptr{UInt8}(x + 7)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :correlationId && return Ptr{UInt32}(x + 44)
+    f === :runtimeCorrelationId && return Ptr{UInt32}(x + 48)
+    f === :pad && return Ptr{UInt32}(x + 52)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 56)
+    f === :graphNodeId && return Ptr{UInt64}(x + 64)
+    f === :graphId && return Ptr{UInt32}(x + 72)
+    f === :channelID && return Ptr{UInt32}(x + 76)
+    f === :channelType && return Ptr{CUpti_ChannelType}(x + 80)
+    f === :pad2 && return Ptr{UInt32}(x + 84)
+    f === :copyCount && return Ptr{UInt64}(x + 88)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemcpy6, f::Symbol)
+    r = Ref{CUpti_ActivityMemcpy6}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemcpy6}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemcpy6}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityMemcpyPtoP4
+    data::NTuple{96,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemcpyPtoP4}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :copyKind && return Ptr{UInt8}(x + 4)
+    f === :srcKind && return Ptr{UInt8}(x + 5)
+    f === :dstKind && return Ptr{UInt8}(x + 6)
+    f === :flags && return Ptr{UInt8}(x + 7)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :srcDeviceId && return Ptr{UInt32}(x + 44)
+    f === :srcContextId && return Ptr{UInt32}(x + 48)
+    f === :dstDeviceId && return Ptr{UInt32}(x + 52)
+    f === :dstContextId && return Ptr{UInt32}(x + 56)
+    f === :correlationId && return Ptr{UInt32}(x + 60)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 64)
+    f === :graphNodeId && return Ptr{UInt64}(x + 72)
+    f === :graphId && return Ptr{UInt32}(x + 80)
+    f === :channelID && return Ptr{UInt32}(x + 84)
+    f === :channelType && return Ptr{CUpti_ChannelType}(x + 88)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemcpyPtoP4, f::Symbol)
+    r = Ref{CUpti_ActivityMemcpyPtoP4}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemcpyPtoP4}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemcpyPtoP4}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityMemset4
+    data::NTuple{88,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemset4}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :value && return Ptr{UInt32}(x + 4)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :correlationId && return Ptr{UInt32}(x + 44)
+    f === :flags && return Ptr{UInt16}(x + 48)
+    f === :memoryKind && return Ptr{UInt16}(x + 50)
+    f === :pad && return Ptr{UInt32}(x + 52)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 56)
+    f === :graphNodeId && return Ptr{UInt64}(x + 64)
+    f === :graphId && return Ptr{UInt32}(x + 72)
+    f === :channelID && return Ptr{UInt32}(x + 76)
+    f === :channelType && return Ptr{CUpti_ChannelType}(x + 80)
+    f === :pad2 && return Ptr{UInt32}(x + 84)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemset4, f::Symbol)
+    r = Ref{CUpti_ActivityMemset4}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemset4}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemset4}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityMemory
+    data::NTuple{80,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemory}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :memoryKind && return Ptr{CUpti_ActivityMemoryKind}(x + 4)
+    f === :address && return Ptr{UInt64}(x + 8)
+    f === :bytes && return Ptr{UInt64}(x + 16)
+    f === :start && return Ptr{UInt64}(x + 24)
+    f === :_end && return Ptr{UInt64}(x + 32)
+    f === :allocPC && return Ptr{UInt64}(x + 40)
+    f === :freePC && return Ptr{UInt64}(x + 48)
+    f === :processId && return Ptr{UInt32}(x + 56)
+    f === :deviceId && return Ptr{UInt32}(x + 60)
+    f === :contextId && return Ptr{UInt32}(x + 64)
+    f === :pad && return Ptr{UInt32}(x + 68)
+    f === :name && return Ptr{Cstring}(x + 72)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemory, f::Symbol)
+    r = Ref{CUpti_ActivityMemory}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemory}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemory}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2665:5)"
+    data::NTuple{8,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2665:5)"},
+                          f::Symbol)
     f === :size && return Ptr{UInt64}(x + 0)
     f === :processId && return Ptr{UInt64}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#620", f::Symbol)
-    r = Ref{var"##Ctag#620"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#620"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2665:5)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2665:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2665:5)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#620"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2665:5)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#619"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2634:3)"
     data::NTuple{40,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#619"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2634:3)"},
+                          f::Symbol)
     f === :memoryPoolType && return Ptr{CUpti_ActivityMemoryPoolType}(x + 0)
     f === :pad2 && return Ptr{UInt32}(x + 4)
     f === :address && return Ptr{UInt64}(x + 8)
     f === :releaseThreshold && return Ptr{UInt64}(x + 16)
-    f === :pool && return Ptr{var"##Ctag#620"}(x + 24)
+    f === :pool &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2665:5)"}(x +
+                                                                                                                                                     24)
     f === :utilizedSize && return Ptr{UInt64}(x + 32)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#619", f::Symbol)
-    r = Ref{var"##Ctag#619"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#619"}, r)
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2634:3)",
+                          f::Symbol)
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2634:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2634:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#619"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2634:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1404,7 +1560,9 @@ function Base.getproperty(x::Ptr{CUpti_ActivityMemory4}, f::Symbol)
     f === :name && return Ptr{Cstring}(x + 64)
     f === :isAsync && return Ptr{UInt32}(x + 72)
     f === :pad1 && return Ptr{UInt32}(x + 76)
-    f === :memoryPoolConfig && return Ptr{Cvoid}(x + 80)
+    f === :memoryPoolConfig &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2634:3)"}(x +
+                                                                                                                                                      80)
     f === :source && return Ptr{Cstring}(x + 120)
     return getfield(x, f)
 end
@@ -1421,18 +1579,35 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityMemory4}, f::Symbol, v)
 end
 
 struct CUpti_ActivityMemoryPool2
-    kind::CUpti_ActivityKind
-    memoryPoolOperationType::CUpti_ActivityMemoryPoolOperationType
-    memoryPoolType::CUpti_ActivityMemoryPoolType
-    correlationId::UInt32
-    processId::UInt32
-    deviceId::UInt32
-    minBytesToKeep::Csize_t
-    address::UInt64
-    size::UInt64
-    releaseThreshold::UInt64
-    timestamp::UInt64
-    utilizedSize::UInt64
+    data::NTuple{72,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemoryPool2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :memoryPoolOperationType &&
+        return Ptr{CUpti_ActivityMemoryPoolOperationType}(x + 4)
+    f === :memoryPoolType && return Ptr{CUpti_ActivityMemoryPoolType}(x + 8)
+    f === :correlationId && return Ptr{UInt32}(x + 12)
+    f === :processId && return Ptr{UInt32}(x + 16)
+    f === :deviceId && return Ptr{UInt32}(x + 20)
+    f === :minBytesToKeep && return Ptr{Csize_t}(x + 24)
+    f === :address && return Ptr{UInt64}(x + 32)
+    f === :size && return Ptr{UInt64}(x + 40)
+    f === :releaseThreshold && return Ptr{UInt64}(x + 48)
+    f === :timestamp && return Ptr{UInt64}(x + 56)
+    f === :utilizedSize && return Ptr{UInt64}(x + 64)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemoryPool2, f::Symbol)
+    r = Ref{CUpti_ActivityMemoryPool2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemoryPool2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemoryPool2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 @cenum CUpti_ActivityLaunchType::UInt32 begin
@@ -1448,24 +1623,30 @@ end
     CUPTI_FUNC_SHMEM_LIMIT_FORCE_INT = 2147483647
 end
 
-struct var"##Ctag#590"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2834:3)"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#590"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2834:3)"},
+                          f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#591"}(x + 0)
+    f === :config &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2836:5)"}(x +
+                                                                                                                                                      0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#590", f::Symbol)
-    r = Ref{var"##Ctag#590"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#590"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2834:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2834:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2834:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#590"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2834:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1475,7 +1656,9 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel9}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#590"}(x + 4)
+    f === :cacheConfig &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2834:3)"}(x +
+                                                                                                                                                     4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -1536,24 +1719,30 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel9}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#607"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3134:3)"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#607"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3134:3)"},
+                          f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#608"}(x + 0)
+    f === :config &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3136:5)"}(x +
+                                                                                                                                                      0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#607", f::Symbol)
-    r = Ref{var"##Ctag#607"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#607"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3134:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3134:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3134:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#607"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3134:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1563,7 +1752,9 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityCdpKernel}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#607"}(x + 4)
+    f === :cacheConfig &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3134:3)"}(x +
+                                                                                                                                                     4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :start && return Ptr{UInt64}(x + 8)
@@ -1607,164 +1798,329 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityCdpKernel}, f::Symbol, v)
 end
 
 struct CUpti_ActivityPreemption
-    kind::CUpti_ActivityKind
-    preemptionKind::CUpti_ActivityPreemptionKind
-    timestamp::UInt64
-    gridId::Int64
-    blockX::UInt32
-    blockY::UInt32
-    blockZ::UInt32
-    pad::UInt32
+    data::NTuple{40,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityPreemption}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :preemptionKind && return Ptr{CUpti_ActivityPreemptionKind}(x + 4)
+    f === :timestamp && return Ptr{UInt64}(x + 8)
+    f === :gridId && return Ptr{Int64}(x + 16)
+    f === :blockX && return Ptr{UInt32}(x + 24)
+    f === :blockY && return Ptr{UInt32}(x + 28)
+    f === :blockZ && return Ptr{UInt32}(x + 32)
+    f === :pad && return Ptr{UInt32}(x + 36)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityPreemption, f::Symbol)
+    r = Ref{CUpti_ActivityPreemption}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityPreemption}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityPreemption}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityAPI
-    kind::CUpti_ActivityKind
-    cbid::CUpti_CallbackId
-    start::UInt64
-    _end::UInt64
-    processId::UInt32
-    threadId::UInt32
-    correlationId::UInt32
-    returnValue::UInt32
+    data::NTuple{40,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityAPI}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :cbid && return Ptr{CUpti_CallbackId}(x + 4)
+    f === :start && return Ptr{UInt64}(x + 8)
+    f === :_end && return Ptr{UInt64}(x + 16)
+    f === :processId && return Ptr{UInt32}(x + 24)
+    f === :threadId && return Ptr{UInt32}(x + 28)
+    f === :correlationId && return Ptr{UInt32}(x + 32)
+    f === :returnValue && return Ptr{UInt32}(x + 36)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityAPI, f::Symbol)
+    r = Ref{CUpti_ActivityAPI}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityAPI}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityAPI}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityEvent
-    kind::CUpti_ActivityKind
-    id::CUpti_EventID
-    value::UInt64
-    domain::CUpti_EventDomainID
-    correlationId::UInt32
+    data::NTuple{24,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityEvent}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :id && return Ptr{CUpti_EventID}(x + 4)
+    f === :value && return Ptr{UInt64}(x + 8)
+    f === :domain && return Ptr{CUpti_EventDomainID}(x + 16)
+    f === :correlationId && return Ptr{UInt32}(x + 20)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityEvent, f::Symbol)
+    r = Ref{CUpti_ActivityEvent}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityEvent}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityEvent}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityEventInstance
-    kind::CUpti_ActivityKind
-    id::CUpti_EventID
-    domain::CUpti_EventDomainID
-    instance::UInt32
-    value::UInt64
-    correlationId::UInt32
-    pad::UInt32
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityEventInstance}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :id && return Ptr{CUpti_EventID}(x + 4)
+    f === :domain && return Ptr{CUpti_EventDomainID}(x + 8)
+    f === :instance && return Ptr{UInt32}(x + 12)
+    f === :value && return Ptr{UInt64}(x + 16)
+    f === :correlationId && return Ptr{UInt32}(x + 24)
+    f === :pad && return Ptr{UInt32}(x + 28)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityEventInstance, f::Symbol)
+    r = Ref{CUpti_ActivityEventInstance}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityEventInstance}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityEventInstance}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityMetric
-    kind::CUpti_ActivityKind
-    id::CUpti_MetricID
-    value::CUpti_MetricValue
-    correlationId::UInt32
-    flags::UInt8
-    pad::NTuple{3,UInt8}
+    data::NTuple{24,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMetric}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :id && return Ptr{CUpti_MetricID}(x + 4)
+    f === :value && return Ptr{CUpti_MetricValue}(x + 8)
+    f === :correlationId && return Ptr{UInt32}(x + 16)
+    f === :flags && return Ptr{UInt8}(x + 20)
+    f === :pad && return Ptr{NTuple{3,UInt8}}(x + 21)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMetric, f::Symbol)
+    r = Ref{CUpti_ActivityMetric}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMetric}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMetric}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityMetricInstance
-    kind::CUpti_ActivityKind
-    id::CUpti_MetricID
-    value::CUpti_MetricValue
-    instance::UInt32
-    correlationId::UInt32
-    flags::UInt8
-    pad::NTuple{7,UInt8}
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMetricInstance}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :id && return Ptr{CUpti_MetricID}(x + 4)
+    f === :value && return Ptr{CUpti_MetricValue}(x + 8)
+    f === :instance && return Ptr{UInt32}(x + 16)
+    f === :correlationId && return Ptr{UInt32}(x + 20)
+    f === :flags && return Ptr{UInt8}(x + 24)
+    f === :pad && return Ptr{NTuple{7,UInt8}}(x + 25)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMetricInstance, f::Symbol)
+    r = Ref{CUpti_ActivityMetricInstance}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMetricInstance}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMetricInstance}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivitySourceLocator
-    kind::CUpti_ActivityKind
-    id::UInt32
-    lineNumber::UInt32
-    pad::UInt32
-    fileName::Cstring
+    data::NTuple{24,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivitySourceLocator}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :id && return Ptr{UInt32}(x + 4)
+    f === :lineNumber && return Ptr{UInt32}(x + 8)
+    f === :pad && return Ptr{UInt32}(x + 12)
+    f === :fileName && return Ptr{Cstring}(x + 16)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivitySourceLocator, f::Symbol)
+    r = Ref{CUpti_ActivitySourceLocator}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivitySourceLocator}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivitySourceLocator}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityGlobalAccess3
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    sourceLocatorId::UInt32
-    correlationId::UInt32
-    functionId::UInt32
-    executed::UInt32
-    pcOffset::UInt64
-    threadsExecuted::UInt64
-    l2_transactions::UInt64
-    theoreticalL2Transactions::UInt64
+    data::NTuple{56,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityGlobalAccess3}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :sourceLocatorId && return Ptr{UInt32}(x + 8)
+    f === :correlationId && return Ptr{UInt32}(x + 12)
+    f === :functionId && return Ptr{UInt32}(x + 16)
+    f === :executed && return Ptr{UInt32}(x + 20)
+    f === :pcOffset && return Ptr{UInt64}(x + 24)
+    f === :threadsExecuted && return Ptr{UInt64}(x + 32)
+    f === :l2_transactions && return Ptr{UInt64}(x + 40)
+    f === :theoreticalL2Transactions && return Ptr{UInt64}(x + 48)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityGlobalAccess3, f::Symbol)
+    r = Ref{CUpti_ActivityGlobalAccess3}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityGlobalAccess3}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityGlobalAccess3}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityBranch2
-    kind::CUpti_ActivityKind
-    sourceLocatorId::UInt32
-    correlationId::UInt32
-    functionId::UInt32
-    pcOffset::UInt32
-    diverged::UInt32
-    threadsExecuted::UInt64
-    executed::UInt32
-    pad::UInt32
+    data::NTuple{40,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityBranch2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :sourceLocatorId && return Ptr{UInt32}(x + 4)
+    f === :correlationId && return Ptr{UInt32}(x + 8)
+    f === :functionId && return Ptr{UInt32}(x + 12)
+    f === :pcOffset && return Ptr{UInt32}(x + 16)
+    f === :diverged && return Ptr{UInt32}(x + 20)
+    f === :threadsExecuted && return Ptr{UInt64}(x + 24)
+    f === :executed && return Ptr{UInt32}(x + 32)
+    f === :pad && return Ptr{UInt32}(x + 36)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityBranch2, f::Symbol)
+    r = Ref{CUpti_ActivityBranch2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityBranch2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityBranch2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityDevice5
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    globalMemoryBandwidth::UInt64
-    globalMemorySize::UInt64
-    constantMemorySize::UInt32
-    l2CacheSize::UInt32
-    numThreadsPerWarp::UInt32
-    coreClockRate::UInt32
-    numMemcpyEngines::UInt32
-    numMultiprocessors::UInt32
-    maxIPC::UInt32
-    maxWarpsPerMultiprocessor::UInt32
-    maxBlocksPerMultiprocessor::UInt32
-    maxSharedMemoryPerMultiprocessor::UInt32
-    maxRegistersPerMultiprocessor::UInt32
-    maxRegistersPerBlock::UInt32
-    maxSharedMemoryPerBlock::UInt32
-    maxThreadsPerBlock::UInt32
-    maxBlockDimX::UInt32
-    maxBlockDimY::UInt32
-    maxBlockDimZ::UInt32
-    maxGridDimX::UInt32
-    maxGridDimY::UInt32
-    maxGridDimZ::UInt32
-    computeCapabilityMajor::UInt32
-    computeCapabilityMinor::UInt32
-    id::UInt32
-    eccEnabled::UInt32
-    uuid::CUuuid
-    name::Cstring
-    isCudaVisible::UInt8
-    isMigEnabled::UInt8
-    reserved::NTuple{6,UInt8}
-    gpuInstanceId::UInt32
-    computeInstanceId::UInt32
-    migUuid::CUuuid
-    isNumaNode::UInt32
-    numaId::UInt32
+    data::NTuple{184,UInt8}
 end
 
-struct var"##Ctag#603"
+function Base.getproperty(x::Ptr{CUpti_ActivityDevice5}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :globalMemoryBandwidth && return Ptr{UInt64}(x + 8)
+    f === :globalMemorySize && return Ptr{UInt64}(x + 16)
+    f === :constantMemorySize && return Ptr{UInt32}(x + 24)
+    f === :l2CacheSize && return Ptr{UInt32}(x + 28)
+    f === :numThreadsPerWarp && return Ptr{UInt32}(x + 32)
+    f === :coreClockRate && return Ptr{UInt32}(x + 36)
+    f === :numMemcpyEngines && return Ptr{UInt32}(x + 40)
+    f === :numMultiprocessors && return Ptr{UInt32}(x + 44)
+    f === :maxIPC && return Ptr{UInt32}(x + 48)
+    f === :maxWarpsPerMultiprocessor && return Ptr{UInt32}(x + 52)
+    f === :maxBlocksPerMultiprocessor && return Ptr{UInt32}(x + 56)
+    f === :maxSharedMemoryPerMultiprocessor && return Ptr{UInt32}(x + 60)
+    f === :maxRegistersPerMultiprocessor && return Ptr{UInt32}(x + 64)
+    f === :maxRegistersPerBlock && return Ptr{UInt32}(x + 68)
+    f === :maxSharedMemoryPerBlock && return Ptr{UInt32}(x + 72)
+    f === :maxThreadsPerBlock && return Ptr{UInt32}(x + 76)
+    f === :maxBlockDimX && return Ptr{UInt32}(x + 80)
+    f === :maxBlockDimY && return Ptr{UInt32}(x + 84)
+    f === :maxBlockDimZ && return Ptr{UInt32}(x + 88)
+    f === :maxGridDimX && return Ptr{UInt32}(x + 92)
+    f === :maxGridDimY && return Ptr{UInt32}(x + 96)
+    f === :maxGridDimZ && return Ptr{UInt32}(x + 100)
+    f === :computeCapabilityMajor && return Ptr{UInt32}(x + 104)
+    f === :computeCapabilityMinor && return Ptr{UInt32}(x + 108)
+    f === :id && return Ptr{UInt32}(x + 112)
+    f === :eccEnabled && return Ptr{UInt32}(x + 116)
+    f === :uuid && return Ptr{CUuuid}(x + 120)
+    f === :name && return Ptr{Cstring}(x + 136)
+    f === :isCudaVisible && return Ptr{UInt8}(x + 144)
+    f === :isMigEnabled && return Ptr{UInt8}(x + 145)
+    f === :reserved && return Ptr{NTuple{6,UInt8}}(x + 146)
+    f === :gpuInstanceId && return Ptr{UInt32}(x + 152)
+    f === :computeInstanceId && return Ptr{UInt32}(x + 156)
+    f === :migUuid && return Ptr{CUuuid}(x + 160)
+    f === :isNumaNode && return Ptr{UInt32}(x + 176)
+    f === :numaId && return Ptr{UInt32}(x + 180)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityDevice5, f::Symbol)
+    r = Ref{CUpti_ActivityDevice5}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityDevice5}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityDevice5}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4020:3)"
     data::NTuple{4,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#603"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4020:3)"},
+                          f::Symbol)
     f === :cu && return Ptr{CUdevice_attribute}(x + 0)
     f === :cupti && return Ptr{CUpti_DeviceAttribute}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#603", f::Symbol)
-    r = Ref{var"##Ctag#603"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#603"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4020:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4020:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4020:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#603"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4020:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#604"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4030:3)"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#604"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4030:3)"},
+                          f::Symbol)
     f === :vDouble && return Ptr{Cdouble}(x + 0)
     f === :vUint32 && return Ptr{UInt32}(x + 0)
     f === :vUint64 && return Ptr{UInt64}(x + 0)
@@ -1773,14 +2129,17 @@ function Base.getproperty(x::Ptr{var"##Ctag#604"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#604", f::Symbol)
-    r = Ref{var"##Ctag#604"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#604"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4030:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4030:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4030:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#604"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4030:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1792,8 +2151,12 @@ function Base.getproperty(x::Ptr{CUpti_ActivityDeviceAttribute}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
     f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
     f === :deviceId && return Ptr{UInt32}(x + 8)
-    f === :attribute && return Ptr{var"##Ctag#603"}(x + 12)
-    f === :value && return Ptr{var"##Ctag#604"}(x + 16)
+    f === :attribute &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4020:3)"}(x +
+                                                                                                                                                     12)
+    f === :value &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4030:3)"}(x +
+                                                                                                                                                     16)
     return getfield(x, f)
 end
 
@@ -1809,81 +2172,173 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityDeviceAttribute}, f::Symbol, v)
 end
 
 struct CUpti_ActivityContext3
-    kind::CUpti_ActivityKind
-    contextId::UInt32
-    deviceId::UInt32
-    computeApiKind::UInt16
-    nullStreamId::UInt16
-    parentContextId::UInt32
-    isGreenContext::UInt8
-    padding::UInt8
-    numMultiprocessors::UInt16
-    cigMode::CUpti_ContextCigMode
-    padding2::UInt32
+    data::NTuple{32,UInt8}
 end
 
-struct CUpti_ActivityName
-    kind::CUpti_ActivityKind
-    objectKind::CUpti_ActivityObjectKind
-    objectId::CUpti_ActivityObjectKindId
-    pad::UInt32
-    name::Cstring
-end
-
-struct CUpti_ActivityMarker2
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    timestamp::UInt64
-    id::UInt32
-    objectKind::CUpti_ActivityObjectKind
-    objectId::CUpti_ActivityObjectKindId
-    pad::UInt32
-    name::Cstring
-    domain::Cstring
-end
-
-struct CUpti_ActivityMarkerData
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    id::UInt32
-    payloadKind::CUpti_MetricValueKind
-    payload::CUpti_MetricValue
-    color::UInt32
-    category::UInt32
-end
-
-struct CUpti_ActivityOverhead3
-    kind::CUpti_ActivityKind
-    overheadKind::CUpti_ActivityOverheadKind
-    objectKind::CUpti_ActivityObjectKind
-    objectId::CUpti_ActivityObjectKindId
-    start::UInt64
-    _end::UInt64
-    correlationId::UInt32
-    reserved0::UInt32
-    overheadData::Ptr{Cvoid}
-end
-
-struct var"##Ctag#651"
-    data::NTuple{20,UInt8}
-end
-
-function Base.getproperty(x::Ptr{var"##Ctag#651"}, f::Symbol)
-    f === :speed && return Ptr{var"##Ctag#652"}(x + 0)
-    f === :temperature && return Ptr{var"##Ctag#653"}(x + 0)
-    f === :power && return Ptr{var"##Ctag#654"}(x + 0)
-    f === :cooling && return Ptr{var"##Ctag#655"}(x + 0)
+function Base.getproperty(x::Ptr{CUpti_ActivityContext3}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :contextId && return Ptr{UInt32}(x + 4)
+    f === :deviceId && return Ptr{UInt32}(x + 8)
+    f === :computeApiKind && return Ptr{UInt16}(x + 12)
+    f === :nullStreamId && return Ptr{UInt16}(x + 14)
+    f === :parentContextId && return Ptr{UInt32}(x + 16)
+    f === :isGreenContext && return Ptr{UInt8}(x + 20)
+    f === :padding && return Ptr{UInt8}(x + 21)
+    f === :numMultiprocessors && return Ptr{UInt16}(x + 22)
+    f === :cigMode && return Ptr{CUpti_ContextCigMode}(x + 24)
+    f === :padding2 && return Ptr{UInt32}(x + 28)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#651", f::Symbol)
-    r = Ref{var"##Ctag#651"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#651"}, r)
+function Base.getproperty(x::CUpti_ActivityContext3, f::Symbol)
+    r = Ref{CUpti_ActivityContext3}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityContext3}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#651"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{CUpti_ActivityContext3}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityName
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityName}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :objectKind && return Ptr{CUpti_ActivityObjectKind}(x + 4)
+    f === :objectId && return Ptr{CUpti_ActivityObjectKindId}(x + 8)
+    f === :pad && return Ptr{UInt32}(x + 20)
+    f === :name && return Ptr{Cstring}(x + 24)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityName, f::Symbol)
+    r = Ref{CUpti_ActivityName}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityName}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityName}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityMarker2
+    data::NTuple{56,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMarker2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :timestamp && return Ptr{UInt64}(x + 8)
+    f === :id && return Ptr{UInt32}(x + 16)
+    f === :objectKind && return Ptr{CUpti_ActivityObjectKind}(x + 20)
+    f === :objectId && return Ptr{CUpti_ActivityObjectKindId}(x + 24)
+    f === :pad && return Ptr{UInt32}(x + 36)
+    f === :name && return Ptr{Cstring}(x + 40)
+    f === :domain && return Ptr{Cstring}(x + 48)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMarker2, f::Symbol)
+    r = Ref{CUpti_ActivityMarker2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMarker2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMarker2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityMarkerData
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMarkerData}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :id && return Ptr{UInt32}(x + 8)
+    f === :payloadKind && return Ptr{CUpti_MetricValueKind}(x + 12)
+    f === :payload && return Ptr{CUpti_MetricValue}(x + 16)
+    f === :color && return Ptr{UInt32}(x + 24)
+    f === :category && return Ptr{UInt32}(x + 28)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMarkerData, f::Symbol)
+    r = Ref{CUpti_ActivityMarkerData}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMarkerData}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMarkerData}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityOverhead3
+    data::NTuple{56,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityOverhead3}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :overheadKind && return Ptr{CUpti_ActivityOverheadKind}(x + 4)
+    f === :objectKind && return Ptr{CUpti_ActivityObjectKind}(x + 8)
+    f === :objectId && return Ptr{CUpti_ActivityObjectKindId}(x + 12)
+    f === :start && return Ptr{UInt64}(x + 24)
+    f === :_end && return Ptr{UInt64}(x + 32)
+    f === :correlationId && return Ptr{UInt32}(x + 40)
+    f === :reserved0 && return Ptr{UInt32}(x + 44)
+    f === :overheadData && return Ptr{Ptr{Cvoid}}(x + 48)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityOverhead3, f::Symbol)
+    r = Ref{CUpti_ActivityOverhead3}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityOverhead3}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityOverhead3}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4341:3)"
+    data::NTuple{20,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4341:3)"},
+                          f::Symbol)
+    f === :speed &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4346:5)"}(x +
+                                                                                                                                                      0)
+    f === :temperature &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4377:5)"}(x +
+                                                                                                                                                      0)
+    f === :power &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4389:5)"}(x +
+                                                                                                                                                      0)
+    f === :cooling &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4399:5)"}(x +
+                                                                                                                                                      0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4341:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4341:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4341:3)"},
+                              r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4341:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1896,7 +2351,9 @@ function Base.getproperty(x::Ptr{CUpti_ActivityEnvironment}, f::Symbol)
     f === :deviceId && return Ptr{UInt32}(x + 4)
     f === :timestamp && return Ptr{UInt64}(x + 8)
     f === :environmentKind && return Ptr{CUpti_ActivityEnvironmentKind}(x + 16)
-    f === :data && return Ptr{var"##Ctag#651"}(x + 20)
+    f === :data &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4341:3)"}(x +
+                                                                                                                                                     20)
     return getfield(x, f)
 end
 
@@ -1912,121 +2369,306 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityEnvironment}, f::Symbol, v)
 end
 
 struct CUpti_ActivityInstructionExecution
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    sourceLocatorId::UInt32
-    correlationId::UInt32
-    functionId::UInt32
-    pcOffset::UInt32
-    threadsExecuted::UInt64
-    notPredOffThreadsExecuted::UInt64
-    executed::UInt32
-    pad::UInt32
+    data::NTuple{48,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityInstructionExecution}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :sourceLocatorId && return Ptr{UInt32}(x + 8)
+    f === :correlationId && return Ptr{UInt32}(x + 12)
+    f === :functionId && return Ptr{UInt32}(x + 16)
+    f === :pcOffset && return Ptr{UInt32}(x + 20)
+    f === :threadsExecuted && return Ptr{UInt64}(x + 24)
+    f === :notPredOffThreadsExecuted && return Ptr{UInt64}(x + 32)
+    f === :executed && return Ptr{UInt32}(x + 40)
+    f === :pad && return Ptr{UInt32}(x + 44)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityInstructionExecution, f::Symbol)
+    r = Ref{CUpti_ActivityInstructionExecution}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityInstructionExecution}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityInstructionExecution}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityPCSampling3
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    sourceLocatorId::UInt32
-    correlationId::UInt32
-    functionId::UInt32
-    latencySamples::UInt32
-    samples::UInt32
-    stallReason::CUpti_ActivityPCSamplingStallReason
-    pcOffset::UInt64
+    data::NTuple{40,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityPCSampling3}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :sourceLocatorId && return Ptr{UInt32}(x + 8)
+    f === :correlationId && return Ptr{UInt32}(x + 12)
+    f === :functionId && return Ptr{UInt32}(x + 16)
+    f === :latencySamples && return Ptr{UInt32}(x + 20)
+    f === :samples && return Ptr{UInt32}(x + 24)
+    f === :stallReason && return Ptr{CUpti_ActivityPCSamplingStallReason}(x + 28)
+    f === :pcOffset && return Ptr{UInt64}(x + 32)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityPCSampling3, f::Symbol)
+    r = Ref{CUpti_ActivityPCSampling3}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityPCSampling3}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityPCSampling3}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityPCSamplingRecordInfo
-    kind::CUpti_ActivityKind
-    correlationId::UInt32
-    totalSamples::UInt64
-    droppedSamples::UInt64
-    samplingPeriodInCycles::UInt64
+    data::NTuple{32,UInt8}
 end
 
-struct CUpti_ActivityUnifiedMemoryCounter2
-    kind::CUpti_ActivityKind
-    counterKind::CUpti_ActivityUnifiedMemoryCounterKind
-    value::UInt64
-    start::UInt64
-    _end::UInt64
-    address::UInt64
-    srcId::UInt32
-    dstId::UInt32
-    streamId::UInt32
-    processId::UInt32
-    flags::UInt32
-    pad::UInt32
+function Base.getproperty(x::Ptr{CUpti_ActivityPCSamplingRecordInfo}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :correlationId && return Ptr{UInt32}(x + 4)
+    f === :totalSamples && return Ptr{UInt64}(x + 8)
+    f === :droppedSamples && return Ptr{UInt64}(x + 16)
+    f === :samplingPeriodInCycles && return Ptr{UInt64}(x + 24)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityPCSamplingRecordInfo, f::Symbol)
+    r = Ref{CUpti_ActivityPCSamplingRecordInfo}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityPCSamplingRecordInfo}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityPCSamplingRecordInfo}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityUnifiedMemoryCounter3
+    data::NTuple{104,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityUnifiedMemoryCounter3}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :counterKind && return Ptr{CUpti_ActivityUnifiedMemoryCounterKind}(x + 4)
+    f === :value && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :address && return Ptr{UInt64}(x + 32)
+    f === :srcId && return Ptr{UInt32}(x + 40)
+    f === :dstId && return Ptr{UInt32}(x + 44)
+    f === :streamId && return Ptr{UInt32}(x + 48)
+    f === :processId && return Ptr{UInt32}(x + 52)
+    f === :flags && return Ptr{UInt32}(x + 56)
+    f === :pad && return Ptr{UInt32}(x + 60)
+    f === :processors && return Ptr{NTuple{5,UInt64}}(x + 64)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityUnifiedMemoryCounter3, f::Symbol)
+    r = Ref{CUpti_ActivityUnifiedMemoryCounter3}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityUnifiedMemoryCounter3}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityUnifiedMemoryCounter3}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityFunction
-    kind::CUpti_ActivityKind
-    id::UInt32
-    contextId::UInt32
-    moduleId::UInt32
-    functionIndex::UInt32
-    pad::UInt32
-    name::Cstring
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityFunction}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :id && return Ptr{UInt32}(x + 4)
+    f === :contextId && return Ptr{UInt32}(x + 8)
+    f === :moduleId && return Ptr{UInt32}(x + 12)
+    f === :functionIndex && return Ptr{UInt32}(x + 16)
+    f === :pad && return Ptr{UInt32}(x + 20)
+    f === :name && return Ptr{Cstring}(x + 24)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityFunction, f::Symbol)
+    r = Ref{CUpti_ActivityFunction}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityFunction}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityFunction}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityModule
-    kind::CUpti_ActivityKind
-    contextId::UInt32
-    id::UInt32
-    cubinSize::UInt32
-    cubin::Ptr{Cvoid}
+    data::NTuple{24,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityModule}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :contextId && return Ptr{UInt32}(x + 4)
+    f === :id && return Ptr{UInt32}(x + 8)
+    f === :cubinSize && return Ptr{UInt32}(x + 12)
+    f === :cubin && return Ptr{Ptr{Cvoid}}(x + 16)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityModule, f::Symbol)
+    r = Ref{CUpti_ActivityModule}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityModule}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityModule}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivitySharedAccess
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    sourceLocatorId::UInt32
-    correlationId::UInt32
-    functionId::UInt32
-    pcOffset::UInt32
-    threadsExecuted::UInt64
-    sharedTransactions::UInt64
-    theoreticalSharedTransactions::UInt64
-    executed::UInt32
-    pad::UInt32
+    data::NTuple{56,UInt8}
 end
 
-struct CUpti_ActivityCudaEvent
-    kind::CUpti_ActivityKind
-    correlationId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    eventId::UInt32
-    pad::UInt32
+function Base.getproperty(x::Ptr{CUpti_ActivitySharedAccess}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :sourceLocatorId && return Ptr{UInt32}(x + 8)
+    f === :correlationId && return Ptr{UInt32}(x + 12)
+    f === :functionId && return Ptr{UInt32}(x + 16)
+    f === :pcOffset && return Ptr{UInt32}(x + 20)
+    f === :threadsExecuted && return Ptr{UInt64}(x + 24)
+    f === :sharedTransactions && return Ptr{UInt64}(x + 32)
+    f === :theoreticalSharedTransactions && return Ptr{UInt64}(x + 40)
+    f === :executed && return Ptr{UInt32}(x + 48)
+    f === :pad && return Ptr{UInt32}(x + 52)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivitySharedAccess, f::Symbol)
+    r = Ref{CUpti_ActivitySharedAccess}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivitySharedAccess}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivitySharedAccess}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityCudaEvent2
+    data::NTuple{56,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityCudaEvent2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :correlationId && return Ptr{UInt32}(x + 4)
+    f === :contextId && return Ptr{UInt32}(x + 8)
+    f === :streamId && return Ptr{UInt32}(x + 12)
+    f === :eventId && return Ptr{UInt32}(x + 16)
+    f === :pad && return Ptr{UInt32}(x + 20)
+    f === :deviceId && return Ptr{UInt32}(x + 24)
+    f === :pad2 && return Ptr{UInt32}(x + 28)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 32)
+    f === :deviceTimestamp && return Ptr{UInt64}(x + 40)
+    f === :cudaEventSyncId && return Ptr{UInt64}(x + 48)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityCudaEvent2, f::Symbol)
+    r = Ref{CUpti_ActivityCudaEvent2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityCudaEvent2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityCudaEvent2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityStream
-    kind::CUpti_ActivityKind
-    contextId::UInt32
-    streamId::UInt32
-    priority::UInt32
-    flag::CUpti_ActivityStreamFlag
-    correlationId::UInt32
+    data::NTuple{24,UInt8}
 end
 
-struct CUpti_ActivitySynchronization
-    kind::CUpti_ActivityKind
-    type::CUpti_ActivitySynchronizationType
-    start::UInt64
-    _end::UInt64
-    correlationId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    cudaEventId::UInt32
+function Base.getproperty(x::Ptr{CUpti_ActivityStream}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :contextId && return Ptr{UInt32}(x + 4)
+    f === :streamId && return Ptr{UInt32}(x + 8)
+    f === :priority && return Ptr{UInt32}(x + 12)
+    f === :flag && return Ptr{CUpti_ActivityStreamFlag}(x + 16)
+    f === :correlationId && return Ptr{UInt32}(x + 20)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityStream, f::Symbol)
+    r = Ref{CUpti_ActivityStream}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityStream}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityStream}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivitySynchronization2
+    data::NTuple{56,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivitySynchronization2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :type && return Ptr{CUpti_ActivitySynchronizationType}(x + 4)
+    f === :start && return Ptr{UInt64}(x + 8)
+    f === :_end && return Ptr{UInt64}(x + 16)
+    f === :correlationId && return Ptr{UInt32}(x + 24)
+    f === :contextId && return Ptr{UInt32}(x + 28)
+    f === :streamId && return Ptr{UInt32}(x + 32)
+    f === :cudaEventId && return Ptr{UInt32}(x + 36)
+    f === :cudaEventSyncId && return Ptr{UInt64}(x + 40)
+    f === :returnValue && return Ptr{UInt32}(x + 48)
+    f === :pad && return Ptr{UInt32}(x + 52)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivitySynchronization2, f::Symbol)
+    r = Ref{CUpti_ActivitySynchronization2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivitySynchronization2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivitySynchronization2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityInstructionCorrelation
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    sourceLocatorId::UInt32
-    functionId::UInt32
-    pcOffset::UInt32
-    pad::UInt32
+    data::NTuple{24,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityInstructionCorrelation}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :sourceLocatorId && return Ptr{UInt32}(x + 8)
+    f === :functionId && return Ptr{UInt32}(x + 12)
+    f === :pcOffset && return Ptr{UInt32}(x + 16)
+    f === :pad && return Ptr{UInt32}(x + 20)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityInstructionCorrelation, f::Symbol)
+    r = Ref{CUpti_ActivityInstructionCorrelation}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityInstructionCorrelation}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityInstructionCorrelation}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 @cenum CUpti_OpenAccEventKind::UInt32 begin
@@ -2083,130 +2725,210 @@ end
 end
 
 struct CUpti_ActivityOpenAcc
-    kind::CUpti_ActivityKind
-    eventKind::CUpti_OpenAccEventKind
-    parentConstruct::CUpti_OpenAccConstructKind
-    version::UInt32
-    implicit::UInt32
-    deviceType::UInt32
-    deviceNumber::UInt32
-    threadId::UInt32
-    async::UInt64
-    asyncMap::UInt64
-    lineNo::UInt32
-    endLineNo::UInt32
-    funcLineNo::UInt32
-    funcEndLineNo::UInt32
-    start::UInt64
-    _end::UInt64
-    cuDeviceId::UInt32
-    cuContextId::UInt32
-    cuStreamId::UInt32
-    cuProcessId::UInt32
-    cuThreadId::UInt32
-    externalId::UInt32
-    srcFile::Cstring
-    funcName::Cstring
+    data::NTuple{120,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityOpenAcc}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :eventKind && return Ptr{CUpti_OpenAccEventKind}(x + 4)
+    f === :parentConstruct && return Ptr{CUpti_OpenAccConstructKind}(x + 8)
+    f === :version && return Ptr{UInt32}(x + 12)
+    f === :implicit && return Ptr{UInt32}(x + 16)
+    f === :deviceType && return Ptr{UInt32}(x + 20)
+    f === :deviceNumber && return Ptr{UInt32}(x + 24)
+    f === :threadId && return Ptr{UInt32}(x + 28)
+    f === :async && return Ptr{UInt64}(x + 32)
+    f === :asyncMap && return Ptr{UInt64}(x + 40)
+    f === :lineNo && return Ptr{UInt32}(x + 48)
+    f === :endLineNo && return Ptr{UInt32}(x + 52)
+    f === :funcLineNo && return Ptr{UInt32}(x + 56)
+    f === :funcEndLineNo && return Ptr{UInt32}(x + 60)
+    f === :start && return Ptr{UInt64}(x + 64)
+    f === :_end && return Ptr{UInt64}(x + 72)
+    f === :cuDeviceId && return Ptr{UInt32}(x + 80)
+    f === :cuContextId && return Ptr{UInt32}(x + 84)
+    f === :cuStreamId && return Ptr{UInt32}(x + 88)
+    f === :cuProcessId && return Ptr{UInt32}(x + 92)
+    f === :cuThreadId && return Ptr{UInt32}(x + 96)
+    f === :externalId && return Ptr{UInt32}(x + 100)
+    f === :srcFile && return Ptr{Cstring}(x + 104)
+    f === :funcName && return Ptr{Cstring}(x + 112)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityOpenAcc, f::Symbol)
+    r = Ref{CUpti_ActivityOpenAcc}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityOpenAcc}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityOpenAcc}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityOpenAccData
-    kind::CUpti_ActivityKind
-    eventKind::CUpti_OpenAccEventKind
-    parentConstruct::CUpti_OpenAccConstructKind
-    version::UInt32
-    implicit::UInt32
-    deviceType::UInt32
-    deviceNumber::UInt32
-    threadId::UInt32
-    async::UInt64
-    asyncMap::UInt64
-    lineNo::UInt32
-    endLineNo::UInt32
-    funcLineNo::UInt32
-    funcEndLineNo::UInt32
-    start::UInt64
-    _end::UInt64
-    cuDeviceId::UInt32
-    cuContextId::UInt32
-    cuStreamId::UInt32
-    cuProcessId::UInt32
-    cuThreadId::UInt32
-    externalId::UInt32
-    srcFile::Cstring
-    funcName::Cstring
-    bytes::UInt64
-    hostPtr::UInt64
-    devicePtr::UInt64
-    varName::Cstring
+    data::NTuple{152,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityOpenAccData}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :eventKind && return Ptr{CUpti_OpenAccEventKind}(x + 4)
+    f === :parentConstruct && return Ptr{CUpti_OpenAccConstructKind}(x + 8)
+    f === :version && return Ptr{UInt32}(x + 12)
+    f === :implicit && return Ptr{UInt32}(x + 16)
+    f === :deviceType && return Ptr{UInt32}(x + 20)
+    f === :deviceNumber && return Ptr{UInt32}(x + 24)
+    f === :threadId && return Ptr{UInt32}(x + 28)
+    f === :async && return Ptr{UInt64}(x + 32)
+    f === :asyncMap && return Ptr{UInt64}(x + 40)
+    f === :lineNo && return Ptr{UInt32}(x + 48)
+    f === :endLineNo && return Ptr{UInt32}(x + 52)
+    f === :funcLineNo && return Ptr{UInt32}(x + 56)
+    f === :funcEndLineNo && return Ptr{UInt32}(x + 60)
+    f === :start && return Ptr{UInt64}(x + 64)
+    f === :_end && return Ptr{UInt64}(x + 72)
+    f === :cuDeviceId && return Ptr{UInt32}(x + 80)
+    f === :cuContextId && return Ptr{UInt32}(x + 84)
+    f === :cuStreamId && return Ptr{UInt32}(x + 88)
+    f === :cuProcessId && return Ptr{UInt32}(x + 92)
+    f === :cuThreadId && return Ptr{UInt32}(x + 96)
+    f === :externalId && return Ptr{UInt32}(x + 100)
+    f === :srcFile && return Ptr{Cstring}(x + 104)
+    f === :funcName && return Ptr{Cstring}(x + 112)
+    f === :bytes && return Ptr{UInt64}(x + 120)
+    f === :hostPtr && return Ptr{UInt64}(x + 128)
+    f === :devicePtr && return Ptr{UInt64}(x + 136)
+    f === :varName && return Ptr{Cstring}(x + 144)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityOpenAccData, f::Symbol)
+    r = Ref{CUpti_ActivityOpenAccData}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityOpenAccData}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityOpenAccData}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityOpenAccLaunch
-    kind::CUpti_ActivityKind
-    eventKind::CUpti_OpenAccEventKind
-    parentConstruct::CUpti_OpenAccConstructKind
-    version::UInt32
-    implicit::UInt32
-    deviceType::UInt32
-    deviceNumber::UInt32
-    threadId::UInt32
-    async::UInt64
-    asyncMap::UInt64
-    lineNo::UInt32
-    endLineNo::UInt32
-    funcLineNo::UInt32
-    funcEndLineNo::UInt32
-    start::UInt64
-    _end::UInt64
-    cuDeviceId::UInt32
-    cuContextId::UInt32
-    cuStreamId::UInt32
-    cuProcessId::UInt32
-    cuThreadId::UInt32
-    externalId::UInt32
-    srcFile::Cstring
-    funcName::Cstring
-    numGangs::UInt64
-    numWorkers::UInt64
-    vectorLength::UInt64
-    kernelName::Cstring
+    data::NTuple{152,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityOpenAccLaunch}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :eventKind && return Ptr{CUpti_OpenAccEventKind}(x + 4)
+    f === :parentConstruct && return Ptr{CUpti_OpenAccConstructKind}(x + 8)
+    f === :version && return Ptr{UInt32}(x + 12)
+    f === :implicit && return Ptr{UInt32}(x + 16)
+    f === :deviceType && return Ptr{UInt32}(x + 20)
+    f === :deviceNumber && return Ptr{UInt32}(x + 24)
+    f === :threadId && return Ptr{UInt32}(x + 28)
+    f === :async && return Ptr{UInt64}(x + 32)
+    f === :asyncMap && return Ptr{UInt64}(x + 40)
+    f === :lineNo && return Ptr{UInt32}(x + 48)
+    f === :endLineNo && return Ptr{UInt32}(x + 52)
+    f === :funcLineNo && return Ptr{UInt32}(x + 56)
+    f === :funcEndLineNo && return Ptr{UInt32}(x + 60)
+    f === :start && return Ptr{UInt64}(x + 64)
+    f === :_end && return Ptr{UInt64}(x + 72)
+    f === :cuDeviceId && return Ptr{UInt32}(x + 80)
+    f === :cuContextId && return Ptr{UInt32}(x + 84)
+    f === :cuStreamId && return Ptr{UInt32}(x + 88)
+    f === :cuProcessId && return Ptr{UInt32}(x + 92)
+    f === :cuThreadId && return Ptr{UInt32}(x + 96)
+    f === :externalId && return Ptr{UInt32}(x + 100)
+    f === :srcFile && return Ptr{Cstring}(x + 104)
+    f === :funcName && return Ptr{Cstring}(x + 112)
+    f === :numGangs && return Ptr{UInt64}(x + 120)
+    f === :numWorkers && return Ptr{UInt64}(x + 128)
+    f === :vectorLength && return Ptr{UInt64}(x + 136)
+    f === :kernelName && return Ptr{Cstring}(x + 144)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityOpenAccLaunch, f::Symbol)
+    r = Ref{CUpti_ActivityOpenAccLaunch}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityOpenAccLaunch}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityOpenAccLaunch}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityOpenAccOther
-    kind::CUpti_ActivityKind
-    eventKind::CUpti_OpenAccEventKind
-    parentConstruct::CUpti_OpenAccConstructKind
-    version::UInt32
-    implicit::UInt32
-    deviceType::UInt32
-    deviceNumber::UInt32
-    threadId::UInt32
-    async::UInt64
-    asyncMap::UInt64
-    lineNo::UInt32
-    endLineNo::UInt32
-    funcLineNo::UInt32
-    funcEndLineNo::UInt32
-    start::UInt64
-    _end::UInt64
-    cuDeviceId::UInt32
-    cuContextId::UInt32
-    cuStreamId::UInt32
-    cuProcessId::UInt32
-    cuThreadId::UInt32
-    externalId::UInt32
-    srcFile::Cstring
-    funcName::Cstring
+    data::NTuple{120,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityOpenAccOther}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :eventKind && return Ptr{CUpti_OpenAccEventKind}(x + 4)
+    f === :parentConstruct && return Ptr{CUpti_OpenAccConstructKind}(x + 8)
+    f === :version && return Ptr{UInt32}(x + 12)
+    f === :implicit && return Ptr{UInt32}(x + 16)
+    f === :deviceType && return Ptr{UInt32}(x + 20)
+    f === :deviceNumber && return Ptr{UInt32}(x + 24)
+    f === :threadId && return Ptr{UInt32}(x + 28)
+    f === :async && return Ptr{UInt64}(x + 32)
+    f === :asyncMap && return Ptr{UInt64}(x + 40)
+    f === :lineNo && return Ptr{UInt32}(x + 48)
+    f === :endLineNo && return Ptr{UInt32}(x + 52)
+    f === :funcLineNo && return Ptr{UInt32}(x + 56)
+    f === :funcEndLineNo && return Ptr{UInt32}(x + 60)
+    f === :start && return Ptr{UInt64}(x + 64)
+    f === :_end && return Ptr{UInt64}(x + 72)
+    f === :cuDeviceId && return Ptr{UInt32}(x + 80)
+    f === :cuContextId && return Ptr{UInt32}(x + 84)
+    f === :cuStreamId && return Ptr{UInt32}(x + 88)
+    f === :cuProcessId && return Ptr{UInt32}(x + 92)
+    f === :cuThreadId && return Ptr{UInt32}(x + 96)
+    f === :externalId && return Ptr{UInt32}(x + 100)
+    f === :srcFile && return Ptr{Cstring}(x + 104)
+    f === :funcName && return Ptr{Cstring}(x + 112)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityOpenAccOther, f::Symbol)
+    r = Ref{CUpti_ActivityOpenAccOther}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityOpenAccOther}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityOpenAccOther}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityOpenMp
-    kind::CUpti_ActivityKind
-    eventKind::CUpti_OpenMpEventKind
-    version::UInt32
-    threadId::UInt32
-    start::UInt64
-    _end::UInt64
-    cuProcessId::UInt32
-    cuThreadId::UInt32
+    data::NTuple{40,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityOpenMp}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :eventKind && return Ptr{CUpti_OpenMpEventKind}(x + 4)
+    f === :version && return Ptr{UInt32}(x + 8)
+    f === :threadId && return Ptr{UInt32}(x + 12)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :cuProcessId && return Ptr{UInt32}(x + 32)
+    f === :cuThreadId && return Ptr{UInt32}(x + 36)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityOpenMp, f::Symbol)
+    r = Ref{CUpti_ActivityOpenMp}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityOpenMp}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityOpenMp}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 @cenum CUpti_ExternalCorrelationKind::UInt32 begin
@@ -2221,11 +2943,27 @@ end
 end
 
 struct CUpti_ActivityExternalCorrelation
-    kind::CUpti_ActivityKind
-    externalKind::CUpti_ExternalCorrelationKind
-    externalId::UInt64
-    correlationId::UInt32
-    reserved::UInt32
+    data::NTuple{24,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityExternalCorrelation}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :externalKind && return Ptr{CUpti_ExternalCorrelationKind}(x + 4)
+    f === :externalId && return Ptr{UInt64}(x + 8)
+    f === :correlationId && return Ptr{UInt32}(x + 16)
+    f === :reserved && return Ptr{UInt32}(x + 20)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityExternalCorrelation, f::Symbol)
+    r = Ref{CUpti_ActivityExternalCorrelation}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityExternalCorrelation}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityExternalCorrelation}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 @cenum CUpti_DevType::UInt32 begin
@@ -2235,45 +2973,57 @@ end
     CUPTI_DEV_TYPE_FORCE_INT = 2147483647
 end
 
-struct var"##Ctag#597"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:5991:3)"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#597"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:5991:3)"},
+                          f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#598"}(x + 0)
+    f === :npu &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:5993:5)"}(x +
+                                                                                                                                                      0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#597", f::Symbol)
-    r = Ref{var"##Ctag#597"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#597"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:5991:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:5991:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:5991:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#597"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:5991:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#599"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6010:3)"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#599"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6010:3)"},
+                          f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#600"}(x + 0)
+    f === :npu &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6012:5)"}(x +
+                                                                                                                                                      0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#599", f::Symbol)
-    r = Ref{var"##Ctag#599"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#599"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6010:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6010:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6010:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#599"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6010:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -2286,8 +3036,12 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink4}, f::Symbol)
     f === :nvlinkVersion && return Ptr{UInt32}(x + 4)
     f === :typeDev0 && return Ptr{CUpti_DevType}(x + 8)
     f === :typeDev1 && return Ptr{CUpti_DevType}(x + 12)
-    f === :idDev0 && return Ptr{var"##Ctag#597"}(x + 16)
-    f === :idDev1 && return Ptr{var"##Ctag#599"}(x + 32)
+    f === :idDev0 &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:5991:3)"}(x +
+                                                                                                                                                     16)
+    f === :idDev1 &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6010:3)"}(x +
+                                                                                                                                                     32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
     f === :portDev0 && return Ptr{NTuple{32,Int8}}(x + 56)
@@ -2315,45 +3069,57 @@ end
     CUPTI_PCIE_DEVICE_TYPE_FORCE_INT = 2147483647
 end
 
-struct var"##Ctag#613"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6115:3)"
     data::NTuple{4,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#613"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6115:3)"},
+                          f::Symbol)
     f === :devId && return Ptr{CUdevice}(x + 0)
     f === :bridgeId && return Ptr{UInt32}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#613", f::Symbol)
-    r = Ref{var"##Ctag#613"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#613"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6115:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6115:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6115:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#613"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6115:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#614"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6157:3)"
     data::NTuple{144,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#614"}, f::Symbol)
-    f === :gpuAttr && return Ptr{var"##Ctag#615"}(x + 0)
-    f === :bridgeAttr && return Ptr{var"##Ctag#616"}(x + 0)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6157:3)"},
+                          f::Symbol)
+    f === :gpuAttr &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6158:5)"}(x +
+                                                                                                                                                      0)
+    f === :bridgeAttr &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6172:5)"}(x +
+                                                                                                                                                      0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#614", f::Symbol)
-    r = Ref{var"##Ctag#614"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#614"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6157:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6157:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6157:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#614"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6157:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -2364,13 +3130,17 @@ end
 function Base.getproperty(x::Ptr{CUpti_ActivityPcie}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
     f === :type && return Ptr{CUpti_PcieDeviceType}(x + 4)
-    f === :id && return Ptr{var"##Ctag#613"}(x + 8)
+    f === :id &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6115:3)"}(x +
+                                                                                                                                                     8)
     f === :domain && return Ptr{UInt32}(x + 12)
     f === :pcieGeneration && return Ptr{UInt16}(x + 16)
     f === :linkRate && return Ptr{UInt16}(x + 18)
     f === :linkWidth && return Ptr{UInt16}(x + 20)
     f === :upstreamBus && return Ptr{UInt16}(x + 22)
-    f === :attr && return Ptr{var"##Ctag#614"}(x + 24)
+    f === :attr &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6157:3)"}(x +
+                                                                                                                                                     24)
     return getfield(x, f)
 end
 
@@ -2391,47 +3161,112 @@ end
     CUPTI_PCIE_GEN_GEN3 = 3
     CUPTI_PCIE_GEN_GEN4 = 4
     CUPTI_PCIE_GEN_GEN5 = 5
+    CUPTI_PCIE_GEN_GEN6 = 6
     CUPTI_PCIE_GEN_FORCE_INT = 2147483647
 end
 
 struct CUpti_ActivityInstantaneousEvent
-    kind::CUpti_ActivityKind
-    id::CUpti_EventID
-    value::UInt64
-    timestamp::UInt64
-    deviceId::UInt32
-    reserved::UInt32
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityInstantaneousEvent}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :id && return Ptr{CUpti_EventID}(x + 4)
+    f === :value && return Ptr{UInt64}(x + 8)
+    f === :timestamp && return Ptr{UInt64}(x + 16)
+    f === :deviceId && return Ptr{UInt32}(x + 24)
+    f === :reserved && return Ptr{UInt32}(x + 28)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityInstantaneousEvent, f::Symbol)
+    r = Ref{CUpti_ActivityInstantaneousEvent}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityInstantaneousEvent}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityInstantaneousEvent}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityInstantaneousEventInstance
-    kind::CUpti_ActivityKind
-    id::CUpti_EventID
-    value::UInt64
-    timestamp::UInt64
-    deviceId::UInt32
-    instance::UInt8
-    pad::NTuple{3,UInt8}
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityInstantaneousEventInstance}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :id && return Ptr{CUpti_EventID}(x + 4)
+    f === :value && return Ptr{UInt64}(x + 8)
+    f === :timestamp && return Ptr{UInt64}(x + 16)
+    f === :deviceId && return Ptr{UInt32}(x + 24)
+    f === :instance && return Ptr{UInt8}(x + 28)
+    f === :pad && return Ptr{NTuple{3,UInt8}}(x + 29)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityInstantaneousEventInstance, f::Symbol)
+    r = Ref{CUpti_ActivityInstantaneousEventInstance}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityInstantaneousEventInstance}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityInstantaneousEventInstance}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityInstantaneousMetric
-    kind::CUpti_ActivityKind
-    id::CUpti_MetricID
-    value::CUpti_MetricValue
-    timestamp::UInt64
-    deviceId::UInt32
-    flags::UInt8
-    pad::NTuple{3,UInt8}
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityInstantaneousMetric}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :id && return Ptr{CUpti_MetricID}(x + 4)
+    f === :value && return Ptr{CUpti_MetricValue}(x + 8)
+    f === :timestamp && return Ptr{UInt64}(x + 16)
+    f === :deviceId && return Ptr{UInt32}(x + 24)
+    f === :flags && return Ptr{UInt8}(x + 28)
+    f === :pad && return Ptr{NTuple{3,UInt8}}(x + 29)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityInstantaneousMetric, f::Symbol)
+    r = Ref{CUpti_ActivityInstantaneousMetric}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityInstantaneousMetric}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityInstantaneousMetric}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityInstantaneousMetricInstance
-    kind::CUpti_ActivityKind
-    id::CUpti_MetricID
-    value::CUpti_MetricValue
-    timestamp::UInt64
-    deviceId::UInt32
-    flags::UInt8
-    instance::UInt8
-    pad::NTuple{2,UInt8}
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityInstantaneousMetricInstance}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :id && return Ptr{CUpti_MetricID}(x + 4)
+    f === :value && return Ptr{CUpti_MetricValue}(x + 8)
+    f === :timestamp && return Ptr{UInt64}(x + 16)
+    f === :deviceId && return Ptr{UInt32}(x + 24)
+    f === :flags && return Ptr{UInt8}(x + 28)
+    f === :instance && return Ptr{UInt8}(x + 29)
+    f === :pad && return Ptr{NTuple{2,UInt8}}(x + 30)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityInstantaneousMetricInstance, f::Symbol)
+    r = Ref{CUpti_ActivityInstantaneousMetricInstance}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityInstantaneousMetricInstance}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityInstantaneousMetricInstance}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 @cenum CUpti_ActivityJitEntryType::UInt32 begin
@@ -2450,19 +3285,35 @@ end
 end
 
 struct CUpti_ActivityJit2
-    kind::CUpti_ActivityKind
-    jitEntryType::CUpti_ActivityJitEntryType
-    jitOperationType::CUpti_ActivityJitOperationType
-    deviceId::UInt32
-    start::UInt64
-    _end::UInt64
-    correlationId::UInt32
-    padding::UInt32
-    jitOperationCorrelationId::UInt64
-    cacheSize::UInt64
-    cachePath::Cstring
-    processId::UInt32
-    threadId::UInt32
+    data::NTuple{72,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityJit2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :jitEntryType && return Ptr{CUpti_ActivityJitEntryType}(x + 4)
+    f === :jitOperationType && return Ptr{CUpti_ActivityJitOperationType}(x + 8)
+    f === :deviceId && return Ptr{UInt32}(x + 12)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :correlationId && return Ptr{UInt32}(x + 32)
+    f === :padding && return Ptr{UInt32}(x + 36)
+    f === :jitOperationCorrelationId && return Ptr{UInt64}(x + 40)
+    f === :cacheSize && return Ptr{UInt64}(x + 48)
+    f === :cachePath && return Ptr{Cstring}(x + 56)
+    f === :processId && return Ptr{UInt32}(x + 64)
+    f === :threadId && return Ptr{UInt32}(x + 68)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityJit2, f::Symbol)
+    r = Ref{CUpti_ActivityJit2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityJit2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityJit2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityGraphTrace2
@@ -2477,6 +3328,41 @@ struct CUpti_ActivityGraphTrace2
     reserved::Ptr{Cvoid}
     endDeviceId::UInt32
     endContextId::UInt32
+end
+
+@cenum CUpti_DeviceGraphLaunchMode::UInt32 begin
+    CUPTI_DEVICE_GRAPH_LAUNCH_MODE_INVALID = 0
+    CUPTI_DEVICE_GRAPH_LAUNCH_MODE_FIRE_AND_FORGET = 1
+    CUPTI_DEVICE_GRAPH_LAUNCH_MODE_TAIL = 2
+    CUPTI_DEVICE_GRAPH_LAUNCH_MODE_FIRE_AND_FORGET_AS_SIBLING = 3
+end
+
+struct CUpti_ActivityDeviceGraphTrace
+    kind::CUpti_ActivityKind
+    deviceId::UInt32
+    start::UInt64
+    _end::UInt64
+    graphId::UInt32
+    launcherGraphId::UInt32
+    deviceLaunchMode::UInt32
+    contextId::UInt32
+    streamId::UInt64
+    reserved::Ptr{Cvoid}
+end
+
+struct CUpti_ActivityMemDecompress
+    kind::CUpti_ActivityKind
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    channelID::UInt32
+    channelType::CUpti_ChannelType
+    correlationId::UInt32
+    numberOfOperations::UInt32
+    sourceBytes::UInt64
+    reserved0::Ptr{Cvoid}
+    start::UInt64
+    _end::UInt64
 end
 
 @cenum CUpti_ActivityAttribute::UInt32 begin
@@ -2740,213 +3626,341 @@ end
                                                          enable::UInt8)::CUptiResult
 end
 
+@checked function cuptiActivityEnableHWTrace(enable)
+    initialize_context()
+    @gcsafe_ccall libcupti.cuptiActivityEnableHWTrace(enable::UInt8)::CUptiResult
+end
+
 @checked function cuptiActivityEnableAllocationSource(enable)
     initialize_context()
     @gcsafe_ccall libcupti.cuptiActivityEnableAllocationSource(enable::UInt8)::CUptiResult
 end
 
+@checked function cuptiActivityEnableAllSyncRecords(enable)
+    initialize_context()
+    @gcsafe_ccall libcupti.cuptiActivityEnableAllSyncRecords(enable::UInt8)::CUptiResult
+end
+
 struct CUpti_ActivityOverhead
-    kind::CUpti_ActivityKind
-    overheadKind::CUpti_ActivityOverheadKind
-    objectKind::CUpti_ActivityObjectKind
-    objectId::CUpti_ActivityObjectKindId
-    start::UInt64
-    _end::UInt64
+    data::NTuple{40,UInt8}
 end
 
-struct CUpti_ActivityOverhead2
-    kind::CUpti_ActivityKind
-    overheadKind::CUpti_ActivityOverheadKind
-    objectKind::CUpti_ActivityObjectKind
-    objectId::CUpti_ActivityObjectKindId
-    start::UInt64
-    _end::UInt64
-    correlationId::UInt32
-    reserved0::UInt32
-end
-
-struct CUpti_ActivityDevice
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    globalMemoryBandwidth::UInt64
-    globalMemorySize::UInt64
-    constantMemorySize::UInt32
-    l2CacheSize::UInt32
-    numThreadsPerWarp::UInt32
-    coreClockRate::UInt32
-    numMemcpyEngines::UInt32
-    numMultiprocessors::UInt32
-    maxIPC::UInt32
-    maxWarpsPerMultiprocessor::UInt32
-    maxBlocksPerMultiprocessor::UInt32
-    maxRegistersPerBlock::UInt32
-    maxSharedMemoryPerBlock::UInt32
-    maxThreadsPerBlock::UInt32
-    maxBlockDimX::UInt32
-    maxBlockDimY::UInt32
-    maxBlockDimZ::UInt32
-    maxGridDimX::UInt32
-    maxGridDimY::UInt32
-    maxGridDimZ::UInt32
-    computeCapabilityMajor::UInt32
-    computeCapabilityMinor::UInt32
-    id::UInt32
-    pad::UInt32
-    name::Cstring
-end
-
-struct CUpti_ActivityDevice2
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    globalMemoryBandwidth::UInt64
-    globalMemorySize::UInt64
-    constantMemorySize::UInt32
-    l2CacheSize::UInt32
-    numThreadsPerWarp::UInt32
-    coreClockRate::UInt32
-    numMemcpyEngines::UInt32
-    numMultiprocessors::UInt32
-    maxIPC::UInt32
-    maxWarpsPerMultiprocessor::UInt32
-    maxBlocksPerMultiprocessor::UInt32
-    maxSharedMemoryPerMultiprocessor::UInt32
-    maxRegistersPerMultiprocessor::UInt32
-    maxRegistersPerBlock::UInt32
-    maxSharedMemoryPerBlock::UInt32
-    maxThreadsPerBlock::UInt32
-    maxBlockDimX::UInt32
-    maxBlockDimY::UInt32
-    maxBlockDimZ::UInt32
-    maxGridDimX::UInt32
-    maxGridDimY::UInt32
-    maxGridDimZ::UInt32
-    computeCapabilityMajor::UInt32
-    computeCapabilityMinor::UInt32
-    id::UInt32
-    eccEnabled::UInt32
-    uuid::CUuuid
-    name::Cstring
-end
-
-struct CUpti_ActivityDevice3
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    globalMemoryBandwidth::UInt64
-    globalMemorySize::UInt64
-    constantMemorySize::UInt32
-    l2CacheSize::UInt32
-    numThreadsPerWarp::UInt32
-    coreClockRate::UInt32
-    numMemcpyEngines::UInt32
-    numMultiprocessors::UInt32
-    maxIPC::UInt32
-    maxWarpsPerMultiprocessor::UInt32
-    maxBlocksPerMultiprocessor::UInt32
-    maxSharedMemoryPerMultiprocessor::UInt32
-    maxRegistersPerMultiprocessor::UInt32
-    maxRegistersPerBlock::UInt32
-    maxSharedMemoryPerBlock::UInt32
-    maxThreadsPerBlock::UInt32
-    maxBlockDimX::UInt32
-    maxBlockDimY::UInt32
-    maxBlockDimZ::UInt32
-    maxGridDimX::UInt32
-    maxGridDimY::UInt32
-    maxGridDimZ::UInt32
-    computeCapabilityMajor::UInt32
-    computeCapabilityMinor::UInt32
-    id::UInt32
-    eccEnabled::UInt32
-    uuid::CUuuid
-    name::Cstring
-    isCudaVisible::UInt8
-    reserved::NTuple{7,UInt8}
-end
-
-struct CUpti_ActivityDevice4
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    globalMemoryBandwidth::UInt64
-    globalMemorySize::UInt64
-    constantMemorySize::UInt32
-    l2CacheSize::UInt32
-    numThreadsPerWarp::UInt32
-    coreClockRate::UInt32
-    numMemcpyEngines::UInt32
-    numMultiprocessors::UInt32
-    maxIPC::UInt32
-    maxWarpsPerMultiprocessor::UInt32
-    maxBlocksPerMultiprocessor::UInt32
-    maxSharedMemoryPerMultiprocessor::UInt32
-    maxRegistersPerMultiprocessor::UInt32
-    maxRegistersPerBlock::UInt32
-    maxSharedMemoryPerBlock::UInt32
-    maxThreadsPerBlock::UInt32
-    maxBlockDimX::UInt32
-    maxBlockDimY::UInt32
-    maxBlockDimZ::UInt32
-    maxGridDimX::UInt32
-    maxGridDimY::UInt32
-    maxGridDimZ::UInt32
-    computeCapabilityMajor::UInt32
-    computeCapabilityMinor::UInt32
-    id::UInt32
-    eccEnabled::UInt32
-    uuid::CUuuid
-    name::Cstring
-    isCudaVisible::UInt8
-    isMigEnabled::UInt8
-    reserved::NTuple{6,UInt8}
-    gpuInstanceId::UInt32
-    computeInstanceId::UInt32
-    migUuid::CUuuid
-end
-
-struct CUpti_ActivityKernel
-    kind::CUpti_ActivityKind
-    cacheConfigRequested::UInt8
-    cacheConfigExecuted::UInt8
-    registersPerThread::UInt16
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    gridX::Int32
-    gridY::Int32
-    gridZ::Int32
-    blockX::Int32
-    blockY::Int32
-    blockZ::Int32
-    staticSharedMemory::Int32
-    dynamicSharedMemory::Int32
-    localMemoryPerThread::UInt32
-    localMemoryTotal::UInt32
-    correlationId::UInt32
-    runtimeCorrelationId::UInt32
-    pad::UInt32
-    name::Cstring
-    reserved0::Ptr{Cvoid}
-end
-
-struct var"##Ctag#580"
-    data::NTuple{1,UInt8}
-end
-
-function Base.getproperty(x::Ptr{var"##Ctag#580"}, f::Symbol)
-    f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#581"}(x + 0)
+function Base.getproperty(x::Ptr{CUpti_ActivityOverhead}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :overheadKind && return Ptr{CUpti_ActivityOverheadKind}(x + 4)
+    f === :objectKind && return Ptr{CUpti_ActivityObjectKind}(x + 8)
+    f === :objectId && return Ptr{CUpti_ActivityObjectKindId}(x + 12)
+    f === :start && return Ptr{UInt64}(x + 24)
+    f === :_end && return Ptr{UInt64}(x + 32)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#580", f::Symbol)
-    r = Ref{var"##Ctag#580"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#580"}, r)
+function Base.getproperty(x::CUpti_ActivityOverhead, f::Symbol)
+    r = Ref{CUpti_ActivityOverhead}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityOverhead}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#580"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{CUpti_ActivityOverhead}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityOverhead2
+    data::NTuple{48,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityOverhead2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :overheadKind && return Ptr{CUpti_ActivityOverheadKind}(x + 4)
+    f === :objectKind && return Ptr{CUpti_ActivityObjectKind}(x + 8)
+    f === :objectId && return Ptr{CUpti_ActivityObjectKindId}(x + 12)
+    f === :start && return Ptr{UInt64}(x + 24)
+    f === :_end && return Ptr{UInt64}(x + 32)
+    f === :correlationId && return Ptr{UInt32}(x + 40)
+    f === :reserved0 && return Ptr{UInt32}(x + 44)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityOverhead2, f::Symbol)
+    r = Ref{CUpti_ActivityOverhead2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityOverhead2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityOverhead2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityDevice
+    data::NTuple{120,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityDevice}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :globalMemoryBandwidth && return Ptr{UInt64}(x + 8)
+    f === :globalMemorySize && return Ptr{UInt64}(x + 16)
+    f === :constantMemorySize && return Ptr{UInt32}(x + 24)
+    f === :l2CacheSize && return Ptr{UInt32}(x + 28)
+    f === :numThreadsPerWarp && return Ptr{UInt32}(x + 32)
+    f === :coreClockRate && return Ptr{UInt32}(x + 36)
+    f === :numMemcpyEngines && return Ptr{UInt32}(x + 40)
+    f === :numMultiprocessors && return Ptr{UInt32}(x + 44)
+    f === :maxIPC && return Ptr{UInt32}(x + 48)
+    f === :maxWarpsPerMultiprocessor && return Ptr{UInt32}(x + 52)
+    f === :maxBlocksPerMultiprocessor && return Ptr{UInt32}(x + 56)
+    f === :maxRegistersPerBlock && return Ptr{UInt32}(x + 60)
+    f === :maxSharedMemoryPerBlock && return Ptr{UInt32}(x + 64)
+    f === :maxThreadsPerBlock && return Ptr{UInt32}(x + 68)
+    f === :maxBlockDimX && return Ptr{UInt32}(x + 72)
+    f === :maxBlockDimY && return Ptr{UInt32}(x + 76)
+    f === :maxBlockDimZ && return Ptr{UInt32}(x + 80)
+    f === :maxGridDimX && return Ptr{UInt32}(x + 84)
+    f === :maxGridDimY && return Ptr{UInt32}(x + 88)
+    f === :maxGridDimZ && return Ptr{UInt32}(x + 92)
+    f === :computeCapabilityMajor && return Ptr{UInt32}(x + 96)
+    f === :computeCapabilityMinor && return Ptr{UInt32}(x + 100)
+    f === :id && return Ptr{UInt32}(x + 104)
+    f === :pad && return Ptr{UInt32}(x + 108)
+    f === :name && return Ptr{Cstring}(x + 112)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityDevice, f::Symbol)
+    r = Ref{CUpti_ActivityDevice}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityDevice}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityDevice}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityDevice2
+    data::NTuple{144,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityDevice2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :globalMemoryBandwidth && return Ptr{UInt64}(x + 8)
+    f === :globalMemorySize && return Ptr{UInt64}(x + 16)
+    f === :constantMemorySize && return Ptr{UInt32}(x + 24)
+    f === :l2CacheSize && return Ptr{UInt32}(x + 28)
+    f === :numThreadsPerWarp && return Ptr{UInt32}(x + 32)
+    f === :coreClockRate && return Ptr{UInt32}(x + 36)
+    f === :numMemcpyEngines && return Ptr{UInt32}(x + 40)
+    f === :numMultiprocessors && return Ptr{UInt32}(x + 44)
+    f === :maxIPC && return Ptr{UInt32}(x + 48)
+    f === :maxWarpsPerMultiprocessor && return Ptr{UInt32}(x + 52)
+    f === :maxBlocksPerMultiprocessor && return Ptr{UInt32}(x + 56)
+    f === :maxSharedMemoryPerMultiprocessor && return Ptr{UInt32}(x + 60)
+    f === :maxRegistersPerMultiprocessor && return Ptr{UInt32}(x + 64)
+    f === :maxRegistersPerBlock && return Ptr{UInt32}(x + 68)
+    f === :maxSharedMemoryPerBlock && return Ptr{UInt32}(x + 72)
+    f === :maxThreadsPerBlock && return Ptr{UInt32}(x + 76)
+    f === :maxBlockDimX && return Ptr{UInt32}(x + 80)
+    f === :maxBlockDimY && return Ptr{UInt32}(x + 84)
+    f === :maxBlockDimZ && return Ptr{UInt32}(x + 88)
+    f === :maxGridDimX && return Ptr{UInt32}(x + 92)
+    f === :maxGridDimY && return Ptr{UInt32}(x + 96)
+    f === :maxGridDimZ && return Ptr{UInt32}(x + 100)
+    f === :computeCapabilityMajor && return Ptr{UInt32}(x + 104)
+    f === :computeCapabilityMinor && return Ptr{UInt32}(x + 108)
+    f === :id && return Ptr{UInt32}(x + 112)
+    f === :eccEnabled && return Ptr{UInt32}(x + 116)
+    f === :uuid && return Ptr{CUuuid}(x + 120)
+    f === :name && return Ptr{Cstring}(x + 136)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityDevice2, f::Symbol)
+    r = Ref{CUpti_ActivityDevice2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityDevice2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityDevice2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityDevice3
+    data::NTuple{152,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityDevice3}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :globalMemoryBandwidth && return Ptr{UInt64}(x + 8)
+    f === :globalMemorySize && return Ptr{UInt64}(x + 16)
+    f === :constantMemorySize && return Ptr{UInt32}(x + 24)
+    f === :l2CacheSize && return Ptr{UInt32}(x + 28)
+    f === :numThreadsPerWarp && return Ptr{UInt32}(x + 32)
+    f === :coreClockRate && return Ptr{UInt32}(x + 36)
+    f === :numMemcpyEngines && return Ptr{UInt32}(x + 40)
+    f === :numMultiprocessors && return Ptr{UInt32}(x + 44)
+    f === :maxIPC && return Ptr{UInt32}(x + 48)
+    f === :maxWarpsPerMultiprocessor && return Ptr{UInt32}(x + 52)
+    f === :maxBlocksPerMultiprocessor && return Ptr{UInt32}(x + 56)
+    f === :maxSharedMemoryPerMultiprocessor && return Ptr{UInt32}(x + 60)
+    f === :maxRegistersPerMultiprocessor && return Ptr{UInt32}(x + 64)
+    f === :maxRegistersPerBlock && return Ptr{UInt32}(x + 68)
+    f === :maxSharedMemoryPerBlock && return Ptr{UInt32}(x + 72)
+    f === :maxThreadsPerBlock && return Ptr{UInt32}(x + 76)
+    f === :maxBlockDimX && return Ptr{UInt32}(x + 80)
+    f === :maxBlockDimY && return Ptr{UInt32}(x + 84)
+    f === :maxBlockDimZ && return Ptr{UInt32}(x + 88)
+    f === :maxGridDimX && return Ptr{UInt32}(x + 92)
+    f === :maxGridDimY && return Ptr{UInt32}(x + 96)
+    f === :maxGridDimZ && return Ptr{UInt32}(x + 100)
+    f === :computeCapabilityMajor && return Ptr{UInt32}(x + 104)
+    f === :computeCapabilityMinor && return Ptr{UInt32}(x + 108)
+    f === :id && return Ptr{UInt32}(x + 112)
+    f === :eccEnabled && return Ptr{UInt32}(x + 116)
+    f === :uuid && return Ptr{CUuuid}(x + 120)
+    f === :name && return Ptr{Cstring}(x + 136)
+    f === :isCudaVisible && return Ptr{UInt8}(x + 144)
+    f === :reserved && return Ptr{NTuple{7,UInt8}}(x + 145)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityDevice3, f::Symbol)
+    r = Ref{CUpti_ActivityDevice3}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityDevice3}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityDevice3}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityDevice4
+    data::NTuple{176,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityDevice4}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :globalMemoryBandwidth && return Ptr{UInt64}(x + 8)
+    f === :globalMemorySize && return Ptr{UInt64}(x + 16)
+    f === :constantMemorySize && return Ptr{UInt32}(x + 24)
+    f === :l2CacheSize && return Ptr{UInt32}(x + 28)
+    f === :numThreadsPerWarp && return Ptr{UInt32}(x + 32)
+    f === :coreClockRate && return Ptr{UInt32}(x + 36)
+    f === :numMemcpyEngines && return Ptr{UInt32}(x + 40)
+    f === :numMultiprocessors && return Ptr{UInt32}(x + 44)
+    f === :maxIPC && return Ptr{UInt32}(x + 48)
+    f === :maxWarpsPerMultiprocessor && return Ptr{UInt32}(x + 52)
+    f === :maxBlocksPerMultiprocessor && return Ptr{UInt32}(x + 56)
+    f === :maxSharedMemoryPerMultiprocessor && return Ptr{UInt32}(x + 60)
+    f === :maxRegistersPerMultiprocessor && return Ptr{UInt32}(x + 64)
+    f === :maxRegistersPerBlock && return Ptr{UInt32}(x + 68)
+    f === :maxSharedMemoryPerBlock && return Ptr{UInt32}(x + 72)
+    f === :maxThreadsPerBlock && return Ptr{UInt32}(x + 76)
+    f === :maxBlockDimX && return Ptr{UInt32}(x + 80)
+    f === :maxBlockDimY && return Ptr{UInt32}(x + 84)
+    f === :maxBlockDimZ && return Ptr{UInt32}(x + 88)
+    f === :maxGridDimX && return Ptr{UInt32}(x + 92)
+    f === :maxGridDimY && return Ptr{UInt32}(x + 96)
+    f === :maxGridDimZ && return Ptr{UInt32}(x + 100)
+    f === :computeCapabilityMajor && return Ptr{UInt32}(x + 104)
+    f === :computeCapabilityMinor && return Ptr{UInt32}(x + 108)
+    f === :id && return Ptr{UInt32}(x + 112)
+    f === :eccEnabled && return Ptr{UInt32}(x + 116)
+    f === :uuid && return Ptr{CUuuid}(x + 120)
+    f === :name && return Ptr{Cstring}(x + 136)
+    f === :isCudaVisible && return Ptr{UInt8}(x + 144)
+    f === :isMigEnabled && return Ptr{UInt8}(x + 145)
+    f === :reserved && return Ptr{NTuple{6,UInt8}}(x + 146)
+    f === :gpuInstanceId && return Ptr{UInt32}(x + 152)
+    f === :computeInstanceId && return Ptr{UInt32}(x + 156)
+    f === :migUuid && return Ptr{CUuuid}(x + 160)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityDevice4, f::Symbol)
+    r = Ref{CUpti_ActivityDevice4}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityDevice4}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityDevice4}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityKernel
+    data::NTuple{104,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityKernel}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :cacheConfigRequested && return Ptr{UInt8}(x + 4)
+    f === :cacheConfigExecuted && return Ptr{UInt8}(x + 5)
+    f === :registersPerThread && return Ptr{UInt16}(x + 6)
+    f === :start && return Ptr{UInt64}(x + 8)
+    f === :_end && return Ptr{UInt64}(x + 16)
+    f === :deviceId && return Ptr{UInt32}(x + 24)
+    f === :contextId && return Ptr{UInt32}(x + 28)
+    f === :streamId && return Ptr{UInt32}(x + 32)
+    f === :gridX && return Ptr{Int32}(x + 36)
+    f === :gridY && return Ptr{Int32}(x + 40)
+    f === :gridZ && return Ptr{Int32}(x + 44)
+    f === :blockX && return Ptr{Int32}(x + 48)
+    f === :blockY && return Ptr{Int32}(x + 52)
+    f === :blockZ && return Ptr{Int32}(x + 56)
+    f === :staticSharedMemory && return Ptr{Int32}(x + 60)
+    f === :dynamicSharedMemory && return Ptr{Int32}(x + 64)
+    f === :localMemoryPerThread && return Ptr{UInt32}(x + 68)
+    f === :localMemoryTotal && return Ptr{UInt32}(x + 72)
+    f === :correlationId && return Ptr{UInt32}(x + 76)
+    f === :runtimeCorrelationId && return Ptr{UInt32}(x + 80)
+    f === :pad && return Ptr{UInt32}(x + 84)
+    f === :name && return Ptr{Cstring}(x + 88)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 96)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityKernel, f::Symbol)
+    r = Ref{CUpti_ActivityKernel}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityKernel}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityKernel}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1092:3)"
+    data::NTuple{1,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1092:3)"},
+                          f::Symbol)
+    f === :both && return Ptr{UInt8}(x + 0)
+    f === :config &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1094:5)"}(x +
+                                                                                                                                                                 0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1092:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1092:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1092:3)"},
+                              r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1092:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -2956,7 +3970,9 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel2}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#580"}(x + 4)
+    f === :cacheConfig &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1092:3)"}(x +
+                                                                                                                                                                4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :start && return Ptr{UInt64}(x + 8)
@@ -2993,24 +4009,30 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel2}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#644"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1253:3)"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#644"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1253:3)"},
+                          f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#645"}(x + 0)
+    f === :config &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1255:5)"}(x +
+                                                                                                                                                                 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#644", f::Symbol)
-    r = Ref{var"##Ctag#644"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#644"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1253:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1253:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1253:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#644"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1253:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3020,7 +4042,9 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel3}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#644"}(x + 4)
+    f === :cacheConfig &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1253:3)"}(x +
+                                                                                                                                                                4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -3061,24 +4085,30 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel3}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#656"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1434:3)"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#656"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1434:3)"},
+                          f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#657"}(x + 0)
+    f === :config &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1436:5)"}(x +
+                                                                                                                                                                 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#656", f::Symbol)
-    r = Ref{var"##Ctag#656"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#656"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1434:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1434:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1434:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#656"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1434:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3088,7 +4118,9 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel4}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#656"}(x + 4)
+    f === :cacheConfig &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1434:3)"}(x +
+                                                                                                                                                                4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -3136,24 +4168,30 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel4}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#658"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1667:3)"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#658"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1667:3)"},
+                          f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#659"}(x + 0)
+    f === :config &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1669:5)"}(x +
+                                                                                                                                                                 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#658", f::Symbol)
-    r = Ref{var"##Ctag#658"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#658"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1667:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1667:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1667:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#658"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1667:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3163,7 +4201,9 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel5}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#658"}(x + 4)
+    f === :cacheConfig &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1667:3)"}(x +
+                                                                                                                                                                4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -3214,24 +4254,30 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel5}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#601"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1918:3)"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#601"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1918:3)"},
+                          f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#602"}(x + 0)
+    f === :config &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1920:5)"}(x +
+                                                                                                                                                                 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#601", f::Symbol)
-    r = Ref{var"##Ctag#601"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#601"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1918:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1918:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1918:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#601"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1918:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3241,7 +4287,9 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel6}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#601"}(x + 4)
+    f === :cacheConfig &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1918:3)"}(x +
+                                                                                                                                                                4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -3293,24 +4341,30 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel6}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#660"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2175:3)"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#660"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2175:3)"},
+                          f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#661"}(x + 0)
+    f === :config &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2177:5)"}(x +
+                                                                                                                                                                 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#660", f::Symbol)
-    r = Ref{var"##Ctag#660"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#660"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2175:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2175:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2175:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#660"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2175:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3320,7 +4374,9 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel7}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#660"}(x + 4)
+    f === :cacheConfig &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2175:3)"}(x +
+                                                                                                                                                                4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -3374,24 +4430,30 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel7}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#649"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2440:3)"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#649"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2440:3)"},
+                          f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#650"}(x + 0)
+    f === :config &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2442:5)"}(x +
+                                                                                                                                                                 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#649", f::Symbol)
-    r = Ref{var"##Ctag#649"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#649"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2440:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2440:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2440:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#649"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2440:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3401,7 +4463,9 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel8}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#649"}(x + 4)
+    f === :cacheConfig &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2440:3)"}(x +
+                                                                                                                                                                4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -3461,223 +4525,377 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityKernel8}, f::Symbol, v)
 end
 
 struct CUpti_ActivityMemcpy
-    kind::CUpti_ActivityKind
-    copyKind::UInt8
-    srcKind::UInt8
-    dstKind::UInt8
-    flags::UInt8
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    correlationId::UInt32
-    runtimeCorrelationId::UInt32
-    pad::UInt32
-    reserved0::Ptr{Cvoid}
+    data::NTuple{64,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemcpy}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :copyKind && return Ptr{UInt8}(x + 4)
+    f === :srcKind && return Ptr{UInt8}(x + 5)
+    f === :dstKind && return Ptr{UInt8}(x + 6)
+    f === :flags && return Ptr{UInt8}(x + 7)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :correlationId && return Ptr{UInt32}(x + 44)
+    f === :runtimeCorrelationId && return Ptr{UInt32}(x + 48)
+    f === :pad && return Ptr{UInt32}(x + 52)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 56)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemcpy, f::Symbol)
+    r = Ref{CUpti_ActivityMemcpy}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemcpy}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemcpy}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityMemcpy3
-    kind::CUpti_ActivityKind
-    copyKind::UInt8
-    srcKind::UInt8
-    dstKind::UInt8
-    flags::UInt8
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    correlationId::UInt32
-    runtimeCorrelationId::UInt32
-    pad::UInt32
-    reserved0::Ptr{Cvoid}
-    graphNodeId::UInt64
+    data::NTuple{72,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemcpy3}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :copyKind && return Ptr{UInt8}(x + 4)
+    f === :srcKind && return Ptr{UInt8}(x + 5)
+    f === :dstKind && return Ptr{UInt8}(x + 6)
+    f === :flags && return Ptr{UInt8}(x + 7)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :correlationId && return Ptr{UInt32}(x + 44)
+    f === :runtimeCorrelationId && return Ptr{UInt32}(x + 48)
+    f === :pad && return Ptr{UInt32}(x + 52)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 56)
+    f === :graphNodeId && return Ptr{UInt64}(x + 64)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemcpy3, f::Symbol)
+    r = Ref{CUpti_ActivityMemcpy3}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemcpy3}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemcpy3}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityMemcpy4
-    kind::CUpti_ActivityKind
-    copyKind::UInt8
-    srcKind::UInt8
-    dstKind::UInt8
-    flags::UInt8
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    correlationId::UInt32
-    runtimeCorrelationId::UInt32
-    pad::UInt32
-    reserved0::Ptr{Cvoid}
-    graphNodeId::UInt64
-    graphId::UInt32
-    padding::UInt32
+    data::NTuple{80,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemcpy4}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :copyKind && return Ptr{UInt8}(x + 4)
+    f === :srcKind && return Ptr{UInt8}(x + 5)
+    f === :dstKind && return Ptr{UInt8}(x + 6)
+    f === :flags && return Ptr{UInt8}(x + 7)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :correlationId && return Ptr{UInt32}(x + 44)
+    f === :runtimeCorrelationId && return Ptr{UInt32}(x + 48)
+    f === :pad && return Ptr{UInt32}(x + 52)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 56)
+    f === :graphNodeId && return Ptr{UInt64}(x + 64)
+    f === :graphId && return Ptr{UInt32}(x + 72)
+    f === :padding && return Ptr{UInt32}(x + 76)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemcpy4, f::Symbol)
+    r = Ref{CUpti_ActivityMemcpy4}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemcpy4}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemcpy4}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityMemcpyPtoP
-    kind::CUpti_ActivityKind
-    copyKind::UInt8
-    srcKind::UInt8
-    dstKind::UInt8
-    flags::UInt8
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    srcDeviceId::UInt32
-    srcContextId::UInt32
-    dstDeviceId::UInt32
-    dstContextId::UInt32
-    correlationId::UInt32
-    reserved0::Ptr{Cvoid}
+    data::NTuple{72,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemcpyPtoP}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :copyKind && return Ptr{UInt8}(x + 4)
+    f === :srcKind && return Ptr{UInt8}(x + 5)
+    f === :dstKind && return Ptr{UInt8}(x + 6)
+    f === :flags && return Ptr{UInt8}(x + 7)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :srcDeviceId && return Ptr{UInt32}(x + 44)
+    f === :srcContextId && return Ptr{UInt32}(x + 48)
+    f === :dstDeviceId && return Ptr{UInt32}(x + 52)
+    f === :dstContextId && return Ptr{UInt32}(x + 56)
+    f === :correlationId && return Ptr{UInt32}(x + 60)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 64)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemcpyPtoP, f::Symbol)
+    r = Ref{CUpti_ActivityMemcpyPtoP}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemcpyPtoP}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemcpyPtoP}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUpti_ActivityMemcpy2 = CUpti_ActivityMemcpyPtoP
 
 struct CUpti_ActivityMemcpyPtoP2
-    kind::CUpti_ActivityKind
-    copyKind::UInt8
-    srcKind::UInt8
-    dstKind::UInt8
-    flags::UInt8
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    srcDeviceId::UInt32
-    srcContextId::UInt32
-    dstDeviceId::UInt32
-    dstContextId::UInt32
-    correlationId::UInt32
-    reserved0::Ptr{Cvoid}
-    graphNodeId::UInt64
+    data::NTuple{80,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemcpyPtoP2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :copyKind && return Ptr{UInt8}(x + 4)
+    f === :srcKind && return Ptr{UInt8}(x + 5)
+    f === :dstKind && return Ptr{UInt8}(x + 6)
+    f === :flags && return Ptr{UInt8}(x + 7)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :srcDeviceId && return Ptr{UInt32}(x + 44)
+    f === :srcContextId && return Ptr{UInt32}(x + 48)
+    f === :dstDeviceId && return Ptr{UInt32}(x + 52)
+    f === :dstContextId && return Ptr{UInt32}(x + 56)
+    f === :correlationId && return Ptr{UInt32}(x + 60)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 64)
+    f === :graphNodeId && return Ptr{UInt64}(x + 72)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemcpyPtoP2, f::Symbol)
+    r = Ref{CUpti_ActivityMemcpyPtoP2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemcpyPtoP2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemcpyPtoP2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityMemcpyPtoP3
-    kind::CUpti_ActivityKind
-    copyKind::UInt8
-    srcKind::UInt8
-    dstKind::UInt8
-    flags::UInt8
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    srcDeviceId::UInt32
-    srcContextId::UInt32
-    dstDeviceId::UInt32
-    dstContextId::UInt32
-    correlationId::UInt32
-    reserved0::Ptr{Cvoid}
-    graphNodeId::UInt64
-    graphId::UInt32
-    padding::UInt32
+    data::NTuple{88,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemcpyPtoP3}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :copyKind && return Ptr{UInt8}(x + 4)
+    f === :srcKind && return Ptr{UInt8}(x + 5)
+    f === :dstKind && return Ptr{UInt8}(x + 6)
+    f === :flags && return Ptr{UInt8}(x + 7)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :srcDeviceId && return Ptr{UInt32}(x + 44)
+    f === :srcContextId && return Ptr{UInt32}(x + 48)
+    f === :dstDeviceId && return Ptr{UInt32}(x + 52)
+    f === :dstContextId && return Ptr{UInt32}(x + 56)
+    f === :correlationId && return Ptr{UInt32}(x + 60)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 64)
+    f === :graphNodeId && return Ptr{UInt64}(x + 72)
+    f === :graphId && return Ptr{UInt32}(x + 80)
+    f === :padding && return Ptr{UInt32}(x + 84)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemcpyPtoP3, f::Symbol)
+    r = Ref{CUpti_ActivityMemcpyPtoP3}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemcpyPtoP3}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemcpyPtoP3}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityMemset
-    kind::CUpti_ActivityKind
-    value::UInt32
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    correlationId::UInt32
-    flags::UInt16
-    memoryKind::UInt16
-    pad::UInt32
-    reserved0::Ptr{Cvoid}
+    data::NTuple{64,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemset}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :value && return Ptr{UInt32}(x + 4)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :correlationId && return Ptr{UInt32}(x + 44)
+    f === :flags && return Ptr{UInt16}(x + 48)
+    f === :memoryKind && return Ptr{UInt16}(x + 50)
+    f === :pad && return Ptr{UInt32}(x + 52)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 56)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemset, f::Symbol)
+    r = Ref{CUpti_ActivityMemset}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemset}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemset}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityMemset2
-    kind::CUpti_ActivityKind
-    value::UInt32
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    correlationId::UInt32
-    flags::UInt16
-    memoryKind::UInt16
-    pad::UInt32
-    reserved0::Ptr{Cvoid}
-    graphNodeId::UInt64
+    data::NTuple{72,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemset2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :value && return Ptr{UInt32}(x + 4)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :correlationId && return Ptr{UInt32}(x + 44)
+    f === :flags && return Ptr{UInt16}(x + 48)
+    f === :memoryKind && return Ptr{UInt16}(x + 50)
+    f === :pad && return Ptr{UInt32}(x + 52)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 56)
+    f === :graphNodeId && return Ptr{UInt64}(x + 64)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemset2, f::Symbol)
+    r = Ref{CUpti_ActivityMemset2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemset2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemset2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityMemset3
-    kind::CUpti_ActivityKind
-    value::UInt32
-    bytes::UInt64
-    start::UInt64
-    _end::UInt64
-    deviceId::UInt32
-    contextId::UInt32
-    streamId::UInt32
-    correlationId::UInt32
-    flags::UInt16
-    memoryKind::UInt16
-    pad::UInt32
-    reserved0::Ptr{Cvoid}
-    graphNodeId::UInt64
-    graphId::UInt32
-    padding::UInt32
+    data::NTuple{80,UInt8}
 end
 
-struct var"##Ctag#685"
+function Base.getproperty(x::Ptr{CUpti_ActivityMemset3}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :value && return Ptr{UInt32}(x + 4)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :correlationId && return Ptr{UInt32}(x + 44)
+    f === :flags && return Ptr{UInt16}(x + 48)
+    f === :memoryKind && return Ptr{UInt16}(x + 50)
+    f === :pad && return Ptr{UInt32}(x + 52)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 56)
+    f === :graphNodeId && return Ptr{UInt64}(x + 64)
+    f === :graphId && return Ptr{UInt32}(x + 72)
+    f === :padding && return Ptr{UInt32}(x + 76)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemset3, f::Symbol)
+    r = Ref{CUpti_ActivityMemset3}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemset3}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemset3}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3795:4)"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#685"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3795:4)"},
+                          f::Symbol)
     f === :size && return Ptr{UInt64}(x + 0)
     f === :processId && return Ptr{UInt64}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#685", f::Symbol)
-    r = Ref{var"##Ctag#685"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#685"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3795:4)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3795:4)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3795:4)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#685"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3795:4)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#684"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3764:3)"
     data::NTuple{32,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#684"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3764:3)"},
+                          f::Symbol)
     f === :memoryPoolType && return Ptr{CUpti_ActivityMemoryPoolType}(x + 0)
     f === :pad2 && return Ptr{UInt32}(x + 4)
     f === :address && return Ptr{UInt64}(x + 8)
     f === :releaseThreshold && return Ptr{UInt64}(x + 16)
-    f === :pool && return Ptr{var"##Ctag#685"}(x + 24)
+    f === :pool &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3795:4)"}(x +
+                                                                                                                                                                24)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#684", f::Symbol)
-    r = Ref{var"##Ctag#684"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#684"}, r)
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3764:3)",
+                          f::Symbol)
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3764:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3764:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#684"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3764:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3701,7 +4919,9 @@ function Base.getproperty(x::Ptr{CUpti_ActivityMemory2}, f::Symbol)
     f === :name && return Ptr{Cstring}(x + 64)
     f === :isAsync && return Ptr{UInt32}(x + 72)
     f === :pad1 && return Ptr{UInt32}(x + 76)
-    f === :memoryPoolConfig && return Ptr{Cvoid}(x + 80)
+    f === :memoryPoolConfig &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3764:3)"}(x +
+                                                                                                                                                                 80)
     return getfield(x, f)
 end
 
@@ -3716,49 +4936,59 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityMemory2}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#647"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3936:5)"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#647"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3936:5)"},
+                          f::Symbol)
     f === :size && return Ptr{UInt64}(x + 0)
     f === :processId && return Ptr{UInt64}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#647", f::Symbol)
-    r = Ref{var"##Ctag#647"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#647"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3936:5)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3936:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3936:5)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#647"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3936:5)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#646"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3905:3)"
     data::NTuple{40,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#646"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3905:3)"},
+                          f::Symbol)
     f === :memoryPoolType && return Ptr{CUpti_ActivityMemoryPoolType}(x + 0)
     f === :pad2 && return Ptr{UInt32}(x + 4)
     f === :address && return Ptr{UInt64}(x + 8)
     f === :releaseThreshold && return Ptr{UInt64}(x + 16)
-    f === :pool && return Ptr{var"##Ctag#647"}(x + 24)
+    f === :pool &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3936:5)"}(x +
+                                                                                                                                                                24)
     f === :utilizedSize && return Ptr{UInt64}(x + 32)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#646", f::Symbol)
-    r = Ref{var"##Ctag#646"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#646"}, r)
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3905:3)",
+                          f::Symbol)
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3905:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3905:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#646"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3905:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3782,7 +5012,9 @@ function Base.getproperty(x::Ptr{CUpti_ActivityMemory3}, f::Symbol)
     f === :name && return Ptr{Cstring}(x + 64)
     f === :isAsync && return Ptr{UInt32}(x + 72)
     f === :pad1 && return Ptr{UInt32}(x + 76)
-    f === :memoryPoolConfig && return Ptr{Cvoid}(x + 80)
+    f === :memoryPoolConfig &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:3905:3)"}(x +
+                                                                                                                                                                 80)
     return getfield(x, f)
 end
 
@@ -3798,139 +5030,311 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityMemory3}, f::Symbol, v)
 end
 
 struct CUpti_ActivityMemoryPool
-    kind::CUpti_ActivityKind
-    memoryPoolOperationType::CUpti_ActivityMemoryPoolOperationType
-    memoryPoolType::CUpti_ActivityMemoryPoolType
-    correlationId::UInt32
-    processId::UInt32
-    deviceId::UInt32
-    minBytesToKeep::Csize_t
-    address::UInt64
-    size::UInt64
-    releaseThreshold::UInt64
-    timestamp::UInt64
+    data::NTuple{64,UInt8}
 end
 
-struct CUpti_ActivityMarker
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    timestamp::UInt64
-    id::UInt32
-    objectKind::CUpti_ActivityObjectKind
-    objectId::CUpti_ActivityObjectKindId
-    pad::UInt32
-    name::Cstring
-end
-
-struct CUpti_ActivityGlobalAccess
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    sourceLocatorId::UInt32
-    correlationId::UInt32
-    pcOffset::UInt32
-    executed::UInt32
-    threadsExecuted::UInt64
-    l2_transactions::UInt64
-end
-
-struct CUpti_ActivityGlobalAccess2
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    sourceLocatorId::UInt32
-    correlationId::UInt32
-    functionId::UInt32
-    pcOffset::UInt32
-    threadsExecuted::UInt64
-    l2_transactions::UInt64
-    theoreticalL2Transactions::UInt64
-    executed::UInt32
-    pad::UInt32
-end
-
-struct CUpti_ActivityBranch
-    kind::CUpti_ActivityKind
-    sourceLocatorId::UInt32
-    correlationId::UInt32
-    pcOffset::UInt32
-    executed::UInt32
-    diverged::UInt32
-    threadsExecuted::UInt64
-end
-
-struct CUpti_ActivityPCSampling
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    sourceLocatorId::UInt32
-    correlationId::UInt32
-    functionId::UInt32
-    pcOffset::UInt32
-    samples::UInt32
-    stallReason::CUpti_ActivityPCSamplingStallReason
-end
-
-struct CUpti_ActivityPCSampling2
-    kind::CUpti_ActivityKind
-    flags::CUpti_ActivityFlag
-    sourceLocatorId::UInt32
-    correlationId::UInt32
-    functionId::UInt32
-    pcOffset::UInt32
-    latencySamples::UInt32
-    samples::UInt32
-    stallReason::CUpti_ActivityPCSamplingStallReason
-    pad::UInt32
-end
-
-struct CUpti_ActivityUnifiedMemoryCounter
-    kind::CUpti_ActivityKind
-    counterKind::CUpti_ActivityUnifiedMemoryCounterKind
-    scope::CUpti_ActivityUnifiedMemoryCounterScope
-    deviceId::UInt32
-    value::UInt64
-    timestamp::UInt64
-    processId::UInt32
-    pad::UInt32
-end
-
-struct var"##Ctag#582"
-    data::NTuple{16,UInt8}
-end
-
-function Base.getproperty(x::Ptr{var"##Ctag#582"}, f::Symbol)
-    f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#583"}(x + 0)
+function Base.getproperty(x::Ptr{CUpti_ActivityMemoryPool}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :memoryPoolOperationType &&
+        return Ptr{CUpti_ActivityMemoryPoolOperationType}(x + 4)
+    f === :memoryPoolType && return Ptr{CUpti_ActivityMemoryPoolType}(x + 8)
+    f === :correlationId && return Ptr{UInt32}(x + 12)
+    f === :processId && return Ptr{UInt32}(x + 16)
+    f === :deviceId && return Ptr{UInt32}(x + 20)
+    f === :minBytesToKeep && return Ptr{Csize_t}(x + 24)
+    f === :address && return Ptr{UInt64}(x + 32)
+    f === :size && return Ptr{UInt64}(x + 40)
+    f === :releaseThreshold && return Ptr{UInt64}(x + 48)
+    f === :timestamp && return Ptr{UInt64}(x + 56)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#582", f::Symbol)
-    r = Ref{var"##Ctag#582"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#582"}, r)
+function Base.getproperty(x::CUpti_ActivityMemoryPool, f::Symbol)
+    r = Ref{CUpti_ActivityMemoryPool}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemoryPool}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#582"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemoryPool}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#584"
-    data::NTuple{16,UInt8}
+struct CUpti_ActivityMarker
+    data::NTuple{48,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#584"}, f::Symbol)
-    f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#585"}(x + 0)
+function Base.getproperty(x::Ptr{CUpti_ActivityMarker}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :timestamp && return Ptr{UInt64}(x + 8)
+    f === :id && return Ptr{UInt32}(x + 16)
+    f === :objectKind && return Ptr{CUpti_ActivityObjectKind}(x + 20)
+    f === :objectId && return Ptr{CUpti_ActivityObjectKindId}(x + 24)
+    f === :pad && return Ptr{UInt32}(x + 36)
+    f === :name && return Ptr{Cstring}(x + 40)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#584", f::Symbol)
-    r = Ref{var"##Ctag#584"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#584"}, r)
+function Base.getproperty(x::CUpti_ActivityMarker, f::Symbol)
+    r = Ref{CUpti_ActivityMarker}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMarker}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#584"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{CUpti_ActivityMarker}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityGlobalAccess
+    data::NTuple{40,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityGlobalAccess}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :sourceLocatorId && return Ptr{UInt32}(x + 8)
+    f === :correlationId && return Ptr{UInt32}(x + 12)
+    f === :pcOffset && return Ptr{UInt32}(x + 16)
+    f === :executed && return Ptr{UInt32}(x + 20)
+    f === :threadsExecuted && return Ptr{UInt64}(x + 24)
+    f === :l2_transactions && return Ptr{UInt64}(x + 32)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityGlobalAccess, f::Symbol)
+    r = Ref{CUpti_ActivityGlobalAccess}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityGlobalAccess}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityGlobalAccess}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityGlobalAccess2
+    data::NTuple{56,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityGlobalAccess2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :sourceLocatorId && return Ptr{UInt32}(x + 8)
+    f === :correlationId && return Ptr{UInt32}(x + 12)
+    f === :functionId && return Ptr{UInt32}(x + 16)
+    f === :pcOffset && return Ptr{UInt32}(x + 20)
+    f === :threadsExecuted && return Ptr{UInt64}(x + 24)
+    f === :l2_transactions && return Ptr{UInt64}(x + 32)
+    f === :theoreticalL2Transactions && return Ptr{UInt64}(x + 40)
+    f === :executed && return Ptr{UInt32}(x + 48)
+    f === :pad && return Ptr{UInt32}(x + 52)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityGlobalAccess2, f::Symbol)
+    r = Ref{CUpti_ActivityGlobalAccess2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityGlobalAccess2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityGlobalAccess2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityBranch
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityBranch}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :sourceLocatorId && return Ptr{UInt32}(x + 4)
+    f === :correlationId && return Ptr{UInt32}(x + 8)
+    f === :pcOffset && return Ptr{UInt32}(x + 12)
+    f === :executed && return Ptr{UInt32}(x + 16)
+    f === :diverged && return Ptr{UInt32}(x + 20)
+    f === :threadsExecuted && return Ptr{UInt64}(x + 24)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityBranch, f::Symbol)
+    r = Ref{CUpti_ActivityBranch}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityBranch}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityBranch}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityPCSampling
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityPCSampling}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :sourceLocatorId && return Ptr{UInt32}(x + 8)
+    f === :correlationId && return Ptr{UInt32}(x + 12)
+    f === :functionId && return Ptr{UInt32}(x + 16)
+    f === :pcOffset && return Ptr{UInt32}(x + 20)
+    f === :samples && return Ptr{UInt32}(x + 24)
+    f === :stallReason && return Ptr{CUpti_ActivityPCSamplingStallReason}(x + 28)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityPCSampling, f::Symbol)
+    r = Ref{CUpti_ActivityPCSampling}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityPCSampling}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityPCSampling}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityPCSampling2
+    data::NTuple{40,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityPCSampling2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :sourceLocatorId && return Ptr{UInt32}(x + 8)
+    f === :correlationId && return Ptr{UInt32}(x + 12)
+    f === :functionId && return Ptr{UInt32}(x + 16)
+    f === :pcOffset && return Ptr{UInt32}(x + 20)
+    f === :latencySamples && return Ptr{UInt32}(x + 24)
+    f === :samples && return Ptr{UInt32}(x + 28)
+    f === :stallReason && return Ptr{CUpti_ActivityPCSamplingStallReason}(x + 32)
+    f === :pad && return Ptr{UInt32}(x + 36)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityPCSampling2, f::Symbol)
+    r = Ref{CUpti_ActivityPCSampling2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityPCSampling2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityPCSampling2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityUnifiedMemoryCounter
+    data::NTuple{40,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityUnifiedMemoryCounter}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :counterKind && return Ptr{CUpti_ActivityUnifiedMemoryCounterKind}(x + 4)
+    f === :scope && return Ptr{CUpti_ActivityUnifiedMemoryCounterScope}(x + 8)
+    f === :deviceId && return Ptr{UInt32}(x + 12)
+    f === :value && return Ptr{UInt64}(x + 16)
+    f === :timestamp && return Ptr{UInt64}(x + 24)
+    f === :processId && return Ptr{UInt32}(x + 32)
+    f === :pad && return Ptr{UInt32}(x + 36)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityUnifiedMemoryCounter, f::Symbol)
+    r = Ref{CUpti_ActivityUnifiedMemoryCounter}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityUnifiedMemoryCounter}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityUnifiedMemoryCounter}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityUnifiedMemoryCounter2
+    data::NTuple{64,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityUnifiedMemoryCounter2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :counterKind && return Ptr{CUpti_ActivityUnifiedMemoryCounterKind}(x + 4)
+    f === :value && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :address && return Ptr{UInt64}(x + 32)
+    f === :srcId && return Ptr{UInt32}(x + 40)
+    f === :dstId && return Ptr{UInt32}(x + 44)
+    f === :streamId && return Ptr{UInt32}(x + 48)
+    f === :processId && return Ptr{UInt32}(x + 52)
+    f === :flags && return Ptr{UInt32}(x + 56)
+    f === :pad && return Ptr{UInt32}(x + 60)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityUnifiedMemoryCounter2, f::Symbol)
+    r = Ref{CUpti_ActivityUnifiedMemoryCounter2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityUnifiedMemoryCounter2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityUnifiedMemoryCounter2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4580:3)"
+    data::NTuple{16,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4580:3)"},
+                          f::Symbol)
+    f === :uuidDev && return Ptr{CUuuid}(x + 0)
+    f === :npu &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4582:5)"}(x +
+                                                                                                                                                                 0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4580:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4580:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4580:3)"},
+                              r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4580:3)"},
+                           f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4599:3)"
+    data::NTuple{16,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4599:3)"},
+                          f::Symbol)
+    f === :uuidDev && return Ptr{CUuuid}(x + 0)
+    f === :npu &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4601:5)"}(x +
+                                                                                                                                                                 0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4599:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4599:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4599:3)"},
+                              r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4599:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3943,8 +5347,12 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink}, f::Symbol)
     f === :nvlinkVersion && return Ptr{UInt32}(x + 4)
     f === :typeDev0 && return Ptr{CUpti_DevType}(x + 8)
     f === :typeDev1 && return Ptr{CUpti_DevType}(x + 12)
-    f === :idDev0 && return Ptr{var"##Ctag#582"}(x + 16)
-    f === :idDev1 && return Ptr{var"##Ctag#584"}(x + 32)
+    f === :idDev0 &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4580:3)"}(x +
+                                                                                                                                                                16)
+    f === :idDev1 &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4599:3)"}(x +
+                                                                                                                                                                32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
     f === :portDev0 && return Ptr{NTuple{4,Int8}}(x + 56)
@@ -3964,45 +5372,57 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityNvLink}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#592"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4685:3)"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#592"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4685:3)"},
+                          f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#593"}(x + 0)
+    f === :npu &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4687:5)"}(x +
+                                                                                                                                                                 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#592", f::Symbol)
-    r = Ref{var"##Ctag#592"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#592"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4685:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4685:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4685:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#592"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4685:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#594"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4704:3)"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#594"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4704:3)"},
+                          f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#595"}(x + 0)
+    f === :npu &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4706:5)"}(x +
+                                                                                                                                                                 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#594", f::Symbol)
-    r = Ref{var"##Ctag#594"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#594"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4704:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4704:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4704:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#594"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4704:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -4015,8 +5435,12 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink2}, f::Symbol)
     f === :nvlinkVersion && return Ptr{UInt32}(x + 4)
     f === :typeDev0 && return Ptr{CUpti_DevType}(x + 8)
     f === :typeDev1 && return Ptr{CUpti_DevType}(x + 12)
-    f === :idDev0 && return Ptr{var"##Ctag#592"}(x + 16)
-    f === :idDev1 && return Ptr{var"##Ctag#594"}(x + 32)
+    f === :idDev0 &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4685:3)"}(x +
+                                                                                                                                                                16)
+    f === :idDev1 &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4704:3)"}(x +
+                                                                                                                                                                32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
     f === :portDev0 && return Ptr{NTuple{32,Int8}}(x + 56)
@@ -4036,45 +5460,57 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityNvLink2}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#609"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4789:3)"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#609"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4789:3)"},
+                          f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#610"}(x + 0)
+    f === :npu &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4791:5)"}(x +
+                                                                                                                                                                 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#609", f::Symbol)
-    r = Ref{var"##Ctag#609"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#609"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4789:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4789:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4789:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#609"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4789:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#611"
+struct var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4808:3)"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#611"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4808:3)"},
+                          f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#612"}(x + 0)
+    f === :npu &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4810:5)"}(x +
+                                                                                                                                                                 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#611", f::Symbol)
-    r = Ref{var"##Ctag#611"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#611"}, r)
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4808:3)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4808:3)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4808:3)"},
+                              r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#611"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4808:3)"},
+                           f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -4087,8 +5523,12 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink3}, f::Symbol)
     f === :nvlinkVersion && return Ptr{UInt32}(x + 4)
     f === :typeDev0 && return Ptr{CUpti_DevType}(x + 8)
     f === :typeDev1 && return Ptr{CUpti_DevType}(x + 12)
-    f === :idDev0 && return Ptr{var"##Ctag#609"}(x + 16)
-    f === :idDev1 && return Ptr{var"##Ctag#611"}(x + 32)
+    f === :idDev0 &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4789:3)"}(x +
+                                                                                                                                                                16)
+    f === :idDev1 &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4808:3)"}(x +
+                                                                                                                                                                32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
     f === :portDev0 && return Ptr{NTuple{32,Int8}}(x + 56)
@@ -4123,37 +5563,176 @@ struct CUpti_ActivityGraphTrace
 end
 
 struct CUpti_ActivityContext
-    kind::CUpti_ActivityKind
-    contextId::UInt32
-    deviceId::UInt32
-    computeApiKind::UInt16
-    nullStreamId::UInt16
+    data::NTuple{16,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityContext}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :contextId && return Ptr{UInt32}(x + 4)
+    f === :deviceId && return Ptr{UInt32}(x + 8)
+    f === :computeApiKind && return Ptr{UInt16}(x + 12)
+    f === :nullStreamId && return Ptr{UInt16}(x + 14)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityContext, f::Symbol)
+    r = Ref{CUpti_ActivityContext}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityContext}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityContext}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityContext2
-    kind::CUpti_ActivityKind
-    contextId::UInt32
-    deviceId::UInt32
-    computeApiKind::UInt16
-    nullStreamId::UInt16
-    parentContextId::UInt32
-    isGreenContext::UInt8
-    padding::UInt8
-    numMultiprocessors::UInt16
+    data::NTuple{24,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityContext2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :contextId && return Ptr{UInt32}(x + 4)
+    f === :deviceId && return Ptr{UInt32}(x + 8)
+    f === :computeApiKind && return Ptr{UInt16}(x + 12)
+    f === :nullStreamId && return Ptr{UInt16}(x + 14)
+    f === :parentContextId && return Ptr{UInt32}(x + 16)
+    f === :isGreenContext && return Ptr{UInt8}(x + 20)
+    f === :padding && return Ptr{UInt8}(x + 21)
+    f === :numMultiprocessors && return Ptr{UInt16}(x + 22)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityContext2, f::Symbol)
+    r = Ref{CUpti_ActivityContext2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityContext2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityContext2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct CUpti_ActivityJit
-    kind::CUpti_ActivityKind
-    jitEntryType::CUpti_ActivityJitEntryType
-    jitOperationType::CUpti_ActivityJitOperationType
-    deviceId::UInt32
-    start::UInt64
-    _end::UInt64
-    correlationId::UInt32
-    padding::UInt32
-    jitOperationCorrelationId::UInt64
-    cacheSize::UInt64
-    cachePath::Cstring
+    data::NTuple{64,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityJit}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :jitEntryType && return Ptr{CUpti_ActivityJitEntryType}(x + 4)
+    f === :jitOperationType && return Ptr{CUpti_ActivityJitOperationType}(x + 8)
+    f === :deviceId && return Ptr{UInt32}(x + 12)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :correlationId && return Ptr{UInt32}(x + 32)
+    f === :padding && return Ptr{UInt32}(x + 36)
+    f === :jitOperationCorrelationId && return Ptr{UInt64}(x + 40)
+    f === :cacheSize && return Ptr{UInt64}(x + 48)
+    f === :cachePath && return Ptr{Cstring}(x + 56)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityJit, f::Symbol)
+    r = Ref{CUpti_ActivityJit}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityJit}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityJit}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityCudaEvent
+    data::NTuple{24,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityCudaEvent}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :correlationId && return Ptr{UInt32}(x + 4)
+    f === :contextId && return Ptr{UInt32}(x + 8)
+    f === :streamId && return Ptr{UInt32}(x + 12)
+    f === :eventId && return Ptr{UInt32}(x + 16)
+    f === :pad && return Ptr{UInt32}(x + 20)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityCudaEvent, f::Symbol)
+    r = Ref{CUpti_ActivityCudaEvent}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityCudaEvent}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityCudaEvent}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivitySynchronization
+    data::NTuple{40,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivitySynchronization}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :type && return Ptr{CUpti_ActivitySynchronizationType}(x + 4)
+    f === :start && return Ptr{UInt64}(x + 8)
+    f === :_end && return Ptr{UInt64}(x + 16)
+    f === :correlationId && return Ptr{UInt32}(x + 24)
+    f === :contextId && return Ptr{UInt32}(x + 28)
+    f === :streamId && return Ptr{UInt32}(x + 32)
+    f === :cudaEventId && return Ptr{UInt32}(x + 36)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivitySynchronization, f::Symbol)
+    r = Ref{CUpti_ActivitySynchronization}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivitySynchronization}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivitySynchronization}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUpti_ActivityMemcpy5
+    data::NTuple{88,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityMemcpy5}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :copyKind && return Ptr{UInt8}(x + 4)
+    f === :srcKind && return Ptr{UInt8}(x + 5)
+    f === :dstKind && return Ptr{UInt8}(x + 6)
+    f === :flags && return Ptr{UInt8}(x + 7)
+    f === :bytes && return Ptr{UInt64}(x + 8)
+    f === :start && return Ptr{UInt64}(x + 16)
+    f === :_end && return Ptr{UInt64}(x + 24)
+    f === :deviceId && return Ptr{UInt32}(x + 32)
+    f === :contextId && return Ptr{UInt32}(x + 36)
+    f === :streamId && return Ptr{UInt32}(x + 40)
+    f === :correlationId && return Ptr{UInt32}(x + 44)
+    f === :runtimeCorrelationId && return Ptr{UInt32}(x + 48)
+    f === :pad && return Ptr{UInt32}(x + 52)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 56)
+    f === :graphNodeId && return Ptr{UInt64}(x + 64)
+    f === :graphId && return Ptr{UInt32}(x + 72)
+    f === :channelID && return Ptr{UInt32}(x + 76)
+    f === :channelType && return Ptr{CUpti_ChannelType}(x + 80)
+    f === :pad2 && return Ptr{UInt32}(x + 84)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityMemcpy5, f::Symbol)
+    r = Ref{CUpti_ActivityMemcpy5}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityMemcpy5}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityMemcpy5}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 @cenum CUpti_driver_api_trace_cbid_enum::UInt32 begin
@@ -4920,7 +6499,26 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuStreamGetCtx_v2_ptsz = 760
     CUPTI_DRIVER_TRACE_CBID_cuMemBatchDecompressAsync = 761
     CUPTI_DRIVER_TRACE_CBID_cuMemBatchDecompressAsync_ptsz = 762
-    CUPTI_DRIVER_TRACE_CBID_SIZE = 763
+    CUPTI_DRIVER_TRACE_CBID_cuLogsRegisterCallback = 763
+    CUPTI_DRIVER_TRACE_CBID_cuLogsUnregisterCallback = 764
+    CUPTI_DRIVER_TRACE_CBID_cuLogsCurrent = 765
+    CUPTI_DRIVER_TRACE_CBID_cuLogsDumpToFile = 766
+    CUPTI_DRIVER_TRACE_CBID_cuLogsDumpToMemory = 767
+    CUPTI_DRIVER_TRACE_CBID_cuCheckpointProcessGetRestoreThreadId = 768
+    CUPTI_DRIVER_TRACE_CBID_cuCheckpointProcessGetState = 769
+    CUPTI_DRIVER_TRACE_CBID_cuCheckpointProcessLock = 770
+    CUPTI_DRIVER_TRACE_CBID_cuCheckpointProcessCheckpoint = 771
+    CUPTI_DRIVER_TRACE_CBID_cuCheckpointProcessRestore = 772
+    CUPTI_DRIVER_TRACE_CBID_cuCheckpointProcessUnlock = 773
+    CUPTI_DRIVER_TRACE_CBID_cuStreamGetDevice = 774
+    CUPTI_DRIVER_TRACE_CBID_cuStreamGetDevice_ptsz = 775
+    CUPTI_DRIVER_TRACE_CBID_cuMemcpyBatchAsync = 776
+    CUPTI_DRIVER_TRACE_CBID_cuMemcpyBatchAsync_ptsz = 777
+    CUPTI_DRIVER_TRACE_CBID_cuMemcpy3DBatchAsync = 778
+    CUPTI_DRIVER_TRACE_CBID_cuMemcpy3DBatchAsync_ptsz = 779
+    CUPTI_DRIVER_TRACE_CBID_cuEventElapsedTime_v2 = 780
+    CUPTI_DRIVER_TRACE_CBID_cuTensorMapEncodeIm2colWide = 781
+    CUPTI_DRIVER_TRACE_CBID_SIZE = 782
     CUPTI_DRIVER_TRACE_CBID_FORCE_INT = 2147483647
 end
 
@@ -5407,7 +7005,14 @@ const CUpti_driver_api_trace_cbid = CUpti_driver_api_trace_cbid_enum
     CUPTI_RUNTIME_TRACE_CBID_cuda477_v12060 = 477
     CUPTI_RUNTIME_TRACE_CBID_cuda478_v12060 = 478
     CUPTI_RUNTIME_TRACE_CBID_cuda479_v12060 = 479
-    CUPTI_RUNTIME_TRACE_CBID_SIZE = 480
+    CUPTI_RUNTIME_TRACE_CBID_cudaStreamGetDevice_v12080 = 480
+    CUPTI_RUNTIME_TRACE_CBID_cudaStreamGetDevice_ptsz_v12080 = 481
+    CUPTI_RUNTIME_TRACE_CBID_cudaMemcpyBatchAsync_v12080 = 482
+    CUPTI_RUNTIME_TRACE_CBID_cudaMemcpyBatchAsync_ptsz_v12080 = 483
+    CUPTI_RUNTIME_TRACE_CBID_cudaMemcpy3DBatchAsync_v12080 = 484
+    CUPTI_RUNTIME_TRACE_CBID_cudaMemcpy3DBatchAsync_ptsz_v12080 = 485
+    CUPTI_RUNTIME_TRACE_CBID_cudaEventElapsedTime_v2_v12080 = 486
+    CUPTI_RUNTIME_TRACE_CBID_SIZE = 487
     CUPTI_RUNTIME_TRACE_CBID_FORCE_INT = 2147483647
 end
 
@@ -5773,538 +7378,601 @@ end
     @gcsafe_ccall libcupti.cuptiProfilerDeviceSupported(pParams::Ptr{CUpti_Profiler_DeviceSupported_Params})::CUptiResult
 end
 
-struct var"##Ctag#581"
-    requested::UInt8
-    executed::UInt8
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4582:5)"
+    index::UInt32
+    domainId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#581"}, f::Symbol)
+
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4601:5)"
+    index::UInt32
+    domainId::UInt32
+end
+
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1255:5)"
+    data::NTuple{1,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1255:5)"},
+                          f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#581", f::Symbol)
-    r = Ref{var"##Ctag#581"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#581"}, r)
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1255:5)",
+                          f::Symbol)
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1255:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1255:5)"},
+                              r)
     fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
+    begin
+        if fptr isa Ptr
+            return GC.@preserve(r, unsafe_load(fptr))
+        else
+            (baseptr, offset, width) = fptr
+            ty = eltype(baseptr)
+            baseptr32 = convert(Ptr{UInt32}, baseptr)
+            u64 = GC.@preserve(r, unsafe_load(baseptr32))
+            if offset + width > 32
+                u64 |= GC.@preserve(r, unsafe_load(baseptr32 + 4)) << 32
+            end
+            u64 = u64 >> offset & (1 << width - 1)
+            return u64 % ty
+        end
+    end
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#581"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1255:5)"},
+                           f::Symbol, v)
+    fptr = getproperty(x, f)
+    if fptr isa Ptr
+        unsafe_store!(getproperty(x, f), v)
+    else
+        (baseptr, offset, width) = fptr
+        baseptr32 = convert(Ptr{UInt32}, baseptr)
+        u64 = unsafe_load(baseptr32)
+        straddle = offset + width > 32
+        if straddle
+            u64 |= unsafe_load(baseptr32 + 4) << 32
+        end
+        mask = 1 << width - 1
+        u64 &= ~(mask << offset)
+        u64 |= (unsigned(v) & mask) << offset
+        unsafe_store!(baseptr32, u64 & typemax(UInt32))
+        if straddle
+            unsafe_store!(baseptr32 + 4, u64 >> 32)
+        end
+    end
 end
 
-struct var"##Ctag#583"
-    index::UInt32
-    domainId::UInt32
-end
-function Base.getproperty(x::Ptr{var"##Ctag#583"}, f::Symbol)
-    f === :index && return Ptr{UInt32}(x + 0)
-    f === :domainId && return Ptr{UInt32}(x + 4)
-    return getfield(x, f)
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1920:5)"
+    data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::var"##Ctag#583", f::Symbol)
-    r = Ref{var"##Ctag#583"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#583"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#583"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#585"
-    index::UInt32
-    domainId::UInt32
-end
-function Base.getproperty(x::Ptr{var"##Ctag#585"}, f::Symbol)
-    f === :index && return Ptr{UInt32}(x + 0)
-    f === :domainId && return Ptr{UInt32}(x + 4)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#585", f::Symbol)
-    r = Ref{var"##Ctag#585"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#585"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#585"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#591"
-    requested::UInt8
-    executed::UInt8
-end
-function Base.getproperty(x::Ptr{var"##Ctag#591"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1920:5)"},
+                          f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#591", f::Symbol)
-    r = Ref{var"##Ctag#591"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#591"}, r)
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1920:5)",
+                          f::Symbol)
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1920:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1920:5)"},
+                              r)
     fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
+    begin
+        if fptr isa Ptr
+            return GC.@preserve(r, unsafe_load(fptr))
+        else
+            (baseptr, offset, width) = fptr
+            ty = eltype(baseptr)
+            baseptr32 = convert(Ptr{UInt32}, baseptr)
+            u64 = GC.@preserve(r, unsafe_load(baseptr32))
+            if offset + width > 32
+                u64 |= GC.@preserve(r, unsafe_load(baseptr32 + 4)) << 32
+            end
+            u64 = u64 >> offset & (1 << width - 1)
+            return u64 % ty
+        end
+    end
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#591"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1920:5)"},
+                           f::Symbol, v)
+    fptr = getproperty(x, f)
+    if fptr isa Ptr
+        unsafe_store!(getproperty(x, f), v)
+    else
+        (baseptr, offset, width) = fptr
+        baseptr32 = convert(Ptr{UInt32}, baseptr)
+        u64 = unsafe_load(baseptr32)
+        straddle = offset + width > 32
+        if straddle
+            u64 |= unsafe_load(baseptr32 + 4) << 32
+        end
+        mask = 1 << width - 1
+        u64 &= ~(mask << offset)
+        u64 |= (unsigned(v) & mask) << offset
+        unsafe_store!(baseptr32, u64 & typemax(UInt32))
+        if straddle
+            unsafe_store!(baseptr32 + 4, u64 >> 32)
+        end
+    end
 end
 
-struct var"##Ctag#593"
-    index::UInt32
-    domainId::UInt32
-end
-function Base.getproperty(x::Ptr{var"##Ctag#593"}, f::Symbol)
-    f === :index && return Ptr{UInt32}(x + 0)
-    f === :domainId && return Ptr{UInt32}(x + 4)
-    return getfield(x, f)
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2177:5)"
+    data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::var"##Ctag#593", f::Symbol)
-    r = Ref{var"##Ctag#593"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#593"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#593"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#595"
-    index::UInt32
-    domainId::UInt32
-end
-function Base.getproperty(x::Ptr{var"##Ctag#595"}, f::Symbol)
-    f === :index && return Ptr{UInt32}(x + 0)
-    f === :domainId && return Ptr{UInt32}(x + 4)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#595", f::Symbol)
-    r = Ref{var"##Ctag#595"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#595"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#595"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#598"
-    index::UInt32
-    domainId::UInt32
-end
-function Base.getproperty(x::Ptr{var"##Ctag#598"}, f::Symbol)
-    f === :index && return Ptr{UInt32}(x + 0)
-    f === :domainId && return Ptr{UInt32}(x + 4)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#598", f::Symbol)
-    r = Ref{var"##Ctag#598"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#598"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#598"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#600"
-    index::UInt32
-    domainId::UInt32
-end
-function Base.getproperty(x::Ptr{var"##Ctag#600"}, f::Symbol)
-    f === :index && return Ptr{UInt32}(x + 0)
-    f === :domainId && return Ptr{UInt32}(x + 4)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#600", f::Symbol)
-    r = Ref{var"##Ctag#600"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#600"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#600"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#602"
-    requested::UInt8
-    executed::UInt8
-end
-function Base.getproperty(x::Ptr{var"##Ctag#602"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2177:5)"},
+                          f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#602", f::Symbol)
-    r = Ref{var"##Ctag#602"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#602"}, r)
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2177:5)",
+                          f::Symbol)
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2177:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2177:5)"},
+                              r)
     fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
+    begin
+        if fptr isa Ptr
+            return GC.@preserve(r, unsafe_load(fptr))
+        else
+            (baseptr, offset, width) = fptr
+            ty = eltype(baseptr)
+            baseptr32 = convert(Ptr{UInt32}, baseptr)
+            u64 = GC.@preserve(r, unsafe_load(baseptr32))
+            if offset + width > 32
+                u64 |= GC.@preserve(r, unsafe_load(baseptr32 + 4)) << 32
+            end
+            u64 = u64 >> offset & (1 << width - 1)
+            return u64 % ty
+        end
+    end
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#602"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2177:5)"},
+                           f::Symbol, v)
+    fptr = getproperty(x, f)
+    if fptr isa Ptr
+        unsafe_store!(getproperty(x, f), v)
+    else
+        (baseptr, offset, width) = fptr
+        baseptr32 = convert(Ptr{UInt32}, baseptr)
+        u64 = unsafe_load(baseptr32)
+        straddle = offset + width > 32
+        if straddle
+            u64 |= unsafe_load(baseptr32 + 4) << 32
+        end
+        mask = 1 << width - 1
+        u64 &= ~(mask << offset)
+        u64 |= (unsigned(v) & mask) << offset
+        unsafe_store!(baseptr32, u64 & typemax(UInt32))
+        if straddle
+            unsafe_store!(baseptr32 + 4, u64 >> 32)
+        end
+    end
 end
 
-struct var"##Ctag#608"
-    requested::UInt8
-    executed::UInt8
-end
-function Base.getproperty(x::Ptr{var"##Ctag#608"}, f::Symbol)
-    f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
-    f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#608", f::Symbol)
-    r = Ref{var"##Ctag#608"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#608"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#608"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#610"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4791:5)"
     index::UInt32
     domainId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#610"}, f::Symbol)
-    f === :index && return Ptr{UInt32}(x + 0)
-    f === :domainId && return Ptr{UInt32}(x + 4)
-    return getfield(x, f)
-end
 
-function Base.getproperty(x::var"##Ctag#610", f::Symbol)
-    r = Ref{var"##Ctag#610"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#610"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#610"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#612"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4810:5)"
     index::UInt32
     domainId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#612"}, f::Symbol)
-    f === :index && return Ptr{UInt32}(x + 0)
-    f === :domainId && return Ptr{UInt32}(x + 4)
-    return getfield(x, f)
+
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4687:5)"
+    index::UInt32
+    domainId::UInt32
 end
 
-function Base.getproperty(x::var"##Ctag#612", f::Symbol)
-    r = Ref{var"##Ctag#612"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#612"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:4706:5)"
+    index::UInt32
+    domainId::UInt32
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#612"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3136:5)"
+    data::NTuple{1,UInt8}
 end
 
-struct var"##Ctag#615"
-    uuidDev::CUuuid
-    peerDev::NTuple{32,CUdevice}
-end
-function Base.getproperty(x::Ptr{var"##Ctag#615"}, f::Symbol)
-    f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :peerDev && return Ptr{NTuple{32,CUdevice}}(x + 16)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#615", f::Symbol)
-    r = Ref{var"##Ctag#615"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#615"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#615"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#616"
-    secondaryBus::UInt16
-    deviceId::UInt16
-    vendorId::UInt16
-    pad0::UInt16
-end
-function Base.getproperty(x::Ptr{var"##Ctag#616"}, f::Symbol)
-    f === :secondaryBus && return Ptr{UInt16}(x + 0)
-    f === :deviceId && return Ptr{UInt16}(x + 2)
-    f === :vendorId && return Ptr{UInt16}(x + 4)
-    f === :pad0 && return Ptr{UInt16}(x + 6)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#616", f::Symbol)
-    r = Ref{var"##Ctag#616"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#616"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#616"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#645"
-    requested::UInt8
-    executed::UInt8
-end
-function Base.getproperty(x::Ptr{var"##Ctag#645"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3136:5)"},
+                          f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#645", f::Symbol)
-    r = Ref{var"##Ctag#645"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#645"}, r)
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3136:5)",
+                          f::Symbol)
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3136:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3136:5)"},
+                              r)
     fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
+    begin
+        if fptr isa Ptr
+            return GC.@preserve(r, unsafe_load(fptr))
+        else
+            (baseptr, offset, width) = fptr
+            ty = eltype(baseptr)
+            baseptr32 = convert(Ptr{UInt32}, baseptr)
+            u64 = GC.@preserve(r, unsafe_load(baseptr32))
+            if offset + width > 32
+                u64 |= GC.@preserve(r, unsafe_load(baseptr32 + 4)) << 32
+            end
+            u64 = u64 >> offset & (1 << width - 1)
+            return u64 % ty
+        end
+    end
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#645"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:3136:5)"},
+                           f::Symbol, v)
+    fptr = getproperty(x, f)
+    if fptr isa Ptr
+        unsafe_store!(getproperty(x, f), v)
+    else
+        (baseptr, offset, width) = fptr
+        baseptr32 = convert(Ptr{UInt32}, baseptr)
+        u64 = unsafe_load(baseptr32)
+        straddle = offset + width > 32
+        if straddle
+            u64 |= unsafe_load(baseptr32 + 4) << 32
+        end
+        mask = 1 << width - 1
+        u64 &= ~(mask << offset)
+        u64 |= (unsigned(v) & mask) << offset
+        unsafe_store!(baseptr32, u64 & typemax(UInt32))
+        if straddle
+            unsafe_store!(baseptr32 + 4, u64 >> 32)
+        end
+    end
 end
 
-struct var"##Ctag#650"
-    requested::UInt8
-    executed::UInt8
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1436:5)"
+    data::NTuple{1,UInt8}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#650"}, f::Symbol)
+
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1436:5)"},
+                          f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#650", f::Symbol)
-    r = Ref{var"##Ctag#650"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#650"}, r)
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1436:5)",
+                          f::Symbol)
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1436:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1436:5)"},
+                              r)
     fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
+    begin
+        if fptr isa Ptr
+            return GC.@preserve(r, unsafe_load(fptr))
+        else
+            (baseptr, offset, width) = fptr
+            ty = eltype(baseptr)
+            baseptr32 = convert(Ptr{UInt32}, baseptr)
+            u64 = GC.@preserve(r, unsafe_load(baseptr32))
+            if offset + width > 32
+                u64 |= GC.@preserve(r, unsafe_load(baseptr32 + 4)) << 32
+            end
+            u64 = u64 >> offset & (1 << width - 1)
+            return u64 % ty
+        end
+    end
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#650"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1436:5)"},
+                           f::Symbol, v)
+    fptr = getproperty(x, f)
+    if fptr isa Ptr
+        unsafe_store!(getproperty(x, f), v)
+    else
+        (baseptr, offset, width) = fptr
+        baseptr32 = convert(Ptr{UInt32}, baseptr)
+        u64 = unsafe_load(baseptr32)
+        straddle = offset + width > 32
+        if straddle
+            u64 |= unsafe_load(baseptr32 + 4) << 32
+        end
+        mask = 1 << width - 1
+        u64 &= ~(mask << offset)
+        u64 |= (unsigned(v) & mask) << offset
+        unsafe_store!(baseptr32, u64 & typemax(UInt32))
+        if straddle
+            unsafe_store!(baseptr32 + 4, u64 >> 32)
+        end
+    end
 end
 
-struct var"##Ctag#652"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1669:5)"
+    data::NTuple{1,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1669:5)"},
+                          f::Symbol)
+    f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
+    f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1669:5)",
+                          f::Symbol)
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1669:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1669:5)"},
+                              r)
+    fptr = getproperty(ptr, f)
+    begin
+        if fptr isa Ptr
+            return GC.@preserve(r, unsafe_load(fptr))
+        else
+            (baseptr, offset, width) = fptr
+            ty = eltype(baseptr)
+            baseptr32 = convert(Ptr{UInt32}, baseptr)
+            u64 = GC.@preserve(r, unsafe_load(baseptr32))
+            if offset + width > 32
+                u64 |= GC.@preserve(r, unsafe_load(baseptr32 + 4)) << 32
+            end
+            u64 = u64 >> offset & (1 << width - 1)
+            return u64 % ty
+        end
+    end
+end
+
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1669:5)"},
+                           f::Symbol, v)
+    fptr = getproperty(x, f)
+    if fptr isa Ptr
+        unsafe_store!(getproperty(x, f), v)
+    else
+        (baseptr, offset, width) = fptr
+        baseptr32 = convert(Ptr{UInt32}, baseptr)
+        u64 = unsafe_load(baseptr32)
+        straddle = offset + width > 32
+        if straddle
+            u64 |= unsafe_load(baseptr32 + 4) << 32
+        end
+        mask = 1 << width - 1
+        u64 &= ~(mask << offset)
+        u64 |= (unsigned(v) & mask) << offset
+        unsafe_store!(baseptr32, u64 & typemax(UInt32))
+        if straddle
+            unsafe_store!(baseptr32 + 4, u64 >> 32)
+        end
+    end
+end
+
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:5993:5)"
+    index::UInt32
+    domainId::UInt32
+end
+
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6012:5)"
+    index::UInt32
+    domainId::UInt32
+end
+
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2836:5)"
+    data::NTuple{1,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2836:5)"},
+                          f::Symbol)
+    f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
+    f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2836:5)",
+                          f::Symbol)
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2836:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2836:5)"},
+                              r)
+    fptr = getproperty(ptr, f)
+    begin
+        if fptr isa Ptr
+            return GC.@preserve(r, unsafe_load(fptr))
+        else
+            (baseptr, offset, width) = fptr
+            ty = eltype(baseptr)
+            baseptr32 = convert(Ptr{UInt32}, baseptr)
+            u64 = GC.@preserve(r, unsafe_load(baseptr32))
+            if offset + width > 32
+                u64 |= GC.@preserve(r, unsafe_load(baseptr32 + 4)) << 32
+            end
+            u64 = u64 >> offset & (1 << width - 1)
+            return u64 % ty
+        end
+    end
+end
+
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:2836:5)"},
+                           f::Symbol, v)
+    fptr = getproperty(x, f)
+    if fptr isa Ptr
+        unsafe_store!(getproperty(x, f), v)
+    else
+        (baseptr, offset, width) = fptr
+        baseptr32 = convert(Ptr{UInt32}, baseptr)
+        u64 = unsafe_load(baseptr32)
+        straddle = offset + width > 32
+        if straddle
+            u64 |= unsafe_load(baseptr32 + 4) << 32
+        end
+        mask = 1 << width - 1
+        u64 &= ~(mask << offset)
+        u64 |= (unsigned(v) & mask) << offset
+        unsafe_store!(baseptr32, u64 & typemax(UInt32))
+        if straddle
+            unsafe_store!(baseptr32 + 4, u64 >> 32)
+        end
+    end
+end
+
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4346:5)"
     smClock::UInt32
     memoryClock::UInt32
     pcieLinkGen::UInt32
     pcieLinkWidth::UInt32
     clocksThrottleReasons::CUpti_EnvironmentClocksThrottleReason
 end
-function Base.getproperty(x::Ptr{var"##Ctag#652"}, f::Symbol)
-    f === :smClock && return Ptr{UInt32}(x + 0)
-    f === :memoryClock && return Ptr{UInt32}(x + 4)
-    f === :pcieLinkGen && return Ptr{UInt32}(x + 8)
-    f === :pcieLinkWidth && return Ptr{UInt32}(x + 12)
-    f === :clocksThrottleReasons &&
-        return Ptr{CUpti_EnvironmentClocksThrottleReason}(x + 16)
-    return getfield(x, f)
-end
 
-function Base.getproperty(x::var"##Ctag#652", f::Symbol)
-    r = Ref{var"##Ctag#652"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#652"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#652"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#653"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4377:5)"
     gpuTemperature::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#653"}, f::Symbol)
-    f === :gpuTemperature && return Ptr{UInt32}(x + 0)
-    return getfield(x, f)
-end
 
-function Base.getproperty(x::var"##Ctag#653", f::Symbol)
-    r = Ref{var"##Ctag#653"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#653"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#653"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#654"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4389:5)"
     power::UInt32
     powerLimit::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#654"}, f::Symbol)
-    f === :power && return Ptr{UInt32}(x + 0)
-    f === :powerLimit && return Ptr{UInt32}(x + 4)
-    return getfield(x, f)
-end
 
-function Base.getproperty(x::var"##Ctag#654", f::Symbol)
-    r = Ref{var"##Ctag#654"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#654"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#654"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#655"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:4399:5)"
     fanSpeed::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#655"}, f::Symbol)
-    f === :fanSpeed && return Ptr{UInt32}(x + 0)
-    return getfield(x, f)
+
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6158:5)"
+    uuidDev::CUuuid
+    peerDev::NTuple{32,CUdevice}
 end
 
-function Base.getproperty(x::var"##Ctag#655", f::Symbol)
-    r = Ref{var"##Ctag#655"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#655"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:6172:5)"
+    secondaryBus::UInt16
+    deviceId::UInt16
+    vendorId::UInt16
+    pad0::UInt16
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#655"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1094:5)"
+    data::NTuple{1,UInt8}
 end
 
-struct var"##Ctag#657"
-    requested::UInt8
-    executed::UInt8
-end
-function Base.getproperty(x::Ptr{var"##Ctag#657"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1094:5)"},
+                          f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#657", f::Symbol)
-    r = Ref{var"##Ctag#657"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#657"}, r)
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1094:5)",
+                          f::Symbol)
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1094:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1094:5)"},
+                              r)
     fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
+    begin
+        if fptr isa Ptr
+            return GC.@preserve(r, unsafe_load(fptr))
+        else
+            (baseptr, offset, width) = fptr
+            ty = eltype(baseptr)
+            baseptr32 = convert(Ptr{UInt32}, baseptr)
+            u64 = GC.@preserve(r, unsafe_load(baseptr32))
+            if offset + width > 32
+                u64 |= GC.@preserve(r, unsafe_load(baseptr32 + 4)) << 32
+            end
+            u64 = u64 >> offset & (1 << width - 1)
+            return u64 % ty
+        end
+    end
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#657"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:1094:5)"},
+                           f::Symbol, v)
+    fptr = getproperty(x, f)
+    if fptr isa Ptr
+        unsafe_store!(getproperty(x, f), v)
+    else
+        (baseptr, offset, width) = fptr
+        baseptr32 = convert(Ptr{UInt32}, baseptr)
+        u64 = unsafe_load(baseptr32)
+        straddle = offset + width > 32
+        if straddle
+            u64 |= unsafe_load(baseptr32 + 4) << 32
+        end
+        mask = 1 << width - 1
+        u64 &= ~(mask << offset)
+        u64 |= (unsigned(v) & mask) << offset
+        unsafe_store!(baseptr32, u64 & typemax(UInt32))
+        if straddle
+            unsafe_store!(baseptr32 + 4, u64 >> 32)
+        end
+    end
 end
 
-struct var"##Ctag#659"
-    requested::UInt8
-    executed::UInt8
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2442:5)"
+    data::NTuple{1,UInt8}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#659"}, f::Symbol)
+
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2442:5)"},
+                          f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#659", f::Symbol)
-    r = Ref{var"##Ctag#659"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#659"}, r)
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2442:5)",
+                          f::Symbol)
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2442:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2442:5)"},
+                              r)
     fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
+    begin
+        if fptr isa Ptr
+            return GC.@preserve(r, unsafe_load(fptr))
+        else
+            (baseptr, offset, width) = fptr
+            ty = eltype(baseptr)
+            baseptr32 = convert(Ptr{UInt32}, baseptr)
+            u64 = GC.@preserve(r, unsafe_load(baseptr32))
+            if offset + width > 32
+                u64 |= GC.@preserve(r, unsafe_load(baseptr32 + 4)) << 32
+            end
+            u64 = u64 >> offset & (1 << width - 1)
+            return u64 % ty
+        end
+    end
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#659"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity_deprecated.h:2442:5)"},
+                           f::Symbol, v)
+    fptr = getproperty(x, f)
+    if fptr isa Ptr
+        unsafe_store!(getproperty(x, f), v)
+    else
+        (baseptr, offset, width) = fptr
+        baseptr32 = convert(Ptr{UInt32}, baseptr)
+        u64 = unsafe_load(baseptr32)
+        straddle = offset + width > 32
+        if straddle
+            u64 |= unsafe_load(baseptr32 + 4) << 32
+        end
+        mask = 1 << width - 1
+        u64 &= ~(mask << offset)
+        u64 |= (unsigned(v) & mask) << offset
+        unsafe_store!(baseptr32, u64 & typemax(UInt32))
+        if straddle
+            unsafe_store!(baseptr32 + 4, u64 >> 32)
+        end
+    end
 end
 
-struct var"##Ctag#661"
-    requested::UInt8
-    executed::UInt8
-end
-function Base.getproperty(x::Ptr{var"##Ctag#661"}, f::Symbol)
-    f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
-    f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#661", f::Symbol)
-    r = Ref{var"##Ctag#661"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#661"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#661"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#672"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:671:3)"
     processId::UInt32
     threadId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#672"}, f::Symbol)
-    f === :processId && return Ptr{UInt32}(x + 0)
-    f === :threadId && return Ptr{UInt32}(x + 4)
-    return getfield(x, f)
-end
 
-function Base.getproperty(x::var"##Ctag#672", f::Symbol)
-    r = Ref{var"##Ctag#672"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#672"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#672"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#673"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/cupti_activity.h:682:3)"
     deviceId::UInt32
     contextId::UInt32
     streamId::UInt32
-end
-function Base.getproperty(x::Ptr{var"##Ctag#673"}, f::Symbol)
-    f === :deviceId && return Ptr{UInt32}(x + 0)
-    f === :contextId && return Ptr{UInt32}(x + 4)
-    f === :streamId && return Ptr{UInt32}(x + 8)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#673", f::Symbol)
-    r = Ref{var"##Ctag#673"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#673"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#673"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
 end
 
 const CUPTI_EVENT_OVERFLOW = uint64_t(Culonglong(0xffffffffffffffff))
@@ -6337,13 +8005,15 @@ const CUPTI_GRID_ID_UNKNOWN = Clonglong(0)
 
 const CUPTI_TIMESTAMP_UNKNOWN = Clonglong(0)
 
-const CUPTI_SYNCHRONIZATION_INVALID_VALUE = -1
+const CUPTI_SYNCHRONIZATION_INVALID_VALUE = uint32_t(Cuint(0xffffffff))
 
 const CUPTI_AUTO_BOOST_INVALID_CLIENT_PID = 0
 
 const CUPTI_NVLINK_INVALID_PORT = -1
 
 const CUPTI_MAX_NVLINK_PORTS = 32
+
+const CUPTI_DECOMPRESSED_BYTES_UNKNOWN = Clonglong(0)
 
 const CUPTI_MAX_GPUS = 32
 

@@ -718,7 +718,11 @@ const cublasLtMatmulPreference_t = Ptr{cublasLtMatmulPreferenceOpaque_t}
     CUBLASLT_MATMUL_TILE_768x56 = 628
     CUBLASLT_MATMUL_TILE_768x72 = 629
     CUBLASLT_MATMUL_TILE_768x80 = 630
-    CUBLASLT_MATMUL_TILE_END = 631
+    CUBLASLT_MATMUL_TILE_256x512 = 631
+    CUBLASLT_MATMUL_TILE_256x1024 = 632
+    CUBLASLT_MATMUL_TILE_512x512 = 633
+    CUBLASLT_MATMUL_TILE_512x1024 = 634
+    CUBLASLT_MATMUL_TILE_END = 635
 end
 
 @cenum cublasLtMatmulStages_t::UInt32 begin
@@ -757,7 +761,8 @@ end
     CUBLASLT_MATMUL_STAGES_32xAUTO = 34
     CUBLASLT_MATMUL_STAGES_64xAUTO = 35
     CUBLASLT_MATMUL_STAGES_128xAUTO = 36
-    CUBLASLT_MATMUL_STAGES_END = 37
+    CUBLASLT_MATMUL_STAGES_256xAUTO = 37
+    CUBLASLT_MATMUL_STAGES_END = 38
 end
 
 @cenum cublasLtClusterShape_t::UInt32 begin
@@ -822,6 +827,13 @@ end
     CUBLASLT_MATMUL_INNER_SHAPE_MMA1688 = 3
     CUBLASLT_MATMUL_INNER_SHAPE_MMA16816 = 4
     CUBLASLT_MATMUL_INNER_SHAPE_END = 5
+end
+
+@cenum cublasLtMatmulMatrixScale_t::UInt32 begin
+    CUBLASLT_MATMUL_MATRIX_SCALE_SCALAR_32F = 0
+    CUBLASLT_MATMUL_MATRIX_SCALE_VEC16_UE4M3 = 1
+    CUBLASLT_MATMUL_MATRIX_SCALE_VEC32_UE8M0 = 2
+    CUBLASLT_MATMUL_MATRIX_SCALE_END = 3
 end
 
 @cenum cublasLtPointerMode_t::UInt32 begin
@@ -973,6 +985,13 @@ end
     CUBLASLT_MATMUL_DESC_ATOMIC_SYNC_NUM_CHUNKS_D_COLS = 28
     CUBLASLT_MATMUL_DESC_ATOMIC_SYNC_IN_COUNTERS_POINTER = 29
     CUBLASLT_MATMUL_DESC_ATOMIC_SYNC_OUT_COUNTERS_POINTER = 30
+    CUBLASLT_MATMUL_DESC_A_SCALE_MODE = 31
+    CUBLASLT_MATMUL_DESC_B_SCALE_MODE = 32
+    CUBLASLT_MATMUL_DESC_C_SCALE_MODE = 33
+    CUBLASLT_MATMUL_DESC_D_SCALE_MODE = 34
+    CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_SCALE_MODE = 35
+    CUBLASLT_MATMUL_DESC_D_OUT_SCALE_POINTER = 36
+    CUBLASLT_MATMUL_DESC_D_OUT_SCALE_MODE = 37
 end
 
 @checked function cublasLtMatmulDescInit_internal(matmulDesc, size, computeType, scaleType)
@@ -1318,7 +1337,7 @@ end
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetMask(mask::Cint)::cublasStatus_t
 end
 
-# no prototype is found for this function at cublasLt.h:2448:29, please use with caution
+# no prototype is found for this function at cublasLt.h:2507:29, please use with caution
 @checked function cublasLtLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerForceDisable()::cublasStatus_t

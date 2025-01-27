@@ -171,8 +171,24 @@ struct cutensornetTensorIDList_t
 end
 
 struct cutensornetNodePair_t
-    first::Int32
-    second::Int32
+    data::NTuple{8,UInt8}
+end
+
+function Base.getproperty(x::Ptr{cutensornetNodePair_t}, f::Symbol)
+    f === :first && return Ptr{Int32}(x + 0)
+    f === :second && return Ptr{Int32}(x + 4)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::cutensornetNodePair_t, f::Symbol)
+    r = Ref{cutensornetNodePair_t}(x)
+    ptr = Base.unsafe_convert(Ptr{cutensornetNodePair_t}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{cutensornetNodePair_t}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
 end
 
 struct cutensornetContractionPath_t
