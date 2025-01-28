@@ -169,7 +169,7 @@ function find_nsys()
         return ENV["_"]
     else
         # look at a couple of environment variables that may point to NSight
-        nsight = nothing
+        nsys = nothing
         for var in ("LD_PRELOAD", "CUDA_INJECTION64_PATH", "NVTX_INJECTION64_PATH")
             haskey(ENV, var) || continue
             for val in split(ENV[var], Sys.iswindows() ? ';' : ':')
@@ -186,21 +186,56 @@ function find_nsys()
     error("Running under Nsight Systems, but could not find the `nsys` binary to start the profiler. Please specify using JULIA_CUDA_NSYS=path/to/nsys, and file an issue with the contents of ENV.")
 end
 
-const __nsight = Ref{Union{Nothing,String}}()
-function nsight()
-    if !isassigned(__nsight)
+const __nsys = Ref{Union{Nothing,String}}()
+function nsys()
+    if !isassigned(__nsys)
         # find the active Nsight Systems profiler
         if haskey(ENV, "NSYS_PROFILING_SESSION_ID") && ccall(:jl_generating_output, Cint, ()) == 0
-            __nsight[] = find_nsys()
-            @assert isfile(__nsight[])
-            @info "Running under Nsight Systems, CUDA.@profile will automatically start the profiler"
+            __nsys[] = find_nsys()
         else
-            __nsight[] = nothing
+            __nsys[] = nothing
         end
     end
 
-    __nsight[]
+    __nsys[]
 end
+
+function nsys_sessions()
+    sessions = Dict{Int,Dict{String,String}}()
+    open(`$(nsys()) sessions list`, "r") do io
+        header = Dict()
+        for line in eachline(io)
+            # parse the header
+            if isempty(header)
+                @assert startswith(line, r"\s+ID")
+                colnames = split(line)[1:end-1] # ignore the final left-aligned column
+                colranges = []
+                for column in colnames
+                    push!(colranges, findfirst(Regex("\\s+\\b$column\\b"), line))
+                end
+                for (name, range) in zip(colnames, colranges)
+                    header[name] = range
+                end
+
+            # parse the data
+            else
+                session = Dict()
+                for (name, range) in header
+                    session[name] = lstrip(line[range])
+                end
+
+                id = parse(Int, session["ID"])
+                delete!(session, "ID")
+                sessions[id] = session
+            end
+        end
+    end
+    return sessions
+end
+
+nsys_session() = parse(Int, ENV["NSYS_PROFILING_SESSION_ID"])
+
+nsys_state() = nsys_sessions()[nsys_session()]["STATE"]
 
 
 
@@ -211,11 +246,50 @@ Enables profile collection by the active profiling tool for the current context.
 profiling is already enabled, then this call has no effect.
 """
 function start()
-    if nsight() !== nothing
-        run(`$(nsight()) start --capture-range=cudaProfilerApi`)
-        # it takes a while for the profiler to actually start tracing our process
+    if nsys() !== nothing
+        # by default, running under NSight Systems does not activate the profiler API-based
+        # ranged collection; that's done by calling `nsys start --capture-range=cudaProfilerApi`.
+        # however, as of recent we cannot do this anymore when already running under the
+        # capturing `nsys profile`, so we need to detect the state and act accordingly.
+        try
+            state = nsys_state()
+
+            # `nsys profile`
+            if state == "Collection"
+                @warn """The application is already being profiled; starting the profiler is a no-op.
+
+                         If you meant to profile a specific region, make sure to start NSight Systems in
+                         delayed mode (`nsys profile --start-later=true --capture-range=cudaProfilerApi`)
+                         or simply switch to the interactive `nsys launch` command."""
+                return
+
+            # `nsys profile --start-later=true`
+            elseif state == "DelayedCollection"
+                @error """The application is running under a delayed profiling session which CUDA.jl cannot activate.
+
+                          If you want `CUDA.@profile` to enable the profiler, make sure
+                          to pass `--capture-range=cudaProfilerApi` to `nsys profile`."""
+                return
+
+            # `nsys profile --start-later=true --capture-range=cudaProfilerApi`
+            elseif state == "StartRange"
+
+            # `nsys launch`
+            elseif state == "Launched"
+                run(`$(nsys()) start --capture-range=cudaProfilerApi`)
+
+            else
+                error("Unexpected state: $state")
+            end
+        catch err
+            @error "Failed to find the active profiling session ($(nsys_session())) in the session list:\n" * read(`$(nsys()) sessions list`, String) * "\n\nPlease file an issue." exception=(err,catch_backtrace())
+        end
+
+        # it takes a while for the profiler to attach to our process
         sleep(0.01)
     end
+
+    # actually start the capture
     CUDA.cuProfilerStart()
 end
 
@@ -227,10 +301,6 @@ profiling is already disabled, then this call has no effect.
 """
 function stop()
     CUDA.cuProfilerStop()
-    if nsight() !== nothing
-        @info """Profiling has finished, open the report listed above with `nsys-ui`
-                 If no report was generated, try launching `nsys` with `--trace=cuda`"""
-    end
 end
 
 
