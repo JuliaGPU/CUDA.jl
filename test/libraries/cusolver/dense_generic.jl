@@ -35,7 +35,7 @@ p = 5
         @testset "syevBatched!" begin
             batch_size = 5
             for uplo in ('L', 'U')
-                (uplo == 'L') && (elty == ComplexF32) && continue
+                (CUSOLVER.version() < v"11.7.2") && (uplo == 'L') && (elty == ComplexF32) && continue
 
                 A = rand(elty, n, n * batch_size)
                 B = rand(elty, n, n * batch_size)
