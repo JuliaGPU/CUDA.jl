@@ -18,9 +18,6 @@ for (fname,elty) in ((:cusparseSbsrmm, :Float32),
                       C::StridedCuMatrix{$elty},
                       index::SparseChar)
 
-            # Some options are not supported by CUSPARSE
-            (transa != 'N' || transb == 'C') && throw(ArgumentError("Sparse matrix-matrix multiplication only supports transa ($transa) = 'N' and transb ($transb) ∈ ('N', 'T')."))
-
             # Support transa = 'C' and `transb = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
             transb = $elty <: Real && transb == 'C' ? 'T' : transb
