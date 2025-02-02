@@ -990,3 +990,13 @@ needs_context = false
 
 [api.cusparseSpMMOp.argtypes]
 2 = "CuPtr{Cvoid}"
+
+[api.cusparseCreateBsr.argtypes]
+7 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+
+[api.cusparseCreateConstBsr.argtypes]
+7 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"

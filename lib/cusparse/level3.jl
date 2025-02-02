@@ -1,16 +1,7 @@
 # sparse linear algebra functions that perform operations between sparse and (usually tall)
 # dense matrices
 
-export mm!, sm2!, sm2
-
-"""
-    mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix, B::CuMatrix, beta::Number, C::CuMatrix, index::SparseChar)
-
-Performs `C = alpha * op(A) * op(B) + beta * C`, where `op` can be nothing (`transa = N`),
-tranpose (`transa = T`) or conjugate transpose (`transa = C`).
-`B` and `C` are dense matrices.
-"""
-mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix, B::CuMatrix, beta::Number, C::CuMatrix, index::SparseChar)
+export mm2!, sm2!, sm2
 
 # bsrmm
 for (fname,elty) in ((:cusparseSbsrmm, :Float32),
@@ -18,14 +9,17 @@ for (fname,elty) in ((:cusparseSbsrmm, :Float32),
                      (:cusparseCbsrmm, :ComplexF32),
                      (:cusparseZbsrmm, :ComplexF64))
     @eval begin
-        function mm!(transa::SparseChar,
-                     transb::SparseChar,
-                     alpha::Number,
-                     A::CuSparseMatrixBSR{$elty},
-                     B::StridedCuMatrix{$elty},
-                     beta::Number,
-                     C::StridedCuMatrix{$elty},
-                     index::SparseChar)
+        function mm2!(transa::SparseChar,
+                      transb::SparseChar,
+                      alpha::Number,
+                      A::CuSparseMatrixBSR{$elty},
+                      B::StridedCuMatrix{$elty},
+                      beta::Number,
+                      C::StridedCuMatrix{$elty},
+                      index::SparseChar)
+
+            # Support options are not supported by CUSPARSE
+            (transa != 'N' || transb == 'C') && throw(ArgumentError("Sparse matrix-matrix multiplication only supports transa ($transa) = 'N' and transb ($transb) ∈ ('N', 'T')."))
 
             # Support transa = 'C' and `transb = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa

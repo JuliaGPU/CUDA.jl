@@ -1,8 +1,26 @@
 # generic APIs
 
 export gather!, scatter!, axpby!, rot!
-export vv!, sv!, sm!, gemv, gemm, gemm!, sddmm!
+export vv!, sv!, sm!, mv!, mm!, gemv, gemm, gemm!, sddmm!
 export bmm!
+
+"""
+    mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::CuVector, beta::Number, Y::CuVector, index::SparseChar)
+
+Performs `Y = alpha * op(A) * X + beta * Y`, where `op` can be nothing (`transa = N`),
+tranpose (`transa = T`) or conjugate transpose (`transa = C`).
+`X` and `Y` are dense vectors.
+"""
+function mv! end
+
+"""
+    mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix, B::CuMatrix, beta::Number, C::CuMatrix, index::SparseChar)
+    mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuMatrix, B::Union{CuSparseMatrixCSC,CuSparseMatrixCSR,CuSparseMatrixCOO}, beta::Number, C::CuMatrix, index::SparseChar)
+
+Performs `C = alpha * op(A) * op(B) + beta * C`, where `op` can be nothing (`transa = N`),
+tranpose (`transa = T`) or conjugate transpose (`transa = C`).
+"""
+function mm! end
 
 ## API functions
 
@@ -191,7 +209,7 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
     return Y
 end
 
-function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}},
+function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix{T},
              B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
 
     # Support transa = 'C' and `transb = 'C' for real matrices
@@ -238,7 +256,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{CuS
     # Set default buffer for small matrices (10000 chosen arbitrarly)
     # Otherwise tries to allocate 120TB of memory (see #2296)
     function bufferSize()
-        out = Ref{Csize_t}(10000) 
+        out = Ref{Csize_t}(10000)
         cusparseSpMM_bufferSize(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, out)
@@ -337,8 +355,8 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
 end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T},
-             B::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}},
-             beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
+             B::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, beta::Number,
+             C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
 
     CUSPARSE.version() < v"11.7.4" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     # Support transa = 'C' and `transb = 'C' for real matrices
@@ -373,10 +391,10 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
     descB = CuSparseMatrixDescriptor(B, index, transposed=true)
     descC = CuDenseMatrixDescriptor(C, transposed=true)
 
-    # Set default buffer for small matrices (10000 chosen arbitrarly)
+    # Set default buffer for small matrices (1000 chosen arbitrarly)
     # Otherwise tries to allocate 120TB of memory (see #2296)
     function bufferSize()
-        out = Ref{Csize_t}(10000)
+        out = Ref{Csize_t}(1000)
         cusparseSpMM_bufferSize(
             handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
             descC, T, algo, out)
@@ -736,7 +754,7 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
 end
 
 function sddmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::DenseCuMatrix{T},
-                beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSDDMMAlg_t=CUSPARSE_SDDMM_ALG_DEFAULT) where {T}
+                beta::Number, C::Union{CuSparseMatrixCSR{T},CuSparseMatrixBSR{T}}, index::SparseChar, algo::cusparseSDDMMAlg_t=CUSPARSE_SDDMM_ALG_DEFAULT) where {T}
 
     CUSPARSE.version() < v"11.4.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
