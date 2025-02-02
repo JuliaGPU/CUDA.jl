@@ -43,7 +43,11 @@ function mm_wrapper(transa::SparseChar, transb::SparseChar, alpha::Number,
     n_A == n_C || throw(DimensionMismatch())
     m_B == m_C || throw(DimensionMismatch())
     isempty(B) && return CUDA.zeros(eltype(B), size(A, 1), 0)
-    mm!(transa, transb, alpha, A, B, beta, C, 'O')
+    if (A isa CuSparseMatrixBSR) && (CUSPARSE.version() < v"12.5.1")
+        mm2!(transa, transb, alpha, A, B, beta, C, 'O')
+    else
+        mm!(transa, transb, alpha, A, B, beta, C, 'O')
+    end
 end
 
 LinearAlgebra.dot(x::CuSparseVector{T}, y::DenseCuVector{T}) where {T <: BlasReal} = vv!('N', x, y, 'O')

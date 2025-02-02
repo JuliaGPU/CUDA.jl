@@ -212,6 +212,8 @@ end
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix{T},
              B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
 
+    (A isa CuSparseMatrixBSR) && (CUSPARSE.version() < v"12.5.1") && throw(ErrorException("This operation is not supported by the current CUDA version."))
+
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
@@ -292,7 +294,6 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
         throw(ErrorException("Batched dense-matrix times batched sparse-matrix (bmm!) requires a CUSPARSE version ≥ 11.7.2 (yours: $(CUSPARSE.version()))."))
     end
 
-
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
@@ -331,10 +332,10 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     strideC = stride(C, 3)
     cusparseDnMatSetStridedBatch(descC, b, strideC)
 
-    # Set default buffer for small matrices (10000 chosen arbitrarly)
+    # Set default buffer for small matrices (1000 chosen arbitrarly)
     # Otherwise tries to allocate 120TB of memory (see #2296)
     function bufferSize()
-        out = Ref{Csize_t}(10000)
+        out = Ref{Csize_t}(1000)
         cusparseSpMM_bufferSize(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, out)
@@ -359,6 +360,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
              C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
 
     CUSPARSE.version() < v"11.7.4" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
@@ -757,6 +759,7 @@ function sddmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseC
                 beta::Number, C::Union{CuSparseMatrixCSR{T},CuSparseMatrixBSR{T}}, index::SparseChar, algo::cusparseSDDMMAlg_t=CUSPARSE_SDDMM_ALG_DEFAULT) where {T}
 
     CUSPARSE.version() < v"11.4.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    (C isa CuSparseMatrixBSR) && (CUSPARSE.version() < v"12.1.0") && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa

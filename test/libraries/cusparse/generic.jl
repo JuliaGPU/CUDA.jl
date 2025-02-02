@@ -29,9 +29,7 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
                                             CUSPARSE.CUSPARSE_SPMV_CSR_ALG1,
                                             CUSPARSE.CUSPARSE_SPMV_CSR_ALG2])
 
-    SPMM_ALGOS = Dict(CuSparseMatrixBSR => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
-                                            CUSPARSE.CUSPARSE_SPMM_BSR_ALG1],
-                      CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],
+    SPMM_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],
                       CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
                                             CUSPARSE.CUSPARSE_SPMM_CSR_ALG1,
                                             CUSPARSE.CUSPARSE_SPMM_CSR_ALG2,
@@ -53,6 +51,11 @@ if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these al
 
     if CUSPARSE.version() >= v"12.1.3"
         push!(SPMV_ALGOS[CuSparseMatrixCOO], CUSPARSE.CUSPARSE_SPMV_COO_ALG2)
+    end
+
+    if CUSPARSE.version() >= v"12.5.1"
+        SPMM_ALGOS[CuSparseMatrixBSR] = [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
+                                         CUSPARSE.CUSPARSE_SPMM_BSR_ALG1]
     end
 
     for SparseMatrixType in keys(SPMV_ALGOS)
