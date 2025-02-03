@@ -255,10 +255,10 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
     #     cusparseCsrSetStridedBatch(obj, batchsize, 0, nnz(A))
     # end
 
-    # Set default buffer for small matrices (10000 chosen arbitrarly)
+    # Set default buffer for small matrices (1000 chosen arbitrarly)
     # Otherwise tries to allocate 120TB of memory (see #2296)
     function bufferSize()
-        out = Ref{Csize_t}(10000)
+        out = Ref{Csize_t}(1000)
         cusparseSpMM_bufferSize(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, out)
