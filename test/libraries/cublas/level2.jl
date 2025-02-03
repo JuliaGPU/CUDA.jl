@@ -81,7 +81,7 @@ k = 13
                     push!(dy, CuArray(y[i]))
                 end
                 CUBLAS.gemv_batched!(elty <: Real ? 'T' : 'C', alpha, dA, dy, beta, dx)
-                for i=1:length(A)
+                for i in 1:length(A)
                     hx = collect(dx[i])
                     x[i] = alpha * A[i]' * y[i] + beta * x[i]
                     @test x[i] ≈ hx
@@ -106,14 +106,14 @@ k = 13
                 dbad = CuArray(bad)
                 @test_throws DimensionMismatch CUBLAS.gemv_strided_batched!('N', alpha, dA, dx, beta, dbad)
                 CUBLAS.gemv_strided_batched!('N', alpha, dA, dx, beta, dy)
-                for i=1:size(A, 3)
+                for i in 1:size(A, 3)
                     hy = collect(dy[:, i])
                     y[:, i] = alpha * A[:, :, i] * x[:, i] + beta * y[:, i]
                     @test y[:, i] ≈ hy
                 end
                 dy = CuArray(y)
                 CUBLAS.gemv_strided_batched!(elty <: Real ? 'T' : 'C', alpha, dA, dy, beta, dx)
-                for i=1:size(A, 3)
+                for i in 1:size(A, 3)
                     hx = collect(dx[:, i])
                     x[:, i] = alpha * A[:, :, i]' * y[:, i] + beta * x[:, i]
                     @test x[:, i] ≈ hx
