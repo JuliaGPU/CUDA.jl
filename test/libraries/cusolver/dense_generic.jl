@@ -100,6 +100,7 @@ p = 5
             d_A = CuMatrix(A)
             d_B = CuMatrix(B)
             @testset "pivoting = $pivoting" for pivoting in (false, true)
+                !pivoting && (CUSOLVER.version() < v"11.7.2") && continue
                 if pivoting
                     d_A, d_ipiv, _ = CUSOLVER.sytrf!(uplo, d_A; pivoting)
                     d_ipiv = CuVector{Int64}(d_ipiv)

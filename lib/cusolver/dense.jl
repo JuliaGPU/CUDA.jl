@@ -212,6 +212,7 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
                 ipiv = CuArray{Cint}(undef, n)
                 return sytrf!(uplo, A, ipiv)
             else
+                CUSOLVER.version() < v"11.7.2" && throw(ErrorException("This operation is not supported by the current CUDA version."))
                 chkuplo(uplo)
                 n = checksquare(A)
                 lda = max(1, stride(A, 2))
