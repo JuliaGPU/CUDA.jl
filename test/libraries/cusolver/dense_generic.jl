@@ -92,18 +92,26 @@ p = 5
     end
 
     @testset "sytrs!" begin
-        for uplo in ('L', 'U')
-            A = rand(elty,n,n)
-            B = rand(elty,n,p)
-            A = A + transpose(A)
-            d_A = CuMatrix(A)
-            d_B = CuMatrix(B)
-            d_A, d_ipiv, _ = CUSOLVER.sytrf!(uplo, d_A)
-            d_ipiv = CuVector{Int64}(d_ipiv)
-            A, ipiv, _ = LAPACK.sytrf!(uplo, A)
-            CUSOLVER.sytrs!(uplo, d_A, d_ipiv, d_B)
-            LAPACK.sytrs!(uplo, A, ipiv, B)
-            @test B ≈ collect(d_B)
+        @testset "uplo = $uplo" for uplo in ('L', 'U')
+            @testset "pivoting = $pivoting" for pivoting in (false, true)
+                A = rand(elty,n,n)
+                B = rand(elty,n,p)
+                A = A + transpose(A)
+                d_A = CuMatrix(A)
+                d_B = CuMatrix(B)
+                !pivoting && (CUSOLVER.version() < v"11.7.2") && continue
+                if pivoting
+                    d_A, d_ipiv, _ = CUSOLVER.sytrf!(uplo, d_A; pivoting)
+                    d_ipiv = CuVector{Int64}(d_ipiv)
+                    CUSOLVER.sytrs!(uplo, d_A, d_ipiv, d_B)
+                else
+                    d_A, _ = CUSOLVER.sytrf!(uplo, d_A; pivoting)
+                    CUSOLVER.sytrs!(uplo, d_A, d_B)
+                end
+                A, ipiv, _ = LAPACK.sytrf!(uplo, A)
+                LAPACK.sytrs!(uplo, A, ipiv, B)
+                @test B ≈ collect(d_B)
+            end
         end
     end
 
