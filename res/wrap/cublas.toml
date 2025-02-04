@@ -697,69 +697,69 @@ needs_context = false
 6 = "CuPtr{T}"
 
 [api."cublasXt𝕏gemm".argtypes]
-7 = "CuRef{T}"
+7 = "Ref{T}"
 8 = "PtrOrCuPtr{T}"
 10 = "PtrOrCuPtr{T}"
-12 = "CuRef{T}"
+12 = "Ref{T}"
 13 = "PtrOrCuPtr{T}"
 
 [api."cublasXt𝕏syrk".argtypes]
-6 = "CuRef{T}"
+6 = "Ref{T}"
 7 = "PtrOrCuPtr{T}"
-9 = "CuRef{T}"
+9 = "Ref{T}"
 10 = "PtrOrCuPtr{T}"
 
 [api."cublasXt𝕏herk".argtypes]
-6 = "CuRef{S}"
+6 = "Ref{S}"
 7 = "PtrOrCuPtr{T}"
-9 = "CuRef{S}"
+9 = "Ref{S}"
 10 = "PtrOrCuPtr{T}"
 
 [api."cublasXt𝕏syr2k".argtypes]
-6 = "CuRef{T}"
+6 = "Ref{T}"
 7 = "PtrOrCuPtr{T}"
 9 = "PtrOrCuPtr{T}"
-11 = "CuRef{T}"
+11 = "Ref{T}"
 12 = "PtrOrCuPtr{T}"
 
 [api."cublasXt𝕏herkx".argtypes]
-6 = "CuRef{T}"
+6 = "Ref{T}"
 7 = "PtrOrCuPtr{T}"
 9 = "PtrOrCuPtr{T}"
-11 = "CuRef{S}"
+11 = "Ref{S}"
 12 = "PtrOrCuPtr{T}"
 
 [api."cublasXt𝕏trsm".argtypes]
-8 = "CuRef{T}"
+8 = "Ref{T}"
 9 = "PtrOrCuPtr{T}"
 11 = "PtrOrCuPtr{T}"
 
 [api."cublasXt𝕏symm".argtypes]
-6 = "CuRef{T}"
+6 = "Ref{T}"
 7 = "PtrOrCuPtr{T}"
 9 = "PtrOrCuPtr{T}"
-11 = "CuRef{T}"
+11 = "Ref{T}"
 12 = "PtrOrCuPtr{T}"
 
 [api."cublasXt𝕏hemm".argtypes]
-6 = "CuRef{T}"
+6 = "Ref{T}"
 7 = "PtrOrCuPtr{T}"
 9 = "PtrOrCuPtr{T}"
-11 = "CuRef{T}"
+11 = "Ref{T}"
 12 = "PtrOrCuPtr{T}"
 
 [api."cublasXt𝕏syrkx".argtypes]
-6 = "CuRef{T}"
+6 = "Ref{T}"
 7 = "PtrOrCuPtr{T}"
 9 = "PtrOrCuPtr{T}"
-11 = "CuRef{T}"
+11 = "Ref{T}"
 12 = "PtrOrCuPtr{T}"
 
 [api."cublasXt𝕏her2k".argtypes]
-6 = "CuRef{T}"
+6 = "Ref{T}"
 7 = "PtrOrCuPtr{T}"
 9 = "PtrOrCuPtr{T}"
-11 = "CuRef{S}"
+11 = "Ref{S}"
 12 = "PtrOrCuPtr{T}"
 
 [api."cublasXt𝕏spmm".argtypes]
@@ -769,7 +769,7 @@ needs_context = false
 11 = "PtrOrCuPtr{T}"
 
 [api."cublasXt𝕏trmm".argtypes]
-8 = "CuRef{T}"
+8 = "Ref{T}"
 9 = "PtrOrCuPtr{T}"
 11 = "PtrOrCuPtr{T}"
 13 = "PtrOrCuPtr{T}"
