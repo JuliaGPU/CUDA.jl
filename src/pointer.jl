@@ -1,6 +1,6 @@
 # CUDA pointer types
 
-export CuPtr, CU_NULL, PtrOrCuPtr, CuArrayPtr, CuRef, RefOrCuRef
+export CuPtr, CU_NULL, PtrOrCuPtr, CuArrayPtr, CuRef
 
 
 #
@@ -248,50 +248,8 @@ function Base.unsafe_convert(P::Type{CuPtr{Any}}, b::CuRefArray{Any})
 end
 Base.unsafe_convert(::Type{CuPtr{Cvoid}}, b::CuRefArray{T}) where {T} =
     convert(CuPtr{Cvoid}, Base.unsafe_convert(CuPtr{T}, b))
-Base.unsafe_convert(::Type{CuRef{Cvoid}}, b::CuRefArray{T}) where {T} =
-    convert(CuRef{Cvoid}, Base.unsafe_convert(CuPtr{T}, b))
-
-# indirect constructors using CuRef
-CuRef(x::Any) = CuRefArray(CuArray([x]))
-CuRef{T}(x) where {T} = CuRefArray{T}(CuArray(T[x]))
-CuRef{T}(x::CuRefArray{T}) where {T} = x
-CuRef{T}() where {T} = CuRefArray(CuArray{T}(undef, 1))
-Base.convert(::Type{CuRef{T}}, x) where {T} = CuRef{T}(x)
-
 
 
 ## Union with all CuRef 'subtypes'
 
 const CuRefs{T} = Union{CuPtr{T}, CuRefArray{T}}
-
-
-## RefOrCuRef
-
-if sizeof(Ptr{Cvoid}) == 8
-    primitive type RefOrCuRef{T} 64 end
-else
-    primitive type RefOrCuRef{T} 32 end
-end
-
-Base.convert(::Type{RefOrCuRef{T}}, x::Union{RefOrCuRef{T}, Ref{T}, CuRef{T}, CuRefs{T}}) where {T} = x
-
-# prefer conversion to CPU ref: this is generally cheaper
-Base.convert(::Type{RefOrCuRef{T}}, x) where {T} = Ref{T}(x)
-Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::Ref{T}) where {T} =
-    Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(Ptr{T}, x))
-Base.unsafe_convert(::Type{RefOrCuRef{T}}, x) where {T} =
-    Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(Ptr{T}, x))
-
-# support conversion from GPU ref
-Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::CuRefs{T}) where {T} =
-    Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(CuPtr{T}, x))
-
-# support conversion from arrays
-Base.convert(::Type{RefOrCuRef{T}}, x::Array{T}) where {T} = convert(Ref{T}, x)
-Base.convert(::Type{RefOrCuRef{T}}, x::AbstractArray{T}) where {T} = convert(CuRef{T}, x)
-Base.unsafe_convert(P::Type{RefOrCuRef{T}}, b::CuRefArray{T}) where T =
-    Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(CuRef{T}, b))
-
-# avoid ambiguities when passing RefOrCuRef instances
-# NOTE: this happens now with `@gcsafe_ccall` due to the double `ccall`
-Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::RefOrCuRef{T}) where {T} = x
