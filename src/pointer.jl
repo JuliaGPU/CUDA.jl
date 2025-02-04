@@ -247,6 +247,7 @@ end
 CuRefArray{T}(x::AbstractArray{T}, i::Int=1) where {T} = CuRefArray{T,typeof(x)}(x, i)
 CuRefArray(x::AbstractArray{T}, i::Int=1) where {T} = CuRefArray{T}(x, i)
 Base.convert(::Type{CuRef{T}}, x::AbstractArray{T}) where {T} = CuRefArray(x, 1)
+Base.convert(::Type{CuRef{T}}, x::CuRefArray{T}) where {T} = x
 
 function Base.unsafe_convert(P::Type{CuPtr{T}}, b::CuRefArray{T}) where T
     return pointer(b.x, b.i)

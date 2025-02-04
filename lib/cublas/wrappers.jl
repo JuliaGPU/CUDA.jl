@@ -184,8 +184,7 @@ function dot(
     ) where {T <: Union{Float32, Float64}}
     gpu_result = CuRef{T}(zero(T))
     gpu_result = dot(n, x, y, gpu_result)
-    result = Array(gpu_result.x)
-    return only(result)
+    return only(Array(gpu_result.x))
 end
 
 function dotc(
@@ -195,8 +194,7 @@ function dotc(
     ) where {T <: Union{ComplexF32, ComplexF64}}
     gpu_result = CuRef{T}(zero(T))
     gpu_result = dotc(n, x, y, gpu_result)
-    result = Array(gpu_result.x)
-    return only(result)
+    return only(Array(gpu_result.x))
 end
 
 function dotu(
@@ -206,24 +204,17 @@ function dotu(
     ) where {T <: Union{ComplexF32, ComplexF64}}
     gpu_result = CuRef{T}(zero(T))
     gpu_result = dotu(n, x, y, gpu_result)
-    result = Array(gpu_result.x)
-    return only(result)
+    return only(Array(gpu_result.x))
 end
 
 function dot(n::Integer, x::StridedCuVecOrDenseMat{Float16}, y::StridedCuVecOrDenseMat{Float16}, result)
     cublasDotEx(handle(), n, x, Float16, stride(x, 1), y, Float16, stride(y, 1), result, Float16, Float32)
     return result
 end
-function dot(n::Integer, x::StridedCuVecOrDenseMat{Float16}, y::StridedCuVecOrDenseMat{Float16}, result::Number)
-    cublasDotEx(handle(), n, x, Float16, stride(x, 1), y, Float16, stride(y, 1), CuRef{Float16}(result), Float16, Float32)
-    return result
-end
-
 function dot(n::Integer, x::StridedCuVecOrDenseMat{Float16}, y::StridedCuVecOrDenseMat{Float16})
     gpu_result = CuRef{Float16}(zero(Float16))
     gpu_result = dot(n, x, y, gpu_result)
-    result = Array{Float16}(gpu_result.x)
-    return only(result)
+    return only(Array(gpu_result.x))
 end
 function dotc(n::Integer, x::StridedCuVecOrDenseMat{ComplexF16}, y::StridedCuVecOrDenseMat{ComplexF16})
     convert(ComplexF16, dotc(n, convert(CuArray{ComplexF32}, x), convert(CuArray{ComplexF32}, y)))
@@ -254,9 +245,8 @@ for (fname, fname_64, elty, ret_type) in ((:cublasDnrm2_v2, :cublasDnrm2_v2_64, 
                 X::StridedCuVecOrDenseMat{$elty}
             )
             gpu_result = CuRef{$ret_type}(zero($ret_type))
-            nrm2(n, X, gpu_result)
-            result = Array(gpu_result.x)
-            return result[]
+            gpu_result = nrm2(n, X, gpu_result)
+            return only(Array(gpu_result.x))
         end
     end
 end
@@ -264,21 +254,20 @@ end
 nrm2(x::StridedCuVecOrDenseMat) = nrm2(length(x), x)
 nrm2(x::StridedCuVecOrDenseMat, result::CuVector) = nrm2(length(x), x, result)
 
-function nrm2(n::Integer, x::StridedCuVecOrDenseMat{Float16}, result::Ref{Float16})
+function nrm2(n::Integer, x::StridedCuVecOrDenseMat{Float16}, result)
     cublasNrm2Ex(handle(), n, x, Float16, stride(x, 1), result, Float16, Float32)
     return result
 end
 function nrm2(n::Integer, x::StridedCuVecOrDenseMat{Float16})
     gpu_result = CuRef{Float16}(zero(Float16))
     nrm2(n, x, gpu_result)
-    result = Array(gpu_result.x)
-    return result[]
+    return only(Array(gpu_result.x))
 end
 function nrm2(n::Integer, x::StridedCuVecOrDenseMat{ComplexF16})
     wide_x = widen.(x)
     wide_result = CuRef{Float32}(zero(Float32))
-    nrm2(n, wide_x, wide_result)
-    return convert(Float16, only(Array{Float32}(wide_result.x)))
+    wide_result = nrm2(n, wide_x, wide_result)
+    return convert(Float16, only(Array(wide_result.x)))
 end
 
 ## asum
@@ -289,7 +278,7 @@ for (fname, fname_64, elty, ret_type) in ((:cublasDasum_v2, :cublasDasum_v2_64, 
     @eval begin
         function asum(n::Integer,
                 x::StridedCuVecOrDenseMat{$elty},
-                result::Ref{$ret_type},
+                result,
             )
             if CUBLAS.version() >= v"12.0"
                 $fname_64(handle(), n, x, stride(x, 1), result)
@@ -303,9 +292,8 @@ for (fname, fname_64, elty, ret_type) in ((:cublasDasum_v2, :cublasDasum_v2_64, 
                 x::StridedCuVecOrDenseMat{$elty}
             )
             gpu_result = CuRef{$ret_type}(zero($ret_type))
-            asum(n, x, gpu_result)
-            result = Array(gpu_result.x)
-            return result[]
+            gpu_result = asum(n, x, gpu_result)
+            return only(Array(gpu_result.x))
         end
     end
 end
@@ -471,8 +459,8 @@ for (fname, fname_64, elty) in ((:cublasIdamax_v2, :cublasIdamax_v2_64, :Float64
     @eval begin
         function iamax(n::Integer,
                        dx::StridedCuVecOrDenseMat{$elty},
-                       result::Ref{Ti},
-                      ) where {Ti <: Integer}
+                       result,
+                      )
             if CUBLAS.version() >= v"12.0"
                 $fname_64(handle(), n, dx, stride(dx, 1), result)
             else
@@ -492,8 +480,8 @@ for (fname, fname_64, elty) in ((:cublasIdamin_v2, :cublasIdamin_v2_64, :Float64
     @eval begin
         function iamin(n::Integer,
                        dx::StridedCuVecOrDenseMat{$elty},
-                       result::Ref{Ti},
-                      ) where {Ti <: Integer}
+                       result,
+                      )
             if CUBLAS.version() >= v"12.0"
                 $fname_64(handle(), n, dx, stride(dx, 1), result)
             else
@@ -510,11 +498,10 @@ for fname in (:iamax, :iamin)
             result_type = CUBLAS.version() >= v"12.0" ? Int64 : Cint
             gpu_result = CuRef{result_type}(zero(result_type))
             gpu_result = $fname(n, dx, gpu_result)
-            result = Array{result_type}(gpu_result.x)
-            return only(result)
+            return only(Array(gpu_result.x))
         end
         $fname(dx::StridedCuVecOrDenseMat) = $fname(length(dx), dx)
-        $fname(dx::StridedCuVecOrDenseMat, result::Ref) = $fname(length(dx), dx, result)
+        $fname(dx::StridedCuVecOrDenseMat, result) = $fname(length(dx), dx, result)
     end
 end
 

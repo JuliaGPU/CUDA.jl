@@ -5492,10 +5492,10 @@ end
     @gcsafe_ccall libcublas.cublasXtSgemm(handle::cublasXtHandle_t,
                                           transa::cublasOperation_t,
                                           transb::cublasOperation_t, m::Csize_t, n::Csize_t,
-                                          k::Csize_t, alpha::CuRef{Cfloat},
+                                          k::Csize_t, alpha::Ref{Cfloat},
                                           A::PtrOrCuPtr{Cfloat}, lda::Csize_t,
                                           B::PtrOrCuPtr{Cfloat}, ldb::Csize_t,
-                                          beta::CuRef{Cfloat}, C::PtrOrCuPtr{Cfloat},
+                                          beta::Ref{Cfloat}, C::PtrOrCuPtr{Cfloat},
                                           ldc::Csize_t)::cublasStatus_t
 end
 
@@ -5505,10 +5505,10 @@ end
     @gcsafe_ccall libcublas.cublasXtDgemm(handle::cublasXtHandle_t,
                                           transa::cublasOperation_t,
                                           transb::cublasOperation_t, m::Csize_t, n::Csize_t,
-                                          k::Csize_t, alpha::CuRef{Cdouble},
+                                          k::Csize_t, alpha::Ref{Cdouble},
                                           A::PtrOrCuPtr{Cdouble}, lda::Csize_t,
                                           B::PtrOrCuPtr{Cdouble}, ldb::Csize_t,
-                                          beta::CuRef{Cdouble}, C::PtrOrCuPtr{Cdouble},
+                                          beta::Ref{Cdouble}, C::PtrOrCuPtr{Cdouble},
                                           ldc::Csize_t)::cublasStatus_t
 end
 
@@ -5518,10 +5518,10 @@ end
     @gcsafe_ccall libcublas.cublasXtCgemm(handle::cublasXtHandle_t,
                                           transa::cublasOperation_t,
                                           transb::cublasOperation_t, m::Csize_t, n::Csize_t,
-                                          k::Csize_t, alpha::CuRef{cuComplex},
+                                          k::Csize_t, alpha::Ref{cuComplex},
                                           A::PtrOrCuPtr{cuComplex}, lda::Csize_t,
                                           B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
-                                          beta::CuRef{cuComplex},
+                                          beta::Ref{cuComplex},
                                           C::PtrOrCuPtr{cuComplex},
                                           ldc::Csize_t)::cublasStatus_t
 end
@@ -5532,10 +5532,10 @@ end
     @gcsafe_ccall libcublas.cublasXtZgemm(handle::cublasXtHandle_t,
                                           transa::cublasOperation_t,
                                           transb::cublasOperation_t, m::Csize_t, n::Csize_t,
-                                          k::Csize_t, alpha::CuRef{cuDoubleComplex},
+                                          k::Csize_t, alpha::Ref{cuDoubleComplex},
                                           A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
                                           B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
-                                          beta::CuRef{cuDoubleComplex},
+                                          beta::Ref{cuDoubleComplex},
                                           C::PtrOrCuPtr{cuDoubleComplex},
                                           ldc::Csize_t)::cublasStatus_t
 end
@@ -5544,8 +5544,8 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtSsyrk(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                           trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                          alpha::CuRef{Cfloat}, A::PtrOrCuPtr{Cfloat},
-                                          lda::Csize_t, beta::CuRef{Cfloat},
+                                          alpha::Ref{Cfloat}, A::PtrOrCuPtr{Cfloat},
+                                          lda::Csize_t, beta::Ref{Cfloat},
                                           C::PtrOrCuPtr{Cfloat},
                                           ldc::Csize_t)::cublasStatus_t
 end
@@ -5554,9 +5554,9 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtDsyrk(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                           trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                          alpha::CuRef{Cdouble},
+                                          alpha::Ref{Cdouble},
                                           A::PtrOrCuPtr{Cdouble}, lda::Csize_t,
-                                          beta::CuRef{Cdouble}, C::PtrOrCuPtr{Cdouble},
+                                          beta::Ref{Cdouble}, C::PtrOrCuPtr{Cdouble},
                                           ldc::Csize_t)::cublasStatus_t
 end
 
@@ -5564,9 +5564,9 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtCsyrk(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                           trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                          alpha::CuRef{cuComplex},
+                                          alpha::Ref{cuComplex},
                                           A::PtrOrCuPtr{cuComplex}, lda::Csize_t,
-                                          beta::CuRef{cuComplex},
+                                          beta::Ref{cuComplex},
                                           C::PtrOrCuPtr{cuComplex},
                                           ldc::Csize_t)::cublasStatus_t
 end
@@ -5575,9 +5575,9 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtZsyrk(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                           trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                          alpha::CuRef{cuDoubleComplex},
+                                          alpha::Ref{cuDoubleComplex},
                                           A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
-                                          beta::CuRef{cuDoubleComplex},
+                                          beta::Ref{cuDoubleComplex},
                                           C::PtrOrCuPtr{cuDoubleComplex},
                                           ldc::Csize_t)::cublasStatus_t
 end
@@ -5586,9 +5586,9 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtCherk(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                           trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                          alpha::CuRef{Cfloat},
+                                          alpha::Ref{Cfloat},
                                           A::PtrOrCuPtr{cuComplex}, lda::Csize_t,
-                                          beta::CuRef{Cfloat},
+                                          beta::Ref{Cfloat},
                                           C::PtrOrCuPtr{cuComplex},
                                           ldc::Csize_t)::cublasStatus_t
 end
@@ -5597,9 +5597,9 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtZherk(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                           trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                          alpha::CuRef{Cdouble},
+                                          alpha::Ref{Cdouble},
                                           A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
-                                          beta::CuRef{Cdouble},
+                                          beta::Ref{Cdouble},
                                           C::PtrOrCuPtr{cuDoubleComplex},
                                           ldc::Csize_t)::cublasStatus_t
 end
@@ -5609,9 +5609,9 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtSsyr2k(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                            trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                           alpha::CuRef{Cfloat}, A::PtrOrCuPtr{Cfloat},
+                                           alpha::Ref{Cfloat}, A::PtrOrCuPtr{Cfloat},
                                            lda::Csize_t, B::PtrOrCuPtr{Cfloat},
-                                           ldb::Csize_t, beta::CuRef{Cfloat},
+                                           ldb::Csize_t, beta::Ref{Cfloat},
                                            C::PtrOrCuPtr{Cfloat},
                                            ldc::Csize_t)::cublasStatus_t
 end
@@ -5621,10 +5621,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtDsyr2k(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                            trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                           alpha::CuRef{Cdouble},
+                                           alpha::Ref{Cdouble},
                                            A::PtrOrCuPtr{Cdouble}, lda::Csize_t,
                                            B::PtrOrCuPtr{Cdouble}, ldb::Csize_t,
-                                           beta::CuRef{Cdouble},
+                                           beta::Ref{Cdouble},
                                            C::PtrOrCuPtr{Cdouble},
                                            ldc::Csize_t)::cublasStatus_t
 end
@@ -5634,10 +5634,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtCsyr2k(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                            trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                           alpha::CuRef{cuComplex},
+                                           alpha::Ref{cuComplex},
                                            A::PtrOrCuPtr{cuComplex}, lda::Csize_t,
                                            B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
-                                           beta::CuRef{cuComplex},
+                                           beta::Ref{cuComplex},
                                            C::PtrOrCuPtr{cuComplex},
                                            ldc::Csize_t)::cublasStatus_t
 end
@@ -5647,10 +5647,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtZsyr2k(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                            trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                           alpha::CuRef{cuDoubleComplex},
+                                           alpha::Ref{cuDoubleComplex},
                                            A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
                                            B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
-                                           beta::CuRef{cuDoubleComplex},
+                                           beta::Ref{cuDoubleComplex},
                                            C::PtrOrCuPtr{cuDoubleComplex},
                                            ldc::Csize_t)::cublasStatus_t
 end
@@ -5660,10 +5660,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtCherkx(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                            trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                           alpha::CuRef{cuComplex},
+                                           alpha::Ref{cuComplex},
                                            A::PtrOrCuPtr{cuComplex}, lda::Csize_t,
                                            B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
-                                           beta::CuRef{Cfloat},
+                                           beta::Ref{Cfloat},
                                            C::PtrOrCuPtr{cuComplex},
                                            ldc::Csize_t)::cublasStatus_t
 end
@@ -5673,10 +5673,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtZherkx(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                            trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                           alpha::CuRef{cuDoubleComplex},
+                                           alpha::Ref{cuDoubleComplex},
                                            A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
                                            B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
-                                           beta::CuRef{Cdouble},
+                                           beta::Ref{Cdouble},
                                            C::PtrOrCuPtr{cuDoubleComplex},
                                            ldc::Csize_t)::cublasStatus_t
 end
@@ -5687,7 +5687,7 @@ end
     @gcsafe_ccall libcublas.cublasXtStrsm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, trans::cublasOperation_t,
                                           diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{Cfloat}, A::PtrOrCuPtr{Cfloat},
+                                          alpha::Ref{Cfloat}, A::PtrOrCuPtr{Cfloat},
                                           lda::Csize_t, B::PtrOrCuPtr{Cfloat},
                                           ldb::Csize_t)::cublasStatus_t
 end
@@ -5698,7 +5698,7 @@ end
     @gcsafe_ccall libcublas.cublasXtDtrsm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, trans::cublasOperation_t,
                                           diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{Cdouble},
+                                          alpha::Ref{Cdouble},
                                           A::PtrOrCuPtr{Cdouble}, lda::Csize_t,
                                           B::PtrOrCuPtr{Cdouble},
                                           ldb::Csize_t)::cublasStatus_t
@@ -5710,7 +5710,7 @@ end
     @gcsafe_ccall libcublas.cublasXtCtrsm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, trans::cublasOperation_t,
                                           diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{cuComplex},
+                                          alpha::Ref{cuComplex},
                                           A::PtrOrCuPtr{cuComplex}, lda::Csize_t,
                                           B::PtrOrCuPtr{cuComplex},
                                           ldb::Csize_t)::cublasStatus_t
@@ -5722,7 +5722,7 @@ end
     @gcsafe_ccall libcublas.cublasXtZtrsm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, trans::cublasOperation_t,
                                           diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{cuDoubleComplex},
+                                          alpha::Ref{cuDoubleComplex},
                                           A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
                                           B::PtrOrCuPtr{cuDoubleComplex},
                                           ldb::Csize_t)::cublasStatus_t
@@ -5733,9 +5733,9 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtSsymm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{Cfloat}, A::PtrOrCuPtr{Cfloat},
+                                          alpha::Ref{Cfloat}, A::PtrOrCuPtr{Cfloat},
                                           lda::Csize_t, B::PtrOrCuPtr{Cfloat}, ldb::Csize_t,
-                                          beta::CuRef{Cfloat}, C::PtrOrCuPtr{Cfloat},
+                                          beta::Ref{Cfloat}, C::PtrOrCuPtr{Cfloat},
                                           ldc::Csize_t)::cublasStatus_t
 end
 
@@ -5744,10 +5744,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtDsymm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{Cdouble},
+                                          alpha::Ref{Cdouble},
                                           A::PtrOrCuPtr{Cdouble}, lda::Csize_t,
                                           B::PtrOrCuPtr{Cdouble}, ldb::Csize_t,
-                                          beta::CuRef{Cdouble}, C::PtrOrCuPtr{Cdouble},
+                                          beta::Ref{Cdouble}, C::PtrOrCuPtr{Cdouble},
                                           ldc::Csize_t)::cublasStatus_t
 end
 
@@ -5756,10 +5756,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtCsymm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{cuComplex},
+                                          alpha::Ref{cuComplex},
                                           A::PtrOrCuPtr{cuComplex}, lda::Csize_t,
                                           B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
-                                          beta::CuRef{cuComplex},
+                                          beta::Ref{cuComplex},
                                           C::PtrOrCuPtr{cuComplex},
                                           ldc::Csize_t)::cublasStatus_t
 end
@@ -5769,10 +5769,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtZsymm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{cuDoubleComplex},
+                                          alpha::Ref{cuDoubleComplex},
                                           A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
                                           B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
-                                          beta::CuRef{cuDoubleComplex},
+                                          beta::Ref{cuDoubleComplex},
                                           C::PtrOrCuPtr{cuDoubleComplex},
                                           ldc::Csize_t)::cublasStatus_t
 end
@@ -5782,10 +5782,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtChemm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{cuComplex},
+                                          alpha::Ref{cuComplex},
                                           A::PtrOrCuPtr{cuComplex}, lda::Csize_t,
                                           B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
-                                          beta::CuRef{cuComplex},
+                                          beta::Ref{cuComplex},
                                           C::PtrOrCuPtr{cuComplex},
                                           ldc::Csize_t)::cublasStatus_t
 end
@@ -5795,10 +5795,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtZhemm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{cuDoubleComplex},
+                                          alpha::Ref{cuDoubleComplex},
                                           A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
                                           B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
-                                          beta::CuRef{cuDoubleComplex},
+                                          beta::Ref{cuDoubleComplex},
                                           C::PtrOrCuPtr{cuDoubleComplex},
                                           ldc::Csize_t)::cublasStatus_t
 end
@@ -5808,9 +5808,9 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtSsyrkx(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                            trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                           alpha::CuRef{Cfloat}, A::PtrOrCuPtr{Cfloat},
+                                           alpha::Ref{Cfloat}, A::PtrOrCuPtr{Cfloat},
                                            lda::Csize_t, B::PtrOrCuPtr{Cfloat},
-                                           ldb::Csize_t, beta::CuRef{Cfloat},
+                                           ldb::Csize_t, beta::Ref{Cfloat},
                                            C::PtrOrCuPtr{Cfloat},
                                            ldc::Csize_t)::cublasStatus_t
 end
@@ -5820,10 +5820,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtDsyrkx(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                            trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                           alpha::CuRef{Cdouble},
+                                           alpha::Ref{Cdouble},
                                            A::PtrOrCuPtr{Cdouble}, lda::Csize_t,
                                            B::PtrOrCuPtr{Cdouble}, ldb::Csize_t,
-                                           beta::CuRef{Cdouble},
+                                           beta::Ref{Cdouble},
                                            C::PtrOrCuPtr{Cdouble},
                                            ldc::Csize_t)::cublasStatus_t
 end
@@ -5833,10 +5833,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtCsyrkx(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                            trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                           alpha::CuRef{cuComplex},
+                                           alpha::Ref{cuComplex},
                                            A::PtrOrCuPtr{cuComplex}, lda::Csize_t,
                                            B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
-                                           beta::CuRef{cuComplex},
+                                           beta::Ref{cuComplex},
                                            C::PtrOrCuPtr{cuComplex},
                                            ldc::Csize_t)::cublasStatus_t
 end
@@ -5846,10 +5846,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtZsyrkx(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                            trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                           alpha::CuRef{cuDoubleComplex},
+                                           alpha::Ref{cuDoubleComplex},
                                            A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
                                            B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
-                                           beta::CuRef{cuDoubleComplex},
+                                           beta::Ref{cuDoubleComplex},
                                            C::PtrOrCuPtr{cuDoubleComplex},
                                            ldc::Csize_t)::cublasStatus_t
 end
@@ -5859,10 +5859,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtCher2k(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                            trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                           alpha::CuRef{cuComplex},
+                                           alpha::Ref{cuComplex},
                                            A::PtrOrCuPtr{cuComplex}, lda::Csize_t,
                                            B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
-                                           beta::CuRef{Cfloat},
+                                           beta::Ref{Cfloat},
                                            C::PtrOrCuPtr{cuComplex},
                                            ldc::Csize_t)::cublasStatus_t
 end
@@ -5872,10 +5872,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasXtZher2k(handle::cublasXtHandle_t, uplo::cublasFillMode_t,
                                            trans::cublasOperation_t, n::Csize_t, k::Csize_t,
-                                           alpha::CuRef{cuDoubleComplex},
+                                           alpha::Ref{cuDoubleComplex},
                                            A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
                                            B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
-                                           beta::CuRef{Cdouble},
+                                           beta::Ref{Cdouble},
                                            C::PtrOrCuPtr{cuDoubleComplex},
                                            ldc::Csize_t)::cublasStatus_t
 end
@@ -5928,7 +5928,7 @@ end
     @gcsafe_ccall libcublas.cublasXtStrmm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, trans::cublasOperation_t,
                                           diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{Cfloat}, A::PtrOrCuPtr{Cfloat},
+                                          alpha::Ref{Cfloat}, A::PtrOrCuPtr{Cfloat},
                                           lda::Csize_t, B::PtrOrCuPtr{Cfloat}, ldb::Csize_t,
                                           C::PtrOrCuPtr{Cfloat},
                                           ldc::Csize_t)::cublasStatus_t
@@ -5940,7 +5940,7 @@ end
     @gcsafe_ccall libcublas.cublasXtDtrmm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, trans::cublasOperation_t,
                                           diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{Cdouble},
+                                          alpha::Ref{Cdouble},
                                           A::PtrOrCuPtr{Cdouble}, lda::Csize_t,
                                           B::PtrOrCuPtr{Cdouble}, ldb::Csize_t,
                                           C::PtrOrCuPtr{Cdouble},
@@ -5953,7 +5953,7 @@ end
     @gcsafe_ccall libcublas.cublasXtCtrmm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, trans::cublasOperation_t,
                                           diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{cuComplex},
+                                          alpha::Ref{cuComplex},
                                           A::PtrOrCuPtr{cuComplex}, lda::Csize_t,
                                           B::PtrOrCuPtr{cuComplex}, ldb::Csize_t,
                                           C::PtrOrCuPtr{cuComplex},
@@ -5966,7 +5966,7 @@ end
     @gcsafe_ccall libcublas.cublasXtZtrmm(handle::cublasXtHandle_t, side::cublasSideMode_t,
                                           uplo::cublasFillMode_t, trans::cublasOperation_t,
                                           diag::cublasDiagType_t, m::Csize_t, n::Csize_t,
-                                          alpha::CuRef{cuDoubleComplex},
+                                          alpha::Ref{cuDoubleComplex},
                                           A::PtrOrCuPtr{cuDoubleComplex}, lda::Csize_t,
                                           B::PtrOrCuPtr{cuDoubleComplex}, ldb::Csize_t,
                                           C::PtrOrCuPtr{cuDoubleComplex},

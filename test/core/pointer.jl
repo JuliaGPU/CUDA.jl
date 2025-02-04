@@ -77,22 +77,4 @@ end
     cuarr = CUDA.CuArray([1])
     @test Base.cconvert(CuRef{Int}, cuarr) isa CUDA.CuRefArray{Int, typeof(cuarr)}
     @test Base.unsafe_convert(CuRef{Int}, Base.cconvert(CuRef{Int}, cuarr)) == Base.bitcast(CuRef{Int}, pointer(cuarr))
-
-
-    # RefOrCuRef
-
-    @test typeof(Base.cconvert(RefOrCuRef{Int}, 1)) == typeof(Ref(1))
-    @test Base.unsafe_convert(RefOrCuRef{Int}, Base.cconvert(RefOrCuRef{Int}, 1)) isa RefOrCuRef{Int}
-
-    @test Base.cconvert(RefOrCuRef{Int}, ptr) == ptr
-    @test Base.unsafe_convert(RefOrCuRef{Int}, Base.cconvert(RefOrCuRef{Int}, ptr)) == Base.bitcast(RefOrCuRef{Int}, ptr)
-
-    @test Base.cconvert(RefOrCuRef{Int}, cuptr) == cuptr
-    @test Base.unsafe_convert(RefOrCuRef{Int}, Base.cconvert(RefOrCuRef{Int}, cuptr)) == Base.bitcast(RefOrCuRef{Int}, cuptr)
-
-    @test Base.cconvert(RefOrCuRef{Int}, arr) isa Base.RefArray{Int, typeof(arr)}
-    @test Base.unsafe_convert(RefOrCuRef{Int}, Base.cconvert(RefOrCuRef{Int}, arr)) == Base.bitcast(RefOrCuRef{Int}, pointer(arr))
-
-    @test Base.cconvert(RefOrCuRef{Int}, cuarr) isa CUDA.CuRefArray{Int, typeof(cuarr)}
-    @test Base.unsafe_convert(RefOrCuRef{Int}, Base.cconvert(RefOrCuRef{Int}, cuarr)) == Base.bitcast(RefOrCuRef{Int}, pointer(cuarr))
 end

@@ -97,9 +97,9 @@ for name in keys(TestSuite.tests)
 end
 ## run CUBLAS tests before core/cudadrv to avoid badness related to the latter's
 ## messing around with contexts
+pushfirst!(tests, "libraries/cublas/xt")
 pushfirst!(tests, "libraries/cublas/level3")
 pushfirst!(tests, "libraries/cublas/level3_gemm")
-pushfirst!(tests, "libraries/cublas/xt")
 ## finalize
 pushfirst!(tests, "core/initialization")
 unique!(tests)
