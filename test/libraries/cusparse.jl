@@ -928,28 +928,6 @@ end
     end
 end
 
-@testset "mm2!" begin
-    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        A = sparse(rand(elty,m,k))
-        B = rand(elty,k,n)
-        C = rand(elty,m,n)
-        alpha = rand(elty)
-        beta = rand(elty)
-        @testset "$(typeof(d_A))" for d_A in [CuSparseMatrixBSR(A, blockdim)]
-            d_B = CuArray(B)
-            d_C = CuArray(C)
-            @test_throws DimensionMismatch CUSPARSE.mm2!('N','T',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch CUSPARSE.mm2!('T','N',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch CUSPARSE.mm2!('T','T',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch CUSPARSE.mm2!('N','N',alpha,d_A,d_B,beta,d_B,'O')
-            CUSPARSE.mm2!('N','N',alpha,d_A,d_B,beta,d_C,'O')
-            h_D = collect(d_C)
-            D = alpha * A * B + beta * C
-            @test D ≈ h_D
-        end
-    end
-end
-
 @testset "gemvi!" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
         for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]

@@ -1,51 +1,7 @@
 # sparse linear algebra functions that perform operations between sparse and (usually tall)
 # dense matrices
 
-export mm2!, sm2!, sm2
-
-# bsrmm
-for (fname,elty) in ((:cusparseSbsrmm, :Float32),
-                     (:cusparseDbsrmm, :Float64),
-                     (:cusparseCbsrmm, :ComplexF32),
-                     (:cusparseZbsrmm, :ComplexF64))
-    @eval begin
-        function mm2!(transa::SparseChar,
-                      transb::SparseChar,
-                      alpha::Number,
-                      A::CuSparseMatrixBSR{$elty},
-                      B::StridedCuMatrix{$elty},
-                      beta::Number,
-                      C::StridedCuMatrix{$elty},
-                      index::SparseChar)
-
-            # Support transa = 'C' and `transb = 'C' for real matrices
-            transa = $elty <: Real && transa == 'C' ? 'T' : transa
-            transb = $elty <: Real && transb == 'C' ? 'T' : transb
-
-            desc = CuMatrixDescriptor('G', 'L', 'N', index)
-            m,k = size(A)
-            mb = cld(m, A.blockDim)
-            kb = cld(k, A.blockDim)
-            n = size(C)[2]
-            if transa == 'N' && transb == 'N'
-                chkmmdims(B,C,k,n,m,n)
-            elseif transa == 'N' && transb != 'N'
-                chkmmdims(B,C,n,k,m,n)
-            elseif transa != 'N' && transb == 'N'
-                chkmmdims(B,C,m,n,k,n)
-            elseif transa != 'N' && transb != 'N'
-                chkmmdims(B,C,n,m,k,n)
-            end
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
-            $fname(handle(), A.dir,
-                   transa, transb, mb, n, kb, A.nnzb,
-                   alpha, desc, nonzeros(A),A.rowPtr, A.colVal,
-                   A.blockDim, B, ldb, beta, C, ldc)
-            C
-        end
-    end
-end
+export sm2!, sm2
 
 """
     sm2!(transa::SparseChar, transxy::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuMatrix, index::SparseChar)
