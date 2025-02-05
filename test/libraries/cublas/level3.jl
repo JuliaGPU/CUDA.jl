@@ -444,6 +444,12 @@ k = 13
             h_C = Array(d_C)
             h_C = triu(h_C)
             @test C ≈ h_C
+            C = (A*transpose(B) + B*transpose(A))
+            d_C = CUBLAS.syr2k('U','N',d_A,d_B)
+            C = triu(C)
+            h_C = Array(d_C)
+            h_C = triu(h_C)
+            @test C ≈ h_C
         end
         if elty <: Complex
             @testset "herk!" begin
@@ -498,11 +504,19 @@ k = 13
                 @test_throws DimensionMismatch CUBLAS.her2k!('U','N',α,d_A,d_Bbad,β,d_C)
             end
             @testset "her2k" begin
+                α = rand(elty)
                 A = rand(elty,m,k)
                 B = rand(elty,m,k)
                 d_A = CuArray(A)
                 d_B = CuArray(B)
-                C = A*B' + B*A'
+                C = (α*A*B' + conj(α)*B*A')
+                d_C = CUBLAS.her2k('U','N',α,d_A,d_B)
+                # move back to host and compare
+                C = triu(C)
+                h_C = Array(d_C)
+                h_C = triu(h_C)
+                @test C ≈ h_C
+                C = (A*B' + B*A')
                 d_C = CUBLAS.her2k('U','N',d_A,d_B)
                 # move back to host and compare
                 C = triu(C)

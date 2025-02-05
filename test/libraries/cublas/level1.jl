@@ -137,6 +137,16 @@ k = 13
             ca = CuArray(a)
             @test BLAS.iamax(a) == CUBLAS.iamax(ca)
             @test CUBLAS.iamin(ca) == 3
+            result = CuRef{Int}(0)
+            result = CUBLAS.iamax(ca, result)
+            @test BLAS.iamax(a) == only(Array(result.x))
+        end
+        @testset "nrm2 with result" begin
+            x = rand(T, m)
+            dx = CuArray(x)
+            result = CuRef{real(T)}(zero(real(T)))
+            result = CUBLAS.nrm2(dx, result)
+            @test norm(x) ≈ only(Array(result.x))
         end
     end # level 1 testset
     @testset for T in [Float16, ComplexF16]
@@ -145,6 +155,7 @@ k = 13
         CUBLAS.copy!(m,A,B)
         @test Array(A) == Array(B)
 
+        @test testf(rmul!, rand(T, 6, 9, 3), rand())
         @test testf(dot, rand(T, m), rand(T, m))
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))

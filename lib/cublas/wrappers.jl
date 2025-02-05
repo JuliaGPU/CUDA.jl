@@ -252,7 +252,7 @@ for (fname, fname_64, elty, ret_type) in ((:cublasDnrm2_v2, :cublasDnrm2_v2_64, 
 end
 
 nrm2(x::StridedCuVecOrDenseMat) = nrm2(length(x), x)
-nrm2(x::StridedCuVecOrDenseMat, result::CuVector) = nrm2(length(x), x, result)
+nrm2(x::StridedCuVecOrDenseMat, result) = nrm2(length(x), x, result)
 
 function nrm2(n::Integer, x::StridedCuVecOrDenseMat{Float16}, result)
     cublasNrm2Ex(handle(), n, x, Float16, stride(x, 1), result, Float16, Float32)
@@ -1943,7 +1943,7 @@ for (fname, fname_64, elty, relty) in (
             end
             C
         end
-        function her2k!(
+        function her2k(
                 uplo::Char,
                 trans::Char,
                 alpha,
@@ -1951,14 +1951,9 @@ for (fname, fname_64, elty, relty) in (
                 B::StridedCuVecOrMat{$elty},
             )
             n = size(A, trans == 'N' ? 1 : 2)
-            return her2k!(uplo, trans, alpha, A, B, zero($relty)), similar(A, (n, n))
+            return her2k!(uplo, trans, alpha, A, B, zero($relty), similar(A, (n, n)))
         end
    end
-end
-function her2k(uplo::Char, trans::Char, alpha,
-               A::StridedCuVecOrMat{T}, B::StridedCuVecOrMat{T}) where T
-    n = size(A, trans == 'N' ? 1 : 2)
-    her2k!(uplo, trans, alpha, A, B, zero(real(T)), similar(A, (n,n)))
 end
 function her2k(uplo::Char, trans::Char,
                A::StridedCuVecOrMat{T}, B::StridedCuVecOrMat{T}) where T
