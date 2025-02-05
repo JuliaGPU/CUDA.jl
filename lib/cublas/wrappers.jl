@@ -295,6 +295,62 @@ for (fname, fname_64, elty, sty) in ((:cublasSrot_v2, :cublasSrot_v2_64, :Float3
     end
 end
 
+## rotg
+for (fname, elty) in ((:cublasSrotg_v2, :Float32),
+                      (:cublasDrotg_v2, :Float64),
+                      (:cublasCrotg_v2, :ComplexF32),
+                      (:cublasZrotg_v2, :ComplexF64),
+                     )
+    @eval begin
+        function rotg!(a::$elty, b::$elty)
+            c = Ref{real($elty)}(zero(real($elty)))
+            s = Ref{$elty}(zero($elty))
+            ref_a = Ref(a)
+            ref_b = Ref(b)
+            $fname(handle(), ref_a, ref_b, c, s)
+            ref_a[], ref_b[], c[], s[]
+        end
+    end
+end
+
+## rotm
+for (fname, fname_64, elty) in ((:cublasSrotm_v2, :cublasSrotm_v2_64, :Float32),
+                                (:cublasDrotm_v2, :cublasDrotm_v2_64, :Float64),
+                               )
+    @eval begin
+        function rotm!(n::Integer,
+                       x::StridedCuVecOrDenseMat{$elty},
+                       y::StridedCuVecOrDenseMat{$elty},
+                       param::AbstractVector{$elty})
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1), param)
+            else
+                $fname(handle(), n, x, stride(x, 1), y, stride(y, 1), param)
+            end
+            x, y
+        end
+    end
+end
+
+## rotmg
+for (fname, elty) in ((:cublasSrotmg_v2, :Float32),
+                      (:cublasDrotmg_v2, :Float64))
+    @eval begin
+        function rotmg!(d1::$elty,
+                        d2::$elty,
+                        x::$elty,
+                        y::$elty,
+                        param::AbstractVector{$elty})
+            ref_d1 = Ref(d1)
+            ref_d2 = Ref(d2)
+            ref_x  = Ref(x)
+            ref_y  = Ref(y)
+            $fname(handle(), ref_d1, ref_d2, ref_x, ref_y, param)
+            ref_d1[], ref_d2[], ref_x[], ref_y[], param 
+        end
+    end
+end
+
 ## swap
 for (fname, fname_64, elty) in ((:cublasSswap_v2, :cublasSswap_v2_64, :Float32),
                                 (:cublasDswap_v2, :cublasDswap_v2_64, :Float64),
