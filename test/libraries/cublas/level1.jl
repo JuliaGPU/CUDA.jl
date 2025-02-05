@@ -137,7 +137,8 @@ k = 13
             ca = CuArray(a)
             @test BLAS.iamax(a) == CUBLAS.iamax(ca)
             @test CUBLAS.iamin(ca) == 3
-            result = CuRef{Int}(0)
+            result_type = CUBLAS.version() >= v"12.0" ? Int64 : Cint
+            result = CuRef{result_type}(0)
             result = CUBLAS.iamax(ca, result)
             @test BLAS.iamax(a) == only(Array(result.x))
         end
