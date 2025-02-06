@@ -352,7 +352,8 @@ for (fname, fname_64, elty, sty) in (
                       y::StridedCuVecOrDenseMat{$elty},
                       c::C,
                       s::S,
-                     ) where {C<:Union{Ref{Real}, Real, AbstractArray{Real}}, S<:Union{Ref{$sty}, $sty, AbstractArray{$sty}}}
+                     ) where {C<:Union{Ref{Real}, Real, AbstractArray{Real}},
+                              S<:Union{Ref{$sty}, $sty, AbstractArray{$sty}}}
             if CUBLAS.version() >= v"12.0"
                 $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1), c, s)
             else
@@ -371,10 +372,10 @@ for (fname, elty) in ((:cublasSrotg_v2, :Float32),
                      )
     @eval begin
         function rotg!(a::$elty, b::$elty)
-            c = Ref{real($elty)}(zero(real($elty)))
-            s = Ref{$elty}(zero($elty))
-            ref_a = Ref(a)
-            ref_b = Ref(b)
+            c = CuRef{real($elty)}()
+            s = CuRef{$elty}()
+            ref_a = CuRef(a)
+            ref_b = CuRef(b)
             $fname(handle(), ref_a, ref_b, c, s)
             ref_a[], ref_b[], c[], s[]
         end
@@ -389,7 +390,7 @@ for (fname, fname_64, elty) in ((:cublasSrotm_v2, :cublasSrotm_v2_64, :Float32),
         function rotm!(n::Integer,
                        x::StridedCuVecOrDenseMat{$elty},
                        y::StridedCuVecOrDenseMat{$elty},
-                       param::AbstractVector{$elty})
+                       param::CuVector{$elty})
             if CUBLAS.version() >= v"12.0"
                 $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1), param)
             else
@@ -408,13 +409,13 @@ for (fname, elty) in ((:cublasSrotmg_v2, :Float32),
                         d2::$elty,
                         x::$elty,
                         y::$elty,
-                        param::AbstractVector{$elty})
-            ref_d1 = Ref(d1)
-            ref_d2 = Ref(d2)
-            ref_x  = Ref(x)
-            ref_y  = Ref(y)
+                        param::CuVector{$elty})
+            ref_d1 = CuRef(d1)
+            ref_d2 = CuRef(d2)
+            ref_x  = CuRef(x)
+            ref_y  = CuRef(y)
             $fname(handle(), ref_d1, ref_d2, ref_x, ref_y, param)
-            ref_d1[], ref_d2[], ref_x[], ref_y[], param 
+            ref_d1[], ref_d2[], ref_x[], ref_y[], param
         end
     end
 end
@@ -497,7 +498,7 @@ for fname in (:iamax, :iamin)
         function $fname(n::Integer, dx::StridedCuVecOrDenseMat)
             result_type = CUBLAS.version() >= v"12.0" ? Int64 : Cint
             result = CuRef{result_type}()
-            $fname(n, dx, gpu_result)
+            $fname(n, dx, result)
             return result[]
         end
         $fname(dx::StridedCuVecOrDenseMat) = $fname(length(dx), dx)
