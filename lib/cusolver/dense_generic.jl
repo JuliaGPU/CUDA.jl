@@ -149,6 +149,33 @@ function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::Stride
     B
 end
 
+function sytrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where {T <: BlasFloat}
+    chkuplo(uplo)
+    n = checksquare(A)
+    nrhs = size(B, 2)
+    lda = max(1, stride(A, 2))
+    ldb = max(1, stride(B, 2))
+    dh = dense_handle()
+
+    function bufferSize()
+        out_cpu = Ref{Csize_t}(0)
+        out_gpu = Ref{Csize_t}(0)
+        cusolverDnXsytrs_bufferSize(dh, uplo, n, nrhs, T, A,
+                                    lda, CU_NULL, T, B, ldb, out_gpu, out_cpu)
+        out_gpu[], out_cpu[]
+    end
+    with_workspaces(dh.workspace_gpu, dh.workspace_cpu,
+                    bufferSize()...) do buffer_gpu, buffer_cpu
+        cusolverDnXsytrs(dh, uplo, n, nrhs, T, A, lda, CU_NULL,
+                         T, B, ldb, buffer_gpu, sizeof(buffer_gpu),
+                         buffer_cpu, sizeof(buffer_cpu), dh.info)
+    end
+
+    flag = @allowscalar dh.info[1]
+    chkargsok(flag |> BlasInt)
+    B
+end
+
 # Xtrtri
 function trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     chkuplo(uplo)

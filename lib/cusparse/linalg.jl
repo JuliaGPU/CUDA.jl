@@ -238,6 +238,18 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{
     return sum(result)
 end
 
+# work around upstream breakage from JuliaLang/julia#55547
+@static if VERSION >= v"1.11.2"
+    const CuSparseUpperOrUnitUpperTriangular = LinearAlgebra.UpperOrUnitUpperTriangular{
+        <:Any,<:Union{<:AbstractCuSparseMatrix, Adjoint{<:Any, <:AbstractCuSparseMatrix}, Transpose{<:Any, <:AbstractCuSparseMatrix}}}
+    const CuSparseLowerOrUnitLowerTriangular = LinearAlgebra.LowerOrUnitLowerTriangular{
+        <:Any,<:Union{<:AbstractCuSparseMatrix, Adjoint{<:Any, <:AbstractCuSparseMatrix}, Transpose{<:Any, <:AbstractCuSparseMatrix}}}
+    LinearAlgebra.istriu(::CuSparseUpperOrUnitUpperTriangular) = true
+    LinearAlgebra.istril(::CuSparseUpperOrUnitUpperTriangular) = false
+    LinearAlgebra.istriu(::CuSparseLowerOrUnitLowerTriangular) = false
+    LinearAlgebra.istril(::CuSparseLowerOrUnitLowerTriangular) = true
+end
+
 for SparseMatrixType in [:CuSparseMatrixCSC, :CuSparseMatrixCSR]
     @eval begin
         LinearAlgebra.triu(A::$SparseMatrixType{T}, k::Integer) where {T} =

@@ -71,9 +71,13 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
     else
       maxsize
     end
-    data = DataRef(pool_free, pool_alloc(M, bufsize))
+
+    data = GPUArrays.cached_alloc((CuArray, device(), M, bufsize)) do
+        DataRef(pool_free, pool_alloc(M, bufsize))
+    end
     obj = new{T,N,M}(data, maxsize, 0, dims)
     finalizer(unsafe_free!, obj)
+    return obj
   end
 
   function CuArray{T,N}(data::DataRef{Managed{M}}, dims::Dims{N};
@@ -81,6 +85,7 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
     check_eltype(T)
     obj = new{T,N,M}(data, maxsize, offset, dims)
     finalizer(unsafe_free!, obj)
+    return obj
   end
 end
 
@@ -522,12 +527,9 @@ Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::Array{T}, soffs, n) where T
   context!(context(dest)) do
-    # operations on unpinned memory cannot be executed asynchronously, and synchronize
-    # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
-    if use_nonblocking_synchronization
-      is_pinned(pointer(src)) || synchronize()
-    end
-
+    # the copy below may block in `libcuda`, so it'd be good to perform a nonblocking
+    # synchronization here, but the exact cases are hard to know and detect (e.g., unpinned
+    # memory normally blocks, but not for all sizes, and not on all memory architectures).
     GC.@preserve src dest begin
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
       if Base.isbitsunion(T)
@@ -541,13 +543,12 @@ end
 function Base.unsafe_copyto!(dest::Array{T}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
   context!(context(src)) do
-    # operations on unpinned memory cannot be executed asynchronously, and synchronize
-    # without yielding back to the Julia scheduler. prevent that by eagerly synchronizing.
-    if use_nonblocking_synchronization
-      is_pinned(pointer(dest)) || synchronize()
-    end
-
+    # the copy below may block in `libcuda`; see the note above.
     GC.@preserve src dest begin
+      # semantically, it is not safe for this operation to execute asynchronously, because
+      # the Array may be collected before the copy starts executing. However, when using
+      # unpinned memory, CUDA first stages a copy to a pinned buffer that will outlive
+      # the source array, making this operation safe.
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
       if Base.isbitsunion(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
@@ -779,7 +780,7 @@ function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
   context!(context(A)) do
-    memset(convert(CuPtr{U}, pointer(A)), y, length(A))
+    GC.@preserve A memset(convert(CuPtr{U}, pointer(A)), y, length(A))
   end
   A
 end
@@ -822,6 +823,8 @@ the first `n` elements will be retained. If `n` is larger, the new elements are 
 guaranteed to be initialized.
 """
 function Base.resize!(A::CuVector{T}, n::Integer) where T
+  n == length(A) && return A
+
   # TODO: add additional space to allow for quicker resizing
   maxsize = n * sizeof(T)
   bufsize = if isbitstype(T)
@@ -834,14 +837,13 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
   # replace the data with a new one. this 'unshares' the array.
   # as a result, we can safely support resizing unowned buffers.
   new_data = context!(context(A)) do
-    mem = alloc(memory_type(A), bufsize)
+    mem = pool_alloc(memory_type(A), bufsize)
     ptr = convert(CuPtr{T}, mem)
     m = min(length(A), n)
     if m > 0
-      synchronize(A)
-      unsafe_copyto!(ptr, pointer(A), m)
+      GC.@preserve A unsafe_copyto!(ptr, pointer(A), m)
     end
-    DataRef(pool_free, Managed(mem))
+    DataRef(pool_free, mem)
   end
   unsafe_free!(A)
 

@@ -206,10 +206,34 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
             A, ipiv, info
         end
 
-        function sytrf!(uplo::Char, A::StridedCuMatrix{$elty})
+        function sytrf!(uplo::Char, A::StridedCuMatrix{$elty}; pivoting::Bool=true)
             n = checksquare(A)
-            ipiv = CuArray{Cint}(undef, n)
-            sytrf!(uplo, A, ipiv)
+            if pivoting
+                ipiv = CuArray{Cint}(undef, n)
+                return sytrf!(uplo, A, ipiv)
+            else
+                CUSOLVER.version() < v"11.7.2" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+                chkuplo(uplo)
+                n = checksquare(A)
+                lda = max(1, stride(A, 2))
+                dh = dense_handle()
+
+                function bufferSize()
+                    out = Ref{Cint}(0)
+                    $bname(dh, n, A, lda, out)
+                    return out[] * sizeof($elty)
+                end
+
+                with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                    $fname(dh, uplo, n, A, lda, CU_NULL,
+                           buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
+                end
+
+                info = @allowscalar dh.info[1]
+                chkargsok(info |> BlasInt)
+
+                return A, info
+            end
         end
     end
 end

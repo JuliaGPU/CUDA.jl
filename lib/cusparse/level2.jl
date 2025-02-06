@@ -1,16 +1,7 @@
 # sparse linear algebra functions that perform operations between sparse matrices and dense
 # vectors
 
-export mv!, sv2!, sv2, gemvi!
-
-"""
-    mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::CuVector, beta::Number, Y::CuVector, index::SparseChar)
-
-Performs `Y = alpha * op(A) * X + beta * Y`, where `op` can be nothing (`transa = N`),
-tranpose (`transa = T`) or conjugate transpose (`transa = C`).
-`X` and `Y` are dense vectors.
-"""
-mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::CuVector, beta::Number, Y::CuVector, index::SparseChar)
+export sv2!, sv2, gemvi!
 
 for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                      (:cusparseDbsrmv, :Float64),

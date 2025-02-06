@@ -79,6 +79,24 @@ end
         @test !occursin("jl_invoke", ir)
         CUDA.code_ptx(devnull, kernel, tt)
     end
+
+    # test that we don't do needless bounds checking when the kernel already does it
+    # (enabled by the fact that we store `len` next to `dims`)
+    let
+        function kernel(A)
+            idx = threadIdx().x
+            if idx <= length(A)
+                # we did our own bounds checking, so no check should be left!
+                A[idx] = 1
+            end
+            return
+        end
+
+        for N in 1:3
+            ir = sprint(io->CUDA.code_llvm(io, kernel, Tuple{CuDeviceArray{Int,N,AS.Global}}))
+            @test !occursin("boundserror", ir)
+        end
+    end
 end
 
 @testset "views" begin

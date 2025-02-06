@@ -7,9 +7,6 @@
 #
 # To update the types of arguments, add `api.<function>.argtypes` to a library's TOML file.
 
-# TODO
-# - deal with NVML's `NVML_STRUCT_VERSION` (workaround: we ignore these symbols)
-
 using Clang
 using Clang.Generators
 
@@ -126,7 +123,7 @@ function rewriter!(ctx, options)
                 lhs, rhs = expr.args
                 if rhs isa Expr && rhs.head == :call
                     name = string(rhs.args[1])
-                    if endswith(name, "STRUCT_SIZE")
+                    if endswith(name, "STRUCT_SIZE") || endswith(name, "STRUCT_VERSION")
                         rhs.head = :macrocall
                         rhs.args[1] = Symbol("@", name)
                         insert!(rhs.args, 2, nothing)
@@ -182,14 +179,20 @@ function rewriter!(ctx, options)
                     push!(names, fn[1:end-3])
                 end
 
+                # versioned functions are aliased to the unversioned name, so we can
+                # reuse the same type rewrites.
+                if occursin("_v", fn)
+                    push!(names, replace(fn, r"_v\d+" => ""))
+                end
+
                 # look for a template rewrite: many libraries have very similar functions,
                 # e.g., `cublas[SDHCZ]gemm`, for which we can use the same type rewrites
                 # registered as `cublas𝕏gemm` template with `T` and `S` placeholders.
                 for name in copy(names), (typcode,(T,S)) in ["S"=>("Cfloat","Cfloat"),
-                                                              "D"=>("Cdouble","Cdouble"),
-                                                              "H"=>("Float16","Float16"),
-                                                              "C"=>("cuComplex","Cfloat"),
-                                                              "Z"=>("cuDoubleComplex","Cdouble")]
+                                                             "D"=>("Cdouble","Cdouble"),
+                                                             "H"=>("Float16","Float16"),
+                                                             "C"=>("cuComplex","Cfloat"),
+                                                             "Z"=>("cuDoubleComplex","Cdouble")]
                     idx = findfirst(typcode, name)
                     while idx !== nothing
                         template_name = name[1:idx.start-1] * "𝕏" * name[idx.stop+1:end]
@@ -265,7 +268,8 @@ function main(name="all")
     end
 
     if name == "all" || name == "nvml"
-        wrap("nvml", ["$cuda/nvml.h"]; include_dirs=[cuda])
+        wrap("nvml", ["$cuda/nvml.h"]; include_dirs=[cuda],
+             defines=["NVML_NO_UNVERSIONED_FUNC_DEFS=0"])
     end
 
     if name == "all" || name == "cupti"

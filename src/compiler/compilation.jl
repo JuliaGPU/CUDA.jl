@@ -247,6 +247,11 @@ end
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
+# a version of `sizeof` that returns the size of the argument we'll pass.
+# for example, it supports Symbols where `sizeof(Symbol)` would fail.
+argsize(x::Any) = sizeof(x)
+argsize(::Type{Symbol}) = sizeof(Ptr{Cvoid})
+
 # compile to executable machine code
 function compile(@nospecialize(job::CompilerJob))
     # lower to PTX
@@ -286,7 +291,7 @@ function compile(@nospecialize(job::CompilerJob))
     argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
         !isghosttype(dt) && !Core.Compiler.isconstType(dt)
     end
-    param_usage = sum(sizeof, argtypes)
+    param_usage = sum(argsize, argtypes)
     param_limit = 4096
     if cap >= v"7.0" && ptx >= v"8.1"
         param_limit = 32764

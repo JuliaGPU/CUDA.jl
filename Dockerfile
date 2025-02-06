@@ -27,14 +27,15 @@ LABEL org.opencontainers.image.authors="Tim Besard <tim.besard@gmail.com>" \
 
 # system-wide packages
 
-# no trailing ':' as to ensure we don't touch anything outside this directory. without it,
-# Julia touches the compilecache timestamps in its shipped depot (for some reason; a bug?)
-ENV JULIA_DEPOT_PATH=/usr/local/share/julia
+ENV JULIA_DEPOT_PATH=/usr/local/share/julia:
 
 # pre-install the CUDA toolkit from an artifact. we do this separately from CUDA.jl so that
 # this layer can be cached independently. it also avoids double precompilation of CUDA.jl in
 # order to call `CUDA.set_runtime_version!`.
-RUN julia -e '#= configure the preference =# \
+RUN julia -e '#= make bundled depot non-writable (JuliaLang/Pkg.jl#4120) =# \
+              bundled_depot = last(DEPOT_PATH); \
+              run(`find $bundled_depot/compiled -type f -writable -exec chmod -w \{\} \;`); \
+              #= configure the preference =# \
               env = "/usr/local/share/julia/environments/v$(VERSION.major).$(VERSION.minor)"; \
               mkpath(env); \
               write("$env/LocalPreferences.toml", \
@@ -42,7 +43,9 @@ RUN julia -e '#= configure the preference =# \
               \
               #= install the JLL =# \
               using Pkg; \
-              Pkg.add("CUDA_Runtime_jll")' && \
+              Pkg.add("CUDA_Runtime_jll"); \
+              #= revert bundled depot changes =# \
+              run(`find $bundled_depot/compiled -type f -writable -exec chmod +w \{\} \;`)' && \
     #= demote the JLL to an [extras] dep =# \
     find /usr/local/share/julia/environments -name Project.toml -exec sed -i 's/deps/extras/' {} + && \
     #= remove nondeterminisms =# \
@@ -69,7 +72,6 @@ RUN mkdir -m 0777 /depot
 
 # we add the user environment from a start-up script
 # so that the user can mount `/depot` for persistency
-ENV JULIA_DEPOT_PATH=/usr/local/share/julia:
 COPY <<EOF /usr/local/share/julia/config/startup.jl
 if !isdir("/depot/environments/v$(VERSION.major).$(VERSION.minor)")
     if isinteractive() && Base.JLOptions().quiet == 0

@@ -295,6 +295,62 @@ for (fname, fname_64, elty, sty) in ((:cublasSrot_v2, :cublasSrot_v2_64, :Float3
     end
 end
 
+## rotg
+for (fname, elty) in ((:cublasSrotg_v2, :Float32),
+                      (:cublasDrotg_v2, :Float64),
+                      (:cublasCrotg_v2, :ComplexF32),
+                      (:cublasZrotg_v2, :ComplexF64),
+                     )
+    @eval begin
+        function rotg!(a::$elty, b::$elty)
+            c = Ref{real($elty)}(zero(real($elty)))
+            s = Ref{$elty}(zero($elty))
+            ref_a = Ref(a)
+            ref_b = Ref(b)
+            $fname(handle(), ref_a, ref_b, c, s)
+            ref_a[], ref_b[], c[], s[]
+        end
+    end
+end
+
+## rotm
+for (fname, fname_64, elty) in ((:cublasSrotm_v2, :cublasSrotm_v2_64, :Float32),
+                                (:cublasDrotm_v2, :cublasDrotm_v2_64, :Float64),
+                               )
+    @eval begin
+        function rotm!(n::Integer,
+                       x::StridedCuVecOrDenseMat{$elty},
+                       y::StridedCuVecOrDenseMat{$elty},
+                       param::AbstractVector{$elty})
+            if CUBLAS.version() >= v"12.0"
+                $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1), param)
+            else
+                $fname(handle(), n, x, stride(x, 1), y, stride(y, 1), param)
+            end
+            x, y
+        end
+    end
+end
+
+## rotmg
+for (fname, elty) in ((:cublasSrotmg_v2, :Float32),
+                      (:cublasDrotmg_v2, :Float64))
+    @eval begin
+        function rotmg!(d1::$elty,
+                        d2::$elty,
+                        x::$elty,
+                        y::$elty,
+                        param::AbstractVector{$elty})
+            ref_d1 = Ref(d1)
+            ref_d2 = Ref(d2)
+            ref_x  = Ref(x)
+            ref_y  = Ref(y)
+            $fname(handle(), ref_d1, ref_d2, ref_x, ref_y, param)
+            ref_d1[], ref_d2[], ref_x[], ref_y[], param 
+        end
+    end
+end
+
 ## swap
 for (fname, fname_64, elty) in ((:cublasSswap_v2, :cublasSswap_v2_64, :Float32),
                                 (:cublasDswap_v2, :cublasDswap_v2_64, :Float64),
@@ -424,15 +480,16 @@ for (fname, fname_64, eltyin, eltyout) in (
             if length(A) != length(x) || length(A) != length(y)
                 throw(DimensionMismatch("Lengths of inputs must be the same"))
             end
+            m = size(A[1], 1)
+            n = size(A[1], 2)
             for (i, (As,xs,ys)) in enumerate(zip(A,x,y))
-                m,n = size(As)
+                if size(As) != (m, n)
+                    throw(DimensionMismatch("A[$i] has different dimension from A[1]. Dimensions between A's should be identical."))
+                end
                 if length(xs) != (trans == 'N' ? n : m) || length(ys) != (trans == 'N' ? m : n)
                     throw(DimensionMismatch("Input $i: A has dimension $(size(As)), x has dimension $(size(xs)), y has dimension $(size(ys))"))
                 end
             end
-
-            m = size(A[1], trans == 'N' ? 1 : 2)
-            n = size(A[1], trans == 'N' ? 2 : 1)
             lda = max(1,stride(A[1],2))
             incx = stride(x[1],1)
             incy = stride(y[1],1)
@@ -470,9 +527,9 @@ for (fname, fname_64, eltyin, eltyout) in (
             if size(A, 3) != size(x, 2) || size(A, 3) != size(y, 2)
                 throw(DimensionMismatch("Batch sizes must be equal for all inputs"))
             end
-            m = size(A, trans == 'N' ? 1 : 2)
-            n = size(A, trans == 'N' ? 2 : 1)
-            if m != size(y, 1) || n != size(x, 1)
+            m = size(A, 1)
+            n = size(A, 2)
+            if size(y, 1) != (trans == 'N' ? m : n) || size(x, 1) != (trans == 'N' ? n : m)
                 throw(DimensionMismatch("A has dimension $(size(A)), x has dimension $(size(x)), y has dimension $(size(y))"))
             end
 

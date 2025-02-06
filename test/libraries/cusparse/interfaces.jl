@@ -128,10 +128,11 @@ using LinearAlgebra, SparseArrays
         end
     end
 
-    for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+    for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
 
         if CUSPARSE.version() >= v"11.7.4"
             @testset "CuMatrix * $SparseMatrixType -- A * B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+                (SparseMatrixType == CuSparseMatrixBSR) && continue
                 for opa in (identity, transpose, adjoint)
                     for opb in (identity, transpose, adjoint)
                         CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && elty <: Complex && opb == adjoint && continue
@@ -155,6 +156,7 @@ using LinearAlgebra, SparseArrays
             end
 
             @testset "CuMatrix * $SparseMatrixType -- mul!(C, A, B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+                (SparseMatrixType == CuSparseMatrixBSR) && continue
                 for opa in (identity, transpose, adjoint)
                     for opb in (identity, transpose, adjoint)
                         CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && elty <: Complex && opb == adjoint && continue
@@ -183,6 +185,7 @@ using LinearAlgebra, SparseArrays
         end
 
         @testset "$SparseMatrixType * CuVector -- A * b $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            (SparseMatrixType == CuSparseMatrixBSR) && continue
             for opa in (identity, transpose, adjoint)
                 CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
                 n = 10
@@ -200,6 +203,7 @@ using LinearAlgebra, SparseArrays
         end
 
         @testset "$SparseMatrixType * CuVector -- mul!(c, A, b) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            (SparseMatrixType == CuSparseMatrixBSR) && continue
             for opa in (identity, transpose, adjoint)
                 CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
                 n = 10
@@ -221,8 +225,10 @@ using LinearAlgebra, SparseArrays
         end
 
         @testset "$SparseMatrixType * CuMatrix -- A * B $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-            for opa in (identity, transpose, adjoint)
-                for opb in (identity, transpose, adjoint)
+            (CUSPARSE.version() < v"12.5.1") && (SparseMatrixType == CuSparseMatrixBSR) && continue
+            @testset "opa = $(string(opa))" for opa in (identity, transpose, adjoint)
+                (opa != identity) && (SparseMatrixType == CuSparseMatrixBSR) && continue
+                @testset "opb = $(string(opb))" for opb in (identity, transpose, adjoint)
                     CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
                     n = 10
                     k = 15
@@ -230,7 +236,7 @@ using LinearAlgebra, SparseArrays
                     A = opa == identity ? sprand(elty, m, k, 0.2) : sprand(elty, k, m, 0.2)
                     B = opb == identity ? rand(elty, k, n) : rand(elty, n, k)
 
-                    dA = SparseMatrixType(A)
+                    dA = (SparseMatrixType == CuSparseMatrixBSR) ? SparseMatrixType(A,1) : SparseMatrixType(A)
                     dB = CuArray(B)
 
                     C = opa(A) * opb(B)
@@ -241,8 +247,10 @@ using LinearAlgebra, SparseArrays
         end
 
         @testset "$SparseMatrixType * CuMatrix -- mul!(C, A, B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-            for opa in (identity, transpose, adjoint)
-                for opb in (identity, transpose, adjoint)
+            (CUSPARSE.version() < v"12.5.1") && (SparseMatrixType == CuSparseMatrixBSR) && continue
+            @testset "opa = $(string(opa))" for opa in (identity, transpose, adjoint)
+                (opa != identity) && (SparseMatrixType == CuSparseMatrixBSR) && continue
+                @testset "opb = $(string(opb))" for opb in (identity, transpose, adjoint)
                     CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
                     n = 10
                     k = 15
@@ -253,7 +261,7 @@ using LinearAlgebra, SparseArrays
                     B = opb == identity ? rand(elty, k, n) : rand(elty, n, k)
                     C = rand(elty, m, n)
 
-                    dA = SparseMatrixType(A)
+                    dA = (SparseMatrixType == CuSparseMatrixBSR) ? SparseMatrixType(A,1) : SparseMatrixType(A)
                     dB = CuArray(B)
                     dC = CuArray(C)
 
@@ -265,6 +273,7 @@ using LinearAlgebra, SparseArrays
         end
 
         @testset "$SparseMatrixType * CuSparseVector -- A * b $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            (SparseMatrixType == CuSparseMatrixBSR) && continue
             for opa in (identity, transpose, adjoint)
                 CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
                 n = 10
@@ -282,6 +291,7 @@ using LinearAlgebra, SparseArrays
         end
 
         @testset "$SparseMatrixType * CuSparseVector -- mul!(c, A, b) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            (SparseMatrixType == CuSparseMatrixBSR) && continue
             for opa in (identity, transpose, adjoint)
                 CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
                 n = 10

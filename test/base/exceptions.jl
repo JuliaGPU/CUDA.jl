@@ -52,7 +52,6 @@ let (proc, out, err) = julia_exec(`-g2 -e $script`)
     @test count(device_error_re, out) == 1
     @test count("BoundsError", out) == 1
     @test count("Out-of-bounds array access", out) == 1
-    @test occursin("] checkbounds at $(joinpath(".", "abstractarray.jl"))", out)
     @test occursin("] kernel at $(joinpath(".", "none"))", out)
 end
 
