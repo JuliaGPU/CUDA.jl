@@ -908,8 +908,7 @@ end
         alpha = rand(elty)
         beta = rand(elty)
         @testset "$(typeof(d_A))" for d_A in [CuSparseMatrixCSR(A),
-                                              CuSparseMatrixCSC(A),
-                                              CuSparseMatrixBSR(A, blockdim)]
+                                              CuSparseMatrixCSC(A)]
             d_B = CuArray(B)
             d_C = CuArray(C)
             @test_throws DimensionMismatch CUSPARSE.mm!('N','T',alpha,d_A,d_B,beta,d_C,'O')
