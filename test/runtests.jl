@@ -95,11 +95,6 @@ for name in keys(TestSuite.tests)
     pushfirst!(tests, "gpuarrays/$name")
     test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
 end
-## run CUBLAS tests before core/cudadrv to avoid badness related to the latter's
-## messing around with contexts
-pushfirst!(tests, "libraries/cublas/xt")
-pushfirst!(tests, "libraries/cublas/level3")
-pushfirst!(tests, "libraries/cublas/level3_gemm")
 ## finalize
 pushfirst!(tests, "core/initialization")
 unique!(tests)
@@ -377,8 +372,7 @@ try
                     # tests that muck with the context should not be timed with CUDA events,
                     # since they won't be valid at the end of the test anymore.
                     time_source = in(test, ["core/initialization",
-                                            "base/examples",
-                                            "base/exceptions"]) ? :julia : :cuda
+                                            "core/cudadrv"]) ? :julia : :cuda
 
                     # run the test
                     running_tests[test] = now()
@@ -401,6 +395,12 @@ try
                         p = recycle_worker(p)
                     else
                         print_testworker_stats(test, wrkr, resp)
+                    end
+
+                    # resetting the context breaks certain CUDA libraries,
+                    # so spawn a new worker when the test did so
+                    if test in ["core/initialization", "core/cudadrv"]
+                        p = recycle_worker(p)
                     end
                 end
 
