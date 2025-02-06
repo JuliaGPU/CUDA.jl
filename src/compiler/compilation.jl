@@ -3,10 +3,9 @@
 Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
     cap::VersionNumber
     ptx::VersionNumber
-    link_libdevice::Bool # Used by Reactant.jl
+    link_libdevice::Bool = true # Used by Reactant.jl
 end
 
-CUDACompilerParams(;cap::VersionNumber, ptx::VersionNumber) = CUDACompilerParams(cap=cap, ptx=ptx, link_libdevice=true)
 function Base.hash(params::CUDACompilerParams, h::UInt)
     h = hash(params.cap, h)
     h = hash(params.ptx, h)
@@ -20,18 +19,19 @@ const CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
 GPUCompiler.runtime_module(@nospecialize(job::CUDACompilerJob)) = CUDA
 
 # filter out functions from libdevice and cudadevrt
-GPUCompiler.isintrinsic(@nospecialize(job::CUDACompilerJob), fn::String) =
-    invoke(GPUCompiler.isintrinsic,
-           Tuple{CompilerJob{PTXCompilerTarget}, typeof(fn)},
-           job, fn) ||
-    fn == "__nvvm_reflect" || startswith(fn, "cuda")
+function GPUCompiler.isintrinsic(@nospecialize(job::CUDACompilerJob), fn::String)
+    is_intrinsic = invoke(GPUCompiler.isintrinsic,
+                    Tuple{CompilerJob{PTXCompilerTarget}, typeof(fn)}, job, fn)
+    is_intrinsic |= fn == "__nvvm_reflect"
+    is_intrinsic |= startswith(fn, "cuda")
+    is_intrinsic |= !job.config.params.link_libdevice ? startswith(fn, "__nv_") : false # Reactant.jl wants to handle __nv_ functions
+    return is_intrinsic
+end
 
 # link libdevice
 function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module,
                                      undefined_fns::Vector{String})
-    if !job.config.params.link_libdevice
-        return # Don't link libdevice, used by Reactant.jl to raise NVVM intrinsics into MLIR
-    end
+    job.config.params.link_libdevice || return
     # only link if there's undefined __nv_ functions
     if !any(fn->startswith(fn, "__nv_"), undefined_fns)
         return
