@@ -225,6 +225,7 @@ k = 13
             end
             @test_throws DimensionMismatch CUBLAS.gemm_batched('N','N',alpha,bd_A,bd_bad)
         end
+
         @testset "gemmBatchedEx!" begin
             # C = (alpha*A)*B + beta*C
             CUBLAS.gemmBatchedEx!('N','N',alpha,bd_A,bd_B,beta,bd_C)
@@ -236,6 +237,7 @@ k = 13
             end
             @test_throws DimensionMismatch CUBLAS.gemmBatchedEx!('N','N',alpha,bd_A,bd_bad,beta,bd_C)
         end
+
         nbatch = 10
         bA = rand(elty, m, k, nbatch)
         bB = rand(elty, k, n, nbatch)
@@ -256,6 +258,7 @@ k = 13
             @test bC ≈ h_C
             @test_throws DimensionMismatch CUBLAS.gemm_strided_batched!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
         end
+
         @testset "gemmStridedBatchedEx!" begin
             CUBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, bd_B, beta, bd_C)
             for i in 1:nbatch
@@ -265,6 +268,7 @@ k = 13
             @test bC ≈ h_C
             @test_throws DimensionMismatch CUBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
         end
+
         @testset "gemm_strided_batched" begin
             bd_C = CUBLAS.gemm_strided_batched('N', 'N', bd_A, bd_B)
 
@@ -402,6 +406,7 @@ k = 13
                 @test C ≈ Array(dC) rtol=rtol
             end
         end
+
         # also test an unsupported combination (falling back to GPUArrays)
         if VERSION < v"1.11-"   # JuliaGPU/CUDA.jl#2441
             AT=BFloat16

@@ -26,8 +26,9 @@ k = 13
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
         @test testf(BLAS.asum, rand(T, m))
+
         @test testf(axpy!, rand(), rand(T, m), rand(T, m))
-        #@test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
+        @test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
         if T <: Complex
             @test testf(dot, rand(T, m), rand(T, m))
             x = rand(T, m)

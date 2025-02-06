@@ -1445,12 +1445,8 @@ for (fname, fname_64, elty) in ((:cublasSgemmGroupedBatched, :cublasSgemmGrouped
             Cptrs = unsafe_batch(reduce(vcat, C))
 
             try
-                ## XXX: does not seem to support device pointers
+                ## XXX: cublasXgemmGroupedBatched does not seem to support device pointers
                 cublasSetPointerMode_v2(handle(), CUBLAS_POINTER_MODE_HOST)
-
-                mode = Ref{cublasPointerMode_t}()
-                cublasGetPointerMode_v2(handle(), mode)
-                @show mode[]
 
                 if CUBLAS.version() >= v"12.0"
                     $fname_64(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
@@ -1507,12 +1503,19 @@ for (fname, fname_64, elty) in ((:cublasSgemmGroupedBatched, :cublasSgemmGrouped
             Bptrs = unsafe_batch(B)
             Cptrs = unsafe_batch(C)
 
-            if CUBLAS.version() >= v"12.0"
-                $fname_64(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
-                          Bptrs, ldb, beta, Cptrs, ldc, group_count, group_size)
-            else
-                $fname(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
-                          Bptrs, ldb, beta, Cptrs, ldc, group_count, group_size)
+            try
+                ## XXX: cublasXgemmGroupedBatched does not seem to support device pointers
+                cublasSetPointerMode_v2(handle(), CUBLAS_POINTER_MODE_HOST)
+
+                if CUBLAS.version() >= v"12.0"
+                    $fname_64(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
+                              Bptrs, ldb, beta, Cptrs, ldc, group_count, group_size)
+                else
+                    $fname(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
+                              Bptrs, ldb, beta, Cptrs, ldc, group_count, group_size)
+                end
+            finally
+                cublasSetPointerMode_v2(handle(), CUBLAS_POINTER_MODE_DEVICE)
             end
             unsafe_free!(Cptrs)
             unsafe_free!(Bptrs)
