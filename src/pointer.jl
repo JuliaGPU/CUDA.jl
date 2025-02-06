@@ -258,6 +258,16 @@ end
 Base.unsafe_convert(::Type{CuPtr{Cvoid}}, b::CuRefArray{T}) where {T} =
     convert(CuPtr{Cvoid}, Base.unsafe_convert(CuPtr{T}, b))
 
+function Base.getindex(gpu::CuRefArray{T}) where {T}
+    cpu = Ref{T}()
+    GC.@preserve cpu begin
+        cpu_ptr = Base.unsafe_convert(Ptr{T}, cpu)
+        gpu_ptr = pointer(gpu.x, gpu.i)
+        unsafe_copyto!(cpu_ptr, gpu_ptr, 1)
+    end
+    cpu[]
+end
+
 
 ## Union with all CuRef 'subtypes'
 

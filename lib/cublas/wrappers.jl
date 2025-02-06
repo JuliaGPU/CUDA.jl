@@ -182,9 +182,9 @@ function dot(
         x::StridedCuVecOrDenseMat{T},
         y::StridedCuVecOrDenseMat{T},
     ) where {T <: Union{Float32, Float64}}
-    gpu_result = CuRef{T}(zero(T))
-    gpu_result = dot(n, x, y, gpu_result)
-    return only(Array(gpu_result.x))
+    result = CuRef{T}()
+    dot(n, x, y, result)
+    return result[]
 end
 
 function dotc(
@@ -192,9 +192,9 @@ function dotc(
         x::StridedCuVecOrDenseMat{T},
         y::StridedCuVecOrDenseMat{T},
     ) where {T <: Union{ComplexF32, ComplexF64}}
-    gpu_result = CuRef{T}(zero(T))
-    gpu_result = dotc(n, x, y, gpu_result)
-    return only(Array(gpu_result.x))
+    result = CuRef{T}()
+    dotc(n, x, y, result)
+    return result[]
 end
 
 function dotu(
@@ -202,9 +202,9 @@ function dotu(
         x::StridedCuVecOrDenseMat{T},
         y::StridedCuVecOrDenseMat{T},
     ) where {T <: Union{ComplexF32, ComplexF64}}
-    gpu_result = CuRef{T}(zero(T))
-    gpu_result = dotu(n, x, y, gpu_result)
-    return only(Array(gpu_result.x))
+    result = CuRef{T}()
+    dotu(n, x, y, result)
+    return result[]
 end
 
 function dot(n::Integer, x::StridedCuVecOrDenseMat{Float16}, y::StridedCuVecOrDenseMat{Float16}, result)
@@ -212,9 +212,9 @@ function dot(n::Integer, x::StridedCuVecOrDenseMat{Float16}, y::StridedCuVecOrDe
     return result
 end
 function dot(n::Integer, x::StridedCuVecOrDenseMat{Float16}, y::StridedCuVecOrDenseMat{Float16})
-    gpu_result = CuRef{Float16}(zero(Float16))
-    gpu_result = dot(n, x, y, gpu_result)
-    return only(Array(gpu_result.x))
+    result = CuRef{Float16}()
+    dot(n, x, y, result)
+    return result[]
 end
 function dotc(n::Integer, x::StridedCuVecOrDenseMat{ComplexF16}, y::StridedCuVecOrDenseMat{ComplexF16})
     convert(ComplexF16, dotc(n, convert(CuArray{ComplexF32}, x), convert(CuArray{ComplexF32}, y)))
@@ -244,9 +244,9 @@ for (fname, fname_64, elty, ret_type) in ((:cublasDnrm2_v2, :cublasDnrm2_v2_64, 
                 n::Integer,
                 X::StridedCuVecOrDenseMat{$elty}
             )
-            gpu_result = CuRef{$ret_type}(zero($ret_type))
-            gpu_result = nrm2(n, X, gpu_result)
-            return only(Array(gpu_result.x))
+            result = CuRef{$ret_type}()
+            nrm2(n, X, result)
+            return result[]
         end
     end
 end
@@ -259,15 +259,15 @@ function nrm2(n::Integer, x::StridedCuVecOrDenseMat{Float16}, result)
     return result
 end
 function nrm2(n::Integer, x::StridedCuVecOrDenseMat{Float16})
-    gpu_result = CuRef{Float16}(zero(Float16))
-    nrm2(n, x, gpu_result)
-    return only(Array(gpu_result.x))
+    result = CuRef{Float16}()
+    nrm2(n, x, result)
+    return result[]
 end
 function nrm2(n::Integer, x::StridedCuVecOrDenseMat{ComplexF16})
     wide_x = widen.(x)
-    wide_result = CuRef{Float32}(zero(Float32))
-    wide_result = nrm2(n, wide_x, wide_result)
-    return convert(Float16, only(Array(wide_result.x)))
+    wide_result = CuRef{Float32}()
+    nrm2(n, wide_x, wide_result)
+    return convert(Float16, wide_result[])
 end
 
 ## asum
@@ -291,9 +291,9 @@ for (fname, fname_64, elty, ret_type) in ((:cublasDasum_v2, :cublasDasum_v2_64, 
                 n::Integer,
                 x::StridedCuVecOrDenseMat{$elty}
             )
-            gpu_result = CuRef{$ret_type}(zero($ret_type))
-            gpu_result = asum(n, x, gpu_result)
-            return only(Array(gpu_result.x))
+            result = CuRef{$ret_type}()
+            asum(n, x, result)
+            return result[]
         end
     end
 end
@@ -496,9 +496,9 @@ for fname in (:iamax, :iamin)
     @eval begin
         function $fname(n::Integer, dx::StridedCuVecOrDenseMat)
             result_type = CUBLAS.version() >= v"12.0" ? Int64 : Cint
-            gpu_result = CuRef{result_type}(zero(result_type))
-            gpu_result = $fname(n, dx, gpu_result)
-            return only(Array(gpu_result.x))
+            result = CuRef{result_type}()
+            $fname(n, dx, gpu_result)
+            return result[]
         end
         $fname(dx::StridedCuVecOrDenseMat) = $fname(length(dx), dx)
         $fname(dx::StridedCuVecOrDenseMat, result) = $fname(length(dx), dx, result)
